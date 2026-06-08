@@ -89,7 +89,7 @@ DODGE_SPEED          = 20.0     # px/tick during the sidestep
 # ---------------------------------------------------------------------------
 CRESCENT_SPEED     = 0.0        # px/tick the arc travels forward
 CRESCENT_LIFETIME  = 5          # ticks before it fully fades
-CRESCENT_AHEAD     = 1          # px ahead of figure centre the arc starts
+CRESCENT_AHEAD     = -2         # px ahead of figure centre the arc starts
 CRESCENT_RADIUS    = 30         # radius of the arc curve
 CRESCENT_SPAN      = 270        # total arc angle (degrees)
 CRESCENT_WIDTH     = 3.5        # stroke width
