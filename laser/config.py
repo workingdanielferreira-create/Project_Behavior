@@ -77,6 +77,10 @@ SLASH_RADIUS      = 180.0
 SLASH_SPEED_MUL   = 9.0
 SLASH_HIT_RADIUS  = 20.0
 SLASH_ANIM_SPD    = 3
+COMBO_MAX               = 2     # max follow-up dashes per combo string
+COMBO_COOLDOWN_TICKS    = 125   # ticks before follow-ups available again (~2 s at 62 fps)
+COMBO_TRAVEL_TICKS_MIN  = 0     # follow-up dash travel time range in ticks (0 s)
+COMBO_TRAVEL_TICKS_MAX  = 31    # follow-up dash travel time range in ticks (~0.5 s)
 
 # ---------------------------------------------------------------------------
 # Swordsman dodge sidestep

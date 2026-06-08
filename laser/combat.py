@@ -195,6 +195,10 @@ def advance_combat(fig, slash_target, fallback):
     if not bundle.slash:
         return False  # this mode has no melee capability
 
+    # --- Combo follow-up cooldown tick ---
+    if c.combo_cooldown_ticks > 0:
+        c.combo_cooldown_ticks -= 1
+
     # --- Crescent advance + cull (emission happens on dash hit) ---
     if c.crescents:
         live = []
@@ -227,25 +231,46 @@ def advance_combat(fig, slash_target, fallback):
                     # --- Follow-up combo dash ---
                     if c.combo_pending and slash_target is not None:
                         c.combo_pending = False
-                        tx, ty = slash_target
-                        if c.combo_count == 1:
-                            approach = math.atan2(t.y - ty, t.x - tx)
-                            arc_off = rng.choice([1, -1]) * rng.uniform(
-                                math.radians(90), math.radians(150))
-                            fa = approach + arc_off
-                            fd = config.SLASH_RADIUS * 0.9
-                            t.x = tx + math.cos(fa) * fd
-                            t.y = ty + math.sin(fa) * fd
-                        ddx, ddy = tx - t.x, ty - t.y
-                        ddist = (ddx * ddx + ddy * ddy) ** 0.5
-                        if ddist > config.SLASH_HIT_RADIUS:
-                            inv = 1.0 / ddist
-                            lspd = m.speed * config.SLASH_SPEED_MUL
-                            c.slash_vx = ddx * inv * lspd
-                            c.slash_vy = ddy * inv * lspd
-                            c.slash_dist_budget = ddist * 4.0
-                            c.dashing = True
-                            c.rebounding = False
+                        # Enforce max follow-ups and cooldown.
+                        if (c.combo_follow_ups >= config.COMBO_MAX
+                                or c.combo_cooldown_ticks > 0):
+                            # Exhausted or on cooldown — start/extend cooldown,
+                            # reset follow-up counter, and skip the dash.
+                            c.combo_cooldown_ticks = config.COMBO_COOLDOWN_TICKS
+                            c.combo_follow_ups = 0
+                        else:
+                            c.combo_follow_ups += 1
+                            tx, ty = slash_target
+                            if c.combo_count == 1:
+                                approach = math.atan2(t.y - ty, t.x - tx)
+                                arc_off = rng.choice([1, -1]) * rng.uniform(
+                                    math.radians(90), math.radians(150))
+                                fa = approach + arc_off
+                                fd = config.SLASH_RADIUS * 0.9
+                                t.x = tx + math.cos(fa) * fd
+                                t.y = ty + math.sin(fa) * fd
+                            ddx, ddy = tx - t.x, ty - t.y
+                            ddist = (ddx * ddx + ddy * ddy) ** 0.5
+                            if ddist > config.SLASH_HIT_RADIUS:
+                                inv = 1.0 / ddist
+                                lspd = m.speed * config.SLASH_SPEED_MUL
+                                c.slash_vx = ddx * inv * lspd
+                                c.slash_vy = ddy * inv * lspd
+                                # Randomise travel time between 0 and 0.5 s.
+                                travel_ticks = rng.randint(
+                                    config.COMBO_TRAVEL_TICKS_MIN,
+                                    config.COMBO_TRAVEL_TICKS_MAX)
+                                if travel_ticks > 0:
+                                    spd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                                    c.slash_dist_budget = spd * travel_ticks
+                                else:
+                                    c.slash_dist_budget = 0.0
+                                c.dashing = True
+                                c.rebounding = False
+                            # If this was the last allowed follow-up, start cooldown.
+                            if c.combo_follow_ups >= config.COMBO_MAX:
+                                c.combo_cooldown_ticks = config.COMBO_COOLDOWN_TICKS
+                                c.combo_follow_ups = 0
         fig.face(ox, oy)
         fig.trail.update(t.x, t.y, t.facing_left, False, False)
         fig.render.is_moving = False
