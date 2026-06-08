@@ -307,15 +307,10 @@ class CollisionSystem(System):
                         nvx = ddx * inv
                         nvy = ddy * inv
                         if m.bouncing:
-                            # Already airborne: reverse current travel direction,
-                            # preserving speed so the figure snaps back the way it came.
-                            spd = (m.bounce_vx ** 2 + m.bounce_vy ** 2) ** 0.5
-                            if spd > 0.001:
-                                m.bounce_vx = -(m.bounce_vx / spd) * spd
-                                m.bounce_vy = -(m.bounce_vy / spd) * spd
-                            else:
-                                m.bounce_vx = -nvx
-                                m.bounce_vy = -nvy
+                            # Already airborne: launch opposite to the collision
+                            # source — away from the collider's direction.
+                            m.bounce_vx = -nvx
+                            m.bounce_vy = -nvy
                         else:
                             m.bounce_vx = nvx
                             m.bounce_vy = nvy
