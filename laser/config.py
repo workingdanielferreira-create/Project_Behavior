@@ -89,7 +89,7 @@ DODGE_SPEED          = 20.0     # px/tick during the sidestep
 # ---------------------------------------------------------------------------
 CRESCENT_SPEED     = 0.0        # px/tick the arc travels forward
 CRESCENT_LIFETIME  = 5          # ticks before it fully fades
-CRESCENT_AHEAD     = -2         # px ahead of figure centre the arc starts
+CRESCENT_AHEAD     = -10        # px ahead of figure centre the arc starts
 CRESCENT_RADIUS    = 30         # radius of the arc curve
 CRESCENT_SPAN      = 270        # total arc angle (degrees)
 CRESCENT_WIDTH     = 3.5        # stroke width
@@ -113,7 +113,7 @@ BATTLE_BODY_HIT_SQ        = 18.0 * 18.0
 BATTLE_BODY_PUSH          = 14.0
 DASH_HIT_KNOCKBACK_PX     = 60.0   # target travels this many px when struck by a dash-slash
 BATTLE_PROJ_HIT_SQ   = 20.0 * 20.0
-HIT_POWER_BASE       = 12.0
+HIT_POWER_BASE       = 30.0
 HIT_POWER_STEP       = 3.0
 HIT_POWER_MAX        = 1000.0
 WALL_ZONE            = 250       # px from edge where soft repulsion begins
