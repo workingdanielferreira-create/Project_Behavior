@@ -89,7 +89,7 @@ DODGE_SPEED          = 20.0     # px/tick during the sidestep
 # ---------------------------------------------------------------------------
 CRESCENT_SPEED     = 0.0        # px/tick the arc travels forward
 CRESCENT_LIFETIME  = 5          # ticks before it fully fades
-CRESCENT_AHEAD     = 0          # px ahead of figure centre the arc starts
+CRESCENT_AHEAD     = 1          # px ahead of figure centre the arc starts
 CRESCENT_RADIUS    = 30         # radius of the arc curve
 CRESCENT_SPAN      = 270        # total arc angle (degrees)
 CRESCENT_WIDTH     = 3.5        # stroke width
@@ -149,9 +149,9 @@ MODE_ORDER = ["runner", "swordsman"]
 # ---------------------------------------------------------------------------
 # Collision impact dot FX
 # ---------------------------------------------------------------------------
-# At ~62 fps: appear for ~0.5 s then fade over ~0.5 s → total lifetime ~1 s
-COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness
-COLLISION_DOT_FADE    = 31   # ticks it takes to fade to transparent
+# At ~62 fps: appear for ~0.5 s then fade over ~0.3 s → total lifetime ~0.8 s
+COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
+COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
 COLLISION_DOT_RADIUS  = 20   # px
 
 
