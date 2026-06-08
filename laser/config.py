@@ -109,8 +109,9 @@ SHOOT_INTERVAL    = 32          # ticks between shots in non-battle shoot mode
 # ---------------------------------------------------------------------------
 # Battle / AI
 # ---------------------------------------------------------------------------
-BATTLE_BODY_HIT_SQ   = 18.0 * 18.0
-BATTLE_BODY_PUSH     = 14.0
+BATTLE_BODY_HIT_SQ        = 18.0 * 18.0
+BATTLE_BODY_PUSH          = 14.0
+DASH_HIT_KNOCKBACK_PX     = 60.0   # target travels this many px when struck by a dash-slash
 BATTLE_PROJ_HIT_SQ   = 20.0 * 20.0
 HIT_POWER_BASE       = 12.0
 HIT_POWER_STEP       = 3.0
@@ -152,4 +153,6 @@ MODE_ORDER = ["runner", "swordsman"]
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness
 COLLISION_DOT_FADE    = 31   # ticks it takes to fade to transparent
 COLLISION_DOT_RADIUS  = 20   # px
+
+
 
