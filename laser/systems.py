@@ -326,11 +326,31 @@ class IpcSystem(System):
         ipc.write_figures(world.figures)
         ipc.write_projectiles(world.projectiles)
 
+        # Collect any pending dash-slash knockback from this tick and write it.
+        kb_vx = kb_vy = 0.0
+        kb_pending = False
+        for fig in world.figures:
+            if fig.combat.hit_pending:
+                kb_vx, kb_vy = fig.combat.hit_vx, fig.combat.hit_vy
+                kb_pending = True
+                fig.combat.hit_pending = False
+        ipc.write_knockback(kb_vx, kb_vy, kb_pending)
+
         was_battle = world.battle_mode
         world.battle_mode = ipc.partner_alive()
         if world.battle_mode:
             world.partner_figures = ipc.read_partner_figures()
             world.enemy_projs = ipc.read_partner_projectiles()
+            # Apply any knockback the partner sent this tick.
+            pvx, pvy, ppending = ipc.read_partner_knockback()
+            if ppending:
+                ipc.clear_partner_knockback()
+                for fig in world.figures:
+                    m = fig.motion
+                    if m.bouncing or m.bounce_ending:
+                        continue
+                    m.bounce_vx, m.bounce_vy = pvx, pvy
+                    m.bouncing = True
         else:
             world.partner_figures = []
             world.enemy_projs = []
