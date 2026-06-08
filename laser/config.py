@@ -152,7 +152,7 @@ MODE_ORDER = ["runner", "swordsman"]
 # At ~62 fps: appear for ~0.5 s then fade over ~0.3 s → total lifetime ~0.8 s
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
-COLLISION_DOT_RADIUS  = 20   # px
+COLLISION_DOT_RADIUS  = 5    # px
 
 
 
