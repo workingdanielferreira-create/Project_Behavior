@@ -282,6 +282,9 @@ class CollisionSystem(System):
         if world.partner_figures:
             bsq = config.BATTLE_BODY_HIT_SQ
             push = config.BATTLE_BODY_PUSH
+            # Launch speed that produces DASH_HIT_KNOCKBACK_PX total travel
+            # under BOUNCE_FRICTION per tick: v = dist * (1 - friction).
+            dash_push_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
             for fig in world.figures:
                 m = fig.motion
                 if m.bouncing or m.bounce_ending:
@@ -294,7 +297,12 @@ class CollisionSystem(System):
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
-                        inv = push / (d_sq ** 0.5)
+                        dist = d_sq ** 0.5
+                        if edash:
+                            # Dash-slash hit: fixed 60 px knockback distance.
+                            inv = dash_push_spd / dist
+                        else:
+                            inv = push / dist
                         m.bounce_vx = ddx * inv
                         m.bounce_vy = ddy * inv
                         m.bouncing = True
