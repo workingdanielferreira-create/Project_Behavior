@@ -191,7 +191,8 @@ class Combatant:
                  "combo_count", "combo_pending", "combo_target",
                  "dodge_dashing", "dodge_vx", "dodge_vy", "dodge_dist_budget",
                  "dodge_interrupt", "dodge_counter",
-                 "crescents", "acted")
+                 "crescents", "acted",
+                 "hit_pending", "hit_vx", "hit_vy")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -210,6 +211,8 @@ class Combatant:
         self.dodge_counter = False
         self.crescents = []
         self.acted = False   # set each tick by CombatSystem; MotionSystem reads it
+        self.hit_pending = False  # True when a dash-slash landed this tick
+        self.hit_vx = self.hit_vy = 0.0  # knockback impulse direction for partner
 
     def reset(self):
         self.__init__()
