@@ -144,3 +144,12 @@ MODE_CONFIGS = {
 
 # Order modes cycle through with Alt+Left / Alt+Right.
 MODE_ORDER = ["runner", "swordsman"]
+
+# ---------------------------------------------------------------------------
+# Collision impact dot FX
+# ---------------------------------------------------------------------------
+# At ~62 fps: appear for ~0.5 s then fade over ~0.5 s → total lifetime ~1 s
+COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness
+COLLISION_DOT_FADE    = 31   # ticks it takes to fade to transparent
+COLLISION_DOT_RADIUS  = 20   # px
+
