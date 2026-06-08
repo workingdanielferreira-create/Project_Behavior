@@ -268,6 +268,17 @@ def advance_combat(fig, slash_target, fallback):
                     # Crescent aimed at the struck target.
                     r, g, b = fig.lut[80]
                     c.crescents.append(CrescentWave(t.x, t.y, tx, ty, (r, g, b)))
+                    # Signal knockback to partner process via IPC.
+                    kb_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
+                    ddx2, ddy2 = tx - t.x, ty - t.y
+                    ddist2 = (ddx2 * ddx2 + ddy2 * ddy2) ** 0.5
+                    if ddist2 > 0.001:
+                        c.hit_vx = (ddx2 / ddist2) * kb_spd
+                        c.hit_vy = (ddy2 / ddist2) * kb_spd
+                    else:
+                        c.hit_vx = c.slash_vx / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
+                        c.hit_vy = c.slash_vy / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
+                    c.hit_pending = True
                     if c.combo_count == 0:
                         c.combo_count = 2
                     if c.combo_count > 0:
