@@ -24,9 +24,11 @@ MAX_PROJS   = 16
 _FIG_FMT    = "<ffBB"
 _PROJ_FMT   = "<ffffBBBB"
 _HB_FMT     = "<d"
+_KB_FMT      = "<ffB"               # knockback: vx, vy, pending
 _FIG_STRIDE  = struct.calcsize(_FIG_FMT)    # 10
 _PROJ_STRIDE = struct.calcsize(_PROJ_FMT)   # 20
 _HB_SIZE     = struct.calcsize(_HB_FMT)     # 8
+_KB_STRIDE   = struct.calcsize(_KB_FMT)     # 9
 
 # Derived offsets ----------------------------------------------------------
 _CLAIMS      = 0
@@ -35,7 +37,9 @@ _FIG_BASE    = [_HB_BASE + 2 * _HB_SIZE,
                 _HB_BASE + 2 * _HB_SIZE + MAX_FIGS * _FIG_STRIDE]
 _PROJ_BASE   = [_FIG_BASE[1] + MAX_FIGS * _FIG_STRIDE,
                 _FIG_BASE[1] + MAX_FIGS * _FIG_STRIDE + MAX_PROJS * _PROJ_STRIDE]
-_SIZE        = _PROJ_BASE[1] + MAX_PROJS * _PROJ_STRIDE + 8   # +pad
+_KB_BASE     = [_PROJ_BASE[1] + MAX_PROJS * _PROJ_STRIDE,
+                _PROJ_BASE[1] + MAX_PROJS * _PROJ_STRIDE + _KB_STRIDE]
+_SIZE        = _KB_BASE[1] + _KB_STRIDE + 8   # +pad
 
 HEARTBEAT_MAX = 1.5   # seconds; partner considered dead past this
 
@@ -170,6 +174,18 @@ class IPCBridge:
             if alive:
                 out.append((x, y, vx, vy, r, g, b))
         return out
+
+    # knockback ------------------------------------------------------------
+    def write_knockback(self, vx, vy, pending):
+        self._write(_KB_BASE[self._slot], struct.pack(_KB_FMT, vx, vy, 1 if pending else 0))
+
+    def read_partner_knockback(self):
+        """Returns (vx, vy, pending) from the partner's knockback slot."""
+        vx, vy, pending = struct.unpack(_KB_FMT, self._read(_KB_BASE[self._partner()], _KB_STRIDE))
+        return vx, vy, bool(pending)
+
+    def clear_partner_knockback(self):
+        self._write(_KB_BASE[self._partner()], struct.pack(_KB_FMT, 0.0, 0.0, 0))
 
     # cleanup ---------------------------------------------------------------
     def release(self):
