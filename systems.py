@@ -103,8 +103,10 @@ class MotionSystem(System):
             if battle:
                 motion.update(fig, tx, ty, False, False, False)
             else:
-                motion.update(fig, tx, ty, world.collision_on,
-                              world.path_follow, world.runaway)
+                hit = motion.update(fig, tx, ty, world.collision_on,
+                                    world.path_follow, world.runaway)
+                if hit is not None:
+                    world.collision_dots.append([hit[0], hit[1], 0])
         for fig in world.figures:
             motion.check_walls(fig)
 
@@ -214,6 +216,7 @@ class CollisionSystem(System):
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
                         ai.battle_hit(fig, evx, evy)
+                        world.collision_dots.append([ex, ey, 0])
                         break
 
         # --- Swordsman bullet-dodge trigger ---
@@ -287,7 +290,7 @@ class CollisionSystem(System):
                 # dash-hit detection in the combat FSM.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
-                for ex, ey, _ed in world.partner_figures:
+                for ex, ey, edash in world.partner_figures:
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
@@ -295,6 +298,11 @@ class CollisionSystem(System):
                         m.bounce_vx = ddx * inv
                         m.bounce_vy = ddy * inv
                         m.bouncing = True
+                        # Dot only when at least one party is mid-dash
+                        if edash or (fig.mode.uses_melee() and fig.combat.dashing):
+                            cx = (fig.x + ex) * 0.5
+                            cy = (fig.y + ey) * 0.5
+                            world.collision_dots.append([cx, cy, 0])
                         break
 
 
@@ -333,3 +341,4 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
