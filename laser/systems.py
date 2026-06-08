@@ -287,7 +287,9 @@ class CollisionSystem(System):
             dash_push_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
             for fig in world.figures:
                 m = fig.motion
-                if m.bouncing or m.bounce_ending:
+                # bounce_ending is the slide-stop hold phase — don't interrupt it.
+                # bouncing (active travel) CAN be interrupted: new impulse stacks.
+                if m.bounce_ending:
                     continue
                 # A dashing swordsman passes through — its hit is handled by the
                 # dash-hit detection in the combat FSM.
@@ -299,15 +301,22 @@ class CollisionSystem(System):
                     if 0 < d_sq <= bsq:
                         dist = d_sq ** 0.5
                         if edash:
-                            # Dash-slash hit: fixed 60 px knockback distance.
                             inv = dash_push_spd / dist
                         else:
                             inv = push / dist
-                        m.bounce_vx = ddx * inv
-                        m.bounce_vy = ddy * inv
-                        m.bouncing = True
-                        # Dot only when at least one party is mid-dash
-                        if edash or (fig.mode.uses_melee() and fig.combat.dashing):
+                        nvx = ddx * inv
+                        nvy = ddy * inv
+                        if m.bouncing:
+                            # Already airborne: add the new impulse so the
+                            # collision redirects and compounds the travel.
+                            m.bounce_vx += nvx
+                            m.bounce_vy += nvy
+                        else:
+                            m.bounce_vx = nvx
+                            m.bounce_vy = nvy
+                            m.bouncing = True
+                        # Dot on every collision, including mid-knockback re-hits
+                        if edash or (fig.mode.uses_melee() and fig.combat.dashing) or m.bouncing:
                             cx = (fig.x + ex) * 0.5
                             cy = (fig.y + ey) * 0.5
                             world.collision_dots.append([cx, cy, 0])
