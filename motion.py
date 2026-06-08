@@ -11,7 +11,9 @@ from . import config
 
 
 def update(fig, tx, ty, collision_on, path_follow, runaway):
-    """Advance one figure's position toward (tx, ty) for this tick."""
+    """Advance one figure's position toward (tx, ty) for this tick.
+    Returns (cx, cy) if a cursor-collision bounce was triggered this tick,
+    otherwise None."""
     m = fig.motion
     t = fig.transform
 
@@ -22,6 +24,7 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
     m.runaway = runaway
 
     # Cursor-collision bounce trigger.
+    cursor_hit = None
     if collision_on and not m.bouncing and not m.bounce_ending:
         dx = tx - t.x
         dy = ty - t.y
@@ -31,6 +34,7 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
             m.bounce_vx = -dx * inv
             m.bounce_vy = -dy * inv
             m.bouncing = True
+            cursor_hit = (t.x, t.y)
 
     ox, oy = t.x, t.y
 
@@ -52,6 +56,7 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
     fig.face(ox, oy)
     fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving, path_follow)
     fig.render.advance()
+    return cursor_hit
 
 
 def _bounce(fig):
@@ -154,3 +159,4 @@ def check_walls(fig, margin=10):
             m.bounce_vy = abs(m.bounce_vy)
         elif t.y >= fig.screen_h - margin and m.bounce_vy > 0:
             m.bounce_vy = -abs(m.bounce_vy)
+
