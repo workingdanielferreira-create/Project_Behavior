@@ -66,6 +66,9 @@ class World:
         self.enemy_projs = []
         self.intercepted_bullets = set()
 
+        # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
+        self.collision_dots = []
+
         # Input bookkeeping
         self._ctrl_prev = False
         self.ctrl_used = False
@@ -230,6 +233,37 @@ class Overlay(QWidget):
             core.setColorAt(1.0, QColor(er, eg, eb, 180))
             p.setBrush(core)
             p.drawEllipse(hx - 5, hy - 5, 10, 10)
+
+        # --- Collision impact dots (rainbow radial, fade after hold period) ---
+        if w.collision_dots:
+            hold = config.COLLISION_DOT_HOLD
+            fade = config.COLLISION_DOT_FADE
+            total = hold + fade
+            rad = config.COLLISION_DOT_RADIUS
+            surviving = []
+            p.setPen(Qt.NoPen)
+            for dot in w.collision_dots:
+                dx, dy, age = dot
+                if age < hold:
+                    alpha = 255
+                else:
+                    alpha = int(255 * (1.0 - (age - hold) / fade))
+                if alpha > 0:
+                    # Rainbow hue cycles from 0–360 over the dot's lifetime
+                    hue = int((age / total) * 360) % 360
+                    col = QColor.fromHsv(hue, 255, 255, alpha)
+                    r2, g2, b2 = col.red(), col.green(), col.blue()
+                    gr = QRadialGradient(int(dx), int(dy), rad)
+                    gr.setColorAt(0.0, QColor(255, 255, 255, alpha))
+                    gr.setColorAt(0.35, QColor(r2, g2, b2, alpha))
+                    gr.setColorAt(1.0, QColor(r2, g2, b2, 0))
+                    p.setBrush(gr)
+                    p.drawEllipse(int(dx) - rad, int(dy) - rad, rad * 2, rad * 2)
+                    dot[2] += 1
+                if age + 1 < total:
+                    surviving.append(dot)
+            w.collision_dots = surviving
+
         p.end()
 
     def closeEvent(self, event):
@@ -249,3 +283,4 @@ def main():
     ret = app.exec_()
     overlay.world.ipc.release()
     sys.exit(ret)
+
