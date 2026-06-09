@@ -527,8 +527,10 @@ class CollisionSystem(System):
                 # bouncing (active travel) CAN be interrupted: new impulse stacks.
                 if m.bounce_ending:
                     continue
-                # A dashing swordsman passes through — its hit is handled by the
-                # dash-hit detection in the combat FSM.
+                # A dash-slashing swordsman is fully immune to figure-to-figure
+                # body collision — both as the attacker and as the target.
+                # The actual hit is handled exclusively by the dash-hit detection
+                # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
                 for ex, ey, edash in world.partner_figures:
@@ -552,11 +554,13 @@ class CollisionSystem(System):
                             m.bounce_vy = nvy
                             m.bouncing = True
                         # Dot on every collision, including mid-knockback re-hits
-                        if edash or (fig.mode.uses_melee() and fig.combat.dashing) or m.bouncing:
+                        if edash or m.bouncing:
                             cx = (fig.x + ex) * 0.5
                             cy = (fig.y + ey) * 0.5
                             world.collision_dots.append([cx, cy, 0])
-                        # Body collision costs 1 HP — unless the figure is parrying
+                        # Body collision costs 1 HP to the TARGET only.
+                        # Skip if parrying, or if the target is a swordsman
+                        # mid-dash-slash (immune — handled by the FSM instead).
                         if not fig.combat.parrying:
                             ai.apply_hp_damage(fig, world)
                         break
