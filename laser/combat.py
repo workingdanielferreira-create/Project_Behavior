@@ -65,19 +65,21 @@ class Projectile:
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
         glwr = max(1.0, self.radius * 3)
+        iglwr = int(glwr)
         grad = QRadialGradient(hx, hy, glwr)
         grad.setColorAt(0.0, QColor(r, g, b, int(140 * fade)))
         grad.setColorAt(1.0, QColor(r, g, b, 0))
         p.setPen(Qt.NoPen); p.setBrush(grad)
-        p.drawEllipse(hx - glwr, hy - glwr, glwr * 2, glwr * 2)
+        p.drawEllipse(hx - iglwr, hy - iglwr, iglwr * 2, iglwr * 2)
 
         rad = max(1.0, self.radius)
+        irad = int(rad)
         core = QRadialGradient(hx, hy, rad)
         core.setColorAt(0.0, QColor(255, 255, 255, int(240 * fade)))
         core.setColorAt(0.5, QColor(r, g, b, int(210 * fade)))
         core.setColorAt(1.0, QColor(r, g, b, int(140 * fade)))
         p.setBrush(core)
-        p.drawEllipse(hx - rad, hy - rad, rad * 2, rad * 2)
+        p.drawEllipse(hx - irad, hy - irad, irad * 2, irad * 2)
 
 
 # ---------------------------------------------------------------------------
