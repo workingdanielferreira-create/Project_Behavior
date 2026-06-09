@@ -626,6 +626,7 @@ def trigger_parry(fig):
     c.crescents.append(CrescentWave(t.x, t.y, target_x, target_y, (r, g, b)))
     # Enter the parry slash animation at phase 0
     c.parrying = True
+    c.parry_stance_ticks = config.PARRY_STANCE_TICKS   # active deflect window
     c.parry_cooldown_ticks = config.PARRY_COOLDOWN_TICKS
     # Re-use the slash animation indices; snap to phase 0 unless already slashing
     if not c.slashing:
@@ -637,7 +638,13 @@ def trigger_parry(fig):
 
 
 def tick_parry_cooldown(fig):
-    """Decrement the parry cooldown every tick.  Call from CombatSystem."""
+    """Decrement the parry cooldown and stance timer every tick."""
     c = fig.combat
     if c.parry_cooldown_ticks > 0:
         c.parry_cooldown_ticks -= 1
+    # Stance window: count down; clear parrying flag when it expires
+    if c.parrying:
+        if c.parry_stance_ticks > 0:
+            c.parry_stance_ticks -= 1
+        if c.parry_stance_ticks <= 0:
+            c.parrying = False
