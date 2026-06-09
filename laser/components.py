@@ -194,7 +194,13 @@ class Combatant:
                  "dodge_interrupt", "dodge_counter",
                  "crescents", "acted",
                  "hit_pending", "hit_vx", "hit_vy",
-                 "parrying", "parry_cooldown_ticks", "parry_stance_ticks")
+                 "parrying", "parry_cooldown_ticks", "parry_stance_ticks",
+                 "arc_combo_active", "arc_combo_hits", "arc_combo_dir",
+                 "arc_recoiling", "arc_recoil_ticks",
+                 "arc_repositioning", "arc_repo_t", "arc_repo_steps",
+                 "arc_center_x", "arc_center_y",
+                 "arc_start_angle", "arc_end_angle", "arc_orbit_r",
+                 "arc_combo_cooldown_ticks")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -221,6 +227,21 @@ class Combatant:
         self.parrying = False           # True while the active parry window is open
         self.parry_cooldown_ticks = 0   # ticks remaining before next parry allowed
         self.parry_stance_ticks = 0     # ticks remaining in the active deflect window
+        # Arc combo state
+        self.arc_combo_active = False      # True while an arc combo string is running
+        self.arc_combo_hits = 0            # hits landed so far in this arc combo string
+        self.arc_combo_dir = 1             # +1 = CCW, -1 = CW (alternates each reposition)
+        self.arc_recoiling = False         # True during the recoil-dash-back phase
+        self.arc_recoil_ticks = 0          # ticks remaining in recoil
+        self.arc_repositioning = False     # True during the curved arc reposition phase
+        self.arc_repo_t = 0                # current tick within the reposition arc
+        self.arc_repo_steps = 0            # total ticks for this reposition arc
+        self.arc_center_x = 0.0           # target position when arc reposition started
+        self.arc_center_y = 0.0
+        self.arc_start_angle = 0.0        # radians: where on circle the reposition starts
+        self.arc_end_angle = 0.0          # radians: where it ends
+        self.arc_orbit_r = 0.0            # radius of the orbit arc
+        self.arc_combo_cooldown_ticks = 0 # ticks before arc combo can fire again
 
     def reset(self):
         self.__init__()
