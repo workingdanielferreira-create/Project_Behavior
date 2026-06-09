@@ -598,3 +598,46 @@ def advance_combat(fig, slash_target, fallback):
             c.rebounding = False
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Swordsman parry — triggered by CollisionSystem when a bullet enters PARRY_RADIUS.
+# Returns True if the bullet that triggered it should be erased.
+# ---------------------------------------------------------------------------
+def trigger_parry(fig):
+    """Arm the parry state on `fig` if the cooldown has expired.
+
+    Emits a crescent arc aimed away from the figure centre (omnidirectional
+    deflect), plays the slash animation, and starts the 1-second cooldown.
+    Returns True if the parry was successfully triggered, False if on cooldown
+    or already parrying.
+    """
+    c = fig.combat
+    if c.parry_cooldown_ticks > 0 or c.parrying:
+        return False
+    # Emit a wide crescent (reuse same arc type as a dash-slash hit) aimed at
+    # a point directly ahead of the figure based on its current facing.
+    t = fig.transform
+    r, g, b = fig.lut[200]  # slightly different lut index → distinct hue
+    # Point the arc in the figure's current facing direction
+    dir_x = -1.0 if t.facing_left else 1.0
+    target_x = t.x + dir_x * config.CRESCENT_RADIUS * 2
+    target_y = t.y
+    c.crescents.append(CrescentWave(t.x, t.y, target_x, target_y, (r, g, b)))
+    # Enter the parry slash animation at phase 0
+    c.parrying = True
+    c.parry_cooldown_ticks = config.PARRY_COOLDOWN_TICKS
+    # Re-use the slash animation indices; snap to phase 0 unless already slashing
+    if not c.slashing:
+        c.slashing = True
+        c.slash_phase = 0
+        c.slash_idx = 0
+        c.slash_tick = 0
+    return True
+
+
+def tick_parry_cooldown(fig):
+    """Decrement the parry cooldown every tick.  Call from CombatSystem."""
+    c = fig.combat
+    if c.parry_cooldown_ticks > 0:
+        c.parry_cooldown_ticks -= 1
