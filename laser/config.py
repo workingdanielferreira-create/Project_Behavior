@@ -89,6 +89,12 @@ DODGE_TRIGGER_RADIUS = 90.0     # incoming bullet within this range triggers dod
 DODGE_SPEED          = 20.0     # px/tick during the sidestep
 
 # ---------------------------------------------------------------------------
+# Swordsman parry
+# ---------------------------------------------------------------------------
+PARRY_RADIUS         = 70.0     # px — bullets entering this radius trigger a parry
+PARRY_COOLDOWN_TICKS = 62       # ~1 s at 62 fps before another parry can fire
+
+# ---------------------------------------------------------------------------
 # Crescent wave
 # ---------------------------------------------------------------------------
 CRESCENT_SPEED     = 0.0        # px/tick the arc travels forward
