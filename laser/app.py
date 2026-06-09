@@ -274,6 +274,32 @@ class Overlay(QWidget):
                     surviving.append(dot)
             w.collision_dots = surviving
 
+        # --- HP readout — bottom-right, one entry per figure ---
+        if w.figures:
+            from PyQt5.QtGui import QFont
+            font = QFont("Consolas", config.HP_DISPLAY_FONT_SIZE, QFont.Bold)
+            p.setFont(font)
+            fm = p.fontMetrics()
+            line_h = fm.height() + 4
+            base_y = w.screen_h - config.HP_DISPLAY_MARGIN_B
+            for idx, fig in enumerate(w.figures):
+                hp_val = fig.personality.hp
+                max_hp = fig.personality.max_hp
+                label = f"{hp_val} HP"
+                text_w = fm.horizontalAdvance(label)
+                draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R
+                draw_y = base_y - idx * line_h
+                # Pick colour from the figure's lut midpoint
+                r2, g2, b2 = fig.lut[128]
+                # Dim text slightly when low HP (below 25 %)
+                alpha = 255 if hp_val > max_hp * 0.25 else 160
+                # Glow pass (offset shadow for neon feel)
+                p.setPen(QColor(r2, g2, b2, max(30, alpha // 4)))
+                p.drawText(draw_x - 1, draw_y + 1, label)
+                # Main text
+                p.setPen(QColor(r2, g2, b2, alpha))
+                p.drawText(draw_x, draw_y, label)
+
         p.end()
 
     def closeEvent(self, event):
