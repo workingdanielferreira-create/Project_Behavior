@@ -12,12 +12,32 @@ from . import config
 
 def battle_hit(fig, proj_vx, proj_vy):
     """An enemy projectile struck `fig`: launch it along the bullet's velocity.
-    Launch force is the figure's current hit_power, which grows per strike."""
+    Launch force is the figure's current hit_power, which grows per strike.
+
+    Shooters (can_shoot + not uses_melee) cycle through a knockback window:
+      • First KNOCKBACK_LIMIT hits  → normal knockback
+      • Next  IMMUNITY_HIT_LIMIT hits → absorbed (no bounce), then reset
+      • Repeats indefinitely
+    """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
         return
     p = fig.personality
     m = fig.motion
+
+    # --- Shooter knockback cycling ---
+    if fig.mode.can_shoot() and not fig.mode.uses_melee():
+        if p.knockback_count >= config.KNOCKBACK_LIMIT:
+            # Immune phase: absorb this hit, then check if window is exhausted.
+            p.immunity_hits += 1
+            if p.immunity_hits >= config.IMMUNITY_HIT_LIMIT:
+                p.knockback_count = 0
+                p.immunity_hits = 0
+            return  # no bounce this hit
+        else:
+            p.knockback_count += 1  # consume one knockback slot
+
+    # --- Apply knockback ---
     p.hit_power = min(config.HIT_POWER_MAX, p.hit_power + config.HIT_POWER_STEP)
     scale = p.hit_power / speed
     nvx, nvy = proj_vx * scale, proj_vy * scale
@@ -105,3 +125,4 @@ def _wall_repulsion(fig):
     if db < z:
         k = 1.0 - db / z; ry -= k * k * k * push
     return rx, ry
+
