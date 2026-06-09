@@ -173,6 +173,15 @@ HP_DISPLAY_MARGIN_R   = 18       # px from right edge per figure slot
 HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 
 # ---------------------------------------------------------------------------
+# Runner Ultimate Attack
+# ---------------------------------------------------------------------------
+# When HP drops to or below max_hp * ULTIMATE_HP_THRESHOLD, the runner enters
+# an ultimate state: shooting frequency becomes 0 (fires every tick) for
+# ULTIMATE_DURATION_TICKS ticks (~3 s at 62 fps).
+ULTIMATE_HP_THRESHOLD   = 0.5   # fraction of max_hp that triggers the ultimate
+ULTIMATE_DURATION_TICKS = 187   # ~3 s at 62 fps
+
+# ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
 # a new figure type registers a mode class and adds one dict here.
 # ---------------------------------------------------------------------------
