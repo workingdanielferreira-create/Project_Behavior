@@ -628,12 +628,8 @@ def trigger_parry(fig):
     c.parrying = True
     c.parry_stance_ticks = config.PARRY_STANCE_TICKS   # active deflect window
     c.parry_cooldown_ticks = config.PARRY_COOLDOWN_TICKS
-    # Re-use the slash animation indices; snap to phase 0 unless already slashing
-    if not c.slashing:
-        c.slashing = True
-        c.slash_phase = 0
-        c.slash_idx = 0
-        c.slash_tick = 0
+    # Do NOT enter the slash FSM — that would halt movement via c.busy.
+    # The crescent arc is the visual; the figure keeps moving freely.
     return True
 
 
