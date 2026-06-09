@@ -108,6 +108,8 @@ class MotionSystem(System):
                                     world.path_follow, world.runaway)
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
+                    # Solo mode cursor bounce costs 1 HP
+                    ai.apply_hp_damage(fig, world)
         for fig in world.figures:
             motion.check_walls(fig)
 
@@ -400,7 +402,7 @@ class CollisionSystem(System):
                 for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
-                        ai.battle_hit(fig, evx, evy)
+                        ai.battle_hit(fig, evx, evy, world)
                         world.collision_dots.append([ex, ey, 0])
                         break
 
@@ -505,6 +507,8 @@ class CollisionSystem(System):
                             cx = (fig.x + ex) * 0.5
                             cy = (fig.y + ey) * 0.5
                             world.collision_dots.append([cx, cy, 0])
+                        # Body collision costs 1 HP (dash-hits are especially punishing)
+                        ai.apply_hp_damage(fig, world)
                         break
 
 
