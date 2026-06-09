@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QCursor, QPen, QColor, QRadialGradient
 
-from . import config, modes, systems, ai
+from . import config, modes, systems, ai, action_log
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -77,6 +77,10 @@ class World:
         self._quit = False
 
         self.add_figure()
+
+        # Action log — init after all state is ready
+        _launcher_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        action_log.init(log_dir=_launcher_dir, enabled=config.LOG_ENABLED)
 
     # --- factory -----------------------------------------------------------
     @property
@@ -271,6 +275,7 @@ class Overlay(QWidget):
         p.end()
 
     def closeEvent(self, event):
+        action_log.close()
         self.world.ipc.release()
         super().closeEvent(event)
 
@@ -287,5 +292,6 @@ def main():
     ret = app.exec_()
     overlay.world.ipc.release()
     sys.exit(ret)
+
 
 
