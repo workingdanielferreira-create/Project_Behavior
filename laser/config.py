@@ -179,11 +179,11 @@ HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 MODE_CONFIGS = {
     "runner": dict(
         chase_speed=3.0, follow_speed=4.5, anim_speed=5, idle_anim_speed=10,
-        max_hp=50,
+        max_hp=60,
     ),
     "swordsman": dict(
         chase_speed=4.5, follow_speed=6.0, anim_speed=4, idle_anim_speed=8,
-        max_hp=30,
+        max_hp=100,
     ),
 }
 
