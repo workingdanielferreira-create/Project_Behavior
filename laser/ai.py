@@ -10,7 +10,21 @@ import math
 from . import config
 
 
-def battle_hit(fig, proj_vx, proj_vy):
+def apply_hp_damage(fig, world):
+    """Deduct 1 HP from fig and signal quit when HP reaches 0.
+
+    Safe to call from any system.  Returns True if the figure just died.
+    """
+    p = fig.personality
+    p.hp -= 1
+    if p.hp <= 0:
+        p.hp = 0
+        world.request_quit()
+        return True
+    return False
+
+
+def battle_hit(fig, proj_vx, proj_vy, world=None):
     """An enemy projectile struck `fig`: launch it along the bullet's velocity.
     Launch force is the figure's current hit_power, which grows per strike.
 
@@ -18,6 +32,8 @@ def battle_hit(fig, proj_vx, proj_vy):
       • First KNOCKBACK_LIMIT hits  → normal knockback
       • Next  IMMUNITY_HIT_LIMIT hits → absorbed (no bounce), then reset
       • Repeats indefinitely
+
+    `world` is optional; when provided, HP is decremented on every real hit.
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
@@ -33,6 +49,9 @@ def battle_hit(fig, proj_vx, proj_vy):
             if p.immunity_hits >= config.IMMUNITY_HIT_LIMIT:
                 p.knockback_count = 0
                 p.immunity_hits = 0
+            # HP still decreases even during immunity
+            if world is not None:
+                apply_hp_damage(fig, world)
             return  # no bounce this hit
         else:
             p.knockback_count += 1  # consume one knockback slot
@@ -47,6 +66,9 @@ def battle_hit(fig, proj_vx, proj_vy):
     else:
         m.bounce_vx, m.bounce_vy = nvx, nvy
         m.bouncing = True
+
+    if world is not None:
+        apply_hp_damage(fig, world)
 
 
 def battle_target(world, fig):
