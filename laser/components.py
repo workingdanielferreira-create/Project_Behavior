@@ -194,7 +194,7 @@ class Combatant:
                  "dodge_interrupt", "dodge_counter",
                  "crescents", "acted",
                  "hit_pending", "hit_vx", "hit_vy",
-                 "parrying", "parry_cooldown_ticks")
+                 "parrying", "parry_cooldown_ticks", "parry_stance_ticks")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -218,8 +218,9 @@ class Combatant:
         self.acted = False   # set each tick by CombatSystem; MotionSystem reads it
         self.hit_pending = False  # True when a dash-slash landed this tick
         self.hit_vx = self.hit_vy = 0.0  # knockback impulse direction for partner
-        self.parrying = False           # True during the parry slash animation
+        self.parrying = False           # True while the active parry window is open
         self.parry_cooldown_ticks = 0   # ticks remaining before next parry allowed
+        self.parry_stance_ticks = 0     # ticks remaining in the active deflect window
 
     def reset(self):
         self.__init__()
