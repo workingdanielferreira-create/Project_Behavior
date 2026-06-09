@@ -302,15 +302,6 @@ class ProjectileSystem(System):
                         world.collision_dots.append([proj.x, proj.y, 0])
                         hit = True
 
-                # --- Bullet vs own figures (solo and battle) ---
-                if not hit:
-                    for fig in world.figures:
-                        ddx, ddy = proj.x - fig.x, proj.y - fig.y
-                        if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
-                            world.collision_dots.append([proj.x, proj.y, 0])
-                            hit = True
-                            break
-
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
                     for ex, ey, _edash in world.partner_figures:
