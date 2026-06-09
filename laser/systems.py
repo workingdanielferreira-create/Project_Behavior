@@ -298,7 +298,48 @@ class CollisionSystem(System):
                 world.intercepted_bullets.clear()
             return
 
-        # --- Crescent arc erasure (must precede the hit check) ---
+        # --- Bullet-vs-enemy-bullet scatter ---
+        # Each of our live projectiles is checked independently against each
+        # enemy projectile.  On a hit the our bullet is replaced with 3 tiny
+        # splinters and the enemy bullet is removed.  Splinters have hit_r_sq=0
+        # so they cannot cascade.  The enemy bullet is consumed (removed from
+        # enemy_projs) so it cannot also trigger figure-hit logic this tick.
+        if world.projectiles and world.enemy_projs:
+            dsq = config.BULLET_COLLIDE_DIST_SQ
+            new_mine = []
+            consumed_enemy = set()   # indices into world.enemy_projs
+            for proj in world.projectiles:
+                if proj.hit_r_sq == 0.0:
+                    # Splinters pass through everything
+                    new_mine.append(proj)
+                    continue
+                scattered = False
+                for ei, etup in enumerate(world.enemy_projs):
+                    if ei in consumed_enemy:
+                        continue
+                    ex, ey = etup[0], etup[1]
+                    ddx, ddy = proj.x - ex, proj.y - ey
+                    if ddx * ddx + ddy * ddy <= dsq:
+                        # Collision — scatter this bullet into splinters
+                        splinters = combat.make_splinter_bullets(proj)
+                        new_mine.extend(splinters)
+                        consumed_enemy.add(ei)
+                        world.collision_dots.append([proj.x, proj.y, 0])
+                        action_log.log("BULLET_HIT",
+                            f"scatter at ({proj.x:.0f},{proj.y:.0f}) "
+                            f"enemy_idx={ei} splinters={len(splinters)}")
+                        scattered = True
+                        break
+                if not scattered:
+                    new_mine.append(proj)
+            world.projectiles = new_mine
+            if consumed_enemy:
+                world.enemy_projs = [
+                    tup for i, tup in enumerate(world.enemy_projs)
+                    if i not in consumed_enemy
+                ]
+
+                # --- Crescent arc erasure (must precede the hit check) ---
         if world.enemy_projs:
             surviving = []
             for tup in world.enemy_projs:
