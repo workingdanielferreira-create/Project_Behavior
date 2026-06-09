@@ -234,9 +234,11 @@ class Personality:
 
     __slots__ = ("rng", "aggression", "wander_strength", "wander_angle",
                  "wander_drift", "wander_sign", "battle_shoot_interval",
-                 "shoot_tick", "daze_ticks", "retreat_ticks", "hit_power")
+                 "shoot_tick", "daze_ticks", "retreat_ticks", "hit_power",
+                 "hp", "max_hp",
+                 "knockback_count", "immunity_hits")
 
-    def __init__(self):
+    def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
         r = self.rng
         self.aggression = r.uniform(0.35, 1.0)
@@ -249,3 +251,8 @@ class Personality:
         self.daze_ticks = 0
         self.retreat_ticks = 0
         self.hit_power = config.HIT_POWER_BASE
+        _mhp = config.MODE_CONFIGS.get(mode_key, {}).get("max_hp", 30)
+        self.max_hp = _mhp
+        self.hp = _mhp
+        self.knockback_count = 0
+        self.immunity_hits = 0
