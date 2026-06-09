@@ -125,6 +125,10 @@ WALL_PUSH            = 400       # max px nudge at the wall
 DAZE_TICKS_RANGE     = (15, 45)
 RETREAT_TICKS_RANGE  = (10, 30)
 SHOOT_INTERVAL_RANGE = (18, 58)  # per-figure randomised battle fire cadence
+# Shooter knockback immunity cycle:
+#   receive KNOCKBACK_LIMIT knockbacks → immune for next IMMUNITY_HIT_LIMIT hits → repeat
+KNOCKBACK_LIMIT      = 3         # knockbacks before immunity kicks in
+IMMUNITY_HIT_LIMIT   = 3         # hits absorbed while immune before resetting
 
 # ---------------------------------------------------------------------------
 # Where each figure sits relative to the cursor (so they don't fully overlap)
@@ -157,6 +161,7 @@ MODE_ORDER = ["runner", "swordsman"]
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
 COLLISION_DOT_RADIUS  = 5    # px
+
 
 
 
