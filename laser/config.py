@@ -91,8 +91,9 @@ DODGE_SPEED          = 20.0     # px/tick during the sidestep
 # ---------------------------------------------------------------------------
 # Swordsman parry
 # ---------------------------------------------------------------------------
-PARRY_RADIUS         = 70.0     # px — bullets entering this radius trigger a parry
-PARRY_COOLDOWN_TICKS = 62       # ~1 s at 62 fps before another parry can fire
+PARRY_RADIUS         = 30.0     # px — bullets entering this radius trigger a parry
+PARRY_COOLDOWN_TICKS = 19       # ~0.3 s at 62 fps before another parry can fire
+PARRY_STANCE_TICKS   = 19       # ~0.3 s the active deflect window stays open
 
 # ---------------------------------------------------------------------------
 # Crescent wave
