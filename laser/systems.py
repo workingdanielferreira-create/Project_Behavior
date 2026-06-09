@@ -132,38 +132,80 @@ class CombatSystem(System):
 class ProjectileSystem(System):
     """Spawn, advance, and cull bullets.
 
-    Non-battle cadence uses a 3-phase cycle for runner figures:
+    Both battle and non-battle cadences use the same 3-phase cycle for runners:
       Phase 0 — CONE   : 3 clusters in a fan spread
       Phase 1 — ZIGZAG : 2 clusters weaving in opposing sine waves
-      Phase 2 — HOMING : 1 cluster that tracks the cursor at half speed
+      Phase 2 — HOMING : 1 cluster that tracks the target at half speed
     After all three phases fire, a SHOT_CYCLE_PAUSE_TICKS pause runs before
-    the cycle repeats.  Non-runner shooters continue with the legacy fan shot.
+    the cycle repeats.  Non-runner shooters use the legacy fan shot in both modes.
 
-    Battle cadence is unchanged: per-figure randomised interval, legacy fan.
+    In battle mode the target for each figure is its nearest enemy instead of
+    the cursor.  Non-runner (swordsman) figures keep their own per-figure
+    randomised cadence with the legacy fan aimed at the nearest enemy.
     """
 
     def update(self, world):
         if world.runner_on and world.shoot_mode:
             if world.battle_mode and world.partner_figures:
-                # Battle: each shooter fires at its nearest enemy on its own
-                # randomised cadence (legacy fan shot, unchanged).
-                for fig in world.figures:
-                    if not fig.mode.can_shoot():
-                        action_log.log("SHOT_SKIP",
-                            f"battle mode={fig.mode.key} cannot shoot")
-                        continue
-                    p = fig.personality
-                    p.shoot_tick += 1
-                    if p.shoot_tick >= p.battle_shoot_interval:
-                        p.shoot_tick = 0
-                        p.battle_shoot_interval = p.rng.randint(
-                            *config.SHOOT_INTERVAL_RANGE)
-                        bx, by = world._nearest_enemy(fig.x, fig.y)
-                        new_projs = combat.make_shot(fig.x, fig.y, bx, by, fig.lut[128])
-                        world.projectiles.extend(new_projs)
-                        action_log.log("BATTLE_SHOT",
-                            f"mode={fig.mode.key} fig=({fig.x:.0f},{fig.y:.0f}) "
-                            f"target=({bx:.0f},{by:.0f}) count={len(new_projs)}")
+                # --- Battle firing ---
+                # Runners: shared cycle timer, cycle shot aimed at nearest enemy.
+                # Non-runners: per-figure randomised interval, legacy fan.
+                if world.shot_pause_ticks > 0:
+                    world.shot_pause_ticks -= 1
+                    if world.shot_pause_ticks % 15 == 0:
+                        action_log.log("SHOT_PAUSE",
+                            f"battle remaining={world.shot_pause_ticks} ticks "
+                            f"(next phase will be phase {world.shot_phase})")
+                else:
+                    world.shoot_ticks += 1
+                    if world.shoot_ticks >= config.SHOOT_INTERVAL:
+                        world.shoot_ticks = 0
+                        _phase_names = {0: "CONE", 1: "ZIGZAG", 2: "HOMING"}
+                        action_log.log("SHOT_PHASE",
+                            f"BATTLE phase={world.shot_phase} "
+                            f"({_phase_names.get(world.shot_phase,'?')})" 
+                            f" figures={len(world.figures)}")
+                        for fig in world.figures:
+                            if not fig.mode.can_shoot():
+                                action_log.log("SHOT_SKIP",
+                                    f"battle mode={fig.mode.key} cannot shoot")
+                                continue
+                            bx, by = world._nearest_enemy(fig.x, fig.y)
+                            if fig.mode.key == "runner":
+                                new_projs = combat.make_runner_cycle_shot(
+                                    fig.x, fig.y, bx, by,
+                                    fig.lut[128], world.shot_phase)
+                                world.projectiles.extend(new_projs)
+                                action_log.log("BATTLE_SHOT",
+                                    f"runner fig=({fig.x:.0f},{fig.y:.0f}) "
+                                    f"phase={world.shot_phase} "
+                                    f"target=({bx:.0f},{by:.0f}) "
+                                    f"spawned={len(new_projs)} "
+                                    f"types={[type(pr).__name__ for pr in new_projs]}")
+                            else:
+                                # Non-runner: keep per-figure cadence, legacy fan
+                                p = fig.personality
+                                p.shoot_tick += 1
+                                if p.shoot_tick >= p.battle_shoot_interval:
+                                    p.shoot_tick = 0
+                                    p.battle_shoot_interval = p.rng.randint(
+                                        *config.SHOOT_INTERVAL_RANGE)
+                                    new_projs = combat.make_shot(
+                                        fig.x, fig.y, bx, by, fig.lut[128])
+                                    world.projectiles.extend(new_projs)
+                                    action_log.log("BATTLE_SHOT",
+                                        f"non-runner mode={fig.mode.key} "
+                                        f"fig=({fig.x:.0f},{fig.y:.0f}) "
+                                        f"target=({bx:.0f},{by:.0f}) "
+                                        f"count={len(new_projs)}")
+                        # Advance phase; insert pause after the final phase.
+                        prev_phase = world.shot_phase
+                        world.shot_phase = (world.shot_phase + 1) % 3
+                        if world.shot_phase == 0:
+                            world.shot_pause_ticks = config.SHOT_CYCLE_PAUSE_TICKS
+                            action_log.log("SHOT_PAUSE",
+                                f"BATTLE cycle complete after phase {prev_phase} — "
+                                f"pause={config.SHOT_CYCLE_PAUSE_TICKS} ticks starting")
             elif not world.battle_mode:
                 # Non-battle: one shared timer drives a 3-phase runner cycle.
                 # Inter-cycle pause: count down before allowing the next fire.
@@ -221,10 +263,20 @@ class ProjectileSystem(System):
                                 f"cycle complete after phase {prev_phase} — "
                                 f"pause={config.SHOT_CYCLE_PAUSE_TICKS} ticks starting")
 
-        # Update homing bullet targets to the current cursor position.
-        if world.projectiles and not world.battle_mode:
-            cx, cy = world.cursor
-            combat.update_homing_targets(world.projectiles, cx, cy)
+        # Update homing bullet targets — cursor in solo, nearest enemy in battle.
+        if world.projectiles:
+            if world.battle_mode and world.partner_figures:
+                # Point each homing bullet at the nearest enemy to the figure
+                # that fired it.  Since we don't track ownership, we use the
+                # single nearest enemy position as a shared target — good enough
+                # for the current one-vs-one architecture.
+                if world.figures:
+                    ref_fig = world.figures[0]
+                    bx, by = world._nearest_enemy(ref_fig.x, ref_fig.y)
+                    combat.update_homing_targets(world.projectiles, bx, by)
+            else:
+                cx, cy = world.cursor
+                combat.update_homing_targets(world.projectiles, cx, cy)
 
         # Advance + cull (runs every tick).
         if world.projectiles:
@@ -442,6 +494,7 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
 
 
 
