@@ -131,16 +131,21 @@ class CombatSystem(System):
 class ProjectileSystem(System):
     """Spawn, advance, and cull bullets.
 
-    Stage 1 handles the non-battle cadence: a single shared timer fires every
-    config.SHOOT_INTERVAL ticks, and each figure whose mode `can_shoot()` emits
-    one formation toward the cursor.  Per-figure battle firing lands in stage 3.
+    Non-battle cadence uses a 3-phase cycle for runner figures:
+      Phase 0 — CONE   : 3 clusters in a fan spread
+      Phase 1 — ZIGZAG : 2 clusters weaving in opposing sine waves
+      Phase 2 — HOMING : 1 cluster that tracks the cursor at half speed
+    After all three phases fire, a SHOT_CYCLE_PAUSE_TICKS pause runs before
+    the cycle repeats.  Non-runner shooters continue with the legacy fan shot.
+
+    Battle cadence is unchanged: per-figure randomised interval, legacy fan.
     """
 
     def update(self, world):
         if world.runner_on and world.shoot_mode:
             if world.battle_mode and world.partner_figures:
                 # Battle: each shooter fires at its nearest enemy on its own
-                # randomised cadence.
+                # randomised cadence (legacy fan shot, unchanged).
                 for fig in world.figures:
                     if not fig.mode.can_shoot():
                         continue
@@ -154,16 +159,38 @@ class ProjectileSystem(System):
                         world.projectiles.extend(
                             combat.make_shot(fig.x, fig.y, bx, by, fig.lut[128]))
             elif not world.battle_mode:
-                # Non-battle: one shared timer; everyone fires at the cursor.
-                world.shoot_ticks += 1
-                if world.shoot_ticks >= config.SHOOT_INTERVAL:
-                    world.shoot_ticks = 0
-                    cx, cy = world.cursor
-                    for fig in world.figures:
-                        if not fig.mode.can_shoot():
-                            continue
-                        world.projectiles.extend(
-                            combat.make_shot(fig.x, fig.y, cx, cy, fig.lut[128]))
+                # Non-battle: one shared timer drives a 3-phase runner cycle.
+                # Inter-cycle pause: count down before allowing the next fire.
+                if world.shot_pause_ticks > 0:
+                    world.shot_pause_ticks -= 1
+                else:
+                    world.shoot_ticks += 1
+                    if world.shoot_ticks >= config.SHOOT_INTERVAL:
+                        world.shoot_ticks = 0
+                        cx, cy = world.cursor
+                        for fig in world.figures:
+                            if not fig.mode.can_shoot():
+                                continue
+                            if fig.mode.key == "runner":
+                                # Runner uses the 3-phase cycle shot.
+                                world.projectiles.extend(
+                                    combat.make_runner_cycle_shot(
+                                        fig.x, fig.y, cx, cy,
+                                        fig.lut[128], world.shot_phase))
+                            else:
+                                # Other shooter modes keep the legacy fan.
+                                world.projectiles.extend(
+                                    combat.make_shot(
+                                        fig.x, fig.y, cx, cy, fig.lut[128]))
+                        # Advance phase; insert pause after the final phase.
+                        world.shot_phase = (world.shot_phase + 1) % 3
+                        if world.shot_phase == 0:
+                            world.shot_pause_ticks = config.SHOT_CYCLE_PAUSE_TICKS
+
+        # Update homing bullet targets to the current cursor position.
+        if world.projectiles and not world.battle_mode:
+            cx, cy = world.cursor
+            combat.update_homing_targets(world.projectiles, cx, cy)
 
         # Advance + cull (runs every tick).
         if world.projectiles:
@@ -381,5 +408,6 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
 
 
