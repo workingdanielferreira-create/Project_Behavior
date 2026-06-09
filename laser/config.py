@@ -155,15 +155,28 @@ FIGURE_OFFSETS = [(100, 0), (30, 6), (-30, 6), (34, -14),
 MAX_FIGURES    = 8
 
 # ---------------------------------------------------------------------------
+# Hit Points (HP)
+# ---------------------------------------------------------------------------
+# Each figure starts with max_hp from its mode config.  When HP reaches 0 the
+# instance calls request_quit() and the process exits.
+# Solo mode: cursor-bounce collisions cost 1 HP per hit.
+# Battle mode: every enemy hit (projectile, dash-slash, body-slam) costs 1 HP.
+HP_DISPLAY_FONT_SIZE  = 14       # pt — neon HP readout bottom-right
+HP_DISPLAY_MARGIN_R   = 18       # px from right edge per figure slot
+HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
+
+# ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
 # a new figure type registers a mode class and adds one dict here.
 # ---------------------------------------------------------------------------
 MODE_CONFIGS = {
     "runner": dict(
         chase_speed=3.0, follow_speed=4.5, anim_speed=5, idle_anim_speed=10,
+        max_hp=50,
     ),
     "swordsman": dict(
         chase_speed=4.5, follow_speed=6.0, anim_speed=4, idle_anim_speed=8,
+        max_hp=30,
     ),
 }
 
