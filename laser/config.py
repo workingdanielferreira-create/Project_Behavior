@@ -81,6 +81,13 @@ COMBO_MAX               = 2     # max follow-up dashes per combo string
 COMBO_COOLDOWN_TICKS    = 125   # ticks before follow-ups available again (~2 s at 62 fps)
 COMBO_TRAVEL_TICKS_MIN  = 0     # follow-up dash travel time range in ticks (0 s)
 COMBO_TRAVEL_TICKS_MAX  = 31    # follow-up dash travel time range in ticks (~0.5 s)
+# Arc combo (50 % chance on hit; alternates CW/CCW per step)
+ARC_COMBO_MAX_HITS      = 3     # total hits in one arc combo string (initial + 2 follow-ups)
+ARC_COMBO_COOLDOWN_TICKS = 62  # 1 second at 62 fps before arc combo can fire again
+ARC_RECOIL_PX           = 10.0  # how far to dash back from target after each hit
+ARC_RECOIL_TICKS        = 12   # ticks for the recoil dash (~0.2 s at 62 fps)
+ARC_ORBIT_ANGLE_DEG     = 150.0 # degrees to arc around the target between hits
+ARC_REPO_TICKS          = 22   # ticks to travel the curved reposition arc
 
 # ---------------------------------------------------------------------------
 # Swordsman dodge sidestep
