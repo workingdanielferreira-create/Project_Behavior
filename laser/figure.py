@@ -38,7 +38,7 @@ class Figure:
         self.trail = TrailComponent(lut)
         self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"])
         self.combat = Combatant()
-        self.personality = Personality()
+        self.personality = Personality(mode.key)
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -64,6 +64,10 @@ class Figure:
         self.render.set_bundle(bundle)
         self.combat.reset()
         self.trail.clear()
+        # Re-initialise HP for the new mode
+        _mhp = config.MODE_CONFIGS.get(mode.key, {}).get("max_hp", 30)
+        self.personality.max_hp = _mhp
+        self.personality.hp = _mhp
 
     # facing / motion classification ---------------------------------------
     def face(self, ox, oy):
