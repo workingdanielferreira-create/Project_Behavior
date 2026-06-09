@@ -22,17 +22,7 @@ from .figure import Figure
 from .ipc import IPCBridge
 from .palette import lut_for_index
 
-_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         "laser_cursor_crash.log")
-
-
-def crash_log(label, exc):
-    try:
-        with open(_LOG_PATH, "a") as f:
-            f.write("[%s] %s: %s\n%s\n" % (
-                time.strftime("%H:%M:%S"), label, exc, traceback.format_exc()))
-    except Exception:
-        pass
+# crash_log replaced by action_log.crash() — see laser/action_log.py
 
 
 class World:
@@ -81,6 +71,7 @@ class World:
         # Action log — init after all state is ready
         _launcher_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         action_log.init(log_dir=_launcher_dir, enabled=config.LOG_ENABLED)
+        action_log.install_excepthook()
 
     # --- factory -----------------------------------------------------------
     @property
@@ -198,7 +189,7 @@ class Overlay(QWidget):
         try:
             self._tick()
         except Exception as e:
-            crash_log("_tick", e)
+            action_log.crash("_tick", e)
 
     def _tick(self):
         w = self.world
@@ -206,7 +197,10 @@ class Overlay(QWidget):
         w.cursor = (pos.x(), pos.y())
 
         for system in self.pipeline:
-            system.update(w)
+            try:
+                system.update(w)
+            except Exception as e:
+                action_log.crash(type(system).__name__, e)
             if w.quitting:
                 self._shutdown()
                 return
@@ -219,6 +213,12 @@ class Overlay(QWidget):
         QApplication.quit()
 
     def paintEvent(self, _):
+        try:
+            self._paint()
+        except Exception as e:
+            action_log.crash("paintEvent", e)
+
+    def _paint(self):
         w = self.world
         if not w.runner_on:
             return
