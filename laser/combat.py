@@ -79,6 +79,151 @@ class Projectile:
         p.drawEllipse(hx - rad, hy - rad, rad * 2, rad * 2)
 
 
+# ---------------------------------------------------------------------------
+# ZigzagProjectile — weaves laterally while travelling toward the target
+# ---------------------------------------------------------------------------
+class ZigzagProjectile(Projectile):
+    """Travels in a sinusoidal path perpendicular to the launch direction.
+
+    `phase_offset` staggers the two zigzag bullets so they weave in opposite
+    directions (one starts swinging left, the other right), creating a
+    crossing/figure-eight look as they fly toward the target.
+    """
+    __slots__ = ("ax", "ay", "freq", "phase")
+
+    def __init__(self, fx, fy, vx, vy, color_rgb, trail_len,
+                 amplitude, frequency, phase_offset=0.0):
+        super().__init__(fx, fy, vx, vy, color_rgb, trail_len)
+        # Perpendicular unit vector (rotate 90°)
+        spd = (vx * vx + vy * vy) ** 0.5
+        if spd > 0.001:
+            px, py = -vy / spd, vx / spd
+        else:
+            px, py = 0.0, 1.0
+        self.ax = px * amplitude
+        self.ay = py * amplitude
+        self.freq = frequency
+        self.phase = phase_offset
+
+    def update(self):
+        self.trail.append((self.x, self.y))
+        # Sinusoidal lateral nudge
+        lateral = math.sin(self.phase) * self.freq
+        self.x += self.vx + self.ax * lateral
+        self.y += self.vy + self.ay * lateral
+        self.phase += self.freq
+        self.age += 1
+
+
+# ---------------------------------------------------------------------------
+# HomingProjectile — steers toward a moving target at half normal speed
+# ---------------------------------------------------------------------------
+class HomingProjectile(Projectile):
+    """Gradually turns toward (tx, ty) each tick.
+
+    `target` is a mutable list [x, y] so the caller can update it as the
+    cursor/enemy moves; the projectile will track the updated position.
+    `turn_rate` caps how many radians the heading can change per tick.
+    """
+    __slots__ = ("target", "turn_rate", "speed")
+
+    def __init__(self, fx, fy, vx, vy, color_rgb, trail_len,
+                 target, turn_rate=0.06):
+        super().__init__(fx, fy, vx, vy, color_rgb, trail_len)
+        self.target = target      # [x, y]  — updated externally each tick
+        self.turn_rate = turn_rate
+        self.speed = (vx * vx + vy * vy) ** 0.5
+
+    def update(self):
+        self.trail.append((self.x, self.y))
+        # Steer toward target
+        tx, ty = self.target[0], self.target[1]
+        dx, dy = tx - self.x, ty - self.y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > 0.001 and self.speed > 0.001:
+            desired_vx = dx / dist * self.speed
+            desired_vy = dy / dist * self.speed
+            # Blend current heading toward desired heading
+            self.vx += (desired_vx - self.vx) * self.turn_rate
+            self.vy += (desired_vy - self.vy) * self.turn_rate
+            # Re-normalise to constant speed
+            cur_spd = (self.vx * self.vx + self.vy * self.vy) ** 0.5
+            if cur_spd > 0.001:
+                self.vx = self.vx / cur_spd * self.speed
+                self.vy = self.vy / cur_spd * self.speed
+        self.x += self.vx
+        self.y += self.vy
+        self.age += 1
+
+
+# ---------------------------------------------------------------------------
+# Runner shot-cycle factory
+# ---------------------------------------------------------------------------
+def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
+    """Return a list of Projectile objects for the given cycle phase.
+
+    phase 0 — CONE   : 3 clusters spread in a fan (config.SHOT_CONE_ANGLES)
+    phase 1 — ZIGZAG : 2 clusters that weave in opposing sine waves
+    phase 2 — HOMING : 1 cluster that slowly tracks the target
+    """
+    dx, dy = cx - fx, cy - fy
+    d = (dx * dx + dy * dy) ** 0.5
+    base_deg = math.degrees(math.atan2(dy, dx)) if d > 0.01 else 0.0
+    tl = config.PROJ_TRAIL_LEN
+    cr = color_rgb
+
+    if phase == 0:
+        # --- CONE ---
+        bullets = []
+        for off in config.SHOT_CONE_ANGLES:
+            a = math.radians(base_deg + off)
+            vx = math.cos(a) * config.PROJ_SPEED
+            vy = math.sin(a) * config.PROJ_SPEED
+            bullets.append(Projectile(fx, fy, vx, vy, cr, tl))
+        return bullets
+
+    elif phase == 1:
+        # --- ZIGZAG ---
+        base_rad = math.radians(base_deg)
+        vx = math.cos(base_rad) * config.PROJ_SPEED
+        vy = math.sin(base_rad) * config.PROJ_SPEED
+        amp = config.SHOT_ZIGZAG_AMPLITUDE
+        freq = config.SHOT_ZIGZAG_FREQUENCY
+        # Two bullets with opposite starting phases so they weave past each other
+        b0 = ZigzagProjectile(fx, fy, vx, vy, cr, tl,
+                               amplitude=amp, frequency=freq,
+                               phase_offset=0.0)
+        b1 = ZigzagProjectile(fx, fy, vx, vy, cr, tl,
+                               amplitude=amp, frequency=freq,
+                               phase_offset=math.pi)
+        return [b0, b1]
+
+    else:
+        # --- HOMING ---
+        base_rad = math.radians(base_deg)
+        hspd = config.PROJ_SPEED * config.SHOT_HOMING_SPEED_MULT
+        vx = math.cos(base_rad) * hspd
+        vy = math.sin(base_rad) * hspd
+        target_ref = [float(cx), float(cy)]
+        return [HomingProjectile(fx, fy, vx, vy, cr, tl,
+                                 target=target_ref, turn_rate=0.06)]
+
+
+def update_homing_targets(projectiles, cx, cy):
+    """Refresh the target reference for all HomingProjectiles this tick.
+
+    Called once per tick by ProjectileSystem before advancing projectiles,
+    so that homing bullets always track the current cursor / enemy position.
+    """
+    for proj in projectiles:
+        if isinstance(proj, HomingProjectile):
+            proj.target[0] = float(cx)
+            proj.target[1] = float(cy)
+
+
+# ---------------------------------------------------------------------------
+# Legacy make_shot — used for non-runner modes (swordsman battle fire etc.)
+# ---------------------------------------------------------------------------
 def make_shot(fx, fy, cx, cy, color_rgb):
     """Fire a fan of bullets toward (cx, cy) per config.SHOT_ANGLES."""
     dx, dy = cx - fx, cy - fy
