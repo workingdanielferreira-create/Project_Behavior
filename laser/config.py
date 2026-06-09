@@ -104,7 +104,7 @@ CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
 # Projectiles / shooting
 # ---------------------------------------------------------------------------
 PROJ_SPEED        = 8.0
-PROJ_RADIUS       = 4
+PROJ_RADIUS       = 3
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
 PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
@@ -118,13 +118,13 @@ SHOOT_INTERVAL    = 32          # ticks between shots in non-battle shoot mode
 # After phase 2 a pause of SHOT_CYCLE_PAUSE_TICKS fires before repeating.
 # ---------------------------------------------------------------------------
 SHOT_CYCLE_PAUSE_TICKS  = 31    # ~0.5 s at 62 fps between cycles
-SHOT_CONE_ANGLES        = (-22.0, 0.0, 22.0)   # degrees offset from aim direction
+SHOT_CONE_ANGLES        = (0.0,)                # single bullet straight at target
 SHOT_ZIGZAG_AMPLITUDE   = 55.0  # px lateral offset for each zigzag cluster
 SHOT_ZIGZAG_FREQUENCY   = 0.18  # radians/tick of the sinusoidal weave
 SHOT_HOMING_SPEED_MULT  = 0.5   # fraction of PROJ_SPEED for the homing cluster
 
 # Legacy fan angles kept for non-runner modes (swordsman battle fire, etc.)
-SHOT_ANGLES = (0.0, 0.0, 0.0)
+SHOT_ANGLES = (0.0,)           # single bullet
 
 # ---------------------------------------------------------------------------
 # Battle / AI
@@ -192,7 +192,7 @@ LOG_ENABLED = False
 # Distance (px) at which two crossing bullets register a collision.
 BULLET_COLLIDE_DIST_SQ   = 12.0 * 12.0   # 12 px detection radius
 # Each splinter is this fraction of the parent's visual radius.
-SPLINTER_RADIUS_SCALE    = 0.10           # 1/10 of original
+SPLINTER_RADIUS_SCALE    = 0.333          # splinter radius = PROJ_RADIUS * scale = ~1 px
 # Splinters live for this many ticks (shorter than normal bullets).
 SPLINTER_MAX_AGE         = 30            # ~0.5 s
 # Splinters travel at this multiplier of the parent's speed.
