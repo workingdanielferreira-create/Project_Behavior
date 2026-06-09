@@ -185,3 +185,17 @@ COLLISION_DOT_RADIUS  = 5    # px
 # Set True to write laser_cursor_log.txt next to the launcher.
 # Flushes every 60 events; ~0 overhead when False.
 LOG_ENABLED = False
+
+# ---------------------------------------------------------------------------
+# Bullet-vs-bullet scatter (cross-fire collision)
+# ---------------------------------------------------------------------------
+# Distance (px) at which two crossing bullets register a collision.
+BULLET_COLLIDE_DIST_SQ   = 12.0 * 12.0   # 12 px detection radius
+# Each splinter is this fraction of the parent's visual radius.
+SPLINTER_RADIUS_SCALE    = 0.10           # 1/10 of original
+# Splinters live for this many ticks (shorter than normal bullets).
+SPLINTER_MAX_AGE         = 30            # ~0.5 s
+# Splinters travel at this multiplier of the parent's speed.
+SPLINTER_SPEED_MULT      = 1.4
+# Spread angle (degrees) between the three perpendicular splinters.
+SPLINTER_SPREAD_DEG      = 55.0
