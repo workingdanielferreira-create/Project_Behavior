@@ -48,6 +48,8 @@ class World:
         self.mode_key = config.MODE_ORDER[0]
         self.projectiles = []
         self.shoot_ticks = 0   # shared non-battle firing cadence counter
+        self.shot_phase = 0       # current runner cycle phase (0=cone,1=zigzag,2=homing)
+        self.shot_pause_ticks = 0 # counts down the inter-cycle pause
 
         # Flags
         self.runner_on = True
@@ -116,6 +118,8 @@ class World:
         if not self.shoot_mode:
             self.projectiles.clear()
             self.shoot_ticks = 0
+            self.shot_phase = 0
+            self.shot_pause_ticks = 0
             for fig in self.figures:
                 fig.combat.reset()
 
@@ -283,4 +287,5 @@ def main():
     ret = app.exec_()
     overlay.world.ipc.release()
     sys.exit(ret)
+
 
