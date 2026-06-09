@@ -189,7 +189,7 @@ class Combatant:
                  "slash_phase", "slash_idx", "slash_tick", "slash_vx", "slash_vy",
                  "slash_dist_budget",
                  "combo_count", "combo_pending", "combo_target",
-                 "combo_follow_ups", "combo_cooldown_ticks",
+                 "combo_follow_ups", "combo_cooldown_ticks", "combo_delay_ticks",
                  "dodge_dashing", "dodge_vx", "dodge_vy", "dodge_dist_budget",
                  "dodge_interrupt", "dodge_counter",
                  "crescents", "acted",
@@ -207,6 +207,7 @@ class Combatant:
         self.combo_target = None
         self.combo_follow_ups = 0      # follow-up dashes used in this combo string
         self.combo_cooldown_ticks = 0  # ticks remaining before follow-ups allowed again
+        self.combo_delay_ticks = 0     # ticks to wait before launching follow-up dash
         self.dodge_dashing = False
         self.dodge_vx = self.dodge_vy = 0.0
         self.dodge_dist_budget = 0.0
