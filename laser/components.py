@@ -240,7 +240,8 @@ class Personality:
                  "wander_drift", "wander_sign", "battle_shoot_interval",
                  "shoot_tick", "daze_ticks", "retreat_ticks", "hit_power",
                  "hp", "max_hp",
-                 "knockback_count", "immunity_hits")
+                 "knockback_count", "immunity_hits",
+                 "ultimate_ticks")
 
     def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
@@ -260,3 +261,4 @@ class Personality:
         self.hp = _mhp
         self.knockback_count = 0
         self.immunity_hits = 0
+        self.ultimate_ticks = 0   # ticks remaining in runner ultimate (0 = inactive)
