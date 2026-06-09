@@ -154,7 +154,28 @@ class ProjectileSystem(System):
                 # --- Battle firing ---
                 # Runners: shared cycle timer, cycle shot aimed at nearest enemy.
                 # Non-runners: per-figure randomised interval, legacy fan.
-                if world.shot_pause_ticks > 0:
+                # Ultimate check: bypass shared timer, fire every tick.
+                _ultimate_active = any(
+                    fig.personality.ultimate_ticks > 0
+                    for fig in world.figures
+                    if fig.mode.can_shoot() and not fig.mode.uses_melee()
+                )
+                if _ultimate_active:
+                    for fig in world.figures:
+                        p = fig.personality
+                        if p.ultimate_ticks > 0:
+                            p.ultimate_ticks -= 1
+                    for fig in world.figures:
+                        if not fig.mode.can_shoot():
+                            continue
+                        if fig.mode.key == "runner":
+                            bx, by = world._nearest_enemy(fig.x, fig.y)
+                            new_projs = combat.make_runner_cycle_shot(
+                                fig.x, fig.y, bx, by,
+                                fig.lut[128], world.shot_phase)
+                            world.projectiles.extend(new_projs)
+                    world.shot_phase = (world.shot_phase + 1) % 3
+                elif world.shot_pause_ticks > 0:
                     world.shot_pause_ticks -= 1
                     if world.shot_pause_ticks % 15 == 0:
                         action_log.log("SHOT_PAUSE",
@@ -212,8 +233,32 @@ class ProjectileSystem(System):
                                 f"pause={config.SHOT_CYCLE_PAUSE_TICKS} ticks starting")
             elif not world.battle_mode:
                 # Non-battle: one shared timer drives a 3-phase runner cycle.
+                # Ultimate check: if any runner is in ultimate mode, bypass the
+                # shared timer and fire every tick (interval = 0).
+                _ultimate_active = any(
+                    fig.personality.ultimate_ticks > 0
+                    for fig in world.figures
+                    if fig.mode.can_shoot() and not fig.mode.uses_melee()
+                )
+                if _ultimate_active:
+                    # Tick down ultimate counters for all runner figures.
+                    for fig in world.figures:
+                        p = fig.personality
+                        if p.ultimate_ticks > 0:
+                            p.ultimate_ticks -= 1
+                    # Fire every tick — skip shared timer and pause.
+                    cx, cy = world.cursor
+                    for fig in world.figures:
+                        if not fig.mode.can_shoot():
+                            continue
+                        if fig.mode.key == "runner":
+                            new_projs = combat.make_runner_cycle_shot(
+                                fig.x, fig.y, cx, cy,
+                                fig.lut[128], world.shot_phase)
+                            world.projectiles.extend(new_projs)
+                    world.shot_phase = (world.shot_phase + 1) % 3
                 # Inter-cycle pause: count down before allowing the next fire.
-                if world.shot_pause_ticks > 0:
+                elif world.shot_pause_ticks > 0:
                     world.shot_pause_ticks -= 1
                     # Sample the pause counter every 15 ticks to avoid log spam
                     if world.shot_pause_ticks % 15 == 0:
