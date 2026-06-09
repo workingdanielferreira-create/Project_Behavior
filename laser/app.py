@@ -229,18 +229,20 @@ class Overlay(QWidget):
             fig.draw(p, self._pen)
         for proj in w.projectiles:
             proj.draw(p)
+        _eglwr = config.PROJ_RADIUS * 3
+        _erad  = config.PROJ_RADIUS
         for ex, ey, evx, evy, er, eg, eb in w.enemy_projs:
             hx, hy = int(ex), int(ey)
-            grad = QRadialGradient(hx, hy, 14)
+            grad = QRadialGradient(hx, hy, _eglwr)
             grad.setColorAt(0.0, QColor(er, eg, eb, 160))
             grad.setColorAt(1.0, QColor(er, eg, eb, 0))
             p.setPen(Qt.NoPen); p.setBrush(grad)
-            p.drawEllipse(hx - 14, hy - 14, 28, 28)
-            core = QRadialGradient(hx, hy, 5)
+            p.drawEllipse(hx - _eglwr, hy - _eglwr, _eglwr * 2, _eglwr * 2)
+            core = QRadialGradient(hx, hy, _erad)
             core.setColorAt(0.0, QColor(255, 255, 255, 220))
             core.setColorAt(1.0, QColor(er, eg, eb, 180))
             p.setBrush(core)
-            p.drawEllipse(hx - 5, hy - 5, 10, 10)
+            p.drawEllipse(hx - _erad, hy - _erad, _erad * 2, _erad * 2)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
