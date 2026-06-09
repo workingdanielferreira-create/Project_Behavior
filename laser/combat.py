@@ -393,6 +393,9 @@ def advance_combat(fig, slash_target, fallback):
     # --- Combo follow-up cooldown tick ---
     if c.combo_cooldown_ticks > 0:
         c.combo_cooldown_ticks -= 1
+    # --- Arc combo cooldown tick ---
+    if c.arc_combo_cooldown_ticks > 0:
+        c.arc_combo_cooldown_ticks -= 1
 
     # --- Combo follow-up delay: count down, then launch the dash ---
     if c.combo_delay_ticks > 0:
@@ -418,6 +421,71 @@ def advance_combat(fig, slash_target, fallback):
                 c.slash_dist_budget = ddist * 4.0
                 c.dashing = True
                 c.rebounding = False
+
+    # -----------------------------------------------------------------------
+    # ARC COMBO — recoil, arc-reposition, and re-dash phases
+    # -----------------------------------------------------------------------
+
+    # --- Arc recoil: dash directly away from target after each hit ---
+    if c.arc_recoiling:
+        ox, oy = t.x, t.y
+        c.arc_recoil_ticks -= 1
+        t.x += c.slash_vx
+        t.y += c.slash_vy
+        if c.arc_recoil_ticks <= 0:
+            c.arc_recoiling = False
+            # Arm the curved reposition arc
+            # Determine where we are relative to the hit target
+            cx_, cy_ = c.arc_center_x, c.arc_center_y
+            dx_, dy_ = t.x - cx_, t.y - cy_
+            c.arc_orbit_r = max((dx_*dx_ + dy_*dy_)**0.5, 20.0)
+            c.arc_start_angle = math.atan2(dy_, dx_)
+            arc_rad = math.radians(config.ARC_ORBIT_ANGLE_DEG) * c.arc_combo_dir
+            c.arc_end_angle = c.arc_start_angle + arc_rad
+            c.arc_repo_t = 0
+            c.arc_repo_steps = config.ARC_REPO_TICKS
+            c.arc_repositioning = True
+        fig.face(ox, oy)
+        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        fig.render.is_moving = True
+        fig.render.advance()
+        return True
+
+    # --- Arc reposition: curved path around the target ---
+    if c.arc_repositioning:
+        ox, oy = t.x, t.y
+        c.arc_repo_t += 1
+        # Smooth cubic ease-in-out for natural arc travel
+        raw = c.arc_repo_t / max(c.arc_repo_steps, 1)
+        ease = raw * raw * (3.0 - 2.0 * raw)
+        angle = c.arc_start_angle + (c.arc_end_angle - c.arc_start_angle) * ease
+        t.x = c.arc_center_x + math.cos(angle) * c.arc_orbit_r
+        t.y = c.arc_center_y + math.sin(angle) * c.arc_orbit_r
+        if c.arc_repo_t >= c.arc_repo_steps:
+            c.arc_repositioning = False
+            # Now launch the dash-in toward the target
+            tx_, ty_ = c.arc_center_x, c.arc_center_y
+            ddx, ddy = tx_ - t.x, ty_ - t.y
+            ddist = (ddx*ddx + ddy*ddy)**0.5
+            if ddist > config.SLASH_HIT_RADIUS:
+                inv = 1.0 / max(ddist, 0.001)
+                lspd = fig.motion.speed * config.SLASH_SPEED_MUL
+                c.slash_vx = ddx * inv * lspd
+                c.slash_vy = ddy * inv * lspd
+                c.slash_dist_budget = ddist * 4.0
+                c.dashing = True
+                c.rebounding = False
+            else:
+                # Already at target — end the arc combo
+                c.arc_combo_active = False
+                c.arc_combo_cooldown_ticks = config.ARC_COMBO_COOLDOWN_TICKS
+            # Flip direction for next arc segment (CW ↔ CCW)
+            c.arc_combo_dir *= -1
+        fig.face(ox, oy)
+        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        fig.render.is_moving = True
+        fig.render.advance()
+        return True
 
     # --- Crescent advance + cull (emission happens on dash hit) ---
     if c.crescents:
@@ -502,145 +570,105 @@ def advance_combat(fig, slash_target, fallback):
                         c.hit_vx = c.slash_vx / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                         c.hit_vy = c.slash_vy / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                     c.hit_pending = True
-                    if c.combo_count == 0:
-                        c.combo_count = 2
-                    if c.combo_count > 0:
-                        c.combo_count -= 1
-                        c.combo_pending = True
-                        c.combo_target = (tx, ty)
-                    if c.combo_pending:
-                        # Stop dead, go straight into the slash animation.
-                        c.dashing = c.rebounding = False
-                        c.slashing = True
-                        c.slash_phase = c.slash_idx = c.slash_tick = 0
-                        c.slash_vx = c.slash_vy = 0.0
-                    else:
-                        # Final hit: reflect velocity off the contact normal.
-                        if dist > 0.001:
-                            nx = (t.x - tx) / dist
-                            ny = (t.y - ty) / dist
+                    # --- Arc combo continuation (follow-up hits 2 and 3) ---
+                    if c.arc_combo_active:
+                        c.arc_combo_hits += 1
+                        c.arc_center_x = float(tx)
+                        c.arc_center_y = float(ty)
+                        if c.arc_combo_hits < config.ARC_COMBO_MAX_HITS:
+                            # More hits remain — recoil again
+                            ndx, ndy = t.x - tx, t.y - ty
+                            ndist = (ndx*ndx + ndy*ndy)**0.5
+                            if ndist > 0.001:
+                                nx_, ny_ = ndx / ndist, ndy / ndist
+                            else:
+                                nx_, ny_ = 1.0, 0.0
+                            recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
+                            c.slash_vx = nx_ * recoil_spd
+                            c.slash_vy = ny_ * recoil_spd
+                            c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
+                            c.arc_recoiling = True
+                            c.dashing = c.rebounding = False
+                            c.slashing = True
+                            c.slash_phase = c.slash_idx = c.slash_tick = 0
                         else:
-                            spd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                            nx = -c.slash_vx / spd if spd > 0 else 1.0
-                            ny = -c.slash_vy / spd if spd > 0 else 0.0
-                        dot = c.slash_vx * nx + c.slash_vy * ny
-                        rx = c.slash_vx - 2.0 * dot * nx
-                        ry = c.slash_vy - 2.0 * dot * ny
-                        rmag = (rx * rx + ry * ry) ** 0.5
-                        if rmag > 0.001:
-                            lspd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                            c.slash_vx = rx / rmag * lspd
-                            c.slash_vy = ry / rmag * lspd
-                        c.rebounding = True
+                            # Final hit — end arc combo, go on cooldown
+                            c.arc_combo_active = False
+                            c.arc_combo_hits = 0
+                            c.arc_combo_cooldown_ticks = config.ARC_COMBO_COOLDOWN_TICKS
+                            # Rebound off contact as normal
+                            if dist > 0.001:
+                                nx2 = (t.x - tx) / dist
+                                ny2 = (t.y - ty) / dist
+                            else:
+                                spd2 = (c.slash_vx**2 + c.slash_vy**2)**0.5
+                                nx2 = -c.slash_vx/spd2 if spd2>0 else 1.0
+                                ny2 = -c.slash_vy/spd2 if spd2>0 else 0.0
+                            dot2 = c.slash_vx*nx2 + c.slash_vy*ny2
+                            rx2 = c.slash_vx - 2.0*dot2*nx2
+                            ry2 = c.slash_vy - 2.0*dot2*ny2
+                            rmag2 = (rx2*rx2+ry2*ry2)**0.5
+                            if rmag2 > 0.001:
+                                lspd2 = (c.slash_vx**2+c.slash_vy**2)**0.5
+                                c.slash_vx = rx2/rmag2*lspd2
+                                c.slash_vy = ry2/rmag2*lspd2
+                            c.rebounding = True
+                    # 50/50 choice: arc combo vs classic combo (only on fresh hit, not arc continuation)
+                    if not c.arc_combo_active and not c.arc_recoiling:
+                        use_arc = (c.arc_combo_cooldown_ticks <= 0
+                                   and rng.random() < 0.5)
+                        if use_arc:
+                            # --- Start arc combo ---
+                            c.arc_combo_active = True
+                            c.arc_combo_hits = 1
+                            c.arc_combo_dir = rng.choice([1, -1])
+                            c.arc_center_x = float(tx)
+                            c.arc_center_y = float(ty)
+                            # Recoil: dash directly away from target
+                            ndx, ndy = t.x - tx, t.y - ty
+                            ndist = (ndx*ndx + ndy*ndy)**0.5
+                            if ndist > 0.001:
+                                nx_, ny_ = ndx / ndist, ndy / ndist
+                            else:
+                                nx_, ny_ = 1.0, 0.0
+                            recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
+                            c.slash_vx = nx_ * recoil_spd
+                            c.slash_vy = ny_ * recoil_spd
+                            c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
+                            c.arc_recoiling = True
+                            c.dashing = c.rebounding = False
+                            c.slashing = True
+                            c.slash_phase = c.slash_idx = c.slash_tick = 0
+                        else:
+                            # --- Classic combo ---
+                            if c.combo_count == 0:
+                                c.combo_count = 2
+                            if c.combo_count > 0:
+                                c.combo_count -= 1
+                                c.combo_pending = True
+                                c.combo_target = (tx, ty)
+                            if c.combo_pending:
+                                c.dashing = c.rebounding = False
+                                c.slashing = True
+                                c.slash_phase = c.slash_idx = c.slash_tick = 0
+                                c.slash_vx = c.slash_vy = 0.0
+                            else:
+                                # Final classic hit: reflect velocity
+                                if dist > 0.001:
+                                    nx = (t.x - tx) / dist
+                                    ny = (t.y - ty) / dist
+                                else:
+                                    spd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                                    nx = -c.slash_vx / spd if spd > 0 else 1.0
+                                    ny = -c.slash_vy / spd if spd > 0 else 0.0
+                                dot = c.slash_vx * nx + c.slash_vy * ny
+                                rx = c.slash_vx - 2.0 * dot * nx
+                                ry = c.slash_vy - 2.0 * dot * ny
+                                rmag = (rx * rx + ry * ry) ** 0.5
+                                if rmag > 0.001:
+                                    lspd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                                    c.slash_vx = rx / rmag * lspd
+                                    c.slash_vy = ry / rmag * lspd
+                                c.rebounding = True
                 else:
                     t.x += c.slash_vx
-                    t.y += c.slash_vy
-                    c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                    if c.slash_dist_budget <= 0:
-                        c.dashing = False
-            else:
-                t.x += c.slash_vx
-                t.y += c.slash_vy
-                c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                if c.slash_dist_budget <= 0:
-                    c.dashing = False
-                    c.slashing = True
-                    c.slash_phase = c.slash_idx = c.slash_tick = 0
-            fig.face(ox, oy)
-            fig.trail.update(t.x, t.y, t.facing_left, True, False)
-            fig.render.is_moving = True
-            fig.render.advance()
-            return True
-
-    # --- Dodge dash execution (triggers wired stage 3; also reached via the
-    #     dodge_interrupt fall-through above) ---
-    if c.dodge_dashing:
-        ox, oy = t.x, t.y
-        step = (c.dodge_vx ** 2 + c.dodge_vy ** 2) ** 0.5
-        t.x += c.dodge_vx
-        t.y += c.dodge_vy
-        c.dodge_dist_budget -= step
-        if c.dodge_dist_budget <= 0:
-            c.dodge_dashing = False
-            if c.dodge_counter and slash_target is not None:
-                c.dodge_counter = False
-                tx, ty = slash_target
-                dx, dy = tx - t.x, ty - t.y
-                dist = (dx * dx + dy * dy) ** 0.5
-                if dist > config.SLASH_HIT_RADIUS:
-                    inv = 1.0 / max(dist, 0.001)
-                    lspd = m.speed * config.SLASH_SPEED_MUL
-                    c.slash_vx = dx * inv * lspd
-                    c.slash_vy = dy * inv * lspd
-                    c.slash_dist_budget = dist * 4.0
-                    c.dashing = True
-                    c.rebounding = False
-            else:
-                c.dodge_counter = False
-        fig.face(ox, oy)
-        fig.trail.update(t.x, t.y, t.facing_left, True, False)
-        fig.render.is_moving = True
-        fig.render.advance()
-        return True
-
-    # --- Dash trigger (arms a dash; does NOT consume the tick) ---
-    if slash_target is not None and not m.bouncing and not m.bounce_ending:
-        tx, ty = slash_target
-        dx, dy = tx - t.x, ty - t.y
-        dist = (dx * dx + dy * dy) ** 0.5
-        if config.SLASH_HIT_RADIUS < dist <= config.SLASH_RADIUS:
-            inv = 1.0 / dist
-            lspd = m.speed * config.SLASH_SPEED_MUL
-            c.slash_vx = dx * inv * lspd
-            c.slash_vy = dy * inv * lspd
-            c.slash_dist_budget = dist * 4.0
-            c.dashing = True
-            c.rebounding = False
-
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Swordsman parry — triggered by CollisionSystem when a bullet enters PARRY_RADIUS.
-# Returns True if the bullet that triggered it should be erased.
-# ---------------------------------------------------------------------------
-def trigger_parry(fig):
-    """Arm the parry state on `fig` if the cooldown has expired.
-
-    Emits a crescent arc aimed away from the figure centre (omnidirectional
-    deflect), plays the slash animation, and starts the 1-second cooldown.
-    Returns True if the parry was successfully triggered, False if on cooldown
-    or already parrying.
-    """
-    c = fig.combat
-    if c.parry_cooldown_ticks > 0 or c.parrying:
-        return False
-    # Emit a wide crescent (reuse same arc type as a dash-slash hit) aimed at
-    # a point directly ahead of the figure based on its current facing.
-    t = fig.transform
-    r, g, b = fig.lut[200]  # slightly different lut index → distinct hue
-    # Point the arc in the figure's current facing direction
-    dir_x = -1.0 if t.facing_left else 1.0
-    target_x = t.x + dir_x * config.CRESCENT_RADIUS * 2
-    target_y = t.y
-    c.crescents.append(CrescentWave(t.x, t.y, target_x, target_y, (r, g, b)))
-    # Enter the parry slash animation at phase 0
-    c.parrying = True
-    c.parry_stance_ticks = config.PARRY_STANCE_TICKS   # active deflect window
-    c.parry_cooldown_ticks = config.PARRY_COOLDOWN_TICKS
-    # Do NOT enter the slash FSM — that would halt movement via c.busy.
-    # The crescent arc is the visual; the figure keeps moving freely.
-    return True
-
-
-def tick_parry_cooldown(fig):
-    """Decrement the parry cooldown and stance timer every tick."""
-    c = fig.combat
-    if c.parry_cooldown_ticks > 0:
-        c.parry_cooldown_ticks -= 1
-    # Stance window: count down; clear parrying flag when it expires
-    if c.parrying:
-        if c.parry_stance_ticks > 0:
-            c.parry_stance_ticks -= 1
-        if c.parry_stance_ticks <= 0:
-            c.parrying = False
