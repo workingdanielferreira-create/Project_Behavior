@@ -108,8 +108,9 @@ class MotionSystem(System):
                                     world.path_follow, world.runaway)
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
-                    # Solo mode cursor bounce costs 1 HP
-                    ai.apply_hp_damage(fig, world)
+                    # Solo mode cursor bounce costs 1 HP — unless parrying
+                    if not fig.combat.parrying:
+                        ai.apply_hp_damage(fig, world)
         for fig in world.figures:
             motion.check_walls(fig)
 
@@ -310,8 +311,11 @@ class ProjectileSystem(System):
                             continue
                         ddx, ddy = proj.x - fig.x, proj.y - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
-                            # Bullet is within parry range — trigger if ready
-                            if combat.trigger_parry(fig):
+                            # Stance already open: absorb silently, no new crescent
+                            if fig.combat.parrying:
+                                world.collision_dots.append([proj.x, proj.y, 0])
+                                hit = True
+                            elif combat.trigger_parry(fig):
                                 world.collision_dots.append([proj.x, proj.y, 0])
                                 hit = True
                             break  # only one figure handles the parry per bullet
@@ -430,7 +434,10 @@ class CollisionSystem(System):
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= parry_rsq:
-                        if combat.trigger_parry(fig):
+                        if fig.combat.parrying:
+                            world.collision_dots.append([ex, ey, 0])
+                            erased_by_parry = True
+                        elif combat.trigger_parry(fig):
                             world.collision_dots.append([ex, ey, 0])
                             erased_by_parry = True
                         break
@@ -439,6 +446,8 @@ class CollisionSystem(System):
             world.enemy_projs = surviving_enemy
 
             for fig in world.figures:
+                if fig.combat.parrying:
+                    continue  # parry stance active — no HP damage
                 for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
@@ -547,8 +556,9 @@ class CollisionSystem(System):
                             cx = (fig.x + ex) * 0.5
                             cy = (fig.y + ey) * 0.5
                             world.collision_dots.append([cx, cy, 0])
-                        # Body collision costs 1 HP (dash-hits are especially punishing)
-                        ai.apply_hp_damage(fig, world)
+                        # Body collision costs 1 HP — unless the figure is parrying
+                        if not fig.combat.parrying:
+                            ai.apply_hp_damage(fig, world)
                         break
 
 
