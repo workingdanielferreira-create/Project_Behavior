@@ -207,11 +207,14 @@ class CollisionSystem(System):
             world.enemy_projs = surviving
 
         # --- Enemy projectile -> figure hit ---
+        # Note: we do NOT skip figures that are already bouncing.  Calling
+        # battle_hit while airborne is safe (it stacks the impulse), and — more
+        # importantly — it is the only way knockback_count can accumulate quickly
+        # enough for the immunity cycle to kick in.  Skipping would mean a
+        # stun-locked figure never reaches KNOCKBACK_LIMIT and stays bouncing
+        # forever.
         if world.enemy_projs:
             for fig in world.figures:
-                m = fig.motion
-                if m.bouncing or m.bounce_ending:
-                    continue
                 for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
@@ -378,4 +381,5 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
 
