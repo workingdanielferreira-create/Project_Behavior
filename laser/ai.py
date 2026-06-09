@@ -14,13 +14,22 @@ def apply_hp_damage(fig, world):
     """Deduct 1 HP from fig and signal quit when HP reaches 0.
 
     Safe to call from any system.  Returns True if the figure just died.
+    Also triggers the runner ultimate when HP first drops to/below 50 % of max.
     """
     p = fig.personality
+    was_above = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
     p.hp -= 1
     if p.hp <= 0:
         p.hp = 0
         world.request_quit()
         return True
+    # Trigger runner ultimate on the tick HP crosses the 50 % threshold.
+    if (was_above
+            and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
+            and fig.mode.can_shoot()
+            and not fig.mode.uses_melee()
+            and p.ultimate_ticks <= 0):
+        p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
     return False
 
 
