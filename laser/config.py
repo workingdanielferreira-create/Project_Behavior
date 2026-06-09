@@ -107,8 +107,24 @@ PROJ_SPEED        = 8.0
 PROJ_RADIUS       = 4
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
-SHOT_ANGLES       = (0.0, 0.0, 0.0)   # degrees relative to aim (fan spread)
+PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
 SHOOT_INTERVAL    = 32          # ticks between shots in non-battle shoot mode
+
+# ---------------------------------------------------------------------------
+# Runner shot-cycle  (3-phase repeating pattern)
+# Phase 0 — CONE   : 3 clusters spread in a fan
+# Phase 1 — ZIGZAG : 2 clusters that weave toward the target
+# Phase 2 — HOMING : 1 cluster that tracks the target at half speed
+# After phase 2 a pause of SHOT_CYCLE_PAUSE_TICKS fires before repeating.
+# ---------------------------------------------------------------------------
+SHOT_CYCLE_PAUSE_TICKS  = 31    # ~0.5 s at 62 fps between cycles
+SHOT_CONE_ANGLES        = (-22.0, 0.0, 22.0)   # degrees offset from aim direction
+SHOT_ZIGZAG_AMPLITUDE   = 55.0  # px lateral offset for each zigzag cluster
+SHOT_ZIGZAG_FREQUENCY   = 0.18  # radians/tick of the sinusoidal weave
+SHOT_HOMING_SPEED_MULT  = 0.5   # fraction of PROJ_SPEED for the homing cluster
+
+# Legacy fan angles kept for non-runner modes (swordsman battle fire, etc.)
+SHOT_ANGLES = (0.0, 0.0, 0.0)
 
 # ---------------------------------------------------------------------------
 # Battle / AI
@@ -161,8 +177,3 @@ MODE_ORDER = ["runner", "swordsman"]
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
 COLLISION_DOT_RADIUS  = 5    # px
-
-
-
-
-
