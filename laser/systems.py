@@ -279,11 +279,48 @@ class ProjectileSystem(System):
                 combat.update_homing_targets(world.projectiles, cx, cy)
 
         # Advance + cull (runs every tick).
+        # Also checks bullet-vs-cursor (solo) and bullet-vs-figure (both modes).
         if world.projectiles:
+            cx, cy = world.cursor
             alive = []
             for proj in world.projectiles:
                 proj.update()
-                if proj.alive:
+                if not proj.alive:
+                    continue
+
+                # Skip splinters — hit_r_sq == 0.0 means no collision checking
+                if proj.hit_r_sq == 0.0:
+                    alive.append(proj)
+                    continue
+
+                hit = False
+
+                # --- Bullet vs cursor (solo and battle) ---
+                if not hit:
+                    ddx, ddy = proj.x - cx, proj.y - cy
+                    if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
+                        world.collision_dots.append([proj.x, proj.y, 0])
+                        hit = True
+
+                # --- Bullet vs own figures (solo and battle) ---
+                if not hit:
+                    for fig in world.figures:
+                        ddx, ddy = proj.x - fig.x, proj.y - fig.y
+                        if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
+                            world.collision_dots.append([proj.x, proj.y, 0])
+                            hit = True
+                            break
+
+                # --- Bullet vs enemy figures (battle only) ---
+                if not hit and world.battle_mode and world.partner_figures:
+                    for ex, ey, _edash in world.partner_figures:
+                        ddx, ddy = proj.x - ex, proj.y - ey
+                        if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
+                            world.collision_dots.append([proj.x, proj.y, 0])
+                            hit = True
+                            break
+
+                if not hit:
                     alive.append(proj)
             world.projectiles = alive
 
