@@ -127,6 +127,7 @@ class CombatSystem(System):
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
+            combat.tick_parry_cooldown(fig)   # always tick regardless of other state
             tgt = world.melee_target(fig)
             fig.combat.acted = combat.advance_combat(fig, tgt, world.cursor)
 
@@ -297,6 +298,24 @@ class ProjectileSystem(System):
 
                 hit = False
 
+                # --- Bullet vs swordsman parry (solo and battle) ---
+                # Check before cursor/figure-hit so a parried bullet is erased
+                # without dealing damage.  The parry radius is smaller than the
+                # dodge radius, so this is only reached by bullets that got past
+                # the dodge sidestep.
+                if not hit:
+                    parry_rsq = config.PARRY_RADIUS * config.PARRY_RADIUS
+                    for fig in world.figures:
+                        if not fig.mode.uses_melee():
+                            continue
+                        ddx, ddy = proj.x - fig.x, proj.y - fig.y
+                        if ddx * ddx + ddy * ddy <= parry_rsq:
+                            # Bullet is within parry range — trigger if ready
+                            if combat.trigger_parry(fig):
+                                world.collision_dots.append([proj.x, proj.y, 0])
+                                hit = True
+                            break  # only one figure handles the parry per bullet
+
                 # --- Bullet vs cursor (solo and battle) ---
                 if not hit:
                     ddx, ddy = proj.x - cx, proj.y - cy
@@ -397,7 +416,28 @@ class CollisionSystem(System):
         # enough for the immunity cycle to kick in.  Skipping would mean a
         # stun-locked figure never reaches KNOCKBACK_LIMIT and stays bouncing
         # forever.
+        #
+        # Parry window: if a swordsman is within PARRY_RADIUS and its parry
+        # cooldown has expired, the bullet is deflected instead of hitting.
         if world.enemy_projs:
+            parry_rsq = config.PARRY_RADIUS * config.PARRY_RADIUS
+            surviving_enemy = []
+            for tup in world.enemy_projs:
+                ex, ey, evx, evy = tup[0], tup[1], tup[2], tup[3]
+                erased_by_parry = False
+                for fig in world.figures:
+                    if not fig.mode.uses_melee():
+                        continue
+                    ddx, ddy = ex - fig.x, ey - fig.y
+                    if ddx * ddx + ddy * ddy <= parry_rsq:
+                        if combat.trigger_parry(fig):
+                            world.collision_dots.append([ex, ey, 0])
+                            erased_by_parry = True
+                        break
+                if not erased_by_parry:
+                    surviving_enemy.append(tup)
+            world.enemy_projs = surviving_enemy
+
             for fig in world.figures:
                 for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
