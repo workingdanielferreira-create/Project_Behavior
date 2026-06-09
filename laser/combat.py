@@ -24,7 +24,7 @@ from .palette import LUT_MASK
 # ---------------------------------------------------------------------------
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
-                 "max_age", "hit_r_sq", "trail")
+                 "max_age", "hit_r_sq", "trail", "radius")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -34,6 +34,7 @@ class Projectile:
         self.max_age = config.PROJ_MAX_AGE
         self.hit_r_sq = float(config.PROJ_HIT_RADIUS ** 2)
         self.trail = deque(maxlen=max(3, trail_len))
+        self.radius = float(config.PROJ_RADIUS)  # overridable for splinters
 
     @property
     def alive(self):
@@ -63,14 +64,14 @@ class Projectile:
                 x0, y0 = pts[i - 1]; x1, y1 = pts[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
-        glwr = config.PROJ_RADIUS * 3
+        glwr = max(1.0, self.radius * 3)
         grad = QRadialGradient(hx, hy, glwr)
         grad.setColorAt(0.0, QColor(r, g, b, int(140 * fade)))
         grad.setColorAt(1.0, QColor(r, g, b, 0))
         p.setPen(Qt.NoPen); p.setBrush(grad)
         p.drawEllipse(hx - glwr, hy - glwr, glwr * 2, glwr * 2)
 
-        rad = config.PROJ_RADIUS
+        rad = max(1.0, self.radius)
         core = QRadialGradient(hx, hy, rad)
         core.setColorAt(0.0, QColor(255, 255, 255, int(240 * fade)))
         core.setColorAt(0.5, QColor(r, g, b, int(210 * fade)))
@@ -159,6 +160,53 @@ class HomingProjectile(Projectile):
 # ---------------------------------------------------------------------------
 # Runner shot-cycle factory
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Splinter factory — called when a bullet collides with an enemy bullet
+# ---------------------------------------------------------------------------
+def make_splinter_bullets(proj):
+    """Return 3 tiny Projectile objects bursting perpendicular to the parent.
+
+    The burst is centred on the parent's current position.  The three bullets
+    fan out symmetrically: one straight perpendicular-left, one straight
+    perpendicular-right, and one straight ahead — each offset by
+    SPLINTER_SPREAD_DEG so none retrace the original path.
+
+    Perpendicular is computed from the parent velocity so the scatter always
+    looks natural regardless of the bullet's travel direction.
+    """
+    spd = (proj.vx * proj.vx + proj.vy * proj.vy) ** 0.5
+    if spd < 0.001:
+        spd = config.PROJ_SPEED
+
+    # Forward unit vector from parent velocity
+    fx, fy = proj.vx / spd, proj.vy / spd
+    # Perpendicular unit vector (90° left of travel)
+    px, py = -fy, fx
+
+    srad = config.PROJ_RADIUS * config.SPLINTER_RADIUS_SCALE
+    sspd = spd * config.SPLINTER_SPEED_MULT
+    half = math.radians(config.SPLINTER_SPREAD_DEG)
+    tl = max(2, config.PROJ_TRAIL_LEN - 1)
+    cr = (proj.r, proj.g, proj.b)
+
+    # Three directions: left-perp, right-perp, straight-back-through
+    # (visually: two side-bursts + one that carries forward at an angle)
+    angles = (-half, 0.0, half)   # relative to perpendicular axis
+    splinters = []
+    for a in angles:
+        ca, sa = math.cos(a), math.sin(a)
+        # Rotate perpendicular vector by a around the forward axis
+        dvx = (px * ca - fx * sa) * sspd
+        dvy = (py * ca - fy * sa) * sspd
+        s = Projectile(proj.x, proj.y, dvx, dvy, cr, tl)
+        s.radius = srad
+        s.max_age = config.SPLINTER_MAX_AGE
+        s.hit_r_sq = 0.0   # splinters do not trigger further collisions
+        splinters.append(s)
+    return splinters
+
+
 def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
     """Return a list of Projectile objects for the given cycle phase.
 
