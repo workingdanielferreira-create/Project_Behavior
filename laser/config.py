@@ -177,3 +177,11 @@ MODE_ORDER = ["runner", "swordsman"]
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
 COLLISION_DOT_RADIUS  = 5    # px
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics / action log
+# ---------------------------------------------------------------------------
+# Set True to write laser_cursor_log.txt next to the launcher.
+# Flushes every 60 events; ~0 overhead when False.
+LOG_ENABLED = False
