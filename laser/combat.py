@@ -611,6 +611,11 @@ def advance_combat(fig, slash_target, fallback):
                         c.hit_vx = c.slash_vx / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                         c.hit_vy = c.slash_vy / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                     c.hit_pending = True
+                    # Snapshot: was this hit part of an in-flight arc combo?
+                    # (The continuation block below clears arc_combo_active on
+                    # the final hit; the 50/50 branch must see the PRE-hit state
+                    # or the final arc hit chains straight into a classic combo.)
+                    was_arc_hit = c.arc_combo_active
                     # --- Arc combo continuation (follow-up hits 2 and 3) ---
                     if c.arc_combo_active:
                         c.arc_combo_hits += 1
@@ -644,8 +649,10 @@ def advance_combat(fig, slash_target, fallback):
                                 c.slash_vx = rx2/rmag2*lspd2
                                 c.slash_vy = ry2/rmag2*lspd2
                             c.rebounding = True
-                    # 50/50 choice: arc combo vs classic combo (only on fresh hit, not arc continuation)
-                    if not c.arc_combo_active and not c.arc_recoiling:
+                    # 50/50 choice: arc combo vs classic combo (only on a FRESH
+                    # hit — never on any hit that belonged to an arc combo string,
+                    # including its final hit).
+                    if not was_arc_hit and not c.arc_recoiling:
                         use_arc = (c.arc_combo_cooldown_ticks <= 0
                                    and rng.random() < 0.5)
                         if use_arc:
