@@ -89,6 +89,14 @@ ARC_RECOIL_TICKS        = 12   # ticks for the recoil dash (~0.2 s at 62 fps)
 ARC_ORBIT_ANGLE_DEG     = 150.0 # degrees to arc around the target between hits
 ARC_REPO_TICKS          = 22   # ticks to travel the curved reposition arc
 
+# Primary attack model — every fresh attack is a 50/50 pick between
+# dashslash (straight dash) and arcslash (curved approach).
+ARC_APPROACH_TICKS      = 24    # ticks for the primary arcslash curved approach
+ARC_APPROACH_SWEEP_DEG  = 120.0 # degrees swept around the target during the approach
+ATTACK_STRING_MAX_HITS  = 3     # hits per attack string (primary + 2 follow-ups)
+ATTACK_STRING_COOLDOWN_TICKS = 62  # ~1 s after a full string before follow-ups chain again
+FOLLOWUP_TYPE_LOCK_TICKS = 12   # 0.2 s: the OTHER follow-up type is locked after a 50/50 pick
+
 # ---------------------------------------------------------------------------
 # Swordsman dodge sidestep
 # ---------------------------------------------------------------------------
