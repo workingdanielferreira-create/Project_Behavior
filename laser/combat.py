@@ -415,26 +415,20 @@ def advance_combat(fig, slash_target, fallback):
     if not bundle.slash:
         return False  # this mode has no melee capability
 
-    # --- Combo follow-up cooldown tick ---
-    if c.combo_cooldown_ticks > 0:
-        c.combo_cooldown_ticks -= 1
-    # --- Arc combo cooldown tick ---
-    if c.arc_combo_cooldown_ticks > 0:
-        c.arc_combo_cooldown_ticks -= 1
+    # --- Attack-string cooldown tick (~1 s after a completed 3-hit string) ---
+    if c.attack_cooldown_ticks > 0:
+        c.attack_cooldown_ticks -= 1
+    # --- Follow-up type lock tick (0.2 s window after a 50/50 pick) ---
+    if c.followup_lock_ticks > 0:
+        c.followup_lock_ticks -= 1
+        if c.followup_lock_ticks <= 0:
+            c.followup_lock_type = 0
 
-    # --- Combo follow-up delay: count down, then launch the dash ---
+    # --- Follow-up dashslash delay: count down, then launch a STRAIGHT dash ---
     if c.combo_delay_ticks > 0:
         c.combo_delay_ticks -= 1
         if c.combo_delay_ticks == 0 and slash_target is not None:
             tx, ty = slash_target
-            if c.combo_count == 1:
-                approach = math.atan2(t.y - ty, t.x - tx)
-                arc_off = rng.choice([1, -1]) * rng.uniform(
-                    math.radians(90), math.radians(150))
-                fa = approach + arc_off
-                fd = config.SLASH_RADIUS * 0.9
-                t.x = tx + math.cos(fa) * fd
-                t.y = ty + math.sin(fa) * fd
             ddx, ddy = tx - t.x, ty - t.y
             ddist = (ddx * ddx + ddy * ddy) ** 0.5
             if ddist > config.SLASH_HIT_RADIUS:
@@ -448,10 +442,11 @@ def advance_combat(fig, slash_target, fallback):
                 c.rebounding = False
 
     # -----------------------------------------------------------------------
-    # ARC COMBO — recoil, arc-reposition, and re-dash phases
+    # ARC PHASES — shared by the primary arcslash (shrinking-radius approach)
+    # and the follow-up arcslash (recoil + constant-radius 150° orbit).
     # -----------------------------------------------------------------------
 
-    # --- Arc recoil: dash directly away from target after each hit ---
+    # --- Arc recoil: dash directly away from target after a hit (follow-up arcslash) ---
     if c.arc_recoiling:
         ox, oy = t.x, t.y
         c.arc_recoil_ticks -= 1
@@ -459,11 +454,12 @@ def advance_combat(fig, slash_target, fallback):
         t.y += c.slash_vy
         if c.arc_recoil_ticks <= 0:
             c.arc_recoiling = False
-            # Arm the curved reposition arc
-            # Determine where we are relative to the hit target
+            # Arm the constant-radius orbit around the hit target.
             cx_, cy_ = c.arc_center_x, c.arc_center_y
             dx_, dy_ = t.x - cx_, t.y - cy_
             c.arc_orbit_r = max((dx_*dx_ + dy_*dy_)**0.5, 20.0)
+            c.arc_r_start = c.arc_orbit_r
+            c.arc_r_end = c.arc_orbit_r
             c.arc_start_angle = math.atan2(dy_, dx_)
             arc_rad = math.radians(config.ARC_ORBIT_ANGLE_DEG) * c.arc_combo_dir
             c.arc_end_angle = c.arc_start_angle + arc_rad
@@ -476,7 +472,9 @@ def advance_combat(fig, slash_target, fallback):
         fig.render.advance()
         return True
 
-    # --- Arc reposition: curved path around the target ---
+    # --- Arc travel: curved path around the target.  Radius interpolates from
+    #     arc_r_start to arc_r_end (constant for the follow-up orbit; shrinking
+    #     for the primary arcslash approach).  Ends with a dash-in. ---
     if c.arc_repositioning:
         ox, oy = t.x, t.y
         c.arc_repo_t += 1
@@ -484,27 +482,29 @@ def advance_combat(fig, slash_target, fallback):
         raw = c.arc_repo_t / max(c.arc_repo_steps, 1)
         ease = raw * raw * (3.0 - 2.0 * raw)
         angle = c.arc_start_angle + (c.arc_end_angle - c.arc_start_angle) * ease
-        t.x = c.arc_center_x + math.cos(angle) * c.arc_orbit_r
-        t.y = c.arc_center_y + math.sin(angle) * c.arc_orbit_r
+        radius = c.arc_r_start + (c.arc_r_end - c.arc_r_start) * ease
+        t.x = c.arc_center_x + math.cos(angle) * radius
+        t.y = c.arc_center_y + math.sin(angle) * radius
         if c.arc_repo_t >= c.arc_repo_steps:
             c.arc_repositioning = False
-            # Now launch the dash-in toward the target
-            tx_, ty_ = c.arc_center_x, c.arc_center_y
+            # Launch the dash-in toward the LIVE target if available.
+            if slash_target is not None:
+                tx_, ty_ = slash_target
+            else:
+                tx_, ty_ = c.arc_center_x, c.arc_center_y
             ddx, ddy = tx_ - t.x, ty_ - t.y
             ddist = (ddx*ddx + ddy*ddy)**0.5
-            if ddist > config.SLASH_HIT_RADIUS:
-                inv = 1.0 / max(ddist, 0.001)
-                lspd = fig.motion.speed * config.SLASH_SPEED_MUL
+            lspd = m.speed * config.SLASH_SPEED_MUL
+            if ddist > 1.0:
+                inv = 1.0 / ddist
                 c.slash_vx = ddx * inv * lspd
                 c.slash_vy = ddy * inv * lspd
-                c.slash_dist_budget = ddist * 4.0
-                c.dashing = True
-                c.rebounding = False
-            else:
-                # Already at target — end the arc combo
-                c.arc_combo_active = False
-                c.arc_combo_cooldown_ticks = config.ARC_COMBO_COOLDOWN_TICKS
-            # Flip direction for next arc segment (CW ↔ CCW)
+            # else: keep current slash velocity direction — we are on top of the
+            # target and the hit check will fire on the first dash tick anyway.
+            c.slash_dist_budget = max(ddist * 4.0, lspd * 2.0)
+            c.dashing = True
+            c.rebounding = False
+            # Alternate orbit direction for the next arc (CW ↔ CCW).
             c.arc_combo_dir *= -1
         fig.face(ox, oy)
         fig.trail.update(t.x, t.y, t.facing_left, True, False)
@@ -541,10 +541,10 @@ def advance_combat(fig, slash_target, fallback):
                     c.slashing = c.rebounding = c.dashing = False
                     fig.render.run_idx = 0
                     fig.render.anim_tick = 0
-                    # --- Arc combo: launch recoil after slash anim completes ---
-                    if c.arc_recoil_pending:
-                        c.arc_recoil_pending = False
-                        # Recoil direction: away from stored arc target
+                    # --- Launch the queued follow-up attack, if any ---
+                    if c.followup_pending == 2:
+                        # Follow-up ARCSLASH: recoil away, then 150° orbit, then dash-in.
+                        c.followup_pending = 0
                         ndx = t.x - c.arc_center_x
                         ndy = t.y - c.arc_center_y
                         ndist = (ndx*ndx + ndy*ndy)**0.5
@@ -557,27 +557,13 @@ def advance_combat(fig, slash_target, fallback):
                         c.slash_vy = ny_ * recoil_spd
                         c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
                         c.arc_recoiling = True
-                    # --- Follow-up combo dash ---
-                    if c.combo_pending and slash_target is not None:
-                        c.combo_pending = False
-                        # Enforce max follow-ups and cooldown.
-                        if (c.combo_follow_ups >= config.COMBO_MAX
-                                or c.combo_cooldown_ticks > 0):
-                            # Exhausted or on cooldown — reset and skip.
-                            c.combo_cooldown_ticks = config.COMBO_COOLDOWN_TICKS
-                            c.combo_follow_ups = 0
-                        else:
-                            c.combo_follow_ups += 1
-                            # Arm a randomised delay before the follow-up dash fires.
-                            # travel_ticks is a PRE-LAUNCH PAUSE, not a budget multiplier.
-                            # This gives the target breathing room after knockback.
-                            c.combo_delay_ticks = rng.randint(
-                                config.COMBO_TRAVEL_TICKS_MIN,
-                                config.COMBO_TRAVEL_TICKS_MAX)
-                            # If this was the last allowed follow-up, start cooldown.
-                            if c.combo_follow_ups >= config.COMBO_MAX:
-                                c.combo_cooldown_ticks = config.COMBO_COOLDOWN_TICKS
-                                c.combo_follow_ups = 0
+                    elif c.followup_pending == 1:
+                        # Follow-up DASHSLASH: randomised pause, then straight dash
+                        # (gives the target breathing room after knockback).
+                        c.followup_pending = 0
+                        c.combo_delay_ticks = rng.randint(
+                            config.COMBO_TRAVEL_TICKS_MIN,
+                            config.COMBO_TRAVEL_TICKS_MAX)
         fig.face(ox, oy)
         fig.trail.update(t.x, t.y, t.facing_left, False, False)
         fig.render.is_moving = False
@@ -611,92 +597,145 @@ def advance_combat(fig, slash_target, fallback):
                         c.hit_vx = c.slash_vx / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                         c.hit_vy = c.slash_vy / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                     c.hit_pending = True
-                    # Snapshot: was this hit part of an in-flight arc combo?
-                    # (The continuation block below clears arc_combo_active on
-                    # the final hit; the 50/50 branch must see the PRE-hit state
-                    # or the final arc hit chains straight into a classic combo.)
-                    was_arc_hit = c.arc_combo_active
-                    # --- Arc combo continuation (follow-up hits 2 and 3) ---
-                    if c.arc_combo_active:
-                        c.arc_combo_hits += 1
-                        c.arc_center_x = float(tx)
-                        c.arc_center_y = float(ty)
-                        if c.arc_combo_hits < config.ARC_COMBO_MAX_HITS:
-                            # More hits remain — recoil again
-                            c.arc_recoil_pending = True   # recoil fires after slash anim
-                            c.dashing = c.rebounding = False
-                            c.slashing = True
-                            c.slash_phase = c.slash_idx = c.slash_tick = 0
+                    # ---------------------------------------------------------
+                    # ATTACK STRING — count the hit; queue a follow-up (50/50
+                    # dashslash vs arcslash with a 0.2 s type lock) until the
+                    # string reaches ATTACK_STRING_MAX_HITS, then cool down.
+                    # ---------------------------------------------------------
+                    c.arc_center_x = float(tx)
+                    c.arc_center_y = float(ty)
+                    chain = False
+                    if c.attack_cooldown_ticks <= 0:
+                        c.attack_hits += 1
+                        if c.attack_hits < config.ATTACK_STRING_MAX_HITS:
+                            chain = True
                         else:
-                            # Final hit — end arc combo, go on cooldown
-                            c.arc_combo_active = False
-                            c.arc_combo_hits = 0
-                            c.arc_combo_cooldown_ticks = config.ARC_COMBO_COOLDOWN_TICKS
-                            # Rebound off contact as normal
-                            if dist > 0.001:
-                                nx2 = (t.x - tx) / dist
-                                ny2 = (t.y - ty) / dist
-                            else:
-                                spd2 = (c.slash_vx**2 + c.slash_vy**2)**0.5
-                                nx2 = -c.slash_vx/spd2 if spd2>0 else 1.0
-                                ny2 = -c.slash_vy/spd2 if spd2>0 else 0.0
-                            dot2 = c.slash_vx*nx2 + c.slash_vy*ny2
-                            rx2 = c.slash_vx - 2.0*dot2*nx2
-                            ry2 = c.slash_vy - 2.0*dot2*ny2
-                            rmag2 = (rx2*rx2+ry2*ry2)**0.5
-                            if rmag2 > 0.001:
-                                lspd2 = (c.slash_vx**2+c.slash_vy**2)**0.5
-                                c.slash_vx = rx2/rmag2*lspd2
-                                c.slash_vy = ry2/rmag2*lspd2
-                            c.rebounding = True
-                    # 50/50 choice: arc combo vs classic combo (only on a FRESH
-                    # hit — never on any hit that belonged to an arc combo string,
-                    # including its final hit).
-                    if not was_arc_hit and not c.arc_recoiling:
-                        use_arc = (c.arc_combo_cooldown_ticks <= 0
-                                   and rng.random() < 0.5)
-                        if use_arc:
-                            # --- Start arc combo ---
-                            c.arc_combo_active = True
-                            c.arc_combo_hits = 1
-                            c.arc_combo_dir = rng.choice([1, -1])
-                            c.arc_center_x = float(tx)
-                            c.arc_center_y = float(ty)
-                            # Recoil: dash directly away from target
-                            c.arc_recoil_pending = True   # recoil fires after slash anim
-                            c.dashing = c.rebounding = False
-                            c.slashing = True
-                            c.slash_phase = c.slash_idx = c.slash_tick = 0
+                            # String complete — reset and start the ~1 s cooldown.
+                            c.attack_hits = 0
+                            c.attack_cooldown_ticks = config.ATTACK_STRING_COOLDOWN_TICKS
+                    if chain:
+                        # Pick the follow-up type: locked type wins within the
+                        # 0.2 s window, otherwise a fresh 50/50 roll locks it.
+                        if c.followup_lock_ticks > 0 and c.followup_lock_type:
+                            ftype = c.followup_lock_type
                         else:
-                            # --- Classic combo ---
-                            if c.combo_count == 0:
-                                c.combo_count = 2
-                            if c.combo_count > 0:
-                                c.combo_count -= 1
-                                c.combo_pending = True
-                                c.combo_target = (tx, ty)
-                            if c.combo_pending:
-                                c.dashing = c.rebounding = False
-                                c.slashing = True
-                                c.slash_phase = c.slash_idx = c.slash_tick = 0
-                                c.slash_vx = c.slash_vy = 0.0
-                            else:
-                                # Final classic hit: reflect velocity
-                                if dist > 0.001:
-                                    nx = (t.x - tx) / dist
-                                    ny = (t.y - ty) / dist
-                                else:
-                                    spd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                                    nx = -c.slash_vx / spd if spd > 0 else 1.0
-                                    ny = -c.slash_vy / spd if spd > 0 else 0.0
-                                dot = c.slash_vx * nx + c.slash_vy * ny
-                                rx = c.slash_vx - 2.0 * dot * nx
-                                ry = c.slash_vy - 2.0 * dot * ny
-                                rmag = (rx * rx + ry * ry) ** 0.5
-                                if rmag > 0.001:
-                                    lspd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
-                                    c.slash_vx = rx / rmag * lspd
-                                    c.slash_vy = ry / rmag * lspd
-                                c.rebounding = True
+                            ftype = 1 if rng.random() < 0.5 else 2
+                            c.followup_lock_type = ftype
+                            c.followup_lock_ticks = config.FOLLOWUP_TYPE_LOCK_TICKS
+                        c.followup_pending = ftype
+                        # Stop dead and play the slash; the follow-up launches
+                        # when the animation completes.
+                        c.dashing = c.rebounding = False
+                        c.slashing = True
+                        c.slash_phase = c.slash_idx = c.slash_tick = 0
+                        c.slash_vx = c.slash_vy = 0.0
+                    else:
+                        # No chain (string finished or on cooldown): reflect
+                        # velocity off the contact and rebound away.
+                        if dist > 0.001:
+                            nx = (t.x - tx) / dist
+                            ny = (t.y - ty) / dist
+                        else:
+                            spd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                            nx = -c.slash_vx / spd if spd > 0 else 1.0
+                            ny = -c.slash_vy / spd if spd > 0 else 0.0
+                        dot = c.slash_vx * nx + c.slash_vy * ny
+                        rx = c.slash_vx - 2.0 * dot * nx
+                        ry = c.slash_vy - 2.0 * dot * ny
+                        rmag = (rx * rx + ry * ry) ** 0.5
+                        if rmag > 0.001:
+                            lspd = (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                            c.slash_vx = rx / rmag * lspd
+                            c.slash_vy = ry / rmag * lspd
+                        c.rebounding = True
                 else:
                     t.x += c.slash_vx
+                    t.y += c.slash_vy
+                    c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                    if c.slash_dist_budget <= 0:
+                        c.dashing = False
+                        # Missed string — clear hit progress so the next primary
+                        # starts a fresh string.
+                        c.attack_hits = 0
+            else:
+                t.x += c.slash_vx
+                t.y += c.slash_vy
+                c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
+                if c.slash_dist_budget <= 0:
+                    c.dashing = False
+                    c.slashing = True
+                    c.slash_phase = c.slash_idx = c.slash_tick = 0
+            fig.face(ox, oy)
+            fig.trail.update(t.x, t.y, t.facing_left, True, False)
+            fig.render.is_moving = True
+            fig.render.advance()
+            return True
+
+    # --- Dodge dash execution (triggers wired stage 3; also reached via the
+    #     dodge_interrupt fall-through above) ---
+    if c.dodge_dashing:
+        ox, oy = t.x, t.y
+        step = (c.dodge_vx ** 2 + c.dodge_vy ** 2) ** 0.5
+        t.x += c.dodge_vx
+        t.y += c.dodge_vy
+        c.dodge_dist_budget -= step
+        if c.dodge_dist_budget <= 0:
+            c.dodge_dashing = False
+            if c.dodge_counter and slash_target is not None:
+                c.dodge_counter = False
+                tx, ty = slash_target
+                dx, dy = tx - t.x, ty - t.y
+                dist = (dx * dx + dy * dy) ** 0.5
+                if dist > config.SLASH_HIT_RADIUS:
+                    inv = 1.0 / max(dist, 0.001)
+                    lspd = m.speed * config.SLASH_SPEED_MUL
+                    c.slash_vx = dx * inv * lspd
+                    c.slash_vy = dy * inv * lspd
+                    c.slash_dist_budget = dist * 4.0
+                    c.dashing = True
+                    c.rebounding = False
+            else:
+                c.dodge_counter = False
+        fig.face(ox, oy)
+        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        fig.render.is_moving = True
+        fig.render.advance()
+        return True
+
+    # --- Primary attack trigger (arms an attack; does NOT consume the tick) ---
+    # 50/50 between:
+    #   dashslash — straight dash at the target (classic)
+    #   arcslash  — curved approach sweeping around the target, ending in a slash
+    if (slash_target is not None and not m.bouncing and not m.bounce_ending
+            and c.combo_delay_ticks == 0):
+        tx, ty = slash_target
+        dx, dy = tx - t.x, ty - t.y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if config.SLASH_HIT_RADIUS < dist <= config.SLASH_RADIUS:
+            c.attack_hits = 0  # fresh string
+            if rng.random() < 0.5:
+                # --- Primary DASHSLASH: straight in ---
+                inv = 1.0 / dist
+                lspd = m.speed * config.SLASH_SPEED_MUL
+                c.slash_vx = dx * inv * lspd
+                c.slash_vy = dy * inv * lspd
+                c.slash_dist_budget = dist * 4.0
+                c.dashing = True
+                c.rebounding = False
+            else:
+                # --- Primary ARCSLASH: curved approach, radius shrinking from
+                #     current distance down to just outside the hit radius, then
+                #     a short dash-in lands the slash from a new direction. ---
+                c.arc_center_x = float(tx)
+                c.arc_center_y = float(ty)
+                c.arc_combo_dir = rng.choice([1, -1])
+                c.arc_r_start = dist
+                c.arc_r_end = config.SLASH_HIT_RADIUS * 1.5
+                c.arc_start_angle = math.atan2(t.y - ty, t.x - tx)
+                sweep = math.radians(config.ARC_APPROACH_SWEEP_DEG) * c.arc_combo_dir
+                c.arc_end_angle = c.arc_start_angle + sweep
+                c.arc_repo_t = 0
+                c.arc_repo_steps = config.ARC_APPROACH_TICKS
+                c.arc_repositioning = True
+
+    return False
