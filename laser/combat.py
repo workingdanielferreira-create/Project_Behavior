@@ -516,6 +516,22 @@ def advance_combat(fig, slash_target, fallback):
                     c.slashing = c.rebounding = c.dashing = False
                     fig.render.run_idx = 0
                     fig.render.anim_tick = 0
+                    # --- Arc combo: launch recoil after slash anim completes ---
+                    if c.arc_recoil_pending:
+                        c.arc_recoil_pending = False
+                        # Recoil direction: away from stored arc target
+                        ndx = t.x - c.arc_center_x
+                        ndy = t.y - c.arc_center_y
+                        ndist = (ndx*ndx + ndy*ndy)**0.5
+                        if ndist > 0.001:
+                            nx_, ny_ = ndx / ndist, ndy / ndist
+                        else:
+                            nx_, ny_ = 1.0, 0.0
+                        recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
+                        c.slash_vx = nx_ * recoil_spd
+                        c.slash_vy = ny_ * recoil_spd
+                        c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
+                        c.arc_recoiling = True
                     # --- Follow-up combo dash ---
                     if c.combo_pending and slash_target is not None:
                         c.combo_pending = False
@@ -577,17 +593,7 @@ def advance_combat(fig, slash_target, fallback):
                         c.arc_center_y = float(ty)
                         if c.arc_combo_hits < config.ARC_COMBO_MAX_HITS:
                             # More hits remain — recoil again
-                            ndx, ndy = t.x - tx, t.y - ty
-                            ndist = (ndx*ndx + ndy*ndy)**0.5
-                            if ndist > 0.001:
-                                nx_, ny_ = ndx / ndist, ndy / ndist
-                            else:
-                                nx_, ny_ = 1.0, 0.0
-                            recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
-                            c.slash_vx = nx_ * recoil_spd
-                            c.slash_vy = ny_ * recoil_spd
-                            c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
-                            c.arc_recoiling = True
+                            c.arc_recoil_pending = True   # recoil fires after slash anim
                             c.dashing = c.rebounding = False
                             c.slashing = True
                             c.slash_phase = c.slash_idx = c.slash_tick = 0
@@ -625,17 +631,7 @@ def advance_combat(fig, slash_target, fallback):
                             c.arc_center_x = float(tx)
                             c.arc_center_y = float(ty)
                             # Recoil: dash directly away from target
-                            ndx, ndy = t.x - tx, t.y - ty
-                            ndist = (ndx*ndx + ndy*ndy)**0.5
-                            if ndist > 0.001:
-                                nx_, ny_ = ndx / ndist, ndy / ndist
-                            else:
-                                nx_, ny_ = 1.0, 0.0
-                            recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
-                            c.slash_vx = nx_ * recoil_spd
-                            c.slash_vy = ny_ * recoil_spd
-                            c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
-                            c.arc_recoiling = True
+                            c.arc_recoil_pending = True   # recoil fires after slash anim
                             c.dashing = c.rebounding = False
                             c.slashing = True
                             c.slash_phase = c.slash_idx = c.slash_tick = 0
