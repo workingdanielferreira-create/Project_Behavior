@@ -201,7 +201,10 @@ class Combatant:
                  "arc_center_x", "arc_center_y",
                  "arc_start_angle", "arc_end_angle", "arc_orbit_r",
                  "arc_combo_cooldown_ticks",
-                 "arc_recoil_pending")
+                 "arc_recoil_pending",
+                 "arc_r_start", "arc_r_end",
+                 "attack_hits", "attack_cooldown_ticks",
+                 "followup_pending", "followup_lock_ticks", "followup_lock_type")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -244,6 +247,14 @@ class Combatant:
         self.arc_orbit_r = 0.0            # radius of the orbit arc
         self.arc_combo_cooldown_ticks = 0 # ticks before arc combo can fire again
         self.arc_recoil_pending = False    # True after slash anim completes on arc hit; arms recoil
+        # Attack string state (50/50 dashslash vs arcslash; unified hit chain)
+        self.arc_r_start = 0.0             # arc travel radius at start (interpolated)
+        self.arc_r_end = 0.0               # arc travel radius at end
+        self.attack_hits = 0               # hits landed in the current attack string
+        self.attack_cooldown_ticks = 0     # ~1 s cooldown after a full 3-hit string
+        self.followup_pending = 0          # queued follow-up: 0 none / 1 dashslash / 2 arcslash
+        self.followup_lock_ticks = 0       # 0.2 s window locking the follow-up type
+        self.followup_lock_type = 0        # locked type during the window (1 or 2)
 
     def reset(self):
         self.__init__()
