@@ -380,6 +380,31 @@ class CrescentWave:
 # False if the figure should still take a normal movement step (faithful to the
 # original, which does one chase step on the dash-trigger tick).
 # ---------------------------------------------------------------------------
+
+def tick_parry_cooldown(fig):
+    """Tick parry cooldown and stance timers every frame (regardless of other state)."""
+    c = fig.combat
+    if c.parry_cooldown_ticks > 0:
+        c.parry_cooldown_ticks -= 1
+    if c.parry_stance_ticks > 0:
+        c.parry_stance_ticks -= 1
+        if c.parry_stance_ticks <= 0:
+            c.parrying = False
+
+
+def trigger_parry(fig):
+    """Arm the parry stance if the cooldown has expired. Returns True if parry was triggered."""
+    c = fig.combat
+    if c.parry_cooldown_ticks > 0:
+        return False
+    c.parrying = True
+    c.parry_stance_ticks = config.PARRY_STANCE_TICKS
+    c.parry_cooldown_ticks = config.PARRY_COOLDOWN_TICKS
+    # Play the slash animation to show the parry deflect
+    c.slash_phase = c.slash_idx = c.slash_tick = 0
+    return True
+
+
 def advance_combat(fig, slash_target, fallback):
     t = fig.transform
     c = fig.combat
