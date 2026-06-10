@@ -200,7 +200,8 @@ class Combatant:
                  "arc_repositioning", "arc_repo_t", "arc_repo_steps",
                  "arc_center_x", "arc_center_y",
                  "arc_start_angle", "arc_end_angle", "arc_orbit_r",
-                 "arc_combo_cooldown_ticks")
+                 "arc_combo_cooldown_ticks",
+                 "arc_recoil_pending")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -242,6 +243,7 @@ class Combatant:
         self.arc_end_angle = 0.0          # radians: where it ends
         self.arc_orbit_r = 0.0            # radius of the orbit arc
         self.arc_combo_cooldown_ticks = 0 # ticks before arc combo can fire again
+        self.arc_recoil_pending = False    # True after slash anim completes on arc hit; arms recoil
 
     def reset(self):
         self.__init__()
