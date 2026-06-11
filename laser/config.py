@@ -193,8 +193,18 @@ HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 # When HP drops to or below max_hp * ULTIMATE_HP_THRESHOLD, the runner enters
 # an ultimate state: shooting frequency becomes 0 (fires every tick) for
 # ULTIMATE_DURATION_TICKS ticks (~3 s at 62 fps).
-ULTIMATE_HP_THRESHOLD   = 0.5   # fraction of max_hp that triggers the ultimate
+ULTIMATE_HP_THRESHOLD   = 0.3   # fraction of max_hp that triggers the ultimate
 ULTIMATE_DURATION_TICKS = 187   # ~3 s at 62 fps
+
+# ---------------------------------------------------------------------------
+# Runner Survival Teleport (triggers at same HP threshold as ultimate)
+# ---------------------------------------------------------------------------
+# Every TELEPORT_INTERVAL_TICKS ticks while runner HP is at or below the
+# threshold, the runner blinks to a point TELEPORT_DISTANCE_PX behind itself
+# (opposite its current facing direction) relative to the combat target.
+# The destination is clamped to screen bounds.  Shooting is NOT interrupted.
+TELEPORT_INTERVAL_TICKS = 62    # ~1 s at 62 fps
+TELEPORT_DISTANCE_PX    = 100.0 # px from target to land at
 
 # ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
@@ -203,7 +213,7 @@ ULTIMATE_DURATION_TICKS = 187   # ~3 s at 62 fps
 MODE_CONFIGS = {
     "runner": dict(
         chase_speed=3.0, follow_speed=4.5, anim_speed=5, idle_anim_speed=10,
-        max_hp=60,
+        max_hp=100,
     ),
     "swordsman": dict(
         chase_speed=4.5, follow_speed=6.0, anim_speed=4, idle_anim_speed=8,
@@ -243,3 +253,4 @@ SPLINTER_MAX_AGE         = 30            # ~0.5 s
 SPLINTER_SPEED_MULT      = 1.4
 # Spread angle (degrees) between the three perpendicular splinters.
 SPLINTER_SPREAD_DEG      = 55.0
+
