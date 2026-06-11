@@ -130,7 +130,7 @@ PROJ_RADIUS       = 3
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
 PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
-SHOOT_INTERVAL    = 32          # ticks between shots in non-battle shoot mode
+SHOOT_INTERVAL    = 62          # ticks between shots in non-battle shoot mode
 
 # ---------------------------------------------------------------------------
 # Runner shot-cycle  (3-phase repeating pattern)
@@ -139,8 +139,8 @@ SHOOT_INTERVAL    = 32          # ticks between shots in non-battle shoot mode
 # Phase 2 — HOMING : 1 cluster that tracks the target at half speed
 # After phase 2 a pause of SHOT_CYCLE_PAUSE_TICKS fires before repeating.
 # ---------------------------------------------------------------------------
-SHOT_CYCLE_PAUSE_TICKS  = 31    # ~0.5 s at 62 fps between cycles
-SHOT_CONE_ANGLES        = (0.0,)                # single bullet straight at target
+SHOT_CYCLE_PAUSE_TICKS  = 62    # ~1 s at 62 fps between cycles
+SHOT_CONE_ANGLES        = (-15.0, 0.0, 15.0)    # 3-bullet fan at ±15°
 SHOT_ZIGZAG_AMPLITUDE   = 55.0  # px lateral offset for each zigzag cluster
 SHOT_ZIGZAG_FREQUENCY   = 0.18  # radians/tick of the sinusoidal weave
 SHOT_HOMING_SPEED_MULT  = 0.5   # fraction of PROJ_SPEED for the homing cluster
@@ -253,4 +253,5 @@ SPLINTER_MAX_AGE         = 30            # ~0.5 s
 SPLINTER_SPEED_MULT      = 1.4
 # Spread angle (degrees) between the three perpendicular splinters.
 SPLINTER_SPREAD_DEG      = 55.0
+
 
