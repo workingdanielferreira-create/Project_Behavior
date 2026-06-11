@@ -8,16 +8,19 @@ read from the figure's mode predicates (`charges_full`, `retreats`,
 import math
 
 from . import config
+from . import combat as _combat
 
 
 def apply_hp_damage(fig, world):
     """Deduct 1 HP from fig and signal quit when HP reaches 0.
 
     Safe to call from any system.  Returns True if the figure just died.
-    Also triggers the runner ultimate when HP first drops to/below 50 % of max.
+    Also triggers the runner ultimate when HP first drops to/below 30% of max,
+    and the swordsman ultimate when HP first drops to/below 50% of max.
     """
     p = fig.personality
-    was_above = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
+    was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
+    was_above_sword  = p.hp > int(p.max_hp * config.ULTC_THRESHOLD)
     p.hp -= 1
     if p.hp <= 0:
         p.hp = 0
@@ -25,7 +28,7 @@ def apply_hp_damage(fig, world):
         return True
     # Trigger runner ultimate and survival teleport on the tick HP crosses
     # the threshold.
-    if (was_above
+    if (was_above_runner
             and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
             and fig.mode.can_shoot()
             and not fig.mode.uses_melee()
@@ -33,6 +36,18 @@ def apply_hp_damage(fig, world):
         p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
         # Arm the first teleport immediately (fires on the very next tick).
         p.teleport_ticks = 0
+    # Trigger swordsman ultimate on first crossing of 50% HP threshold.
+    if (was_above_sword
+            and p.hp <= int(p.max_hp * config.ULTC_THRESHOLD)
+            and fig.mode.uses_melee()
+            and not p.sword_ult_fired):
+        p.sword_ult_fired = True
+        # Determine target: nearest enemy in battle, cursor in solo.
+        if world.battle_mode and world.partner_figures:
+            tx, ty = world._nearest_enemy(fig.x, fig.y)
+        else:
+            tx, ty = world.cursor
+        _combat.fire_sword_ultimate(fig, tx, ty)
     return False
 
 
@@ -159,5 +174,6 @@ def _wall_repulsion(fig):
     if db < z:
         k = 1.0 - db / z; ry -= k * k * k * push
     return rx, ry
+
 
 
