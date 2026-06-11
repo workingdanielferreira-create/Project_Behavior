@@ -107,6 +107,8 @@ class World:
         bundle = self.assets.bundle(new_key)
         for fig in self.figures:
             fig.set_mode(mode, bundle)
+            fig.lut = lut_for_mode(new_key, fig.index)
+            fig.trail.lut = fig.lut
 
     def toggle_shoot_mode(self):
         self.shoot_mode = not self.shoot_mode
