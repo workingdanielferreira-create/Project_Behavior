@@ -289,7 +289,8 @@ class Overlay(QWidget):
                 max_hp = fig.personality.max_hp
                 label = f"{hp_val} HP"
                 text_w = fm.horizontalAdvance(label)
-                draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R
+                _hp_offset = 0 if fig.mode.uses_melee() else 70
+                draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R - _hp_offset
                 draw_y = base_y - idx * line_h
                 # Pick colour from the figure's lut midpoint
                 r2, g2, b2 = fig.lut[128]
@@ -322,6 +323,7 @@ def main():
     ret = app.exec_()
     overlay.world.ipc.release()
     sys.exit(ret)
+
 
 
 
