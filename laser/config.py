@@ -255,4 +255,26 @@ SPLINTER_SPEED_MULT      = 1.4
 SPLINTER_SPREAD_DEG      = 55.0
 
 
+# ---------------------------------------------------------------------------
+# Swordsman Ultimate Crescent
+# ---------------------------------------------------------------------------
+# Fires once when the swordsman's HP first drops to/below 50% of max_hp.
+# Two blades: the second fires ULTC_SECOND_DELAY_TICKS after the first.
+# Speed: 100 px/s ≈ 1.6 px/tick at 62 fps.
+# After ULTC_FADE_DIST px of travel the blade fades bottom-to-top.
+# Deals 1 HP per tick to any overlapping enemy figure.
+ULTC_THRESHOLD          = 0.5        # HP fraction that arms the ultimate
+ULTC_RADIUS             = 300        # arc radius (px)
+ULTC_SPAN               = 200.0      # arc span (degrees) — broad blade
+ULTC_SPEED              = 1.613      # px/tick ≈ 100 px/s at 62 fps
+ULTC_FADE_DIST          = 500.0      # px of travel before fade begins
+ULTC_WIDTH_OUTER        = 28.0       # stroke width for dark body fill pass
+ULTC_WIDTH_INNER        = 6.0        # stroke width for bright rim pass
+ULTC_SEGS               = 32         # draw segments for the arc gradient
+ULTC_LIFETIME           = 600        # max ticks alive (safety cap)
+ULTC_SECOND_DELAY_TICKS = 3          # ticks after 1st before 2nd fires
+ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface takes 1 HP/tick
+
+
+
 
