@@ -20,7 +20,7 @@ from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
 from .ipc import IPCBridge
-from .palette import lut_for_index
+from .palette import lut_for_index, lut_for_mode
 
 # crash_log replaced by action_log.crash() — see laser/action_log.py
 
@@ -83,7 +83,7 @@ class World:
             return False
         i = len(self.figures)
         fig = Figure(self.mode, self.assets.bundle(self.mode_key),
-                     lut_for_index(i), i, self.screen_w, self.screen_h)
+                     lut_for_mode(self.mode_key, i), i, self.screen_w, self.screen_h)
         self.figures.append(fig)
         return True
 
