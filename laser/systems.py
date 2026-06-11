@@ -13,6 +13,8 @@ system skips it (`fig.combat.busy`).  Rendering is NOT a system — Qt requires
 it inside paintEvent (see app.py).
 """
 
+import math
+
 from . import motion, modes, config, combat, ai
 from . import platform_win as win
 from . import action_log
@@ -100,11 +102,50 @@ class MotionSystem(System):
         for fig in world.figures:
             if fig.combat.acted:
                 continue  # combat system already advanced this figure this tick
-            tx, ty = world.movement_target(fig)
+
+            # --- Runner survival teleport (active while HP <= 30% threshold) ---
+            # Works in both solo (target = cursor) and battle (target = nearest enemy).
+            # Teleport is a pure position warp — it does NOT set combat.acted, so
+            # ProjectileSystem fires on the same tick uninterrupted.
+            p = fig.personality
+            if (fig.mode.can_shoot()
+                    and not fig.mode.uses_melee()
+                    and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)):
+                if p.teleport_ticks <= 0:
+                    # Compute destination: 100px behind the runner relative to target.
+                    # "Behind" = opposite of the runner's current facing direction,
+                    # so the runner always lands on the far side of the target from
+                    # where it was.
+                    if battle:
+                        tx, ty = world._nearest_enemy(fig.x, fig.y)
+                    else:
+                        tx, ty = world.cursor
+                    # Vector from target → runner (runner's current outward direction)
+                    dx, dy = fig.x - tx, fig.y - ty
+                    dist = (dx * dx + dy * dy) ** 0.5
+                    if dist > 0.001:
+                        nx, ny = dx / dist, dy / dist
+                    else:
+                        nx, ny = 1.0, 0.0
+                    # Land TELEPORT_DISTANCE_PX behind the runner from the target's POV
+                    # i.e. further away in the same outward direction.
+                    new_x = tx + nx * config.TELEPORT_DISTANCE_PX
+                    new_y = ty + ny * config.TELEPORT_DISTANCE_PX
+                    # Clamp to screen bounds
+                    margin = 20.0
+                    new_x = max(margin, min(fig.screen_w - margin, new_x))
+                    new_y = max(margin, min(fig.screen_h - margin, new_y))
+                    fig.transform.x = new_x
+                    fig.transform.y = new_y
+                    p.teleport_ticks = config.TELEPORT_INTERVAL_TICKS
+                else:
+                    p.teleport_ticks -= 1
+
+            tx_motion, ty_motion = world.movement_target(fig)
             if battle:
-                motion.update(fig, tx, ty, False, False, False)
+                motion.update(fig, tx_motion, ty_motion, False, False, False)
             else:
-                hit = motion.update(fig, tx, ty, world.collision_on,
+                hit = motion.update(fig, tx_motion, ty_motion, world.collision_on,
                                     world.path_follow, world.runaway)
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
@@ -666,6 +707,7 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
 
 
 
