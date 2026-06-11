@@ -239,14 +239,10 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
         vy = math.sin(base_rad) * config.PROJ_SPEED
         amp = config.SHOT_ZIGZAG_AMPLITUDE
         freq = config.SHOT_ZIGZAG_FREQUENCY
-        # Two bullets with opposite starting phases so they weave past each other
         b0 = ZigzagProjectile(fx, fy, vx, vy, cr, tl,
                                amplitude=amp, frequency=freq,
                                phase_offset=0.0)
-        b1 = ZigzagProjectile(fx, fy, vx, vy, cr, tl,
-                               amplitude=amp, frequency=freq,
-                               phase_offset=math.pi)
-        return [b0, b1]
+        return [b0]
 
     else:
         # --- HOMING ---
@@ -739,3 +735,4 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
