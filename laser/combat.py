@@ -376,32 +376,41 @@ class CrescentWave:
 class UltimateCrescent:
     """A large crescent blade that travels forward at ~100 px/s.
 
+    Spawns AT the target position.  The two blades are rotated ±ULTC_CROSS_ANGLE
+    so their tips cross like an X in front of the target.
+
     Visual:  dark filled body (thick arc) + bright blue rim (thin inner arc).
-    Reveal:  sweeps in from bottom of the arc to top over the first 10 frames
-             so it appears to materialise upward.
+    Reveal:  sweeps in from bottom of the arc to top over the first 10 ticks.
     Fade:    after ULTC_FADE_DIST px of travel, fades from bottom to top.
-    Damage:  any enemy figure whose centre is within ULTC_HIT_FIGURE_DIST of
-             the arc surface takes 1 HP per tick (checked by CollisionSystem).
+    Damage:  any enemy figure within ULTC_HIT_FIGURE_DIST of the arc surface
+             takes 1 HP per tick (checked by CollisionSystem).
     Bullets: destroys any bullet whose centre lies within the blade band.
     """
 
     __slots__ = ("x", "y", "dir_x", "dir_y", "age", "dist_travelled",
                  "centre_angle_deg", "reveal_t")
 
-    def __init__(self, fig_x, fig_y, target_x, target_y):
+    def __init__(self, fig_x, fig_y, target_x, target_y, cross_angle_deg=0.0):
         dx, dy = target_x - fig_x, target_y - fig_y
         dist = (dx * dx + dy * dy) ** 0.5
         if dist > 0.001:
             self.dir_x, self.dir_y = dx / dist, dy / dist
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
-        # Spawn slightly ahead of the figure so it clears the sprite
-        self.x = fig_x + self.dir_x * (config.ULTC_RADIUS * 0.5)
-        self.y = fig_y + self.dir_y * (config.ULTC_RADIUS * 0.5)
+
+        # Spawn RIGHT AT the target — blades materialise on the enemy
+        self.x = float(target_x)
+        self.y = float(target_y)
         self.age = 0
         self.dist_travelled = 0.0
-        self.centre_angle_deg = angle_deg_qt(self.dir_x, self.dir_y)
-        self.reveal_t = 0.0   # 0.0 = hidden, 1.0 = fully revealed (ramps over ~10 ticks)
+
+        # Arc orientation = travel direction PLUS the cross-angle rotation.
+        # This tilts each blade's concave opening so the two blades cross like
+        # an X at the target point.
+        base_angle = angle_deg_qt(self.dir_x, self.dir_y)
+        self.centre_angle_deg = base_angle + cross_angle_deg
+
+        self.reveal_t = 0.0   # 0 → 1 over ~10 ticks (bottom-to-top materialise)
 
     @property
     def alive(self):
@@ -412,7 +421,6 @@ class UltimateCrescent:
         self.y += self.dir_y * config.ULTC_SPEED
         self.dist_travelled += config.ULTC_SPEED
         self.age += 1
-        # Reveal sweeps in over ~10 ticks (bottom-to-top materialise)
         if self.reveal_t < 1.0:
             self.reveal_t = min(1.0, self.reveal_t + 0.1)
 
@@ -447,11 +455,9 @@ class UltimateCrescent:
         half_span = config.ULTC_SPAN / 2.0
         segs = config.ULTC_SEGS
 
-        # --- Global alpha ---
-        # Fade phase: after ULTC_FADE_DIST, fade linearly to 0
+        # Fade: after ULTC_FADE_DIST px fades linearly over 200 px more
         if self.dist_travelled > config.ULTC_FADE_DIST:
             excess = self.dist_travelled - config.ULTC_FADE_DIST
-            # Fade over ~200 px of additional travel
             fade_alpha = max(0.0, 1.0 - excess / 200.0)
         else:
             fade_alpha = 1.0
@@ -459,25 +465,16 @@ class UltimateCrescent:
         if fade_alpha <= 0.0:
             return
 
-        # The arc's orientation: centre_angle_deg points in the travel direction.
-        # We want the OPEN side of the crescent (concave) to face FORWARD so it
-        # looks like the images — the blade curves away from travel direction.
-        # Qt arcTo: 0° = 3 o'clock, angles go CCW in screen-space (y-down).
-        # We lay the arc centred on (self.x, self.y) at radius r, with the
-        # bounding box rect_x, rect_y, diam, diam.
+        # centre_angle_deg already includes the cross rotation set at init.
         start_deg = self.centre_angle_deg - half_span
         step = config.ULTC_SPAN / segs
         rect_x, rect_y = self.x - r, self.y - r
         diam = r * 2
 
-        # Reveal: bottom→top sweep.  segment 0 is at start_deg (one end of the
-        # blade), segment segs-1 is at the other end.  We reveal from seg 0
-        # upward so the blade appears to grow from one tip across to the other.
+        # Reveal: grow from seg 0 → segs over the first 10 ticks
         reveal_segs = int(self.reveal_t * segs)
 
-        # --- Fade is bottom-to-top during the fade-out phase ---
-        # "Bottom" = lower y on screen = higher segment index (since arc sweeps
-        # CCW in Qt screen space).  We fade from seg segs-1 downward.
+        # Fade bottom-to-top: higher-index segments (lower on screen) fade first
         if self.dist_travelled > config.ULTC_FADE_DIST:
             excess = self.dist_travelled - config.ULTC_FADE_DIST
             fade_segs_from_bottom = int((excess / 200.0) * segs)
@@ -490,40 +487,33 @@ class UltimateCrescent:
 
         for i in range(segs):
             if i >= reveal_segs:
-                continue   # not yet revealed
-            # Fade bottom-to-top: segments near end of arc fade first
+                continue
             visible_from_bottom = segs - 1 - i
             if visible_from_bottom < fade_segs_from_bottom:
                 continue
 
-            seg_t = (i + 0.5) / segs   # 0 = one tip, 1 = other tip
-
-            # Taper: thickest in the middle, tapered at tips
-            taper = 1.0 - abs(seg_t - 0.5) * 2.0   # 0 at tips, 1 at midpoint
-            taper = taper ** 0.5
+            seg_t = (i + 0.5) / segs
+            taper = (1.0 - abs(seg_t - 0.5) * 2.0) ** 0.5  # thick mid, thin tips
 
             a0 = start_deg + i * step
 
-            # --- Pass 1: dark body ---
+            # Pass 1: dark body
             body_w = config.ULTC_WIDTH_OUTER * (0.4 + 0.6 * taper)
-            body_alpha = int(215 * fade_alpha)
             pen.setWidthF(body_w)
-            pen.setColor(QColor(8, 8, 12, body_alpha))
+            pen.setColor(QColor(8, 8, 12, int(215 * fade_alpha)))
             p.setPen(pen)
             path = QPainterPath()
             path.arcMoveTo(rect_x, rect_y, diam, diam, a0)
             path.arcTo(rect_x, rect_y, diam, diam, a0, step)
             p.drawPath(path)
 
-            # --- Pass 2: bright blue rim (outer edge) ---
-            rim_w = config.ULTC_WIDTH_INNER * (0.3 + 0.7 * taper)
-            rim_alpha = int(220 * fade_alpha)
-            pen.setWidthF(rim_w)
-            pen.setColor(QColor(30, 120, 200, rim_alpha))
-            p.setPen(pen)
-            # Rim arc is offset slightly outward — draw at radius r+rim_offset
+            # Pass 2: bright blue rim offset outward
             rim_off = config.ULTC_WIDTH_OUTER * 0.3
             rr = r + rim_off
+            rim_w = config.ULTC_WIDTH_INNER * (0.3 + 0.7 * taper)
+            pen.setWidthF(rim_w)
+            pen.setColor(QColor(30, 120, 200, int(220 * fade_alpha)))
+            p.setPen(pen)
             rr_rect_x, rr_rect_y = self.x - rr, self.y - rr
             rr_diam = rr * 2
             rim_path = QPainterPath()
@@ -533,22 +523,34 @@ class UltimateCrescent:
 
 
 def fire_sword_ultimate(fig, target_x, target_y):
-    """Spawn the first UltimateCrescent and arm the 2nd via the pending counter."""
+    """Spawn blade 1 (+cross angle) at the target; arm blade 2 (-cross angle)
+    to fire ULTC_SECOND_DELAY_TICKS later.  Both travel in the same forward
+    direction but their arcs are rotated ± so the tips cross like an X."""
     c = fig.combat
-    uc = UltimateCrescent(fig.x, fig.y, target_x, target_y)
-    c.ult_crescents.append(uc)
+    ca = config.ULTC_CROSS_ANGLE
+    # Blade 1: rotated +ULTC_CROSS_ANGLE
+    uc1 = UltimateCrescent(fig.x, fig.y, target_x, target_y,
+                           cross_angle_deg=+ca)
+    c.ult_crescents.append(uc1)
+    # Store target for the delayed 2nd blade
     c.ult_crescent_pending = config.ULTC_SECOND_DELAY_TICKS
+    # Stash target so tick_ult_crescents can use it (reuse arc_center fields)
+    c.arc_center_x = float(target_x)
+    c.arc_center_y = float(target_y)
 
 
 def tick_ult_crescents(fig, target_x, target_y):
     """Advance ult_crescents list and fire the delayed 2nd shot when due.
     Called from advance_combat every tick for melee figures."""
     c = fig.combat
-    # Tick the 2nd-shot delay counter
+    # Tick the 2nd-shot delay counter; use stored arc_center as fixed target
     if c.ult_crescent_pending > 0:
         c.ult_crescent_pending -= 1
         if c.ult_crescent_pending == 0:
-            uc2 = UltimateCrescent(fig.x, fig.y, target_x, target_y)
+            ca = config.ULTC_CROSS_ANGLE
+            tx2, ty2 = c.arc_center_x, c.arc_center_y
+            uc2 = UltimateCrescent(fig.x, fig.y, tx2, ty2,
+                                   cross_angle_deg=-ca)
             c.ult_crescents.append(uc2)
     # Advance + cull
     if c.ult_crescents:
@@ -928,5 +930,6 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
 
 
