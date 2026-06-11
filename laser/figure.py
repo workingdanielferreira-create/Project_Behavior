@@ -132,3 +132,11 @@ class Figure:
             cpen.setJoinStyle(Qt.RoundJoin)
             for c in self.combat.crescents:
                 c.draw(p, cpen, lut=self.lut, flow_off=self.trail.flow_off)
+
+        if self.combat.ult_crescents:
+            upen = QPen()
+            upen.setCapStyle(Qt.RoundCap)
+            upen.setJoinStyle(Qt.RoundJoin)
+            for uc in self.combat.ult_crescents:
+                uc.draw(p, upen)
+
