@@ -130,7 +130,7 @@ PROJ_RADIUS       = 3
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
 PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
-SHOOT_INTERVAL    = 10          # ticks between phases; 3 phases × 2 = full cycle twice/s
+SHOOT_INTERVAL    = 3          # ticks between phases; 3 phases × 2 = full cycle twice/s
 
 # ---------------------------------------------------------------------------
 # Runner shot-cycle  (3-phase repeating pattern)
