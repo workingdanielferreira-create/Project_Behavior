@@ -21,6 +21,18 @@ PAL_GOLD = [
     (0xFF, 0xD7, 0x00), (0xFF, 0x6A, 0x00), (0x3A, 0x1A, 0x00), (0xFF, 0xF0, 0x99),
 ]
 
+# Flowing red → deep crimson palette for the swordsman
+PAL_RED = [
+    (0xFF, 0x22, 0x00),   # vivid red-orange
+    (0xFF, 0x00, 0x00),   # pure red
+    (0xCC, 0x00, 0x00),   # mid red
+    (0x8B, 0x00, 0x00),   # dark red / crimson
+    (0x3A, 0x00, 0x00),   # near-black crimson
+    (0x8B, 0x00, 0x00),   # dark red (return leg)
+    (0xCC, 0x00, 0x00),   # mid red (return leg)
+    (0xFF, 0x00, 0x00),   # pure red (return leg)
+]
+
 LUT_MASK = 255
 
 
@@ -44,10 +56,18 @@ LUT_BLUE  = build_lut(PAL_BLUE)
 LUT_PINK  = build_lut(PAL_PINK)
 LUT_GREEN = build_lut(PAL_GREEN)
 LUT_GOLD  = build_lut(PAL_GOLD)
+LUT_RED   = build_lut(PAL_RED)
 
-# Cycled per figure by spawn index.
+# Cycled per figure by spawn index (non-swordsman figures).
 LUTS = [LUT_BLUE, LUT_PINK, LUT_GREEN, LUT_GOLD]
 
 
 def lut_for_index(i):
     return LUTS[i % len(LUTS)]
+
+
+def lut_for_mode(mode_key, index):
+    """Return the correct LUT for a figure given its mode and spawn index."""
+    if mode_key == "swordsman":
+        return LUT_RED
+    return lut_for_index(index)
