@@ -23,13 +23,16 @@ def apply_hp_damage(fig, world):
         p.hp = 0
         world.request_quit()
         return True
-    # Trigger runner ultimate on the tick HP crosses the 50 % threshold.
+    # Trigger runner ultimate and survival teleport on the tick HP crosses
+    # the threshold.
     if (was_above
             and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
             and fig.mode.can_shoot()
             and not fig.mode.uses_melee()
             and p.ultimate_ticks <= 0):
         p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
+        # Arm the first teleport immediately (fires on the very next tick).
+        p.teleport_ticks = 0
     return False
 
 
@@ -156,4 +159,5 @@ def _wall_repulsion(fig):
     if db < z:
         k = 1.0 - db / z; ry -= k * k * k * push
     return rx, ry
+
 
