@@ -204,7 +204,8 @@ class Combatant:
                  "arc_recoil_pending",
                  "arc_r_start", "arc_r_end",
                  "attack_hits", "attack_cooldown_ticks",
-                 "followup_pending", "followup_lock_ticks", "followup_lock_type")
+                 "followup_pending", "followup_lock_ticks", "followup_lock_type",
+                 "ult_crescents", "ult_crescent_pending")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -255,6 +256,9 @@ class Combatant:
         self.followup_pending = 0          # queued follow-up: 0 none / 1 dashslash / 2 arcslash
         self.followup_lock_ticks = 0       # 0.2 s window locking the follow-up type
         self.followup_lock_type = 0        # locked type during the window (1 or 2)
+        # Swordsman ultimate crescent state
+        self.ult_crescents = []            # list of UltimateCrescent instances
+        self.ult_crescent_pending = 0      # ticks until the 2nd ult crescent fires (0 = none)
 
     def reset(self):
         self.__init__()
@@ -275,7 +279,8 @@ class Personality:
                  "shoot_tick", "daze_ticks", "retreat_ticks", "hit_power",
                  "hp", "max_hp",
                  "knockback_count", "immunity_hits",
-                 "ultimate_ticks", "teleport_ticks")
+                 "ultimate_ticks", "teleport_ticks",
+                 "sword_ult_fired")
 
     def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
@@ -297,4 +302,6 @@ class Personality:
         self.immunity_hits = 0
         self.ultimate_ticks = 0   # ticks remaining in runner ultimate (0 = inactive)
         self.teleport_ticks = 0   # ticks until next survival teleport (0 = ready)
+        self.sword_ult_fired = False  # True once swordsman ultimate has fired (one-shot)
+
 
