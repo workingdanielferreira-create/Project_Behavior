@@ -371,6 +371,196 @@ class CrescentWave:
 
 
 # ---------------------------------------------------------------------------
+# UltimateCrescent — swordsman ultimate: a large slow blade launched at 50% HP
+# ---------------------------------------------------------------------------
+class UltimateCrescent:
+    """A large crescent blade that travels forward at ~100 px/s.
+
+    Visual:  dark filled body (thick arc) + bright blue rim (thin inner arc).
+    Reveal:  sweeps in from bottom of the arc to top over the first 10 frames
+             so it appears to materialise upward.
+    Fade:    after ULTC_FADE_DIST px of travel, fades from bottom to top.
+    Damage:  any enemy figure whose centre is within ULTC_HIT_FIGURE_DIST of
+             the arc surface takes 1 HP per tick (checked by CollisionSystem).
+    Bullets: destroys any bullet whose centre lies within the blade band.
+    """
+
+    __slots__ = ("x", "y", "dir_x", "dir_y", "age", "dist_travelled",
+                 "centre_angle_deg", "reveal_t")
+
+    def __init__(self, fig_x, fig_y, target_x, target_y):
+        dx, dy = target_x - fig_x, target_y - fig_y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > 0.001:
+            self.dir_x, self.dir_y = dx / dist, dy / dist
+        else:
+            self.dir_x, self.dir_y = 1.0, 0.0
+        # Spawn slightly ahead of the figure so it clears the sprite
+        self.x = fig_x + self.dir_x * (config.ULTC_RADIUS * 0.5)
+        self.y = fig_y + self.dir_y * (config.ULTC_RADIUS * 0.5)
+        self.age = 0
+        self.dist_travelled = 0.0
+        self.centre_angle_deg = angle_deg_qt(self.dir_x, self.dir_y)
+        self.reveal_t = 0.0   # 0.0 = hidden, 1.0 = fully revealed (ramps over ~10 ticks)
+
+    @property
+    def alive(self):
+        return self.age < config.ULTC_LIFETIME
+
+    def update(self):
+        self.x += self.dir_x * config.ULTC_SPEED
+        self.y += self.dir_y * config.ULTC_SPEED
+        self.dist_travelled += config.ULTC_SPEED
+        self.age += 1
+        # Reveal sweeps in over ~10 ticks (bottom-to-top materialise)
+        if self.reveal_t < 1.0:
+            self.reveal_t = min(1.0, self.reveal_t + 0.1)
+
+    def check_bullet_erase(self, bx, by):
+        """True if bullet (bx, by) lies within the blade's arc band."""
+        r = config.ULTC_RADIUS
+        margin = config.ULTC_WIDTH_OUTER * 0.5 + 10.0
+        ddx, ddy = bx - self.x, by - self.y
+        d = (ddx * ddx + ddy * ddy) ** 0.5
+        if d < 0.001 or not (r - margin <= d <= r + margin):
+            return False
+        diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
+        return abs(diff) <= config.ULTC_SPAN / 2.0
+
+    def check_figure_hit(self, fx, fy):
+        """True if figure (fx, fy) is within the blade's damage band."""
+        r = config.ULTC_RADIUS
+        margin = config.ULTC_HIT_FIGURE_DIST
+        ddx, ddy = fx - self.x, fy - self.y
+        d = (ddx * ddx + ddy * ddy) ** 0.5
+        if d < 0.001 or not (r - margin <= d <= r + margin):
+            return False
+        diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
+        return abs(diff) <= config.ULTC_SPAN / 2.0
+
+    def draw(self, p, pen):
+        """Draw the blade: dark filled body + bright blue rim, with reveal/fade."""
+        if not self.alive:
+            return
+
+        r = config.ULTC_RADIUS
+        half_span = config.ULTC_SPAN / 2.0
+        segs = config.ULTC_SEGS
+
+        # --- Global alpha ---
+        # Fade phase: after ULTC_FADE_DIST, fade linearly to 0
+        if self.dist_travelled > config.ULTC_FADE_DIST:
+            excess = self.dist_travelled - config.ULTC_FADE_DIST
+            # Fade over ~200 px of additional travel
+            fade_alpha = max(0.0, 1.0 - excess / 200.0)
+        else:
+            fade_alpha = 1.0
+
+        if fade_alpha <= 0.0:
+            return
+
+        # The arc's orientation: centre_angle_deg points in the travel direction.
+        # We want the OPEN side of the crescent (concave) to face FORWARD so it
+        # looks like the images — the blade curves away from travel direction.
+        # Qt arcTo: 0° = 3 o'clock, angles go CCW in screen-space (y-down).
+        # We lay the arc centred on (self.x, self.y) at radius r, with the
+        # bounding box rect_x, rect_y, diam, diam.
+        start_deg = self.centre_angle_deg - half_span
+        step = config.ULTC_SPAN / segs
+        rect_x, rect_y = self.x - r, self.y - r
+        diam = r * 2
+
+        # Reveal: bottom→top sweep.  segment 0 is at start_deg (one end of the
+        # blade), segment segs-1 is at the other end.  We reveal from seg 0
+        # upward so the blade appears to grow from one tip across to the other.
+        reveal_segs = int(self.reveal_t * segs)
+
+        # --- Fade is bottom-to-top during the fade-out phase ---
+        # "Bottom" = lower y on screen = higher segment index (since arc sweeps
+        # CCW in Qt screen space).  We fade from seg segs-1 downward.
+        if self.dist_travelled > config.ULTC_FADE_DIST:
+            excess = self.dist_travelled - config.ULTC_FADE_DIST
+            fade_segs_from_bottom = int((excess / 200.0) * segs)
+        else:
+            fade_segs_from_bottom = 0
+
+        p.setBrush(Qt.NoBrush)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+
+        for i in range(segs):
+            if i >= reveal_segs:
+                continue   # not yet revealed
+            # Fade bottom-to-top: segments near end of arc fade first
+            visible_from_bottom = segs - 1 - i
+            if visible_from_bottom < fade_segs_from_bottom:
+                continue
+
+            seg_t = (i + 0.5) / segs   # 0 = one tip, 1 = other tip
+
+            # Taper: thickest in the middle, tapered at tips
+            taper = 1.0 - abs(seg_t - 0.5) * 2.0   # 0 at tips, 1 at midpoint
+            taper = taper ** 0.5
+
+            a0 = start_deg + i * step
+
+            # --- Pass 1: dark body ---
+            body_w = config.ULTC_WIDTH_OUTER * (0.4 + 0.6 * taper)
+            body_alpha = int(215 * fade_alpha)
+            pen.setWidthF(body_w)
+            pen.setColor(QColor(8, 8, 12, body_alpha))
+            p.setPen(pen)
+            path = QPainterPath()
+            path.arcMoveTo(rect_x, rect_y, diam, diam, a0)
+            path.arcTo(rect_x, rect_y, diam, diam, a0, step)
+            p.drawPath(path)
+
+            # --- Pass 2: bright blue rim (outer edge) ---
+            rim_w = config.ULTC_WIDTH_INNER * (0.3 + 0.7 * taper)
+            rim_alpha = int(220 * fade_alpha)
+            pen.setWidthF(rim_w)
+            pen.setColor(QColor(30, 120, 200, rim_alpha))
+            p.setPen(pen)
+            # Rim arc is offset slightly outward — draw at radius r+rim_offset
+            rim_off = config.ULTC_WIDTH_OUTER * 0.3
+            rr = r + rim_off
+            rr_rect_x, rr_rect_y = self.x - rr, self.y - rr
+            rr_diam = rr * 2
+            rim_path = QPainterPath()
+            rim_path.arcMoveTo(rr_rect_x, rr_rect_y, rr_diam, rr_diam, a0)
+            rim_path.arcTo(rr_rect_x, rr_rect_y, rr_diam, rr_diam, a0, step)
+            p.drawPath(rim_path)
+
+
+def fire_sword_ultimate(fig, target_x, target_y):
+    """Spawn the first UltimateCrescent and arm the 2nd via the pending counter."""
+    c = fig.combat
+    uc = UltimateCrescent(fig.x, fig.y, target_x, target_y)
+    c.ult_crescents.append(uc)
+    c.ult_crescent_pending = config.ULTC_SECOND_DELAY_TICKS
+
+
+def tick_ult_crescents(fig, target_x, target_y):
+    """Advance ult_crescents list and fire the delayed 2nd shot when due.
+    Called from advance_combat every tick for melee figures."""
+    c = fig.combat
+    # Tick the 2nd-shot delay counter
+    if c.ult_crescent_pending > 0:
+        c.ult_crescent_pending -= 1
+        if c.ult_crescent_pending == 0:
+            uc2 = UltimateCrescent(fig.x, fig.y, target_x, target_y)
+            c.ult_crescents.append(uc2)
+    # Advance + cull
+    if c.ult_crescents:
+        live = []
+        for uc in c.ult_crescents:
+            uc.update()
+            if uc.alive:
+                live.append(uc)
+        c.ult_crescents = live
+
+
+# ---------------------------------------------------------------------------
 # Swordsman attack FSM — operates on a Figure's components.
 # Returns True if it consumed the tick (motion should be skipped this tick),
 # False if the figure should still take a normal movement step (faithful to the
@@ -516,6 +706,9 @@ def advance_combat(fig, slash_target, fallback):
             if cr.alive:
                 live.append(cr)
         c.crescents = live
+
+    # --- Ultimate crescent advance + 2nd-shot delay (always tick for melee) ---
+    tick_ult_crescents(fig, fallback[0], fallback[1])
 
     # --- Slash cycle (stationary; plays once at end of dash/rebound) ---
     if c.slashing:
@@ -735,4 +928,5 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
 
