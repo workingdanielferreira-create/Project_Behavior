@@ -402,10 +402,10 @@ class UltimateCrescent:
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
 
-        # Spawn ULTC_RADIUS ahead of the swordsman so the trailing edge of
-        # the arc (the side moving away) crosses the figure at launch.
-        self.x = float(fig_x) + self.dir_x * config.ULTC_RADIUS
-        self.y = float(fig_y) + self.dir_y * config.ULTC_RADIUS
+        # Spawn ULTC_RADIUS behind the swordsman so the front edge of the arc
+        # (facing the travel direction) sits on the figure at launch.
+        self.x = float(fig_x) - self.dir_x * config.ULTC_RADIUS
+        self.y = float(fig_y) - self.dir_y * config.ULTC_RADIUS
         self.age = 0
         self.dist_travelled = 0.0
 
