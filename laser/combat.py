@@ -301,8 +301,8 @@ class CrescentWave:
         # Place arc centre directly ON the target. The arc spans around the
         # target using the perpendicular to the attack direction so the slash
         # wraps around the figure rather than extending away from it.
-        self.x = float(target_x)
-        self.y = float(target_y)
+        self.x = float(target_x) - self.dir_x * 51
+        self.y = float(target_y) - self.dir_y * 51
         self.age = 0
         self.color_rgb = color_rgb
         # Orient perpendicular to attack direction (rotate dir 90°)
@@ -934,6 +934,7 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
 
 
 
