@@ -402,9 +402,9 @@ class UltimateCrescent:
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
 
-        # Spawn 88px back toward the swordsman along the travel direction
-        self.x = float(target_x) - self.dir_x * 88
-        self.y = float(target_y) - self.dir_y * 88
+        # Spawn ULTC_RADIUS back so the arc edge lands on the target
+        self.x = float(target_x) - self.dir_x * config.ULTC_RADIUS
+        self.y = float(target_y) - self.dir_y * config.ULTC_RADIUS
         self.age = 0
         self.dist_travelled = 0.0
 
