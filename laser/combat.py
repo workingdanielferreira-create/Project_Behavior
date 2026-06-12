@@ -298,13 +298,16 @@ class CrescentWave:
             self.dir_x, self.dir_y = dx / dist, dy / dist
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
-        # Position the arc centre so its midpoint (at angle centre_angle_deg,
-        # distance CRESCENT_RADIUS from the centre) lands exactly on the target.
-        self.x = target_x - self.dir_x * config.CRESCENT_RADIUS
-        self.y = target_y - self.dir_y * config.CRESCENT_RADIUS
+        # Place the arc centre BEYOND the target so the concave opening faces
+        # back toward the attacker — the arc wraps around the target.
+        # The midpoint of the arc (at centre_angle_deg, distance CRESCENT_RADIUS)
+        # still lands on the target; the tips curl forward past it.
+        self.x = target_x + self.dir_x * config.CRESCENT_RADIUS
+        self.y = target_y + self.dir_y * config.CRESCENT_RADIUS
         self.age = 0
         self.color_rgb = color_rgb
-        self.centre_angle_deg = angle_deg_qt(self.dir_x, self.dir_y)
+        # Flip 180° so the arc opens back toward the attacker
+        self.centre_angle_deg = angle_deg_qt(-self.dir_x, -self.dir_y)
 
     @property
     def alive(self):
@@ -932,6 +935,7 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
 
 
 
