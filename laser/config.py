@@ -130,7 +130,7 @@ PROJ_RADIUS       = 3
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
 PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
-SHOOT_INTERVAL    = 3          # ticks between phases; 3 phases × 2 = full cycle twice/s
+SHOOT_INTERVAL    = 20         # ticks between phases; 3 phases × 20 ticks = ~1 full cycle/s
 
 # ---------------------------------------------------------------------------
 # Runner shot-cycle  (3-phase repeating pattern)
@@ -275,6 +275,7 @@ ULTC_LIFETIME           = 600        # max ticks alive (safety cap)
 ULTC_SECOND_DELAY_TICKS = 3          # ticks after 1st before 2nd fires
 ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface takes 1 HP/tick
 ULTC_CROSS_ANGLE        = 45.0       # degrees each blade is rotated ± from travel axis to form X
+
 
 
 
