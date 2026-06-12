@@ -280,7 +280,7 @@ class Personality:
                  "hp", "max_hp",
                  "knockback_count", "immunity_hits",
                  "ultimate_ticks", "teleport_ticks",
-                 "sword_ult_fired")
+                 "sword_ult_fired_thresholds")
 
     def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
@@ -302,6 +302,7 @@ class Personality:
         self.immunity_hits = 0
         self.ultimate_ticks = 0   # ticks remaining in runner ultimate (0 = inactive)
         self.teleport_ticks = 0   # ticks until next survival teleport (0 = ready)
-        self.sword_ult_fired = False  # True once swordsman ultimate has fired (one-shot)
+        self.sword_ult_fired_thresholds = set()  # set of thresholds (fractions) already fired
+
 
 
