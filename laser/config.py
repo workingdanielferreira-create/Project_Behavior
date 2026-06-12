@@ -140,7 +140,7 @@ SHOOT_INTERVAL    = 20         # ticks between phases; 3 phases × 20 ticks = ~1
 # After phase 2 a pause of SHOT_CYCLE_PAUSE_TICKS fires before repeating.
 # ---------------------------------------------------------------------------
 SHOT_CYCLE_PAUSE_TICKS  = 0     # no pause — cycle repeats immediately
-SHOT_CONE_ANGLES        = (-15.0, 0.0, 15.0)    # 3-bullet fan at ±15°
+SHOT_CONE_ANGLES        = (0.0,)                  # single bullet, straight at target
 SHOT_ZIGZAG_AMPLITUDE   = 55.0  # px lateral offset for each zigzag cluster
 SHOT_ZIGZAG_FREQUENCY   = 0.18  # radians/tick of the sinusoidal weave
 SHOT_HOMING_SPEED_MULT  = 0.5   # fraction of PROJ_SPEED for the homing cluster
