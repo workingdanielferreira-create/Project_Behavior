@@ -263,7 +263,7 @@ SPLINTER_SPREAD_DEG      = 55.0
 # Speed: 100 px/s ≈ 1.6 px/tick at 62 fps.
 # After ULTC_FADE_DIST px of travel the blade fades bottom-to-top.
 # Deals 1 HP per tick to any overlapping enemy figure.
-ULTC_THRESHOLD          = 0.5        # HP fraction that arms the ultimate
+ULTC_THRESHOLDS         = (0.7, 0.5, 0.3)  # HP fractions that each trigger the ultimate
 ULTC_RADIUS             = 300        # arc radius (px)
 ULTC_SPAN               = 200.0      # arc span (degrees) — broad blade
 ULTC_SPEED              = 1.613      # px/tick ≈ 100 px/s at 62 fps
@@ -275,6 +275,7 @@ ULTC_LIFETIME           = 600        # max ticks alive (safety cap)
 ULTC_SECOND_DELAY_TICKS = 3          # ticks after 1st before 2nd fires
 ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface takes 1 HP/tick
 ULTC_CROSS_ANGLE        = 45.0       # degrees each blade is rotated ± from travel axis to form X
+
 
 
 
