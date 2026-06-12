@@ -479,27 +479,38 @@ class CollisionSystem(System):
                 ]
 
                 # --- Crescent arc erasure (must precede the hit check) ---
+        # Regular crescents: erase per-tick (no fingerprinting needed — crescent
+        # re-checks each tick for its lifetime, so bullets removed from enemy_projs
+        # that re-appear from IPC are caught again naturally).
+        # Ult crescents: use velocity fingerprinting so bullets stay erased even after
+        # they travel out of the ult crescent's zone.
         if world.enemy_projs:
             surviving = []
             for tup in world.enemy_projs:
                 ex, ey, evx, evy = tup[0], tup[1], tup[2], tup[3]
                 fp = (round(evx, 2), round(evy, 2))
+                # Pre-filter bullets already intercepted by ult crescent
                 if fp in world.intercepted_bullets:
                     continue
                 hit = False
+                # --- Regular crescent erasure (per-tick, no fingerprint) ---
                 for fig in world.figures:
                     if hit:
                         break
                     for cr in fig.combat.crescents:
                         if cr.check_bullet_erase(ex, ey):
-                            world.intercepted_bullets.add(fp)
+                            world.collision_dots.append([ex, ey, 0])
                             hit = True
                             break
-                    # Also check ultimate crescents
-                    if not hit:
+                # --- Ultimate crescent erasure (fingerprinted for persistence) ---
+                if not hit:
+                    for fig in world.figures:
+                        if hit:
+                            break
                         for uc in fig.combat.ult_crescents:
                             if uc.check_bullet_erase(ex, ey):
                                 world.intercepted_bullets.add(fp)
+                                world.collision_dots.append([ex, ey, 0])
                                 hit = True
                                 break
                 if not hit:
