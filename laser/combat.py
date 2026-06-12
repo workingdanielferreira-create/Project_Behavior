@@ -402,9 +402,9 @@ class UltimateCrescent:
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
 
-        # Spawn RIGHT AT the target — blades materialise on the enemy
-        self.x = float(target_x)
-        self.y = float(target_y)
+        # Spawn 150px back toward the swordsman along the travel direction
+        self.x = float(target_x) - self.dir_x * 150
+        self.y = float(target_y) - self.dir_y * 150
         self.age = 0
         self.dist_travelled = 0.0
 
