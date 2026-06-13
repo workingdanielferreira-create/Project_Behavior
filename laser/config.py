@@ -113,11 +113,11 @@ PARRY_STANCE_TICKS   = 19       # ~0.3 s the active deflect window stays open
 # ---------------------------------------------------------------------------
 # Crescent wave
 # ---------------------------------------------------------------------------
-CRESCENT_SPEED     = 0.0        # px/tick the arc travels forward
+CRESCENT_SPEED     = 0.4        # px/tick the arc travels forward
 CRESCENT_LIFETIME  = 5          # ticks before it fully fades
-CRESCENT_AHEAD     = -10        # px ahead of figure centre the arc starts
+CRESCENT_AHEAD     = 0        # px ahead of figure centre the arc starts
 CRESCENT_RADIUS    = 30         # radius of the arc curve
-CRESCENT_SPAN      = 270        # total arc angle (degrees)
+CRESCENT_SPAN      = 170        # total arc angle (degrees)
 CRESCENT_WIDTH     = 3.5        # stroke width
 CRESCENT_TAIL      = 0.95       # fraction of arc trailing behind the tip
 CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
@@ -129,7 +129,7 @@ PROJ_SPEED        = 8.0
 PROJ_RADIUS       = 3
 PROJ_MAX_AGE      = 120         # ~2 s
 PROJ_HIT_RADIUS   = 16
-PROJ_TRAIL_LEN    = 3           # history points per projectile cluster dot
+PROJ_TRAIL_LEN    = 5           # history points per projectile cluster dot
 SHOOT_INTERVAL    = 20         # ticks between phases; 3 phases × 20 ticks = ~1 full cycle/s
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ SHOOT_INTERVAL    = 20         # ticks between phases; 3 phases × 20 ticks = ~1
 # After phase 2 a pause of SHOT_CYCLE_PAUSE_TICKS fires before repeating.
 # ---------------------------------------------------------------------------
 SHOT_CYCLE_PAUSE_TICKS  = 0     # no pause — cycle repeats immediately
-SHOT_CONE_ANGLES        = (0.0,)                  # single bullet, straight at target
+SHOT_CONE_ANGLES        = (-45.0, 0.0, 45.0)     # single bullet, straight at target
 SHOT_ZIGZAG_AMPLITUDE   = 55.0  # px lateral offset for each zigzag cluster
 SHOT_ZIGZAG_FREQUENCY   = 0.18  # radians/tick of the sinusoidal weave
 SHOT_HOMING_SPEED_MULT  = 0.5   # fraction of PROJ_SPEED for the homing cluster
@@ -194,7 +194,7 @@ HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 # an ultimate state: shooting frequency becomes 0 (fires every tick) for
 # ULTIMATE_DURATION_TICKS ticks (~3 s at 62 fps).
 ULTIMATE_HP_THRESHOLD   = 0.3   # fraction of max_hp that triggers the ultimate
-ULTIMATE_DURATION_TICKS = 187   # ~3 s at 62 fps
+ULTIMATE_DURATION_TICKS = 1000   # ~3 s at 62 fps
 
 # ---------------------------------------------------------------------------
 # Runner Survival Teleport (triggers at same HP threshold as ultimate)
@@ -264,15 +264,15 @@ SPLINTER_SPREAD_DEG      = 55.0
 # After ULTC_FADE_DIST px of travel the blade fades bottom-to-top.
 # Deals 1 HP per tick to any overlapping enemy figure.
 ULTC_THRESHOLDS         = (0.7, 0.5, 0.3)  # HP fractions that each trigger the ultimate
-ULTC_RADIUS             = 300        # arc radius (px)
-ULTC_SPAN               = 200.0      # arc span (degrees) — broad blade
-ULTC_SPEED              = 1.613      # px/tick ≈ 100 px/s at 62 fps
-ULTC_FADE_DIST          = 500.0      # px of travel before fade begins
+ULTC_RADIUS             = 100        # arc radius (px)
+ULTC_SPAN               = 150.0      # arc span (degrees) — broad blade
+ULTC_SPEED              = 10      # px/tick ≈ 100 px/s at 62 fps
+ULTC_FADE_DIST          = 1000.0      # px of travel before fade begins
 ULTC_WIDTH_OUTER        = 28.0       # stroke width for dark body fill pass
 ULTC_WIDTH_INNER        = 6.0        # stroke width for bright rim pass
 ULTC_SEGS               = 32         # draw segments for the arc gradient
 ULTC_LIFETIME           = 600        # max ticks alive (safety cap)
-ULTC_SECOND_DELAY_TICKS = 3          # ticks after 1st before 2nd fires
+ULTC_SECOND_DELAY_TICKS = 1          # ticks after 1st before 2nd fires
 ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface takes 1 HP/tick
 ULTC_CROSS_ANGLE        = 45.0       # degrees each blade is rotated ± from travel axis to form X
 
