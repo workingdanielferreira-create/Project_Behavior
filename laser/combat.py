@@ -67,6 +67,78 @@ def bullet_sprite(r, g, b, radius):
 
 
 # ---------------------------------------------------------------------------
+# Afterimage silhouette cache — crimson-tinted copies of sprite frames.
+# One silhouette is rasterised per unique frame pixmap (frames live for the
+# program lifetime, so id()-keying is safe) and reused for every ghost.
+# ---------------------------------------------------------------------------
+_SILHOUETTES = {}
+
+
+def silhouette(frame):
+    """Return the cached crimson silhouette pixmap for a sprite frame."""
+    key = id(frame)
+    pm = _SILHOUETTES.get(key)
+    if pm is None:
+        pm = QPixmap(frame.size())
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.drawPixmap(0, 0, frame)
+        qp.setCompositionMode(QPainter.CompositionMode_SourceIn)
+        r, g, b = config.AFTERIMAGE_RGB
+        qp.fillRect(pm.rect(), QColor(r, g, b))
+        qp.end()
+        _SILHOUETTES[key] = pm
+    return pm
+
+
+def spawn_afterimage(fig):
+    """Drop a crimson speed-ghost at the figure's current position.
+
+    Called from every dash-movement branch of the combat FSM (straight dash,
+    arc approach/orbit, recoil, dodge) so ghosts trail all fast movement.
+    Rate-limited by AFTERIMAGE_INTERVAL; capped at AFTERIMAGE_MAX live ghosts.
+    """
+    c = fig.combat
+    c.afterimage_tick += 1
+    if c.afterimage_tick < config.AFTERIMAGE_INTERVAL:
+        return
+    c.afterimage_tick = 0
+    frame = fig._current_frame()
+    if frame is None:
+        return
+    c.afterimages.append([fig.transform.x, fig.transform.y, frame, 0])
+    if len(c.afterimages) > config.AFTERIMAGE_MAX:
+        c.afterimages.pop(0)
+
+
+# ---------------------------------------------------------------------------
+# Parry deflect factory — a blocked bullet ricochets off the swordsman.
+# ---------------------------------------------------------------------------
+def make_deflect_bullet(fig_x, fig_y, bx, by, bvx, bvy, color_rgb):
+    """Return one cosmetic ricochet Projectile for a parried bullet.
+
+    Direction: away from the swordsman (fig -> bullet axis) plus a random
+    angle inside DEFLECT_CONE_DEG.  Keeps the shooter's original colour.
+    hit_r_sq = 0 marks it cosmetic: no collisions of any kind, and IpcSystem
+    excludes it from sharing so it can never deal damage in either mode.
+    """
+    dx, dy = bx - fig_x, by - fig_y
+    d = (dx * dx + dy * dy) ** 0.5
+    if d > 0.001:
+        base = math.atan2(dy, dx)
+    else:
+        base = random.uniform(0.0, 2.0 * math.pi)
+    half = math.radians(config.DEFLECT_CONE_DEG) * 0.5
+    a = base + random.uniform(-half, half)
+    spd = max((bvx * bvx + bvy * bvy) ** 0.5, 0.001) * config.DEFLECT_SPEED_MULT
+    pr = Projectile(bx, by, math.cos(a) * spd, math.sin(a) * spd,
+                    color_rgb, max(3, config.PROJ_TRAIL_LEN))
+    pr.max_age = config.DEFLECT_MAX_AGE
+    pr.hit_r_sq = 0.0
+    return pr
+
+
+# ---------------------------------------------------------------------------
 # Projectile — a bullet with a short position-history trail
 # ---------------------------------------------------------------------------
 class Projectile:
@@ -399,7 +471,7 @@ class CrescentWave:
             tail_t = 1.0 - (dist_from_tip / config.CRESCENT_TAIL)
             lut_idx = int(((seg_t + flow_off) % 1.0) * 256) & LUT_MASK
             r, g, b = lut[lut_idx] if lut is not None else self.color_rgb
-            alpha = int(230 * (tail_t ** 0.6) * fade_alpha)
+            alpha = int(255 * (tail_t ** 0.6) * fade_alpha)
             if alpha < 4:
                 continue
             pen.setColor(QColor(r, g, b, alpha))
@@ -409,6 +481,11 @@ class CrescentWave:
             path = QPainterPath()
             path.arcMoveTo(rect_x, rect_y, diam, diam, a0)
             path.arcTo(rect_x, rect_y, diam, diam, a0, step)
+            p.drawPath(path)
+            # White-hot inner edge — anime-blade brightness on the leading arc
+            pen.setColor(QColor(255, 255, 255, int(alpha * 0.7)))
+            pen.setWidthF(config.CRESCENT_WIDTH * 0.3 * (0.25 + 0.75 * tail_t))
+            p.setPen(pen)
             p.drawPath(path)
 
 
@@ -575,6 +652,7 @@ def fire_sword_ultimate(fig, target_x, target_y):
     uc1 = UltimateCrescent(fig.x, fig.y, target_x, target_y,
                            cross_angle_deg=+ca)
     c.ult_crescents.append(uc1)
+    c.hitstop_request = True   # ultimate launch = big hit -> world freeze
     # Store target for the delayed 2nd blade
     c.ult_crescent_pending = config.ULTC_SECOND_DELAY_TICKS
     # Stash target so tick_ult_crescents can use it (reuse arc_center fields)
@@ -683,6 +761,7 @@ def advance_combat(fig, slash_target, fallback):
         c.arc_recoil_ticks -= 1
         t.x += c.slash_vx
         t.y += c.slash_vy
+        spawn_afterimage(fig)
         if c.arc_recoil_ticks <= 0:
             c.arc_recoiling = False
             # Arm the constant-radius orbit around the hit target.
@@ -716,6 +795,7 @@ def advance_combat(fig, slash_target, fallback):
         radius = c.arc_r_start + (c.arc_r_end - c.arc_r_start) * ease
         t.x = c.arc_center_x + math.cos(angle) * radius
         t.y = c.arc_center_y + math.sin(angle) * radius
+        spawn_afterimage(fig)
         if c.arc_repo_t >= c.arc_repo_steps:
             c.arc_repositioning = False
             # Launch the dash-in toward the LIVE target if available.
@@ -831,6 +911,9 @@ def advance_combat(fig, slash_target, fallback):
                         c.hit_vx = c.slash_vx / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                         c.hit_vy = c.slash_vy / max(abs(c.slash_vx) + abs(c.slash_vy), 0.001) * kb_spd
                     c.hit_pending = True
+                    # Impact FX: shockwave ring + spark burst at the hit point
+                    # (spawned by CombatSystem into world FX lists).
+                    c.impact_fx_pending.append((tx, ty))
                     # ---------------------------------------------------------
                     # ATTACK STRING — count the hit; queue a follow-up (50/50
                     # dashslash vs arcslash with a 0.2 s type lock) until the
@@ -847,6 +930,7 @@ def advance_combat(fig, slash_target, fallback):
                             # String complete — reset and start the ~1 s cooldown.
                             c.attack_hits = 0
                             c.attack_cooldown_ticks = config.ATTACK_STRING_COOLDOWN_TICKS
+                            c.hitstop_request = True   # finisher = big hit -> world freeze
                     if chain:
                         # Pick the follow-up type: locked type wins within the
                         # 0.2 s window, otherwise a fresh 50/50 roll locks it.
@@ -885,6 +969,7 @@ def advance_combat(fig, slash_target, fallback):
                 else:
                     t.x += c.slash_vx
                     t.y += c.slash_vy
+                    spawn_afterimage(fig)
                     c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
                     if c.slash_dist_budget <= 0:
                         c.dashing = False
@@ -894,6 +979,7 @@ def advance_combat(fig, slash_target, fallback):
             else:
                 t.x += c.slash_vx
                 t.y += c.slash_vy
+                spawn_afterimage(fig)
                 c.slash_dist_budget -= (c.slash_vx ** 2 + c.slash_vy ** 2) ** 0.5
                 if c.slash_dist_budget <= 0:
                     c.dashing = False
@@ -912,6 +998,7 @@ def advance_combat(fig, slash_target, fallback):
         step = (c.dodge_vx ** 2 + c.dodge_vy ** 2) ** 0.5
         t.x += c.dodge_vx
         t.y += c.dodge_vy
+        spawn_afterimage(fig)
         c.dodge_dist_budget -= step
         if c.dodge_dist_budget <= 0:
             c.dodge_dashing = False
