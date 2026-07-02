@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPen
 
 from . import config
+from . import combat as _combat
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
@@ -115,6 +116,24 @@ class Figure:
         return None
 
     def draw(self, p, pen):
+        # --- Dash afterimages: crimson speed-ghosts, drawn behind everything ---
+        c0 = self.combat
+        if c0.afterimages:
+            live = []
+            for ghost in c0.afterimages:
+                gx, gy, frame, age = ghost
+                alpha = config.AFTERIMAGE_ALPHA * (1.0 - age / config.AFTERIMAGE_LIFETIME)
+                if alpha > 3:
+                    pm = _combat.silhouette(frame)
+                    p.setOpacity(alpha / 255.0)
+                    p.drawPixmap(int(gx) - pm.width() // 2,
+                                 int(gy) - pm.height() // 2, pm)
+                ghost[3] += 1
+                if ghost[3] < config.AFTERIMAGE_LIFETIME:
+                    live.append(ghost)
+            p.setOpacity(1.0)
+            c0.afterimages = live
+
         self.trail.draw(p, pen, self.motion.follow)
 
         frame = self._current_frame()
