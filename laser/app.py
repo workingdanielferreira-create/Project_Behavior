@@ -13,9 +13,10 @@ import traceback
 
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPainter, QCursor, QPen, QColor, QRadialGradient
+from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
+                         QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log
+from . import config, modes, systems, ai, action_log, combat
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -24,6 +25,39 @@ from .palette import lut_for_index, lut_for_mode
 
 # crash_log replaced by action_log.crash() — see laser/action_log.py
 
+
+
+# ---------------------------------------------------------------------------
+# Collision-dot sprite cache — one pre-rendered pixmap per rainbow hue.
+# The dot's lifetime spans ~50 ticks, so at most ~50 hue buckets are cached.
+# Fade is applied with painter opacity instead of re-building gradients.
+# ---------------------------------------------------------------------------
+_DOT_SPRITES = {}
+
+
+def _dot_sprite(hue, rad):
+    key = (hue, rad)
+    entry = _DOT_SPRITES.get(key)
+    if entry is None:
+        size = rad * 2 + 2
+        c = size / 2.0
+        pm = QPixmap(size, size)
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setPen(Qt.NoPen)
+        col = QColor.fromHsv(hue, 255, 255)
+        r2, g2, b2 = col.red(), col.green(), col.blue()
+        gr = QRadialGradient(c, c, rad)
+        gr.setColorAt(0.0, QColor(255, 255, 255, 255))
+        gr.setColorAt(0.35, QColor(r2, g2, b2, 255))
+        gr.setColorAt(1.0, QColor(r2, g2, b2, 0))
+        qp.setBrush(gr)
+        qp.drawEllipse(0, 0, size, size)
+        qp.end()
+        entry = (pm, size // 2)
+        _DOT_SPRITES[key] = entry
+    return entry
 
 class World:
     """Central mutable state plus the figure factory and high-level commands."""
@@ -176,6 +210,7 @@ class Overlay(QWidget):
 
         self._pen = QPen()
         self._pen.setCapStyle(Qt.RoundCap)
+        self._hp_font = QFont("Consolas", config.HP_DISPLAY_FONT_SIZE, QFont.Bold)
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
                             | Qt.Tool | Qt.WindowTransparentForInput)
@@ -231,20 +266,10 @@ class Overlay(QWidget):
             fig.draw(p, self._pen)
         for proj in w.projectiles:
             proj.draw(p)
-        _eglwr = config.PROJ_RADIUS * 3
-        _erad  = config.PROJ_RADIUS
+        # Enemy bullets share the pre-rendered sprite cache (see combat.py).
         for ex, ey, evx, evy, er, eg, eb in w.enemy_projs:
-            hx, hy = int(ex), int(ey)
-            grad = QRadialGradient(hx, hy, _eglwr)
-            grad.setColorAt(0.0, QColor(er, eg, eb, 160))
-            grad.setColorAt(1.0, QColor(er, eg, eb, 0))
-            p.setPen(Qt.NoPen); p.setBrush(grad)
-            p.drawEllipse(hx - _eglwr, hy - _eglwr, _eglwr * 2, _eglwr * 2)
-            core = QRadialGradient(hx, hy, _erad)
-            core.setColorAt(0.0, QColor(255, 255, 255, 220))
-            core.setColorAt(1.0, QColor(er, eg, eb, 180))
-            p.setBrush(core)
-            p.drawEllipse(hx - _erad, hy - _erad, _erad * 2, _erad * 2)
+            pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
+            p.drawPixmap(int(ex) - half, int(ey) - half, pm)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
@@ -263,14 +288,13 @@ class Overlay(QWidget):
                 if alpha > 0:
                     # Rainbow hue cycles from 0–360 over the dot's lifetime
                     hue = int((age / total) * 360) % 360
-                    col = QColor.fromHsv(hue, 255, 255, alpha)
-                    r2, g2, b2 = col.red(), col.green(), col.blue()
-                    gr = QRadialGradient(int(dx), int(dy), rad)
-                    gr.setColorAt(0.0, QColor(255, 255, 255, alpha))
-                    gr.setColorAt(0.35, QColor(r2, g2, b2, alpha))
-                    gr.setColorAt(1.0, QColor(r2, g2, b2, 0))
-                    p.setBrush(gr)
-                    p.drawEllipse(int(dx) - rad, int(dy) - rad, rad * 2, rad * 2)
+                    pm, half = _dot_sprite(hue, rad)
+                    if alpha < 255:
+                        p.setOpacity(alpha / 255.0)
+                        p.drawPixmap(int(dx) - half, int(dy) - half, pm)
+                        p.setOpacity(1.0)
+                    else:
+                        p.drawPixmap(int(dx) - half, int(dy) - half, pm)
                     dot[2] += 1
                 if age + 1 < total:
                     surviving.append(dot)
@@ -278,9 +302,7 @@ class Overlay(QWidget):
 
         # --- HP readout — bottom-right, one entry per figure ---
         if w.figures:
-            from PyQt5.QtGui import QFont
-            font = QFont("Consolas", config.HP_DISPLAY_FONT_SIZE, QFont.Bold)
-            p.setFont(font)
+            p.setFont(self._hp_font)
             fm = p.fontMetrics()
             line_h = fm.height() + 4
             base_y = w.screen_h - config.HP_DISPLAY_MARGIN_B
