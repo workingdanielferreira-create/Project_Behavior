@@ -116,9 +116,9 @@ PARRY_STANCE_TICKS   = 19       # ~0.3 s the active deflect window stays open
 CRESCENT_SPEED     = 0.4        # px/tick the arc travels forward
 CRESCENT_LIFETIME  = 5          # ticks before it fully fades
 CRESCENT_AHEAD     = 0        # px ahead of figure centre the arc starts
-CRESCENT_RADIUS    = 30         # radius of the arc curve
+CRESCENT_RADIUS    = 42         # radius of the arc curve (Slash FX: was 30)
 CRESCENT_SPAN      = 170        # total arc angle (degrees)
-CRESCENT_WIDTH     = 3.5        # stroke width
+CRESCENT_WIDTH     = 6.5        # stroke width (Slash FX: was 3.5)
 CRESCENT_TAIL      = 0.95       # fraction of arc trailing behind the tip
 CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
 
@@ -277,8 +277,33 @@ ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface 
 ULTC_CROSS_ANGLE        = 45.0       # degrees each blade is rotated ± from travel axis to form X
 
 
+# ---------------------------------------------------------------------------
+# Slash FX package (applies identically in Solo and Battle mode)
+# ---------------------------------------------------------------------------
+# Dash afterimages — crimson silhouettes ("speed ghosts") left behind during
+# every dash, arc approach, recoil, and dodge.
+AFTERIMAGE_INTERVAL   = 2       # dash ticks between ghost spawns
+AFTERIMAGE_LIFETIME   = 14      # ticks a ghost takes to fade out
+AFTERIMAGE_ALPHA      = 150     # starting alpha of a fresh ghost
+AFTERIMAGE_RGB        = (225, 40, 55)   # crimson silhouette colour
+AFTERIMAGE_MAX        = 12      # cap on live ghosts per figure
 
+# Hit-stop — everything freezes for a few ticks on BIG hits only
+# (attack-string finishers and ultimate launches).  Synced across both
+# processes via IPC so attacker and victim freeze together in Battle mode.
+HITSTOP_TICKS         = 5       # ~80 ms at 62 fps
 
+# Impact shockwave ring + spark burst on every landed slash hit.
+IMPACT_RING_LIFETIME  = 14      # ticks the ring expands and fades over
+IMPACT_RING_RADIUS    = 46.0    # px max radius of the expanding ring
+IMPACT_RING_WIDTH     = 3.5     # stroke width at spawn (thins as it grows)
+IMPACT_SPARK_COUNT    = 8       # sparks per landed hit
+IMPACT_SPARK_SPEED    = (4.0, 9.0)   # px/tick launch speed range
+IMPACT_SPARK_LIFETIME = 12      # ticks before a spark dies
 
-
-
+# Parry deflect — blocked bullets ricochet off the swordsman instead of
+# vanishing.  Purely cosmetic: hit_r_sq = 0 (no collisions) and excluded
+# from IPC sharing, so they can never deal damage in either mode.
+DEFLECT_CONE_DEG      = 70.0    # total scatter cone around the away-axis
+DEFLECT_SPEED_MULT    = 1.15    # deflected speed vs incoming speed
+DEFLECT_MAX_AGE       = 45      # ticks a ricochet lives (~0.7 s)
