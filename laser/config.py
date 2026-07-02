@@ -307,3 +307,40 @@ IMPACT_SPARK_LIFETIME = 12      # ticks before a spark dies
 DEFLECT_CONE_DEG      = 70.0    # total scatter cone around the away-axis
 DEFLECT_SPEED_MULT    = 1.15    # deflected speed vs incoming speed
 DEFLECT_MAX_AGE       = 45      # ticks a ricochet lives (~0.7 s)
+
+
+# ---------------------------------------------------------------------------
+# Bullet FX package (applies identically in Solo and Battle mode)
+# ---------------------------------------------------------------------------
+# Comet bolts — bullets render as elongated energy bolts stretched along
+# their velocity.  Each shot phase has its own flair:
+#   cone   = classic comet (3.5x)      zigzag = shorter, white-hot core (2.5x)
+#   homing = comet + pulsing halo (3x) beam   = extra-long ultimate bolt (5x)
+BOLT_STRETCH_CONE     = 3.5
+BOLT_STRETCH_ZIGZAG   = 2.5
+BOLT_STRETCH_HOMING   = 3.0
+BOLT_STRETCH_BEAM     = 5.0
+
+# Muzzle flash at the firing point of every shot.
+MUZZLE_FLASH_LIFETIME = 8       # ticks
+MUZZLE_FLASH_RADIUS   = 15.0    # px at full bloom
+
+# Bullet death burst — fires ONLY on impacts that reduce the target's HP.
+# Blocked (parried) bullets ricochet without bursting.
+BULLET_BURST_SPARKS      = 6
+BULLET_BURST_RING_RADIUS = 22.0
+
+# Off-screen projectile cull — bullets beyond this margin outside the screen
+# are removed instead of living out PROJ_MAX_AGE far off-screen.
+OFFSCREEN_CULL_MARGIN = 80.0
+
+# ---------------------------------------------------------------------------
+# Runner Beam Ultimate — replaces the sped-up cycle.  While the ultimate is
+# active the runner fires BEAM_ROWS parallel long-tailed bolts EVERY tick.
+# Each bolt flies in a fixed straight line once fired; the aim is recomputed
+# at the live target every tick, so the beam sweeps as the shooter tracks.
+# ---------------------------------------------------------------------------
+BEAM_ROWS        = 3        # parallel bullet rows
+BEAM_ROW_SPACING = 8.0      # px between rows (tight = dense single beam)
+BEAM_TRAIL_LEN   = 12       # long tails for the continuous-beam look
+BEAM_MAX_AGE     = 150      # shorter life; beam bolts cross the screen fast
