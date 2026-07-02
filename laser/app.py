@@ -98,7 +98,8 @@ class World:
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
         self.hitstop_broadcast_pending = False  # send freeze signal to partner
-        self.impact_rings = []              # [x, y, age] expanding shockwaves
+        self.impact_rings = []              # [x, y, age, max_radius] shockwaves
+        self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
         self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
 
         # Input bookkeeping
@@ -154,6 +155,7 @@ class World:
         self.shoot_mode = not self.shoot_mode
         if not self.shoot_mode:
             self.projectiles.clear()
+            self.muzzle_flashes.clear()
             self.shoot_ticks = 0
             self.shot_phase = 0
             self.shot_pause_ticks = 0
@@ -181,7 +183,7 @@ class World:
     def _nearest_enemy(self, fx, fy):
         best_sq = float("inf")
         best = (fx, fy)
-        for ex, ey, _dash in self.partner_figures:
+        for ex, ey, _dash, _parry in self.partner_figures:
             d = (ex - fx) ** 2 + (ey - fy) ** 2
             if d < best_sq:
                 best_sq = d
@@ -290,10 +292,21 @@ class Overlay(QWidget):
             fig.draw(p, self._pen)
         for proj in w.projectiles:
             proj.draw(p)
-        # Enemy bullets share the pre-rendered sprite cache (see combat.py).
+        # Enemy bullets render as comet bolts rotated to their velocity, so
+        # they read as fast energy fire even without per-bullet trail history.
+        import math as _math
         for ex, ey, evx, evy, er, eg, eb in w.enemy_projs:
-            pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
-            p.drawPixmap(int(ex) - half, int(ey) - half, pm)
+            if evx * evx + evy * evy > 0.0001:
+                pm, head_x, half_h = combat.bolt_sprite(
+                    er, eg, eb, config.PROJ_RADIUS, config.BOLT_STRETCH_CONE)
+                p.save()
+                p.translate(int(ex), int(ey))
+                p.rotate(_math.degrees(_math.atan2(evy, evx)))
+                p.drawPixmap(int(-head_x), int(-half_h), pm)
+                p.restore()
+            else:
+                pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
+                p.drawPixmap(int(ex) - half, int(ey) - half, pm)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
@@ -330,11 +343,11 @@ class Overlay(QWidget):
             rpen = self._pen
             p.setBrush(Qt.NoBrush)
             for ring in w.impact_rings:
-                rx, ry, age = ring
+                rx, ry, age, maxr = ring
                 t = age / config.IMPACT_RING_LIFETIME
                 if t < 1.0:
                     ease = 1.0 - (1.0 - t) ** 3   # fast start, soft finish
-                    rad = config.IMPACT_RING_RADIUS * ease
+                    rad = maxr * ease
                     alpha = int(220 * (1.0 - t))
                     rpen.setColor(QColor(255, 245, 235, alpha))
                     rpen.setWidthF(config.IMPACT_RING_WIDTH * (1.0 - 0.6 * t))
@@ -370,6 +383,28 @@ class Overlay(QWidget):
                 if s[4] < config.IMPACT_SPARK_LIFETIME:
                     live.append(s)
             w.sparks = live
+
+        # --- Muzzle flashes (bloom at the firing point of every shot) ---
+        if w.muzzle_flashes:
+            live = []
+            p.setPen(Qt.NoPen)
+            for fl in w.muzzle_flashes:
+                mx, my, age, fr, fg, fb = fl
+                t = age / config.MUZZLE_FLASH_LIFETIME
+                if t < 1.0:
+                    rad = config.MUZZLE_FLASH_RADIUS * (0.4 + 0.6 * t)
+                    a = 1.0 - t
+                    grad = QRadialGradient(mx, my, rad)
+                    grad.setColorAt(0.0, QColor(255, 255, 255, int(230 * a)))
+                    grad.setColorAt(0.4, QColor(fr, fg, fb, int(180 * a)))
+                    grad.setColorAt(1.0, QColor(fr, fg, fb, 0))
+                    p.setBrush(grad)
+                    ir = int(rad)
+                    p.drawEllipse(int(mx) - ir, int(my) - ir, ir * 2, ir * 2)
+                fl[2] += 1
+                if fl[2] < config.MUZZLE_FLASH_LIFETIME:
+                    live.append(fl)
+            w.muzzle_flashes = live
 
         # --- HP readout — bottom-right, one entry per figure ---
         if w.figures:
