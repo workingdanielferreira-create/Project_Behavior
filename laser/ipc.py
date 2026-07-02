@@ -8,7 +8,7 @@ two hand-written layout comments that had already disagreed).
 
   [0..1]    2 x uint8    slot-claim flags (0=free, 1=taken)
   [2..17]   2 x float64  heartbeats (wall-clock seconds)
-  figures      per slot: MAX_FIGS x (f x, f y, B alive, B dashing)  = 10B each
+  figures      per slot: MAX_FIGS x (f x, f y, B alive, B dashing, B parrying)
   projectiles  per slot: MAX_PROJS x (4f pos/vel, 4B rgba)          = 20B each
 """
 
@@ -21,11 +21,11 @@ _NAME       = "LaserCursorIPC_v1"
 MAX_FIGS    = 8
 MAX_PROJS   = 16
 
-_FIG_FMT    = "<ffBB"
+_FIG_FMT    = "<ffBBB"          # x, y, alive, dashing, parrying
 _PROJ_FMT   = "<ffffBBBB"
 _HB_FMT     = "<d"
 _KB_FMT      = "<ffB"               # knockback: vx, vy, pending
-_FIG_STRIDE  = struct.calcsize(_FIG_FMT)    # 10
+_FIG_STRIDE  = struct.calcsize(_FIG_FMT)    # 11
 _PROJ_STRIDE = struct.calcsize(_PROJ_FMT)   # 20
 _HB_SIZE     = struct.calcsize(_HB_FMT)     # 8
 _KB_STRIDE   = struct.calcsize(_KB_FMT)     # 9
@@ -143,18 +143,19 @@ class IPCBridge:
                 self._write(off, struct.pack(
                     _FIG_FMT, f.x, f.y,
                     1 if f.transform.init else 0,
-                    1 if f.combat.dashing else 0))
+                    1 if f.combat.dashing else 0,
+                    1 if f.combat.parrying else 0))
             else:
-                self._write(off, struct.pack(_FIG_FMT, 0.0, 0.0, 0, 0))
+                self._write(off, struct.pack(_FIG_FMT, 0.0, 0.0, 0, 0, 0))
 
     def read_partner_figures(self):
         base = _FIG_BASE[self._partner()]
         out = []
         for i in range(MAX_FIGS):
-            x, y, alive, dashing = struct.unpack(
+            x, y, alive, dashing, parrying = struct.unpack(
                 _FIG_FMT, self._read(base + i * _FIG_STRIDE, _FIG_STRIDE))
             if alive:
-                out.append((x, y, bool(dashing)))
+                out.append((x, y, bool(dashing), bool(parrying)))
         return out
 
     # projectiles -----------------------------------------------------------
