@@ -14,10 +14,26 @@ it inside paintEvent (see app.py).
 """
 
 import math
+import random
 
 from . import motion, modes, config, combat, ai
 from . import platform_win as win
 from . import action_log
+
+
+
+def _spawn_bullet_burst(world, x, y, r, g, b):
+    """Particle burst for a bullet impact that reduced the target's HP.
+
+    Small expanding ring + sparks in the bullet's colour.  NOT spawned for
+    blocked (parried) bullets — those ricochet without bursting.
+    """
+    world.impact_rings.append([x, y, 0, config.BULLET_BURST_RING_RADIUS])
+    for _ in range(config.BULLET_BURST_SPARKS):
+        ang = random.uniform(0.0, 2.0 * math.pi)
+        spd = random.uniform(*config.IMPACT_SPARK_SPEED)
+        world.sparks.append([x, y, math.cos(ang) * spd, math.sin(ang) * spd,
+                             0, r, g, b])
 
 
 class System:
@@ -179,7 +195,8 @@ class CombatSystem(System):
                 rr, gg, bb = fig.lut[80]
                 rng = fig.personality.rng
                 for (ix, iy) in c.impact_fx_pending:
-                    world.impact_rings.append([ix, iy, 0])
+                    world.impact_rings.append(
+                        [ix, iy, 0, config.IMPACT_RING_RADIUS])
                     for _ in range(config.IMPACT_SPARK_COUNT):
                         ang = rng.uniform(0.0, 2.0 * math.pi)
                         spd = rng.uniform(*config.IMPACT_SPARK_SPEED)
@@ -240,9 +257,16 @@ class ProjectileSystem(System):
         if world.projectiles:
             cx, cy = world.cursor
             alive = []
+            _cm = config.OFFSCREEN_CULL_MARGIN
+            _sw, _sh = world.screen_w, world.screen_h
             for proj in world.projectiles:
                 proj.update()
                 if not proj.alive:
+                    continue
+                # Off-screen cull: drop bullets beyond the margin instead of
+                # simulating them far off-screen for the rest of PROJ_MAX_AGE.
+                if (proj.x < -_cm or proj.x > _sw + _cm
+                        or proj.y < -_cm or proj.y > _sh + _cm):
                     continue
 
                 # Skip splinters — hit_r_sq == 0.0 means no collision checking
@@ -289,10 +313,16 @@ class ProjectileSystem(System):
 
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
-                    for ex, ey, _edash in world.partner_figures:
+                    for ex, ey, _edash, eparry in world.partner_figures:
                         ddx, ddy = proj.x - ex, proj.y - ey
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                             world.collision_dots.append([proj.x, proj.y, 0])
+                            if not eparry:
+                                # Partner takes the HP loss on their side --
+                                # HP-reducing impact, so the bullet bursts.
+                                # A parrying partner blocks it: no burst.
+                                _spawn_bullet_burst(world, proj.x, proj.y,
+                                                    proj.r, proj.g, proj.b)
                             hit = True
                             break
 
@@ -332,12 +362,17 @@ class ProjectileSystem(System):
                 if not fig.mode.can_shoot():
                     continue
                 if fig.mode.key == "runner":
+                    # BEAM ULTIMATE: 3 parallel long-tailed bolts every tick.
+                    # Aim is recomputed at the live target each tick; bolts
+                    # already in flight keep their fixed straight heading.
                     tx, ty = _target(fig)
-                    new_projs = combat.make_runner_cycle_shot(
-                        fig.x, fig.y, tx, ty,
-                        fig.lut[128], world.shot_phase)
-                    world.projectiles.extend(new_projs)
-            world.shot_phase = (world.shot_phase + 1) % 3
+                    rr, gg, bb = fig.lut[128]
+                    world.projectiles.extend(combat.make_beam_shot(
+                        fig.x, fig.y, tx, ty, (rr, gg, bb)))
+                    world.muzzle_flashes.append(
+                        [fig.x, fig.y, 0, rr, gg, bb])
+            # shot_phase intentionally frozen during the beam; the normal
+            # cone/zigzag/homing cycle resumes where it left off afterwards.
 
         # --- Inter-cycle pause: count down before the next fire ---
         elif world.shot_pause_ticks > 0:
@@ -368,6 +403,9 @@ class ProjectileSystem(System):
                             fig.x, fig.y, tx, ty,
                             fig.lut[128], world.shot_phase)
                         world.projectiles.extend(new_projs)
+                        _fr, _fg, _fb = fig.lut[128]
+                        world.muzzle_flashes.append(
+                            [fig.x, fig.y, 0, _fr, _fg, _fb])
                         action_log.log("SHOT",
                             f"{tag}runner fig=({fig.x:.0f},{fig.y:.0f}) "
                             f"phase={world.shot_phase} "
@@ -385,6 +423,9 @@ class ProjectileSystem(System):
                             new_projs = combat.make_shot(
                                 fig.x, fig.y, tx, ty, fig.lut[128])
                             world.projectiles.extend(new_projs)
+                            _fr, _fg, _fb = fig.lut[128]
+                            world.muzzle_flashes.append(
+                                [fig.x, fig.y, 0, _fr, _fg, _fb])
                             action_log.log("SHOT",
                                 f"{tag}non-runner mode={fig.mode.key} "
                                 f"fig=({fig.x:.0f},{fig.y:.0f}) "
@@ -395,6 +436,9 @@ class ProjectileSystem(System):
                         new_projs = combat.make_shot(
                             fig.x, fig.y, tx, ty, fig.lut[128])
                         world.projectiles.extend(new_projs)
+                        _fr, _fg, _fb = fig.lut[128]
+                        world.muzzle_flashes.append(
+                            [fig.x, fig.y, 0, _fr, _fg, _fb])
                         action_log.log("SHOT",
                             f"{tag}non-runner mode={fig.mode.key} "
                             f"fig=({fig.x:.0f},{fig.y:.0f}) "
@@ -544,6 +588,8 @@ class CollisionSystem(System):
                     if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
                         ai.battle_hit(fig, evx, evy, world)
                         world.collision_dots.append([ex, ey, 0])
+                        # HP was reduced -> the bullet explodes in a burst.
+                        _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
                         break
 
         # --- Swordsman bullet-dodge trigger ---
@@ -588,7 +634,7 @@ class CollisionSystem(System):
                 if (c.dodge_dashing or c.dodge_counter
                         or c.slashing or m.bouncing or m.bounce_ending):
                     continue
-                for ex, ey, edash in world.partner_figures:
+                for ex, ey, edash, _eparry in world.partner_figures:
                     if not edash:
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
@@ -624,7 +670,7 @@ class CollisionSystem(System):
                 # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
-                for ex, ey, edash in world.partner_figures:
+                for ex, ey, edash, _eparry in world.partner_figures:
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
@@ -663,7 +709,7 @@ class CollisionSystem(System):
                 if not fig.mode.uses_melee():
                     continue
                 for uc in fig.combat.ult_crescents:
-                    for ex, ey, _edash in world.partner_figures:
+                    for ex, ey, _edash, _eparry in world.partner_figures:
                         if uc.check_figure_hit(ex, ey):
                             # Apply damage to all own figures (self); partner HP
                             # is tracked in the partner process via IPC.
