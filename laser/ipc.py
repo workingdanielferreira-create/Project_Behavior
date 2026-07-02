@@ -39,7 +39,11 @@ _PROJ_BASE   = [_FIG_BASE[1] + MAX_FIGS * _FIG_STRIDE,
                 _FIG_BASE[1] + MAX_FIGS * _FIG_STRIDE + MAX_PROJS * _PROJ_STRIDE]
 _KB_BASE     = [_PROJ_BASE[1] + MAX_PROJS * _PROJ_STRIDE,
                 _PROJ_BASE[1] + MAX_PROJS * _PROJ_STRIDE + _KB_STRIDE]
-_SIZE        = _KB_BASE[1] + _KB_STRIDE + 8   # +pad
+_HS_FMT      = "<B"                 # hit-stop: pending flag
+_HS_STRIDE   = struct.calcsize(_HS_FMT)     # 1
+_HS_BASE     = [_KB_BASE[1] + _KB_STRIDE,
+                _KB_BASE[1] + _KB_STRIDE + _HS_STRIDE]
+_SIZE        = _HS_BASE[1] + _HS_STRIDE + 8   # +pad
 
 HEARTBEAT_MAX = 1.5   # seconds; partner considered dead past this
 
@@ -62,6 +66,10 @@ class IPCBridge:
                 with open(tmp, "wb") as f:
                     f.write(b"\x00" * _SIZE)
             self._fh = open(tmp, "r+b")
+            # Layout grew (e.g. hit-stop flag added): extend an old file
+            # in place so mmap at the new size never fails.
+            if os.path.getsize(tmp) < _SIZE:
+                self._fh.truncate(_SIZE)
             self._mm = mmap.mmap(self._fh.fileno(), _SIZE)
 
             # Wipe a stale file left by a crashed run (no recent heartbeat).
@@ -186,6 +194,19 @@ class IPCBridge:
 
     def clear_partner_knockback(self):
         self._write(_KB_BASE[self._partner()], struct.pack(_KB_FMT, 0.0, 0.0, 0))
+
+    # hit-stop -----------------------------------------------------------
+    def write_hitstop(self, pending):
+        """Signal a big hit so the partner process freezes in sync."""
+        self._write(_HS_BASE[self._slot], struct.pack(_HS_FMT, 1 if pending else 0))
+
+    def read_partner_hitstop(self):
+        (v,) = struct.unpack(_HS_FMT,
+                             self._read(_HS_BASE[self._partner()], _HS_STRIDE))
+        return bool(v)
+
+    def clear_partner_hitstop(self):
+        self._write(_HS_BASE[self._partner()], struct.pack(_HS_FMT, 0))
 
     # cleanup ---------------------------------------------------------------
     def release(self):
