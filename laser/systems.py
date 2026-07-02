@@ -173,6 +173,29 @@ class CombatSystem(System):
             tgt = world.melee_target(fig)
             fig.combat.acted = combat.advance_combat(fig, tgt, world.cursor)
 
+            # --- Slash FX: drain hit events into world FX lists ---
+            c = fig.combat
+            if c.impact_fx_pending:
+                rr, gg, bb = fig.lut[80]
+                rng = fig.personality.rng
+                for (ix, iy) in c.impact_fx_pending:
+                    world.impact_rings.append([ix, iy, 0])
+                    for _ in range(config.IMPACT_SPARK_COUNT):
+                        ang = rng.uniform(0.0, 2.0 * math.pi)
+                        spd = rng.uniform(*config.IMPACT_SPARK_SPEED)
+                        world.sparks.append([ix, iy,
+                                             math.cos(ang) * spd,
+                                             math.sin(ang) * spd,
+                                             0, rr, gg, bb])
+                c.impact_fx_pending.clear()
+
+            # --- Hit-stop: big hit (string finisher / ultimate) freezes the
+            # world; broadcast so the partner process freezes in sync too. ---
+            if c.hitstop_request:
+                c.hitstop_request = False
+                world.hitstop_ticks = config.HITSTOP_TICKS
+                world.hitstop_broadcast_pending = True
+
 
 class ProjectileSystem(System):
     """Spawn, advance, and cull bullets.
@@ -248,6 +271,13 @@ class ProjectileSystem(System):
                             elif combat.trigger_parry(fig):
                                 world.collision_dots.append([proj.x, proj.y, 0])
                                 hit = True
+                            if hit:
+                                # Deflect: the blocked bullet ricochets away in
+                                # a random cone (cosmetic, original colour).
+                                alive.append(combat.make_deflect_bullet(
+                                    fig.x, fig.y, proj.x, proj.y,
+                                    proj.vx, proj.vy,
+                                    (proj.r, proj.g, proj.b)))
                             break  # only one figure handles the parry per bullet
 
                 # --- Bullet vs cursor (solo and battle) ---
@@ -495,6 +525,12 @@ class CollisionSystem(System):
                         elif combat.trigger_parry(fig):
                             world.collision_dots.append([ex, ey, 0])
                             erased_by_parry = True
+                        if erased_by_parry:
+                            # Deflect: enemy bullet ricochets off the swordsman
+                            # (cosmetic, keeps the shooter's original colour).
+                            world.projectiles.append(combat.make_deflect_bullet(
+                                fig.x, fig.y, ex, ey, evx, evy,
+                                (tup[4], tup[5], tup[6])))
                         break
                 if not erased_by_parry:
                     surviving_enemy.append(tup)
@@ -669,7 +705,11 @@ class IpcSystem(System):
             return
         ipc.write_heartbeat()
         ipc.write_figures(world.figures)
-        ipc.write_projectiles(world.projectiles)
+        # Share only real bullets.  hit_r_sq == 0 marks cosmetic projectiles
+        # (parry deflects, splinters) — excluded so they can never deal
+        # damage or trigger interactions in the partner process.
+        ipc.write_projectiles(
+            [pr for pr in world.projectiles if pr.hit_r_sq > 0.0])
 
         # Collect any pending dash-slash knockback from this tick and write it.
         kb_vx = kb_vy = 0.0
@@ -680,6 +720,10 @@ class IpcSystem(System):
                 kb_pending = True
                 fig.combat.hit_pending = False
         ipc.write_knockback(kb_vx, kb_vy, kb_pending)
+
+        # Broadcast hit-stop so both processes freeze together on big hits.
+        ipc.write_hitstop(world.hitstop_broadcast_pending)
+        world.hitstop_broadcast_pending = False
 
         was_battle = world.battle_mode
         world.battle_mode = ipc.partner_alive()
@@ -696,6 +740,11 @@ class IpcSystem(System):
                         continue
                     m.bounce_vx, m.bounce_vy = pvx, pvy
                     m.bouncing = True
+            # Partner landed a big hit — freeze in sync.
+            if ipc.read_partner_hitstop():
+                ipc.clear_partner_hitstop()
+                if world.hitstop_ticks <= 0:
+                    world.hitstop_ticks = config.HITSTOP_TICKS
         else:
             world.partner_figures = []
             world.enemy_projs = []
