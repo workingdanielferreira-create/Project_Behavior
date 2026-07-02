@@ -127,7 +127,7 @@ CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
 # ---------------------------------------------------------------------------
 PROJ_SPEED        = 8.0
 PROJ_RADIUS       = 3
-PROJ_MAX_AGE      = 120         # ~2 s
+PROJ_MAX_AGE      = 220         # ~2 s
 PROJ_HIT_RADIUS   = 16
 PROJ_TRAIL_LEN    = 5           # history points per projectile cluster dot
 SHOOT_INTERVAL    = 20         # ticks between phases; 3 phases × 20 ticks = ~1 full cycle/s
@@ -193,8 +193,8 @@ HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 # When HP drops to or below max_hp * ULTIMATE_HP_THRESHOLD, the runner enters
 # an ultimate state: shooting frequency becomes 0 (fires every tick) for
 # ULTIMATE_DURATION_TICKS ticks (~3 s at 62 fps).
-ULTIMATE_HP_THRESHOLD   = 0.3   # fraction of max_hp that triggers the ultimate
-ULTIMATE_DURATION_TICKS = 1000   # ~3 s at 62 fps
+ULTIMATE_HP_THRESHOLD   = 0.4   # fraction of max_hp that triggers the ultimate
+ULTIMATE_DURATION_TICKS = 3000   # ~3 s at 62 fps
 
 # ---------------------------------------------------------------------------
 # Runner Survival Teleport (triggers at same HP threshold as ultimate)
@@ -203,8 +203,8 @@ ULTIMATE_DURATION_TICKS = 1000   # ~3 s at 62 fps
 # threshold, the runner blinks to a point TELEPORT_DISTANCE_PX behind itself
 # (opposite its current facing direction) relative to the combat target.
 # The destination is clamped to screen bounds.  Shooting is NOT interrupted.
-TELEPORT_INTERVAL_TICKS = 62    # ~1 s at 62 fps
-TELEPORT_DISTANCE_PX    = 100.0 # px from target to land at
+TELEPORT_INTERVAL_TICKS = 31    # ~1 s at 62 fps
+TELEPORT_DISTANCE_PX    = 500.0 # px from target to land at
 
 # ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
@@ -230,7 +230,7 @@ MODE_ORDER = ["runner", "swordsman"]
 # At ~62 fps: appear for ~0.5 s then fade over ~0.3 s → total lifetime ~0.8 s
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
-COLLISION_DOT_RADIUS  = 5    # px
+COLLISION_DOT_RADIUS  = 3    # px
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ SPLINTER_SPREAD_DEG      = 55.0
 ULTC_THRESHOLDS         = (0.7, 0.5, 0.3)  # HP fractions that each trigger the ultimate
 ULTC_RADIUS             = 100        # arc radius (px)
 ULTC_SPAN               = 150.0      # arc span (degrees) — broad blade
-ULTC_SPEED              = 10      # px/tick ≈ 100 px/s at 62 fps
+ULTC_SPEED              = 25      # px/tick ≈ 100 px/s at 62 fps
 ULTC_FADE_DIST          = 1000.0      # px of travel before fade begins
 ULTC_WIDTH_OUTER        = 28.0       # stroke width for dark body fill pass
 ULTC_WIDTH_INNER        = 6.0        # stroke width for bright rim pass
