@@ -205,7 +205,9 @@ class Combatant:
                  "arc_r_start", "arc_r_end",
                  "attack_hits", "attack_cooldown_ticks",
                  "followup_pending", "followup_lock_ticks", "followup_lock_type",
-                 "ult_crescents", "ult_crescent_pending")
+                 "ult_crescents", "ult_crescent_pending",
+                 "afterimages", "afterimage_tick",
+                 "hitstop_request", "impact_fx_pending")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -259,6 +261,11 @@ class Combatant:
         # Swordsman ultimate crescent state
         self.ult_crescents = []            # list of UltimateCrescent instances
         self.ult_crescent_pending = 0      # ticks until the 2nd ult crescent fires (0 = none)
+        # Slash FX state
+        self.afterimages = []              # [x, y, frame, age] crimson dash ghosts
+        self.afterimage_tick = 0           # spawn-interval counter
+        self.hitstop_request = False       # set on big hits; CombatSystem applies freeze
+        self.impact_fx_pending = []        # (x, y) hit points awaiting ring+spark spawn
 
     def reset(self):
         self.__init__()
