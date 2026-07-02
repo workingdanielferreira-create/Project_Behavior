@@ -192,9 +192,9 @@ HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 # ---------------------------------------------------------------------------
 # When HP drops to or below max_hp * ULTIMATE_HP_THRESHOLD, the runner enters
 # an ultimate state: shooting frequency becomes 0 (fires every tick) for
-# ULTIMATE_DURATION_TICKS ticks (~3 s at 62 fps).
+# ULTIMATE_DURATION_TICKS ticks (~48 s at 62 fps — intentional extended barrage).
 ULTIMATE_HP_THRESHOLD   = 0.4   # fraction of max_hp that triggers the ultimate
-ULTIMATE_DURATION_TICKS = 3000   # ~3 s at 62 fps
+ULTIMATE_DURATION_TICKS = 3000   # ~48 s at 62 fps (intentional)
 
 # ---------------------------------------------------------------------------
 # Runner Survival Teleport (triggers at same HP threshold as ultimate)
