@@ -292,21 +292,10 @@ class Overlay(QWidget):
             fig.draw(p, self._pen)
         for proj in w.projectiles:
             proj.draw(p)
-        # Enemy bullets render as comet bolts rotated to their velocity, so
-        # they read as fast energy fire even without per-bullet trail history.
-        import math as _math
+        # Enemy bullets share the pre-rendered round sprite cache (combat.py).
         for ex, ey, evx, evy, er, eg, eb in w.enemy_projs:
-            if evx * evx + evy * evy > 0.0001:
-                pm, head_x, half_h = combat.bolt_sprite(
-                    er, eg, eb, config.PROJ_RADIUS, config.BOLT_STRETCH_CONE)
-                p.save()
-                p.translate(int(ex), int(ey))
-                p.rotate(_math.degrees(_math.atan2(evy, evx)))
-                p.drawPixmap(int(-head_x), int(-half_h), pm)
-                p.restore()
-            else:
-                pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
-                p.drawPixmap(int(ex) - half, int(ey) - half, pm)
+            pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
+            p.drawPixmap(int(ex) - half, int(ey) - half, pm)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
