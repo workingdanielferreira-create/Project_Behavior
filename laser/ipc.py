@@ -19,7 +19,9 @@ import time
 
 _NAME       = "LaserCursorIPC_v1"
 MAX_FIGS    = 8
-MAX_PROJS   = 16
+MAX_PROJS   = 160   # raised from 16: the beam-string ultimate fires 1 bullet
+                    # per tick (living BEAM_MAX_AGE=150 ticks) and the WHOLE
+                    # string must be shared so every point of it can damage
 
 _FIG_FMT    = "<ffBBB"          # x, y, alive, dashing, parrying
 _PROJ_FMT   = "<ffffBBBB"
