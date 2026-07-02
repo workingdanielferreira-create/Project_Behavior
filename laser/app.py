@@ -95,6 +95,12 @@ class World:
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
         self.collision_dots = []
 
+        # Slash FX state
+        self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
+        self.hitstop_broadcast_pending = False  # send freeze signal to partner
+        self.impact_rings = []              # [x, y, age] expanding shockwaves
+        self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
+
         # Input bookkeeping
         self._ctrl_prev = False
         self.ctrl_used = False
@@ -233,6 +239,24 @@ class Overlay(QWidget):
         pos = QCursor.pos()
         w.cursor = (pos.x(), pos.y())
 
+        # --- HIT-STOP: freeze the world for a few ticks on big hits ---
+        # Input and IPC keep running (heartbeat, partner sync, freeze
+        # broadcast); combat, motion, collisions, and bullets all pause.
+        # FX (rings, sparks, ghosts) keep animating in paint for punch.
+        if w.hitstop_ticks > 0:
+            w.hitstop_ticks -= 1
+            for system in self.pipeline:
+                if isinstance(system, (systems.InputSystem, systems.IpcSystem)):
+                    try:
+                        system.update(w)
+                    except Exception as e:
+                        action_log.crash(type(system).__name__, e)
+                if w.quitting:
+                    self._shutdown()
+                    return
+            self.update()
+            return
+
         for system in self.pipeline:
             try:
                 system.update(w)
@@ -299,6 +323,53 @@ class Overlay(QWidget):
                 if age + 1 < total:
                     surviving.append(dot)
             w.collision_dots = surviving
+
+        # --- Impact shockwave rings (expand + fade on every landed slash) ---
+        if w.impact_rings:
+            live = []
+            rpen = self._pen
+            p.setBrush(Qt.NoBrush)
+            for ring in w.impact_rings:
+                rx, ry, age = ring
+                t = age / config.IMPACT_RING_LIFETIME
+                if t < 1.0:
+                    ease = 1.0 - (1.0 - t) ** 3   # fast start, soft finish
+                    rad = config.IMPACT_RING_RADIUS * ease
+                    alpha = int(220 * (1.0 - t))
+                    rpen.setColor(QColor(255, 245, 235, alpha))
+                    rpen.setWidthF(config.IMPACT_RING_WIDTH * (1.0 - 0.6 * t))
+                    p.setPen(rpen)
+                    irad = int(rad)
+                    p.drawEllipse(int(rx) - irad, int(ry) - irad,
+                                  irad * 2, irad * 2)
+                ring[2] += 1
+                if ring[2] < config.IMPACT_RING_LIFETIME:
+                    live.append(ring)
+            w.impact_rings = live
+
+        # --- Impact sparks (white-hot streaks bursting from the hit point) ---
+        if w.sparks:
+            live = []
+            spen = self._pen
+            for s in w.sparks:
+                sx, sy, svx, svy, age, sr, sg, sb = s
+                t = age / config.IMPACT_SPARK_LIFETIME
+                if t < 1.0:
+                    alpha = int(255 * (1.0 - t))
+                    spen.setWidthF(2.0)
+                    spen.setColor(QColor(min(255, sr + 120),
+                                         min(255, sg + 120),
+                                         min(255, sb + 120), alpha))
+                    p.setPen(spen)
+                    p.drawLine(int(sx - svx), int(sy - svy), int(sx), int(sy))
+                s[0] += svx
+                s[1] += svy
+                s[2] *= 0.88
+                s[3] *= 0.88
+                s[4] += 1
+                if s[4] < config.IMPACT_SPARK_LIFETIME:
+                    live.append(s)
+            w.sparks = live
 
         # --- HP readout — bottom-right, one entry per figure ---
         if w.figures:
