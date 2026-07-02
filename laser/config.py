@@ -316,10 +316,12 @@ DEFLECT_MAX_AGE       = 45      # ticks a ricochet lives (~0.7 s)
 # their velocity.  Each shot phase has its own flair:
 #   cone   = classic comet (3.5x)      zigzag = shorter, white-hot core (2.5x)
 #   homing = comet + pulsing halo (3x) beam   = extra-long ultimate bolt (5x)
-BOLT_STRETCH_CONE     = 3.5
-BOLT_STRETCH_ZIGZAG   = 2.5
-BOLT_STRETCH_HOMING   = 3.0
-BOLT_STRETCH_BEAM     = 5.0
+# Stretch reverted to 1.0 (round bullets + classic line trails) per Daniel;
+# per-phase flair kept: zigzag white-hot core, homing pulsing halo.
+BOLT_STRETCH_CONE     = 1.0
+BOLT_STRETCH_ZIGZAG   = 1.0
+BOLT_STRETCH_HOMING   = 1.0
+BOLT_STRETCH_BEAM     = 1.0
 
 # Muzzle flash at the firing point of every shot.
 MUZZLE_FLASH_LIFETIME = 8       # ticks
@@ -340,7 +342,7 @@ OFFSCREEN_CULL_MARGIN = 80.0
 # Each bolt flies in a fixed straight line once fired; the aim is recomputed
 # at the live target every tick, so the beam sweeps as the shooter tracks.
 # ---------------------------------------------------------------------------
-BEAM_ROWS        = 3        # parallel bullet rows
-BEAM_ROW_SPACING = 8.0      # px between rows (tight = dense single beam)
+BEAM_ROWS        = 1        # single row: a continuous STRING of bullets
+BEAM_ROW_SPACING = 8.0      # (unused at 1 row; kept for future tuning)
 BEAM_TRAIL_LEN   = 12       # long tails for the continuous-beam look
 BEAM_MAX_AGE     = 150      # shorter life; beam bolts cross the screen fast
