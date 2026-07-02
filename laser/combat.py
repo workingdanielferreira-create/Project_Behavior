@@ -67,6 +67,72 @@ def bullet_sprite(r, g, b, radius):
 
 
 # ---------------------------------------------------------------------------
+# Comet bolt sprite cache — elongated energy bolts stretched along velocity.
+# Rendered once per (colour, radius, stretch, hot) and drawn rotated to the
+# bullet's heading each frame.  Bright head sits at the bullet position with
+# the tail trailing behind.  `hot` adds an extra white-hot streak (zigzag).
+# Returns (pixmap, head_x, half_h) — draw at (-head_x, -half_h) after
+# translating to the bullet and rotating to its velocity angle.
+# ---------------------------------------------------------------------------
+_BOLT_SPRITES = {}
+
+
+def _style_stretch(style):
+    return {
+        "cone":   config.BOLT_STRETCH_CONE,
+        "zigzag": config.BOLT_STRETCH_ZIGZAG,
+        "homing": config.BOLT_STRETCH_HOMING,
+        "beam":   config.BOLT_STRETCH_BEAM,
+    }.get(style, config.BOLT_STRETCH_CONE)
+
+
+def bolt_sprite(r, g, b, radius, stretch, hot=False):
+    key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), hot)
+    entry = _BOLT_SPRITES.get(key)
+    if entry is None:
+        glow = max(1.0, float(radius) * 3.0)
+        w = int(math.ceil(glow * 2 * stretch)) + 2
+        h = int(math.ceil(glow * 2)) + 2
+        cx, cy = w / 2.0, h / 2.0
+        head_x = w - glow          # bright head, one glow-radius from front
+        pm = QPixmap(w, h)
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setPen(Qt.NoPen)
+        # Elongated glow body (scaled radial gradient -> ellipse streak)
+        qp.save()
+        qp.translate(cx, cy)
+        qp.scale(stretch, 1.0)
+        grad = QRadialGradient(0, 0, glow)
+        grad.setColorAt(0.0, QColor(r, g, b, 170))
+        grad.setColorAt(1.0, QColor(r, g, b, 0))
+        qp.setBrush(grad)
+        qp.drawEllipse(int(-glow), int(-glow), int(glow * 2), int(glow * 2))
+        if hot:
+            # White-hot inner streak for the zigzag flair
+            hotg = QRadialGradient(0, 0, glow * 0.6)
+            hotg.setColorAt(0.0, QColor(255, 255, 255, 150))
+            hotg.setColorAt(1.0, QColor(255, 255, 255, 0))
+            qp.setBrush(hotg)
+            g6 = glow * 0.6
+            qp.drawEllipse(int(-g6), int(-g6), int(g6 * 2), int(g6 * 2))
+        qp.restore()
+        # White-hot round head at the front
+        rad = max(1.0, float(radius)) * 1.2
+        core = QRadialGradient(head_x, cy, rad)
+        core.setColorAt(0.0, QColor(255, 255, 255, 245))
+        core.setColorAt(0.5, QColor(r, g, b, 220))
+        core.setColorAt(1.0, QColor(r, g, b, 0))
+        qp.setBrush(core)
+        qp.drawEllipse(int(head_x - rad), int(cy - rad), int(rad * 2), int(rad * 2))
+        qp.end()
+        entry = (pm, head_x, h / 2.0)
+        _BOLT_SPRITES[key] = entry
+    return entry
+
+
+# ---------------------------------------------------------------------------
 # Afterimage silhouette cache — crimson-tinted copies of sprite frames.
 # One silhouette is rasterised per unique frame pixmap (frames live for the
 # program lifetime, so id()-keying is safe) and reused for every ghost.
@@ -143,7 +209,7 @@ def make_deflect_bullet(fig_x, fig_y, bx, by, bvx, bvy, color_rgb):
 # ---------------------------------------------------------------------------
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
-                 "max_age", "hit_r_sq", "trail", "radius")
+                 "max_age", "hit_r_sq", "trail", "radius", "style")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -154,6 +220,7 @@ class Projectile:
         self.hit_r_sq = float(config.PROJ_HIT_RADIUS ** 2)
         self.trail = deque(maxlen=max(3, trail_len))
         self.radius = float(config.PROJ_RADIUS)  # overridable for splinters
+        self.style = None    # None=round | cone|zigzag|homing|beam comet bolt
 
     @property
     def alive(self):
@@ -182,7 +249,35 @@ class Projectile:
                 x0, y0 = pts[i - 1]; x1, y1 = pts[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
-        # Cached sprite (glow + white-hot core); painter opacity = age fade.
+        # Comet bolt: rotate a cached elongated sprite to the heading.
+        style = self.style
+        spd_sq = self.vx * self.vx + self.vy * self.vy
+        if style is not None and spd_sq > 0.0001:
+            pm, head_x, half_h = bolt_sprite(
+                r, g, b, self.radius,
+                _style_stretch(style), hot=(style == "zigzag"))
+            p.save()
+            p.translate(hx, hy)
+            p.rotate(math.degrees(math.atan2(self.vy, self.vx)))
+            if fade < 1.0:
+                p.setOpacity(fade)
+            p.drawPixmap(int(-head_x), int(-half_h), pm)
+            p.restore()
+            p.setOpacity(1.0)
+            if style == "homing":
+                # Pulsing halo — the homing flair
+                halo_a = int((110 + 70 * math.sin(self.age * 0.5)) * fade)
+                if halo_a > 4:
+                    hr = self.radius * 3.6
+                    _TRAIL_PEN.setColor(QColor(r, g, b, halo_a))
+                    _TRAIL_PEN.setWidthF(1.4)
+                    p.setPen(_TRAIL_PEN)
+                    p.setBrush(Qt.NoBrush)
+                    ihr = int(hr)
+                    p.drawEllipse(hx - ihr, hy - ihr, ihr * 2, ihr * 2)
+            return
+
+        # Round sprite (deflect ricochets, splinters, legacy)
         pm, half = bullet_sprite(r, g, b, self.radius)
         if fade < 1.0:
             p.setOpacity(fade)
@@ -339,7 +434,9 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
             a = math.radians(base_deg + off)
             vx = math.cos(a) * config.PROJ_SPEED
             vy = math.sin(a) * config.PROJ_SPEED
-            bullets.append(Projectile(fx, fy, vx, vy, cr, tl))
+            pr = Projectile(fx, fy, vx, vy, cr, tl)
+            pr.style = "cone"
+            bullets.append(pr)
         return bullets
 
     elif phase == 1:
@@ -352,6 +449,7 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
         b0 = ZigzagProjectile(fx, fy, vx, vy, cr, tl,
                                amplitude=amp, frequency=freq,
                                phase_offset=0.0)
+        b0.style = "zigzag"
         return [b0]
 
     else:
@@ -361,8 +459,10 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
         vx = math.cos(base_rad) * hspd
         vy = math.sin(base_rad) * hspd
         target_ref = [float(cx), float(cy)]
-        return [HomingProjectile(fx, fy, vx, vy, cr, tl,
-                                 target=target_ref, turn_rate=0.06)]
+        hp_ = HomingProjectile(fx, fy, vx, vy, cr, tl,
+                               target=target_ref, turn_rate=0.06)
+        hp_.style = "homing"
+        return [hp_]
 
 
 def update_homing_targets(projectiles, cx, cy):
@@ -390,9 +490,39 @@ def make_shot(fx, fy, cx, cy, color_rgb):
         a = math.radians(base + off)
         vx = math.cos(a) * config.PROJ_SPEED
         vy = math.sin(a) * config.PROJ_SPEED
-        bullets.append(Projectile(fx, fy, vx, vy, color_rgb,
-                                  trail_len=random.randint(3, 15)))
+        pr = Projectile(fx, fy, vx, vy, color_rgb,
+                        trail_len=random.randint(3, 15))
+        pr.style = "cone"
+        bullets.append(pr)
     return bullets
+
+
+def make_beam_shot(fx, fy, tx, ty, color_rgb):
+    """Runner Beam Ultimate: BEAM_ROWS parallel long-tailed bolts, one volley.
+
+    Fired EVERY tick while the ultimate is active.  Each bolt keeps a fixed
+    straight heading once fired; the aim point (tx, ty) is recomputed by the
+    caller each tick, so the beam sweeps as the shooter tracks its target.
+    Rows are offset perpendicular to the firing axis by BEAM_ROW_SPACING.
+    """
+    dx, dy = tx - fx, ty - fy
+    d = (dx * dx + dy * dy) ** 0.5
+    if d > 0.01:
+        ux, uy = dx / d, dy / d
+    else:
+        ux, uy = 1.0, 0.0
+    px, py = -uy, ux                      # perpendicular (row offset axis)
+    out = []
+    half = (config.BEAM_ROWS - 1) / 2.0
+    for i in range(config.BEAM_ROWS):
+        off = (i - half) * config.BEAM_ROW_SPACING
+        pr = Projectile(fx + px * off, fy + py * off,
+                        ux * config.PROJ_SPEED, uy * config.PROJ_SPEED,
+                        color_rgb, config.BEAM_TRAIL_LEN)
+        pr.style = "beam"
+        pr.max_age = config.BEAM_MAX_AGE
+        out.append(pr)
+    return out
 
 
 # ---------------------------------------------------------------------------
