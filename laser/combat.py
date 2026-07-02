@@ -12,11 +12,58 @@ import random
 from collections import deque
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QPen, QRadialGradient, QPainterPath
+from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
+                         QPixmap, QPainter)
 
 from . import config
 from .geometry import angle_deg_qt, angle_diff
 from .palette import LUT_MASK
+
+
+# ---------------------------------------------------------------------------
+# Bullet sprite cache — pre-rendered glow+core pixmaps, keyed by colour/radius.
+#
+# QRadialGradient construction per bullet per frame was the single largest
+# paint cost (hundreds of live bullets during ultimates).  Each unique
+# (r, g, b, radius) combination is rasterised ONCE into a QPixmap and reused
+# every frame via drawPixmap, with painter opacity providing the age fade.
+# Colours come from a small set of LUT midpoints, so the cache stays tiny.
+# Pixmaps are built lazily at first draw (QApplication exists by then).
+# ---------------------------------------------------------------------------
+_BULLET_SPRITES = {}
+_TRAIL_PEN = QPen()
+_TRAIL_PEN.setCapStyle(Qt.RoundCap)
+
+
+def bullet_sprite(r, g, b, radius):
+    """Return (pixmap, half_size) for a bullet of this colour and radius."""
+    key = (r, g, b, round(float(radius), 2))
+    entry = _BULLET_SPRITES.get(key)
+    if entry is None:
+        glow = max(1.0, float(radius) * 3.0)
+        size = int(math.ceil(glow * 2)) + 2
+        c = size / 2.0
+        pm = QPixmap(size, size)
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setPen(Qt.NoPen)
+        grad = QRadialGradient(c, c, glow)
+        grad.setColorAt(0.0, QColor(r, g, b, 140))
+        grad.setColorAt(1.0, QColor(r, g, b, 0))
+        qp.setBrush(grad)
+        qp.drawEllipse(int(c - glow), int(c - glow), int(glow * 2), int(glow * 2))
+        rad = max(1.0, float(radius))
+        core = QRadialGradient(c, c, rad)
+        core.setColorAt(0.0, QColor(255, 255, 255, 240))
+        core.setColorAt(0.5, QColor(r, g, b, 210))
+        core.setColorAt(1.0, QColor(r, g, b, 140))
+        qp.setBrush(core)
+        qp.drawEllipse(int(c - rad), int(c - rad), int(rad * 2), int(rad * 2))
+        qp.end()
+        entry = (pm, size // 2)
+        _BULLET_SPRITES[key] = entry
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +101,7 @@ class Projectile:
         pts = list(self.trail)
         n = len(pts)
         if n > 1:
-            pen = QPen()
-            pen.setCapStyle(Qt.RoundCap)
+            pen = _TRAIL_PEN
             for i in range(1, n):
                 t = i / n
                 pen.setColor(QColor(r, g, b, int(200 * t * fade)))
@@ -64,22 +110,14 @@ class Projectile:
                 x0, y0 = pts[i - 1]; x1, y1 = pts[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
-        glwr = max(1.0, self.radius * 3)
-        iglwr = int(glwr)
-        grad = QRadialGradient(hx, hy, glwr)
-        grad.setColorAt(0.0, QColor(r, g, b, int(140 * fade)))
-        grad.setColorAt(1.0, QColor(r, g, b, 0))
-        p.setPen(Qt.NoPen); p.setBrush(grad)
-        p.drawEllipse(hx - iglwr, hy - iglwr, iglwr * 2, iglwr * 2)
-
-        rad = max(1.0, self.radius)
-        irad = int(rad)
-        core = QRadialGradient(hx, hy, rad)
-        core.setColorAt(0.0, QColor(255, 255, 255, int(240 * fade)))
-        core.setColorAt(0.5, QColor(r, g, b, int(210 * fade)))
-        core.setColorAt(1.0, QColor(r, g, b, int(140 * fade)))
-        p.setBrush(core)
-        p.drawEllipse(hx - irad, hy - irad, irad * 2, irad * 2)
+        # Cached sprite (glow + white-hot core); painter opacity = age fade.
+        pm, half = bullet_sprite(r, g, b, self.radius)
+        if fade < 1.0:
+            p.setOpacity(fade)
+            p.drawPixmap(hx - half, hy - half, pm)
+            p.setOpacity(1.0)
+        else:
+            p.drawPixmap(hx - half, hy - half, pm)
 
 
 # ---------------------------------------------------------------------------
