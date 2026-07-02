@@ -253,17 +253,25 @@ class Projectile:
         style = self.style
         spd_sq = self.vx * self.vx + self.vy * self.vy
         if style is not None and spd_sq > 0.0001:
+            stretch = _style_stretch(style)
             pm, head_x, half_h = bolt_sprite(
-                r, g, b, self.radius,
-                _style_stretch(style), hot=(style == "zigzag"))
-            p.save()
-            p.translate(hx, hy)
-            p.rotate(math.degrees(math.atan2(self.vy, self.vx)))
-            if fade < 1.0:
-                p.setOpacity(fade)
-            p.drawPixmap(int(-head_x), int(-half_h), pm)
-            p.restore()
-            p.setOpacity(1.0)
+                r, g, b, self.radius, stretch, hot=(style == "zigzag"))
+            if stretch <= 1.001:
+                # Round bullet (stretch reverted to 1.0): centred draw, no
+                # rotation needed — classic look with the flair kept.
+                if fade < 1.0:
+                    p.setOpacity(fade)
+                p.drawPixmap(hx - pm.width() // 2, hy - pm.height() // 2, pm)
+                p.setOpacity(1.0)
+            else:
+                p.save()
+                p.translate(hx, hy)
+                p.rotate(math.degrees(math.atan2(self.vy, self.vx)))
+                if fade < 1.0:
+                    p.setOpacity(fade)
+                p.drawPixmap(int(-head_x), int(-half_h), pm)
+                p.restore()
+                p.setOpacity(1.0)
             if style == "homing":
                 # Pulsing halo — the homing flair
                 halo_a = int((110 + 70 * math.sin(self.age * 0.5)) * fade)
