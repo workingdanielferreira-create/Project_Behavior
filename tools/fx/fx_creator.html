@@ -232,12 +232,24 @@ function curT(){return playing?(((performance.now()-t0)*+$('slow').value)%(+$('d
 // timeline
 const tl=$('tl');
 function renderTL(){tl.innerHTML='';keyframes.forEach((k,i)=>{const d=document.createElement('div');d.className='kf'+(i===selKF?' sel':'');
- d.style.left=(k.t*100)+'%';d.onclick=e=>{e.stopPropagation();selKF=i;if(!poseMode)togglePose();else renderTL()};tl.appendChild(d)});
+ d.style.left=(k.t*100)+'%';
+ d.onmousedown=e=>{e.stopPropagation();e.preventDefault();selKF=i;dragKF=k;if(!poseMode)togglePose();else renderTL()};
+ d.onclick=e=>e.stopPropagation();tl.appendChild(d)});
  const ph=document.createElement('div');ph.className='ph';ph.id='ph';tl.appendChild(ph);
- $('tlhint').textContent=poseMode?`Editing keyframe ${selKF+1}/${keyframes.length} @ t=${keyframes[selKF]?.t.toFixed(2)} — drag joints on canvas; drag hip to move root; click timeline to scrub`:'Timeline — ◆ keyframes (click to edit) | wheel=zoom, drag canvas=pan | Pose Mode to sculpt, + KF to capture new keyframe at playhead'}
+ $('tlhint').textContent=poseMode?`Editing keyframe ${selKF+1}/${keyframes.length} @ t=${keyframes[selKF]?.t.toFixed(2)} — drag joints on canvas; drag hip to move root; drag ◆ along timeline to retime; ←/→ nudge KF (Shift=×5); click timeline to scrub`:'Timeline — ◆ keyframes (click to edit) | wheel=zoom, drag canvas=pan | Pose Mode to sculpt, + KF to capture new keyframe at playhead'}
 tl.onclick=e=>{const r=tl.getBoundingClientRect(),t=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
  if(poseMode){playing=false;scrubT=t;$('ph').style.left=(t*100)+'%'}};
-let scrubT=0;
+let scrubT=0,dragKF=null;
+document.addEventListener('mousemove',e=>{if(!dragKF)return;const r=tl.getBoundingClientRect();
+ dragKF.t=+Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)).toFixed(3);
+ keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.indexOf(dragKF);renderTL()});
+document.addEventListener('mouseup',()=>{dragKF=null});
+document.addEventListener('keydown',e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+ const ae=document.activeElement;if(ae&&['INPUT','TEXTAREA','SELECT'].includes(ae.tagName))return;
+ if(selKF<0||!keyframes[selKF])return;e.preventDefault();
+ const k=keyframes[selKF],st=e.shiftKey?0.05:0.01;
+ k.t=+Math.max(0,Math.min(1,k.t+(e.key==='ArrowRight'?st:-st))).toFixed(3);
+ keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.indexOf(k);renderTL()});
 function addKF(){const t=+curT().toFixed(3),p=poseAt(poseMode?scrubT:curT());
  keyframes.push({t:poseMode?+scrubT.toFixed(3):t,p});keyframes.sort((a,b)=>a.t-b.t);
  selKF=keyframes.findIndex(k=>k.p===p);if(!poseMode)togglePose();renderTL()}
