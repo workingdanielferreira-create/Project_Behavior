@@ -8,6 +8,7 @@ trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_m
 afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
 image:{px:0,py:0,prot:0,anchor:'point',scale:1,opacity:1,src:null,w0:64,h0:64},
 beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
+['particles','ring','flash','crescent','trail','afterimage','beam'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0}));
 const FIELDS={anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
 const PRESETS={
 'Slash: shockwave + sparks (blade tip)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:700,layers:[
@@ -38,6 +39,32 @@ const PRESETS={
  {type:'trail',...DEF.trail,anchor:'chest',c1:'#c060ff',c2:'#ffffff',emit_rate:35,line:false,speed_min:10,speed_max:50,angle_deg:-90,spread_deg:80}]}};
 const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
+// ---- per-layer trigger system ----
+const TRIG_OPTS=['immediate','on_hit','on_dash','on_fire','on_death','on_parry','on_ult','ambient','after_fx','after_layer'];
+let _lidc=1;function layerId(l){if(!l._id)l._id='L'+(_lidc++);return l._id}
+function fxDurOf(name){name=(name||'').replace(/^action: /,'');
+ if(PRESETS[name])return PRESETS[name].duration_ms||800;
+ if(typeof CH!=='undefined'&&CH&&CH.actions&&CH.actions[name])return CH.actions[name].duration_ms||800;return 800}
+function trigFxList(){const cur=(typeof appMode!=='undefined'&&appMode==='char')?$('act').value:null;
+ const acts=(typeof CH!=='undefined'&&CH&&CH.actions)?Object.keys(CH.actions).filter(k=>k!==cur).map(k=>'action: '+k):[];
+ return Object.keys(PRESETS).concat(acts)}
+function layerStart(li,seen){const l=fx.layers[li];if(!l)return 0;seen=seen||new Set();
+ if(seen.has(li))return 0;seen.add(li);const m=l.trig||'immediate';
+ if(m==='after_fx')return fxDurOf(l.trig_ref)+(l.trig_delay_ms||0);
+ if(m==='after_layer'){const ri=fx.layers.findIndex(x=>x._id===l.trig_ref);
+  if(ri<0||ri===li)return l.trig_delay_ms||0;
+  return layerStart(ri,seen)+(fx.layers[ri].delay_ms||0)+(l.trig_delay_ms||0)}
+ return 0}
+function chainSpan(){let m=0;fx.layers.forEach((l,i)=>{if(isBI(l)||l.type==='image')return;const s=layerStart(i);if(s>m)m=s});return m}
+function trigHtml(l){layerId(l);const tm=l.trig||'immediate';
+ let h=`<div class="row"><label>Trigger</label><div class="v"><select onchange="setP('trig',this.value);renderProps()">${TRIG_OPTS.map(o=>`<option ${o===tm?'selected':''}>${o}</option>`).join('')}</select></div></div>`;
+ if(tm==='after_fx'){const list=trigFxList();if(!list.includes(l.trig_ref))l.trig_ref=list[0]||'';
+  h+=`<div class="row"><label>After FX</label><div class="v"><select onchange="setP('trig_ref',this.value)">${list.map(o=>`<option ${o===l.trig_ref?'selected':''}>${o}</option>`).join('')}</select></div></div>`}
+ if(tm==='after_layer'){const opts=fx.layers.map((x,i)=>({x,i})).filter(q=>!isBI(q.x)&&q.x.type!=='image'&&q.x!==l);
+  if(!opts.some(q=>layerId(q.x)===l.trig_ref))l.trig_ref=opts.length?layerId(opts[0].x):'';
+  h+=`<div class="row"><label>After layer</label><div class="v"><select onchange="setP('trig_ref',this.value)">${opts.map(q=>`<option value="${layerId(q.x)}" ${layerId(q.x)===l.trig_ref?'selected':''}>${q.i+1}. ${q.x.type}</option>`).join('')}</select></div></div>`}
+ if(tm==='after_fx'||tm==='after_layer')h+=`<div class="row"><label>Chain delay ms</label><div class="v"><input type="number" min="0" step="10" style="width:70px" value="${l.trig_delay_ms||0}" onchange="setP('trig_delay_ms',+this.value)"></div></div>`;
+ return h}
 function loadPreset(){const p=JSON.parse(JSON.stringify(PRESETS[ps.value]));fx.layers=ensureBuiltin(p.layers);
  $('trig').value=p.trigger;$('dur').value=p.duration_ms;$('fig').value=p.figure;
  $('fxname').value=ps.value.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/_+$/,'');
@@ -134,6 +161,7 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type}</b></div></div>
  <div class="row"><label>Pivot</label><div class="v"><span id="pivinfo" class="val">x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}°</span> <button onclick="resetPivot()">↺</button></div></div>
  <small style="color:#7a8599;display:block;padding:2px 0 4px">Drag the <b style="color:#ffd24a">gold</b> handle on canvas to move the FX; drag the <b style="color:#4ad0ff">blue</b> handle to set its rotation origin.</small>
+ ${trigHtml(l)}
  <div class="row"><label>Colors</label><div class="v cols"><input type="color" value="${l.c1}" oninput="setP('c1',this.value)"><input type="color" value="${l.c2}" oninput="setP('c2',this.value)"><small>start→end</small></div></div>`;
  for(const k in l){if(['type','c1','c2'].includes(k))continue;const f=FIELDS[k];if(!f)continue;
  const r=document.createElement('div');r.className='row';
@@ -165,11 +193,12 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  const dur=+$('dur').value;
  let el,animT;
  if(playing){el=(now-t0)*slow;animT=(el%dur)/dur;
-  if(el>dur){if($('loop').checked){play();el=0;animT=0}else{el=dur;animT=1;if(!parts.length){playing=false;$('stat').textContent='done'}}}}
+  const pDur=dur+chainSpan();
+  if(el>pDur){if($('loop').checked){play();el=0;animT=0}else{el=pDur;animT=1;if(!parts.length){playing=false;$('stat').textContent='done'}}}}
  else{el=0;animT=poseMode?scrubT:0}
  const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
  curJ=joints(pose);
- if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;if(el<(l.delay_ms||0))return;
+ if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;if(el<layerStart(li)+(l.delay_ms||0))return;
   const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
