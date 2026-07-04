@@ -159,7 +159,22 @@ const DRAGMAP={torso_mid:['hip',(p,J)=>-90*D,'sp'],chest:['torso_mid',(p,J)=>J._
  l_knee:['l_hip',()=>90*D,'lth',['lths',()=>boneLens().th]],l_foot:['l_knee',(p,J)=>(90+p.lth)*D,'lsh',['lshs',()=>boneLens().sh]],
  r_knee:['r_hip',()=>90*D,'rth',['rths',()=>boneLens().th]],r_foot:['r_knee',(p,J)=>(90+p.rth)*D,'rsh',['rshs',()=>boneLens().sh]],
  blade_tip:['r_hand',(p,J)=>J._rfaW,'wp'],blade_mid:['r_hand',(p,J)=>J._rfaW,'wp'],muzzle:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_tip:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_mid:['r_hand',(p,J)=>J._rfaW,'wp']};
-let dragJ=null,cam={z:1,x:0,y:0,init:false},panning=null;
+let dragJ=null,cam={z:1,x:0,y:0,init:false},panning=null,pivDrag=null;
+const PIV_ARM=36;
+function pivotGizmoOK(){return sel>=0&&fx.layers[sel]&&!isBI(fx.layers[sel])&&!weaponEdit&&!poseMode}
+function drawPivotGizmo(){if(!pivotGizmoOK())return;const l=fx.layers[sel];
+ const[x,y]=aPos(l),sc=1/cam.z,a=(l.prot||0)*D,hx=x+Math.cos(a)*PIV_ARM*sc,hy=y+Math.sin(a)*PIV_ARM*sc;
+ ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;ctx.shadowBlur=0;
+ ctx.strokeStyle=pivDrag==='rot'?'#ff4040':'#4ad0ff';ctx.lineWidth=1.5*sc;
+ ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(hx,hy);ctx.stroke();
+ ctx.fillStyle=pivDrag==='rot'?'#ff4040':'#4ad0ff';ctx.beginPath();ctx.arc(hx,hy,5*sc,0,6.28);ctx.fill();
+ ctx.strokeStyle=pivDrag==='pos'?'#ff4040':'#ffd24a';
+ ctx.beginPath();ctx.arc(x,y,8*sc,0,6.28);ctx.stroke();
+ ctx.beginPath();ctx.moveTo(x-12*sc,y);ctx.lineTo(x+12*sc,y);ctx.moveTo(x,y-12*sc);ctx.lineTo(x,y+12*sc);ctx.stroke();
+ ctx.restore()}
+function pivotAnchorXY(l){let ax=W/2,ay=H/2;if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])[ax,ay]=curJ[l.anchor];return[ax,ay]}
+function pivotInfo(l){const pi=$('pivinfo');if(pi)pi.textContent=`x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}°`}
+function resetPivot(){const l=fx.layers[sel];if(!l||isBI(l))return;l.px=0;l.py=0;l.prot=0;pivotInfo(l)}
 function camInit(){if(!cam.init&&W){cam.x=W/2;cam.y=H/2;cam.init=true}}
 function toWorld(mx,my){return[(mx-W/2)/cam.z+cam.x,(my-H/2)/cam.z+cam.y]}
 cv.addEventListener('wheel',e=>{e.preventDefault();camInit();
@@ -173,8 +188,16 @@ cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.l
   const J=joints(keyframes[selKF].p);let best=null,bd=14/cam.z;
   for(const k in J){if(k[0]==='_')continue;const d=Math.hypot(J[k][0]-wx,J[k][1]-wy);if(d<bd){bd=d;best=k}}
   dragJ=best;if(dragJ)return}
+ if(pivotGizmoOK()){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[x,y]=aPos(l),sc=1/cam.z,a=(l.prot||0)*D;
+  const hx=x+Math.cos(a)*PIV_ARM*sc,hy=y+Math.sin(a)*PIV_ARM*sc;
+  if(Math.hypot(wx-hx,wy-hy)<9*sc){pivDrag='rot';return}
+  if(Math.hypot(wx-x,wy-y)<12*sc){pivDrag='pos';return}}
  panning=[mx,my]};
 cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ if(pivDrag&&sel>=0&&fx.layers[sel]){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[ax,ay]=pivotAnchorXY(l);
+  if(pivDrag==='pos'){l.px=+(wx-ax).toFixed(1);l.py=+(wy-ay).toFixed(1)}
+  else{l.prot=Math.round(Math.atan2(wy-(ay+(l.py||0)),wx-(ax+(l.px||0)))/D)}
+  pivotInfo(l);return}
  if(weaponEdit&&dragWP>=0){const[wx,wy]=toWorld(mx,my);CH.weapon.points[dragWP]=wpnLocal(wx,wy);return}
  if(panning){cam.x-=(mx-panning[0])/cam.z;cam.y-=(my-panning[1])/cam.z;panning=[mx,my];return}
  if(!dragJ||selKF<0)return;const[wx,wy]=toWorld(mx,my);
@@ -184,16 +207,16 @@ cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.c
  const wa=Math.atan2(wy-o[1],wx-o[0]);kp[m[2]]=(wa-m[1](kp,J))/D;
  while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360;
  if(m[3]){const dist=Math.hypot(wx-o[0],wy-o[1]);kp[m[3][0]]=Math.max(0.5,Math.min(1.8,+(dist/m[3][1]()).toFixed(3)))}};
-cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1};
+cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1;pivDrag=null};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1;pivDrag=null};
 // ================= FX ENGINE =================
 const DEF={
-particles:{anchor:'point',follow:false,count:24,spread_deg:360,angle_deg:-90,speed_min:80,speed_max:280,gravity:0,drag:0.94,size_min:2,size_max:5,size_over_life:'shrink',life_min:250,life_max:550,c1:'#ff4040',c2:'#ffd070',glow:10,blend:'additive',shape:'circle',delay_ms:0,burst:true,emit_rate:60},
-ring:{anchor:'point',follow:false,radius_start:4,radius_end:90,thickness:6,life_min:350,life_max:350,c1:'#ffffff',c2:'#ff4040',glow:14,blend:'additive',delay_ms:0,thin_out:true},
-flash:{anchor:'point',follow:false,size_min:20,size_max:60,life_min:90,life_max:140,c1:'#fff6d0',c2:'#ff8030',glow:20,blend:'additive',delay_ms:0,rays:0},
-crescent:{anchor:'point',follow:false,radius_start:20,radius_end:70,arc_deg:120,thickness:9,angle_deg:0,spin_deg:180,life_min:220,life_max:300,c1:'#ff3050',c2:'#ffb0c0',glow:12,blend:'additive',delay_ms:0},
-trail:{anchor:'point',emit_rate:90,size_min:3,size_max:7,life_min:200,life_max:420,c1:'#40c0ff',c2:'#a0f0ff',glow:10,blend:'additive',line:true,delay_ms:0,drag:0.9,speed_min:0,speed_max:30,spread_deg:360,size_over_life:'shrink',shape:'circle'},
-afterimage:{anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
-beam:{anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
+particles:{px:0,py:0,prot:0,anchor:'point',follow:false,count:24,spread_deg:360,angle_deg:-90,speed_min:80,speed_max:280,gravity:0,drag:0.94,size_min:2,size_max:5,size_over_life:'shrink',life_min:250,life_max:550,c1:'#ff4040',c2:'#ffd070',glow:10,blend:'additive',shape:'circle',delay_ms:0,burst:true,emit_rate:60},
+ring:{px:0,py:0,prot:0,anchor:'point',follow:false,radius_start:4,radius_end:90,thickness:6,life_min:350,life_max:350,c1:'#ffffff',c2:'#ff4040',glow:14,blend:'additive',delay_ms:0,thin_out:true},
+flash:{px:0,py:0,prot:0,anchor:'point',follow:false,size_min:20,size_max:60,life_min:90,life_max:140,c1:'#fff6d0',c2:'#ff8030',glow:20,blend:'additive',delay_ms:0,rays:0},
+crescent:{px:0,py:0,prot:0,anchor:'point',follow:false,radius_start:20,radius_end:70,arc_deg:120,thickness:9,angle_deg:0,spin_deg:180,life_min:220,life_max:300,c1:'#ff3050',c2:'#ffb0c0',glow:12,blend:'additive',delay_ms:0},
+trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_min:200,life_max:420,c1:'#40c0ff',c2:'#a0f0ff',glow:10,blend:'additive',line:true,delay_ms:0,drag:0.9,speed_min:0,speed_max:30,spread_deg:360,size_over_life:'shrink',shape:'circle'},
+afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
+beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
 const FIELDS={anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
 const PRESETS={
 'Slash: shockwave + sparks (blade tip)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:700,layers:[
@@ -294,6 +317,8 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  <div class="row"><label>Opacity</label><div class="v"><input type="range" min="0" max="1" step="0.05" value="${l.opacity??1}" oninput="setP('opacity',+this.value);this.nextElementSibling.textContent=this.value;renderLayers()"><span class="val">${l.opacity??1}</span></div></div>
  <small style="color:#7a8599;display:block;padding:4px 0">Use ↑/↓ in the Layers list to move FX behind or in front of the ${l.type==='figure'?'character':'weapon'}.</small>`;return}
  d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type}</b></div></div>
+ <div class="row"><label>Pivot</label><div class="v"><span id="pivinfo" class="val">x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}°</span> <button onclick="resetPivot()">↺</button></div></div>
+ <small style="color:#7a8599;display:block;padding:2px 0 4px">Drag the <b style="color:#ffd24a">gold</b> handle on canvas to move the FX; drag the <b style="color:#4ad0ff">blue</b> handle to set its rotation origin.</small>
  <div class="row"><label>Colors</label><div class="v cols"><input type="color" value="${l.c1}" oninput="setP('c1',this.value)"><input type="color" value="${l.c2}" oninput="setP('c2',this.value)"><small>start→end</small></div></div>`;
  for(const k in l){if(['type','c1','c2'].includes(k))continue;const f=FIELDS[k];if(!f)continue;
  const r=document.createElement('div');r.className='row';
@@ -306,14 +331,14 @@ function setP(k,v){fx.layers[sel][k]=v;if(k==='anchor')renderLayers()}
 // engine
 function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
 function colAt(l,t){const a=hex(l.c1),b=hex(l.c2);return`rgb(${lerp(a[0],b[0],t)|0},${lerp(a[1],b[1],t)|0},${lerp(a[2],b[2],t)|0})`}
-function aPos(l){if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])return curJ[l.anchor];return[W/2,H/2]}
+function aPos(l){let x=W/2,y=H/2;if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])[x,y]=curJ[l.anchor];return[x+(l.px||0),y+(l.py||0)]}
 function spawn(l,li,n){const[x,y]=aPos(l);
  for(let i=0;i<n;i++){const life=rnd(l.life_min,l.life_max),p={li,l,x,y,life,age:0,type:l.type};
- if(l.type==='particles'||l.type==='trail'){let base=(l.angle_deg||0)*D;
+ if(l.type==='particles'||l.type==='trail'){let base=((l.angle_deg||0)+(l.prot||0))*D;
   const a=base+rnd(-.5,.5)*(l.spread_deg||360)*D,s=rnd(l.speed_min,l.speed_max);
   p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;p.sz=rnd(l.size_min,l.size_max);p.rot=rnd(0,6.28)}
- if(l.type==='ring'||l.type==='crescent'){let a0=(l.angle_deg||0)*D;
-  if(l.type==='crescent'&&l.follow&&curJ&&curJ._wW!==undefined)a0=curJ._wW;p.a0=a0}
+ if(l.type==='ring'||l.type==='crescent'){let a0=((l.angle_deg||0)+(l.prot||0))*D;
+  if(l.type==='crescent'&&l.follow&&curJ&&curJ._wW!==undefined)a0=curJ._wW+(l.prot||0)*D;p.a0=a0}
  if(l.type==='flash')p.sz=rnd(l.size_min,l.size_max);
  if(l.type==='afterimage'){p.pose=poseAt(curT());p.rootJ=aPos(l)}
  if(l.type==='beam')p.seed=Math.random()*99;
@@ -334,8 +359,8 @@ function tick(now){requestAnimationFrame(tick);rszChk();
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.age+=dt*1000;if(p.age>=p.life){parts.splice(i,1);continue}
-  if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]){[p.x,p.y]=curJ[p.l.anchor];
-   if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow)p.a0=curJ._wW}
+  if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]){[p.x,p.y]=aPos(p.l);
+   if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow)p.a0=curJ._wW+(p.l.prot||0)*D}
   if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}}}
  // draw
  const g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.4);g.addColorStop(0,'#141824');g.addColorStop(1,'#07080c');
@@ -355,6 +380,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
    drawWeapon(curJ,figV,weaponEdit?1:(l.opacity??1))}
   else render(el,l)});
  drawJointDots(curJ);
+ drawPivotGizmo();
  ctx.restore();
  $('zl').textContent=Math.round(cam.z*100)+'%';
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
@@ -373,7 +399,7 @@ function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l
   ctx.lineWidth=Math.max(0.5,th);ctx.beginPath();ctx.arc(p.x,p.y,r,0,6.28);ctx.stroke()}
  else if(p.type==='flash'){const s=p.sz*(1-t*0.5),gg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,s);
   gg.addColorStop(0,colAt(l,0));gg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,s,0,6.28);ctx.fill();
-  if(l.rays){ctx.lineWidth=2;for(let i=0;i<l.rays;i++){const a=i/l.rays*6.28;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*s*1.6,p.y+Math.sin(a)*s*1.6);ctx.stroke()}}}
+  if(l.rays){ctx.lineWidth=2;for(let i=0;i<l.rays;i++){const a=i/l.rays*6.28+(l.prot||0)*D;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*s*1.6,p.y+Math.sin(a)*s*1.6);ctx.stroke()}}}
  else if(p.type==='crescent'){const r=lerp(l.radius_start,l.radius_end,t),spin=(l.spin_deg||0)*D*t;
   const a0=p.a0+spin,half=(l.arc_deg*D)/2;ctx.lineWidth=Math.max(1,l.thickness*(1-t*0.5));ctx.lineCap='round';
   ctx.beginPath();ctx.arc(p.x,p.y,r,a0-half,a0+half);ctx.stroke()}
@@ -387,9 +413,9 @@ function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l
    L2('l_shoulder','l_elbow');L2('l_elbow','l_hand');L2('r_shoulder','r_elbow');L2('r_elbow','r_hand');
    L2('l_hip','l_knee');L2('l_knee','l_foot');L2('r_hip','r_knee');L2('r_knee','r_foot');
    ctx.beginPath();ctx.arc(J.head[0]+dx,J.head[1]+dy-4,10,0,6.28);ctx.stroke();ctx.restore()}
-  else{ctx.save();ctx.translate(p.x,p.y);ctx.beginPath();ctx.roundRect(-l.w/2,-l.h/2,l.w,l.h,l.w/2);ctx.fill();ctx.restore()}}
- else if(p.type==='beam'){let a=(l.angle_deg||0)*D;
-  if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW;
+  else{ctx.save();ctx.translate(p.x,p.y);ctx.rotate((l.prot||0)*D);ctx.beginPath();ctx.roundRect(-l.w/2,-l.h/2,l.w,l.h,l.w/2);ctx.fill();ctx.restore()}}
+ else if(p.type==='beam'){let a=((l.angle_deg||0)+(l.prot||0))*D;
+  if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW+(l.prot||0)*D;
   const pulse=1+0.3*Math.sin(el/1000*6.28*(l.pulse_hz||0)+p.seed),seg=l.segments,len=l.length;
   ctx.lineWidth=Math.max(1,l.width*pulse*(1-t*0.6));ctx.lineCap='round';ctx.beginPath();
   for(let i=0;i<=seg;i++){const f=i/seg,j=(i===0||i===seg)?0:(l.jitter||0);
