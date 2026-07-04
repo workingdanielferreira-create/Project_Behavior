@@ -112,6 +112,14 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             pass
 
+    def end_headers(self):
+        # Never let the browser cache these files: a stale cached JS file
+        # can keep running old code even after the updater wrote new files.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
 
 class QuietServer(socketserver.ThreadingTCPServer):
     """Threaded so one stalled/aborted connection never blocks the rest;
