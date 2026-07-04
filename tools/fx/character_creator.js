@@ -131,7 +131,7 @@ function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){con
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS},null,1)}
+  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS},null,1)}
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
