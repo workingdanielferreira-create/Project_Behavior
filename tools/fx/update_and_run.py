@@ -95,10 +95,52 @@ def update_files():
     return changed, unchanged, failed
 
 
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """Ignore client-side connection aborts (e.g. corporate AV/endpoint
+    security killing a socket mid-transfer, WinError 10053) instead of
+    dumping a traceback and leaving the browser hanging."""
+
+    def handle(self):
+        try:
+            super().handle()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
+    def copyfile(self, source, outputfile):
+        try:
+            super().copyfile(source, outputfile)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
+
+class QuietServer(socketserver.ThreadingTCPServer):
+    """Threaded so one stalled/aborted connection never blocks the rest;
+    allow_reuse_address so a quick relaunch doesn't hit 'port in use'."""
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        import sys as _sys
+        exc = _sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            return  # benign client abort - stay quiet
+        super().handle_error(request, client_address)
+
+
 def start_server_and_open():
     os.chdir(HERE)
-    handler = http.server.SimpleHTTPRequestHandler
-    httpd = socketserver.TCPServer(("", PORT), handler)
+    httpd = None
+    port = PORT
+    for candidate in range(PORT, PORT + 10):
+        try:
+            httpd = QuietServer(("", candidate), QuietHandler)
+            port = candidate
+            break
+        except OSError:
+            continue
+    if httpd is None:
+        print(f"Could not bind any port in {PORT}-{PORT + 9}. Close other servers and retry.")
+        return
 
     def serve():
         httpd.serve_forever()
@@ -106,8 +148,8 @@ def start_server_and_open():
     t = threading.Thread(target=serve, daemon=True)
     t.start()
     time.sleep(0.5)
-    webbrowser.open(f"http://localhost:{PORT}/fx_creator.html")
-    print(f"\nServing at http://localhost:{PORT}/fx_creator.html")
+    webbrowser.open(f"http://localhost:{port}/fx_creator.html")
+    print(f"\nServing at http://localhost:{port}/fx_creator.html")
     print("Leave this window open while you work. Press Ctrl+C to stop.\n")
     try:
         while True:
