@@ -32,9 +32,7 @@ function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]
   if(!src){src=DEF_KF.idle();fixKF(src)}
   kf[0]={t:kf[0].t,p:{...src[0].p}}}
  CH.actions[ak]={trigger:ak==='defend2'?'on_parry':(d?d[2]:'ambient'),duration_ms:ak==='run'||ak==='idle'?900:800,
-  keyframes:kf,fx_layers:[],
-  battle:(d&&d[3])?{damage:ak==='ultimate'?30:ak==='attack_special'?18:10,deflect:false,explode:false,explode_radius:60,
-   scatter:false,scatter_count:5,scatter_spread_deg:60,pierce:false,pierce_targets:2}:null}}
+  keyframes:kf,fx_layers:[]}}
 // --- custom weapon math (points are in weapon-local frame, origin=r_hand, +x along weapon angle) ---
 function wpnWorld(hand,wW){if(!CH||!CH.weapon.points.length)return[];const c=Math.cos(wW),s=Math.sin(wW);
  return CH.weapon.points.map(p=>[hand[0]+p[0]*c-p[1]*s,hand[1]+p[0]*s+p[1]*c])}
@@ -74,14 +72,7 @@ function gotoStep(k){saveStep();curStep=k;weaponEdit=false;
  else if(k.startsWith('act:')){loadCharAction(k.slice(4))}
  renderWiz();renderStepUI()}
 function chRow(lbl,inner){return `<div class="row"><label>${lbl}</label><div class="v">${inner}</div></div>`}
-function battleUI(a){const b=a.battle;if(!b)return'';
- const chk=(k,lbl)=>`<div class="row"><label>${lbl}</label><div class="v"><input type="checkbox" ${b[k]?'checked':''} onchange="bSet('${k}',this.checked)"></div></div>`;
- const sld=(k,lbl,mn,mx,st)=>chRow(lbl,`<input type="range" min="${mn}" max="${mx}" step="${st}" value="${b[k]}" oninput="bSet('${k}',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${b[k]}</span>`);
- return `<h3 style="padding-left:0">Battle Properties</h3>`+sld('damage','Damage',0,100,1)+
-  chk('deflect','Deflect')+chk('explode','Explode')+(b.explode?sld('explode_radius','↳ Radius',20,200,5):'')+
-  chk('scatter','Scatter')+(b.scatter?sld('scatter_count','↳ Count',2,12,1)+sld('scatter_spread_deg','↳ Spread°',10,180,5):'')+
-  chk('pierce','Pierce')+(b.pierce?sld('pierce_targets','↳ Targets',1,6,1):'')}
-function bSet(k,v){const a=CH.actions[curStep.slice(4)];if(!a||!a.battle)return;const re=typeof v==='boolean';a.battle[k]=v;if(re)renderStepUI()}
+// Battle properties are now per-FX-layer (see battleHtml/ensureBattle in fx_engine.js): tick 'Can hit target' on a layer to edit them.
 function chSet(path,v){const seg=path.split('.');let o=CH;while(seg.length>1)o=o[seg.shift()];o[seg[0]]=v}
 function sabSet(k,v){if(k==='preset'){CH.special_ability.preset=v;renderWiz();renderStepUI()}else CH.special_ability.params[k]=+v}
 function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';return}let h='';
@@ -110,8 +101,8 @@ function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';
   `<small style="color:#7a8599;display:block;padding:4px 0">Preset defines the mechanic; add custom FX layers below for its visuals. <b>dual_defense</b> adds a second defense animation step.</small>`}
  else if(curStep.startsWith('act:')){const ak=curStep.slice(4),def=ACT_DEFS.find(a=>a[0]===ak);
   h=`<h3 style="padding-left:0">${CH.name} — ${def?def[1]:ak==='defend2'?'Second Defense':ak}</h3>
-  <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>`+
-  battleUI(CH.actions[ak])}
+  <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>
+  <small style="color:#7a8599;display:block;padding:4px 0"><b>Battle Properties</b> live on each FX layer: tick <b>Can hit target</b> on a layer to set its Damage, Attack effects (Explode / Scatter / Pierce / Slash — stackable, visual only) and Defence (Deflect / Block — mutually exclusive).</small>`}
  else if(curStep==='review'){const done=Object.keys(CH.actions).length,need=wizSteps().filter(s=>s.k.startsWith('act:')).length;
   h=`<h3 style="padding-left:0">${CH.name} — Review & Export</h3>
   <div class="row"><label>Name</label><div class="v"><b>${CH.name}</b></div></div>
@@ -134,17 +125,18 @@ function exitChar(){$('apptitle').textContent='FX CREATOR';$('modebtn').textCont
  $('fig').disabled=false;$('act').disabled=false;weaponEdit=false;
  $('fig').value='swordsman';fx.layers=ensureBuiltin([]);sel=-1;loadAction();renderLayers();renderProps()}
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
- acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers};
- if(a.battle)acts[k].battle=a.battle}
+ (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
+ acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers}}
  return JSON.stringify({format:'pb_character',version:1,name:CH.name,rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport()},null,1)}
+  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS},null,1)}
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
-  CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),fx_layers:a.fx_layers||[],battle:a.battle||null}}
+  CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
+   fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l})}}
  dummyImport(o.target_dummy);
  appMode='char';enterChar()}
