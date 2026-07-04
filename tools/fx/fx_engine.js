@@ -38,6 +38,52 @@ const PRESETS={
  {type:'ring',...DEF.ring,anchor:'chest',follow:true,radius_start:12,radius_end:34,thickness:3,c1:'#ff80ff',c2:'#8020ff',life_min:600,life_max:600},
  {type:'trail',...DEF.trail,anchor:'chest',c1:'#c060ff',c2:'#ffffff',emit_rate:35,line:false,speed_min:10,speed_max:50,angle_deg:-90,spread_deg:80}]}};
 const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
+// ---- per-FX-layer battle properties (attach to can_hit layers; identical in Solo & Battle) ----
+const BATTLE_SEMANTICS={
+ attach:'Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).',
+ trigger:'Both categories fire at the moment a can_hit FX contacts a target.',
+ damage:'Each hitting FX layer deals its own damage value (0-100).',
+ attack:{stacking:'Attack properties stack freely on one layer.',
+  explode:'Visual only: particles spawn around the target at max size, grow, then fade away.',
+  scatter:'Visual only: sparks fly in a line in the same direction the attack was travelling when it hit.',
+  pierce:'Visual only: sparks fly back out toward the direction the target was hit from.',
+  slash:'Visual only: a crescent sweeps across the point of impact.'},
+ defence:{exclusive:'Deflect and Block are mutually exclusive per FX layer.',
+  deflect:'A crescent strikes the incoming can_hit FX; that FX is knocked perpendicular to its travel direction, auto up/down picking whichever side points away from the defender body; HP damage is voided.',
+  block:'A ring erases the incoming can_hit FX; HP damage taken is reduced by 50%.'},
+ parity:'Behaviour is identical in Solo & Battle modes.'};
+function ensureBattle(l){if(!l.battle)l.battle={damage:10,attack:{explode:false,scatter:false,pierce:false,slash:false},defence:'none'};
+ if(!l.battle.attack)l.battle.attack={explode:false,scatter:false,pierce:false,slash:false};
+ if(l.battle.defence===undefined)l.battle.defence='none';if(l.battle.damage===undefined)l.battle.damage=10;return l.battle}
+function battleHtml(l){if(!l.can_hit)return'';const b=ensureBattle(l);
+ const ck=(k,lab)=>`<div class="row"><label>${lab}</label><div class="v"><input type="checkbox" ${b.attack[k]?'checked':''} onchange="bSetL('${k}',this.checked)"></div></div>`;
+ return `<div class="row"><label><b>Battle</b></label><div class="v"><small>fires on target hit</small></div></div>
+ <div class="row"><label>Damage</label><div class="v"><input type="range" min="0" max="100" step="1" value="${b.damage}" oninput="bSetL('damage',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${b.damage}</span></div></div>
+ <small style="color:#7a8599;display:block;padding:2px 0">Attack — stackable, visual only:</small>
+ ${ck('explode','Explode')+ck('scatter','Scatter')+ck('pierce','Pierce')+ck('slash','Slash')}
+ <div class="row"><label>Defence</label><div class="v"><select onchange="bSetL('defence',this.value)">${['none','deflect','block'].map(o=>`<option ${o===b.defence?'selected':''}>${o}</option>`).join('')}</select></div></div>
+ <small style="color:#7a8599;display:block;padding:2px 0">Deflect: crescent knocks the FX perpendicular away from the defender, voids HP damage. Block: ring erases the FX, HP damage −50%. Mutually exclusive.</small>`}
+function bSetL(k,v){const l=fx.layers[sel];if(!l)return;const b=ensureBattle(l);
+ if(k==='damage')b.damage=v;else if(k==='defence')b.defence=v;else b.attack[k]=v}
+function spawnBFX(type,over,hx,hy){const tl={type,...JSON.parse(JSON.stringify(DEF[type])),...over,anchor:'point',follow:false,px:hx-W/2,py:hy-H/2,can_hit:false};
+ const n=type==='particles'?(tl.count||16):1;const before=parts.length;spawn(tl,-1,n);
+ for(let i=before;i<parts.length;i++)parts[i].bfx=true}
+function onBattleHit(p){const l=p.l,b=l.battle;if(!b)return;const hx=p.x,hy=p.y;
+ let ang=0;if(p.vx!==undefined&&(p.vx||p.vy))ang=Math.atan2(p.vy,p.vx);
+ else{const[ax,ay]=aPos(l);ang=Math.atan2(hy-ay,hx-ax)||0}
+ const dg=ang*180/Math.PI,A=b.attack||{};
+ if(A.explode)spawnBFX('particles',{count:20,spread_deg:360,angle_deg:0,speed_min:15,speed_max:60,size_min:9,size_max:15,size_over_life:'grow',life_min:380,life_max:650,c1:'#ffd070',c2:'#ff4020',shape:'circle',burst:true,drag:0.9,gravity:0,glow:16},hx,hy);
+ if(A.scatter)spawnBFX('particles',{count:10,spread_deg:12,angle_deg:dg,speed_min:220,speed_max:480,size_min:2,size_max:4,life_min:180,life_max:360,c1:'#fff0a0',c2:'#ff8020',shape:'spark',burst:true,drag:0.96,gravity:0,glow:10},hx,hy);
+ if(A.pierce)spawnBFX('particles',{count:10,spread_deg:24,angle_deg:dg+180,speed_min:180,speed_max:420,size_min:2,size_max:4,life_min:180,life_max:360,c1:'#ffffff',c2:'#60b0ff',shape:'spark',burst:true,drag:0.95,gravity:0,glow:10},hx,hy);
+ if(A.slash)spawnBFX('crescent',{radius_start:14,radius_end:52,arc_deg:130,thickness:8,angle_deg:dg,spin_deg:140,life_min:240,life_max:240,c1:'#ff3050',c2:'#ffd0d8',glow:12},hx,hy);
+ if(b.defence==='deflect'){spawnBFX('crescent',{radius_start:12,radius_end:46,arc_deg:120,thickness:7,angle_deg:dg+180,spin_deg:-120,life_min:220,life_max:220,c1:'#a0e0ff',c2:'#4090ff',glow:12},hx,hy);
+  const G=dummyGeom(),awx=hx-G.X,awy=hy-(G.top+G.bot)/2;
+  const p1=ang+Math.PI/2,p2=ang-Math.PI/2;
+  const pick=(Math.cos(p1)*awx+Math.sin(p1)*awy)>=(Math.cos(p2)*awx+Math.sin(p2)*awy)?p1:p2;
+  for(const q of parts){if(q.l!==l||q.bfx)continue;if(q.vx!==undefined){const s=Math.hypot(q.vx,q.vy)||200;q.vx=Math.cos(pick)*s;q.vy=Math.sin(pick)*s}}}
+ else if(b.defence==='block'){spawnBFX('ring',{radius_start:6,radius_end:70,thickness:6,life_min:300,life_max:300,c1:'#ffffff',c2:'#4090ff',glow:14,thin_out:true},hx,hy);
+  for(let i=parts.length-1;i>=0;i--){if(parts[i].l===l&&!parts[i].bfx)parts.splice(i,1)}}}
+
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
 // ---- per-layer trigger system ----
 const TRIG_OPTS=['immediate','on_hit','on_dash','on_fire','on_death','on_parry','on_ult','ambient','after_fx','after_layer'];
@@ -169,8 +215,9 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  if(f[1]==='anc')r.innerHTML=`<label>${f[0]}</label><div class="v"><select onchange="setP('anchor',this.value)">${ANCHORS().map(o=>`<option ${o===l.anchor?'selected':''}>${o}</option>`).join('')}</select></div>`;
  else if(f[1]==='r')r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="range" min="${f[2]}" max="${f[3]}" step="${f[4]}" value="${l[k]}" oninput="setP('${k}',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${l[k]}</span></div>`;
  else if(f[1]==='sel')r.innerHTML=`<label>${f[0]}</label><div class="v"><select onchange="setP('${k}',this.value)">${f[2].map(o=>`<option ${o===l[k]?'selected':''}>${o}</option>`).join('')}</select></div>`;
- else r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="checkbox" ${l[k]?'checked':''} onchange="setP('${k}',this.checked)"></div>`;
- d.appendChild(r)}}
+ else r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="checkbox" ${l[k]?'checked':''} onchange="setP('${k}',this.checked)${k==='can_hit'?';renderProps()':''}"></div>`;
+ d.appendChild(r)}
+ const bwrap=document.createElement('div');bwrap.innerHTML=battleHtml(l);d.appendChild(bwrap)}
 function setP(k,v){fx.layers[sel][k]=v;if(k==='anchor')renderLayers()}
 // hit detection vs target dummy (drives per-layer on_hit trigger; same semantics in Solo & Battle)
 function arcDum(x,y,r,a0,a1){const n=16;for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;if(dummyHit(x+Math.cos(a)*r,y+Math.sin(a)*r))return true}return false}
@@ -218,7 +265,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
   if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]){[p.x,p.y]=aPos(p.l);
    if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow)p.a0=curJ._wW+(p.l.prot||0)*D}
   if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}}
- if(dummyOn()&&hitAt===null){for(const p of parts){if(!p.l.can_hit)continue;if(fxHitsDummy(p,el)){hitAt=el;break}}}}
+ if(dummyOn()&&hitAt===null){for(const p of parts){if(!p.l.can_hit||p.bfx)continue;if(fxHitsDummy(p,el)){hitAt=el;if(p.l.battle)onBattleHit(p);break}}}}
  // draw
  const g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.4);g.addColorStop(0,'#141824');g.addColorStop(1,'#07080c');
  ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
@@ -238,13 +285,14 @@ function tick(now){requestAnimationFrame(tick);rszChk();
    drawWeapon(curJ,figV,weaponEdit?1:(l.opacity??1))}
   else if(l.type==='image')drawImageLayer(l);
   else render(el,l)});
+ render(el,'__bfx__');
  drawJointDots(curJ);
  drawPivotGizmo();
  ctx.restore();
  $('zl').textContent=Math.round(cam.z*100)+'%';
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
 function rszChk(){if(cv.width!==cv.clientWidth||cv.height!==cv.clientHeight)rsz()}
-function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l=p.l,t=p.age/p.life,fade=1-t*t;
+function render(el,lay){for(const p of parts){if(lay==='__bfx__'){if(!p.bfx)continue}else if(lay&&p.l!==lay)continue;const l=p.l,t=p.age/p.life,fade=1-t*t;
  ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
  ctx.shadowBlur=l.glow||0;const col=colAt(l,t);ctx.shadowColor=col;ctx.fillStyle=col;ctx.strokeStyle=col;ctx.globalAlpha=fade;
  if(p.type==='particles'||p.type==='trail'){let s=p.sz;const m=l.size_over_life;
@@ -282,10 +330,12 @@ function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l
   ctx.lineWidth=Math.max(0.5,l.width*0.35);ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*len,p.y+Math.sin(a)*len);ctx.stroke()}}
  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over'}
 // export/import
-function buildJson(){return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
+function buildJson(){fx.layers.forEach(l=>{if(l.can_hit)ensureBattle(l)});
+ return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
  trigger:$('trig').value,modes:['solo','battle'],duration_ms:+$('dur').value,
  figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers,target_dummy:dummyExport(),
- trigger_semantics:{on_hit:'Layer plays only when a layer flagged can_hit contacts the target; dormant if no target present; fires once per loop cycle. Identical in Solo & Battle.'}},null,1)}
+ trigger_semantics:{on_hit:'Layer plays only when a layer flagged can_hit contacts the target; dormant if no target present; fires once per loop cycle. Identical in Solo & Battle.'},
+ battle_semantics:BATTLE_SEMANTICS},null,1)}
 function openJson(exp){jsonEl.style.display='flex';$('jt').textContent=exp?'Export — give this to Claude':'Import';$('jta').value=exp?(appMode==='char'?buildCharJson():buildJson()):''}
 function copyJson(){navigator.clipboard.writeText($('jta').value)}
 function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
