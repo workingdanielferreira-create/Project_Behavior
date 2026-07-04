@@ -1,0 +1,529 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Behavior — FX Creator v2 (Rigged)</title><style>
+:root{--bg:#0d0f14;--panel:#161a22;--panel2:#1d2330;--txt:#d8dee9;--acc:#e33;--acc2:#4af;--bd:#2a3242}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:13px/1.4 'Segoe UI',sans-serif;display:flex;height:100vh;overflow:hidden}
+#left{width:230px;background:var(--panel);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+#mid{flex:1;display:flex;flex-direction:column;min-width:0}
+#right{width:300px;background:var(--panel);border-left:1px solid var(--bd);overflow-y:auto;padding:10px}
+h3{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8599;padding:10px 12px 6px}
+button{background:var(--panel2);color:var(--txt);border:1px solid var(--bd);border-radius:5px;padding:5px 9px;cursor:pointer;font-size:12px}
+button:hover{border-color:var(--acc2)}button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.on{background:var(--acc2);border-color:var(--acc2);color:#fff}
+select,input[type=text],input[type=number]{background:#0a0c10;color:var(--txt);border:1px solid var(--bd);border-radius:4px;padding:4px 6px;width:100%;font-size:12px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+input[type=color]{width:34px;height:24px;border:1px solid var(--bd);border-radius:4px;background:none;padding:0;cursor:pointer}
+#cv{flex:1;background:#000;width:100%;display:block;cursor:default}
+#bar,#bot{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--panel)}
+#bar{border-bottom:1px solid var(--bd)}#bot{border-top:1px solid var(--bd);flex-wrap:wrap}
+#bar b{color:var(--acc);font-size:14px}
+.layer{padding:8px 12px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;align-items:center;gap:6px}
+.layer.sel{background:var(--panel2);border-left:3px solid var(--acc)}
+.layer .t{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.layer small{color:#7a8599}
+.layer button{padding:1px 6px;font-size:11px}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.row label{flex:0 0 108px;color:#9aa5b8;font-size:11px}
+.row .v{flex:1;display:flex;gap:6px;align-items:center}
+.val{min-width:36px;text-align:right;color:#c8d2e0;font-size:11px}
+.wstep{padding:5px 8px;margin:2px 0;border-radius:4px;font-size:11px;color:#9aa5b8;cursor:pointer;border:1px solid transparent}
+.wstep:hover{background:var(--panel2)}
+.wstep.cur{background:var(--panel2);color:#e8eefc;border-color:var(--acc)}
+.wstep.done::after{content:" ✓";color:#5c7}
+#modebtn{margin-right:4px}
+#lset{padding:8px 12px;display:flex;gap:6px}
+#tl{height:46px;background:var(--panel2);border-top:1px solid var(--bd);position:relative;cursor:pointer}
+#tl .kf{position:absolute;top:14px;width:12px;height:12px;background:var(--acc);transform:translateX(-6px) rotate(45deg);cursor:pointer;border:1px solid #fff3}
+#tl .kf.sel{background:#fff;border-color:var(--acc)}
+#tl .ph{position:absolute;top:0;bottom:0;width:2px;background:var(--acc2)}
+#json{position:fixed;inset:8%;background:var(--panel);border:1px solid var(--bd);border-radius:8px;display:none;flex-direction:column;padding:14px;z-index:9}
+#json textarea{flex:1;background:#0a0c10;color:#9fe;border:1px solid var(--bd);font:12px monospace;padding:8px;margin:10px 0;resize:none}
+.cols{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.hint{color:#7a8599;font-size:11px;padding:4px 12px}
+</style></head><body>
+<div id="left">
+<div id="wiz" style="display:none;flex-direction:column;max-height:46%;border-bottom:1px solid var(--bd)">
+<h3>Character Wizard</h3><div id="wsteps" style="flex:1;overflow-y:auto;padding:0 8px"></div>
+<div style="padding:8px 12px;display:flex;gap:6px"><button onclick="wizPrev()">◀ Back</button><button class="pri" style="flex:1" onclick="wizNext()">Next ▶</button></div>
+</div>
+<div id="fxpresets"><h3>FX Presets</h3><div style="padding:0 12px"><select id="presel"></select><button style="width:100%;margin-top:6px" onclick="loadPreset()">Load Preset</button></div></div>
+<h3>Layers</h3><div id="layers" style="flex:1;overflow-y:auto"></div>
+<div id="lset"><select id="newtype" style="flex:1"><option>particles</option><option>ring</option><option>flash</option><option>crescent</option><option>trail</option><option>afterimage</option><option>beam</option></select><button class="pri" onclick="addLayer()">+ Add</button></div>
+</div>
+<div id="mid">
+<div id="bar"><b id="apptitle">FX CREATOR</b><button id="modebtn" onclick="toggleMode()">⚔ Characters</button><input id="fxname" type="text" style="width:130px" value="my_effect">
+<label>Trigger <select id="trig" style="width:100px"><option>on_hit</option><option>on_dash</option><option>on_fire</option><option>on_death</option><option>on_parry</option><option>on_ult</option><option>ambient</option></select></label>
+<label>Dur(ms) <input id="dur" type="number" style="width:64px" value="800" onchange="syncDur()"></label>
+<label><input id="loop" type="checkbox" checked> Loop</label>
+<span style="flex:1"></span><button onclick="openJson(1)">Export JSON</button><button onclick="openJson(0)">Import</button></div>
+<canvas id="cv"></canvas>
+<div id="tl"></div>
+<div class="hint" style="background:var(--panel2)" id="tlhint"></div>
+<div id="bot">
+<button class="pri" onclick="play()">▶ Play</button><button onclick="stop()">■ Stop</button>
+<label>Figure <select id="fig" onchange="loadAction()"><option value="swordsman">Swordsman</option><option value="shooter">Runner/Shooter</option><option value="custom" hidden>Custom</option></select></label>
+<label>Action <select id="act" onchange="loadAction()"></select></label>
+<button id="posebtn" onclick="togglePose()">✎ Pose Mode</button>
+<button onclick="addKF()">+ KF here</button><button onclick="dupKF()">⧉ Dup KF</button><button onclick="delKF()">✕ KF</button>
+<label>Slow <input id="slow" type="range" min="0.1" max="1" step="0.05" value="1" style="width:80px"></label>
+<label><input id="showfig" type="checkbox" checked> Show figure</label>
+<button onclick="resetView()">⟲ View <span id="zl">100%</span></button>
+<span id="stat" style="color:#7a8599"></span></div>
+</div>
+<div id="right"><div id="stepui"></div><h3 style="padding-left:0">Layer Properties</h3><div id="props"><em style="color:#7a8599">Select a layer</em></div></div>
+<div id="json"><div style="display:flex;gap:8px"><b id="jt">Export</b><span style="flex:1"></span><button onclick="copyJson()">Copy</button><button onclick="dlJson()">Download</button><button class="pri" onclick="applyJson()">Apply/Import</button><button onclick="jsonEl.style.display='none'">Close</button></div><textarea id="jta"></textarea><small style="color:#7a8599">This JSON includes the figure, action keyframes, and joint anchors — everything Claude needs to implement it in both Solo & Battle.</small></div>
+<script>
+const $=id=>document.getElementById(id);const cv=$('cv'),ctx=cv.getContext('2d'),jsonEl=$('json');
+let W,H;function rsz(){W=cv.width=cv.clientWidth;H=cv.height=cv.clientHeight}window.onresize=rsz;
+const D=Math.PI/180,rnd=(a,b)=>a+Math.random()*(b-a),lerp=(a,b,t)=>a+(b-a)*t;
+// ================= RIG =================
+// pose keys: rx,ry root offset; sp spine; hd head; lua,lfa left upper/forearm; rua,rfa; lth,lsh legs; rth,rsh; wp weapon
+const PK=['rx','ry','sp','sp2','hd','lsht','rsht','lpvt','rpvt','lua','lfa','rua','rfa','lth','lsh','rth','rsh','wp','luas','lfas','ruas','rfas','lths','lshs','rths','rshs'];
+const Z={rx:0,ry:0,sp:0,sp2:0,hd:0,lsht:0,rsht:0,lpvt:0,rpvt:0,lua:15,lfa:5,rua:-15,rfa:-5,lth:8,lsh:5,rth:-8,rsh:-5,wp:-45,luas:1,lfas:1,ruas:1,rfas:1,lths:1,lshs:1,rths:1,rshs:1};
+const P=o=>({...Z,...o});
+const ACTIONS={swordsman:{
+ idle:[{t:0,p:P({})},{t:.5,p:P({ry:2,sp:2})},{t:1,p:P({})}],
+ slash:[{t:0,p:P({rua:-150,rfa:-40,wp:-50,sp:-10,rx:-10})},{t:.35,p:P({rua:-155,rfa:-45,wp:-55,sp:-12,rx:-14})},{t:.55,p:P({rua:35,rfa:25,wp:35,sp:14,rx:25,lth:25,rth:-30})},{t:1,p:P({})}],
+ dash:[{t:0,p:P({rx:-150,sp:22,lth:-30,lsh:45,rth:35,rsh:10,lua:-40,rua:30})},{t:1,p:P({rx:150,sp:22,lth:35,lsh:10,rth:-30,rsh:45,lua:30,rua:-40})}],
+ run:[{t:0,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})},{t:.5,p:P({lth:30,lsh:8,rth:-35,rsh:40,lua:25,rua:-30,sp:6})},{t:1,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})}]},
+shooter:{
+ idle:[{t:0,p:P({wp:0})},{t:.5,p:P({ry:2,wp:0})},{t:1,p:P({wp:0})}],
+ fire:[{t:0,p:P({rua:-90,rfa:0,wp:0,sp:4})},{t:.12,p:P({rua:-100,rfa:-6,wp:-6,rx:-6,sp:0})},{t:.4,p:P({rua:-90,rfa:0,wp:0,sp:4})},{t:1,p:P({rua:-90,rfa:0,wp:0,sp:4})}],
+ run:[{t:0,p:P({wp:0,lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:-70,rfa:-20,sp:8})},{t:.5,p:P({wp:0,lth:30,lsh:8,rth:-35,rsh:40,lua:25,rua:-70,rfa:-20,sp:8})},{t:1,p:P({wp:0,lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:-70,rfa:-20,sp:8})}],
+ dash:[{t:0,p:P({wp:0,rx:-150,sp:22,lth:-30,lsh:45,rth:35,rsh:10})},{t:1,p:P({wp:0,rx:150,sp:22,lth:35,lsh:10,rth:-30,rsh:45})}]}};
+let keyframes=[],selKF=-1,poseMode=false;
+function poseAt(t){ // interpolate keyframes at t in 0..1
+ if(!keyframes.length)return P({});
+ const ks=keyframes;if(t<=ks[0].t)return{...ks[0].p};if(t>=ks[ks.length-1].t)return{...ks[ks.length-1].p};
+ for(let i=0;i<ks.length-1;i++){if(t>=ks[i].t&&t<=ks[i+1].t){const f=(t-ks[i].t)/(ks[i+1].t-ks[i].t||1),o={};
+  PK.forEach(k=>o[k]=lerp(ks[i].p[k],ks[i+1].p[k],f));return o}}return{...ks[0].p}}
+const BONES0={ua:22,fa:20,th:26,sh:24,torso:36};
+function boneLens(){return (appMode==='char'&&CH&&CH.bones)?CH.bones:BONES0}
+function joints(pose){ // world joint positions
+ const cx=W/2,cy=H/2+40,J={},hip=[cx+pose.rx,cy+pose.ry];J.hip=hip;
+ const B=(o,a,l)=>[o[0]+Math.cos(a)*l,o[1]+Math.sin(a)*l];
+ const BL=boneLens();
+ const spW=(-90+pose.sp)*D;J.torso_mid=B(hip,spW,BL.torso/2);
+ const spW2=spW+(pose.sp2||0)*D;J.chest=B(J.torso_mid,spW2,BL.torso/2);
+ const hdW=spW2+pose.hd*D;J.head=B(J.chest,hdW,16);
+ J.r_shoulder=B(J.chest,spW2+Math.PI/2+pose.rsht*D,11);J.l_shoulder=B(J.chest,spW2-Math.PI/2+pose.lsht*D,11);
+ J.r_hip=B(hip,pose.rpvt*D,8);J.l_hip=B(hip,Math.PI+pose.lpvt*D,8);
+ const armBase=spW2+Math.PI;
+ const luaW=armBase+pose.lua*D;J.l_elbow=B(J.l_shoulder,luaW,BL.ua*(pose.luas||1));
+ const lfaW=luaW+pose.lfa*D;J.l_hand=B(J.l_elbow,lfaW,BL.fa*(pose.lfas||1));
+ const ruaW=armBase+pose.rua*D;J.r_elbow=B(J.r_shoulder,ruaW,BL.ua*(pose.ruas||1));
+ const rfaW=ruaW+pose.rfa*D;J.r_hand=B(J.r_elbow,rfaW,BL.fa*(pose.rfas||1));
+ const lthW=(90+pose.lth)*D;J.l_knee=B(J.l_hip,lthW,BL.th*(pose.lths||1));J.l_foot=B(J.l_knee,(lthW+pose.lsh*D),BL.sh*(pose.lshs||1));
+ const rthW=(90+pose.rth)*D;J.r_knee=B(J.r_hip,rthW,BL.th*(pose.rths||1));J.r_foot=B(J.r_knee,(rthW+pose.rsh*D),BL.sh*(pose.rshs||1));
+ const fig=$('fig').value,wW=rfaW+pose.wp*D;J._wW=wW;J._rfaW=rfaW;J._spW=spW;J._spW2=spW2;J._luaW=luaW;J._lfaW=lfaW;J._ruaW=ruaW;J._hdW=hdW;
+ if(fig==='swordsman'){J.blade_mid=B(J.r_hand,wW,19);J.blade_tip=B(J.r_hand,wW,38)}
+ else if(fig==='custom'&&CH){const pts=wpnWorld(J.r_hand,wW);J._wpts=pts;
+  J.weapon_tip=pts.length?pts[pts.length-1]:B(J.r_hand,wW,30);J.weapon_mid=pts.length?wpnMid(pts,J.r_hand):B(J.r_hand,wW,15)}
+ else{J.muzzle=B(J.r_hand,wW,16)}
+ return J}
+const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle'])];
+function drawFigure(J,fig){ctx.save();ctx.globalCompositeOperation='source-over';
+ ctx.strokeStyle=(fig==='custom'&&CH)?CH.palette.body:'#8fa0b8';ctx.lineWidth=3.5;ctx.lineCap='round';
+ const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
+ L('hip','torso_mid');L('torso_mid','chest');L('chest','l_shoulder');L('chest','r_shoulder');L('hip','l_hip');L('hip','r_hip');
+ L('l_shoulder','l_elbow');L('l_elbow','l_hand');L('r_shoulder','r_elbow');L('r_elbow','r_hand');
+ L('l_hip','l_knee');L('l_knee','l_foot');L('r_hip','r_knee');L('r_knee','r_foot');
+ ctx.beginPath();ctx.arc(J.head[0],J.head[1]-4,10,0,6.28);ctx.stroke();
+ if(fig==='swordsman'){ctx.strokeStyle='#d8dee9';ctx.lineWidth=2.5;L('r_hand','blade_tip')}
+ else if(fig==='custom'&&CH){const pts=J._wpts||[];
+  ctx.strokeStyle=CH.weapon.color;ctx.lineWidth=CH.weapon.thickness;
+  if(pts.length){ctx.beginPath();ctx.moveTo(J.r_hand[0],J.r_hand[1]);pts.forEach(p=>ctx.lineTo(p[0],p[1]));ctx.stroke()}
+  if(weaponEdit){pts.forEach((p,i)=>{ctx.fillStyle=i===dragWP?'#ff4040':'#ffd050';ctx.beginPath();ctx.arc(p[0],p[1],4/Math.max(cam.z,0.5)+2,0,6.28);ctx.fill()});
+   ctx.fillStyle=CH.palette.accent;ctx.beginPath();ctx.arc(J.r_hand[0],J.r_hand[1],3,0,6.28);ctx.fill();
+   [['weapon_mid','#7fd'],['weapon_tip','#7fd']].forEach(([a,c])=>{if(J[a]){ctx.strokeStyle=c;ctx.lineWidth=1;ctx.beginPath();ctx.arc(J[a][0],J[a][1],6,0,6.28);ctx.stroke()}})}}
+ else{ctx.strokeStyle='#d8dee9';ctx.lineWidth=4;L('r_hand','muzzle')}
+ if(poseMode){for(const k in J){if(k[0]==='_')continue;ctx.fillStyle=k===dragJ?'#ff4040':'#4af';
+  ctx.beginPath();ctx.arc(J[k][0],J[k][1],4.5,0,6.28);ctx.fill()}}
+ ctx.restore()}
+// joint→bone mapping for drag posing: [origin joint, worldBase fn(pose,J), poseKey]
+const DRAGMAP={torso_mid:['hip',(p,J)=>-90*D,'sp'],chest:['torso_mid',(p,J)=>J._spW,'sp2'],head:['chest',(p,J)=>J._spW2,'hd'],
+ r_shoulder:['chest',(p,J)=>J._spW2+Math.PI/2,'rsht'],l_shoulder:['chest',(p,J)=>J._spW2-Math.PI/2,'lsht'],
+ r_hip:['hip',()=>0,'rpvt'],l_hip:['hip',()=>Math.PI,'lpvt'],
+ l_elbow:['l_shoulder',(p,J)=>J._spW2+Math.PI,'lua',['luas',()=>boneLens().ua]],l_hand:['l_elbow',(p,J)=>J._luaW,'lfa',['lfas',()=>boneLens().fa]],
+ r_elbow:['r_shoulder',(p,J)=>J._spW2+Math.PI,'rua',['ruas',()=>boneLens().ua]],r_hand:['r_elbow',(p,J)=>J._ruaW,'rfa',['rfas',()=>boneLens().fa]],
+ l_knee:['l_hip',()=>90*D,'lth',['lths',()=>boneLens().th]],l_foot:['l_knee',(p,J)=>(90+p.lth)*D,'lsh',['lshs',()=>boneLens().sh]],
+ r_knee:['r_hip',()=>90*D,'rth',['rths',()=>boneLens().th]],r_foot:['r_knee',(p,J)=>(90+p.rth)*D,'rsh',['rshs',()=>boneLens().sh]],
+ blade_tip:['r_hand',(p,J)=>J._rfaW,'wp'],blade_mid:['r_hand',(p,J)=>J._rfaW,'wp'],muzzle:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_tip:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_mid:['r_hand',(p,J)=>J._rfaW,'wp']};
+let dragJ=null,cam={z:1,x:0,y:0,init:false},panning=null;
+function camInit(){if(!cam.init&&W){cam.x=W/2;cam.y=H/2;cam.init=true}}
+function toWorld(mx,my){return[(mx-W/2)/cam.z+cam.x,(my-H/2)/cam.z+cam.y]}
+cv.addEventListener('wheel',e=>{e.preventDefault();camInit();
+ const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ const[wx,wy]=toWorld(mx,my);const nz=Math.max(0.3,Math.min(6,cam.z*Math.pow(1.1,-e.deltaY/100)));
+ cam.x=wx-(mx-W/2)/nz;cam.y=wy-(my-H/2)/nz;cam.z=nz},{passive:false});
+function resetView(){cam.z=1;cam.x=W/2;cam.y=H/2}
+cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ if(weaponEdit){const[wx,wy]=toWorld(mx,my);wpnClick(wx,wy);return}
+ if(poseMode&&selKF>=0){const[wx,wy]=toWorld(mx,my);
+  const J=joints(keyframes[selKF].p);let best=null,bd=14/cam.z;
+  for(const k in J){if(k[0]==='_')continue;const d=Math.hypot(J[k][0]-wx,J[k][1]-wy);if(d<bd){bd=d;best=k}}
+  dragJ=best;if(dragJ)return}
+ panning=[mx,my]};
+cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ if(weaponEdit&&dragWP>=0){const[wx,wy]=toWorld(mx,my);CH.weapon.points[dragWP]=wpnLocal(wx,wy);return}
+ if(panning){cam.x-=(mx-panning[0])/cam.z;cam.y-=(my-panning[1])/cam.z;panning=[mx,my];return}
+ if(!dragJ||selKF<0)return;const[wx,wy]=toWorld(mx,my);
+ const kp=keyframes[selKF].p;
+ if(dragJ==='hip'){kp.rx=wx-W/2;kp.ry=wy-(H/2+40);return}
+ const m=DRAGMAP[dragJ];if(!m)return;const J=joints(kp);const o=J[m[0]];
+ const wa=Math.atan2(wy-o[1],wx-o[0]);kp[m[2]]=(wa-m[1](kp,J))/D;
+ while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360;
+ if(m[3]){const dist=Math.hypot(wx-o[0],wy-o[1]);kp[m[3][0]]=Math.max(0.5,Math.min(1.8,+(dist/m[3][1]()).toFixed(3)))}};
+cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1};
+// ================= FX ENGINE =================
+const DEF={
+particles:{anchor:'point',follow:false,count:24,spread_deg:360,angle_deg:-90,speed_min:80,speed_max:280,gravity:0,drag:0.94,size_min:2,size_max:5,size_over_life:'shrink',life_min:250,life_max:550,c1:'#ff4040',c2:'#ffd070',glow:10,blend:'additive',shape:'circle',delay_ms:0,burst:true,emit_rate:60},
+ring:{anchor:'point',follow:false,radius_start:4,radius_end:90,thickness:6,life_min:350,life_max:350,c1:'#ffffff',c2:'#ff4040',glow:14,blend:'additive',delay_ms:0,thin_out:true},
+flash:{anchor:'point',follow:false,size_min:20,size_max:60,life_min:90,life_max:140,c1:'#fff6d0',c2:'#ff8030',glow:20,blend:'additive',delay_ms:0,rays:0},
+crescent:{anchor:'point',follow:false,radius_start:20,radius_end:70,arc_deg:120,thickness:9,angle_deg:0,spin_deg:180,life_min:220,life_max:300,c1:'#ff3050',c2:'#ffb0c0',glow:12,blend:'additive',delay_ms:0},
+trail:{anchor:'point',emit_rate:90,size_min:3,size_max:7,life_min:200,life_max:420,c1:'#40c0ff',c2:'#a0f0ff',glow:10,blend:'additive',line:true,delay_ms:0,drag:0.9,speed_min:0,speed_max:30,spread_deg:360,size_over_life:'shrink',shape:'circle'},
+afterimage:{anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
+beam:{anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
+const FIELDS={anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
+const PRESETS={
+'Slash: shockwave + sparks (blade tip)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:700,layers:[
+ {type:'trail',...DEF.trail,anchor:'blade_tip',c1:'#ff3050',c2:'#ffd0d8',emit_rate:140,size_min:2,size_max:6,line:true},
+ {type:'ring',...DEF.ring,anchor:'blade_tip',delay_ms:380,radius_end:80,thickness:7,c1:'#ffffff',c2:'#ff3050',life_min:320,life_max:320},
+ {type:'particles',...DEF.particles,anchor:'blade_tip',delay_ms:380,count:18,shape:'spark',c1:'#ffe080',c2:'#ff4020',speed_min:150,speed_max:420,life_min:180,life_max:380},
+ {type:'flash',...DEF.flash,anchor:'blade_tip',delay_ms:380,size_max:44}]},
+'Dash afterimages (crimson)':{figure:'swordsman',action:'dash',trigger:'on_dash',duration_ms:900,layers:[
+ {type:'afterimage',...DEF.afterimage}]},
+'Muzzle flash + shells':{figure:'shooter',action:'fire',trigger:'on_fire',duration_ms:350,layers:[
+ {type:'flash',...DEF.flash,anchor:'muzzle',size_min:14,size_max:32,life_min:70,life_max:110,rays:6},
+ {type:'particles',...DEF.particles,anchor:'muzzle',count:6,spread_deg:36,angle_deg:0,speed_min:120,speed_max:300,life_min:90,life_max:180,c1:'#fff0c0',c2:'#ff7020'},
+ {type:'particles',...DEF.particles,anchor:'r_hand',count:2,spread_deg:50,angle_deg:-120,speed_min:80,speed_max:160,gravity:500,shape:'square',size_min:2,size_max:3,c1:'#ffd060',c2:'#906020',life_min:400,life_max:600}]},
+'Beam ultimate (from muzzle)':{figure:'shooter',action:'fire',trigger:'on_ult',duration_ms:1200,layers:[
+ {type:'beam',...DEF.beam,anchor:'muzzle'},
+ {type:'particles',...DEF.particles,anchor:'muzzle',count:30,spread_deg:20,angle_deg:0,speed_min:200,speed_max:400,shape:'spark',c1:'#ffffff',c2:'#ff4040',burst:false,emit_rate:80}]},
+'Foot dust (run)':{figure:'shooter',action:'run',trigger:'ambient',duration_ms:1000,layers:[
+ {type:'particles',...DEF.particles,anchor:'l_foot',burst:false,emit_rate:25,count:1,spread_deg:60,angle_deg:-100,speed_min:20,speed_max:70,size_min:2,size_max:5,c1:'#8a7a60',c2:'#40382c',blend:'normal',life_min:300,life_max:700,glow:0},
+ {type:'particles',...DEF.particles,anchor:'r_foot',burst:false,emit_rate:25,count:1,spread_deg:60,angle_deg:-80,speed_min:20,speed_max:70,size_min:2,size_max:5,c1:'#8a7a60',c2:'#40382c',blend:'normal',life_min:300,life_max:700,glow:0}]},
+'Crescent slash (weapon-aimed)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:600,layers:[
+ {type:'crescent',...DEF.crescent,anchor:'r_hand',follow:true,delay_ms:380},
+ {type:'trail',...DEF.trail,anchor:'blade_tip',c1:'#ff3050',c2:'#ffc0d0',emit_rate:100}]},
+'Parry deflect (blade mid)':{figure:'swordsman',action:'idle',trigger:'on_parry',duration_ms:500,layers:[
+ {type:'ring',...DEF.ring,anchor:'blade_mid',radius_end:55,c1:'#a0e0ff',c2:'#4090ff',thickness:5},
+ {type:'particles',...DEF.particles,anchor:'blade_mid',count:12,spread_deg:90,angle_deg:-45,shape:'spark',c1:'#ffffff',c2:'#60b0ff',speed_min:250,speed_max:500}]},
+'Chest aura pulse':{figure:'swordsman',action:'idle',trigger:'ambient',duration_ms:1000,layers:[
+ {type:'ring',...DEF.ring,anchor:'chest',follow:true,radius_start:12,radius_end:34,thickness:3,c1:'#ff80ff',c2:'#8020ff',life_min:600,life_max:600},
+ {type:'trail',...DEF.trail,anchor:'chest',c1:'#c060ff',c2:'#ffffff',emit_rate:35,line:false,speed_min:10,speed_max:50,angle_deg:-90,spread_deg:80}]}};
+const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
+let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
+function loadPreset(){const p=JSON.parse(JSON.stringify(PRESETS[ps.value]));fx.layers=p.layers;
+ $('trig').value=p.trigger;$('dur').value=p.duration_ms;$('fig').value=p.figure;
+ $('fxname').value=ps.value.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/_+$/,'');
+ loadAction(p.action);sel=0;renderLayers();renderProps();play()}
+function fixKF(ks){ks.forEach(k=>{const p=k.p;
+ if(p.sht!==undefined){p.lsht=p.rsht=p.sht;delete p.sht}
+ if(p.pvt!==undefined){p.lpvt=p.rpvt=p.pvt;delete p.pvt}
+ PK.forEach(q=>{if(p[q]===undefined)p[q]=Z[q]})})}
+function loadAction(name){const fig=$('fig').value,as=$('act');if(fig==='custom')return;as.innerHTML='';
+ Object.keys(ACTIONS[fig]).forEach(a=>as.add(new Option(a)));
+ if(name&&ACTIONS[fig][name])as.value=name;
+ keyframes=JSON.parse(JSON.stringify(ACTIONS[fig][as.value]));selKF=-1;renderTL();renderProps();if(!playing)play()}
+function togglePose(){poseMode=!poseMode;$('posebtn').className=poseMode?'on':'';
+ if(poseMode){playing=false;if(selKF<0&&keyframes.length){selKF=0}$('stat').textContent='pose mode — drag joints';renderTL()}
+ else{$('stat').textContent='';play()}}
+function syncDur(){}
+function curT(){return playing?(((performance.now()-t0)*+$('slow').value)%(+$('dur').value))/+$('dur').value:(selKF>=0?keyframes[selKF].t:0)}
+// timeline
+const tl=$('tl');
+function renderTL(){tl.innerHTML='';keyframes.forEach((k,i)=>{const d=document.createElement('div');d.className='kf'+(i===selKF?' sel':'');
+ d.style.left=(k.t*100)+'%';
+ d.onmousedown=e=>{e.stopPropagation();e.preventDefault();selKF=i;dragKF=k;if(!poseMode)togglePose();else renderTL()};
+ d.onclick=e=>e.stopPropagation();tl.appendChild(d)});
+ const ph=document.createElement('div');ph.className='ph';ph.id='ph';tl.appendChild(ph);
+ $('tlhint').textContent=poseMode?`Editing keyframe ${selKF+1}/${keyframes.length} @ t=${keyframes[selKF]?.t.toFixed(2)} — drag joints on canvas; drag hip to move root; drag ◆ along timeline to retime; ←/→ nudge KF (Shift=×5); click timeline to scrub`:'Timeline — ◆ keyframes (click to edit) | wheel=zoom, drag canvas=pan | Pose Mode to sculpt, + KF to capture new keyframe at playhead'}
+tl.onclick=e=>{const r=tl.getBoundingClientRect(),t=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+ if(poseMode){playing=false;scrubT=t;$('ph').style.left=(t*100)+'%'}};
+let scrubT=0,dragKF=null;
+document.addEventListener('mousemove',e=>{if(!dragKF)return;const r=tl.getBoundingClientRect();
+ dragKF.t=+Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)).toFixed(3);
+ keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.indexOf(dragKF);renderTL()});
+document.addEventListener('mouseup',()=>{dragKF=null});
+document.addEventListener('keydown',e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+ const ae=document.activeElement;if(ae&&['INPUT','TEXTAREA','SELECT'].includes(ae.tagName))return;
+ if(selKF<0||!keyframes[selKF])return;e.preventDefault();
+ const k=keyframes[selKF],st=e.shiftKey?0.05:0.01;
+ k.t=+Math.max(0,Math.min(1,k.t+(e.key==='ArrowRight'?st:-st))).toFixed(3);
+ keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.indexOf(k);renderTL()});
+function addKF(){const t=+curT().toFixed(3),p=poseAt(poseMode?scrubT:curT());
+ keyframes.push({t:poseMode?+scrubT.toFixed(3):t,p});keyframes.sort((a,b)=>a.t-b.t);
+ selKF=keyframes.findIndex(k=>k.p===p);if(!poseMode)togglePose();renderTL()}
+function delKF(){if(selKF>=0&&keyframes.length>1){keyframes.splice(selKF,1);selKF=Math.min(selKF,keyframes.length-1);renderTL()}}
+function dupKF(){if(selKF<0){alert('Select a keyframe first (Pose Mode)');return}
+ const k=keyframes[selKF],p={...k.p},t=Math.min(1,+(k.t+0.05).toFixed(3));
+ keyframes.push({t,p});keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.findIndex(q=>q.p===p);renderTL()}
+window.dupKF=dupKF;
+// layers UI
+function addLayer(){const t=$('newtype').value;fx.layers.push({type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=fx.layers.length-1;renderLayers();renderProps()}
+function renderLayers(){const d=$('layers');d.innerHTML='';fx.layers.forEach((l,i)=>{
+ const e=document.createElement('div');e.className='layer'+(i===sel?' sel':'');
+ e.innerHTML=`<span class="t">${i+1}. <b>${l.type}</b> <small>@${l.anchor}</small></span>`;
+ const up=document.createElement('button');up.textContent='↑';up.onclick=ev=>{ev.stopPropagation();if(i>0){[fx.layers[i-1],fx.layers[i]]=[fx.layers[i],fx.layers[i-1]];sel=i-1;renderLayers()}};
+ const dp=document.createElement('button');dp.textContent='⧉';dp.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i+1,0,JSON.parse(JSON.stringify(l)));renderLayers()};
+ const x=document.createElement('button');x.textContent='✕';x.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i,1);sel=Math.min(sel,fx.layers.length-1);renderLayers();renderProps()};
+ e.append(up,dp,x);e.onclick=()=>{sel=i;renderLayers();renderProps()};d.appendChild(e)})}
+function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<em style="color:#7a8599">Select a layer</em>';return}
+ d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type}</b></div></div>
+ <div class="row"><label>Colors</label><div class="v cols"><input type="color" value="${l.c1}" oninput="setP('c1',this.value)"><input type="color" value="${l.c2}" oninput="setP('c2',this.value)"><small>start→end</small></div></div>`;
+ for(const k in l){if(['type','c1','c2'].includes(k))continue;const f=FIELDS[k];if(!f)continue;
+ const r=document.createElement('div');r.className='row';
+ if(f[1]==='anc')r.innerHTML=`<label>${f[0]}</label><div class="v"><select onchange="setP('anchor',this.value)">${ANCHORS().map(o=>`<option ${o===l.anchor?'selected':''}>${o}</option>`).join('')}</select></div>`;
+ else if(f[1]==='r')r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="range" min="${f[2]}" max="${f[3]}" step="${f[4]}" value="${l[k]}" oninput="setP('${k}',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${l[k]}</span></div>`;
+ else if(f[1]==='sel')r.innerHTML=`<label>${f[0]}</label><div class="v"><select onchange="setP('${k}',this.value)">${f[2].map(o=>`<option ${o===l[k]?'selected':''}>${o}</option>`).join('')}</select></div>`;
+ else r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="checkbox" ${l[k]?'checked':''} onchange="setP('${k}',this.checked)"></div>`;
+ d.appendChild(r)}}
+function setP(k,v){fx.layers[sel][k]=v;if(k==='anchor')renderLayers()}
+// engine
+function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
+function colAt(l,t){const a=hex(l.c1),b=hex(l.c2);return`rgb(${lerp(a[0],b[0],t)|0},${lerp(a[1],b[1],t)|0},${lerp(a[2],b[2],t)|0})`}
+function aPos(l){if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])return curJ[l.anchor];return[W/2,H/2]}
+function spawn(l,li,n){const[x,y]=aPos(l);
+ for(let i=0;i<n;i++){const life=rnd(l.life_min,l.life_max),p={li,l,x,y,life,age:0,type:l.type};
+ if(l.type==='particles'||l.type==='trail'){let base=(l.angle_deg||0)*D;
+  const a=base+rnd(-.5,.5)*(l.spread_deg||360)*D,s=rnd(l.speed_min,l.speed_max);
+  p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;p.sz=rnd(l.size_min,l.size_max);p.rot=rnd(0,6.28)}
+ if(l.type==='ring'||l.type==='crescent'){let a0=(l.angle_deg||0)*D;
+  if(l.type==='crescent'&&l.follow&&curJ&&curJ._wW!==undefined)a0=curJ._wW;p.a0=a0}
+ if(l.type==='flash')p.sz=rnd(l.size_min,l.size_max);
+ if(l.type==='afterimage'){p.pose=poseAt(curT());p.rootJ=aPos(l)}
+ if(l.type==='beam')p.seed=Math.random()*99;
+ parts.push(p)}}
+function play(){parts=[];acc={};spawned={};playing=true;t0=performance.now();last=t0;$('stat').textContent='playing';poseMode=false;$('posebtn').className=''}
+function stop(){playing=false;parts=[]}
+function tick(now){requestAnimationFrame(tick);rszChk();
+ const slow=+$('slow').value;let dt=Math.min(now-last,50)/1000*slow;last=now;
+ const dur=+$('dur').value;
+ let el,animT;
+ if(playing){el=(now-t0)*slow;animT=(el%dur)/dur;
+  if(el>dur){if($('loop').checked){play();el=0;animT=0}else{el=dur;animT=1;if(!parts.length){playing=false;$('stat').textContent='done'}}}}
+ else{el=0;animT=poseMode?scrubT:0}
+ const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
+ curJ=joints(pose);
+ if(playing){fx.layers.forEach((l,li)=>{if(el<(l.delay_ms||0))return;
+  const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
+  if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
+  else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
+ for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.age+=dt*1000;if(p.age>=p.life){parts.splice(i,1);continue}
+  if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]){[p.x,p.y]=curJ[p.l.anchor];
+   if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow)p.a0=curJ._wW}
+  if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}}}
+ // draw
+ const g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.4);g.addColorStop(0,'#141824');g.addColorStop(1,'#07080c');
+ ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ camInit();ctx.save();ctx.setTransform(cam.z,0,0,cam.z,W/2-cam.x*cam.z,H/2-cam.y*cam.z);
+ ctx.strokeStyle='#1c2432';ctx.beginPath();ctx.moveTo(cam.x-W/cam.z,H/2+40+52);ctx.lineTo(cam.x+W/cam.z,H/2+40+52);ctx.stroke();
+ render(el);
+ if($('showfig').checked){
+  if(poseMode&&selKF>=0&&keyframes.length>1){const pm=poseMode;poseMode=false;
+   [keyframes[selKF-1],keyframes[selKF+1]].forEach(k=>{if(!k)return;
+    ctx.globalAlpha=0.5;drawFigure(joints(k.p),$('fig').value);ctx.globalAlpha=1});
+   poseMode=pm}
+  drawFigure(curJ,$('fig').value)}
+ ctx.restore();
+ $('zl').textContent=Math.round(cam.z*100)+'%';
+ if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
+function rszChk(){if(cv.width!==cv.clientWidth||cv.height!==cv.clientHeight)rsz()}
+function render(el){for(const p of parts){const l=p.l,t=p.age/p.life,fade=1-t*t;
+ ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
+ ctx.shadowBlur=l.glow||0;const col=colAt(l,t);ctx.shadowColor=col;ctx.fillStyle=col;ctx.strokeStyle=col;ctx.globalAlpha=fade;
+ if(p.type==='particles'||p.type==='trail'){let s=p.sz;const m=l.size_over_life;
+  if(m==='shrink')s*=1-t;else if(m==='grow')s*=0.3+t;else if(m==='pulse')s*=0.7+0.5*Math.sin(t*12);
+  if(l.shape==='spark'&&p.vx!==undefined){const vl=Math.hypot(p.vx,p.vy)||1,k=Math.min(0.06,14/vl);
+   ctx.lineWidth=Math.max(1,s*0.5);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-p.vx*k,p.y-p.vy*k);ctx.stroke()}
+  else if(l.shape==='square'){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot+t*4);ctx.fillRect(-s/2,-s/2,s,s);ctx.restore()}
+  else{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(0.4,s/2),0,6.28);ctx.fill()}
+  if(p.type==='trail'&&l.line&&p.px!==undefined){ctx.lineWidth=Math.max(1,s*0.4);ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(p.x,p.y);ctx.stroke()}p.px=p.x;p.py=p.y}
+ else if(p.type==='ring'){const r=lerp(l.radius_start,l.radius_end,t);let th=l.thickness;if(l.thin_out)th*=1-t*0.7;
+  ctx.lineWidth=Math.max(0.5,th);ctx.beginPath();ctx.arc(p.x,p.y,r,0,6.28);ctx.stroke()}
+ else if(p.type==='flash'){const s=p.sz*(1-t*0.5),gg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,s);
+  gg.addColorStop(0,colAt(l,0));gg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,s,0,6.28);ctx.fill();
+  if(l.rays){ctx.lineWidth=2;for(let i=0;i<l.rays;i++){const a=i/l.rays*6.28;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*s*1.6,p.y+Math.sin(a)*s*1.6);ctx.stroke()}}}
+ else if(p.type==='crescent'){const r=lerp(l.radius_start,l.radius_end,t),spin=(l.spin_deg||0)*D*t;
+  const a0=p.a0+spin,half=(l.arc_deg*D)/2;ctx.lineWidth=Math.max(1,l.thickness*(1-t*0.5));ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(p.x,p.y,r,a0-half,a0+half);ctx.stroke()}
+ else if(p.type==='afterimage'){ctx.globalAlpha=fade*0.7;
+  if(l.ghost_rig&&p.pose){const save=[W,H];const J2=(()=>{const j={...joints(p.pose)};return j})();
+   // freeze at spawn root
+   ctx.save();ctx.strokeStyle=col;ctx.lineWidth=3;ctx.lineCap='round';ctx.shadowBlur=l.glow;ctx.shadowColor=col;
+   const J=joints(p.pose);const dx=p.rootJ[0]-J.hip[0],dy=p.rootJ[1]-J.hip[1];
+   const L2=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0]+dx,J[a][1]+dy);ctx.lineTo(J[b][0]+dx,J[b][1]+dy);ctx.stroke()};
+   L2('hip','chest');L2('chest','l_shoulder');L2('chest','r_shoulder');L2('hip','l_hip');L2('hip','r_hip');
+   L2('l_shoulder','l_elbow');L2('l_elbow','l_hand');L2('r_shoulder','r_elbow');L2('r_elbow','r_hand');
+   L2('l_hip','l_knee');L2('l_knee','l_foot');L2('r_hip','r_knee');L2('r_knee','r_foot');
+   ctx.beginPath();ctx.arc(J.head[0]+dx,J.head[1]+dy-4,10,0,6.28);ctx.stroke();ctx.restore()}
+  else{ctx.save();ctx.translate(p.x,p.y);ctx.beginPath();ctx.roundRect(-l.w/2,-l.h/2,l.w,l.h,l.w/2);ctx.fill();ctx.restore()}}
+ else if(p.type==='beam'){let a=(l.angle_deg||0)*D;
+  if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW;
+  const pulse=1+0.3*Math.sin(el/1000*6.28*(l.pulse_hz||0)+p.seed),seg=l.segments,len=l.length;
+  ctx.lineWidth=Math.max(1,l.width*pulse*(1-t*0.6));ctx.lineCap='round';ctx.beginPath();
+  for(let i=0;i<=seg;i++){const f=i/seg,j=(i===0||i===seg)?0:(l.jitter||0);
+   const x=p.x+Math.cos(a)*len*f+rnd(-j,j),y=p.y+Math.sin(a)*len*f+rnd(-j,j);i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
+  ctx.lineWidth=Math.max(0.5,l.width*0.35);ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*len,p.y+Math.sin(a)*len);ctx.stroke()}}
+ ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over'}
+// export/import
+function buildJson(){return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
+ trigger:$('trig').value,modes:['solo','battle'],duration_ms:+$('dur').value,
+ figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers},null,1)}
+function openJson(exp){jsonEl.style.display='flex';$('jt').textContent=exp?'Export — give this to Claude':'Import';$('jta').value=exp?(appMode==='char'?buildCharJson():buildJson()):''}
+function copyJson(){navigator.clipboard.writeText($('jta').value)}
+function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
+function applyJson(){try{const o=JSON.parse($('jta').value);
+ if(o.format==='pb_character'){importChar(o);jsonEl.style.display='none';return}
+ fx.layers=o.layers||[];
+ if(o.name)$('fxname').value=o.name;if(o.trigger)$('trig').value=o.trigger;if(o.duration_ms)$('dur').value=o.duration_ms;
+ if(o.figure)$('fig').value=o.figure;loadAction(o.action?.name);
+ if(o.action?.keyframes){keyframes=o.action.keyframes;fixKF(keyframes);renderTL()}
+ sel=0;renderLayers();renderProps();jsonEl.style.display='none';play()}catch(e){alert('Bad JSON: '+e.message)}}
+// ================= CHARACTER CREATOR =================
+let appMode='fx',CH=null,curStep='setup',weaponEdit=false,dragWP=-1;
+const ACT_DEFS=[
+ ['idle','Idle','ambient',0],['run','Running','ambient',0],
+ ['attack_normal','Normal Attack','on_hit',1],['attack_special','Special Attack','on_hit',1],
+ ['ultimate','Ultimate','on_ult',1],['defend','Block / Dodge','on_parry',0],
+ ['special_ability','Special Ability','ambient',0],['impact','Impact (got hit)','on_hit',0]];
+const SAB_PRESETS=['none','shield','heal','clone','time_slow','rage','teleport','dual_defense'];
+const DEF_KF={
+ idle:()=>[{t:0,p:P({})},{t:.5,p:P({ry:2,sp:2})},{t:1,p:P({})}],
+ run:()=>[{t:0,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})},{t:.5,p:P({lth:30,lsh:8,rth:-35,rsh:40,lua:25,rua:-30,sp:6})},{t:1,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})}],
+ attack_normal:()=>[{t:0,p:P({rua:-150,rfa:-40,wp:-50,sp:-10,rx:-10})},{t:.4,p:P({rua:-155,rfa:-45,wp:-55,sp:-12,rx:-14})},{t:.6,p:P({rua:35,rfa:25,wp:35,sp:14,rx:25,lth:25,rth:-30})},{t:1,p:P({})}],
+ attack_special:()=>[{t:0,p:P({rx:-40,rua:-160,rfa:-50,wp:-60,sp:-14})},{t:.45,p:P({rx:30,rua:40,rfa:30,wp:40,sp:16,lth:30,rth:-35})},{t:.7,p:P({rx:45,rua:20,rfa:15,wp:20,sp:8})},{t:1,p:P({})}],
+ ultimate:()=>[{t:0,p:P({})},{t:.25,p:P({rua:-170,rfa:-10,wp:-80,lua:-40,sp:-8,ry:-6})},{t:.7,p:P({rua:-170,rfa:-10,wp:-80,lua:-40,sp:-8,ry:-10})},{t:1,p:P({})}],
+ defend_block:()=>[{t:0,p:P({})},{t:.2,p:P({rua:-120,rfa:-60,wp:-90,sp:-4,lua:-30})},{t:.8,p:P({rua:-120,rfa:-60,wp:-90,sp:-4,lua:-30})},{t:1,p:P({})}],
+ defend_dodge:()=>[{t:0,p:P({})},{t:.35,p:P({rx:-55,sp:18,lth:-28,rth:24,ry:6})},{t:.7,p:P({rx:-70,sp:8})},{t:1,p:P({})}],
+ special_ability:()=>[{t:0,p:P({})},{t:.3,p:P({lua:-140,rua:-140,lfa:-20,rfa:-20,sp:-6,ry:-4})},{t:.75,p:P({lua:-150,rua:-150,lfa:-25,rfa:-25,sp:-6,ry:-8})},{t:1,p:P({})}],
+ impact:()=>[{t:0,p:P({})},{t:.15,p:P({rx:14,sp:14,hd:12,rua:15,lua:-25,ry:4})},{t:.5,p:P({rx:8,sp:8,hd:6})},{t:1,p:P({})}]};
+function newChar(){return{name:'new_fighter',palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
+ bones:{ua:22,fa:20,th:26,sh:24,torso:36},
+ weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
+ special_ability:{preset:'none',params:{duration_ms:3000,cooldown_ms:8000,magnitude:25},fx_layers:[]},
+ actions:{}}}
+function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]===ak);let kf;
+ if(ak==='defend')kf=CH.defense==='block'?DEF_KF.defend_block():DEF_KF.defend_dodge();
+ else if(ak==='defend2')kf=CH.defense==='block'?DEF_KF.defend_dodge():DEF_KF.defend_block();
+ else kf=(DEF_KF[ak]||DEF_KF.idle)();
+ fixKF(kf);
+ CH.actions[ak]={trigger:ak==='defend2'?'on_parry':(d?d[2]:'ambient'),duration_ms:ak==='run'||ak==='idle'?900:800,
+  keyframes:kf,fx_layers:[],
+  battle:(d&&d[3])?{damage:ak==='ultimate'?30:ak==='attack_special'?18:10,deflect:false,explode:false,explode_radius:60,
+   scatter:false,scatter_count:5,scatter_spread_deg:60,pierce:false,pierce_targets:2}:null}}
+// --- custom weapon math (points are in weapon-local frame, origin=r_hand, +x along weapon angle) ---
+function wpnWorld(hand,wW){if(!CH||!CH.weapon.points.length)return[];const c=Math.cos(wW),s=Math.sin(wW);
+ return CH.weapon.points.map(p=>[hand[0]+p[0]*c-p[1]*s,hand[1]+p[0]*s+p[1]*c])}
+function wpnMid(pts,hand){const chain=[hand,...pts];let tot=0;const segs=[];
+ for(let i=0;i<chain.length-1;i++){const d=Math.hypot(chain[i+1][0]-chain[i][0],chain[i+1][1]-chain[i][1]);segs.push(d);tot+=d}
+ if(!tot)return[hand[0],hand[1]];let h=tot/2;
+ for(let i=0;i<segs.length;i++){if(h<=segs[i]){const f=h/(segs[i]||1);return[lerp(chain[i][0],chain[i+1][0],f),lerp(chain[i][1],chain[i+1][1],f)]}h-=segs[i]}
+ return pts[pts.length-1]}
+function wpnLocal(wx,wy){const hand=curJ.r_hand,wW=curJ._wW,dx=wx-hand[0],dy=wy-hand[1],c=Math.cos(-wW),s=Math.sin(-wW);
+ return[+(dx*c-dy*s).toFixed(1),+(dx*s+dy*c).toFixed(1)]}
+function wpnClick(wx,wy){if(!curJ)return;const pts=curJ._wpts||[];
+ for(let i=0;i<pts.length;i++){if(Math.hypot(pts[i][0]-wx,pts[i][1]-wy)<9/cam.z){dragWP=i;return}}
+ CH.weapon.points.push(wpnLocal(wx,wy));const c=$('wpc');if(c)c.textContent=CH.weapon.points.length}
+function wpnUndo(){CH.weapon.points.pop()}
+function wpnClear(){CH.weapon.points=[]}
+// --- wizard ---
+function wizSteps(){const s=[{k:'setup',n:'Character Setup'},{k:'weapon',n:'Weapon Designer'}];
+ ACT_DEFS.forEach(a=>s.push({k:'act:'+a[0],n:a[1]}));
+ if(CH.special_ability.preset==='dual_defense'){const i=s.findIndex(x=>x.k==='act:special_ability');
+  s.splice(i+1,0,{k:'act:defend2',n:'Second Defense ('+(CH.defense==='block'?'Dodge':'Block')+')'})}
+ s.push({k:'review',n:'Review & Export'});return s}
+function renderWiz(){const d=$('wsteps');d.innerHTML='';wizSteps().forEach((s,i)=>{
+ const done=s.k.startsWith('act:')?!!CH.actions[s.k.slice(4)]:(s.k==='setup'||s.k==='weapon');
+ const e=document.createElement('div');e.className='wstep'+(s.k===curStep?' cur':'')+(done?' done':'');
+ e.textContent=(i+1)+'. '+s.n;e.onclick=()=>gotoStep(s.k);d.appendChild(e)})}
+function saveStep(){if(appMode!=='char'||!CH)return;
+ if(curStep.startsWith('act:')){const a=CH.actions[curStep.slice(4)];
+  if(a){a.duration_ms=+$('dur').value;a.trigger=$('trig').value;a.keyframes=keyframes;a.fx_layers=fx.layers}}}
+function loadCharAction(ak){ensureAction(ak);const a=CH.actions[ak];
+ keyframes=a.keyframes;fx.layers=a.fx_layers;$('dur').value=a.duration_ms;$('trig').value=a.trigger;
+ $('fxname').value=CH.name+'_'+ak;sel=fx.layers.length?0:-1;selKF=-1;
+ if(poseMode)togglePose();renderTL();renderLayers();renderProps();play()}
+function gotoStep(k){saveStep();curStep=k;weaponEdit=false;
+ if(k==='setup'||k==='review'){ensureAction('idle');loadCharAction('idle')}
+ else if(k==='weapon'){ensureAction('idle');loadCharAction('idle');stop();weaponEdit=true;
+  $('stat').textContent='weapon edit — click canvas to add points'}
+ else if(k.startsWith('act:')){loadCharAction(k.slice(4))}
+ renderWiz();renderStepUI()}
+function chRow(lbl,inner){return `<div class="row"><label>${lbl}</label><div class="v">${inner}</div></div>`}
+function battleUI(a){const b=a.battle;if(!b)return'';
+ const chk=(k,lbl)=>`<div class="row"><label>${lbl}</label><div class="v"><input type="checkbox" ${b[k]?'checked':''} onchange="bSet('${k}',this.checked)"></div></div>`;
+ const sld=(k,lbl,mn,mx,st)=>chRow(lbl,`<input type="range" min="${mn}" max="${mx}" step="${st}" value="${b[k]}" oninput="bSet('${k}',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${b[k]}</span>`);
+ return `<h3 style="padding-left:0">Battle Properties</h3>`+sld('damage','Damage',0,100,1)+
+  chk('deflect','Deflect')+chk('explode','Explode')+(b.explode?sld('explode_radius','↳ Radius',20,200,5):'')+
+  chk('scatter','Scatter')+(b.scatter?sld('scatter_count','↳ Count',2,12,1)+sld('scatter_spread_deg','↳ Spread°',10,180,5):'')+
+  chk('pierce','Pierce')+(b.pierce?sld('pierce_targets','↳ Targets',1,6,1):'')}
+function bSet(k,v){const a=CH.actions[curStep.slice(4)];if(!a||!a.battle)return;const re=typeof v==='boolean';a.battle[k]=v;if(re)renderStepUI()}
+function chSet(path,v){const seg=path.split('.');let o=CH;while(seg.length>1)o=o[seg.shift()];o[seg[0]]=v}
+function sabSet(k,v){if(k==='preset'){CH.special_ability.preset=v;renderWiz();renderStepUI()}else CH.special_ability.params[k]=+v}
+function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';return}let h='';
+ if(curStep==='setup'){h=`<h3 style="padding-left:0">Character Setup</h3>`+
+  chRow('Name',`<input type="text" value="${CH.name}" onchange="chSet('name',this.value)">`)+
+  chRow('Body color',`<input type="color" value="${CH.palette.body}" oninput="chSet('palette.body',this.value)">`)+
+  chRow('Accent color',`<input type="color" value="${CH.palette.accent}" oninput="chSet('palette.accent',this.value)">`)+
+  chRow('Torso len',`<input type="range" min="20" max="60" step="1" value="${CH.bones.torso}" oninput="chSet('bones.torso',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.torso}</span>`)+
+  chRow('Upper arm',`<input type="range" min="10" max="40" step="1" value="${CH.bones.ua}" oninput="chSet('bones.ua',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.ua}</span>`)+
+  chRow('Forearm',`<input type="range" min="10" max="40" step="1" value="${CH.bones.fa}" oninput="chSet('bones.fa',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.fa}</span>`)+
+  chRow('Thigh',`<input type="range" min="12" max="45" step="1" value="${CH.bones.th}" oninput="chSet('bones.th',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.th}</span>`)+
+  chRow('Shin',`<input type="range" min="12" max="45" step="1" value="${CH.bones.sh}" oninput="chSet('bones.sh',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.sh}</span>`)+
+  chRow('Defense',`<select onchange="chSet('defense',this.value);renderWiz()"><option value="block" ${CH.defense==='block'?'selected':''}>Block</option><option value="dodge" ${CH.defense==='dodge'?'selected':''}>Dodge</option></select>`)+
+  `<small style="color:#7a8599;display:block;padding:4px 0">Pick Block or Dodge. The "dual_defense" special ability preset unlocks both later.</small>`}
+ else if(curStep==='weapon'){h=`<h3 style="padding-left:0">Weapon Designer</h3>
+  <small style="color:#7a8599;display:block;padding:4px 0">Click on the canvas to add polyline points outward from the hand. Drag points to adjust. Anchors <b>weapon_mid</b> and <b>weapon_tip</b> are auto-generated for FX layers.</small>`+
+  chRow('Thickness',`<input type="range" min="1" max="10" step="0.5" value="${CH.weapon.thickness}" oninput="chSet('weapon.thickness',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.weapon.thickness}</span>`)+
+  chRow('Color',`<input type="color" value="${CH.weapon.color}" oninput="chSet('weapon.color',this.value)">`)+
+  chRow('Points',`<span class="val" id="wpc">${CH.weapon.points.length}</span><button onclick="wpnUndo();renderStepUI()">Undo</button><button onclick="wpnClear();renderStepUI()">Clear</button>`)}
+ else if(curStep==='act:special_ability'){const sa=CH.special_ability;
+  h=`<h3 style="padding-left:0">Special Ability</h3>`+
+  chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
+  chRow('Duration ms',`<input type="number" value="${sa.params.duration_ms}" onchange="sabSet('duration_ms',this.value)">`)+
+  chRow('Cooldown ms',`<input type="number" value="${sa.params.cooldown_ms}" onchange="sabSet('cooldown_ms',this.value)">`)+
+  chRow('Magnitude',`<input type="number" value="${sa.params.magnitude}" onchange="sabSet('magnitude',this.value)">`)+
+  `<small style="color:#7a8599;display:block;padding:4px 0">Preset defines the mechanic; add custom FX layers below for its visuals. <b>dual_defense</b> adds a second defense animation step.</small>`}
+ else if(curStep.startsWith('act:')){const ak=curStep.slice(4),def=ACT_DEFS.find(a=>a[0]===ak);
+  h=`<h3 style="padding-left:0">${def?def[1]:ak==='defend2'?'Second Defense':ak}</h3>
+  <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>`+
+  battleUI(CH.actions[ak])}
+ else if(curStep==='review'){const done=Object.keys(CH.actions).length,need=wizSteps().filter(s=>s.k.startsWith('act:')).length;
+  h=`<h3 style="padding-left:0">Review & Export</h3>
+  <div class="row"><label>Name</label><div class="v"><b>${CH.name}</b></div></div>
+  <div class="row"><label>Defense</label><div class="v">${CH.defense}${CH.special_ability.preset==='dual_defense'?' + both (dual)':''}</div></div>
+  <div class="row"><label>Weapon pts</label><div class="v">${CH.weapon.points.length}</div></div>
+  <div class="row"><label>Ability</label><div class="v">${CH.special_ability.preset}</div></div>
+  <div class="row"><label>Actions</label><div class="v">${done}/${need} created</div></div>
+  <button class="pri" style="width:100%;margin-top:8px" onclick="openJson(1)">Export Character JSON</button>
+  <small style="color:#7a8599;display:block;padding:4px 0">Give this JSON to Claude to implement in Solo & Battle modes.</small>`}
+ d.innerHTML=h}
+function wizNext(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i<s.length-1)gotoStep(s[i+1].k)}
+function wizPrev(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i>0)gotoStep(s[i-1].k)}
+function toggleMode(){if(appMode==='fx'){appMode='char';if(!CH)CH=newChar();enterChar()}else{saveStep();appMode='fx';exitChar()}}
+function enterChar(){$('apptitle').textContent='CHARACTER CREATOR';$('modebtn').textContent='✦ FX Mode';
+ $('wiz').style.display='flex';$('fxpresets').style.display='none';
+ $('fig').disabled=true;$('act').disabled=true;$('fig').value='custom';
+ curStep='setup';gotoStep('setup')}
+function exitChar(){$('apptitle').textContent='FX CREATOR';$('modebtn').textContent='⚔ Characters';
+ $('wiz').style.display='none';$('fxpresets').style.display='block';$('stepui').innerHTML='';
+ $('fig').disabled=false;$('act').disabled=false;weaponEdit=false;
+ $('fig').value='swordsman';fx.layers=[];sel=-1;loadAction();renderLayers();renderProps()}
+function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
+ acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers};
+ if(a.battle)acts[k].battle=a.battle}
+ return JSON.stringify({format:'pb_character',version:1,name:CH.name,rig:'humanoid_v2',modes:['solo','battle'],
+  bones:CH.bones,
+  palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
+  weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
+  special_ability:CH.special_ability,actions:acts},null,1)}
+function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
+ if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
+ if(o.special_ability)CH.special_ability=o.special_ability;
+ CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
+  CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),fx_layers:a.fx_layers||[],battle:a.battle||null}}
+ appMode='char';enterChar()}
+
+window.setP=setP;window.bSet=bSet;window.chSet=chSet;window.sabSet=sabSet;window.wpnUndo=wpnUndo;window.wpnClear=wpnClear;window.renderStepUI=renderStepUI;window.renderWiz=renderWiz;window.toggleMode=toggleMode;window.wizNext=wizNext;window.wizPrev=wizPrev;window.gotoStep=gotoStep;window.openJson=openJson;
+rsz();requestAnimationFrame(tick);loadAction();loadPreset();
+</script></body></html>
