@@ -438,6 +438,11 @@ function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]
  else if(ak==='defend2')kf=CH.defense==='block'?DEF_KF.defend_dodge():DEF_KF.defend_block();
  else kf=(DEF_KF[ak]||DEF_KF.idle)();
  fixKF(kf);
+ // baseline actions start from Idle's 1st KF pose (one-time copy, editable after)
+ if(ak!=='idle'&&ak!=='defend2'&&ACT_DEFS.some(a=>a[0]===ak)){
+  let src=CH.actions.idle?CH.actions.idle.keyframes:null;
+  if(!src){src=DEF_KF.idle();fixKF(src)}
+  kf[0]={t:kf[0].t,p:{...src[0].p}}}
  CH.actions[ak]={trigger:ak==='defend2'?'on_parry':(d?d[2]:'ambient'),duration_ms:ak==='run'||ak==='idle'?900:800,
   keyframes:kf,fx_layers:[],
   battle:(d&&d[3])?{damage:ak==='ultimate'?30:ak==='attack_special'?18:10,deflect:false,explode:false,explode_radius:60,
