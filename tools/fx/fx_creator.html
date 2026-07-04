@@ -62,7 +62,7 @@ input[type=color]{width:34px;height:24px;border:1px solid var(--bd);border-radiu
 <label>Figure <select id="fig" onchange="loadAction()"><option value="swordsman">Swordsman</option><option value="shooter">Runner/Shooter</option><option value="custom" hidden>Custom</option></select></label>
 <label>Action <select id="act" onchange="loadAction()"></select></label>
 <button id="posebtn" onclick="togglePose()">✎ Pose Mode</button>
-<button onclick="addKF()">+ KF here</button><button onclick="delKF()">✕ KF</button>
+<button onclick="addKF()">+ KF here</button><button onclick="dupKF()">⧉ Dup KF</button><button onclick="delKF()">✕ KF</button>
 <label>Slow <input id="slow" type="range" min="0.1" max="1" step="0.05" value="1" style="width:80px"></label>
 <label><input id="showfig" type="checkbox" checked> Show figure</label>
 <button onclick="resetView()">⟲ View <span id="zl">100%</span></button>
@@ -76,8 +76,8 @@ let W,H;function rsz(){W=cv.width=cv.clientWidth;H=cv.height=cv.clientHeight}win
 const D=Math.PI/180,rnd=(a,b)=>a+Math.random()*(b-a),lerp=(a,b,t)=>a+(b-a)*t;
 // ================= RIG =================
 // pose keys: rx,ry root offset; sp spine; hd head; lua,lfa left upper/forearm; rua,rfa; lth,lsh legs; rth,rsh; wp weapon
-const PK=['rx','ry','sp','hd','lsht','rsht','lpvt','rpvt','lua','lfa','rua','rfa','lth','lsh','rth','rsh','wp'];
-const Z={rx:0,ry:0,sp:0,hd:0,lsht:0,rsht:0,lpvt:0,rpvt:0,lua:15,lfa:5,rua:-15,rfa:-5,lth:8,lsh:5,rth:-8,rsh:-5,wp:-45};
+const PK=['rx','ry','sp','sp2','hd','lsht','rsht','lpvt','rpvt','lua','lfa','rua','rfa','lth','lsh','rth','rsh','wp','luas','lfas','ruas','rfas','lths','lshs','rths','rshs'];
+const Z={rx:0,ry:0,sp:0,sp2:0,hd:0,lsht:0,rsht:0,lpvt:0,rpvt:0,lua:15,lfa:5,rua:-15,rfa:-5,lth:8,lsh:5,rth:-8,rsh:-5,wp:-45,luas:1,lfas:1,ruas:1,rfas:1,lths:1,lshs:1,rths:1,rshs:1};
 const P=o=>({...Z,...o});
 const ACTIONS={swordsman:{
  idle:[{t:0,p:P({})},{t:.5,p:P({ry:2,sp:2})},{t:1,p:P({})}],
@@ -95,31 +95,35 @@ function poseAt(t){ // interpolate keyframes at t in 0..1
  const ks=keyframes;if(t<=ks[0].t)return{...ks[0].p};if(t>=ks[ks.length-1].t)return{...ks[ks.length-1].p};
  for(let i=0;i<ks.length-1;i++){if(t>=ks[i].t&&t<=ks[i+1].t){const f=(t-ks[i].t)/(ks[i+1].t-ks[i].t||1),o={};
   PK.forEach(k=>o[k]=lerp(ks[i].p[k],ks[i+1].p[k],f));return o}}return{...ks[0].p}}
+const BONES0={ua:22,fa:20,th:26,sh:24,torso:36};
+function boneLens(){return (appMode==='char'&&CH&&CH.bones)?CH.bones:BONES0}
 function joints(pose){ // world joint positions
  const cx=W/2,cy=H/2+40,J={},hip=[cx+pose.rx,cy+pose.ry];J.hip=hip;
  const B=(o,a,l)=>[o[0]+Math.cos(a)*l,o[1]+Math.sin(a)*l];
- const spW=(-90+pose.sp)*D;J.chest=B(hip,spW,36);
- const hdW=spW+pose.hd*D;J.head=B(J.chest,hdW,16);
- J.r_shoulder=B(J.chest,spW+Math.PI/2+pose.rsht*D,11);J.l_shoulder=B(J.chest,spW-Math.PI/2+pose.lsht*D,11);
+ const BL=boneLens();
+ const spW=(-90+pose.sp)*D;J.torso_mid=B(hip,spW,BL.torso/2);
+ const spW2=spW+(pose.sp2||0)*D;J.chest=B(J.torso_mid,spW2,BL.torso/2);
+ const hdW=spW2+pose.hd*D;J.head=B(J.chest,hdW,16);
+ J.r_shoulder=B(J.chest,spW2+Math.PI/2+pose.rsht*D,11);J.l_shoulder=B(J.chest,spW2-Math.PI/2+pose.lsht*D,11);
  J.r_hip=B(hip,pose.rpvt*D,8);J.l_hip=B(hip,Math.PI+pose.lpvt*D,8);
- const armBase=spW+Math.PI;
- const luaW=armBase+pose.lua*D;J.l_elbow=B(J.l_shoulder,luaW,22);
- const lfaW=luaW+pose.lfa*D;J.l_hand=B(J.l_elbow,lfaW,20);
- const ruaW=armBase+pose.rua*D;J.r_elbow=B(J.r_shoulder,ruaW,22);
- const rfaW=ruaW+pose.rfa*D;J.r_hand=B(J.r_elbow,rfaW,20);
- const lthW=(90+pose.lth)*D;J.l_knee=B(J.l_hip,lthW,26);J.l_foot=B(J.l_knee,(lthW+pose.lsh*D),24);
- const rthW=(90+pose.rth)*D;J.r_knee=B(J.r_hip,rthW,26);J.r_foot=B(J.r_knee,(rthW+pose.rsh*D),24);
- const fig=$('fig').value,wW=rfaW+pose.wp*D;J._wW=wW;J._rfaW=rfaW;J._spW=spW;J._luaW=luaW;J._lfaW=lfaW;J._ruaW=ruaW;J._hdW=hdW;
+ const armBase=spW2+Math.PI;
+ const luaW=armBase+pose.lua*D;J.l_elbow=B(J.l_shoulder,luaW,BL.ua*(pose.luas||1));
+ const lfaW=luaW+pose.lfa*D;J.l_hand=B(J.l_elbow,lfaW,BL.fa*(pose.lfas||1));
+ const ruaW=armBase+pose.rua*D;J.r_elbow=B(J.r_shoulder,ruaW,BL.ua*(pose.ruas||1));
+ const rfaW=ruaW+pose.rfa*D;J.r_hand=B(J.r_elbow,rfaW,BL.fa*(pose.rfas||1));
+ const lthW=(90+pose.lth)*D;J.l_knee=B(J.l_hip,lthW,BL.th*(pose.lths||1));J.l_foot=B(J.l_knee,(lthW+pose.lsh*D),BL.sh*(pose.lshs||1));
+ const rthW=(90+pose.rth)*D;J.r_knee=B(J.r_hip,rthW,BL.th*(pose.rths||1));J.r_foot=B(J.r_knee,(rthW+pose.rsh*D),BL.sh*(pose.rshs||1));
+ const fig=$('fig').value,wW=rfaW+pose.wp*D;J._wW=wW;J._rfaW=rfaW;J._spW=spW;J._spW2=spW2;J._luaW=luaW;J._lfaW=lfaW;J._ruaW=ruaW;J._hdW=hdW;
  if(fig==='swordsman'){J.blade_mid=B(J.r_hand,wW,19);J.blade_tip=B(J.r_hand,wW,38)}
  else if(fig==='custom'&&CH){const pts=wpnWorld(J.r_hand,wW);J._wpts=pts;
   J.weapon_tip=pts.length?pts[pts.length-1]:B(J.r_hand,wW,30);J.weapon_mid=pts.length?wpnMid(pts,J.r_hand):B(J.r_hand,wW,15)}
  else{J.muzzle=B(J.r_hand,wW,16)}
  return J}
-const ANCHORS=()=>['point','hip','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle'])];
+const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle'])];
 function drawFigure(J,fig){ctx.save();ctx.globalCompositeOperation='source-over';
  ctx.strokeStyle=(fig==='custom'&&CH)?CH.palette.body:'#8fa0b8';ctx.lineWidth=3.5;ctx.lineCap='round';
  const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
- L('hip','chest');L('chest','l_shoulder');L('chest','r_shoulder');L('hip','l_hip');L('hip','r_hip');
+ L('hip','torso_mid');L('torso_mid','chest');L('chest','l_shoulder');L('chest','r_shoulder');L('hip','l_hip');L('hip','r_hip');
  L('l_shoulder','l_elbow');L('l_elbow','l_hand');L('r_shoulder','r_elbow');L('r_elbow','r_hand');
  L('l_hip','l_knee');L('l_knee','l_foot');L('r_hip','r_knee');L('r_knee','r_foot');
  ctx.beginPath();ctx.arc(J.head[0],J.head[1]-4,10,0,6.28);ctx.stroke();
@@ -135,13 +139,13 @@ function drawFigure(J,fig){ctx.save();ctx.globalCompositeOperation='source-over'
   ctx.beginPath();ctx.arc(J[k][0],J[k][1],4.5,0,6.28);ctx.fill()}}
  ctx.restore()}
 // joint→bone mapping for drag posing: [origin joint, worldBase fn(pose,J), poseKey]
-const DRAGMAP={chest:['hip',(p,J)=>-90*D,'sp'],head:['chest',(p,J)=>J._spW,'hd'],
- r_shoulder:['chest',(p,J)=>J._spW+Math.PI/2,'rsht'],l_shoulder:['chest',(p,J)=>J._spW-Math.PI/2,'lsht'],
+const DRAGMAP={torso_mid:['hip',(p,J)=>-90*D,'sp'],chest:['torso_mid',(p,J)=>J._spW,'sp2'],head:['chest',(p,J)=>J._spW2,'hd'],
+ r_shoulder:['chest',(p,J)=>J._spW2+Math.PI/2,'rsht'],l_shoulder:['chest',(p,J)=>J._spW2-Math.PI/2,'lsht'],
  r_hip:['hip',()=>0,'rpvt'],l_hip:['hip',()=>Math.PI,'lpvt'],
- l_elbow:['l_shoulder',(p,J)=>J._spW+Math.PI,'lua'],l_hand:['l_elbow',(p,J)=>J._luaW,'lfa'],
- r_elbow:['r_shoulder',(p,J)=>J._spW+Math.PI,'rua'],r_hand:['r_elbow',(p,J)=>J._ruaW,'rfa'],
- l_knee:['l_hip',()=>90*D,'lth'],l_foot:['l_knee',(p,J)=>(90+p.lth)*D,'lsh'],
- r_knee:['r_hip',()=>90*D,'rth'],r_foot:['r_knee',(p,J)=>(90+p.rth)*D,'rsh'],
+ l_elbow:['l_shoulder',(p,J)=>J._spW2+Math.PI,'lua',['luas',()=>boneLens().ua]],l_hand:['l_elbow',(p,J)=>J._luaW,'lfa',['lfas',()=>boneLens().fa]],
+ r_elbow:['r_shoulder',(p,J)=>J._spW2+Math.PI,'rua',['ruas',()=>boneLens().ua]],r_hand:['r_elbow',(p,J)=>J._ruaW,'rfa',['rfas',()=>boneLens().fa]],
+ l_knee:['l_hip',()=>90*D,'lth',['lths',()=>boneLens().th]],l_foot:['l_knee',(p,J)=>(90+p.lth)*D,'lsh',['lshs',()=>boneLens().sh]],
+ r_knee:['r_hip',()=>90*D,'rth',['rths',()=>boneLens().th]],r_foot:['r_knee',(p,J)=>(90+p.rth)*D,'rsh',['rshs',()=>boneLens().sh]],
  blade_tip:['r_hand',(p,J)=>J._rfaW,'wp'],blade_mid:['r_hand',(p,J)=>J._rfaW,'wp'],muzzle:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_tip:['r_hand',(p,J)=>J._rfaW,'wp'],weapon_mid:['r_hand',(p,J)=>J._rfaW,'wp']};
 let dragJ=null,cam={z:1,x:0,y:0,init:false},panning=null;
 function camInit(){if(!cam.init&&W){cam.x=W/2;cam.y=H/2;cam.init=true}}
@@ -166,7 +170,8 @@ cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.c
  if(dragJ==='hip'){kp.rx=wx-W/2;kp.ry=wy-(H/2+40);return}
  const m=DRAGMAP[dragJ];if(!m)return;const J=joints(kp);const o=J[m[0]];
  const wa=Math.atan2(wy-o[1],wx-o[0]);kp[m[2]]=(wa-m[1](kp,J))/D;
- while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360};
+ while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360;
+ if(m[3]){const dist=Math.hypot(wx-o[0],wy-o[1]);kp[m[3][0]]=Math.max(0.5,Math.min(1.8,+(dist/m[3][1]()).toFixed(3)))}};
 cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1};
 // ================= FX ENGINE =================
 const DEF={
@@ -237,6 +242,10 @@ function addKF(){const t=+curT().toFixed(3),p=poseAt(poseMode?scrubT:curT());
  keyframes.push({t:poseMode?+scrubT.toFixed(3):t,p});keyframes.sort((a,b)=>a.t-b.t);
  selKF=keyframes.findIndex(k=>k.p===p);if(!poseMode)togglePose();renderTL()}
 function delKF(){if(selKF>=0&&keyframes.length>1){keyframes.splice(selKF,1);selKF=Math.min(selKF,keyframes.length-1);renderTL()}}
+function dupKF(){if(selKF<0){alert('Select a keyframe first (Pose Mode)');return}
+ const k=keyframes[selKF],p={...k.p},t=Math.min(1,+(k.t+0.05).toFixed(3));
+ keyframes.push({t,p});keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.findIndex(q=>q.p===p);renderTL()}
+window.dupKF=dupKF;
 // layers UI
 function addLayer(){const t=$('newtype').value;fx.layers.push({type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=fx.layers.length-1;renderLayers();renderProps()}
 function renderLayers(){const d=$('layers');d.innerHTML='';fx.layers.forEach((l,i)=>{
@@ -297,7 +306,12 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  camInit();ctx.save();ctx.setTransform(cam.z,0,0,cam.z,W/2-cam.x*cam.z,H/2-cam.y*cam.z);
  ctx.strokeStyle='#1c2432';ctx.beginPath();ctx.moveTo(cam.x-W/cam.z,H/2+40+52);ctx.lineTo(cam.x+W/cam.z,H/2+40+52);ctx.stroke();
  render(el);
- if($('showfig').checked)drawFigure(curJ,$('fig').value);
+ if($('showfig').checked){
+  if(poseMode&&selKF>=0&&keyframes.length>1){const pm=poseMode;poseMode=false;
+   [keyframes[selKF-1],keyframes[selKF+1]].forEach(k=>{if(!k)return;
+    ctx.globalAlpha=0.5;drawFigure(joints(k.p),$('fig').value);ctx.globalAlpha=1});
+   poseMode=pm}
+  drawFigure(curJ,$('fig').value)}
  ctx.restore();
  $('zl').textContent=Math.round(cam.z*100)+'%';
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
@@ -372,6 +386,7 @@ const DEF_KF={
  special_ability:()=>[{t:0,p:P({})},{t:.3,p:P({lua:-140,rua:-140,lfa:-20,rfa:-20,sp:-6,ry:-4})},{t:.75,p:P({lua:-150,rua:-150,lfa:-25,rfa:-25,sp:-6,ry:-8})},{t:1,p:P({})}],
  impact:()=>[{t:0,p:P({})},{t:.15,p:P({rx:14,sp:14,hd:12,rua:15,lua:-25,ry:4})},{t:.5,p:P({rx:8,sp:8,hd:6})},{t:1,p:P({})}]};
 function newChar(){return{name:'new_fighter',palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
+ bones:{ua:22,fa:20,th:26,sh:24,torso:36},
  weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
  special_ability:{preset:'none',params:{duration_ms:3000,cooldown_ms:8000,magnitude:25},fx_layers:[]},
  actions:{}}}
@@ -438,6 +453,11 @@ function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';
   chRow('Name',`<input type="text" value="${CH.name}" onchange="chSet('name',this.value)">`)+
   chRow('Body color',`<input type="color" value="${CH.palette.body}" oninput="chSet('palette.body',this.value)">`)+
   chRow('Accent color',`<input type="color" value="${CH.palette.accent}" oninput="chSet('palette.accent',this.value)">`)+
+  chRow('Torso len',`<input type="range" min="20" max="60" step="1" value="${CH.bones.torso}" oninput="chSet('bones.torso',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.torso}</span>`)+
+  chRow('Upper arm',`<input type="range" min="10" max="40" step="1" value="${CH.bones.ua}" oninput="chSet('bones.ua',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.ua}</span>`)+
+  chRow('Forearm',`<input type="range" min="10" max="40" step="1" value="${CH.bones.fa}" oninput="chSet('bones.fa',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.fa}</span>`)+
+  chRow('Thigh',`<input type="range" min="12" max="45" step="1" value="${CH.bones.th}" oninput="chSet('bones.th',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.th}</span>`)+
+  chRow('Shin',`<input type="range" min="12" max="45" step="1" value="${CH.bones.sh}" oninput="chSet('bones.sh',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.sh}</span>`)+
   chRow('Defense',`<select onchange="chSet('defense',this.value);renderWiz()"><option value="block" ${CH.defense==='block'?'selected':''}>Block</option><option value="dodge" ${CH.defense==='dodge'?'selected':''}>Dodge</option></select>`)+
   `<small style="color:#7a8599;display:block;padding:4px 0">Pick Block or Dodge. The "dual_defense" special ability preset unlocks both later.</small>`}
  else if(curStep==='weapon'){h=`<h3 style="padding-left:0">Weapon Designer</h3>
@@ -480,11 +500,12 @@ function exitChar(){$('apptitle').textContent='FX CREATOR';$('modebtn').textCont
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers};
  if(a.battle)acts[k].battle=a.battle}
- return JSON.stringify({format:'pb_character',version:1,name:CH.name,rig:'humanoid_v1',modes:['solo','battle'],
+ return JSON.stringify({format:'pb_character',version:1,name:CH.name,rig:'humanoid_v2',modes:['solo','battle'],
+  bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
   special_ability:CH.special_ability,actions:acts},null,1)}
-function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;
+function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
