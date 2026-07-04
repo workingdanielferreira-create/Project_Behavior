@@ -24,6 +24,38 @@ function poseAt(t){ // interpolate keyframes at t in 0..1
   PK.forEach(k=>o[k]=lerp(ks[i].p[k],ks[i+1].p[k],f));return o}}return{...ks[0].p}}
 const BONES0={ua:22,fa:20,th:26,sh:24,torso:36};
 function boneLens(){return (appMode==='char'&&CH&&CH.bones)?CH.bones:BONES0}
+// ================= TARGET DUMMY =================
+// Movable target capsule with hitbox zones (head/torso/legs) + impact anchors.
+// Used to author how effects apply to targets — identical semantics in Solo & Battle.
+let DUMMY={x:140,y:2,h:100,w:34},dragDum=null;
+function dummyOn(){const e=$('showdummy');return!!(e&&e.checked)}
+function dummyGeom(){const cx=W/2,cy=H/2+40,X=cx+DUMMY.x,Y=cy+DUMMY.y,h=DUMMY.h,w=DUMMY.w,top=Y-h/2;
+ const headB=top+h*0.22,torsoB=top+h*0.60,bot=top+h;
+ return{X,Y,w,h,top,headB,torsoB,bot,head:[X,(top+headB)/2],torso:[X,(headB+torsoB)/2],legs:[X,(torsoB+bot)/2]}}
+function dummyHit(wx,wy){const G=dummyGeom();return wx>G.X-G.w/2-6&&wx<G.X+G.w/2+6&&wy>G.top-6&&wy<G.bot+6}
+function drawDummy(){const G=dummyGeom(),sc=1/cam.z;
+ ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;ctx.shadowBlur=0;
+ ctx.fillStyle='rgba(122,133,153,0.13)';ctx.strokeStyle=dragDum?'#ffd24a':'#7a8599';ctx.lineWidth=2*sc;
+ ctx.beginPath();ctx.roundRect(G.X-G.w/2,G.top,G.w,G.h,G.w/2);ctx.fill();ctx.stroke();
+ ctx.setLineDash([4*sc,3*sc]);ctx.lineWidth=1.2*sc;
+ const zone=(y0,y1,c)=>{ctx.strokeStyle=c;ctx.strokeRect(G.X-G.w/2,y0,G.w,y1-y0)};
+ zone(G.top,G.headB,'#ff7070');zone(G.headB,G.torsoB,'#ffd24a');zone(G.torsoB,G.bot,'#4ad0ff');
+ ctx.setLineDash([]);
+ [[G.head,'#ff7070'],[G.torso,'#ffd24a'],[G.legs,'#4ad0ff']].forEach(([p,c])=>{
+  ctx.strokeStyle=c;ctx.lineWidth=1.4*sc;ctx.beginPath();
+  ctx.moveTo(p[0]-5*sc,p[1]);ctx.lineTo(p[0]+5*sc,p[1]);ctx.moveTo(p[0],p[1]-5*sc);ctx.lineTo(p[0],p[1]+5*sc);ctx.stroke();
+  ctx.beginPath();ctx.arc(p[0],p[1],3*sc,0,6.28);ctx.stroke()});
+ ctx.fillStyle='#7a8599';ctx.font=(10*sc)+'px sans-serif';ctx.textAlign='center';
+ ctx.fillText('TARGET',G.X,G.top-8*sc);ctx.textAlign='start';
+ ctx.restore()}
+function dummyExport(){if(!dummyOn())return null;
+ return{enabled:true,offset_from_figure:[DUMMY.x,DUMMY.y],width:DUMMY.w,height:DUMMY.h,
+  hitbox_zones:{head:[0,0.22],torso:[0.22,0.6],legs:[0.6,1]},
+  impact_anchors:['dummy_head','dummy_torso','dummy_legs'],
+  note:'Zone bounds are fractions of dummy height from top. Offset is from figure root. Applies identically in Solo & Battle.'}}
+function dummyImport(td){if(!td||!td.enabled)return;const e=$('showdummy');if(e)e.checked=true;
+ const of=td.offset_from_figure||[140,2];DUMMY.x=+of[0]||0;DUMMY.y=+of[1]||0;
+ if(td.width)DUMMY.w=+td.width;if(td.height)DUMMY.h=+td.height}
 function joints(pose){ // world joint positions
  const cx=W/2,cy=H/2+40,J={},hip=[cx+pose.rx,cy+pose.ry];J.hip=hip;
  const B=(o,a,l)=>[o[0]+Math.cos(a)*l,o[1]+Math.sin(a)*l];
@@ -45,8 +77,9 @@ function joints(pose){ // world joint positions
  else if(fig==='custom'&&CH){const pts=wpnWorld(J.r_hand,wW);J._wpts=pts;
   J.weapon_tip=pts.length?pts[pts.length-1]:B(J.r_hand,wW,30);J.weapon_mid=pts.length?wpnMid(pts,J.r_hand):B(J.r_hand,wW,15)}
  else{J.muzzle=B(J.r_hand,wW,16)}
+ if(dummyOn()){const G=dummyGeom();J.dummy_head=G.head;J.dummy_torso=G.torso;J.dummy_legs=G.legs}
  return J}
-const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle'])];
+const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle']),...(dummyOn()?['dummy_head','dummy_torso','dummy_legs']:[])];
 function drawBody(J,fig,alpha=1){ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha*=alpha;
  ctx.strokeStyle=(fig==='custom'&&CH)?CH.palette.body:'#8fa0b8';ctx.lineWidth=3.5;ctx.lineCap='round';
  const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
@@ -69,7 +102,7 @@ function drawWeapon(J,fig,alpha=1){ctx.save();ctx.globalCompositeOperation='sour
  ctx.restore()}
 function drawFigure(J,fig){drawBody(J,fig);drawWeapon(J,fig)}
 function drawJointDots(J){if(!poseMode)return;ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
- for(const k in J){if(k[0]==='_')continue;ctx.fillStyle=k===dragJ?'#ff4040':'#4af';
+ for(const k in J){if(k[0]==='_'||k.slice(0,6)==='dummy_')continue;ctx.fillStyle=k===dragJ?'#ff4040':'#4af';
   ctx.beginPath();ctx.arc(J[k][0],J[k][1],4.5,0,6.28);ctx.fill()}
  ctx.restore()}
 // --- built-in Character / Weapon layers (z-orderable in the layer stack) ---
@@ -117,9 +150,10 @@ cv.addEventListener('wheel',e=>{e.preventDefault();camInit();
 function resetView(){cam.z=1;cam.x=W/2;cam.y=H/2}
 cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
  if(weaponEdit){const[wx,wy]=toWorld(mx,my);wpnClick(wx,wy);return}
+ if(dummyOn()){const[wx,wy]=toWorld(mx,my);if(dummyHit(wx,wy)){dragDum=[wx-(W/2+DUMMY.x),wy-(H/2+40+DUMMY.y)];return}}
  if(poseMode&&selKF>=0){const[wx,wy]=toWorld(mx,my);
   const J=joints(keyframes[selKF].p);let best=null,bd=14/cam.z;
-  for(const k in J){if(k[0]==='_')continue;const d=Math.hypot(J[k][0]-wx,J[k][1]-wy);if(d<bd){bd=d;best=k}}
+  for(const k in J){if(k[0]==='_'||k.slice(0,6)==='dummy_')continue;const d=Math.hypot(J[k][0]-wx,J[k][1]-wy);if(d<bd){bd=d;best=k}}
   dragJ=best;if(dragJ)return}
  if(pivotGizmoOK()){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[x,y]=aPos(l),sc=1/cam.z,a=(l.prot||0)*D;
   if(l.type==='image'){const[sx,sy]=imgScaleHandle(l,x,y);if(Math.hypot(wx-sx,wy-sy)<9*sc){pivDrag='scale';return}}
@@ -128,6 +162,7 @@ cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.l
   if(Math.hypot(wx-x,wy-y)<12*sc){pivDrag='pos';return}}
  panning=[mx,my]};
 cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ if(dragDum){const[wx,wy]=toWorld(mx,my);DUMMY.x=+(wx-W/2-dragDum[0]).toFixed(1);DUMMY.y=+(wy-(H/2+40)-dragDum[1]).toFixed(1);return}
  if(pivDrag&&sel>=0&&fx.layers[sel]){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[ax,ay]=pivotAnchorXY(l);
   if(pivDrag==='pos'){l.px=+(wx-ax).toFixed(1);l.py=+(wy-ay).toFixed(1)}
   else if(pivDrag==='scale'){const d=Math.hypot(wx-(ax+(l.px||0)),wy-(ay+(l.py||0)));
@@ -143,4 +178,4 @@ cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.c
  const wa=Math.atan2(wy-o[1],wx-o[0]);kp[m[2]]=(wa-m[1](kp,J))/D;
  while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360;
  if(m[3]){const dist=Math.hypot(wx-o[0],wy-o[1]);kp[m[3][0]]=Math.max(0.5,Math.min(1.8,+(dist/m[3][1]()).toFixed(3)))}};
-cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1;if(pivDrag){pivDrag=null;renderProps()}};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1;if(pivDrag){pivDrag=null;renderProps()}};
+cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1;dragDum=null;if(pivDrag){pivDrag=null;renderProps()}};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1;dragDum=null;if(pivDrag){pivDrag=null;renderProps()}};
