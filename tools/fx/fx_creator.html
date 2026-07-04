@@ -46,7 +46,7 @@ input[type=color]{width:34px;height:24px;border:1px solid var(--bd);border-radiu
 </div>
 <div id="fxpresets"><h3>FX Presets</h3><div style="padding:0 12px"><select id="presel"></select><button style="width:100%;margin-top:6px" onclick="loadPreset()">Load Preset</button></div></div>
 <h3>Layers</h3><div id="layers" style="flex:1;overflow-y:auto"></div>
-<div id="lset"><select id="newtype" style="flex:1"><option>particles</option><option>ring</option><option>flash</option><option>crescent</option><option>trail</option><option>afterimage</option><option>beam</option></select><button class="pri" onclick="addLayer()">+ Add</button></div>
+<div id="lset"><select id="newtype" style="flex:1"><option>particles</option><option>ring</option><option>flash</option><option>crescent</option><option>trail</option><option>afterimage</option><option>beam</option><option>image</option></select><button class="pri" onclick="addLayer()">+ Add</button><input type="file" id="imgfile" accept="image/*" style="display:none"></div>
 </div>
 <div id="mid">
 <div id="bar"><b id="apptitle">FX CREATOR</b><button id="modebtn" onclick="toggleMode()">⚔ Characters</button><input id="fxname" type="text" style="width:130px" value="my_effect">
@@ -171,7 +171,13 @@ function drawPivotGizmo(){if(!pivotGizmoOK())return;const l=fx.layers[sel];
  ctx.strokeStyle=pivDrag==='pos'?'#ff4040':'#ffd24a';
  ctx.beginPath();ctx.arc(x,y,8*sc,0,6.28);ctx.stroke();
  ctx.beginPath();ctx.moveTo(x-12*sc,y);ctx.lineTo(x+12*sc,y);ctx.moveTo(x,y-12*sc);ctx.lineTo(x,y+12*sc);ctx.stroke();
+ if(l.type==='image'){const[sx,sy]=imgScaleHandle(l,x,y);
+  ctx.fillStyle=pivDrag==='scale'?'#ff4040':'#8dff6a';
+  ctx.fillRect(sx-5*sc,sy-5*sc,10*sc,10*sc)}
  ctx.restore()}
+function imgScaleHandle(l,x,y){const half=Math.hypot(l.w0||64,l.h0||64)/2*(l.scale||1);
+ const a=(l.prot||0)*D+Math.atan2(l.h0||64,l.w0||64);
+ return[x+Math.cos(a)*half,y+Math.sin(a)*half]}
 function pivotAnchorXY(l){let ax=W/2,ay=H/2;if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])[ax,ay]=curJ[l.anchor];return[ax,ay]}
 function pivotInfo(l){const pi=$('pivinfo');if(pi)pi.textContent=`x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}°`}
 function resetPivot(){const l=fx.layers[sel];if(!l||isBI(l))return;l.px=0;l.py=0;l.prot=0;pivotInfo(l)}
@@ -189,6 +195,7 @@ cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.l
   for(const k in J){if(k[0]==='_')continue;const d=Math.hypot(J[k][0]-wx,J[k][1]-wy);if(d<bd){bd=d;best=k}}
   dragJ=best;if(dragJ)return}
  if(pivotGizmoOK()){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[x,y]=aPos(l),sc=1/cam.z,a=(l.prot||0)*D;
+  if(l.type==='image'){const[sx,sy]=imgScaleHandle(l,x,y);if(Math.hypot(wx-sx,wy-sy)<9*sc){pivDrag='scale';return}}
   const hx=x+Math.cos(a)*PIV_ARM*sc,hy=y+Math.sin(a)*PIV_ARM*sc;
   if(Math.hypot(wx-hx,wy-hy)<9*sc){pivDrag='rot';return}
   if(Math.hypot(wx-x,wy-y)<12*sc){pivDrag='pos';return}}
@@ -196,6 +203,8 @@ cv.onmousedown=e=>{camInit();const r=cv.getBoundingClientRect(),mx=e.clientX-r.l
 cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
  if(pivDrag&&sel>=0&&fx.layers[sel]){const l=fx.layers[sel],[wx,wy]=toWorld(mx,my),[ax,ay]=pivotAnchorXY(l);
   if(pivDrag==='pos'){l.px=+(wx-ax).toFixed(1);l.py=+(wy-ay).toFixed(1)}
+  else if(pivDrag==='scale'){const d=Math.hypot(wx-(ax+(l.px||0)),wy-(ay+(l.py||0)));
+   l.scale=+Math.max(0.05,Math.min(10,d/(Math.hypot(l.w0||64,l.h0||64)/2))).toFixed(3)}
   else{l.prot=Math.round(Math.atan2(wy-(ay+(l.py||0)),wx-(ax+(l.px||0)))/D)}
   pivotInfo(l);return}
  if(weaponEdit&&dragWP>=0){const[wx,wy]=toWorld(mx,my);CH.weapon.points[dragWP]=wpnLocal(wx,wy);return}
@@ -207,7 +216,7 @@ cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.c
  const wa=Math.atan2(wy-o[1],wx-o[0]);kp[m[2]]=(wa-m[1](kp,J))/D;
  while(kp[m[2]]>180)kp[m[2]]-=360;while(kp[m[2]]<-180)kp[m[2]]+=360;
  if(m[3]){const dist=Math.hypot(wx-o[0],wy-o[1]);kp[m[3][0]]=Math.max(0.5,Math.min(1.8,+(dist/m[3][1]()).toFixed(3)))}};
-cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1;pivDrag=null};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1;pivDrag=null};
+cv.onmouseup=()=>{dragJ=null;panning=null;dragWP=-1;if(pivDrag){pivDrag=null;renderProps()}};cv.onmouseleave=()=>{dragJ=null;panning=null;dragWP=-1;if(pivDrag){pivDrag=null;renderProps()}};
 // ================= FX ENGINE =================
 const DEF={
 particles:{px:0,py:0,prot:0,anchor:'point',follow:false,count:24,spread_deg:360,angle_deg:-90,speed_min:80,speed_max:280,gravity:0,drag:0.94,size_min:2,size_max:5,size_over_life:'shrink',life_min:250,life_max:550,c1:'#ff4040',c2:'#ffd070',glow:10,blend:'additive',shape:'circle',delay_ms:0,burst:true,emit_rate:60},
@@ -216,6 +225,7 @@ flash:{px:0,py:0,prot:0,anchor:'point',follow:false,size_min:20,size_max:60,life
 crescent:{px:0,py:0,prot:0,anchor:'point',follow:false,radius_start:20,radius_end:70,arc_deg:120,thickness:9,angle_deg:0,spin_deg:180,life_min:220,life_max:300,c1:'#ff3050',c2:'#ffb0c0',glow:12,blend:'additive',delay_ms:0},
 trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_min:200,life_max:420,c1:'#40c0ff',c2:'#a0f0ff',glow:10,blend:'additive',line:true,delay_ms:0,drag:0.9,speed_min:0,speed_max:30,spread_deg:360,size_over_life:'shrink',shape:'circle'},
 afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
+image:{px:0,py:0,prot:0,anchor:'point',scale:1,opacity:1,src:null,w0:64,h0:64},
 beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
 const FIELDS={anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
 const PRESETS={
@@ -296,7 +306,23 @@ window.dupKF=dupKF;
 // layers UI
 function addLayer(){const t=$('newtype').value;ensureBuiltin(fx.layers);
  let at=fx.layers.findIndex(isBI);if(at<0)at=fx.layers.length;
- fx.layers.splice(at,0,{type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=at;renderLayers();renderProps()}
+ fx.layers.splice(at,0,{type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=at;renderLayers();renderProps();
+ if(t==='image')pickImage()}
+function pickImage(){const inp=$('imgfile');inp.onchange=()=>{const f=inp.files[0];inp.value='';if(!f)return;
+  const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const l=fx.layers[sel];if(!l||l.type!=='image')return;
+   l.src=rd.result;l.w0=im.naturalWidth||64;l.h0=im.naturalHeight||64;
+   l.scale=+(140/Math.max(l.w0,l.h0)).toFixed(3);IMGC.set(l.src,im);renderLayers();renderProps()};
+   im.src=rd.result};rd.readAsDataURL(f)};inp.click()}
+const IMGC=new Map();
+function getImg(l){if(!l.src)return null;let im=IMGC.get(l.src);if(!im){im=new Image();im.src=l.src;IMGC.set(l.src,im)}return im}
+function drawImageLayer(l){const im=getImg(l);const[x,y]=aPos(l);
+ ctx.save();ctx.globalCompositeOperation='source-over';ctx.shadowBlur=0;
+ ctx.translate(x,y);ctx.rotate((l.prot||0)*D);ctx.globalAlpha=Math.max(0,Math.min(1,l.opacity??1));
+ const w=(l.w0||64)*(l.scale||1),h=(l.h0||64)*(l.scale||1);
+ if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,-w/2,-h/2,w,h);
+ else{ctx.strokeStyle='#7a8599';ctx.setLineDash([4,4]);ctx.strokeRect(-w/2,-h/2,w,h);ctx.setLineDash([])}
+ if(fx.layers[sel]===l&&!weaponEdit&&!poseMode){ctx.globalAlpha=1;ctx.strokeStyle='#ffd24a';ctx.lineWidth=1/cam.z;ctx.setLineDash([5/cam.z,4/cam.z]);ctx.strokeRect(-w/2,-h/2,w,h);ctx.setLineDash([])}
+ ctx.restore()}
 function renderLayers(){const d=$('layers');d.innerHTML='';ensureBuiltin(fx.layers);fx.layers.forEach((l,i)=>{
  const e=document.createElement('div');e.className='layer'+(i===sel?' sel':'');
  const off=l.visible===false?' style="opacity:.45"':'';
@@ -316,6 +342,14 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  <div class="row"><label>Visible</label><div class="v"><input type="checkbox" ${l.visible!==false?'checked':''} onchange="setP('visible',this.checked);renderLayers()"></div></div>
  <div class="row"><label>Opacity</label><div class="v"><input type="range" min="0" max="1" step="0.05" value="${l.opacity??1}" oninput="setP('opacity',+this.value);this.nextElementSibling.textContent=this.value;renderLayers()"><span class="val">${l.opacity??1}</span></div></div>
  <small style="color:#7a8599;display:block;padding:4px 0">Use ↑/↓ in the Layers list to move FX behind or in front of the ${l.type==='figure'?'character':'weapon'}.</small>`;return}
+ if(l.type==='image'){d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>image</b></div></div>
+ <div class="row"><label>Image</label><div class="v"><button onclick="pickImage()">${l.src?'Replace\u2026':'Choose\u2026'}</button> <small>${l.src?(l.w0+'\u00d7'+l.h0):'none'}</small></div></div>
+ <div class="row"><label>Anchor joint</label><div class="v"><select onchange="setP('anchor',this.value)">${ANCHORS().map(o=>`<option ${o===l.anchor?'selected':''}>${o}</option>`).join('')}</select></div></div>
+ <div class="row"><label>Scale</label><div class="v"><input type="range" min="0.05" max="10" step="0.01" value="${l.scale||1}" oninput="setP('scale',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${l.scale||1}</span></div></div>
+ <div class="row"><label>Opacity</label><div class="v"><input type="range" min="0" max="1" step="0.05" value="${l.opacity??1}" oninput="setP('opacity',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${l.opacity??1}</span></div></div>
+ <div class="row"><label>Rotation \u00b0</label><div class="v"><input type="range" min="-180" max="180" step="1" value="${Math.round(l.prot||0)}" oninput="setP('prot',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${Math.round(l.prot||0)}</span></div></div>
+ <div class="row"><label>Pivot</label><div class="v"><span id="pivinfo" class="val">x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}\u00b0</span> <button onclick="resetPivot()">\u21ba</button></div></div>
+ <small style="color:#7a8599;display:block;padding:2px 0 4px">Drag the <b style="color:#ffd24a">gold</b> handle to move, <b style="color:#4ad0ff">blue</b> to rotate, <b style="color:#8dff6a">green corner</b> to resize \u2014 like a shape in PowerPoint.</small>`;return}
  d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type}</b></div></div>
  <div class="row"><label>Pivot</label><div class="v"><span id="pivinfo" class="val">x ${(l.px||0).toFixed(0)}  y ${(l.py||0).toFixed(0)}  rot ${Math.round(l.prot||0)}°</span> <button onclick="resetPivot()">↺</button></div></div>
  <small style="color:#7a8599;display:block;padding:2px 0 4px">Drag the <b style="color:#ffd24a">gold</b> handle on canvas to move the FX; drag the <b style="color:#4ad0ff">blue</b> handle to set its rotation origin.</small>
@@ -354,7 +388,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  else{el=0;animT=poseMode?scrubT:0}
  const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
  curJ=joints(pose);
- if(playing){fx.layers.forEach((l,li)=>{if(isBI(l))return;if(el<(l.delay_ms||0))return;
+ if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;if(el<(l.delay_ms||0))return;
   const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
@@ -378,6 +412,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
    drawBody(curJ,figV,l.opacity??1)}
   else if(l.type==='weapon'){if(!showF||(l.visible===false&&!weaponEdit))return;
    drawWeapon(curJ,figV,weaponEdit?1:(l.opacity??1))}
+  else if(l.type==='image')drawImageLayer(l);
   else render(el,l)});
  drawJointDots(curJ);
  drawPivotGizmo();
