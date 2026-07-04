@@ -8,8 +8,8 @@ trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_m
 afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
 image:{px:0,py:0,prot:0,anchor:'point',scale:1,opacity:1,src:null,w0:64,h0:64},
 beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,width:10,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
-['particles','ring','flash','crescent','trail','afterimage','beam'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0}));
-const FIELDS={anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
+['particles','ring','flash','crescent','trail','afterimage','beam'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0,can_hit:false}));
+const FIELDS={can_hit:['Can hit target','chk'],anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,600,5],width:['Width','r',1,60,1],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
 const PRESETS={
 'Slash: shockwave + sparks (blade tip)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:700,layers:[
  {type:'trail',...DEF.trail,anchor:'blade_tip',c1:'#ff3050',c2:'#ffd0d8',emit_rate:140,size_min:2,size_max:6,line:true},
@@ -41,7 +41,7 @@ const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
 // ---- per-layer trigger system ----
 const TRIG_OPTS=['immediate','on_hit','on_dash','on_fire','on_death','on_parry','on_ult','ambient','after_fx','after_layer'];
-let _lidc=1;function layerId(l){if(!l._id)l._id='L'+(_lidc++);return l._id}
+let _lidc=1,hitAt=null;function layerId(l){if(!l._id)l._id='L'+(_lidc++);return l._id}
 function fxDurOf(name){name=(name||'').replace(/^action: /,'');
  if(PRESETS[name])return PRESETS[name].duration_ms||800;
  if(typeof CH!=='undefined'&&CH&&CH.actions&&CH.actions[name])return CH.actions[name].duration_ms||800;return 800}
@@ -56,8 +56,9 @@ function layerStart(li,seen){const l=fx.layers[li];if(!l)return 0;seen=seen||new
   return layerStart(ri,seen)+(fx.layers[ri].delay_ms||0)+(l.trig_delay_ms||0)}
  return 0}
 function chainSpan(){let m=0;fx.layers.forEach((l,i)=>{if(isBI(l)||l.type==='image')return;const s=layerStart(i);if(s>m)m=s});return m}
-function trigHtml(l){layerId(l);const tm=l.trig||'immediate';
+function trigHtml(l){layerId(l);if(l.can_hit===undefined)l.can_hit=false;const tm=l.trig||'immediate';
  let h=`<div class="row"><label>Trigger</label><div class="v"><select onchange="setP('trig',this.value);renderProps()">${TRIG_OPTS.map(o=>`<option ${o===tm?'selected':''}>${o}</option>`).join('')}</select></div></div>`;
+ if(tm==='on_hit')h+=`<small style="color:#7a8599;display:block;padding:2px 0 4px">Plays only when a layer marked <b>Can hit target</b> contacts the target dummy. Dormant if the dummy is off. Fires once per loop cycle. Same rule in Solo &amp; Battle.</small>`;
  if(tm==='after_fx'){const list=trigFxList();if(!list.includes(l.trig_ref))l.trig_ref=list[0]||'';
   h+=`<div class="row"><label>After FX</label><div class="v"><select onchange="setP('trig_ref',this.value)">${list.map(o=>`<option ${o===l.trig_ref?'selected':''}>${o}</option>`).join('')}</select></div></div>`}
  if(tm==='after_layer'){const opts=fx.layers.map((x,i)=>({x,i})).filter(q=>!isBI(q.x)&&q.x.type!=='image'&&q.x!==l);
@@ -171,6 +172,15 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  else r.innerHTML=`<label>${f[0]}</label><div class="v"><input type="checkbox" ${l[k]?'checked':''} onchange="setP('${k}',this.checked)"></div>`;
  d.appendChild(r)}}
 function setP(k,v){fx.layers[sel][k]=v;if(k==='anchor')renderLayers()}
+// hit detection vs target dummy (drives per-layer on_hit trigger; same semantics in Solo & Battle)
+function arcDum(x,y,r,a0,a1){const n=16;for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;if(dummyHit(x+Math.cos(a)*r,y+Math.sin(a)*r))return true}return false}
+function fxHitsDummy(p,el){const l=p.l,t=p.age/p.life;
+ if(p.type==='ring'){const r=lerp(l.radius_start,l.radius_end,t);return arcDum(p.x,p.y,r,0,6.28)}
+ if(p.type==='crescent'){const r=lerp(l.radius_start,l.radius_end,t),spin=(l.spin_deg||0)*D*t,a0=p.a0+spin,half=(l.arc_deg*D)/2;return arcDum(p.x,p.y,r,a0-half,a0+half)}
+ if(p.type==='flash'){const s=(p.sz||20)*(1-t*0.5);return dummyHit(p.x,p.y)||arcDum(p.x,p.y,s,0,6.28)}
+ if(p.type==='beam'){let a=((l.angle_deg||0)+(l.prot||0))*D;if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW+(l.prot||0)*D;
+  for(let i=0;i<=12;i++){const f=i/12;if(dummyHit(p.x+Math.cos(a)*(l.length||0)*f,p.y+Math.sin(a)*(l.length||0)*f))return true}return false}
+ return dummyHit(p.x,p.y)}
 // engine
 function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
 function colAt(l,t){const a=hex(l.c1),b=hex(l.c2);return`rgb(${lerp(a[0],b[0],t)|0},${lerp(a[1],b[1],t)|0},${lerp(a[2],b[2],t)|0})`}
@@ -186,7 +196,7 @@ function spawn(l,li,n){const[x,y]=aPos(l);
  if(l.type==='afterimage'){p.pose=poseAt(curT());p.rootJ=aPos(l)}
  if(l.type==='beam')p.seed=Math.random()*99;
  parts.push(p)}}
-function play(){parts=[];acc={};spawned={};playing=true;t0=performance.now();last=t0;$('stat').textContent='playing';poseMode=false;$('posebtn').className=''}
+function play(){parts=[];acc={};spawned={};hitAt=null;playing=true;t0=performance.now();last=t0;$('stat').textContent='playing';poseMode=false;$('posebtn').className=''}
 function stop(){playing=false;parts=[]}
 function tick(now){requestAnimationFrame(tick);rszChk();
  const slow=+$('slow').value;let dt=Math.min(now-last,50)/1000*slow;last=now;
@@ -198,14 +208,17 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  else{el=0;animT=poseMode?scrubT:0}
  const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
  curJ=joints(pose);
- if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;if(el<layerStart(li)+(l.delay_ms||0))return;
+ if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;
+  if((l.trig||'immediate')==='on_hit'){if(!dummyOn()||hitAt===null||el<hitAt+(l.delay_ms||0))return}
+  else if(el<layerStart(li)+(l.delay_ms||0))return;
   const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.age+=dt*1000;if(p.age>=p.life){parts.splice(i,1);continue}
   if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]){[p.x,p.y]=aPos(p.l);
    if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow)p.a0=curJ._wW+(p.l.prot||0)*D}
-  if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}}}
+  if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}}
+ if(dummyOn()&&hitAt===null){for(const p of parts){if(!p.l.can_hit)continue;if(fxHitsDummy(p,el)){hitAt=el;break}}}}
  // draw
  const g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.4);g.addColorStop(0,'#141824');g.addColorStop(1,'#07080c');
  ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
@@ -271,7 +284,8 @@ function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l
 // export/import
 function buildJson(){return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
  trigger:$('trig').value,modes:['solo','battle'],duration_ms:+$('dur').value,
- figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers,target_dummy:dummyExport()},null,1)}
+ figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers,target_dummy:dummyExport(),
+ trigger_semantics:{on_hit:'Layer plays only when a layer flagged can_hit contacts the target; dormant if no target present; fires once per loop cycle. Identical in Solo & Battle.'}},null,1)}
 function openJson(exp){jsonEl.style.display='flex';$('jt').textContent=exp?'Export — give this to Claude':'Import';$('jta').value=exp?(appMode==='char'?buildCharJson():buildJson()):''}
 function copyJson(){navigator.clipboard.writeText($('jta').value)}
 function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
