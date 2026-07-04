@@ -182,6 +182,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  camInit();ctx.save();ctx.setTransform(cam.z,0,0,cam.z,W/2-cam.x*cam.z,H/2-cam.y*cam.z);
  ctx.strokeStyle='#1c2432';ctx.beginPath();ctx.moveTo(cam.x-W/cam.z,H/2+40+52);ctx.lineTo(cam.x+W/cam.z,H/2+40+52);ctx.stroke();
+ if(dummyOn())drawDummy();
  const showF=$('showfig').checked,figV=$('fig').value;
  ensureBuiltin(fx.layers);
  fx.layers.forEach(l=>{
@@ -241,7 +242,7 @@ function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l
 // export/import
 function buildJson(){return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
  trigger:$('trig').value,modes:['solo','battle'],duration_ms:+$('dur').value,
- figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers},null,1)}
+ figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers,target_dummy:dummyExport()},null,1)}
 function openJson(exp){jsonEl.style.display='flex';$('jt').textContent=exp?'Export — give this to Claude':'Import';$('jta').value=exp?(appMode==='char'?buildCharJson():buildJson()):''}
 function copyJson(){navigator.clipboard.writeText($('jta').value)}
 function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
@@ -249,6 +250,6 @@ function applyJson(){try{const o=JSON.parse($('jta').value);
  if(o.format==='pb_character'){importChar(o);jsonEl.style.display='none';return}
  fx.layers=ensureBuiltin(o.layers||[]);
  if(o.name)$('fxname').value=o.name;if(o.trigger)$('trig').value=o.trigger;if(o.duration_ms)$('dur').value=o.duration_ms;
- if(o.figure)$('fig').value=o.figure;loadAction(o.action?.name);
+ if(o.figure)$('fig').value=o.figure;dummyImport(o.target_dummy);loadAction(o.action?.name);
  if(o.action?.keyframes){keyframes=o.action.keyframes;fixKF(keyframes);renderTL()}
  sel=0;renderLayers();renderProps();jsonEl.style.display='none';play()}catch(e){alert('Bad JSON: '+e.message)}}
