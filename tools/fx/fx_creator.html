@@ -120,25 +120,36 @@ function joints(pose){ // world joint positions
  else{J.muzzle=B(J.r_hand,wW,16)}
  return J}
 const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle'])];
-function drawFigure(J,fig){ctx.save();ctx.globalCompositeOperation='source-over';
+function drawBody(J,fig,alpha=1){ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha*=alpha;
  ctx.strokeStyle=(fig==='custom'&&CH)?CH.palette.body:'#8fa0b8';ctx.lineWidth=3.5;ctx.lineCap='round';
  const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
  L('hip','torso_mid');L('torso_mid','chest');L('chest','l_shoulder');L('chest','r_shoulder');L('hip','l_hip');L('hip','r_hip');
  L('l_shoulder','l_elbow');L('l_elbow','l_hand');L('r_shoulder','r_elbow');L('r_elbow','r_hand');
  L('l_hip','l_knee');L('l_knee','l_foot');L('r_hip','r_knee');L('r_knee','r_foot');
  ctx.beginPath();ctx.arc(J.head[0],J.head[1]-4,10,0,6.28);ctx.stroke();
+ ctx.restore()}
+function drawWeapon(J,fig,alpha=1){ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha*=alpha;ctx.lineCap='round';
+ const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
  if(fig==='swordsman'){ctx.strokeStyle='#d8dee9';ctx.lineWidth=2.5;L('r_hand','blade_tip')}
  else if(fig==='custom'&&CH){const pts=J._wpts||[];
   if(pts.length){const wp=()=>{ctx.beginPath();ctx.moveTo(J.r_hand[0],J.r_hand[1]);pts.forEach(p=>ctx.lineTo(p[0],p[1]));ctx.stroke()};
-   ctx.save();ctx.strokeStyle=CH.palette.accent;ctx.lineWidth=CH.weapon.thickness+3;ctx.shadowColor=CH.palette.accent;ctx.shadowBlur=8;ctx.globalAlpha=0.55;wp();ctx.restore();
+   ctx.save();ctx.strokeStyle=CH.palette.accent;ctx.lineWidth=CH.weapon.thickness+3;ctx.shadowColor=CH.palette.accent;ctx.shadowBlur=8;ctx.globalAlpha*=0.55;wp();ctx.restore();
    ctx.strokeStyle=CH.weapon.color;ctx.lineWidth=CH.weapon.thickness;wp()}
-  if(weaponEdit){pts.forEach((p,i)=>{ctx.fillStyle=i===dragWP?'#ff4040':'#ffd050';ctx.beginPath();ctx.arc(p[0],p[1],4/Math.max(cam.z,0.5)+2,0,6.28);ctx.fill()});
+  if(weaponEdit){ctx.globalAlpha=1;pts.forEach((p,i)=>{ctx.fillStyle=i===dragWP?'#ff4040':'#ffd050';ctx.beginPath();ctx.arc(p[0],p[1],4/Math.max(cam.z,0.5)+2,0,6.28);ctx.fill()});
    ctx.fillStyle=CH.palette.accent;ctx.beginPath();ctx.arc(J.r_hand[0],J.r_hand[1],3,0,6.28);ctx.fill();
    [['weapon_mid','#7fd'],['weapon_tip','#7fd']].forEach(([a,c])=>{if(J[a]){ctx.strokeStyle=c;ctx.lineWidth=1;ctx.beginPath();ctx.arc(J[a][0],J[a][1],6,0,6.28);ctx.stroke()}})}}
  else{ctx.strokeStyle='#d8dee9';ctx.lineWidth=4;L('r_hand','muzzle')}
- if(poseMode){for(const k in J){if(k[0]==='_')continue;ctx.fillStyle=k===dragJ?'#ff4040':'#4af';
-  ctx.beginPath();ctx.arc(J[k][0],J[k][1],4.5,0,6.28);ctx.fill()}}
  ctx.restore()}
+function drawFigure(J,fig){drawBody(J,fig);drawWeapon(J,fig)}
+function drawJointDots(J){if(!poseMode)return;ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+ for(const k in J){if(k[0]==='_')continue;ctx.fillStyle=k===dragJ?'#ff4040':'#4af';
+  ctx.beginPath();ctx.arc(J[k][0],J[k][1],4.5,0,6.28);ctx.fill()}
+ ctx.restore()}
+// --- built-in Character / Weapon layers (z-orderable in the layer stack) ---
+const BUILTIN_TYPES=['figure','weapon'];
+function isBI(l){return !!l&&BUILTIN_TYPES.includes(l.type)}
+function ensureBuiltin(ls){if(!ls.some(l=>l.type==='figure'))ls.push({type:'figure',visible:true,opacity:1});
+ if(!ls.some(l=>l.type==='weapon'))ls.push({type:'weapon',visible:true,opacity:1});return ls}
 // joint→bone mapping for drag posing: [origin joint, worldBase fn(pose,J), poseKey]
 const DRAGMAP={torso_mid:['hip',(p,J)=>-90*D,'sp'],chest:['torso_mid',(p,J)=>J._spW,'sp2'],head:['chest',(p,J)=>J._spW2,'hd'],
  r_shoulder:['chest',(p,J)=>J._spW2+Math.PI/2,'rsht'],l_shoulder:['chest',(p,J)=>J._spW2-Math.PI/2,'lsht'],
@@ -213,7 +224,7 @@ const PRESETS={
  {type:'trail',...DEF.trail,anchor:'chest',c1:'#c060ff',c2:'#ffffff',emit_rate:35,line:false,speed_min:10,speed_max:50,angle_deg:-90,spread_deg:80}]}};
 const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
-function loadPreset(){const p=JSON.parse(JSON.stringify(PRESETS[ps.value]));fx.layers=p.layers;
+function loadPreset(){const p=JSON.parse(JSON.stringify(PRESETS[ps.value]));fx.layers=ensureBuiltin(p.layers);
  $('trig').value=p.trigger;$('dur').value=p.duration_ms;$('fig').value=p.figure;
  $('fxname').value=ps.value.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/_+$/,'');
  loadAction(p.action);sel=0;renderLayers();renderProps();play()}
@@ -260,15 +271,28 @@ function dupKF(){if(selKF<0){alert('Select a keyframe first (Pose Mode)');return
  keyframes.push({t,p});keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.findIndex(q=>q.p===p);renderTL()}
 window.dupKF=dupKF;
 // layers UI
-function addLayer(){const t=$('newtype').value;fx.layers.push({type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=fx.layers.length-1;renderLayers();renderProps()}
-function renderLayers(){const d=$('layers');d.innerHTML='';fx.layers.forEach((l,i)=>{
+function addLayer(){const t=$('newtype').value;ensureBuiltin(fx.layers);
+ let at=fx.layers.findIndex(isBI);if(at<0)at=fx.layers.length;
+ fx.layers.splice(at,0,{type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=at;renderLayers();renderProps()}
+function renderLayers(){const d=$('layers');d.innerHTML='';ensureBuiltin(fx.layers);fx.layers.forEach((l,i)=>{
  const e=document.createElement('div');e.className='layer'+(i===sel?' sel':'');
- e.innerHTML=`<span class="t">${i+1}. <b>${l.type}</b> <small>@${l.anchor}</small></span>`;
- const up=document.createElement('button');up.textContent='↑';up.onclick=ev=>{ev.stopPropagation();if(i>0){[fx.layers[i-1],fx.layers[i]]=[fx.layers[i],fx.layers[i-1]];sel=i-1;renderLayers()}};
- const dp=document.createElement('button');dp.textContent='⧉';dp.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i+1,0,JSON.parse(JSON.stringify(l)));renderLayers()};
- const x=document.createElement('button');x.textContent='✕';x.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i,1);sel=Math.min(sel,fx.layers.length-1);renderLayers();renderProps()};
- e.append(up,dp,x);e.onclick=()=>{sel=i;renderLayers();renderProps()};d.appendChild(e)})}
+ const off=l.visible===false?' style="opacity:.45"':'';
+ if(isBI(l))e.innerHTML=`<span class="t"${off}>${i+1}. <b>${l.type==='figure'?'⚑ Character':'⚔ Weapon'}</b> <small>${l.visible===false?'hidden':'op '+Math.round((l.opacity??1)*100)+'%'}</small></span>`;
+ else e.innerHTML=`<span class="t">${i+1}. <b>${l.type}</b> <small>@${l.anchor}</small></span>`;
+ const mv=f=>{const j=i+f;if(j<0||j>=fx.layers.length)return;[fx.layers[j],fx.layers[i]]=[fx.layers[i],fx.layers[j]];sel=j;renderLayers()};
+ const up=document.createElement('button');up.textContent='↑';up.title='move back (drawn earlier)';up.onclick=ev=>{ev.stopPropagation();mv(-1)};
+ const dn=document.createElement('button');dn.textContent='↓';dn.title='move front (drawn later)';dn.onclick=ev=>{ev.stopPropagation();mv(1)};
+ e.append(up,dn);
+ if(!isBI(l)){
+  const dp=document.createElement('button');dp.textContent='⧉';dp.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i+1,0,JSON.parse(JSON.stringify(l)));renderLayers()};
+  const x=document.createElement('button');x.textContent='✕';x.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i,1);sel=Math.min(sel,fx.layers.length-1);renderLayers();renderProps()};
+  e.append(dp,x)}
+ e.onclick=()=>{sel=i;renderLayers();renderProps()};d.appendChild(e)})}
 function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<em style="color:#7a8599">Select a layer</em>';return}
+ if(isBI(l)){d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type==='figure'?'Character (built-in)':'Weapon (built-in)'}</b></div></div>
+ <div class="row"><label>Visible</label><div class="v"><input type="checkbox" ${l.visible!==false?'checked':''} onchange="setP('visible',this.checked);renderLayers()"></div></div>
+ <div class="row"><label>Opacity</label><div class="v"><input type="range" min="0" max="1" step="0.05" value="${l.opacity??1}" oninput="setP('opacity',+this.value);this.nextElementSibling.textContent=this.value;renderLayers()"><span class="val">${l.opacity??1}</span></div></div>
+ <small style="color:#7a8599;display:block;padding:4px 0">Use ↑/↓ in the Layers list to move FX behind or in front of the ${l.type==='figure'?'character':'weapon'}.</small>`;return}
  d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type}</b></div></div>
  <div class="row"><label>Colors</label><div class="v cols"><input type="color" value="${l.c1}" oninput="setP('c1',this.value)"><input type="color" value="${l.c2}" oninput="setP('c2',this.value)"><small>start→end</small></div></div>`;
  for(const k in l){if(['type','c1','c2'].includes(k))continue;const f=FIELDS[k];if(!f)continue;
@@ -305,7 +329,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  else{el=0;animT=poseMode?scrubT:0}
  const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
  curJ=joints(pose);
- if(playing){fx.layers.forEach((l,li)=>{if(el<(l.delay_ms||0))return;
+ if(playing){fx.layers.forEach((l,li)=>{if(isBI(l))return;if(el<(l.delay_ms||0))return;
   const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
@@ -318,18 +342,24 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  camInit();ctx.save();ctx.setTransform(cam.z,0,0,cam.z,W/2-cam.x*cam.z,H/2-cam.y*cam.z);
  ctx.strokeStyle='#1c2432';ctx.beginPath();ctx.moveTo(cam.x-W/cam.z,H/2+40+52);ctx.lineTo(cam.x+W/cam.z,H/2+40+52);ctx.stroke();
- render(el);
- if($('showfig').checked){
-  if(poseMode&&selKF>=0&&keyframes.length>1){const pm=poseMode;poseMode=false;
-   [keyframes[selKF-1],keyframes[selKF+1]].forEach(k=>{if(!k)return;
-    ctx.globalAlpha=0.5;drawFigure(joints(k.p),$('fig').value);ctx.globalAlpha=1});
-   poseMode=pm}
-  drawFigure(curJ,$('fig').value)}
+ const showF=$('showfig').checked,figV=$('fig').value;
+ ensureBuiltin(fx.layers);
+ fx.layers.forEach(l=>{
+  if(l.type==='figure'){if(!showF||l.visible===false)return;
+   if(poseMode&&selKF>=0&&keyframes.length>1){const pm=poseMode;poseMode=false;
+    [keyframes[selKF-1],keyframes[selKF+1]].forEach(k=>{if(!k)return;
+     ctx.globalAlpha=0.5*(l.opacity??1);drawFigure(joints(k.p),figV);ctx.globalAlpha=1});
+    poseMode=pm}
+   drawBody(curJ,figV,l.opacity??1)}
+  else if(l.type==='weapon'){if(!showF||(l.visible===false&&!weaponEdit))return;
+   drawWeapon(curJ,figV,weaponEdit?1:(l.opacity??1))}
+  else render(el,l)});
+ drawJointDots(curJ);
  ctx.restore();
  $('zl').textContent=Math.round(cam.z*100)+'%';
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
 function rszChk(){if(cv.width!==cv.clientWidth||cv.height!==cv.clientHeight)rsz()}
-function render(el){for(const p of parts){const l=p.l,t=p.age/p.life,fade=1-t*t;
+function render(el,lay){for(const p of parts){if(lay&&p.l!==lay)continue;const l=p.l,t=p.age/p.life,fade=1-t*t;
  ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
  ctx.shadowBlur=l.glow||0;const col=colAt(l,t);ctx.shadowColor=col;ctx.fillStyle=col;ctx.strokeStyle=col;ctx.globalAlpha=fade;
  if(p.type==='particles'||p.type==='trail'){let s=p.sz;const m=l.size_over_life;
@@ -375,7 +405,7 @@ function copyJson(){navigator.clipboard.writeText($('jta').value)}
 function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
 function applyJson(){try{const o=JSON.parse($('jta').value);
  if(o.format==='pb_character'){importChar(o);jsonEl.style.display='none';return}
- fx.layers=o.layers||[];
+ fx.layers=ensureBuiltin(o.layers||[]);
  if(o.name)$('fxname').value=o.name;if(o.trigger)$('trig').value=o.trigger;if(o.duration_ms)$('dur').value=o.duration_ms;
  if(o.figure)$('fig').value=o.figure;loadAction(o.action?.name);
  if(o.action?.keyframes){keyframes=o.action.keyframes;fixKF(keyframes);renderTL()}
@@ -441,7 +471,7 @@ function saveStep(){if(appMode!=='char'||!CH)return;
  if(curStep.startsWith('act:')){const a=CH.actions[curStep.slice(4)];
   if(a){a.duration_ms=+$('dur').value;a.trigger=$('trig').value;a.keyframes=keyframes;a.fx_layers=fx.layers}}}
 function loadCharAction(ak){ensureAction(ak);const a=CH.actions[ak];
- keyframes=a.keyframes;fx.layers=a.fx_layers;$('dur').value=a.duration_ms;$('trig').value=a.trigger;
+ keyframes=a.keyframes;fx.layers=ensureBuiltin(a.fx_layers);$('dur').value=a.duration_ms;$('trig').value=a.trigger;
  $('fxname').value=CH.name+'_'+ak;sel=fx.layers.length?0:-1;selKF=-1;
  if(poseMode)togglePose();renderTL();renderLayers();renderProps();play()}
 function gotoStep(k){saveStep();curStep=k;weaponEdit=false;
@@ -509,7 +539,7 @@ function enterChar(){$('apptitle').textContent='CHARACTER CREATOR';$('modebtn').
 function exitChar(){$('apptitle').textContent='FX CREATOR';$('modebtn').textContent='⚔ Characters';
  $('wiz').style.display='none';$('fxpresets').style.display='block';$('stepui').innerHTML='';
  $('fig').disabled=false;$('act').disabled=false;weaponEdit=false;
- $('fig').value='swordsman';fx.layers=[];sel=-1;loadAction();renderLayers();renderProps()}
+ $('fig').value='swordsman';fx.layers=ensureBuiltin([]);sel=-1;loadAction();renderLayers();renderProps()}
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers};
  if(a.battle)acts[k].battle=a.battle}
@@ -526,5 +556,5 @@ function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.pale
  appMode='char';enterChar()}
 
 window.setP=setP;window.bSet=bSet;window.chSet=chSet;window.sabSet=sabSet;window.wpnUndo=wpnUndo;window.wpnClear=wpnClear;window.renderStepUI=renderStepUI;window.renderWiz=renderWiz;window.toggleMode=toggleMode;window.wizNext=wizNext;window.wizPrev=wizPrev;window.gotoStep=gotoStep;window.openJson=openJson;
-rsz();requestAnimationFrame(tick);loadAction();loadPreset();
+ensureBuiltin(fx.layers);rsz();requestAnimationFrame(tick);loadAction();loadPreset();
 </script></body></html>
