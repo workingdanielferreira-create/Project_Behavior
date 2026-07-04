@@ -129,8 +129,9 @@ function drawFigure(J,fig){ctx.save();ctx.globalCompositeOperation='source-over'
  ctx.beginPath();ctx.arc(J.head[0],J.head[1]-4,10,0,6.28);ctx.stroke();
  if(fig==='swordsman'){ctx.strokeStyle='#d8dee9';ctx.lineWidth=2.5;L('r_hand','blade_tip')}
  else if(fig==='custom'&&CH){const pts=J._wpts||[];
-  ctx.strokeStyle=CH.weapon.color;ctx.lineWidth=CH.weapon.thickness;
-  if(pts.length){ctx.beginPath();ctx.moveTo(J.r_hand[0],J.r_hand[1]);pts.forEach(p=>ctx.lineTo(p[0],p[1]));ctx.stroke()}
+  if(pts.length){const wp=()=>{ctx.beginPath();ctx.moveTo(J.r_hand[0],J.r_hand[1]);pts.forEach(p=>ctx.lineTo(p[0],p[1]));ctx.stroke()};
+   ctx.save();ctx.strokeStyle=CH.palette.accent;ctx.lineWidth=CH.weapon.thickness+3;ctx.shadowColor=CH.palette.accent;ctx.shadowBlur=8;ctx.globalAlpha=0.55;wp();ctx.restore();
+   ctx.strokeStyle=CH.weapon.color;ctx.lineWidth=CH.weapon.thickness;wp()}
   if(weaponEdit){pts.forEach((p,i)=>{ctx.fillStyle=i===dragWP?'#ff4040':'#ffd050';ctx.beginPath();ctx.arc(p[0],p[1],4/Math.max(cam.z,0.5)+2,0,6.28);ctx.fill()});
    ctx.fillStyle=CH.palette.accent;ctx.beginPath();ctx.arc(J.r_hand[0],J.r_hand[1],3,0,6.28);ctx.fill();
    [['weapon_mid','#7fd'],['weapon_tip','#7fd']].forEach(([a,c])=>{if(J[a]){ctx.strokeStyle=c;ctx.lineWidth=1;ctx.beginPath();ctx.arc(J[a][0],J[a][1],6,0,6.28);ctx.stroke()}})}}
@@ -472,24 +473,24 @@ function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';
   chRow('Shin',`<input type="range" min="12" max="45" step="1" value="${CH.bones.sh}" oninput="chSet('bones.sh',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.sh}</span>`)+
   chRow('Defense',`<select onchange="chSet('defense',this.value);renderWiz()"><option value="block" ${CH.defense==='block'?'selected':''}>Block</option><option value="dodge" ${CH.defense==='dodge'?'selected':''}>Dodge</option></select>`)+
   `<small style="color:#7a8599;display:block;padding:4px 0">Pick Block or Dodge. The "dual_defense" special ability preset unlocks both later.</small>`}
- else if(curStep==='weapon'){h=`<h3 style="padding-left:0">Weapon Designer</h3>
+ else if(curStep==='weapon'){h=`<h3 style="padding-left:0">${CH.name} — Weapon Designer</h3>
   <small style="color:#7a8599;display:block;padding:4px 0">Click on the canvas to add polyline points outward from the hand. Drag points to adjust. Anchors <b>weapon_mid</b> and <b>weapon_tip</b> are auto-generated for FX layers.</small>`+
   chRow('Thickness',`<input type="range" min="1" max="10" step="0.5" value="${CH.weapon.thickness}" oninput="chSet('weapon.thickness',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.weapon.thickness}</span>`)+
   chRow('Color',`<input type="color" value="${CH.weapon.color}" oninput="chSet('weapon.color',this.value)">`)+
   chRow('Points',`<span class="val" id="wpc">${CH.weapon.points.length}</span><button onclick="wpnUndo();renderStepUI()">Undo</button><button onclick="wpnClear();renderStepUI()">Clear</button>`)}
  else if(curStep==='act:special_ability'){const sa=CH.special_ability;
-  h=`<h3 style="padding-left:0">Special Ability</h3>`+
+  h=`<h3 style="padding-left:0">${CH.name} — Special Ability</h3>`+
   chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
   chRow('Duration ms',`<input type="number" value="${sa.params.duration_ms}" onchange="sabSet('duration_ms',this.value)">`)+
   chRow('Cooldown ms',`<input type="number" value="${sa.params.cooldown_ms}" onchange="sabSet('cooldown_ms',this.value)">`)+
   chRow('Magnitude',`<input type="number" value="${sa.params.magnitude}" onchange="sabSet('magnitude',this.value)">`)+
   `<small style="color:#7a8599;display:block;padding:4px 0">Preset defines the mechanic; add custom FX layers below for its visuals. <b>dual_defense</b> adds a second defense animation step.</small>`}
  else if(curStep.startsWith('act:')){const ak=curStep.slice(4),def=ACT_DEFS.find(a=>a[0]===ak);
-  h=`<h3 style="padding-left:0">${def?def[1]:ak==='defend2'?'Second Defense':ak}</h3>
+  h=`<h3 style="padding-left:0">${CH.name} — ${def?def[1]:ak==='defend2'?'Second Defense':ak}</h3>
   <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>`+
   battleUI(CH.actions[ak])}
  else if(curStep==='review'){const done=Object.keys(CH.actions).length,need=wizSteps().filter(s=>s.k.startsWith('act:')).length;
-  h=`<h3 style="padding-left:0">Review & Export</h3>
+  h=`<h3 style="padding-left:0">${CH.name} — Review & Export</h3>
   <div class="row"><label>Name</label><div class="v"><b>${CH.name}</b></div></div>
   <div class="row"><label>Defense</label><div class="v">${CH.defense}${CH.special_ability.preset==='dual_defense'?' + both (dual)':''}</div></div>
   <div class="row"><label>Weapon pts</label><div class="v">${CH.weapon.points.length}</div></div>
