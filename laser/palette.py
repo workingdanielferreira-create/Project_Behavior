@@ -66,8 +66,19 @@ def lut_for_index(i):
     return LUTS[i % len(LUTS)]
 
 
+# LUTs registered at runtime for custom characters (see laser/characters.py),
+# built from each character's body/accent palette.  Keyed by mode key.
+CUSTOM_LUTS = {}
+
+
+def register_custom_lut(mode_key, lut):
+    CUSTOM_LUTS[mode_key] = lut
+
+
 def lut_for_mode(mode_key, index):
     """Return the correct LUT for a figure given its mode and spawn index."""
+    if mode_key in CUSTOM_LUTS:
+        return CUSTOM_LUTS[mode_key]
     if mode_key == "swordsman":
         return LUT_RED
     return lut_for_index(index)
