@@ -583,9 +583,11 @@ class CollisionSystem(System):
             for fig in world.figures:
                 if fig.combat.parrying:
                     continue  # parry stance active — no HP damage
+                hb = fig.mode.hurtbox_radius()
+                proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
                 for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
-                    if ddx * ddx + ddy * ddy <= config.BATTLE_PROJ_HIT_SQ:
+                    if ddx * ddx + ddy * ddy <= proj_hit_sq:
                         ai.battle_hit(fig, evx, evy, world)
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
