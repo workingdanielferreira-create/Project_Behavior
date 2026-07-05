@@ -182,6 +182,7 @@ class CombatSystem(System):
 
     def update(self, world):
         for fig in world.figures:
+            combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
