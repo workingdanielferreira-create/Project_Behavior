@@ -40,6 +40,17 @@ class FigureMode:
     def speeds(self):
         return config.MODE_CONFIGS[self.key]
 
+    def hurtbox_radius(self):
+        """Rig-derived hit radius (Creator characters only, via mode.character
+        ['hurtbox_radius']).  Returns None for built-in modes (swordsman,
+        runner) so callers fall back to their existing fixed constants."""
+        char = getattr(self, "character", None)
+        if char:
+            r = char.get("hurtbox_radius")
+            if r:
+                return float(r)
+        return None
+
     # --- behavioural predicates (queried by systems) ---
     def can_shoot(self):
         """Does this figure fire projectiles in shoot/battle mode?"""
