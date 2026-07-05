@@ -1,5 +1,17 @@
-// ================= CHARACTER CREATOR =================
-let appMode='fx',CH=null,curStep='setup',weaponEdit=false,dragWP=-1;
+// ================= CHARACTER WIZARD =================
+// The tool is wizard-only: it always edits a pb_character. Standalone FX authoring lives
+// inside each action step (same layer engine); pb_fx export remains available per action.
+// Sections: [STATE] [ACTION DEFS] [CHARACTER MODEL] [WEAPON MATH] [WIZARD FLOW] [STEP UI] [EXPORT/IMPORT]
+// Roadmap slots (planned, NOT implemented yet — keep these homes stable):
+//  - Identity/archetype, movement.wander_strength, display_name/description  -> [CHARACTER MODEL] newChar() + Setup step UI
+//  - stats {max_hp, chase_speed, follow_speed, scale}, handedness            -> [CHARACTER MODEL] + Setup step UI
+//  - per-attack projectile spec, cadence, fire_cycle, melee params           -> per-action step UI (act:* steps)
+//  - ultimate {trigger_hp_pct,...}, defense_params, impact_params, survival  -> dedicated wizard steps after actions
+//  - extra action slots (death, victory, spawn, dash, knockback, teleport)   -> ACT_DEFS optional entries
+//  - sfx, trail component, palette.stops                                     -> Setup/action step UI + export
+// ---- [STATE] ----
+const appMode='char';let CH=null,curStep='setup',weaponEdit=false,dragWP=-1;
+// ---- [ACTION DEFS] ---- (roadmap: optional slots death/victory/spawn/dash/knockback/teleport append here)
 const ACT_DEFS=[
  ['idle','Idle','ambient',0],['run','Running','ambient',0],
  ['attack_normal','Normal Attack','on_hit',1],['attack_special','Special Attack','on_hit',1],
@@ -16,7 +28,11 @@ const DEF_KF={
  defend_dodge:()=>[{t:0,p:P({})},{t:.35,p:P({rx:-55,sp:18,lth:-28,rth:24,ry:6})},{t:.7,p:P({rx:-70,sp:8})},{t:1,p:P({})}],
  special_ability:()=>[{t:0,p:P({})},{t:.3,p:P({lua:-140,rua:-140,lfa:-20,rfa:-20,sp:-6,ry:-4})},{t:.75,p:P({lua:-150,rua:-150,lfa:-25,rfa:-25,sp:-6,ry:-8})},{t:1,p:P({})}],
  impact:()=>[{t:0,p:P({})},{t:.15,p:P({rx:14,sp:14,hd:12,rua:15,lua:-25,ry:4})},{t:.5,p:P({rx:8,sp:8,hd:6})},{t:1,p:P({})}]};
-function newChar(){return{name:'new_fighter',palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
+// ---- [CHARACTER MODEL] ----
+// _extra: forward-compat passthrough — unknown top-level keys from imported pb_character JSON
+// (e.g. future archetype/stats/movement blocks) are preserved and re-emitted on export so this
+// tool never strips roadmap fields it doesn't edit yet.
+function newChar(){return{_extra:{},name:'new_fighter',palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
  bones:{ua:22,fa:20,th:26,sh:24,torso:36},
  weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
  special_ability:{preset:'none',params:{duration_ms:3000,cooldown_ms:8000,magnitude:25},fx_layers:[]},
@@ -33,7 +49,7 @@ function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]
   kf[0]={t:kf[0].t,p:{...src[0].p}}}
  CH.actions[ak]={trigger:ak==='defend2'?'on_parry':(d?d[2]:'ambient'),duration_ms:ak==='run'||ak==='idle'?900:800,
   keyframes:kf,fx_layers:[]}}
-// --- custom weapon math (points are in weapon-local frame, origin=r_hand, +x along weapon angle) ---
+// ---- [WEAPON MATH] --- custom weapon math (points are in weapon-local frame, origin=r_hand, +x along weapon angle) ---
 function wpnWorld(hand,wW){if(!CH||!CH.weapon.points.length)return[];const c=Math.cos(wW),s=Math.sin(wW);
  return CH.weapon.points.map(p=>[hand[0]+p[0]*c-p[1]*s,hand[1]+p[0]*s+p[1]*c])}
 function wpnMid(pts,hand){const chain=[hand,...pts];let tot=0;const segs=[];
@@ -48,7 +64,8 @@ function wpnClick(wx,wy){if(!curJ)return;const pts=curJ._wpts||[];
  CH.weapon.points.push(wpnLocal(wx,wy));const c=$('wpc');if(c)c.textContent=CH.weapon.points.length}
 function wpnUndo(){CH.weapon.points.pop()}
 function wpnClear(){CH.weapon.points=[]}
-// --- wizard ---
+// ---- [WIZARD FLOW] ----
+function curActionKey(){return curStep&&curStep.startsWith('act:')?curStep.slice(4):null}
 function wizSteps(){const s=[{k:'setup',n:'Character Setup'},{k:'weapon',n:'Weapon Designer'}];
  ACT_DEFS.forEach(a=>s.push({k:'act:'+a[0],n:a[1]}));
  if(CH.special_ability.preset==='dual_defense'){const i=s.findIndex(x=>x.k==='act:special_ability');
@@ -62,6 +79,7 @@ function saveStep(){if(appMode!=='char'||!CH)return;
  if(curStep.startsWith('act:')){const a=CH.actions[curStep.slice(4)];
   if(a){a.duration_ms=+$('dur').value;a.trigger=$('trig').value;a.keyframes=keyframes;a.fx_layers=fx.layers}}}
 function loadCharAction(ak){ensureAction(ak);const a=CH.actions[ak];
+ const as=$('act');as.innerHTML='';const _o=document.createElement('option');_o.textContent=ak;as.appendChild(_o);as.value=ak;
  keyframes=a.keyframes;fx.layers=ensureBuiltin(a.fx_layers);$('dur').value=a.duration_ms;$('trig').value=a.trigger;
  $('fxname').value=CH.name+'_'+ak;sel=fx.layers.length?0:-1;selKF=-1;
  if(poseMode)togglePose();renderTL();renderLayers();renderProps();play()}
@@ -75,7 +93,8 @@ function chRow(lbl,inner){return `<div class="row"><label>${lbl}</label><div cla
 // Battle properties are now per-FX-layer (see battleHtml/ensureBattle in fx_engine.js): tick 'Can hit target' on a layer to edit them.
 function chSet(path,v){const seg=path.split('.');let o=CH;while(seg.length>1)o=o[seg.shift()];o[seg[0]]=v}
 function sabSet(k,v){if(k==='preset'){CH.special_ability.preset=v;renderWiz();renderStepUI()}else CH.special_ability.params[k]=+v}
-function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';return}let h='';
+// ---- [STEP UI] ----
+function renderStepUI(){const d=$('stepui');let h='';
  if(curStep==='setup'){h=`<h3 style="padding-left:0">Character Setup</h3>`+
   chRow('Name',`<input type="text" value="${CH.name}" onchange="chSet('name',this.value)">`)+
   chRow('Body color',`<input type="color" value="${CH.palette.body}" oninput="chSet('palette.body',this.value)">`)+
@@ -115,28 +134,23 @@ function renderStepUI(){const d=$('stepui');if(appMode!=='char'){d.innerHTML='';
  d.innerHTML=h}
 function wizNext(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i<s.length-1)gotoStep(s[i+1].k)}
 function wizPrev(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i>0)gotoStep(s[i-1].k)}
-function toggleMode(){if(appMode==='fx'){appMode='char';if(!CH)CH=newChar();enterChar()}else{saveStep();appMode='fx';exitChar()}}
-function enterChar(){$('apptitle').textContent='CHARACTER CREATOR';$('modebtn').textContent='✦ FX Mode';
- $('wiz').style.display='flex';$('fxpresets').style.display='none';
- $('fig').disabled=true;$('act').disabled=true;$('fig').value='custom';
- curStep='setup';gotoStep('setup')}
-function exitChar(){$('apptitle').textContent='FX CREATOR';$('modebtn').textContent='⚔ Characters';
- $('wiz').style.display='none';$('fxpresets').style.display='block';$('stepui').innerHTML='';
- $('fig').disabled=false;$('act').disabled=false;weaponEdit=false;
- $('fig').value='swordsman';fx.layers=ensureBuiltin([]);sel=-1;loadAction();renderLayers();renderProps()}
+function bootWizard(){if(!CH)CH=newChar();$('fig').value='custom';curStep='setup';gotoStep('setup')}
+// ---- [EXPORT/IMPORT] ---- pb_character (full fighter). pb_fx (single action FX) is in fx_engine.js.
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
  acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers}}
- return JSON.stringify({format:'pb_character',version:1,name:CH.name,rig:'humanoid_v2',modes:['solo','battle'],
+ return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:1,name:CH.name,rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
   special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS},null,1)}
+const CH_KNOWN=['format','version','name','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
+ for(const k in o){if(!CH_KNOWN.includes(k))CH._extra[k]=o[k]}
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
   CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
    fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l})}}
  dummyImport(o.target_dummy);
- appMode='char';enterChar()}
+ curStep='setup';gotoStep('setup')}
