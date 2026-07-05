@@ -4,7 +4,8 @@
 // Sections: [STATE] [ACTION DEFS] [CHARACTER MODEL] [WEAPON MATH] [WIZARD FLOW] [STEP UI] [EXPORT/IMPORT]
 // Roadmap slots (planned, NOT implemented yet — keep these homes stable):
 //  - Identity/archetype, movement.wander_strength, display_name/description  -> IMPLEMENTED (Setup step; JSON v2)
-//  - stats {max_hp, chase_speed, follow_speed, scale}, handedness            -> [CHARACTER MODEL] + Setup step UI
+//  - stats {max_hp, chase_speed, follow_speed, scale}                        -> IMPLEMENTED (Setup step; JSON v2)
+//  - handedness                                                              -> [CHARACTER MODEL] + Setup step UI
 //  - per-attack projectile spec, cadence, fire_cycle, melee params           -> per-action step UI (act:* steps)
 //  - ultimate {trigger_hp_pct,...}, defense_params, impact_params, survival  -> dedicated wizard steps after actions
 //  - extra action slots (death, victory, spawn, dash, knockback, teleport)   -> ACT_DEFS optional entries
@@ -39,8 +40,12 @@ function archSet(v){CH.archetype=v;if(ARCH_PRED[v])CH.predicates={...ARCH_PRED[v
 function predSet(k,on){CH.predicates[k]=!!on}
 function wanderSet(v){CH.movement.wander_strength=Math.max(0,Math.min(1,+v));
  const s=$('wsl'),e=$('wsv');if(s)s.value=CH.movement.wander_strength;if(e)e.textContent=CH.movement.wander_strength.toFixed(2)}
+function statSet(k,v){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2]};
+ const [lo,hi]=lims[k]||[-Infinity,Infinity];CH.stats[k]=Math.max(lo,Math.min(hi,+v));
+ const e=$('stv_'+k);if(e)e.textContent=CH.stats[k].toFixed(k==='max_hp'?0:2)}
 function newChar(){return{_extra:{},name:'new_fighter',display_name:'New Fighter',description:'',
  archetype:'melee',predicates:{...ARCH_PRED.melee},movement:{wander_strength:0.15},
+ stats:{max_hp:100,chase_speed:3.0,follow_speed:4.5,scale:1.0},
  palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
  bones:{ua:22,fa:20,th:26,sh:24,torso:36},
  weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
@@ -112,6 +117,11 @@ function renderStepUI(){const d=$('stepui');let h='';
   chRow('Predicates',PRED_KEYS.map(k=>`<label style="margin-right:6px;font-size:11px"><input type="checkbox" ${CH.predicates[k]?'checked':''} ${CH.archetype==='New'?'':'disabled'} onchange="predSet('${k}',this.checked)">${k}</label>`).join(''))+
   chRow('Wander',`<input type="range" id="wsl" min="0" max="1" step="0.01" value="${CH.movement.wander_strength}" oninput="wanderSet(this.value)"><span class="val" id="wsv">${CH.movement.wander_strength.toFixed(2)}</span><button onclick="wanderSet(0.15)">Swordsman</button><button onclick="wanderSet(1)">Runner</button>`)+
   `<small style="color:#7a8599;display:block;padding:4px 0">Archetype maps directly to game predicates; pick <b>New</b> to mix them freely. Wander caps lateral drift in battle chase (0.15 = charge straight, 1.0 = full weave) — identical in Solo & Battle.</small>`+
+  chRow('Max HP',`<input type="range" min="50" max="200" step="5" value="${CH.stats.max_hp}" oninput="statSet('max_hp',this.value)"><span class="val" id="stv_max_hp">${CH.stats.max_hp}</span>`)+
+  chRow('Chase speed',`<input type="range" min="1" max="8" step="0.1" value="${CH.stats.chase_speed}" oninput="statSet('chase_speed',this.value)"><span class="val" id="stv_chase_speed">${CH.stats.chase_speed.toFixed(2)}</span>`)+
+  chRow('Follow speed',`<input type="range" min="1" max="8" step="0.1" value="${CH.stats.follow_speed}" oninput="statSet('follow_speed',this.value)"><span class="val" id="stv_follow_speed">${CH.stats.follow_speed.toFixed(2)}</span>`)+
+  chRow('Scale',`<input type="range" min="0.5" max="2" step="0.05" value="${CH.stats.scale}" oninput="statSet('scale',this.value)"><span class="val" id="stv_scale">${CH.stats.scale.toFixed(2)}</span>`)+
+  `<small style="color:#7a8599;display:block;padding:4px 0">Core stats feed MODE_CONFIGS at load — HP and speeds tune combat directly, Scale resizes the whole rig (hurtbox is derived automatically, not editable here). Identical in Solo & Battle.</small>`+
   chRow('Body color',`<input type="color" value="${CH.palette.body}" oninput="chSet('palette.body',this.value)">`)+
   chRow('Accent color',`<input type="color" value="${CH.palette.accent}" oninput="chSet('palette.accent',this.value)">`)+
   chRow('Torso len',`<input type="range" min="20" max="60" step="1" value="${CH.bones.torso}" oninput="chSet('bones.torso',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.torso}</span>`)+
@@ -155,17 +165,19 @@ function bootWizard(){if(!CH)CH=newChar();$('fig').value='custom';curStep='setup
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
  acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers}}
- return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},rig:'humanoid_v2',modes:['solo','battle'],
+ return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},stats:{...CH.stats},rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
   special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS},null,1)}
-const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics'];
+const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  CH.display_name=o.display_name||CH.name;CH.description=o.description||'';
  CH.archetype=o.archetype||((o.weapon&&o.weapon.points&&o.weapon.points.length)?'melee':'shooter');
  CH.predicates=o.predicates?PRED_KEYS.reduce((m,k)=>(m[k]=!!o.predicates[k],m),{}):{...(ARCH_PRED[CH.archetype]||ARCH_PRED.melee)};
  if(o.movement&&isFinite(+o.movement.wander_strength))CH.movement.wander_strength=Math.max(0,Math.min(1,+o.movement.wander_strength));
+ if(o.stats){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2]};
+  for(const k in CH.stats){if(o.stats[k]!=null&&isFinite(+o.stats[k])){const[lo,hi]=lims[k];CH.stats[k]=Math.max(lo,Math.min(hi,+o.stats[k]))}}}
  for(const k in o){if(!CH_KNOWN.includes(k))CH._extra[k]=o[k]}
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
@@ -174,3 +186,4 @@ function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.pale
    fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l})}}
  dummyImport(o.target_dummy);
  curStep='setup';gotoStep('setup')}
+
