@@ -11,6 +11,118 @@ from . import config
 from . import combat as _combat
 
 
+# ---------------------------------------------------------------------------
+# Activation triggers — evaluates the `activation_triggers` /
+# `retrigger_cooldown_ms` schema authored in the FX Creator for
+# attack_special / ultimate / special_ability (see
+# tools/fx/character_creator.js ACTIVATION_TRIGGER_SEMANTICS for the
+# authoring-side contract this mirrors exactly). Pure logic, identical in
+# Solo & Battle. NOTE: this decides *whether* an action should fire; wiring
+# a fired action into the actual animation/fx_layers playback for custom
+# characters is a separate, not-yet-built pipeline (see ARCHITECTURE notes) —
+# today only the swordsman/runner ultimates have a hardcoded playback path.
+# ---------------------------------------------------------------------------
+def _ensure_trigger_state(p):
+    """Per-figure bookkeeping dict, keyed by action name. Lives on
+    Personality since it's already the per-figure "brain" bag."""
+    st = getattr(p, "trigger_state", None)
+    if st is None:
+        st = {}
+        p.trigger_state = st
+    return st
+
+
+def _trigger_action_state(p, action_key):
+    st = _ensure_trigger_state(p)
+    s = st.get(action_key)
+    if s is None:
+        s = dict(impact_count=0, hit_count=0, hp_fired=set(),
+                  next_ok_tick=0, hp_cooldown_until=0)
+        st[action_key] = s
+    return s
+
+
+def note_impact_taken(fig):
+    """Call whenever fig takes a hit (from apply_hp_damage/battle_hit) — feeds
+    on_impact/after_on_impact triggers for every one of this character's
+    tracked actions. Identical in Solo & Battle (both call the same hit hooks)."""
+    st = _ensure_trigger_state(fig.personality)
+    for s in st.values():
+        s["impact_count"] += 1
+
+
+def note_hit_landed(fig):
+    """Call whenever fig lands a hit on the enemy — feeds after_on_hit
+    triggers. NOTE: in Battle mode a landed hit currently only updates local
+    state; crediting it correctly needs the same IPC treatment as HP damage
+    (partner_figures), which is not yet wired — see ARCHITECTURE notes."""
+    st = _ensure_trigger_state(fig.personality)
+    for s in st.values():
+        s["hit_count"] += 1
+
+
+def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
+    """True if `action` (a pb_character action dict carrying
+    activation_triggers/retrigger_cooldown_ms) should fire right now.
+
+    Any enabled trigger type firing is enough (OR logic). hp_threshold fires
+    once per crossing unless repeatable=True, in which case it can refire on
+    its own cooldown_ms. after_on_impact/after_on_hit counters reset to 0 the
+    moment they fire (on_impact is equivalent to after_on_impact count=1).
+    radius_proximity is a closed [min, max] px band. retrigger_cooldown_ms is
+    a shared minimum gap between activations of this action regardless of
+    which trigger fired it.
+    """
+    triggers = action.get("activation_triggers") or []
+    if not triggers:
+        return False
+    action_key = action.get("_key", id(action))
+    state = _trigger_action_state(fig.personality, action_key)
+    if now_tick < state.get("next_ok_tick", 0):
+        return False
+
+    p = fig.personality
+    hp_pct = (100.0 * p.hp / p.max_hp) if p.max_hp else 0.0
+    fired = False
+    for trig in triggers:
+        ttype = trig.get("type")
+        if ttype == "hp_threshold":
+            pct = trig.get("pct", 50)
+            if hp_pct <= pct:
+                if trig.get("repeatable"):
+                    if now_tick >= state.get("hp_cooldown_until", 0):
+                        cd_ms = trig.get("cooldown_ms", 0) or 0
+                        state["hp_cooldown_until"] = now_tick + int(cd_ms / config.TICK_MS)
+                        fired = True
+                elif pct not in state["hp_fired"]:
+                    state["hp_fired"].add(pct)
+                    fired = True
+        elif ttype == "on_impact":
+            if state["impact_count"] > 0:
+                state["impact_count"] = 0
+                fired = True
+        elif ttype == "after_on_impact":
+            if state["impact_count"] >= trig.get("count", 1):
+                state["impact_count"] = 0
+                fired = True
+        elif ttype == "after_on_hit":
+            if state["hit_count"] >= trig.get("count", 1):
+                state["hit_count"] = 0
+                fired = True
+        elif ttype == "radius_proximity":
+            lo, hi = trig.get("min", 0), trig.get("max", float("inf"))
+            if lo <= dist_to_enemy <= hi:
+                fired = True
+        if fired:
+            break
+
+    if fired:
+        cooldown_ms = action.get("retrigger_cooldown_ms", 0) or 0
+        if cooldown_ms:
+            state["next_ok_tick"] = now_tick + int(cooldown_ms / config.TICK_MS)
+    return fired
+
+
 def apply_hp_damage(fig, world):
     """Deduct 1 HP from fig and signal quit when HP reaches 0.
 
@@ -19,6 +131,7 @@ def apply_hp_damage(fig, world):
     and the swordsman ultimate when HP first drops to/below 50% of max.
     """
     p = fig.personality
+    note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
     p.hp -= 1
     if p.hp <= 0:
