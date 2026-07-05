@@ -9,7 +9,7 @@ two hand-written layout comments that had already disagreed).
   [0..1]    2 x uint8    slot-claim flags (0=free, 1=taken)
   [2..17]   2 x float64  heartbeats (wall-clock seconds)
   figures      per slot: MAX_FIGS x (f x, f y, B alive, B dashing, B parrying)
-  projectiles  per slot: MAX_PROJS x (4f pos/vel, 4B rgba)          = 20B each
+  projectiles  per slot: MAX_PROJS x (4f pos/vel, 4B rgba, 1f damage) = 24B each
 """
 
 import mmap
@@ -24,7 +24,7 @@ MAX_PROJS   = 160   # raised from 16: the beam-string ultimate fires 1 bullet
                     # string must be shared so every point of it can damage
 
 _FIG_FMT    = "<ffBBB"          # x, y, alive, dashing, parrying
-_PROJ_FMT   = "<ffffBBBB"
+_PROJ_FMT   = "<ffffBBBBf"      # x, y, vx, vy, r, g, b, alive, damage
 _HB_FMT     = "<d"
 _KB_FMT      = "<ffB"               # knockback: vx, vy, pending
 _FIG_STRIDE  = struct.calcsize(_FIG_FMT)    # 11
@@ -171,19 +171,21 @@ class IPCBridge:
                 continue
             self._write(base + written * _PROJ_STRIDE, struct.pack(
                 _PROJ_FMT, proj.x, proj.y, proj.vx, proj.vy,
-                proj.r, proj.g, proj.b, 1))
+                proj.r, proj.g, proj.b, 1, getattr(proj, "damage", 1.0)))
             written += 1
         for i in range(written, MAX_PROJS):
             self._write(base + i * _PROJ_STRIDE, b"\x00" * _PROJ_STRIDE)
 
     def read_partner_projectiles(self):
+        """Returns (x, y, vx, vy, r, g, b, damage) tuples — damage defaults
+        to 1.0 for legacy senders that never set proj.damage."""
         base = _PROJ_BASE[self._partner()]
         out = []
         for i in range(MAX_PROJS):
-            x, y, vx, vy, r, g, b, alive = struct.unpack(
+            x, y, vx, vy, r, g, b, alive, dmg = struct.unpack(
                 _PROJ_FMT, self._read(base + i * _PROJ_STRIDE, _PROJ_STRIDE))
             if alive:
-                out.append((x, y, vx, vy, r, g, b))
+                out.append((x, y, vx, vy, r, g, b, dmg))
         return out
 
     # knockback ------------------------------------------------------------
