@@ -27,7 +27,6 @@ input[type=color]{width:34px;height:24px;border:1px solid var(--bd);border-radiu
 .wstep:hover{background:var(--panel2)}
 .wstep.cur{background:var(--panel2);color:#e8eefc;border-color:var(--acc)}
 .wstep.done::after{content:" ✓";color:#5c7}
-#modebtn{margin-right:4px}
 #lset{padding:8px 12px;display:flex;gap:6px}
 #tl{height:46px;background:var(--panel2);border-top:1px solid var(--bd);position:relative;cursor:pointer}
 #tl .kf{position:absolute;top:14px;width:12px;height:12px;background:var(--acc);transform:translateX(-6px) rotate(45deg);cursor:pointer;border:1px solid #fff3}
