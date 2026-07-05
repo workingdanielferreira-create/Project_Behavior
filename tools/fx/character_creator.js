@@ -19,6 +19,39 @@ const ACT_DEFS=[
  ['ultimate','Ultimate','on_ult',1],['defend','Block / Dodge','on_parry',0],
  ['special_ability','Special Ability','ambient',0],['impact','Impact (got hit)','on_hit',0]];
 const SAB_PRESETS=['none','shield','heal','clone','time_slow','rage','teleport','dual_defense'];
+// ---- [ACTIVATION TRIGGERS] ---- multi-select trigger conditions for attack_special/ultimate/special_ability.
+// Any enabled trigger fires the action (OR logic). hp_threshold fires once per crossing unless "repeatable" is
+// set, in which case it can refire on its own cooldown_ms. after_on_impact/after_on_hit counters reset to 0 the
+// moment they fire. radius_proximity is a min/max distance band. retrigger_cooldown_ms is a shared minimum gap
+// between activations regardless of which trigger fired. Identical in Solo & Battle.
+const TRIGGER_TYPES=[['hp_threshold','HP threshold'],['on_impact','On impact (being hit)'],
+ ['after_on_impact','After On_Impact ×N'],['after_on_hit','After On_hit ×N'],['radius_proximity','Radius proximity']];
+function ensureTriggers(a){if(!a.activation_triggers)a.activation_triggers=[];if(a.retrigger_cooldown_ms===undefined)a.retrigger_cooldown_ms=0;return a.activation_triggers}
+function trigDefault(type){if(type==='hp_threshold')return{type,pct:50,repeatable:false,cooldown_ms:4000};
+ if(type==='after_on_impact')return{type,count:3};if(type==='after_on_hit')return{type,count:5};
+ if(type==='radius_proximity')return{type,min:0,max:150};return{type}}
+function trigToggle(ak,type,on){const a=CH.actions[ak],arr=ensureTriggers(a),i=arr.findIndex(t=>t.type===type);
+ if(on&&i<0)arr.push(trigDefault(type));else if(!on&&i>=0)arr.splice(i,1);renderStepUI()}
+function trigSet(ak,type,k,v){const t=ensureTriggers(CH.actions[ak]).find(x=>x.type===type);if(!t)return;
+ t[k]=(k==='repeatable')?!!v:+v}
+function trigCooldownSet(ak,v){CH.actions[ak].retrigger_cooldown_ms=Math.max(0,+v)}
+function activationTriggersHtml(ak){const a=CH.actions[ak],arr=ensureTriggers(a),has=type=>arr.find(t=>t.type===type);
+ let h=`<h3 style="padding-left:0">Activation Triggers</h3>
+ <small style="color:#7a8599;display:block;padding:2px 0 4px">Pick any combination — this action fires the moment ANY enabled condition below is true (OR logic). Identical in Solo &amp; Battle.</small>`;
+ TRIGGER_TYPES.forEach(([type,label])=>{const t=has(type);
+  h+=`<div class="row"><label><input type="checkbox" ${t?'checked':''} onchange="trigToggle('${ak}','${type}',this.checked)"> ${label}</label><div class="v">`;
+  if(t){
+   if(type==='hp_threshold')h+=`HP ≤ <input type="number" min="1" max="99" style="width:56px" value="${t.pct}" onchange="trigSet('${ak}','hp_threshold','pct',this.value)">%`+
+    `<label style="margin-left:8px;font-size:11px"><input type="checkbox" ${t.repeatable?'checked':''} onchange="trigSet('${ak}','hp_threshold','repeatable',this.checked);renderStepUI()"> repeatable</label>`+
+    (t.repeatable?` cooldown <input type="number" min="0" step="100" style="width:70px" value="${t.cooldown_ms}" onchange="trigSet('${ak}','hp_threshold','cooldown_ms',this.value)">ms`:' <small style="color:#7a8599">fires once per crossing</small>');
+   else if(type==='after_on_impact'||type==='after_on_hit')h+=`every <input type="number" min="1" max="50" style="width:56px" value="${t.count}" onchange="trigSet('${ak}','${type}','count',this.value)"> hits <small style="color:#7a8599">(counter resets to 0 after firing)</small>`;
+   else if(type==='radius_proximity')h+=`between <input type="number" min="0" style="width:64px" value="${t.min}" onchange="trigSet('${ak}','radius_proximity','min',this.value)"> and <input type="number" min="0" style="width:64px" value="${t.max}" onchange="trigSet('${ak}','radius_proximity','max',this.value)"> px of enemy`;
+   else if(type==='on_impact')h+=`<small style="color:#7a8599">fires whenever the character takes a hit</small>`;
+  }
+  h+=`</div></div>`});
+ h+=chRow('Retrigger cooldown ms',`<input type="number" min="0" step="50" value="${a.retrigger_cooldown_ms||0}" onchange="trigCooldownSet('${ak}',this.value)">`)+
+  `<small style="color:#7a8599;display:block;padding:2px 0 8px">Minimum time between activations, regardless of which trigger fired (0 = no extra cooldown beyond a trigger's own).</small>`;
+ return h}
 const DEF_KF={
  idle:()=>[{t:0,p:P({})},{t:.5,p:P({ry:2,sp:2})},{t:1,p:P({})}],
  run:()=>[{t:0,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})},{t:.5,p:P({lth:30,lsh:8,rth:-35,rsh:40,lua:25,rua:-30,sp:6})},{t:1,p:P({lth:-35,lsh:40,rth:30,rsh:8,lua:-30,rua:25,sp:6})}],
@@ -40,12 +73,12 @@ function archSet(v){CH.archetype=v;if(ARCH_PRED[v])CH.predicates={...ARCH_PRED[v
 function predSet(k,on){CH.predicates[k]=!!on}
 function wanderSet(v){CH.movement.wander_strength=Math.max(0,Math.min(1,+v));
  const s=$('wsl'),e=$('wsv');if(s)s.value=CH.movement.wander_strength;if(e)e.textContent=CH.movement.wander_strength.toFixed(2)}
-function statSet(k,v){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2]};
+function statSet(k,v){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2],basic_attack_radius:[20,600]};
  const [lo,hi]=lims[k]||[-Infinity,Infinity];CH.stats[k]=Math.max(lo,Math.min(hi,+v));
- const e=$('stv_'+k);if(e)e.textContent=CH.stats[k].toFixed(k==='max_hp'?0:2)}
+ const e=$('stv_'+k);if(e)e.textContent=CH.stats[k].toFixed(k==='max_hp'||k==='basic_attack_radius'?0:2)}
 function newChar(){return{_extra:{},name:'new_fighter',display_name:'New Fighter',description:'',
  archetype:'melee',predicates:{...ARCH_PRED.melee},movement:{wander_strength:0.15},
- stats:{max_hp:100,chase_speed:3.0,follow_speed:4.5,scale:1.0},
+ stats:{max_hp:100,chase_speed:3.0,follow_speed:4.5,scale:1.0,basic_attack_radius:180},
  palette:{body:'#8fa0b8',accent:'#ff5050'},defense:'block',
  bones:{ua:22,fa:20,th:26,sh:24,torso:36},
  weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
@@ -62,7 +95,7 @@ function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]
   if(!src){src=DEF_KF.idle();fixKF(src)}
   kf[0]={t:kf[0].t,p:{...src[0].p}}}
  CH.actions[ak]={trigger:ak==='defend2'?'on_parry':(d?d[2]:'ambient'),duration_ms:ak==='run'||ak==='idle'?900:800,
-  keyframes:kf,fx_layers:[]}}
+  keyframes:kf,fx_layers:[],activation_triggers:[],retrigger_cooldown_ms:0}}
 // ---- [WEAPON MATH] --- custom weapon math (points are in weapon-local frame, origin=r_hand, +x along weapon angle) ---
 function wpnWorld(hand,wW){if(!CH||!CH.weapon.points.length)return[];const c=Math.cos(wW),s=Math.sin(wW);
  return CH.weapon.points.map(p=>[hand[0]+p[0]*c-p[1]*s,hand[1]+p[0]*s+p[1]*c])}
@@ -121,7 +154,8 @@ function renderStepUI(){const d=$('stepui');let h='';
   chRow('Chase speed',`<input type="range" min="1" max="8" step="0.1" value="${CH.stats.chase_speed}" oninput="statSet('chase_speed',this.value)"><span class="val" id="stv_chase_speed">${CH.stats.chase_speed.toFixed(2)}</span>`)+
   chRow('Follow speed',`<input type="range" min="1" max="8" step="0.1" value="${CH.stats.follow_speed}" oninput="statSet('follow_speed',this.value)"><span class="val" id="stv_follow_speed">${CH.stats.follow_speed.toFixed(2)}</span>`)+
   chRow('Scale',`<input type="range" min="0.5" max="2" step="0.05" value="${CH.stats.scale}" oninput="statSet('scale',this.value)"><span class="val" id="stv_scale">${CH.stats.scale.toFixed(2)}</span>`)+
-  `<small style="color:#7a8599;display:block;padding:4px 0">Core stats feed MODE_CONFIGS at load — HP and speeds tune combat directly, Scale resizes the whole rig (hurtbox is derived automatically, not editable here). Identical in Solo & Battle.</small>`+
+  chRow('Basic attack radius',`<input type="range" min="20" max="600" step="5" value="${CH.stats.basic_attack_radius}" oninput="statSet('basic_attack_radius',this.value)"><span class="val" id="stv_basic_attack_radius">${CH.stats.basic_attack_radius.toFixed(0)}</span>`)+
+  `<small style="color:#7a8599;display:block;padding:4px 0">Core stats feed MODE_CONFIGS at load — HP and speeds tune combat directly, Scale resizes the whole rig (hurtbox is derived automatically, not editable here). Basic attack radius is the distance from the enemy at which this character's Normal Attack is allowed to fire — per-character, so a swordsman and mage can have different reach. Identical in Solo & Battle.</small>`+
   chRow('Body color',`<input type="color" value="${CH.palette.body}" oninput="chSet('palette.body',this.value)">`)+
   chRow('Accent color',`<input type="color" value="${CH.palette.accent}" oninput="chSet('palette.accent',this.value)">`)+
   chRow('Torso len',`<input type="range" min="20" max="60" step="1" value="${CH.bones.torso}" oninput="chSet('bones.torso',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.bones.torso}</span>`)+
@@ -136,13 +170,19 @@ function renderStepUI(){const d=$('stepui');let h='';
   chRow('Thickness',`<input type="range" min="1" max="10" step="0.5" value="${CH.weapon.thickness}" oninput="chSet('weapon.thickness',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.weapon.thickness}</span>`)+
   chRow('Color',`<input type="color" value="${CH.weapon.color}" oninput="chSet('weapon.color',this.value)">`)+
   chRow('Points',`<span class="val" id="wpc">${CH.weapon.points.length}</span><button onclick="wpnUndo();renderStepUI()">Undo</button><button onclick="wpnClear();renderStepUI()">Clear</button>`)}
- else if(curStep==='act:special_ability'){const sa=CH.special_ability;
+ else if(curStep==='act:special_ability'){const sa=CH.special_ability;ensureAction('special_ability');
   h=`<h3 style="padding-left:0">${CH.name} — Special Ability</h3>`+
   chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
   chRow('Duration ms',`<input type="number" value="${sa.params.duration_ms}" onchange="sabSet('duration_ms',this.value)">`)+
   chRow('Cooldown ms',`<input type="number" value="${sa.params.cooldown_ms}" onchange="sabSet('cooldown_ms',this.value)">`)+
   chRow('Magnitude',`<input type="number" value="${sa.params.magnitude}" onchange="sabSet('magnitude',this.value)">`)+
-  `<small style="color:#7a8599;display:block;padding:4px 0">Preset defines the mechanic; add custom FX layers below for its visuals. <b>dual_defense</b> adds a second defense animation step.</small>`}
+  `<small style="color:#7a8599;display:block;padding:4px 0">Preset defines the mechanic; add custom FX layers below for its visuals. <b>dual_defense</b> adds a second defense animation step.</small>`+
+  activationTriggersHtml('special_ability')}
+ else if(curStep==='act:attack_special'||curStep==='act:ultimate'){const ak=curStep.slice(4),def=ACT_DEFS.find(a=>a[0]===ak);ensureAction(ak);
+  h=`<h3 style="padding-left:0">${CH.name} — ${def[1]}</h3>
+  <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>
+  <small style="color:#7a8599;display:block;padding:4px 0"><b>Battle Properties</b> live on each FX layer: tick <b>Can hit target</b> on a layer to set its Damage, Attack effects (Explode / Scatter / Pierce / Slash — stackable, visual only) and Defence (Deflect / Block — mutually exclusive).</small>`+
+  activationTriggersHtml(ak)}
  else if(curStep.startsWith('act:')){const ak=curStep.slice(4),def=ACT_DEFS.find(a=>a[0]===ak);
   h=`<h3 style="padding-left:0">${CH.name} — ${def?def[1]:ak==='defend2'?'Second Defense':ak}</h3>
   <small style="color:#7a8599;display:block;padding:4px 0">Sculpt the animation with Pose Mode + keyframes, add FX layers on the left. Trigger/duration in the top bar are saved per action.</small>
@@ -162,28 +202,40 @@ function wizNext(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i<s.len
 function wizPrev(){const s=wizSteps(),i=s.findIndex(x=>x.k===curStep);if(i>0)gotoStep(s[i-1].k)}
 function bootWizard(){if(!CH)CH=newChar();$('fig').value='custom';curStep='setup';gotoStep('setup')}
 // ---- [EXPORT/IMPORT] ---- pb_character (full fighter). pb_fx (single action FX) is in fx_engine.js.
+const ACTIVATION_TRIGGER_SEMANTICS={
+ attach:'activation_triggers + retrigger_cooldown_ms live per action (currently authored for attack_special, ultimate, special_ability).',
+ logic:'Any combination of trigger types may be enabled at once; the action fires the moment ANY one of them is true (OR logic).',
+ hp_threshold:'Fires when HP first drops to/at or below pct. If repeatable=false (default) it fires once per crossing, like the existing hardcoded swordsman/runner ultimates. If repeatable=true it can refire any time HP is at/below pct again, gated by its own cooldown_ms.',
+ on_impact:'Fires every time the character takes a hit (subject to the action-level retrigger_cooldown_ms).',
+ after_on_impact:'Fires once the character has been hit `count` times since this counter last fired; the counter resets to 0 immediately after firing.',
+ after_on_hit:'Fires once the character has landed `count` hits on the enemy since this counter last fired; the counter resets to 0 immediately after firing.',
+ radius_proximity:'Fires while the distance to the enemy is between min and max px (a band, not a single threshold).',
+ retrigger_cooldown_ms:'Shared minimum time between activations of this action, regardless of which trigger condition fired it. 0 = no extra gating beyond a trigger\'s own rules.',
+ parity:'Behaviour is identical in Solo & Battle modes.'};
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
- acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers}}
+ acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers,
+  activation_triggers:a.activation_triggers||[],retrigger_cooldown_ms:a.retrigger_cooldown_ms||0}}
  return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},stats:{...CH.stats},rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS},null,1)}
-const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics'];
+  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS},null,1)}
+const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  CH.display_name=o.display_name||CH.name;CH.description=o.description||'';
  CH.archetype=o.archetype||((o.weapon&&o.weapon.points&&o.weapon.points.length)?'melee':'shooter');
  CH.predicates=o.predicates?PRED_KEYS.reduce((m,k)=>(m[k]=!!o.predicates[k],m),{}):{...(ARCH_PRED[CH.archetype]||ARCH_PRED.melee)};
  if(o.movement&&isFinite(+o.movement.wander_strength))CH.movement.wander_strength=Math.max(0,Math.min(1,+o.movement.wander_strength));
- if(o.stats){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2]};
+ if(o.stats){const lims={max_hp:[50,200],chase_speed:[1,8],follow_speed:[1,8],scale:[0.5,2],basic_attack_radius:[20,600]};
   for(const k in CH.stats){if(o.stats[k]!=null&&isFinite(+o.stats[k])){const[lo,hi]=lims[k];CH.stats[k]=Math.max(lo,Math.min(hi,+o.stats[k]))}}}
  for(const k in o){if(!CH_KNOWN.includes(k))CH._extra[k]=o[k]}
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
   CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
-   fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l})}}
+   fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l}),
+   activation_triggers:a.activation_triggers||[],retrigger_cooldown_ms:a.retrigger_cooldown_ms||0}}
  dummyImport(o.target_dummy);
  curStep='setup';gotoStep('setup')}
 
