@@ -1,4 +1,9 @@
 // ================= FX ENGINE =================
+// Sections: [LAYER SCHEMA & DEFAULTS] [BATTLE/FX SEMANTICS] [TRIGGERS] [TIMELINE/KEYFRAMES]
+//           [LAYERS UI] [HIT DETECTION] [SIMULATION] [RENDER] [EXPORT/IMPORT]
+// Roadmap slots (do NOT implement here yet): projectile spec presets, cadence, fire_cycle,
+// muzzle-anchor spawning and palette.stops all attach to [LAYER SCHEMA & DEFAULTS]/[EXPORT].
+// ---- [LAYER SCHEMA & DEFAULTS] ----
 const DEF={
 particles:{px:0,py:0,prot:0,anchor:'point',follow:false,count:24,spread_deg:360,angle_deg:-90,speed_min:80,speed_max:280,gravity:0,drag:0.94,size_min:2,size_max:5,size_over_life:'shrink',life_min:250,life_max:550,c1:'#ff4040',c2:'#ffd070',glow:10,blend:'additive',shape:'circle',delay_ms:0,burst:true,emit_rate:60},
 ring:{px:0,py:0,prot:0,anchor:'point',follow:false,radius_start:4,radius_end:90,thickness:6,life_min:350,life_max:350,c1:'#ffffff',c2:'#ff4040',glow:14,blend:'additive',delay_ms:0,thin_out:true},
@@ -11,35 +16,8 @@ beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,w_start0:10,w_start
 ['particles','ring','flash','crescent','trail','afterimage','beam'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0,can_hit:false}));
 ['particles','crescent','beam'].forEach(k=>{DEF[k].homing=false});DEF.crescent.homing_speed=320;
 const FIELDS={can_hit:['Can hit target','chk'],anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,10000,5],width:['Width','r',1,600,1],w_start0:['Start W begin','r',1,600,1],w_start1:['Start W end','r',1,600,1],w_end0:['End W begin','r',1,600,1],w_end1:['End W end','r',1,600,1],travel_speed:['Travel px/s','r',0,3000,10],detach_ms:['Detach ms','r',0,5000,10],homing:['Homing (seek target)','chk'],homing_speed:['Homing px/s','r',20,2000,10],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
-const PRESETS={
-'Slash: shockwave + sparks (blade tip)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:700,layers:[
- {type:'trail',...DEF.trail,anchor:'blade_tip',c1:'#ff3050',c2:'#ffd0d8',emit_rate:140,size_min:2,size_max:6,line:true},
- {type:'ring',...DEF.ring,anchor:'blade_tip',delay_ms:380,radius_end:80,thickness:7,c1:'#ffffff',c2:'#ff3050',life_min:320,life_max:320},
- {type:'particles',...DEF.particles,anchor:'blade_tip',delay_ms:380,count:18,shape:'spark',c1:'#ffe080',c2:'#ff4020',speed_min:150,speed_max:420,life_min:180,life_max:380},
- {type:'flash',...DEF.flash,anchor:'blade_tip',delay_ms:380,size_max:44}]},
-'Dash afterimages (crimson)':{figure:'swordsman',action:'dash',trigger:'on_dash',duration_ms:900,layers:[
- {type:'afterimage',...DEF.afterimage}]},
-'Muzzle flash + shells':{figure:'shooter',action:'fire',trigger:'on_fire',duration_ms:350,layers:[
- {type:'flash',...DEF.flash,anchor:'muzzle',size_min:14,size_max:32,life_min:70,life_max:110,rays:6},
- {type:'particles',...DEF.particles,anchor:'muzzle',count:6,spread_deg:36,angle_deg:0,speed_min:120,speed_max:300,life_min:90,life_max:180,c1:'#fff0c0',c2:'#ff7020'},
- {type:'particles',...DEF.particles,anchor:'r_hand',count:2,spread_deg:50,angle_deg:-120,speed_min:80,speed_max:160,gravity:500,shape:'square',size_min:2,size_max:3,c1:'#ffd060',c2:'#906020',life_min:400,life_max:600}]},
-'Beam ultimate (from muzzle)':{figure:'shooter',action:'fire',trigger:'on_ult',duration_ms:1200,layers:[
- {type:'beam',...DEF.beam,anchor:'muzzle'},
- {type:'particles',...DEF.particles,anchor:'muzzle',count:30,spread_deg:20,angle_deg:0,speed_min:200,speed_max:400,shape:'spark',c1:'#ffffff',c2:'#ff4040',burst:false,emit_rate:80}]},
-'Foot dust (run)':{figure:'shooter',action:'run',trigger:'ambient',duration_ms:1000,layers:[
- {type:'particles',...DEF.particles,anchor:'l_foot',burst:false,emit_rate:25,count:1,spread_deg:60,angle_deg:-100,speed_min:20,speed_max:70,size_min:2,size_max:5,c1:'#8a7a60',c2:'#40382c',blend:'normal',life_min:300,life_max:700,glow:0},
- {type:'particles',...DEF.particles,anchor:'r_foot',burst:false,emit_rate:25,count:1,spread_deg:60,angle_deg:-80,speed_min:20,speed_max:70,size_min:2,size_max:5,c1:'#8a7a60',c2:'#40382c',blend:'normal',life_min:300,life_max:700,glow:0}]},
-'Crescent slash (weapon-aimed)':{figure:'swordsman',action:'slash',trigger:'on_hit',duration_ms:600,layers:[
- {type:'crescent',...DEF.crescent,anchor:'r_hand',follow:true,delay_ms:380},
- {type:'trail',...DEF.trail,anchor:'blade_tip',c1:'#ff3050',c2:'#ffc0d0',emit_rate:100}]},
-'Parry deflect (blade mid)':{figure:'swordsman',action:'idle',trigger:'on_parry',duration_ms:500,layers:[
- {type:'ring',...DEF.ring,anchor:'blade_mid',radius_end:55,c1:'#a0e0ff',c2:'#4090ff',thickness:5},
- {type:'particles',...DEF.particles,anchor:'blade_mid',count:12,spread_deg:90,angle_deg:-45,shape:'spark',c1:'#ffffff',c2:'#60b0ff',speed_min:250,speed_max:500}]},
-'Chest aura pulse':{figure:'swordsman',action:'idle',trigger:'ambient',duration_ms:1000,layers:[
- {type:'ring',...DEF.ring,anchor:'chest',follow:true,radius_start:12,radius_end:34,thickness:3,c1:'#ff80ff',c2:'#8020ff',life_min:600,life_max:600},
- {type:'trail',...DEF.trail,anchor:'chest',c1:'#c060ff',c2:'#ffffff',emit_rate:35,line:false,speed_min:10,speed_max:50,angle_deg:-90,spread_deg:80}]}};
-const ps=$('presel');Object.keys(PRESETS).forEach(k=>ps.add(new Option(k)));
-// ---- per-FX-layer battle properties (attach to can_hit layers; identical in Solo & Battle) ----
+// ---- [BATTLE/FX SEMANTICS] per-FX-layer battle properties (attach to can_hit layers; identical in Solo & Battle) ----
+// Roadmap slot: damage model (real HP pool, pierce/explode wiring) consumes these blocks game-side.
 const FX_SEMANTICS={
  battle_fx_placement:'All battle FX (explode/scatter/pierce/slash and deflect/block visuals) spawn at the FIRST OVERLAP POINT between the hitting FX and the target — the point of collision — not at the FX origin. Identical in Solo & Battle.',
  homing:'Homing (particles, crescent, beam): the FX steers toward the target every tick until collision; on impact the FX ends immediately and, if can_hit, triggers hit/battle FX at the collision point. Particles keep their own speed; crescents travel at homing_speed px/s; beams re-aim their direction at the target. Identical in Solo & Battle.',
@@ -91,15 +69,13 @@ function onBattleHit(p,chx,chy){const l=p.l,b=l.battle;if(!b)return;const hx=chx
   for(let i=parts.length-1;i>=0;i--){if(parts[i].l===l&&!parts[i].bfx)parts.splice(i,1)}}}
 
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
-// ---- per-layer trigger system ----
+// ---- [TRIGGERS] per-layer trigger system ----
 const TRIG_OPTS=['immediate','on_hit','on_dash','on_fire','on_death','on_parry','on_ult','ambient','after_fx','after_layer'];
 let _lidc=1,hitAt=null;function layerId(l){if(!l._id)l._id='L'+(_lidc++);return l._id}
 function fxDurOf(name){name=(name||'').replace(/^action: /,'');
- if(PRESETS[name])return PRESETS[name].duration_ms||800;
  if(typeof CH!=='undefined'&&CH&&CH.actions&&CH.actions[name])return CH.actions[name].duration_ms||800;return 800}
-function trigFxList(){const cur=(typeof appMode!=='undefined'&&appMode==='char')?$('act').value:null;
- const acts=(typeof CH!=='undefined'&&CH&&CH.actions)?Object.keys(CH.actions).filter(k=>k!==cur).map(k=>'action: '+k):[];
- return Object.keys(PRESETS).concat(acts)}
+function trigFxList(){const cur=(typeof curActionKey==='function')?curActionKey():null;
+ return (typeof CH!=='undefined'&&CH&&CH.actions)?Object.keys(CH.actions).filter(k=>k!==cur).map(k=>'action: '+k):[]}
 function layerStart(li,seen){const l=fx.layers[li];if(!l)return 0;seen=seen||new Set();
  if(seen.has(li))return 0;seen.add(li);const m=l.trig||'immediate';
  if(m==='after_fx')return fxDurOf(l.trig_ref)+(l.trig_delay_ms||0);
@@ -118,24 +94,17 @@ function trigHtml(l){layerId(l);if(l.can_hit===undefined)l.can_hit=false;const t
   h+=`<div class="row"><label>After layer</label><div class="v"><select onchange="setP('trig_ref',this.value)">${opts.map(q=>`<option value="${layerId(q.x)}" ${layerId(q.x)===l.trig_ref?'selected':''}>${q.i+1}. ${q.x.type}</option>`).join('')}</select></div></div>`}
  if(tm==='after_fx'||tm==='after_layer')h+=`<div class="row"><label>Chain delay ms</label><div class="v"><input type="number" min="0" step="10" style="width:70px" value="${l.trig_delay_ms||0}" onchange="setP('trig_delay_ms',+this.value)"></div></div>`;
  return h}
-function loadPreset(){const p=JSON.parse(JSON.stringify(PRESETS[ps.value]));fx.layers=ensureBuiltin(p.layers);
- $('trig').value=p.trigger;$('dur').value=p.duration_ms;$('fig').value=p.figure;
- $('fxname').value=ps.value.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/_+$/,'');
- loadAction(p.action);sel=0;renderLayers();renderProps();play()}
 function fixKF(ks){ks.forEach(k=>{const p=k.p;
  if(p.sht!==undefined){p.lsht=p.rsht=p.sht;delete p.sht}
  if(p.pvt!==undefined){p.lpvt=p.rpvt=p.pvt;delete p.pvt}
  PK.forEach(q=>{if(p[q]===undefined)p[q]=Z[q]})})}
-function loadAction(name){const fig=$('fig').value,as=$('act');if(fig==='custom')return;as.innerHTML='';
- Object.keys(ACTIONS[fig]).forEach(a=>as.add(new Option(a)));
- if(name&&ACTIONS[fig][name])as.value=name;
- keyframes=JSON.parse(JSON.stringify(ACTIONS[fig][as.value]));selKF=-1;renderTL();renderProps();if(!playing)play()}
 function togglePose(){poseMode=!poseMode;$('posebtn').className=poseMode?'on':'';
  if(poseMode){playing=false;if(selKF<0&&keyframes.length){selKF=0}$('stat').textContent='pose mode — drag joints';renderTL()}
  else{$('stat').textContent='';play()}}
 function syncDur(){}
 function curT(){return playing?(((performance.now()-t0)*+$('slow').value)%(+$('dur').value))/+$('dur').value:(selKF>=0?keyframes[selKF].t:0)}
-// timeline
+// ---- [TIMELINE/KEYFRAMES] ----
+// Roadmap slot: playback control honoring keyframe t-brackets is a game-side change; authoring already stores t.
 const tl=$('tl');
 function renderTL(){tl.innerHTML='';keyframes.forEach((k,i)=>{const d=document.createElement('div');d.className='kf'+(i===selKF?' sel':'');
  d.style.left=(k.t*100)+'%';
@@ -164,7 +133,7 @@ function dupKF(){if(selKF<0){alert('Select a keyframe first (Pose Mode)');return
  const k=keyframes[selKF],p={...k.p},t=Math.min(1,+(k.t+0.05).toFixed(3));
  keyframes.push({t,p});keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.findIndex(q=>q.p===p);renderTL()}
 window.dupKF=dupKF;
-// layers UI
+// ---- [LAYERS UI] ----
 function addLayer(){const t=$('newtype').value;ensureBuiltin(fx.layers);
  let at=fx.layers.findIndex(isBI);if(at<0)at=fx.layers.length;
  fx.layers.splice(at,0,{type:t,...JSON.parse(JSON.stringify(DEF[t]))});sel=at;renderLayers();renderProps();
@@ -225,7 +194,7 @@ function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<
  d.appendChild(r)}
  const bwrap=document.createElement('div');bwrap.innerHTML=battleHtml(l);d.appendChild(bwrap)}
 function setP(k,v){fx.layers[sel][k]=v;if(k==='anchor')renderLayers()}
-// hit detection vs target dummy (drives per-layer on_hit trigger; same semantics in Solo & Battle)
+// ---- [HIT DETECTION] ---- vs target dummy (drives per-layer on_hit trigger; same semantics in Solo & Battle)
 // arcDum/fxHitsDummy return the FIRST OVERLAP POINT [x,y] with the target, or null.
 // Battle FX spawn exactly at that point of collision. Identical in Solo & Battle.
 function arcDum(x,y,r,a0,a1){const n=16;for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n,qx=x+Math.cos(a)*r,qy=y+Math.sin(a)*r;if(dummyHit(qx,qy))return[qx,qy]}return null}
@@ -241,7 +210,7 @@ function fxHitsDummy(p,el){const l=p.l,t=p.age/p.life;
  if(p.type==='beam'){const g=beamGeom(p);
   for(let i=0;i<=24;i++){const dd=lerp(g.td,g.hd,i/24),bx=g.ox+Math.cos(g.a)*dd,by=g.oy+Math.sin(g.a)*dd;if(dummyHit(bx,by))return[bx,by]}return null}
  return dummyHit(p.x,p.y)?[p.x,p.y]:null}
-// engine
+// ---- [SIMULATION & RENDER] ----
 function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
 function colAt(l,t){const a=hex(l.c1),b=hex(l.c2);return`rgb(${lerp(a[0],b[0],t)|0},${lerp(a[1],b[1],t)|0},${lerp(a[2],b[2],t)|0})`}
 function aPos(l){let x=W/2,y=H/2;if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])[x,y]=curJ[l.anchor];return[x+(l.px||0),y+(l.py||0)]}
@@ -370,20 +339,26 @@ function render(el,lay){for(const p of parts){if(lay==='__bfx__'){if(!p.bfx)cont
     ctx.lineWidth=Math.max(0.5,lerp(ws,we,(i+0.5)/seg)*0.35);
     ctx.beginPath();ctx.moveTo(g.ox+Math.cos(g.a)*d0,g.oy+Math.sin(g.a)*d0);ctx.lineTo(g.ox+Math.cos(g.a)*d1,g.oy+Math.sin(g.a)*d1);ctx.stroke()}}}}
  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over'}
-// export/import
+// ---- [EXPORT/IMPORT] ---- pb_fx (standalone action FX) lives here; pb_character in character_creator.js
 function buildJson(){fx.layers.forEach(l=>{if(l.can_hit)ensureBattle(l)});
  return JSON.stringify({format:'pb_fx',version:2,name:$('fxname').value,
  trigger:$('trig').value,modes:['solo','battle'],duration_ms:+$('dur').value,
- figure:$('fig').value,action:{name:$('act').value,keyframes},layers:fx.layers,target_dummy:dummyExport(),
+ figure:'custom',action:{name:curActionKey()||'idle',keyframes},layers:fx.layers,target_dummy:dummyExport(),
  trigger_semantics:{on_hit:'Layer plays only when a layer flagged can_hit contacts the target; dormant if no target present; fires once per loop cycle. Identical in Solo & Battle.'},
  battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS},null,1)}
-function openJson(exp){jsonEl.style.display='flex';$('jt').textContent=exp?'Export — give this to Claude':'Import';$('jta').value=exp?(appMode==='char'?buildCharJson():buildJson()):''}
+let exportKind='char';
+function openJson(kind){jsonEl.style.display='flex';exportKind=kind||exportKind;
+ $('jt').textContent=kind?'Export — give this to Claude':'Import';
+ $('jta').value=kind?(kind==='fx'?buildJson():buildCharJson()):''}
 function copyJson(){navigator.clipboard.writeText($('jta').value)}
-function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=appMode==='char'?(CH.name+'.character.json'):($('fxname').value+'.fx.json');a.click()}
+function dlJson(){const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent($('jta').value);a.download=exportKind==='fx'?($('fxname').value+'.fx.json'):(CH.name+'.character.json');a.click()}
 function applyJson(){try{const o=JSON.parse($('jta').value);
  if(o.format==='pb_character'){importChar(o);jsonEl.style.display='none';return}
- fx.layers=ensureBuiltin(o.layers||[]);
- if(o.name)$('fxname').value=o.name;if(o.trigger)$('trig').value=o.trigger;if(o.duration_ms)$('dur').value=o.duration_ms;
- if(o.figure)$('fig').value=o.figure;dummyImport(o.target_dummy);loadAction(o.action?.name);
- if(o.action?.keyframes){keyframes=o.action.keyframes;fixKF(keyframes);renderTL()}
- sel=0;renderLayers();renderProps();jsonEl.style.display='none';play()}catch(e){alert('Bad JSON: '+e.message)}}
+ // pb_fx import: applied onto the current wizard action (creates it if needed)
+ const ak=(o.action&&o.action.name&&CH.actions[o.action.name])?o.action.name:(curActionKey()||'idle');
+ ensureAction(ak);const a=CH.actions[ak];
+ a.fx_layers=(o.layers||[]).filter(l=>!isBI(l));
+ if(o.trigger)a.trigger=o.trigger;if(o.duration_ms)a.duration_ms=o.duration_ms;
+ if(o.action&&o.action.keyframes){a.keyframes=o.action.keyframes;fixKF(a.keyframes)}
+ if(o.name)$('fxname').value=o.name;dummyImport(o.target_dummy);
+ gotoStep('act:'+ak);jsonEl.style.display='none';play()}catch(e){alert('Bad JSON: '+e.message)}}
