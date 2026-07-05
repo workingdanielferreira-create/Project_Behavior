@@ -630,6 +630,128 @@ class CrescentWave:
 # ---------------------------------------------------------------------------
 # UltimateCrescent — swordsman ultimate: a large slow blade launched at 50% HP
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Petals — hovering defensive FX (see character JSON `petals` fx_layer, and
+# tools/fx/fx_engine.js `fx_semantics.petals`). Works for ANY archetype
+# (shooter or melee); a no-op for characters that don't define one. Runs every
+# tick for every figure identically in Solo & Battle — in Solo there is
+# simply nothing in world.enemy_projs to intercept, so petals just hover.
+# ---------------------------------------------------------------------------
+_PETAL_DEFAULTS = dict(count=3, hover_radius=46.0, orbit_speed_deg=70.0,
+                        detect_range=150.0, approach_speed=320.0,
+                        cooldown_ms=2500.0)
+
+
+class Petal:
+    """One hovering defensive particle. Orbits its figure while idle; when an
+    enemy projectile enters detect_range it breaks orbit and moves to
+    intercept at approach_speed, consuming itself and going on cooldown for
+    cooldown_ms on contact."""
+    __slots__ = ("x", "y", "phase", "state", "cooldown_ticks", "cfg")
+
+    def __init__(self, phase, cfg):
+        self.x = 0.0
+        self.y = 0.0
+        self.phase = phase
+        self.state = "hover"   # 'hover' | 'intercept' | 'cooldown'
+        self.cooldown_ticks = 0
+        self.cfg = cfg
+
+    def update(self, anchor_x, anchor_y, enemy_projs):
+        """Advance one tick. Returns the enemy_projs tuple it just consumed,
+        or None."""
+        cfg = self.cfg
+        tick_s = config.TICK_MS / 1000.0
+        if self.state == "cooldown":
+            self.cooldown_ticks -= 1
+            if self.cooldown_ticks <= 0:
+                self.state = "hover"
+            self.x, self.y = anchor_x, anchor_y
+            return None
+
+        nearest, nearest_d2 = None, cfg["detect_range"] ** 2
+        for tup in enemy_projs:
+            ex, ey = tup[0], tup[1]
+            ddx, ddy = ex - self.x, ey - self.y
+            d2 = ddx * ddx + ddy * ddy
+            if d2 <= nearest_d2:
+                nearest, nearest_d2 = tup, d2
+
+        if nearest is not None:
+            self.state = "intercept"
+            ex, ey = nearest[0], nearest[1]
+            ddx, ddy = ex - self.x, ey - self.y
+            dist = (ddx * ddx + ddy * ddy) ** 0.5
+            step = cfg["approach_speed"] * tick_s
+            if dist <= max(step, config.PETAL_CATCH_RADIUS):
+                self.state = "cooldown"
+                self.cooldown_ticks = max(1, int(cfg["cooldown_ms"] / config.TICK_MS))
+                return nearest
+            if dist > 0.001:
+                self.x += ddx / dist * step
+                self.y += ddy / dist * step
+            return None
+
+        self.state = "hover"
+        self.phase += math.radians(cfg["orbit_speed_deg"]) * tick_s
+        self.x = anchor_x + math.cos(self.phase) * cfg["hover_radius"]
+        self.y = anchor_y + math.sin(self.phase) * cfg["hover_radius"]
+        return None
+
+
+def _petals_config(fig):
+    """First `petals` fx_layer found across this character's actions, merged
+    over _PETAL_DEFAULTS; None for characters (incl. built-ins) without one.
+    Cached on the mode instance since the character JSON doesn't change
+    after load."""
+    mode = fig.mode
+    if hasattr(mode, "_petals_cfg"):
+        return mode._petals_cfg
+    cfg = None
+    char = getattr(mode, "character", None)
+    if char:
+        for action in (char.get("actions") or {}).values():
+            found = None
+            for layer in (action.get("fx_layers") or []):
+                if layer.get("type") == "petals":
+                    found = layer
+                    break
+            if found:
+                cfg = dict(_PETAL_DEFAULTS)
+                for k in cfg:
+                    if k in found:
+                        try:
+                            cfg[k] = float(found[k])
+                        except (TypeError, ValueError):
+                            pass
+                break
+    mode._petals_cfg = cfg
+    return cfg
+
+
+def update_petals(fig, world):
+    """Advance this figure's Petals by one tick and let them intercept nearby
+    entries in world.enemy_projs. Identical in Solo & Battle — Solo simply
+    has nothing in enemy_projs to intercept."""
+    cfg = _petals_config(fig)
+    if not cfg:
+        return
+    c = fig.combat
+    if not c.petals_init:
+        n = max(1, int(cfg.get("count", 3)))
+        c.petals = [Petal((i / n) * 2 * math.pi, cfg) for i in range(n)]
+        c.petals_init = True
+
+    surviving = list(world.enemy_projs)
+    for pt in c.petals:
+        consumed = pt.update(fig.x, fig.y, surviving)
+        if consumed is not None and consumed in surviving:
+            surviving.remove(consumed)
+            world.collision_dots.append([consumed[0], consumed[1], 0])
+    if len(surviving) != len(world.enemy_projs):
+        world.enemy_projs = surviving
+
+
 class UltimateCrescent:
     """A large crescent blade that travels forward at ~100 px/s.
 
@@ -1170,7 +1292,13 @@ def advance_combat(fig, slash_target, fallback):
         tx, ty = slash_target
         dx, dy = tx - t.x, ty - t.y
         dist = (dx * dx + dy * dy) ** 0.5
-        if config.SLASH_HIT_RADIUS < dist <= config.SLASH_RADIUS:
+        # Per-character basic attack radius (MODE_CONFIGS, set from the
+        # character's stats.basic_attack_radius; falls back to the classic
+        # SLASH_RADIUS for figures that don't define one). Identical in
+        # Solo & Battle — both read the same MODE_CONFIGS entry.
+        atk_radius = config.MODE_CONFIGS.get(fig.mode.key, {}).get(
+            "basic_attack_radius", config.SLASH_RADIUS)
+        if config.SLASH_HIT_RADIUS < dist <= atk_radius:
             c.attack_hits = 0  # fresh string
             if rng.random() < 0.5:
                 # --- Primary DASHSLASH: straight in ---
