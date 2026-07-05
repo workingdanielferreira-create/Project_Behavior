@@ -163,6 +163,11 @@ WALL_PUSH            = 400       # max px nudge at the wall
 DAZE_TICKS_RANGE     = (15, 45)
 RETREAT_TICKS_RANGE  = (10, 30)
 SHOOT_INTERVAL_RANGE = (18, 58)  # per-figure randomised battle fire cadence
+
+# Fan spread (deg) across duplicate can_hit fx_layers fired together by a
+# JSON character's action (see combat.fire_character_action) — e.g. mage's
+# attack_special fires 5 particle layers spread across this arc.
+CHAR_ATTACK_SPREAD_DEG = 24.0
 # Shooter knockback immunity cycle:
 #   receive KNOCKBACK_LIMIT knockbacks → immune for next IMMUNITY_HIT_LIMIT hits → repeat
 KNOCKBACK_LIMIT      = 3         # knockbacks before immunity kicks in
