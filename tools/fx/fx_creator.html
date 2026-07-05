@@ -1,28 +1,27 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Behavior — FX Creator v2 (Rigged)</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Behavior — Character Wizard</title>
 <link rel="stylesheet" href="fx_creator.css">
 </head><body>
 <div id="left">
-<div id="wiz" style="display:none;flex-direction:column;max-height:46%;border-bottom:1px solid var(--bd)">
+<div id="wiz" style="display:flex;flex-direction:column;max-height:56%;border-bottom:1px solid var(--bd)">
 <h3>Character Wizard</h3><div id="wsteps" style="flex:1;overflow-y:auto;padding:0 8px"></div>
 <div style="padding:8px 12px;display:flex;gap:6px"><button onclick="wizPrev()">◀ Back</button><button class="pri" style="flex:1" onclick="wizNext()">Next ▶</button></div>
 </div>
-<div id="fxpresets"><h3>FX Presets</h3><div style="padding:0 12px"><select id="presel"></select><button style="width:100%;margin-top:6px" onclick="loadPreset()">Load Preset</button></div></div>
 <h3>Layers</h3><div id="layers" style="flex:1;overflow-y:auto"></div>
 <div id="lset"><select id="newtype" style="flex:1"><option>particles</option><option>ring</option><option>flash</option><option>crescent</option><option>trail</option><option>afterimage</option><option>beam</option><option>image</option></select><button class="pri" onclick="addLayer()">+ Add</button><input type="file" id="imgfile" accept="image/*" style="display:none"></div>
 </div>
 <div id="mid">
-<div id="bar"><b id="apptitle">FX CREATOR</b><button id="modebtn" onclick="toggleMode()">⚔ Characters</button><input id="fxname" type="text" style="width:130px" value="my_effect">
+<div id="bar"><b id="apptitle">CHARACTER WIZARD</b><input id="fxname" type="text" style="width:130px" value="my_effect" title="Name used for standalone FX export">
 <label>Action trigger <select id="trig" style="width:100px"><option>on_hit</option><option>on_dash</option><option>on_fire</option><option>on_death</option><option>on_parry</option><option>on_ult</option><option>ambient</option></select></label>
 <label>Dur(ms) <input id="dur" type="number" style="width:64px" value="800" onchange="syncDur()"></label>
 <label><input id="loop" type="checkbox" checked> Loop</label>
-<span style="flex:1"></span><button onclick="openJson(1)">Export JSON</button><button onclick="openJson(0)">Import</button></div>
+<span style="flex:1"></span><button onclick="openJson('char')">Export Character</button><button onclick="openJson('fx')">Export FX</button><button onclick="openJson(0)">Import</button></div>
 <canvas id="cv"></canvas>
 <div id="tl"></div>
 <div class="hint" style="background:var(--panel2)" id="tlhint"></div>
 <div id="bot">
 <button class="pri" onclick="play()">▶ Play</button><button onclick="stop()">■ Stop</button>
-<label>Figure <select id="fig" onchange="loadAction()"><option value="swordsman">Swordsman</option><option value="shooter">Runner/Shooter</option><option value="custom" hidden>Custom</option></select></label>
-<label>Action <select id="act" onchange="loadAction()"></select></label>
+<select id="fig" style="display:none"><option value="custom" selected>Custom</option></select>
+<select id="act" style="display:none"></select>
 <button id="posebtn" onclick="togglePose()">✎ Pose Mode</button>
 <button onclick="addKF()">+ KF here</button><button onclick="dupKF()">⧉ Dup KF</button><button onclick="delKF()">✕ KF</button>
 <label>Slow <input id="slow" type="range" min="0.1" max="1" step="0.05" value="1" style="width:80px"></label>
