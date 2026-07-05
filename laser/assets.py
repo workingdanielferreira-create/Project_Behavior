@@ -149,6 +149,12 @@ class AssetLibrary:
             # Fall back to the runner bundle so the mode still renders something.
             self.bundles["swordsman"] = runner
 
+        # --- Custom characters (Character Creator pb_character JSONs) ---
+        # Registers modes/tuning/LUTs and adds rasterised FrameBundles.
+        # Runs in every process, so Solo and Battle see identical rosters.
+        from . import characters as _characters
+        _characters.load_all(d, self.bundles)
+
     def bundle(self, mode_key):
         return self.bundles.get(mode_key, self.bundles["runner"])
 
