@@ -213,11 +213,11 @@ TELEPORT_DISTANCE_PX    = 500.0 # px from target to land at
 MODE_CONFIGS = {
     "runner": dict(
         chase_speed=3.0, follow_speed=4.5, anim_speed=5, idle_anim_speed=10,
-        max_hp=100,
+        max_hp=100, basic_attack_radius=SLASH_RADIUS,
     ),
     "swordsman": dict(
         chase_speed=4.5, follow_speed=6.0, anim_speed=4, idle_anim_speed=8,
-        max_hp=100,
+        max_hp=100, basic_attack_radius=SLASH_RADIUS,
     ),
 }
 
@@ -231,6 +231,11 @@ MODE_ORDER = ["runner", "swordsman"]
 COLLISION_DOT_HOLD    = 31   # ticks dot stays at full brightness  (~0.5 s)
 COLLISION_DOT_FADE    = 19   # ticks it takes to fade to transparent (~0.3 s)
 COLLISION_DOT_RADIUS  = 3    # px
+
+# ---------------------------------------------------------------------------
+# Petals defensive FX (see combat.Petal / combat.update_petals)
+# ---------------------------------------------------------------------------
+PETAL_CATCH_RADIUS = 14.0    # px — how close a petal must get to consume a bullet
 
 
 # ---------------------------------------------------------------------------
