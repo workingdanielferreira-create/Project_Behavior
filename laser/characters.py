@@ -356,6 +356,7 @@ def _register(char):
         anim_speed=_anim_ticks(actions.get("run"), 5),
         idle_anim_speed=_anim_ticks(actions.get("idle"), 10),
         max_hp=_stat("max_hp", 100),
+        basic_attack_radius=_stat("basic_attack_radius", config.SLASH_RADIUS),
     )
     # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
     # and Battle alike) already reads from there, so no other file changes.
