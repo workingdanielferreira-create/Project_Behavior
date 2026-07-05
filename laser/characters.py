@@ -18,10 +18,18 @@ Pipeline (runs once inside AssetLibrary._load_all, after Qt is up):
      every system — Solo AND Battle, which all route through the mode
      predicates — treats the character exactly like a built-in figure.
 
-Archetype inference: a character whose weapon polyline is empty is treated as
-a *shooter* (can_shoot + retreats — projectiles, beam ultimate, survival
-teleport); a character with a drawn weapon is treated as *melee*
-(uses_melee + charges_full — dash-lunge, slash frames, sword ultimates).
+Archetype: v2 files carry an explicit ``"archetype"`` ("shooter" | "melee" |
+"New") mapped directly to the four mode predicates; "New" reads a
+``"predicates"`` block (custom mix of can_shoot / uses_melee / retreats /
+charges_full).  v1 files (no archetype key) fall back to inference from the
+weapon polyline: empty polyline => shooter (can_shoot + retreats), drawn
+weapon => melee (uses_melee + charges_full).
+
+Movement: ``"movement": {"wander_strength": 0..1}`` overrides wander_blend()
+on the generated mode class as ``min(ws, dist/300) * strength`` (swordsman
+charge ≈ 0.15, runner weave ≈ 1.0).  A thumbnail
+``characters/<key>_thumb.png`` (idle keyframe 0) is written on first load if
+missing.
 
 Battle properties from the JSON (`damage`, `pierce`, `explode`, ...) and the
 raw fx_layers are kept on the mode instance (`mode.character`) for combat/VFX
@@ -246,20 +254,54 @@ def _anim_ticks(action, fallback):
     return max(1, int(round(dur / n / config.TICK_MS)))
 
 
+_ARCHETYPE_PREDICATES = {
+    "shooter": ("can_shoot", "retreats"),
+    "melee": ("uses_melee", "charges_full"),
+}
+_PREDICATE_KEYS = ("can_shoot", "uses_melee", "retreats", "charges_full")
+
+
+def _predicates_for(char):
+    """True-predicate names for a character (v2 explicit, v1 inferred)."""
+    arch = str(char.get("archetype", "") or "").strip().lower()
+    if arch in _ARCHETYPE_PREDICATES:
+        return _ARCHETYPE_PREDICATES[arch]
+    if arch == "new":
+        raw = char.get("predicates", {}) or {}
+        return tuple(k for k in _PREDICATE_KEYS if raw.get(k))
+    # v1 fallback: infer from weapon polyline
+    if char.get("weapon", {}).get("points"):
+        return _ARCHETYPE_PREDICATES["melee"]
+    return _ARCHETYPE_PREDICATES["shooter"]
+
+
+def _wander_strength(char):
+    """Clamped movement.wander_strength, or None if absent/invalid."""
+    mv = char.get("movement", {}) or {}
+    if "wander_strength" not in mv:
+        return None
+    try:
+        return max(0.0, min(1.0, float(mv["wander_strength"])))
+    except (TypeError, ValueError):
+        return None
+
+
 def _register(char):
     """Register mode class, tuning, cycle-order key, and palette LUT."""
     key = str(char.get("name", "custom")).strip().lower().replace(" ", "_")
-    is_melee = bool(char.get("weapon", {}).get("points"))
 
     if key not in modes.MODE_REGISTRY:
-        if is_melee:
-            attrs = {"key": key,
-                     "uses_melee": lambda self: True,
-                     "charges_full": lambda self: True}
-        else:
-            attrs = {"key": key,
-                     "can_shoot": lambda self: True,
-                     "retreats": lambda self: True}
+        attrs = {"key": key}
+        for name in _predicates_for(char):
+            attrs[name] = (lambda self: True)
+        ws = _wander_strength(char)
+        if ws is not None:
+            # Cap semantics: lateral wander never exceeds ws (0.15 = charge
+            # straight like swordsman, 1.0 = full weave like runner).  Same
+            # mode instance drives Solo and Battle — parity is automatic.
+            attrs["wander_blend"] = (
+                lambda self, dist, strength, _ws=ws:
+                    min(_ws, dist / 300.0) * strength)
         cls = type(key.title() + "CharacterMode", (modes.FigureMode,), attrs)
         inst = cls()
         inst.character = char           # battle props + fx_layers for combat
@@ -306,6 +348,18 @@ def _build_bundle(frames):
 # Entry point — called by AssetLibrary._load_all (Solo and Battle both build
 # their worlds from the same AssetLibrary, so parity is automatic).
 # ---------------------------------------------------------------------------
+def _write_thumb(folder, key, frames):
+    """Write <key>_thumb.png (idle keyframe 0) only if the file is missing."""
+    path = os.path.join(folder, key + "_thumb.png")
+    if os.path.exists(path):
+        return
+    idle = frames.get("idle")
+    if not idle:
+        idle = next((f for f in frames.values() if f), None)
+    if idle:
+        idle[0].save(path, "PNG")
+
+
 def load_all(root_dir, bundles):
     """Scan <root>/characters/*.json, register each, add its FrameBundle."""
     folder = os.path.join(root_dir, "characters")
@@ -316,6 +370,8 @@ def load_all(root_dir, bundles):
             if char.get("format") != "pb_character":
                 continue
             key = _register(char)
-            bundles[key] = _build_bundle(rasterize_character(char))
+            frames = rasterize_character(char)
+            bundles[key] = _build_bundle(frames)
+            _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
             print("Character load failed for %s: %s" % (path, e))
