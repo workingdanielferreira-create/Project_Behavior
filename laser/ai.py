@@ -123,8 +123,11 @@ def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
     return fired
 
 
-def apply_hp_damage(fig, world):
-    """Deduct 1 HP from fig and signal quit when HP reaches 0.
+def apply_hp_damage(fig, world, amount=1):
+    """Deduct `amount` HP from fig (default 1, the historical flat per-hit
+    value every built-in attack still uses) and signal quit when HP reaches
+    0. JSON-character attacks pass their own fx_layer battle.damage here
+    (see combat.fire_character_action / ipc projectile damage field).
 
     Safe to call from any system.  Returns True if the figure just died.
     Also triggers the runner ultimate when HP first drops to/below 30% of max,
@@ -133,7 +136,7 @@ def apply_hp_damage(fig, world):
     p = fig.personality
     note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
-    p.hp -= 1
+    p.hp -= amount
     if p.hp <= 0:
         p.hp = 0
         world.request_quit()
@@ -164,7 +167,7 @@ def apply_hp_damage(fig, world):
     return False
 
 
-def battle_hit(fig, proj_vx, proj_vy, world=None):
+def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1):
     """An enemy projectile struck `fig`: launch it along the bullet's velocity.
     Launch force is the figure's current hit_power, which grows per strike.
 
@@ -173,7 +176,9 @@ def battle_hit(fig, proj_vx, proj_vy, world=None):
       • Next  IMMUNITY_HIT_LIMIT hits → absorbed (no bounce), then reset
       • Repeats indefinitely
 
-    `world` is optional; when provided, HP is decremented on every real hit.
+    `world` is optional; when provided, HP is decremented on every real hit,
+    by `amount` (default 1 — the flat per-hit value every built-in bullet
+    still uses; JSON-character bullets pass their own battle.damage).
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
@@ -191,7 +196,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None):
                 p.immunity_hits = 0
             # HP still decreases even during immunity
             if world is not None:
-                apply_hp_damage(fig, world)
+                apply_hp_damage(fig, world, amount)
             return  # no bounce this hit
         else:
             p.knockback_count += 1  # consume one knockback slot
@@ -208,7 +213,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None):
         m.bouncing = True
 
     if world is not None:
-        apply_hp_damage(fig, world)
+        apply_hp_damage(fig, world, amount)
 
 
 def battle_target(world, fig):
