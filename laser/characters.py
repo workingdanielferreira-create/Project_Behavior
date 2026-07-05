@@ -153,6 +153,27 @@ def _pose_extent(J):
     return max_x, max_y
 
 
+def _pose_max_joint_dist(J):
+    """Max joint distance from the root (0,0) — the raw (unscaled) hurtbox
+    extent of one pose.  Excludes the weapon so hurtbox tracks the body."""
+    best = 0.0
+    for k, v in J.items():
+        if k.startswith("_"):
+            continue
+        best = max(best, math.hypot(v[0], v[1]))
+    return best
+
+
+def _char_scale(char):
+    """Clamped stats.scale (0.5-2.0), defaulting to 1.0."""
+    stats = char.get("stats", {}) or {}
+    try:
+        s = float(stats.get("scale", 1.0))
+    except (TypeError, ValueError):
+        s = 1.0
+    return max(0.5, min(2.0, s))
+
+
 def _render_pose(J, char, half_w, half_h, scale):
     """Draw one pose into a transparent QPixmap.  The pixmap centre is the
     figure root, so Figure.draw's centred drawPixmap keeps frames aligned."""
@@ -207,10 +228,13 @@ def rasterize_character(char):
     bones = dict(_DEFAULT_BONES)
     bones.update(char.get("bones", {}))
     wpn_pts = char.get("weapon", {}).get("points", []) or []
-    scale = config.TARGET_HEAD_PX / _RIG_HEAD_DIAMETER
+    # stats.scale (0.5-2.0) multiplies the rasterization scale factor; every
+    # frame still shares one root-centred canvas, so nothing else changes.
+    scale = (config.TARGET_HEAD_PX / _RIG_HEAD_DIAMETER) * _char_scale(char)
 
     joints_per_action = {}
     half_w = half_h = 1.0
+    idle_max_joint_dist = 0.0
     for name, action in char.get("actions", {}).items():
         js = []
         for kf in action.get("keyframes", []):
@@ -218,10 +242,18 @@ def rasterize_character(char):
             ex, ey = _pose_extent(J)
             half_w = max(half_w, ex)
             half_h = max(half_h, ey)
+            if name == "idle":
+                idle_max_joint_dist = max(idle_max_joint_dist,
+                                           _pose_max_joint_dist(J))
             js.append(J)
         joints_per_action[name] = js
     half_w += 4.0
     half_h += 4.0
+
+    # Hurtbox: max joint extent of the idle pose, scaled — derivable, no
+    # wizard field needed.  Hit checks read it via the figure's mode, with
+    # the existing fixed constants as fallback for built-in figures.
+    char["hurtbox_radius"] = idle_max_joint_dist * scale
 
     frames = {}
     for name, js in joints_per_action.items():
@@ -310,13 +342,27 @@ def _register(char):
         modes.MODE_REGISTRY[key].character = char
 
     actions = char.get("actions", {})
-    if key not in config.MODE_CONFIGS:
-        config.MODE_CONFIGS[key] = dict(
-            chase_speed=3.0, follow_speed=4.5,
-            anim_speed=_anim_ticks(actions.get("run"), 5),
-            idle_anim_speed=_anim_ticks(actions.get("idle"), 10),
-            max_hp=100,
-        )
+    stats = char.get("stats", {}) or {}
+
+    def _stat(name, default):
+        try:
+            return float(stats.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    tuning = dict(
+        chase_speed=_stat("chase_speed", 3.0),
+        follow_speed=_stat("follow_speed", 4.5),
+        anim_speed=_anim_ticks(actions.get("run"), 5),
+        idle_anim_speed=_anim_ticks(actions.get("idle"), 10),
+        max_hp=_stat("max_hp", 100),
+    )
+    # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
+    # and Battle alike) already reads from there, so no other file changes.
+    if key in config.MODE_CONFIGS:
+        config.MODE_CONFIGS[key].update(tuning)
+    else:
+        config.MODE_CONFIGS[key] = tuning
     if key not in config.MODE_ORDER:
         config.MODE_ORDER.append(key)
 
