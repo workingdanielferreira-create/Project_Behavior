@@ -12,17 +12,24 @@ crescent:{px:0,py:0,prot:0,anchor:'point',follow:false,radius_start:20,radius_en
 trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_min:200,life_max:420,c1:'#40c0ff',c2:'#a0f0ff',glow:10,blend:'additive',line:true,delay_ms:0,drag:0.9,speed_min:0,speed_max:30,spread_deg:360,size_over_life:'shrink',shape:'circle'},
 afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
 image:{px:0,py:0,prot:0,anchor:'point',scale:1,opacity:1,src:null,w0:64,h0:64},
-beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,w_start0:10,w_start1:10,w_end0:10,w_end1:10,travel_speed:0,detach_ms:400,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true}};
-['particles','ring','flash','crescent','trail','afterimage','beam'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0,can_hit:false}));
+beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,w_start0:10,w_start1:10,w_end0:10,w_end1:10,travel_speed:0,detach_ms:400,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true},
+petals:{px:0,py:0,prot:0,anchor:'point',follow:true,count:3,hover_radius:46,orbit_speed_deg:70,size_min:5,size_max:8,detect_range:150,approach_speed:320,cooldown_ms:2500,c1:'#ffb0d8',c2:'#ff4d94',glow:12,blend:'additive',delay_ms:0}};
+['particles','ring','flash','crescent','trail','afterimage','beam','petals'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0,can_hit:false}));
+DEF.petals.trig='ambient';delete DEF.petals.can_hit;
 ['particles','crescent','beam'].forEach(k=>{DEF[k].homing=false;DEF[k].homing_multi=false;DEF[k].hit_rate_ms=150});DEF.crescent.homing_speed=320;
-const FIELDS={can_hit:['Can hit target','chk'],anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,10000,5],width:['Width','r',1,600,1],w_start0:['Start W begin','r',1,600,1],w_start1:['Start W end','r',1,600,1],w_end0:['End W begin','r',1,600,1],w_end1:['End W end','r',1,600,1],travel_speed:['Travel px/s','r',0,3000,10],detach_ms:['Detach ms','r',0,5000,10],homing:['Homing (seek target)','chk'],homing_speed:['Homing px/s','r',20,2000,10],homing_multi:['Keep homing + multi-hit after contact','chk'],hit_rate_ms:['Re-hit interval ms','r',30,1000,10],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk']};
+['particles','crescent','beam'].forEach(k=>{DEF[k].travel_forward=false;DEF[k].travel_forward_speed=280;DEF[k].travel_homing=false});
+const FIELDS={can_hit:['Can hit target','chk'],anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,10000,5],width:['Width','r',1,600,1],w_start0:['Start W begin','r',1,600,1],w_start1:['Start W end','r',1,600,1],w_end0:['End W begin','r',1,600,1],w_end1:['End W end','r',1,600,1],travel_speed:['Travel px/s','r',0,3000,10],detach_ms:['Detach ms','r',0,5000,10],homing:['Homing (seek target)','chk'],homing_speed:['Homing px/s','r',20,2000,10],homing_multi:['Keep homing + multi-hit after contact','chk'],hit_rate_ms:['Re-hit interval ms','r',30,1000,10],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk'],
+travel_forward:['Travel forward (fire at target)','chk'],travel_forward_speed:['Travel forward px/s','r',0,3000,10],travel_homing:['Travel homing (keep tracking)','chk'],
+hover_radius:['Hover radius','r',10,300,1],orbit_speed_deg:['Orbit °/s','r',0,360,1],detect_range:['Detect range px','r',0,600,5],approach_speed:['Approach px/s','r',20,1200,10],cooldown_ms:['Respawn cooldown ms','r',0,10000,50]};
 // ---- [BATTLE/FX SEMANTICS] per-FX-layer battle properties (attach to can_hit layers; identical in Solo & Battle) ----
 // Roadmap slot: damage model (real HP pool, pierce/explode wiring) consumes these blocks game-side.
 const FX_SEMANTICS={
  battle_fx_placement:'All battle FX (explode/scatter/pierce/slash and deflect/block visuals) spawn at the FIRST OVERLAP POINT between the hitting FX and the target — the point of collision — not at the FX origin. Identical in Solo & Battle.',
  homing:'Homing (particles, crescent, beam): the FX steers toward the target every tick until first contact; if can_hit, that contact triggers hit/battle FX at the collision point. The FX no longer disappears on contact — by default it freezes its last heading and coasts straight for the rest of its life. Enable "Keep homing + multi-hit after contact" to keep tracking the target and register additional hits, spaced at least Re-hit interval ms apart, until its lifetime runs out. Particles keep their own speed; crescents travel at homing_speed px/s; beams re-aim their direction at the target. Identical in Solo & Battle.',
  beam_travel:'travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.',
- beam_width:'Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.'};
+ beam_width:'Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.',
+ travel_forward:'travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight — independent of the older Homing property. Identical in Solo & Battle.',
+ petals:'Petals: a handful of single particles that hover in a slow orbit (hover_radius px, orbit_speed_deg °/s) around the character. When an incoming enemy can_hit FX comes within detect_range px, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it, attempting to collide with it to protect the character. On a successful interception the incoming FX is negated and that petal is consumed, respawning after cooldown_ms. This interception logic runs against real enemy FX in the game runtime (Solo & Battle identically); this editor previews the idle hover only, since no real incoming attack exists in the standalone preview.'};
 const BATTLE_SEMANTICS={
  attach:'Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).',
  trigger:'Both categories fire at the moment a can_hit FX contacts a target.',
@@ -215,12 +222,16 @@ function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parse
 function colAt(l,t){const a=hex(l.c1),b=hex(l.c2);return`rgb(${lerp(a[0],b[0],t)|0},${lerp(a[1],b[1],t)|0},${lerp(a[2],b[2],t)|0})`}
 function aPos(l){let x=W/2,y=H/2;if(l.anchor&&l.anchor!=='point'&&curJ&&curJ[l.anchor])[x,y]=curJ[l.anchor];return[x+(l.px||0),y+(l.py||0)]}
 function spawn(l,li,n){const[x,y]=aPos(l);
+ if(l.type==='petals'){for(let i=0;i<n;i++){parts.push({li,l,type:'petals',x,y,life:1e9,age:0,phase:(i/n)*6.28,state:'hover',cd:0,sz:rnd(l.size_min,l.size_max)})}return}
  for(let i=0;i<n;i++){const life=rnd(l.life_min,l.life_max),p={li,l,x,y,life,age:0,type:l.type};
  if(l.type==='particles'||l.type==='trail'){let base=((l.angle_deg||0)+(l.prot||0))*D;
-  const a=base+rnd(-.5,.5)*(l.spread_deg||360)*D,s=rnd(l.speed_min,l.speed_max);
+  if(l.travel_forward&&dummyOn()){const[tx,ty]=dummyCenter();base=Math.atan2(ty-y,tx-x)}
+  const a=base+rnd(-.5,.5)*(l.spread_deg||360)*D,s=l.travel_forward?(l.travel_forward_speed||280):rnd(l.speed_min,l.speed_max);
   p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;p.sz=rnd(l.size_min,l.size_max);p.rot=rnd(0,6.28)}
  if(l.type==='ring'||l.type==='crescent'){let a0=((l.angle_deg||0)+(l.prot||0))*D;
-  if(l.type==='crescent'&&l.follow&&curJ&&curJ._wW!==undefined)a0=curJ._wW+(l.prot||0)*D;p.a0=a0}
+  if(l.type==='crescent'&&l.follow&&curJ&&curJ._wW!==undefined)a0=curJ._wW+(l.prot||0)*D;
+  if(l.type==='crescent'&&l.travel_forward&&dummyOn()){const[tx,ty]=dummyCenter();p.travelA=Math.atan2(ty-y,tx-x);a0=p.travelA}
+  p.a0=a0}
  if(l.type==='flash')p.sz=rnd(l.size_min,l.size_max);
  if(l.type==='afterimage'){p.pose=poseAt(curT());p.rootJ=aPos(l)}
  if(l.type==='beam')p.seed=Math.random()*99;
@@ -240,23 +251,41 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;
   if((l.trig||'immediate')==='on_hit'){if(!dummyOn()||hitAt===null||el<hitAt+(l.delay_ms||0))return}
   else if(el<layerStart(li)+(l.delay_ms||0))return;
-  const one=['ring','flash','crescent','beam'].includes(l.type)||(l.type==='particles'&&l.burst);
-  if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:1)}}
+  const one=['ring','flash','crescent','beam','petals'].includes(l.type)||(l.type==='particles'&&l.burst);
+  if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:(l.type==='petals'?(l.count||3):1))}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.age+=dt*1000;if(p.age>=p.life){parts.splice(i,1);continue}
+  if(p.type==='petals'){ // ---- [PETALS] hover/orbit + intercept preview (see fx_semantics.petals) ----
+   const l=p.l,[ax,ay]=aPos(l);p.phase+=(l.orbit_speed_deg||70)*D*dt;
+   if(p.cd>0)p.cd=Math.max(0,p.cd-dt*1000);
+   let threat=null;if(p.state!=='cooldown'&&dummyOn()&&hitAt!==null){const[tx,ty]=dummyCenter();
+    if(Math.hypot(tx-p.x,ty-p.y)<=(l.detect_range||150))threat=[tx,ty]}
+   if(threat){p.state='intercept';const s=l.approach_speed||320,ha=Math.atan2(threat[1]-p.y,threat[0]-p.x);
+    p.x+=Math.cos(ha)*s*dt;p.y+=Math.sin(ha)*s*dt;
+    if(Math.hypot(threat[0]-p.x,threat[1]-p.y)<10){p.state='cooldown';p.cd=l.cooldown_ms||2500}}
+   else if(p.state==='cooldown'){if(p.cd<=0)p.state='hover'}
+   else{p.x=ax+Math.cos(p.phase)*(l.hover_radius||46);p.y=ay+Math.sin(p.phase)*(l.hover_radius||46)}
+   continue}
   const multiActive=p.l.homing&&p.l.homing_multi;
   const homingActive=p.l.homing&&dummyOn()&&!p.bfx&&(!p.hitOnce||multiActive);
-  if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]&&!(p.l.homing&&p.type==='crescent')){[p.x,p.y]=aPos(p.l);
-   if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow&&!p.l.homing)p.a0=curJ._wW+(p.l.prot||0)*D}
+  const travelHoming=p.l.travel_forward&&p.l.travel_homing&&dummyOn()&&!p.bfx;
+  if(p.l.follow&&p.l.anchor!=='point'&&curJ[p.l.anchor]&&!(p.l.homing&&p.type==='crescent')&&!(p.l.travel_forward&&p.type==='crescent')){[p.x,p.y]=aPos(p.l);
+   if(p.type==='crescent'&&curJ._wW!==undefined&&p.l.follow&&!p.l.homing&&!p.l.travel_forward)p.a0=curJ._wW+(p.l.prot||0)*D}
   // homing: steer toward the target every tick until first contact (particles keep speed; crescent travels at homing_speed).
   // On contact the FX no longer disappears: by default it freezes its last heading and coasts straight for the rest
   // of its life; if homing_multi is on it keeps tracking the target instead and can register repeat hits.
   if(homingActive&&p.vx!==undefined){const[tx,ty]=dummyCenter(),s=Math.hypot(p.vx,p.vy)||1,ha=Math.atan2(ty-p.y,tx-p.x);p.vx=Math.cos(ha)*s;p.vy=Math.sin(ha)*s}
   else if(homingActive&&p.type==='crescent'){const[tx,ty]=dummyCenter(),ha=Math.atan2(ty-p.y,tx-p.x),s=p.l.homing_speed||320;p.frozenA=ha;p.frozenS=s;p.x+=Math.cos(ha)*s*dt;p.y+=Math.sin(ha)*s*dt}
   else if(p.l.homing&&p.type==='crescent'&&p.hitOnce&&p.frozenA!==undefined){p.x+=Math.cos(p.frozenA)*p.frozenS*dt;p.y+=Math.sin(p.frozenA)*p.frozenS*dt}
+  // travel forward: fire-and-forget straight shot aimed at the target once at spawn (see spawn()); if "Travel homing"
+  // is also on, keep re-aiming toward the target every tick instead. Independent of the older Homing property.
+  if(travelHoming&&p.vx!==undefined){const[tx,ty]=dummyCenter(),s=Math.hypot(p.vx,p.vy)||(p.l.travel_forward_speed||280),ha=Math.atan2(ty-p.y,tx-p.x);p.vx=Math.cos(ha)*s;p.vy=Math.sin(ha)*s}
+  else if(travelHoming&&p.type==='crescent'){const[tx,ty]=dummyCenter(),ha=Math.atan2(ty-p.y,tx-p.x),s=p.l.travel_forward_speed||280;p.x+=Math.cos(ha)*s*dt;p.y+=Math.sin(ha)*s*dt}
+  else if(p.l.travel_forward&&p.type==='crescent'&&p.travelA!==undefined){p.x+=Math.cos(p.travelA)*(p.l.travel_forward_speed||280)*dt;p.y+=Math.sin(p.travelA)*(p.l.travel_forward_speed||280)*dt}
   if(p.vx!==undefined){const dr=p.l.drag??1;p.vx*=Math.pow(dr,dt*60);p.vy*=Math.pow(dr,dt*60);p.vy+=(p.l.gravity||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}
-  // beam travel: head advances at travel_speed from the fire point; after detach_ms the tail leaves the source
-  if(p.type==='beam'){const l=p.l,ts=l.travel_speed||0;
+  // beam travel: head advances at travel_speed (or travel_forward_speed when Travel forward is on and travel_speed
+  // is 0) from the fire point; after detach_ms the tail leaves the source
+  if(p.type==='beam'){const l=p.l,ts=l.travel_speed||(l.travel_forward?(l.travel_forward_speed||0):0);
    if(ts>0){p.hd=ts*p.age/1000;
     p.td=Math.max(ts*Math.max(0,p.age-(l.detach_ms||0))/1000,p.hd-(l.length||0));
     if(p.td<0)p.td=0}
@@ -264,8 +293,10 @@ function tick(now){requestAnimationFrame(tick);rszChk();
    const attached=(p.td||0)<=0;
    if(attached||p.ox===undefined){p.ox=p.x;p.oy=p.y}
    if(attached||p.dirA===undefined){let a=((l.angle_deg||0)+(l.prot||0))*D;
-    if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW+(l.prot||0)*D;p.dirA=a}
-   if(homingActive){const[tx,ty]=dummyCenter(),bx=p.ox+Math.cos(p.dirA)*(p.td||0),by=p.oy+Math.sin(p.dirA)*(p.td||0);
+    if(l.aim_weapon&&curJ&&curJ._wW!==undefined)a=curJ._wW+(l.prot||0)*D;
+    if(l.travel_forward&&dummyOn()){const[tx,ty]=dummyCenter();a=Math.atan2(ty-p.oy,tx-p.ox)}
+    p.dirA=a}
+   if(homingActive||travelHoming){const[tx,ty]=dummyCenter(),bx=p.ox+Math.cos(p.dirA)*(p.td||0),by=p.oy+Math.sin(p.dirA)*(p.td||0);
     p.dirA=Math.atan2(ty-by,tx-bx)}}}
  // hit pass: can_hit/on_hit fires at the first overlap point; homing_multi layers can keep re-hitting at hit_rate_ms
  // pace once armed again; FX (including homing ones) no longer vanish on contact.
@@ -305,7 +336,13 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  $('zl').textContent=Math.round(cam.z*100)+'%';
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
 function rszChk(){if(cv.width!==cv.clientWidth||cv.height!==cv.clientHeight)rsz()}
-function render(el,lay){for(const p of parts){if(lay==='__bfx__'){if(!p.bfx)continue}else if(lay&&p.l!==lay)continue;const l=p.l,t=p.age/p.life,fade=1-t*t;
+function render(el,lay){for(const p of parts){if(lay==='__bfx__'){if(!p.bfx)continue}else if(lay&&p.l!==lay)continue;const l=p.l;
+ if(p.type==='petals'){ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
+  const col=colAt(l,0);ctx.shadowBlur=l.glow||0;ctx.shadowColor=col;ctx.fillStyle=col;
+  ctx.globalAlpha=p.state==='cooldown'?0.15:1;
+  ctx.beginPath();ctx.arc(p.x,p.y,Math.max(0.5,p.sz/2),0,6.28);ctx.fill();
+  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over';continue}
+ const t=p.age/p.life,fade=1-t*t;
  ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
  ctx.shadowBlur=l.glow||0;const col=colAt(l,t);ctx.shadowColor=col;ctx.fillStyle=col;ctx.strokeStyle=col;ctx.globalAlpha=fade;
  if(p.type==='particles'||p.type==='trail'){let s=p.sz;const m=l.size_over_life;
