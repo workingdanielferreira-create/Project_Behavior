@@ -183,10 +183,14 @@ class CombatSystem(System):
     def update(self, world):
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
+            # Parry cooldown/stance ticks for ANY archetype that can deflect
+            # (swordsman via uses_melee(), or a JSON character whose `defend`
+            # action authors a can_hit+deflect layer — combat.has_defend_deflect).
+            if fig.mode.uses_melee() or combat.has_defend_deflect(fig):
+                combat.tick_parry_cooldown(fig)
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
-            combat.tick_parry_cooldown(fig)   # always tick regardless of other state
             tgt = world.melee_target(fig)
             fig.combat.acted = combat.advance_combat(fig, tgt, world.cursor)
 
@@ -215,6 +219,17 @@ class CombatSystem(System):
                 world.hitstop_broadcast_pending = True
 
 
+def _basic_shot(fig, tx, ty):
+    """Basic-attack projectile spawn for the shared shot cadence. JSON
+    characters with a per-layer battle attack_normal (see
+    combat.fire_character_action) fire their own attack instead of the
+    built-in legacy fan shot. Identical in Solo & Battle."""
+    char = getattr(fig.mode, "character", None)
+    if char and combat._character_action_layers(char, "attack_normal"):
+        return combat.fire_character_action(fig, "attack_normal", tx, ty)
+    return combat.make_shot(fig.x, fig.y, tx, ty, fig.lut[128])
+
+
 class ProjectileSystem(System):
     """Spawn, advance, and cull bullets.
 
@@ -237,6 +252,14 @@ class ProjectileSystem(System):
             # (battle_mode True with no partner figures yet = hold fire, as before.)
             if battle or not world.battle_mode:
                 self._fire(world, battle)
+
+        # JSON-character attack_special/ultimate: evaluated every tick against
+        # each action's own activation_triggers, independent of the
+        # runner_on/basic-cadence gate above (mirrors mage's radius_proximity
+        # attack_special and hp_threshold ultimate). Identical in Solo &
+        # Battle — both call the exact same trigger + fire path.
+        if world.shoot_mode:
+            self._fire_json_actions(world)
 
         # Update homing bullet targets — cursor in solo, nearest enemy in battle.
         if world.projectiles:
@@ -285,7 +308,8 @@ class ProjectileSystem(System):
                 if not hit:
                     parry_rsq = config.PARRY_RADIUS * config.PARRY_RADIUS
                     for fig in world.figures:
-                        if not fig.mode.uses_melee():
+                        if not (fig.mode.uses_melee()
+                                or combat.has_defend_deflect(fig)):
                             continue
                         ddx, ddy = proj.x - fig.x, proj.y - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
@@ -421,8 +445,7 @@ class ProjectileSystem(System):
                             p.shoot_tick = 0
                             p.battle_shoot_interval = p.rng.randint(
                                 *config.SHOOT_INTERVAL_RANGE)
-                            new_projs = combat.make_shot(
-                                fig.x, fig.y, tx, ty, fig.lut[128])
+                            new_projs = _basic_shot(fig, tx, ty)
                             world.projectiles.extend(new_projs)
                             _fr, _fg, _fb = fig.lut[128]
                             world.muzzle_flashes.append(
@@ -434,8 +457,7 @@ class ProjectileSystem(System):
                                 f"count={len(new_projs)}")
                     else:
                         # Solo non-runner: legacy fan on the shared timer.
-                        new_projs = combat.make_shot(
-                            fig.x, fig.y, tx, ty, fig.lut[128])
+                        new_projs = _basic_shot(fig, tx, ty)
                         world.projectiles.extend(new_projs)
                         _fr, _fg, _fb = fig.lut[128]
                         world.muzzle_flashes.append(
@@ -452,6 +474,35 @@ class ProjectileSystem(System):
                     action_log.log("SHOT_PAUSE",
                         f"{tag}cycle complete after phase {prev_phase} — "
                         f"pause={config.SHOT_CYCLE_PAUSE_TICKS} ticks starting")
+
+    def _fire_json_actions(self, world):
+        """attack_special / ultimate for JSON characters: fire whenever that
+        action's own activation_triggers say so (ai.evaluate_activation_triggers
+        — hp_threshold, radius_proximity, on_impact, after_on_hit, ...).
+        attack_normal is handled by the shared cadence in _fire/_basic_shot;
+        this covers the two triggered actions. Identical in Solo & Battle."""
+        battle = bool(world.battle_mode and world.partner_figures)
+        for fig in world.figures:
+            char = getattr(fig.mode, "character", None)
+            if not char:
+                continue
+            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+                      else world.cursor)
+            dx, dy = tx - fig.x, ty - fig.y
+            dist = (dx * dx + dy * dy) ** 0.5
+            for key in ("attack_special", "ultimate"):
+                action = (char.get("actions") or {}).get(key)
+                if not action or not action.get("activation_triggers"):
+                    continue
+                if ai.evaluate_activation_triggers(action, fig, dist,
+                                                   world.global_tick):
+                    new_projs = combat.fire_character_action(fig, key, tx, ty)
+                    if new_projs:
+                        world.projectiles.extend(new_projs)
+                        _fr, _fg, _fb = fig.lut[128]
+                        world.muzzle_flashes.append(
+                            [fig.x, fig.y, 0, _fr, _fg, _fb])
+
 
 class CollisionSystem(System):
     """Battle interactions, after movement: crescent bullet-erasure, enemy
@@ -560,7 +611,8 @@ class CollisionSystem(System):
                 ex, ey, evx, evy = tup[0], tup[1], tup[2], tup[3]
                 erased_by_parry = False
                 for fig in world.figures:
-                    if not fig.mode.uses_melee():
+                    if not (fig.mode.uses_melee()
+                            or combat.has_defend_deflect(fig)):
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= parry_rsq:
@@ -586,10 +638,10 @@ class CollisionSystem(System):
                     continue  # parry stance active — no HP damage
                 hb = fig.mode.hurtbox_radius()
                 proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
-                for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
+                for ex, ey, evx, evy, _r, _g, _b, _dmg in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
-                        ai.battle_hit(fig, evx, evy, world)
+                        ai.battle_hit(fig, evx, evy, world, amount=_dmg)
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
@@ -605,7 +657,7 @@ class CollisionSystem(System):
                 c, m = fig.combat, fig.motion
                 if c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending:
                     continue
-                for ex, ey, evx, evy, _r, _g, _b in world.enemy_projs:
+                for ex, ey, evx, evy, _r, _g, _b, _dmg in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy > dsq:
                         continue
