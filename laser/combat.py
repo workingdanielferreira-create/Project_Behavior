@@ -209,7 +209,7 @@ def make_deflect_bullet(fig_x, fig_y, bx, by, bvx, bvy, color_rgb):
 # ---------------------------------------------------------------------------
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
-                 "max_age", "hit_r_sq", "trail", "radius", "style")
+                 "max_age", "hit_r_sq", "trail", "radius", "style", "damage")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -221,6 +221,13 @@ class Projectile:
         self.trail = deque(maxlen=max(3, trail_len))
         self.radius = float(config.PROJ_RADIUS)  # overridable for splinters
         self.style = None    # None=round | cone|zigzag|homing|beam comet bolt
+        # HP damage this bullet deals on a real hit (see ai.battle_hit /
+        # ai.apply_hp_damage and ipc.write_projectiles). Every built-in
+        # shot (runner/swordsman fan, splinters, deflects) keeps the
+        # historical flat 1 HP per hit; only JSON-character attacks
+        # (combat.fire_character_action) set a different value from their
+        # per-fx-layer `battle.damage`. Identical in Solo & Battle.
+        self.damage = 1.0
 
     @property
     def alive(self):
@@ -471,6 +478,113 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
                                target=target_ref, turn_rate=0.06)
         hp_.style = "homing"
         return [hp_]
+
+
+# ---------------------------------------------------------------------------
+# Generic JSON-character attacks — turns a character's own can_hit fx_layers
+# (attack_normal / attack_special / ultimate — see battle_semantics.attach in
+# the character JSON) into real Projectiles carrying that layer's own
+# battle.damage. Reuses the existing Projectile/HomingProjectile pipeline —
+# every JSON-character projectile already flows through the same
+# fire -> world.projectiles -> IPC -> world.enemy_projs -> petals/parry/HP
+# path built for runner/swordsman, so Solo & Battle parity is automatic.
+#
+# Motion per layer:
+#   homing=True        -> HomingProjectile (steers toward a live target ref)
+#   homing=False        -> plain Projectile, which already flies straight at
+#                          its launch heading with no further steering — this
+#                          IS "travel_forward" (fire straight, once, forever).
+#
+# Cosmetic-only fields (per fx_semantics/battle_semantics: explode, scatter,
+# pierce, slash, beam_travel, beam_width) are visual flourishes on the FX
+# Creator side and intentionally not modelled here; only the damage-bearing
+# hit itself is wired into combat.
+# ---------------------------------------------------------------------------
+def _character_action_layers(char, action_key):
+    """can_hit fx_layers (each carrying a battle dict) for one action, or []."""
+    action = (char.get("actions") or {}).get(action_key)
+    if not action:
+        return []
+    return [l for l in (action.get("fx_layers") or [])
+            if l.get("can_hit") and l.get("battle")]
+
+
+def fire_character_action(fig, action_key, target_x, target_y):
+    """Fire every can_hit fx_layer of `action_key` on fig's own JSON character
+    as a Projectile aimed at (target_x, target_y). Multiple layers on the same
+    action (e.g. mage's 5-particle attack_special) fan out symmetrically
+    across config.CHAR_ATTACK_SPREAD_DEG. Returns the list of new Projectiles
+    (caller extends world.projectiles). No-op for built-in (non-JSON)
+    characters. Identical in Solo & Battle."""
+    char = getattr(fig.mode, "character", None)
+    if not char:
+        return []
+    layers = _character_action_layers(char, action_key)
+    if not layers:
+        return []
+
+    dx, dy = target_x - fig.x, target_y - fig.y
+    dist = (dx * dx + dy * dy) ** 0.5
+    base_deg = math.degrees(math.atan2(dy, dx)) if dist > 0.01 else 0.0
+
+    n = len(layers)
+    if n == 1:
+        offsets = [0.0]
+    else:
+        spread = config.CHAR_ATTACK_SPREAD_DEG
+        offsets = [-spread / 2.0 + spread * i / (n - 1) for i in range(n)]
+
+    cr = fig.lut[128]
+    out = []
+    for layer, off in zip(layers, offsets):
+        battle = layer.get("battle") or {}
+        try:
+            damage = float(battle.get("damage", 1))
+        except (TypeError, ValueError):
+            damage = 1.0
+        a = math.radians(base_deg + off)
+        vx = math.cos(a) * config.PROJ_SPEED
+        vy = math.sin(a) * config.PROJ_SPEED
+
+        if layer.get("homing"):
+            target_ref = [float(target_x), float(target_y)]
+            pr = HomingProjectile(fig.x, fig.y, vx, vy, cr,
+                                  config.PROJ_TRAIL_LEN,
+                                  target=target_ref, turn_rate=0.06)
+            pr.style = "homing"
+        else:
+            pr = Projectile(fig.x, fig.y, vx, vy, cr, config.PROJ_TRAIL_LEN)
+            pr.style = "beam" if layer.get("type") == "beam" else None
+        pr.damage = damage
+        out.append(pr)
+    return out
+
+
+def _defend_deflect_flag(fig):
+    """True if this JSON character's `defend` action has a can_hit fx_layer
+    with battle.defence == 'deflect'. Cached on the mode instance (character
+    JSON doesn't change after load), same pattern as _petals_config."""
+    mode = fig.mode
+    if hasattr(mode, "_defend_deflect"):
+        return mode._defend_deflect
+    flag = False
+    char = getattr(mode, "character", None)
+    if char:
+        for layer in _character_action_layers(char, "defend"):
+            if (layer.get("battle") or {}).get("defence") == "deflect":
+                flag = True
+                break
+    mode._defend_deflect = flag
+    return flag
+
+
+def has_defend_deflect(fig):
+    """True if fig's character should get the parry/deflect stance generalized
+    to it — swordsman gets this from uses_melee() already; this extends the
+    same trigger_parry/parrying mechanism to any archetype (e.g. a shooter
+    mage) whose `defend` action authors a can_hit + defence:'deflect' layer.
+    Identical in Solo & Battle — both share the same trigger_parry code path."""
+    return _defend_deflect_flag(fig)
 
 
 def update_homing_targets(projectiles, cx, cy):
