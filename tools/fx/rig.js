@@ -78,8 +78,12 @@ function joints(pose){ // world joint positions
   J.weapon_tip=pts.length?pts[pts.length-1]:B(J.r_hand,wW,30);J.weapon_mid=pts.length?wpnMid(pts,J.r_hand):B(J.r_hand,wW,15)}
  else{J.muzzle=B(J.r_hand,wW,16)}
  if(dummyOn()){const G=dummyGeom();J.dummy_head=G.head;J.dummy_torso=G.torso;J.dummy_legs=G.legs}
+ // enemy_target: always-available anchor = the opposing character's current position (previewed here via the
+ // target dummy centre). A layer anchored here with follow=false spawns ONCE at that position and behaves
+ // normally afterward (it does not keep tracking the enemy). Identical in Solo & Battle.
+ const EG=dummyGeom();J.enemy_target=[EG.X,(EG.top+EG.bot)/2];
  return J}
-const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle']),...(dummyOn()?['dummy_head','dummy_torso','dummy_legs']:[])];
+const ANCHORS=()=>['point','hip','torso_mid','chest','head','l_shoulder','r_shoulder','l_hand','r_hand','l_foot','r_foot','enemy_target',...($('fig').value==='swordsman'?['blade_mid','blade_tip']:$('fig').value==='custom'?['weapon_mid','weapon_tip']:['muzzle']),...(dummyOn()?['dummy_head','dummy_torso','dummy_legs']:[])];
 function drawBody(J,fig,alpha=1){ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha*=alpha;
  ctx.strokeStyle=(fig==='custom'&&CH)?CH.palette.body:'#8fa0b8';ctx.lineWidth=3.5;ctx.lineCap='round';
  const L=(a,b)=>{ctx.beginPath();ctx.moveTo(J[a][0],J[a][1]);ctx.lineTo(J[b][0],J[b][1]);ctx.stroke()};
