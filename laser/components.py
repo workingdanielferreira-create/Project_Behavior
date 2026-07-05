@@ -207,7 +207,8 @@ class Combatant:
                  "followup_pending", "followup_lock_ticks", "followup_lock_type",
                  "ult_crescents", "ult_crescent_pending",
                  "afterimages", "afterimage_tick",
-                 "hitstop_request", "impact_fx_pending")
+                 "hitstop_request", "impact_fx_pending",
+                 "petals", "petals_init")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -266,6 +267,13 @@ class Combatant:
         self.afterimage_tick = 0           # spawn-interval counter
         self.hitstop_request = False       # set on big hits; CombatSystem applies freeze
         self.impact_fx_pending = []        # (x, y) hit points awaiting ring+spark spawn
+        # Petals defensive FX (see combat.Petal / combat.update_petals): a handful of
+        # single particles hovering around the figure that intercept nearby enemy
+        # projectiles. Works for ANY archetype (shooter or melee) — identical in
+        # Solo & Battle. Lazily populated on first tick from the character's own
+        # `petals` fx_layer config (built-ins have none, so this stays empty).
+        self.petals = []
+        self.petals_init = False
 
     def reset(self):
         self.__init__()
@@ -287,7 +295,8 @@ class Personality:
                  "hp", "max_hp",
                  "knockback_count", "immunity_hits",
                  "ultimate_ticks", "teleport_ticks",
-                 "sword_ult_fired_thresholds")
+                 "sword_ult_fired_thresholds",
+                 "trigger_state")
 
     def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
@@ -310,6 +319,7 @@ class Personality:
         self.ultimate_ticks = 0   # ticks remaining in runner ultimate (0 = inactive)
         self.teleport_ticks = 0   # ticks until next survival teleport (0 = ready)
         self.sword_ult_fired_thresholds = set()  # set of thresholds (fractions) already fired
+        self.trigger_state = {}  # per-action bookkeeping for ai.evaluate_activation_triggers
 
 
 
