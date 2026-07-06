@@ -74,6 +74,46 @@ const ATTACK_PATTERN_SEMANTICS={
  damage:'attack_pattern.damage is the flat HP this basic attack deals on a landed hit (default 1.0).',
  disabled:'enabled:false (or an empty cycle) means this character has no ranged cycle at all — its attack_normal fires only through the existing per-FX-layer battle path (melee-style characters like Swordsman use this).',
  parity:'Identical driver and math in Solo & Battle — see systems.ProjectileSystem._fire_attack_pattern.'};
+// ---- [COMBO] ---- generalizes the melee dash/arc combo FSM (laser/combat.py
+// advance_combat) — that FSM ALREADY runs for any uses_melee character; only
+// its numbers were Swordsman-only module constants. combat.combo_cfg() lets
+// this block override any of them field-by-field. Only meaningful for
+// melee-archetype characters (predicates.uses_melee); harmless otherwise.
+const COMBO_FIELDS=['max_hits','cooldown_ticks','followup_lock_ticks','dash_speed_mult','hit_radius',
+ 'arc_orbit_angle_deg','arc_approach_sweep_deg','arc_recoil_px','arc_recoil_ticks','arc_repo_ticks',
+ 'arc_approach_ticks','combo_travel_ticks_min','combo_travel_ticks_max'];
+const COMBO_PRESETS={
+ swordsman_classic:{label:'Swordsman Classic',max_hits:3,cooldown_ticks:62,followup_lock_ticks:12,
+  dash_speed_mult:9.0,hit_radius:20,arc_orbit_angle_deg:150,arc_approach_sweep_deg:120,
+  arc_recoil_px:10,arc_recoil_ticks:12,arc_repo_ticks:22,arc_approach_ticks:24,
+  combo_travel_ticks_min:0,combo_travel_ticks_max:31},
+ fast_flurry:{label:'Fast Flurry (more, weaker hits)',max_hits:5,cooldown_ticks:40,followup_lock_ticks:8,
+  dash_speed_mult:11.0,hit_radius:18,arc_orbit_angle_deg:110,arc_approach_sweep_deg:90,
+  arc_recoil_px:8,arc_recoil_ticks:8,arc_repo_ticks:16,arc_approach_ticks:16,
+  combo_travel_ticks_min:0,combo_travel_ticks_max:18},
+ heavy_strikes:{label:'Heavy Strikes (fewer, bigger hits)',max_hits:2,cooldown_ticks:90,followup_lock_ticks:16,
+  dash_speed_mult:7.0,hit_radius:26,arc_orbit_angle_deg:170,arc_approach_sweep_deg:150,
+  arc_recoil_px:16,arc_recoil_ticks:18,arc_repo_ticks:30,arc_approach_ticks:32,
+  combo_travel_ticks_min:6,combo_travel_ticks_max:44}};
+function ensureCombo(){if(!CH.combo){const {label,...vals}=COMBO_PRESETS.swordsman_classic;
+ CH.combo={mode:'preset',preset:'swordsman_classic',...vals}}return CH.combo}
+function comboModeSet(m){ensureCombo().mode=m;renderStepUI()}
+function comboPresetSet(k){const pr=COMBO_PRESETS[k];if(!pr)return;const {label,...vals}=pr;
+ CH.combo={...ensureCombo(),preset:k,...vals};renderStepUI()}
+function comboSet(k,v){ensureCombo()[k]=+v}
+const COMBO_LABELS={max_hits:'Max hits per string',cooldown_ticks:'String cooldown (ticks)',
+ followup_lock_ticks:'Follow-up type lock (ticks)',dash_speed_mult:'Dash speed \u00d7',
+ hit_radius:'Hit radius (px)',arc_orbit_angle_deg:'Arc orbit angle (deg)',
+ arc_approach_sweep_deg:'Arc approach sweep (deg)',arc_recoil_px:'Arc recoil (px)',
+ arc_recoil_ticks:'Arc recoil (ticks)',arc_repo_ticks:'Arc reposition (ticks)',
+ arc_approach_ticks:'Arc approach (ticks)',combo_travel_ticks_min:'Follow-up delay min (ticks)',
+ combo_travel_ticks_max:'Follow-up delay max (ticks)'};
+const COMBO_SEMANTICS={
+ attach:'combo lives at the top level of the character JSON (sibling of stats/attack_pattern). Only takes effect for melee-archetype characters (predicates.uses_melee).',
+ interpreter:'Read by combat.combo_cfg(), which the EXISTING melee dash/arc combo state machine (combat.advance_combat) already calls — this is the same code Swordsman runs, just parameterized. No new engine code needed for a new melee fighter.',
+ fields:'max_hits/cooldown_ticks/followup_lock_ticks control the hit-string length and pacing. dash_speed_mult/hit_radius control how fast and from how far the dash-in lands. arc_* fields shape the curved approach/orbit/recoil of arc-style follow-ups. combo_travel_ticks_min/max randomize the pause before a straight follow-up dash.',
+ damage:'NOT yet wired — melee body-collision damage is still a flat 1 HP (ai.apply_hp_damage) for every melee character regardless of this block. Giving melee hits a configurable damage amount needs an IPC schema extension (tracked as a known follow-up), the same one needed for after_on_hit crediting.',
+ parity:'Identical FSM and call site in Solo & Battle — see systems.CombatSystem calling combat.advance_combat.'};
 // ---- [ACTIVATION TRIGGERS] ---- multi-select trigger conditions for attack_special/ultimate/special_ability.
 // Any enabled trigger fires the action (OR logic). hp_threshold fires once per crossing unless "repeatable" is
 // set, in which case it can refire on its own cooldown_ms. after_on_impact/after_on_hit counters reset to 0 the
@@ -140,6 +180,7 @@ function newChar(){return{_extra:{},name:'new_fighter',display_name:'New Fighter
  special_ability:{preset:'none',params:{duration_ms:3000,cooldown_ms:8000,magnitude:25},fx_layers:[]},
  attack_pattern:{enabled:false,mode:'preset',preset:'runner_cycle',damage:1,
   ...JSON.parse(JSON.stringify(ATTACK_PATTERN_PRESETS.runner_cycle))},
+ combo:(()=>{const {label,...vals}=COMBO_PRESETS.swordsman_classic;return{mode:'preset',preset:'swordsman_classic',...vals}})(),
  actions:{}}}
 function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]===ak);let kf;
  if(ak==='defend')kf=CH.defense==='block'?DEF_KF.defend_block():DEF_KF.defend_dodge();
@@ -172,13 +213,14 @@ function wpnClear(){CH.weapon.points=[]}
 function curActionKey(){return curStep&&curStep.startsWith('act:')?curStep.slice(4):null}
 function wizSteps(){const s=[{k:'setup',n:'Character Setup'},{k:'weapon',n:'Weapon Designer'}];
  ACT_DEFS.forEach(a=>{s.push({k:'act:'+a[0],n:a[1]});
-  if(a[0]==='attack_normal')s.push({k:'attack_pattern',n:'Attack Pattern'})});
+  if(a[0]==='attack_normal'){s.push({k:'attack_pattern',n:'Attack Pattern'});s.push({k:'combo',n:'Melee Combo'})}});
  if(CH.special_ability.preset==='dual_defense'){const i=s.findIndex(x=>x.k==='act:special_ability');
   s.splice(i+1,0,{k:'act:defend2',n:'Second Defense ('+(CH.defense==='block'?'Dodge':'Block')+')'})}
  s.push({k:'review',n:'Review & Export'});return s}
 function renderWiz(){const d=$('wsteps');d.innerHTML='';wizSteps().forEach((s,i)=>{
  const done=s.k.startsWith('act:')?!!CH.actions[s.k.slice(4)]:
-  s.k==='attack_pattern'?!!(CH.attack_pattern&&CH.attack_pattern.enabled):(s.k==='setup'||s.k==='weapon');
+  s.k==='attack_pattern'?!!(CH.attack_pattern&&CH.attack_pattern.enabled):
+  s.k==='combo'?!!CH.combo:(s.k==='setup'||s.k==='weapon');
  const e=document.createElement('div');e.className='wstep'+(s.k===curStep?' cur':'')+(done?' done':'');
  e.textContent=(i+1)+'. '+s.n;e.onclick=()=>gotoStep(s.k);d.appendChild(e)})}
 function saveStep(){if(appMode!=='char'||!CH)return;
@@ -248,6 +290,16 @@ function renderStepUI(){const d=$('stepui');let h='';
     h+=`<button style="margin-top:6px" onclick="apAddPhase()">+ Add phase</button>`}
    else{
     h+=`<div class="row"><label>Phases</label><div class="v">${ap.cycle.map(p=>p.style).join(' \u2192 ')}</div></div>`}}}
+ else if(curStep==='combo'){const co=ensureCombo();
+  h=`<h3 style="padding-left:0">${CH.name} — Melee Combo</h3>
+  <small style="color:#7a8599;display:block;padding:2px 0 8px">Tunes the SAME dash/arc combo system Swordsman uses \u2014 it already runs for any melee-archetype character. Only matters if this character's archetype/predicates include uses_melee.</small>`+
+  chRow('Mode',`<label style="margin-right:10px"><input type="radio" name="comode" ${co.mode==='preset'?'checked':''} onchange="comboModeSet('preset')"> Preset</label>`+
+   `<label><input type="radio" name="comode" ${co.mode==='custom'?'checked':''} onchange="comboModeSet('custom')"> Custom</label>`);
+  if(co.mode==='preset'){
+   h+=chRow('Preset',`<select onchange="comboPresetSet(this.value)">${Object.entries(COMBO_PRESETS).map(([k,p])=>`<option value="${k}" ${co.preset===k?'selected':''}>${p.label}</option>`).join('')}</select>`)+
+    `<small style="color:#7a8599;display:block;padding:2px 0 8px">Switch to Custom any time to fine-tune the numbers below without losing this starting point.</small>`}
+  COMBO_FIELDS.forEach(f=>{h+=chRow(COMBO_LABELS[f],`<input type="number" step="any" value="${co[f]}" ${co.mode==='preset'?'disabled':''} onchange="comboSet('${f}',this.value)">`)});
+  h+=`<small style="color:#7a8599;display:block;padding:4px 0"><b>Note:</b> melee hit damage is not yet configurable here \u2014 it's a flat 1 HP per landed hit for every melee character until a future IPC extension carries a per-attacker amount.</small>`}
  else if(curStep==='act:special_ability'){const sa=CH.special_ability;ensureAction('special_ability');
   h=`<h3 style="padding-left:0">${CH.name} — Special Ability</h3>`+
   chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
@@ -299,9 +351,10 @@ const IMPLEMENTATION_NOTES={
  stats_movement_archetype:'laser/characters.py: _register() reads stats/movement/archetype/predicates straight into MODE_CONFIGS + the generated FigureMode subclass. No manual file edits.',
  actions_rig:'laser/characters.py: rasterize_character() ports every action\'s keyframes through the same joint math as tools/fx/rig.js joints(). No manual file edits.',
  attack_pattern:'laser/combat.py fire_attack_pattern() + laser/systems.py ProjectileSystem._fire_attack_pattern() are the ONE generic interpreter for this block — already handle any cycle you author here. No manual file edits.',
+ combo:'laser/combat.py combo_cfg() feeds the EXISTING melee dash/arc combo state machine (advance_combat) — the same code Swordsman runs, just reading your numbers instead of Swordsman\'s hardcoded ones. Only takes effect if this character\'s archetype/predicates set uses_melee. No manual file edits. Melee hit damage itself is still a flat 1 HP (see combo_semantics.damage) until a future IPC extension.',
  per_layer_battle:'laser/combat.py fire_character_action() reads each can_hit fx_layer\'s battle{damage, defence, attack effects} for attack_normal/attack_special/ultimate/defend. No manual file edits.',
  activation_triggers:'laser/ai.py evaluate_activation_triggers(), called every tick from laser/systems.py _fire_json_actions(). No manual file edits.',
- not_yet_generic:'Two blocks are still NOT read by any engine code yet, so authoring them here has no effect until a future engine pass adds their interpreter: a authored melee "combo" chain (Swordsman\'s dash/arc combo system is still hardcoded-only) and a custom "ultimate_playback" shape (only Runner\'s beam and Swordsman\'s crescent ultimates actually play back geometry today — a JSON ultimate\'s activation_triggers will fire but nothing will visually happen beyond its authored fx_layers).',
+ not_yet_generic:'One block is still NOT read by any engine code yet, so authoring it here has no effect until a future engine pass adds its interpreter: a custom "ultimate_playback" shape (only Runner\'s beam and Swordsman\'s crescent ultimates actually play back geometry today — a JSON ultimate\'s activation_triggers will fire but nothing will visually happen beyond its authored fx_layers).',
  verification:'After dropping the file, launch Solo mode first (fastest load-time feedback), confirm the character appears with correct stats/palette/attack cadence, THEN verify Battle mode reproduces the identical behaviour (parity is automatic by construction, but always confirm).'};
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
@@ -309,13 +362,14 @@ function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){con
   activation_triggers:a.activation_triggers||[],retrigger_cooldown_ms:a.retrigger_cooldown_ms||0}}
  const ap=ensureAttackPattern(),apOut={damage:ap.damage,interval_ticks:ap.interval_ticks,
   cycle_pause_ticks:ap.cycle_pause_ticks,cycle:ap.enabled?ap.cycle:[]};
+ const co=ensureCombo(),coOut={};COMBO_FIELDS.forEach(f=>coOut[f]=co[f]);
  return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},stats:{...CH.stats},rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,attack_pattern:apOut,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS,attack_pattern_semantics:ATTACK_PATTERN_SEMANTICS,
+  special_ability:CH.special_ability,attack_pattern:apOut,combo:coOut,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS,attack_pattern_semantics:ATTACK_PATTERN_SEMANTICS,combo_semantics:COMBO_SEMANTICS,
   implementation_notes:IMPLEMENTATION_NOTES},null,1)}
-const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','attack_pattern','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics','attack_pattern_semantics','implementation_notes'];
+const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','attack_pattern','combo','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics','attack_pattern_semantics','combo_semantics','implementation_notes'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  CH.display_name=o.display_name||CH.name;CH.description=o.description||'';
  CH.archetype=o.archetype||((o.weapon&&o.weapon.points&&o.weapon.points.length)?'melee':'shooter');
@@ -333,6 +387,10 @@ function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.pale
    cycle_pause_ticks:isFinite(+ip.cycle_pause_ticks)?Math.max(0,+ip.cycle_pause_ticks):0,
    cycle:Array.isArray(ip.cycle)?ip.cycle.map(ph=>({...apDefaultPhase(ph.style||'cone'),...ph})):[]}}
  else ensureAttackPattern();
+ if(o.combo){const ic=o.combo,{label,...defaults}=COMBO_PRESETS.swordsman_classic;
+  const vals={...defaults};COMBO_FIELDS.forEach(f=>{if(isFinite(+ic[f]))vals[f]=+ic[f]});
+  CH.combo={mode:'custom',preset:'swordsman_classic',...vals}}
+ else ensureCombo();
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
   CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
    fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l}),
