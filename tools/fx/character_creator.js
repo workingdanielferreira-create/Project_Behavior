@@ -114,6 +114,42 @@ const COMBO_SEMANTICS={
  fields:'max_hits/cooldown_ticks/followup_lock_ticks control the hit-string length and pacing. dash_speed_mult/hit_radius control how fast and from how far the dash-in lands. arc_* fields shape the curved approach/orbit/recoil of arc-style follow-ups. combo_travel_ticks_min/max randomize the pause before a straight follow-up dash.',
  damage:'NOT yet wired — melee body-collision damage is still a flat 1 HP (ai.apply_hp_damage) for every melee character regardless of this block. Giving melee hits a configurable damage amount needs an IPC schema extension (tracked as a known follow-up), the same one needed for after_on_hit crediting.',
  parity:'Identical FSM and call site in Solo & Battle — see systems.CombatSystem calling combat.advance_combat.'};
+// ---- [ULTIMATE PLAYBACK] ---- lets a character pick one of the two
+// existing, polished ultimate visuals (Swordsman's X-crescent or Runner's
+// beam volley) instead of inventing a third shape from scratch. Both are
+// generalized in laser/combat.py (ultc_cfg/beam_cfg) the same
+// field-override way combo_cfg generalized the melee combo FSM.
+const UP_STYLES=['crescent','beam','none'];
+const UP_CRESCENT_FIELDS=['radius','span','speed','fade_dist','width_outer','width_inner','segs',
+ 'lifetime','second_delay_ticks','hit_figure_dist','cross_angle'];
+const UP_BEAM_FIELDS=['rows','row_spacing','trail_len','max_age','speed_mult'];
+const UP_LABELS={radius:'Arc radius (px)',span:'Arc span (deg)',speed:'Travel speed (px/tick)',
+ fade_dist:'Fade start distance (px)',width_outer:'Outer (body) width',width_inner:'Inner (rim) width',
+ segs:'Draw segments',lifetime:'Max lifetime (ticks)',second_delay_ticks:'2nd blade delay (ticks)',
+ hit_figure_dist:'Hit band (px)',cross_angle:'Cross angle (deg)',
+ rows:'Bolt rows',row_spacing:'Row spacing (px)',trail_len:'Trail length',max_age:'Max age (ticks)',
+ speed_mult:'Speed \u00d7'};
+const UP_PRESETS={
+ crescent_classic:{style:'crescent',label:'Swordsman Crescent (X-blade)',radius:100,span:150,speed:25,
+  fade_dist:1000,width_outer:28,width_inner:6,segs:32,lifetime:600,second_delay_ticks:1,
+  hit_figure_dist:40,cross_angle:45,thresholds:[0.7,0.5,0.3]},
+ beam_classic:{style:'beam',label:'Runner Beam Volley',rows:1,row_spacing:8,trail_len:12,max_age:150,speed_mult:1.0}};
+function ensureUltimatePlayback(){if(!CH.ultimate_playback){const {label,...vals}=UP_PRESETS.beam_classic;
+ CH.ultimate_playback={mode:'preset',preset:'beam_classic',...vals}}return CH.ultimate_playback}
+function upModeSet(m){ensureUltimatePlayback().mode=m;renderStepUI()}
+function upPresetSet(k){const pr=UP_PRESETS[k];if(!pr)return;const {label,...vals}=pr;
+ CH.ultimate_playback={mode:ensureUltimatePlayback().mode,preset:k,...vals};renderStepUI()}
+function upStyleSet(s){ensureUltimatePlayback().style=s;renderStepUI()}
+function upFieldSet(k,v){ensureUltimatePlayback()[k]=+v}
+function upThresholdsSet(v){ensureUltimatePlayback().thresholds=v.split(',').map(s=>+s.trim()/100).filter(n=>isFinite(n)&&n>0&&n<1)}
+const UP_SEMANTICS={
+ attach:'ultimate_playback lives at the top level of the character JSON (sibling of stats/combo/attack_pattern).',
+ interpreter:'laser/combat.py ultimate_style()/ultc_cfg()/beam_cfg() read this block; the crescent path reuses the EXACT UltimateCrescent class Swordsman uses, the beam path reuses the exact beam-volley math Runner uses — just parameterized.',
+ style:'"crescent" = the X-shaped double-blade wave (only takes effect for melee-archetype characters — it rides the melee combo FSM\'s own per-tick update). "beam" = a volley of long-tailed bolts fired every tick while the ultimate window is open (works for any shooter-archetype character). "none" = no big playback shape; only this character\'s authored ultimate fx_layers show.',
+ trigger_crescent:'Fires automatically the first time HP drops to/below each fraction in thresholds (default 70%/50%/30%, same as Swordsman) — once per threshold per life.',
+ trigger_beam:'Fires automatically every tick for config.ULTIMATE_DURATION_TICKS once HP first drops to/below config.ULTIMATE_HP_THRESHOLD (30%) — same trigger Runner uses, generalized to any shooter-archetype character so its ultimate window is never silent.',
+ defaults:'An unconfigured JSON character still gets a sensible default: "crescent" if archetype/predicates set uses_melee, otherwise "beam" — so every character\'s ultimate does SOMETHING out of the box even without visiting this step.',
+ parity:'Identical trigger and playback code path in Solo & Battle.'};
 // ---- [ACTIVATION TRIGGERS] ---- multi-select trigger conditions for attack_special/ultimate/special_ability.
 // Any enabled trigger fires the action (OR logic). hp_threshold fires once per crossing unless "repeatable" is
 // set, in which case it can refire on its own cooldown_ms. after_on_impact/after_on_hit counters reset to 0 the
@@ -181,6 +217,7 @@ function newChar(){return{_extra:{},name:'new_fighter',display_name:'New Fighter
  attack_pattern:{enabled:false,mode:'preset',preset:'runner_cycle',damage:1,
   ...JSON.parse(JSON.stringify(ATTACK_PATTERN_PRESETS.runner_cycle))},
  combo:(()=>{const {label,...vals}=COMBO_PRESETS.swordsman_classic;return{mode:'preset',preset:'swordsman_classic',...vals}})(),
+ ultimate_playback:(()=>{const {label,...vals}=UP_PRESETS.crescent_classic;return{mode:'preset',preset:'crescent_classic',...vals}})(),
  actions:{}}}
 function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]===ak);let kf;
  if(ak==='defend')kf=CH.defense==='block'?DEF_KF.defend_block():DEF_KF.defend_dodge();
@@ -213,14 +250,15 @@ function wpnClear(){CH.weapon.points=[]}
 function curActionKey(){return curStep&&curStep.startsWith('act:')?curStep.slice(4):null}
 function wizSteps(){const s=[{k:'setup',n:'Character Setup'},{k:'weapon',n:'Weapon Designer'}];
  ACT_DEFS.forEach(a=>{s.push({k:'act:'+a[0],n:a[1]});
-  if(a[0]==='attack_normal'){s.push({k:'attack_pattern',n:'Attack Pattern'});s.push({k:'combo',n:'Melee Combo'})}});
+  if(a[0]==='attack_normal'){s.push({k:'attack_pattern',n:'Attack Pattern'});s.push({k:'combo',n:'Melee Combo'})}
+  if(a[0]==='ultimate')s.push({k:'ultimate_playback',n:'Ultimate Playback'})});
  if(CH.special_ability.preset==='dual_defense'){const i=s.findIndex(x=>x.k==='act:special_ability');
   s.splice(i+1,0,{k:'act:defend2',n:'Second Defense ('+(CH.defense==='block'?'Dodge':'Block')+')'})}
  s.push({k:'review',n:'Review & Export'});return s}
 function renderWiz(){const d=$('wsteps');d.innerHTML='';wizSteps().forEach((s,i)=>{
  const done=s.k.startsWith('act:')?!!CH.actions[s.k.slice(4)]:
   s.k==='attack_pattern'?!!(CH.attack_pattern&&CH.attack_pattern.enabled):
-  s.k==='combo'?!!CH.combo:(s.k==='setup'||s.k==='weapon');
+  s.k==='combo'?!!CH.combo:s.k==='ultimate_playback'?!!CH.ultimate_playback:(s.k==='setup'||s.k==='weapon');
  const e=document.createElement('div');e.className='wstep'+(s.k===curStep?' cur':'')+(done?' done':'');
  e.textContent=(i+1)+'. '+s.n;e.onclick=()=>gotoStep(s.k);d.appendChild(e)})}
 function saveStep(){if(appMode!=='char'||!CH)return;
@@ -300,6 +338,21 @@ function renderStepUI(){const d=$('stepui');let h='';
     `<small style="color:#7a8599;display:block;padding:2px 0 8px">Switch to Custom any time to fine-tune the numbers below without losing this starting point.</small>`}
   COMBO_FIELDS.forEach(f=>{h+=chRow(COMBO_LABELS[f],`<input type="number" step="any" value="${co[f]}" ${co.mode==='preset'?'disabled':''} onchange="comboSet('${f}',this.value)">`)});
   h+=`<small style="color:#7a8599;display:block;padding:4px 0"><b>Note:</b> melee hit damage is not yet configurable here \u2014 it's a flat 1 HP per landed hit for every melee character until a future IPC extension carries a per-attacker amount.</small>`}
+ else if(curStep==='ultimate_playback'){const up=ensureUltimatePlayback();
+  h=`<h3 style="padding-left:0">${CH.name} — Ultimate Playback</h3>
+  <small style="color:#7a8599;display:block;padding:2px 0 8px">Picks which of the two existing ultimate visuals plays when this character's ultimate triggers. Unconfigured defaults to crescent for melee, beam for shooters — never silent.</small>`+
+  chRow('Style',`<select onchange="upStyleSet(this.value)">${UP_STYLES.map(s=>`<option value="${s}" ${up.style===s?'selected':''}>${s}</option>`).join('')}</select>`);
+  if(up.style!=='none'){
+   h+=chRow('Mode',`<label style="margin-right:10px"><input type="radio" name="upmode" ${up.mode==='preset'?'checked':''} onchange="upModeSet('preset')"> Preset</label>`+
+    `<label><input type="radio" name="upmode" ${up.mode==='custom'?'checked':''} onchange="upModeSet('custom')"> Custom</label>`);
+   const presetsForStyle=Object.entries(UP_PRESETS).filter(([k,p])=>p.style===up.style);
+   if(up.mode==='preset'){
+    h+=chRow('Preset',`<select onchange="upPresetSet(this.value)">${presetsForStyle.map(([k,p])=>`<option value="${k}" ${up.preset===k?'selected':''}>${p.label}</option>`).join('')}</select>`)}
+   const fields=up.style==='crescent'?UP_CRESCENT_FIELDS:UP_BEAM_FIELDS;
+   fields.forEach(f=>{h+=chRow(UP_LABELS[f],`<input type="number" step="any" value="${up[f]}" ${up.mode==='preset'?'disabled':''} onchange="upFieldSet('${f}',this.value)">`)});
+   if(up.style==='crescent')h+=chRow('HP thresholds (%, comma-sep)',
+    `<input type="text" style="width:140px" value="${(up.thresholds||[0.7,0.5,0.3]).map(t=>Math.round(t*100)).join(',')}" ${up.mode==='preset'?'disabled':''} onchange="upThresholdsSet(this.value)">`)}
+  h+=`<small style="color:#7a8599;display:block;padding:4px 0"><b>Note:</b> "crescent" only takes effect for melee-archetype characters (it rides the melee combo FSM's own tick).</small>`}
  else if(curStep==='act:special_ability'){const sa=CH.special_ability;ensureAction('special_ability');
   h=`<h3 style="padding-left:0">${CH.name} — Special Ability</h3>`+
   chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
@@ -352,9 +405,10 @@ const IMPLEMENTATION_NOTES={
  actions_rig:'laser/characters.py: rasterize_character() ports every action\'s keyframes through the same joint math as tools/fx/rig.js joints(). No manual file edits.',
  attack_pattern:'laser/combat.py fire_attack_pattern() + laser/systems.py ProjectileSystem._fire_attack_pattern() are the ONE generic interpreter for this block — already handle any cycle you author here. No manual file edits.',
  combo:'laser/combat.py combo_cfg() feeds the EXISTING melee dash/arc combo state machine (advance_combat) — the same code Swordsman runs, just reading your numbers instead of Swordsman\'s hardcoded ones. Only takes effect if this character\'s archetype/predicates set uses_melee. No manual file edits. Melee hit damage itself is still a flat 1 HP (see combo_semantics.damage) until a future IPC extension.',
+ ultimate_playback:'laser/combat.py ultimate_style()/ultc_cfg()/beam_cfg(), called from laser/ai.py (crescent HP-threshold trigger) and laser/systems.py (beam per-tick trigger), read this block. Reuses Swordsman\'s exact UltimateCrescent class and Runner\'s exact beam-volley math — just parameterized. No manual file edits.',
  per_layer_battle:'laser/combat.py fire_character_action() reads each can_hit fx_layer\'s battle{damage, defence, attack effects} for attack_normal/attack_special/ultimate/defend. No manual file edits.',
  activation_triggers:'laser/ai.py evaluate_activation_triggers(), called every tick from laser/systems.py _fire_json_actions(). No manual file edits.',
- not_yet_generic:'One block is still NOT read by any engine code yet, so authoring it here has no effect until a future engine pass adds its interpreter: a custom "ultimate_playback" shape (only Runner\'s beam and Swordsman\'s crescent ultimates actually play back geometry today — a JSON ultimate\'s activation_triggers will fire but nothing will visually happen beyond its authored fx_layers).',
+ not_yet_generic:'None remain as of this pass — attack_pattern, combo, and ultimate_playback are all read generically now. The one still-known limitation is melee hit damage (see combo_semantics.damage): a flat 1 HP per landed melee hit for every melee character, pending an IPC extension to carry a per-attacker amount.',
  verification:'After dropping the file, launch Solo mode first (fastest load-time feedback), confirm the character appears with correct stats/palette/attack cadence, THEN verify Battle mode reproduces the identical behaviour (parity is automatic by construction, but always confirm).'};
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
@@ -363,13 +417,15 @@ function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){con
  const ap=ensureAttackPattern(),apOut={damage:ap.damage,interval_ticks:ap.interval_ticks,
   cycle_pause_ticks:ap.cycle_pause_ticks,cycle:ap.enabled?ap.cycle:[]};
  const co=ensureCombo(),coOut={};COMBO_FIELDS.forEach(f=>coOut[f]=co[f]);
+ const up=ensureUltimatePlayback(),upFields=up.style==='crescent'?UP_CRESCENT_FIELDS:up.style==='beam'?UP_BEAM_FIELDS:[];
+ const upOut={style:up.style};upFields.forEach(f=>upOut[f]=up[f]);if(up.style==='crescent')upOut.thresholds=up.thresholds||[0.7,0.5,0.3];
  return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},stats:{...CH.stats},rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,attack_pattern:apOut,combo:coOut,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS,attack_pattern_semantics:ATTACK_PATTERN_SEMANTICS,combo_semantics:COMBO_SEMANTICS,
+  special_ability:CH.special_ability,attack_pattern:apOut,combo:coOut,ultimate_playback:upOut,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS,attack_pattern_semantics:ATTACK_PATTERN_SEMANTICS,combo_semantics:COMBO_SEMANTICS,ultimate_playback_semantics:UP_SEMANTICS,
   implementation_notes:IMPLEMENTATION_NOTES},null,1)}
-const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','attack_pattern','combo','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics','attack_pattern_semantics','combo_semantics','implementation_notes'];
+const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','attack_pattern','combo','ultimate_playback','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics','attack_pattern_semantics','combo_semantics','ultimate_playback_semantics','implementation_notes'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  CH.display_name=o.display_name||CH.name;CH.description=o.description||'';
  CH.archetype=o.archetype||((o.weapon&&o.weapon.points&&o.weapon.points.length)?'melee':'shooter');
@@ -391,6 +447,14 @@ function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.pale
   const vals={...defaults};COMBO_FIELDS.forEach(f=>{if(isFinite(+ic[f]))vals[f]=+ic[f]});
   CH.combo={mode:'custom',preset:'swordsman_classic',...vals}}
  else ensureCombo();
+ if(o.ultimate_playback){const iu=o.ultimate_playback,style=UP_STYLES.includes(iu.style)?iu.style:'beam';
+  const base=style==='crescent'?UP_PRESETS.crescent_classic:style==='beam'?UP_PRESETS.beam_classic:{};
+  const {label,...defaults}=base;const vals={...defaults,style};
+  const fields=style==='crescent'?UP_CRESCENT_FIELDS:style==='beam'?UP_BEAM_FIELDS:[];
+  fields.forEach(f=>{if(isFinite(+iu[f]))vals[f]=+iu[f]});
+  if(style==='crescent')vals.thresholds=Array.isArray(iu.thresholds)&&iu.thresholds.length?iu.thresholds:[0.7,0.5,0.3];
+  CH.ultimate_playback={mode:'custom',preset:style==='crescent'?'crescent_classic':'beam_classic',...vals}}
+ else ensureUltimatePlayback();
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
   CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
    fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l}),
