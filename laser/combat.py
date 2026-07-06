@@ -240,6 +240,11 @@ class Projectile:
         self.age += 1
 
     def draw(self, p):
+        if self.style == "invisible":
+            # Damage/IPC/hit-detection still run normally — only the round-
+            # dot sprite is skipped because a richer local burst (see
+            # combat.spawn_character_burst_fx) is providing the real visual.
+            return
         fade = max(0.0, 1.0 - self.age / self.max_age)
         r, g, b = self.r, self.g, self.b
         hx, hy = int(self.x), int(self.y)
@@ -509,13 +514,18 @@ def _character_action_layers(char, action_key):
             if l.get("can_hit") and l.get("battle")]
 
 
-def fire_character_action(fig, action_key, target_x, target_y):
+def fire_character_action(fig, action_key, target_x, target_y,
+                          suppress_visual=False):
     """Fire every can_hit fx_layer of `action_key` on fig's own JSON character
     as a Projectile aimed at (target_x, target_y). Multiple layers on the same
     action (e.g. mage's 5-particle attack_special) fan out symmetrically
     across config.CHAR_ATTACK_SPREAD_DEG. Returns the list of new Projectiles
-    (caller extends world.projectiles). No-op for built-in (non-JSON)
-    characters. Identical in Solo & Battle."""
+    (caller extends world.projectiles). `suppress_visual=True` marks the
+    resulting Projectiles style="invisible" — damage/IPC/hit-detection still
+    run identically, but the plain round-dot sprite is hidden because a
+    richer local burst (spawn_character_burst_fx) is the real visual for
+    that action. No-op for built-in (non-JSON) characters. Identical in
+    Solo & Battle."""
     char = getattr(fig.mode, "character", None)
     if not char:
         return []
@@ -558,6 +568,8 @@ def fire_character_action(fig, action_key, target_x, target_y):
         else:
             pr = Projectile(fig.x, fig.y, vx, vy, cr, config.PROJ_TRAIL_LEN)
             pr.style = "beam" if layer.get("type") == "beam" else None
+        if suppress_visual:
+            pr.style = "invisible"
         pr.damage = damage
         out.append(pr)
     return out
@@ -588,6 +600,176 @@ def has_defend_deflect(fig):
     mage) whose `defend` action authors a can_hit + defence:'deflect' layer.
     Identical in Solo & Battle — both share the same trigger_parry code path."""
     return _defend_deflect_flag(fig)
+
+
+# ---------------------------------------------------------------------------
+# Character particle bursts — purely cosmetic, LOCAL-ONLY rendering of a
+# JSON character's own 'particles' fx_layers, matching the FX Creator export
+# directly: count, spread_deg, angle_deg, speed_min/max, gravity, drag,
+# size_over_life, life_min/max, c1/c2, anchor px/py. Never synced over IPC
+# (per the established IPC boundary: locally-rendered eye-candy stays local;
+# cross-process state uses the fixed struct layout) — the actual can_hit
+# damage for these same layers is handled separately by
+# fire_character_action(..., suppress_visual=True), so the two don't
+# double-render. Identical call site in Solo & Battle — each process spawns
+# and draws its own figures' bursts the same way, from the same JSON.
+# ---------------------------------------------------------------------------
+def _burst_scale(char):
+    """Same FX-Creator-canvas -> game-pixel scale characters.py uses to
+    rasterize the rig (TARGET_HEAD_PX / native 20px head * stats.scale), so
+    a layer's px/py/size fields land at the same size the wizard previewed."""
+    stats = char.get("stats", {}) or {}
+    try:
+        cs = float(stats.get("scale", 1.0))
+    except (TypeError, ValueError):
+        cs = 1.0
+    cs = max(0.5, min(2.0, cs))
+    return (config.TARGET_HEAD_PX / 20.0) * cs
+
+
+class BurstParticle:
+    """One physically-simulated particle from a character's 'particles'
+    fx_layer. gravity/drag/size_over_life/color-over-life are all read
+    straight from the layer so this matches the FX Creator preview.
+    Cosmetic only — never affects combat resolution."""
+    __slots__ = ("x", "y", "vx", "vy", "age", "life", "size0", "size1",
+                 "size_mode", "rgb1", "rgb2", "gravity", "drag")
+
+    def __init__(self, x, y, vx, vy, life_ticks, size0, size1, size_mode,
+                 rgb1, rgb2, gravity, drag):
+        self.x, self.y = x, y
+        self.vx, self.vy = vx, vy
+        self.age = 0
+        self.life = max(1, life_ticks)
+        self.size0, self.size1 = size0, size1
+        self.size_mode = size_mode
+        self.rgb1, self.rgb2 = rgb1, rgb2
+        self.gravity = gravity
+        self.drag = drag
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def update(self):
+        tick_s = config.TICK_MS / 1000.0
+        self.vx *= self.drag
+        self.vy = self.vy * self.drag + self.gravity * tick_s
+        self.x += self.vx * tick_s
+        self.y += self.vy * tick_s
+        self.age += 1
+
+    def _current_size(self, t):
+        s0, s1 = self.size0, self.size1
+        if self.size_mode == "shrink":
+            return s1 + (s0 - s1) * (1.0 - t)
+        if self.size_mode == "grow":
+            return s0 + (s1 - s0) * t
+        if self.size_mode == "pulse":
+            return s0 + (s1 - s0) * math.sin(min(1.0, t) * math.pi)
+        return s0
+
+    def draw(self, p):
+        t = min(1.0, self.age / self.life)
+        size = max(0.5, self._current_size(t))
+        r = int(self.rgb1[0] + (self.rgb2[0] - self.rgb1[0]) * t)
+        g = int(self.rgb1[1] + (self.rgb2[1] - self.rgb1[1]) * t)
+        b = int(self.rgb1[2] + (self.rgb2[2] - self.rgb1[2]) * t)
+        fade = max(0.0, 1.0 - t)
+        pm, half = bullet_sprite(max(0, min(255, r)), max(0, min(255, g)),
+                                 max(0, min(255, b)), size / 2.0)
+        if fade < 1.0:
+            p.setOpacity(fade)
+            p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+            p.setOpacity(1.0)
+        else:
+            p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+
+
+def spawn_character_burst_fx(fig, action_key):
+    """Queue every 'particles' fx_layer of `action_key` on fig's own JSON
+    character to spawn its matching BurstParticle swarm (honoring authored
+    delay_ms/trig_delay_ms). No-op for built-in characters."""
+    char = getattr(fig.mode, "character", None)
+    if not char:
+        return
+    action = (char.get("actions") or {}).get(action_key)
+    if not action:
+        return
+    scale = _burst_scale(char)
+    facing = -1.0 if fig.transform.facing_left else 1.0
+    c = fig.combat
+    for layer in (action.get("fx_layers") or []):
+        if layer.get("type") != "particles":
+            continue
+        delay_ticks = int(((layer.get("delay_ms", 0) or 0)
+                          + (layer.get("trig_delay_ms", 0) or 0))
+                          / config.TICK_MS)
+        c.pending_bursts.append([delay_ticks, layer, scale, facing])
+
+
+def _spawn_burst_now(fig, layer, scale, facing):
+    """Create the BurstParticle swarm for one layer once its queued delay
+    has elapsed. 'point' and 'r_hand' anchors both approximate to a fixed
+    px/py offset from the figure root — the runtime doesn't track live rig
+    joint positions after the rig is baked into pixmaps, so this is the
+    closest available anchor."""
+    c = fig.combat
+    px = float(layer.get("px", 0) or 0) * scale * facing
+    py = float(layer.get("py", 0) or 0) * scale
+    ax, ay = fig.x + px, fig.y + py
+
+    count = max(1, int(layer.get("count", 1) or 1))
+    spread = math.radians(float(layer.get("spread_deg", 30) or 0))
+    base_angle = math.radians(float(layer.get("angle_deg", 0) or 0))
+    if facing < 0:
+        base_angle = math.pi - base_angle   # mirror fan direction with facing
+
+    smin = float(layer.get("speed_min", 50) or 0) * scale
+    smax = float(layer.get("speed_max", smin) or smin) * scale
+    size_min = max(0.5, float(layer.get("size_min", 3) or 3) * scale)
+    size_max = max(size_min, float(layer.get("size_max", size_min) or size_min) * scale)
+    size_mode = layer.get("size_over_life", "shrink")
+    life_min = max(1.0, float(layer.get("life_min", 200) or 200))
+    life_max = max(life_min, float(layer.get("life_max", life_min) or life_min))
+    gravity = float(layer.get("gravity", 0) or 0) * scale
+    drag = float(layer.get("drag", 1.0) if layer.get("drag") is not None else 1.0)
+    rgb1 = _hex_rgb_safe(layer.get("c1"), (255, 255, 255))
+    rgb2 = _hex_rgb_safe(layer.get("c2"), rgb1)
+
+    rng = fig.personality.rng
+    for _ in range(count):
+        a = base_angle + rng.uniform(-spread / 2.0, spread / 2.0)
+        spd = rng.uniform(smin, smax) if smax > smin else smin
+        vx, vy = math.cos(a) * spd, math.sin(a) * spd
+        life_ms = rng.uniform(life_min, life_max)
+        life_ticks = max(1, int(life_ms / config.TICK_MS))
+        c.particle_bursts.append(BurstParticle(
+            ax, ay, vx, vy, life_ticks, size_min, size_max, size_mode,
+            rgb1, rgb2, gravity, drag))
+
+
+def update_character_bursts(fig):
+    """Advance pending-delay timers (spawning bursts when due) and tick/cull
+    live burst particles. Cheap no-op for figures with none of either. Call
+    every tick for every figure — identical in Solo & Battle."""
+    c = fig.combat
+    if c.pending_bursts:
+        still_pending = []
+        for entry in c.pending_bursts:
+            entry[0] -= 1
+            if entry[0] <= 0:
+                _spawn_burst_now(fig, entry[1], entry[2], entry[3])
+            else:
+                still_pending.append(entry)
+        c.pending_bursts = still_pending
+    if c.particle_bursts:
+        alive = []
+        for bp in c.particle_bursts:
+            bp.update()
+            if bp.alive:
+                alive.append(bp)
+        c.particle_bursts = alive
 
 
 def update_homing_targets(projectiles, cx, cy):
