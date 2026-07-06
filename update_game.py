@@ -30,6 +30,11 @@ import urllib.request
 
 REPO = "workingdanielferreira-create/Project_Behavior"
 BRANCH = "main"
+# Optional auth for higher rate limits (5000 req/hour instead of 60):
+# GITHUB_TOKEN env var, or a one-line .gh_token file next to this script.
+# GitHub's push protection rejects any commit containing a raw token, so
+# the token can never be hardcoded here — it must live in a local,
+# untracked file or env var instead.
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SELF = os.path.basename(os.path.abspath(__file__))
@@ -43,7 +48,8 @@ LOCKABLE_EXTS = (".exe", ".dll", ".pyd", ".zip", ".cat")
 def _token():
     """Optional auth for higher rate limits: GITHUB_TOKEN env var, or a
     one-line .gh_token file next to this script.  The file is NOT tracked
-    by the repo — never commit a real token into a repo file."""
+    by the repo — never commit a real token into a file that lives in
+    the repo itself."""
     tok = os.environ.get("GITHUB_TOKEN", "").strip()
     if tok:
         return tok
