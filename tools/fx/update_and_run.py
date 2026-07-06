@@ -22,10 +22,11 @@ REPO = "workingdanielferreira-create/Project_Behavior"
 BRANCH = "main"
 REMOTE_DIR = "tools/fx"
 PORT = 8000
-# No token needed: this repo's files are fetched via the public,
-# unauthenticated GitHub API. That's plenty of quota (60 req/hour) for
-# checking 6 files occasionally. Never commit a real token into a file
-# that lives in the repo itself.
+# Optional auth for higher rate limits (5000 req/hour instead of 60):
+# GITHUB_TOKEN env var, or a one-line .gh_token file next to this script.
+# GitHub's push protection rejects any commit containing a raw token, so
+# the token can never be hardcoded here — it must live in a local,
+# untracked file or env var instead.
 
 FILES = [
     "fx_creator.html",
@@ -34,6 +35,7 @@ FILES = [
     "fx_engine.js",
     "character_creator.js",
     "main.js",
+    "README.md",
 ]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,11 +57,30 @@ def save_manifest(m):
         json.dump(m, f, indent=2)
 
 
+def _token():
+    """Optional auth: GITHUB_TOKEN env var, or a one-line .gh_token file
+    next to this script. The file is NOT tracked by the repo — never
+    commit a real token into a file that lives in the repo itself."""
+    tok = os.environ.get("GITHUB_TOKEN", "").strip()
+    if tok:
+        return tok
+    p = os.path.join(HERE, ".gh_token")
+    if os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except OSError:
+            pass
+    return ""
+
+
 def gh_get(path):
     url = f"https://api.github.com/repos/{REPO}/contents/{path}?ref={BRANCH}"
-    req = urllib.request.Request(url, headers={
-        "Accept": "application/vnd.github+json",
-    })
+    headers = {"Accept": "application/vnd.github+json"}
+    tok = _token()
+    if tok:
+        headers["Authorization"] = "token " + tok
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read().decode())
 
