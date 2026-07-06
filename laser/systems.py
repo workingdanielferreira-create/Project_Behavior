@@ -386,16 +386,19 @@ class ProjectileSystem(System):
                 if p.ultimate_ticks > 0:
                     p.ultimate_ticks -= 1
             for fig in world.figures:
-                if not fig.mode.can_shoot():
+                if not fig.mode.can_shoot() or fig.personality.ultimate_ticks <= 0:
                     continue
-                if fig.mode.key == "runner":
-                    # BEAM ULTIMATE: 3 parallel long-tailed bolts every tick.
-                    # Aim is recomputed at the live target each tick; bolts
-                    # already in flight keep their fixed straight heading.
+                if combat.ultimate_style(fig) == "beam":
+                    # BEAM ULTIMATE: N parallel long-tailed bolts every tick
+                    # (N/spacing/trail/age/speed from combat.beam_cfg — Runner's
+                    # own numbers by default, or a JSON character's own if it
+                    # set ultimate_playback fields). Aim is recomputed at the
+                    # live target each tick; bolts already in flight keep
+                    # their fixed straight heading.
                     tx, ty = _target(fig)
+                    new_projs = combat.make_beam_shot_cfg(fig, tx, ty)
+                    world.projectiles.extend(new_projs)
                     rr, gg, bb = fig.lut[128]
-                    world.projectiles.extend(combat.make_beam_shot(
-                        fig.x, fig.y, tx, ty, (rr, gg, bb)))
                     world.muzzle_flashes.append(
                         [fig.x, fig.y, 0, rr, gg, bb])
             # shot_phase intentionally frozen during the beam; the normal
