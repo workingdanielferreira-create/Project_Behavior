@@ -1407,12 +1407,61 @@ def trigger_parry(fig):
     return True
 
 
+# ---------------------------------------------------------------------------
+# Generic combo tuning — the melee dash/arc combo FSM below (advance_combat)
+# already runs for ANY fig.mode.uses_melee() figure, JSON or built-in; the
+# only thing that was Swordsman-specific was that its numbers came straight
+# from module constants. combo_cfg() lets a character's own `combo` JSON
+# block override any of those numbers field-by-field — missing/invalid
+# fields fall back individually to Swordsman's own values, so a built-in
+# figure (no .character) or a JSON character with no `combo` block behaves
+# byte-identically to today. Cached on the mode instance (JSON never changes
+# after load). Identical in Solo & Battle — advance_combat runs the same
+# call site in both.
+# ---------------------------------------------------------------------------
+_COMBO_DEFAULTS = dict(
+    max_hits=int(config.ATTACK_STRING_MAX_HITS),
+    cooldown_ticks=int(config.ATTACK_STRING_COOLDOWN_TICKS),
+    followup_lock_ticks=int(config.FOLLOWUP_TYPE_LOCK_TICKS),
+    dash_speed_mult=float(config.SLASH_SPEED_MUL),
+    hit_radius=float(config.SLASH_HIT_RADIUS),
+    arc_orbit_angle_deg=float(config.ARC_ORBIT_ANGLE_DEG),
+    arc_approach_sweep_deg=float(config.ARC_APPROACH_SWEEP_DEG),
+    arc_recoil_px=float(config.ARC_RECOIL_PX),
+    arc_recoil_ticks=int(config.ARC_RECOIL_TICKS),
+    arc_repo_ticks=int(config.ARC_REPO_TICKS),
+    arc_approach_ticks=int(config.ARC_APPROACH_TICKS),
+    combo_travel_ticks_min=int(config.COMBO_TRAVEL_TICKS_MIN),
+    combo_travel_ticks_max=int(config.COMBO_TRAVEL_TICKS_MAX),
+)
+
+
+def combo_cfg(fig):
+    """Per-figure combo tuning dict — see module comment above."""
+    mode = fig.mode
+    if hasattr(mode, "_combo_cfg"):
+        return mode._combo_cfg
+    cc = dict(_COMBO_DEFAULTS)
+    char = getattr(mode, "character", None)
+    if char:
+        raw = char.get("combo") or {}
+        for k in cc:
+            if k in raw:
+                try:
+                    cc[k] = type(cc[k])(raw[k])
+                except (TypeError, ValueError):
+                    pass
+    mode._combo_cfg = cc
+    return cc
+
+
 def advance_combat(fig, slash_target, fallback):
     t = fig.transform
     c = fig.combat
     m = fig.motion
     rng = fig.personality.rng
     bundle = fig.render.bundle
+    cc = combo_cfg(fig)
 
     if not bundle.slash:
         return False  # this mode has no melee capability
@@ -1433,9 +1482,9 @@ def advance_combat(fig, slash_target, fallback):
             tx, ty = slash_target
             ddx, ddy = tx - t.x, ty - t.y
             ddist = (ddx * ddx + ddy * ddy) ** 0.5
-            if ddist > config.SLASH_HIT_RADIUS:
+            if ddist > cc['hit_radius']:
                 inv = 1.0 / ddist
-                lspd = m.speed * config.SLASH_SPEED_MUL
+                lspd = m.speed * cc['dash_speed_mult']
                 c.slash_vx = ddx * inv * lspd
                 c.slash_vy = ddy * inv * lspd
                 # Budget proportional to actual gap — same formula as initial dash.
@@ -1464,10 +1513,10 @@ def advance_combat(fig, slash_target, fallback):
             c.arc_r_start = c.arc_orbit_r
             c.arc_r_end = c.arc_orbit_r
             c.arc_start_angle = math.atan2(dy_, dx_)
-            arc_rad = math.radians(config.ARC_ORBIT_ANGLE_DEG) * c.arc_combo_dir
+            arc_rad = math.radians(cc['arc_orbit_angle_deg']) * c.arc_combo_dir
             c.arc_end_angle = c.arc_start_angle + arc_rad
             c.arc_repo_t = 0
-            c.arc_repo_steps = config.ARC_REPO_TICKS
+            c.arc_repo_steps = cc['arc_repo_ticks']
             c.arc_repositioning = True
         fig.face(ox, oy)
         fig.trail.update(t.x, t.y, t.facing_left, True, False)
@@ -1498,7 +1547,7 @@ def advance_combat(fig, slash_target, fallback):
                 tx_, ty_ = c.arc_center_x, c.arc_center_y
             ddx, ddy = tx_ - t.x, ty_ - t.y
             ddist = (ddx*ddx + ddy*ddy)**0.5
-            lspd = m.speed * config.SLASH_SPEED_MUL
+            lspd = m.speed * cc['dash_speed_mult']
             if ddist > 1.0:
                 inv = 1.0 / ddist
                 c.slash_vx = ddx * inv * lspd
@@ -1559,18 +1608,18 @@ def advance_combat(fig, slash_target, fallback):
                             nx_, ny_ = ndx / ndist, ndy / ndist
                         else:
                             nx_, ny_ = 1.0, 0.0
-                        recoil_spd = config.ARC_RECOIL_PX / max(config.ARC_RECOIL_TICKS, 1)
+                        recoil_spd = cc['arc_recoil_px'] / max(cc['arc_recoil_ticks'], 1)
                         c.slash_vx = nx_ * recoil_spd
                         c.slash_vy = ny_ * recoil_spd
-                        c.arc_recoil_ticks = config.ARC_RECOIL_TICKS
+                        c.arc_recoil_ticks = cc['arc_recoil_ticks']
                         c.arc_recoiling = True
                     elif c.followup_pending == 1:
                         # Follow-up DASHSLASH: randomised pause, then straight dash
                         # (gives the target breathing room after knockback).
                         c.followup_pending = 0
                         c.combo_delay_ticks = rng.randint(
-                            config.COMBO_TRAVEL_TICKS_MIN,
-                            config.COMBO_TRAVEL_TICKS_MAX)
+                            cc['combo_travel_ticks_min'],
+                            cc['combo_travel_ticks_max'])
         fig.face(ox, oy)
         fig.trail.update(t.x, t.y, t.facing_left, False, False)
         fig.render.is_moving = False
@@ -1589,7 +1638,7 @@ def advance_combat(fig, slash_target, fallback):
                 tx, ty = slash_target if slash_target is not None else fallback
                 dx, dy = tx - t.x, ty - t.y
                 dist = (dx * dx + dy * dy) ** 0.5
-                if dist <= config.SLASH_HIT_RADIUS:
+                if dist <= cc['hit_radius']:
                     # Crescent aimed at the struck target.
                     r, g, b = fig.lut[80]
                     c.crescents.append(CrescentWave(t.x, t.y, tx, ty, (r, g, b)))
@@ -1617,12 +1666,12 @@ def advance_combat(fig, slash_target, fallback):
                     chain = False
                     if c.attack_cooldown_ticks <= 0:
                         c.attack_hits += 1
-                        if c.attack_hits < config.ATTACK_STRING_MAX_HITS:
+                        if c.attack_hits < cc['max_hits']:
                             chain = True
                         else:
                             # String complete — reset and start the ~1 s cooldown.
                             c.attack_hits = 0
-                            c.attack_cooldown_ticks = config.ATTACK_STRING_COOLDOWN_TICKS
+                            c.attack_cooldown_ticks = cc['cooldown_ticks']
                             c.hitstop_request = True   # finisher = big hit -> world freeze
                     if chain:
                         # Pick the follow-up type: locked type wins within the
@@ -1632,7 +1681,7 @@ def advance_combat(fig, slash_target, fallback):
                         else:
                             ftype = 1 if rng.random() < 0.5 else 2
                             c.followup_lock_type = ftype
-                            c.followup_lock_ticks = config.FOLLOWUP_TYPE_LOCK_TICKS
+                            c.followup_lock_ticks = cc['followup_lock_ticks']
                         c.followup_pending = ftype
                         # Stop dead and play the slash; the follow-up launches
                         # when the animation completes.
@@ -1700,9 +1749,9 @@ def advance_combat(fig, slash_target, fallback):
                 tx, ty = slash_target
                 dx, dy = tx - t.x, ty - t.y
                 dist = (dx * dx + dy * dy) ** 0.5
-                if dist > config.SLASH_HIT_RADIUS:
+                if dist > cc['hit_radius']:
                     inv = 1.0 / max(dist, 0.001)
-                    lspd = m.speed * config.SLASH_SPEED_MUL
+                    lspd = m.speed * cc['dash_speed_mult']
                     c.slash_vx = dx * inv * lspd
                     c.slash_vy = dy * inv * lspd
                     c.slash_dist_budget = dist * 4.0
@@ -1731,12 +1780,12 @@ def advance_combat(fig, slash_target, fallback):
         # Solo & Battle — both read the same MODE_CONFIGS entry.
         atk_radius = config.MODE_CONFIGS.get(fig.mode.key, {}).get(
             "basic_attack_radius", config.SLASH_RADIUS)
-        if config.SLASH_HIT_RADIUS < dist <= atk_radius:
+        if cc['hit_radius'] < dist <= atk_radius:
             c.attack_hits = 0  # fresh string
             if rng.random() < 0.5:
                 # --- Primary DASHSLASH: straight in ---
                 inv = 1.0 / dist
-                lspd = m.speed * config.SLASH_SPEED_MUL
+                lspd = m.speed * cc['dash_speed_mult']
                 c.slash_vx = dx * inv * lspd
                 c.slash_vy = dy * inv * lspd
                 c.slash_dist_budget = dist * 4.0
@@ -1750,12 +1799,12 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_center_y = float(ty)
                 c.arc_combo_dir = rng.choice([1, -1])
                 c.arc_r_start = dist
-                c.arc_r_end = config.SLASH_HIT_RADIUS * 1.5
+                c.arc_r_end = cc['hit_radius'] * 1.5
                 c.arc_start_angle = math.atan2(t.y - ty, t.x - tx)
-                sweep = math.radians(config.ARC_APPROACH_SWEEP_DEG) * c.arc_combo_dir
+                sweep = math.radians(cc['arc_approach_sweep_deg']) * c.arc_combo_dir
                 c.arc_end_angle = c.arc_start_angle + sweep
                 c.arc_repo_t = 0
-                c.arc_repo_steps = config.ARC_APPROACH_TICKS
+                c.arc_repo_steps = cc['arc_approach_ticks']
                 c.arc_repositioning = True
 
     return False
