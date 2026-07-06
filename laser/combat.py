@@ -548,9 +548,12 @@ def fire_character_action(fig, action_key, target_x, target_y):
 
         if layer.get("homing"):
             target_ref = [float(target_x), float(target_y)]
+            # Tighter turn_rate than runner's cluster bullets (0.06): a
+            # character's own "beam"-style attack is meant to track its
+            # target closely, not drift in wide wandering arcs.
             pr = HomingProjectile(fig.x, fig.y, vx, vy, cr,
                                   config.PROJ_TRAIL_LEN,
-                                  target=target_ref, turn_rate=0.06)
+                                  target=target_ref, turn_rate=0.35)
             pr.style = "homing"
         else:
             pr = Projectile(fig.x, fig.y, vx, vy, cr, config.PROJ_TRAIL_LEN)
@@ -751,9 +754,28 @@ class CrescentWave:
 # tick for every figure identically in Solo & Battle — in Solo there is
 # simply nothing in world.enemy_projs to intercept, so petals just hover.
 # ---------------------------------------------------------------------------
+def _hex_rgb_safe(h, default):
+    """Parse '#rrggbb' to an (r,g,b) int tuple; returns `default` on any
+    missing/malformed input instead of raising."""
+    if not h or not isinstance(h, str):
+        return default
+    h = h.lstrip("#")
+    if len(h) != 6:
+        return default
+    try:
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except ValueError:
+        return default
+
+
 _PETAL_DEFAULTS = dict(count=3, hover_radius=46.0, orbit_speed_deg=70.0,
                         detect_range=150.0, approach_speed=320.0,
                         cooldown_ms=2500.0)
+# Rendering-only (not floated like the mechanics keys above): resolved once
+# in _petals_config from the layer's own size_min/size_max/c1, since Petal
+# objects previously had no visual at all (see Petal.draw).
+_PETAL_DEFAULT_RADIUS = 8.0
+_PETAL_DEFAULT_RGB = (251, 238, 243)
 
 
 class Petal:
@@ -812,6 +834,14 @@ class Petal:
         self.y = anchor_y + math.sin(self.phase) * cfg["hover_radius"]
         return None
 
+    def draw(self, p):
+        """Render as a small glowing dot in the character's own petal colour
+        (previously Petal had no visual at all — logic-only)."""
+        r, g, b = self.cfg.get("_rgb", _PETAL_DEFAULT_RGB)
+        radius = self.cfg.get("_radius", _PETAL_DEFAULT_RADIUS)
+        pm, half = bullet_sprite(r, g, b, radius)
+        p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+
 
 def _petals_config(fig):
     """First `petals` fx_layer found across this character's actions, merged
@@ -838,6 +868,13 @@ def _petals_config(fig):
                             cfg[k] = float(found[k])
                         except (TypeError, ValueError):
                             pass
+                cfg["_rgb"] = _hex_rgb_safe(found.get("c1"), _PETAL_DEFAULT_RGB)
+                try:
+                    smin = float(found.get("size_min", _PETAL_DEFAULT_RADIUS))
+                    smax = float(found.get("size_max", smin))
+                    cfg["_radius"] = max(2.0, (smin + smax) / 2.0 / 2.0)
+                except (TypeError, ValueError):
+                    cfg["_radius"] = _PETAL_DEFAULT_RADIUS
                 break
     mode._petals_cfg = cfg
     return cfg
