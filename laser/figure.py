@@ -163,3 +163,7 @@ class Figure:
             for pt in self.combat.petals:
                 pt.draw(p)
 
+        if self.combat.particle_bursts:
+            for bp in self.combat.particle_bursts:
+                bp.draw(p)
+
