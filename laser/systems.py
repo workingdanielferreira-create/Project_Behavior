@@ -183,6 +183,7 @@ class CombatSystem(System):
     def update(self, world):
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
+            combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
             # (swordsman via uses_melee(), or a JSON character whose `defend`
             # action authors a can_hit+deflect layer — combat.has_defend_deflect).
@@ -496,7 +497,17 @@ class ProjectileSystem(System):
                     continue
                 if ai.evaluate_activation_triggers(action, fig, dist,
                                                    world.global_tick):
-                    new_projs = combat.fire_character_action(fig, key, tx, ty)
+                    # A particle-type can_hit layer means this character has
+                    # its own authored burst FX (spread/speed/gravity/color)
+                    # — show that instead of the plain simplified dot.
+                    has_particle_layers = any(
+                        l.get("type") == "particles"
+                        for l in (action.get("fx_layers") or [])
+                        if l.get("can_hit"))
+                    new_projs = combat.fire_character_action(
+                        fig, key, tx, ty, suppress_visual=has_particle_layers)
+                    if has_particle_layers:
+                        combat.spawn_character_burst_fx(fig, key)
                     if new_projs:
                         world.projectiles.extend(new_projs)
                         _fr, _fg, _fb = fig.lut[128]
