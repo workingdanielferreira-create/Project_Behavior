@@ -260,6 +260,7 @@ class ProjectileSystem(System):
         # attack_special and hp_threshold ultimate). Identical in Solo &
         # Battle — both call the exact same trigger + fire path.
         if world.shoot_mode:
+            self._fire_attack_pattern(world)
             self._fire_json_actions(world)
 
         # Update homing bullet targets — cursor in solo, nearest enemy in battle.
@@ -438,6 +439,11 @@ class ProjectileSystem(System):
                             f"target=({tx:.0f},{ty:.0f}) "
                             f"spawned={len(new_projs)} "
                             f"types={[type(pr).__name__ for pr in new_projs]}")
+                    elif combat.has_attack_pattern(getattr(fig.mode, "character", None)):
+                        # Has its own attack_pattern.cycle — handled entirely
+                        # by _fire_attack_pattern's independent per-figure
+                        # cadence below; skip here to avoid double-firing.
+                        continue
                     elif battle:
                         # Battle non-runner: per-figure randomised cadence.
                         p = fig.personality
@@ -475,6 +481,53 @@ class ProjectileSystem(System):
                     action_log.log("SHOT_PAUSE",
                         f"{tag}cycle complete after phase {prev_phase} — "
                         f"pause={config.SHOT_CYCLE_PAUSE_TICKS} ticks starting")
+
+    def _fire_attack_pattern(self, world):
+        """Independent per-figure cadence for JSON characters carrying an
+        `attack_pattern` block (see combat.fire_attack_pattern). Each figure
+        tracks its own tick/phase/pause in personality.trigger_state['_pattern']
+        so characters with different cycle lengths/intervals run completely
+        independently of each other and of Runner's own hardcoded cycle.
+        Suppressed while that figure's own ultimate window is active (mirrors
+        runner/swordsman's ultimate-bypass). Identical in Solo & Battle."""
+        battle = bool(world.battle_mode and world.partner_figures)
+        for fig in world.figures:
+            char = getattr(fig.mode, "character", None)
+            if not combat.has_attack_pattern(char) or not fig.mode.can_shoot():
+                continue
+            if fig.personality.ultimate_ticks > 0:
+                continue
+            pattern = char.get("attack_pattern") or {}
+            cycle = pattern.get("cycle") or []
+            st = fig.personality.trigger_state.setdefault(
+                "_pattern", {"tick": 0, "phase": 0, "pause": 0})
+            if st["pause"] > 0:
+                st["pause"] -= 1
+                continue
+            try:
+                interval = max(1, int(pattern.get("interval_ticks",
+                                                    config.SHOOT_INTERVAL)))
+            except (TypeError, ValueError):
+                interval = config.SHOOT_INTERVAL
+            st["tick"] += 1
+            if st["tick"] < interval:
+                continue
+            st["tick"] = 0
+            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+                      else world.cursor)
+            phase_cfg = cycle[st["phase"] % len(cycle)]
+            new_projs = combat.fire_attack_pattern(fig, phase_cfg, tx, ty)
+            world.projectiles.extend(new_projs)
+            _fr, _fg, _fb = fig.lut[128]
+            world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+            action_log.log("SHOT",
+                f"attack_pattern mode={fig.mode.key} "
+                f"fig=({fig.x:.0f},{fig.y:.0f}) phase={st['phase']} "
+                f"style={phase_cfg.get('style')} spawned={len(new_projs)}")
+            st["phase"] += 1
+            if st["phase"] >= len(cycle):
+                st["phase"] = 0
+                st["pause"] = int(pattern.get("cycle_pause_ticks", 0) or 0)
 
     def _fire_json_actions(self, world):
         """attack_special / ultimate for JSON characters: fire whenever that
