@@ -19,6 +19,61 @@ const ACT_DEFS=[
  ['ultimate','Ultimate','on_ult',1],['defend','Block / Dodge','on_parry',0],
  ['special_ability','Special Ability','ambient',0],['impact','Impact (got hit)','on_hit',0]];
 const SAB_PRESETS=['none','shield','heal','clone','time_slow','rage','teleport','dual_defense'];
+// ---- [ATTACK PATTERN] ---- generalizes Runner's hardcoded cone/zigzag/homing
+// shot-cycle (config.SHOT_CONE_ANGLES/SHOT_ZIGZAG_*/SHOT_HOMING_SPEED_MULT,
+// config.SHOOT_INTERVAL, config.SHOT_CYCLE_PAUSE_TICKS) into authorable data.
+// The engine's combat.fire_attack_pattern() is one generic interpreter that
+// reads this block for ANY character — presets below carry Runner's own
+// real numbers, so picking "Runner Cycle" here reproduces Runner's basic
+// attack exactly. When disabled (melee-style characters), attack_normal
+// keeps firing through the existing per-layer battle path instead.
+const ATTACK_PATTERN_PRESETS={
+ runner_cycle:{label:'Runner Cycle (cone \u2192 zigzag \u2192 homing)',interval_ticks:20,cycle_pause_ticks:0,
+  cycle:[{style:'cone',angles_deg:[-45,0,45],speed_mult:1.0},
+         {style:'zigzag',count:1,amplitude:55,frequency:0.18,speed_mult:1.0},
+         {style:'homing',count:1,turn_rate:0.06,speed_mult:0.5}]},
+ single_shot:{label:'Single Shot (straight at target)',interval_ticks:20,cycle_pause_ticks:0,
+  cycle:[{style:'cone',angles_deg:[0],speed_mult:1.0}]},
+ wide_fan:{label:'Wide Fan (5-shot spread)',interval_ticks:25,cycle_pause_ticks:5,
+  cycle:[{style:'cone',angles_deg:[-60,-30,0,30,60],speed_mult:1.0}]},
+ homing_only:{label:'Homing Only',interval_ticks:22,cycle_pause_ticks:4,
+  cycle:[{style:'homing',count:1,turn_rate:0.1,speed_mult:0.6}]}};
+const AP_STYLES=['cone','zigzag','homing','beam'];
+function apDefaultPhase(style){if(style==='zigzag')return{style,count:1,amplitude:55,frequency:0.18,speed_mult:1.0};
+ if(style==='homing')return{style,count:1,turn_rate:0.06,speed_mult:1.0};
+ if(style==='beam')return{style,count:1,speed_mult:1.0};
+ return{style:'cone',angles_deg:[0],speed_mult:1.0}}
+function ensureAttackPattern(){if(!CH.attack_pattern)CH.attack_pattern={enabled:false,mode:'preset',
+ preset:'runner_cycle',damage:1,...ATTACK_PATTERN_PRESETS.runner_cycle};return CH.attack_pattern}
+function apToggle(on){const ap=ensureAttackPattern();ap.enabled=!!on;renderStepUI()}
+function apModeSet(m){ensureAttackPattern().mode=m;renderStepUI()}
+function apPresetSet(k){const ap=ensureAttackPattern(),pr=ATTACK_PATTERN_PRESETS[k];if(!pr)return;
+ ap.preset=k;ap.interval_ticks=pr.interval_ticks;ap.cycle_pause_ticks=pr.cycle_pause_ticks;
+ ap.cycle=JSON.parse(JSON.stringify(pr.cycle));renderStepUI()}
+function apSet(k,v){const ap=ensureAttackPattern();if(k==='damage'||k==='interval_ticks'||k==='cycle_pause_ticks')ap[k]=+v;renderStepUI()}
+function apAddPhase(){ensureAttackPattern().cycle.push(apDefaultPhase('cone'));renderStepUI()}
+function apRemovePhase(i){ensureAttackPattern().cycle.splice(i,1);renderStepUI()}
+function apPhaseStyleSet(i,style){ensureAttackPattern().cycle[i]=apDefaultPhase(style);renderStepUI()}
+function apPhaseSet(i,k,v){const ph=ensureAttackPattern().cycle[i];
+ if(k==='angles_deg')ph.angles_deg=v.split(',').map(s=>+s.trim()).filter(n=>isFinite(n));
+ else ph[k]=+v}
+function apPhaseHtml(ph,i){let h=`<div class="row"><label>Phase ${i+1}</label><div class="v">
+ <select onchange="apPhaseStyleSet(${i},this.value)">${AP_STYLES.map(s=>`<option value="${s}" ${ph.style===s?'selected':''}>${s}</option>`).join('')}</select>
+ <button onclick="apRemovePhase(${i})">Remove</button></div></div>`;
+ if(ph.style==='cone')h+=chRow('&nbsp;&nbsp;angles (deg, comma-sep)',`<input type="text" style="width:160px" value="${(ph.angles_deg||[0]).join(',')}" onchange="apPhaseSet(${i},'angles_deg',this.value)">`);
+ else h+=chRow('&nbsp;&nbsp;count',`<input type="number" min="1" max="12" style="width:60px" value="${ph.count||1}" onchange="apPhaseSet(${i},'count',this.value)">`);
+ if(ph.style==='zigzag')h+=chRow('&nbsp;&nbsp;amplitude / frequency',`<input type="number" step="1" style="width:70px" value="${ph.amplitude}" onchange="apPhaseSet(${i},'amplitude',this.value)"> / <input type="number" step="0.01" style="width:70px" value="${ph.frequency}" onchange="apPhaseSet(${i},'frequency',this.value)">`);
+ if(ph.style==='homing')h+=chRow('&nbsp;&nbsp;turn rate',`<input type="number" step="0.01" min="0.01" max="1" style="width:70px" value="${ph.turn_rate}" onchange="apPhaseSet(${i},'turn_rate',this.value)">`);
+ h+=chRow('&nbsp;&nbsp;speed mult',`<input type="number" step="0.05" min="0.1" max="3" style="width:70px" value="${ph.speed_mult}" onchange="apPhaseSet(${i},'speed_mult',this.value)">`);
+ return h}
+const ATTACK_PATTERN_SEMANTICS={
+ attach:'attack_pattern lives at the top level of the character JSON (sibling of stats/movement).',
+ interpreter:'Read by ONE generic engine function, combat.fire_attack_pattern(), shared by every character — adding a new pattern never requires new Python.',
+ cycle:'A list of phases fired in order on a per-figure timer (interval_ticks). After the last phase, cycle_pause_ticks elapses before phase 0 fires again. Each character\'s cycle runs on its own independent clock.',
+ styles:'cone = N bullets at fixed fan angles from the aim line. zigzag = N bullets weaving side to side (amplitude px, frequency rad/tick). homing = N bullets that steer toward the live target (turn_rate 0..1/tick). beam = N long-tailed fast-fading bolts (ultimate-style).',
+ damage:'attack_pattern.damage is the flat HP this basic attack deals on a landed hit (default 1.0).',
+ disabled:'enabled:false (or an empty cycle) means this character has no ranged cycle at all — its attack_normal fires only through the existing per-FX-layer battle path (melee-style characters like Swordsman use this).',
+ parity:'Identical driver and math in Solo & Battle — see systems.ProjectileSystem._fire_attack_pattern.'};
 // ---- [ACTIVATION TRIGGERS] ---- multi-select trigger conditions for attack_special/ultimate/special_ability.
 // Any enabled trigger fires the action (OR logic). hp_threshold fires once per crossing unless "repeatable" is
 // set, in which case it can refire on its own cooldown_ms. after_on_impact/after_on_hit counters reset to 0 the
@@ -83,6 +138,8 @@ function newChar(){return{_extra:{},name:'new_fighter',display_name:'New Fighter
  bones:{ua:22,fa:20,th:26,sh:24,torso:36},
  weapon:{points:[[14,0],[34,0]],thickness:3,color:'#d8dee9'},
  special_ability:{preset:'none',params:{duration_ms:3000,cooldown_ms:8000,magnitude:25},fx_layers:[]},
+ attack_pattern:{enabled:false,mode:'preset',preset:'runner_cycle',damage:1,
+  ...JSON.parse(JSON.stringify(ATTACK_PATTERN_PRESETS.runner_cycle))},
  actions:{}}}
 function ensureAction(ak){if(CH.actions[ak])return;const d=ACT_DEFS.find(a=>a[0]===ak);let kf;
  if(ak==='defend')kf=CH.defense==='block'?DEF_KF.defend_block():DEF_KF.defend_dodge();
@@ -114,12 +171,14 @@ function wpnClear(){CH.weapon.points=[]}
 // ---- [WIZARD FLOW] ----
 function curActionKey(){return curStep&&curStep.startsWith('act:')?curStep.slice(4):null}
 function wizSteps(){const s=[{k:'setup',n:'Character Setup'},{k:'weapon',n:'Weapon Designer'}];
- ACT_DEFS.forEach(a=>s.push({k:'act:'+a[0],n:a[1]}));
+ ACT_DEFS.forEach(a=>{s.push({k:'act:'+a[0],n:a[1]});
+  if(a[0]==='attack_normal')s.push({k:'attack_pattern',n:'Attack Pattern'})});
  if(CH.special_ability.preset==='dual_defense'){const i=s.findIndex(x=>x.k==='act:special_ability');
   s.splice(i+1,0,{k:'act:defend2',n:'Second Defense ('+(CH.defense==='block'?'Dodge':'Block')+')'})}
  s.push({k:'review',n:'Review & Export'});return s}
 function renderWiz(){const d=$('wsteps');d.innerHTML='';wizSteps().forEach((s,i)=>{
- const done=s.k.startsWith('act:')?!!CH.actions[s.k.slice(4)]:(s.k==='setup'||s.k==='weapon');
+ const done=s.k.startsWith('act:')?!!CH.actions[s.k.slice(4)]:
+  s.k==='attack_pattern'?!!(CH.attack_pattern&&CH.attack_pattern.enabled):(s.k==='setup'||s.k==='weapon');
  const e=document.createElement('div');e.className='wstep'+(s.k===curStep?' cur':'')+(done?' done':'');
  e.textContent=(i+1)+'. '+s.n;e.onclick=()=>gotoStep(s.k);d.appendChild(e)})}
 function saveStep(){if(appMode!=='char'||!CH)return;
@@ -170,6 +229,25 @@ function renderStepUI(){const d=$('stepui');let h='';
   chRow('Thickness',`<input type="range" min="1" max="10" step="0.5" value="${CH.weapon.thickness}" oninput="chSet('weapon.thickness',+this.value);this.nextElementSibling.textContent=this.value"><span class="val">${CH.weapon.thickness}</span>`)+
   chRow('Color',`<input type="color" value="${CH.weapon.color}" oninput="chSet('weapon.color',this.value)">`)+
   chRow('Points',`<span class="val" id="wpc">${CH.weapon.points.length}</span><button onclick="wpnUndo();renderStepUI()">Undo</button><button onclick="wpnClear();renderStepUI()">Clear</button>`)}
+ else if(curStep==='attack_pattern'){const ap=ensureAttackPattern();
+  h=`<h3 style="padding-left:0">${CH.name} — Attack Pattern</h3>
+  <small style="color:#7a8599;display:block;padding:2px 0 8px">Defines this character's ranged basic-attack cycle — one generic engine interpreter reads whatever you set here, the same way it reads Runner's own numbers. Leave disabled for a melee-only character (its Normal Attack fx layers fire instead).</small>`+
+  chRow('Enabled',`<label><input type="checkbox" ${ap.enabled?'checked':''} onchange="apToggle(this.checked)"> This character fires a ranged attack cycle</label>`);
+  if(ap.enabled){
+   h+=chRow('Mode',`<label style="margin-right:10px"><input type="radio" name="apmode" ${ap.mode==='preset'?'checked':''} onchange="apModeSet('preset')"> Preset</label>`+
+    `<label><input type="radio" name="apmode" ${ap.mode==='custom'?'checked':''} onchange="apModeSet('custom')"> Custom</label>`);
+   if(ap.mode==='preset'){
+    h+=chRow('Preset',`<select onchange="apPresetSet(this.value)">${Object.entries(ATTACK_PATTERN_PRESETS).map(([k,p])=>`<option value="${k}" ${ap.preset===k?'selected':''}>${p.label}</option>`).join('')}</select>`)+
+     `<small style="color:#7a8599;display:block;padding:2px 0 8px">Picking a preset loads its exact numbers below — switch to Custom any time to fine-tune them without losing your starting point.</small>`}
+   h+=chRow('Damage',`<input type="number" min="0" step="0.5" value="${ap.damage}" onchange="apSet('damage',this.value)">`)+
+    chRow('Interval (ticks)',`<input type="number" min="1" value="${ap.interval_ticks}" onchange="apSet('interval_ticks',this.value)">`)+
+    chRow('Cycle pause (ticks)',`<input type="number" min="0" value="${ap.cycle_pause_ticks}" onchange="apSet('cycle_pause_ticks',this.value)">`)+
+    `<small style="color:#7a8599;display:block;padding:2px 0 8px">Interval = ticks between each phase firing (Runner = 20). Cycle pause = extra ticks after the LAST phase before phase 1 repeats.</small>`;
+   if(ap.mode==='custom'){
+    ap.cycle.forEach((ph,i)=>h+=apPhaseHtml(ph,i));
+    h+=`<button style="margin-top:6px" onclick="apAddPhase()">+ Add phase</button>`}
+   else{
+    h+=`<div class="row"><label>Phases</label><div class="v">${ap.cycle.map(p=>p.style).join(' \u2192 ')}</div></div>`}}}
  else if(curStep==='act:special_ability'){const sa=CH.special_ability;ensureAction('special_ability');
   h=`<h3 style="padding-left:0">${CH.name} — Special Ability</h3>`+
   chRow('Preset base',`<select onchange="sabSet('preset',this.value)">${SAB_PRESETS.map(p=>`<option ${p===sa.preset?'selected':''}>${p}</option>`).join('')}</select>`)+
@@ -212,16 +290,32 @@ const ACTIVATION_TRIGGER_SEMANTICS={
  radius_proximity:'Fires while the distance to the enemy is between min and max px (a band, not a single threshold).',
  retrigger_cooldown_ms:'Shared minimum time between activations of this action, regardless of which trigger condition fired it. 0 = no extra gating beyond a trigger\'s own rules.',
  parity:'Behaviour is identical in Solo & Battle modes.'};
+// IMPLEMENTATION_NOTES: static map of JSON block -> engine file/function that
+// consumes it, embedded in every export so adding a fighter is "drop this
+// file in characters/ and reload" rather than a source-reading exercise.
+const IMPLEMENTATION_NOTES={
+ pipeline:'laser/characters.py load_all() scans characters/*.json at startup, calls _register() then rasterize_character() for every file with format==pb_character. Both Solo and Battle build their world from the same AssetLibrary, so this is the ONLY registration point — no other file needs a per-character edit for a well-formed v2 file.',
+ file_drop:'Save the exported JSON as characters/<name>.json (name = this file\'s "name" field, lowercase, underscores). No code changes required for stats/movement/archetype/palette/bones/weapon/actions/attack_pattern — the engine already generalizes all of these.',
+ stats_movement_archetype:'laser/characters.py: _register() reads stats/movement/archetype/predicates straight into MODE_CONFIGS + the generated FigureMode subclass. No manual file edits.',
+ actions_rig:'laser/characters.py: rasterize_character() ports every action\'s keyframes through the same joint math as tools/fx/rig.js joints(). No manual file edits.',
+ attack_pattern:'laser/combat.py fire_attack_pattern() + laser/systems.py ProjectileSystem._fire_attack_pattern() are the ONE generic interpreter for this block — already handle any cycle you author here. No manual file edits.',
+ per_layer_battle:'laser/combat.py fire_character_action() reads each can_hit fx_layer\'s battle{damage, defence, attack effects} for attack_normal/attack_special/ultimate/defend. No manual file edits.',
+ activation_triggers:'laser/ai.py evaluate_activation_triggers(), called every tick from laser/systems.py _fire_json_actions(). No manual file edits.',
+ not_yet_generic:'Two blocks are still NOT read by any engine code yet, so authoring them here has no effect until a future engine pass adds their interpreter: a authored melee "combo" chain (Swordsman\'s dash/arc combo system is still hardcoded-only) and a custom "ultimate_playback" shape (only Runner\'s beam and Swordsman\'s crescent ultimates actually play back geometry today — a JSON ultimate\'s activation_triggers will fire but nothing will visually happen beyond its authored fx_layers).',
+ verification:'After dropping the file, launch Solo mode first (fastest load-time feedback), confirm the character appears with correct stats/palette/attack cadence, THEN verify Battle mode reproduces the identical behaviour (parity is automatic by construction, but always confirm).'};
 function buildCharJson(){saveStep();const acts={};for(const k in CH.actions){const a=CH.actions[k];
  (a.fx_layers||[]).forEach(l=>{if(l.can_hit)ensureBattle(l)});
  acts[k]={trigger:a.trigger,duration_ms:a.duration_ms,keyframes:a.keyframes,fx_layers:a.fx_layers,
   activation_triggers:a.activation_triggers||[],retrigger_cooldown_ms:a.retrigger_cooldown_ms||0}}
+ const ap=ensureAttackPattern(),apOut={damage:ap.damage,interval_ticks:ap.interval_ticks,
+  cycle_pause_ticks:ap.cycle_pause_ticks,cycle:ap.enabled?ap.cycle:[]};
  return JSON.stringify({...(CH._extra||{}),format:'pb_character',version:2,name:CH.name,display_name:CH.display_name,description:CH.description,archetype:CH.archetype,predicates:{...CH.predicates},movement:{wander_strength:CH.movement.wander_strength},stats:{...CH.stats},rig:'humanoid_v2',modes:['solo','battle'],
   bones:CH.bones,
   palette:CH.palette,defense:CH.defense,dual_defense:CH.special_ability.preset==='dual_defense',
   weapon:{points:CH.weapon.points,thickness:CH.weapon.thickness,color:CH.weapon.color,anchors:['weapon_mid','weapon_tip']},
-  special_ability:CH.special_ability,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS},null,1)}
-const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics'];
+  special_ability:CH.special_ability,attack_pattern:apOut,actions:acts,target_dummy:dummyExport(),battle_semantics:BATTLE_SEMANTICS,fx_semantics:FX_SEMANTICS,activation_trigger_semantics:ACTIVATION_TRIGGER_SEMANTICS,attack_pattern_semantics:ATTACK_PATTERN_SEMANTICS,
+  implementation_notes:IMPLEMENTATION_NOTES},null,1)}
+const CH_KNOWN=['format','version','name','display_name','description','archetype','predicates','movement','stats','rig','modes','bones','palette','defense','dual_defense','weapon','special_ability','attack_pattern','actions','target_dummy','battle_semantics','fx_semantics','activation_trigger_semantics','attack_pattern_semantics','implementation_notes'];
 function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.palette=o.palette;if(o.bones)CH.bones=o.bones;
  CH.display_name=o.display_name||CH.name;CH.description=o.description||'';
  CH.archetype=o.archetype||((o.weapon&&o.weapon.points&&o.weapon.points.length)?'melee':'shooter');
@@ -232,6 +326,13 @@ function importChar(o){CH=newChar();CH.name=o.name||CH.name;if(o.palette)CH.pale
  for(const k in o){if(!CH_KNOWN.includes(k))CH._extra[k]=o[k]}
  if(o.defense)CH.defense=o.defense;if(o.weapon)CH.weapon={points:o.weapon.points||[],thickness:o.weapon.thickness||3,color:o.weapon.color||'#d8dee9'};
  if(o.special_ability)CH.special_ability=o.special_ability;
+ if(o.attack_pattern){const ip=o.attack_pattern;
+  CH.attack_pattern={enabled:!!(ip.cycle&&ip.cycle.length),mode:'custom',
+   preset:'runner_cycle',damage:isFinite(+ip.damage)?+ip.damage:1,
+   interval_ticks:isFinite(+ip.interval_ticks)?Math.max(1,+ip.interval_ticks):20,
+   cycle_pause_ticks:isFinite(+ip.cycle_pause_ticks)?Math.max(0,+ip.cycle_pause_ticks):0,
+   cycle:Array.isArray(ip.cycle)?ip.cycle.map(ph=>({...apDefaultPhase(ph.style||'cone'),...ph})):[]}}
+ else ensureAttackPattern();
  CH.actions={};for(const k in (o.actions||{})){const a=o.actions[k];fixKF(a.keyframes||[]);
   CH.actions[k]={trigger:a.trigger||'ambient',duration_ms:a.duration_ms||800,keyframes:a.keyframes||DEF_KF.idle(),
    fx_layers:(a.fx_layers||[]).map(l=>{if(l.can_hit)ensureBattle(l);return l}),
