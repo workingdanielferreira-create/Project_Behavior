@@ -208,7 +208,8 @@ class Combatant:
                  "ult_crescents", "ult_crescent_pending",
                  "afterimages", "afterimage_tick",
                  "hitstop_request", "impact_fx_pending",
-                 "petals", "petals_init")
+                 "petals", "petals_init",
+                 "particle_bursts", "pending_bursts")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -274,6 +275,15 @@ class Combatant:
         # `petals` fx_layer config (built-ins have none, so this stays empty).
         self.petals = []
         self.petals_init = False
+        # Character particle-burst FX (see combat.spawn_character_burst_fx /
+        # update_character_bursts): purely cosmetic swarms matching a JSON
+        # character's own 'particles' fx_layers (count/spread/speed/gravity/
+        # size_over_life/color), spawned locally when that action fires.
+        # pending_bursts holds [ticks_remaining, layer, scale, facing] queued
+        # entries (authored delay_ms/trig_delay_ms); particle_bursts holds
+        # the live BurstParticle instances. Never synced over IPC.
+        self.particle_bursts = []
+        self.pending_bursts = []
 
     def reset(self):
         self.__init__()
