@@ -1185,6 +1185,117 @@ def update_petals(fig, world):
         world.enemy_projs = surviving
 
 
+# ---------------------------------------------------------------------------
+# Generic ultimate-playback tuning — Swordsman's crescent-wave ultimate and
+# Runner's beam ultimate are each a real, polished visual system; rather than
+# inventing a third generic shape, ultimate_playback lets ANY character pick
+# one of these two existing playbacks and override its numbers, the same
+# field-by-field-override pattern as combo_cfg. Built-in figures (no
+# .character) always get their own hardcoded defaults unchanged.
+# ---------------------------------------------------------------------------
+_ULTC_DEFAULTS = dict(
+    radius=float(config.ULTC_RADIUS), span=float(config.ULTC_SPAN),
+    speed=float(config.ULTC_SPEED), fade_dist=float(config.ULTC_FADE_DIST),
+    width_outer=float(config.ULTC_WIDTH_OUTER),
+    width_inner=float(config.ULTC_WIDTH_INNER), segs=int(config.ULTC_SEGS),
+    lifetime=int(config.ULTC_LIFETIME),
+    second_delay_ticks=int(config.ULTC_SECOND_DELAY_TICKS),
+    hit_figure_dist=float(config.ULTC_HIT_FIGURE_DIST),
+    cross_angle=float(config.ULTC_CROSS_ANGLE),
+    thresholds=list(config.ULTC_THRESHOLDS),
+)
+_BEAM_DEFAULTS = dict(
+    rows=int(config.BEAM_ROWS), row_spacing=float(config.BEAM_ROW_SPACING),
+    trail_len=int(config.BEAM_TRAIL_LEN), max_age=int(config.BEAM_MAX_AGE),
+    speed_mult=1.0,
+)
+
+
+def ultimate_style(fig):
+    """'crescent' | 'beam' | 'none' for this figure's ultimate playback.
+    Built-ins keep their historical automatic behaviour (Swordsman ->
+    crescent via uses_melee(), Runner -> beam via mode.key == 'runner',
+    both unconditional and untouched by this function). For a JSON
+    character, reads ultimate_playback.style, defaulting to 'crescent' for
+    melee archetypes and 'beam' for shooter archetypes — matching what the
+    HP-threshold triggers in ai.py/systems.py already fire for each kind —
+    so an unconfigured JSON character's ultimate window is never silent."""
+    char = getattr(fig.mode, "character", None)
+    if not char:
+        return "crescent" if fig.mode.uses_melee() else "beam"
+    style = (char.get("ultimate_playback") or {}).get("style")
+    if style in ("crescent", "beam", "none"):
+        return style
+    return "crescent" if fig.mode.uses_melee() else "beam"
+
+
+def ultc_cfg(fig):
+    """Per-figure crescent-ultimate tuning dict — see module comment above."""
+    mode = fig.mode
+    if hasattr(mode, "_ultc_cfg"):
+        return mode._ultc_cfg
+    cc = dict(_ULTC_DEFAULTS)
+    char = getattr(mode, "character", None)
+    if char:
+        raw = char.get("ultimate_playback") or {}
+        for k in cc:
+            if k in raw:
+                try:
+                    cc[k] = (list(raw[k]) if isinstance(cc[k], list)
+                             else type(cc[k])(raw[k]))
+                except (TypeError, ValueError):
+                    pass
+    mode._ultc_cfg = cc
+    return cc
+
+
+def beam_cfg(fig):
+    """Per-figure beam-ultimate tuning dict — see module comment above."""
+    mode = fig.mode
+    if hasattr(mode, "_beam_cfg"):
+        return mode._beam_cfg
+    bc = dict(_BEAM_DEFAULTS)
+    char = getattr(mode, "character", None)
+    if char:
+        raw = char.get("ultimate_playback") or {}
+        for k in bc:
+            if k in raw:
+                try:
+                    bc[k] = type(bc[k])(raw[k])
+                except (TypeError, ValueError):
+                    pass
+    mode._beam_cfg = bc
+    return bc
+
+
+def make_beam_shot_cfg(fig, tx, ty):
+    """Same volley as make_beam_shot, but rows/spacing/trail/age/speed come
+    from beam_cfg(fig) instead of fixed config.BEAM_* constants — lets any
+    'beam'-style character have a different beam feel from Runner's."""
+    bc = beam_cfg(fig)
+    fx, fy = fig.x, fig.y
+    color_rgb = fig.lut[128]
+    dx, dy = tx - fx, ty - fy
+    d = (dx * dx + dy * dy) ** 0.5
+    if d > 0.01:
+        ux, uy = dx / d, dy / d
+    else:
+        ux, uy = 1.0, 0.0
+    px, py = -uy, ux
+    speed = config.PROJ_SPEED * bc['speed_mult']
+    out = []
+    rows = max(1, bc['rows'])
+    half = (rows - 1) / 2.0
+    for i in range(rows):
+        off = (i - half) * bc['row_spacing']
+        pr = Projectile(fx + px * off, fy + py * off,
+                        ux * speed, uy * speed, color_rgb, bc['trail_len'])
+        pr.style = "beam"
+        pr.max_age = bc['max_age']
+        out.append(pr)
+    return out
+
+
 class UltimateCrescent:
     """A large crescent blade that travels forward at ~100 px/s.
 
@@ -1200,9 +1311,11 @@ class UltimateCrescent:
     """
 
     __slots__ = ("x", "y", "dir_x", "dir_y", "age", "dist_travelled",
-                 "centre_angle_deg", "reveal_t")
+                 "centre_angle_deg", "reveal_t", "cfg")
 
-    def __init__(self, fig_x, fig_y, target_x, target_y, cross_angle_deg=0.0):
+    def __init__(self, fig_x, fig_y, target_x, target_y, cross_angle_deg=0.0,
+                 cfg=None):
+        self.cfg = cfg if cfg is not None else _ULTC_DEFAULTS
         dx, dy = target_x - fig_x, target_y - fig_y
         dist = (dx * dx + dy * dy) ** 0.5
         if dist > 0.001:
@@ -1212,8 +1325,8 @@ class UltimateCrescent:
 
         # Spawn ULTC_RADIUS behind the swordsman so the front edge of the arc
         # (facing the travel direction) sits on the figure at launch.
-        self.x = float(fig_x) - self.dir_x * config.ULTC_RADIUS
-        self.y = float(fig_y) - self.dir_y * config.ULTC_RADIUS
+        self.x = float(fig_x) - self.dir_x * self.cfg['radius']
+        self.y = float(fig_y) - self.dir_y * self.cfg['radius']
         self.age = 0
         self.dist_travelled = 0.0
 
@@ -1227,50 +1340,50 @@ class UltimateCrescent:
 
     @property
     def alive(self):
-        return self.age < config.ULTC_LIFETIME
+        return self.age < self.cfg['lifetime']
 
     def update(self):
-        self.x += self.dir_x * config.ULTC_SPEED
-        self.y += self.dir_y * config.ULTC_SPEED
-        self.dist_travelled += config.ULTC_SPEED
+        self.x += self.dir_x * self.cfg['speed']
+        self.y += self.dir_y * self.cfg['speed']
+        self.dist_travelled += self.cfg['speed']
         self.age += 1
         if self.reveal_t < 1.0:
             self.reveal_t = min(1.0, self.reveal_t + 0.1)
 
     def check_bullet_erase(self, bx, by):
         """True if bullet (bx, by) lies within the blade's arc band."""
-        r = config.ULTC_RADIUS
-        margin = config.ULTC_WIDTH_OUTER * 0.5 + 10.0
+        r = self.cfg['radius']
+        margin = self.cfg['width_outer'] * 0.5 + 10.0
         ddx, ddy = bx - self.x, by - self.y
         d = (ddx * ddx + ddy * ddy) ** 0.5
         if d < 0.001 or not (r - margin <= d <= r + margin):
             return False
         diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
-        return abs(diff) <= config.ULTC_SPAN / 2.0
+        return abs(diff) <= self.cfg['span'] / 2.0
 
     def check_figure_hit(self, fx, fy):
         """True if figure (fx, fy) is within the blade's damage band."""
-        r = config.ULTC_RADIUS
-        margin = config.ULTC_HIT_FIGURE_DIST
+        r = self.cfg['radius']
+        margin = self.cfg['hit_figure_dist']
         ddx, ddy = fx - self.x, fy - self.y
         d = (ddx * ddx + ddy * ddy) ** 0.5
         if d < 0.001 or not (r - margin <= d <= r + margin):
             return False
         diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
-        return abs(diff) <= config.ULTC_SPAN / 2.0
+        return abs(diff) <= self.cfg['span'] / 2.0
 
     def draw(self, p, pen):
         """Draw the blade: dark filled body + bright blue rim, with reveal/fade."""
         if not self.alive:
             return
 
-        r = config.ULTC_RADIUS
-        half_span = config.ULTC_SPAN / 2.0
-        segs = config.ULTC_SEGS
+        r = self.cfg['radius']
+        half_span = self.cfg['span'] / 2.0
+        segs = self.cfg['segs']
 
         # Fade: after ULTC_FADE_DIST px fades linearly over 200 px more
-        if self.dist_travelled > config.ULTC_FADE_DIST:
-            excess = self.dist_travelled - config.ULTC_FADE_DIST
+        if self.dist_travelled > self.cfg['fade_dist']:
+            excess = self.dist_travelled - self.cfg['fade_dist']
             fade_alpha = max(0.0, 1.0 - excess / 200.0)
         else:
             fade_alpha = 1.0
@@ -1280,7 +1393,7 @@ class UltimateCrescent:
 
         # centre_angle_deg already includes the cross rotation set at init.
         start_deg = self.centre_angle_deg - half_span
-        step = config.ULTC_SPAN / segs
+        step = self.cfg['span'] / segs
         rect_x, rect_y = self.x - r, self.y - r
         diam = r * 2
 
@@ -1288,8 +1401,8 @@ class UltimateCrescent:
         reveal_segs = int(self.reveal_t * segs)
 
         # Fade bottom-to-top: higher-index segments (lower on screen) fade first
-        if self.dist_travelled > config.ULTC_FADE_DIST:
-            excess = self.dist_travelled - config.ULTC_FADE_DIST
+        if self.dist_travelled > self.cfg['fade_dist']:
+            excess = self.dist_travelled - self.cfg['fade_dist']
             fade_segs_from_bottom = int((excess / 200.0) * segs)
         else:
             fade_segs_from_bottom = 0
@@ -1311,7 +1424,7 @@ class UltimateCrescent:
             a0 = start_deg + i * step
 
             # Pass 1: dark body
-            body_w = config.ULTC_WIDTH_OUTER * (0.4 + 0.6 * taper)
+            body_w = self.cfg['width_outer'] * (0.4 + 0.6 * taper)
             pen.setWidthF(body_w)
             pen.setColor(QColor(8, 8, 12, int(215 * fade_alpha)))
             p.setPen(pen)
@@ -1321,9 +1434,9 @@ class UltimateCrescent:
             p.drawPath(path)
 
             # Pass 2: bright blue rim offset outward
-            rim_off = config.ULTC_WIDTH_OUTER * 0.3
+            rim_off = self.cfg['width_outer'] * 0.3
             rr = r + rim_off
-            rim_w = config.ULTC_WIDTH_INNER * (0.3 + 0.7 * taper)
+            rim_w = self.cfg['width_inner'] * (0.3 + 0.7 * taper)
             pen.setWidthF(rim_w)
             pen.setColor(QColor(30, 120, 200, int(220 * fade_alpha)))
             p.setPen(pen)
@@ -1337,17 +1450,18 @@ class UltimateCrescent:
 
 def fire_sword_ultimate(fig, target_x, target_y):
     """Spawn blade 1 (+cross angle) at the target; arm blade 2 (-cross angle)
-    to fire ULTC_SECOND_DELAY_TICKS later.  Both travel in the same forward
+    to fire second_delay_ticks later.  Both travel in the same forward
     direction but their arcs are rotated ± so the tips cross like an X."""
     c = fig.combat
-    ca = config.ULTC_CROSS_ANGLE
-    # Blade 1: rotated +ULTC_CROSS_ANGLE
+    cfg = ultc_cfg(fig)
+    ca = cfg['cross_angle']
+    # Blade 1: rotated +cross_angle
     uc1 = UltimateCrescent(fig.x, fig.y, target_x, target_y,
-                           cross_angle_deg=+ca)
+                           cross_angle_deg=+ca, cfg=cfg)
     c.ult_crescents.append(uc1)
     c.hitstop_request = True   # ultimate launch = big hit -> world freeze
     # Store target for the delayed 2nd blade
-    c.ult_crescent_pending = config.ULTC_SECOND_DELAY_TICKS
+    c.ult_crescent_pending = cfg['second_delay_ticks']
     # Stash target so tick_ult_crescents can use it (reuse arc_center fields)
     c.arc_center_x = float(target_x)
     c.arc_center_y = float(target_y)
@@ -1357,14 +1471,15 @@ def tick_ult_crescents(fig, target_x, target_y):
     """Advance ult_crescents list and fire the delayed 2nd shot when due.
     Called from advance_combat every tick for melee figures."""
     c = fig.combat
+    cfg = ultc_cfg(fig)
     # Tick the 2nd-shot delay counter; use stored arc_center as fixed target
     if c.ult_crescent_pending > 0:
         c.ult_crescent_pending -= 1
         if c.ult_crescent_pending == 0:
-            ca = config.ULTC_CROSS_ANGLE
+            ca = cfg['cross_angle']
             tx2, ty2 = c.arc_center_x, c.arc_center_y
             uc2 = UltimateCrescent(fig.x, fig.y, tx2, ty2,
-                                   cross_angle_deg=-ca)
+                                   cross_angle_deg=-ca, cfg=cfg)
             c.ult_crescents.append(uc2)
     # Advance + cull
     if c.ult_crescents:
