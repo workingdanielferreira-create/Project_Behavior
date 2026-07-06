@@ -151,14 +151,18 @@ def apply_hp_damage(fig, world, amount=1):
         p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
         # Arm the first teleport immediately (fires on the very next tick).
         p.teleport_ticks = 0
-    # Trigger swordsman ultimate at each of the ULTC_THRESHOLDS (70%, 50%, 30%).
-    # Each threshold fires exactly once per life.
-    if fig.mode.uses_melee():
+    # Trigger the crescent ultimate at each of this figure's own thresholds
+    # (config.ULTC_THRESHOLDS for Swordsman; a JSON character's own
+    # ultimate_playback.thresholds if it set one). Each threshold fires
+    # exactly once per life. Only figures whose ultimate_style is 'crescent'
+    # get this trigger — a JSON melee character can opt into 'beam' or
+    # 'none' instead via ultimate_playback.style.
+    if fig.mode.uses_melee() and _combat.ultimate_style(fig) == "crescent":
         if world.battle_mode and world.partner_figures:
             tx, ty = world._nearest_enemy(fig.x, fig.y)
         else:
             tx, ty = world.cursor
-        for thresh in config.ULTC_THRESHOLDS:
+        for thresh in _combat.ultc_cfg(fig)['thresholds']:
             if thresh not in p.sword_ult_fired_thresholds:
                 threshold_hp = int(p.max_hp * thresh)
                 if p.hp <= threshold_hp:
