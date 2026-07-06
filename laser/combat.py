@@ -486,6 +486,106 @@ def make_runner_cycle_shot(fx, fy, cx, cy, color_rgb, phase):
 
 
 # ---------------------------------------------------------------------------
+# Generic attack-pattern interpreter — reads a character's own
+# `attack_pattern.cycle[phase]` block (see characters/*.json + FX Creator's
+# attack-pattern step) and produces Projectiles using the SAME math as
+# make_runner_cycle_shot above, except every number (style, count, angles,
+# amplitude, frequency, speed_mult, turn_rate) comes from JSON instead of
+# config.SHOT_* constants. Feeding this Runner's own numbers reproduces
+# Runner's cycle exactly (see the "runner_cycle" wizard preset) — this
+# function is a superset, not a replacement, of make_runner_cycle_shot.
+# Damage comes from attack_pattern.damage (default 1.0). Identical call site
+# and math in Solo & Battle (see systems.ProjectileSystem._fire_attack_pattern).
+# ---------------------------------------------------------------------------
+def has_attack_pattern(char):
+    """True if this JSON character authors a non-empty attack_pattern.cycle."""
+    if not char:
+        return False
+    return bool((char.get("attack_pattern") or {}).get("cycle"))
+
+
+def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
+    """Return the Projectiles for one phase of a JSON character's
+    attack_pattern.cycle. `phase_cfg` is cycle[<phase index>]:
+      style        : "cone" | "zigzag" | "homing" | "beam"   (default "cone")
+      count        : bullets this phase spawns                (default 1)
+      angles_deg   : list of fan offsets, cone style only      (default [0.0])
+      amplitude    : zigzag lateral swing in px                (default 55.0)
+      frequency    : zigzag weave rate, radians/tick            (default 0.18)
+      turn_rate    : homing steer-per-tick, 0..1                (default 0.06)
+      speed_mult   : multiplies config.PROJ_SPEED                (default 1.0)
+    """
+    dx, dy = target_x - fig.x, target_y - fig.y
+    d = (dx * dx + dy * dy) ** 0.5
+    base_deg = math.degrees(math.atan2(dy, dx)) if d > 0.01 else 0.0
+    tl = config.PROJ_TRAIL_LEN
+    cr = fig.lut[128]
+    char = getattr(fig.mode, "character", None) or {}
+    try:
+        damage = float((char.get("attack_pattern") or {}).get("damage", 1.0))
+    except (TypeError, ValueError):
+        damage = 1.0
+
+    style = str(phase_cfg.get("style", "cone"))
+    try:
+        speed = config.PROJ_SPEED * float(phase_cfg.get("speed_mult", 1.0))
+    except (TypeError, ValueError):
+        speed = config.PROJ_SPEED
+    out = []
+
+    if style == "cone":
+        angles = phase_cfg.get("angles_deg") or [0.0]
+        for off in angles:
+            try:
+                off = float(off)
+            except (TypeError, ValueError):
+                off = 0.0
+            a = math.radians(base_deg + off)
+            vx, vy = math.cos(a) * speed, math.sin(a) * speed
+            pr = Projectile(fig.x, fig.y, vx, vy, cr, tl)
+            pr.style, pr.damage = "cone", damage
+            out.append(pr)
+
+    elif style == "zigzag":
+        count = max(1, int(phase_cfg.get("count", 1) or 1))
+        amp = float(phase_cfg.get("amplitude", config.SHOT_ZIGZAG_AMPLITUDE))
+        freq = float(phase_cfg.get("frequency", config.SHOT_ZIGZAG_FREQUENCY))
+        base_rad = math.radians(base_deg)
+        vx, vy = math.cos(base_rad) * speed, math.sin(base_rad) * speed
+        for i in range(count):
+            sign = 1.0 if i % 2 == 0 else -1.0
+            pr = ZigzagProjectile(fig.x, fig.y, vx, vy, cr, tl,
+                                  amplitude=amp * sign, frequency=freq,
+                                  phase_offset=0.0)
+            pr.style, pr.damage = "zigzag", damage
+            out.append(pr)
+
+    elif style == "homing":
+        count = max(1, int(phase_cfg.get("count", 1) or 1))
+        turn_rate = float(phase_cfg.get("turn_rate", 0.06))
+        base_rad = math.radians(base_deg)
+        vx, vy = math.cos(base_rad) * speed, math.sin(base_rad) * speed
+        target_ref = [float(target_x), float(target_y)]
+        for _ in range(count):
+            pr = HomingProjectile(fig.x, fig.y, vx, vy, cr, tl,
+                                  target=target_ref, turn_rate=turn_rate)
+            pr.style, pr.damage = "homing", damage
+            out.append(pr)
+
+    elif style == "beam":
+        count = max(1, int(phase_cfg.get("count", 1) or 1))
+        base_rad = math.radians(base_deg)
+        vx, vy = math.cos(base_rad) * speed, math.sin(base_rad) * speed
+        for _ in range(count):
+            pr = Projectile(fig.x, fig.y, vx, vy, cr, config.BEAM_TRAIL_LEN)
+            pr.max_age = config.BEAM_MAX_AGE
+            pr.style, pr.damage = "beam", damage
+            out.append(pr)
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Generic JSON-character attacks — turns a character's own can_hit fx_layers
 # (attack_normal / attack_special / ultimate — see battle_semantics.attach in
 # the character JSON) into real Projectiles carrying that layer's own
