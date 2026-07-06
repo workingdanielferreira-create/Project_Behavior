@@ -159,3 +159,7 @@ class Figure:
             for uc in self.combat.ult_crescents:
                 uc.draw(p, upen)
 
+        if self.combat.petals:
+            for pt in self.combat.petals:
+                pt.draw(p)
+
