@@ -1,0 +1,1338 @@
+{
+ "format": "pb_character",
+ "version": 2,
+ "name": "new_fighter",
+ "display_name": "New Fighter",
+ "description": "",
+ "archetype": "melee",
+ "predicates": {
+  "can_shoot": false,
+  "uses_melee": true,
+  "retreats": false,
+  "charges_full": true
+ },
+ "movement": {
+  "wander_strength": 0.15
+ },
+ "stats": {
+  "max_hp": 100,
+  "chase_speed": 5.2,
+  "follow_speed": 5.3,
+  "scale": 0.5,
+  "basic_attack_radius": 95
+ },
+ "rig": "humanoid_v2",
+ "modes": [
+  "solo",
+  "battle"
+ ],
+ "bones": {
+  "ua": 22,
+  "fa": 20,
+  "th": 26,
+  "sh": 24,
+  "torso": 20
+ },
+ "palette": {
+  "body": "#8fa0b8",
+  "accent": "#ff5050"
+ },
+ "defense": "block",
+ "dual_defense": false,
+ "weapon": {
+  "points": [],
+  "thickness": 3,
+  "color": "#d8dee9",
+  "anchors": [
+   "weapon_mid",
+   "weapon_tip"
+  ]
+ },
+ "special_ability": {
+  "preset": "none",
+  "params": {
+   "duration_ms": 3000,
+   "cooldown_ms": 8000,
+   "magnitude": 25
+  },
+  "fx_layers": []
+ },
+ "attack_pattern": {
+  "damage": 1,
+  "interval_ticks": 20,
+  "cycle_pause_ticks": 0,
+  "cycle": []
+ },
+ "combo": {
+  "max_hits": 2,
+  "cooldown_ticks": 90,
+  "followup_lock_ticks": 16,
+  "dash_speed_mult": 7,
+  "hit_radius": 26,
+  "arc_orbit_angle_deg": 170,
+  "arc_approach_sweep_deg": 150,
+  "arc_recoil_px": 16,
+  "arc_recoil_ticks": 18,
+  "arc_repo_ticks": 30,
+  "arc_approach_ticks": 32,
+  "combo_travel_ticks_min": 6,
+  "combo_travel_ticks_max": 44
+ },
+ "ultimate_playback": {
+  "style": "crescent",
+  "radius": 100,
+  "span": 150,
+  "speed": 25,
+  "fade_dist": 1000,
+  "width_outer": 28,
+  "width_inner": 6,
+  "segs": 32,
+  "lifetime": 600,
+  "second_delay_ticks": 1,
+  "hit_figure_dist": 40,
+  "cross_angle": 45,
+  "thresholds": [
+   0.7,
+   0.5,
+   0.3
+  ]
+ },
+ "actions": {
+  "idle": {
+   "trigger": "ambient",
+   "duration_ms": 500,
+   "keyframes": [
+    {
+     "t": 0.003,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.481,
+     "p": {
+      "rx": 3.273737760570839,
+      "ry": 6.443152225874314,
+      "sp": 2.2025981617653607,
+      "sp2": -3.3078309351841977,
+      "hd": 3.1665234764265686,
+      "lsht": -49.35668725526557,
+      "rsht": 69.26981974059763,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 15.867183657784302,
+      "lfa": -21.69565218903579,
+      "rua": -30.93127567242019,
+      "rfa": -153.9479642560414,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.71,
+      "ruas": 0.515,
+      "rfas": 0.619,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": false,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "run": {
+   "trigger": "ambient",
+   "duration_ms": 900,
+   "keyframes": [
+    {
+     "t": 0.54,
+     "p": {
+      "rx": 4.559699543574993,
+      "ry": 6.44315222587386,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": 2.189888248785538,
+      "lsht": -73.77007503583542,
+      "rsht": 82.60131583891189,
+      "lpvt": -68.40468955103188,
+      "rpvt": 74.05460409907887,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": 33.0526445434596,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -64.52209048782865,
+      "rsh": 92.19098836495213,
+      "wp": -14.908276317280867,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 1.17,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.573,
+      "rshs": 0.709
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "attack_normal": {
+   "trigger": "on_hit",
+   "duration_ms": 400,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 34.43929959185266,
+      "ry": 8.553400324830022,
+      "sp": 12.99461679191612,
+      "sp2": 16.951169219601507,
+      "hd": 18.276843430930917,
+      "lsht": -11.559263624847885,
+      "rsht": -47.056561273841446,
+      "lpvt": -57.771242564901975,
+      "rpvt": 46.16913932790785,
+      "lua": 57.104350225638086,
+      "lfa": -164.33000657468838,
+      "rua": -56.021547022922356,
+      "rfa": 135.44022481096818,
+      "lth": 49.39019447241576,
+      "lsh": -5.7247444004452746,
+      "rth": -50.04290499885496,
+      "rsh": 34.50557661913773,
+      "wp": -7.03253276010421,
+      "luas": 0.701,
+      "lfas": 0.5,
+      "ruas": 0.5,
+      "rfas": 0.5,
+      "lths": 0.647,
+      "lshs": 1.15,
+      "rths": 0.633,
+      "rshs": 1.061
+     }
+    },
+    {
+     "t": 0.396,
+     "p": {
+      "rx": 42.15886206821585,
+      "ry": 7.418170548894295,
+      "sp": 19.290046219189044,
+      "sp2": 16.951169219601507,
+      "hd": 3.154214572401866,
+      "lsht": 139.46974941517124,
+      "rsht": 141.0159939793892,
+      "lpvt": -65.3231368296633,
+      "rpvt": 47.290610042638214,
+      "lua": -123.40725016180697,
+      "lfa": -21.269131751304567,
+      "rua": -179.78704170149058,
+      "rfa": 37.53556968913158,
+      "lth": 28.482897860699154,
+      "lsh": 23.028610239047275,
+      "rth": -33.70764437263784,
+      "rsh": 27.924989313508796,
+      "wp": -52.61033568766984,
+      "luas": 0.776,
+      "lfas": 0.682,
+      "ruas": 0.5,
+      "rfas": 0.5,
+      "lths": 0.536,
+      "lshs": 0.943,
+      "rths": 0.662,
+      "rshs": 0.942
+     }
+    },
+    {
+     "t": 0.791,
+     "p": {
+      "rx": 42.15886206821585,
+      "ry": 7.418170548894295,
+      "sp": 19.290046219189044,
+      "sp2": 16.951169219601507,
+      "hd": 34.1826988023465,
+      "lsht": -83.47096680756579,
+      "rsht": -57.51064300165084,
+      "lpvt": -65.3231368296633,
+      "rpvt": 47.290610042638214,
+      "lua": -34.98977831669022,
+      "lfa": -114.75756793392239,
+      "rua": -130.09672621670248,
+      "rfa": 1.0766247721639333,
+      "lth": 32.56978630242966,
+      "lsh": 23.028610239047275,
+      "rth": -33.70764437263784,
+      "rsh": 27.924989313508796,
+      "wp": -52.61033568766984,
+      "luas": 0.5,
+      "lfas": 0.624,
+      "ruas": 0.665,
+      "rfas": 1.17,
+      "lths": 0.508,
+      "lshs": 0.943,
+      "rths": 0.662,
+      "rshs": 0.942
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 34.43929959185266,
+      "ry": 8.553400324830022,
+      "sp": 12.99461679191612,
+      "sp2": 16.951169219601507,
+      "hd": 18.276843430930917,
+      "lsht": -11.559263624847885,
+      "rsht": -47.056561273841446,
+      "lpvt": -57.771242564901975,
+      "rpvt": 46.16913932790785,
+      "lua": 57.104350225638086,
+      "lfa": -164.33000657468838,
+      "rua": -56.021547022922356,
+      "rfa": 135.44022481096818,
+      "lth": 49.39019447241576,
+      "lsh": -5.7247444004452746,
+      "rth": -50.04290499885496,
+      "rsh": 34.50557661913773,
+      "wp": -7.03253276010421,
+      "luas": 0.701,
+      "lfas": 0.5,
+      "ruas": 0.5,
+      "rfas": 0.5,
+      "lths": 0.647,
+      "lshs": 1.15,
+      "rths": 0.633,
+      "rshs": 1.061
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "trail",
+     "px": 0,
+     "py": 0,
+     "prot": 0,
+     "anchor": "r_hand",
+     "emit_rate": 90,
+     "size_min": 3,
+     "size_max": 7,
+     "life_min": 200,
+     "life_max": 420,
+     "c1": "#40c0ff",
+     "c2": "#a0f0ff",
+     "glow": 10,
+     "blend": "additive",
+     "line": true,
+     "delay_ms": 0,
+     "drag": 0.9,
+     "speed_min": 0,
+     "speed_max": 30,
+     "spread_deg": 78,
+     "size_over_life": "shrink",
+     "shape": "spark",
+     "trig": "immediate",
+     "trig_ref": "",
+     "trig_delay_ms": 0,
+     "can_hit": true,
+     "_id": "L5",
+     "battle": {
+      "damage": 10,
+      "attack": {
+       "explode": false,
+       "scatter": true,
+       "pierce": false,
+       "slash": false
+      },
+      "defence": "none"
+     }
+    },
+    {
+     "type": "trail",
+     "px": 0,
+     "py": 0,
+     "prot": 0,
+     "anchor": "l_hand",
+     "emit_rate": 15,
+     "size_min": 3,
+     "size_max": 7,
+     "life_min": 200,
+     "life_max": 420,
+     "c1": "#ff4271",
+     "c2": "#ad0000",
+     "glow": 10,
+     "blend": "normal",
+     "line": true,
+     "delay_ms": 0,
+     "drag": 0.59,
+     "speed_min": 0,
+     "speed_max": 35,
+     "spread_deg": 89,
+     "size_over_life": "grow",
+     "shape": "spark",
+     "trig": "immediate",
+     "trig_ref": "",
+     "trig_delay_ms": 0,
+     "can_hit": true,
+     "_id": "L6",
+     "battle": {
+      "damage": 10,
+      "attack": {
+       "explode": false,
+       "scatter": false,
+       "pierce": true,
+       "slash": false
+      },
+      "defence": "none"
+     }
+    },
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "attack_special": {
+   "trigger": "on_hit",
+   "duration_ms": 800,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.45,
+     "p": {
+      "rx": 30,
+      "ry": 0,
+      "sp": 16,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": 40,
+      "rfa": 30,
+      "lth": 30,
+      "lsh": 5,
+      "rth": -35,
+      "rsh": -5,
+      "wp": 40,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 0.7,
+     "p": {
+      "rx": 45,
+      "ry": 0,
+      "sp": 8,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": 20,
+      "rfa": 15,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": 20,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": 0,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "ultimate": {
+   "trigger": "on_ult",
+   "duration_ms": 800,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.25,
+     "p": {
+      "rx": 0,
+      "ry": -6,
+      "sp": -8,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -40,
+      "lfa": 5,
+      "rua": -170,
+      "rfa": -10,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -80,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 0.7,
+     "p": {
+      "rx": 0,
+      "ry": -10,
+      "sp": -8,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -40,
+      "lfa": 5,
+      "rua": -170,
+      "rfa": -10,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -80,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": 0,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "petals",
+     "px": 4.2,
+     "py": 34.6,
+     "prot": 0,
+     "anchor": "point",
+     "follow": true,
+     "count": 3,
+     "hover_radius": 46,
+     "orbit_speed_deg": 70,
+     "size_min": 5,
+     "size_max": 8,
+     "detect_range": 150,
+     "approach_speed": 320,
+     "cooldown_ms": 2500,
+     "c1": "#ffb0d8",
+     "c2": "#ff4d94",
+     "glow": 12,
+     "blend": "additive",
+     "delay_ms": 0,
+     "trig": "ambient",
+     "trig_ref": "",
+     "trig_delay_ms": 0,
+     "_id": "L7",
+     "can_hit": false
+    },
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "defend": {
+   "trigger": "on_parry",
+   "duration_ms": 800,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.2,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": -4,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -30,
+      "lfa": 5,
+      "rua": -120,
+      "rfa": -60,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -90,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 0.8,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": -4,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -30,
+      "lfa": 5,
+      "rua": -120,
+      "rfa": -60,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -90,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": 0,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "special_ability": {
+   "trigger": "ambient",
+   "duration_ms": 800,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.3,
+     "p": {
+      "rx": 0,
+      "ry": -4,
+      "sp": -6,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -140,
+      "lfa": -20,
+      "rua": -140,
+      "rfa": -20,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 0.75,
+     "p": {
+      "rx": 0,
+      "ry": -8,
+      "sp": -6,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -150,
+      "lfa": -25,
+      "rua": -150,
+      "rfa": -25,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": 0,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  },
+  "impact": {
+   "trigger": "on_hit",
+   "duration_ms": 800,
+   "keyframes": [
+    {
+     "t": 0,
+     "p": {
+      "rx": 2.813288544105035,
+      "ry": 6.450992913588266,
+      "sp": 0,
+      "sp2": 4.183535806553455,
+      "hd": -10.437955778398372,
+      "lsht": -56.95976110658478,
+      "rsht": 67.6816832323121,
+      "lpvt": -73.30075576600638,
+      "rpvt": 62.24145939893989,
+      "lua": 11.89741337736085,
+      "lfa": -17.813118264580623,
+      "rua": -34.648939581898674,
+      "rfa": -156.38706425961345,
+      "lth": 7.520378575779716,
+      "lsh": 2.854165150486336,
+      "rth": -8.209241074473107,
+      "rsh": 4.889416856658747,
+      "wp": -7.03253276010421,
+      "luas": 0.5,
+      "lfas": 0.712,
+      "ruas": 0.501,
+      "rfas": 0.5,
+      "lths": 0.62,
+      "lshs": 0.759,
+      "rths": 0.572,
+      "rshs": 0.727
+     }
+    },
+    {
+     "t": 0.15,
+     "p": {
+      "rx": 14,
+      "ry": 4,
+      "sp": 14,
+      "sp2": 0,
+      "hd": 12,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": -25,
+      "lfa": 5,
+      "rua": 15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 0.5,
+     "p": {
+      "rx": 8,
+      "ry": 0,
+      "sp": 8,
+      "sp2": 0,
+      "hd": 6,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    },
+    {
+     "t": 1,
+     "p": {
+      "rx": 0,
+      "ry": 0,
+      "sp": 0,
+      "sp2": 0,
+      "hd": 0,
+      "lsht": 0,
+      "rsht": 0,
+      "lpvt": 0,
+      "rpvt": 0,
+      "lua": 15,
+      "lfa": 5,
+      "rua": -15,
+      "rfa": -5,
+      "lth": 8,
+      "lsh": 5,
+      "rth": -8,
+      "rsh": -5,
+      "wp": -45,
+      "luas": 1,
+      "lfas": 1,
+      "ruas": 1,
+      "rfas": 1,
+      "lths": 1,
+      "lshs": 1,
+      "rths": 1,
+      "rshs": 1
+     }
+    }
+   ],
+   "fx_layers": [
+    {
+     "type": "figure",
+     "visible": true,
+     "opacity": 1
+    },
+    {
+     "type": "weapon",
+     "visible": true,
+     "opacity": 1
+    }
+   ],
+   "activation_triggers": [],
+   "retrigger_cooldown_ms": 0
+  }
+ },
+ "target_dummy": {
+  "enabled": true,
+  "offset_from_figure": [
+   100.4,
+   1
+  ],
+  "width": 34,
+  "height": 100,
+  "hitbox_zones": {
+   "head": [
+    0,
+    0.22
+   ],
+   "torso": [
+    0.22,
+    0.6
+   ],
+   "legs": [
+    0.6,
+    1
+   ]
+  },
+  "impact_anchors": [
+   "dummy_head",
+   "dummy_torso",
+   "dummy_legs"
+  ],
+  "note": "Zone bounds are fractions of dummy height from top. Offset is from figure root. Applies identically in Solo & Battle."
+ },
+ "battle_semantics": {
+  "attach": "Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).",
+  "trigger": "Both categories fire at the moment a can_hit FX contacts a target.",
+  "damage": "Each hitting FX layer deals its own damage value (0-100).",
+  "attack": {
+   "stacking": "Attack properties stack freely on one layer.",
+   "explode": "Visual only: particles spawn around the target at max size, grow, then fade away.",
+   "scatter": "Visual only: sparks fly in a line in the same direction the attack was travelling when it hit.",
+   "pierce": "Visual only: sparks fly back out toward the direction the target was hit from.",
+   "slash": "Visual only: a crescent sweeps across the point of impact."
+  },
+  "defence": {
+   "exclusive": "Deflect and Block are mutually exclusive per FX layer.",
+   "deflect": "A crescent strikes the incoming can_hit FX; that FX is knocked perpendicular to its travel direction, auto up/down picking whichever side points away from the defender body; HP damage is voided.",
+   "block": "A ring erases the incoming can_hit FX; HP damage taken is reduced by 50%."
+  },
+  "parity": "Behaviour is identical in Solo & Battle modes."
+ },
+ "fx_semantics": {
+  "battle_fx_placement": "All battle FX (explode/scatter/pierce/slash and deflect/block visuals) spawn at the FIRST OVERLAP POINT between the hitting FX and the target — the point of collision — not at the FX origin. Identical in Solo & Battle.",
+  "homing": "Homing (particles, crescent, beam): the FX steers toward the target every tick until first contact; if can_hit, that contact triggers hit/battle FX at the collision point. The FX no longer disappears on contact — by default it freezes its last heading and coasts straight for the rest of its life. Enable \"Keep homing + multi-hit after contact\" to keep tracking the target and register additional hits, spaced at least Re-hit interval ms apart, until its lifetime runs out. Particles keep their own speed; crescents travel at homing_speed px/s; beams re-aim their direction at the target. Identical in Solo & Battle.",
+  "beam_travel": "travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.",
+  "beam_width": "Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.",
+  "travel_forward": "travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight — independent of the older Homing property. Identical in Solo & Battle.",
+  "petals": "Petals: a handful of single particles that hover in a slow orbit (hover_radius px, orbit_speed_deg °/s) around the character. When an incoming enemy can_hit FX comes within detect_range px, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it, attempting to collide with it to protect the character. On a successful interception the incoming FX is negated and that petal is consumed, respawning after cooldown_ms. This interception logic runs against real enemy FX in the game runtime (Solo & Battle identically); this editor previews the idle hover only, since no real incoming attack exists in the standalone preview."
+ },
+ "activation_trigger_semantics": {
+  "attach": "activation_triggers + retrigger_cooldown_ms live per action (currently authored for attack_special, ultimate, special_ability).",
+  "logic": "Any combination of trigger types may be enabled at once; the action fires the moment ANY one of them is true (OR logic).",
+  "hp_threshold": "Fires when HP first drops to/at or below pct. If repeatable=false (default) it fires once per crossing, like the existing hardcoded swordsman/runner ultimates. If repeatable=true it can refire any time HP is at/below pct again, gated by its own cooldown_ms.",
+  "on_impact": "Fires every time the character takes a hit (subject to the action-level retrigger_cooldown_ms).",
+  "after_on_impact": "Fires once the character has been hit `count` times since this counter last fired; the counter resets to 0 immediately after firing.",
+  "after_on_hit": "Fires once the character has landed `count` hits on the enemy since this counter last fired; the counter resets to 0 immediately after firing.",
+  "radius_proximity": "Fires while the distance to the enemy is between min and max px (a band, not a single threshold).",
+  "retrigger_cooldown_ms": "Shared minimum time between activations of this action, regardless of which trigger condition fired it. 0 = no extra gating beyond a trigger's own rules.",
+  "parity": "Behaviour is identical in Solo & Battle modes."
+ },
+ "attack_pattern_semantics": {
+  "attach": "attack_pattern lives at the top level of the character JSON (sibling of stats/movement).",
+  "interpreter": "Read by ONE generic engine function, combat.fire_attack_pattern(), shared by every character — adding a new pattern never requires new Python.",
+  "cycle": "A list of phases fired in order on a per-figure timer (interval_ticks). After the last phase, cycle_pause_ticks elapses before phase 0 fires again. Each character's cycle runs on its own independent clock.",
+  "styles": "cone = N bullets at fixed fan angles from the aim line. zigzag = N bullets weaving side to side (amplitude px, frequency rad/tick). homing = N bullets that steer toward the live target (turn_rate 0..1/tick). beam = N long-tailed fast-fading bolts (ultimate-style).",
+  "damage": "attack_pattern.damage is the flat HP this basic attack deals on a landed hit (default 1.0).",
+  "disabled": "enabled:false (or an empty cycle) means this character has no ranged cycle at all — its attack_normal fires only through the existing per-FX-layer battle path (melee-style characters like Swordsman use this).",
+  "parity": "Identical driver and math in Solo & Battle — see systems.ProjectileSystem._fire_attack_pattern."
+ },
+ "combo_semantics": {
+  "attach": "combo lives at the top level of the character JSON (sibling of stats/attack_pattern). Only takes effect for melee-archetype characters (predicates.uses_melee).",
+  "interpreter": "Read by combat.combo_cfg(), which the EXISTING melee dash/arc combo state machine (combat.advance_combat) already calls — this is the same code Swordsman runs, just parameterized. No new engine code needed for a new melee fighter.",
+  "fields": "max_hits/cooldown_ticks/followup_lock_ticks control the hit-string length and pacing. dash_speed_mult/hit_radius control how fast and from how far the dash-in lands. arc_* fields shape the curved approach/orbit/recoil of arc-style follow-ups. combo_travel_ticks_min/max randomize the pause before a straight follow-up dash.",
+  "damage": "NOT yet wired — melee body-collision damage is still a flat 1 HP (ai.apply_hp_damage) for every melee character regardless of this block. Giving melee hits a configurable damage amount needs an IPC schema extension (tracked as a known follow-up), the same one needed for after_on_hit crediting.",
+  "parity": "Identical FSM and call site in Solo & Battle — see systems.CombatSystem calling combat.advance_combat."
+ },
+ "ultimate_playback_semantics": {
+  "attach": "ultimate_playback lives at the top level of the character JSON (sibling of stats/combo/attack_pattern).",
+  "interpreter": "laser/combat.py ultimate_style()/ultc_cfg()/beam_cfg() read this block; the crescent path reuses the EXACT UltimateCrescent class Swordsman uses, the beam path reuses the exact beam-volley math Runner uses — just parameterized.",
+  "style": "\"crescent\" = the X-shaped double-blade wave (only takes effect for melee-archetype characters — it rides the melee combo FSM's own per-tick update). \"beam\" = a volley of long-tailed bolts fired every tick while the ultimate window is open (works for any shooter-archetype character). \"none\" = no big playback shape; only this character's authored ultimate fx_layers show.",
+  "trigger_crescent": "Fires automatically the first time HP drops to/below each fraction in thresholds (default 70%/50%/30%, same as Swordsman) — once per threshold per life.",
+  "trigger_beam": "Fires automatically every tick for config.ULTIMATE_DURATION_TICKS once HP first drops to/below config.ULTIMATE_HP_THRESHOLD (30%) — same trigger Runner uses, generalized to any shooter-archetype character so its ultimate window is never silent.",
+  "defaults": "An unconfigured JSON character still gets a sensible default: \"crescent\" if archetype/predicates set uses_melee, otherwise \"beam\" — so every character's ultimate does SOMETHING out of the box even without visiting this step.",
+  "parity": "Identical trigger and playback code path in Solo & Battle."
+ },
+ "implementation_notes": {
+  "pipeline": "laser/characters.py load_all() scans characters/*.json at startup, calls _register() then rasterize_character() for every file with format==pb_character. Both Solo and Battle build their world from the same AssetLibrary, so this is the ONLY registration point — no other file needs a per-character edit for a well-formed v2 file.",
+  "file_drop": "Save the exported JSON as characters/<name>.json (name = this file's \"name\" field, lowercase, underscores). No code changes required for stats/movement/archetype/palette/bones/weapon/actions/attack_pattern — the engine already generalizes all of these.",
+  "stats_movement_archetype": "laser/characters.py: _register() reads stats/movement/archetype/predicates straight into MODE_CONFIGS + the generated FigureMode subclass. No manual file edits.",
+  "actions_rig": "laser/characters.py: rasterize_character() ports every action's keyframes through the same joint math as tools/fx/rig.js joints(). No manual file edits.",
+  "attack_pattern": "laser/combat.py fire_attack_pattern() + laser/systems.py ProjectileSystem._fire_attack_pattern() are the ONE generic interpreter for this block — already handle any cycle you author here. No manual file edits.",
+  "combo": "laser/combat.py combo_cfg() feeds the EXISTING melee dash/arc combo state machine (advance_combat) — the same code Swordsman runs, just reading your numbers instead of Swordsman's hardcoded ones. Only takes effect if this character's archetype/predicates set uses_melee. No manual file edits. Melee hit damage itself is still a flat 1 HP (see combo_semantics.damage) until a future IPC extension.",
+  "ultimate_playback": "laser/combat.py ultimate_style()/ultc_cfg()/beam_cfg(), called from laser/ai.py (crescent HP-threshold trigger) and laser/systems.py (beam per-tick trigger), read this block. Reuses Swordsman's exact UltimateCrescent class and Runner's exact beam-volley math — just parameterized. No manual file edits.",
+  "per_layer_battle": "laser/combat.py fire_character_action() reads each can_hit fx_layer's battle{damage, defence, attack effects} for attack_normal/attack_special/ultimate/defend. No manual file edits.",
+  "activation_triggers": "laser/ai.py evaluate_activation_triggers(), called every tick from laser/systems.py _fire_json_actions(). No manual file edits.",
+  "not_yet_generic": "None remain as of this pass — attack_pattern, combo, and ultimate_playback are all read generically now. The one still-known limitation is melee hit damage (see combo_semantics.damage): a flat 1 HP per landed melee hit for every melee character, pending an IPC extension to carry a per-attacker amount.",
+  "verification": "After dropping the file, launch Solo mode first (fastest load-time feedback), confirm the character appears with correct stats/palette/attack cadence, THEN verify Battle mode reproduces the identical behaviour (parity is automatic by construction, but always confirm)."
+ }
+}
