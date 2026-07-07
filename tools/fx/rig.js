@@ -52,10 +52,58 @@ function dummyExport(){if(!dummyOn())return null;
  return{enabled:true,offset_from_figure:[DUMMY.x,DUMMY.y],width:DUMMY.w,height:DUMMY.h,
   hitbox_zones:{head:[0,0.22],torso:[0.22,0.6],legs:[0.6,1]},
   impact_anchors:['dummy_head','dummy_torso','dummy_legs'],
-  note:'Zone bounds are fractions of dummy height from top. Offset is from figure root. Applies identically in Solo & Battle.'}}
+  fire:(function(){const c=dummyFireCfg();return{enabled:dummyFireChecked(),rate_ms:c.rate_ms,damage:c.damage,speed:c.speed,
+   note:'WIZARD PREVIEW ONLY: dummy mimics an enemy shooter so incoming-fire FX can be authored. Visual impacts only, no stats. NEVER implement in laser/ (Solo or Battle).'}})(),
+  note:'Zone bounds are fractions of dummy height from top. Offset is from figure root. Applies identically in Solo & Battle. The target_dummy block (including fire) is a wizard preview aid only and must never be wired into the game engine.'}}
 function dummyImport(td){if(!td||!td.enabled)return;const e=$('showdummy');if(e)e.checked=true;
  const of=td.offset_from_figure||[140,2];DUMMY.x=+of[0]||0;DUMMY.y=+of[1]||0;
- if(td.width)DUMMY.w=+td.width;if(td.height)DUMMY.h=+td.height}
+ if(td.width)DUMMY.w=+td.width;if(td.height)DUMMY.h=+td.height;
+ const f=td.fire;if(f){const c=$('dumfire');if(c)c.checked=!!f.enabled;
+  if($('dumrate')&&f.rate_ms)$('dumrate').value=f.rate_ms;
+  if($('dumdmg')&&f.damage!==undefined)$('dumdmg').value=f.damage;
+  if($('dumspd')&&f.speed)$('dumspd').value=f.speed}}
+// ---- [DUMMY FIRE] WIZARD PREVIEW ONLY ----
+// The dummy mimics an enemy shooter (like a Battle-mode opponent) so incoming-fire FX/defense layers can be
+// authored visually. Bullets deal NO stats damage: contact with the figure spawns a spark impact + floating
+// damage number, purely visual. The dummy itself is invincible. Per standing rule, target_dummy (including
+// this fire block) is NEVER implemented in laser/ for Solo or Battle modes.
+let dumBullets=[],dumFloat=[],dumFireAcc=0;
+function dummyFireChecked(){const e=$('dumfire');return!!(e&&e.checked)}
+function dummyFireOn(){return dummyOn()&&dummyFireChecked()}
+function dummyFireCfg(){return{
+ rate_ms:Math.max(80,+(($('dumrate')||{}).value)||900),
+ damage:Math.max(0,+(($('dumdmg')||{}).value)||0),
+ speed:Math.max(40,+(($('dumspd')||{}).value)||320)}}
+function figCenter(){if(curJ){const p=curJ.chest||curJ.torso_mid||curJ.hip;if(p)return[p[0],p[1]]}return[W/2,H/2+40-40]}
+function figHit(wx,wy){if(!curJ)return false;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,n=0;
+ for(const k in curJ){if(k[0]==='_'||k.slice(0,6)==='dummy_'||k==='enemy_target')continue;
+  const p=curJ[k];if(!p||p.length<2)continue;
+  x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);n++}
+ if(!n)return false;const pad=10;return wx>x0-pad&&wx<x1+pad&&wy>y0-pad&&wy<y1+pad}
+function resetDummyFire(){dumBullets=[];dumFloat=[];dumFireAcc=0}
+function updateDummyFire(dt){
+ if(dummyFireOn()&&typeof playing!=='undefined'&&playing){const cfg=dummyFireCfg();dumFireAcc+=dt*1000;
+  while(dumFireAcc>=cfg.rate_ms){dumFireAcc-=cfg.rate_ms;
+   const[sx,sy]=dummyCenter(),tc=figCenter(),a=Math.atan2(tc[1]-sy,tc[0]-sx);
+   dumBullets.push({x:sx,y:sy,vx:Math.cos(a)*cfg.speed,vy:Math.sin(a)*cfg.speed,dmg:cfg.damage,age:0})}}
+ else dumFireAcc=0;
+ for(let i=dumBullets.length-1;i>=0;i--){const b=dumBullets[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.age+=dt*1000;
+  if($('showfig')&&$('showfig').checked&&figHit(b.x,b.y)){
+   if(typeof spawnBFX==='function')spawnBFX('particles',{count:12,spread_deg:360,angle_deg:0,speed_min:40,speed_max:160,size_min:2,size_max:5,life_min:160,life_max:320,c1:'#ffd070',c2:'#ff4020',shape:'spark',burst:true,drag:0.94,gravity:0,glow:12},b.x,b.y);
+   if(b.dmg>0)dumFloat.push({x:b.x,y:b.y-8,txt:'-'+b.dmg,age:0});
+   dumBullets.splice(i,1);continue}
+  if(b.age>4000)dumBullets.splice(i,1)}
+ for(let i=dumFloat.length-1;i>=0;i--){const f=dumFloat[i];f.age+=dt*1000;f.y-=22*dt;if(f.age>700)dumFloat.splice(i,1)}}
+function drawDummyFire(){if(!dumBullets.length&&!dumFloat.length)return;const sc=1/cam.z;ctx.save();
+ ctx.globalCompositeOperation='lighter';
+ for(const b of dumBullets){ctx.shadowBlur=12;ctx.shadowColor='#ff6a3c';ctx.fillStyle='#ffb27a';
+  ctx.beginPath();ctx.arc(b.x,b.y,3.2,0,6.28);ctx.fill();
+  const s=Math.hypot(b.vx,b.vy)||1,k=10/s;ctx.strokeStyle='#ff6a3c';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*k,b.y-b.vy*k);ctx.stroke()}
+ ctx.globalCompositeOperation='source-over';ctx.shadowBlur=0;
+ ctx.fillStyle='#ffd0a0';ctx.font=(11*sc)+'px sans-serif';ctx.textAlign='center';
+ for(const f of dumFloat){ctx.globalAlpha=Math.max(0,1-f.age/700);ctx.fillText(f.txt,f.x,f.y)}
+ ctx.globalAlpha=1;ctx.textAlign='start';ctx.restore()}
 function joints(pose){ // world joint positions
  const cx=W/2,cy=H/2+40,J={},hip=[cx+pose.rx,cy+pose.ry];J.hip=hip;
  const B=(o,a,l)=>[o[0]+Math.cos(a)*l,o[1]+Math.sin(a)*l];
