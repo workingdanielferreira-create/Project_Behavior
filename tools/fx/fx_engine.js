@@ -29,7 +29,7 @@ const FX_SEMANTICS={
  beam_travel:'travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.',
  beam_width:'Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.',
  travel_forward:'travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight — independent of the older Homing property. Identical in Solo & Battle.',
- petals:'Petals: a handful of single particles that hover in an orbit around the character — a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer\'s damage HP through the normal battle damage pipeline. Either contact consumes the petal, which respawns after cooldown_ms. If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically — Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy and its \u201cDummy fires\u201d preview bullets (a bullet within detect_range of a petal is intercepted and negated; only the contacting petal is consumed).'};
+ petals:'Petals: a handful of single particles that hover in an orbit around the character — a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer\'s damage HP through the normal battle damage pipeline. Either contact consumes the petal, which vanishes entirely and respawns after cooldown_ms as a brand-new particle at a random angle on the orbit (never at the spot it was consumed). If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically — Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy and its \u201cDummy fires\u201d preview bullets (a bullet within detect_range of a petal is intercepted and negated; only the contacting petal is consumed).'};
 const BATTLE_SEMANTICS={
  attach:'Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).',
  trigger:'Both categories fire at the moment a can_hit FX contacts a target.',
@@ -285,7 +285,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
      if(tb){const bi=dumBullets.indexOf(tb);if(bi>=0){dumBullets.splice(bi,1);
       if(typeof spawnBFX==='function')spawnBFX('particles',{count:8,spread_deg:360,angle_deg:0,speed_min:30,speed_max:120,size_min:2,size_max:4,life_min:140,life_max:280,c1:'#b0f0ff',c2:'#4090ff',shape:'spark',burst:true,drag:0.94,gravity:0,glow:10},p.x,p.y)}}
      p.lockB=null;p.state='cooldown';p.cd=l.cooldown_ms||2500}}
-   else if(p.state==='cooldown'){if(p.cd<=0)p.state='hover'}
+   else if(p.state==='cooldown'){if(p.cd<=0){p.state='hover';p.phase=Math.random()*6.283185;const rx=l.hover_radius_x||l.hover_radius||46,ry=l.hover_radius_y||l.hover_radius||46;p.x=ax+Math.cos(p.phase)*rx;p.y=ay+Math.sin(p.phase)*ry}}
    else{p.state='hover';const rx=l.hover_radius_x||l.hover_radius||46,ry=l.hover_radius_y||l.hover_radius||46;
     p.x=ax+Math.cos(p.phase)*rx;p.y=ay+Math.sin(p.phase)*ry}
    continue}
@@ -360,9 +360,9 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  if(playing&&$('ph'))$('ph').style.left=(animT*100)+'%'}
 function rszChk(){if(cv.width!==cv.clientWidth||cv.height!==cv.clientHeight)rsz()}
 function render(el,lay){for(const p of parts){if(lay==='__bfx__'){if(!p.bfx)continue}else if(lay&&p.l!==lay)continue;const l=p.l;
- if(p.type==='petals'){ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
+ if(p.type==='petals'){if(p.state==='cooldown')continue;ctx.globalCompositeOperation=l.blend==='additive'?'lighter':'source-over';
   const col=colAt(l,0);ctx.shadowBlur=l.glow||0;ctx.shadowColor=col;ctx.fillStyle=col;
-  ctx.globalAlpha=p.state==='cooldown'?0.15:1;
+  ctx.globalAlpha=1;
   ctx.beginPath();ctx.arc(p.x,p.y,Math.max(0.5,p.sz/2),0,6.28);ctx.fill();
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over';continue}
  const t=p.age/p.life,fade=1-t*t;
