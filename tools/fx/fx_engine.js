@@ -29,7 +29,7 @@ const FX_SEMANTICS={
  beam_travel:'travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.',
  beam_width:'Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.',
  travel_forward:'travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight — independent of the older Homing property. Identical in Solo & Battle.',
- petals:'Petals: a handful of single particles that hover in an orbit around the character — a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer\'s damage HP through the normal battle damage pipeline. Either contact consumes the petal, which respawns after cooldown_ms. If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically — Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy.'};
+ petals:'Petals: a handful of single particles that hover in an orbit around the character — a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer\'s damage HP through the normal battle damage pipeline. Either contact consumes the petal, which respawns after cooldown_ms. If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically — Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy and its \u201cDummy fires\u201d preview bullets (a bullet within detect_range of a petal is intercepted and negated; only the contacting petal is consumed).'};
 const BATTLE_SEMANTICS={
  attach:'Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).',
  trigger:'Both categories fire at the moment a can_hit FX contacts a target.',
@@ -259,14 +259,32 @@ function tick(now){requestAnimationFrame(tick);rszChk();
   if(p.type==='petals'){ // ---- [PETALS] hover/ellipse orbit + intercept preview (see fx_semantics.petals) ----
    const l=p.l,[ax,ay]=aPos(l);p.phase+=(l.orbit_speed_deg||70)*D*dt;
    if(p.cd>0)p.cd=Math.max(0,p.cd-dt*1000);
-   let threat=null;if(p.state!=='cooldown'&&dummyOn()&&hitAt!==null){const[tx,ty]=dummyCenter();
-    // Coordinated (non-independent) petals share the threat: only one may intercept at a time in this
-    // single-dummy preview. Independent petals each keep their own lock and may all chase simultaneously.
-    const busy=!l.independent&&parts.some(q=>q!==p&&q.type==='petals'&&q.l===l&&q.state==='intercept');
-    if((p.state==='intercept'||!busy)&&Math.hypot(tx-p.x,ty-p.y)<=(l.detect_range||150))threat=[tx,ty]}
+   // Threat priority 1: incoming enemy can_hit FX (the dummy-fire preview bullets), measured from
+   // the petal itself. Independent petals keep their OWN bullet lock (several may chase the same one);
+   // non-independent petals share the pool and re-target the nearest live bullet each tick.
+   // Contact negates that bullet and consumes ONLY the contacting petal — never the whole ring.
+   let threat=null,tb=null;
+   if(p.state!=='cooldown'&&dummyOn()){
+    if(typeof dumBullets!=='undefined'&&dumBullets.length){
+     if(l.independent&&p.lockB&&dumBullets.indexOf(p.lockB)>=0)tb=p.lockB;
+     else{let bd=1e9;for(const b of dumBullets){const d=Math.hypot(b.x-p.x,b.y-p.y);
+      if(d<=(l.detect_range||150)&&d<bd){bd=d;tb=b}}
+      if(l.independent)p.lockB=tb}}
+    if(!tb)p.lockB=null;
+    if(tb)threat=[tb.x,tb.y];
+    // Threat priority 2 (legacy figure preview): the dummy body, only after a can_hit layer tagged it.
+    else if(hitAt!==null){const[tx,ty]=dummyCenter();
+     const busy=!l.independent&&parts.some(q=>q!==p&&q.type==='petals'&&q.l===l&&q.state==='intercept');
+     if((p.state==='intercept'||!busy)&&Math.hypot(tx-p.x,ty-p.y)<=(l.detect_range||150))threat=[tx,ty]}}
+   else p.lockB=null;
    if(threat){p.state='intercept';const s=l.approach_speed||320,ha=Math.atan2(threat[1]-p.y,threat[0]-p.x);
     p.x+=Math.cos(ha)*s*dt;p.y+=Math.sin(ha)*s*dt;
-    if(Math.hypot(threat[0]-p.x,threat[1]-p.y)<10){p.state='cooldown';p.cd=l.cooldown_ms||2500}}
+    // contact radius scales with closing step so fast bullets can't tunnel past the petal
+    const bs=tb?Math.hypot(tb.vx,tb.vy):0,cr=Math.max(12,(s+bs)*dt);
+    if(Math.hypot(threat[0]-p.x,threat[1]-p.y)<cr){
+     if(tb){const bi=dumBullets.indexOf(tb);if(bi>=0){dumBullets.splice(bi,1);
+      if(typeof spawnBFX==='function')spawnBFX('particles',{count:8,spread_deg:360,angle_deg:0,speed_min:30,speed_max:120,size_min:2,size_max:4,life_min:140,life_max:280,c1:'#b0f0ff',c2:'#4090ff',shape:'spark',burst:true,drag:0.94,gravity:0,glow:10},p.x,p.y)}}
+     p.lockB=null;p.state='cooldown';p.cd=l.cooldown_ms||2500}}
    else if(p.state==='cooldown'){if(p.cd<=0)p.state='hover'}
    else{p.state='hover';const rx=l.hover_radius_x||l.hover_radius||46,ry=l.hover_radius_y||l.hover_radius||46;
     p.x=ax+Math.cos(p.phase)*rx;p.y=ay+Math.sin(p.phase)*ry}
