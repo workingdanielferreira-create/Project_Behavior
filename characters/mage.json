@@ -225,7 +225,11 @@
        "slash": false
       },
       "defence": "deflect"
-     }
+     },
+     "hover_radius_x": 0,
+     "hover_radius_y": 0,
+     "independent": false,
+     "damage": 1
     },
     {
      "type": "figure",
@@ -2050,7 +2054,7 @@
   "beam_travel": "travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.",
   "beam_width": "Beam widths animate over the layer lifetime: w_start0\u2192w_start1 at the start point (source/tail side), w_end0\u2192w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.",
   "travel_forward": "travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight \u2014 independent of the older Homing property. Identical in Solo & Battle.",
-  "petals": "Petals: a handful of single particles that hover in a slow orbit (hover_radius px, orbit_speed_deg \u00b0/s) around the character. When an incoming enemy can_hit FX comes within detect_range px, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it, attempting to collide with it to protect the character. On a successful interception the incoming FX is negated and that petal is consumed, respawning after cooldown_ms. This interception logic runs against real enemy FX in the game runtime (Solo & Battle identically); this editor previews the idle hover only, since no real incoming attack exists in the standalone preview."
+  "petals": "Petals: a handful of single particles that hover in an orbit around the character \u2014 a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer's damage HP through the normal battle damage pipeline. Either contact consumes the petal, which respawns after cooldown_ms. If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically \u2014 Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy."
  },
  "activation_trigger_semantics": {
   "attach": "activation_triggers + retrigger_cooldown_ms live per action (currently authored for attack_special, ultimate, special_ability).",
