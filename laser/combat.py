@@ -693,27 +693,6 @@ def _defend_deflect_flag(fig):
     return flag
 
 
-def defense_stance(fig):
-    """Top-level JSON `defense` field ('block' or 'dodge'), read once and
-    cached on the mode instance (character JSON never changes after load).
-    Returns None when the character has no `defense` field at all — this is
-    the built-in Swordsman's case (no JSON backing it), and it preserves
-    that figure's original always-both behavior exactly. Only JSON
-    characters that explicitly set `defense` get the new block-vs-dodge
-    exclusivity. Identical in Solo & Battle."""
-    mode = fig.mode
-    if hasattr(mode, "_defense_stance"):
-        return mode._defense_stance
-    stance = None
-    char = getattr(mode, "character", None)
-    if char:
-        d = char.get("defense")
-        if d in ("block", "dodge"):
-            stance = d
-    mode._defense_stance = stance
-    return stance
-
-
 def has_defend_deflect(fig):
     """True if fig's character should get the parry/deflect stance generalized
     to it — swordsman gets this from uses_melee() already; this extends the
@@ -721,14 +700,12 @@ def has_defend_deflect(fig):
     mage) whose `defend` action authors a can_hit + defence:'deflect' layer.
     Identical in Solo & Battle — both share the same trigger_parry code path.
 
-    When a JSON character sets a top-level `defense` field, block/dodge
-    become mutually exclusive: defense:'dodge' suppresses the parry/deflect
-    stance even if the `defend` layer authored defence:'deflect'. No
-    `defense` field (e.g. Swordsman) keeps the legacy always-on behavior."""
-    if not _defend_deflect_flag(fig):
-        return False
-    stance = defense_stance(fig)
-    return stance is None or stance == "block"
+    Note: the top-level JSON `defense` field ('block'/'dodge') is purely a
+    wizard pose-selector (which keyframes seed the `defend` action) — it does
+    NOT gate this mechanic. The per-layer battle.defence value an author
+    actually puts on a can_hit layer is the sole authority here, so an
+    explicit deflect layer is never silently overridden by that field."""
+    return _defend_deflect_flag(fig)
 
 
 # ---------------------------------------------------------------------------
