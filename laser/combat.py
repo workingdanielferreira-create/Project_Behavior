@@ -1058,7 +1058,21 @@ def _hex_rgb_safe(h, default):
 
 _PETAL_DEFAULTS = dict(count=3, hover_radius=46.0, orbit_speed_deg=70.0,
                         detect_range=150.0, approach_speed=320.0,
-                        cooldown_ms=2500.0)
+                        cooldown_ms=2500.0,
+                        # Ellipse orbit: X / Y radii; 0 means "use hover_radius"
+                        # so older character JSONs keep their circular orbit.
+                        hover_radius_x=0.0, hover_radius_y=0.0,
+                        # independent >= 0.5: each petal keeps its own target
+                        # lock & cooldown and ignores every other petal;
+                        # otherwise petals share one threat pool and re-target
+                        # the nearest live threat each tick (historical
+                        # behaviour). JSON true/false floats to 1.0/0.0.
+                        independent=0.0,
+                        # HP dealt on enemy-FIGURE contact (falls back to the
+                        # layer's battle.damage when not set at layer top
+                        # level). FX interception still deals no damage — it
+                        # negates the incoming FX instead.
+                        damage=1.0)
 # Rendering-only (not floated like the mechanics keys above): resolved once
 # in _petals_config from the layer's own size_min/size_max/c1, since Petal
 # objects previously had no visual at all (see Petal.draw).
@@ -1067,11 +1081,20 @@ _PETAL_DEFAULT_RGB = (251, 238, 243)
 
 
 class Petal:
-    """One hovering defensive particle. Orbits its figure while idle; when an
-    enemy projectile enters detect_range it breaks orbit and moves to
-    intercept at approach_speed, consuming itself and going on cooldown for
-    cooldown_ms on contact."""
-    __slots__ = ("x", "y", "phase", "state", "cooldown_ticks", "cfg")
+    """One hovering defensive particle. Orbits its figure while idle — a
+    circle of hover_radius px, or an ellipse when hover_radius_x /
+    hover_radius_y are set (0 falls back to hover_radius). Detection is
+    measured from the petal itself: when an enemy projectile OR an enemy
+    figure enters detect_range of this petal, it breaks orbit and moves to
+    intercept at approach_speed. Contact with a projectile negates it;
+    contact with an enemy figure deals cfg["damage"] HP (delivered by
+    update_petals through the one projectile/IPC damage pipeline). Either
+    contact consumes the petal into cooldown_ms. With cfg["independent"] on,
+    each petal keeps its own target lock & cooldown and ignores every other
+    petal; otherwise petals share a threat pool and re-target the nearest
+    live threat every tick (historical behaviour)."""
+    __slots__ = ("x", "y", "phase", "state", "cooldown_ticks", "cfg",
+                 "lock_kind", "lock_x", "lock_y")
 
     def __init__(self, phase, cfg):
         self.x = 0.0
@@ -1080,10 +1103,20 @@ class Petal:
         self.state = "hover"   # 'hover' | 'intercept' | 'cooldown'
         self.cooldown_ticks = 0
         self.cfg = cfg
+        # Independent-mode target lock. Threat tuples are rebuilt from IPC
+        # every tick, so identity can't persist across ticks — the lock is
+        # kept by POSITION continuity instead (re-acquire the same-kind
+        # threat nearest to where the locked target was last tick).
+        self.lock_kind = None   # None | 'proj' | 'fig'
+        self.lock_x = 0.0
+        self.lock_y = 0.0
 
-    def update(self, anchor_x, anchor_y, enemy_projs):
-        """Advance one tick. Returns the enemy_projs tuple it just consumed,
-        or None."""
+    def update(self, anchor_x, anchor_y, threats):
+        """Advance one tick. `threats` is a list of (x, y, kind, payload)
+        entries — kind 'proj' (payload = the world.enemy_projs tuple) or
+        'fig' (payload = partner-figure index). Returns a
+        (kind, payload, contact_x, contact_y, dir_x, dir_y) tuple on the
+        tick this petal makes contact with its target, else None."""
         cfg = self.cfg
         tick_s = config.TICK_MS / 1000.0
         if self.state == "cooldown":
@@ -1093,24 +1126,55 @@ class Petal:
             self.x, self.y = anchor_x, anchor_y
             return None
 
-        nearest, nearest_d2 = None, cfg["detect_range"] ** 2
-        for tup in enemy_projs:
-            ex, ey = tup[0], tup[1]
-            ddx, ddy = ex - self.x, ey - self.y
-            d2 = ddx * ddx + ddy * ddy
-            if d2 <= nearest_d2:
-                nearest, nearest_d2 = tup, d2
+        independent = cfg.get("independent", 0.0) >= 0.5
+        det2 = cfg["detect_range"] ** 2
+        target = None
 
-        if nearest is not None:
+        if independent and self.lock_kind is not None:
+            # Own target lock: chase the same threat as last tick, found by
+            # position continuity, even if a nearer threat exists and even if
+            # other petals are chasing it too.
+            best_d2 = det2
+            for tx, ty, kind, payload in threats:
+                if kind != self.lock_kind:
+                    continue
+                ddx, ddy = tx - self.lock_x, ty - self.lock_y
+                d2 = ddx * ddx + ddy * ddy
+                if d2 <= best_d2:
+                    best_d2 = d2
+                    target = (tx, ty, kind, payload)
+            if target is None:
+                self.lock_kind = None   # locked target is gone — drop it
+
+        if target is None:
+            # Acquire: nearest threat within detect_range of THIS petal
+            # (detection has always been petal-centric; it now also covers
+            # enemy figures, not just enemy FX).
+            best_d2 = det2
+            for tx, ty, kind, payload in threats:
+                ddx, ddy = tx - self.x, ty - self.y
+                d2 = ddx * ddx + ddy * ddy
+                if d2 <= best_d2:
+                    best_d2 = d2
+                    target = (tx, ty, kind, payload)
+
+        if target is not None:
+            tx, ty, kind, payload = target
+            if independent:
+                self.lock_kind, self.lock_x, self.lock_y = kind, tx, ty
             self.state = "intercept"
-            ex, ey = nearest[0], nearest[1]
-            ddx, ddy = ex - self.x, ey - self.y
+            ddx, ddy = tx - self.x, ty - self.y
             dist = (ddx * ddx + ddy * ddy) ** 0.5
             step = cfg["approach_speed"] * tick_s
             if dist <= max(step, config.PETAL_CATCH_RADIUS):
                 self.state = "cooldown"
                 self.cooldown_ticks = max(1, int(cfg["cooldown_ms"] / config.TICK_MS))
-                return nearest
+                self.lock_kind = None
+                if dist > 0.001:
+                    dx, dy = ddx / dist, ddy / dist
+                else:
+                    dx, dy = 1.0, 0.0
+                return (kind, payload, tx, ty, dx, dy)
             if dist > 0.001:
                 self.x += ddx / dist * step
                 self.y += ddy / dist * step
@@ -1118,8 +1182,10 @@ class Petal:
 
         self.state = "hover"
         self.phase += math.radians(cfg["orbit_speed_deg"]) * tick_s
-        self.x = anchor_x + math.cos(self.phase) * cfg["hover_radius"]
-        self.y = anchor_y + math.sin(self.phase) * cfg["hover_radius"]
+        rx = cfg.get("hover_radius_x") or cfg["hover_radius"]
+        ry = cfg.get("hover_radius_y") or cfg["hover_radius"]
+        self.x = anchor_x + math.cos(self.phase) * rx
+        self.y = anchor_y + math.sin(self.phase) * ry
         return None
 
     def draw(self, p):
@@ -1156,6 +1222,15 @@ def _petals_config(fig):
                             cfg[k] = float(found[k])
                         except (TypeError, ValueError):
                             pass
+                if "damage" not in found:
+                    # Older layers carry damage in the per-layer battle block
+                    # (see mage.json); honour it as the figure-contact damage.
+                    try:
+                        cfg["damage"] = float(
+                            (found.get("battle") or {}).get("damage",
+                                                            cfg["damage"]))
+                    except (TypeError, ValueError):
+                        pass
                 cfg["_rgb"] = _hex_rgb_safe(found.get("c1"), _PETAL_DEFAULT_RGB)
                 try:
                     smin = float(found.get("size_min", _PETAL_DEFAULT_RADIUS))
@@ -1169,9 +1244,13 @@ def _petals_config(fig):
 
 
 def update_petals(fig, world):
-    """Advance this figure's Petals by one tick and let them intercept nearby
-    entries in world.enemy_projs. Identical in Solo & Battle — Solo simply
-    has nothing in enemy_projs to intercept."""
+    """Advance this figure's Petals by one tick. Petals intercept nearby
+    entries in world.enemy_projs (negating them) AND chase enemy figures in
+    world.partner_figures, dealing cfg damage on figure contact via an
+    invisible short-lived Projectile pushed through the one damage pipeline
+    (world.projectiles -> IPC -> partner enemy_projs -> ai.battle_hit).
+    Identical code path in Solo & Battle — Solo simply has nothing in
+    enemy_projs or partner_figures, so petals just hover."""
     cfg = _petals_config(fig)
     if not cfg:
         return
@@ -1181,12 +1260,38 @@ def update_petals(fig, world):
         c.petals = [Petal((i / n) * 2 * math.pi, cfg) for i in range(n)]
         c.petals_init = True
 
+    independent = cfg.get("independent", 0.0) >= 0.5
+    figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
+
     surviving = list(world.enemy_projs)
+    # Independent petals evaluate a frozen snapshot of the tick's full threat
+    # pool (ignoring what other petals consume mid-tick); coordinated petals
+    # share `surviving`, which shrinks as threats are consumed.
+    pool_projs = list(world.enemy_projs)
     for pt in c.petals:
-        consumed = pt.update(fig.x, fig.y, surviving)
-        if consumed is not None and consumed in surviving:
-            surviving.remove(consumed)
-            world.collision_dots.append([consumed[0], consumed[1], 0])
+        projs = pool_projs if independent else surviving
+        threats = [(t[0], t[1], "proj", t) for t in projs]
+        threats += [(fx_, fy_, "fig", i)
+                    for i, (fx_, fy_) in enumerate(figures)]
+        hit = pt.update(fig.x, fig.y, threats)
+        if hit is None:
+            continue
+        kind, payload, cx, cy, dx, dy = hit
+        if kind == "proj":
+            if payload in surviving:
+                surviving.remove(payload)
+                world.collision_dots.append([cx, cy, 0])
+        else:
+            # Enemy-figure contact: deliver this layer's damage through the
+            # normal projectile/IPC pipeline so the partner side registers a
+            # real battle_hit, exactly like any other damage source.
+            pr = Projectile(cx, cy, dx * 2.0, dy * 2.0,
+                            cfg.get("_rgb", _PETAL_DEFAULT_RGB), 3)
+            pr.style = "invisible"
+            pr.max_age = config.PETAL_TOUCH_PROJ_AGE
+            pr.damage = float(cfg.get("damage", 1.0))
+            world.projectiles.append(pr)
+            world.collision_dots.append([cx, cy, 0])
     if len(surviving) != len(world.enemy_projs):
         world.enemy_projs = surviving
 
