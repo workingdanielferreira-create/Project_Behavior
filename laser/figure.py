@@ -35,6 +35,7 @@ class Figure:
             speed=spd["chase_speed"] + (index % 3) * 0.4,
             follow_speed=spd["follow_speed"] + (index % 3) * 0.5,
             offset_x=ox, offset_y=oy,
+            rotate=config.ROTATE_TO_FACING_ENABLED,
         )
         self.trail = TrailComponent(lut)
         self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"])
