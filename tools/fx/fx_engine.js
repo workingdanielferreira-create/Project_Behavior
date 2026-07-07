@@ -236,7 +236,7 @@ function spawn(l,li,n){const[x,y]=aPos(l);
  if(l.type==='afterimage'){p.pose=poseAt(curT());p.rootJ=aPos(l)}
  if(l.type==='beam')p.seed=Math.random()*99;
  parts.push(p)}}
-function play(){parts=[];acc={};spawned={};hitAt=null;playing=true;t0=performance.now();last=t0;$('stat').textContent='playing';poseMode=false;$('posebtn').className=''}
+function play(){parts=[];acc={};spawned={};hitAt=null;resetDummyFire();playing=true;t0=performance.now();last=t0;$('stat').textContent='playing';poseMode=false;$('posebtn').className=''}
 function stop(){playing=false;parts=[]}
 function tick(now){requestAnimationFrame(tick);rszChk();
  const slow=+$('slow').value;let dt=Math.min(now-last,50)/1000*slow;last=now;
@@ -248,6 +248,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  else{el=0;animT=poseMode?scrubT:0}
  const pose=(poseMode&&selKF>=0)?keyframes[selKF].p:poseAt(animT);
  curJ=joints(pose);
+ updateDummyFire(dt); // wizard-preview dummy fire (visual only; never in laser/)
  if(playing){fx.layers.forEach((l,li)=>{if(isBI(l)||l.type==='image')return;
   if((l.trig||'immediate')==='on_hit'){if(!dummyOn()||hitAt===null||el<hitAt+(l.delay_ms||0))return}
   else if(el<layerStart(li)+(l.delay_ms||0))return;
@@ -319,7 +320,7 @@ function tick(now){requestAnimationFrame(tick);rszChk();
  ctx.globalCompositeOperation='source-over';ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  camInit();ctx.save();ctx.setTransform(cam.z,0,0,cam.z,W/2-cam.x*cam.z,H/2-cam.y*cam.z);
  ctx.strokeStyle='#1c2432';ctx.beginPath();ctx.moveTo(cam.x-W/cam.z,H/2+40+52);ctx.lineTo(cam.x+W/cam.z,H/2+40+52);ctx.stroke();
- if(dummyOn())drawDummy();
+ if(dummyOn()){drawDummy();drawDummyFire()}
  const showF=$('showfig').checked,figV=$('fig').value;
  ensureBuiltin(fx.layers);
  fx.layers.forEach(l=>{
