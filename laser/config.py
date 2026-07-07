@@ -252,6 +252,10 @@ COLLISION_DOT_RADIUS  = 3    # px
 # Petals defensive FX (see combat.Petal / combat.update_petals)
 # ---------------------------------------------------------------------------
 PETAL_CATCH_RADIUS = 14.0    # px — how close a petal must get to consume a bullet
+PETAL_TOUCH_PROJ_AGE = 6     # ticks — lifetime of the invisible touch projectile a
+                             # petal spawns on enemy-figure contact; just long
+                             # enough to cross IPC and register the hit on the
+                             # partner side (identical in Solo & Battle).
 
 
 # ---------------------------------------------------------------------------
