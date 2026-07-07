@@ -721,10 +721,6 @@ class CollisionSystem(System):
             for fig in world.figures:
                 if not fig.mode.uses_melee():
                     continue
-                # defense:'block' (JSON field) makes this figure parry-only —
-                # legacy Swordsman (no `defense` field) keeps both mechanics.
-                if combat.defense_stance(fig) == "block":
-                    continue
                 c, m = fig.combat, fig.motion
                 if c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending:
                     continue
