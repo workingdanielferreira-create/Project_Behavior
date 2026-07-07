@@ -13,14 +13,14 @@ trail:{px:0,py:0,prot:0,anchor:'point',emit_rate:90,size_min:3,size_max:7,life_m
 afterimage:{px:0,py:0,prot:0,anchor:'hip',emit_rate:22,life_min:180,life_max:320,c1:'#dc143c',c2:'#500010',glow:8,blend:'additive',w:16,h:44,delay_ms:0,ghost_rig:true},
 image:{px:0,py:0,prot:0,anchor:'point',scale:1,opacity:1,src:null,w0:64,h0:64},
 beam:{px:0,py:0,prot:0,anchor:'point',follow:true,length:320,w_start0:10,w_start1:10,w_end0:10,w_end1:10,travel_speed:0,detach_ms:400,angle_deg:0,segments:14,pulse_hz:8,life_min:600,life_max:600,c1:'#ffffff',c2:'#ff2020',glow:16,blend:'additive',delay_ms:0,jitter:3,aim_weapon:true},
-petals:{px:0,py:0,prot:0,anchor:'point',follow:true,count:3,hover_radius:46,orbit_speed_deg:70,size_min:5,size_max:8,detect_range:150,approach_speed:320,cooldown_ms:2500,c1:'#ffb0d8',c2:'#ff4d94',glow:12,blend:'additive',delay_ms:0}};
+petals:{px:0,py:0,prot:0,anchor:'point',follow:true,count:3,hover_radius:46,hover_radius_x:0,hover_radius_y:0,orbit_speed_deg:70,independent:false,size_min:5,size_max:8,detect_range:150,approach_speed:320,cooldown_ms:2500,damage:1,c1:'#ffb0d8',c2:'#ff4d94',glow:12,blend:'additive',delay_ms:0}};
 ['particles','ring','flash','crescent','trail','afterimage','beam','petals'].forEach(k=>Object.assign(DEF[k],{trig:'immediate',trig_ref:'',trig_delay_ms:0,can_hit:false}));
 DEF.petals.trig='ambient';delete DEF.petals.can_hit;
 ['particles','crescent','beam'].forEach(k=>{DEF[k].homing=false;DEF[k].homing_multi=false;DEF[k].hit_rate_ms=150});DEF.crescent.homing_speed=320;
 ['particles','crescent','beam'].forEach(k=>{DEF[k].travel_forward=false;DEF[k].travel_forward_speed=280;DEF[k].travel_homing=false});
 const FIELDS={can_hit:['Can hit target','chk'],anchor:['Anchor joint','anc'],follow:['Follow joint','chk'],count:['Count','r',1,300,1],spread_deg:['Spread °','r',0,360,1],angle_deg:['Angle °','r',-180,180,1],speed_min:['Speed min','r',0,600,5],speed_max:['Speed max','r',0,900,5],gravity:['Gravity','r',-400,800,10],drag:['Drag','r',0.5,1,0.01],size_min:['Size min','r',1,40,0.5],size_max:['Size max','r',1,80,0.5],size_over_life:['Size/life','sel',['shrink','grow','pulse','constant']],life_min:['Life min ms','r',30,3000,10],life_max:['Life max ms','r',30,3000,10],glow:['Glow','r',0,40,1],blend:['Blend','sel',['additive','normal']],shape:['Shape','sel',['circle','spark','square']],delay_ms:['Delay ms','r',0,2000,10],burst:['Burst (vs stream)','chk'],emit_rate:['Emit/sec','r',1,240,1],radius_start:['Radius start','r',0,200,1],radius_end:['Radius end','r',5,400,1],thickness:['Thickness','r',1,40,0.5],thin_out:['Thin as expands','chk'],rays:['Rays','r',0,16,1],arc_deg:['Arc °','r',10,360,5],spin_deg:['Spin °','r',-720,720,10],line:['Connect line','chk'],w:['Ghost W','r',4,80,1],h:['Ghost H','r',8,140,1],ghost_rig:['Ghost full rig pose','chk'],length:['Length','r',40,10000,5],width:['Width','r',1,600,1],w_start0:['Start W begin','r',1,600,1],w_start1:['Start W end','r',1,600,1],w_end0:['End W begin','r',1,600,1],w_end1:['End W end','r',1,600,1],travel_speed:['Travel px/s','r',0,3000,10],detach_ms:['Detach ms','r',0,5000,10],homing:['Homing (seek target)','chk'],homing_speed:['Homing px/s','r',20,2000,10],homing_multi:['Keep homing + multi-hit after contact','chk'],hit_rate_ms:['Re-hit interval ms','r',30,1000,10],segments:['Segments','r',2,40,1],pulse_hz:['Pulse Hz','r',0,30,0.5],jitter:['Jitter','r',0,20,0.5],aim_weapon:['Aim along weapon','chk'],
 travel_forward:['Travel forward (fire at target)','chk'],travel_forward_speed:['Travel forward px/s','r',0,3000,10],travel_homing:['Travel homing (keep tracking)','chk'],
-hover_radius:['Hover radius','r',10,300,1],orbit_speed_deg:['Orbit °/s','r',0,360,1],detect_range:['Detect range px','r',0,600,5],approach_speed:['Approach px/s','r',20,1200,10],cooldown_ms:['Respawn cooldown ms','r',0,10000,50]};
+hover_radius:['Hover radius','r',10,300,1],hover_radius_x:['Orbit radius X (0=hover r)','r',0,300,1],hover_radius_y:['Orbit radius Y (0=hover r)','r',0,300,1],orbit_speed_deg:['Orbit °/s','r',0,360,1],independent:['Independent petals','chk'],detect_range:['Detect range px','r',0,600,5],approach_speed:['Approach px/s','r',20,1200,10],cooldown_ms:['Respawn cooldown ms','r',0,10000,50],damage:['Contact damage (figure hit)','r',0,100,1]};
 // ---- [BATTLE/FX SEMANTICS] per-FX-layer battle properties (attach to can_hit layers; identical in Solo & Battle) ----
 // Roadmap slot: damage model (real HP pool, pierce/explode wiring) consumes these blocks game-side.
 const FX_SEMANTICS={
@@ -29,7 +29,7 @@ const FX_SEMANTICS={
  beam_travel:'travel_speed>0: the beam head advances from the fire point at travel_speed px/s; after detach_ms the tail leaves the source and the whole segment travels forward. Visible length is capped at Length. travel_speed=0 keeps the classic static full-length beam. Identical in Solo & Battle.',
  beam_width:'Beam widths animate over the layer lifetime: w_start0→w_start1 at the start point (source/tail side), w_end0→w_end1 at the end point (head). Max width 600, max length 10000. Identical in Solo & Battle.',
  travel_forward:'travel_forward (particles, crescent, beam): at fire time the FX aims once at the enemy target and travels straight at travel_forward_speed px/s (fire-and-forget). Enable travel_homing to keep re-aiming at the target every tick instead of flying straight — independent of the older Homing property. Identical in Solo & Battle.',
- petals:'Petals: a handful of single particles that hover in a slow orbit (hover_radius px, orbit_speed_deg °/s) around the character. When an incoming enemy can_hit FX comes within detect_range px, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it, attempting to collide with it to protect the character. On a successful interception the incoming FX is negated and that petal is consumed, respawning after cooldown_ms. This interception logic runs against real enemy FX in the game runtime (Solo & Battle identically); this editor previews the idle hover only, since no real incoming attack exists in the standalone preview.'};
+ petals:'Petals: a handful of single particles that hover in an orbit around the character — a circle of hover_radius px by default, or an ellipse when hover_radius_x / hover_radius_y are set (each 0 falls back to hover_radius; set them apart to flatten or widen the path). The orbit advances at orbit_speed_deg \u00b0/s. Detection is measured from each petal itself: when an incoming enemy can_hit FX OR an enemy figure comes within detect_range px of a petal, an available (non-cooldown) petal breaks orbit and moves at approach_speed px/s to intercept it. Contact with an enemy FX negates that FX; contact with an enemy figure deals this layer\'s damage HP through the normal battle damage pipeline. Either contact consumes the petal, which respawns after cooldown_ms. If independent is on, every petal keeps its own target lock and cooldown and ignores what other petals are doing (several may chase the same threat); if off, petals share one threat pool and re-target the nearest live threat each tick. This logic runs against real enemy FX and figures in the game runtime (Solo & Battle identically — Solo simply has no enemy figures or FX); this editor previews the hover/ellipse orbit and interception against the target dummy.'};
 const BATTLE_SEMANTICS={
  attach:'Battle properties are attached per FX layer, only on layers with can_hit=true (not per character or per action).',
  trigger:'Both categories fire at the moment a can_hit FX contacts a target.',
@@ -255,16 +255,20 @@ function tick(now){requestAnimationFrame(tick);rszChk();
   if(one){if(!spawned[li]){spawned[li]=1;spawn(l,li,l.type==='particles'?l.count:(l.type==='petals'?(l.count||3):1))}}
   else{const rate=l.emit_rate||60;acc[li]=(acc[li]||0)+dt*rate;while(acc[li]>=1){acc[li]--;spawn(l,li,1)}}});
  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.age+=dt*1000;if(p.age>=p.life){parts.splice(i,1);continue}
-  if(p.type==='petals'){ // ---- [PETALS] hover/orbit + intercept preview (see fx_semantics.petals) ----
+  if(p.type==='petals'){ // ---- [PETALS] hover/ellipse orbit + intercept preview (see fx_semantics.petals) ----
    const l=p.l,[ax,ay]=aPos(l);p.phase+=(l.orbit_speed_deg||70)*D*dt;
    if(p.cd>0)p.cd=Math.max(0,p.cd-dt*1000);
    let threat=null;if(p.state!=='cooldown'&&dummyOn()&&hitAt!==null){const[tx,ty]=dummyCenter();
-    if(Math.hypot(tx-p.x,ty-p.y)<=(l.detect_range||150))threat=[tx,ty]}
+    // Coordinated (non-independent) petals share the threat: only one may intercept at a time in this
+    // single-dummy preview. Independent petals each keep their own lock and may all chase simultaneously.
+    const busy=!l.independent&&parts.some(q=>q!==p&&q.type==='petals'&&q.l===l&&q.state==='intercept');
+    if((p.state==='intercept'||!busy)&&Math.hypot(tx-p.x,ty-p.y)<=(l.detect_range||150))threat=[tx,ty]}
    if(threat){p.state='intercept';const s=l.approach_speed||320,ha=Math.atan2(threat[1]-p.y,threat[0]-p.x);
     p.x+=Math.cos(ha)*s*dt;p.y+=Math.sin(ha)*s*dt;
     if(Math.hypot(threat[0]-p.x,threat[1]-p.y)<10){p.state='cooldown';p.cd=l.cooldown_ms||2500}}
    else if(p.state==='cooldown'){if(p.cd<=0)p.state='hover'}
-   else{p.x=ax+Math.cos(p.phase)*(l.hover_radius||46);p.y=ay+Math.sin(p.phase)*(l.hover_radius||46)}
+   else{p.state='hover';const rx=l.hover_radius_x||l.hover_radius||46,ry=l.hover_radius_y||l.hover_radius||46;
+    p.x=ax+Math.cos(p.phase)*rx;p.y=ay+Math.sin(p.phase)*ry}
    continue}
   const multiActive=p.l.homing&&p.l.homing_multi;
   const homingActive=p.l.homing&&dummyOn()&&!p.bfx&&(!p.hitOnce||multiActive);
