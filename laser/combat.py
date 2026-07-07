@@ -1089,7 +1089,9 @@ class Petal:
     intercept at approach_speed. Contact with a projectile negates it;
     contact with an enemy figure deals cfg["damage"] HP (delivered by
     update_petals through the one projectile/IPC damage pipeline). Either
-    contact consumes the petal into cooldown_ms. With cfg["independent"] on,
+    contact consumes the petal into cooldown_ms, during which it is hidden;
+    when cooldown ends it respawns like a new particle at a random angle on
+    the orbit. With cfg["independent"] on,
     each petal keeps its own target lock & cooldown and ignores every other
     petal; otherwise petals share a threat pool and re-target the nearest
     live threat every tick (historical behaviour)."""
@@ -1122,8 +1124,19 @@ class Petal:
         if self.state == "cooldown":
             self.cooldown_ticks -= 1
             if self.cooldown_ticks <= 0:
+                # Respawn as a brand-new particle: rejoin the rotating loop
+                # at a RANDOM angle on the orbit, never at the spot where the
+                # old petal was consumed. Position is set immediately so the
+                # first visible frame is already on-orbit (no lerp from the
+                # anchor point). Identical in Solo & Battle.
                 self.state = "hover"
-            self.x, self.y = anchor_x, anchor_y
+                self.phase = random.uniform(0.0, 2.0 * math.pi)
+                rx = cfg.get("hover_radius_x") or cfg["hover_radius"]
+                ry = cfg.get("hover_radius_y") or cfg["hover_radius"]
+                self.x = anchor_x + math.cos(self.phase) * rx
+                self.y = anchor_y + math.sin(self.phase) * ry
+            else:
+                self.x, self.y = anchor_x, anchor_y
             return None
 
         independent = cfg.get("independent", 0.0) >= 0.5
@@ -1190,7 +1203,11 @@ class Petal:
 
     def draw(self, p):
         """Render as a small glowing dot in the character's own petal colour
-        (previously Petal had no visual at all — logic-only)."""
+        (previously Petal had no visual at all — logic-only). A petal on
+        cooldown is fully hidden — it only becomes visible again when it
+        respawns as a new particle at a random angle on the orbit."""
+        if self.state == "cooldown":
+            return
         r, g, b = self.cfg.get("_rgb", _PETAL_DEFAULT_RGB)
         radius = self.cfg.get("_radius", _PETAL_DEFAULT_RADIUS)
         pm, half = bullet_sprite(r, g, b, radius)
