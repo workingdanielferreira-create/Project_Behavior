@@ -20,6 +20,17 @@ DEFAULT_SCREEN_W = 1920
 DEFAULT_SCREEN_H = 1080
 
 # ---------------------------------------------------------------------------
+# Figure facing / rotation
+# ---------------------------------------------------------------------------
+# When True, every figure's sprite continuously rotates (MotionState.rotate ->
+# Transform.angle, applied in figure.py's face()/draw()) to face its current
+# travel/target direction, instead of only flipping left/right.  Applies to
+# every mode uniformly (built-in Runner/Swordsman and any JSON-authored
+# character) and identically in Solo and Battle -- there is a single Figure
+# construction path (App.add_figure), so this one flag governs both.
+ROTATE_TO_FACING_ENABLED = True
+
+# ---------------------------------------------------------------------------
 # Sprite sizing
 # ---------------------------------------------------------------------------
 # Run and idle frames were exported at different resolutions; we normalise both
