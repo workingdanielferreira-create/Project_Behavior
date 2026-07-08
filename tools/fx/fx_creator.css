@@ -36,3 +36,11 @@ input[type=color]{width:34px;height:24px;border:1px solid var(--bd);border-radiu
 #json textarea{flex:1;background:#0a0c10;color:#9fe;border:1px solid var(--bd);font:12px monospace;padding:8px;margin:10px 0;resize:none}
 .cols{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .hint{color:#7a8599;font-size:11px;padding:4px 12px}
+
+/* context menu — copy/paste layers between steps & keyframes between actions */
+.ctxmenu{position:fixed;z-index:9999;background:#1b2230;border:1px solid #3a465c;border-radius:6px;
+ box-shadow:0 6px 18px #000a;min-width:190px;padding:4px 0;font-size:12px}
+.ctxmenu .ci{padding:6px 12px;cursor:pointer;color:#dfe7f3;white-space:nowrap}
+.ctxmenu .ci:hover{background:#2a3650}
+.ctxmenu .ci.dis{color:#5a6577;cursor:default}
+.ctxmenu .ci.dis:hover{background:none}
