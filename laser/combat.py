@@ -307,6 +307,139 @@ class Projectile:
             p.drawPixmap(hx - half, hy - half, pm)
 
 
+def _hex_to_rgb(hexstr, default=(255, 255, 255)):
+    """'#rrggbb' -> (r, g, b) int tuple; falls back to `default` on anything
+    malformed so a bad/missing colour in the JSON never raises."""
+    try:
+        s = str(hexstr).lstrip("#")
+        if len(s) != 6:
+            return default
+        return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+    except (TypeError, ValueError):
+        return default
+
+
+def resolve_beam_layer_ref(char, ref):
+    """Resolve an attack_pattern cycle phase's 'beam_layer_ref' (format
+    'action_key:layer_id', e.g. 'attack_normal:L4') to the fx_layer dict it
+    points at, or None if the ref is missing/malformed/stale (character was
+    edited and the layer id no longer exists). Re-resolved fresh every shot
+    from the live character JSON, so wizard edits take effect with no engine
+    changes. Identical lookup in Solo & Battle (both read the same JSON)."""
+    if not ref or ":" not in str(ref):
+        return None
+    action_key, _, layer_id = str(ref).partition(":")
+    action = (char.get("actions") or {}).get(action_key) or {}
+    for layer in action.get("fx_layers") or []:
+        if layer.get("type") == "beam" and layer.get("_id") == layer_id:
+            return layer
+    return None
+
+
+# ---------------------------------------------------------------------------
+# RichBeamProjectile — a travelling attack_pattern "beam" shot that renders
+# using an AUTHORED beam fx_layer's own visual params (length, tapering
+# start/end width, dual-colour gradient, glow, segment jitter, pulse) instead
+# of the generic comet-bolt sprite every other attack_pattern style shares
+# (see attack_pattern.cycle[].beam_layer_ref). Only draw() is overridden —
+# position/velocity/damage/hit-detection still flow through the exact same
+# Projectile fields, so Solo & Battle parity and IPC are untouched:
+# ipc.write_projectiles only ever reads x/y/vx/vy/r/g/b/damage off ANY
+# Projectile subclass, so none of the extra visual fields below cross the
+# IPC boundary — purely local/cosmetic rendering, per IPC boundary discipline.
+# ---------------------------------------------------------------------------
+class RichBeamProjectile(Projectile):
+    __slots__ = ("length", "w_start0", "w_start1", "w_end0", "w_end1",
+                 "c1", "c2", "glow", "segments", "pulse_hz", "jitter",
+                 "additive", "_jitter_seed")
+
+    def __init__(self, fx, fy, vx, vy, color_rgb, trail_len, layer):
+        super().__init__(fx, fy, vx, vy, color_rgb, trail_len)
+        self.style = "beam"
+        try:
+            self.length = max(4.0, float(layer.get("length", 200)))
+        except (TypeError, ValueError):
+            self.length = 200.0
+        self.w_start0 = float(layer.get("w_start0", 6) or 6)
+        self.w_start1 = float(layer.get("w_start1", 6) or 6)
+        self.w_end0 = float(layer.get("w_end0", 2) or 2)
+        self.w_end1 = float(layer.get("w_end1", 2) or 2)
+        self.c1 = _hex_to_rgb(layer.get("c1"), color_rgb)
+        self.c2 = _hex_to_rgb(layer.get("c2"), color_rgb)
+        try:
+            self.glow = max(0.0, float(layer.get("glow", 0) or 0))
+        except (TypeError, ValueError):
+            self.glow = 0.0
+        try:
+            self.segments = max(1, int(layer.get("segments", 1) or 1))
+        except (TypeError, ValueError):
+            self.segments = 1
+        try:
+            self.pulse_hz = float(layer.get("pulse_hz", 0) or 0)
+        except (TypeError, ValueError):
+            self.pulse_hz = 0.0
+        try:
+            self.jitter = max(0.0, float(layer.get("jitter", 0) or 0))
+        except (TypeError, ValueError):
+            self.jitter = 0.0
+        self.additive = str(layer.get("blend", "normal")) == "additive"
+        self._jitter_seed = random.randint(0, 1_000_000)
+
+    def draw(self, p):
+        fade = max(0.0, 1.0 - self.age / self.max_age)
+        if fade <= 0.0:
+            return
+        spd = (self.vx * self.vx + self.vy * self.vy) ** 0.5
+        if spd < 0.0001:
+            return
+        ux, uy = self.vx / spd, self.vy / spd  # heading; tail sits -u*length
+
+        progress = min(1.0, self.age / max(1, self.max_age))
+        w_tail = self.w_start0 + (self.w_start1 - self.w_start0) * progress
+        w_head = self.w_end0 + (self.w_end1 - self.w_end0) * progress
+
+        pulse = 1.0
+        if self.pulse_hz > 0:
+            t_sec = (self.age * config.TICK_MS) / 1000.0
+            pulse = 0.65 + 0.35 * math.sin(2 * math.pi * self.pulse_hz * t_sec)
+        alpha_mult = fade * pulse
+
+        prev_mode = p.compositionMode()
+        if self.additive:
+            p.setCompositionMode(QPainter.CompositionMode_Plus)
+
+        segs = self.segments
+        rng = random.Random(self._jitter_seed + self.age)
+        for i in range(segs):
+            t0, t1 = i / segs, (i + 1) / segs
+            hx0 = self.x - ux * self.length * t0
+            hy0 = self.y - uy * self.length * t0
+            hx1 = self.x - ux * self.length * t1
+            hy1 = self.y - uy * self.length * t1
+            if self.jitter > 0:
+                j = (rng.random() * 2 - 1) * self.jitter
+                hx0 += -uy * j; hy0 += ux * j
+                hx1 += -uy * j; hy1 += ux * j
+            w = w_head + (w_tail - w_head) * t0
+            cr = self.c2[0] + (self.c1[0] - self.c2[0]) * t0
+            cg = self.c2[1] + (self.c1[1] - self.c2[1]) * t0
+            cb = self.c2[2] + (self.c1[2] - self.c2[2]) * t0
+            if self.glow > 0:
+                _TRAIL_PEN.setColor(QColor(int(cr), int(cg), int(cb),
+                                            int(70 * alpha_mult)))
+                _TRAIL_PEN.setWidthF(w + self.glow)
+                p.setPen(_TRAIL_PEN)
+                p.drawLine(int(hx0), int(hy0), int(hx1), int(hy1))
+            _TRAIL_PEN.setColor(QColor(int(cr), int(cg), int(cb),
+                                        int(235 * alpha_mult)))
+            _TRAIL_PEN.setWidthF(max(1.0, w))
+            p.setPen(_TRAIL_PEN)
+            p.drawLine(int(hx0), int(hy0), int(hx1), int(hy1))
+
+        if self.additive:
+            p.setCompositionMode(prev_mode)
+
+
 # ---------------------------------------------------------------------------
 # ZigzagProjectile — weaves laterally while travelling toward the target
 # ---------------------------------------------------------------------------
@@ -576,10 +709,22 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
         count = max(1, int(phase_cfg.get("count", 1) or 1))
         base_rad = math.radians(base_deg)
         vx, vy = math.cos(base_rad) * speed, math.sin(base_rad) * speed
+        # beam_layer_ref ('action_key:layer_id') lets a character's own
+        # authored beam fx_layer (length/width/colour/glow/segments/pulse/
+        # jitter) drive the look of this travelling shot instead of the
+        # generic comet-bolt every other style shares. Missing/stale ref ->
+        # unchanged legacy behaviour. Cosmetic only; damage/hit-detection
+        # identical either way. Identical in Solo & Battle.
+        beam_layer = resolve_beam_layer_ref(char, phase_cfg.get("beam_layer_ref"))
         for _ in range(count):
-            pr = Projectile(fig.x, fig.y, vx, vy, cr, config.BEAM_TRAIL_LEN)
+            if beam_layer is not None:
+                pr = RichBeamProjectile(fig.x, fig.y, vx, vy, cr,
+                                        config.BEAM_TRAIL_LEN, beam_layer)
+            else:
+                pr = Projectile(fig.x, fig.y, vx, vy, cr, config.BEAM_TRAIL_LEN)
+                pr.style = "beam"
             pr.max_age = config.BEAM_MAX_AGE
-            pr.style, pr.damage = "beam", damage
+            pr.damage = damage
             out.append(pr)
 
     return out
