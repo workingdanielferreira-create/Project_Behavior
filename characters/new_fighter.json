@@ -63,28 +63,26 @@
   "cycle_pause_ticks": 0,
   "cycle": [
    {
-    "style": "cone",
-    "angles_deg": [
-     0
-    ],
-    "speed_mult": 1
+    "style": "beam",
+    "count": 1,
+    "speed_mult": 1.3
    }
   ]
  },
  "combo": {
-  "max_hits": 3,
-  "cooldown_ticks": 62,
-  "followup_lock_ticks": 12,
-  "dash_speed_mult": 9,
-  "hit_radius": 20,
-  "arc_orbit_angle_deg": 150,
-  "arc_approach_sweep_deg": 120,
-  "arc_recoil_px": 10,
-  "arc_recoil_ticks": 12,
-  "arc_repo_ticks": 22,
-  "arc_approach_ticks": 24,
+  "max_hits": 0,
+  "cooldown_ticks": 0,
+  "followup_lock_ticks": 0,
+  "dash_speed_mult": 0,
+  "hit_radius": 0,
+  "arc_orbit_angle_deg": 0,
+  "arc_approach_sweep_deg": 0,
+  "arc_recoil_px": 0,
+  "arc_recoil_ticks": 0,
+  "arc_repo_ticks": 0,
+  "arc_approach_ticks": 0,
   "combo_travel_ticks_min": 0,
-  "combo_travel_ticks_max": 31
+  "combo_travel_ticks_max": 0
  },
  "ultimate_playback": {
   "style": "none"
@@ -250,14 +248,14 @@
     {
      "t": 0,
      "p": {
-      "rx": -228.578226763663,
-      "ry": -7.871475334771844,
+      "rx": 30.247844633710656,
+      "ry": -9.907875803567435,
       "sp": 86.82016988013581,
       "sp2": -1.5085090697037442,
       "hd": 2.707618599911367,
       "lsht": -102.14896850309282,
       "rsht": 23.003628427959054,
-      "lpvt": -5.906141113770676,
+      "lpvt": 3.198703368738734,
       "rpvt": 165.1413855520739,
       "lua": -52.503648836710546,
       "lfa": -143.02725949405828,
@@ -281,8 +279,8 @@
     {
      "t": 0.538,
      "p": {
-      "rx": -227.48910703306024,
-      "ry": -6.76199273538225,
+      "rx": 35.55835826221653,
+      "ry": -6.721567626463866,
       "sp": 86.82016988013581,
       "sp2": -1.9279878715835872,
       "hd": -6.866728159485217,
@@ -312,8 +310,8 @@
     {
      "t": 0.99,
      "p": {
-      "rx": -228.578226763663,
-      "ry": -7.871475334771844,
+      "rx": 35.55835826221653,
+      "ry": -8.845773077866284,
       "sp": 86.82016988013581,
       "sp2": -1.5085090697037442,
       "hd": 2.707618599911367,
@@ -389,7 +387,7 @@
     },
     {
      "type": "weapon",
-     "visible": true,
+     "visible": false,
      "opacity": 1
     }
    ],
@@ -757,7 +755,7 @@
      "glow": 8,
      "blend": "normal",
      "delay_ms": 0,
-     "trig": "ambient",
+     "trig": "immediate",
      "trig_ref": "",
      "trig_delay_ms": 0,
      "can_hit": true,
