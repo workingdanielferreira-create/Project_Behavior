@@ -116,7 +116,7 @@ const tl=$('tl');
 function renderTL(){tl.innerHTML='';keyframes.forEach((k,i)=>{const d=document.createElement('div');d.className='kf'+(i===selKF?' sel':'');
  d.style.left=(k.t*100)+'%';
  d.onmousedown=e=>{e.stopPropagation();e.preventDefault();selKF=i;dragKF=k;if(!poseMode)togglePose();else renderTL()};
- d.onclick=e=>e.stopPropagation();tl.appendChild(d)});
+ d.onclick=e=>e.stopPropagation();d.oncontextmenu=e=>{selKF=i;renderTL();kfMenu(e,i)};tl.appendChild(d)});
  const ph=document.createElement('div');ph.className='ph';ph.id='ph';tl.appendChild(ph);
  $('tlhint').textContent=poseMode?`Editing keyframe ${selKF+1}/${keyframes.length} @ t=${keyframes[selKF]?.t.toFixed(2)} — drag joints on canvas; drag hip to move root; drag ◆ along timeline to retime; ←/→ nudge KF (Shift=×5); click timeline to scrub`:'Timeline — ◆ keyframes (click to edit) | wheel=zoom, drag canvas=pan | Pose Mode to sculpt, + KF to capture new keyframe at playhead'}
 tl.onclick=e=>{const r=tl.getBoundingClientRect(),t=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
@@ -140,6 +140,62 @@ function dupKF(){if(selKF<0){alert('Select a keyframe first (Pose Mode)');return
  const k=keyframes[selKF],p={...k.p},t=Math.min(1,+(k.t+0.05).toFixed(3));
  keyframes.push({t,p});keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.findIndex(q=>q.p===p);renderTL()}
 window.dupKF=dupKF;
+// ---- [CLIPBOARD] copy/paste layers between wizard steps & keyframes between actions ----
+// CLIP lives at module level, so it survives gotoStep()/loadCharAction() swaps of fx.layers/keyframes.
+// Right-click a layer row / the Layers panel, or a ◆ keyframe / the timeline, for the menu.
+const CLIP={layer:null,kf:null,kfset:null};
+let _cm=null;
+function closeCM(){if(_cm){_cm.remove();_cm=null}}
+document.addEventListener('click',closeCM);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCM()});
+function showCM(x,y,items){closeCM();const m=document.createElement('div');m.className='ctxmenu';
+ m.style.left=x+'px';m.style.top=y+'px';
+ items.forEach(it=>{const b=document.createElement('div');b.className='ci'+(it.dis?' dis':'');b.textContent=it.label;
+  if(!it.dis)b.onclick=ev=>{ev.stopPropagation();closeCM();it.fn()};
+  m.appendChild(b)});
+ document.body.appendChild(m);_cm=m;
+ const r=m.getBoundingClientRect();
+ if(r.right>window.innerWidth)m.style.left=Math.max(0,x-r.width)+'px';
+ if(r.bottom>window.innerHeight)m.style.top=Math.max(0,y-r.height)+'px'}
+function copyLayer(i){const l=fx.layers[i];if(!l||isBI(l))return;
+ const c=JSON.parse(JSON.stringify(l));delete c._id;CLIP.layer=c;
+ $('stat').textContent='layer copied ('+c.type+') — right-click Layers in any step to paste'}
+function pasteLayer(){if(!CLIP.layer)return;ensureBuiltin(fx.layers);
+ const c=JSON.parse(JSON.stringify(CLIP.layer));delete c._id;
+ let at=fx.layers.findIndex(isBI);if(at<0)at=fx.layers.length;
+ fx.layers.splice(at,0,c);sel=at;renderLayers();renderProps();
+ $('stat').textContent='layer pasted ('+c.type+')'}
+function copyKF(i){const k=keyframes[i];if(!k)return;CLIP.kf={t:k.t,p:{...k.p}};
+ $('stat').textContent='keyframe copied (t='+k.t.toFixed(2)+') — right-click a timeline in any action to paste'}
+function copyAllKF(){CLIP.kfset=keyframes.map(k=>({t:k.t,p:{...k.p}}));
+ $('stat').textContent='all keyframes copied ('+CLIP.kfset.length+')'}
+function pasteKF(t){if(!CLIP.kf)return;const k={t:+Math.max(0,Math.min(1,t)).toFixed(3),p:{...CLIP.kf.p}};
+ fixKF([k]);keyframes.push(k);keyframes.sort((a,b)=>a.t-b.t);selKF=keyframes.indexOf(k);
+ if(!poseMode)togglePose();else renderTL();
+ $('stat').textContent='keyframe pasted @ t='+k.t.toFixed(2)}
+function pasteKFset(){if(!CLIP.kfset||!CLIP.kfset.length)return;
+ if(!confirm('Replace ALL keyframes of this action with the '+CLIP.kfset.length+' copied keyframes?'))return;
+ keyframes.length=0;CLIP.kfset.forEach(k=>keyframes.push({t:k.t,p:{...k.p}}));
+ fixKF(keyframes);keyframes.sort((a,b)=>a.t-b.t);selKF=0;
+ if(!poseMode)togglePose();else renderTL();
+ $('stat').textContent='keyframe set pasted ('+keyframes.length+')'}
+function kfMenu(e,i){e.preventDefault();e.stopPropagation();
+ const r=tl.getBoundingClientRect(),ct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+ const items=[];
+ if(i>=0){items.push({label:'Copy keyframe',fn:()=>copyKF(i)})}
+ if(keyframes.length)items.push({label:'Copy all keyframes ('+keyframes.length+')',fn:copyAllKF});
+ items.push({label:CLIP.kf?'Paste keyframe here (t='+ct.toFixed(2)+')':'Paste keyframe here',dis:!CLIP.kf,fn:()=>pasteKF(ct)});
+ items.push({label:CLIP.kf?'Paste keyframe at original t='+CLIP.kf.t.toFixed(2):'Paste keyframe at original t',dis:!CLIP.kf,fn:()=>pasteKF(CLIP.kf.t)});
+ items.push({label:CLIP.kfset?'Paste all keyframes — replace ('+CLIP.kfset.length+')':'Paste all keyframes — replace',dis:!CLIP.kfset,fn:pasteKFset});
+ showCM(e.clientX,e.clientY,items)}
+function layerMenu(e,i){e.preventDefault();e.stopPropagation();
+ const l=i>=0?fx.layers[i]:null,items=[];
+ if(l&&!isBI(l))items.push({label:'Copy layer ('+l.type+')',fn:()=>copyLayer(i)});
+ items.push({label:CLIP.layer?'Paste layer ('+CLIP.layer.type+')':'Paste layer',dis:!CLIP.layer,fn:pasteLayer});
+ showCM(e.clientX,e.clientY,items)}
+tl.oncontextmenu=e=>kfMenu(e,-1);
+$('layers').oncontextmenu=e=>layerMenu(e,-1);
+
 // ---- [LAYERS UI] ----
 function addLayer(){const t=$('newtype').value;ensureBuiltin(fx.layers);
  let at=fx.layers.findIndex(isBI);if(at<0)at=fx.layers.length;
@@ -173,7 +229,7 @@ function renderLayers(){const d=$('layers');d.innerHTML='';ensureBuiltin(fx.laye
   const dp=document.createElement('button');dp.textContent='⧉';dp.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i+1,0,JSON.parse(JSON.stringify(l)));renderLayers()};
   const x=document.createElement('button');x.textContent='✕';x.onclick=ev=>{ev.stopPropagation();fx.layers.splice(i,1);sel=Math.min(sel,fx.layers.length-1);renderLayers();renderProps()};
   e.append(dp,x)}
- e.onclick=()=>{sel=i;renderLayers();renderProps()};d.appendChild(e)})}
+ e.onclick=()=>{sel=i;renderLayers();renderProps()};e.oncontextmenu=ev=>{sel=i;renderLayers();renderProps();layerMenu(ev,i)};d.appendChild(e)})}
 function renderProps(){const d=$('props'),l=fx.layers[sel];if(!l){d.innerHTML='<em style="color:#7a8599">Select a layer</em>';return}
  if(isBI(l)){d.innerHTML=`<div class="row"><label>Type</label><div class="v"><b>${l.type==='figure'?'Character (built-in)':'Weapon (built-in)'}</b></div></div>
  <div class="row"><label>Visible</label><div class="v"><input type="checkbox" ${l.visible!==false?'checked':''} onchange="setP('visible',this.checked);renderLayers()"></div></div>
