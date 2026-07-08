@@ -26,6 +26,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 
 REPO = "workingdanielferreira-create/Project_Behavior"
@@ -132,6 +133,67 @@ def update_files():
     return changed, failed, locked, self_updated
 
 
+def _pids_running_game():
+    """PIDs of any process whose command line mentions laser_cursor.pyw.
+    Tries wmic first (older Windows), falls back to PowerShell's
+    Get-CimInstance (wmic was dropped by default in newer Windows builds).
+    Best-effort: returns [] if neither tool is available rather than
+    raising, so a locked-down machine still falls through to a normal
+    update-without-closing run."""
+    my_pid = os.getpid()
+    pids = []
+
+    try:
+        out = subprocess.check_output(
+            ["wmic", "process", "where",
+             "CommandLine like '%laser_cursor.pyw%'",
+             "get", "ProcessId,CommandLine", "/format:csv"],
+            stderr=subprocess.DEVNULL, text=True, timeout=15)
+        for line in out.splitlines():
+            line = line.strip()
+            if not line or line.lower().startswith("node,"):
+                continue
+            pid_str = line.split(",")[-1].strip()
+            if pid_str.isdigit():
+                pids.append(int(pid_str))
+    except Exception:
+        try:
+            out = subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_Process | "
+                 "Where-Object { $_.CommandLine -like '*laser_cursor.pyw*' } | "
+                 "Select-Object -ExpandProperty ProcessId"],
+                stderr=subprocess.DEVNULL, text=True, timeout=15)
+            for line in out.splitlines():
+                line = line.strip()
+                if line.isdigit():
+                    pids.append(int(line))
+        except Exception:
+            return []
+
+    return [p for p in pids if p != my_pid]
+
+
+def close_running_game():
+    """Force-close any running instance(s) of the game so locked engine/
+    binary files can be overwritten cleanly before we pull. Windows-only
+    (this build only ships as a Windows portable folder) and best-effort —
+    a machine without wmic/PowerShell just skips this step silently and
+    falls through to the normal update (previous behaviour)."""
+    if os.name != "nt":
+        return []
+    killed = []
+    for pid in _pids_running_game():
+        try:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=10)
+            killed.append(pid)
+        except Exception:
+            pass
+    return killed
+
+
 def launch_game():
     """Start the game exactly like run.bat: pythonw.exe laser_cursor.pyw."""
     pythonw = os.path.join(HERE, "pythonw.exe")
@@ -147,6 +209,14 @@ def launch_game():
 
 
 def main():
+    print("Closing any running game instance...\n")
+    killed = close_running_game()
+    if killed:
+        print(f"Closed {len(killed)} running game process(es): {killed}\n")
+        time.sleep(1.0)  # give Windows a moment to release file handles
+    else:
+        print("No running game instance found (or couldn't check).\n")
+
     print("Checking GitHub for updates...\n")
     try:
         changed, failed, locked, self_updated = update_files()
@@ -162,7 +232,7 @@ def main():
     else:
         print("Everything already up to date.")
     if locked:
-        print("Skipped (file in use — close the game and re-run to update):")
+        print("Skipped (still in use — try re-running the updater):")
         for f in locked:
             print(f"  - {f}")
     if failed:
