@@ -12,12 +12,15 @@ package folder.  Double-click with pythonw, or run `pythonw laser_cursor.pyw`.
 Controls:
     Ctrl+Alt+Enter  quit
     F9              toggle figures on/off
-    F7 / F8         add / remove a figure
+    F7 / F8         add / remove a P1 figure
+    1               cycle P1's character
+    2               cycle P2's character (past the last one = P2 off);
+                    fielding P2 starts a Battle in this same window
     Ctrl (tap)      toggle cursor collision
     Ctrl+Q          toggle follow-path vs chase
     Ctrl+R          toggle runaway
     Alt+Up          toggle attack/shoot mode
-    Alt+Left/Right  cycle behaviour mode (runner / swordsman / ...)
+    Alt+Left/Right  cycle P1 behaviour mode (runner / swordsman / ...)
 """
 
 import os
