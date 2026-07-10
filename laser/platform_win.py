@@ -20,6 +20,8 @@ VK_F9    = 0x78
 VK_UP    = 0x26
 VK_LEFT  = 0x25
 VK_RIGHT = 0x27
+VK_1     = 0x31
+VK_2     = 0x32
 
 _BELOW_NORMAL = 0x00004000
 
