@@ -5,12 +5,12 @@ Systems — the ordered pipeline that runs every tick.
 system does one job over the whole world; a cross-cutting feature is a new
 system inserted into the list, not edits sprinkled across a monolith.
 
-Pipeline order (later stages fill the no-op systems in):
-    InputSystem -> CombatSystem -> MotionSystem -> CollisionSystem
-    -> ProjectileSystem -> IpcSystem
-Combat runs before motion so a mid-attack figure moves there and the motion
-system skips it (`fig.combat.busy`).  Rendering is NOT a system — Qt requires
-it inside paintEvent (see app.py).
+Pipeline order (run once per fielded side each tick — see app.py):
+    CombatSystem -> MotionSystem -> CollisionSystem -> ProjectileSystem
+InputSystem runs once per tick, outside the per-side loop.  Combat runs
+before motion so a mid-attack figure moves there and the motion system skips
+it (`fig.combat.busy`).  Rendering is NOT a system — Qt requires it inside
+paintEvent (see app.py).
 """
 
 import math
@@ -69,6 +69,14 @@ class InputSystem(System):
 
         if self._pressed(win.VK_F9):
             world.runner_on = not world.runner_on
+
+        # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
+        # registered character; P2 cycles through them and then OFF (side
+        # cleared — battle ends), tap again to re-field.
+        if self._pressed(win.VK_1):
+            world.cycle_side_char(0)
+        if self._pressed(win.VK_2):
+            world.cycle_side_char(1)
         if self._pressed(win.VK_F7):
             world.add_figure()
         if self._pressed(win.VK_F8):
@@ -213,11 +221,11 @@ class CombatSystem(System):
                 c.impact_fx_pending.clear()
 
             # --- Hit-stop: big hit (string finisher / ultimate) freezes the
-            # world; broadcast so the partner process freezes in sync too. ---
+            # world.  Both sides share one clock, so attacker and victim
+            # freeze together by construction. ---
             if c.hitstop_request:
                 c.hitstop_request = False
                 world.hitstop_ticks = config.HITSTOP_TICKS
-                world.hitstop_broadcast_pending = True
 
 
 def _basic_shot(fig, tx, ty):
@@ -604,9 +612,12 @@ class CollisionSystem(System):
                     ddx, ddy = proj.x - ex, proj.y - ey
                     if ddx * ddx + ddy * ddy <= dsq:
                         # Collision — scatter this bullet into splinters
+                        # and destroy the enemy bullet for real (tuple[8]
+                        # is the live Projectile on the other side).
                         splinters = combat.make_splinter_bullets(proj)
                         new_mine.extend(splinters)
                         consumed_enemy.add(ei)
+                        combat.kill_projectile(etup[8])
                         world.collision_dots.append([proj.x, proj.y, 0])
                         action_log.log("BULLET_HIT",
                             f"scatter at ({proj.x:.0f},{proj.y:.0f}) "
@@ -623,9 +634,9 @@ class CollisionSystem(System):
                 ]
 
                 # --- Crescent arc erasure (must precede the hit check) ---
-        # Regular crescents: erase per-tick (no fingerprinting needed — crescent
-        # re-checks each tick for its lifetime, so bullets removed from enemy_projs
-        # that re-appear from IPC are caught again naturally).
+        # Regular crescents: erase per-tick — an erased bullet is destroyed
+        # at the source (tuple[8].alive = False), so it never re-enters the
+        # snapshot on later ticks.
         # Ult crescents: use velocity fingerprinting so bullets stay erased even after
         # they travel out of the ult crescent's zone.
         if world.enemy_projs:
@@ -644,6 +655,7 @@ class CollisionSystem(System):
                     for cr in fig.combat.crescents:
                         if cr.check_bullet_erase(ex, ey):
                             world.collision_dots.append([ex, ey, 0])
+                            combat.kill_projectile(tup[8])
                             hit = True
                             break
                 # --- Ultimate crescent erasure (fingerprinted for persistence) ---
@@ -655,6 +667,7 @@ class CollisionSystem(System):
                             if uc.check_bullet_erase(ex, ey):
                                 world.intercepted_bullets.add(fp)
                                 world.collision_dots.append([ex, ey, 0])
+                                combat.kill_projectile(tup[8])
                                 hit = True
                                 break
                 if not hit:
@@ -691,7 +704,9 @@ class CollisionSystem(System):
                             erased_by_parry = True
                         if erased_by_parry:
                             # Deflect: enemy bullet ricochets off the swordsman
-                            # (cosmetic, keeps the shooter's original colour).
+                            # (cosmetic, keeps the shooter's original colour),
+                            # and the real bullet dies at the source.
+                            combat.kill_projectile(tup[8])
                             world.projectiles.append(combat.make_deflect_bullet(
                                 fig.x, fig.y, ex, ey, evx, evy,
                                 (tup[4], tup[5], tup[6])))
@@ -705,7 +720,7 @@ class CollisionSystem(System):
                     continue  # parry stance active — no HP damage
                 hb = fig.mode.hurtbox_radius()
                 proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
-                for ex, ey, evx, evy, _r, _g, _b, _dmg in world.enemy_projs:
+                for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
                         ai.battle_hit(fig, evx, evy, world, amount=_dmg)
@@ -724,7 +739,7 @@ class CollisionSystem(System):
                 c, m = fig.combat, fig.motion
                 if c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending:
                     continue
-                for ex, ey, evx, evy, _r, _g, _b, _dmg in world.enemy_projs:
+                for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy > dsq:
                         continue
@@ -833,26 +848,17 @@ class CollisionSystem(System):
                 for uc in fig.combat.ult_crescents:
                     for ex, ey, _edash, _eparry in world.partner_figures:
                         if uc.check_figure_hit(ex, ey):
-                            # Apply damage to all own figures (self); partner HP
-                            # is tracked in the partner process via IPC.
-                            # We signal damage through a lightweight approach:
-                            # deduct HP from local figures if the roles are
-                            # flipped (our crescent vs their figure = their HP).
-                            # Since partner_figures is read-only IPC data, we
-                            # record that our crescent hit so the partner process
-                            # handles it via enemy_projs detection. We mark a
-                            # proximity collision dot for visual feedback.
+                            # partner_figures is a read-only snapshot — the
+                            # opposing side registers crescent damage through
+                            # the normal projectile pipeline on its own pass.
+                            # Here we only mark the visual contact dot.
                             world.collision_dots.append([ex, ey, 0])
 
         # --- Ultimate crescent → own figure HP damage (ult hits our figs back) ---
         # Only apply in solo mode (target = cursor proximity) or when enemy
-        # ult crescents overlap our figures. Enemy ult crescents are not yet
-        # shared via IPC; we handle the damage on the figure that was hit.
-        # Solo: ult crescent damages figure when it re-enters after 500 px.
-        # NOTE: partner process applies ult_crescent damage to its own figures
-        # by checking our shared projectile/figure data. In battle mode the
-        # partner's ult_crescents are not yet in IPC. For now the crescent is
-        # purely visual on the partner's end but destroys bullets correctly.
+        # ult crescents overlap our figures.  Ult-crescent-vs-figure damage
+        # across sides is a documented gap (visual + bullet-erase only), the
+        # same behaviour Battle mode has always had.
 
         # --- Ultimate crescent → solo mode cursor/figure zone ---
         # In solo mode, every our-figure ult crescent that is still alive and
@@ -863,70 +869,13 @@ class CollisionSystem(System):
         # itself is never in the damage zone; only an approaching enemy would be.)
 
 
-class IpcSystem(System):
-    """Heartbeat + share figures/projectiles, then read the partner's and set
-    battle mode.  Runs early (after input) so targets are fresh for combat."""
-
-    def update(self, world):
-        ipc = world.ipc
-        if not ipc.alive():
-            return
-        ipc.write_heartbeat()
-        ipc.write_figures(world.figures)
-        # Share only real bullets.  hit_r_sq == 0 marks cosmetic projectiles
-        # (parry deflects, splinters) — excluded so they can never deal
-        # damage or trigger interactions in the partner process.
-        ipc.write_projectiles(
-            [pr for pr in world.projectiles if pr.hit_r_sq > 0.0])
-
-        # Collect any pending dash-slash knockback from this tick and write it.
-        kb_vx = kb_vy = 0.0
-        kb_pending = False
-        for fig in world.figures:
-            if fig.combat.hit_pending:
-                kb_vx, kb_vy = fig.combat.hit_vx, fig.combat.hit_vy
-                kb_pending = True
-                fig.combat.hit_pending = False
-        ipc.write_knockback(kb_vx, kb_vy, kb_pending)
-
-        # Broadcast hit-stop so both processes freeze together on big hits.
-        ipc.write_hitstop(world.hitstop_broadcast_pending)
-        world.hitstop_broadcast_pending = False
-
-        was_battle = world.battle_mode
-        world.battle_mode = ipc.partner_alive()
-        if world.battle_mode:
-            world.partner_figures = ipc.read_partner_figures()
-            world.enemy_projs = ipc.read_partner_projectiles()
-            # Apply any knockback the partner sent this tick.
-            pvx, pvy, ppending = ipc.read_partner_knockback()
-            if ppending:
-                ipc.clear_partner_knockback()
-                for fig in world.figures:
-                    m = fig.motion
-                    if m.bouncing or m.bounce_ending:
-                        continue
-                    m.bounce_vx, m.bounce_vy = pvx, pvy
-                    m.bouncing = True
-            # Partner landed a big hit — freeze in sync.
-            if ipc.read_partner_hitstop():
-                ipc.clear_partner_hitstop()
-                if world.hitstop_ticks <= 0:
-                    world.hitstop_ticks = config.HITSTOP_TICKS
-        else:
-            world.partner_figures = []
-            world.enemy_projs = []
-            if was_battle:
-                world.intercepted_bullets.clear()
-
-
 def build_pipeline():
-    """The ordered systems list. IPC runs early so battle targets are fresh;
-    collisions run after movement; rendering is in paintEvent (not a system)."""
+    """The ordered per-side systems list, run once per fielded side each
+    tick (app.py binds the side first).  Input is handled once per tick by
+    Overlay, outside this pipeline; collisions run after movement; rendering
+    is in paintEvent (not a system)."""
     return [
-        InputSystem(),
-        IpcSystem(),        # share + read partner; set battle mode
-        CombatSystem(),     # advance attacks (uses fresh enemy targets)
+        CombatSystem(),     # advance attacks (uses fresh enemy snapshots)
         MotionSystem(),     # move non-attacking figures
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
