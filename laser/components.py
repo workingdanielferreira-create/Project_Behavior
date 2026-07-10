@@ -232,7 +232,7 @@ class Combatant:
         self.crescents = []
         self.acted = False   # set each tick by CombatSystem; MotionSystem reads it
         self.hit_pending = False  # True when a dash-slash landed this tick
-        self.hit_vx = self.hit_vy = 0.0  # knockback impulse direction for partner
+        self.hit_vx = self.hit_vy = 0.0  # knockback impulse dealt to the enemy side
         self.parrying = False           # True while the active parry window is open
         self.parry_cooldown_ticks = 0   # ticks remaining before next parry allowed
         self.parry_stance_ticks = 0     # ticks remaining in the active deflect window
@@ -281,7 +281,7 @@ class Combatant:
         # size_over_life/color), spawned locally when that action fires.
         # pending_bursts holds [ticks_remaining, layer, scale, facing] queued
         # entries (authored delay_ms/trig_delay_ms); particle_bursts holds
-        # the live BurstParticle instances. Never synced over IPC.
+        # the live BurstParticle instances. Purely local eye-candy.
         self.particle_bursts = []
         self.pending_bursts = []
 
