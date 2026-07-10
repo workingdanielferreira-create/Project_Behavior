@@ -1,8 +1,10 @@
 # laser_cursor — Architecture
 
 A PyQt5 fullscreen transparent overlay of animated neon companions that chase,
-flee, follow, shoot, and sword-fight (across two instances). This document is
-the map: how the pieces fit, where to add things, and the staged rebuild plan.
+flee, follow, shoot, and sword-fight — two independent sides hosted in one
+process (key `1` cycles P1's character, key `2` cycles P2's and fields or
+retires them; fielding P2 starts a Battle). This document is the map: how the
+pieces fit, where to add things, and the staged rebuild plan.
 
 ## Why it was restructured
 
@@ -48,9 +50,18 @@ The old 340-line `_tick` is now an ordered list of `System` objects, each doing
 one job over the whole `World`:
 
 ```
-InputSystem -> CombatSystem -> MotionSystem -> CollisionSystem
-            -> ProjectileSystem -> IpcSystem
+per tick:  InputSystem (once)  ->  World.refresh_battle (snapshots)
+           then per fielded side:
+           CombatSystem -> MotionSystem -> CollisionSystem -> ProjectileSystem
 ```
+
+Battle is two `SideState`s inside one `World`. Each tick the world rebuilds a
+read-only snapshot of each side for its opponent (`partner_figures`,
+`enemy_projs`) and then runs the pipeline once per side with that side bound.
+Both sides read the same frozen picture regardless of pass order, so the two
+fighters keep fully independent decision streams — separate `Personality`
+RNGs, separate cadences, separate FSMs — which is what gives the battle its
+reactive, two-minds feel.
 
 **Add a cross-cutting feature** that "many components must consider" (e.g. a
 freeze field, status effects, screen shake): write one `System`, insert it into
@@ -77,7 +88,6 @@ laser/
   modes.py           FigureMode base + @register + RunnerMode / SwordsmanMode
   motion.py          chase / follow-path / runaway / cursor-bounce + walls
   combat.py          Projectile / CrescentWave / make_shot (+ slash FSM stage 2)
-  ipc.py             shared-memory bridge; layout derived from struct strides
   ai.py              battle targeting / wander / daze / retreat (stage 3)
   systems.py         System base + the pipeline
   app.py             World (state + factory) + Overlay (window, loop, paint)
@@ -111,7 +121,7 @@ and logic smoke test before delivery.
   combo FSM driving `CombatSystem`; crescent emitted on hit, aimed at the struck
   target; gated by `mode.uses_melee()`. The dash-trigger tick still takes one
   normal step (faithful) via the `Combatant.acted` signal.
-- **Stage 3 — battle/IPC + AI:** `IpcSystem` (heartbeat + share/read), `ai.py`
+- **Stage 3 — battle + AI:** per-side snapshots (`World.refresh_battle`), `ai.py`
   (battle target with wander/daze/retreat + cubic wall repulsion, and growing-
   knockback hit physics), per-figure battle firing, and `CollisionSystem`
   (crescent bullet-erasure, projectile hits, dodge/counter triggers, body
