@@ -254,8 +254,8 @@ COLLISION_DOT_RADIUS  = 3    # px
 PETAL_CATCH_RADIUS = 14.0    # px — how close a petal must get to consume a bullet
 PETAL_TOUCH_PROJ_AGE = 6     # ticks — lifetime of the invisible touch projectile a
                              # petal spawns on enemy-figure contact; just long
-                             # enough to cross IPC and register the hit on the
-                             # partner side (identical in Solo & Battle).
+                             # enough to enter the enemy side's snapshot and
+                             # register the hit (identical in Solo & Battle).
 
 
 # ---------------------------------------------------------------------------
@@ -314,8 +314,8 @@ AFTERIMAGE_RGB        = (225, 40, 55)   # crimson silhouette colour
 AFTERIMAGE_MAX        = 12      # cap on live ghosts per figure
 
 # Hit-stop — everything freezes for a few ticks on BIG hits only
-# (attack-string finishers and ultimate launches).  Synced across both
-# processes via IPC so attacker and victim freeze together in Battle mode.
+# (attack-string finishers and ultimate launches).  Both sides share one
+# clock, so attacker and victim freeze together in Battle mode.
 HITSTOP_TICKS         = 5       # ~80 ms at 62 fps
 
 # Impact shockwave ring + spark burst on every landed slash hit.
@@ -328,7 +328,7 @@ IMPACT_SPARK_LIFETIME = 12      # ticks before a spark dies
 
 # Parry deflect — blocked bullets ricochet off the swordsman instead of
 # vanishing.  Purely cosmetic: hit_r_sq = 0 (no collisions) and excluded
-# from IPC sharing, so they can never deal damage in either mode.
+# from the enemy-side snapshot, so they can never deal damage in either mode.
 DEFLECT_CONE_DEG      = 70.0    # total scatter cone around the away-axis
 DEFLECT_SPEED_MULT    = 1.15    # deflected speed vs incoming speed
 DEFLECT_MAX_AGE       = 45      # ticks a ricochet lives (~0.7 s)
