@@ -54,8 +54,8 @@ def note_impact_taken(fig):
 def note_hit_landed(fig):
     """Call whenever fig lands a hit on the enemy — feeds after_on_hit
     triggers. NOTE: in Battle mode a landed hit currently only updates local
-    state; crediting it correctly needs the same IPC treatment as HP damage
-    (partner_figures), which is not yet wired — see ARCHITECTURE notes."""
+    state; crediting it across sides is not yet wired — see ARCHITECTURE
+    notes."""
     st = _ensure_trigger_state(fig.personality)
     for s in st.values():
         s["hit_count"] += 1
@@ -125,9 +125,11 @@ def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
 
 def apply_hp_damage(fig, world, amount=1):
     """Deduct `amount` HP from fig (default 1, the historical flat per-hit
-    value every built-in attack still uses) and signal quit when HP reaches
-    0. JSON-character attacks pass their own fx_layer battle.damage here
-    (see combat.fire_character_action / ipc projectile damage field).
+    value every built-in attack still uses) and report the death when HP
+    reaches 0 (solo: run ends; battle: the fallen fighter is removed and the
+    survivor fights on). JSON-character attacks pass their own fx_layer
+    battle.damage here (see combat.fire_character_action / the snapshot
+    tuple's damage field).
 
     Safe to call from any system.  Returns True if the figure just died.
     Also triggers the runner ultimate when HP first drops to/below 30% of max,
@@ -139,7 +141,7 @@ def apply_hp_damage(fig, world, amount=1):
     p.hp -= amount
     if p.hp <= 0:
         p.hp = 0
-        world.request_quit()
+        world.on_figure_death(fig)
         return True
     # Trigger runner ultimate and survival teleport on the tick HP crosses
     # the threshold.
