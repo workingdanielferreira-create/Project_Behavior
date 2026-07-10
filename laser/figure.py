@@ -87,6 +87,11 @@ class Figure:
                 t.angle = a
             else:
                 t.angle = (180 - a) if a > 0 else (-180 - a)
+            # Rotation direction inverted (2026-07-10): the original sign made
+            # figures visually lean/tip backwards opposite their travel
+            # direction while running. Negating restores a forward lean that
+            # tracks the direction of travel instead of fighting it.
+            t.angle = -t.angle
         else:
             t.angle = 0.0
 
