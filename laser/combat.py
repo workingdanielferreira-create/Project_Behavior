@@ -185,7 +185,7 @@ def make_deflect_bullet(fig_x, fig_y, bx, by, bvx, bvy, color_rgb):
 
     Direction: away from the swordsman (fig -> bullet axis) plus a random
     angle inside DEFLECT_CONE_DEG.  Keeps the shooter's original colour.
-    hit_r_sq = 0 marks it cosmetic: no collisions of any kind, and IpcSystem
+    hit_r_sq = 0 marks it cosmetic: no collisions of any kind, and the battle snapshot
     excludes it from sharing so it can never deal damage in either mode.
     """
     dx, dy = bx - fig_x, by - fig_y
@@ -207,6 +207,15 @@ def make_deflect_bullet(fig_x, fig_y, bx, by, bvx, bvy, color_rgb):
 # ---------------------------------------------------------------------------
 # Projectile — a bullet with a short position-history trail
 # ---------------------------------------------------------------------------
+def kill_projectile(pr):
+    """Destroy a live projectile immediately (alive is derived from age, so
+    ageing it out is the one uniform kill switch for every bullet class).
+    Used when the enemy side intercepts a bullet through its snapshot —
+    petals, crescents, parries, and bullet-vs-bullet scatter all destroy
+    the bullet at its source."""
+    pr.age = pr.max_age
+
+
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage")
@@ -222,7 +231,7 @@ class Projectile:
         self.radius = float(config.PROJ_RADIUS)  # overridable for splinters
         self.style = None    # None=round | cone|zigzag|homing|beam comet bolt
         # HP damage this bullet deals on a real hit (see ai.battle_hit /
-        # ai.apply_hp_damage and ipc.write_projectiles). Every built-in
+        # ai.apply_hp_damage and the enemy-side snapshot). Every built-in
         # shot (runner/swordsman fan, splinters, deflects) keeps the
         # historical flat 1 HP per hit; only JSON-character attacks
         # (combat.fire_character_action) set a different value from their
@@ -241,7 +250,7 @@ class Projectile:
 
     def draw(self, p):
         if self.style == "invisible":
-            # Damage/IPC/hit-detection still run normally — only the round-
+            # Damage/snapshot/hit-detection still run normally — only the round-
             # dot sprite is skipped because a richer local burst (see
             # combat.spawn_character_burst_fx) is providing the real visual.
             return
@@ -343,10 +352,10 @@ def resolve_beam_layer_ref(char, ref):
 # of the generic comet-bolt sprite every other attack_pattern style shares
 # (see attack_pattern.cycle[].beam_layer_ref). Only draw() is overridden —
 # position/velocity/damage/hit-detection still flow through the exact same
-# Projectile fields, so Solo & Battle parity and IPC are untouched:
-# ipc.write_projectiles only ever reads x/y/vx/vy/r/g/b/damage off ANY
+# Projectile fields, so Solo & Battle parity is untouched: the battle
+# snapshot only ever reads x/y/vx/vy/r/g/b/damage off ANY
 # Projectile subclass, so none of the extra visual fields below cross the
-# IPC boundary — purely local/cosmetic rendering, per IPC boundary discipline.
+# snapshot boundary — purely local/cosmetic rendering, per boundary discipline.
 # ---------------------------------------------------------------------------
 class RichBeamProjectile(Projectile):
     __slots__ = ("length", "w_start0", "w_start1", "w_end0", "w_end1",
@@ -736,7 +745,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
 # the character JSON) into real Projectiles carrying that layer's own
 # battle.damage. Reuses the existing Projectile/HomingProjectile pipeline —
 # every JSON-character projectile already flows through the same
-# fire -> world.projectiles -> IPC -> world.enemy_projs -> petals/parry/HP
+# fire -> world.projectiles -> battle snapshot -> world.enemy_projs -> petals/parry/HP
 # path built for runner/swordsman, so Solo & Battle parity is automatic.
 #
 # Motion per layer:
@@ -766,7 +775,7 @@ def fire_character_action(fig, action_key, target_x, target_y,
     action (e.g. mage's 5-particle attack_special) fan out symmetrically
     across config.CHAR_ATTACK_SPREAD_DEG. Returns the list of new Projectiles
     (caller extends world.projectiles). `suppress_visual=True` marks the
-    resulting Projectiles style="invisible" — damage/IPC/hit-detection still
+    resulting Projectiles style="invisible" — damage/snapshot/hit-detection still
     run identically, but the plain round-dot sprite is hidden because a
     richer local burst (spawn_character_burst_fx) is the real visual for
     that action. No-op for built-in (non-JSON) characters. Identical in
@@ -857,8 +866,8 @@ def has_defend_deflect(fig):
 # Character particle bursts — purely cosmetic, LOCAL-ONLY rendering of a
 # JSON character's own 'particles' fx_layers, matching the FX Creator export
 # directly: count, spread_deg, angle_deg, speed_min/max, gravity, drag,
-# size_over_life, life_min/max, c1/c2, anchor px/py. Never synced over IPC
-# (per the established IPC boundary: locally-rendered eye-candy stays local;
+# size_over_life, life_min/max, c1/c2, anchor px/py. Never enters the battle
+# snapshot (per the established boundary: locally-rendered eye-candy stays local;
 # cross-process state uses the fixed struct layout) — the actual can_hit
 # damage for these same layers is handled separately by
 # fire_character_action(..., suppress_visual=True), so the two don't
@@ -1233,7 +1242,7 @@ class Petal:
     figure enters detect_range of this petal, it breaks orbit and moves to
     intercept at approach_speed. Contact with a projectile negates it;
     contact with an enemy figure deals cfg["damage"] HP (delivered by
-    update_petals through the one projectile/IPC damage pipeline). Either
+    update_petals through the one projectile/snapshot damage pipeline). Either
     contact consumes the petal into cooldown_ms, during which it is hidden;
     when cooldown ends it respawns like a new particle at a random angle on
     the orbit. With cfg["independent"] on,
@@ -1250,7 +1259,7 @@ class Petal:
         self.state = "hover"   # 'hover' | 'intercept' | 'cooldown'
         self.cooldown_ticks = 0
         self.cfg = cfg
-        # Independent-mode target lock. Threat tuples are rebuilt from IPC
+        # Independent-mode target lock. Threat tuples are rebuilt from the snapshot
         # every tick, so identity can't persist across ticks — the lock is
         # kept by POSITION continuity instead (re-acquire the same-kind
         # threat nearest to where the locked target was last tick).
@@ -1410,7 +1419,7 @@ def update_petals(fig, world):
     entries in world.enemy_projs (negating them) AND chase enemy figures in
     world.partner_figures, dealing cfg damage on figure contact via an
     invisible short-lived Projectile pushed through the one damage pipeline
-    (world.projectiles -> IPC -> partner enemy_projs -> ai.battle_hit).
+    (world.projectiles -> battle snapshot -> enemy_projs -> ai.battle_hit).
     Identical code path in Solo & Battle — Solo simply has nothing in
     enemy_projs or partner_figures, so petals just hover."""
     cfg = _petals_config(fig)
@@ -1442,10 +1451,13 @@ def update_petals(fig, world):
         if kind == "proj":
             if payload in surviving:
                 surviving.remove(payload)
+                # Destroy the intercepted bullet at its source (tuple[8]
+                # is the live Projectile on the enemy side).
+                kill_projectile(payload[8])
                 world.collision_dots.append([cx, cy, 0])
         else:
             # Enemy-figure contact: deliver this layer's damage through the
-            # normal projectile/IPC pipeline so the partner side registers a
+            # normal projectile/snapshot pipeline so the enemy side registers a
             # real battle_hit, exactly like any other damage source.
             pr = Projectile(cx, cy, dx * 2.0, dy * 2.0,
                             cfg.get("_rgb", _PETAL_DEFAULT_RGB), 3)
@@ -2030,7 +2042,8 @@ def advance_combat(fig, slash_target, fallback):
                     # Crescent aimed at the struck target.
                     r, g, b = fig.lut[80]
                     c.crescents.append(CrescentWave(t.x, t.y, tx, ty, (r, g, b)))
-                    # Signal knockback to partner process via IPC.
+                    # Signal knockback to the enemy side (delivered by
+                    # World.refresh_battle at the start of the next tick).
                     kb_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
                     ddx2, ddy2 = tx - t.x, ty - t.y
                     ddist2 = (ddx2 * ddx2 + ddy2 * ddy2) ** 0.5
