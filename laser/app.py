@@ -16,11 +16,10 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat
+from . import config, modes, systems, ai, action_log
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
-from .ipc import IPCBridge
 from .palette import lut_for_index, lut_for_mode
 
 # crash_log replaced by action_log.crash() — see laser/action_log.py
@@ -59,19 +58,48 @@ def _dot_sprite(hue, rad):
         _DOT_SPRITES[key] = entry
     return entry
 
+class SideState:
+    """Everything one fighter's side owns: its figures, its bullets, its
+    firing cadence, and its snapshot view of the opponent.  Two of these in
+    one World replace what used to be two whole processes."""
+
+    def __init__(self, mode_key):
+        self.figures = []
+        self.projectiles = []
+        self.mode_key = mode_key
+        self.shoot_ticks = 0
+        self.shot_phase = 0
+        self.shot_pause_ticks = 0
+        self.intercepted_bullets = set()
+        self.partner_figures = []   # opponent snapshot: (x, y, dash, parry)
+        self.enemy_projs = []       # opponent bullets: (x,y,vx,vy,r,g,b,dmg,proj)
+
+
 class World:
     """Central mutable state plus the figure factory and high-level commands."""
 
-    def __init__(self, assets, screen_w, screen_h, ipc):
+    def __init__(self, assets, screen_w, screen_h):
         self.assets = assets
         self.screen_w = screen_w
         self.screen_h = screen_h
-        self.ipc = ipc
 
-        self.figures = []
-        self.mode_key = config.MODE_ORDER[0]
-        self.projectiles = []
-        self.shoot_ticks = 0   # shared non-battle firing cadence counter
+        # Two locally-hosted sides. Side 0 = P1 (always fielded, key '1'
+        # cycles its character), side 1 = P2 (key '2' cycles characters and
+        # then OFF).  Battle mode is simply "both sides have figures" — the
+        # per-tick pipeline runs once per fielded side, each side seeing the
+        # other through read-only snapshots (partner_figures / enemy_projs),
+        # so the two fighters keep fully independent decision streams
+        # (separate Personality RNGs, separate cadences, separate FSMs).
+        self.sides = [SideState(config.MODE_ORDER[0]),
+                      SideState(config.MODE_ORDER[0])]
+        self.side_idx = 0
+        self._dead = []   # figures killed this tick; culled next refresh
+
+        # Bound view of the current side (refreshed by bind_side).
+        self.figures = self.sides[0].figures
+        self.mode_key = self.sides[0].mode_key
+        self.projectiles = self.sides[0].projectiles
+        self.shoot_ticks = 0   # per-side firing cadence counter (bound)
         self.shot_phase = 0       # current runner cycle phase (0=cone,1=zigzag,2=homing)
         self.shot_pause_ticks = 0 # counts down the inter-cycle pause
 
@@ -86,7 +114,7 @@ class World:
         self.cursor = (screen_w // 2, screen_h // 2)
         self.global_tick = 0
 
-        # Battle state (wired stage 3)
+        # Battle state — bound per-side views of the opposing side.
         self.battle_mode = False
         self.partner_figures = []
         self.enemy_projs = []
@@ -97,7 +125,6 @@ class World:
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
-        self.hitstop_broadcast_pending = False  # send freeze signal to partner
         self.impact_rings = []              # [x, y, age, max_radius] shockwaves
         self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
         self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
@@ -119,48 +146,92 @@ class World:
     def mode(self):
         return modes.get_mode(self.mode_key)
 
-    def add_figure(self):
-        if len(self.figures) >= config.MAX_FIGURES:
+    def add_figure(self, side_idx=0):
+        side = self.sides[side_idx]
+        if len(side.figures) >= config.MAX_FIGURES:
             return False
-        i = len(self.figures)
-        fig = Figure(self.mode, self.assets.bundle(self.mode_key),
-                     lut_for_mode(self.mode_key, i), i, self.screen_w, self.screen_h)
-        self.figures.append(fig)
+        i = len(side.figures)
+        # Side 1 figures take the next offset/palette slot so the two sides
+        # spawn apart and read as distinct fighters at a glance.
+        slot = i + side_idx
+        fig = Figure(modes.get_mode(side.mode_key),
+                     self.assets.bundle(side.mode_key),
+                     lut_for_mode(side.mode_key, slot), slot,
+                     self.screen_w, self.screen_h)
+        side.figures.append(fig)
         return True
 
-    def remove_figure(self):
-        if self.figures:
-            self.figures.pop()
+    def remove_figure(self, side_idx=0):
+        side = self.sides[side_idx]
+        if side.figures:
+            side.figures.pop()
             return True
         return False
 
     # --- commands ----------------------------------------------------------
-    def cycle_mode(self, delta):
+    def _reskin_side(self, side_idx):
+        """Re-apply a side's current mode_key to its live figures."""
+        side = self.sides[side_idx]
+        mode = modes.get_mode(side.mode_key)
+        bundle = self.assets.bundle(side.mode_key)
+        for fig in side.figures:
+            fig.set_mode(mode, bundle)
+            fig.lut = lut_for_mode(side.mode_key, fig.index)
+            fig.trail.lut = fig.lut
+
+    def cycle_mode(self, delta, side_idx=0):
         order = modes.ordered_modes()
         if not order:
             return
-        i = (order.index(self.mode_key) + delta) % len(order)
-        new_key = order[i]
-        if new_key == self.mode_key:
+        side = self.sides[side_idx]
+        cur = order.index(side.mode_key) if side.mode_key in order else 0
+        new_key = order[(cur + delta) % len(order)]
+        if new_key == side.mode_key:
             return
-        self.mode_key = new_key
-        mode = self.mode
-        bundle = self.assets.bundle(new_key)
-        for fig in self.figures:
-            fig.set_mode(mode, bundle)
-            fig.lut = lut_for_mode(new_key, fig.index)
-            fig.trail.lut = fig.lut
+        side.mode_key = new_key
+        if side_idx == self.side_idx:
+            self.mode_key = new_key
+        self._reskin_side(side_idx)
+
+    def cycle_side_char(self, side_idx):
+        """Key '1' / '2' character cycling.  P1 (side 0) always keeps a
+        fighter: tap to advance through every registered character, wrapping.
+        P2 (side 1) cycles through every character and then OFF (side
+        cleared, battle ends); tapping again fields the first character."""
+        order = modes.ordered_modes()
+        if not order:
+            return
+        side = self.sides[side_idx]
+        if not side.figures:
+            if side.mode_key not in order:
+                side.mode_key = order[0]
+            self.add_figure(side_idx)
+            return
+        cur = order.index(side.mode_key) if side.mode_key in order else -1
+        nxt = cur + 1
+        if side_idx == 1 and nxt >= len(order):
+            side.figures.clear()
+            side.projectiles.clear()
+            side.mode_key = order[0]
+            return
+        side.mode_key = order[nxt % len(order)]
+        if side_idx == self.side_idx:
+            self.mode_key = side.mode_key
+        self._reskin_side(side_idx)
 
     def toggle_shoot_mode(self):
         self.shoot_mode = not self.shoot_mode
         if not self.shoot_mode:
-            self.projectiles.clear()
             self.muzzle_flashes.clear()
             self.shoot_ticks = 0
             self.shot_phase = 0
             self.shot_pause_ticks = 0
-            for fig in self.figures:
-                fig.combat.reset()
+            self.projectiles.clear()
+            for side in self.sides:
+                side.projectiles.clear()
+                side.shoot_ticks = side.shot_phase = side.shot_pause_ticks = 0
+                for fig in side.figures:
+                    fig.combat.reset()
 
     def movement_target(self, fig):
         """Where this figure moves toward this tick."""
@@ -193,6 +264,107 @@ class World:
     def request_quit(self):
         self._quit = True
 
+    def on_figure_death(self, fig):
+        """A figure reached 0 HP.  Solo keeps the historical behaviour (the
+        run ends); in battle the fallen fighter is removed and the survivor
+        fights on — the winner stays standing."""
+        if self.battle_mode:
+            if fig not in self._dead:
+                self._dead.append(fig)
+        else:
+            self.request_quit()
+
+    # --- side binding (one simulation pass per fielded side) ---------------
+    def bind_side(self, i):
+        s = self.sides[i]
+        self.side_idx = i
+        self.figures = s.figures
+        self.projectiles = s.projectiles
+        self.mode_key = s.mode_key
+        self.shoot_ticks = s.shoot_ticks
+        self.shot_phase = s.shot_phase
+        self.shot_pause_ticks = s.shot_pause_ticks
+        self.intercepted_bullets = s.intercepted_bullets
+        self.partner_figures = s.partner_figures
+        self.enemy_projs = s.enemy_projs
+
+    def unbind_side(self):
+        s = self.sides[self.side_idx]
+        s.figures = self.figures
+        s.projectiles = self.projectiles
+        s.shoot_ticks = self.shoot_ticks
+        s.shot_phase = self.shot_phase
+        s.shot_pause_ticks = self.shot_pause_ticks
+        s.intercepted_bullets = self.intercepted_bullets
+        s.enemy_projs = self.enemy_projs
+
+    def refresh_battle(self):
+        """Start-of-tick sync: cull fallen fighters, decide battle mode, and
+        rebuild each side's read-only snapshot of its opponent.  Snapshots are
+        frozen for the whole tick so both sides act on the same picture of
+        the world — the same one-tick information boundary the fighters have
+        always had, which is what keeps their decisions independent."""
+        if self._dead:
+            for side in self.sides:
+                if any(f in self._dead for f in side.figures):
+                    side.figures[:] = [f for f in side.figures
+                                       if f not in self._dead]
+                    if not side.figures:
+                        # The side is eliminated — its in-flight shots die
+                        # with it (an unfielded side is never simulated).
+                        side.projectiles.clear()
+            self._dead.clear()
+        self.battle_mode = bool(self.sides[0].figures
+                                and self.sides[1].figures)
+        for i, side in enumerate(self.sides):
+            other = self.sides[1 - i]
+            if self.battle_mode:
+                side.partner_figures = [
+                    (f.x, f.y, bool(f.combat.dashing),
+                     bool(f.combat.parrying))
+                    for f in other.figures if f.transform.init]
+                # Real bullets only (hit_r_sq > 0); cosmetic deflects and
+                # splinters can never deal damage across the boundary.  The
+                # live Projectile rides along as tuple[8] so an interception
+                # (petal / crescent / parry / scatter) truly destroys it.
+                side.enemy_projs = [
+                    (pr.x, pr.y, pr.vx, pr.vy, pr.r, pr.g, pr.b,
+                     float(getattr(pr, "damage", 1.0)), pr)
+                    for pr in other.projectiles
+                    if pr.alive and pr.hit_r_sq > 0.0]
+            else:
+                side.partner_figures = []
+                side.enemy_projs = []
+                side.intercepted_bullets.clear()
+        # Deliver dash-slash knockback landed last tick to the other side.
+        for i, side in enumerate(self.sides):
+            other = self.sides[1 - i]
+            for f in side.figures:
+                if f.combat.hit_pending:
+                    f.combat.hit_pending = False
+                    if not self.battle_mode:
+                        continue
+                    for ef in other.figures:
+                        m = ef.motion
+                        if m.bouncing or m.bounce_ending:
+                            continue
+                        m.bounce_vx = f.combat.hit_vx
+                        m.bounce_vy = f.combat.hit_vy
+                        m.bouncing = True
+
+    def fielded_sides(self):
+        return [i for i, s in enumerate(self.sides) if s.figures]
+
+    def all_figures(self):
+        for s in self.sides:
+            for f in s.figures:
+                yield f
+
+    def all_projectiles(self):
+        for s in self.sides:
+            for pr in s.projectiles:
+                yield pr
+
     @property
     def quitting(self):
         return self._quit
@@ -213,7 +385,8 @@ class Overlay(QWidget):
             sys.exit(1)
 
         screen = QApplication.primaryScreen().geometry()
-        self.world = World(assets, screen.width(), screen.height(), IPCBridge())
+        self.world = World(assets, screen.width(), screen.height())
+        self.input = systems.InputSystem()
         self.pipeline = systems.build_pipeline()
 
         self._pen = QPen()
@@ -242,37 +415,50 @@ class Overlay(QWidget):
         w.cursor = (pos.x(), pos.y())
 
         # --- HIT-STOP: freeze the world for a few ticks on big hits ---
-        # Input and IPC keep running (heartbeat, partner sync, freeze
-        # broadcast); combat, motion, collisions, and bullets all pause.
+        # Input keeps running; combat, motion, collisions, and bullets all
+        # pause — for BOTH sides at once, since they now share one clock.
         # FX (rings, sparks, ghosts) keep animating in paint for punch.
         if w.hitstop_ticks > 0:
             w.hitstop_ticks -= 1
-            for system in self.pipeline:
-                if isinstance(system, (systems.InputSystem, systems.IpcSystem)):
-                    try:
-                        system.update(w)
-                    except Exception as e:
-                        action_log.crash(type(system).__name__, e)
-                if w.quitting:
-                    self._shutdown()
-                    return
-            self.update()
-            return
-
-        for system in self.pipeline:
             try:
-                system.update(w)
+                self.input.update(w)
             except Exception as e:
-                action_log.crash(type(system).__name__, e)
+                action_log.crash("InputSystem", e)
             if w.quitting:
                 self._shutdown()
                 return
+            self.update()
+            return
+
+        try:
+            self.input.update(w)
+        except Exception as e:
+            action_log.crash("InputSystem", e)
+        if w.quitting:
+            self._shutdown()
+            return
+
+        # One simulation pass per fielded side.  Snapshots are rebuilt once,
+        # up front, so both sides read the same frozen picture of each other
+        # regardless of pass order — preserving the independent, reactive
+        # feel of two fighters thinking for themselves.
+        w.refresh_battle()
+        for i in w.fielded_sides():
+            w.bind_side(i)
+            for system in self.pipeline:
+                try:
+                    system.update(w)
+                except Exception as e:
+                    action_log.crash(type(system).__name__, e)
+                if w.quitting:
+                    self._shutdown()
+                    return
+            w.unbind_side()
 
         w.global_tick += 1
         self.update()
 
     def _shutdown(self):
-        self.world.ipc.release()
         QApplication.quit()
 
     def paintEvent(self, _):
@@ -288,14 +474,13 @@ class Overlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        for fig in w.figures:
+        for fig in w.all_figures():
             fig.draw(p, self._pen)
-        for proj in w.projectiles:
+        # Every bullet on screen is a live Projectile drawn with its own
+        # authored visuals — both sides render identically, no downgraded
+        # "enemy dot" pass.
+        for proj in w.all_projectiles():
             proj.draw(p)
-        # Enemy bullets share the pre-rendered round sprite cache (combat.py).
-        for ex, ey, evx, evy, er, eg, eb in w.enemy_projs:
-            pm, half = combat.bullet_sprite(er, eg, eb, config.PROJ_RADIUS)
-            p.drawPixmap(int(ex) - half, int(ey) - half, pm)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
@@ -395,16 +580,20 @@ class Overlay(QWidget):
                     live.append(fl)
             w.muzzle_flashes = live
 
-        # --- HP readout — bottom-right, one entry per figure ---
-        if w.figures:
+        # --- HP readout — bottom-right, one entry per figure (both sides) ---
+        _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
+                    for fig in s.figures]
+        if _hp_rows:
             p.setFont(self._hp_font)
             fm = p.fontMetrics()
             line_h = fm.height() + 4
             base_y = w.screen_h - config.HP_DISPLAY_MARGIN_B
-            for idx, fig in enumerate(w.figures):
+            _battle = w.battle_mode
+            for idx, (side_i, fig) in enumerate(_hp_rows):
                 hp_val = fig.personality.hp
                 max_hp = fig.personality.max_hp
-                label = f"{hp_val} HP"
+                label = (f"P{side_i + 1} {hp_val} HP" if _battle
+                         else f"{hp_val} HP")
                 text_w = fm.horizontalAdvance(label)
                 _hp_offset = 0 if fig.mode.uses_melee() else 70
                 draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R - _hp_offset
@@ -424,7 +613,6 @@ class Overlay(QWidget):
 
     def closeEvent(self, event):
         action_log.close()
-        self.world.ipc.release()
         super().closeEvent(event)
 
 
@@ -438,7 +626,6 @@ def main():
     app.setQuitOnLastWindowClosed(True)
     overlay = Overlay()
     ret = app.exec_()
-    overlay.world.ipc.release()
     sys.exit(ret)
 
 
