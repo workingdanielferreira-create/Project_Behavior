@@ -1,7 +1,7 @@
 # Project Behavior — Claude Session Rules
 
 ## Project Overview
-A Python/PyQt5 desktop overlay game featuring two combat figures — a **swordsman** and a **runner/shooter** — engaging in autonomous combat across two running processes via shared-memory IPC.
+A Python/PyQt5 desktop overlay game featuring autonomous combat figures (built-ins: a **swordsman** and a **runner/shooter**, plus JSON-authored characters). Battle mode hosts two independent sides in ONE process: key `1` cycles P1's character, key `2` cycles P2's character and fields/retires them. Each side sees the other only through per-tick read-only snapshots (`partner_figures` / `enemy_projs`), preserving fully independent decision streams.
 
 - **Repo:** `workingdanielferreira-create/Project_Behavior`
 - **Source files:** All game logic lives under `laser/` subdirectory
@@ -18,7 +18,6 @@ laser/components.py
 laser/config.py
 laser/figure.py
 laser/geometry.py
-laser/ipc.py
 laser/modes.py
 laser/motion.py
 laser/palette.py
@@ -47,8 +46,10 @@ laser/systems.py
 
 ## Key Architecture Notes
 
-### IPC & State
-- `enemy_projs` is re-read from shared memory each tick — local filtering is discarded; persistent suppression requires fingerprinting or per-tick re-erasure
+### Battle Snapshots & State
+- `enemy_projs` is rebuilt from the opposing side's live projectiles each tick (tuple: x,y,vx,vy,r,g,b,damage,proj). Interceptions destroy the bullet AT THE SOURCE via `combat.kill_projectile(tuple[8])` — never mutate `alive` directly (it's a derived property)
+- Cross-side knockback rides `fig.combat.hit_pending/hit_vx/hit_vy`, delivered by `World.refresh_battle` at the start of the next tick
+- Deaths in battle remove the fallen fighter (survivor continues solo); deaths in solo end the run — routing lives in `World.on_figure_death`
 - State flag ordering matters: setting two mutually exclusive flags simultaneously causes one FSM branch to consume all ticks — use pending flags and arm second state after first completes
 - `c.busy` side effects: setting `c.slashing = True` inside parry or secondary triggers halts figure movement via the `busy` property — avoid unless intentional
 
