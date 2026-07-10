@@ -84,14 +84,18 @@ class Figure:
         if self.motion.rotate and d_sq > 0.01:
             a = math.degrees(math.atan2(dy, dx))
             if -90 <= a <= 90:
+                # Right-facing (unmirrored) sprite: rotation angle equals the
+                # travel angle directly.
                 t.angle = a
             else:
-                t.angle = (180 - a) if a > 0 else (-180 - a)
-            # Rotation direction inverted (2026-07-10): the original sign made
-            # figures visually lean/tip backwards opposite their travel
-            # direction while running. Negating restores a forward lean that
-            # tracks the direction of travel instead of fighting it.
-            t.angle = -t.angle
+                # Left-facing sprite uses the horizontally-mirrored frame set,
+                # whose local "forward" axis is -x instead of +x. Rotating a
+                # mirrored image by the raw travel angle flips the vertical
+                # component of the lean (2026-07-10 bug: character faced down
+                # while moving up, etc). The correct angle for the mirrored
+                # frame is the travel angle offset by 180 degrees, normalised
+                # back into (-180, 180].
+                t.angle = (a - 180) if a > 0 else (a + 180)
         else:
             t.angle = 0.0
 
