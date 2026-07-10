@@ -14,7 +14,7 @@ Captured action categories
   BATTLE_SHOT  battle-mode shot fired
   BULLET_HIT   bullet-vs-bullet scatter collision
   COMBAT       swordsman state: dash / slash / dodge / combo transitions
-  KNOCKBACK    knockback sent or received over IPC
+  KNOCKBACK    knockback dealt or received across sides
   COLLISION    body and projectile hits
 
 Error log entries
@@ -36,7 +36,7 @@ Usage
   # Error capture (always writes, even if log disabled):
   action_log.error("label", exc)          # caught non-fatal
   action_log.crash("_tick", exc)          # caught tick-level crash
-  action_log.warn("ipc", "partner lost")  # warning
+  action_log.warn("combat", "side eliminated")  # warning
 
   # Shutdown:
   action_log.close()
