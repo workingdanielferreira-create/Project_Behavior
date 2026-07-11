@@ -173,6 +173,11 @@ class Figure:
             for pt in self.combat.petals:
                 pt.draw(p)
 
+        # --- Clones: autonomous ghosts (special_ability preset 'clone') ---
+        if self.combat.clones:
+            for cl in self.combat.clones:
+                cl.draw(p, self.render.bundle)
+
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
                 bp.draw(p)
