@@ -170,6 +170,20 @@ def apply_hp_damage(fig, world, amount=1):
                 if p.hp <= threshold_hp:
                     p.sword_ult_fired_thresholds.add(thresh)
                     _combat.fire_sword_ultimate(fig, tx, ty)
+    # Blinkstorm ultimate (blink characters, ultimate_playback.style ==
+    # "blinkstorm"): arm N teleport strikes at each authored HP threshold.
+    # Same threshold bookkeeping as the crescent path; the storm itself
+    # ticks in combat.tick_blinkstorm — identical in Solo and Battle.
+    elif fig.mode.uses_melee() and _combat.ultimate_style(fig) == "blinkstorm":
+        bl = _combat.blink_cfg(fig)
+        if bl is not None:
+            for thresh in _combat.ultc_cfg(fig)['thresholds']:
+                if thresh not in p.sword_ult_fired_thresholds:
+                    threshold_hp = int(p.max_hp * thresh)
+                    if p.hp <= threshold_hp:
+                        p.sword_ult_fired_thresholds.add(thresh)
+                        fig.combat.blinkstorm_strikes_left = bl['storm_strikes']
+                        fig.combat.blinkstorm_tick = 0
     return False
 
 
