@@ -242,6 +242,19 @@ BLINK_BOLT_SEGMENTS           = 9      # jagged electric bolt between endpoints
 BLINK_BOLT_JITTER_PX          = 14.0   # perpendicular zig-zag amplitude
 
 # ---------------------------------------------------------------------------
+# Generic Clone system (engine support for the wizard's special_ability
+# preset 'clone').  A clone is an autonomous ghost of its owner: it walks
+# toward the owner's live target and strikes on contact via invisible
+# projectiles (standard damage channel — Solo/Battle identical, IPC-safe).
+# ---------------------------------------------------------------------------
+CLONE_DURATION_MS_DEFAULT     = 3000   # lifetime before it dissolves
+CLONE_COOLDOWN_MS_DEFAULT     = 8000   # min gap between clone spawns
+CLONE_STRIKE_RADIUS_PX        = 110.0  # contact-strike range
+CLONE_ATTACK_INTERVAL_TICKS   = 30     # ~0.5 s between clone strikes
+CLONE_SPEED_FACTOR            = 0.8    # x owner's follow_speed
+CLONE_ALPHA                   = 150    # ghost opacity (0-255)
+
+# ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
 # a new figure type registers a mode class and adds one dict here.
 # ---------------------------------------------------------------------------
