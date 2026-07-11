@@ -49,7 +49,6 @@
  },
  "blink": {
   "combo": true,
-  "windup_ticks": 4,
   "approach": true,
   "approach_range_px": 260,
   "approach_trigger_px": 420,
@@ -57,7 +56,8 @@
   "defend": true,
   "storm_strikes": 6,
   "storm_interval_ticks": 6,
-  "storm_radius_px": 90
+  "storm_radius_px": 90,
+  "combo_cooldown_ticks": 12
  },
  "combo": {
   "max_hits": 4,
@@ -1764,7 +1764,8 @@
  "implementation_notes": {
   "blink_system": "Generic engine extension (combat.blink_cfg / blink_warp / tick_blinkstorm; systems.MotionSystem approach hook). Presence of the top-level `blink` block enables it for ANY character. combo=true warps dash approaches + arc travel; approach=true adds a proactive gap-closer (cooldown via personality.teleport_ticks); defend=true collapses dodge dashes into a single warp; the blinkstorm ultimate fires at ultimate_playback.thresholds when ultimate_playback.style=='blinkstorm'. Damage flows through existing body-collision + hit_pending knockback \u2014 identical in Solo and Battle.",
   "defense": "Plain \u2014 no deflect/block battle property. Defence identity is the blink-dodge (blink.defend).",
-  "sprite_source": "Uses the swordsman's .png frame bundle (swordrun*/swordstanding*/slash*) in the same contexts instead of rasterised rig keyframes. Rig keyframes remain authored for anim_speed timing and future use; hurtbox falls back to the fixed built-in constants."
+  "sprite_source": "Uses the swordsman's .png frame bundle (swordrun*/swordstanding*/slash*) in the same contexts instead of rasterised rig keyframes. Rig keyframes remain authored for anim_speed timing and future use; hurtbox falls back to the fixed built-in constants.",
+  "blink_trail": "blink_warp rebases the run trail (trail.clear) so no ribbon bridges a teleport; a jagged electric spark bolt is drawn between warp endpoints instead (CombatSystem drain, BLINK_BOLT_* constants). Combo teleports share a 0.2 s cooldown (blink.combo_cooldown_ticks, Combatant.blink_windup counter)."
  },
  "sprite_source": "swordsman"
 }
