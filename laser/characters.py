@@ -417,8 +417,23 @@ def load_all(root_dir, bundles):
             if char.get("format") != "pb_character":
                 continue
             key = _register(char)
-            frames = rasterize_character(char)
-            bundles[key] = _build_bundle(frames)
-            _write_thumb(folder, key, frames)
+            # sprite_source: borrow a built-in mode's .png FrameBundle
+            # (e.g. "swordsman") instead of rasterising the rig — the
+            # borrowed frames play in the same contexts (run/idle/slash/
+            # slide).  hurtbox_radius is dropped so hit checks fall back
+            # to the same fixed constants the built-in uses.  Every
+            # process loads through this same path, so Solo and Battle
+            # see the identical bundle.
+            sprite_src = str(char.get("sprite_source", "") or "").strip().lower()
+            if sprite_src and sprite_src in bundles:
+                bundles[key] = bundles[sprite_src]
+                char.pop("hurtbox_radius", None)
+            else:
+                if sprite_src:
+                    print("sprite_source %r not found for %s — rasterising"
+                          % (sprite_src, key))
+                frames = rasterize_character(char)
+                bundles[key] = _build_bundle(frames)
+                _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
             print("Character load failed for %s: %s" % (path, e))
