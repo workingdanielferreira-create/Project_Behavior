@@ -34,8 +34,8 @@
   "torso": 36
  },
  "palette": {
-  "body": "#aebfd4",
-  "accent": "#39d7ff"
+  "body": "#00e5ff",
+  "accent": "#7dffff"
  },
  "defense": "none",
  "weapon": {
@@ -53,7 +53,7 @@
   "approach_range_px": 260,
   "approach_trigger_px": 420,
   "approach_cooldown_ticks": 55,
-  "defend": true,
+  "defend": false,
   "storm_strikes": 6,
   "storm_interval_ticks": 6,
   "storm_radius_px": 90,
@@ -1763,9 +1763,19 @@
  },
  "implementation_notes": {
   "blink_system": "Generic engine extension (combat.blink_cfg / blink_warp / tick_blinkstorm; systems.MotionSystem approach hook). Presence of the top-level `blink` block enables it for ANY character. combo=true warps dash approaches + arc travel; approach=true adds a proactive gap-closer (cooldown via personality.teleport_ticks); defend=true collapses dodge dashes into a single warp; the blinkstorm ultimate fires at ultimate_playback.thresholds when ultimate_playback.style=='blinkstorm'. Damage flows through existing body-collision + hit_pending knockback \u2014 identical in Solo and Battle.",
-  "defense": "Plain \u2014 no deflect/block battle property. Defence identity is the blink-dodge (blink.defend).",
+  "defense": "Plain \u2014 no deflect/block battle property. Dodges are normal dashes; each dodge leaves an autonomous clone at the departure point (special_ability preset 'clone').",
   "sprite_source": "Uses the swordsman's .png frame bundle (swordrun*/swordstanding*/slash*) in the same contexts instead of rasterised rig keyframes. Rig keyframes remain authored for anim_speed timing and future use; hurtbox falls back to the fixed built-in constants.",
-  "blink_trail": "blink_warp rebases the run trail (trail.clear) so no ribbon bridges a teleport; a jagged electric spark bolt is drawn between warp endpoints instead (CombatSystem drain, BLINK_BOLT_* constants). Combo teleports share a 0.2 s cooldown (blink.combo_cooldown_ticks, Combatant.blink_windup counter)."
+  "blink_trail": "blink_warp rebases the run trail (trail.clear) so no ribbon bridges a teleport; a jagged electric spark bolt is drawn between warp endpoints instead (CombatSystem drain, BLINK_BOLT_* constants). Combo teleports share a 0.2 s cooldown (blink.combo_cooldown_ticks, Combatant.blink_windup counter). Trail colour is the palette LUT \u2014 neon cyan body #00e5ff / accent #7dffff.",
+  "clone_system": "Generic engine support for the wizard preset 'clone' (combat.clone_cfg / CloneEffect / spawn_clone). Spawned at the dodge-arm sites in MotionSystem; ticked in CombatSystem during the owner's side pass; drawn ghosted in Figure.draw from the owner's FrameBundle. Chases the live target (battle: nearest enemy, solo: cursor) and strikes on contact via short-lived invisible Projectiles through the standard damage channel \u2014 Solo/Battle identical, nothing new crosses IPC. duration_ms/cooldown_ms/damage read from params."
  },
- "sprite_source": "swordsman"
+ "sprite_source": "swordsman",
+ "special_ability": {
+  "preset": "clone",
+  "trigger": "on_dodge",
+  "params": {
+   "duration_ms": 3000,
+   "cooldown_ms": 8000,
+   "damage": 1
+  }
+ }
 }
