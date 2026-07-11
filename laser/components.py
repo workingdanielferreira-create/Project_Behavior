@@ -202,6 +202,9 @@ class Combatant:
                  "arc_start_angle", "arc_end_angle", "arc_orbit_r",
                  "arc_combo_cooldown_ticks",
                  "arc_recoil_pending",
+                 "blink_windup", "blink_fx_pending",
+                 "blinkstorm_strikes_left", "blinkstorm_tick",
+                 "blinkstorm_angle",
                  "arc_r_start", "arc_r_end",
                  "attack_hits", "attack_cooldown_ticks",
                  "followup_pending", "followup_lock_ticks", "followup_lock_type",
@@ -284,6 +287,12 @@ class Combatant:
         # the live BurstParticle instances. Purely local eye-candy.
         self.particle_bursts = []
         self.pending_bursts = []
+        # Generic blink system (JSON `blink` block; see combat.blink_cfg).
+        self.blink_windup = 0             # combo-warp wind-up counter
+        self.blink_fx_pending = []        # (x, y) blink endpoints awaiting spark FX
+        self.blinkstorm_strikes_left = 0  # remaining blinkstorm ultimate strikes
+        self.blinkstorm_tick = 0          # ticks until the next storm strike
+        self.blinkstorm_angle = 0.0       # rotating ring angle (radians)
 
     def reset(self):
         self.__init__()
