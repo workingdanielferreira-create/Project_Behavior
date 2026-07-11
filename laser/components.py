@@ -205,6 +205,7 @@ class Combatant:
                  "blink_windup", "blink_fx_pending",
                  "blinkstorm_strikes_left", "blinkstorm_tick",
                  "blinkstorm_angle",
+                 "clones", "clone_cd",
                  "arc_r_start", "arc_r_end",
                  "attack_hits", "attack_cooldown_ticks",
                  "followup_pending", "followup_lock_ticks", "followup_lock_type",
@@ -293,6 +294,9 @@ class Combatant:
         self.blinkstorm_strikes_left = 0  # remaining blinkstorm ultimate strikes
         self.blinkstorm_tick = 0          # ticks until the next storm strike
         self.blinkstorm_angle = 0.0       # rotating ring angle (radians)
+        # Generic clone system (special_ability preset 'clone').
+        self.clones = []                  # live CloneEffect instances
+        self.clone_cd = 0                 # ticks until next clone allowed
 
     def reset(self):
         self.__init__()
