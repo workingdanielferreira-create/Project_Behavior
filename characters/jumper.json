@@ -1763,6 +1763,8 @@
  },
  "implementation_notes": {
   "blink_system": "Generic engine extension (combat.blink_cfg / blink_warp / tick_blinkstorm; systems.MotionSystem approach hook). Presence of the top-level `blink` block enables it for ANY character. combo=true warps dash approaches + arc travel; approach=true adds a proactive gap-closer (cooldown via personality.teleport_ticks); defend=true collapses dodge dashes into a single warp; the blinkstorm ultimate fires at ultimate_playback.thresholds when ultimate_playback.style=='blinkstorm'. Damage flows through existing body-collision + hit_pending knockback \u2014 identical in Solo and Battle.",
-  "defense": "Plain \u2014 no deflect/block battle property. Defence identity is the blink-dodge (blink.defend)."
- }
+  "defense": "Plain \u2014 no deflect/block battle property. Defence identity is the blink-dodge (blink.defend).",
+  "sprite_source": "Uses the swordsman's .png frame bundle (swordrun*/swordstanding*/slash*) in the same contexts instead of rasterised rig keyframes. Rig keyframes remain authored for anim_speed timing and future use; hurtbox falls back to the fixed built-in constants."
+ },
+ "sprite_source": "swordsman"
 }
