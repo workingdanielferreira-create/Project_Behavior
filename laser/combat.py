@@ -1509,7 +1509,7 @@ def ultimate_style(fig):
     if not char:
         return "crescent" if fig.mode.uses_melee() else "beam"
     style = (char.get("ultimate_playback") or {}).get("style")
-    if style in ("crescent", "beam", "none"):
+    if style in ("crescent", "beam", "blinkstorm", "none"):
         return style
     return "crescent" if fig.mode.uses_melee() else "beam"
 
@@ -1855,6 +1855,101 @@ def combo_cfg(fig):
     return cc
 
 
+_BLINK_DEFAULTS = dict(
+    combo=True,
+    windup_ticks=int(config.BLINK_WINDUP_TICKS),
+    approach=True,
+    approach_range_px=float(config.BLINK_APPROACH_RANGE_PX),
+    approach_trigger_px=float(config.BLINK_APPROACH_TRIGGER_PX),
+    approach_cooldown_ticks=int(config.BLINK_APPROACH_COOLDOWN_TICKS),
+    defend=True,
+    storm_strikes=int(config.BLINK_STORM_STRIKES),
+    storm_interval_ticks=int(config.BLINK_STORM_INTERVAL_TICKS),
+    storm_radius_px=float(config.BLINK_STORM_RADIUS_PX),
+)
+
+
+def blink_cfg(fig):
+    """Per-figure blink tuning dict, or None when the character has no
+    `blink` block (all built-ins).  Cached on the mode instance like
+    combo_cfg/ultc_cfg.  Presence of the block enables the system; the
+    booleans inside gate each hook (combo / approach / defend)."""
+    mode = fig.mode
+    if hasattr(mode, "_blink_cfg"):
+        return mode._blink_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("blink") if char else None
+    if not isinstance(raw, dict):
+        mode._blink_cfg = None
+        return None
+    bl = dict(_BLINK_DEFAULTS)
+    for k in bl:
+        if k in raw:
+            try:
+                bl[k] = type(bl[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    mode._blink_cfg = bl
+    return bl
+
+
+def blink_warp(fig, nx, ny):
+    """Pure position warp with departure/arrival afterimages + queued spark
+    FX (drained by CombatSystem into world.sparks).  Clamps to screen
+    bounds.  Never touches FSM flags — callers own their own state."""
+    t = fig.transform
+    margin = 20.0
+    nx = max(margin, min(fig.screen_w - margin, nx))
+    ny = max(margin, min(fig.screen_h - margin, ny))
+    spawn_afterimage(fig)
+    fig.combat.blink_fx_pending.append((t.x, t.y))
+    t.x = nx
+    t.y = ny
+    fig.combat.blink_fx_pending.append((nx, ny))
+    spawn_afterimage(fig)
+
+
+def tick_blinkstorm(fig, target_x, target_y):
+    """Blinkstorm ultimate: N rapid teleport strikes on a ring around the
+    live target.  Each strike warps the figure adjacent to the target,
+    queues impact FX and cross-side knockback (delivered by
+    World.refresh_battle); HP damage flows through the existing
+    body-collision path on the enemy side's own pass — identical in Solo
+    and Battle.  Returns True while the storm is consuming the figure."""
+    c = fig.combat
+    if c.blinkstorm_strikes_left <= 0:
+        return False
+    bl = blink_cfg(fig)
+    if bl is None:
+        c.blinkstorm_strikes_left = 0
+        return False
+    if c.blinkstorm_tick > 0:
+        c.blinkstorm_tick -= 1
+        return True
+    # Strike: warp to the next ring position around the live target.
+    c.blinkstorm_angle += math.radians(137.5)   # golden-angle rotation
+    r = bl['storm_radius_px']
+    nx = target_x + math.cos(c.blinkstorm_angle) * r
+    ny = target_y + math.sin(c.blinkstorm_angle) * r
+    blink_warp(fig, nx, ny)
+    fig.face(target_x + (target_x - nx), target_y + (target_y - ny))
+    # Impact FX at the target + knockback away from the strike point.
+    c.impact_fx_pending.append((target_x, target_y))
+    ddx, ddy = target_x - fig.transform.x, target_y - fig.transform.y
+    ddist = (ddx * ddx + ddy * ddy) ** 0.5
+    kb_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
+    if ddist > 0.001:
+        c.hit_vx = (ddx / ddist) * kb_spd
+        c.hit_vy = (ddy / ddist) * kb_spd
+        c.hit_pending = True
+    c.blinkstorm_strikes_left -= 1
+    if c.blinkstorm_strikes_left <= 0:
+        c.hitstop_request = True   # storm finisher freezes the world
+    else:
+        c.blinkstorm_tick = bl['storm_interval_ticks']
+    return True
+
+
 def advance_combat(fig, slash_target, fallback):
     t = fig.transform
     c = fig.combat
@@ -1900,6 +1995,13 @@ def advance_combat(fig, slash_target, fallback):
     # --- Arc recoil: dash directly away from target after a hit (follow-up arcslash) ---
     if c.arc_recoiling:
         ox, oy = t.x, t.y
+        _bl = blink_cfg(fig)
+        if _bl is not None and _bl['combo'] and c.arc_recoil_ticks > 1:
+            # Blink: take the whole remaining recoil in one warp, then let
+            # the final tick below arm the orbit exactly as authored.
+            steps = c.arc_recoil_ticks - 1
+            blink_warp(fig, t.x + c.slash_vx * steps, t.y + c.slash_vy * steps)
+            c.arc_recoil_ticks = 1
         c.arc_recoil_ticks -= 1
         t.x += c.slash_vx
         t.y += c.slash_vy
@@ -1929,6 +2031,14 @@ def advance_combat(fig, slash_target, fallback):
     #     for the primary arcslash approach).  Ends with a dash-in. ---
     if c.arc_repositioning:
         ox, oy = t.x, t.y
+        _bl = blink_cfg(fig)
+        if _bl is not None and _bl['combo'] and c.arc_repo_t < c.arc_repo_steps - 1:
+            # Blink: skip the curved travel — warp straight to the arc's
+            # end position; the final tick launches the dash-in as usual.
+            end_x = c.arc_center_x + math.cos(c.arc_end_angle) * c.arc_r_end
+            end_y = c.arc_center_y + math.sin(c.arc_end_angle) * c.arc_r_end
+            blink_warp(fig, end_x, end_y)
+            c.arc_repo_t = c.arc_repo_steps - 1
         c.arc_repo_t += 1
         # Smooth cubic ease-in-out for natural arc travel
         raw = c.arc_repo_t / max(c.arc_repo_steps, 1)
@@ -1976,6 +2086,14 @@ def advance_combat(fig, slash_target, fallback):
 
     # --- Ultimate crescent advance + 2nd-shot delay (always tick for melee) ---
     tick_ult_crescents(fig, fallback[0], fallback[1])
+
+    # --- Blinkstorm ultimate (blink characters): consumes the figure while
+    #     active — strikes ride the live melee target, fallback = cursor. ---
+    _bs_tx, _bs_ty = slash_target if slash_target is not None else fallback
+    if tick_blinkstorm(fig, _bs_tx, _bs_ty):
+        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+        fig.render.is_moving = False
+        return True
 
     # --- Slash cycle (stationary; plays once at end of dash/rebound) ---
     if c.slashing:
@@ -2110,6 +2228,24 @@ def advance_combat(fig, slash_target, fallback):
                             c.slash_vy = ry / rmag * lspd
                         c.rebounding = True
                 else:
+                    bl = blink_cfg(fig)
+                    if bl is not None and bl['combo']:
+                        # Combo blink: hold for the wind-up, then warp to
+                        # just inside hit range — the hit-check above fires
+                        # on the next tick against the live target.
+                        if c.blink_windup < bl['windup_ticks']:
+                            c.blink_windup += 1
+                        else:
+                            c.blink_windup = 0
+                            inv = 1.0 / max(dist, 0.001)
+                            land = cc['hit_radius'] * 0.85
+                            blink_warp(fig,
+                                       tx - dx * inv * land,
+                                       ty - dy * inv * land)
+                        fig.face(tx, ty)
+                        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+                        fig.render.is_moving = False
+                        return True
                     t.x += c.slash_vx
                     t.y += c.slash_vy
                     spawn_afterimage(fig)
@@ -2138,6 +2274,17 @@ def advance_combat(fig, slash_target, fallback):
     #     dodge_interrupt fall-through above) ---
     if c.dodge_dashing:
         ox, oy = t.x, t.y
+        _bl = blink_cfg(fig)
+        if _bl is not None and _bl['defend'] and c.dodge_dist_budget > 0:
+            # Defend blink: the whole dodge displacement lands in one warp.
+            step0 = (c.dodge_vx ** 2 + c.dodge_vy ** 2) ** 0.5
+            if step0 > 0.001:
+                # Warp all-but-one step; the normal += below lands the last
+                # step so the completion math stays exactly as authored.
+                k = max(c.dodge_dist_budget / step0 - 1.0, 0.0)
+                if k > 0.0:
+                    blink_warp(fig, t.x + c.dodge_vx * k, t.y + c.dodge_vy * k)
+                c.dodge_dist_budget = step0
         step = (c.dodge_vx ** 2 + c.dodge_vy ** 2) ** 0.5
         t.x += c.dodge_vx
         t.y += c.dodge_vy
