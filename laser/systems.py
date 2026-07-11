@@ -262,6 +262,26 @@ class CombatSystem(System):
                                                  rng.uniform(-0.6, 0.6),
                                                  0, rr, gg, bb])
                 fig.combat.blink_fx_pending.clear()
+            # --- Clone system: tick autonomous ghosts (preset 'clone') ---
+            if fig.combat.clone_cd > 0:
+                fig.combat.clone_cd -= 1
+            if fig.combat.clones:
+                if world.battle_mode and world.partner_figures:
+                    ctx, cty = world._nearest_enemy(fig.x, fig.y)
+                else:
+                    ctx, cty = world.cursor
+                live_clones = []
+                for cl in fig.combat.clones:
+                    res = cl.tick(ctx, cty)
+                    if res is None:
+                        # Dissolve crackle at the clone's last position.
+                        fig.combat.blink_fx_pending.append(
+                            (cl.x, cl.y, cl.x, cl.y))
+                        continue
+                    if res:
+                        world.projectiles.extend(res)
+                    live_clones.append(cl)
+                fig.combat.clones = live_clones
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
@@ -824,6 +844,7 @@ class CollisionSystem(System):
                         c.dodge_interrupt = True   # cut the forward dash short
                     else:
                         c.dodge_dashing = True
+                        combat.spawn_clone(fig)
                     break
 
         # --- Swordsman counter-dash trigger (vs an incoming dashing enemy) ---
@@ -851,6 +872,7 @@ class CollisionSystem(System):
                     if c.dashing:
                         c.dashing = c.rebounding = c.dodge_interrupt = False
                     c.dodge_dashing = True
+                    combat.spawn_clone(fig)
                     break
 
         # --- Figure-to-figure body collision ---
