@@ -223,6 +223,23 @@ TELEPORT_INTERVAL_TICKS = 31    # ~1 s at 62 fps
 TELEPORT_DISTANCE_PX    = 500.0 # px from target to land at
 
 # ---------------------------------------------------------------------------
+# Generic Blink system (data-driven; enabled per character by a JSON `blink`
+# block — see characters/jumper.json).  A blink is a pure position warp with
+# afterimage + spark FX; it never sets combat.acted by itself.  Identical in
+# Solo and Battle: targeting always goes through world.melee_target /
+# world.cursor, never through game-mode branches.
+# ---------------------------------------------------------------------------
+BLINK_WINDUP_TICKS            = 4      # hold before each combo warp (readability)
+BLINK_APPROACH_RANGE_PX       = 260.0  # distance covered per approach blink
+BLINK_APPROACH_TRIGGER_PX     = 420.0  # only blink-approach when farther than this
+BLINK_APPROACH_COOLDOWN_TICKS = 55     # ~0.9 s between approach blinks
+BLINK_STORM_STRIKES           = 6      # teleport strikes in the blinkstorm ultimate
+BLINK_STORM_INTERVAL_TICKS    = 6      # ticks between storm strikes
+BLINK_STORM_RADIUS_PX         = 90.0   # ring radius around the target per strike
+BLINK_FX_SPARKS               = 8      # crackle sparks per blink endpoint
+BLINK_FX_SPARK_SPEED          = (2.0, 6.0)
+
+# ---------------------------------------------------------------------------
 # Per-mode tuning.  Keys match FigureMode.key.  This is the extension point:
 # a new figure type registers a mode class and adds one dict here.
 # ---------------------------------------------------------------------------
