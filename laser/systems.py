@@ -232,14 +232,35 @@ class CombatSystem(System):
             if fig.combat.blink_fx_pending:
                 rr, gg, bb = fig.lut[200]
                 rng = fig.personality.rng
-                for (bx, by) in fig.combat.blink_fx_pending:
-                    for _ in range(config.BLINK_FX_SPARKS):
-                        ang = rng.uniform(0.0, 2.0 * math.pi)
-                        spd = rng.uniform(*config.BLINK_FX_SPARK_SPEED)
-                        world.sparks.append([bx, by,
-                                             math.cos(ang) * spd,
-                                             math.sin(ang) * spd,
-                                             0, rr, gg, bb])
+                for (x0, y0, x1, y1) in fig.combat.blink_fx_pending:
+                    # Crackle bursts at both warp endpoints.
+                    for (bx, by) in ((x0, y0), (x1, y1)):
+                        for _ in range(config.BLINK_FX_SPARKS):
+                            ang = rng.uniform(0.0, 2.0 * math.pi)
+                            spd = rng.uniform(*config.BLINK_FX_SPARK_SPEED)
+                            world.sparks.append([bx, by,
+                                                 math.cos(ang) * spd,
+                                                 math.sin(ang) * spd,
+                                                 0, rr, gg, bb])
+                    # Jagged electric bolt between the endpoints —
+                    # zig-zag spark chain replaces the old trail smear.
+                    ddx, ddy = x1 - x0, y1 - y0
+                    seg_d = (ddx * ddx + ddy * ddy) ** 0.5
+                    if seg_d > 1.0:
+                        nx_, ny_ = -ddy / seg_d, ddx / seg_d
+                        n_seg = int(config.BLINK_BOLT_SEGMENTS)
+                        amp = config.BLINK_BOLT_JITTER_PX
+                        for i in range(1, n_seg):
+                            f = i / float(n_seg)
+                            # alternate sides for the zig-zag read
+                            side = 1.0 if (i % 2) else -1.0
+                            off = side * rng.uniform(0.35, 1.0) * amp
+                            px_ = x0 + ddx * f + nx_ * off
+                            py_ = y0 + ddy * f + ny_ * off
+                            world.sparks.append([px_, py_,
+                                                 rng.uniform(-0.6, 0.6),
+                                                 rng.uniform(-0.6, 0.6),
+                                                 0, rr, gg, bb])
                 fig.combat.blink_fx_pending.clear()
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
