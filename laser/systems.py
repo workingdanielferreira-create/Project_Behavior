@@ -165,6 +165,37 @@ class MotionSystem(System):
                 else:
                     p.teleport_ticks -= 1
 
+            # --- Approach blink (blink characters, JSON `blink.approach`) ---
+            # Proactive gap-closer: when far from the combat target and off
+            # cooldown, warp approach_range_px toward it.  Pure position
+            # warp (no combat.acted), reuses p.teleport_ticks as its
+            # cooldown (the runner survival path above is shooter-gated, a
+            # melee blink character never collides with it).  Identical in
+            # Solo (target = cursor) and Battle (target = nearest enemy).
+            bl = combat.blink_cfg(fig)
+            if (bl is not None and bl['approach']
+                    and fig.mode.uses_melee()
+                    and not fig.combat.busy
+                    and not fig.motion.bouncing
+                    and not fig.motion.bounce_ending):
+                if p.teleport_ticks <= 0:
+                    if battle:
+                        tx, ty = world._nearest_enemy(fig.x, fig.y)
+                    else:
+                        tx, ty = world.cursor
+                    dxa, dya = tx - fig.x, ty - fig.y
+                    dista = (dxa * dxa + dya * dya) ** 0.5
+                    if dista > bl['approach_trigger_px']:
+                        inv = 1.0 / dista
+                        hop = min(bl['approach_range_px'],
+                                  dista - bl['approach_trigger_px'] * 0.5)
+                        combat.blink_warp(fig,
+                                          fig.x + dxa * inv * hop,
+                                          fig.y + dya * inv * hop)
+                        p.teleport_ticks = bl['approach_cooldown_ticks']
+                else:
+                    p.teleport_ticks -= 1
+
             tx_motion, ty_motion = world.movement_target(fig)
             if battle:
                 motion.update(fig, tx_motion, ty_motion, False, False, False)
@@ -197,6 +228,19 @@ class CombatSystem(System):
             # action authors a can_hit+deflect layer — combat.has_defend_deflect).
             if fig.mode.uses_melee() or combat.has_defend_deflect(fig):
                 combat.tick_parry_cooldown(fig)
+            # --- Blink crackle FX: drain warp endpoints into world sparks ---
+            if fig.combat.blink_fx_pending:
+                rr, gg, bb = fig.lut[200]
+                rng = fig.personality.rng
+                for (bx, by) in fig.combat.blink_fx_pending:
+                    for _ in range(config.BLINK_FX_SPARKS):
+                        ang = rng.uniform(0.0, 2.0 * math.pi)
+                        spd = rng.uniform(*config.BLINK_FX_SPARK_SPEED)
+                        world.sparks.append([bx, by,
+                                             math.cos(ang) * spd,
+                                             math.sin(ang) * spd,
+                                             0, rr, gg, bb])
+                fig.combat.blink_fx_pending.clear()
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
