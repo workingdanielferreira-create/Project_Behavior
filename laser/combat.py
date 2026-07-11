@@ -1893,6 +1893,140 @@ def blink_cfg(fig):
     return bl
 
 
+def clone_cfg(fig):
+    """Per-figure clone tuning from the character's top-level
+    special_ability block (wizard preset "clone"), or None.  Cached on the
+    mode instance like blink_cfg.  Ticks derived from ms at load."""
+    mode = fig.mode
+    if hasattr(mode, "_clone_cfg"):
+        return mode._clone_cfg
+    char = getattr(mode, "character", None)
+    sa = char.get("special_ability") if char else None
+    if not (isinstance(sa, dict) and sa.get("preset") == "clone"):
+        mode._clone_cfg = None
+        return None
+    params = sa.get("params") or {}
+
+    def _ms(name, default_ms):
+        try:
+            v = float(params.get(name, default_ms))
+        except (TypeError, ValueError):
+            v = default_ms
+        return max(1, int(round(v / config.TICK_MS)))
+
+    try:
+        dmg = float(params.get("damage", 1))
+    except (TypeError, ValueError):
+        dmg = 1.0
+    mode._clone_cfg = dict(
+        duration_ticks=_ms("duration_ms", config.CLONE_DURATION_MS_DEFAULT),
+        cooldown_ticks=_ms("cooldown_ms", config.CLONE_COOLDOWN_MS_DEFAULT),
+        damage=dmg,
+    )
+    return mode._clone_cfg
+
+
+class CloneEffect:
+    """Autonomous ghost of its owner: chases the owner's live target and
+    strikes on contact.  Damage rides invisible Projectiles through the
+    standard fire -> world.projectiles -> enemy snapshot channel, so battle
+    HP/parry/petals all interact normally and nothing new crosses IPC.
+    Ticked by CombatSystem during the owner's side pass; drawn ghosted in
+    Figure.draw.  In Solo the target is the cursor — same chase/strike
+    behaviour, simply nothing with HP to damage."""
+
+    __slots__ = ("x", "y", "ticks_left", "duration", "speed", "damage",
+                 "facing_left", "run_idx", "anim_tick", "attack_cd", "moving")
+
+    def __init__(self, x, y, duration_ticks, speed, damage):
+        self.x, self.y = float(x), float(y)
+        self.ticks_left = int(duration_ticks)
+        self.duration = max(1, int(duration_ticks))
+        self.speed = float(speed)
+        self.damage = float(damage)
+        self.facing_left = False
+        self.run_idx = 0
+        self.anim_tick = 0
+        self.attack_cd = 0
+        self.moving = False
+
+    def tick(self, tx, ty):
+        """Advance one tick toward (tx, ty).  Returns a list of new
+        Projectiles to append to the owner side's world.projectiles
+        (empty most ticks), or None when the clone has expired."""
+        self.ticks_left -= 1
+        if self.ticks_left <= 0:
+            return None
+        out = []
+        dx, dy = tx - self.x, ty - self.y
+        dist = (dx * dx + dy * dy) ** 0.5
+        self.facing_left = dx < 0
+        if dist > config.CLONE_STRIKE_RADIUS_PX:
+            inv = 1.0 / max(dist, 0.001)
+            self.x += dx * inv * self.speed
+            self.y += dy * inv * self.speed
+            self.moving = True
+        else:
+            self.moving = False
+        if self.attack_cd > 0:
+            self.attack_cd -= 1
+        elif dist <= config.CLONE_STRIKE_RADIUS_PX:
+            # Contact strike: short-lived invisible bullet at the target.
+            a = math.atan2(dy, dx)
+            vx = math.cos(a) * config.PROJ_SPEED
+            vy = math.sin(a) * config.PROJ_SPEED
+            pr = Projectile(self.x, self.y, vx, vy, (57, 215, 255), 3)
+            pr.style = "invisible"
+            pr.damage = self.damage
+            # Die shortly past strike range so it can't snipe across screen.
+            pr.max_age = max(2, int(config.CLONE_STRIKE_RADIUS_PX * 1.4
+                                    / max(config.PROJ_SPEED, 0.001)))
+            out.append(pr)
+            self.attack_cd = config.CLONE_ATTACK_INTERVAL_TICKS
+        self.anim_tick += 1
+        if self.anim_tick >= 5:
+            self.anim_tick = 0
+            self.run_idx += 1
+        return out
+
+    def frame(self, bundle):
+        """Current ghost frame from the owner's FrameBundle."""
+        if self.moving and bundle.run:
+            fs = bundle.run_flipped if self.facing_left else bundle.run
+            return fs[self.run_idx % len(fs)]
+        if bundle.idle:
+            fs = bundle.idle_flipped if self.facing_left else bundle.idle
+            return fs[self.run_idx % len(fs)]
+        return None
+
+    def draw(self, p, bundle):
+        fr = self.frame(bundle)
+        if fr is None:
+            return
+        # Fade out over the last quarter of its life.
+        fade = min(1.0, self.ticks_left / max(1.0, 0.25 * self.duration))
+        p.setOpacity((config.CLONE_ALPHA / 255.0) * fade)
+        p.drawPixmap(int(self.x) - fr.width() // 2,
+                     int(self.y) - fr.height() // 2, fr)
+        p.setOpacity(1.0)
+
+
+def spawn_clone(fig):
+    """Spawn a clone at the figure's current position if the character has
+    the clone preset and the cooldown is clear.  Called from the dodge-arm
+    sites in MotionSystem — the clone is left at the departure point."""
+    cfg = clone_cfg(fig)
+    c = fig.combat
+    if cfg is None or c.clone_cd > 0:
+        return
+    speed = fig.motion.follow_speed * config.CLONE_SPEED_FACTOR
+    c.clones.append(CloneEffect(fig.transform.x, fig.transform.y,
+                                cfg['duration_ticks'], speed, cfg['damage']))
+    c.clone_cd = cfg['cooldown_ticks']
+    c.blink_fx_pending.append((fig.transform.x, fig.transform.y,
+                               fig.transform.x, fig.transform.y))
+
+
 def blink_warp(fig, nx, ny):
     """Pure position warp with departure/arrival afterimages + queued spark
     FX (drained by CombatSystem into world.sparks).  Clamps to screen
