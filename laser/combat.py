@@ -1857,7 +1857,7 @@ def combo_cfg(fig):
 
 _BLINK_DEFAULTS = dict(
     combo=True,
-    windup_ticks=int(config.BLINK_WINDUP_TICKS),
+    combo_cooldown_ticks=int(config.BLINK_COMBO_COOLDOWN_TICKS),
     approach=True,
     approach_range_px=float(config.BLINK_APPROACH_RANGE_PX),
     approach_trigger_px=float(config.BLINK_APPROACH_TRIGGER_PX),
@@ -1902,11 +1902,13 @@ def blink_warp(fig, nx, ny):
     nx = max(margin, min(fig.screen_w - margin, nx))
     ny = max(margin, min(fig.screen_h - margin, ny))
     spawn_afterimage(fig)
-    fig.combat.blink_fx_pending.append((t.x, t.y))
+    fig.combat.blink_fx_pending.append((t.x, t.y, nx, ny))
     t.x = nx
     t.y = ny
-    fig.combat.blink_fx_pending.append((nx, ny))
     spawn_afterimage(fig)
+    # Rebase the run trail so no ribbon bridges the discontinuity —
+    # the jagged bolt sparks (CombatSystem drain) carry the visual.
+    fig.trail.clear()
 
 
 def tick_blinkstorm(fig, target_x, target_y):
@@ -1996,12 +1998,14 @@ def advance_combat(fig, slash_target, fallback):
     if c.arc_recoiling:
         ox, oy = t.x, t.y
         _bl = blink_cfg(fig)
-        if _bl is not None and _bl['combo'] and c.arc_recoil_ticks > 1:
+        if (_bl is not None and _bl['combo'] and c.arc_recoil_ticks > 1
+                and c.blink_windup <= 0):
             # Blink: take the whole remaining recoil in one warp, then let
             # the final tick below arm the orbit exactly as authored.
             steps = c.arc_recoil_ticks - 1
             blink_warp(fig, t.x + c.slash_vx * steps, t.y + c.slash_vy * steps)
             c.arc_recoil_ticks = 1
+            c.blink_windup = _bl['combo_cooldown_ticks']
         c.arc_recoil_ticks -= 1
         t.x += c.slash_vx
         t.y += c.slash_vy
@@ -2032,13 +2036,16 @@ def advance_combat(fig, slash_target, fallback):
     if c.arc_repositioning:
         ox, oy = t.x, t.y
         _bl = blink_cfg(fig)
-        if _bl is not None and _bl['combo'] and c.arc_repo_t < c.arc_repo_steps - 1:
+        if (_bl is not None and _bl['combo']
+                and c.arc_repo_t < c.arc_repo_steps - 1
+                and c.blink_windup <= 0):
             # Blink: skip the curved travel — warp straight to the arc's
             # end position; the final tick launches the dash-in as usual.
             end_x = c.arc_center_x + math.cos(c.arc_end_angle) * c.arc_r_end
             end_y = c.arc_center_y + math.sin(c.arc_end_angle) * c.arc_r_end
             blink_warp(fig, end_x, end_y)
             c.arc_repo_t = c.arc_repo_steps - 1
+            c.blink_windup = _bl['combo_cooldown_ticks']
         c.arc_repo_t += 1
         # Smooth cubic ease-in-out for natural arc travel
         raw = c.arc_repo_t / max(c.arc_repo_steps, 1)
@@ -2083,6 +2090,10 @@ def advance_combat(fig, slash_target, fallback):
             if cr.alive:
                 live.append(cr)
         c.crescents = live
+
+    # --- Blink combo cooldown (shared 0.2 s gate between teleports) ---
+    if c.blink_windup > 0:
+        c.blink_windup -= 1
 
     # --- Ultimate crescent advance + 2nd-shot delay (always tick for melee) ---
     tick_ult_crescents(fig, fallback[0], fallback[1])
@@ -2230,18 +2241,17 @@ def advance_combat(fig, slash_target, fallback):
                 else:
                     bl = blink_cfg(fig)
                     if bl is not None and bl['combo']:
-                        # Combo blink: hold for the wind-up, then warp to
-                        # just inside hit range — the hit-check above fires
-                        # on the next tick against the live target.
-                        if c.blink_windup < bl['windup_ticks']:
-                            c.blink_windup += 1
-                        else:
-                            c.blink_windup = 0
+                        # Combo blink: warp to just inside hit range once
+                        # the shared 0.2 s teleport cooldown expires —
+                        # the hit-check above fires next tick against
+                        # the live target.
+                        if c.blink_windup <= 0:
                             inv = 1.0 / max(dist, 0.001)
                             land = cc['hit_radius'] * 0.85
                             blink_warp(fig,
                                        tx - dx * inv * land,
                                        ty - dy * inv * land)
+                            c.blink_windup = bl['combo_cooldown_ticks']
                         fig.face(tx, ty)
                         fig.trail.update(t.x, t.y, t.facing_left, False, False)
                         fig.render.is_moving = False
