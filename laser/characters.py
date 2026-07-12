@@ -318,6 +318,15 @@ def _wander_strength(char):
         return None
 
 
+def _kites_flag(char):
+    """movement.kites opt-in — independent of archetype/predicates (which
+    are locked by the archetype trap for 'shooter'/'melee'). Any character,
+    regardless of archetype, can opt into always-hold-distance kiting this
+    way. Defaults False."""
+    mv = char.get("movement", {}) or {}
+    return bool(mv.get("kites"))
+
+
 def _register(char):
     """Register mode class, tuning, cycle-order key, and palette LUT."""
     key = str(char.get("name", "custom")).strip().lower().replace(" ", "_")
@@ -326,6 +335,8 @@ def _register(char):
         attrs = {"key": key}
         for name in _predicates_for(char):
             attrs[name] = (lambda self: True)
+        if _kites_flag(char):
+            attrs["kites"] = (lambda self: True)
         ws = _wander_strength(char)
         if ws is not None:
             # Cap semantics: lateral wander never exceeds ws (0.15 = charge
