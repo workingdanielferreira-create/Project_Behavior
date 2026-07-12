@@ -295,7 +295,7 @@ PETAL_TOUCH_PROJ_AGE = 6     # ticks — lifetime of the invisible touch project
 # ---------------------------------------------------------------------------
 # Set True to write laser_cursor_log.txt next to the launcher.
 # Flushes every 60 events; ~0 overhead when False.
-LOG_ENABLED = False
+LOG_ENABLED = True
 
 # ---------------------------------------------------------------------------
 # Bullet-vs-bullet scatter (cross-fire collision)
