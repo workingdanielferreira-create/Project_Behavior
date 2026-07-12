@@ -429,7 +429,8 @@ class ProjectileSystem(System):
                     ddx, ddy = proj.x - cx, proj.y - cy
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
-                        hit = True
+                        if not proj.pierce:
+                            hit = True
 
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
@@ -443,7 +444,13 @@ class ProjectileSystem(System):
                                 # A parrying partner blocks it: no burst.
                                 _spawn_bullet_burst(world, proj.x, proj.y,
                                                     proj.r, proj.g, proj.b)
-                            hit = True
+                            # Pierce (battle.attack.pierce on the fx layer
+                            # that fired this shot — see combat.fire_attack_pattern):
+                            # register the hit visual/burst same as any other
+                            # bullet, but the bullet itself survives and keeps
+                            # travelling instead of being destroyed on contact.
+                            if not proj.pierce:
+                                hit = True
                             break
 
                 if not hit:
