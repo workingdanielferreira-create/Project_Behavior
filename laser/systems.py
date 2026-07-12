@@ -380,12 +380,21 @@ class ProjectileSystem(System):
             _sw, _sh = world.screen_w, world.screen_h
             for proj in world.projectiles:
                 proj.update()
+                _beam_diag = (proj.style == "beam")
                 if not proj.alive:
+                    if _beam_diag:
+                        action_log.log("BEAM_CULL",
+                            f"expired age={proj.age}/{proj.max_age} "
+                            f"at=({proj.x:.0f},{proj.y:.0f})")
                     continue
                 # Off-screen cull: drop bullets beyond the margin instead of
                 # simulating them far off-screen for the rest of PROJ_MAX_AGE.
                 if (proj.x < -_cm or proj.x > _sw + _cm
                         or proj.y < -_cm or proj.y > _sh + _cm):
+                    if _beam_diag:
+                        action_log.log("BEAM_CULL",
+                            f"offscreen age={proj.age} "
+                            f"at=({proj.x:.0f},{proj.y:.0f})")
                     continue
 
                 # Skip splinters — hit_r_sq == 0.0 means no collision checking
@@ -416,6 +425,10 @@ class ProjectileSystem(System):
                                 world.collision_dots.append([proj.x, proj.y, 0])
                                 hit = True
                             if hit:
+                                if _beam_diag:
+                                    action_log.log("BEAM_CULL",
+                                        f"parried age={proj.age} "
+                                        f"at=({proj.x:.0f},{proj.y:.0f})")
                                 # Deflect: the blocked bullet ricochets away in
                                 # a random cone (cosmetic, original colour).
                                 alive.append(combat.make_deflect_bullet(
@@ -430,6 +443,11 @@ class ProjectileSystem(System):
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
                         if not proj.pierce:
+                            if _beam_diag:
+                                action_log.log("BEAM_CULL",
+                                    f"cursor-hit age={proj.age} "
+                                    f"at=({proj.x:.0f},{proj.y:.0f}) "
+                                    f"pierce={proj.pierce}")
                             hit = True
 
                 # --- Bullet vs enemy figures (battle only) ---
@@ -450,6 +468,11 @@ class ProjectileSystem(System):
                             # bullet, but the bullet itself survives and keeps
                             # travelling instead of being destroyed on contact.
                             if not proj.pierce:
+                                if _beam_diag:
+                                    action_log.log("BEAM_CULL",
+                                        f"figure-hit age={proj.age} "
+                                        f"at=({proj.x:.0f},{proj.y:.0f}) "
+                                        f"pierce={proj.pierce}")
                                 hit = True
                             break
 
@@ -623,10 +646,15 @@ class ProjectileSystem(System):
             world.projectiles.extend(new_projs)
             _fr, _fg, _fb = fig.lut[128]
             world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+            _pdiag = "; ".join(
+                f"{type(pr).__name__}(spd={(pr.vx**2 + pr.vy**2) ** 0.5:.1f}"
+                f",max_age={pr.max_age},pierce={pr.pierce})"
+                for pr in new_projs)
             action_log.log("SHOT",
                 f"attack_pattern mode={fig.mode.key} "
                 f"fig=({fig.x:.0f},{fig.y:.0f}) phase={st['phase']} "
-                f"style={phase_cfg.get('style')} spawned={len(new_projs)}")
+                f"style={phase_cfg.get('style')} spawned={len(new_projs)} "
+                f"[{_pdiag}]")
             st["phase"] += 1
             if st["phase"] >= len(cycle):
                 st["phase"] = 0
@@ -703,17 +731,31 @@ class CollisionSystem(System):
                     ex, ey = etup[0], etup[1]
                     ddx, ddy = proj.x - ex, proj.y - ey
                     if ddx * ddx + ddy * ddy <= dsq:
+                        # Pierce: a piercing shot (battle.attack.pierce on the
+                        # fx layer that fired it) is not shredded by enemy
+                        # bullets — it destroys the enemy bullet and keeps
+                        # flying, unshaken. Non-pierce keeps the historical
+                        # scatter-into-splinters behaviour.
+                        consumed_enemy.add(ei)
+                        combat.kill_projectile(etup[8])
+                        world.collision_dots.append([proj.x, proj.y, 0])
+                        if proj.pierce:
+                            action_log.log("BULLET_HIT",
+                                f"pierce-through at ({proj.x:.0f},{proj.y:.0f}) "
+                                f"enemy_idx={ei} style={proj.style}")
+                            continue
                         # Collision — scatter this bullet into splinters
                         # and destroy the enemy bullet for real (tuple[8]
                         # is the live Projectile on the other side).
                         splinters = combat.make_splinter_bullets(proj)
                         new_mine.extend(splinters)
-                        consumed_enemy.add(ei)
-                        combat.kill_projectile(etup[8])
-                        world.collision_dots.append([proj.x, proj.y, 0])
                         action_log.log("BULLET_HIT",
                             f"scatter at ({proj.x:.0f},{proj.y:.0f}) "
                             f"enemy_idx={ei} splinters={len(splinters)}")
+                        if proj.style == "beam":
+                            action_log.log("BEAM_CULL",
+                                f"bullet-scatter age={proj.age} "
+                                f"at=({proj.x:.0f},{proj.y:.0f})")
                         scattered = True
                         break
                 if not scattered:
