@@ -242,6 +242,19 @@ BLINK_BOLT_SEGMENTS           = 9      # jagged electric bolt between endpoints
 BLINK_BOLT_JITTER_PX          = 14.0   # perpendicular zig-zag amplitude
 
 # ---------------------------------------------------------------------------
+# Generic Kiting system (mode.kites() predicate; opt-in for any JSON
+# character via `"movement": {"kites": true}`, on natively for RunnerMode).
+# A kiting figure never fully closes the gap to its target: it approaches
+# until it reaches the standoff distance, then holds/backs away instead of
+# continuing to chase — see ai.kite_target. Pure function of (figure,
+# target point), so it drives Solo (target=cursor) and Battle (target=
+# nearest enemy) identically.
+# ---------------------------------------------------------------------------
+KITE_STANDOFF_DIST  = 320.0  # px — ideal distance a kiting figure holds
+KITE_DEADZONE_PX    = 50.0   # +/- band around the standoff where it just holds
+KITE_HOLD_DRIFT_PX  = 40.0   # lateral wander distance while holding in the dead zone
+
+# ---------------------------------------------------------------------------
 # Generic Clone system (engine support for the wizard's special_ability
 # preset 'clone').  A clone is an autonomous ghost of its owner: it walks
 # toward the owner's live target and strikes on contact via invisible
