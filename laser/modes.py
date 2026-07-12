@@ -64,6 +64,13 @@ class FigureMode:
         """May this figure back away from a close enemy in battle?"""
         return False
 
+    def kites(self):
+        """Does this figure always hold distance from its target — closing
+        in only until it reaches standoff range, then backing off instead
+        of ever chasing all the way in? See ai.kite_target. Supersedes the
+        occasional short retreats() blip for figures that opt in."""
+        return False
+
     def charges_full(self):
         """Ignore aggression-scaled standoff distance and close all the way?"""
         return False
@@ -81,6 +88,9 @@ class RunnerMode(FigureMode):
         return True
 
     def retreats(self):
+        return True
+
+    def kites(self):
         return True
 
 
