@@ -306,6 +306,77 @@ def battle_target(world, fig):
     return (tx + rx, ty + ry)
 
 
+def kite_target(fig, ex, ey):
+    """Movement target for a kiting figure (`fig.mode.kites()`): always hold
+    near config.KITE_STANDOFF_DIST from its target instead of ever closing
+    all the way in. Approaches while farther than the standoff band, backs
+    straight away the instant the target gets closer than the band, and
+    drifts laterally (same wander_blend model as battle_target's chase) while
+    holding inside the band.
+
+    Pure function of (fig, target point) — the caller (World.movement_target)
+    passes the nearest enemy in Battle or the cursor in Solo, so this drives
+    both modes identically with zero game-mode branching in here.
+    """
+    t = fig.transform
+    p = fig.personality
+    m = fig.motion
+    rng = p.rng
+
+    # --- Daze: wander aimlessly after recovering from a hit (same as chase) ---
+    if p.daze_ticks > 0:
+        p.daze_ticks -= 1
+        if p.daze_ticks == 0:
+            p.hit_power = max(config.HIT_POWER_BASE, p.hit_power * 0.5)
+        p.wander_angle += p.wander_sign * p.wander_drift * rng.uniform(0.5, 2.0)
+        return (t.x + math.cos(p.wander_angle) * 80,
+                t.y + math.sin(p.wander_angle) * 80)
+    if m.bounce_ending and m.bounce_end_ticks == 1:
+        p.daze_ticks = rng.randint(*config.DAZE_TICKS_RANGE)
+
+    dx, dy = ex - t.x, ey - t.y
+    dist = (dx * dx + dy * dy) ** 0.5
+    if dist > 0.1:
+        bax, bay = dx / dist, dy / dist
+    else:
+        bax, bay = 1.0, 0.0
+    perp_x, perp_y = -bay, bax
+
+    # Lateral wander — identical drift model to battle_target's chase path.
+    p.wander_angle += p.wander_sign * p.wander_drift * rng.gauss(0, 1)
+    if rng.random() < 0.008:
+        p.wander_sign = -p.wander_sign
+    wx, wy = math.cos(p.wander_angle), math.sin(p.wander_angle)
+    lat = wx * perp_x + wy * perp_y
+    blend = fig.mode.wander_blend(dist, p.wander_strength)
+
+    near = config.KITE_STANDOFF_DIST - config.KITE_DEADZONE_PX
+    far = config.KITE_STANDOFF_DIST + config.KITE_DEADZONE_PX
+
+    if dist > far:
+        # Too far: close toward the standoff distance, weaving laterally
+        # just like a normal chase.
+        eff = (dist - config.KITE_STANDOFF_DIST) * p.aggression
+        fx = bax + perp_x * lat * blend
+        fy = bay + perp_y * lat * blend
+        mag = (fx * fx + fy * fy) ** 0.5
+        if mag > 0.001:
+            fx /= mag
+            fy /= mag
+        tx, ty = t.x + fx * eff, t.y + fy * eff
+    elif dist < near:
+        # Too close: back straight away until back at standoff range.
+        back = config.KITE_STANDOFF_DIST - dist
+        tx, ty = t.x - bax * back, t.y - bay * back
+    else:
+        # In the sweet spot: hold ground, only drift laterally.
+        tx = t.x + perp_x * lat * blend * config.KITE_HOLD_DRIFT_PX
+        ty = t.y + perp_y * lat * blend * config.KITE_HOLD_DRIFT_PX
+
+    rx, ry = _wall_repulsion(fig)
+    return (tx + rx, ty + ry)
+
+
 def _wall_repulsion(fig):
     """Cubic-falloff nudge back toward centre within WALL_ZONE px of an edge."""
     t = fig.transform
