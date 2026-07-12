@@ -235,6 +235,15 @@ class World:
 
     def movement_target(self, fig):
         """Where this figure moves toward this tick."""
+        if fig.mode.kites():
+            # Kiting is identical in Solo (target=cursor) and Battle
+            # (target=nearest enemy) — ai.kite_target takes a plain point
+            # and doesn't know or care which mode it came from.
+            if self.battle_mode and self.partner_figures:
+                ex, ey = self._nearest_enemy(fig.x, fig.y)
+            else:
+                ex, ey = self.cursor
+            return ai.kite_target(fig, ex, ey)
         if self.battle_mode and self.partner_figures:
             return ai.battle_target(self, fig)
         return self.cursor
