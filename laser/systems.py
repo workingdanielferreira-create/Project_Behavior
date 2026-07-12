@@ -415,6 +415,15 @@ class ProjectileSystem(System):
                         if not (fig.mode.uses_melee()
                                 or combat.has_defend_deflect(fig)):
                             continue
+                        # Never parry your OWN bullet — every shot spawns at
+                        # its firer's position, inside its own parry radius,
+                        # so without this check any shooter with a deflect
+                        # defend layer eats each of its own shots at birth
+                        # (BEAM_CULL 'parried age=1'). Cross-figure parries
+                        # (e.g. solo swordsman parrying runner bullets) keep
+                        # working. Identical in Solo & Battle.
+                        if proj.owner is fig:
+                            continue
                         ddx, ddy = proj.x - fig.x, proj.y - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
                             # Stance already open: absorb silently, no new crescent
