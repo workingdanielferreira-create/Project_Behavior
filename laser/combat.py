@@ -402,6 +402,14 @@ class RichBeamProjectile(Projectile):
         if spd < 0.0001:
             return
         ux, uy = self.vx / spd, self.vy / spd  # heading; tail sits -u*length
+        # Cap the visible trailing shape to how far this bolt has actually
+        # travelled since it fired, so a long authored length (e.g. a big
+        # death-beam body) grows out from the character over the first few
+        # ticks instead of always being drawn as a fixed-length shape whose
+        # far end sits in space the bolt hasn't reached yet (that mismatch
+        # is what makes a long beam collapse into a small blob near the
+        # head — only the near-head segments land somewhere meaningful).
+        reach = min(self.length, spd * self.age)
 
         progress = min(1.0, self.age / max(1, self.max_age))
         w_tail = self.w_start0 + (self.w_start1 - self.w_start0) * progress
@@ -421,10 +429,10 @@ class RichBeamProjectile(Projectile):
         rng = random.Random(self._jitter_seed + self.age)
         for i in range(segs):
             t0, t1 = i / segs, (i + 1) / segs
-            hx0 = self.x - ux * self.length * t0
-            hy0 = self.y - uy * self.length * t0
-            hx1 = self.x - ux * self.length * t1
-            hy1 = self.y - uy * self.length * t1
+            hx0 = self.x - ux * reach * t0
+            hy0 = self.y - uy * reach * t0
+            hx1 = self.x - ux * reach * t1
+            hy1 = self.y - uy * reach * t1
             if self.jitter > 0:
                 j = (rng.random() * 2 - 1) * self.jitter
                 hx0 += -uy * j; hy0 += ux * j
@@ -717,7 +725,6 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
     elif style == "beam":
         count = max(1, int(phase_cfg.get("count", 1) or 1))
         base_rad = math.radians(base_deg)
-        vx, vy = math.cos(base_rad) * speed, math.sin(base_rad) * speed
         # beam_layer_ref ('action_key:layer_id') lets a character's own
         # authored beam fx_layer (length/width/colour/glow/segments/pulse/
         # jitter) drive the look of this travelling shot instead of the
@@ -725,6 +732,24 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
         # unchanged legacy behaviour. Cosmetic only; damage/hit-detection
         # identical either way. Identical in Solo & Battle.
         beam_layer = resolve_beam_layer_ref(char, phase_cfg.get("beam_layer_ref"))
+        # Prefer the beam layer's own authored travel speed (travel_speed /
+        # travel_forward_speed, both px/s) over the generic PROJ_SPEED base
+        # so an attack_pattern beam actually moves at the speed it was
+        # designed at in the wizard (a fast death-beam is meant to close
+        # distance quickly) instead of a slow generic bullet's pace.
+        # speed_mult still applies as a tuning multiplier either way.
+        beam_speed = speed
+        if beam_layer is not None:
+            authored_sps = beam_layer.get("travel_speed") or \
+                           beam_layer.get("travel_forward_speed")
+            try:
+                authored_sps = float(authored_sps)
+            except (TypeError, ValueError):
+                authored_sps = 0.0
+            if authored_sps > 0:
+                beam_speed = (authored_sps * config.TICK_MS / 1000.0) * \
+                             float(phase_cfg.get("speed_mult", 1.0) or 1.0)
+        vx, vy = math.cos(base_rad) * beam_speed, math.sin(base_rad) * beam_speed
         for _ in range(count):
             if beam_layer is not None:
                 pr = RichBeamProjectile(fig.x, fig.y, vx, vy, cr,
@@ -1439,12 +1464,40 @@ def update_petals(fig, world):
     # pool (ignoring what other petals consume mid-tick); coordinated petals
     # share `surviving`, which shrinks as threats are consumed.
     pool_projs = list(world.enemy_projs)
+    # Independent-mode exclusivity: once a petal locks onto a threat this
+    # tick, no other petal may also acquire/continue-chasing that SAME
+    # threat until the first petal resolves it (hit or lost). Threat tuples
+    # are rebuilt fresh from the snapshot every tick (no cross-tick identity),
+    # but within a single tick the same objects are reused across all petals'
+    # threat lists here, so id()/index identity is stable for one pass.
+    # Generic — applies to any character's petals fx_layer with
+    # independent >= 0.5, not just this one.
+    claimed = set()
+
+    def _threat_key(kind, payload):
+        return (kind, id(payload) if kind == "proj" else payload)
+
     for pt in c.petals:
         projs = pool_projs if independent else surviving
         threats = [(t[0], t[1], "proj", t) for t in projs]
         threats += [(fx_, fy_, "fig", i)
                     for i, (fx_, fy_) in enumerate(figures)]
+        if independent and claimed:
+            threats = [th for th in threats
+                       if _threat_key(th[2], th[3]) not in claimed]
         hit = pt.update(fig.x, fig.y, threats)
+        if independent and pt.state == "intercept" and pt.lock_kind is not None:
+            # Find which live threat this petal ended up locked onto (by the
+            # position the lock now points at) so later petals this tick
+            # see it excluded. A petal that made contact this same tick
+            # clears its own lock inside Petal.update, so it never lands
+            # here and doesn't need to reserve anything further.
+            for th in threats:
+                if th[2] != pt.lock_kind:
+                    continue
+                if abs(th[0] - pt.lock_x) < 0.01 and abs(th[1] - pt.lock_y) < 0.01:
+                    claimed.add(_threat_key(th[2], th[3]))
+                    break
         if hit is None:
             continue
         kind, payload, cx, cy, dx, dy = hit
