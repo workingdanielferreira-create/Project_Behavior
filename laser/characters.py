@@ -391,6 +391,44 @@ def _build_bundle(frames):
     )
 
 
+def _tint_pixmap(pm, hex_color):
+    """Return a NEW QPixmap: same alpha silhouette as `pm`, flattened to one
+    solid colour. Non-destructive — `pm` (the borrowed sprite_source frame)
+    is never mutated, so the donor character's own sprites stay untouched."""
+    if pm is None:
+        return None
+    tinted = QPixmap(pm.size())
+    tinted.fill(Qt.transparent)
+    qp = QPainter(tinted)
+    qp.drawPixmap(0, 0, pm)
+    qp.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    qp.fillRect(tinted.rect(), QColor(hex_color))
+    qp.end()
+    return tinted
+
+
+def _tint_bundle(bundle, hex_color):
+    """Build a private FrameBundle whose frames are solid-colour silhouettes
+    of a borrowed sprite_source bundle. Generic: any JSON character using
+    sprite_source can opt in via `"sprite_tint": true` (colour comes from its
+    own `palette.body`) — no per-character special-casing, and the donor
+    mode's bundle object is left completely alone."""
+    from .assets import FrameBundle   # lazy: avoids circular import at load
+
+    def _tint_list(pixmaps):
+        return [_tint_pixmap(pm, hex_color) for pm in (pixmaps or [])]
+
+    return FrameBundle(
+        _tint_list(bundle.run), _tint_list(bundle.run_flipped),
+        _tint_list(bundle.idle), _tint_list(bundle.idle_flipped),
+        _tint_pixmap(bundle.slide, hex_color),
+        _tint_pixmap(bundle.slide_flipped, hex_color),
+        _tint_pixmap(bundle.slide2, hex_color),
+        _tint_pixmap(bundle.slide2_flipped, hex_color),
+        _tint_list(bundle.slash), _tint_list(bundle.slash_flipped),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Entry point — called by AssetLibrary._load_all (Solo and Battle both build
 # their worlds from the same AssetLibrary, so parity is automatic).
@@ -426,7 +464,16 @@ def load_all(root_dir, bundles):
             # see the identical bundle.
             sprite_src = str(char.get("sprite_source", "") or "").strip().lower()
             if sprite_src and sprite_src in bundles:
-                bundles[key] = bundles[sprite_src]
+                donor = bundles[sprite_src]
+                if char.get("sprite_tint"):
+                    # Opt-in recolor: private silhouette copy in this
+                    # character's palette.body colour. Donor mode (e.g.
+                    # swordsman) keeps its own bundle object untouched, so
+                    # this never bleeds into other characters/modes.
+                    tint_hex = char.get("palette", {}).get("body", "#ffffff")
+                    bundles[key] = _tint_bundle(donor, tint_hex)
+                else:
+                    bundles[key] = donor
                 char.pop("hurtbox_radius", None)
             else:
                 if sprite_src:
@@ -437,3 +484,4 @@ def load_all(root_dir, bundles):
                 _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
             print("Character load failed for %s: %s" % (path, e))
+
