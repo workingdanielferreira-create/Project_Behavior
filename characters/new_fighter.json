@@ -59,14 +59,15 @@
  },
  "attack_pattern": {
   "damage": 1,
-  "interval_ticks": 20,
+  "interval_ticks": 125,
   "cycle_pause_ticks": 0,
   "cycle": [
    {
     "style": "beam",
     "count": 1,
     "speed_mult": 1.3,
-    "beam_layer_ref": "attack_normal:L4"
+    "beam_layer_ref": "attack_normal:L4",
+    "travel_distance_px": 3000
    }
   ]
  },
@@ -510,18 +511,18 @@
      "prot": 0,
      "anchor": "head",
      "follow": false,
-     "length": 3855,
+     "length": 3000,
      "w_start0": 34,
      "w_start1": 1,
      "w_end0": 1,
      "w_end1": 1,
      "travel_speed": 3000,
-     "detach_ms": 5000,
+     "detach_ms": 1000,
      "angle_deg": 0,
      "segments": 11,
      "pulse_hz": 4.5,
-     "life_min": 980,
-     "life_max": 1170,
+     "life_min": 2000,
+     "life_max": 2000,
      "c1": "#e1ff00",
      "c2": "#ffffff",
      "glow": 16,
