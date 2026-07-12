@@ -218,7 +218,8 @@ def kill_projectile(pr):
 
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
-                 "max_age", "hit_r_sq", "trail", "radius", "style", "damage")
+                 "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
+                 "pierce")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -237,6 +238,14 @@ class Projectile:
         # (combat.fire_character_action) set a different value from their
         # per-fx-layer `battle.damage`. Identical in Solo & Battle.
         self.damage = 1.0
+        # Pierce (see battle_semantics.attack.pierce in a character's JSON):
+        # a piercing projectile survives contact with the cursor/an enemy
+        # figure instead of being destroyed on the spot (see the cull loop
+        # in systems.ProjectileSystem.update) — it still registers the
+        # hit/visual, it just keeps flying afterwards. Default False keeps
+        # every existing bullet's behaviour exactly as before. Identical
+        # gate in Solo & Battle.
+        self.pierce = False
 
     @property
     def alive(self):
@@ -808,6 +817,10 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
                 beam_speed = (authored_sps * config.TICK_MS / 1000.0) * \
                              float(phase_cfg.get("speed_mult", 1.0) or 1.0)
         vx, vy = math.cos(base_rad) * beam_speed, math.sin(base_rad) * beam_speed
+        pierce = False
+        if beam_layer is not None:
+            pierce = bool(((beam_layer.get("battle") or {}).get("attack") or {})
+                          .get("pierce"))
         for _ in range(count):
             if beam_layer is not None:
                 pr = RichBeamProjectile(fig.x, fig.y, vx, vy, cr,
@@ -817,6 +830,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
                 pr.style = "beam"
             pr.max_age = max_age
             pr.damage = damage
+            pr.pierce = pierce
             out.append(pr)
 
     return out
