@@ -45,20 +45,30 @@ def _trigger_action_state(p, action_key):
 def note_impact_taken(fig):
     """Call whenever fig takes a hit (from apply_hp_damage/battle_hit) — feeds
     on_impact/after_on_impact triggers for every one of this character's
-    tracked actions. Identical in Solo & Battle (both call the same hit hooks)."""
+    tracked actions. Identical in Solo & Battle (both call the same hit hooks).
+
+    trigger_state is shared storage: besides per-action state dicts made by
+    _trigger_action_state (which always carry impact_count/hit_count), other
+    systems stash their own unrelated bookkeeping in here too (e.g.
+    systems._fire_attack_pattern's "_pattern" cadence tracker). Only touch
+    entries that actually look like activation-trigger state, or a character
+    with both attack_pattern and any activation_triggers crashes the very
+    first time it's hit."""
     st = _ensure_trigger_state(fig.personality)
     for s in st.values():
-        s["impact_count"] += 1
+        if "impact_count" in s:
+            s["impact_count"] += 1
 
 
 def note_hit_landed(fig):
     """Call whenever fig lands a hit on the enemy — feeds after_on_hit
     triggers. NOTE: in Battle mode a landed hit currently only updates local
     state; crediting it across sides is not yet wired — see ARCHITECTURE
-    notes."""
+    notes. See note_impact_taken for why entries are filtered."""
     st = _ensure_trigger_state(fig.personality)
     for s in st.values():
-        s["hit_count"] += 1
+        if "hit_count" in s:
+            s["hit_count"] += 1
 
 
 def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
