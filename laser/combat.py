@@ -219,7 +219,7 @@ def kill_projectile(pr):
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
-                 "pierce")
+                 "pierce", "owner")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -246,6 +246,15 @@ class Projectile:
         # every existing bullet's behaviour exactly as before. Identical
         # gate in Solo & Battle.
         self.pierce = False
+        # The Figure that fired this shot, or None for ownerless bullets
+        # (splinters, deflect ricochets, legacy make_shot paths). Used by the
+        # same-side parry check in systems.ProjectileSystem so a figure never
+        # parries its OWN bullet at the moment of firing — a shooter with a
+        # deflect-flagged defend layer would otherwise eat every shot it
+        # fires at birth (spawn point is always inside its own parry radius).
+        # Never crosses the IPC boundary — the snapshot reads only physics
+        # fields. Identical in Solo & Battle.
+        self.owner = None
 
     @property
     def alive(self):
@@ -735,6 +744,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
             vx, vy = math.cos(a) * speed, math.sin(a) * speed
             pr = Projectile(fig.x, fig.y, vx, vy, cr, tl)
             pr.style, pr.damage = "cone", damage
+            pr.owner = fig
             out.append(pr)
 
     elif style == "zigzag":
@@ -749,6 +759,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
                                   amplitude=amp * sign, frequency=freq,
                                   phase_offset=0.0)
             pr.style, pr.damage = "zigzag", damage
+            pr.owner = fig
             out.append(pr)
 
     elif style == "homing":
@@ -761,6 +772,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
             pr = HomingProjectile(fig.x, fig.y, vx, vy, cr, tl,
                                   target=target_ref, turn_rate=turn_rate)
             pr.style, pr.damage = "homing", damage
+            pr.owner = fig
             out.append(pr)
 
     elif style == "beam":
@@ -831,6 +843,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
             pr.max_age = max_age
             pr.damage = damage
             pr.pierce = pierce
+            pr.owner = fig
             out.append(pr)
 
     return out
@@ -922,6 +935,7 @@ def fire_character_action(fig, action_key, target_x, target_y,
         if suppress_visual:
             pr.style = "invisible"
         pr.damage = damage
+        pr.owner = fig
         out.append(pr)
     return out
 
