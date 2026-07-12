@@ -360,7 +360,7 @@ def resolve_beam_layer_ref(char, ref):
 class RichBeamProjectile(Projectile):
     __slots__ = ("length", "w_start0", "w_start1", "w_end0", "w_end1",
                  "c1", "c2", "glow", "segments", "pulse_hz", "jitter",
-                 "additive", "_jitter_seed")
+                 "additive", "_jitter_seed", "detach_ticks")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len, layer):
         super().__init__(fx, fy, vx, vy, color_rgb, trail_len)
@@ -393,6 +393,20 @@ class RichBeamProjectile(Projectile):
             self.jitter = 0.0
         self.additive = str(layer.get("blend", "normal")) == "additive"
         self._jitter_seed = random.randint(0, 1_000_000)
+        # detach_ms (existing authored field — see fx-authoring.md) lets a
+        # sustained beam cut loose from its source after a delay: before
+        # this point the trailing edge stays anchored at the fire point (a
+        # continuous connected beam, like a still-firing Kamehameha); after
+        # it, the trailing edge is no longer pinned to the source and the
+        # beam withers from the tail forward as it keeps flying (see draw()).
+        # 0/absent -> never detaches, preserving old grow-and-hold behaviour
+        # for any character that doesn't set it.
+        try:
+            detach_ms = float(layer.get("detach_ms", 0) or 0)
+        except (TypeError, ValueError):
+            detach_ms = 0.0
+        self.detach_ticks = (max(1, int(round(detach_ms / config.TICK_MS)))
+                             if detach_ms > 0 else 10 ** 9)
 
     def draw(self, p):
         fade = max(0.0, 1.0 - self.age / self.max_age)
@@ -409,7 +423,25 @@ class RichBeamProjectile(Projectile):
         # far end sits in space the bolt hasn't reached yet (that mismatch
         # is what makes a long beam collapse into a small blob near the
         # head — only the near-head segments land somewhere meaningful).
-        reach = min(self.length, spd * self.age)
+        #
+        # Before detach_ticks: connected mode — the trailing edge is pinned
+        # to the fire point (reach == distance travelled so far), so the
+        # beam reads as one continuous shot still linked to the character.
+        # At/after detach_ticks: the trailing edge is released and the
+        # whole segment withers — its length shrinks from whatever it was
+        # at the moment of detach down to nothing by the end of life, while
+        # the head keeps travelling the entire time. That's the classic
+        # "beam cuts loose and dwindles away at the tail" look.
+        dist_travelled = spd * self.age
+        if self.age < self.detach_ticks:
+            reach = min(self.length, dist_travelled)
+        else:
+            reach_at_detach = min(self.length, spd * self.detach_ticks)
+            post_span = max(1, self.max_age - self.detach_ticks)
+            shrink = min(1.0, (self.age - self.detach_ticks) / post_span)
+            reach = max(0.0, reach_at_detach * (1.0 - shrink))
+        if reach <= 0.0:
+            return
 
         progress = min(1.0, self.age / max(1, self.max_age))
         w_tail = self.w_start0 + (self.w_start1 - self.w_start0) * progress
@@ -732,14 +764,40 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
         # unchanged legacy behaviour. Cosmetic only; damage/hit-detection
         # identical either way. Identical in Solo & Battle.
         beam_layer = resolve_beam_layer_ref(char, phase_cfg.get("beam_layer_ref"))
-        # Prefer the beam layer's own authored travel speed (travel_speed /
-        # travel_forward_speed, both px/s) over the generic PROJ_SPEED base
-        # so an attack_pattern beam actually moves at the speed it was
-        # designed at in the wizard (a fast death-beam is meant to close
-        # distance quickly) instead of a slow generic bullet's pace.
-        # speed_mult still applies as a tuning multiplier either way.
-        beam_speed = speed
+
+        # Lifespan: the beam layer's own life_min/life_max (ms, averaged —
+        # existing documented FX-layer field, see fx-authoring.md) overrides
+        # the generic config.BEAM_MAX_AGE when authored, so a character's
+        # beam can live exactly as long as it was designed to. Identical in
+        # Solo & Battle.
+        max_age = config.BEAM_MAX_AGE
         if beam_layer is not None:
+            try:
+                lmin = float(beam_layer.get("life_min", 0) or 0)
+                lmax = float(beam_layer.get("life_max", 0) or 0)
+            except (TypeError, ValueError):
+                lmin = lmax = 0.0
+            life_ms = (lmin + lmax) / 2.0
+            if life_ms > 0:
+                max_age = max(1, int(round(life_ms / config.TICK_MS)))
+
+        # Speed: `travel_distance_px` on the cycle phase (new, generic —
+        # any character's beam-style phase can opt in) is authoritative
+        # when present: it fixes the EXACT total distance this beam covers
+        # over its lifespan (distance = speed * max_age), which is a more
+        # precise knob than an abstract px/s rate. Falls back to the beam
+        # layer's own authored travel_speed/travel_forward_speed (px/s) if
+        # no distance is given, and finally to the generic PROJ_SPEED base.
+        # speed_mult only applies to the travel_speed fallback, since
+        # travel_distance_px already fully determines speed given max_age.
+        beam_speed = speed
+        try:
+            travel_distance_px = float(phase_cfg.get("travel_distance_px", 0) or 0)
+        except (TypeError, ValueError):
+            travel_distance_px = 0.0
+        if travel_distance_px > 0:
+            beam_speed = travel_distance_px / max_age
+        elif beam_layer is not None:
             authored_sps = beam_layer.get("travel_speed") or \
                            beam_layer.get("travel_forward_speed")
             try:
@@ -757,7 +815,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
             else:
                 pr = Projectile(fig.x, fig.y, vx, vy, cr, config.BEAM_TRAIL_LEN)
                 pr.style = "beam"
-            pr.max_age = config.BEAM_MAX_AGE
+            pr.max_age = max_age
             pr.damage = damage
             out.append(pr)
 
