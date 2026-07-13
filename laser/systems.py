@@ -22,18 +22,20 @@ from . import action_log
 
 
 
-def _spawn_bullet_burst(world, x, y, r, g, b):
+def _spawn_bullet_burst(world, x, y, r, g, b, z=0.0):
     """Particle burst for a bullet impact that reduced the target's HP.
 
     Small expanding ring + sparks in the bullet's colour.  NOT spawned for
-    blocked (parried) bullets — those ricochet without bursting.
+    blocked (parried) bullets — those ricochet without bursting. `z` is the
+    struck figure's current height (0 if unknown/grounded) so the burst
+    renders at their true on-screen position even if they're airborne.
     """
-    world.impact_rings.append([x, y, 0, config.BULLET_BURST_RING_RADIUS])
+    world.impact_rings.append([x, y, 0, config.BULLET_BURST_RING_RADIUS, z])
     for _ in range(config.BULLET_BURST_SPARKS):
         ang = random.uniform(0.0, 2.0 * math.pi)
         spd = random.uniform(*config.IMPACT_SPARK_SPEED)
         world.sparks.append([x, y, math.cos(ang) * spd, math.sin(ang) * spd,
-                             0, r, g, b])
+                             0, r, g, b, z])
 
 
 class System:
@@ -203,7 +205,7 @@ class MotionSystem(System):
                 hit = motion.update(fig, tx_motion, ty_motion, world.collision_on,
                                     world.path_follow, world.runaway)
                 if hit is not None:
-                    world.collision_dots.append([hit[0], hit[1], 0])
+                    world.collision_dots.append([hit[0], hit[1], 0, fig.z])
                     # Solo mode cursor bounce costs 1 HP — unless parrying
                     if not fig.combat.parrying:
                         ai.apply_hp_damage(fig, world)
@@ -246,7 +248,7 @@ class CombatSystem(System):
                             world.sparks.append([bx, by,
                                                  math.cos(ang) * spd,
                                                  math.sin(ang) * spd,
-                                                 0, rr, gg, bb])
+                                                 0, rr, gg, bb, fig.z])
                     # Jagged electric bolt between the endpoints —
                     # zig-zag spark chain replaces the old trail smear.
                     ddx, ddy = x1 - x0, y1 - y0
@@ -265,7 +267,7 @@ class CombatSystem(System):
                             world.sparks.append([px_, py_,
                                                  rng.uniform(-0.6, 0.6),
                                                  rng.uniform(-0.6, 0.6),
-                                                 0, rr, gg, bb])
+                                                 0, rr, gg, bb, fig.z])
                 fig.combat.blink_fx_pending.clear()
             # --- Clone system: tick autonomous ghosts (preset 'clone') ---
             if fig.combat.clone_cd > 0:
@@ -300,14 +302,14 @@ class CombatSystem(System):
                 rng = fig.personality.rng
                 for (ix, iy) in c.impact_fx_pending:
                     world.impact_rings.append(
-                        [ix, iy, 0, config.IMPACT_RING_RADIUS])
+                        [ix, iy, 0, config.IMPACT_RING_RADIUS, fig.z])
                     for _ in range(config.IMPACT_SPARK_COUNT):
                         ang = rng.uniform(0.0, 2.0 * math.pi)
                         spd = rng.uniform(*config.IMPACT_SPARK_SPEED)
                         world.sparks.append([ix, iy,
                                              math.cos(ang) * spd,
                                              math.sin(ang) * spd,
-                                             0, rr, gg, bb])
+                                             0, rr, gg, bb, fig.z])
                 c.impact_fx_pending.clear()
 
             # --- Hit-stop: big hit (string finisher / ultimate) freezes the
@@ -433,10 +435,10 @@ class ProjectileSystem(System):
                         if ddx * ddx + ddy * ddy <= parry_rsq:
                             # Stance already open: absorb silently, no new crescent
                             if fig.combat.parrying:
-                                world.collision_dots.append([proj.x, proj.y, 0])
+                                world.collision_dots.append([proj.x, proj.y, 0, fig.z])
                                 hit = True
                             elif combat.trigger_parry(fig):
-                                world.collision_dots.append([proj.x, proj.y, 0])
+                                world.collision_dots.append([proj.x, proj.y, 0, fig.z])
                                 hit = True
                             if hit:
                                 if _beam_diag:
@@ -455,7 +457,7 @@ class ProjectileSystem(System):
                 if not hit:
                     ddx, ddy = proj.x - cx, proj.y - cy
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
-                        world.collision_dots.append([proj.x, proj.y, 0])
+                        world.collision_dots.append([proj.x, proj.y, 0, 0.0])
                         if not proj.pierce:
                             if _beam_diag:
                                 action_log.log("BEAM_CULL",
@@ -466,16 +468,16 @@ class ProjectileSystem(System):
 
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
-                    for ex, ey, _ez, _edash, eparry in world.partner_figures:
+                    for ex, ey, ez, _edash, eparry in world.partner_figures:
                         ddx, ddy = proj.x - ex, proj.y - ey
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
-                            world.collision_dots.append([proj.x, proj.y, 0])
+                            world.collision_dots.append([proj.x, proj.y, 0, ez])
                             if not eparry:
                                 # Partner takes the HP loss on their side --
                                 # HP-reducing impact, so the bullet bursts.
                                 # A parrying partner blocks it: no burst.
                                 _spawn_bullet_burst(world, proj.x, proj.y,
-                                                    proj.r, proj.g, proj.b)
+                                                    proj.r, proj.g, proj.b, ez)
                             # Pierce (battle.attack.pierce on the fx layer
                             # that fired this shot — see combat.fire_attack_pattern):
                             # register the hit visual/burst same as any other
@@ -537,7 +539,7 @@ class ProjectileSystem(System):
                     world.projectiles.extend(new_projs)
                     rr, gg, bb = fig.lut[128]
                     world.muzzle_flashes.append(
-                        [fig.x, fig.y, 0, rr, gg, bb])
+                        [fig.x, fig.y, 0, rr, gg, bb, fig.z])
             # shot_phase intentionally frozen during the beam; the normal
             # cone/zigzag/homing cycle resumes where it left off afterwards.
 
@@ -572,7 +574,7 @@ class ProjectileSystem(System):
                         world.projectiles.extend(new_projs)
                         _fr, _fg, _fb = fig.lut[128]
                         world.muzzle_flashes.append(
-                            [fig.x, fig.y, 0, _fr, _fg, _fb])
+                            [fig.x, fig.y, 0, _fr, _fg, _fb, fig.z])
                         action_log.log("SHOT",
                             f"{tag}runner fig=({fig.x:.0f},{fig.y:.0f}) "
                             f"phase={world.shot_phase} "
@@ -596,7 +598,7 @@ class ProjectileSystem(System):
                             world.projectiles.extend(new_projs)
                             _fr, _fg, _fb = fig.lut[128]
                             world.muzzle_flashes.append(
-                                [fig.x, fig.y, 0, _fr, _fg, _fb])
+                                [fig.x, fig.y, 0, _fr, _fg, _fb, fig.z])
                             action_log.log("SHOT",
                                 f"{tag}non-runner mode={fig.mode.key} "
                                 f"fig=({fig.x:.0f},{fig.y:.0f}) "
@@ -608,7 +610,7 @@ class ProjectileSystem(System):
                         world.projectiles.extend(new_projs)
                         _fr, _fg, _fb = fig.lut[128]
                         world.muzzle_flashes.append(
-                            [fig.x, fig.y, 0, _fr, _fg, _fb])
+                            [fig.x, fig.y, 0, _fr, _fg, _fb, fig.z])
                         action_log.log("SHOT",
                             f"{tag}non-runner mode={fig.mode.key} "
                             f"fig=({fig.x:.0f},{fig.y:.0f}) "
@@ -659,7 +661,7 @@ class ProjectileSystem(System):
             new_projs = combat.fire_attack_pattern(fig, phase_cfg, tx, ty)
             world.projectiles.extend(new_projs)
             _fr, _fg, _fb = fig.lut[128]
-            world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+            world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb, fig.z])
             _pdiag = "; ".join(
                 f"{type(pr).__name__}(spd={(pr.vx**2 + pr.vy**2) ** 0.5:.1f}"
                 f",max_age={pr.max_age},pierce={pr.pierce})"
@@ -710,7 +712,7 @@ class ProjectileSystem(System):
                         world.projectiles.extend(new_projs)
                         _fr, _fg, _fb = fig.lut[128]
                         world.muzzle_flashes.append(
-                            [fig.x, fig.y, 0, _fr, _fg, _fb])
+                            [fig.x, fig.y, 0, _fr, _fg, _fb, fig.z])
 
 
 class CollisionSystem(System):
@@ -752,7 +754,7 @@ class CollisionSystem(System):
                         # scatter-into-splinters behaviour.
                         consumed_enemy.add(ei)
                         combat.kill_projectile(etup[8])
-                        world.collision_dots.append([proj.x, proj.y, 0])
+                        world.collision_dots.append([proj.x, proj.y, 0, 0.0])
                         if proj.pierce:
                             action_log.log("BULLET_HIT",
                                 f"pierce-through at ({proj.x:.0f},{proj.y:.0f}) "
@@ -802,7 +804,7 @@ class CollisionSystem(System):
                         break
                     for cr in fig.combat.crescents:
                         if cr.check_bullet_erase(ex, ey):
-                            world.collision_dots.append([ex, ey, 0])
+                            world.collision_dots.append([ex, ey, 0, 0.0])
                             combat.kill_projectile(tup[8])
                             hit = True
                             break
@@ -814,7 +816,7 @@ class CollisionSystem(System):
                         for uc in fig.combat.ult_crescents:
                             if uc.check_bullet_erase(ex, ey):
                                 world.intercepted_bullets.add(fp)
-                                world.collision_dots.append([ex, ey, 0])
+                                world.collision_dots.append([ex, ey, 0, 0.0])
                                 combat.kill_projectile(tup[8])
                                 hit = True
                                 break
@@ -845,10 +847,10 @@ class CollisionSystem(System):
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= parry_rsq:
                         if fig.combat.parrying:
-                            world.collision_dots.append([ex, ey, 0])
+                            world.collision_dots.append([ex, ey, 0, fig.z])
                             erased_by_parry = True
                         elif combat.trigger_parry(fig):
-                            world.collision_dots.append([ex, ey, 0])
+                            world.collision_dots.append([ex, ey, 0, fig.z])
                             erased_by_parry = True
                         if erased_by_parry:
                             # Deflect: enemy bullet ricochets off the swordsman
@@ -872,9 +874,9 @@ class CollisionSystem(System):
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
                         ai.battle_hit(fig, evx, evy, world, amount=_dmg)
-                        world.collision_dots.append([ex, ey, 0])
+                        world.collision_dots.append([ex, ey, 0, fig.z])
                         # HP was reduced -> the bullet explodes in a burst.
-                        _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
+                        _spawn_bullet_burst(world, ex, ey, _r, _g, _b, fig.z)
                         break
 
         # --- Swordsman bullet-dodge trigger ---
@@ -957,7 +959,7 @@ class CollisionSystem(System):
                 # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
-                for ex, ey, _ez, edash, _eparry in world.partner_figures:
+                for ex, ey, ez, edash, _eparry in world.partner_figures:
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
@@ -981,7 +983,8 @@ class CollisionSystem(System):
                         if edash or m.bouncing:
                             cx = (fig.x + ex) * 0.5
                             cy = (fig.y + ey) * 0.5
-                            world.collision_dots.append([cx, cy, 0])
+                            cz = (fig.z + ez) * 0.5
+                            world.collision_dots.append([cx, cy, 0, cz])
                         # Body collision costs 1 HP to the TARGET only.
                         # Skip if parrying, or if the target is a swordsman
                         # mid-dash-slash (immune — handled by the FSM instead).
@@ -996,13 +999,13 @@ class CollisionSystem(System):
                 if not fig.mode.uses_melee():
                     continue
                 for uc in fig.combat.ult_crescents:
-                    for ex, ey, _ez, _edash, _eparry in world.partner_figures:
+                    for ex, ey, ez, _edash, _eparry in world.partner_figures:
                         if uc.check_figure_hit(ex, ey):
                             # partner_figures is a read-only snapshot — the
                             # opposing side registers crescent damage through
                             # the normal projectile pipeline on its own pass.
                             # Here we only mark the visual contact dot.
-                            world.collision_dots.append([ex, ey, 0])
+                            world.collision_dots.append([ex, ey, 0, ez])
 
         # --- Ultimate crescent → own figure HP damage (ult hits our figs back) ---
         # Only apply in solo mode (target = cursor proximity) or when enemy
