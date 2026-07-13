@@ -1783,8 +1783,9 @@
   },
   "outline_glow": {
     "enabled": true,
-    "color": "#000000",
+    "color": "#00e5ff",
     "radius": 3,
     "opacity": 140
-  }
+  },
+  "sprite_tint_color": "#000000"
 }
