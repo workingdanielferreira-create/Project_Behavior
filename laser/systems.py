@@ -6,7 +6,7 @@ system does one job over the whole world; a cross-cutting feature is a new
 system inserted into the list, not edits sprinkled across a monolith.
 
 Pipeline order (run once per fielded side each tick — see app.py):
-    CombatSystem -> MotionSystem -> CollisionSystem -> ProjectileSystem
+    CombatSystem -> MotionSystem -> JumpSystem -> CollisionSystem -> ProjectileSystem
 InputSystem runs once per tick, outside the per-side loop.  Combat runs
 before motion so a mid-attack figure moves there and the motion system skips
 it (`fig.combat.busy`).  Rendering is NOT a system — Qt requires it inside
@@ -466,7 +466,7 @@ class ProjectileSystem(System):
 
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
-                    for ex, ey, _edash, eparry in world.partner_figures:
+                    for ex, ey, _ez, _edash, eparry in world.partner_figures:
                         ddx, ddy = proj.x - ex, proj.y - ey
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                             world.collision_dots.append([proj.x, proj.y, 0])
@@ -920,7 +920,7 @@ class CollisionSystem(System):
                 if (c.dodge_dashing or c.dodge_counter
                         or c.slashing or m.bouncing or m.bounce_ending):
                     continue
-                for ex, ey, edash, _eparry in world.partner_figures:
+                for ex, ey, _ez, edash, _eparry in world.partner_figures:
                     if not edash:
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
@@ -957,7 +957,7 @@ class CollisionSystem(System):
                 # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
-                for ex, ey, edash, _eparry in world.partner_figures:
+                for ex, ey, _ez, edash, _eparry in world.partner_figures:
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
@@ -996,7 +996,7 @@ class CollisionSystem(System):
                 if not fig.mode.uses_melee():
                     continue
                 for uc in fig.combat.ult_crescents:
-                    for ex, ey, _edash, _eparry in world.partner_figures:
+                    for ex, ey, _ez, _edash, _eparry in world.partner_figures:
                         if uc.check_figure_hit(ex, ey):
                             # partner_figures is a read-only snapshot — the
                             # opposing side registers crescent damage through
@@ -1019,6 +1019,72 @@ class CollisionSystem(System):
         # itself is never in the damage zone; only an approaching enemy would be.)
 
 
+class JumpSystem(System):
+    """Generic gravity/airtime/jump (see config.py's Gravity/Airtime/Jump
+    banner and components.JumpState). Data-driven off each figure's
+    `gravity`/`airtime` stats — works for any character, built-in or JSON,
+    with zero game-mode branching. In Solo the chase target is the cursor
+    (no elevation), so this simply never triggers there; in Battle the
+    target is the nearest enemy's snapshot z. Purely a render/movement-flavor
+    system — it never touches Transform x/y or combat hit tests, so it can't
+    desync Solo vs Battle parity."""
+
+    def update(self, world):
+        battle = bool(world.battle_mode and world.partner_figures)
+        for fig in world.figures:
+            j = fig.jump
+            spd = fig.mode.speeds()
+            gravity = spd.get("gravity", 10.0)
+            airtime = spd.get("airtime", 0.0)
+            flight = gravity < 0.0
+
+            if flight:
+                max_height = config.JUMP_HEIGHT_SCREEN_FRACTION * fig.screen_h
+            else:
+                g = max(0.0, min(10.0, gravity))
+                max_height = (config.JUMP_HEIGHT_SCREEN_FRACTION * fig.screen_h
+                              * (10.0 - g) / 10.0)
+
+            if max_height <= 0.5:
+                # gravity == 10 -> can't jump at all; stay grounded.
+                if j.phase != "grounded" or j.z != 0.0:
+                    j.z = 0.0
+                    j.phase = "grounded"
+                    j.airtime_ticks_left = 0
+                continue
+
+            target_z = world._nearest_enemy_z(fig.x, fig.y) if battle else 0.0
+
+            if j.cooldown_ticks > 0:
+                j.cooldown_ticks -= 1
+
+            if j.phase == "grounded":
+                if (j.cooldown_ticks <= 0
+                        and target_z - j.z > config.JUMP_REACH_THRESHOLD_PX):
+                    j.phase = "rising"
+                    j.airtime_ticks_left = int(airtime * config.TICKS_PER_SEC)
+            elif j.phase in ("rising", "holding"):
+                if not flight:
+                    j.airtime_ticks_left -= 1
+                ascent_target = min(target_z, max_height)
+                gap_closed = (target_z - j.z) <= config.JUMP_REACH_THRESHOLD_PX
+                airtime_out = (not flight) and j.airtime_ticks_left <= 0
+                if airtime_out or gap_closed:
+                    j.phase = "falling"
+                elif j.z < ascent_target:
+                    j.z = min(ascent_target, j.z + config.JUMP_RISE_PX_TICK)
+                    j.phase = "rising"
+                else:
+                    j.phase = "holding"
+
+            if j.phase == "falling":
+                j.z -= config.JUMP_FALL_PX_TICK
+                if j.z <= 0.0:
+                    j.z = 0.0
+                    j.phase = "grounded"
+                    j.cooldown_ticks = config.JUMP_COOLDOWN_TICKS
+
+
 def build_pipeline():
     """The ordered per-side systems list, run once per fielded side each
     tick (app.py binds the side first).  Input is handled once per tick by
@@ -1027,6 +1093,7 @@ def build_pipeline():
     return [
         CombatSystem(),     # advance attacks (uses fresh enemy snapshots)
         MotionSystem(),     # move non-attacking figures
+        JumpSystem(),        # gravity/airtime/jump (render-only, post-motion)
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
