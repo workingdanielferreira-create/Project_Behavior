@@ -230,7 +230,12 @@ class CombatSystem(System):
                 combat.tick_parry_cooldown(fig)
             # --- Blink crackle FX: drain warp endpoints into world sparks ---
             if fig.combat.blink_fx_pending:
-                rr, gg, bb = fig.lut[200]
+                bl_cfg = combat.blink_cfg(fig)
+                bolt_hex = bl_cfg.get("bolt_color") if bl_cfg else ""
+                if bolt_hex:
+                    rr, gg, bb = combat._hex_to_rgb(bolt_hex, fig.lut[200])
+                else:
+                    rr, gg, bb = fig.lut[200]
                 rng = fig.personality.rng
                 for (x0, y0, x1, y1) in fig.combat.blink_fx_pending:
                     # Crackle bursts at both warp endpoints.
