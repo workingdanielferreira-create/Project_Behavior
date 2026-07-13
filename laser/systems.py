@@ -1055,6 +1055,27 @@ class JumpSystem(System):
 
             target_z = world._nearest_enemy_z(fig.x, fig.y) if battle else 0.0
 
+            if flight:
+                # Flight figures simply live off the ground: they hover at a
+                # baseline height on their own (not waiting for a target to
+                # react to — nothing would ever move first otherwise), and
+                # rise further to match an even higher target. Never forced
+                # down by airtime (see config banner); settles back to the
+                # hover baseline only if the target drops below it. This is
+                # what gives grounded figures an elevated target to react to.
+                hover_baseline = config.JUMP_FLIGHT_HOVER_FRACTION * max_height
+                desired_z = min(max_height, max(hover_baseline, target_z))
+                if j.z < desired_z:
+                    j.z = min(desired_z, j.z + config.JUMP_RISE_PX_TICK)
+                    j.phase = "rising"
+                elif j.z > desired_z:
+                    j.z = max(desired_z, j.z - config.JUMP_FALL_PX_TICK)
+                    j.phase = "falling"
+                else:
+                    j.phase = "holding"
+                continue
+
+            # --- Non-flight: grounded/rising/holding/falling reactive jump ---
             if j.cooldown_ticks > 0:
                 j.cooldown_ticks -= 1
 
@@ -1064,11 +1085,10 @@ class JumpSystem(System):
                     j.phase = "rising"
                     j.airtime_ticks_left = int(airtime * config.TICKS_PER_SEC)
             elif j.phase in ("rising", "holding"):
-                if not flight:
-                    j.airtime_ticks_left -= 1
+                j.airtime_ticks_left -= 1
                 ascent_target = min(target_z, max_height)
                 gap_closed = (target_z - j.z) <= config.JUMP_REACH_THRESHOLD_PX
-                airtime_out = (not flight) and j.airtime_ticks_left <= 0
+                airtime_out = j.airtime_ticks_left <= 0
                 if airtime_out or gap_closed:
                     j.phase = "falling"
                 elif j.z < ascent_target:
