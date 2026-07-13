@@ -71,7 +71,7 @@ class SideState:
         self.shot_phase = 0
         self.shot_pause_ticks = 0
         self.intercepted_bullets = set()
-        self.partner_figures = []   # opponent snapshot: (x, y, dash, parry)
+        self.partner_figures = []   # opponent snapshot: (x, y, z, dash, parry)
         self.enemy_projs = []       # opponent bullets: (x,y,vx,vy,r,g,b,dmg,proj)
 
 
@@ -263,12 +263,24 @@ class World:
     def _nearest_enemy(self, fx, fy):
         best_sq = float("inf")
         best = (fx, fy)
-        for ex, ey, _dash, _parry in self.partner_figures:
+        for ex, ey, _ez, _dash, _parry in self.partner_figures:
             d = (ex - fx) ** 2 + (ey - fy) ** 2
             if d < best_sq:
                 best_sq = d
                 best = (ex, ey)
         return best
+
+    def _nearest_enemy_z(self, fx, fy):
+        """Height (z) of the nearest opponent figure, or 0.0 if none (used by
+        JumpSystem to decide whether a target is vertically reachable)."""
+        best_sq = float("inf")
+        best_z = 0.0
+        for ex, ey, ez, _dash, _parry in self.partner_figures:
+            d = (ex - fx) ** 2 + (ey - fy) ** 2
+            if d < best_sq:
+                best_sq = d
+                best_z = ez
+        return best_z
 
     def request_quit(self):
         self._quit = True
@@ -329,7 +341,7 @@ class World:
             other = self.sides[1 - i]
             if self.battle_mode:
                 side.partner_figures = [
-                    (f.x, f.y, bool(f.combat.dashing),
+                    (f.x, f.y, f.jump.z, bool(f.combat.dashing),
                      bool(f.combat.parrying))
                     for f in other.figures if f.transform.init]
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and
