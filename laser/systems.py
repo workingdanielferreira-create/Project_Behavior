@@ -1055,6 +1055,16 @@ class JumpSystem(System):
 
             target_z = world._nearest_enemy_z(fig.x, fig.y) if battle else 0.0
 
+            # --- TEMP DIAGNOSTIC (remove once reactive-jump bug is found) ---
+            if not flight and world.global_tick % 60 == 0:
+                action_log.log(
+                    "JUMP_DIAG",
+                    f"key={fig.mode.key} battle={battle} "
+                    f"partner_n={len(world.partner_figures)} "
+                    f"target_z={target_z:.1f} self_z={j.z:.1f} "
+                    f"phase={j.phase} gravity={gravity} "
+                    f"max_height={max_height:.1f} cooldown={j.cooldown_ticks}")
+
             if flight:
                 # Flight figures simply live off the ground: they hover at a
                 # baseline height on their own (not waiting for a target to
@@ -1084,6 +1094,10 @@ class JumpSystem(System):
                         and target_z - j.z > config.JUMP_REACH_THRESHOLD_PX):
                     j.phase = "rising"
                     j.airtime_ticks_left = int(airtime * config.TICKS_PER_SEC)
+                    action_log.log(
+                        "JUMP_DIAG",
+                        f"key={fig.mode.key} TRIGGERED rising, "
+                        f"target_z={target_z:.1f}")
             elif j.phase in ("rising", "holding"):
                 j.airtime_ticks_left -= 1
                 ascent_target = min(target_z, max_height)
