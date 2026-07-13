@@ -1606,7 +1606,7 @@ def update_petals(fig, world):
                 # Destroy the intercepted bullet at its source (tuple[8]
                 # is the live Projectile on the enemy side).
                 kill_projectile(payload[8])
-                world.collision_dots.append([cx, cy, 0])
+                world.collision_dots.append([cx, cy, 0, fig.z])
         else:
             # Enemy-figure contact: deliver this layer's damage through the
             # normal projectile/snapshot pipeline so the enemy side registers a
@@ -1617,7 +1617,7 @@ def update_petals(fig, world):
             pr.max_age = config.PETAL_TOUCH_PROJ_AGE
             pr.damage = float(cfg.get("damage", 1.0))
             world.projectiles.append(pr)
-            world.collision_dots.append([cx, cy, 0])
+            world.collision_dots.append([cx, cy, 0, fig.z])
     if len(surviving) != len(world.enemy_projs):
         world.enemy_projs = surviving
 
