@@ -307,6 +307,11 @@ JUMP_REACH_THRESHOLD_PX     = 30.0   # vertical gap that counts as "target unrea
 JUMP_RISE_PX_TICK           = 14.0   # ascent speed — snappy/arcade feel
 JUMP_FALL_PX_TICK           = 16.0   # descent speed — slightly faster than rise
 JUMP_COOLDOWN_TICKS         = 20     # grounded cooldown before re-triggering (~0.3 s)
+JUMP_FLIGHT_HOVER_FRACTION  = 0.6    # flight (gravity<0) figures hover at this
+                                     # fraction of their max height by default,
+                                     # rather than sitting on the ground —
+                                     # that's what gives grounded figures an
+                                     # elevated target to react to at all.
 JUMP_SHADOW_BASE_RADIUS_X   = 22.0   # ground-shadow ellipse at z=0 (px)
 JUMP_SHADOW_BASE_RADIUS_Y   = 10.0
 JUMP_SHADOW_FALLOFF_PX      = 300.0  # z distance over which the shadow fades/shrinks
