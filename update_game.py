@@ -45,6 +45,34 @@ SELF = os.path.basename(os.path.abspath(__file__))
 # else, but a failed write on these is reported as "locked", not an error.
 LOCKABLE_EXTS = (".exe", ".dll", ".pyd", ".zip", ".cat")
 
+# Compiled bytecode cache should never be synced or trusted: depending on the
+# interpreter's pyc invalidation mode, a stale cached .pyc can get loaded
+# instead of freshly-compiled source, silently masking real code changes
+# (this bit us once — see CLAUDE.md). Never download these even if one
+# somehow ends up committed again, and always wipe local caches before a run
+# so every launch recompiles fresh from the just-synced source.
+def _is_pycache_path(rel_path):
+    parts = rel_path.replace("\\", "/").split("/")
+    return "__pycache__" in parts or rel_path.endswith((".pyc", ".pyo"))
+
+
+def purge_local_pycache():
+    """Delete every __pycache__ directory under HERE so the interpreter is
+    forced to recompile from the source we just synced, rather than
+    potentially trusting some leftover stale bytecode."""
+    removed = []
+    for root, dirs, _files in os.walk(HERE):
+        if "__pycache__" in dirs:
+            target = os.path.join(root, "__pycache__")
+            try:
+                import shutil
+                shutil.rmtree(target)
+                removed.append(os.path.relpath(target, HERE))
+                dirs.remove("__pycache__")
+            except OSError:
+                pass
+    return removed
+
 
 def _token():
     """Optional auth for higher rate limits: GITHUB_TOKEN env var, or a
@@ -111,6 +139,8 @@ def update_files():
     print(f"Checking {len(tree)} tracked files...\n")
 
     for rel_path, sha, _size in tree:
+        if _is_pycache_path(rel_path):
+            continue  # never sync/trust compiled bytecode cache
         local_path = os.path.join(HERE, *rel_path.split("/"))
         if local_blob_sha(local_path) == sha:
             continue  # up to date
@@ -243,6 +273,13 @@ def main():
     if self_updated:
         print("\nNOTE: update_game.py itself was updated — "
               "the new version will be used next run.")
+
+    purged = purge_local_pycache()
+    if purged:
+        print(f"\nCleared {len(purged)} local __pycache__ folder(s) so the "
+              f"game recompiles fresh from the updated source:")
+        for p in purged:
+            print(f"  - {p}")
 
     launch_game()
 
