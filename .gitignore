@@ -1,0 +1,9 @@
+# Compiled Python bytecode cache — never commit this. Stale .pyc files can
+# get loaded instead of freshly-compiled source depending on the interpreter's
+# cache-invalidation mode, silently masking real source changes.
+__pycache__/
+*.pyc
+*.pyo
+
+# Local-only auth token for update_game.py / session scripts — never commit.
+.gh_token
