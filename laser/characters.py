@@ -318,6 +318,28 @@ def _wander_strength(char):
         return None
 
 
+def _outline_glow(char):
+    """Top-level outline_glow opt-in -> (rgb, radius, opacity) tuple, or None
+    when absent/disabled. Any character's JSON can enable this; no
+    archetype/game-mode branching involved."""
+    og = char.get("outline_glow")
+    if not isinstance(og, dict) or not og.get("enabled"):
+        return None
+    try:
+        rgb = _hex_rgb(og.get("color", ""))
+    except (TypeError, ValueError, IndexError):
+        rgb = config.OUTLINE_GLOW_DEFAULT_RGB
+    try:
+        radius = max(0.0, float(og.get("radius", config.OUTLINE_GLOW_DEFAULT_RADIUS)))
+    except (TypeError, ValueError):
+        radius = config.OUTLINE_GLOW_DEFAULT_RADIUS
+    try:
+        opacity = max(0, min(255, int(og.get("opacity", config.OUTLINE_GLOW_DEFAULT_OPACITY))))
+    except (TypeError, ValueError):
+        opacity = config.OUTLINE_GLOW_DEFAULT_OPACITY
+    return (rgb, radius, opacity)
+
+
 def _kites_flag(char):
     """movement.kites opt-in — independent of archetype/predicates (which
     are locked by the archetype trap for 'shooter'/'melee'). Any character,
@@ -368,6 +390,7 @@ def _register(char):
         idle_anim_speed=_anim_ticks(actions.get("idle"), 10),
         max_hp=_stat("max_hp", 100),
         basic_attack_radius=_stat("basic_attack_radius", config.SLASH_RADIUS),
+        outline_glow=_outline_glow(char),
     )
     # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
     # and Battle alike) already reads from there, so no other file changes.
