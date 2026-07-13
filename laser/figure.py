@@ -136,6 +136,33 @@ class Figure:
         return None
 
     def draw(self, p, pen):
+        z = self.jump.z
+
+        # --- Ground shadow: drawn at the TRUE ground position, never offset —
+        # this is the one thing that's meant to stay anchored to the ground,
+        # as a height cue. Everything else about this figure (afterimages,
+        # trail, sprite, outline glow, crescents, petals, clones, particle
+        # bursts) is shifted together by the same painter-level translate
+        # below, so the whole visual identity floats as one cohesive unit
+        # instead of the sprite splitting away from its own FX. Combat/hit
+        # math never touches the painter, so this is purely cosmetic in
+        # both Solo and Battle. ---
+        if z > 0.5:
+            shadow_t = max(config.JUMP_SHADOW_MIN_SCALE,
+                            1.0 - z / config.JUMP_SHADOW_FALLOFF_PX)
+            srx = config.JUMP_SHADOW_BASE_RADIUS_X * shadow_t
+            sry = config.JUMP_SHADOW_BASE_RADIUS_Y * shadow_t
+            p.save()
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(0, 0, 0, int(config.JUMP_SHADOW_MAX_ALPHA * shadow_t)))
+            p.drawEllipse(int(self.transform.x - srx), int(self.transform.y - sry),
+                          int(srx * 2), int(sry * 2))
+            p.restore()
+
+        p.save()
+        if z > 0.5:
+            p.translate(0, -z)
+
         # --- Dash afterimages: crimson speed-ghosts, drawn behind everything ---
         c0 = self.combat
         if c0.afterimages:
@@ -158,29 +185,13 @@ class Figure:
 
         frame = self._current_frame()
         if frame is not None:
-            z = self.jump.z
-            # Ground shadow: sold-looking height cue, purely cosmetic — drawn
-            # at the true (x, y) ground position, shrinking/fading as z grows.
-            # Identical in Solo and Battle (render-only, no combat effect).
-            if z > 0.5:
-                shadow_t = max(config.JUMP_SHADOW_MIN_SCALE,
-                                1.0 - z / config.JUMP_SHADOW_FALLOFF_PX)
-                srx = config.JUMP_SHADOW_BASE_RADIUS_X * shadow_t
-                sry = config.JUMP_SHADOW_BASE_RADIUS_Y * shadow_t
-                p.save()
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(0, 0, 0, int(config.JUMP_SHADOW_MAX_ALPHA * shadow_t)))
-                p.drawEllipse(int(self.transform.x - srx), int(self.transform.y - sry),
-                              int(srx * 2), int(sry * 2))
-                p.restore()
-
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
                 silh = _combat.silhouette(frame, rgb)
                 sw, sh = silh.width() // 2, silh.height() // 2
                 p.save()
-                p.translate(self.transform.x, self.transform.y - z)
+                p.translate(self.transform.x, self.transform.y)
                 if self.motion.rotate:
                     p.rotate(self.transform.angle)
                 p.setOpacity(opacity / 255.0)
@@ -193,7 +204,7 @@ class Figure:
                 p.setOpacity(1.0)
                 p.restore()
             p.save()
-            p.translate(self.transform.x, self.transform.y - z)
+            p.translate(self.transform.x, self.transform.y)
             if self.motion.rotate:
                 p.rotate(self.transform.angle)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
@@ -225,4 +236,6 @@ class Figure:
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
                 bp.draw(p)
+
+        p.restore()
 
