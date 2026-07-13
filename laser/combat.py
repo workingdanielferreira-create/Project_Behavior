@@ -133,16 +133,22 @@ def bolt_sprite(r, g, b, radius, stretch, hot=False):
 
 
 # ---------------------------------------------------------------------------
-# Afterimage silhouette cache — crimson-tinted copies of sprite frames.
-# One silhouette is rasterised per unique frame pixmap (frames live for the
-# program lifetime, so id()-keying is safe) and reused for every ghost.
+# Silhouette cache — tinted copies of sprite frames. Used by dash afterimages
+# (crimson) and by the generic outline-glow feature (any authored colour, e.g.
+# black). One silhouette is rasterised per unique (frame pixmap, colour) pair
+# (frames live for the program lifetime, so id()-keying is safe) and reused.
 # ---------------------------------------------------------------------------
 _SILHOUETTES = {}
 
 
-def silhouette(frame):
-    """Return the cached crimson silhouette pixmap for a sprite frame."""
-    key = id(frame)
+def silhouette(frame, rgb=None):
+    """Return the cached tinted silhouette pixmap for a sprite frame.
+
+    rgb defaults to the crimson afterimage colour for backward compatibility;
+    pass an explicit (r, g, b) tuple for other tints (e.g. outline glow).
+    """
+    r, g, b = rgb if rgb is not None else config.AFTERIMAGE_RGB
+    key = (id(frame), r, g, b)
     pm = _SILHOUETTES.get(key)
     if pm is None:
         pm = QPixmap(frame.size())
@@ -150,7 +156,6 @@ def silhouette(frame):
         qp = QPainter(pm)
         qp.drawPixmap(0, 0, frame)
         qp.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        r, g, b = config.AFTERIMAGE_RGB
         qp.fillRect(pm.rect(), QColor(r, g, b))
         qp.end()
         _SILHOUETTES[key] = pm
@@ -377,8 +382,8 @@ def resolve_beam_layer_ref(char, ref):
 # ---------------------------------------------------------------------------
 class RichBeamProjectile(Projectile):
     __slots__ = ("length", "w_start0", "w_start1", "w_end0", "w_end1",
-                 "c1", "c2", "glow", "segments", "pulse_hz", "jitter",
-                 "additive", "_jitter_seed", "detach_ticks")
+                 "c1", "c2", "glow", "glow_color", "segments", "pulse_hz",
+                 "jitter", "additive", "_jitter_seed", "detach_ticks")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len, layer):
         super().__init__(fx, fy, vx, vy, color_rgb, trail_len)
@@ -397,6 +402,11 @@ class RichBeamProjectile(Projectile):
             self.glow = max(0.0, float(layer.get("glow", 0) or 0))
         except (TypeError, ValueError):
             self.glow = 0.0
+        # Optional independent tint for the widened glow pass (e.g. black
+        # outline glow); None keeps the old behaviour of glowing in the
+        # beam's own gradient colour.
+        self.glow_color = _hex_to_rgb(layer.get("glow_color"), None) \
+            if layer.get("glow_color") else None
         try:
             self.segments = max(1, int(layer.get("segments", 1) or 1))
         except (TypeError, ValueError):
@@ -492,8 +502,11 @@ class RichBeamProjectile(Projectile):
             cg = self.c2[1] + (self.c1[1] - self.c2[1]) * t0
             cb = self.c2[2] + (self.c1[2] - self.c2[2]) * t0
             if self.glow > 0:
-                _TRAIL_PEN.setColor(QColor(int(cr), int(cg), int(cb),
-                                            int(70 * alpha_mult)))
+                if self.glow_color is not None:
+                    gr, gg, gb = self.glow_color
+                else:
+                    gr, gg, gb = int(cr), int(cg), int(cb)
+                _TRAIL_PEN.setColor(QColor(gr, gg, gb, int(70 * alpha_mult)))
                 _TRAIL_PEN.setWidthF(w + self.glow)
                 p.setPen(_TRAIL_PEN)
                 p.drawLine(int(hx0), int(hy0), int(hx1), int(hy1))
@@ -2005,6 +2018,12 @@ _BLINK_DEFAULTS = dict(
     storm_strikes=int(config.BLINK_STORM_STRIKES),
     storm_interval_ticks=int(config.BLINK_STORM_INTERVAL_TICKS),
     storm_radius_px=float(config.BLINK_STORM_RADIUS_PX),
+    # Optional hex override for the crackle/zig-zag bolt spark colour spawned
+    # on every warp (combo teleport, approach-blink, blinkstorm strikes —
+    # all route through blink_warp). Empty string = use the character's own
+    # palette (fig.lut[200]), preserving old behaviour for any character
+    # that doesn't set it.
+    bolt_color="",
 )
 
 
