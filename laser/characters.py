@@ -500,11 +500,18 @@ def load_all(root_dir, bundles):
             if sprite_src and sprite_src in bundles:
                 donor = bundles[sprite_src]
                 if char.get("sprite_tint"):
-                    # Opt-in recolor: private silhouette copy in this
-                    # character's palette.body colour. Donor mode (e.g.
-                    # swordsman) keeps its own bundle object untouched, so
-                    # this never bleeds into other characters/modes.
-                    tint_hex = char.get("palette", {}).get("body", "#ffffff")
+                    # Opt-in recolor: private silhouette copy tinted with
+                    # sprite_tint_color if authored, else palette.body (old
+                    # default behaviour). Decoupling lets a character's
+                    # sprite colour differ from its trail/particle LUT
+                    # colour (which always derives from palette.body/accent
+                    # — see register_custom_lut below), without touching
+                    # anything for characters that don't set the new field.
+                    # Donor mode (e.g. swordsman) keeps its own bundle
+                    # object untouched, so this never bleeds into other
+                    # characters/modes.
+                    tint_hex = (char.get("sprite_tint_color")
+                                or char.get("palette", {}).get("body", "#ffffff"))
                     bundles[key] = _tint_bundle(donor, tint_hex)
                 else:
                     bundles[key] = donor
