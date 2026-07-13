@@ -38,7 +38,8 @@ class Figure:
             rotate=config.ROTATE_TO_FACING_ENABLED,
         )
         self.trail = TrailComponent(lut)
-        self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"])
+        self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"],
+                                  outline_glow=spd.get("outline_glow"))
         self.combat = Combatant()
         self.personality = Personality(mode.key)
 
@@ -63,6 +64,7 @@ class Figure:
         self.motion.follow_speed = spd["follow_speed"] + (self.index % 3) * 0.5
         self.render.anim_speed = spd["anim_speed"]
         self.render.idle_anim_speed = spd["idle_anim_speed"]
+        self.render.outline_glow = spd.get("outline_glow")
         self.render.set_bundle(bundle)
         self.combat.reset()
         self.trail.clear()
@@ -148,6 +150,24 @@ class Figure:
 
         frame = self._current_frame()
         if frame is not None:
+            og = self.render.outline_glow
+            if og is not None:
+                rgb, radius, opacity = og
+                silh = _combat.silhouette(frame, rgb)
+                sw, sh = silh.width() // 2, silh.height() // 2
+                p.save()
+                p.translate(self.transform.x, self.transform.y)
+                if self.motion.rotate:
+                    p.rotate(self.transform.angle)
+                p.setOpacity(opacity / 255.0)
+                steps = config.OUTLINE_GLOW_STEPS
+                for i in range(steps):
+                    ang = (2 * math.pi * i) / steps
+                    ox = math.cos(ang) * radius
+                    oy = math.sin(ang) * radius
+                    p.drawPixmap(int(ox) - sw, int(oy) - sh, silh)
+                p.setOpacity(1.0)
+                p.restore()
             p.save()
             p.translate(self.transform.x, self.transform.y)
             if self.motion.rotate:
