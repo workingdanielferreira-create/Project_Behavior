@@ -152,9 +152,10 @@ class Renderable:
     which is the one place that sees motion + combat state together."""
 
     __slots__ = ("bundle", "run_idx", "idle_idx",
-                 "anim_tick", "anim_speed", "idle_anim_speed", "is_moving")
+                 "anim_tick", "anim_speed", "idle_anim_speed", "is_moving",
+                 "outline_glow")
 
-    def __init__(self, bundle, anim_speed, idle_anim_speed):
+    def __init__(self, bundle, anim_speed, idle_anim_speed, outline_glow=None):
         self.bundle = bundle
         self.run_idx = 0
         self.idle_idx = 0
@@ -162,6 +163,10 @@ class Renderable:
         self.anim_speed = anim_speed
         self.idle_anim_speed = idle_anim_speed
         self.is_moving = False
+        # Optional ((r,g,b), radius_px, opacity) for the generic outline-glow
+        # feature (JSON `outline_glow` opt-in); None = no outline, drawn
+        # identically in Solo and Battle since it lives in Figure.draw.
+        self.outline_glow = outline_glow
 
     def set_bundle(self, bundle):
         self.bundle = bundle
