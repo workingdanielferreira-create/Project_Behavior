@@ -120,14 +120,14 @@ class World:
         self.enemy_projs = []
         self.intercepted_bullets = set()
 
-        # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
+        # Collision impact dots: list of [x, y, age, z] (drawn + culled in paintEvent)
         self.collision_dots = []
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
-        self.impact_rings = []              # [x, y, age, max_radius] shockwaves
-        self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
-        self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
+        self.impact_rings = []              # [x, y, age, max_radius, z] shockwaves
+        self.muzzle_flashes = []            # [x, y, age, r, g, b, z] firing flashes
+        self.sparks = []                    # [x, y, vx, vy, age, r, g, b, z]
 
         # Input bookkeeping
         self._ctrl_prev = False
@@ -512,7 +512,8 @@ class Overlay(QWidget):
             surviving = []
             p.setPen(Qt.NoPen)
             for dot in w.collision_dots:
-                dx, dy, age = dot
+                dx, dy, age, dz = dot
+                dy -= dz
                 if age < hold:
                     alpha = 255
                 else:
@@ -538,7 +539,8 @@ class Overlay(QWidget):
             rpen = self._pen
             p.setBrush(Qt.NoBrush)
             for ring in w.impact_rings:
-                rx, ry, age, maxr = ring
+                rx, ry, age, maxr, rz = ring
+                ry -= rz
                 t = age / config.IMPACT_RING_LIFETIME
                 if t < 1.0:
                     ease = 1.0 - (1.0 - t) ** 3   # fast start, soft finish
@@ -560,7 +562,8 @@ class Overlay(QWidget):
             live = []
             spen = self._pen
             for s in w.sparks:
-                sx, sy, svx, svy, age, sr, sg, sb = s
+                sx, sy, svx, svy, age, sr, sg, sb, sz = s
+                sy -= sz
                 t = age / config.IMPACT_SPARK_LIFETIME
                 if t < 1.0:
                     alpha = int(255 * (1.0 - t))
@@ -584,7 +587,8 @@ class Overlay(QWidget):
             live = []
             p.setPen(Qt.NoPen)
             for fl in w.muzzle_flashes:
-                mx, my, age, fr, fg, fb = fl
+                mx, my, age, fr, fg, fb, mz = fl
+                my -= mz
                 t = age / config.MUZZLE_FLASH_LIFETIME
                 if t < 1.0:
                     rad = config.MUZZLE_FLASH_RADIUS * (0.4 + 0.6 * t)
