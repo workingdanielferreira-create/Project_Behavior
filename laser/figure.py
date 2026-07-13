@@ -7,18 +7,18 @@ in the systems (motion, combat, ...) which read and mutate these components.
 import math
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPen
+from PyQt5.QtGui import QPen, QColor
 
 from . import config
 from . import combat as _combat
 from .components import (Transform, MotionState, TrailComponent,
-                         Renderable, Combatant, Personality)
+                         Renderable, Combatant, Personality, JumpState)
 
 
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h")
+                 "screen_w", "screen_h", "jump")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -42,6 +42,7 @@ class Figure:
                                   outline_glow=spd.get("outline_glow"))
         self.combat = Combatant()
         self.personality = Personality(mode.key)
+        self.jump = JumpState()
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -51,6 +52,12 @@ class Figure:
     @property
     def y(self):
         return self.transform.y
+
+    @property
+    def z(self):
+        """Height above the ground plane (px, 0 = grounded). Render-only —
+        never used for combat/collision math, which stay on Transform x/y."""
+        return self.jump.z
 
     @property
     def dashing(self):
@@ -67,6 +74,7 @@ class Figure:
         self.render.outline_glow = spd.get("outline_glow")
         self.render.set_bundle(bundle)
         self.combat.reset()
+        self.jump.reset()
         self.trail.clear()
         # Re-initialise HP for the new mode
         _mhp = config.MODE_CONFIGS.get(mode.key, {}).get("max_hp", 30)
@@ -150,13 +158,29 @@ class Figure:
 
         frame = self._current_frame()
         if frame is not None:
+            z = self.jump.z
+            # Ground shadow: sold-looking height cue, purely cosmetic — drawn
+            # at the true (x, y) ground position, shrinking/fading as z grows.
+            # Identical in Solo and Battle (render-only, no combat effect).
+            if z > 0.5:
+                shadow_t = max(config.JUMP_SHADOW_MIN_SCALE,
+                                1.0 - z / config.JUMP_SHADOW_FALLOFF_PX)
+                srx = config.JUMP_SHADOW_BASE_RADIUS_X * shadow_t
+                sry = config.JUMP_SHADOW_BASE_RADIUS_Y * shadow_t
+                p.save()
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(0, 0, 0, int(config.JUMP_SHADOW_MAX_ALPHA * shadow_t)))
+                p.drawEllipse(int(self.transform.x - srx), int(self.transform.y - sry),
+                              int(srx * 2), int(sry * 2))
+                p.restore()
+
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
                 silh = _combat.silhouette(frame, rgb)
                 sw, sh = silh.width() // 2, silh.height() // 2
                 p.save()
-                p.translate(self.transform.x, self.transform.y)
+                p.translate(self.transform.x, self.transform.y - z)
                 if self.motion.rotate:
                     p.rotate(self.transform.angle)
                 p.setOpacity(opacity / 255.0)
@@ -169,7 +193,7 @@ class Figure:
                 p.setOpacity(1.0)
                 p.restore()
             p.save()
-            p.translate(self.transform.x, self.transform.y)
+            p.translate(self.transform.x, self.transform.y - z)
             if self.motion.rotate:
                 p.rotate(self.transform.angle)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
