@@ -358,6 +358,18 @@ AFTERIMAGE_ALPHA      = 150     # starting alpha of a fresh ghost
 AFTERIMAGE_RGB        = (225, 40, 55)   # crimson silhouette colour
 AFTERIMAGE_MAX        = 12      # cap on live ghosts per figure
 
+# ---------------------------------------------------------------------------
+# Outline glow — generic sprite silhouette drawn behind the character every
+# frame (idle, run, everything), for characters that opt in via a top-level
+# `outline_glow` block in their JSON. Reuses combat.silhouette() with an
+# authored tint colour, offset in a ring around the sprite. No engine
+# branching on character identity — any character's JSON can enable this.
+# ---------------------------------------------------------------------------
+OUTLINE_GLOW_DEFAULT_RGB     = (0, 0, 0)     # black, if enabled without a colour
+OUTLINE_GLOW_DEFAULT_RADIUS  = 3.0           # px offset of each outline copy
+OUTLINE_GLOW_DEFAULT_OPACITY = 140           # 0-255
+OUTLINE_GLOW_STEPS           = 8             # copies drawn in a ring (every 45°)
+
 # Hit-stop — everything freezes for a few ticks on BIG hits only
 # (attack-string finishers and ultimate launches).  Both sides share one
 # clock, so attacker and victim freeze together in Battle mode.
