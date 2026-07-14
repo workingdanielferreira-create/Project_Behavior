@@ -313,28 +313,6 @@ class Combatant:
                 or self.dodge_dashing)
 
 
-class JumpState:
-    """Gravity/airtime/jump state (see laser/systems.py JumpSystem).
-
-    `z` is height above the ground plane in px (0 = grounded); it is a pure
-    render-space offset — Transform.x/y stay the character's true ground
-    position, so combat/collision (which key off Transform) are completely
-    unaffected by being airborne, in both Solo and Battle.
-
-    `phase` — "grounded" | "rising" | "holding" | "falling".
-    """
-    __slots__ = ("z", "phase", "airtime_ticks_left", "cooldown_ticks")
-
-    def __init__(self):
-        self.z = 0.0
-        self.phase = "grounded"
-        self.airtime_ticks_left = 0
-        self.cooldown_ticks = 0
-
-    def reset(self):
-        self.__init__()
-
-
 class Personality:
     """Per-figure RNG and battle temperament, seeded from OS entropy so figures
     are independent across processes regardless of launch timing."""
