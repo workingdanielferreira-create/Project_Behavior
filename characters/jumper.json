@@ -19,9 +19,7 @@
     "chase_speed": 4.5,
     "follow_speed": 6.0,
     "scale": 0.8,
-    "basic_attack_radius": 120,
-    "gravity": 1,
-    "airtime": 5
+    "basic_attack_radius": 120
   },
   "rig": "humanoid_v2",
   "modes": [
