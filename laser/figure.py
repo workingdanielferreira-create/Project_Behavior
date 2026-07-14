@@ -7,18 +7,18 @@ in the systems (motion, combat, ...) which read and mutate these components.
 import math
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPen, QColor
+from PyQt5.QtGui import QPen
 
 from . import config
 from . import combat as _combat
 from .components import (Transform, MotionState, TrailComponent,
-                         Renderable, Combatant, Personality, JumpState)
+                         Renderable, Combatant, Personality)
 
 
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "jump")
+                 "screen_w", "screen_h")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -42,7 +42,6 @@ class Figure:
                                   outline_glow=spd.get("outline_glow"))
         self.combat = Combatant()
         self.personality = Personality(mode.key)
-        self.jump = JumpState()
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -52,12 +51,6 @@ class Figure:
     @property
     def y(self):
         return self.transform.y
-
-    @property
-    def z(self):
-        """Height above the ground plane (px, 0 = grounded). Render-only —
-        never used for combat/collision math, which stay on Transform x/y."""
-        return self.jump.z
 
     @property
     def dashing(self):
@@ -74,7 +67,6 @@ class Figure:
         self.render.outline_glow = spd.get("outline_glow")
         self.render.set_bundle(bundle)
         self.combat.reset()
-        self.jump.reset()
         self.trail.clear()
         # Re-initialise HP for the new mode
         _mhp = config.MODE_CONFIGS.get(mode.key, {}).get("max_hp", 30)
@@ -136,33 +128,6 @@ class Figure:
         return None
 
     def draw(self, p, pen):
-        z = self.jump.z
-
-        # --- Ground shadow: drawn at the TRUE ground position, never offset —
-        # this is the one thing that's meant to stay anchored to the ground,
-        # as a height cue. Everything else about this figure (afterimages,
-        # trail, sprite, outline glow, crescents, petals, clones, particle
-        # bursts) is shifted together by the same painter-level translate
-        # below, so the whole visual identity floats as one cohesive unit
-        # instead of the sprite splitting away from its own FX. Combat/hit
-        # math never touches the painter, so this is purely cosmetic in
-        # both Solo and Battle. ---
-        if z > 0.5:
-            shadow_t = max(config.JUMP_SHADOW_MIN_SCALE,
-                            1.0 - z / config.JUMP_SHADOW_FALLOFF_PX)
-            srx = config.JUMP_SHADOW_BASE_RADIUS_X * shadow_t
-            sry = config.JUMP_SHADOW_BASE_RADIUS_Y * shadow_t
-            p.save()
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(0, 0, 0, int(config.JUMP_SHADOW_MAX_ALPHA * shadow_t)))
-            p.drawEllipse(int(self.transform.x - srx), int(self.transform.y - sry),
-                          int(srx * 2), int(sry * 2))
-            p.restore()
-
-        p.save()
-        if z > 0.5:
-            p.translate(0, -z)
-
         # --- Dash afterimages: crimson speed-ghosts, drawn behind everything ---
         c0 = self.combat
         if c0.afterimages:
@@ -236,6 +201,4 @@ class Figure:
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
                 bp.draw(p)
-
-        p.restore()
 
