@@ -391,8 +391,6 @@ def _register(char):
         max_hp=_stat("max_hp", 100),
         basic_attack_radius=_stat("basic_attack_radius", config.SLASH_RADIUS),
         outline_glow=_outline_glow(char),
-        gravity=_stat("gravity", 10.0),   # default: no jump capability
-        airtime=_stat("airtime", 0.0),    # default: no airtime
     )
     # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
     # and Battle alike) already reads from there, so no other file changes.
