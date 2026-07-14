@@ -275,48 +275,15 @@ MODE_CONFIGS = {
     "runner": dict(
         chase_speed=3.0, follow_speed=4.5, anim_speed=5, idle_anim_speed=10,
         max_hp=100, basic_attack_radius=SLASH_RADIUS,
-        gravity=3.0, airtime=1.0,
     ),
     "swordsman": dict(
         chase_speed=4.5, follow_speed=6.0, anim_speed=4, idle_anim_speed=8,
         max_hp=100, basic_attack_radius=SLASH_RADIUS,
-        gravity=4.0, airtime=3.0,
     ),
 }
 
 # Order modes cycle through with Alt+Left / Alt+Right.
 MODE_ORDER = ["runner", "swordsman"]
-
-# ---------------------------------------------------------------------------
-# Gravity / Airtime / Jump (generic, data-driven — see laser/systems.py
-# JumpSystem). Per-character `gravity` (-10..10) and `airtime` (0..10 sec)
-# stats live in MODE_CONFIGS / JSON `stats` block, identical to max_hp etc.
-#   gravity  -10 = permanent flight (no forced descent); 0 = can jump the
-#            full JUMP_HEIGHT_SCREEN_FRACTION of the screen; 10 = can't
-#            jump at all. Linear between 0 and 10.
-#   airtime  seconds a non-flight figure may stay airborne before being
-#            forced back down, regardless of what triggered the jump.
-# A figure jumps when its current chase target sits more than
-# JUMP_REACH_THRESHOLD_PX higher than it (see App._nearest_enemy_z) —
-# purely a movement/render behaviour; combat hit tests stay 2D (x, y) and
-# are completely unaffected by z, in both Solo and Battle.
-# ---------------------------------------------------------------------------
-TICKS_PER_SEC               = 62     # matches TICK_MS (~62.5 fps)
-JUMP_HEIGHT_SCREEN_FRACTION = 0.8    # max jump height (gravity=0) as a fraction of screen_h
-JUMP_REACH_THRESHOLD_PX     = 30.0   # vertical gap that counts as "target unreachable"
-JUMP_RISE_PX_TICK           = 14.0   # ascent speed — snappy/arcade feel
-JUMP_FALL_PX_TICK           = 16.0   # descent speed — slightly faster than rise
-JUMP_COOLDOWN_TICKS         = 20     # grounded cooldown before re-triggering (~0.3 s)
-JUMP_FLIGHT_HOVER_FRACTION  = 0.6    # flight (gravity<0) figures hover at this
-                                     # fraction of their max height by default,
-                                     # rather than sitting on the ground —
-                                     # that's what gives grounded figures an
-                                     # elevated target to react to at all.
-JUMP_SHADOW_BASE_RADIUS_X   = 22.0   # ground-shadow ellipse at z=0 (px)
-JUMP_SHADOW_BASE_RADIUS_Y   = 10.0
-JUMP_SHADOW_FALLOFF_PX      = 300.0  # z distance over which the shadow fades/shrinks
-JUMP_SHADOW_MIN_SCALE       = 0.15   # shadow never fully vanishes on tall jumps
-JUMP_SHADOW_MAX_ALPHA       = 130    # alpha at z=0
 
 # ---------------------------------------------------------------------------
 # Collision impact dot FX
