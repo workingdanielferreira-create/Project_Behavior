@@ -146,6 +146,57 @@ def _chase(fig, cx, cy):
         t.y = cy + m.offset_y
 
 
+def apply_arena_oval(fig, world):
+    """Battle-mode-only invisible oval arena boundary.
+
+    Confirmed as a deliberate Solo/Battle exception: Solo has no arena wall
+    (only the rectangular check_walls() screen clamp below applies), Battle
+    additionally confines both fighters to an oval so the fight stays inside
+    a bounded ring. Center/radii are fractions of the figure's own
+    screen_w/screen_h, so the oval scales with window size and is identical
+    for both fielded fighters (same world, same screen dims).
+
+    Behaviour: a gentle gradient push-back starts at
+    config.ARENA_OVAL_GRADIENT_START (normalized ellipse distance, 0..1) and
+    grows stronger approaching the edge; a hard clamp exactly onto the
+    boundary guarantees the fighter can never actually cross it, however
+    fast it was moving. Fully invisible — no rendering, pure position math.
+    """
+    t = fig.transform
+    cx = fig.screen_w * config.ARENA_OVAL_CENTER_X_FRAC
+    cy = fig.screen_h * config.ARENA_OVAL_CENTER_Y_FRAC
+    rx = fig.screen_w * config.ARENA_OVAL_RADIUS_X_FRAC
+    ry = fig.screen_h * config.ARENA_OVAL_RADIUS_Y_FRAC
+    if rx <= 0.0 or ry <= 0.0:
+        return
+
+    dx = t.x - cx
+    dy = t.y - cy
+    nx = dx / rx
+    ny = dy / ry
+    d = (nx * nx + ny * ny) ** 0.5
+    if d <= config.ARENA_OVAL_GRADIENT_START:
+        return
+
+    if d >= 1.0:
+        # Past the boundary (or landed exactly on it) — clamp back onto the
+        # ellipse edge along the same radial direction from center.
+        scale = 1.0 / d
+        t.x = cx + dx * scale
+        t.y = cy + dy * scale
+        return
+
+    # Gentle gradient zone: push strength ramps from 0 (at GRADIENT_START)
+    # to full strength (at the edge, d == 1.0), eased with a square curve so
+    # it's soft at first and firm right at the edge.
+    span = 1.0 - config.ARENA_OVAL_GRADIENT_START
+    push_t = (d - config.ARENA_OVAL_GRADIENT_START) / span
+    strength = push_t * push_t * config.ARENA_OVAL_PUSHBACK_STRENGTH
+    inv = strength / (d * max(rx, ry))
+    t.x -= dx * inv
+    t.y -= dy * inv
+
+
 def check_walls(fig, margin=10):
     """Clamp inside the screen; reflect bounce velocity off edges in flight."""
     m = fig.motion
