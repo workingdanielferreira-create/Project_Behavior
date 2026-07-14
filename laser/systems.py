@@ -209,6 +209,12 @@ class MotionSystem(System):
                         ai.apply_hp_damage(fig, world)
         for fig in world.figures:
             motion.check_walls(fig)
+        # Battle-only invisible oval arena boundary — confirmed intentional
+        # Solo/Battle exception (Solo: no arena wall; Battle: active). See
+        # motion.apply_arena_oval docstring for rationale.
+        if battle:
+            for fig in world.figures:
+                motion.apply_arena_oval(fig, world)
 
 
 # ---------------------------------------------------------------------------
