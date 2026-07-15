@@ -1601,7 +1601,11 @@ def update_petals(fig, world):
             continue
         kind, payload, cx, cy, dx, dy = hit
         if kind == "proj":
-            if payload in surviving:
+            # Pierce (battle.attack.pierce): a piercing incoming shot ignores
+            # petal interception entirely — the petal doesn't destroy it, and
+            # it isn't removed from the surviving pool. Identical in Solo &
+            # Battle, and generic to any character's petals fx_layer.
+            if payload in surviving and not getattr(payload[8], "pierce", False):
                 surviving.remove(payload)
                 # Destroy the intercepted bullet at its source (tuple[8]
                 # is the live Projectile on the enemy side).
