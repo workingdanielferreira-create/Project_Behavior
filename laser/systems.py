@@ -420,7 +420,11 @@ class ProjectileSystem(System):
                 # without dealing damage.  The parry radius is smaller than the
                 # dodge radius, so this is only reached by bullets that got past
                 # the dodge sidestep.
-                if not hit:
+                # Pierce ignores deflect/parry entirely (see battle.attack.pierce
+                # in fx-authoring.md): a piercing shot ignores all things and
+                # compels its action, so it never enters the parry check below.
+                # Identical in Solo & Battle.
+                if not hit and not proj.pierce:
                     parry_rsq = config.PARRY_RADIUS * config.PARRY_RADIUS
                     for fig in world.figures:
                         if not (fig.mode.uses_melee()
@@ -844,37 +848,47 @@ class CollisionSystem(System):
             for tup in world.enemy_projs:
                 ex, ey, evx, evy = tup[0], tup[1], tup[2], tup[3]
                 erased_by_parry = False
-                for fig in world.figures:
-                    if not (fig.mode.uses_melee()
-                            or combat.has_defend_deflect(fig)):
-                        continue
-                    ddx, ddy = ex - fig.x, ey - fig.y
-                    if ddx * ddx + ddy * ddy <= parry_rsq:
-                        if fig.combat.parrying:
-                            world.collision_dots.append([ex, ey, 0])
-                            erased_by_parry = True
-                        elif combat.trigger_parry(fig):
-                            world.collision_dots.append([ex, ey, 0])
-                            erased_by_parry = True
-                        if erased_by_parry:
-                            # Deflect: enemy bullet ricochets off the swordsman
-                            # (cosmetic, keeps the shooter's original colour),
-                            # and the real bullet dies at the source.
-                            combat.kill_projectile(tup[8])
-                            world.projectiles.append(combat.make_deflect_bullet(
-                                fig.x, fig.y, ex, ey, evx, evy,
-                                (tup[4], tup[5], tup[6])))
-                        break
+                # Pierce (battle.attack.pierce on the fx layer that fired this
+                # shot): a piercing incoming shot ignores deflect/parry
+                # entirely — it is never erased or ricocheted here, and never
+                # even triggers the parry stance on the defending figure. It
+                # simply survives to the HP-damage check below. Identical in
+                # Solo & Battle.
+                if not getattr(tup[8], "pierce", False):
+                    for fig in world.figures:
+                        if not (fig.mode.uses_melee()
+                                or combat.has_defend_deflect(fig)):
+                            continue
+                        ddx, ddy = ex - fig.x, ey - fig.y
+                        if ddx * ddx + ddy * ddy <= parry_rsq:
+                            if fig.combat.parrying:
+                                world.collision_dots.append([ex, ey, 0])
+                                erased_by_parry = True
+                            elif combat.trigger_parry(fig):
+                                world.collision_dots.append([ex, ey, 0])
+                                erased_by_parry = True
+                            if erased_by_parry:
+                                # Deflect: enemy bullet ricochets off the swordsman
+                                # (cosmetic, keeps the shooter's original colour),
+                                # and the real bullet dies at the source.
+                                combat.kill_projectile(tup[8])
+                                world.projectiles.append(combat.make_deflect_bullet(
+                                    fig.x, fig.y, ex, ey, evx, evy,
+                                    (tup[4], tup[5], tup[6])))
+                            break
                 if not erased_by_parry:
                     surviving_enemy.append(tup)
             world.enemy_projs = surviving_enemy
 
             for fig in world.figures:
-                if fig.combat.parrying:
-                    continue  # parry stance active — no HP damage
                 hb = fig.mode.hurtbox_radius()
                 proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
                 for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
+                    # Pierce ignores an active parry stance too — a piercing
+                    # shot still damages a parrying figure. Non-piercing shots
+                    # keep the historical "no damage while parrying" gate.
+                    if fig.combat.parrying and not getattr(_src, "pierce", False):
+                        continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
                         ai.battle_hit(fig, evx, evy, world, amount=_dmg)
