@@ -806,28 +806,34 @@ class CollisionSystem(System):
                 if fp in world.intercepted_bullets:
                     continue
                 hit = False
-                # --- Regular crescent erasure (per-tick, no fingerprint) ---
-                for fig in world.figures:
-                    if hit:
-                        break
-                    for cr in fig.combat.crescents:
-                        if cr.check_bullet_erase(ex, ey):
-                            world.collision_dots.append([ex, ey, 0])
-                            combat.kill_projectile(tup[8])
-                            hit = True
-                            break
-                # --- Ultimate crescent erasure (fingerprinted for persistence) ---
-                if not hit:
+                # Pierce (battle.attack.pierce): a piercing incoming shot
+                # ignores crescent erasure entirely — it is never erased by
+                # a regular or ultimate crescent, surviving to the HP-damage
+                # check below just like it ignores parry/deflect. Identical
+                # in Solo & Battle.
+                if not getattr(tup[8], "pierce", False):
+                    # --- Regular crescent erasure (per-tick, no fingerprint) ---
                     for fig in world.figures:
                         if hit:
                             break
-                        for uc in fig.combat.ult_crescents:
-                            if uc.check_bullet_erase(ex, ey):
-                                world.intercepted_bullets.add(fp)
+                        for cr in fig.combat.crescents:
+                            if cr.check_bullet_erase(ex, ey):
                                 world.collision_dots.append([ex, ey, 0])
                                 combat.kill_projectile(tup[8])
                                 hit = True
                                 break
+                    # --- Ultimate crescent erasure (fingerprinted for persistence) ---
+                    if not hit:
+                        for fig in world.figures:
+                            if hit:
+                                break
+                            for uc in fig.combat.ult_crescents:
+                                if uc.check_bullet_erase(ex, ey):
+                                    world.intercepted_bullets.add(fp)
+                                    world.collision_dots.append([ex, ey, 0])
+                                    combat.kill_projectile(tup[8])
+                                    hit = True
+                                    break
                 if not hit:
                     surviving.append(tup)
             world.enemy_projs = surviving
