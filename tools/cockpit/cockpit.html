@@ -106,7 +106,8 @@ input[type=range]{padding:0}
   <span id="runmeta">no run loaded</span>
   <span class="grow"></span>
   <span id="status">idle</span>
-  <button id="btnReload" title="Re-fetch the bundle from GitHub">Reload run</button>
+  <select id="runSel" title="Scene / saved run"></select>
+  <button id="btnReload" title="Re-fetch the selected run from GitHub">Reload run</button>
   <input type="file" id="fileIn" accept=".json,.pbrun.json" style="display:none">
   <button id="btnFile" title="Load a bundle file from disk">Open file…</button>
 </div>
@@ -206,9 +207,11 @@ input[type=range]{padding:0}
      markers -> annotations -> live tool preview, all on the overlay.
    ====================================================================== */
 
-const DEFAULT_URL =
+const RAW =
   "https://raw.githubusercontent.com/workingdanielferreira-create/"
-  + "Project_Behavior/main/captures/latest.pbrun.json";
+  + "Project_Behavior/main/";
+const DEFAULT_URL = RAW + "captures/latest.pbrun.json";
+const INDEX_URL = RAW + "captures/index.json";
 
 const S = {                    // application state
   bundle:null, tick:0, playing:false, speed:1, timer:null,
@@ -668,7 +671,29 @@ $("btnPng").onclick = ()=>{
 };
 
 /* ---------------- wiring ---------------- */
-$("btnReload").onclick = ()=> loadURL(DEFAULT_URL);
+/* ---------------- scene library ---------------- */
+async function loadIndex(){
+  try{
+    const r = await fetch(INDEX_URL + "?t=" + Date.now());
+    if(!r.ok) throw 0;
+    const idx = await r.json();
+    if(idx.version !== "cockpit_index v1" || !idx.runs.length) throw 0;
+    S.index = idx;
+    const sel = $("runSel");
+    sel.innerHTML = idx.runs.map((run,i)=>
+      `<option value="${i}">${run.title.replace(/</g,"&lt;")}</option>`)
+      .join("");
+    sel.onchange = ()=> loadURL(RAW + idx.runs[sel.value].file);
+    loadURL(RAW + idx.runs[0].file);
+  }catch(e){                       // no index yet — fall back to latest slot
+    $("runSel").innerHTML = `<option>latest</option>`;
+    loadURL(DEFAULT_URL);
+  }
+}
+$("btnReload").onclick = ()=>{
+  const i = $("runSel").value;
+  loadURL(S.index ? RAW + S.index.runs[i].file : DEFAULT_URL);
+};
 $("btnFile").onclick = ()=> $("fileIn").click();
 $("fileIn").onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
@@ -677,7 +702,7 @@ $("fileIn").onchange = e=>{
    .catch(err=> setStatus("bad file: "+err.message, true));
 };
 addEventListener("resize", drawScopeCursor);
-loadURL(DEFAULT_URL);
+loadIndex();
 </script>
 </body>
 </html>
