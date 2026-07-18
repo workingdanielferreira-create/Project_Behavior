@@ -117,7 +117,7 @@ input[type=range]{padding:0}
       <canvas id="cv"></canvas>
       <canvas id="ov"></canvas>
     </div>
-    <div class="hint">space play/pause · ←/→ step · shift+←/→ ×10 · click entities with Select</div>
+    <div class="hint">space play/pause · ←/→ step · shift+←/→ ×10 · scroll zoom · hold space / middle-mouse drag to pan · 0 reset zoom</div>
   </div>
 
   <div id="side">
@@ -217,6 +217,8 @@ const S = {                    // application state
   annSel:null, nextAnn:1,
   ref:{img:null, x:200, y:200, op:.45, sc:1, drag:null},
   imgCache:new Map(), showEnt:true,
+  view:{z:1, ox:0, oy:0},                      // zoom/pan (frame-px space)
+  lastIm:null, spaceHeld:false, spaceUsed:false, panDrag:null,
 };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ov = $("ov"), scope = $("scope");
@@ -265,18 +267,48 @@ function frameImage(t, cb){
   im.src = "data:image/jpeg;base64," + e.png;
 }
 function evPos(e){                 // pointer event -> frame px + world px
-  const r = ov.getBoundingClientRect();
-  const fx = (e.clientX-r.left) * ov.width  / r.width;
-  const fy = (e.clientY-r.top ) * ov.height / r.height;
-  return {fx, fy, wx: fx/W2F(), wy: fy/W2F()};
+  const r = ov.getBoundingClientRect(), v = S.view;
+  const cx = (e.clientX-r.left) * ov.width  / r.width;   // canvas px
+  const cy = (e.clientY-r.top ) * ov.height / r.height;
+  const fx = (cx - v.ox) / v.z, fy = (cy - v.oy) / v.z;  // frame px
+  return {cx, cy, fx, fy, wx: fx/W2F(), wy: fy/W2F()};
 }
+
+/* ---------------- zoom / pan ---------------- */
+function clampView(){
+  const v = S.view;
+  v.z = Math.min(12, Math.max(1, v.z));
+  v.ox = Math.min(0, Math.max(cv.width *(1-v.z), v.ox));
+  v.oy = Math.min(0, Math.max(cv.height*(1-v.z), v.oy));
+  if(v.z===1){ v.ox = v.oy = 0; }
+}
+function redrawFrame(){
+  if(!S.lastIm) return;
+  const v = S.view;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(v.z,0,0,v.z,v.ox,v.oy);
+  ctx.drawImage(S.lastIm,0,0,cv.width,cv.height);
+}
+ov.addEventListener("wheel", e=>{
+  if(!S.bundle) return;
+  e.preventDefault();
+  const p = evPos(e), v = S.view;
+  const f = Math.pow(1.0015, -e.deltaY);
+  const nz = Math.min(12, Math.max(1, v.z * f));
+  // keep the frame point under the cursor fixed while zooming
+  v.ox = p.cx - p.fx * nz;
+  v.oy = p.cy - p.fy * nz;
+  v.z = nz; clampView();
+  redrawFrame(); drawOverlay(S.drawing);
+}, {passive:false});
 
 /* ---------------- rendering ---------------- */
 function show(t){
   if(!S.bundle) return;
   S.tick = Math.max(0, Math.min(t, S.bundle.frames.length-1));
   frameImage(S.tick, im=>{
-    ctx.drawImage(im,0,0,cv.width,cv.height);
+    S.lastIm = im; redrawFrame();
     drawOverlay(); renderPanels(); drawScopeCursor();
   });
   $("tickread").textContent =
@@ -284,8 +316,11 @@ function show(t){
   $("annTick").textContent = S.tick;
 }
 function drawOverlay(preview){
+  const v = S.view;
+  octx.setTransform(1,0,0,1,0,0);
   octx.clearRect(0,0,ov.width,ov.height);
-  const k = W2F();
+  octx.setTransform(v.z,0,0,v.z,v.ox,v.oy);
+  const k = W2F(), u = 1/v.z;      // u = 1 screen-px in frame space
   if(S.ref.img){                                   // reference image layer
     octx.save(); octx.globalAlpha = S.ref.op;
     const w = S.ref.img.width*S.ref.sc*k, h = S.ref.img.height*S.ref.sc*k;
@@ -298,37 +333,39 @@ function drawOverlay(preview){
 }
 function drawEntities(k){
   const st = S.bundle.frames[S.tick].state; if(!st) return;
+  const u = 1/S.view.z;
   const css = getComputedStyle(document.documentElement);
   const col = s => css.getPropertyValue(s? "--p2":"--p1");
   for(const f of st.figures){
-    octx.strokeStyle = col(f.side); octx.lineWidth = 1;
-    octx.setLineDash([3,3]);
+    octx.strokeStyle = col(f.side); octx.lineWidth = u;
+    octx.setLineDash([3*u,3*u]);
     octx.strokeRect(f.x*k-14, f.y*k-30, 28, 60);
     octx.setLineDash([]);
     if(S.sel && S.sel.type==="fig" && S.sel.key===f.side+":"+f.idx){
       octx.strokeStyle = css.getPropertyValue("--amber");
-      octx.lineWidth = 2; octx.strokeRect(f.x*k-16, f.y*k-32, 32, 64);
+      octx.lineWidth = 2*u; octx.strokeRect(f.x*k-16, f.y*k-32, 32, 64);
     }
   }
   for(const p of st.projectiles){
-    octx.strokeStyle = col(p.side); octx.lineWidth = 1;
+    octx.strokeStyle = col(p.side); octx.lineWidth = u;
     octx.beginPath(); octx.arc(p.x*k, p.y*k, 5, 0, 7); octx.stroke();
     if(S.sel && S.sel.type==="proj" && S.sel.key===p.id){
-      octx.strokeStyle = css.getPropertyValue("--amber"); octx.lineWidth = 2;
+      octx.strokeStyle = css.getPropertyValue("--amber"); octx.lineWidth = 2*u;
       octx.beginPath(); octx.arc(p.x*k, p.y*k, 8, 0, 7); octx.stroke();
     }
   }
 }
 function drawAnn(a,k,hot){
+  const u = 1/S.view.z;
   octx.strokeStyle = octx.fillStyle = hot ? "#ffd97a" : "#ffc248";
-  octx.lineWidth = 2; octx.lineJoin = octx.lineCap = "round";
+  octx.lineWidth = 2*u; octx.lineJoin = octx.lineCap = "round";
   const P = a.pts.map(p=>[p[0]*k, p[1]*k]);
   if(a.tool==="arrow" && P.length===2){
-    const [[x1,y1],[x2,y2]] = P, ang = Math.atan2(y2-y1, x2-x1);
+    const [[x1,y1],[x2,y2]] = P, ang = Math.atan2(y2-y1, x2-x1), h = 11*u;
     octx.beginPath(); octx.moveTo(x1,y1); octx.lineTo(x2,y2);
-    octx.lineTo(x2-11*Math.cos(ang-.42), y2-11*Math.sin(ang-.42));
+    octx.lineTo(x2-h*Math.cos(ang-.42), y2-h*Math.sin(ang-.42));
     octx.moveTo(x2,y2);
-    octx.lineTo(x2-11*Math.cos(ang+.42), y2-11*Math.sin(ang+.42));
+    octx.lineTo(x2-h*Math.cos(ang+.42), y2-h*Math.sin(ang+.42));
     octx.stroke();
   }else if(a.tool==="circle" && P.length===2){
     const [[x1,y1],[x2,y2]] = P;
@@ -340,13 +377,13 @@ function drawAnn(a,k,hot){
     octx.beginPath(); octx.moveTo(P[0][0],P[0][1]);
     for(const [x,y] of P) octx.lineTo(x,y); octx.stroke();
   }else if(a.tool==="text" && P.length){
-    octx.font = "12px "+getComputedStyle(document.body).fontFamily;
-    octx.fillText("✎ " + (a.text||("#"+a.id)), P[0][0]+8, P[0][1]-8);
-    octx.beginPath(); octx.arc(P[0][0],P[0][1],3,0,7); octx.fill();
+    octx.font = (12*u)+"px "+getComputedStyle(document.body).fontFamily;
+    octx.fillText("✎ " + (a.text||("#"+a.id)), P[0][0]+8*u, P[0][1]-8*u);
+    octx.beginPath(); octx.arc(P[0][0],P[0][1],3*u,0,7); octx.fill();
   }
-  if(a.entity){ octx.font="11px monospace";
+  if(a.entity){ octx.font=(11*u)+"px monospace";
     octx.fillText("→"+a.entity.type+" "+a.entity.label,
-                  P[0][0]+8, P[0][1]+14); }
+                  P[0][0]+8*u, P[0][1]+14*u); }
 }
 
 /* ---------------- oscilloscope timeline ---------------- */
@@ -416,9 +453,19 @@ $("speed").onchange  = e=>{ S.speed=+e.target.value; if(S.playing) play(true); }
 $("showEnt").onchange= e=>{ S.showEnt=e.target.checked; drawOverlay(); };
 addEventListener("keydown", e=>{
   if(e.target.tagName==="TEXTAREA"||e.target.tagName==="INPUT") return;
-  if(e.code==="Space"){ e.preventDefault(); play(); }
+  if(e.code==="Space"){ e.preventDefault();
+    if(!S.spaceHeld){ S.spaceHeld=true; S.spaceUsed=false; } return; }
+  if(e.key==="0"){ S.view.z=1; clampView();
+    redrawFrame(); drawOverlay(); }
   if(e.key==="ArrowLeft"){ play(false); show(S.tick-(e.shiftKey?10:1)); }
   if(e.key==="ArrowRight"){ play(false); show(S.tick+(e.shiftKey?10:1)); }
+});
+addEventListener("keyup", e=>{
+  if(e.code!=="Space") return;
+  if(e.target.tagName==="TEXTAREA"||e.target.tagName==="INPUT") return;
+  e.preventDefault();
+  const used = S.spaceUsed; S.spaceHeld = S.spaceUsed = false;
+  if(!used) play();                       // plain tap = play/pause as before
 });
 
 /* ---------------- TOOLS registry (extension point) ---------------- */
@@ -453,12 +500,22 @@ document.querySelectorAll("#tools button").forEach(b=>{
 ov.addEventListener("pointerdown", e=>{
   if(!S.bundle) return; play(false);
   const p = evPos(e);
+  if(e.button===1 || (S.spaceHeld && S.view.z>1)){      // pan drag
+    e.preventDefault(); S.spaceUsed = true;
+    S.panDrag = {cx:p.cx, cy:p.cy, ox:S.view.ox, oy:S.view.oy};
+    return;
+  }
   if(S.ref.img && e.altKey){ S.ref.drag={dx:S.ref.x-p.wx, dy:S.ref.y-p.wy}; return; }
   const t = TOOLS[S.tool]; t.down && t.down(p);
   if(S.drawing) drawOverlay(S.drawing);
 });
 ov.addEventListener("pointermove", e=>{
   const p = evPos(e);
+  if(S.panDrag){
+    S.view.ox = S.panDrag.ox + (p.cx - S.panDrag.cx);
+    S.view.oy = S.panDrag.oy + (p.cy - S.panDrag.cy);
+    clampView(); redrawFrame(); drawOverlay(S.drawing); return;
+  }
   if(S.ref.drag){ S.ref.x=p.wx+S.ref.drag.dx; S.ref.y=p.wy+S.ref.drag.dy;
     drawOverlay(); return; }
   if(!S.drawing) return;
@@ -466,6 +523,7 @@ ov.addEventListener("pointermove", e=>{
   drawOverlay(S.drawing);
 });
 addEventListener("pointerup", ()=>{
+  if(S.panDrag){ S.panDrag=null; return; }
   if(S.ref.drag){ S.ref.drag=null; return; }
   if(!S.drawing) return;
   TOOLS[S.tool].up && TOOLS[S.tool].up();
