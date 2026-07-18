@@ -1,0 +1,17 @@
+{
+ "version": "cockpit_index v1",
+ "runs": [
+  {
+   "file": "captures/swordsman_vs_new_fighter_s7.pbrun.json",
+   "title": "swordsman vs new_fighter \u00b7 seed 7",
+   "mode": "battle",
+   "p1": "swordsman",
+   "p2": "new_fighter",
+   "seed": 7,
+   "ticks": 625,
+   "engine_commit": "72318c9fae67b676cbe6116ead849dcbd5a66221",
+   "captured_at": "2026-07-18 22:52:11",
+   "size_mb": 8.7
+  }
+ ]
+}
