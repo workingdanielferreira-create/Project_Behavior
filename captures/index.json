@@ -2,6 +2,18 @@
  "version": "cockpit_index v1",
  "runs": [
   {
+   "file": "captures/latest.pbrun.json",
+   "title": "Beam debug \u2014 new_fighter vs mage \u00b7 seed 42",
+   "mode": "battle",
+   "p1": "new_fighter",
+   "p2": "mage",
+   "seed": 42,
+   "ticks": 625,
+   "engine_commit": "26b3fc9700ed9506b72ff076022110f5de57551a",
+   "captured_at": "2026-07-18 21:39:56",
+   "size_mb": 27.8
+  },
+  {
    "file": "captures/swordsman_vs_new_fighter_s7.pbrun.json",
    "title": "swordsman vs new_fighter \u00b7 seed 7",
    "mode": "battle",
