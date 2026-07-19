@@ -251,6 +251,13 @@ class Projectile:
         # every existing bullet's behaviour exactly as before. Identical
         # gate in Solo & Battle.
         self.pierce = False
+        # Optional generic knockback override (see battle_semantics.knockback_px
+        # in a character's JSON): when > 0, a hit from this projectile forces
+        # a FIXED total knockback travel distance in px, replacing the default
+        # growing hit_power-based knockback (see ai.battle_hit). 0.0 (default)
+        # means "use standard knockback" — every existing bullet's behaviour
+        # is unchanged. Identical gate in Solo & Battle.
+        self.knockback_px = 0.0
         # The Figure that fired this shot, or None for ownerless bullets
         # (splinters, deflect ricochets, legacy make_shot paths). Used by the
         # same-side parry check in systems.ProjectileSystem so a figure never
@@ -843,9 +850,14 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
                              float(phase_cfg.get("speed_mult", 1.0) or 1.0)
         vx, vy = math.cos(base_rad) * beam_speed, math.sin(base_rad) * beam_speed
         pierce = False
+        knockback_px = 0.0
         if beam_layer is not None:
-            pierce = bool(((beam_layer.get("battle") or {}).get("attack") or {})
-                          .get("pierce"))
+            beam_battle = beam_layer.get("battle") or {}
+            pierce = bool((beam_battle.get("attack") or {}).get("pierce"))
+            try:
+                knockback_px = float(beam_battle.get("knockback_px", 0) or 0)
+            except (TypeError, ValueError):
+                knockback_px = 0.0
         for _ in range(count):
             if beam_layer is not None:
                 pr = RichBeamProjectile(fig.x, fig.y, vx, vy, cr,
@@ -856,6 +868,7 @@ def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
             pr.max_age = max_age
             pr.damage = damage
             pr.pierce = pierce
+            pr.knockback_px = knockback_px
             pr.owner = fig
             out.append(pr)
 
@@ -948,6 +961,10 @@ def fire_character_action(fig, action_key, target_x, target_y,
         if suppress_visual:
             pr.style = "invisible"
         pr.damage = damage
+        try:
+            pr.knockback_px = float(battle.get("knockback_px", 0) or 0)
+        except (TypeError, ValueError):
+            pr.knockback_px = 0.0
         pr.owner = fig
         out.append(pr)
     return out
