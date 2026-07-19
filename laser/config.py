@@ -343,6 +343,18 @@ HPT_CLONE_HURTBOX_RADIUS_PX    = 40.0     # px — incoming-bullet contact radiu
 HPT_CLONE_MARKER_RADIUS_PX     = 16.0     # px — glowing-orb marker draw radius
 HPT_CLONE_MARKER_RGB           = (120, 200, 255)  # glowing-orb marker colour
 
+# ---------------------------------------------------------------------------
+# Damage-teleport (see combat.damage_teleport_cfg / combat.check_damage_teleport).
+# Generic, data-driven mechanic: any character opts in via a top-level
+# `damage_teleport` JSON block. Accumulates incoming damage; every time the
+# running total reaches threshold_hp it teleports the figure distance_px away
+# from ITS OWN current position in a random direction (independent of where
+# the target is), then carries any remainder forward. Identical in Solo &
+# Battle — both route every hit through the same ai.apply_hp_damage call.
+# ---------------------------------------------------------------------------
+DAMAGE_TELEPORT_THRESHOLD_HP_DEFAULT = 10.0    # accumulated dmg that triggers a jump
+DAMAGE_TELEPORT_DISTANCE_PX_DEFAULT  = 1000.0  # px, random direction from self
+
 
 # ---------------------------------------------------------------------------
 # Diagnostics / action log
