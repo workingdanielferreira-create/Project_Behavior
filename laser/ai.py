@@ -197,7 +197,7 @@ def apply_hp_damage(fig, world, amount=1):
     return False
 
 
-def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1):
+def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None):
     """An enemy projectile struck `fig`: launch it along the bullet's velocity.
     Launch force is the figure's current hit_power, which grows per strike.
 
@@ -209,6 +209,16 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1):
     `world` is optional; when provided, HP is decremented on every real hit,
     by `amount` (default 1 — the flat per-hit value every built-in bullet
     still uses; JSON-character bullets pass their own battle.damage).
+
+    `knockback_px` is an optional generic override (see battle_semantics.
+    knockback_px in a character's JSON, propagated onto the projectile as
+    `.knockback_px`): when set (>0), the launch is a FIXED total travel
+    distance in px along the bullet's direction, calibrated the same way
+    body-collision knockback is (v = dist * (1 - BOUNCE_FRICTION), decaying
+    each tick), instead of the standard growing hit_power-based launch. It
+    still goes through the same shooter knockback-cycling/immunity window
+    below, and still stacks with an in-flight bounce exactly like a normal
+    hit — only the launch speed's source differs. Identical in Solo & Battle.
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
@@ -232,8 +242,16 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1):
             p.knockback_count += 1  # consume one knockback slot
 
     # --- Apply knockback ---
-    p.hit_power = min(config.HIT_POWER_MAX, p.hit_power + config.HIT_POWER_STEP)
-    scale = p.hit_power / speed
+    if knockback_px:
+        # Fixed-distance override: same calibration as
+        # config.DASH_HIT_KNOCKBACK_PX body-collision knockback — launch
+        # speed such that the bounce's BOUNCE_FRICTION-per-tick decay sums
+        # to exactly knockback_px total travel.
+        push_spd = knockback_px * (1.0 - config.BOUNCE_FRICTION)
+        scale = push_spd / speed
+    else:
+        p.hit_power = min(config.HIT_POWER_MAX, p.hit_power + config.HIT_POWER_STEP)
+        scale = p.hit_power / speed
     nvx, nvy = proj_vx * scale, proj_vy * scale
     if m.bouncing:
         m.bounce_vx += nvx * 0.5      # already airborne — add impulse
