@@ -73,6 +73,8 @@ class SideState:
         self.intercepted_bullets = set()
         self.partner_figures = []   # opponent snapshot: (x, y, dash, parry)
         self.enemy_projs = []       # opponent bullets: (x,y,vx,vy,r,g,b,dmg,proj)
+        self.clones = []            # this side's own HPTClone instances
+                                    # (see combat.HPTClone / hp_threshold_clones)
 
 
 class World:
@@ -99,6 +101,7 @@ class World:
         self.figures = self.sides[0].figures
         self.mode_key = self.sides[0].mode_key
         self.projectiles = self.sides[0].projectiles
+        self.clones = self.sides[0].clones
         self.shoot_ticks = 0   # per-side firing cadence counter (bound)
         self.shot_phase = 0       # current runner cycle phase (0=cone,1=zigzag,2=homing)
         self.shot_pause_ticks = 0 # counts down the inter-cycle pause
@@ -229,6 +232,7 @@ class World:
             self.projectiles.clear()
             for side in self.sides:
                 side.projectiles.clear()
+                side.clones.clear()
                 side.shoot_ticks = side.shot_phase = side.shot_pause_ticks = 0
                 for fig in side.figures:
                     fig.combat.reset()
@@ -296,6 +300,7 @@ class World:
         self.intercepted_bullets = s.intercepted_bullets
         self.partner_figures = s.partner_figures
         self.enemy_projs = s.enemy_projs
+        self.clones = s.clones
 
     def unbind_side(self):
         s = self.sides[self.side_idx]
@@ -306,6 +311,7 @@ class World:
         s.shot_pause_ticks = self.shot_pause_ticks
         s.intercepted_bullets = self.intercepted_bullets
         s.enemy_projs = self.enemy_projs
+        s.clones = self.clones
 
     def refresh_battle(self):
         """Start-of-tick sync: cull fallen fighters, decide battle mode, and
@@ -319,9 +325,11 @@ class World:
                     side.figures[:] = [f for f in side.figures
                                        if f not in self._dead]
                     if not side.figures:
-                        # The side is eliminated — its in-flight shots die
-                        # with it (an unfielded side is never simulated).
+                        # The side is eliminated — its in-flight shots (and
+                        # any stationary clones) die with it (an unfielded
+                        # side is never simulated).
                         side.projectiles.clear()
+                        side.clones.clear()
             self._dead.clear()
         self.battle_mode = bool(self.sides[0].figures
                                 and self.sides[1].figures)
@@ -373,6 +381,11 @@ class World:
         for s in self.sides:
             for pr in s.projectiles:
                 yield pr
+
+    def all_clones(self):
+        for s in self.sides:
+            for c in s.clones:
+                yield c
 
     @property
     def quitting(self):
@@ -490,6 +503,9 @@ class Overlay(QWidget):
         # "enemy dot" pass.
         for proj in w.all_projectiles():
             proj.draw(p)
+        # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
+        for clone in w.all_clones():
+            clone.draw(p)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
