@@ -1644,6 +1644,189 @@ def update_petals(fig, world):
 
 
 # ---------------------------------------------------------------------------
+# HP-threshold stationary clones (see config.HPT_CLONE_* and
+# json-character.md's `hp_threshold_clones`). Generic, data-driven mechanic:
+# any character opts in via that top-level JSON block. Reuses the Petal
+# class as-is for the clone's single orbiting sphere — Petal.update takes a
+# plain anchor point rather than a Figure, so no changes to Petal were
+# needed. Identical in Solo & Battle: Solo simply has no enemy figure for
+# the sphere to reach and no incoming shots to be hit by, exactly like
+# ambient petals already behave in Solo.
+# ---------------------------------------------------------------------------
+def hpt_clone_cfg(fig):
+    """Per-figure HP-threshold-clone tuning from the character's top-level
+    `hp_threshold_clones` block, or None. Cached on the mode instance like
+    clone_cfg/blink_cfg/_petals_cfg."""
+    mode = fig.mode
+    if hasattr(mode, "_hpt_clone_cfg"):
+        return mode._hpt_clone_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("hp_threshold_clones") if char else None
+    if not isinstance(raw, dict) or not raw.get("thresholds"):
+        mode._hpt_clone_cfg = None
+        return None
+
+    def _f(name, default):
+        try:
+            return float(raw.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    thresholds = []
+    for t in raw["thresholds"]:
+        try:
+            pct = float(t.get("pct"))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        positions = [pos for pos in (t.get("positions") or [])
+                     if pos in ("top_left", "top_right",
+                               "bottom_left", "bottom_right")]
+        if positions:
+            thresholds.append((pct, positions))
+    if not thresholds:
+        mode._hpt_clone_cfg = None
+        return None
+
+    cfg = dict(
+        thresholds=thresholds,
+        clone_hp=int(_f("clone_hp", config.HPT_CLONE_HP_DEFAULT)),
+        damage=_f("damage", config.HPT_CLONE_DAMAGE_DEFAULT),
+        hover_radius=_f("hover_radius", config.HPT_CLONE_HOVER_RADIUS_DEFAULT),
+        detect_range=_f("detect_range", config.HPT_CLONE_DETECT_RANGE_DEFAULT),
+        orbit_speed_deg=_f("orbit_speed_deg", config.HPT_CLONE_ORBIT_SPEED_DEFAULT),
+        approach_speed=_f("approach_speed", config.HPT_CLONE_APPROACH_SPEED_DEFAULT),
+        cooldown_ms=_f("cooldown_ms", config.HPT_CLONE_COOLDOWN_MS_DEFAULT),
+        corner_inset=_f("corner_inset_px", config.HPT_CLONE_CORNER_INSET_PX),
+    )
+    mode._hpt_clone_cfg = cfg
+    return cfg
+
+
+def _hpt_corner_xy(world, position, inset):
+    """World-bounds corner position for a clone spawn, inset so the marker
+    stays fully on-screen. Recomputed from the LIVE screen_w/h at spawn
+    time, so it holds up at any resolution — identical in Solo & Battle."""
+    sw, sh = world.screen_w, world.screen_h
+    if position == "top_left":
+        return inset, inset
+    if position == "top_right":
+        return sw - inset, inset
+    if position == "bottom_left":
+        return inset, sh - inset
+    return sw - inset, sh - inset   # bottom_right
+
+
+class HPTClone:
+    """A stationary clone spawned when its owner's HP crosses a threshold
+    (see hpt_clone_cfg). Never moves; attacks only through its own single
+    orbiting Petal-style sphere anchored at its fixed position; dies the
+    instant it takes any hit (hp defaults to 1). Lives and dies entirely
+    within its owner's own SideState — never crosses the Solo/Battle
+    one-tick information boundary."""
+    __slots__ = ("x", "y", "hp", "damage", "sphere", "rgb")
+
+    def __init__(self, x, y, cfg):
+        self.x = float(x)
+        self.y = float(y)
+        self.hp = max(1, int(cfg["clone_hp"]))
+        self.damage = float(cfg["damage"])
+        self.rgb = config.HPT_CLONE_MARKER_RGB
+        petal_cfg = dict(
+            hover_radius=cfg["hover_radius"],
+            hover_radius_x=0.0, hover_radius_y=0.0,
+            orbit_speed_deg=cfg["orbit_speed_deg"],
+            detect_range=cfg["detect_range"],
+            approach_speed=cfg["approach_speed"],
+            cooldown_ms=cfg["cooldown_ms"],
+            damage=cfg["damage"],
+            independent=0.0,
+            _rgb=self.rgb,
+            _radius=6.0,
+        )
+        self.sphere = Petal(random.uniform(0.0, 2.0 * math.pi), petal_cfg)
+
+    @property
+    def alive(self):
+        return self.hp > 0
+
+    def draw(self, p):
+        r, g, b = self.rgb
+        pm, half = bullet_sprite(r, g, b, config.HPT_CLONE_MARKER_RADIUS_PX)
+        p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+        self.sphere.draw(p)
+
+
+def check_hpt_clone_spawns(fig, world):
+    """Once per tick per figure: has HP just crossed a NEW
+    hp_threshold_clones threshold (one that hasn't fired before for this
+    life)? If so, spawn a stationary clone at each corner listed for that
+    threshold. Fires once ever per threshold — see json-character.md.
+    Identical in Solo & Battle; corners come from the live screen bounds so
+    they hold up at any resolution."""
+    cfg = hpt_clone_cfg(fig)
+    if cfg is None:
+        return
+    p = fig.personality
+    if not p.max_hp:
+        return
+    hp_pct = 100.0 * p.hp / p.max_hp
+    fired = fig.combat.hpt_fired
+    for pct, positions in cfg["thresholds"]:
+        if pct in fired or hp_pct > pct:
+            continue
+        fired.add(pct)
+        for position in positions:
+            cx, cy = _hpt_corner_xy(world, position, cfg["corner_inset"])
+            world.clones.append(HPTClone(cx, cy, cfg))
+
+
+def tick_hpt_clones(world):
+    """Advance every clone this side owns: orbit/attack its sphere against
+    the enemy figure (world.partner_figures) exactly like an ambient petal,
+    and check whether any live incoming shot (world.enemy_projs — this also
+    catches enemy petal-contact damage, which rides the same invisible-
+    Projectile channel) lands on the clone's own body, killing it in one
+    hit (consumes the shot the same way a figure-hit would, unless it
+    pierces). Identical in Solo & Battle: Solo simply has no
+    partner_figures/enemy_projs, so clones just orbit with nothing to hit
+    or be hit by."""
+    if not world.clones:
+        return
+    figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
+    hurt_rsq = config.HPT_CLONE_HURTBOX_RADIUS_PX ** 2
+    surviving_projs = list(world.enemy_projs)
+    survivors = []
+    for clone in world.clones:
+        threats = [(fx_, fy_, "fig", i) for i, (fx_, fy_) in enumerate(figures)]
+        hit = clone.sphere.update(clone.x, clone.y, threats)
+        if hit is not None:
+            _kind, _payload, cx, cy, dx, dy = hit
+            pr = Projectile(cx, cy, dx * 2.0, dy * 2.0, clone.rgb, 3)
+            pr.style = "invisible"
+            pr.max_age = config.PETAL_TOUCH_PROJ_AGE
+            pr.damage = clone.damage
+            world.projectiles.append(pr)
+            world.collision_dots.append([cx, cy, 0])
+
+        for tup in list(surviving_projs):
+            ex, ey = tup[0], tup[1]
+            ddx, ddy = ex - clone.x, ey - clone.y
+            if ddx * ddx + ddy * ddy <= hurt_rsq:
+                world.collision_dots.append([clone.x, clone.y, 0])
+                clone.hp -= float(tup[7])
+                if not getattr(tup[8], "pierce", False):
+                    kill_projectile(tup[8])
+                    surviving_projs.remove(tup)
+                break
+        if clone.hp > 0:
+            survivors.append(clone)
+    if len(surviving_projs) != len(world.enemy_projs):
+        world.enemy_projs = surviving_projs
+    if len(survivors) != len(world.clones):
+        world.clones = survivors
+
+
+# ---------------------------------------------------------------------------
 # Generic ultimate-playback tuning — Swordsman's crescent-wave ultimate and
 # Runner's beam ultimate are each a real, polished visual system; rather than
 # inventing a third generic shape, ultimate_playback lets ANY character pick
