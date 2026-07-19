@@ -318,6 +318,31 @@ PETAL_TOUCH_PROJ_AGE = 6     # ticks — lifetime of the invisible touch project
                              # enough to enter the enemy side's snapshot and
                              # register the hit (identical in Solo & Battle).
 
+# ---------------------------------------------------------------------------
+# HP-threshold stationary clones (see combat.hpt_clone_cfg / combat.HPTClone).
+# Generic, data-driven mechanic: any character opts in via a top-level
+# `hp_threshold_clones` JSON block. Each listed HP-pct threshold fires ONCE
+# EVER per crossing and spawns a stationary, 1-HP, non-moving clone at each
+# named corner of the current side's screen bounds. A clone attacks only
+# through its own orbiting sphere (reuses combat.Petal, anchored at a fixed
+# point instead of a figure) and dies the instant it takes any hit. These
+# defaults are used when a character's block omits a field; identical in
+# Solo & Battle (Solo simply has no enemy figure for the sphere to reach,
+# same as ambient petals already behave).
+# ---------------------------------------------------------------------------
+HPT_CLONE_HP_DEFAULT           = 1        # HP; any hit kills it
+HPT_CLONE_DAMAGE_DEFAULT       = 1.0      # dmg per sphere contact
+HPT_CLONE_HOVER_RADIUS_DEFAULT = 700.0    # px — sphere orbit radius around the clone
+HPT_CLONE_DETECT_RANGE_DEFAULT = 1800.0   # px — sphere break-orbit detection range
+HPT_CLONE_ORBIT_SPEED_DEFAULT  = 25.0     # deg/s
+HPT_CLONE_APPROACH_SPEED_DEFAULT = 900.0  # px/s — sphere speed while intercepting
+HPT_CLONE_COOLDOWN_MS_DEFAULT  = 1550     # ms — sphere respawn after a contact
+HPT_CLONE_CORNER_INSET_PX      = 120.0    # px inset from the true screen corner
+HPT_CLONE_HURTBOX_RADIUS_PX    = 40.0     # px — incoming-bullet contact radius
+                                           # against the clone's own body
+HPT_CLONE_MARKER_RADIUS_PX     = 16.0     # px — glowing-orb marker draw radius
+HPT_CLONE_MARKER_RGB           = (120, 200, 255)  # glowing-orb marker colour
+
 
 # ---------------------------------------------------------------------------
 # Diagnostics / action log
