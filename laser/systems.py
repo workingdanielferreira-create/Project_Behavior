@@ -897,7 +897,8 @@ class CollisionSystem(System):
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
-                        ai.battle_hit(fig, evx, evy, world, amount=_dmg)
+                        ai.battle_hit(fig, evx, evy, world, amount=_dmg,
+                                      knockback_px=getattr(_src, "knockback_px", 0))
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
