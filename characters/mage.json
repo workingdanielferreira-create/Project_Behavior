@@ -961,7 +961,8 @@
        "pierce": false,
        "slash": false
       },
-      "defence": "none"
+      "defence": "none",
+      "knockback_px": 1000
      }
     },
     {
@@ -982,7 +983,7 @@
      "max": 450
     }
    ],
-   "retrigger_cooldown_ms": 0
+   "retrigger_cooldown_ms": 5000
   },
   "ultimate": {
    "trigger": "on_ult",
@@ -2046,7 +2047,8 @@
    "deflect": "A crescent strikes the incoming can_hit FX; that FX is knocked perpendicular to its travel direction, auto up/down picking whichever side points away from the defender body; HP damage is voided.",
    "block": "A ring erases the incoming can_hit FX; HP damage taken is reduced by 50%."
   },
-  "parity": "Behaviour is identical in Solo & Battle modes."
+  "parity": "Behaviour is identical in Solo & Battle modes.",
+  "knockback_px": "Optional generic override on a can_hit layer's battle dict (any character may opt in): forces a FIXED total knockback travel distance in px when this layer's hit lands, replacing the default growing hit_power-based knockback. Uses the same physical bounce/friction calibration as body-collision knockback (motion/collision-respecting slide, not a teleport), launched along the hit's incoming travel direction. Identical in Solo & Battle."
  },
  "fx_semantics": {
   "battle_fx_placement": "All battle FX (explode/scatter/pierce/slash and deflect/block visuals) spawn at the FIRST OVERLAP POINT between the hitting FX and the target \u2014 the point of collision \u2014 not at the FX origin. Identical in Solo & Battle.",
