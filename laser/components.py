@@ -218,7 +218,8 @@ class Combatant:
                  "afterimages", "afterimage_tick",
                  "hitstop_request", "impact_fx_pending",
                  "petals", "petals_init",
-                 "particle_bursts", "pending_bursts")
+                 "particle_bursts", "pending_bursts",
+                 "hpt_fired")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -302,6 +303,10 @@ class Combatant:
         # Generic clone system (special_ability preset 'clone').
         self.clones = []                  # live CloneEffect instances
         self.clone_cd = 0                 # ticks until next clone allowed
+        # Generic HP-threshold stationary-clone system (JSON
+        # `hp_threshold_clones`, see combat.check_hpt_clone_spawns). Set of
+        # pct thresholds already fired this life — each fires once ever.
+        self.hpt_fired = set()
 
     def reset(self):
         self.__init__()
