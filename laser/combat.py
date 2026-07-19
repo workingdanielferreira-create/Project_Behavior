@@ -224,7 +224,7 @@ def kill_projectile(pr):
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
-                 "pierce", "owner")
+                 "pierce", "knockback_px", "owner")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
