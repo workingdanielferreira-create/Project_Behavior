@@ -219,7 +219,7 @@ class Combatant:
                  "hitstop_request", "impact_fx_pending",
                  "petals", "petals_init",
                  "particle_bursts", "pending_bursts",
-                 "hpt_fired")
+                 "hpt_fired", "dmg_teleport_accum")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -307,6 +307,10 @@ class Combatant:
         # `hp_threshold_clones`, see combat.check_hpt_clone_spawns). Set of
         # pct thresholds already fired this life — each fires once ever.
         self.hpt_fired = set()
+        # Generic damage-teleport system (JSON `damage_teleport`, see
+        # combat.check_damage_teleport). Running total of damage taken
+        # since the last teleport jump.
+        self.dmg_teleport_accum = 0.0
 
     def reset(self):
         self.__init__()
