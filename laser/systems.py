@@ -199,6 +199,22 @@ class MotionSystem(System):
                     p.teleport_ticks -= 1
 
             tx_motion, ty_motion = world.movement_target(fig)
+            _char = getattr(fig.mode, "character", None)
+            if _char and _char.get("stationary"):
+                # Generic opt-out (JSON `stationary: true`): zero locomotion
+                # (no chase/wander/kite), but still turns to face the target
+                # and animates/attacks normally — combat firing is handled
+                # entirely by ProjectileSystem/CombatSystem, unaffected by
+                # this. Identical in Solo & Battle; tx_motion/ty_motion are
+                # computed the same way for every figure above.
+                dx = tx_motion - fig.x
+                if dx < -0.001:
+                    fig.transform.facing_left = True
+                elif dx > 0.001:
+                    fig.transform.facing_left = False
+                fig.render.is_moving = False
+                fig.render.advance()
+                continue
             if battle:
                 motion.update(fig, tx_motion, ty_motion, False, False, False)
             else:
