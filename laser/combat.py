@@ -1827,6 +1827,75 @@ def tick_hpt_clones(world):
 
 
 # ---------------------------------------------------------------------------
+# Damage-teleport (see config.DAMAGE_TELEPORT_* and json-character.md's
+# `damage_teleport`). Generic, data-driven mechanic: any character opts in
+# via that top-level JSON block. Identical in Solo & Battle — both route
+# every hit through ai.apply_hp_damage, which calls check_damage_teleport
+# right after applying the damage.
+# ---------------------------------------------------------------------------
+def damage_teleport_cfg(fig):
+    """Per-figure damage-teleport tuning from the character's top-level
+    `damage_teleport` block, or None. Cached on the mode instance like the
+    other generic *_cfg parsers."""
+    mode = fig.mode
+    if hasattr(mode, "_damage_teleport_cfg"):
+        return mode._damage_teleport_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("damage_teleport") if char else None
+    if not isinstance(raw, dict):
+        mode._damage_teleport_cfg = None
+        return None
+
+    def _f(name, default):
+        try:
+            v = float(raw.get(name, default))
+        except (TypeError, ValueError):
+            v = default
+        return v
+
+    cfg = dict(
+        threshold_hp=_f("threshold_hp", config.DAMAGE_TELEPORT_THRESHOLD_HP_DEFAULT),
+        distance_px=_f("distance_px", config.DAMAGE_TELEPORT_DISTANCE_PX_DEFAULT),
+    )
+    mode._damage_teleport_cfg = cfg
+    return cfg
+
+
+def check_damage_teleport(fig, amount):
+    """Called right after a hit's damage is applied (from
+    ai.apply_hp_damage). Accumulates `amount` into the figure's running
+    damage-since-last-jump total; every time it reaches threshold_hp, warps
+    the figure distance_px away from ITS OWN current position in a random
+    direction (independent of the target), clamped to screen bounds by the
+    normal check_walls() pass later this tick, then carries any remainder
+    forward so a single big hit can trigger more than one jump. A pure
+    position warp — does not set combat.acted — reusing the same
+    blink_fx_pending departure/arrival crackle FX as the generic blink
+    system. Identical in Solo & Battle."""
+    cfg = damage_teleport_cfg(fig)
+    if cfg is None or amount <= 0:
+        return
+    threshold = cfg["threshold_hp"]
+    if threshold <= 0:
+        return
+    c = fig.combat
+    t = fig.transform
+    c.dmg_teleport_accum += amount
+    while c.dmg_teleport_accum >= threshold:
+        c.dmg_teleport_accum -= threshold
+        ox, oy = t.x, t.y
+        ang = random.uniform(0.0, 2.0 * math.pi)
+        dist = cfg["distance_px"]
+        new_x = ox + math.cos(ang) * dist
+        new_y = oy + math.sin(ang) * dist
+        margin = 20.0
+        new_x = max(margin, min(fig.screen_w - margin, new_x))
+        new_y = max(margin, min(fig.screen_h - margin, new_y))
+        t.x, t.y = new_x, new_y
+        c.blink_fx_pending.append((ox, oy, new_x, new_y))
+
+
+# ---------------------------------------------------------------------------
 # Generic ultimate-playback tuning — Swordsman's crescent-wave ultimate and
 # Runner's beam ultimate are each a real, polished visual system; rather than
 # inventing a third generic shape, ultimate_playback lets ANY character pick
