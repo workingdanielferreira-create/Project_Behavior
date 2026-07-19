@@ -153,6 +153,9 @@ def apply_hp_damage(fig, world, amount=1):
         p.hp = 0
         world.on_figure_death(fig)
         return True
+    # Generic damage-teleport (JSON `damage_teleport`): accumulates this hit
+    # toward the next random-direction jump. Identical in Solo & Battle.
+    _combat.check_damage_teleport(fig, amount)
     # Trigger runner ultimate and survival teleport on the tick HP crosses
     # the threshold.
     if (was_above_runner
