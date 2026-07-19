@@ -157,11 +157,17 @@ def apply_hp_damage(fig, world, amount=1):
     # toward the next random-direction jump. Identical in Solo & Battle.
     _combat.check_damage_teleport(fig, amount)
     # Trigger runner ultimate and survival teleport on the tick HP crosses
-    # the threshold.
+    # the threshold. Gated on `disable_survival_teleport` (JSON opt-out) —
+    # both halves of this historical "runner survival mode" bundle (the
+    # forced auto-ultimate AND the position-warp) are skipped together for
+    # any character that opts out, so a shooter with no ultimate_playback.
+    # style set doesn't get shoved into an unwanted 48s beam-ultimate window.
+    _char = getattr(fig.mode, "character", None)
     if (was_above_runner
             and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
             and fig.mode.can_shoot()
             and not fig.mode.uses_melee()
+            and not (_char and _char.get("disable_survival_teleport"))
             and p.ultimate_ticks <= 0):
         p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
         # Arm the first teleport immediately (fires on the very next tick).
