@@ -132,8 +132,10 @@ class MotionSystem(System):
             # Teleport is a pure position warp — it does NOT set combat.acted, so
             # ProjectileSystem fires on the same tick uninterrupted.
             p = fig.personality
+            _char = getattr(fig.mode, "character", None)
             if (fig.mode.can_shoot()
                     and not fig.mode.uses_melee()
+                    and not (_char and _char.get("disable_survival_teleport"))
                     and p.hp <= int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)):
                 if p.teleport_ticks <= 0:
                     # Compute destination: 100px behind the runner relative to target.
@@ -229,6 +231,7 @@ class CombatSystem(System):
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
+            combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
             # (swordsman via uses_melee(), or a JSON character whose `defend`
             # action authors a can_hit+deflect layer — combat.has_defend_deflect).
@@ -322,6 +325,11 @@ class CombatSystem(System):
             if c.hitstop_request:
                 c.hitstop_request = False
                 world.hitstop_ticks = config.HITSTOP_TICKS
+
+        # HP-threshold stationary clones: orbit/attack + hittability for
+        # every clone this side owns (spawn checks already ran per-figure
+        # above). Identical in Solo & Battle.
+        combat.tick_hpt_clones(world)
 
 
 def _basic_shot(fig, tx, ty):
