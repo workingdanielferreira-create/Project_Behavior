@@ -1708,14 +1708,7 @@
      "opacity": 1
     }
    ],
-   "activation_triggers": [
-    {
-     "type": "hp_threshold",
-     "pct": 50,
-     "repeatable": true,
-     "cooldown_ms": 4000
-    }
-   ],
+   "activation_triggers": [],
    "retrigger_cooldown_ms": 0
   },
   "defend": {
@@ -2068,5 +2061,38 @@
   "radius_proximity": "Fires while the distance to the enemy is between min and max px (a band, not a single threshold).",
   "retrigger_cooldown_ms": "Shared minimum time between activations of this action, regardless of which trigger condition fired it. 0 = no extra gating beyond a trigger's own rules.",
   "parity": "Behaviour is identical in Solo & Battle modes."
+ },
+ "disable_survival_teleport": true,
+ "hp_threshold_clones": {
+  "_comment": "Generic engine mechanic (see laser/combat.py hpt_clone_cfg / HPTClone) \u2014 any character's JSON can opt in via this same block. Each threshold fires ONCE EVER per crossing (non-repeatable), spawning a stationary 1-HP clone at each listed corner. Clones never move, are hittable by enemy ranged/petal contact (die on any single hit), and attack only via their own orbiting sphere.",
+  "thresholds": [
+   {
+    "pct": 75,
+    "positions": [
+     "top_left"
+    ]
+   },
+   {
+    "pct": 50,
+    "positions": [
+     "top_right"
+    ]
+   },
+   {
+    "pct": 25,
+    "positions": [
+     "bottom_left",
+     "bottom_right"
+    ]
+   }
+  ],
+  "clone_hp": 1,
+  "damage": 1,
+  "hover_radius": 700,
+  "detect_range": 1800,
+  "orbit_speed_deg": 25,
+  "approach_speed": 900,
+  "cooldown_ms": 1550,
+  "corner_inset_px": 120
  }
 }
