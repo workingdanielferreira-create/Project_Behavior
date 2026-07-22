@@ -2665,42 +2665,15 @@ def tick_vanish_cut(fig, target_x, target_y):
         if c.vc_tick > 0:
             c.vc_tick -= 1
             return True
+        # Blitz slashes are pure visuals while the target is frozen —
+        # the HP payload is queued as one burst at completion (below), so
+        # the split lands the moment the world resumes.
         ang = rng.uniform(0.0, 2.0 * math.pi)
         ox = target_x + math.cos(ang) * 90.0
         oy = target_y + math.sin(ang) * 90.0
         r, g, b = fig.lut[80]
         c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
                                         (r, g, b)))
-        # Invisible HOMING strike bullet riding the slash line: spawned at
-        # the crescent's origin and flown in.  It MUST spend at least one
-        # tick airborne outside contact range — bullets born already
-        # touching the enemy are culled by the owner side's
-        # ProjectileSystem before the victim's side ever snapshots them
-        # (damage applies on the victim's own pass via enemy_projs), so a
-        # point-blank spawn deals nothing.  Homing (hard turn) because a
-        # straight bullet on a ~90 px flight is sidestepped by the
-        # target's ordinary drift; ProjectileSystem refreshes the target
-        # ref to the live enemy every tick.  max_age is sized to the
-        # flight plus margin so it can never snipe across the screen.
-        ddx, ddy = target_x - ox, target_y - oy
-        dd = (ddx * ddx + ddy * ddy) ** 0.5
-        spd = config.PROJ_SPEED * 1.5
-        pr = HomingProjectile(ox, oy,
-                              ddx / dd * spd, ddy / dd * spd,
-                              (r, g, b), 3,
-                              target=[float(target_x), float(target_y)],
-                              turn_rate=1.0)
-        # turn_rate 1.0 = perfect pursuit of the live target: heading is
-        # replaced (not blended) each tick, so the strike can never fall
-        # into an orbit and closes at (bullet speed - target speed).
-        pr.style = "invisible"
-        pr.damage = vc["hit_damage"]
-        # Pierce: the cut has already landed in fiction — a parry stance or
-        # crescent erasure can't undo it (same pierce channel every other
-        # piercing attack uses).
-        pr.pierce = True
-        pr.max_age = int(dd / max(spd, 0.001)) + 30
-        c.vc_shots_pending.append(pr)
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
         if c.vc_hits_left <= 0:
@@ -2715,7 +2688,6 @@ def tick_vanish_cut(fig, target_x, target_y):
                 c.crescents.append(CrescentWave(px_, py_,
                                                 target_x, target_y,
                                                 (r2, g2, b2)))
-            c.hitstop_request = True
         else:
             c.vc_tick = vc["interval_ticks"]
         return True
@@ -2730,6 +2702,30 @@ def tick_vanish_cut(fig, target_x, target_y):
         # target) — face() treats its argument as the previous position.
         fig.face(t.x - c.vc_dir_x, t.y - c.vc_dir_y)
         fig.render.is_moving = False
+        # The HP payload: every hit's strike bullet, released together as
+        # the freeze lifts.  Perfect-pursuit homing + pierce, spawned on a
+        # ring around the target so each spends ticks airborne (a bullet
+        # born touching the enemy is culled before the victim's side ever
+        # snapshots it).  The victim's first unfrozen pass reads the whole
+        # volley from enemy_projs — the split lands at the resume moment.
+        spd = config.PROJ_SPEED * 1.5
+        r3, g3, b3 = fig.lut[80]
+        n_hits = max(1, int(vc["hits"]))
+        for k in range(n_hits):
+            ang = c.blinkstorm_angle + k * math.radians(137.5)
+            ox = target_x + math.cos(ang) * 60.0
+            oy = target_y + math.sin(ang) * 60.0
+            ddx, ddy = target_x - ox, target_y - oy
+            pr = HomingProjectile(ox, oy,
+                                  ddx / 60.0 * spd, ddy / 60.0 * spd,
+                                  (r3, g3, b3), 3,
+                                  target=[float(target_x), float(target_y)],
+                                  turn_rate=1.0)
+            pr.style = "invisible"
+            pr.damage = vc["hit_damage"]
+            pr.pierce = True
+            pr.max_age = int(60.0 / max(spd, 0.001)) + 30
+            c.vc_shots_pending.append(pr)
         c.vc_hidden = False
         c.vc_phase = 0
     return True
