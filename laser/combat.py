@@ -2689,10 +2689,17 @@ def tick_vanish_cut(fig, target_x, target_y):
                               ddx / dd * spd, ddy / dd * spd,
                               (r, g, b), 3,
                               target=[float(target_x), float(target_y)],
-                              turn_rate=0.5)
+                              turn_rate=1.0)
+        # turn_rate 1.0 = perfect pursuit of the live target: heading is
+        # replaced (not blended) each tick, so the strike can never fall
+        # into an orbit and closes at (bullet speed - target speed).
         pr.style = "invisible"
         pr.damage = vc["hit_damage"]
-        pr.max_age = int(dd / max(spd, 0.001)) + 12
+        # Pierce: the cut has already landed in fiction — a parry stance or
+        # crescent erasure can't undo it (same pierce channel every other
+        # piercing attack uses).
+        pr.pierce = True
+        pr.max_age = int(dd / max(spd, 0.001)) + 30
         c.vc_shots_pending.append(pr)
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
