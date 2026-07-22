@@ -936,6 +936,13 @@ class CollisionSystem(System):
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
+                        # one_hit bullets (e.g. vanish-cut strikes) die at
+                        # source after their first landed hit — pierce keeps
+                        # them alive through parry/crescent/contact culls,
+                        # this is the one sanctioned kill so each deals
+                        # exactly one hit.
+                        if getattr(_src, "one_hit", False):
+                            combat.kill_projectile(_src)
                         break
 
         # --- Swordsman bullet-dodge trigger ---
