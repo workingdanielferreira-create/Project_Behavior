@@ -149,7 +149,10 @@ class Figure:
         self.trail.draw(p, pen, self.motion.follow)
 
         frame = self._current_frame()
-        if frame is not None:
+        # Vanish-cut ultimate: the figure is 'gone' during the cut — the
+        # sprite (and its glow) skip drawing while vc_hidden; crescent
+        # slashes / sparks / impact FX below still render.
+        if frame is not None and not c0.vc_hidden:
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
@@ -201,4 +204,5 @@ class Figure:
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
                 bp.draw(p)
+
 
