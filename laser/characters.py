@@ -479,6 +479,47 @@ def _write_thumb(folder, key, frames):
         idle[0].save(path, "PNG")
 
 
+def _load_sprite_files(root_dir, sf):
+    """Generic `sprite_files` loader: build a FrameBundle from PNG frame
+    sets the character JSON authors itself (files live next to the launcher,
+    like the built-in sets).  Each set carries its own measured
+    `src_head_px` so mixed-scale source art lands at roster size:
+
+        "sprite_files": {
+          "remove_bg": false,           # skip near-black bg removal (alpha art)
+          "run":   {"files": [...], "src_head_px": 406},
+          "idle":  {"files": [...], "src_head_px": 117},
+          "slash": {"files": [...], "src_head_px": 117},
+          "slide": {"files": [...], "src_head_px": 117}   # optional (2 files)
+        }
+
+    Missing sets simply stay empty (slide falls back to the idle frame in
+    the renderer).  Every process loads through this same path, so Solo and
+    Battle see the identical bundle."""
+    from .assets import FrameBundle   # lazy: avoids circular import at load
+
+    def _set(name):
+        blk = sf.get(name) or {}
+        files = [os.path.join(root_dir, str(f))
+                 for f in (blk.get("files") or [])]
+        try:
+            head = float(blk.get("src_head_px", 100.0) or 100.0)
+        except (TypeError, ValueError):
+            head = 100.0
+        return files, config.TARGET_HEAD_PX / max(head, 1.0)
+
+    run_files, run_sc = _set("run")
+    idle_files, idle_sc = _set("idle")
+    slash_files, slash_sc = _set("slash")
+    slide_files, slide_sc = _set("slide")
+    return FrameBundle.load(
+        run_files, idle_files, run_sc, idle_sc,
+        slide_files=slide_files if len(slide_files) >= 2 else None,
+        slide_scale=slide_sc,
+        slash_files=slash_files or None, slash_scale=slash_sc,
+        remove_bg=bool(sf.get("remove_bg", True)))
+
+
 def load_all(root_dir, bundles):
     """Scan <root>/characters/*.json, register each, add its FrameBundle."""
     folder = os.path.join(root_dir, "characters")
@@ -516,6 +557,17 @@ def load_all(root_dir, bundles):
                 else:
                     bundles[key] = donor
                 char.pop("hurtbox_radius", None)
+            elif isinstance(char.get("sprite_files"), dict):
+                # Character-authored PNG frame sets (generic sprite_files
+                # block).  hurtbox_radius is dropped so hit checks fall back
+                # to the same fixed constants the built-ins use — matching
+                # the sprite_source path above.
+                bundle = _load_sprite_files(root_dir, char["sprite_files"])
+                bundles[key] = bundle
+                char.pop("hurtbox_radius", None)
+                thumb_path = os.path.join(folder, key + "_thumb.png")
+                if bundle.idle and not os.path.exists(thumb_path):
+                    bundle.idle[0].save(thumb_path, "PNG")
             else:
                 if sprite_src:
                     print("sprite_source %r not found for %s — rasterising"
@@ -525,4 +577,5 @@ def load_all(root_dir, bundles):
                 _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
             print("Character load failed for %s: %s" % (path, e))
+
 
