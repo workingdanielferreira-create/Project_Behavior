@@ -70,6 +70,7 @@
       "src_head_px": 117
     }
   },
+  "counter_only": true,
   "reaction": {
     "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy). One shared cooldown. Each activation adds one vanish_cut charge.",
     "radius_px": 50,
@@ -81,7 +82,7 @@
   "ultimate_playback": {
     "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges — vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
     "style": "vanish_cut",
-    "charges_required": 5,
+    "charges_required": 20,
     "hits": 5,
     "hit_damage": 9,
     "hit_interval_ms": 96,
