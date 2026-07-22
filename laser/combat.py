@@ -2581,6 +2581,7 @@ def reaction_cfg(fig):
 
 _VC_DEFAULTS = dict(
     charges_required=5,
+    trigger_range_px=100000.0,
     hits=5,
     hit_damage=9.0,
     hit_interval_ms=96.0,
@@ -2670,22 +2671,28 @@ def tick_vanish_cut(fig, target_x, target_y):
         r, g, b = fig.lut[80]
         c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
                                         (r, g, b)))
-        # Invisible strike bullet riding the slash line: spawned at the
-        # crescent's origin and flown in.  It MUST spend at least one tick
-        # airborne outside contact range — bullets born already touching
-        # the enemy are culled by the owner side's ProjectileSystem before
-        # the victim's side ever snapshots them (damage applies on the
-        # victim's own pass via enemy_projs), so a point-blank spawn deals
-        # nothing.  max_age is sized to the flight plus a small margin so
-        # it can never snipe across the screen.
+        # Invisible HOMING strike bullet riding the slash line: spawned at
+        # the crescent's origin and flown in.  It MUST spend at least one
+        # tick airborne outside contact range — bullets born already
+        # touching the enemy are culled by the owner side's
+        # ProjectileSystem before the victim's side ever snapshots them
+        # (damage applies on the victim's own pass via enemy_projs), so a
+        # point-blank spawn deals nothing.  Homing (hard turn) because a
+        # straight bullet on a ~90 px flight is sidestepped by the
+        # target's ordinary drift; ProjectileSystem refreshes the target
+        # ref to the live enemy every tick.  max_age is sized to the
+        # flight plus margin so it can never snipe across the screen.
         ddx, ddy = target_x - ox, target_y - oy
         dd = (ddx * ddx + ddy * ddy) ** 0.5
-        pr = Projectile(ox, oy,
-                        ddx / dd * config.PROJ_SPEED,
-                        ddy / dd * config.PROJ_SPEED, (r, g, b), 3)
+        spd = config.PROJ_SPEED * 1.5
+        pr = HomingProjectile(ox, oy,
+                              ddx / dd * spd, ddy / dd * spd,
+                              (r, g, b), 3,
+                              target=[float(target_x), float(target_y)],
+                              turn_rate=0.5)
         pr.style = "invisible"
         pr.damage = vc["hit_damage"]
-        pr.max_age = int(dd / max(config.PROJ_SPEED, 0.001)) + 5
+        pr.max_age = int(dd / max(spd, 0.001)) + 12
         c.vc_shots_pending.append(pr)
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
@@ -2736,13 +2743,16 @@ def check_reaction(fig, world):
         tx, ty = world._nearest_enemy(fig.x, fig.y)
     else:
         tx, ty = world.cursor
-    # --- Charge-based vanish-cut launch ---
+    # --- Charge-based vanish-cut launch (gated on trigger_range_px so
+    #     the cut lands as a duel finisher, not a cross-map snipe) ---
     vc = vanish_cut_cfg(fig)
     if (vc is not None and c.vc_phase == 0 and not c.busy
             and c.ult_charges >= int(vc["charges_required"])):
-        c.ult_charges = 0
-        start_vanish_cut(fig, tx, ty)
-        return
+        _ldx, _ldy = tx - fig.transform.x, ty - fig.transform.y
+        if (_ldx * _ldx + _ldy * _ldy) ** 0.5 <= vc["trigger_range_px"]:
+            c.ult_charges = 0
+            start_vanish_cut(fig, tx, ty)
+            return
     if c.vc_phase != 0 or c.blinkstorm_strikes_left > 0:
         return
     if c.reaction_cd > 0 or c.busy:
