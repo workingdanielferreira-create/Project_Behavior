@@ -2,6 +2,18 @@
  "version": "cockpit_index v1",
  "runs": [
   {
+   "file": "captures/jumper_vs_ronin_flashcut.pbrun.json",
+   "title": "Jumper vs Ronin \u2014 Flash Cut ultimate \u00b7 seed 7",
+   "mode": "battle",
+   "p1": "jumper",
+   "p2": "ronin",
+   "seed": 7,
+   "ticks": 500,
+   "engine_commit": "7f2572085df878574c199f7e938a2f0733848975",
+   "captured_at": "2026-07-22 19:13:50",
+   "size_mb": 3.7
+  },
+  {
    "file": "captures/mage_vs_jumper_s11.pbrun.json",
    "title": "mage vs jumper \u00b7 seed 11 \u00b7 post-update",
    "mode": "battle",
