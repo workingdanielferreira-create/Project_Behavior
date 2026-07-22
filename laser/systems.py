@@ -253,6 +253,16 @@ class CombatSystem(System):
             # action authors a can_hit+deflect layer — combat.has_defend_deflect).
             if fig.mode.uses_melee() or combat.has_defend_deflect(fig):
                 combat.tick_parry_cooldown(fig)
+            # --- Generic proximity reaction (JSON `reaction`): counter/dodge
+            # roll + charge-based vanish-cut launch. Runs before
+            # advance_combat so an armed retaliation dash executes this
+            # same tick. No-op for characters without the block. ---
+            combat.check_reaction(fig, world)
+            # --- Vanish-cut strike bullets -> live projectile list (same
+            # standard fire -> snapshot channel the clones use). ---
+            if fig.combat.vc_shots_pending:
+                world.projectiles.extend(fig.combat.vc_shots_pending)
+                fig.combat.vc_shots_pending = []
             # --- Blink crackle FX: drain warp endpoints into world sparks ---
             if fig.combat.blink_fx_pending:
                 bl_cfg = combat.blink_cfg(fig)
@@ -1081,6 +1091,7 @@ def build_pipeline():
         CollisionSystem(),  # post-movement battle interactions
         ProjectileSystem(), # fire + advance bullets
     ]
+
 
 
 
