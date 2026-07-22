@@ -369,6 +369,28 @@ class World:
                         m.bounce_vy = f.combat.hit_vy
                         m.bouncing = True
 
+    def cinematic_frozen(self, i):
+        """True while a figure on ANOTHER fielded side is mid vanish-cut —
+        side `i`'s entire pipeline pass is skipped, freezing its figures
+        AND its in-flight projectiles until the cut completes.  A side
+        running its own vanish-cut is never frozen (own ult takes
+        precedence), so two simultaneous cuts play out instead of
+        deadlocking each other.  Generic and data-driven: any character
+        whose ultimate_playback.style is 'vanish_cut' gets this for free.
+        Solo has no opposing fielded side, so nothing freezes — the code
+        path is identical in Solo and Battle."""
+        own = self.sides[i]
+        for f in own.figures:
+            if f.combat.vc_phase != 0:
+                return False
+        for j in self.fielded_sides():
+            if j == i:
+                continue
+            for f in self.sides[j].figures:
+                if f.combat.vc_phase != 0:
+                    return True
+        return False
+
     def fielded_sides(self):
         return [i for i, s in enumerate(self.sides) if s.figures]
 
@@ -466,6 +488,11 @@ class Overlay(QWidget):
         # feel of two fighters thinking for themselves.
         w.refresh_battle()
         for i in w.fielded_sides():
+            # Cinematic freeze: a vanish-cut on the other side suspends this
+            # side's whole pass (combat, motion, collisions, projectiles).
+            # Rendering still paints the frozen pose each frame.
+            if w.cinematic_frozen(i):
+                continue
             w.bind_side(i)
             for system in self.pipeline:
                 try:
