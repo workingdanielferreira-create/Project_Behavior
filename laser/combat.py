@@ -1934,7 +1934,7 @@ def ultimate_style(fig):
     if not char:
         return "crescent" if fig.mode.uses_melee() else "beam"
     style = (char.get("ultimate_playback") or {}).get("style")
-    if style in ("crescent", "beam", "blinkstorm", "none"):
+    if style in ("crescent", "beam", "blinkstorm", "vanish_cut", "none"):
         return style
     return "crescent" if fig.mode.uses_melee() else "beam"
 
@@ -2517,6 +2517,269 @@ def tick_blinkstorm(fig, target_x, target_y):
     return True
 
 
+
+
+# ---------------------------------------------------------------------------
+# Generic proximity-reaction system (JSON `reaction` block) — the "Counter"
+# fantasy.  When an enemy body enters radius_px, roll counter_chance:
+#   COUNTER — open the deflect window (trigger_parry, the generalized parry)
+#             and arm an immediate retaliation slash at the enemy;
+#   DODGE   — blink_warp to blink_behind_px PAST the enemy along the
+#             approach line, primed to punish.
+# Both outcomes share ONE cooldown (cooldown_ms).  Each activation may add
+# one ultimate charge (charge_ultimate) for charge-based ultimates such as
+# `vanish_cut`.  Data-driven, opt-in: any character can author the block.
+# Solo target = cursor, Battle target = nearest enemy — the same sources
+# every other proximity system uses, so Solo/Battle parity is automatic.
+# ---------------------------------------------------------------------------
+
+_REACTION_DEFAULTS = dict(
+    radius_px=50.0,
+    cooldown_ms=200.0,
+    counter_chance=0.5,
+    blink_behind_px=60.0,
+    charge_ultimate=True,
+)
+
+
+def reaction_cfg(fig):
+    """Per-figure reaction tuning dict, or None when the character has no
+    `reaction` block.  Cached on the mode instance like blink_cfg."""
+    mode = fig.mode
+    if hasattr(mode, "_reaction_cfg"):
+        return mode._reaction_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("reaction") if char else None
+    if not isinstance(raw, dict):
+        mode._reaction_cfg = None
+        return None
+    rc = dict(_REACTION_DEFAULTS)
+    for k in rc:
+        if k in raw:
+            try:
+                rc[k] = type(rc[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    rc["cooldown_ticks"] = max(1, int(round(rc["cooldown_ms"]
+                                            / config.TICK_MS)))
+    mode._reaction_cfg = rc
+    return rc
+
+
+# ---------------------------------------------------------------------------
+# Generic vanish-cut ultimate (ultimate_playback.style == "vanish_cut") —
+# the anime flash-cut: the figure vanishes (freeze frame), a blitz of
+# crossing slashes strikes the target, a crossed finisher pair lands the
+# "split in half" read, and the figure reappears PAST the target facing the
+# walk-through direction.  Charge-based: launched by check_reaction when
+# ult_charges reaches charges_required (charges come from reactions).
+# Damage rides invisible Projectiles through the standard
+# fire -> world.projectiles -> enemy snapshot channel (queued on
+# vc_shots_pending, drained by CombatSystem), so HP/parry/petals interact
+# normally and nothing new crosses IPC.  Identical in Solo & Battle.
+# ---------------------------------------------------------------------------
+
+_VC_DEFAULTS = dict(
+    charges_required=5,
+    hits=5,
+    hit_damage=9.0,
+    hit_interval_ms=96.0,
+    vanish_ms=400.0,
+    impact_ms=250.0,
+    reappear_past_px=70.0,
+)
+
+
+def vanish_cut_cfg(fig):
+    """Per-figure vanish-cut tuning from ultimate_playback, or None unless
+    the character's ultimate_playback.style is 'vanish_cut'.  Cached on the
+    mode instance like ultc_cfg/beam_cfg."""
+    mode = fig.mode
+    if hasattr(mode, "_vc_cfg"):
+        return mode._vc_cfg
+    char = getattr(mode, "character", None)
+    raw = (char.get("ultimate_playback") or {}) if char else {}
+    if raw.get("style") != "vanish_cut":
+        mode._vc_cfg = None
+        return None
+    vc = dict(_VC_DEFAULTS)
+    for k in vc:
+        if k in raw:
+            try:
+                vc[k] = type(vc[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    vc["interval_ticks"] = max(1, int(round(vc["hit_interval_ms"]
+                                            / config.TICK_MS)))
+    vc["vanish_ticks"] = max(1, int(round(vc["vanish_ms"] / config.TICK_MS)))
+    vc["impact_ticks"] = max(1, int(round(vc["impact_ms"] / config.TICK_MS)))
+    mode._vc_cfg = vc
+    return vc
+
+
+def start_vanish_cut(fig, tx, ty):
+    """Arm the vanish-cut: hide the figure, freeze-frame, let
+    tick_vanish_cut run the blitz.  The fig->target direction is captured
+    now so the reappear point continues the same line ('walked through')."""
+    c = fig.combat
+    t = fig.transform
+    dx, dy = tx - t.x, ty - t.y
+    dist = (dx * dx + dy * dy) ** 0.5
+    if dist > 0.001:
+        c.vc_dir_x, c.vc_dir_y = dx / dist, dy / dist
+    else:
+        c.vc_dir_x, c.vc_dir_y = 1.0, 0.0
+    vc = vanish_cut_cfg(fig)
+    c.vc_phase = 1
+    c.vc_tick = vc["vanish_ticks"]
+    c.vc_hits_left = int(vc["hits"])
+    c.vc_hidden = True
+    # Departure crackle at the vanish point + the dramatic freeze frame.
+    c.blink_fx_pending.append((t.x, t.y, t.x, t.y))
+    c.hitstop_request = True
+    fig.trail.clear()
+
+
+def tick_vanish_cut(fig, target_x, target_y):
+    """Advance the vanish-cut sequence.  Returns True while it consumes the
+    figure (advance_combat early-outs, MotionSystem skips)."""
+    c = fig.combat
+    if c.vc_phase == 0:
+        return False
+    vc = vanish_cut_cfg(fig)
+    if vc is None:                      # config vanished mid-run — bail safe
+        c.vc_phase = 0
+        c.vc_hidden = False
+        return False
+    rng = fig.personality.rng
+    if c.vc_phase == 1:
+        # --- Vanished: dramatic pause before the blitz ---
+        c.vc_tick -= 1
+        if c.vc_tick <= 0:
+            c.vc_phase = 2
+            c.vc_tick = 0
+        return True
+    if c.vc_phase == 2:
+        # --- Blitz: rapid slashes crossing the target from random angles ---
+        if c.vc_tick > 0:
+            c.vc_tick -= 1
+            return True
+        ang = rng.uniform(0.0, 2.0 * math.pi)
+        ox = target_x + math.cos(ang) * 90.0
+        oy = target_y + math.sin(ang) * 90.0
+        r, g, b = fig.lut[80]
+        c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
+                                        (r, g, b)))
+        # Invisible strike bullet: spawned just short of the target, aimed
+        # in — dies moments after so it can never snipe across the screen.
+        ddx, ddy = target_x - ox, target_y - oy
+        dd = (ddx * ddx + ddy * ddy) ** 0.5
+        pr = Projectile(target_x - ddx / dd * 14.0,
+                        target_y - ddy / dd * 14.0,
+                        ddx / dd * config.PROJ_SPEED,
+                        ddy / dd * config.PROJ_SPEED, (r, g, b), 3)
+        pr.style = "invisible"
+        pr.damage = vc["hit_damage"]
+        pr.max_age = 6
+        c.vc_shots_pending.append(pr)
+        c.impact_fx_pending.append((target_x, target_y))
+        c.vc_hits_left -= 1
+        if c.vc_hits_left <= 0:
+            c.vc_phase = 3
+            c.vc_tick = vc["impact_ticks"]
+            # Finisher: crossed slash pair through the target — the
+            # 'split in half' read — plus a second world freeze.
+            r2, g2, b2 = fig.lut[200]
+            for sgn in (1.0, -1.0):
+                px_ = target_x - c.vc_dir_y * sgn * 90.0
+                py_ = target_y + c.vc_dir_x * sgn * 90.0
+                c.crescents.append(CrescentWave(px_, py_,
+                                                target_x, target_y,
+                                                (r2, g2, b2)))
+            c.hitstop_request = True
+        else:
+            c.vc_tick = vc["interval_ticks"]
+        return True
+    # --- Phase 3: impact hold, then reappear past the target ---
+    c.vc_tick -= 1
+    if c.vc_tick <= 0:
+        t = fig.transform
+        blink_warp(fig,
+                   target_x + c.vc_dir_x * vc["reappear_past_px"],
+                   target_y + c.vc_dir_y * vc["reappear_past_px"])
+        # Stand-down pose: face the walk-through direction (away from the
+        # target) — face() treats its argument as the previous position.
+        fig.face(t.x - c.vc_dir_x, t.y - c.vc_dir_y)
+        fig.render.is_moving = False
+        c.vc_hidden = False
+        c.vc_phase = 0
+    return True
+
+
+def check_reaction(fig, world):
+    """Per-tick proximity reaction + charge-based vanish-cut launch.
+    Called by CombatSystem for every figure BEFORE advance_combat (so an
+    armed retaliation dash executes the same tick); no-ops unless the
+    character authors the JSON blocks.  Identical in Solo & Battle."""
+    c = fig.combat
+    if c.reaction_cd > 0:
+        c.reaction_cd -= 1
+    rc = reaction_cfg(fig)
+    if rc is None:
+        return
+    if world.battle_mode and world.partner_figures:
+        tx, ty = world._nearest_enemy(fig.x, fig.y)
+    else:
+        tx, ty = world.cursor
+    # --- Charge-based vanish-cut launch ---
+    vc = vanish_cut_cfg(fig)
+    if (vc is not None and c.vc_phase == 0 and not c.busy
+            and c.ult_charges >= int(vc["charges_required"])):
+        c.ult_charges = 0
+        start_vanish_cut(fig, tx, ty)
+        return
+    if c.vc_phase != 0 or c.blinkstorm_strikes_left > 0:
+        return
+    if c.reaction_cd > 0 or c.busy:
+        return
+    t = fig.transform
+    dx, dy = tx - t.x, ty - t.y
+    dist = (dx * dx + dy * dy) ** 0.5
+    if dist > rc["radius_px"] or dist < 0.001:
+        return
+    rng = fig.personality.rng
+    c.reaction_cd = rc["cooldown_ticks"]
+    can_slash = bool(fig.render.bundle.slash)
+    if can_slash and rng.random() < rc["counter_chance"]:
+        # --- COUNTER: block (deflect window) + retaliation slash ---
+        trigger_parry(fig)
+        cc = combo_cfg(fig)
+        if dist > cc["hit_radius"]:
+            inv = 1.0 / dist
+            lspd = fig.motion.speed * cc["dash_speed_mult"]
+            c.slash_vx = dx * inv * lspd
+            c.slash_vy = dy * inv * lspd
+            c.slash_dist_budget = dist * 4.0
+            c.dashing = True
+            c.rebounding = False
+        else:
+            c.slashing = True
+            c.slash_phase = c.slash_idx = c.slash_tick = 0
+            c.slash_vx = c.slash_vy = 0.0
+        # Face the enemy (face() takes the previous position).
+        fig.face(t.x - dx, t.y - dy)
+    else:
+        # --- DODGE: blink PAST the enemy on the approach line ---
+        inv = 1.0 / dist
+        blink_warp(fig,
+                   tx + dx * inv * rc["blink_behind_px"],
+                   ty + dy * inv * rc["blink_behind_px"])
+        ndx, ndy = tx - t.x, ty - t.y
+        fig.face(t.x - ndx, t.y - ndy)
+    if rc["charge_ultimate"]:
+        c.ult_charges += 1
+
+
 def advance_combat(fig, slash_target, fallback):
     t = fig.transform
     c = fig.combat
@@ -2667,6 +2930,13 @@ def advance_combat(fig, slash_target, fallback):
     #     active — strikes ride the live melee target, fallback = cursor. ---
     _bs_tx, _bs_ty = slash_target if slash_target is not None else fallback
     if tick_blinkstorm(fig, _bs_tx, _bs_ty):
+        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+        fig.render.is_moving = False
+        return True
+
+    # --- Vanish-cut ultimate (charge characters): consumes the figure while
+    #     active — the blitz rides the live melee target, fallback = cursor. ---
+    if tick_vanish_cut(fig, _bs_tx, _bs_ty):
         fig.trail.update(t.x, t.y, t.facing_left, False, False)
         fig.render.is_moving = False
         return True
@@ -2931,6 +3201,7 @@ def advance_combat(fig, slash_target, fallback):
                 c.arc_repositioning = True
 
     return False
+
 
 
 
