@@ -81,7 +81,7 @@
   "ultimate_playback": {
     "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges — vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
     "style": "vanish_cut",
-    "charges_required": 5,
+    "charges_required": 2,
     "hits": 5,
     "hit_damage": 9,
     "hit_interval_ms": 96,
