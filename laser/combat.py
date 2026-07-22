@@ -3183,6 +3183,14 @@ def advance_combat(fig, slash_target, fallback):
         return True
 
     # --- Primary attack trigger (arms an attack; does NOT consume the tick) ---
+    # Generic `counter_only` JSON flag (top-level, opt-in): suppresses ALL
+    # self-initiated primary attacks — the character still approaches and
+    # stands ready in range, attacking only through the reaction system's
+    # counter/dodge retaliations (combat.check_reaction) and their combo
+    # follow-ups. Identical in Solo & Battle.
+    _char = getattr(fig.mode, "character", None)
+    if _char and _char.get("counter_only"):
+        return False
     # 50/50 between:
     #   dashslash — straight dash at the target (classic)
     #   arcslash  — curved approach sweeping around the target, ending in a slash
