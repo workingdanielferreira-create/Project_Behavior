@@ -219,7 +219,10 @@ class Combatant:
                  "hitstop_request", "impact_fx_pending",
                  "petals", "petals_init",
                  "particle_bursts", "pending_bursts",
-                 "hpt_fired", "dmg_teleport_accum")
+                 "hpt_fired", "dmg_teleport_accum",
+                 "reaction_cd", "ult_charges",
+                 "vc_phase", "vc_tick", "vc_hits_left", "vc_hidden",
+                 "vc_dir_x", "vc_dir_y", "vc_shots_pending")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -311,6 +314,21 @@ class Combatant:
         # combat.check_damage_teleport). Running total of damage taken
         # since the last teleport jump.
         self.dmg_teleport_accum = 0.0
+        # Generic proximity-reaction system (JSON `reaction`, see
+        # combat.check_reaction): shared counter/dodge cooldown + charge
+        # counter for charge-based ultimates.
+        self.reaction_cd = 0              # ticks until next reaction allowed
+        self.ult_charges = 0              # charges toward a charge-based ult
+        # Generic vanish-cut ultimate (ultimate_playback.style
+        # 'vanish_cut', see combat.tick_vanish_cut).
+        self.vc_phase = 0                 # 0 idle / 1 vanish / 2 blitz / 3 impact
+        self.vc_tick = 0                  # ticks remaining in current phase
+        self.vc_hits_left = 0             # blitz hits remaining
+        self.vc_hidden = False            # sprite hidden while vanished
+        self.vc_dir_x = 1.0               # walk-through direction (unit)
+        self.vc_dir_y = 0.0
+        self.vc_shots_pending = []        # invisible strike Projectiles
+                                          # awaiting CombatSystem drain
 
     def reset(self):
         self.__init__()
@@ -357,6 +375,7 @@ class Personality:
         self.teleport_ticks = 0   # ticks until next survival teleport (0 = ready)
         self.sword_ult_fired_thresholds = set()  # set of thresholds (fractions) already fired
         self.trigger_state = {}  # per-action bookkeeping for ai.evaluate_activation_triggers
+
 
 
 
