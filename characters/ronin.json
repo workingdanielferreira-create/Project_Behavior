@@ -87,7 +87,8 @@
     "hit_interval_ms": 96,
     "vanish_ms": 400,
     "impact_ms": 250,
-    "reappear_past_px": 70
+    "reappear_past_px": 70,
+    "trigger_range_px": 340
   },
   "actions": {
     "idle": {
