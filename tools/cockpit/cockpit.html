@@ -118,7 +118,7 @@ input[type=range]{padding:0}
       <canvas id="cv"></canvas>
       <canvas id="ov"></canvas>
     </div>
-    <div class="hint">space play/pause · ←/→ step · shift+←/→ ×10 · scroll zoom · hold space / middle-mouse drag to pan · 0 reset zoom</div>
+    <div class="hint">space play/pause · ←/→ step · shift+←/→ ×10 · scroll zoom · hold space / middle-mouse drag to pan · 0 reset zoom · alt+drag move marker / ref image</div>
   </div>
 
   <div id="side">
@@ -149,7 +149,7 @@ input[type=range]{padding:0}
           <label>scale</label>
           <input type="range" id="refSc" min="5" max="300" value="100">
           <button id="refClear">Remove</button></div>
-        <div class="small">Drag the image on the frame to position it.</div>
+        <div class="small">Alt+drag the image on the frame to position it (empty space, not on a marker).</div>
       </section>
       <section>
         <h4>ANNOTATIONS — TICK <span id="annTick">–</span></h4>
@@ -222,6 +222,8 @@ const S = {                    // application state
   imgCache:new Map(), showEnt:true,
   view:{z:1, ox:0, oy:0},                      // zoom/pan (frame-px space)
   lastIm:null, spaceHeld:false, spaceUsed:false, panDrag:null,
+  offsets:new Map(),                           // entity display offsets
+  entDrag:null,                                // alt-drag of an entity marker
 };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ov = $("ov"), scope = $("scope");
@@ -241,6 +243,7 @@ function ingest(b){
     setStatus("not a cockpit_run v1 bundle", true); return;
   }
   S.bundle = b; S.tick = 0; S.imgCache.clear(); S.sel = null;
+  S.offsets.clear(); S.entDrag = null;
   cv.width = ov.width = b.meta.frame_w; cv.height = ov.height = b.meta.frame_h;
   const m = b.meta;
   $("runmeta").innerHTML =
@@ -268,6 +271,26 @@ function frameImage(t, cb){
     if(S.imgCache.size>140) S.imgCache.delete(S.imgCache.keys().next().value);
     cb(im); };
   im.src = "data:image/jpeg;base64," + e.png;
+}
+/* entity display offsets — session-only, world px, keyed per entity.
+   Applied identically wherever the run is viewed (offset = whole run). */
+const figKey  = f => "fig:"  + f.side + ":" + f.idx;
+const projKey = p => "proj:" + p.id;
+const offOf = k => S.offsets.get(k) || {dx:0, dy:0};
+const figPos  = f => { const o=offOf(figKey(f));  return {x:f.x+o.dx, y:f.y+o.dy}; };
+const projPos = p => { const o=offOf(projKey(p)); return {x:p.x+o.dx, y:p.y+o.dy}; };
+function entityAt(wx, wy, maxD){   // hit-test at OFFSET positions
+  const st = S.bundle.frames[S.tick].state; if(!st) return null;
+  let best=null, bd=maxD;
+  for(const f of st.figures){ const q=figPos(f);
+    const d=Math.hypot(q.x-wx, q.y-wy);
+    if(d<bd){bd=d;best={type:"fig",key:f.side+":"+f.idx,offKey:figKey(f),
+      label:f.mode+"["+f.side+"]",data:f,px:q};} }
+  for(const pr of st.projectiles){ const q=projPos(pr);
+    const d=Math.hypot(q.x-wx, q.y-wy);
+    if(d<bd){bd=d;best={type:"proj",key:pr.id,offKey:projKey(pr),
+      label:pr.cls+"#"+pr.id,data:pr,px:q};} }
+  return best;
 }
 function evPos(e){                 // pointer event -> frame px + world px
   const r = ov.getBoundingClientRect(), v = S.view;
@@ -339,22 +362,36 @@ function drawEntities(k){
   const u = 1/S.view.z;
   const css = getComputedStyle(document.documentElement);
   const col = s => css.getPropertyValue(s? "--p2":"--p1");
+  const tether = (o, ax, ay, bx, by)=>{      // recorded -> offset position
+    if(!o.dx && !o.dy) return;
+    octx.save(); octx.globalAlpha=.45;
+    octx.setLineDash([2*u,4*u]); octx.lineWidth=u;
+    octx.beginPath(); octx.moveTo(ax,ay); octx.lineTo(bx,by); octx.stroke();
+    octx.beginPath(); octx.arc(ax,ay,2*u,0,7); octx.stroke();
+    octx.restore();
+  };
   for(const f of st.figures){
-    octx.strokeStyle = col(f.side); octx.lineWidth = u;
+    const q = figPos(f), o = offOf(figKey(f));
+    octx.strokeStyle = col(f.side);
+    tether(o, f.x*k, f.y*k, q.x*k, q.y*k);
+    octx.lineWidth = u;
     octx.setLineDash([3*u,3*u]);
-    octx.strokeRect(f.x*k-14, f.y*k-30, 28, 60);
+    octx.strokeRect(q.x*k-14, q.y*k-30, 28, 60);
     octx.setLineDash([]);
     if(S.sel && S.sel.type==="fig" && S.sel.key===f.side+":"+f.idx){
       octx.strokeStyle = css.getPropertyValue("--amber");
-      octx.lineWidth = 2*u; octx.strokeRect(f.x*k-16, f.y*k-32, 32, 64);
+      octx.lineWidth = 2*u; octx.strokeRect(q.x*k-16, q.y*k-32, 32, 64);
     }
   }
   for(const p of st.projectiles){
-    octx.strokeStyle = col(p.side); octx.lineWidth = u;
-    octx.beginPath(); octx.arc(p.x*k, p.y*k, 5, 0, 7); octx.stroke();
+    const q = projPos(p), o = offOf(projKey(p));
+    octx.strokeStyle = col(p.side);
+    tether(o, p.x*k, p.y*k, q.x*k, q.y*k);
+    octx.lineWidth = u;
+    octx.beginPath(); octx.arc(q.x*k, q.y*k, 5, 0, 7); octx.stroke();
     if(S.sel && S.sel.type==="proj" && S.sel.key===p.id){
       octx.strokeStyle = css.getPropertyValue("--amber"); octx.lineWidth = 2*u;
-      octx.beginPath(); octx.arc(p.x*k, p.y*k, 8, 0, 7); octx.stroke();
+      octx.beginPath(); octx.arc(q.x*k, q.y*k, 8, 0, 7); octx.stroke();
     }
   }
 }
@@ -474,15 +511,7 @@ addEventListener("keyup", e=>{
 /* ---------------- TOOLS registry (extension point) ---------------- */
 const TOOLS = {
   select:{ down(p){
-    const st=S.bundle.frames[S.tick].state; if(!st) return;
-    let best=null, bd=45;
-    for(const f of st.figures){ const d=Math.hypot(f.x-p.wx,f.y-p.wy);
-      if(d<bd){bd=d;best={type:"fig",key:f.side+":"+f.idx,
-        label:f.mode+"["+f.side+"]",data:f};} }
-    for(const pr of st.projectiles){ const d=Math.hypot(pr.x-p.wx,pr.y-p.wy);
-      if(d<bd){bd=d;best={type:"proj",key:pr.id,
-        label:pr.cls+"#"+pr.id,data:pr};} }
-    S.sel = best; drawOverlay(); renderPanels();
+    S.sel = entityAt(p.wx, p.wy, 45); drawOverlay(); renderPanels();
   }},
   arrow:{ down(p){ S.drawing={tool:"arrow",pts:[[p.wx,p.wy],[p.wx,p.wy]]}; },
     move(p){ S.drawing.pts[1]=[p.wx,p.wy]; },
@@ -508,7 +537,17 @@ ov.addEventListener("pointerdown", e=>{
     S.panDrag = {cx:p.cx, cy:p.cy, ox:S.view.ox, oy:S.view.oy};
     return;
   }
-  if(S.ref.img && e.altKey){ S.ref.drag={dx:S.ref.x-p.wx, dy:S.ref.y-p.wy}; return; }
+  if(e.altKey){                      // alt = universal move
+    e.preventDefault();
+    const hit = entityAt(p.wx, p.wy, 45);
+    if(hit){                         // move entity marker (whole-run offset)
+      const o = offOf(hit.offKey);
+      S.entDrag = {key:hit.offKey, gx:p.wx-o.dx, gy:p.wy-o.dy};
+      S.sel = hit; drawOverlay(); renderPanels(); return;
+    }
+    if(S.ref.img){ S.ref.drag={dx:S.ref.x-p.wx, dy:S.ref.y-p.wy}; }
+    return;
+  }
   const t = TOOLS[S.tool]; t.down && t.down(p);
   if(S.drawing) drawOverlay(S.drawing);
 });
@@ -519,6 +558,10 @@ ov.addEventListener("pointermove", e=>{
     S.view.oy = S.panDrag.oy + (p.cy - S.panDrag.cy);
     clampView(); redrawFrame(); drawOverlay(S.drawing); return;
   }
+  if(S.entDrag){
+    S.offsets.set(S.entDrag.key,
+      {dx:+(p.wx-S.entDrag.gx).toFixed(1), dy:+(p.wy-S.entDrag.gy).toFixed(1)});
+    drawOverlay(); return; }
   if(S.ref.drag){ S.ref.x=p.wx+S.ref.drag.dx; S.ref.y=p.wy+S.ref.drag.dy;
     drawOverlay(); return; }
   if(!S.drawing) return;
@@ -527,6 +570,7 @@ ov.addEventListener("pointermove", e=>{
 });
 addEventListener("pointerup", ()=>{
   if(S.panDrag){ S.panDrag=null; return; }
+  if(S.entDrag){ S.entDrag=null; return; }
   if(S.ref.drag){ S.ref.drag=null; return; }
   if(!S.drawing) return;
   TOOLS[S.tool].up && TOOLS[S.tool].up();
