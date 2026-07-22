@@ -2670,17 +2670,22 @@ def tick_vanish_cut(fig, target_x, target_y):
         r, g, b = fig.lut[80]
         c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
                                         (r, g, b)))
-        # Invisible strike bullet: spawned just short of the target, aimed
-        # in — dies moments after so it can never snipe across the screen.
+        # Invisible strike bullet riding the slash line: spawned at the
+        # crescent's origin and flown in.  It MUST spend at least one tick
+        # airborne outside contact range — bullets born already touching
+        # the enemy are culled by the owner side's ProjectileSystem before
+        # the victim's side ever snapshots them (damage applies on the
+        # victim's own pass via enemy_projs), so a point-blank spawn deals
+        # nothing.  max_age is sized to the flight plus a small margin so
+        # it can never snipe across the screen.
         ddx, ddy = target_x - ox, target_y - oy
         dd = (ddx * ddx + ddy * ddy) ** 0.5
-        pr = Projectile(target_x - ddx / dd * 14.0,
-                        target_y - ddy / dd * 14.0,
+        pr = Projectile(ox, oy,
                         ddx / dd * config.PROJ_SPEED,
                         ddy / dd * config.PROJ_SPEED, (r, g, b), 3)
         pr.style = "invisible"
         pr.damage = vc["hit_damage"]
-        pr.max_age = 6
+        pr.max_age = int(dd / max(config.PROJ_SPEED, 0.001)) + 5
         c.vc_shots_pending.append(pr)
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
