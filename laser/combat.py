@@ -224,7 +224,7 @@ def kill_projectile(pr):
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
-                 "pierce", "knockback_px", "owner")
+                 "pierce", "knockback_px", "owner", "one_hit")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -236,6 +236,11 @@ class Projectile:
         self.trail = deque(maxlen=max(3, trail_len))
         self.radius = float(config.PROJ_RADIUS)  # overridable for splinters
         self.style = None    # None=round | cone|zigzag|homing|beam comet bolt
+        # one_hit: generic cap — the victim-side damage pass kills this
+        # bullet at source after its FIRST landed hit, so pierce bullets
+        # (which are never culled on contact) can still deal exactly one
+        # hit each (see CollisionSystem enemy-projectile damage loop).
+        self.one_hit = False
         # HP damage this bullet deals on a real hit (see ai.battle_hit /
         # ai.apply_hp_damage and the enemy-side snapshot). Every built-in
         # shot (runner/swordsman fan, splinters, deflects) keeps the
@@ -2723,7 +2728,8 @@ def tick_vanish_cut(fig, target_x, target_y):
                                   turn_rate=1.0)
             pr.style = "invisible"
             pr.damage = vc["hit_damage"]
-            pr.pierce = True
+            pr.pierce = True          # a parry stance can't undo the cut
+            pr.one_hit = True         # ...but each strike lands exactly once
             pr.max_age = int(60.0 / max(spd, 0.001)) + 30
             c.vc_shots_pending.append(pr)
         c.vc_hidden = False
