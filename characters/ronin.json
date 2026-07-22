@@ -16,8 +16,8 @@
   },
   "stats": {
     "max_hp": 100,
-    "chase_speed": 1.8,
-    "follow_speed": 1.8,
+    "chase_speed": 0.9,
+    "follow_speed": 0.9,
     "scale": 1.0,
     "basic_attack_radius": 180
   },
