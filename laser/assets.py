@@ -40,15 +40,19 @@ def remove_background(pixmap, tol=config.BG_REMOVE_TOLERANCE):
     return QPixmap.fromImage(result.copy())
 
 
-def _load_frames(files, scale):
-    """Load, de-background, scale, and pre-flip a list of image files."""
+def _load_frames(files, scale, remove_bg=True):
+    """Load, de-background, scale, and pre-flip a list of image files.
+    `remove_bg=False` skips the near-black -> transparent pass for source
+    art that already ships a real alpha channel (generic `sprite_files`
+    characters) so dark outline pixels are never eaten."""
     frames, flipped = [], []
     flip = QTransform().scale(-1, 1)
     for fp in files:
         px = QPixmap(fp)
         if px.isNull():
             continue
-        px = remove_background(px)
+        if remove_bg:
+            px = remove_background(px)
         if scale != 1.0:
             px = px.scaled(max(1, int(px.width() * scale)),
                            max(1, int(px.height() * scale)),
@@ -90,20 +94,21 @@ class FrameBundle:
     @classmethod
     def load(cls, run_files, idle_files, run_scale, idle_scale,
              slide_files=None, slide_scale=None,
-             slash_files=None, slash_scale=None):
-        run, run_fl = _load_frames(run_files, run_scale)
-        idle, idle_fl = _load_frames(idle_files, idle_scale)
+             slash_files=None, slash_scale=None, remove_bg=True):
+        run, run_fl = _load_frames(run_files, run_scale, remove_bg)
+        idle, idle_fl = _load_frames(idle_files, idle_scale, remove_bg)
 
         s1 = s1f = s2 = s2f = None
         if slide_files and len(slide_files) >= 2:
             ssc = slide_scale if slide_scale is not None else idle_scale
-            a, af = _load_frames([slide_files[0]], ssc)
-            b, bf = _load_frames([slide_files[1]], ssc)
+            a, af = _load_frames([slide_files[0]], ssc, remove_bg)
+            b, bf = _load_frames([slide_files[1]], ssc, remove_bg)
             s1, s1f = (a[0] if a else None), (af[0] if af else None)
             s2, s2f = (b[0] if b else None), (bf[0] if bf else None)
 
         slsc = slash_scale if slash_scale is not None else run_scale
-        slash, slash_fl = _load_frames(slash_files, slsc) if slash_files else ([], [])
+        slash, slash_fl = (_load_frames(slash_files, slsc, remove_bg)
+                           if slash_files else ([], []))
 
         return cls(run, run_fl, idle, idle_fl,
                    s1, s1f, s2, s2f, slash, slash_fl)
@@ -162,3 +167,4 @@ class AssetLibrary:
     def ok(self):
         r = self.bundles.get("runner")
         return bool(r and r.has_frames)
+
