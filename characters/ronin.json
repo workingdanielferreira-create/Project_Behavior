@@ -57,7 +57,7 @@
     "Samuraistand 1.png",
     "Samuraistand 2.png"
    ],
-   "src_head_px": 117
+   "src_head_px": 406
   },
   "slash": {
    "files": [
@@ -67,7 +67,7 @@
     "Samuraiatk4.png",
     "Samuraiatk5.png"
    ],
-   "src_head_px": 117
+   "src_head_px": 406
   }
  },
  "counter_only": true,
