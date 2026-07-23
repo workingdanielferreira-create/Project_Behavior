@@ -148,6 +148,18 @@ class Figure:
 
         self.trail.draw(p, pen, self.motion.follow)
 
+        # --- Sprite-line emitter FX (JSON `sprite_emitter`): pulsing glow
+        # dots pinned to the current frame's colour-matched line points
+        # ("glow" sources) plus the live rising/fading particles spawned by
+        # "emit" sources (world-space, so they linger where emitted while
+        # the figure moves on). Drawn before the sprite frame so the
+        # particle layers sit behind the character. Cheap no-ops without
+        # the block. ---
+        _combat.draw_sprite_emitter_glow(self, p, self.render.anim_tick)
+        if self.combat.sprite_particles:
+            for sp in self.combat.sprite_particles:
+                sp.draw(p)
+
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
         # sprite (and its glow) skip drawing while vc_hidden; crescent
@@ -204,15 +216,5 @@ class Figure:
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
                 bp.draw(p)
-
-        # --- Sprite-line emitter FX (JSON `sprite_emitter`): pulsing glow
-        # dots pinned to the current frame's colour-matched line points
-        # ("glow" sources) plus the live rising/fading particles spawned by
-        # "emit" sources (world-space, so they linger where emitted while
-        # the figure moves on). Cheap no-ops without the block. ---
-        _combat.draw_sprite_emitter_glow(self, p, self.render.anim_tick)
-        if self.combat.sprite_particles:
-            for sp in self.combat.sprite_particles:
-                sp.draw(p)
 
 
