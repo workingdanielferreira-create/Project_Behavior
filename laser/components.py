@@ -63,12 +63,13 @@ class MotionState:
 
 
 class TrailComponent:
-    __slots__ = ("trail", "flow_off", "lut")
+    __slots__ = ("trail", "flow_off", "lut", "gradient")
 
-    def __init__(self, lut):
+    def __init__(self, lut, gradient=None):
         self.trail = deque(maxlen=5000)
         self.flow_off = 0.0
         self.lut = lut
+        self.gradient = gradient
 
     def clear(self):
         self.trail.clear()
@@ -104,22 +105,39 @@ class TrailComponent:
                     trail.popleft()
         self.flow_off = (self.flow_off + config.TRAIL_FLOW_SPD) % 1.0
 
+    def _color_at(self, t):
+        """(r, g, b) for trail position t in [0, 1] (0 = oldest/tail end,
+        1 = newest/head end, at the figure). With a trail_gradient override
+        set, this is a static two-colour gradient by position alone (no
+        flow animation): solid start_color up to start_fraction, then a
+        linear fade to end_color over the remainder. Without an override,
+        falls back to the default flowing LUT colour (unchanged
+        behaviour)."""
+        g = self.gradient
+        if g is not None:
+            (sr, sg, sb), (er, eg, eb), sf = g
+            if t <= sf:
+                return sr, sg, sb
+            span = max(1e-6, 1.0 - sf)
+            k = (t - sf) / span
+            return (sr + (er - sr) * k, sg + (eg - sg) * k,
+                    sb + (eb - sb) * k)
+        idx = int(((t + self.flow_off) % 1.0) * 256) & LUT_MASK
+        return self.lut[idx]
+
     def draw(self, p, pen, path_follow):
         trail = self.trail
         n = len(trail)
         if n <= 1:
             return
-        lut = self.lut
         tl = list(trail)
-        fo = self.flow_off
         inv_n = 1.0 / n
 
         if path_follow:
             pen.setWidthF(3.0)
             for i in range(1, n):
-                idx = int(((i * inv_n + fo) % 1.0) * 256) & LUT_MASK
-                r, g, b = lut[idx]
-                pen.setColor(QColor(r, g, b, 215))
+                r, g, b = self._color_at(i * inv_n)
+                pen.setColor(QColor(int(r), int(g), int(b), 215))
                 p.setPen(pen)
                 x0, y0 = tl[i - 1]; x1, y1 = tl[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
@@ -127,9 +145,8 @@ class TrailComponent:
             tw0, tw1 = config.TRAIL_W_TAIL, config.TRAIL_W_HEAD
             for i in range(1, n):
                 t = i * inv_n
-                idx = int(((t + fo) % 1.0) * 256) & LUT_MASK
-                r, g, b = lut[idx]
-                pen.setColor(QColor(r, g, b, int(220 * t)))
+                r, g, b = self._color_at(t)
+                pen.setColor(QColor(int(r), int(g), int(b), int(220 * t)))
                 pen.setWidthF(tw0 + (tw1 - tw0) * t)
                 p.setPen(pen)
                 x0, y0 = tl[i - 1]; x1, y1 = tl[i]
@@ -137,8 +154,8 @@ class TrailComponent:
 
         # Head glow + bright core
         hx, hy = int(tl[-1][0]), int(tl[-1][1])
-        idx = int((1.0 + fo) % 1.0 * 256) & LUT_MASK
-        r, g, b = lut[idx]
+        r, g, b = self._color_at(1.0)
+        r, g, b = int(r), int(g), int(b)
         gr = config.TRAIL_GLOW_R
         grad = QRadialGradient(hx, hy, gr)
         grad.setColorAt(0.0, QColor(r, g, b, 140))
