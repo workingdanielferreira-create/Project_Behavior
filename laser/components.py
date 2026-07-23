@@ -222,7 +222,9 @@ class Combatant:
                  "hpt_fired", "dmg_teleport_accum",
                  "reaction_cd", "ult_charges",
                  "vc_phase", "vc_tick", "vc_hits_left", "vc_hidden",
-                 "vc_dir_x", "vc_dir_y", "vc_shots_pending")
+                 "vc_dir_x", "vc_dir_y", "vc_shots_pending",
+                 "sprite_particles", "sprite_emit_acc",
+                 "sprite_prev_x", "sprite_prev_y")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -328,6 +330,15 @@ class Combatant:
         self.vc_dir_x = 1.0               # walk-through direction (unit)
         self.vc_dir_y = 0.0
         self.vc_shots_pending = []        # invisible strike Projectiles
+        # Sprite-line emitter FX (see combat.sprite_emitter_cfg /
+        # update_sprite_emitter): purely cosmetic particles rising off
+        # colour-matched lines inside the character's own sprite frames.
+        # sprite_particles holds live SpriteEmitParticle instances;
+        # sprite_emit_acc is the fractional spawn-rate accumulator.
+        self.sprite_particles = []
+        self.sprite_emit_acc = 0.0
+        self.sprite_prev_x = None   # last-tick position for velocity derivation
+        self.sprite_prev_y = None
                                           # awaiting CombatSystem drain
 
     def reset(self):
