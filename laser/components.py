@@ -73,11 +73,20 @@ class TrailComponent:
     def clear(self):
         self.trail.clear()
 
-    def update(self, x, y, facing_left, is_moving, path_follow):
-        """Append a trail point behind/below the figure; decay when idle."""
+    def update(self, x, y, facing_left, is_moving, path_follow,
+               apply_offset=True):
+        """Append a trail point behind/below the figure; decay when idle.
+
+        apply_offset=False bypasses the TRAIL_BACK/TRAIL_DOWN body offset —
+        used when (x, y) is already a specific anchor point (e.g. a
+        sprite_emitter trail_anchor source), so the trail pins exactly to
+        that point instead of being nudged behind/below it."""
         trail = self.trail
-        tx = x + config.TRAIL_BACK if facing_left else x - config.TRAIL_BACK
-        ty = y + config.TRAIL_DOWN
+        if apply_offset:
+            tx = x + config.TRAIL_BACK if facing_left else x - config.TRAIL_BACK
+            ty = y + config.TRAIL_DOWN
+        else:
+            tx, ty = x, y
         if not trail:
             moved = True
         else:
