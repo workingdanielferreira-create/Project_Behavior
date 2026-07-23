@@ -13,7 +13,7 @@ from collections import deque
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
-                         QPixmap, QPainter)
+                         QPixmap, QPainter, QImage)
 
 from . import config
 from .geometry import angle_deg_qt, angle_diff
@@ -1254,6 +1254,52 @@ def _scan_frame_points(frame, src):
     return pts
 
 
+_SRC_SCAN_CACHE = {}
+
+
+def _scan_source_points(path, sources):
+    """Scan an original full-resolution source PNG for every source's match
+    colour in one pass. Returns (src_w, src_h, [[(x, y), ...] per source])
+    in source pixel coords, or None if the file can't be read.
+
+    Scanning the source art instead of the scaled in-game pixmap keeps thin
+    authored lines detectable at any render scale (at small TARGET_HEAD_PX
+    scales the lines become sub-pixel in the pixmap and vanish). The scan
+    step grows with image size so startup cost stays bounded; results are
+    cached per (path, colour/tolerance signature). Purely cosmetic path —
+    identical in Solo & Battle."""
+    sig = tuple((s["match_rgb"], s["tol"]) for s in sources)
+    key = (path, sig)
+    if key in _SRC_SCAN_CACHE:
+        return _SRC_SCAN_CACHE[key]
+    img = QImage(path)
+    if img.isNull():
+        _SRC_SCAN_CACHE[key] = None
+        return None
+    w, h = img.width(), img.height()
+    step = max(int(config.SPRITE_EMITTER_SCAN_STEP), int(max(w, h) / 160))
+    match = [(s["match_rgb"], s["tol"] * s["tol"]) for s in sources]
+    per = [[] for _ in sources]
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            c = img.pixelColor(x, y)
+            if c.alpha() < 100:
+                continue
+            cr, cg, cb = c.red(), c.green(), c.blue()
+            for si, ((mr, mg, mb), tol_sq) in enumerate(match):
+                dr, dg, db = cr - mr, cg - mg, cb - mb
+                if dr * dr + dg * dg + db * db <= tol_sq:
+                    per[si].append((x, y))
+    for si, pts in enumerate(per):
+        if len(pts) > config.SPRITE_EMITTER_MAX_POINTS:
+            k = len(pts) / float(config.SPRITE_EMITTER_MAX_POINTS)
+            per[si] = [pts[int(i * k)]
+                       for i in range(config.SPRITE_EMITTER_MAX_POINTS)]
+    out = (w, h, per)
+    _SRC_SCAN_CACHE[key] = out
+    return out
+
+
 def sprite_emitter_points(fig):
     """Per-frame cached line points for every source, keyed by sprite set.
     Structure: {set_name: [frame_entries]}, one entry per frame, where an
@@ -1270,15 +1316,34 @@ def sprite_emitter_points(fig):
         return None
     b = fig.render.bundle
     sets = dict(run=b.run, idle=b.idle, slash=b.slash)
+    char = getattr(mode, "character", None) or {}
+    src_paths = char.get("_sprite_src_paths") or {}
     data = {}
     for name, frames in sets.items():
         if not frames:
             continue
+        paths = src_paths.get(name) or []
         entries = []
-        for frame in frames:
-            per_src = [_scan_frame_points(frame, s) for s in cfg["sources"]]
-            entries.append(dict(w=frame.width(), h=frame.height(),
-                                pts=per_src))
+        for fi, frame in enumerate(frames):
+            fw, fh = frame.width(), frame.height()
+            per_src = None
+            path = paths[fi] if fi < len(paths) else None
+            if path:
+                # Preferred: colour-scan the original full-res source PNG
+                # and remap points into scaled-frame coords, so thin lines
+                # survive any render scale.
+                scan = _scan_source_points(path, cfg["sources"])
+                if scan is not None:
+                    sw, sh, per = scan
+                    per_src = [[(px * fw / float(max(1, sw)),
+                                 py * fh / float(max(1, sh)))
+                                for (px, py) in pts] for pts in per]
+            if per_src is None:
+                # Fallback (no sprite_files source on disk): scan the
+                # scaled pixmap as before.
+                per_src = [_scan_frame_points(frame, s)
+                           for s in cfg["sources"]]
+            entries.append(dict(w=fw, h=fh, pts=per_src))
         data[name] = entries
     if cfg["infer"]:
         # Fill empty frames from the nearest matching frame (same set first,
