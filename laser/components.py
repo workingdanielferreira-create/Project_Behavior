@@ -179,9 +179,10 @@ class Renderable:
 
     __slots__ = ("bundle", "run_idx", "idle_idx",
                  "anim_tick", "anim_speed", "idle_anim_speed", "is_moving",
-                 "outline_glow")
+                 "outline_glow", "afterimage_rgb")
 
-    def __init__(self, bundle, anim_speed, idle_anim_speed, outline_glow=None):
+    def __init__(self, bundle, anim_speed, idle_anim_speed, outline_glow=None,
+                 afterimage_rgb=None):
         self.bundle = bundle
         self.run_idx = 0
         self.idle_idx = 0
@@ -193,6 +194,11 @@ class Renderable:
         # feature (JSON `outline_glow` opt-in); None = no outline, drawn
         # identically in Solo and Battle since it lives in Figure.draw.
         self.outline_glow = outline_glow
+        # Optional (r,g,b) opt-in (JSON `afterimage_color`) recolouring this
+        # character's dash/blink speed-ghosts away from the default crimson
+        # (combat.silhouette's own fallback covers every character that
+        # doesn't set this).
+        self.afterimage_rgb = afterimage_rgb
 
     def set_bundle(self, bundle):
         self.bundle = bundle
