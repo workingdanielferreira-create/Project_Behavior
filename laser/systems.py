@@ -247,6 +247,7 @@ class CombatSystem(System):
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
+            combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
             # (swordsman via uses_melee(), or a JSON character whose `defend`
