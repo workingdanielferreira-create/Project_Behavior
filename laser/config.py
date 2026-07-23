@@ -455,6 +455,18 @@ OUTLINE_GLOW_DEFAULT_RADIUS  = 3.0           # px offset of each outline copy
 OUTLINE_GLOW_DEFAULT_OPACITY = 140           # 0-255
 OUTLINE_GLOW_STEPS           = 8             # copies drawn in a ring (every 45°)
 
+# ---------------------------------------------------------------------------
+# Trail gradient — generic static two-colour trail override for characters
+# that opt in via a top-level `trail_gradient` block. Replaces the default
+# flowing LUT-driven trail colour with a fixed tail->head gradient: solid
+# start_color for the first start_fraction of the trail, then a linear fade
+# to end_color over the remainder. No engine branching on character
+# identity — any character's JSON can enable this (components.TrailComponent).
+# ---------------------------------------------------------------------------
+TRAIL_GRADIENT_DEFAULT_START_RGB      = (255, 255, 255)
+TRAIL_GRADIENT_DEFAULT_END_RGB        = (255, 255, 255)
+TRAIL_GRADIENT_DEFAULT_START_FRACTION = 0.75
+
 # Hit-stop — everything freezes for a few ticks on BIG hits only
 # (attack-string finishers and ultimate launches).  Both sides share one
 # clock, so attacker and victim freeze together in Battle mode.
