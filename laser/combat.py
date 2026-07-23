@@ -1155,6 +1155,332 @@ def _spawn_burst_now(fig, layer, scale, facing):
             rgb1, rgb2, gravity, drag))
 
 
+# ---------------------------------------------------------------------------
+# Sprite-line emitter — generic cosmetic FX (JSON `sprite_emitter` block).
+# Particles rise off colour-matched "lines" painted inside a character's own
+# sprite frames (e.g. a blade edge). Two source modes:
+#   "emit" — continuously spawns small rising/fading particles from random
+#            points on the line; particles inherit a fraction of the figure's
+#            velocity backwards so they trail behind movement.
+#   "glow" — no spawning; pulsing glow dots drawn pinned to the line points
+#            (rendered by Figure.draw inside the sprite transform).
+# Frame pixel positions are colour-scanned once per mode and cached; frames
+# with no match borrow the nearest matching frame's points normalised to
+# frame size (`infer_missing_frames`), keeping the effect alive across the
+# whole loop. Purely cosmetic — never enters combat resolution or the IPC
+# boundary. Identical in Solo & Battle.
+# ---------------------------------------------------------------------------
+
+def sprite_emitter_cfg(fig):
+    """Parsed `sprite_emitter` block for fig's character, or None. Cached on
+    the mode instance like blink_cfg/clone_cfg."""
+    mode = fig.mode
+    if hasattr(mode, "_sprite_emitter_cfg"):
+        return mode._sprite_emitter_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("sprite_emitter") if char else None
+    if not (isinstance(raw, dict) and isinstance(raw.get("sources"), list)):
+        mode._sprite_emitter_cfg = None
+        return None
+
+    def _f(d, key, default):
+        try:
+            return float(d.get(key, default))
+        except (TypeError, ValueError):
+            return float(default)
+
+    sources = []
+    for s in raw["sources"]:
+        if not isinstance(s, dict):
+            continue
+        m = str(s.get("mode", "emit")).lower()
+        src = dict(
+            mode=("glow" if m == "glow" else "emit"),
+            match_rgb=_hex_rgb_safe(s.get("match_color"), (255, 255, 255)),
+            tol=_f(s, "tolerance", config.SPRITE_EMITTER_MATCH_TOL_DEFAULT),
+            core_rgb=_hex_rgb_safe(s.get("core_color"), (255, 255, 255)),
+            glow_rgb=_hex_rgb_safe(s.get("glow_color"),
+                                   _hex_rgb_safe(s.get("match_color"),
+                                                 (255, 255, 255))),
+            rate_hz=_f(s, "rate_hz", config.SPRITE_EMITTER_RATE_HZ_DEFAULT),
+            rise_speed=_f(s, "rise_speed",
+                          config.SPRITE_EMITTER_RISE_SPEED_DEFAULT),
+            trail_inherit=_f(s, "trail_inherit",
+                             config.SPRITE_EMITTER_TRAIL_INHERIT_DEFAULT),
+            life_ms_min=_f(s, "life_ms_min",
+                           config.SPRITE_EMITTER_LIFE_MS_MIN_DEFAULT),
+            life_ms_max=_f(s, "life_ms_max",
+                           config.SPRITE_EMITTER_LIFE_MS_MAX_DEFAULT),
+            size_min=_f(s, "size_min", config.SPRITE_EMITTER_SIZE_MIN_DEFAULT),
+            size_max=_f(s, "size_max", config.SPRITE_EMITTER_SIZE_MAX_DEFAULT),
+            pulse_hz=_f(s, "pulse_hz",
+                        config.SPRITE_EMITTER_GLOW_PULSE_HZ_DEFAULT),
+            glow_size=_f(s, "size", config.SPRITE_EMITTER_GLOW_SIZE_DEFAULT),
+            glow_alpha=_f(s, "glow_alpha",
+                          config.SPRITE_EMITTER_GLOW_ALPHA_DEFAULT),
+        )
+        sources.append(src)
+    if not sources:
+        mode._sprite_emitter_cfg = None
+        return None
+    mode._sprite_emitter_cfg = dict(
+        sources=sources,
+        infer=bool(raw.get("infer_missing_frames", True)),
+    )
+    return mode._sprite_emitter_cfg
+
+
+def _scan_frame_points(frame, src):
+    """Grid-scan one (unflipped) QPixmap frame for pixels within `tol` RGB
+    distance of the source's match colour. Returns [(x, y), ...] in frame
+    pixel coords (top-left origin), capped at SPRITE_EMITTER_MAX_POINTS."""
+    img = frame.toImage()
+    w, h = img.width(), img.height()
+    mr, mg, mb = src["match_rgb"]
+    tol_sq = src["tol"] * src["tol"]
+    step = max(1, int(config.SPRITE_EMITTER_SCAN_STEP))
+    pts = []
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            c = img.pixelColor(x, y)
+            if c.alpha() < 100:
+                continue
+            dr, dg, db = c.red() - mr, c.green() - mg, c.blue() - mb
+            if dr * dr + dg * dg + db * db <= tol_sq:
+                pts.append((x, y))
+    if len(pts) > config.SPRITE_EMITTER_MAX_POINTS:
+        k = len(pts) / float(config.SPRITE_EMITTER_MAX_POINTS)
+        pts = [pts[int(i * k)] for i in range(config.SPRITE_EMITTER_MAX_POINTS)]
+    return pts
+
+
+def sprite_emitter_points(fig):
+    """Per-frame cached line points for every source, keyed by sprite set.
+    Structure: {set_name: [frame_entries]}, one entry per frame, where an
+    entry is a list (parallel to cfg sources) of [(x, y), ...] point lists
+    plus the frame's (w, h). Built once per mode on first call; frames with
+    no match borrow the nearest matching frame's points normalised to frame
+    size when `infer_missing_frames` is on."""
+    mode = fig.mode
+    if hasattr(mode, "_sprite_emitter_pts"):
+        return mode._sprite_emitter_pts
+    cfg = sprite_emitter_cfg(fig)
+    if cfg is None:
+        mode._sprite_emitter_pts = None
+        return None
+    b = fig.render.bundle
+    sets = dict(run=b.run, idle=b.idle, slash=b.slash)
+    data = {}
+    for name, frames in sets.items():
+        if not frames:
+            continue
+        entries = []
+        for frame in frames:
+            per_src = [_scan_frame_points(frame, s) for s in cfg["sources"]]
+            entries.append(dict(w=frame.width(), h=frame.height(),
+                                pts=per_src))
+        data[name] = entries
+    if cfg["infer"]:
+        # Fill empty frames from the nearest matching frame (same set first,
+        # then any set), remapping points through normalised coordinates so
+        # differently-sized frames line up proportionally.
+        for si in range(len(cfg["sources"])):
+            donors = []          # (set, idx, entry) with points for source si
+            for name, entries in data.items():
+                for i, e in enumerate(entries):
+                    if e["pts"][si]:
+                        donors.append((name, i, e))
+            if not donors:
+                continue
+            for name, entries in data.items():
+                for i, e in enumerate(entries):
+                    if e["pts"][si]:
+                        continue
+                    same = [d for d in donors if d[0] == name]
+                    pool = same or donors
+                    donor = min(pool, key=lambda d: abs(d[1] - i))[2]
+                    dw = max(1, donor["w"])
+                    dh = max(1, donor["h"])
+                    e["pts"][si] = [
+                        (px * e["w"] / float(dw), py * e["h"] / float(dh))
+                        for (px, py) in donor["pts"][si]]
+    mode._sprite_emitter_pts = data
+    return data
+
+
+class SpriteEmitParticle:
+    """One rising/fading cosmetic particle emitted off a sprite line.
+    Drawn as a glow ring (glow colour) with a bright core, matching the
+    authored two-colour look. Never affects combat resolution."""
+    __slots__ = ("x", "y", "vx", "vy", "age", "life", "size",
+                 "core_rgb", "glow_rgb")
+
+    def __init__(self, x, y, vx, vy, life_ticks, size, core_rgb, glow_rgb):
+        self.x, self.y = x, y
+        self.vx, self.vy = vx, vy
+        self.age = 0
+        self.life = max(1, life_ticks)
+        self.size = size
+        self.core_rgb = core_rgb
+        self.glow_rgb = glow_rgb
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def update(self):
+        tick_s = config.TICK_MS / 1000.0
+        self.vx *= 0.96
+        self.vy *= 0.985
+        self.x += self.vx * tick_s
+        self.y += self.vy * tick_s
+        self.age += 1
+
+    def draw(self, p):
+        t = min(1.0, self.age / float(self.life))
+        fade = max(0.0, 1.0 - t)
+        size = max(0.6, self.size * (1.0 - 0.35 * t))
+        gr, gg, gb = self.glow_rgb
+        cr, cg, cb = self.core_rgb
+        glow_pm, gh = bullet_sprite(gr, gg, gb,
+                                    size * config.SPRITE_EMITTER_GLOW_SCALE)
+        core_pm, ch = bullet_sprite(cr, cg, cb, size)
+        p.setOpacity(fade * 0.7)
+        p.drawPixmap(int(self.x) - gh, int(self.y) - gh, glow_pm)
+        p.setOpacity(fade)
+        p.drawPixmap(int(self.x) - ch, int(self.y) - ch, core_pm)
+        p.setOpacity(1.0)
+
+
+def _frame_point_to_world(fig, e, px, py):
+    """Map a frame-local point (top-left origin, unflipped frame) to world
+    coordinates, honouring the flipped frame set and optional sprite
+    rotation — mirroring exactly how Figure.draw places the pixmap."""
+    lx = px - e["w"] / 2.0
+    ly = py - e["h"] / 2.0
+    if fig.transform.facing_left:
+        lx = -lx
+    if fig.motion.rotate and fig.transform.angle:
+        a = math.radians(fig.transform.angle)
+        ca, sa = math.cos(a), math.sin(a)
+        lx, ly = lx * ca - ly * sa, lx * sa + ly * ca
+    return fig.x + lx, fig.y + ly
+
+
+def _current_sprite_entry(fig, data):
+    """The cached point entry matching the frame Figure.draw shows this
+    tick (mirrors Figure._current_frame's selection order), or None."""
+    b = fig.render.bundle
+    c = fig.combat
+    m = fig.motion
+    r = fig.render
+    if c.slashing and b.slash and "slash" in data:
+        idx = min(c.slash_idx, len(data["slash"]) - 1)
+        return data["slash"][idx]
+    if (m.bouncing and b.slide is not None) or        (m.bounce_ending and b.slide2 is not None):
+        return None                       # slide frames aren't scanned
+    if r.is_moving and b.run and "run" in data:
+        return data["run"][r.run_idx % len(data["run"])]
+    if b.idle and "idle" in data:
+        return data["idle"][r.idle_idx % len(data["idle"])]
+    if b.run and "run" in data:
+        return data["run"][r.run_idx % len(data["run"])]
+    return None
+
+
+def update_sprite_emitter(fig):
+    """Spawn new line particles for every "emit" source at its authored rate
+    and tick/cull the live ones. Cheap no-op for characters without the
+    `sprite_emitter` block. Call every tick for every figure — identical in
+    Solo & Battle."""
+    cfg = sprite_emitter_cfg(fig)
+    c = fig.combat
+    if cfg is None:
+        return
+    data = sprite_emitter_points(fig)
+    # Per-tick velocity (px/s) from last position — powers the trail-behind
+    # feel; first tick has no history so velocity starts at zero.
+    tick_s = config.TICK_MS / 1000.0
+    if c.sprite_prev_x is None:
+        fvx = fvy = 0.0
+    else:
+        fvx = (fig.x - c.sprite_prev_x) / tick_s
+        fvy = (fig.y - c.sprite_prev_y) / tick_s
+    c.sprite_prev_x, c.sprite_prev_y = fig.x, fig.y
+    if data:
+        entry = _current_sprite_entry(fig, data)
+        if entry is not None and not c.vc_hidden:
+            rng = fig.personality.rng
+            total_rate = sum(s["rate_hz"] for s in cfg["sources"]
+                             if s["mode"] == "emit")
+            c.sprite_emit_acc += total_rate * tick_s
+            spawns = int(c.sprite_emit_acc)
+            c.sprite_emit_acc -= spawns
+            emit_srcs = [(i, s) for i, s in enumerate(cfg["sources"])
+                         if s["mode"] == "emit" and entry["pts"][i]]
+            for _ in range(spawns):
+                if not emit_srcs:
+                    break
+                si, s = emit_srcs[rng.randrange(len(emit_srcs))]
+                px, py = entry["pts"][si][rng.randrange(len(entry["pts"][si]))]
+                wx, wy = _frame_point_to_world(fig, entry, px, py)
+                vx = -fvx * s["trail_inherit"] + rng.uniform(-6.0, 6.0)
+                vy = (-s["rise_speed"] + rng.uniform(-5.0, 5.0)
+                      - fvy * s["trail_inherit"])
+                life_ms = rng.uniform(s["life_ms_min"], s["life_ms_max"])
+                life_ticks = max(1, int(life_ms / config.TICK_MS))
+                size = rng.uniform(s["size_min"], s["size_max"])
+                c.sprite_particles.append(SpriteEmitParticle(
+                    wx, wy, vx, vy, life_ticks, size,
+                    s["core_rgb"], s["glow_rgb"]))
+    if c.sprite_particles:
+        alive = []
+        for sp in c.sprite_particles:
+            sp.update()
+            if sp.alive:
+                alive.append(sp)
+        c.sprite_particles = alive
+
+
+def draw_sprite_emitter_glow(fig, p, tick_count):
+    """Draw the pulsing glow dots for every "glow" source pinned to the
+    current frame's line points. Called by Figure.draw in world space (the
+    points are transformed through the same flip/rotation as the sprite).
+    No-op without the block."""
+    cfg = sprite_emitter_cfg(fig)
+    if cfg is None or fig.combat.vc_hidden:
+        return
+    data = sprite_emitter_points(fig)
+    if not data:
+        return
+    entry = _current_sprite_entry(fig, data)
+    if entry is None:
+        return
+    t_s = tick_count * config.TICK_MS / 1000.0
+    for si, s in enumerate(cfg["sources"]):
+        if s["mode"] != "glow" or not entry["pts"][si]:
+            continue
+        pulse = 0.5 + 0.5 * math.sin(2.0 * math.pi * s["pulse_hz"] * t_s)
+        alpha = (0.35 + 0.65 * pulse) * s["glow_alpha"] / 255.0
+        gr, gg, gb = s["glow_rgb"]
+        cr, cg, cb = s["core_rgb"]
+        glow_pm, gh = bullet_sprite(gr, gg, gb,
+                                    s["glow_size"]
+                                    * config.SPRITE_EMITTER_GLOW_SCALE)
+        core_pm, ch = bullet_sprite(cr, cg, cb, s["glow_size"] * 0.6)
+        step = max(1, len(entry["pts"][si]) // 40)
+        pts = entry["pts"][si][::step]
+        p.setOpacity(alpha * 0.6)
+        for (px, py) in pts:
+            wx, wy = _frame_point_to_world(fig, entry, px, py)
+            p.drawPixmap(int(wx) - gh, int(wy) - gh, glow_pm)
+        p.setOpacity(alpha)
+        for (px, py) in pts:
+            wx, wy = _frame_point_to_world(fig, entry, px, py)
+            p.drawPixmap(int(wx) - ch, int(wy) - ch, core_pm)
+        p.setOpacity(1.0)
+
+
 def update_character_bursts(fig):
     """Advance pending-delay timers (spawning bursts when due) and tick/cull
     live burst particles. Cheap no-op for figures with none of either. Call
