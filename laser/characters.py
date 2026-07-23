@@ -340,6 +340,32 @@ def _outline_glow(char):
     return (rgb, radius, opacity)
 
 
+def _trail_gradient(char):
+    """Top-level trail_gradient opt-in -> (start_rgb, end_rgb, start_fraction)
+    tuple, or None when absent/disabled. Overrides the default flowing
+    LUT-driven trail colour with a static two-colour gradient by trail
+    position (tail->head). Any character's JSON can enable this; no
+    archetype/game-mode branching involved."""
+    tg = char.get("trail_gradient")
+    if not isinstance(tg, dict) or not tg.get("enabled"):
+        return None
+    try:
+        start_rgb = _hex_rgb(tg.get("start_color", ""))
+    except (TypeError, ValueError, IndexError):
+        start_rgb = config.TRAIL_GRADIENT_DEFAULT_START_RGB
+    try:
+        end_rgb = _hex_rgb(tg.get("end_color", ""))
+    except (TypeError, ValueError, IndexError):
+        end_rgb = config.TRAIL_GRADIENT_DEFAULT_END_RGB
+    try:
+        start_fraction = max(0.0, min(1.0, float(
+            tg.get("start_fraction",
+                   config.TRAIL_GRADIENT_DEFAULT_START_FRACTION))))
+    except (TypeError, ValueError):
+        start_fraction = config.TRAIL_GRADIENT_DEFAULT_START_FRACTION
+    return (start_rgb, end_rgb, start_fraction)
+
+
 def _kites_flag(char):
     """movement.kites opt-in — independent of archetype/predicates (which
     are locked by the archetype trap for 'shooter'/'melee'). Any character,
@@ -391,6 +417,7 @@ def _register(char):
         max_hp=_stat("max_hp", 100),
         basic_attack_radius=_stat("basic_attack_radius", config.SLASH_RADIUS),
         outline_glow=_outline_glow(char),
+        trail_gradient=_trail_gradient(char),
     )
     # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
     # and Battle alike) already reads from there, so no other file changes.
