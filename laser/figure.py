@@ -37,7 +37,7 @@ class Figure:
             offset_x=ox, offset_y=oy,
             rotate=config.ROTATE_TO_FACING_ENABLED,
         )
-        self.trail = TrailComponent(lut)
+        self.trail = TrailComponent(lut, gradient=spd.get("trail_gradient"))
         self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"],
                                   outline_glow=spd.get("outline_glow"))
         self.combat = Combatant()
@@ -68,6 +68,7 @@ class Figure:
         self.render.set_bundle(bundle)
         self.combat.reset()
         self.trail.clear()
+        self.trail.gradient = spd.get("trail_gradient")
         # Re-initialise HP for the new mode
         _mhp = config.MODE_CONFIGS.get(mode.key, {}).get("max_hp", 30)
         self.personality.max_hp = _mhp
