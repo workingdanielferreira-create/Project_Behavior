@@ -162,5 +162,37 @@
     "defence": "deflect (generalized parry) via defend layer L1",
     "parity": "identical Solo/Battle — reaction + vanish_cut route through CombatSystem"
   },
-  "disable_survival_teleport": true
+  "disable_survival_teleport": true,
+  "sprite_emitter": {
+    "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out; the BLUE line only glows — pulsing dots pinned to the line, no emission. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
+    "infer_missing_frames": true,
+    "sources": [
+      {
+        "id": "orange_line",
+        "mode": "emit",
+        "match_color": "#e57134",
+        "tolerance": 80,
+        "core_color": "#ffb163",
+        "glow_color": "#c8511a",
+        "rate_hz": 26,
+        "rise_speed": 34,
+        "trail_inherit": 0.55,
+        "life_ms_min": 380,
+        "life_ms_max": 720,
+        "size_min": 2.0,
+        "size_max": 4.5
+      },
+      {
+        "id": "blue_line",
+        "mode": "glow",
+        "match_color": "#1399cd",
+        "tolerance": 80,
+        "core_color": "#9fe8ff",
+        "glow_color": "#39c8ff",
+        "pulse_hz": 2.2,
+        "size": 3.2,
+        "glow_alpha": 150
+      }
+    ]
+  }
 }
