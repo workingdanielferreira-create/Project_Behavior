@@ -1,198 +1,198 @@
 {
-  "format": "pb_character",
-  "version": 2,
-  "name": "ronin",
-  "display_name": "Ronin",
-  "description": "Counter archetype: a slow, relentless samurai who blocks or blinks past anything that gets close, then answers with steel.",
-  "archetype": "New",
-  "predicates": {
-    "can_shoot": false,
-    "uses_melee": true,
-    "retreats": false,
-    "charges_full": true
+ "format": "pb_character",
+ "version": 2,
+ "name": "ronin",
+ "display_name": "Ronin",
+ "description": "Counter archetype: a slow, relentless samurai who blocks or blinks past anything that gets close, then answers with steel.",
+ "archetype": "New",
+ "predicates": {
+  "can_shoot": false,
+  "uses_melee": true,
+  "retreats": false,
+  "charges_full": true
+ },
+ "movement": {
+  "wander_strength": 0.15
+ },
+ "stats": {
+  "max_hp": 100,
+  "chase_speed": 0.9,
+  "follow_speed": 0.9,
+  "scale": 1.0,
+  "basic_attack_radius": 180
+ },
+ "rig": "humanoid_v2",
+ "bones": {
+  "ua": 14,
+  "fa": 12,
+  "th": 16,
+  "sh": 14,
+  "torso": 22
+ },
+ "palette": {
+  "body": "#15151c",
+  "accent": "#e8e8f2"
+ },
+ "defense": "block",
+ "weapon": {
+  "points": [],
+  "thickness": 3,
+  "color": "#e8e8f2",
+  "anchors": []
+ },
+ "sprite_files": {
+  "_comment": "Character-authored PNG frame sets (generic loader path in laser/characters.py). remove_bg false: these PNGs already carry real alpha, so the near-black bg-removal pass is skipped to protect the dark outlines. Per-set src_head_px matches each set's own source scale to roster size (TARGET_HEAD_PX).",
+  "remove_bg": false,
+  "run": {
+   "files": [
+    "Samuraiwalk1.png",
+    "Samuraiwalk2.png",
+    "Samuraiwalk3.png",
+    "Samuraiwalk4.png"
+   ],
+   "src_head_px": 406
   },
-  "movement": {
-    "wander_strength": 0.15
+  "idle": {
+   "files": [
+    "Samuraistand 1.png",
+    "Samuraistand 2.png"
+   ],
+   "src_head_px": 117
   },
-  "stats": {
-    "max_hp": 100,
-    "chase_speed": 0.9,
-    "follow_speed": 0.9,
-    "scale": 1.0,
-    "basic_attack_radius": 180
-  },
-  "rig": "humanoid_v2",
-  "bones": {
-    "ua": 14,
-    "fa": 12,
-    "th": 16,
-    "sh": 14,
-    "torso": 22
-  },
-  "palette": {
-    "body": "#15151c",
-    "accent": "#e8e8f2"
-  },
-  "defense": "block",
-  "weapon": {
-    "points": [],
-    "thickness": 3,
-    "color": "#e8e8f2",
-    "anchors": []
-  },
-  "sprite_files": {
-    "_comment": "Character-authored PNG frame sets (generic loader path in laser/characters.py). remove_bg false: these PNGs already carry real alpha, so the near-black bg-removal pass is skipped to protect the dark outlines. Per-set src_head_px matches each set's own source scale to roster size (TARGET_HEAD_PX).",
-    "remove_bg": false,
-    "run": {
-      "files": [
-        "Samuraiwalk1.png",
-        "Samuraiwalk2.png",
-        "Samuraiwalk3.png",
-        "Samuraiwalk4.png"
-      ],
-      "src_head_px": 406
-    },
-    "idle": {
-      "files": [
-        "Samuraistand 1.png",
-        "Samuraistand 2.png"
-      ],
-      "src_head_px": 117
-    },
-    "slash": {
-      "files": [
-        "Samuraiatk1.png",
-        "Samuraiatk2.png",
-        "Samuraiatk3.png",
-        "Samuraiatk4.png",
-        "Samuraiatk5.png"
-      ],
-      "src_head_px": 117
-    }
-  },
-  "counter_only": true,
-  "reaction": {
-    "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy). One shared cooldown. Each activation adds one vanish_cut charge.",
-    "radius_px": 50,
-    "cooldown_ms": 200,
-    "counter_chance": 0.5,
-    "blink_behind_px": 60,
-    "charge_ultimate": true
-  },
-  "ultimate_playback": {
-    "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges — vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
-    "style": "vanish_cut",
-    "charges_required": 20,
-    "hits": 5,
-    "hit_damage": 9,
-    "hit_interval_ms": 96,
-    "vanish_ms": 400,
-    "impact_ms": 250,
-    "reappear_past_px": 70,
-    "trigger_range_px": 340
-  },
-  "actions": {
-    "idle": {
-      "trigger": "auto",
-      "duration_ms": 900,
-      "keyframes": [
-        {},
-        {}
-      ],
-      "fx_layers": []
-    },
-    "run": {
-      "trigger": "auto",
-      "duration_ms": 700,
-      "keyframes": [
-        {},
-        {},
-        {},
-        {}
-      ],
-      "fx_layers": []
-    },
-    "attack_normal": {
-      "trigger": "proximity",
-      "duration_ms": 400,
-      "keyframes": [
-        {},
-        {},
-        {},
-        {},
-        {}
-      ],
-      "fx_layers": []
-    },
-    "defend": {
-      "trigger": "incoming_attack",
-      "duration_ms": 300,
-      "keyframes": [
-        {},
-        {}
-      ],
-      "fx_layers": [
-        {
-          "_id": "L1",
-          "type": "ring",
-          "anchor": "point",
-          "px": 0,
-          "py": 0,
-          "radius_x": 22,
-          "radius_y": 22,
-          "c1": "#e8e8f2",
-          "c2": "#8a8a9a",
-          "glow": 0.6,
-          "life_min": 200,
-          "life_max": 300,
-          "can_hit": true,
-          "battle": {
-            "damage": 0,
-            "defence": "deflect"
-          }
-        }
-      ]
-    }
-  },
-  "battle_semantics": {
-    "attach": "per fx layer on can_hit layers",
-    "trigger": "reaction block drives counter/dodge; ultimate is charge-based (vanish_cut)",
-    "damage": "basic slash via built-in melee FSM; ultimate hits authored in ultimate_playback",
-    "attack": "melee dash/arc string (built-in), retaliation slash from counter",
-    "defence": "deflect (generalized parry) via defend layer L1",
-    "parity": "identical Solo/Battle — reaction + vanish_cut route through CombatSystem"
-  },
-  "disable_survival_teleport": true,
-  "sprite_emitter": {
-    "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out; the BLUE line only glows — pulsing dots pinned to the line, no emission. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
-    "infer_missing_frames": true,
-    "sources": [
-      {
-        "id": "orange_line",
-        "mode": "emit",
-        "match_color": "#e57134",
-        "tolerance": 80,
-        "core_color": "#ffb163",
-        "glow_color": "#c8511a",
-        "rate_hz": 26,
-        "rise_speed": 34,
-        "trail_inherit": 0.55,
-        "life_ms_min": 380,
-        "life_ms_max": 720,
-        "size_min": 2.0,
-        "size_max": 4.5
-      },
-      {
-        "id": "blue_line",
-        "mode": "glow",
-        "match_color": "#1399cd",
-        "tolerance": 80,
-        "core_color": "#9fe8ff",
-        "glow_color": "#39c8ff",
-        "pulse_hz": 2.2,
-        "size": 3.2,
-        "glow_alpha": 150
-      }
-    ]
+  "slash": {
+   "files": [
+    "Samuraiatk1.png",
+    "Samuraiatk2.png",
+    "Samuraiatk3.png",
+    "Samuraiatk4.png",
+    "Samuraiatk5.png"
+   ],
+   "src_head_px": 117
   }
+ },
+ "counter_only": true,
+ "reaction": {
+  "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy). One shared cooldown. Each activation adds one vanish_cut charge.",
+  "radius_px": 50,
+  "cooldown_ms": 200,
+  "counter_chance": 0.5,
+  "blink_behind_px": 60,
+  "charge_ultimate": true
+ },
+ "ultimate_playback": {
+  "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges \u2014 vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
+  "style": "vanish_cut",
+  "charges_required": 20,
+  "hits": 5,
+  "hit_damage": 9,
+  "hit_interval_ms": 96,
+  "vanish_ms": 400,
+  "impact_ms": 250,
+  "reappear_past_px": 70,
+  "trigger_range_px": 340
+ },
+ "actions": {
+  "idle": {
+   "trigger": "auto",
+   "duration_ms": 900,
+   "keyframes": [
+    {},
+    {}
+   ],
+   "fx_layers": []
+  },
+  "run": {
+   "trigger": "auto",
+   "duration_ms": 700,
+   "keyframes": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "fx_layers": []
+  },
+  "attack_normal": {
+   "trigger": "proximity",
+   "duration_ms": 400,
+   "keyframes": [
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "fx_layers": []
+  },
+  "defend": {
+   "trigger": "incoming_attack",
+   "duration_ms": 300,
+   "keyframes": [
+    {},
+    {}
+   ],
+   "fx_layers": [
+    {
+     "_id": "L1",
+     "type": "ring",
+     "anchor": "point",
+     "px": 0,
+     "py": 0,
+     "radius_x": 22,
+     "radius_y": 22,
+     "c1": "#e8e8f2",
+     "c2": "#8a8a9a",
+     "glow": 0.6,
+     "life_min": 200,
+     "life_max": 300,
+     "can_hit": true,
+     "battle": {
+      "damage": 0,
+      "defence": "deflect"
+     }
+    }
+   ]
+  }
+ },
+ "battle_semantics": {
+  "attach": "per fx layer on can_hit layers",
+  "trigger": "reaction block drives counter/dodge; ultimate is charge-based (vanish_cut)",
+  "damage": "basic slash via built-in melee FSM; ultimate hits authored in ultimate_playback",
+  "attack": "melee dash/arc string (built-in), retaliation slash from counter",
+  "defence": "deflect (generalized parry) via defend layer L1",
+  "parity": "identical Solo/Battle \u2014 reaction + vanish_cut route through CombatSystem"
+ },
+ "disable_survival_teleport": true,
+ "sprite_emitter": {
+  "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out; the BLUE line only glows \u2014 pulsing dots pinned to the line, no emission. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
+  "infer_missing_frames": true,
+  "sources": [
+   {
+    "id": "orange_line",
+    "mode": "emit",
+    "match_color": "#e57134",
+    "tolerance": 80,
+    "core_color": "#ffb163",
+    "glow_color": "#c8511a",
+    "rate_hz": 26,
+    "rise_speed": 34,
+    "trail_inherit": 0.55,
+    "life_ms_min": 380,
+    "life_ms_max": 720,
+    "size_min": 0.5,
+    "size_max": 1.125
+   },
+   {
+    "id": "blue_line",
+    "mode": "glow",
+    "match_color": "#1399cd",
+    "tolerance": 80,
+    "core_color": "#9fe8ff",
+    "glow_color": "#39c8ff",
+    "pulse_hz": 2.2,
+    "size": 0.8,
+    "glow_alpha": 150
+   }
+  ]
+ }
 }
