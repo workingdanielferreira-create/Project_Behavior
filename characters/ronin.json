@@ -31,13 +31,13 @@
  },
  "palette": {
   "body": "#15151c",
-  "accent": "#e8e8f2"
+  "accent": "#C2E0F9"
  },
  "defense": "block",
  "weapon": {
   "points": [],
   "thickness": 3,
-  "color": "#e8e8f2",
+  "color": "#C2E0F9",
   "anchors": []
  },
  "sprite_files": {
@@ -170,6 +170,13 @@
   "radius": 2.0,
   "opacity": 255
  },
+ "trail_gradient": {
+  "_comment": "Generic engine feature (config.TRAIL_GRADIENT_*, characters._trail_gradient, components.TrailComponent._color_at) \u2014 replaces the default flowing LUT trail colour with a static tail-to-head gradient: solid start_color for the first start_fraction of the trail, fading to end_color over the remainder.",
+  "enabled": true,
+  "start_color": "#ABD1F3",
+  "end_color": "#C2E0F9",
+  "start_fraction": 0.75
+ },
  "sprite_emitter": {
   "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out, drifting upward at a slowed rise_speed; the BLUE line only glows \u2014 pulsing dots pinned to the line, no emission \u2014 and is flagged trail_anchor:true, so the movement trail (normally body-anchored) instead pins live each frame to that line's point farthest from the sprite centre (the sword tip), through both normal movement and combat dashes/dodges. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
   "infer_missing_frames": true,
@@ -179,8 +186,8 @@
     "mode": "emit",
     "match_color": "#e57134",
     "tolerance": 80,
-    "core_color": "#ffb163",
-    "glow_color": "#c8511a",
+    "core_color": "#C2E0F9",
+    "glow_color": "#C2E0F9",
     "rate_hz": 26,
     "rise_speed": 18,
     "trail_inherit": 0.55,
@@ -194,8 +201,8 @@
     "mode": "glow",
     "match_color": "#1399cd",
     "tolerance": 80,
-    "core_color": "#9fe8ff",
-    "glow_color": "#39c8ff",
+    "core_color": "#C2E0F9",
+    "glow_color": "#C2E0F9",
     "pulse_hz": 2.2,
     "size": 0.8,
     "glow_alpha": 150,
