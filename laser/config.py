@@ -338,6 +338,38 @@ HPT_CLONE_ORBIT_SPEED_DEFAULT  = 25.0     # deg/s
 HPT_CLONE_APPROACH_SPEED_DEFAULT = 900.0  # px/s — sphere speed while intercepting
 HPT_CLONE_COOLDOWN_MS_DEFAULT  = 1550     # ms — sphere respawn after a contact
 HPT_CLONE_CORNER_INSET_PX      = 120.0    # px inset from the true screen corner
+
+# ---------------------------------------------------------------------------
+# Sprite-line emitter (see combat.sprite_emitter_cfg / update_sprite_emitter).
+# Generic, data-driven cosmetic mechanic: any character with authored PNG
+# frames opts in via a top-level `sprite_emitter` JSON block. At first use,
+# each sprite frame is colour-scanned for the authored line colours and the
+# matching pixel positions are cached per frame; at runtime "emit" sources
+# continuously spawn small rising/fading particles from random points on the
+# line (inheriting a fraction of the figure's velocity backwards, so they
+# trail behind movement) while "glow" sources draw pulsing glow dots pinned
+# to the line with no emission. Frames with no matching pixels borrow the
+# nearest matching frame's points (normalised to frame size) when
+# `infer_missing_frames` is set, so the effect persists across the whole
+# animation loop. Purely cosmetic — never touches combat resolution or the
+# IPC boundary. Identical in Solo & Battle (per-figure tick in CombatSystem,
+# drawn by Figure.draw).
+# ---------------------------------------------------------------------------
+SPRITE_EMITTER_SCAN_STEP        = 2      # px grid step when scanning frames
+SPRITE_EMITTER_MAX_POINTS       = 120    # cap of cached points per frame/source
+SPRITE_EMITTER_RATE_HZ_DEFAULT  = 26.0   # particles/s per emit source
+SPRITE_EMITTER_RISE_SPEED_DEFAULT = 34.0 # px/s upward drift
+SPRITE_EMITTER_TRAIL_INHERIT_DEFAULT = 0.55  # fraction of figure velocity
+                                             # mirrored backwards (trail feel)
+SPRITE_EMITTER_LIFE_MS_MIN_DEFAULT = 380
+SPRITE_EMITTER_LIFE_MS_MAX_DEFAULT = 720
+SPRITE_EMITTER_SIZE_MIN_DEFAULT = 2.0    # px core radius at spawn
+SPRITE_EMITTER_SIZE_MAX_DEFAULT = 4.5
+SPRITE_EMITTER_GLOW_SCALE       = 2.2    # glow ring radius = core * this
+SPRITE_EMITTER_GLOW_PULSE_HZ_DEFAULT = 2.2   # glow-mode pulse rate
+SPRITE_EMITTER_GLOW_SIZE_DEFAULT = 3.2   # px glow-mode dot radius
+SPRITE_EMITTER_GLOW_ALPHA_DEFAULT = 150  # 0-255 glow-mode peak opacity
+SPRITE_EMITTER_MATCH_TOL_DEFAULT = 80    # RGB euclidean match tolerance
 HPT_CLONE_HURTBOX_RADIUS_PX    = 40.0     # px — incoming-bullet contact radius
                                            # against the clone's own body
 HPT_CLONE_MARKER_RADIUS_PX     = 16.0     # px — glowing-orb marker draw radius
