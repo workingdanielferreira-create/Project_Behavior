@@ -340,6 +340,20 @@ def _outline_glow(char):
     return (rgb, radius, opacity)
 
 
+def _afterimage_rgb(char):
+    """Top-level afterimage_color opt-in -> (r, g, b) tuple, or None when
+    absent (falls back to combat.silhouette's own default crimson). Any
+    character's JSON can enable this to recolour its dash/blink speed-ghosts
+    without touching any other character's default."""
+    col = char.get("afterimage_color")
+    if not col:
+        return None
+    try:
+        return _hex_rgb(col)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
 def _trail_gradient(char):
     """Top-level trail_gradient opt-in -> (start_rgb, end_rgb, start_fraction)
     tuple, or None when absent/disabled. Overrides the default flowing
@@ -417,6 +431,7 @@ def _register(char):
         max_hp=_stat("max_hp", 100),
         basic_attack_radius=_stat("basic_attack_radius", config.SLASH_RADIUS),
         outline_glow=_outline_glow(char),
+        afterimage_rgb=_afterimage_rgb(char),
         trail_gradient=_trail_gradient(char),
     )
     # Written straight into MODE_CONFIGS[key] — everything downstream (Solo
