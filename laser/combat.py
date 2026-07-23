@@ -2899,6 +2899,55 @@ def spawn_clone(fig):
                                fig.transform.x, fig.transform.y))
 
 
+def dodge_style_cfg(fig):
+    """Top-level `dodge_style` JSON opt-in. Both generic melee dodge
+    triggers in systems.py (incoming-projectile sidestep, incoming-dash
+    counter) default to a multi-tick physical dodge_dashing move; a
+    character can opt into "blink" so either trigger instead resolves as
+    one instant teleport (see dodge_blink). Returns the raw string or None
+    — no branching beyond this single check, and no other character's
+    behaviour changes."""
+    char = getattr(fig.mode, "character", None)
+    if not char:
+        return None
+    style = char.get("dodge_style")
+    return style if style in ("blink",) else None
+
+
+def dodge_blink(fig, dest_x, dest_y, counter_target=None):
+    """Instant blink-dodge: resolves a melee dodge trigger as a single
+    teleport to (dest_x, dest_y) instead of the default multi-tick
+    physical dodge_dashing move, reusing blink_warp's own departure/arrival
+    afterimage ghosts for the visual trail (no clone spawn needed).
+
+    counter_target, if given as (tx, ty), mirrors the default dodge's
+    post-arrival behaviour for a counter-dash vs an incoming dashing enemy:
+    if still out of melee range on arrival, arms an immediate retaliation
+    dash-in at that target so a blink-style counter-dash still finishes the
+    same way a physical one would. Purely a delivery-mechanism swap;
+    identical in Solo & Battle since both trigger sites already are."""
+    c = fig.combat
+    if c.dashing:
+        c.dashing = c.rebounding = False
+    blink_warp(fig, dest_x, dest_y)
+    c.dodge_dashing = False
+    c.dodge_counter = False
+    if counter_target is not None:
+        cc = combo_cfg(fig)
+        t = fig.transform
+        tx, ty = counter_target
+        ddx, ddy = tx - t.x, ty - t.y
+        ddist = (ddx * ddx + ddy * ddy) ** 0.5
+        if ddist > cc['hit_radius']:
+            inv = 1.0 / max(ddist, 0.001)
+            lspd = fig.motion.speed * cc['dash_speed_mult']
+            c.slash_vx = ddx * inv * lspd
+            c.slash_vy = ddy * inv * lspd
+            c.slash_dist_budget = ddist * 4.0
+            c.dashing = True
+            c.rebounding = False
+
+
 def blink_warp(fig, nx, ny):
     """Pure position warp with departure/arrival afterimages + queued spark
     FX (drained by CombatSystem into world.sparks).  Clamps to screen
