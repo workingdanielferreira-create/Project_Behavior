@@ -71,8 +71,14 @@
   }
  },
  "counter_only": true,
+ "dodge_style": "blink",
+ "combo": {
+  "_comment": "Overrides generic combo defaults (combat._COMBO_DEFAULTS/combo_cfg). max_hits:1 means the counter-slash's landed hit always completes the attack string immediately \u2014 no chained dashslash/arcslash follow-up. Ronin's only attacks are the reaction counter-slash and the vanish_cut ultimate.",
+  "max_hits": 1
+ },
+ "afterimage_color": "#C2E0F9",
  "reaction": {
-  "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy). One shared cooldown. Each activation adds one vanish_cut charge.",
+  "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy \u2014 already an instant blink_warp here). Ronin also opts into dodge_style:blink so the separate generic melee dodge triggers in systems.py (incoming-projectile sidestep, incoming-dash counter) resolve as instant sideways/toward-target blinks instead of the default physical dodge_dashing move. One shared cooldown. Each activation adds one vanish_cut charge.",
   "radius_px": 50,
   "cooldown_ms": 200,
   "counter_chance": 0.5,
