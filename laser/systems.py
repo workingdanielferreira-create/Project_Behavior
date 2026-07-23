@@ -969,14 +969,18 @@ class CollisionSystem(System):
                         sx, sy = -buy, bux
                     else:
                         sx, sy = buy, -bux
-                    c.dodge_vx = sx * config.DODGE_SPEED
-                    c.dodge_vy = sy * config.DODGE_SPEED
-                    c.dodge_dist_budget = dodge_dist
-                    if c.dashing:
-                        c.dodge_interrupt = True   # cut the forward dash short
+                    if combat.dodge_style_cfg(fig) == "blink":
+                        combat.dodge_blink(fig, fig.x + sx * dodge_dist,
+                                            fig.y + sy * dodge_dist)
                     else:
-                        c.dodge_dashing = True
-                        combat.spawn_clone(fig)
+                        c.dodge_vx = sx * config.DODGE_SPEED
+                        c.dodge_vy = sy * config.DODGE_SPEED
+                        c.dodge_dist_budget = dodge_dist
+                        if c.dashing:
+                            c.dodge_interrupt = True   # cut the forward dash short
+                        else:
+                            c.dodge_dashing = True
+                            combat.spawn_clone(fig)
                     break
 
         # --- Swordsman counter-dash trigger (vs an incoming dashing enemy) ---
@@ -996,15 +1000,18 @@ class CollisionSystem(System):
                     d_sq = ddx * ddx + ddy * ddy
                     if d_sq > csq or d_sq < 0.001:
                         continue
-                    inv = 1.0 / (d_sq ** 0.5)
-                    c.dodge_vx = ddx * inv * config.DODGE_SPEED
-                    c.dodge_vy = ddy * inv * config.DODGE_SPEED
-                    c.dodge_dist_budget = d_sq ** 0.5
-                    c.dodge_counter = True
-                    if c.dashing:
-                        c.dashing = c.rebounding = c.dodge_interrupt = False
-                    c.dodge_dashing = True
-                    combat.spawn_clone(fig)
+                    if combat.dodge_style_cfg(fig) == "blink":
+                        combat.dodge_blink(fig, ex, ey, counter_target=(ex, ey))
+                    else:
+                        inv = 1.0 / (d_sq ** 0.5)
+                        c.dodge_vx = ddx * inv * config.DODGE_SPEED
+                        c.dodge_vy = ddy * inv * config.DODGE_SPEED
+                        c.dodge_dist_budget = d_sq ** 0.5
+                        c.dodge_counter = True
+                        if c.dashing:
+                            c.dashing = c.rebounding = c.dodge_interrupt = False
+                        c.dodge_dashing = True
+                        combat.spawn_clone(fig)
                     break
 
         # --- Figure-to-figure body collision ---
