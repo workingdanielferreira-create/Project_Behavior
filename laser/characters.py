@@ -564,6 +564,14 @@ def load_all(root_dir, bundles):
                 # the sprite_source path above.
                 bundle = _load_sprite_files(root_dir, char["sprite_files"])
                 bundles[key] = bundle
+                # Resolved source-PNG paths per set, consumed by the sprite
+                # emitter so it can colour-scan the full-res art instead of
+                # the (possibly tiny) scaled pixmaps.
+                char["_sprite_src_paths"] = {
+                    n: [os.path.join(root_dir, str(f)) for f in
+                        ((char["sprite_files"].get(n) or {}).get("files")
+                         or [])]
+                    for n in ("run", "idle", "slash")}
                 char.pop("hurtbox_radius", None)
                 thumb_path = os.path.join(folder, key + "_thumb.png")
                 if bundle.idle and not os.path.exists(thumb_path):
