@@ -950,13 +950,18 @@ class CollisionSystem(System):
         if world.enemy_projs:
             dsq = config.DODGE_TRIGGER_RADIUS * config.DODGE_TRIGGER_RADIUS
             dodge_dist = (config.SLASH_RADIUS * 4.0) * 0.15
+            live_proj_ids = {id(p[-1]) for p in world.enemy_projs}
             for fig in world.figures:
                 if not fig.mode.uses_melee():
                     continue
                 c, m = fig.combat, fig.motion
                 if c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending:
                     continue
+                if c.dodged_proj_ids:
+                    c.dodged_proj_ids &= live_proj_ids  # drop ids of bullets no longer alive
                 for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
+                    if id(_src) in c.dodged_proj_ids:
+                        continue   # already dodged this exact bullet once
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy > dsq:
                         continue
@@ -969,6 +974,7 @@ class CollisionSystem(System):
                         sx, sy = -buy, bux
                     else:
                         sx, sy = buy, -bux
+                    c.dodged_proj_ids.add(id(_src))
                     if combat.dodge_style_cfg(fig) == "blink":
                         combat.dodge_blink(fig, fig.x + sx * dodge_dist,
                                             fig.y + sy * dodge_dist)
