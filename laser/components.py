@@ -256,7 +256,8 @@ class Combatant:
                  "vc_phase", "vc_tick", "vc_hits_left", "vc_hidden",
                  "vc_dir_x", "vc_dir_y", "vc_shots_pending",
                  "sprite_particles", "sprite_emit_acc",
-                 "sprite_prev_x", "sprite_prev_y")
+                 "sprite_prev_x", "sprite_prev_y",
+                 "dodged_proj_ids")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -371,6 +372,14 @@ class Combatant:
         self.sprite_emit_acc = 0.0
         self.sprite_prev_x = None   # last-tick position for velocity derivation
         self.sprite_prev_y = None
+        # Once-per-bullet dodge guard (see systems.py bullet-dodge trigger):
+        # id() of every live enemy projectile this figure has already
+        # dodged, so the same incoming bullet can never re-trigger a second
+        # dodge (blink or physical) while it's still nearby/slow-moving —
+        # only fixes repeat-dodging one bullet; every other bullet still
+        # dodges normally. Pruned each tick against the current enemy_projs
+        # snapshot so it never grows past what's actually still alive.
+        self.dodged_proj_ids = set()
                                           # awaiting CombatSystem drain
 
     def reset(self):
