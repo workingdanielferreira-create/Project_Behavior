@@ -8,6 +8,7 @@ runs when a figure is mid-attack.
 """
 
 from . import config
+from . import combat as _combat
 
 
 def update(fig, tx, ty, collision_on, path_follow, runaway):
@@ -56,7 +57,14 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
         _chase(fig, tx, ty)
 
     fig.face(ox, oy)
-    fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving, path_follow)
+    anchor = _combat.sprite_emitter_trail_anchor(fig)
+    if anchor is not None:
+        ax, ay = anchor
+        fig.trail.update(ax, ay, t.facing_left, fig.render.is_moving,
+                          path_follow, apply_offset=False)
+    else:
+        fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving,
+                          path_follow)
     fig.render.advance()
     return cursor_hit
 
