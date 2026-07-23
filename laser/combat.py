@@ -1218,6 +1218,7 @@ def sprite_emitter_cfg(fig):
             glow_size=_f(s, "size", config.SPRITE_EMITTER_GLOW_SIZE_DEFAULT),
             glow_alpha=_f(s, "glow_alpha",
                           config.SPRITE_EMITTER_GLOW_ALPHA_DEFAULT),
+            trail_anchor=bool(s.get("trail_anchor", False)),
         )
         sources.append(src)
     if not sources:
@@ -1544,6 +1545,50 @@ def draw_sprite_emitter_glow(fig, p, tick_count):
             wx, wy = _frame_point_to_world(fig, entry, px, py)
             p.drawPixmap(int(wx) - ch, int(wy) - ch, core_pm)
         p.setOpacity(1.0)
+
+
+def _apply_trail_update(fig, t, is_moving, path_follow):
+    """fig.trail.update honouring an optional sprite_emitter trail_anchor
+    override (see sprite_emitter_trail_anchor below) so the trail stays
+    pinned to the same live anchor through combat movement (dashes, arc
+    recoils, dodges) exactly as it does during normal chase movement in
+    motion.py — no anchor flicker between states. Falls back to the default
+    body-anchored trail for every character without the opt-in."""
+    anchor = sprite_emitter_trail_anchor(fig)
+    if anchor is not None:
+        ax, ay = anchor
+        fig.trail.update(ax, ay, t.facing_left, is_moving, path_follow,
+                          apply_offset=False)
+    else:
+        fig.trail.update(t.x, t.y, t.facing_left, is_moving, path_follow)
+
+
+def sprite_emitter_trail_anchor(fig):
+    """World-space (x, y) for the movement trail's anchor when the
+    character's `sprite_emitter` block flags one source with
+    `"trail_anchor": true` (e.g. pinning the trail to a weapon tip instead
+    of the body). Picks that source's current-frame point farthest from the
+    sprite centre — re-evaluated every tick, so the anchor tracks the line
+    live as the pose/frame changes. Returns None for characters without the
+    opt-in (unchanged default body-anchored trail). Purely cosmetic —
+    identical in Solo & Battle."""
+    cfg = sprite_emitter_cfg(fig)
+    if cfg is None:
+        return None
+    idx = next((i for i, s in enumerate(cfg["sources"]) if s["trail_anchor"]),
+               None)
+    if idx is None:
+        return None
+    data = sprite_emitter_points(fig)
+    if not data:
+        return None
+    entry = _current_sprite_entry(fig, data)
+    if entry is None or not entry["pts"][idx]:
+        return None
+    cx, cy = entry["w"] / 2.0, entry["h"] / 2.0
+    px, py = max(entry["pts"][idx],
+                 key=lambda pt: (pt[0] - cx) ** 2 + (pt[1] - cy) ** 2)
+    return _frame_point_to_world(fig, entry, px, py)
 
 
 def update_character_bursts(fig):
@@ -3268,7 +3313,7 @@ def advance_combat(fig, slash_target, fallback):
             c.arc_repo_steps = cc['arc_repo_ticks']
             c.arc_repositioning = True
         fig.face(ox, oy)
-        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
         fig.render.advance()
         return True
@@ -3320,7 +3365,7 @@ def advance_combat(fig, slash_target, fallback):
             # Alternate orbit direction for the next arc (CW ↔ CCW).
             c.arc_combo_dir *= -1
         fig.face(ox, oy)
-        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
         fig.render.advance()
         return True
@@ -3345,14 +3390,14 @@ def advance_combat(fig, slash_target, fallback):
     #     active — strikes ride the live melee target, fallback = cursor. ---
     _bs_tx, _bs_ty = slash_target if slash_target is not None else fallback
     if tick_blinkstorm(fig, _bs_tx, _bs_ty):
-        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+        _apply_trail_update(fig, t, False, False)
         fig.render.is_moving = False
         return True
 
     # --- Vanish-cut ultimate (charge characters): consumes the figure while
     #     active — the blitz rides the live melee target, fallback = cursor. ---
     if tick_vanish_cut(fig, _bs_tx, _bs_ty):
-        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+        _apply_trail_update(fig, t, False, False)
         fig.render.is_moving = False
         return True
 
@@ -3400,7 +3445,7 @@ def advance_combat(fig, slash_target, fallback):
                             cc['combo_travel_ticks_min'],
                             cc['combo_travel_ticks_max'])
         fig.face(ox, oy)
-        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+        _apply_trail_update(fig, t, False, False)
         fig.render.is_moving = False
         return True
 
@@ -3503,7 +3548,7 @@ def advance_combat(fig, slash_target, fallback):
                                        ty - dy * inv * land)
                             c.blink_windup = bl['combo_cooldown_ticks']
                         fig.face(tx, ty)
-                        fig.trail.update(t.x, t.y, t.facing_left, False, False)
+                        _apply_trail_update(fig, t, False, False)
                         fig.render.is_moving = False
                         return True
                     t.x += c.slash_vx
@@ -3525,7 +3570,7 @@ def advance_combat(fig, slash_target, fallback):
                     c.slashing = True
                     c.slash_phase = c.slash_idx = c.slash_tick = 0
             fig.face(ox, oy)
-            fig.trail.update(t.x, t.y, t.facing_left, True, False)
+            _apply_trail_update(fig, t, True, False)
             fig.render.is_moving = True
             fig.render.advance()
             return True
@@ -3568,7 +3613,7 @@ def advance_combat(fig, slash_target, fallback):
             else:
                 c.dodge_counter = False
         fig.face(ox, oy)
-        fig.trail.update(t.x, t.y, t.facing_left, True, False)
+        _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
         fig.render.advance()
         return True
