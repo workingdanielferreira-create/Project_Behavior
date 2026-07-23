@@ -39,7 +39,8 @@ class Figure:
         )
         self.trail = TrailComponent(lut, gradient=spd.get("trail_gradient"))
         self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"],
-                                  outline_glow=spd.get("outline_glow"))
+                                  outline_glow=spd.get("outline_glow"),
+                                  afterimage_rgb=spd.get("afterimage_rgb"))
         self.combat = Combatant()
         self.personality = Personality(mode.key)
 
@@ -65,6 +66,7 @@ class Figure:
         self.render.anim_speed = spd["anim_speed"]
         self.render.idle_anim_speed = spd["idle_anim_speed"]
         self.render.outline_glow = spd.get("outline_glow")
+        self.render.afterimage_rgb = spd.get("afterimage_rgb")
         self.render.set_bundle(bundle)
         self.combat.reset()
         self.trail.clear()
@@ -137,7 +139,7 @@ class Figure:
                 gx, gy, frame, age = ghost
                 alpha = config.AFTERIMAGE_ALPHA * (1.0 - age / config.AFTERIMAGE_LIFETIME)
                 if alpha > 3:
-                    pm = _combat.silhouette(frame)
+                    pm = _combat.silhouette(frame, self.render.afterimage_rgb)
                     p.setOpacity(alpha / 255.0)
                     p.drawPixmap(int(gx) - pm.width() // 2,
                                  int(gy) - pm.height() // 2, pm)
