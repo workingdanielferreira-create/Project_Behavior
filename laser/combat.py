@@ -2914,6 +2914,79 @@ def dodge_style_cfg(fig):
     return style if style in ("blink",) else None
 
 
+def dodge_tilt_toward(sx, sy, fx, fy, tx, ty):
+    """Rotate a unit sidestep direction (sx, sy) by config.DODGE_BLINK_TILT_DEG
+    toward whichever side the point (tx, ty) — the figure's current melee
+    target — lies on, so a pure perpendicular sidestep leans toward the
+    target instead of running straight up/down relative to the incoming
+    bullet. Returns (sx, sy) unchanged if the target sits on the figure.
+    Used only by the opt-in blink dodge style (see dodge_blink); the
+    default physical sidestep is untouched."""
+    tdx, tdy = tx - fx, ty - fy
+    tdist = (tdx * tdx + tdy * tdy) ** 0.5
+    if tdist < 0.001:
+        return sx, sy
+    tux, tuy = tdx / tdist, tdy / tdist
+    ang = math.radians(config.DODGE_BLINK_TILT_DEG)
+    c, s = math.cos(ang), math.sin(ang)
+    # Sign of the cross product tells us which side of the sidestep vector
+    # the target is on, so we always rotate toward it (never away).
+    if sx * tuy - sy * tux > 0:
+        return sx * c - sy * s, sx * s + sy * c   # rotate CCW
+    return sx * c + sy * s, sy * c - sx * s        # rotate CW
+
+
+def drain_blink_fx(fig, world):
+    """Drain this figure's queued blink_fx_pending warp endpoints into
+    world.sparks — crackle bursts at both ends plus a jagged zig-zag bolt
+    between them. Every blink_warp() call (combo teleport, approach-blink,
+    blinkstorm strikes, reaction dodge, dodge_blink, clone dissolve) queues
+    through blink_fx_pending; this is the one generic drain, used both by
+    the regular per-tick CombatSystem pass and by any caller (e.g. a
+    same-tick dodge trigger in CollisionSystem) that wants the crackle to
+    render immediately instead of waiting for CombatSystem's next pass.
+    No-op when nothing is queued. Identical in Solo & Battle."""
+    if not fig.combat.blink_fx_pending:
+        return
+    bl_cfg = blink_cfg(fig)
+    bolt_hex = bl_cfg.get("bolt_color") if bl_cfg else ""
+    if bolt_hex:
+        rr, gg, bb = _hex_to_rgb(bolt_hex, fig.lut[200])
+    else:
+        rr, gg, bb = fig.lut[200]
+    rng = fig.personality.rng
+    for (x0, y0, x1, y1) in fig.combat.blink_fx_pending:
+        # Crackle bursts at both warp endpoints.
+        for (bx, by) in ((x0, y0), (x1, y1)):
+            for _ in range(config.BLINK_FX_SPARKS):
+                ang = rng.uniform(0.0, 2.0 * math.pi)
+                spd = rng.uniform(*config.BLINK_FX_SPARK_SPEED)
+                world.sparks.append([bx, by,
+                                     math.cos(ang) * spd,
+                                     math.sin(ang) * spd,
+                                     0, rr, gg, bb])
+        # Jagged electric bolt between the endpoints —
+        # zig-zag spark chain replaces the old trail smear.
+        ddx, ddy = x1 - x0, y1 - y0
+        seg_d = (ddx * ddx + ddy * ddy) ** 0.5
+        if seg_d > 1.0:
+            nx_, ny_ = -ddy / seg_d, ddx / seg_d
+            n_seg = int(config.BLINK_BOLT_SEGMENTS)
+            amp = config.BLINK_BOLT_JITTER_PX
+            for i in range(1, n_seg):
+                f = i / float(n_seg)
+                # alternate sides for the zig-zag read
+                side = 1.0 if (i % 2) else -1.0
+                off = side * rng.uniform(0.35, 1.0) * amp
+                px_ = x0 + ddx * f + nx_ * off
+                py_ = y0 + ddy * f + ny_ * off
+                world.sparks.append([px_, py_,
+                                     rng.uniform(-0.6, 0.6),
+                                     rng.uniform(-0.6, 0.6),
+                                     0, rr, gg, bb])
+    fig.combat.blink_fx_pending.clear()
+
+
 def dodge_blink(fig, dest_x, dest_y, counter_target=None):
     """Instant blink-dodge: resolves a melee dodge trigger as a single
     teleport to (dest_x, dest_y) instead of the default multi-tick
