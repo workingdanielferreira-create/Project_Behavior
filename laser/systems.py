@@ -439,7 +439,8 @@ class ProjectileSystem(System):
                             continue
                         ddx, ddy = proj.x - fig.x, proj.y - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
-                            # Stance already open: absorb silently, no new crescent
+                            # Stance already open: absorb silently (still gets
+                            # its own deflect-crescent below, one per bullet).
                             if fig.combat.parrying:
                                 world.collision_dots.append([proj.x, proj.y, 0])
                                 hit = True
@@ -451,6 +452,10 @@ class ProjectileSystem(System):
                                     action_log.log("BEAM_CULL",
                                         f"parried age={proj.age} "
                                         f"at=({proj.x:.0f},{proj.y:.0f})")
+                                # Deflect-slash FX: the generic attack-slash
+                                # crescent, reused vertically at the exact
+                                # contact point for each bullet deflected.
+                                combat.spawn_deflect_crescent(fig, proj.x, proj.y)
                                 # Deflect: the blocked bullet ricochets away in
                                 # a random cone (cosmetic, original colour).
                                 alive.append(combat.make_deflect_bullet(
@@ -872,6 +877,10 @@ class CollisionSystem(System):
                                 world.collision_dots.append([ex, ey, 0])
                                 erased_by_parry = True
                             if erased_by_parry:
+                                # Deflect-slash FX: the generic attack-slash
+                                # crescent, reused vertically at the exact
+                                # contact point for each bullet deflected.
+                                combat.spawn_deflect_crescent(fig, ex, ey)
                                 # Deflect: enemy bullet ricochets off the swordsman
                                 # (cosmetic, keeps the shooter's original colour),
                                 # and the real bullet dies at the source.
