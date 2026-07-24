@@ -265,44 +265,7 @@ class CombatSystem(System):
                 world.projectiles.extend(fig.combat.vc_shots_pending)
                 fig.combat.vc_shots_pending = []
             # --- Blink crackle FX: drain warp endpoints into world sparks ---
-            if fig.combat.blink_fx_pending:
-                bl_cfg = combat.blink_cfg(fig)
-                bolt_hex = bl_cfg.get("bolt_color") if bl_cfg else ""
-                if bolt_hex:
-                    rr, gg, bb = combat._hex_to_rgb(bolt_hex, fig.lut[200])
-                else:
-                    rr, gg, bb = fig.lut[200]
-                rng = fig.personality.rng
-                for (x0, y0, x1, y1) in fig.combat.blink_fx_pending:
-                    # Crackle bursts at both warp endpoints.
-                    for (bx, by) in ((x0, y0), (x1, y1)):
-                        for _ in range(config.BLINK_FX_SPARKS):
-                            ang = rng.uniform(0.0, 2.0 * math.pi)
-                            spd = rng.uniform(*config.BLINK_FX_SPARK_SPEED)
-                            world.sparks.append([bx, by,
-                                                 math.cos(ang) * spd,
-                                                 math.sin(ang) * spd,
-                                                 0, rr, gg, bb])
-                    # Jagged electric bolt between the endpoints —
-                    # zig-zag spark chain replaces the old trail smear.
-                    ddx, ddy = x1 - x0, y1 - y0
-                    seg_d = (ddx * ddx + ddy * ddy) ** 0.5
-                    if seg_d > 1.0:
-                        nx_, ny_ = -ddy / seg_d, ddx / seg_d
-                        n_seg = int(config.BLINK_BOLT_SEGMENTS)
-                        amp = config.BLINK_BOLT_JITTER_PX
-                        for i in range(1, n_seg):
-                            f = i / float(n_seg)
-                            # alternate sides for the zig-zag read
-                            side = 1.0 if (i % 2) else -1.0
-                            off = side * rng.uniform(0.35, 1.0) * amp
-                            px_ = x0 + ddx * f + nx_ * off
-                            py_ = y0 + ddy * f + ny_ * off
-                            world.sparks.append([px_, py_,
-                                                 rng.uniform(-0.6, 0.6),
-                                                 rng.uniform(-0.6, 0.6),
-                                                 0, rr, gg, bb])
-                fig.combat.blink_fx_pending.clear()
+            combat.drain_blink_fx(fig, world)
             # --- Clone system: tick autonomous ghosts (preset 'clone') ---
             if fig.combat.clone_cd > 0:
                 fig.combat.clone_cd -= 1
@@ -976,8 +939,13 @@ class CollisionSystem(System):
                         sx, sy = buy, -bux
                     c.dodged_proj_ids.add(id(_src))
                     if combat.dodge_style_cfg(fig) == "blink":
-                        combat.dodge_blink(fig, fig.x + sx * dodge_dist,
-                                            fig.y + sy * dodge_dist)
+                        tx_, ty_ = (world._nearest_enemy(fig.x, fig.y)
+                                    if world.battle_mode else world.cursor)
+                        tsx, tsy = combat.dodge_tilt_toward(
+                            sx, sy, fig.x, fig.y, tx_, ty_)
+                        combat.dodge_blink(fig, fig.x + tsx * dodge_dist,
+                                            fig.y + tsy * dodge_dist)
+                        combat.drain_blink_fx(fig, world)
                     else:
                         c.dodge_vx = sx * config.DODGE_SPEED
                         c.dodge_vy = sy * config.DODGE_SPEED
@@ -1008,6 +976,7 @@ class CollisionSystem(System):
                         continue
                     if combat.dodge_style_cfg(fig) == "blink":
                         combat.dodge_blink(fig, ex, ey, counter_target=(ex, ey))
+                        combat.drain_blink_fx(fig, world)
                     else:
                         inv = 1.0 / (d_sq ** 0.5)
                         c.dodge_vx = ddx * inv * config.DODGE_SPEED
