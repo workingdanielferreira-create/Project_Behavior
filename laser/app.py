@@ -222,6 +222,16 @@ class World:
             self.mode_key = side.mode_key
         self._reskin_side(side_idx)
 
+    def request_manual_ultimate(self, side_idx):
+        """Ctrl+1 (side 0) / Ctrl+2 (side 1): force that side's currently
+        fielded figure(s) to fire their next ultimate tier, bypassing the
+        HP threshold. Queues on the figure; CombatSystem/
+        combat.try_fire_manual_ultimate fires it the instant the figure is
+        free (see systems.py). No-op if that side has no fielded figure.
+        Identical in Solo & Battle."""
+        for fig in self.sides[side_idx].figures:
+            fig.combat.manual_ult_queued = True
+
     def toggle_shoot_mode(self):
         self.shoot_mode = not self.shoot_mode
         if not self.shoot_mode:
