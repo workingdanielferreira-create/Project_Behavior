@@ -132,6 +132,9 @@ DODGE_SPEED          = 20.0     # px/tick during the sidestep
 DODGE_BLINK_TILT_DEG = 45.0     # opt-in blink dodge: tilt the pure sidestep
                                  # this many degrees toward the current melee
                                  # target instead of straight perpendicular
+DODGE_BLINK_TILT_DIST_MULT = 0.65  # the tilted (45°) blink travels this
+                                    # fraction of the normal dodge distance —
+                                    # the straight (0°) sidestep is unaffected
 
 # ---------------------------------------------------------------------------
 # Swordsman parry
