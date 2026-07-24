@@ -73,10 +73,24 @@ class InputSystem(System):
         # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
         # registered character; P2 cycles through them and then OFF (side
         # cleared — battle ends), tap again to re-field.
+        # Ctrl+1 / Ctrl+2: force that side's fielded character to fire its
+        # next ultimate tier immediately, bypassing the HP threshold
+        # (queued — fires the instant the figure is free; see
+        # World.request_manual_ultimate / combat.try_fire_manual_ultimate).
+        # ctrl_used is set so releasing Ctrl afterward doesn't also toggle
+        # collision (mirrors the Ctrl+Q / Ctrl+R pattern below).
         if self._pressed(win.VK_1):
-            world.cycle_side_char(0)
+            if ctrl:
+                world.request_manual_ultimate(0)
+                world.ctrl_used = True
+            else:
+                world.cycle_side_char(0)
         if self._pressed(win.VK_2):
-            world.cycle_side_char(1)
+            if ctrl:
+                world.request_manual_ultimate(1)
+                world.ctrl_used = True
+            else:
+                world.cycle_side_char(1)
         if self._pressed(win.VK_F7):
             world.add_figure()
         if self._pressed(win.VK_F8):
@@ -254,6 +268,11 @@ class CombatSystem(System):
             # action authors a can_hit+deflect layer — combat.has_defend_deflect).
             if fig.mode.uses_melee() or combat.has_defend_deflect(fig):
                 combat.tick_parry_cooldown(fig)
+            # --- Manual ultimate hotkey (Ctrl+1 / Ctrl+2): force this
+            # figure's next ultimate tier the instant it's free. No-op
+            # unless InputSystem queued a request for this figure's side. ---
+            if fig.combat.manual_ult_queued:
+                combat.try_fire_manual_ultimate(fig, world)
             # --- Generic proximity reaction (JSON `reaction`): counter/dodge
             # roll + charge-based vanish-cut launch. Runs before
             # advance_combat so an armed retaliation dash executes this
