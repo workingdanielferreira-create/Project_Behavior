@@ -939,12 +939,19 @@ class CollisionSystem(System):
                         sx, sy = buy, -bux
                     c.dodged_proj_ids.add(id(_src))
                     if combat.dodge_style_cfg(fig) == "blink":
-                        tx_, ty_ = (world._nearest_enemy(fig.x, fig.y)
-                                    if world.battle_mode else world.cursor)
-                        tsx, tsy = combat.dodge_tilt_toward(
-                            sx, sy, fig.x, fig.y, tx_, ty_)
-                        combat.dodge_blink(fig, fig.x + tsx * dodge_dist,
-                                            fig.y + tsy * dodge_dist)
+                        if fig.personality.rng.random() < 0.5:
+                            # 45° tilted toward the target, shorter hop.
+                            tx_, ty_ = (world._nearest_enemy(fig.x, fig.y)
+                                        if world.battle_mode else world.cursor)
+                            tsx, tsy = combat.dodge_tilt_toward(
+                                sx, sy, fig.x, fig.y, tx_, ty_)
+                            blink_dist = dodge_dist * config.DODGE_BLINK_TILT_DIST_MULT
+                        else:
+                            # 0° — straight side-to-side, full distance.
+                            tsx, tsy = sx, sy
+                            blink_dist = dodge_dist
+                        combat.dodge_blink(fig, fig.x + tsx * blink_dist,
+                                            fig.y + tsy * blink_dist)
                         combat.drain_blink_fx(fig, world)
                     else:
                         c.dodge_vx = sx * config.DODGE_SPEED
