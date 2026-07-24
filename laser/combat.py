@@ -1768,6 +1768,31 @@ class CrescentWave:
             p.drawPath(path)
 
 
+def spawn_deflect_crescent(fig, contact_x, contact_y):
+    """Spawn the same slash-crescent FX (CrescentWave) used by melee dash
+    hits, but oriented vertically at the exact point an incoming bullet was
+    deflected instead of the usual horizontal attack-direction orientation.
+    Randomly picks top->bottom or bottom->top (50/50) each call — the
+    crescent's actual size/shape still comes from CRESCENT_RADIUS/
+    CRESCENT_SPAN, unaffected by DEFLECT_CRESCENT_REACH (which only sets the
+    direction). Reuses fig.lut for colour exactly like an attack-slash
+    crescent. Guarded to melee figures only: c.crescents is ticked (updated
+    + culled) inside advance_combat, which only runs for
+    fig.mode.uses_melee() — spawning here for a non-melee deflect character
+    would leave a crescent frozen and drawn forever. Called from every
+    successful bullet-deflect site (Solo & Battle) for any character with a
+    deflect defend layer; identical in both modes."""
+    if not fig.mode.uses_melee():
+        return
+    dy = (config.DEFLECT_CRESCENT_REACH
+          if fig.personality.rng.random() < 0.5
+          else -config.DEFLECT_CRESCENT_REACH)
+    r, g, b = fig.lut[80]
+    fig.combat.crescents.append(
+        CrescentWave(contact_x, contact_y, contact_x, contact_y + dy,
+                     (r, g, b)))
+
+
 # ---------------------------------------------------------------------------
 # UltimateCrescent — swordsman ultimate: a large slow blade launched at 50% HP
 # ---------------------------------------------------------------------------
