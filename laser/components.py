@@ -257,7 +257,8 @@ class Combatant:
                  "vc_dir_x", "vc_dir_y", "vc_shots_pending",
                  "sprite_particles", "sprite_emit_acc",
                  "sprite_prev_x", "sprite_prev_y",
-                 "dodged_proj_ids")
+                 "dodged_proj_ids",
+                 "manual_ult_queued")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -381,6 +382,10 @@ class Combatant:
         # snapshot so it never grows past what's actually still alive.
         self.dodged_proj_ids = set()
                                           # awaiting CombatSystem drain
+        # Manual ultimate hotkey (Ctrl+1 / Ctrl+2, see systems.InputSystem /
+        # combat.try_fire_manual_ultimate). True while a force-trigger
+        # request is pending; consumed the instant the figure is free.
+        self.manual_ult_queued = False
 
     def reset(self):
         self.__init__()
