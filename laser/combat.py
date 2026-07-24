@@ -3387,6 +3387,66 @@ def check_reaction(fig, world):
         c.ult_charges += 1
 
 
+def try_fire_manual_ultimate(fig, world):
+    """Consumes a queued manual-ultimate hotkey request (Ctrl+1 for P1,
+    Ctrl+2 for P2 — see systems.InputSystem / World.request_manual_ultimate).
+    Forces this figure's NEXT ultimate tier immediately, bypassing the HP
+    threshold that would normally arm it — style-aware, so it fires
+    whichever pipeline (crescent / blinkstorm / beam / vanish_cut) this
+    figure's ultimate_style() already uses.
+
+    Stays queued (retried every tick) while the figure is mid-action
+    (c.busy), mid-blinkstorm, or mid-vanish-cut, so the request fires the
+    instant the figure is free rather than interrupting what it's doing.
+    Identical in Solo & Battle — applies to whichever side's figure(s) the
+    hotkey targeted, and both sides call this every tick.
+    """
+    c = fig.combat
+    if c.busy or c.blinkstorm_strikes_left > 0 or c.vc_phase != 0:
+        return  # still mid-action — stays queued for a later tick
+    p = fig.personality
+    style = ultimate_style(fig)
+    if world.battle_mode and world.partner_figures:
+        tx, ty = world._nearest_enemy(fig.x, fig.y)
+    else:
+        tx, ty = world.cursor
+
+    if style == "crescent":
+        for thresh in ultc_cfg(fig)['thresholds']:
+            if thresh not in p.sword_ult_fired_thresholds:
+                p.sword_ult_fired_thresholds.add(thresh)
+                fire_sword_ultimate(fig, tx, ty)
+                break
+        c.manual_ult_queued = False
+    elif style == "blinkstorm":
+        bl = blink_cfg(fig)
+        if bl is not None:
+            for thresh in ultc_cfg(fig)['thresholds']:
+                if thresh not in p.sword_ult_fired_thresholds:
+                    p.sword_ult_fired_thresholds.add(thresh)
+                    c.blinkstorm_strikes_left = bl['storm_strikes']
+                    c.blinkstorm_tick = 0
+                    break
+        c.manual_ult_queued = False
+    elif style == "beam":
+        # Respect the same opt-out that gates the automatic threshold arm
+        # (disable_survival_teleport bundles both halves of "runner
+        # survival mode" together) — a character that turned this off
+        # never gets a beam window, hotkey included.
+        _char = getattr(fig.mode, "character", None)
+        if not (_char and _char.get("disable_survival_teleport")):
+            if p.ultimate_ticks <= 0:
+                p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
+                p.teleport_ticks = 0
+        c.manual_ult_queued = False
+    elif style == "vanish_cut":
+        c.ult_charges = 0
+        start_vanish_cut(fig, tx, ty)
+        c.manual_ult_queued = False
+    else:
+        c.manual_ult_queued = False  # 'none' style — nothing to force
+
+
 def advance_combat(fig, slash_target, fallback):
     t = fig.transform
     c = fig.combat
