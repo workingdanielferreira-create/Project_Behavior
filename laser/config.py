@@ -129,6 +129,9 @@ FOLLOWUP_TYPE_LOCK_TICKS = 12   # 0.2 s: the OTHER follow-up type is locked afte
 # ---------------------------------------------------------------------------
 DODGE_TRIGGER_RADIUS = 90.0     # incoming bullet within this range triggers dodge
 DODGE_SPEED          = 20.0     # px/tick during the sidestep
+DODGE_BLINK_TILT_DEG = 45.0     # opt-in blink dodge: tilt the pure sidestep
+                                 # this many degrees toward the current melee
+                                 # target instead of straight perpendicular
 
 # ---------------------------------------------------------------------------
 # Swordsman parry
