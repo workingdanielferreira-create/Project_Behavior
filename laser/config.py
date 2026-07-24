@@ -154,6 +154,10 @@ CRESCENT_SPAN      = 170        # total arc angle (degrees)
 CRESCENT_WIDTH     = 6.5        # stroke width (Slash FX: was 3.5)
 CRESCENT_TAIL      = 0.95       # fraction of arc trailing behind the tip
 CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
+DEFLECT_CRESCENT_REACH = 60.0   # px used to set the vertical dir for the
+                                 # deflect-slash crescent (head<->feet); the
+                                 # crescent's own size still comes from
+                                 # CRESCENT_RADIUS/CRESCENT_SPAN above
 
 # ---------------------------------------------------------------------------
 # Projectiles / shooting
