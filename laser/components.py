@@ -125,7 +125,7 @@ class TrailComponent:
         idx = int(((t + self.flow_off) % 1.0) * 256) & LUT_MASK
         return self.lut[idx]
 
-    def draw(self, p, pen, path_follow):
+    def draw(self, p, pen, path_follow, pscale=1.0):
         trail = self.trail
         n = len(trail)
         if n <= 1:
@@ -134,7 +134,7 @@ class TrailComponent:
         inv_n = 1.0 / n
 
         if path_follow:
-            pen.setWidthF(3.0)
+            pen.setWidthF(3.0 * pscale)
             for i in range(1, n):
                 r, g, b = self._color_at(i * inv_n)
                 pen.setColor(QColor(int(r), int(g), int(b), 215))
@@ -147,16 +147,17 @@ class TrailComponent:
                 t = i * inv_n
                 r, g, b = self._color_at(t)
                 pen.setColor(QColor(int(r), int(g), int(b), int(220 * t)))
-                pen.setWidthF(tw0 + (tw1 - tw0) * t)
+                pen.setWidthF((tw0 + (tw1 - tw0) * t) * pscale)
                 p.setPen(pen)
                 x0, y0 = tl[i - 1]; x1, y1 = tl[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
-        # Head glow + bright core
+        # Head glow + bright core (QRadialGradient built fresh each frame
+        # already — no cache here, so scaling the radius directly is free)
         hx, hy = int(tl[-1][0]), int(tl[-1][1])
         r, g, b = self._color_at(1.0)
         r, g, b = int(r), int(g), int(b)
-        gr = config.TRAIL_GLOW_R
+        gr = config.TRAIL_GLOW_R * pscale
         grad = QRadialGradient(hx, hy, gr)
         grad.setColorAt(0.0, QColor(r, g, b, 140))
         grad.setColorAt(0.4, QColor(r, g, b, 60))
@@ -164,7 +165,7 @@ class TrailComponent:
         p.setPen(Qt.NoPen); p.setBrush(grad)
         p.drawEllipse(hx - gr, hy - gr, gr * 2, gr * 2)
 
-        dr = config.TRAIL_DOT_R
+        dr = config.TRAIL_DOT_R * pscale
         core = QRadialGradient(hx, hy, dr)
         core.setColorAt(0.0, QColor(255, 255, 255, 200))
         core.setColorAt(0.5, QColor(r, g, b, 180))
