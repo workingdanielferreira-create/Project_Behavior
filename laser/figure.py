@@ -104,6 +104,31 @@ class Figure:
         else:
             t.angle = 0.0
 
+    # position-based sprite scaling ------------------------------------------
+    def _position_scale(self):
+        """Bilinear scale factor from the figure's screen position.
+
+        Interpolates the four config.POSITION_SCALE_* corner values across
+        this figure's own screen_w/screen_h. transform.x/y are already
+        screen-pixel coordinates (see motion.check_walls), so no world/frame
+        conversion is needed. Same formula for every figure regardless of
+        side, so Solo and Battle stay identical automatically. Visual only —
+        never touches hurtbox_radius or attack radius.
+        """
+        if not config.POSITION_SCALE_ENABLED:
+            return 1.0
+        sw, sh = self.screen_w, self.screen_h
+        if sw <= 0 or sh <= 0:
+            return 1.0
+        t = self.transform
+        x = max(0.0, min(1.0, t.x / sw))
+        y = max(0.0, min(1.0, t.y / sh))
+        top = (config.POSITION_SCALE_TOP_LEFT * (1.0 - x)
+               + config.POSITION_SCALE_TOP_RIGHT * x)
+        bottom = (config.POSITION_SCALE_BOTTOM_LEFT * (1.0 - x)
+                  + config.POSITION_SCALE_BOTTOM_RIGHT * x)
+        return top * (1.0 - y) + bottom * y
+
     # drawing ---------------------------------------------------------------
     def _current_frame(self):
         b = self.render.bundle
@@ -168,6 +193,7 @@ class Figure:
         # sprite (and its glow) skip drawing while vc_hidden; crescent
         # slashes / sparks / impact FX below still render.
         if frame is not None and not c0.vc_hidden:
+            pscale = self._position_scale()
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
@@ -177,6 +203,8 @@ class Figure:
                 p.translate(self.transform.x, self.transform.y)
                 if self.motion.rotate:
                     p.rotate(self.transform.angle)
+                if pscale != 1.0:
+                    p.scale(pscale, pscale)
                 p.setOpacity(opacity / 255.0)
                 steps = config.OUTLINE_GLOW_STEPS
                 for i in range(steps):
@@ -190,6 +218,8 @@ class Figure:
             p.translate(self.transform.x, self.transform.y)
             if self.motion.rotate:
                 p.rotate(self.transform.angle)
+            if pscale != 1.0:
+                p.scale(pscale, pscale)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
             p.restore()
 
