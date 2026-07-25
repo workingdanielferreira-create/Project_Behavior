@@ -77,6 +77,21 @@ ARENA_OVAL_GRADIENT_START  = 0.80    # normalized ellipse distance where the
 ARENA_OVAL_PUSHBACK_STRENGTH = 9.0   # max px/tick nudged inward, reached at the edge
 
 # ---------------------------------------------------------------------------
+# Position-based sprite scaling — global, always-on visual effect (confirmed
+# with Daniel 2026-07-25). Every figure's drawn sprite size is bilinearly
+# interpolated across the four screen corners below, using the figure's own
+# screen_w/screen_h (identical math for both fielded fighters, so Solo and
+# Battle render this the same way automatically). Visual only: hurtbox,
+# attack radius, and hit detection are untouched — see
+# figure.py::Figure._position_scale().
+# ---------------------------------------------------------------------------
+POSITION_SCALE_ENABLED       = True
+POSITION_SCALE_TOP_LEFT      = 1.30   # 130%
+POSITION_SCALE_TOP_RIGHT     = 1.00   # 100%
+POSITION_SCALE_BOTTOM_LEFT   = 1.90   # 190%
+POSITION_SCALE_BOTTOM_RIGHT  = 1.30   # 130%
+
+# ---------------------------------------------------------------------------
 # Cursor-collision bounce
 # ---------------------------------------------------------------------------
 BOUNCE_STRENGTH       = 12.0
