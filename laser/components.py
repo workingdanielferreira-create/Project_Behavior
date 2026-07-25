@@ -163,7 +163,8 @@ class TrailComponent:
         grad.setColorAt(0.4, QColor(r, g, b, 60))
         grad.setColorAt(1.0, QColor(r, g, b, 0))
         p.setPen(Qt.NoPen); p.setBrush(grad)
-        p.drawEllipse(hx - gr, hy - gr, gr * 2, gr * 2)
+        igr = int(gr)
+        p.drawEllipse(hx - igr, hy - igr, igr * 2, igr * 2)
 
         dr = config.TRAIL_DOT_R * pscale
         core = QRadialGradient(hx, hy, dr)
@@ -171,7 +172,8 @@ class TrailComponent:
         core.setColorAt(0.5, QColor(r, g, b, 180))
         core.setColorAt(1.0, QColor(r, g, b, 100))
         p.setBrush(core)
-        p.drawEllipse(hx - dr, hy - dr, dr * 2, dr * 2)
+        idr = int(dr)
+        p.drawEllipse(hx - idr, hy - idr, idr * 2, idr * 2)
 
 
 class Renderable:
