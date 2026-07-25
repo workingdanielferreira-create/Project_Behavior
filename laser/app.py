@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log
+from . import config, modes, systems, ai, action_log, combat
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -537,12 +537,14 @@ class Overlay(QWidget):
             fig.draw(p, self._pen)
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
-        # "enemy dot" pass.
+        # "enemy dot" pass. Each bullet scales by its own current position.
         for proj in w.all_projectiles():
-            proj.draw(p)
+            pscale = combat.position_scale(proj.x, proj.y, w.screen_w, w.screen_h)
+            proj.draw(p, pscale)
         # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
         for clone in w.all_clones():
-            clone.draw(p)
+            pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
+            clone.draw(p, pscale)
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
@@ -561,13 +563,23 @@ class Overlay(QWidget):
                 if alpha > 0:
                     # Rainbow hue cycles from 0–360 over the dot's lifetime
                     hue = int((age / total) * 360) % 360
+                    # _dot_sprite is cache-keyed by (hue, rad) — rad stays
+                    # fixed here (protects the ~50-hue-bucket cache); the
+                    # position scale is applied as a paint-time transform
+                    # around the cached pixmap instead, never fed into the key.
                     pm, half = _dot_sprite(hue, rad)
+                    dscale = combat.position_scale(dx, dy, w.screen_w, w.screen_h)
+                    p.save()
+                    p.translate(int(dx), int(dy))
+                    if dscale != 1.0:
+                        p.scale(dscale, dscale)
                     if alpha < 255:
                         p.setOpacity(alpha / 255.0)
-                        p.drawPixmap(int(dx) - half, int(dy) - half, pm)
+                        p.drawPixmap(-half, -half, pm)
                         p.setOpacity(1.0)
                     else:
-                        p.drawPixmap(int(dx) - half, int(dy) - half, pm)
+                        p.drawPixmap(-half, -half, pm)
+                    p.restore()
                     dot[2] += 1
                 if age + 1 < total:
                     surviving.append(dot)
