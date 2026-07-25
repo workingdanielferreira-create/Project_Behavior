@@ -16,8 +16,34 @@ from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
                          QPixmap, QPainter, QImage)
 
 from . import config
-from .geometry import angle_deg_qt, angle_diff
+from .geometry import angle_deg_qt, angle_diff, bilinear
 from .palette import LUT_MASK
+
+
+def position_scale(x, y, screen_w, screen_h):
+    """Bilinear position-scale multiplier for a point at (x, y).
+
+    Shared by Figure sprites and every FX system (trails, crescents,
+    projectiles, particles, petals, clones, glow dots) so the same visual
+    rule applies everywhere: config.POSITION_SCALE_* corners, interpolated
+    across the given screen bounds. Cheap (a handful of float ops) — call
+    per-entity per-frame freely. Deliberately does NOT get baked into any
+    cached-pixmap radius/size key (see bullet_sprite/bolt_sprite docs above):
+    doing so would turn their small fixed-cardinality cache into a
+    per-frame-unique one and defeat the whole point of caching. Callers
+    apply the returned factor via a QPainter.scale() transform around the
+    cached (unscaled) pixmap instead, or multiply directly into vector
+    geometry (line widths, arc radii) which isn't cached at all.
+    """
+    if not config.POSITION_SCALE_ENABLED or screen_w <= 0 or screen_h <= 0:
+        return 1.0
+    xf = max(0.0, min(1.0, x / screen_w))
+    yf = max(0.0, min(1.0, y / screen_h))
+    return bilinear(xf, yf,
+                     config.POSITION_SCALE_TOP_LEFT,
+                     config.POSITION_SCALE_TOP_RIGHT,
+                     config.POSITION_SCALE_BOTTOM_LEFT,
+                     config.POSITION_SCALE_BOTTOM_RIGHT)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +309,7 @@ class Projectile:
         self.y += self.vy
         self.age += 1
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         if self.style == "invisible":
             # Damage/snapshot/hit-detection still run normally — only the round-
             # dot sprite is skipped because a richer local burst (see
@@ -300,12 +326,15 @@ class Projectile:
             for i in range(1, n):
                 t = i / n
                 pen.setColor(QColor(r, g, b, int(200 * t * fade)))
-                pen.setWidthF(1.0 + 2.0 * t)
+                pen.setWidthF((1.0 + 2.0 * t) * pscale)
                 p.setPen(pen)
                 x0, y0 = pts[i - 1]; x1, y1 = pts[i]
                 p.drawLine(int(x0), int(y0), int(x1), int(y1))
 
-        # Comet bolt: rotate a cached elongated sprite to the heading.
+        # Comet bolt: rotate a cached elongated sprite to the heading. The
+        # cached pixmap itself stays at its original (unscaled) radius —
+        # see position_scale()'s docstring — pscale is applied purely as a
+        # paint-time transform around the draw, never fed into the cache key.
         style = self.style
         spd_sq = self.vx * self.vx + self.vy * self.vy
         if style is not None and spd_sq > 0.0001:
@@ -315,24 +344,32 @@ class Projectile:
             if stretch <= 1.001:
                 # Round bullet (stretch reverted to 1.0): centred draw, no
                 # rotation needed — classic look with the flair kept.
+                p.save()
+                p.translate(hx, hy)
+                if pscale != 1.0:
+                    p.scale(pscale, pscale)
                 if fade < 1.0:
                     p.setOpacity(fade)
-                p.drawPixmap(hx - pm.width() // 2, hy - pm.height() // 2, pm)
+                p.drawPixmap(-pm.width() // 2, -pm.height() // 2, pm)
+                p.restore()
                 p.setOpacity(1.0)
             else:
                 p.save()
                 p.translate(hx, hy)
                 p.rotate(math.degrees(math.atan2(self.vy, self.vx)))
+                if pscale != 1.0:
+                    p.scale(pscale, pscale)
                 if fade < 1.0:
                     p.setOpacity(fade)
                 p.drawPixmap(int(-head_x), int(-half_h), pm)
                 p.restore()
                 p.setOpacity(1.0)
             if style == "homing":
-                # Pulsing halo — the homing flair
+                # Pulsing halo — the homing flair (vector-drawn ellipse, no
+                # cache involved, so the radius can scale directly)
                 halo_a = int((110 + 70 * math.sin(self.age * 0.5)) * fade)
                 if halo_a > 4:
-                    hr = self.radius * 3.6
+                    hr = self.radius * 3.6 * pscale
                     _TRAIL_PEN.setColor(QColor(r, g, b, halo_a))
                     _TRAIL_PEN.setWidthF(1.4)
                     p.setPen(_TRAIL_PEN)
@@ -343,12 +380,15 @@ class Projectile:
 
         # Round sprite (deflect ricochets, splinters, legacy)
         pm, half = bullet_sprite(r, g, b, self.radius)
+        p.save()
+        p.translate(hx, hy)
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
         if fade < 1.0:
             p.setOpacity(fade)
-            p.drawPixmap(hx - half, hy - half, pm)
-            p.setOpacity(1.0)
-        else:
-            p.drawPixmap(hx - half, hy - half, pm)
+        p.drawPixmap(-half, -half, pm)
+        p.restore()
+        p.setOpacity(1.0)
 
 
 def _hex_to_rgb(hexstr, default=(255, 255, 255)):
@@ -448,7 +488,7 @@ class RichBeamProjectile(Projectile):
         self.detach_ticks = (max(1, int(round(detach_ms / config.TICK_MS)))
                              if detach_ms > 0 else 10 ** 9)
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         fade = max(0.0, 1.0 - self.age / self.max_age)
         if fade <= 0.0:
             return
@@ -509,7 +549,7 @@ class RichBeamProjectile(Projectile):
                 j = (rng.random() * 2 - 1) * self.jitter
                 hx0 += -uy * j; hy0 += ux * j
                 hx1 += -uy * j; hy1 += ux * j
-            w = w_head + (w_tail - w_head) * t0
+            w = (w_head + (w_tail - w_head) * t0) * pscale
             cr = self.c2[0] + (self.c1[0] - self.c2[0]) * t0
             cg = self.c2[1] + (self.c1[1] - self.c2[1]) * t0
             cb = self.c2[2] + (self.c1[2] - self.c2[2]) * t0
@@ -519,7 +559,7 @@ class RichBeamProjectile(Projectile):
                 else:
                     gr, gg, gb = int(cr), int(cg), int(cb)
                 _TRAIL_PEN.setColor(QColor(gr, gg, gb, int(70 * alpha_mult)))
-                _TRAIL_PEN.setWidthF(w + self.glow)
+                _TRAIL_PEN.setWidthF(w + self.glow * pscale)
                 p.setPen(_TRAIL_PEN)
                 p.drawLine(int(hx0), int(hy0), int(hx1), int(hy1))
             _TRAIL_PEN.setColor(QColor(int(cr), int(cg), int(cb),
@@ -1075,7 +1115,7 @@ class BurstParticle:
             return s0 + (s1 - s0) * math.sin(min(1.0, t) * math.pi)
         return s0
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         t = min(1.0, self.age / self.life)
         size = max(0.5, self._current_size(t))
         r = int(self.rgb1[0] + (self.rgb2[0] - self.rgb1[0]) * t)
@@ -1084,12 +1124,15 @@ class BurstParticle:
         fade = max(0.0, 1.0 - t)
         pm, half = bullet_sprite(max(0, min(255, r)), max(0, min(255, g)),
                                  max(0, min(255, b)), size / 2.0)
+        p.save()
+        p.translate(int(self.x), int(self.y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
         if fade < 1.0:
             p.setOpacity(fade)
-            p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
-            p.setOpacity(1.0)
-        else:
-            p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+        p.drawPixmap(-half, -half, pm)
+        p.restore()
+        p.setOpacity(1.0)
 
 
 def spawn_character_burst_fx(fig, action_key):
@@ -1402,7 +1445,7 @@ class SpriteEmitParticle:
         self.y += self.vy * tick_s
         self.age += 1
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         t = min(1.0, self.age / float(self.life))
         fade = max(0.0, 1.0 - t)
         size = max(0.6, self.size * (1.0 - 0.35 * t))
@@ -1411,10 +1454,15 @@ class SpriteEmitParticle:
         glow_pm, gh = bullet_sprite(gr, gg, gb,
                                     size * config.SPRITE_EMITTER_GLOW_SCALE)
         core_pm, ch = bullet_sprite(cr, cg, cb, size)
+        p.save()
+        p.translate(int(self.x), int(self.y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
         p.setOpacity(fade * 0.7)
-        p.drawPixmap(int(self.x) - gh, int(self.y) - gh, glow_pm)
+        p.drawPixmap(-gh, -gh, glow_pm)
         p.setOpacity(fade)
-        p.drawPixmap(int(self.x) - ch, int(self.y) - ch, core_pm)
+        p.drawPixmap(-ch, -ch, core_pm)
+        p.restore()
         p.setOpacity(1.0)
 
 
@@ -1512,7 +1560,9 @@ def draw_sprite_emitter_glow(fig, p, tick_count):
     """Draw the pulsing glow dots for every "glow" source pinned to the
     current frame's line points. Called by Figure.draw in world space (the
     points are transformed through the same flip/rotation as the sprite).
-    No-op without the block."""
+    No-op without the block. The whole constellation of dots scales around
+    the figure's own anchor point using the figure's position scale — same
+    rule as the sprite itself, since these points are pinned to the body."""
     cfg = sprite_emitter_cfg(fig)
     if cfg is None or fig.combat.vc_hidden:
         return
@@ -1522,6 +1572,7 @@ def draw_sprite_emitter_glow(fig, p, tick_count):
     entry = _current_sprite_entry(fig, data)
     if entry is None:
         return
+    pscale = position_scale(fig.x, fig.y, fig.screen_w, fig.screen_h)
     t_s = tick_count * config.TICK_MS / 1000.0
     for si, s in enumerate(cfg["sources"]):
         if s["mode"] != "glow" or not entry["pts"][si]:
@@ -1536,15 +1587,20 @@ def draw_sprite_emitter_glow(fig, p, tick_count):
         core_pm, ch = bullet_sprite(cr, cg, cb, s["glow_size"] * 0.6)
         step = max(1, len(entry["pts"][si]) // 40)
         pts = entry["pts"][si][::step]
+        p.save()
+        p.translate(fig.x, fig.y)
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
         p.setOpacity(alpha * 0.6)
         for (px, py) in pts:
             wx, wy = _frame_point_to_world(fig, entry, px, py)
-            p.drawPixmap(int(wx) - gh, int(wy) - gh, glow_pm)
+            p.drawPixmap(int(wx - fig.x) - gh, int(wy - fig.y) - gh, glow_pm)
         p.setOpacity(alpha)
         for (px, py) in pts:
             wx, wy = _frame_point_to_world(fig, entry, px, py)
-            p.drawPixmap(int(wx) - ch, int(wy) - ch, core_pm)
+            p.drawPixmap(int(wx - fig.x) - ch, int(wy - fig.y) - ch, core_pm)
         p.setOpacity(1.0)
+        p.restore()
 
 
 def _apply_trail_update(fig, t, is_moving, path_follow):
@@ -1717,11 +1773,11 @@ class CrescentWave:
         diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
         return abs(diff) <= config.CRESCENT_SPAN / 2.0
 
-    def draw(self, p, pen, lut=None, flow_off=0.0):
+    def draw(self, p, pen, lut=None, flow_off=0.0, pscale=1.0):
         if not self.alive:
             return
         segs = config.CRESCENT_SEGS
-        r2 = config.CRESCENT_RADIUS
+        r2 = config.CRESCENT_RADIUS * pscale
         half_span = config.CRESCENT_SPAN / 2.0
         start_deg = self.centre_angle_deg - half_span
         step = config.CRESCENT_SPAN / segs
@@ -1754,7 +1810,7 @@ class CrescentWave:
             if alpha < 4:
                 continue
             pen.setColor(QColor(r, g, b, alpha))
-            pen.setWidthF(config.CRESCENT_WIDTH * (0.25 + 0.75 * tail_t))
+            pen.setWidthF(config.CRESCENT_WIDTH * (0.25 + 0.75 * tail_t) * pscale)
             p.setPen(pen)
             a0 = start_deg + i * step
             path = QPainterPath()
@@ -1763,7 +1819,7 @@ class CrescentWave:
             p.drawPath(path)
             # White-hot inner edge — anime-blade brightness on the leading arc
             pen.setColor(QColor(255, 255, 255, int(alpha * 0.7)))
-            pen.setWidthF(config.CRESCENT_WIDTH * 0.3 * (0.25 + 0.75 * tail_t))
+            pen.setWidthF(config.CRESCENT_WIDTH * 0.3 * (0.25 + 0.75 * tail_t) * pscale)
             p.setPen(pen)
             p.drawPath(path)
 
@@ -1962,7 +2018,7 @@ class Petal:
         self.y = anchor_y + math.sin(self.phase) * ry
         return None
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         """Render as a small glowing dot in the character's own petal colour
         (previously Petal had no visual at all — logic-only). A petal on
         cooldown is fully hidden — it only becomes visible again when it
@@ -1972,7 +2028,12 @@ class Petal:
         r, g, b = self.cfg.get("_rgb", _PETAL_DEFAULT_RGB)
         radius = self.cfg.get("_radius", _PETAL_DEFAULT_RADIUS)
         pm, half = bullet_sprite(r, g, b, radius)
-        p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
+        p.save()
+        p.translate(int(self.x), int(self.y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
+        p.drawPixmap(-half, -half, pm)
+        p.restore()
 
 
 def _petals_config(fig):
@@ -2215,11 +2276,16 @@ class HPTClone:
     def alive(self):
         return self.hp > 0
 
-    def draw(self, p):
+    def draw(self, p, pscale=1.0):
         r, g, b = self.rgb
         pm, half = bullet_sprite(r, g, b, config.HPT_CLONE_MARKER_RADIUS_PX)
-        p.drawPixmap(int(self.x) - half, int(self.y) - half, pm)
-        self.sphere.draw(p)
+        p.save()
+        p.translate(int(self.x), int(self.y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
+        p.drawPixmap(-half, -half, pm)
+        p.restore()
+        self.sphere.draw(p, pscale)
 
 
 def check_hpt_clone_spawns(fig, world):
@@ -2548,12 +2614,12 @@ class UltimateCrescent:
         diff = angle_diff(angle_deg_qt(ddx, ddy), self.centre_angle_deg)
         return abs(diff) <= self.cfg['span'] / 2.0
 
-    def draw(self, p, pen):
+    def draw(self, p, pen, pscale=1.0):
         """Draw the blade: dark filled body + bright blue rim, with reveal/fade."""
         if not self.alive:
             return
 
-        r = self.cfg['radius']
+        r = self.cfg['radius'] * pscale
         half_span = self.cfg['span'] / 2.0
         segs = self.cfg['segs']
 
@@ -2600,7 +2666,7 @@ class UltimateCrescent:
             a0 = start_deg + i * step
 
             # Pass 1: dark body
-            body_w = self.cfg['width_outer'] * (0.4 + 0.6 * taper)
+            body_w = self.cfg['width_outer'] * (0.4 + 0.6 * taper) * pscale
             pen.setWidthF(body_w)
             pen.setColor(QColor(8, 8, 12, int(215 * fade_alpha)))
             p.setPen(pen)
@@ -2610,9 +2676,9 @@ class UltimateCrescent:
             p.drawPath(path)
 
             # Pass 2: bright blue rim offset outward
-            rim_off = self.cfg['width_outer'] * 0.3
+            rim_off = self.cfg['width_outer'] * 0.3 * pscale
             rr = r + rim_off
-            rim_w = self.cfg['width_inner'] * (0.3 + 0.7 * taper)
+            rim_w = self.cfg['width_inner'] * (0.3 + 0.7 * taper) * pscale
             pen.setWidthF(rim_w)
             pen.setColor(QColor(30, 120, 200, int(220 * fade_alpha)))
             p.setPen(pen)
@@ -2896,15 +2962,19 @@ class CloneEffect:
             return fs[self.run_idx % len(fs)]
         return None
 
-    def draw(self, p, bundle):
+    def draw(self, p, bundle, pscale=1.0):
         fr = self.frame(bundle)
         if fr is None:
             return
         # Fade out over the last quarter of its life.
         fade = min(1.0, self.ticks_left / max(1.0, 0.25 * self.duration))
+        p.save()
+        p.translate(int(self.x), int(self.y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
         p.setOpacity((config.CLONE_ALPHA / 255.0) * fade)
-        p.drawPixmap(int(self.x) - fr.width() // 2,
-                     int(self.y) - fr.height() // 2, fr)
+        p.drawPixmap(-fr.width() // 2, -fr.height() // 2, fr)
+        p.restore()
         p.setOpacity(1.0)
 
 
