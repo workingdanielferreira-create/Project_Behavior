@@ -40,3 +40,15 @@ def angle_deg_qt(dx, dy):
 def angle_diff(a, b):
     """Smallest signed difference a-b, normalised to (-180, 180]."""
     return (a - b + 180.0) % 360.0 - 180.0
+
+
+def bilinear(x_frac, y_frac, top_left, top_right, bottom_left, bottom_right):
+    """Bilinear blend of four corner values across a unit square.
+
+    x_frac/y_frac are 0..1 fractions (0,0 = top-left corner). Used for the
+    position-based scaling effect — kept generic/dependency-free so it has
+    no opinion about what the corner values mean.
+    """
+    top = top_left * (1.0 - x_frac) + top_right * x_frac
+    bottom = bottom_left * (1.0 - x_frac) + bottom_right * x_frac
+    return top * (1.0 - y_frac) + bottom * y_frac
