@@ -86,10 +86,10 @@ ARENA_OVAL_PUSHBACK_STRENGTH = 9.0   # max px/tick nudged inward, reached at the
 # figure.py::Figure._position_scale().
 # ---------------------------------------------------------------------------
 POSITION_SCALE_ENABLED       = True
-POSITION_SCALE_TOP_LEFT      = 1.30   # 130%
-POSITION_SCALE_TOP_RIGHT     = 1.00   # 100%
-POSITION_SCALE_BOTTOM_LEFT   = 1.90   # 190%
-POSITION_SCALE_BOTTOM_RIGHT  = 1.30   # 130%
+POSITION_SCALE_TOP_LEFT      = 2.3333 # 233.33% (1/3 of the way min->max, same shape as the original 1.0-1.9 range)
+POSITION_SCALE_TOP_RIGHT     = 1.00   # 100% (min)
+POSITION_SCALE_BOTTOM_LEFT   = 5.00   # 500% (max)
+POSITION_SCALE_BOTTOM_RIGHT  = 2.3333 # 233.33% (1/3 of the way min->max, same shape as the original 1.0-1.9 range)
 
 # ---------------------------------------------------------------------------
 # Cursor-collision bounce
