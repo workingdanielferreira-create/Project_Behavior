@@ -108,26 +108,15 @@ class Figure:
     def _position_scale(self):
         """Bilinear scale factor from the figure's screen position.
 
-        Interpolates the four config.POSITION_SCALE_* corner values across
-        this figure's own screen_w/screen_h. transform.x/y are already
-        screen-pixel coordinates (see motion.check_walls), so no world/frame
-        conversion is needed. Same formula for every figure regardless of
-        side, so Solo and Battle stay identical automatically. Visual only —
-        never touches hurtbox_radius or attack radius.
+        transform.x/y are already screen-pixel coordinates (see
+        motion.check_walls), so no world/frame conversion is needed. Thin
+        wrapper over combat.position_scale — the same shared formula every
+        FX system uses, so Solo and Battle stay identical automatically
+        (same figure, same math, no mode branching). Visual only — never
+        touches hurtbox_radius or attack radius.
         """
-        if not config.POSITION_SCALE_ENABLED:
-            return 1.0
-        sw, sh = self.screen_w, self.screen_h
-        if sw <= 0 or sh <= 0:
-            return 1.0
-        t = self.transform
-        x = max(0.0, min(1.0, t.x / sw))
-        y = max(0.0, min(1.0, t.y / sh))
-        top = (config.POSITION_SCALE_TOP_LEFT * (1.0 - x)
-               + config.POSITION_SCALE_TOP_RIGHT * x)
-        bottom = (config.POSITION_SCALE_BOTTOM_LEFT * (1.0 - x)
-                  + config.POSITION_SCALE_BOTTOM_RIGHT * x)
-        return top * (1.0 - y) + bottom * y
+        return _combat.position_scale(self.transform.x, self.transform.y,
+                                       self.screen_w, self.screen_h)
 
     # drawing ---------------------------------------------------------------
     def _current_frame(self):
@@ -174,7 +163,8 @@ class Figure:
             p.setOpacity(1.0)
             c0.afterimages = live
 
-        self.trail.draw(p, pen, self.motion.follow)
+        fig_pscale = self._position_scale()
+        self.trail.draw(p, pen, self.motion.follow, fig_pscale)
 
         # --- Sprite-line emitter FX (JSON `sprite_emitter`): pulsing glow
         # dots pinned to the current frame's colour-matched line points
@@ -186,14 +176,17 @@ class Figure:
         _combat.draw_sprite_emitter_glow(self, p, self.render.anim_tick)
         if self.combat.sprite_particles:
             for sp in self.combat.sprite_particles:
-                sp.draw(p)
+                # These detach and drift on their own, so they scale by
+                # their OWN current position, not the figure's.
+                sp.draw(p, _combat.position_scale(sp.x, sp.y,
+                                                   self.screen_w, self.screen_h))
 
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
         # sprite (and its glow) skip drawing while vc_hidden; crescent
         # slashes / sparks / impact FX below still render.
         if frame is not None and not c0.vc_hidden:
-            pscale = self._position_scale()
+            pscale = fig_pscale
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
@@ -228,26 +221,41 @@ class Figure:
             cpen.setCapStyle(Qt.RoundCap)
             cpen.setJoinStyle(Qt.RoundJoin)
             for c in self.combat.crescents:
-                c.draw(p, cpen, lut=self.lut, flow_off=self.trail.flow_off)
+                # Crescents travel outward from the figure, so they scale
+                # by their own current position.
+                cscale = _combat.position_scale(c.x, c.y,
+                                                 self.screen_w, self.screen_h)
+                c.draw(p, cpen, lut=self.lut, flow_off=self.trail.flow_off,
+                       pscale=cscale)
 
         if self.combat.ult_crescents:
             upen = QPen()
             upen.setCapStyle(Qt.RoundCap)
             upen.setJoinStyle(Qt.RoundJoin)
             for uc in self.combat.ult_crescents:
-                uc.draw(p, upen)
+                uscale = _combat.position_scale(uc.x, uc.y,
+                                                 self.screen_w, self.screen_h)
+                uc.draw(p, upen, pscale=uscale)
 
         if self.combat.petals:
             for pt in self.combat.petals:
-                pt.draw(p)
+                # Petals orbit the figure but at some radius from it, so
+                # they still get their own position's scale.
+                pscale_pt = _combat.position_scale(pt.x, pt.y,
+                                                    self.screen_w, self.screen_h)
+                pt.draw(p, pscale_pt)
 
         # --- Clones: autonomous ghosts (special_ability preset 'clone') ---
         if self.combat.clones:
             for cl in self.combat.clones:
-                cl.draw(p, self.render.bundle)
+                cscale = _combat.position_scale(cl.x, cl.y,
+                                                 self.screen_w, self.screen_h)
+                cl.draw(p, self.render.bundle, cscale)
 
         if self.combat.particle_bursts:
             for bp in self.combat.particle_bursts:
-                bp.draw(p)
+                bpscale = _combat.position_scale(bp.x, bp.y,
+                                                  self.screen_w, self.screen_h)
+                bp.draw(p, bpscale)
 
 
