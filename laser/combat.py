@@ -250,7 +250,7 @@ def kill_projectile(pr):
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
-                 "pierce", "knockback_px", "owner", "one_hit")
+                 "pierce", "knockback_px", "owner", "one_hit", "no_knockback")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -289,6 +289,17 @@ class Projectile:
         # means "use standard knockback" — every existing bullet's behaviour
         # is unchanged. Identical gate in Solo & Battle.
         self.knockback_px = 0.0
+        # Optional generic "pure poke" override: when True, a hit from this
+        # projectile deals its damage but launches NO knockback at all (the
+        # victim isn't bounced/staggered), instead of the standard growing
+        # hit_power-based launch. Distinct from knockback_px, which changes
+        # the launch distance rather than removing the launch entirely.
+        # Used by ambient figure-contact damage (e.g. Mage's petals) so a
+        # melee figure closing in isn't perpetually shoved back out of range
+        # by every poke — it can still absorb hits and press the attack.
+        # Default False keeps every existing bullet's behaviour unchanged.
+        # Identical gate in Solo & Battle.
+        self.no_knockback = False
         # The Figure that fired this shot, or None for ownerless bullets
         # (splinters, deflect ricochets, legacy make_shot paths). Used by the
         # same-side parry check in systems.ProjectileSystem so a figure never
@@ -834,14 +845,17 @@ def proximity_attack_speed_multiplier(cfg, dist):
 
 
 # ---------------------------------------------------------------------------
-# Proximity-based PETAL interception speed (see combat.update_petals) —
-# generic, data-driven opt-in mechanic distinct from proximity_attack_speed
-# above: a character's top-level `petal_proximity_speed` block scales its
-# ambient petals' own approach_speed (how fast a petal darts in once it
-# breaks orbit to intercept) by how close the current target is, using the
-# exact same 1x..max_multiplier ramp. Orbit spin (orbit_speed_deg) is left
-# untouched — only the interception dart speeds up. Identical in Solo &
-# Battle: target is the nearest enemy figure in Battle, the cursor in Solo.
+# Proximity-based PETAL cooldown (see combat.update_petals) — generic,
+# data-driven opt-in mechanic distinct from proximity_attack_speed above: a
+# character's top-level `petal_proximity_speed` block scales its ambient
+# petals' own cooldown_ms (how long a spent petal hides before respawning
+# into the orbit) by how close the current target is, using the exact same
+# 1x..max_multiplier ramp — at max_multiplier the cooldown is that many
+# times SHORTER, so petals respawn and re-attack more often, ramping DPS as
+# the enemy closes in. approach_speed (the dart-in travel speed itself) and
+# orbit_speed_deg (orbit spin) are both left untouched — only the re-attack
+# frequency changes. Identical in Solo & Battle: target is the nearest enemy
+# figure in Battle, the cursor in Solo.
 # ---------------------------------------------------------------------------
 def petal_proximity_speed_cfg(fig):
     """Per-figure petal_proximity_speed tuning, or None. Cached on the mode
@@ -2239,17 +2253,18 @@ def update_petals(fig, world):
         c.petals = [Petal((i / n) * 2 * math.pi, cfg) for i in range(n)]
         c.petals_init = True
 
-    # Proximity-based interception speed (opt-in, see
-    # combat.petal_proximity_speed_cfg): scales approach_speed up the
-    # closer the current target is, holding at max_multiplier inside
-    # min_range_px. `cfg` is the one shared dict every petal on this figure
-    # already references, so updating it here immediately affects all of
-    # them together. Orbit spin is untouched. No-op for characters without
-    # a petal_proximity_speed block.
+    # Proximity-based cooldown (opt-in, see combat.petal_proximity_speed_cfg):
+    # scales cooldown_ms DOWN the closer the current target is (petals
+    # respawn/re-attack more often — ramping DPS), holding at
+    # cooldown/max_multiplier inside min_range_px. `cfg` is the one shared
+    # dict every petal on this figure already references, so updating it
+    # here immediately affects all of them together. approach_speed (dart
+    # travel speed) and orbit spin are both untouched. No-op for characters
+    # without a petal_proximity_speed block.
     prox_cfg = petal_proximity_speed_cfg(fig)
     if prox_cfg is not None:
-        if "_base_approach_speed" not in cfg:
-            cfg["_base_approach_speed"] = cfg["approach_speed"]
+        if "_base_cooldown_ms" not in cfg:
+            cfg["_base_cooldown_ms"] = cfg["cooldown_ms"]
         battle_on = bool(world.battle_mode and world.partner_figures)
         if battle_on:
             tx, ty = world._nearest_enemy(fig.x, fig.y)
@@ -2257,7 +2272,7 @@ def update_petals(fig, world):
             tx, ty = world.cursor
         dist = math.hypot(tx - fig.x, ty - fig.y)
         mult = proximity_attack_speed_multiplier(prox_cfg, dist)
-        cfg["approach_speed"] = cfg["_base_approach_speed"] * mult
+        cfg["cooldown_ms"] = cfg["_base_cooldown_ms"] / mult
 
     independent = cfg.get("independent", 0.0) >= 0.5
     figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
@@ -2324,6 +2339,12 @@ def update_petals(fig, world):
             pr.style = "invisible"
             pr.max_age = config.PETAL_TOUCH_PROJ_AGE
             pr.damage = float(cfg.get("damage", 1.0))
+            # A petal poke deals its damage but never launches the victim —
+            # without this, a melee figure closing in gets bounced by every
+            # contact (petals have no shooter-style knockback immunity
+            # cycling to fall back on), which compounds into a de facto
+            # repulsion field that keeps it from ever reaching melee range.
+            pr.no_knockback = True
             world.projectiles.append(pr)
             world.collision_dots.append([cx, cy, 0])
     if len(surviving) != len(world.enemy_projs):
