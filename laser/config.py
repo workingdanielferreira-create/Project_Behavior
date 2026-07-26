@@ -169,6 +169,13 @@ CRESCENT_SPAN      = 170        # total arc angle (degrees)
 CRESCENT_WIDTH     = 6.5        # stroke width (Slash FX: was 3.5)
 CRESCENT_TAIL      = 0.95       # fraction of arc trailing behind the tip
 CRESCENT_SEGS      = 16         # draw segments for the alpha gradient
+# "Through" crescents (CrescentWave(..., through=True)) — opt-in geometry in
+# which the arc's MIDPOINT rides the target instead of curving past its side:
+# the arc starts CRESCENT_THROUGH_LEAD px short of the target and travels at
+# CRESCENT_THROUGH_SPEED px/tick, so over CRESCENT_LIFETIME ticks it enters
+# one side of the body and exits the other. Generic — any caller can opt in.
+CRESCENT_THROUGH_LEAD  = 26.0   # px the arc starts short of the target
+CRESCENT_THROUGH_SPEED = 10.0   # px/tick (x5 ticks = 50px: 26 short -> 24 past)
 DEFLECT_CRESCENT_REACH = 60.0   # px used to set the vertical dir for the
                                  # deflect-slash crescent (head<->feet); the
                                  # crescent's own size still comes from
