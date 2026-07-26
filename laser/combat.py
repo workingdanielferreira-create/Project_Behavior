@@ -2569,6 +2569,16 @@ def tick_hpt_clones(world):
 
     if fire_now:
         beam_layer = lead_cfg.get("beam_layer")
+        # Diagnostic: confirm whether the authored/borrowed beam layer
+        # actually resolved this volley, so a "clones spawn but never fire
+        # a real beam" report is traceable in laser_cursor_log.txt instead
+        # of silently falling back to the plain comet-bolt. Identical in
+        # Solo & Battle.
+        from . import action_log as _alog
+        _alog.log("HPT_BEAM",
+            f"clones={len(world.clones)} beam_layer_resolved="
+            f"{beam_layer is not None} "
+            f"style={'RichBeamProjectile' if beam_layer is not None else 'plain-comet-bolt'}")
         max_age = config.HPT_CLONE_BEAM_MAX_AGE_DEFAULT
         if beam_layer is not None:
             try:
