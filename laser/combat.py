@@ -1734,20 +1734,39 @@ def make_beam_shot(fx, fy, tx, ty, color_rgb):
 # CrescentWave — an arc that flies toward a target, fades, and erases bullets
 # ---------------------------------------------------------------------------
 class CrescentWave:
-    __slots__ = ("x", "y", "dir_x", "dir_y", "age", "color_rgb", "centre_angle_deg")
+    __slots__ = ("x", "y", "dir_x", "dir_y", "age", "color_rgb",
+                 "centre_angle_deg", "speed")
 
-    def __init__(self, fig_x, fig_y, target_x, target_y, color_rgb):
+    def __init__(self, fig_x, fig_y, target_x, target_y, color_rgb,
+                 through=False):
         dx, dy = target_x - fig_x, target_y - fig_y
         dist = (dx * dx + dy * dy) ** 0.5
         if dist > 0.001:
             self.dir_x, self.dir_y = dx / dist, dy / dist
         else:
             self.dir_x, self.dir_y = 1.0, 0.0
-        # Place arc centre directly ON the target. The arc spans around the
-        # target using the perpendicular to the attack direction so the slash
-        # wraps around the figure rather than extending away from it.
-        self.x = float(target_x) - self.dir_x * 51
-        self.y = float(target_y) - self.dir_y * 51
+        # The arc is drawn by arcMoveTo/arcTo on a circle centred at
+        # (self.x, self.y): a Qt arc angle t maps to the screen point
+        # (cx + R*cos t, cy - R*sin t), so with centre_angle_deg below the
+        # arc's MIDPOINT always sits at centre + R * (-dir_y, dir_x).
+        if through:
+            # Through-slash: solve that relation for the centre so the arc
+            # midpoint lands exactly on the target, then back the whole arc
+            # off along -dir by CRESCENT_THROUGH_LEAD. Combined with the
+            # faster self.speed below, the curve enters one side of the
+            # target and exits the other over its lifetime, both ends
+            # overshooting the body (chord = 2*R*sin(SPAN/2)).
+            self.x = (float(target_x) + self.dir_y * config.CRESCENT_RADIUS
+                      - self.dir_x * config.CRESCENT_THROUGH_LEAD)
+            self.y = (float(target_y) - self.dir_x * config.CRESCENT_RADIUS
+                      - self.dir_y * config.CRESCENT_THROUGH_LEAD)
+            self.speed = config.CRESCENT_THROUGH_SPEED
+        else:
+            # Default: arc centre set back from the target so the slash
+            # wraps around the figure rather than extending away from it.
+            self.x = float(target_x) - self.dir_x * 51
+            self.y = float(target_y) - self.dir_y * 51
+            self.speed = config.CRESCENT_SPEED
         self.age = 0
         self.color_rgb = color_rgb
         # Orient perpendicular to attack direction (rotate dir 90°)
@@ -1758,8 +1777,8 @@ class CrescentWave:
         return self.age < config.CRESCENT_LIFETIME
 
     def update(self):
-        self.x += self.dir_x * config.CRESCENT_SPEED
-        self.y += self.dir_y * config.CRESCENT_SPEED
+        self.x += self.dir_x * self.speed
+        self.y += self.dir_y * self.speed
         self.age += 1
 
     def check_bullet_erase(self, bx, by):
@@ -3331,7 +3350,7 @@ def tick_vanish_cut(fig, target_x, target_y):
         oy = target_y + math.sin(ang) * 90.0
         r, g, b = fig.lut[80]
         c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
-                                        (r, g, b)))
+                                        (r, g, b), through=True))
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
         if c.vc_hits_left <= 0:
@@ -3345,7 +3364,7 @@ def tick_vanish_cut(fig, target_x, target_y):
                 py_ = target_y + c.vc_dir_x * sgn * 90.0
                 c.crescents.append(CrescentWave(px_, py_,
                                                 target_x, target_y,
-                                                (r2, g2, b2)))
+                                                (r2, g2, b2), through=True))
         else:
             c.vc_tick = vc["interval_ticks"]
         return True
