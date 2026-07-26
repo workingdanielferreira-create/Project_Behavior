@@ -204,7 +204,7 @@ class Figure:
                     ang = (2 * math.pi * i) / steps
                     ox = math.cos(ang) * radius
                     oy = math.sin(ang) * radius
-                    p.drawPixmap(int(ox) - sw, int(oy) - sh, silh)
+                    p.drawPixmap(round(ox) - sw, round(oy) - sh, silh)
                 p.setOpacity(1.0)
                 p.restore()
             p.save()
