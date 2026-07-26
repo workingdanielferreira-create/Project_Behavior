@@ -397,7 +397,7 @@ class World:
             if j == i:
                 continue
             for f in self.sides[j].figures:
-                if f.combat.vc_phase != 0:
+                if combat.vc_freezes_world(f.combat):
                     return True
         return False
 
