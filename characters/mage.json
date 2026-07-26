@@ -515,51 +515,6 @@
    ],
    "fx_layers": [
     {
-     "type": "beam",
-     "px": 22.2,
-     "py": -0.9,
-     "prot": 0,
-     "anchor": "r_hand",
-     "follow": true,
-     "length": 2990,
-     "w_start0": 1,
-     "w_start1": 1,
-     "w_end0": 1,
-     "w_end1": 1,
-     "travel_speed": 0,
-     "detach_ms": 0,
-     "angle_deg": -18,
-     "segments": 14,
-     "pulse_hz": 8,
-     "life_min": 90,
-     "life_max": 170,
-     "c1": "#ffffff",
-     "c2": "#ff2020",
-     "glow": 16,
-     "blend": "normal",
-     "delay_ms": 60,
-     "jitter": 3,
-     "aim_weapon": true,
-     "trig": "immediate",
-     "trig_ref": "",
-     "trig_delay_ms": 0,
-     "can_hit": true,
-     "homing": true,
-     "homing_multi": false,
-     "hit_rate_ms": 150,
-     "_id": "L3",
-     "battle": {
-      "damage": 1,
-      "attack": {
-       "explode": false,
-       "scatter": false,
-       "pierce": true,
-       "slash": false
-      },
-      "defence": "none"
-     }
-    },
-    {
      "type": "figure",
      "visible": true,
      "opacity": 1
@@ -1652,7 +1607,7 @@
  },
  "disable_survival_teleport": true,
  "hp_threshold_clones": {
-  "_comment": "Generic engine mechanic (see laser/combat.py hpt_clone_cfg / HPTClone) \u2014 any character's JSON can opt in via this same block. Each threshold fires ONCE EVER per crossing (non-repeatable), spawning a stationary 1-HP clone at each listed corner. Clones never move and are hittable by enemy ranged/petal contact (die on any single hit). Each clone's orb sits at a FIXED point hover_radius px away (picked once at spawn, no orbit) and every live orb on the side fires a beam at the enemy IN SYNC every beam_interval_ms (one shared per-side clock \u2014 all clones on a side fire together on the same tick, not independently). beam_layer_ref borrows an authored beam fx_layer's own visuals/pierce ('action_name:LayerID'); here it reuses Mage's own attack_normal beam.",
+  "_comment": "Generic engine mechanic (see laser/combat.py hpt_clone_cfg / HPTClone) \u2014 any character's JSON can opt in via this same block. Each threshold fires ONCE EVER per crossing (non-repeatable), spawning a stationary 1-HP clone at each listed corner. Clones never move and are hittable by enemy ranged/petal contact (die on any single hit). Each clone's orb sits at a FIXED point hover_radius px away (picked once at spawn, no orbit) and every live orb on the side fires a beam IN SYNC every beam_interval_ms (one shared per-side clock \u2014 all clones on a side fire together on the same tick). Target is the nearest enemy figure in Battle, the cursor in Solo. beam_layer_char + beam_layer_ref borrow New Fighter's own death-beam layer (looked up live off modes.MODE_REGISTRY) for the volley's visuals/pierce, instead of an authored layer on Mage's own JSON.",
   "thresholds": [
    {
     "pct": 75,
@@ -1679,7 +1634,8 @@
   "hover_radius": 700,
   "corner_inset_px": 120,
   "beam_interval_ms": 3000,
-  "beam_layer_ref": "attack_normal:L3"
+  "beam_layer_ref": "attack_normal:L4",
+  "beam_layer_char": "new_fighter"
  },
  "stationary": true,
  "damage_teleport": {
@@ -1687,8 +1643,8 @@
   "threshold_hp": 10,
   "distance_px": 1000
  },
- "proximity_attack_speed": {
-  "_comment": "Generic engine mechanic (see laser/combat.py proximity_attack_speed_cfg, systems.ProjectileSystem._fire_proximity_attack_speed) \u2014 any JSON character can opt in via this same block. Scales attack_normal's fire rate by distance to the current target: at max_range_px or beyond, fires at the normal 1x cadence; as the target closes to min_range_px, the interval scales down linearly toward max_multiplier times faster, holding at max_multiplier for anything closer still. Runs on its own independent per-figure clock, identical in Solo & Battle.",
+ "petal_proximity_speed": {
+  "_comment": "Generic engine mechanic (see laser/combat.py petal_proximity_speed_cfg, combat.update_petals) \u2014 any JSON character with an ambient petals fx_layer can opt in via this same block. Scales the petals' own approach_speed (how fast one darts in once it breaks orbit to intercept) by distance to the current target: 1x at/after max_range_px, scaling linearly up to max_multiplier at min_range_px, holding there for anything closer. Orbit spin (orbit_speed_deg) is untouched \u2014 only the interception dart speeds up. Mage's 3 always-active idle petals ARE his normal attack; this is what makes them dart in faster as an enemy closes in. Identical in Solo & Battle.",
   "max_range_px": 1000,
   "min_range_px": 10,
   "max_multiplier": 5
