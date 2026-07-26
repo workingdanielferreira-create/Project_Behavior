@@ -382,6 +382,7 @@ class ProjectileSystem(System):
         # Battle — both call the exact same trigger + fire path.
         if world.shoot_mode:
             self._fire_attack_pattern(world)
+            self._fire_proximity_attack_speed(world)
             self._fire_json_actions(world)
 
         # Update homing bullet targets — cursor in solo, nearest enemy in battle.
@@ -616,6 +617,12 @@ class ProjectileSystem(System):
                         # by _fire_attack_pattern's independent per-figure
                         # cadence below; skip here to avoid double-firing.
                         continue
+                    elif combat.has_proximity_attack_speed(getattr(fig.mode, "character", None)):
+                        # Has its own proximity_attack_speed block — handled
+                        # entirely by _fire_proximity_attack_speed's
+                        # independent per-figure cadence below; skip here to
+                        # avoid double-firing.
+                        continue
                     elif battle:
                         # Battle non-runner: per-figure randomised cadence.
                         p = fig.personality
@@ -705,6 +712,49 @@ class ProjectileSystem(System):
             if st["phase"] >= len(cycle):
                 st["phase"] = 0
                 st["pause"] = int(pattern.get("cycle_pause_ticks", 0) or 0)
+
+    def _fire_proximity_attack_speed(self, world):
+        """Independent per-figure cadence for JSON characters carrying a
+        `proximity_attack_speed` block (see combat.proximity_attack_speed_cfg).
+        attack_normal fires on a single unified base cadence
+        (config.SHOOT_INTERVAL) that speeds up the closer the current
+        target is, up to max_multiplier at min_range_px. Runs its own
+        tick counter per figure (personality.trigger_state['_prox_atk']),
+        completely independent of the shared timer, attack_pattern, and
+        every other figure. Suppressed while that figure's own ultimate
+        window is active, mirroring the other cadences. Identical in Solo
+        & Battle — target is the nearest enemy in Battle, the cursor in
+        Solo, and the distance/multiplier math is exactly the same either
+        way."""
+        battle = bool(world.battle_mode and world.partner_figures)
+        for fig in world.figures:
+            if not fig.mode.can_shoot():
+                continue
+            cfg = combat.proximity_attack_speed_cfg(fig)
+            if cfg is None:
+                continue
+            if fig.personality.ultimate_ticks > 0:
+                continue
+            st = fig.personality.trigger_state.setdefault(
+                "_prox_atk", {"tick": 0})
+            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+                      else world.cursor)
+            dist = math.hypot(tx - fig.x, ty - fig.y)
+            mult = combat.proximity_attack_speed_multiplier(cfg, dist)
+            interval = max(1, int(round(config.SHOOT_INTERVAL / mult)))
+            st["tick"] += 1
+            if st["tick"] < interval:
+                continue
+            st["tick"] = 0
+            new_projs = combat.fire_character_action(
+                fig, "attack_normal", tx, ty)
+            world.projectiles.extend(new_projs)
+            _fr, _fg, _fb = fig.lut[128]
+            world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+            action_log.log("SHOT",
+                f"proximity_attack_speed mode={fig.mode.key} "
+                f"dist={dist:.0f} mult={mult:.2f} interval={interval} "
+                f"spawned={len(new_projs)}")
 
     def _fire_json_actions(self, world):
         """attack_special / ultimate for JSON characters: fire whenever that
