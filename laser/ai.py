@@ -206,7 +206,8 @@ def apply_hp_damage(fig, world, amount=1):
     return False
 
 
-def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None):
+def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
+               no_knockback=False):
     """An enemy projectile struck `fig`: launch it along the bullet's velocity.
     Launch force is the figure's current hit_power, which grows per strike.
 
@@ -228,6 +229,13 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None):
     still goes through the same shooter knockback-cycling/immunity window
     below, and still stacks with an in-flight bounce exactly like a normal
     hit — only the launch speed's source differs. Identical in Solo & Battle.
+
+    `no_knockback` is a generic override for ambient "poke" damage (see the
+    projectile's own `.no_knockback`, e.g. Mage's petal figure-contact hits):
+    when True, damage still applies but there is NO launch at all — the
+    figure isn't bounced/staggered, so a melee attacker closing in isn't
+    perpetually shoved back out of range by every ambient tick of damage.
+    Takes priority over knockback_px. Identical in Solo & Battle.
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
@@ -249,6 +257,12 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None):
             return  # no bounce this hit
         else:
             p.knockback_count += 1  # consume one knockback slot
+
+    # --- Pure poke: damage only, no launch at all ---
+    if no_knockback:
+        if world is not None:
+            apply_hp_damage(fig, world, amount)
+        return
 
     # --- Apply knockback ---
     if knockback_px:
