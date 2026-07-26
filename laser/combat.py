@@ -2345,6 +2345,19 @@ def update_petals(fig, world):
             # cycling to fall back on), which compounds into a de facto
             # repulsion field that keeps it from ever reaching melee range.
             pr.no_knockback = True
+            # Unblockable (pierce): the contact point is, by construction,
+            # already inside any melee figure's automatic point-blank parry
+            # radius (PARRY_RADIUS) — without this every petal poke was
+            # silently auto-deflected before damage ever applied, making the
+            # petals look purely cosmetic against a melee opponent. Pierce
+            # also means it isn't nulled by an open parry stance. Identical
+            # in Solo & Battle.
+            pr.pierce = True
+            # one_hit: pierce bullets are never culled on contact, so without
+            # this a single petal poke could land repeatedly over its
+            # max_age lifetime instead of dealing exactly one hit (see the
+            # documented pierce+one_hit pattern on Projectile.one_hit).
+            pr.one_hit = True
             world.projectiles.append(pr)
             world.collision_dots.append([cx, cy, 0])
     if len(surviving) != len(world.enemy_projs):
@@ -2506,9 +2519,20 @@ def check_hpt_clone_spawns(fig, world):
         if pct in fired or hp_pct > pct:
             continue
         fired.add(pct)
+        spawned_any = False
         for position in positions:
             cx, cy = _hpt_corner_xy(world, position, cfg["corner_inset"])
             world.clones.append(HPTClone(cx, cy, cfg))
+            spawned_any = True
+        if spawned_any:
+            # Force the shared beam clock to fire on the very next
+            # tick_hpt_clones call. Without this, a freshly-spawned sphere
+            # just waits its turn on the existing per-side clock (up to a
+            # full beam_interval_ms) — if the clone dies or the fight ends
+            # before that clock expires, it never fires a single shot. Every
+            # sphere that's created is guaranteed at least one volley this
+            # way. Identical in Solo & Battle.
+            world.hpt_beam_ticks = 0
 
 
 def tick_hpt_clones(world):
