@@ -370,6 +370,13 @@ HPT_CLONE_ORBIT_SPEED_DEFAULT  = 25.0     # deg/s
 HPT_CLONE_APPROACH_SPEED_DEFAULT = 900.0  # px/s — sphere speed while intercepting
 HPT_CLONE_COOLDOWN_MS_DEFAULT  = 1550     # ms — sphere respawn after a contact
 HPT_CLONE_CORNER_INSET_PX      = 120.0    # px inset from the true screen corner
+# Beam-volley tuning (see combat.HPTClone / combat.tick_hpt_clones): each
+# clone's orb is a fixed static point that fires a beam at the enemy every
+# beam_interval_ms, synchronized across every live clone on the side.
+HPT_CLONE_BEAM_INTERVAL_MS_DEFAULT = 3000.0  # ms between synchronized volleys
+HPT_CLONE_BEAM_SPEED_PX_S      = 1400.0      # px/s — clone beam travel speed
+HPT_CLONE_BEAM_MAX_AGE_DEFAULT  = 150        # ticks fallback if the referenced
+                                              # beam layer has no life_min/max
 
 # ---------------------------------------------------------------------------
 # Sprite-line emitter (see combat.sprite_emitter_cfg / update_sprite_emitter).
@@ -406,6 +413,7 @@ HPT_CLONE_HURTBOX_RADIUS_PX    = 40.0     # px — incoming-bullet contact radiu
                                            # against the clone's own body
 HPT_CLONE_MARKER_RADIUS_PX     = 16.0     # px — glowing-orb marker draw radius
 HPT_CLONE_MARKER_RGB           = (120, 200, 255)  # glowing-orb marker colour
+HPT_CLONE_ORB_RADIUS_PX        = 6.0      # px — static beam-orb draw radius
 
 # ---------------------------------------------------------------------------
 # Damage-teleport (see combat.damage_teleport_cfg / combat.check_damage_teleport).
