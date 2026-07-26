@@ -75,6 +75,8 @@ class SideState:
         self.enemy_projs = []       # opponent bullets: (x,y,vx,vy,r,g,b,dmg,proj)
         self.clones = []            # this side's own HPTClone instances
                                     # (see combat.HPTClone / hp_threshold_clones)
+        self.hpt_beam_ticks = 0     # shared clock driving the clones'
+                                    # synchronized beam volley (combat.tick_hpt_clones)
 
 
 class World:
@@ -102,6 +104,7 @@ class World:
         self.mode_key = self.sides[0].mode_key
         self.projectiles = self.sides[0].projectiles
         self.clones = self.sides[0].clones
+        self.hpt_beam_ticks = self.sides[0].hpt_beam_ticks
         self.shoot_ticks = 0   # per-side firing cadence counter (bound)
         self.shot_phase = 0       # current runner cycle phase (0=cone,1=zigzag,2=homing)
         self.shot_pause_ticks = 0 # counts down the inter-cycle pause
@@ -311,6 +314,7 @@ class World:
         self.partner_figures = s.partner_figures
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
+        self.hpt_beam_ticks = s.hpt_beam_ticks
 
     def unbind_side(self):
         s = self.sides[self.side_idx]
@@ -322,6 +326,7 @@ class World:
         s.intercepted_bullets = self.intercepted_bullets
         s.enemy_projs = self.enemy_projs
         s.clones = self.clones
+        s.hpt_beam_ticks = self.hpt_beam_ticks
 
     def refresh_battle(self):
         """Start-of-tick sync: cull fallen fighters, decide battle mode, and
@@ -340,6 +345,7 @@ class World:
                         # side is never simulated).
                         side.projectiles.clear()
                         side.clones.clear()
+                        side.hpt_beam_ticks = 0
             self._dead.clear()
         self.battle_mode = bool(self.sides[0].figures
                                 and self.sides[1].figures)
