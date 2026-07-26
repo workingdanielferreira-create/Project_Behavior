@@ -1652,7 +1652,7 @@
  },
  "disable_survival_teleport": true,
  "hp_threshold_clones": {
-  "_comment": "Generic engine mechanic (see laser/combat.py hpt_clone_cfg / HPTClone) \u2014 any character's JSON can opt in via this same block. Each threshold fires ONCE EVER per crossing (non-repeatable), spawning a stationary 1-HP clone at each listed corner. Clones never move, are hittable by enemy ranged/petal contact (die on any single hit), and attack only via their own orbiting sphere.",
+  "_comment": "Generic engine mechanic (see laser/combat.py hpt_clone_cfg / HPTClone) \u2014 any character's JSON can opt in via this same block. Each threshold fires ONCE EVER per crossing (non-repeatable), spawning a stationary 1-HP clone at each listed corner. Clones never move and are hittable by enemy ranged/petal contact (die on any single hit). Each clone's orb sits at a FIXED point hover_radius px away (picked once at spawn, no orbit) and every live orb on the side fires a beam at the enemy IN SYNC every beam_interval_ms (one shared per-side clock \u2014 all clones on a side fire together on the same tick, not independently). beam_layer_ref borrows an authored beam fx_layer's own visuals/pierce ('action_name:LayerID'); here it reuses Mage's own attack_normal beam.",
   "thresholds": [
    {
     "pct": 75,
@@ -1677,16 +1677,20 @@
   "clone_hp": 1,
   "damage": 1,
   "hover_radius": 700,
-  "detect_range": 1800,
-  "orbit_speed_deg": 25,
-  "approach_speed": 900,
-  "cooldown_ms": 1550,
-  "corner_inset_px": 120
+  "corner_inset_px": 120,
+  "beam_interval_ms": 3000,
+  "beam_layer_ref": "attack_normal:L3"
  },
  "stationary": true,
  "damage_teleport": {
   "_comment": "Generic engine mechanic (see laser/combat.py damage_teleport_cfg / check_damage_teleport) \u2014 any character's JSON can opt in via this same block. Fires every time accumulated damage taken reaches threshold_hp; landing point is distance_px away from the figure's OWN current position in a random direction (NOT relative to the target). Remainder carries forward.",
   "threshold_hp": 10,
   "distance_px": 1000
+ },
+ "proximity_attack_speed": {
+  "_comment": "Generic engine mechanic (see laser/combat.py proximity_attack_speed_cfg, systems.ProjectileSystem._fire_proximity_attack_speed) \u2014 any JSON character can opt in via this same block. Scales attack_normal's fire rate by distance to the current target: at max_range_px or beyond, fires at the normal 1x cadence; as the target closes to min_range_px, the interval scales down linearly toward max_multiplier times faster, holding at max_multiplier for anything closer still. Runs on its own independent per-figure clock, identical in Solo & Battle.",
+  "max_range_px": 1000,
+  "min_range_px": 10,
+  "max_multiplier": 5
  }
 }
