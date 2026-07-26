@@ -345,8 +345,17 @@ def _basic_shot(fig, tx, ty):
     """Basic-attack projectile spawn for the shared shot cadence. JSON
     characters with a per-layer battle attack_normal (see
     combat.fire_character_action) fire their own attack instead of the
-    built-in legacy fan shot. Identical in Solo & Battle."""
+    built-in legacy fan shot.
+
+    Generic `disable_basic_attack` JSON flag (top-level, opt-in): a
+    can_shoot character with no can_hit attack_normal layers would otherwise
+    silently fall back to the legacy fan shot below — this lets a character
+    that attacks entirely through other systems (e.g. Mage's petals/corner
+    clones) opt out of that fallback and fire nothing on the shared cadence.
+    Identical in Solo & Battle."""
     char = getattr(fig.mode, "character", None)
+    if char and char.get("disable_basic_attack"):
+        return []
     if char and combat._character_action_layers(char, "attack_normal"):
         return combat.fire_character_action(fig, "attack_normal", tx, ty)
     return combat.make_shot(fig.x, fig.y, tx, ty, fig.lut[128])
@@ -974,7 +983,8 @@ class CollisionSystem(System):
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
                         ai.battle_hit(fig, evx, evy, world, amount=_dmg,
-                                      knockback_px=getattr(_src, "knockback_px", 0))
+                                      knockback_px=getattr(_src, "knockback_px", 0),
+                                      no_knockback=getattr(_src, "no_knockback", False))
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
