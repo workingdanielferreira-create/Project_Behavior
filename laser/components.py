@@ -182,7 +182,7 @@ class Renderable:
 
     __slots__ = ("bundle", "run_idx", "idle_idx",
                  "anim_tick", "anim_speed", "idle_anim_speed", "is_moving",
-                 "outline_glow", "afterimage_rgb")
+                 "outline_glow", "afterimage_rgb", "frame_override")
 
     def __init__(self, bundle, anim_speed, idle_anim_speed, outline_glow=None,
                  afterimage_rgb=None):
@@ -202,6 +202,13 @@ class Renderable:
         # (combat.silhouette's own fallback covers every character that
         # doesn't set this).
         self.afterimage_rgb = afterimage_rgb
+        # Generic render-only frame lock: when set to a pixmap, _current_frame
+        # returns it verbatim and every animation selector below is bypassed.
+        # Used by the vanish-cut windup (drive an authored frame sequence
+        # without engaging the combat slash FSM, so no stray hit/crescent/
+        # combo follow-up fires) and by its reappear hold (keep the exact
+        # frame the character vanished on). Nothing sets it by default.
+        self.frame_override = None
 
     def set_bundle(self, bundle):
         self.bundle = bundle
@@ -360,7 +367,8 @@ class Combatant:
         self.ult_charges = 0              # charges toward a charge-based ult
         # Generic vanish-cut ultimate (ultimate_playback.style
         # 'vanish_cut', see combat.tick_vanish_cut).
-        self.vc_phase = 0                 # 0 idle / 1 vanish / 2 blitz / 3 impact
+        self.vc_phase = 0                 # 0 idle / 4 windup / 1 vanish /
+                                          # 2 blitz / 3 impact / 5 reappear hold
         self.vc_tick = 0                  # ticks remaining in current phase
         self.vc_hits_left = 0             # blitz hits remaining
         self.vc_hidden = False            # sprite hidden while vanished
