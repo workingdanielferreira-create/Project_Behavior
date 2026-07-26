@@ -120,6 +120,9 @@ class Figure:
 
     # drawing ---------------------------------------------------------------
     def _current_frame(self):
+        ov = self.render.frame_override
+        if ov is not None:
+            return ov
         b = self.render.bundle
         t = self.transform
         c = self.combat
