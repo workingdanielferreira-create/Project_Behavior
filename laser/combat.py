@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
                          QPixmap, QPainter, QImage)
 
-from . import config
+from . import config, modes
 from .geometry import angle_deg_qt, angle_diff, bilinear
 from .palette import LUT_MASK
 
@@ -831,6 +831,46 @@ def proximity_attack_speed_multiplier(cfg, dist):
         return max_mult
     t = (max_range - dist) / (max_range - min_range)
     return 1.0 + (max_mult - 1.0) * t
+
+
+# ---------------------------------------------------------------------------
+# Proximity-based PETAL interception speed (see combat.update_petals) —
+# generic, data-driven opt-in mechanic distinct from proximity_attack_speed
+# above: a character's top-level `petal_proximity_speed` block scales its
+# ambient petals' own approach_speed (how fast a petal darts in once it
+# breaks orbit to intercept) by how close the current target is, using the
+# exact same 1x..max_multiplier ramp. Orbit spin (orbit_speed_deg) is left
+# untouched — only the interception dart speeds up. Identical in Solo &
+# Battle: target is the nearest enemy figure in Battle, the cursor in Solo.
+# ---------------------------------------------------------------------------
+def petal_proximity_speed_cfg(fig):
+    """Per-figure petal_proximity_speed tuning, or None. Cached on the mode
+    instance like the other generic *_cfg parsers."""
+    mode = fig.mode
+    if hasattr(mode, "_petal_prox_cfg"):
+        return mode._petal_prox_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("petal_proximity_speed") if char else None
+    if not isinstance(raw, dict):
+        mode._petal_prox_cfg = None
+        return None
+
+    def _f(name, default):
+        try:
+            return float(raw.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    max_range = _f("max_range_px", 1000.0)
+    min_range = _f("min_range_px", 10.0)
+    max_mult = max(1.0, _f("max_multiplier", 5.0))
+    if max_range <= min_range:
+        mode._petal_prox_cfg = None
+        return None
+    cfg = dict(max_range_px=max_range, min_range_px=min_range,
+               max_multiplier=max_mult)
+    mode._petal_prox_cfg = cfg
+    return cfg
 
 
 def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
@@ -2199,6 +2239,26 @@ def update_petals(fig, world):
         c.petals = [Petal((i / n) * 2 * math.pi, cfg) for i in range(n)]
         c.petals_init = True
 
+    # Proximity-based interception speed (opt-in, see
+    # combat.petal_proximity_speed_cfg): scales approach_speed up the
+    # closer the current target is, holding at max_multiplier inside
+    # min_range_px. `cfg` is the one shared dict every petal on this figure
+    # already references, so updating it here immediately affects all of
+    # them together. Orbit spin is untouched. No-op for characters without
+    # a petal_proximity_speed block.
+    prox_cfg = petal_proximity_speed_cfg(fig)
+    if prox_cfg is not None:
+        if "_base_approach_speed" not in cfg:
+            cfg["_base_approach_speed"] = cfg["approach_speed"]
+        battle_on = bool(world.battle_mode and world.partner_figures)
+        if battle_on:
+            tx, ty = world._nearest_enemy(fig.x, fig.y)
+        else:
+            tx, ty = world.cursor
+        dist = math.hypot(tx - fig.x, ty - fig.y)
+        mult = proximity_attack_speed_multiplier(prox_cfg, dist)
+        cfg["approach_speed"] = cfg["_base_approach_speed"] * mult
+
     independent = cfg.get("independent", 0.0) >= 0.5
     figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
 
@@ -2318,9 +2378,22 @@ def hpt_clone_cfg(fig):
     # clone's orb sits at a fixed point and every live orb on the side
     # fires together at beam_interval_ms, using an authored beam fx_layer's
     # own visuals/pierce via beam_layer_ref ("action_name:LayerID" — see
-    # combat.resolve_beam_layer_ref). No ref, or a stale one, falls back to
-    # the plain comet-bolt beam style.
-    beam_layer = resolve_beam_layer_ref(char, raw.get("beam_layer_ref"))
+    # combat.resolve_beam_layer_ref). By default the layer is looked up on
+    # THIS character's own JSON; set beam_layer_char to a different
+    # character's name/key (e.g. "new_fighter") to borrow ITS layer instead
+    # (looked up live off modes.MODE_REGISTRY, so it always reflects that
+    # character's current JSON — no duplication). No ref, a stale ref, or
+    # an unregistered beam_layer_char falls back to the plain comet-bolt
+    # beam style.
+    beam_layer_char = raw.get("beam_layer_char")
+    if beam_layer_char:
+        donor_mode = modes.MODE_REGISTRY.get(
+            str(beam_layer_char).strip().lower().replace(" ", "_"))
+        donor_char = getattr(donor_mode, "character", None) if donor_mode else None
+    else:
+        donor_char = char
+    beam_layer = resolve_beam_layer_ref(donor_char, raw.get("beam_layer_ref")) \
+        if donor_char else None
 
     cfg = dict(
         thresholds=thresholds,
@@ -2420,17 +2493,22 @@ def check_hpt_clone_spawns(fig, world):
 def tick_hpt_clones(world):
     """Advance every clone this side owns. Clones never move and their orb
     no longer orbits (see HPTClone.__init__) — instead every live orb on
-    this side fires a beam at the nearest enemy figure IN SYNC, once every
-    beam_interval_ms (hp_threshold_clones.beam_interval_ms; one shared
-    per-side clock, world.hpt_beam_ticks — bound/unbound in app.SideState
-    exactly like shoot_ticks). Clones can still be killed by any incoming
-    enemy shot landing on the clone's own body (world.enemy_projs), the
-    same as before. Identical in Solo & Battle: Solo has no
-    partner_figures, so there is never a target and the volley simply
-    never fires."""
+    this side fires a beam IN SYNC, once every beam_interval_ms
+    (hp_threshold_clones.beam_interval_ms; one shared per-side clock,
+    world.hpt_beam_ticks — bound/unbound in app.SideState exactly like
+    shoot_ticks). Target is the nearest enemy figure in Battle, the cursor
+    in Solo — the same fallback every other JSON-character cadence uses, so
+    the volley always has something to aim at instead of only firing in
+    Battle. Clones can still be killed by any incoming enemy shot landing
+    on the clone's own body (world.enemy_projs), the same as before.
+    Identical in Solo & Battle."""
     if not world.clones:
         return
-    figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
+    battle = bool(world.battle_mode and world.partner_figures)
+    if battle:
+        targets = [(f[0], f[1]) for f in world.partner_figures]
+    else:
+        targets = [tuple(world.cursor)]
     hurt_rsq = config.HPT_CLONE_HURTBOX_RADIUS_PX ** 2
     surviving_projs = list(world.enemy_projs)
     survivors = []
@@ -2442,7 +2520,7 @@ def tick_hpt_clones(world):
     fire_now = False
     if world.hpt_beam_ticks <= 0:
         world.hpt_beam_ticks = interval_ticks
-        fire_now = bool(figures)
+        fire_now = True
 
     if fire_now:
         beam_layer = lead_cfg.get("beam_layer")
@@ -2463,7 +2541,7 @@ def tick_hpt_clones(world):
         step = config.HPT_CLONE_BEAM_SPEED_PX_S * (config.TICK_MS / 1000.0)
         for clone in world.clones:
             tx, ty = min(
-                figures,
+                targets,
                 key=lambda f: (f[0] - clone.orb_x) ** 2
                             + (f[1] - clone.orb_y) ** 2)
             ddx, ddy = tx - clone.orb_x, ty - clone.orb_y
