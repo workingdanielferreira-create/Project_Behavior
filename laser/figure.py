@@ -191,7 +191,16 @@ class Figure:
             if og is not None:
                 rgb, radius, opacity = og
                 silh = _combat.silhouette(frame, rgb)
-                sw, sh = silh.width() // 2, silh.height() // 2
+                # The ring origin MUST use the same expression as the sprite
+                # draw further down. Python floor-divides negatives, so
+                # -w//2 != -(w//2) for ODD w: the old `- (silh.width()//2)`
+                # planted the whole ring 1px right of / below the sprite on
+                # every odd-sized frame, doubling the outline on one edge and
+                # erasing it on the opposite one. Sprite frames are only
+                # ~20x24px in game, so that 1px drift IS the outline width —
+                # which is exactly the "heavy on one side, thin on the other"
+                # look. Frame sizes vary per pose, so it changed mid-animation.
+                sx, sy = -silh.width() // 2, -silh.height() // 2
                 p.save()
                 p.translate(self.transform.x, self.transform.y)
                 if self.motion.rotate:
@@ -204,7 +213,7 @@ class Figure:
                     ang = (2 * math.pi * i) / steps
                     ox = math.cos(ang) * radius
                     oy = math.sin(ang) * radius
-                    p.drawPixmap(round(ox) - sw, round(oy) - sh, silh)
+                    p.drawPixmap(round(ox) + sx, round(oy) + sy, silh)
                 p.setOpacity(1.0)
                 p.restore()
             p.save()
