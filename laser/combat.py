@@ -1735,10 +1735,10 @@ def make_beam_shot(fx, fy, tx, ty, color_rgb):
 # ---------------------------------------------------------------------------
 class CrescentWave:
     __slots__ = ("x", "y", "dir_x", "dir_y", "age", "color_rgb",
-                 "centre_angle_deg", "speed")
+                 "centre_angle_deg", "speed", "scale")
 
     def __init__(self, fig_x, fig_y, target_x, target_y, color_rgb,
-                 through=False):
+                 through=False, scale=None):
         dx, dy = target_x - fig_x, target_y - fig_y
         dist = (dx * dx + dy * dy) ** 0.5
         if dist > 0.001:
@@ -1749,6 +1749,18 @@ class CrescentWave:
         # (self.x, self.y): a Qt arc angle t maps to the screen point
         # (cx + R*cos t, cy - R*sin t), so with centre_angle_deg below the
         # arc's MIDPOINT always sits at centre + R * (-dir_y, dir_x).
+        # `scale` locks this arc to the position-scale factor sampled at the
+        # TARGET (see the vanish-cut call sites).  It matters because draw()
+        # renders the arc at CRESCENT_RADIUS * pscale while every placement
+        # number below is in plain world px: with POSITION_SCALE running
+        # 1.0 -> 5.0 the drawn curve could be five times larger than the
+        # geometry assumed, which parked the target near the CENTRE of the
+        # circle instead of on its rim — the slash haloed around the target
+        # rather than cutting through it.  Locking one factor for placement,
+        # travel AND drawing keeps all three in the same space (and stops the
+        # arc resizing mid-flight as it drifts across the screen).
+        self.scale = scale
+        k = 1.0 if scale is None else float(scale)
         if through:
             # Through-slash: solve that relation for the centre so the arc
             # midpoint lands exactly on the target, then back the whole arc
@@ -1756,11 +1768,11 @@ class CrescentWave:
             # faster self.speed below, the curve enters one side of the
             # target and exits the other over its lifetime, both ends
             # overshooting the body (chord = 2*R*sin(SPAN/2)).
-            self.x = (float(target_x) + self.dir_y * config.CRESCENT_RADIUS
-                      - self.dir_x * config.CRESCENT_THROUGH_LEAD)
-            self.y = (float(target_y) - self.dir_x * config.CRESCENT_RADIUS
-                      - self.dir_y * config.CRESCENT_THROUGH_LEAD)
-            self.speed = config.CRESCENT_THROUGH_SPEED
+            r_eff = config.CRESCENT_RADIUS * k
+            lead = config.CRESCENT_THROUGH_LEAD * k
+            self.x = float(target_x) + self.dir_y * r_eff - self.dir_x * lead
+            self.y = float(target_y) - self.dir_x * r_eff - self.dir_y * lead
+            self.speed = config.CRESCENT_THROUGH_SPEED * k
         else:
             # Default: arc centre set back from the target so the slash
             # wraps around the figure rather than extending away from it.
@@ -1783,7 +1795,8 @@ class CrescentWave:
 
     def check_bullet_erase(self, bx, by):
         """True if a bullet at (bx, by) lies on the arc's surface band + span."""
-        r2 = config.CRESCENT_RADIUS
+        r2 = config.CRESCENT_RADIUS * (1.0 if self.scale is None
+                                       else float(self.scale))
         margin = config.CRESCENT_WIDTH + 20.0
         ddx, ddy = bx - self.x, by - self.y
         dist = (ddx * ddx + ddy * ddy) ** 0.5
@@ -1795,6 +1808,10 @@ class CrescentWave:
     def draw(self, p, pen, lut=None, flow_off=0.0, pscale=1.0):
         if not self.alive:
             return
+        if self.scale is not None:
+            # Locked at spawn so the drawn curve matches the placement maths
+            # (and the stroke width stays consistent with it).
+            pscale = float(self.scale)
         segs = config.CRESCENT_SEGS
         r2 = config.CRESCENT_RADIUS * pscale
         half_span = config.CRESCENT_SPAN / 2.0
@@ -3349,8 +3366,13 @@ def tick_vanish_cut(fig, target_x, target_y):
         ox = target_x + math.cos(ang) * 90.0
         oy = target_y + math.sin(ang) * 90.0
         r, g, b = fig.lut[80]
+        # Sample the position-scale AT THE TARGET: that is where the slash has
+        # to land, and it is the factor draw() will render the arc at.
+        vscale = position_scale(target_x, target_y,
+                                fig.screen_w, fig.screen_h)
         c.crescents.append(CrescentWave(ox, oy, target_x, target_y,
-                                        (r, g, b), through=True))
+                                        (r, g, b), through=True,
+                                        scale=vscale))
         c.impact_fx_pending.append((target_x, target_y))
         c.vc_hits_left -= 1
         if c.vc_hits_left <= 0:
@@ -3359,12 +3381,15 @@ def tick_vanish_cut(fig, target_x, target_y):
             # Finisher: crossed slash pair through the target — the
             # 'split in half' read — plus a second world freeze.
             r2, g2, b2 = fig.lut[200]
+            fscale = position_scale(target_x, target_y,
+                                    fig.screen_w, fig.screen_h)
             for sgn in (1.0, -1.0):
                 px_ = target_x - c.vc_dir_y * sgn * 90.0
                 py_ = target_y + c.vc_dir_x * sgn * 90.0
                 c.crescents.append(CrescentWave(px_, py_,
                                                 target_x, target_y,
-                                                (r2, g2, b2), through=True))
+                                                (r2, g2, b2), through=True,
+                                                scale=fscale))
         else:
             c.vc_tick = vc["interval_ticks"]
         return True
