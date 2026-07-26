@@ -641,6 +641,29 @@ class ProjectileSystem(System):
                             p.battle_shoot_interval = p.rng.randint(
                                 *config.SHOOT_INTERVAL_RANGE)
                             new_projs = _basic_shot(fig, tx, ty)
+                            # Generic `disable_basic_attack` (or an
+                            # attack_normal with no can_hit layers) means
+                            # _basic_shot legitimately fires nothing on this
+                            # cadence tick — don't flash/log a shot that
+                            # didn't happen, or the character visibly
+                            # appears to keep auto-attacking with no bullet.
+                            if new_projs:
+                                world.projectiles.extend(new_projs)
+                                _fr, _fg, _fb = fig.lut[128]
+                                world.muzzle_flashes.append(
+                                    [fig.x, fig.y, 0, _fr, _fg, _fb])
+                                action_log.log("SHOT",
+                                    f"{tag}non-runner mode={fig.mode.key} "
+                                    f"fig=({fig.x:.0f},{fig.y:.0f}) "
+                                    f"target=({tx:.0f},{ty:.0f}) "
+                                    f"count={len(new_projs)}")
+                    else:
+                        # Solo non-runner: legacy fan on the shared timer.
+                        new_projs = _basic_shot(fig, tx, ty)
+                        # See battle-branch comment above: no projs -> no
+                        # flash/log, so disable_basic_attack characters
+                        # (e.g. Mage) don't visibly "fire" on this cadence.
+                        if new_projs:
                             world.projectiles.extend(new_projs)
                             _fr, _fg, _fb = fig.lut[128]
                             world.muzzle_flashes.append(
@@ -648,19 +671,7 @@ class ProjectileSystem(System):
                             action_log.log("SHOT",
                                 f"{tag}non-runner mode={fig.mode.key} "
                                 f"fig=({fig.x:.0f},{fig.y:.0f}) "
-                                f"target=({tx:.0f},{ty:.0f}) "
-                                f"count={len(new_projs)}")
-                    else:
-                        # Solo non-runner: legacy fan on the shared timer.
-                        new_projs = _basic_shot(fig, tx, ty)
-                        world.projectiles.extend(new_projs)
-                        _fr, _fg, _fb = fig.lut[128]
-                        world.muzzle_flashes.append(
-                            [fig.x, fig.y, 0, _fr, _fg, _fb])
-                        action_log.log("SHOT",
-                            f"{tag}non-runner mode={fig.mode.key} "
-                            f"fig=({fig.x:.0f},{fig.y:.0f}) "
-                            f"spawned={len(new_projs)} legacy-fan projs")
+                                f"spawned={len(new_projs)} legacy-fan projs")
                 # Advance phase; insert pause after the final phase.
                 prev_phase = world.shot_phase
                 world.shot_phase = (world.shot_phase + 1) % 3
@@ -757,13 +768,16 @@ class ProjectileSystem(System):
             st["tick"] = 0
             new_projs = combat.fire_character_action(
                 fig, "attack_normal", tx, ty)
-            world.projectiles.extend(new_projs)
-            _fr, _fg, _fb = fig.lut[128]
-            world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
-            action_log.log("SHOT",
-                f"proximity_attack_speed mode={fig.mode.key} "
-                f"dist={dist:.0f} mult={mult:.2f} interval={interval} "
-                f"spawned={len(new_projs)}")
+            # Same principle as the shared cadence above: no layers ->
+            # no projectiles -> no flash/log.
+            if new_projs:
+                world.projectiles.extend(new_projs)
+                _fr, _fg, _fb = fig.lut[128]
+                world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+                action_log.log("SHOT",
+                    f"proximity_attack_speed mode={fig.mode.key} "
+                    f"dist={dist:.0f} mult={mult:.2f} interval={interval} "
+                    f"spawned={len(new_projs)}")
 
     def _fire_json_actions(self, world):
         """attack_special / ultimate for JSON characters: fire whenever that
