@@ -86,7 +86,7 @@
   "charge_ultimate": true
  },
  "ultimate_playback": {
-  "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges — vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
+  "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut). Sequence: WINDUP (phase 4, windup_ms) — the attack animation plays through once in place while he is still visible, telegraphing the cut; 240ms is exactly the engine's native slash cadence (5 frames x SLASH_ANIM_SPD 3 x TICK_MS 16). Then vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target. Finally HOLD (phase 5, hold_ms) — he rematerialises still on the exact frame he vanished on and stays fully frozen (no movement, no attacking, AI paused) for 500ms before standard behaviour resumes. Only phases 1-3 freeze the opposing side (combat.VC_FREEZE_PHASES), so the windup and hold do not lengthen the global freeze.",
   "style": "vanish_cut",
   "charges_required": 20,
   "hits": 5,
@@ -95,7 +95,9 @@
   "vanish_ms": 400,
   "impact_ms": 250,
   "reappear_past_px": 70,
-  "trigger_range_px": 340
+  "trigger_range_px": 340,
+  "windup_ms": 240,
+  "hold_ms": 500
  },
  "actions": {
   "idle": {
