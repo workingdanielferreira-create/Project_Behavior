@@ -44,7 +44,7 @@ import math
 import os
 
 from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor, QTransform
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor, QTransform, QImage
 
 from . import config, modes, palette
 
@@ -505,6 +505,61 @@ def _tint_bundle(bundle, hex_color):
     )
 
 
+def _tint_pixmap_colorize(pm, hex_color):
+    """Return a NEW QPixmap: same alpha AND the same per-pixel shading as
+    `pm`, with hue replaced by hex_color (a 'Colorize' blend) — unlike
+    _tint_pixmap's flat silhouette fill, this keeps painted linework,
+    creases, and highlights intact, just recoloured. Built for characters
+    whose own sprite_files PNGs already carry real multi-tone art (see
+    sprite_files.remove_bg comment) where a full flatten would blob out
+    the artist's own linework. Non-destructive — `pm` is never mutated."""
+    if pm is None:
+        return None
+    img = pm.toImage().convertToFormat(QImage.Format_ARGB32)
+    tr, tg, tb, _ = QColor(hex_color).getRgb()
+    w, h = img.width(), img.height()
+    for y in range(h):
+        for x in range(w):
+            c = img.pixelColor(x, y)
+            a = c.alpha()
+            if a == 0:
+                continue
+            # Rec.601 luminance 0..1, lightly lifted so dark linework
+            # doesn't crush to near-black once its hue is replaced.
+            lum = (0.299 * c.red() + 0.587 * c.green()
+                   + 0.114 * c.blue()) / 255.0
+            lum = min(1.0, lum * 1.15)
+            img.setPixelColor(x, y, QColor(
+                min(255, int(tr * lum)),
+                min(255, int(tg * lum)),
+                min(255, int(tb * lum)),
+                a))
+    return QPixmap.fromImage(img)
+
+
+def _tint_bundle_colorize(bundle, hex_color):
+    """Like _tint_bundle, but using _tint_pixmap_colorize (shading-
+    preserving) instead of _tint_pixmap (flat silhouette fill). Used for
+    the raw `sprite_files` loading path (see `sprite_tint`/
+    `sprite_tint_color` in _load_sprite_files' caller in load_all) —
+    generic, any character authoring its own sprite_files PNGs can opt in
+    the same way sprite_source characters opt into `sprite_tint`."""
+    from .assets import FrameBundle   # lazy: avoids circular import at load
+
+    def _tint_list(pixmaps):
+        return [_tint_pixmap_colorize(pm, hex_color) for pm in (pixmaps or [])]
+
+    return FrameBundle(
+        _tint_list(bundle.run), _tint_list(bundle.run_flipped),
+        _tint_list(bundle.idle), _tint_list(bundle.idle_flipped),
+        _tint_pixmap_colorize(bundle.slide, hex_color),
+        _tint_pixmap_colorize(bundle.slide_flipped, hex_color),
+        _tint_pixmap_colorize(bundle.slide2, hex_color),
+        _tint_pixmap_colorize(bundle.slide2_flipped, hex_color),
+        _tint_list(bundle.slash), _tint_list(bundle.slash_flipped),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Entry point — called by AssetLibrary._load_all (Solo and Battle both build
 # their worlds from the same AssetLibrary, so parity is automatic).
@@ -605,6 +660,21 @@ def load_all(root_dir, bundles):
                 # to the same fixed constants the built-ins use — matching
                 # the sprite_source path above.
                 bundle = _load_sprite_files(root_dir, char["sprite_files"])
+                if char.get("sprite_tint"):
+                    # Opt-in recolor for characters authoring their OWN PNG
+                    # art (as opposed to borrowing a built-in's frames via
+                    # sprite_source above) — same field names
+                    # (sprite_tint/sprite_tint_color), but uses the
+                    # shading-preserving colorize tint instead of a flat
+                    # silhouette fill, since this art already carries real
+                    # multi-tone linework/shading (see sprite_files.
+                    # remove_bg's docstring) that a flat fill would blob
+                    # out. Falls back to palette.body if no explicit
+                    # sprite_tint_color is authored, exactly like the
+                    # sprite_source path.
+                    tint_hex = (char.get("sprite_tint_color")
+                                or char.get("palette", {}).get("body", "#ffffff"))
+                    bundle = _tint_bundle_colorize(bundle, tint_hex)
                 bundles[key] = bundle
                 # Resolved source-PNG paths per set, consumed by the sprite
                 # emitter so it can colour-scan the full-res art instead of
