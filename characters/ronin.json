@@ -73,12 +73,12 @@
  "counter_only": true,
  "dodge_style": "blink",
  "combo": {
-  "_comment": "Overrides generic combo defaults (combat._COMBO_DEFAULTS/combo_cfg). max_hits:1 means the counter-slash's landed hit always completes the attack string immediately \u2014 no chained dashslash/arcslash follow-up. Ronin's only attacks are the reaction counter-slash and the vanish_cut ultimate.",
+  "_comment": "Overrides generic combo defaults (combat._COMBO_DEFAULTS/combo_cfg). max_hits:1 means the counter-slash's landed hit always completes the attack string immediately — no chained dashslash/arcslash follow-up. Ronin's only attacks are the reaction counter-slash and the vanish_cut ultimate.",
   "max_hits": 1
  },
  "afterimage_color": "#C2E0F9",
  "reaction": {
-  "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy \u2014 already an instant blink_warp here). Ronin also opts into dodge_style:blink so the separate generic melee dodge triggers in systems.py (incoming-projectile sidestep, incoming-dash counter) resolve as instant sideways/toward-target blinks instead of the default physical dodge_dashing move. One shared cooldown. Each activation adds one vanish_cut charge.",
+  "_comment": "Counter fantasy core (generic engine system, combat.check_reaction): enemy body within radius_px rolls counter_chance between COUNTER (deflect window + retaliation slash) and DODGE (blink blink_behind_px past the enemy — already an instant blink_warp here). Ronin also opts into dodge_style:blink so the separate generic melee dodge triggers in systems.py (incoming-projectile sidestep, incoming-dash counter) resolve as instant sideways/toward-target blinks instead of the default physical dodge_dashing move. One shared cooldown. Each activation adds one vanish_cut charge.",
   "radius_px": 50,
   "cooldown_ms": 200,
   "counter_chance": 0.5,
@@ -86,7 +86,7 @@
   "charge_ultimate": true
  },
  "ultimate_playback": {
-  "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges \u2014 vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
+  "_comment": "Flash Cut (generic vanish_cut style, combat.tick_vanish_cut): at charges_required reaction charges — vanish + freeze frame, then `hits` rapid strikes of hit_damage each with crossing slash FX, crossed finisher pair ('split in half'), reappear reappear_past_px past the target in stand-down facing.",
   "style": "vanish_cut",
   "charges_required": 20,
   "hits": 5,
@@ -166,25 +166,25 @@
   "damage": "basic slash via built-in melee FSM; ultimate hits authored in ultimate_playback",
   "attack": "melee dash/arc string (built-in), retaliation slash from counter",
   "defence": "deflect (generalized parry) via defend layer L1",
-  "parity": "identical Solo/Battle \u2014 reaction + vanish_cut route through CombatSystem"
+  "parity": "identical Solo/Battle — reaction + vanish_cut route through CombatSystem"
  },
  "disable_survival_teleport": true,
  "outline_glow": {
-  "_comment": "Generic engine feature (config.OUTLINE_GLOW_*, characters._outline_glow) \u2014 solid black outline hugging the sprite silhouette.",
+  "_comment": "Generic engine feature (config.OUTLINE_GLOW_*, characters._outline_glow) — thin black outline hugging the sprite silhouette. Kept deliberately light (radius 1.0, opacity 190) because the source PNGs already carry their own dark linework: a heavier ring stacks on top of it and the figure reads as a solid black blob. figure.py rounds each of the OUTLINE_GLOW_STEPS ring offsets, so sub-2px radii still draw a full ring rather than a 4-point cross.",
   "enabled": true,
   "color": "#000000",
-  "radius": 2.0,
-  "opacity": 255
+  "radius": 1.0,
+  "opacity": 190
  },
  "trail_gradient": {
-  "_comment": "Generic engine feature (config.TRAIL_GRADIENT_*, characters._trail_gradient, components.TrailComponent._color_at) \u2014 replaces the default flowing LUT trail colour with a static tail-to-head gradient: solid start_color for the first start_fraction of the trail, fading to end_color over the remainder.",
+  "_comment": "Generic engine feature (config.TRAIL_GRADIENT_*, characters._trail_gradient, components.TrailComponent._color_at) — replaces the default flowing LUT trail colour with a static tail-to-head gradient: solid start_color for the first start_fraction of the trail, fading to end_color over the remainder.",
   "enabled": true,
   "start_color": "#ABD1F3",
   "end_color": "#C2E0F9",
   "start_fraction": 0.75
  },
  "sprite_emitter": {
-  "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out, drifting upward at a slowed rise_speed; the BLUE line only glows \u2014 pulsing dots pinned to the line, no emission \u2014 and is flagged trail_anchor:true, so the movement trail (normally body-anchored) instead pins live each frame to that line's point farthest from the sprite centre (the sword tip), through both normal movement and combat dashes/dodges. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
+  "_comment": "Blade-line resonance FX (generic engine system, combat.update_sprite_emitter): sprite frames are colour-scanned for each source's match_color; the ORANGE line continuously emits small rising particles that inherit part of the figure's velocity backwards (trail) and fade out, drifting upward at a slowed rise_speed; the BLUE line only glows — pulsing dots pinned to the line, no emission — and is flagged trail_anchor:true, so the movement trail (normally body-anchored) instead pins live each frame to that line's point farthest from the sprite centre (the sword tip), through both normal movement and combat dashes/dodges. infer_missing_frames fills the walk frames and Samuraistand 1 (which carry no coloured line) from the nearest matching frame so the effect runs across the whole loop. Purely cosmetic; identical in Solo & Battle.",
   "infer_missing_frames": true,
   "sources": [
    {
