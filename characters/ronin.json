@@ -30,8 +30,8 @@
   "torso": 22
  },
  "palette": {
-  "body": "#15151c",
-  "accent": "#C2E0F9"
+  "body": "#002060",
+  "accent": "#002060"
  },
  "defense": "block",
  "weapon": {
@@ -173,7 +173,7 @@
  "disable_survival_teleport": true,
  "outline_glow": {
   "_comment": "Generic engine feature (config.OUTLINE_GLOW_*, characters._outline_glow) — thin black outline hugging the sprite silhouette. Kept deliberately light (radius 1.0, opacity 190) because the source PNGs already carry their own dark linework: a heavier ring stacks on top of it and the figure reads as a solid black blob. figure.py rounds each of the OUTLINE_GLOW_STEPS ring offsets, so sub-2px radii still draw a full ring rather than a 4-point cross.",
-  "enabled": true,
+  "enabled": false,
   "color": "#000000",
   "radius": 1.0,
   "opacity": 190
