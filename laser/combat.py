@@ -3282,7 +3282,22 @@ _VC_DEFAULTS = dict(
     vanish_ms=400.0,
     impact_ms=250.0,
     reappear_past_px=70.0,
+    windup_ms=0.0,      # 0 = off: telegraph the cut by playing the character's
+                        # own attack animation once, in place, before vanishing
+    hold_ms=0.0,        # 0 = off: on reappearing, stay frozen on the exact
+                        # frame the character vanished on for this long
 )
+
+# Vanish-cut phases during which the cut CONSUMES THE WORLD (opposing side and
+# its projectiles freeze, see app.py): the vanish, the blitz and the impact
+# hold.  The optional windup (4) and reappear hold (5) are the character's own
+# animation time, so enabling them does not lengthen the global freeze.
+VC_FREEZE_PHASES = frozenset((1, 2, 3))
+
+
+def vc_freezes_world(c):
+    """True while this combatant's vanish-cut should freeze the other side."""
+    return c.vc_phase in VC_FREEZE_PHASES
 
 
 def vanish_cut_cfg(fig):
@@ -3308,6 +3323,9 @@ def vanish_cut_cfg(fig):
                                             / config.TICK_MS)))
     vc["vanish_ticks"] = max(1, int(round(vc["vanish_ms"] / config.TICK_MS)))
     vc["impact_ticks"] = max(1, int(round(vc["impact_ms"] / config.TICK_MS)))
+    # max(0, ...) — unlike the phases above, 0 legitimately means "skip".
+    vc["windup_ticks"] = max(0, int(round(vc["windup_ms"] / config.TICK_MS)))
+    vc["hold_ticks"] = max(0, int(round(vc["hold_ms"] / config.TICK_MS)))
     mode._vc_cfg = vc
     return vc
 
@@ -3325,6 +3343,32 @@ def start_vanish_cut(fig, tx, ty):
     else:
         c.vc_dir_x, c.vc_dir_y = 1.0, 0.0
     vc = vanish_cut_cfg(fig)
+    if vc["windup_ticks"] > 0:
+        # Telegraph first: the attack animation plays through in place while
+        # he is still visible, facing the target.  The world is NOT frozen
+        # yet (phase 4 is outside VC_FREEZE_PHASES), so this reads as a real
+        # wind-up rather than a hitch.
+        c.vc_phase = 4
+        c.vc_tick = int(vc["windup_ticks"])
+        c.vc_hidden = False
+        fig.face(t.x - c.vc_dir_x, t.y - c.vc_dir_y)
+        return
+    _vc_vanish(fig, vc)
+
+
+def _vc_vanish(fig, vc):
+    """Commit the vanish: hide the sprite, freeze-frame, start the blitz.
+
+    Split out of start_vanish_cut so the optional windup phase can trigger it
+    once the attack animation has finished playing.  Also latches the frame
+    the character disappears on, which the reappear hold restores.
+    """
+    c = fig.combat
+    t = fig.transform
+    if fig.render.frame_override is None:
+        # No windup authored — latch whatever frame is showing right now so
+        # hold_ms still has something faithful to freeze on.
+        fig.render.frame_override = fig._current_frame()
     c.vc_phase = 1
     c.vc_tick = vc["vanish_ticks"]
     c.vc_hits_left = int(vc["hits"])
@@ -3345,8 +3389,37 @@ def tick_vanish_cut(fig, target_x, target_y):
     if vc is None:                      # config vanished mid-run — bail safe
         c.vc_phase = 0
         c.vc_hidden = False
+        fig.render.frame_override = None
         return False
     rng = fig.personality.rng
+    if c.vc_phase == 4:
+        # --- Windup: play the character's attack animation once, in full,
+        # while still visible.  Render-only: the combat slash FSM is never
+        # engaged, so no extra hit, crescent or combo follow-up fires.  The
+        # final frame stays latched in frame_override for the reappear hold.
+        b = fig.render.bundle
+        fs = b.slash_flipped if fig.transform.facing_left else b.slash
+        total = max(1, int(vc["windup_ticks"]))
+        if fs:
+            elapsed = total - c.vc_tick
+            idx = int(elapsed * len(fs) / total)
+            fig.render.frame_override = fs[max(0, min(len(fs) - 1, idx))]
+        c.vc_tick -= 1
+        if c.vc_tick <= 0:
+            _vc_vanish(fig, vc)
+        return True
+    if c.vc_phase == 5:
+        # --- Reappear hold: still on the frame he vanished on, fully frozen.
+        # Returning True keeps advance_combat early-outing (no attacking) and
+        # MotionSystem skipping (no movement); check_reaction already bails on
+        # vc_phase != 0, so no counter/dodge either.
+        c.vc_tick -= 1
+        if c.vc_tick <= 0:
+            fig.render.frame_override = None
+            fig.render.run_idx = 0
+            fig.render.anim_tick = 0
+            c.vc_phase = 0
+        return True
     if c.vc_phase == 1:
         # --- Vanished: dramatic pause before the blitz ---
         c.vc_tick -= 1
@@ -3430,7 +3503,15 @@ def tick_vanish_cut(fig, target_x, target_y):
             pr.max_age = int(60.0 / max(spd, 0.001)) + 30
             c.vc_shots_pending.append(pr)
         c.vc_hidden = False
-        c.vc_phase = 0
+        if vc["hold_ticks"] > 0:
+            # He rematerialises still mid-swing — frozen on the exact frame he
+            # vanished on (frame_override was latched at the vanish and never
+            # cleared) — before standard behaviour resumes.
+            c.vc_phase = 5
+            c.vc_tick = int(vc["hold_ticks"])
+        else:
+            fig.render.frame_override = None
+            c.vc_phase = 0
     return True
 
 
