@@ -769,6 +769,70 @@ def has_attack_pattern(char):
     return bool((char.get("attack_pattern") or {}).get("cycle"))
 
 
+# ---------------------------------------------------------------------------
+# Proximity-based attack speed (see systems.ProjectileSystem.
+# _fire_proximity_attack_speed) — generic, data-driven opt-in mechanic: any
+# JSON character's top-level `proximity_attack_speed` block scales its
+# attack_normal cadence by how close the current target is. At max_range_px
+# or beyond, cadence is the character's normal 1x rate; as the target closes
+# to min_range_px, the interval between shots scales down linearly toward
+# max_multiplier times faster, holding at max_multiplier for anything
+# closer still. Identical in Solo & Battle — both measure distance to the
+# same kind of target (nearest enemy figure in Battle, the cursor in Solo)
+# through the same math.
+# ---------------------------------------------------------------------------
+def has_proximity_attack_speed(char):
+    """True if this JSON character authors a proximity_attack_speed block."""
+    if not char:
+        return False
+    return isinstance(char.get("proximity_attack_speed"), dict)
+
+
+def proximity_attack_speed_cfg(fig):
+    """Per-figure proximity_attack_speed tuning, or None. Cached on the mode
+    instance like the other generic *_cfg parsers (clone_cfg/blink_cfg/
+    hpt_clone_cfg/...)."""
+    mode = fig.mode
+    if hasattr(mode, "_prox_atk_cfg"):
+        return mode._prox_atk_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("proximity_attack_speed") if char else None
+    if not isinstance(raw, dict):
+        mode._prox_atk_cfg = None
+        return None
+
+    def _f(name, default):
+        try:
+            return float(raw.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    max_range = _f("max_range_px", 1000.0)
+    min_range = _f("min_range_px", 10.0)
+    max_mult = max(1.0, _f("max_multiplier", 5.0))
+    if max_range <= min_range:
+        mode._prox_atk_cfg = None
+        return None
+    cfg = dict(max_range_px=max_range, min_range_px=min_range,
+               max_multiplier=max_mult)
+    mode._prox_atk_cfg = cfg
+    return cfg
+
+
+def proximity_attack_speed_multiplier(cfg, dist):
+    """1.0x at/beyond max_range_px, scaling linearly up to max_multiplier at
+    min_range_px, clamped to max_multiplier for anything closer still."""
+    max_range = cfg["max_range_px"]
+    min_range = cfg["min_range_px"]
+    max_mult = cfg["max_multiplier"]
+    if dist >= max_range:
+        return 1.0
+    if dist <= min_range:
+        return max_mult
+    t = (max_range - dist) / (max_range - min_range)
+    return 1.0 + (max_mult - 1.0) * t
+
+
 def fire_attack_pattern(fig, phase_cfg, target_x, target_y):
     """Return the Projectiles for one phase of a JSON character's
     attack_pattern.cycle. `phase_cfg` is cycle[<phase index>]:
@@ -2250,16 +2314,23 @@ def hpt_clone_cfg(fig):
         mode._hpt_clone_cfg = None
         return None
 
+    # Beam volley (replaces the old orbiting/contact-damage sphere): each
+    # clone's orb sits at a fixed point and every live orb on the side
+    # fires together at beam_interval_ms, using an authored beam fx_layer's
+    # own visuals/pierce via beam_layer_ref ("action_name:LayerID" — see
+    # combat.resolve_beam_layer_ref). No ref, or a stale one, falls back to
+    # the plain comet-bolt beam style.
+    beam_layer = resolve_beam_layer_ref(char, raw.get("beam_layer_ref"))
+
     cfg = dict(
         thresholds=thresholds,
         clone_hp=int(_f("clone_hp", config.HPT_CLONE_HP_DEFAULT)),
         damage=_f("damage", config.HPT_CLONE_DAMAGE_DEFAULT),
         hover_radius=_f("hover_radius", config.HPT_CLONE_HOVER_RADIUS_DEFAULT),
-        detect_range=_f("detect_range", config.HPT_CLONE_DETECT_RANGE_DEFAULT),
-        orbit_speed_deg=_f("orbit_speed_deg", config.HPT_CLONE_ORBIT_SPEED_DEFAULT),
-        approach_speed=_f("approach_speed", config.HPT_CLONE_APPROACH_SPEED_DEFAULT),
-        cooldown_ms=_f("cooldown_ms", config.HPT_CLONE_COOLDOWN_MS_DEFAULT),
         corner_inset=_f("corner_inset_px", config.HPT_CLONE_CORNER_INSET_PX),
+        beam_interval_ms=_f("beam_interval_ms",
+                             config.HPT_CLONE_BEAM_INTERVAL_MS_DEFAULT),
+        beam_layer=beam_layer,
     )
     mode._hpt_clone_cfg = cfg
     return cfg
@@ -2281,12 +2352,13 @@ def _hpt_corner_xy(world, position, inset):
 
 class HPTClone:
     """A stationary clone spawned when its owner's HP crosses a threshold
-    (see hpt_clone_cfg). Never moves; attacks only through its own single
-    orbiting Petal-style sphere anchored at its fixed position; dies the
-    instant it takes any hit (hp defaults to 1). Lives and dies entirely
-    within its owner's own SideState — never crosses the Solo/Battle
-    one-tick information boundary."""
-    __slots__ = ("x", "y", "hp", "damage", "sphere", "rgb")
+    (see hpt_clone_cfg). Never moves; dies the instant it takes any hit (hp
+    defaults to 1). Its attack orb sits at a FIXED point hover_radius px
+    from the clone (picked once at spawn, never rotates — see
+    combat.tick_hpt_clones for the synchronized beam volley that fires from
+    it). Lives and dies entirely within its owner's own SideState — never
+    crosses the Solo/Battle one-tick information boundary."""
+    __slots__ = ("x", "y", "hp", "damage", "rgb", "orb_x", "orb_y", "cfg")
 
     def __init__(self, x, y, cfg):
         self.x = float(x)
@@ -2294,19 +2366,10 @@ class HPTClone:
         self.hp = max(1, int(cfg["clone_hp"]))
         self.damage = float(cfg["damage"])
         self.rgb = config.HPT_CLONE_MARKER_RGB
-        petal_cfg = dict(
-            hover_radius=cfg["hover_radius"],
-            hover_radius_x=0.0, hover_radius_y=0.0,
-            orbit_speed_deg=cfg["orbit_speed_deg"],
-            detect_range=cfg["detect_range"],
-            approach_speed=cfg["approach_speed"],
-            cooldown_ms=cfg["cooldown_ms"],
-            damage=cfg["damage"],
-            independent=0.0,
-            _rgb=self.rgb,
-            _radius=6.0,
-        )
-        self.sphere = Petal(random.uniform(0.0, 2.0 * math.pi), petal_cfg)
+        self.cfg = cfg
+        phase = random.uniform(0.0, 2.0 * math.pi)
+        self.orb_x = self.x + math.cos(phase) * cfg["hover_radius"]
+        self.orb_y = self.y + math.sin(phase) * cfg["hover_radius"]
 
     @property
     def alive(self):
@@ -2321,7 +2384,13 @@ class HPTClone:
             p.scale(pscale, pscale)
         p.drawPixmap(-half, -half, pm)
         p.restore()
-        self.sphere.draw(p, pscale)
+        pm2, half2 = bullet_sprite(r, g, b, config.HPT_CLONE_ORB_RADIUS_PX)
+        p.save()
+        p.translate(int(self.orb_x), int(self.orb_y))
+        if pscale != 1.0:
+            p.scale(pscale, pscale)
+        p.drawPixmap(-half2, -half2, pm2)
+        p.restore()
 
 
 def check_hpt_clone_spawns(fig, world):
@@ -2349,33 +2418,71 @@ def check_hpt_clone_spawns(fig, world):
 
 
 def tick_hpt_clones(world):
-    """Advance every clone this side owns: orbit/attack its sphere against
-    the enemy figure (world.partner_figures) exactly like an ambient petal,
-    and check whether any live incoming shot (world.enemy_projs — this also
-    catches enemy petal-contact damage, which rides the same invisible-
-    Projectile channel) lands on the clone's own body, killing it in one
-    hit (consumes the shot the same way a figure-hit would, unless it
-    pierces). Identical in Solo & Battle: Solo simply has no
-    partner_figures/enemy_projs, so clones just orbit with nothing to hit
-    or be hit by."""
+    """Advance every clone this side owns. Clones never move and their orb
+    no longer orbits (see HPTClone.__init__) — instead every live orb on
+    this side fires a beam at the nearest enemy figure IN SYNC, once every
+    beam_interval_ms (hp_threshold_clones.beam_interval_ms; one shared
+    per-side clock, world.hpt_beam_ticks — bound/unbound in app.SideState
+    exactly like shoot_ticks). Clones can still be killed by any incoming
+    enemy shot landing on the clone's own body (world.enemy_projs), the
+    same as before. Identical in Solo & Battle: Solo has no
+    partner_figures, so there is never a target and the volley simply
+    never fires."""
     if not world.clones:
         return
     figures = [(f[0], f[1]) for f in (world.partner_figures or [])]
     hurt_rsq = config.HPT_CLONE_HURTBOX_RADIUS_PX ** 2
     surviving_projs = list(world.enemy_projs)
     survivors = []
-    for clone in world.clones:
-        threats = [(fx_, fy_, "fig", i) for i, (fx_, fy_) in enumerate(figures)]
-        hit = clone.sphere.update(clone.x, clone.y, threats)
-        if hit is not None:
-            _kind, _payload, cx, cy, dx, dy = hit
-            pr = Projectile(cx, cy, dx * 2.0, dy * 2.0, clone.rgb, 3)
-            pr.style = "invisible"
-            pr.max_age = config.PETAL_TOUCH_PROJ_AGE
-            pr.damage = clone.damage
-            world.projectiles.append(pr)
-            world.collision_dots.append([cx, cy, 0])
 
+    lead_cfg = world.clones[0].cfg
+    interval_ticks = max(1, int(round(
+        lead_cfg["beam_interval_ms"] / config.TICK_MS)))
+    world.hpt_beam_ticks -= 1
+    fire_now = False
+    if world.hpt_beam_ticks <= 0:
+        world.hpt_beam_ticks = interval_ticks
+        fire_now = bool(figures)
+
+    if fire_now:
+        beam_layer = lead_cfg.get("beam_layer")
+        max_age = config.HPT_CLONE_BEAM_MAX_AGE_DEFAULT
+        if beam_layer is not None:
+            try:
+                lmin = float(beam_layer.get("life_min", 0) or 0)
+                lmax = float(beam_layer.get("life_max", 0) or 0)
+            except (TypeError, ValueError):
+                lmin = lmax = 0.0
+            life_ms = (lmin + lmax) / 2.0
+            if life_ms > 0:
+                max_age = max(1, int(round(life_ms / config.TICK_MS)))
+        pierce = False
+        if beam_layer is not None:
+            pierce = bool((beam_layer.get("battle", {}).get("attack") or {})
+                          .get("pierce"))
+        step = config.HPT_CLONE_BEAM_SPEED_PX_S * (config.TICK_MS / 1000.0)
+        for clone in world.clones:
+            tx, ty = min(
+                figures,
+                key=lambda f: (f[0] - clone.orb_x) ** 2
+                            + (f[1] - clone.orb_y) ** 2)
+            ddx, ddy = tx - clone.orb_x, ty - clone.orb_y
+            dist = math.hypot(ddx, ddy) or 1.0
+            vx, vy = ddx / dist * step, ddy / dist * step
+            if beam_layer is not None:
+                pr = RichBeamProjectile(clone.orb_x, clone.orb_y, vx, vy,
+                                        clone.rgb, config.BEAM_TRAIL_LEN,
+                                        beam_layer)
+            else:
+                pr = Projectile(clone.orb_x, clone.orb_y, vx, vy,
+                                 clone.rgb, config.BEAM_TRAIL_LEN)
+                pr.style = "beam"
+            pr.max_age = max_age
+            pr.damage = clone.damage
+            pr.pierce = pierce
+            world.projectiles.append(pr)
+
+    for clone in world.clones:
         for tup in list(surviving_projs):
             ex, ey = tup[0], tup[1]
             ddx, ddy = ex - clone.x, ey - clone.y
