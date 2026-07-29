@@ -314,14 +314,24 @@ KITE_HOLD_DRIFT_PX  = 40.0   # lateral wander distance while holding in the dead
 # Applied inside ai.py's pure movement-target functions, so Solo and Battle
 # behave identically with no mode branching.
 ORBIT_CLOCKWISE     = True   # False = orbit counter-clockwise instead
-ORBIT_SPEED_MULT    = 1.0    # tangential travel per tick as a multiple of the
-                             # figure's own base run speed (motion.speed)
-ORBIT_LEAD_TICKS    = 4.0    # how many ticks of travel AHEAD along the circle
-                             # the movement target is placed. Must stay well
-                             # above 1 — a target only one tick away lands
-                             # inside motion._chase's snap threshold, which
-                             # causes the figure to stall and jitter instead of
-                             # running smoothly.
+ORBIT_LEAD_DEG      = 30.0   # how far AROUND the circle, in degrees, the
+                             # movement waypoint sits ahead of the figure.
+                             # This is what makes the strafe the dominant
+                             # movement signal: at the 320px standoff radius
+                             # 30deg puts the waypoint ~167px away, so it
+                             # outweighs lateral wander (<=40px) and wall
+                             # repulsion (<=400px but cubic-falloff, small
+                             # except right at an edge). An earlier build led
+                             # by a few TICKS of travel instead, putting the
+                             # waypoint only ~12px out; inside WALL_ZONE the
+                             # repulsion term then overpowered it, cancelling
+                             # ~60% of the figure's movement while whipping
+                             # its travel direction ~14deg/tick — which, since
+                             # Figure.face() derives sprite rotation from
+                             # travel, rendered as the character tumbling on
+                             # the spot instead of running (2026-07-29).
+                             # Set to 0.0 to disable strafing entirely: the
+                             # figure then just holds standoff range.
 
 # ---------------------------------------------------------------------------
 # Generic Clone system (engine support for the wizard's special_ability
