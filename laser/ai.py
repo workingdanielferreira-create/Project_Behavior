@@ -316,10 +316,9 @@ def battle_target(world, fig):
     if p.retreat_ticks > 0:
         p.retreat_ticks -= 1
         if dist > 0.1:
-            bax, bay = dx / dist, dy / dist
-            ox, oy = _orbit_offset(fig, bax, bay)
-            # Back off AND circle the enemy clockwise while backing off.
-            return (t.x - bax * 60 + ox, t.y - bay * 60 + oy)
+            # Back off AND circle the enemy clockwise while backing off: one
+            # waypoint on a circle 60px wider than the current gap.
+            return _orbit_point(fig, ex, ey, dist + 60.0)
     if (dist < 120 and p.retreat_ticks == 0 and fig.mode.retreats()
             and rng.random() < (1.0 - p.aggression) * 0.04):
         p.retreat_ticks = rng.randint(*config.RETREAT_TICKS_RANGE)
@@ -353,10 +352,10 @@ def battle_target(world, fig):
 def kite_target(fig, ex, ey):
     """Movement target for a kiting figure (`fig.mode.kites()`): always hold
     near config.KITE_STANDOFF_DIST from its target instead of ever closing
-    all the way in. Approaches while farther than the standoff band, backs
-    straight away the instant the target gets closer than the band, and
-    drifts laterally (same wander_blend model as battle_target's chase) while
-    holding inside the band.
+    all the way in. Approaches while farther than the standoff band (weaving
+    laterally via the same wander_blend model as battle_target's chase), and
+    otherwise runs a steady clockwise circle at the standoff radius, which
+    also pulls it back out to range whenever the target closes in.
 
     Pure function of (fig, target point) — the caller (World.movement_target)
     passes the nearest enemy in Battle or the cursor in Solo, so this drives
@@ -394,7 +393,9 @@ def kite_target(fig, ex, ey):
     lat = wx * perp_x + wy * perp_y
     blend = fig.mode.wander_blend(dist, p.wander_strength)
 
-    near = config.KITE_STANDOFF_DIST - config.KITE_DEADZONE_PX
+    # Only one threshold matters now: outside it the figure closes in,
+    # inside it the figure circles. KITE_DEADZONE_PX still sets how far past
+    # standoff it must drift before it bothers approaching again.
     far = config.KITE_STANDOFF_DIST + config.KITE_DEADZONE_PX
 
     if dist > far:
@@ -408,43 +409,61 @@ def kite_target(fig, ex, ey):
             fx /= mag
             fy /= mag
         tx, ty = t.x + fx * eff, t.y + fy * eff
-    elif dist < near:
-        # Too close: back away until back at standoff range, while also
-        # strafing clockwise around the target rather than retreating in a
-        # straight line.
-        back = config.KITE_STANDOFF_DIST - dist
-        ox, oy = _orbit_offset(fig, bax, bay)
-        tx, ty = t.x - bax * back + ox, t.y - bay * back + oy
     else:
-        # In the sweet spot: hold range and circle the target clockwise, with
-        # the existing lateral wander layered on top so it still weaves.
-        ox, oy = _orbit_offset(fig, bax, bay)
-        tx = t.x + ox + perp_x * lat * blend * config.KITE_HOLD_DRIFT_PX
-        ty = t.y + oy + perp_y * lat * blend * config.KITE_HOLD_DRIFT_PX
+        # At or inside standoff range: run a clean clockwise circle at the
+        # standoff radius. One branch covers both "too close" and "in the
+        # sweet spot" deliberately — splitting them at the deadzone edges gave
+        # the figure two different targets to alternate between, which is what
+        # made it stall and flicker. Aiming at the standoff radius pulls it
+        # back out to range and carries it around the target in the same
+        # vector, and no lateral wander is layered on: a random sign flip
+        # bigger than one tick of run speed reverses the strafe.
+        tx, ty = _orbit_point(fig, ex, ey, config.KITE_STANDOFF_DIST)
 
     rx, ry = _wall_repulsion(fig)
     return (tx + rx, ty + ry)
 
 
-def _orbit_offset(fig, bax, bay):
-    """Clockwise tangential strafe offset for a figure holding distance.
+def _orbit_point(fig, ex, ey, radius):
+    """A point on the circle of `radius` around (ex, ey), a few ticks of
+    travel CLOCKWISE ahead of where the figure sits right now.
 
-    `bax, bay` is the unit vector pointing from the figure TOWARD its target.
-    Screen space is y-down, so the clockwise tangent about the target is
-    (bay, -bax) — a figure to the right of its target moves downward, i.e.
-    right -> bottom -> left -> top on screen. Magnitude is the figure's own
-    per-tick run speed (`motion.speed`) scaled by config.ORBIT_SPEED_MULT, so
-    while it is only holding distance the resulting movement target is far
-    enough away that the chase step carries it at exactly base running speed
-    tangentially.
+    This is the whole distance-keeping strafe: instead of nudging the figure
+    sideways by a one-tick offset (which motion._chase snaps onto, and which
+    any other lateral term easily overpowers and reverses), the movement
+    target is an actual waypoint on the orbit. Chasing it corrects the radius
+    and carries the figure around the target at base run speed in one stable
+    vector, so there is no branch boundary to ping-pong across and nothing to
+    flip the direction of travel.
 
-    Pure function of the figure and its bearing — no world/mode branching, so
-    Solo and Battle strafe identically.
+    Screen space is y-down, so for a radial unit vector u pointing from the
+    target out to the figure, the clockwise tangent is (-u.y, u.x); rotating u
+    clockwise by `step` radians is u*cos(step) + tangent*sin(step). A figure
+    to the right of its target therefore travels downward: right -> bottom ->
+    left -> top on screen.
+
+    Pure function of the figure and a target point — no world or mode
+    branching, so Solo (target = cursor) and Battle (target = nearest enemy)
+    circle identically.
     """
+    t = fig.transform
+    ux, uy = t.x - ex, t.y - ey
+    r = (ux * ux + uy * uy) ** 0.5
+    if r < 0.1:
+        ux, uy = 1.0, 0.0          # degenerate: pick an arbitrary radial
+    else:
+        ux, uy = ux / r, uy / r
+
+    radius = max(radius, 1.0)
     spd = fig.motion.speed * config.ORBIT_SPEED_MULT
-    if config.ORBIT_CLOCKWISE:
-        return (bay * spd, -bax * spd)
-    return (-bay * spd, bax * spd)
+    step = (spd * config.ORBIT_LEAD_TICKS) / radius     # radians to lead by
+    if not config.ORBIT_CLOCKWISE:
+        step = -step
+    c, sn = math.cos(step), math.sin(step)
+    # u rotated clockwise by `step`, using tangent = (-uy, ux).
+    nx = ux * c - uy * sn
+    ny = uy * c + ux * sn
+    return (ex + nx * radius, ey + ny * radius)
 
 
 def _wall_repulsion(fig):
