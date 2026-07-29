@@ -316,6 +316,12 @@ KITE_HOLD_DRIFT_PX  = 40.0   # lateral wander distance while holding in the dead
 ORBIT_CLOCKWISE     = True   # False = orbit counter-clockwise instead
 ORBIT_SPEED_MULT    = 1.0    # tangential travel per tick as a multiple of the
                              # figure's own base run speed (motion.speed)
+ORBIT_LEAD_TICKS    = 4.0    # how many ticks of travel AHEAD along the circle
+                             # the movement target is placed. Must stay well
+                             # above 1 — a target only one tick away lands
+                             # inside motion._chase's snap threshold, which
+                             # causes the figure to stall and jitter instead of
+                             # running smoothly.
 
 # ---------------------------------------------------------------------------
 # Generic Clone system (engine support for the wizard's special_ability
