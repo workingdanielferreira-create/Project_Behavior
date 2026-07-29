@@ -316,7 +316,10 @@ def battle_target(world, fig):
     if p.retreat_ticks > 0:
         p.retreat_ticks -= 1
         if dist > 0.1:
-            return (t.x - dx / dist * 60, t.y - dy / dist * 60)
+            bax, bay = dx / dist, dy / dist
+            ox, oy = _orbit_offset(fig, bax, bay)
+            # Back off AND circle the enemy clockwise while backing off.
+            return (t.x - bax * 60 + ox, t.y - bay * 60 + oy)
     if (dist < 120 and p.retreat_ticks == 0 and fig.mode.retreats()
             and rng.random() < (1.0 - p.aggression) * 0.04):
         p.retreat_ticks = rng.randint(*config.RETREAT_TICKS_RANGE)
@@ -406,16 +409,42 @@ def kite_target(fig, ex, ey):
             fy /= mag
         tx, ty = t.x + fx * eff, t.y + fy * eff
     elif dist < near:
-        # Too close: back straight away until back at standoff range.
+        # Too close: back away until back at standoff range, while also
+        # strafing clockwise around the target rather than retreating in a
+        # straight line.
         back = config.KITE_STANDOFF_DIST - dist
-        tx, ty = t.x - bax * back, t.y - bay * back
+        ox, oy = _orbit_offset(fig, bax, bay)
+        tx, ty = t.x - bax * back + ox, t.y - bay * back + oy
     else:
-        # In the sweet spot: hold ground, only drift laterally.
-        tx = t.x + perp_x * lat * blend * config.KITE_HOLD_DRIFT_PX
-        ty = t.y + perp_y * lat * blend * config.KITE_HOLD_DRIFT_PX
+        # In the sweet spot: hold range and circle the target clockwise, with
+        # the existing lateral wander layered on top so it still weaves.
+        ox, oy = _orbit_offset(fig, bax, bay)
+        tx = t.x + ox + perp_x * lat * blend * config.KITE_HOLD_DRIFT_PX
+        ty = t.y + oy + perp_y * lat * blend * config.KITE_HOLD_DRIFT_PX
 
     rx, ry = _wall_repulsion(fig)
     return (tx + rx, ty + ry)
+
+
+def _orbit_offset(fig, bax, bay):
+    """Clockwise tangential strafe offset for a figure holding distance.
+
+    `bax, bay` is the unit vector pointing from the figure TOWARD its target.
+    Screen space is y-down, so the clockwise tangent about the target is
+    (bay, -bax) — a figure to the right of its target moves downward, i.e.
+    right -> bottom -> left -> top on screen. Magnitude is the figure's own
+    per-tick run speed (`motion.speed`) scaled by config.ORBIT_SPEED_MULT, so
+    while it is only holding distance the resulting movement target is far
+    enough away that the chase step carries it at exactly base running speed
+    tangentially.
+
+    Pure function of the figure and its bearing — no world/mode branching, so
+    Solo and Battle strafe identically.
+    """
+    spd = fig.motion.speed * config.ORBIT_SPEED_MULT
+    if config.ORBIT_CLOCKWISE:
+        return (bay * spd, -bax * spd)
+    return (-bay * spd, bax * spd)
 
 
 def _wall_repulsion(fig):
