@@ -294,7 +294,6 @@ def battle_target(world, fig):
     p = fig.personality
     m = fig.motion
     rng = p.rng
-
     # --- Daze: wander aimlessly after recovering from a hit ---
     if p.daze_ticks > 0:
         p.daze_ticks -= 1
@@ -365,7 +364,6 @@ def kite_target(fig, ex, ey):
     p = fig.personality
     m = fig.motion
     rng = p.rng
-
     # --- Daze: wander aimlessly after recovering from a hit (same as chase) ---
     if p.daze_ticks > 0:
         p.daze_ticks -= 1
@@ -425,26 +423,32 @@ def kite_target(fig, ex, ey):
 
 
 def _orbit_point(fig, ex, ey, radius):
-    """A point on the circle of `radius` around (ex, ey), a few ticks of
-    travel CLOCKWISE ahead of where the figure sits right now.
+    """A waypoint on the circle of `radius` around (ex, ey), a fixed ANGLE
+    clockwise ahead of where the figure currently sits.
 
-    This is the whole distance-keeping strafe: instead of nudging the figure
-    sideways by a one-tick offset (which motion._chase snaps onto, and which
-    any other lateral term easily overpowers and reverses), the movement
-    target is an actual waypoint on the orbit. Chasing it corrects the radius
-    and carries the figure around the target at base run speed in one stable
-    vector, so there is no branch boundary to ping-pong across and nothing to
-    flip the direction of travel.
+    The lead is angular (config.ORBIT_LEAD_DEG), not a few ticks of travel,
+    and that is the whole point: the waypoint has to be the dominant movement
+    signal. Everything else the movement target picks up — lateral wander,
+    _wall_repulsion, formation offsets — is additive, so a waypoint placed
+    only a few px away gets overpowered, and whatever wins that tick sets the
+    travel direction. Since Figure.face() derives sprite rotation from travel
+    direction, a contested target does not merely wobble the path, it spins
+    the character on its own axis. A 30deg lead at the 320px standoff radius
+    puts the waypoint ~167px out, well clear of every competing term and of
+    motion._chase's snap threshold.
 
     Screen space is y-down, so for a radial unit vector u pointing from the
-    target out to the figure, the clockwise tangent is (-u.y, u.x); rotating u
-    clockwise by `step` radians is u*cos(step) + tangent*sin(step). A figure
-    to the right of its target therefore travels downward: right -> bottom ->
-    left -> top on screen.
+    target out to the figure, the clockwise tangent is (-u.y, u.x) and
+    rotating u clockwise by `step` is u*cos(step) + tangent*sin(step). A
+    figure to the right of its target therefore travels downward: right ->
+    bottom -> left -> top on screen.
 
-    Pure function of the figure and a target point — no world or mode
-    branching, so Solo (target = cursor) and Battle (target = nearest enemy)
-    circle identically.
+    Aiming at `radius` also does the distance-keeping implicitly — a figure
+    that has drifted inside the standoff range is pulled back out by the same
+    vector that carries it around — so there is no separate back-off state to
+    alternate with. Pure function of the figure and a target point: no world
+    or mode branching, so Solo (target = cursor) and Battle (target = nearest
+    enemy) circle identically.
     """
     t = fig.transform
     ux, uy = t.x - ex, t.y - ey
@@ -455,15 +459,13 @@ def _orbit_point(fig, ex, ey, radius):
         ux, uy = ux / r, uy / r
 
     radius = max(radius, 1.0)
-    spd = fig.motion.speed * config.ORBIT_SPEED_MULT
-    step = (spd * config.ORBIT_LEAD_TICKS) / radius     # radians to lead by
+    step = math.radians(config.ORBIT_LEAD_DEG)
     if not config.ORBIT_CLOCKWISE:
         step = -step
     c, sn = math.cos(step), math.sin(step)
     # u rotated clockwise by `step`, using tangent = (-uy, ux).
-    nx = ux * c - uy * sn
-    ny = uy * c + ux * sn
-    return (ex + nx * radius, ey + ny * radius)
+    return (ex + (ux * c - uy * sn) * radius,
+            ey + (uy * c + ux * sn) * radius)
 
 
 def _wall_repulsion(fig):
