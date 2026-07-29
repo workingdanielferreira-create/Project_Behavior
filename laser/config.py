@@ -303,6 +303,21 @@ KITE_DEADZONE_PX    = 50.0   # +/- band around the standoff where it just holds
 KITE_HOLD_DRIFT_PX  = 40.0   # lateral wander distance while holding in the dead zone
 
 # ---------------------------------------------------------------------------
+# Distance-keeping orbit (strafe)
+# ---------------------------------------------------------------------------
+# Whenever a figure is holding distance from its target rather than closing
+# in — the kiting standoff band, the kiting back-off, and the battle retreat
+# blip — it also circles the target instead of standing still relative to it.
+# Screen space is y-down, so with (bax, bay) the unit vector pointing from
+# the figure at its target, the CLOCKWISE tangent about that target is
+# (bay, -bax) and the counter-clockwise tangent is (-bay, bax).
+# Applied inside ai.py's pure movement-target functions, so Solo and Battle
+# behave identically with no mode branching.
+ORBIT_CLOCKWISE     = True   # False = orbit counter-clockwise instead
+ORBIT_SPEED_MULT    = 1.0    # tangential travel per tick as a multiple of the
+                             # figure's own base run speed (motion.speed)
+
+# ---------------------------------------------------------------------------
 # Generic Clone system (engine support for the wizard's special_ability
 # preset 'clone').  A clone is an autonomous ghost of its owner: it walks
 # toward the owner's live target and strikes on contact via invisible
