@@ -41,8 +41,16 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
 
     ox, oy = t.x, t.y
 
+    # Position speed scale: every movement step below (and the animation
+    # cycle at the end) is multiplied by this figure's own bilinear speed
+    # factor, so a fighter at the bottom-left runs at 100% and one at the
+    # top-right at 40% — the same four-corner grid the sprite size uses.
+    # Read from the figure's live position each tick, identical maths for
+    # both fielded fighters, so Solo and Battle match automatically.
+    sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
+
     if m.bouncing:
-        _bounce(fig)
+        _bounce(fig, sf)
     elif m.bounce_ending:
         _bounce_end(fig)
     elif not t.init:
@@ -50,11 +58,11 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
         t.init = True
         m.path.clear()
     elif runaway:
-        _runaway(fig, tx, ty)
+        _runaway(fig, tx, ty, sf)
     elif path_follow:
-        _follow_path(fig, tx, ty)
+        _follow_path(fig, tx, ty, sf)
     else:
-        _chase(fig, tx, ty)
+        _chase(fig, tx, ty, sf)
 
     fig.face(ox, oy)
     anchor = _combat.sprite_emitter_trail_anchor(fig)
@@ -65,15 +73,15 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
     else:
         fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving,
                           path_follow)
-    fig.render.advance()
+    fig.render.advance(sf)
     return cursor_hit
 
 
-def _bounce(fig):
+def _bounce(fig, sf=1.0):
     m = fig.motion
     t = fig.transform
-    t.x += m.bounce_vx
-    t.y += m.bounce_vy
+    t.x += m.bounce_vx * sf
+    t.y += m.bounce_vy * sf
     m.bounce_vx *= config.BOUNCE_FRICTION
     m.bounce_vy *= config.BOUNCE_FRICTION
     if m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy < config.BOUNCE_THRESH_SQ:
@@ -94,7 +102,7 @@ def _bounce_end(fig):
             fig.render.run_idx = min(10, len(run) - 1)
 
 
-def _runaway(fig, cx, cy):
+def _runaway(fig, cx, cy, sf=1.0):
     m = fig.motion
     t = fig.transform
     if m.path:
@@ -104,12 +112,12 @@ def _runaway(fig, cx, cy):
     d_sq = dx * dx + dy * dy
     rad_sq = config.RUNAWAY_RADIUS * config.RUNAWAY_RADIUS
     if 0.01 < d_sq < rad_sq:
-        inv = config.RUNAWAY_SPEED / (d_sq ** 0.5)
+        inv = config.RUNAWAY_SPEED * sf / (d_sq ** 0.5)
         t.x += dx * inv
         t.y += dy * inv
 
 
-def _follow_path(fig, cx, cy):
+def _follow_path(fig, cx, cy, sf=1.0):
     m = fig.motion
     path = m.path
     if not path:
@@ -119,7 +127,7 @@ def _follow_path(fig, cx, cy):
         if (cx - lx) ** 2 + (cy - ly) ** 2 >= config.PATH_MIN_D_SQ:
             path.append((cx, cy))
     # Walk along queued breadcrumbs by exactly follow_speed px this tick.
-    budget = m.follow_speed
+    budget = m.follow_speed * sf
     t = fig.transform
     while budget > 1e-6 and path:
         bx, by = path[0]
@@ -137,7 +145,7 @@ def _follow_path(fig, cx, cy):
             budget = 0.0
 
 
-def _chase(fig, cx, cy):
+def _chase(fig, cx, cy, sf=1.0):
     m = fig.motion
     t = fig.transform
     if m.path:
@@ -145,8 +153,9 @@ def _chase(fig, cx, cy):
     dx = cx + m.offset_x - t.x
     dy = cy + m.offset_y - t.y
     d_sq = dx * dx + dy * dy
-    if d_sq > m.speed * m.speed:
-        inv = m.speed / (d_sq ** 0.5)
+    step = m.speed * sf
+    if d_sq > step * step:
+        inv = step / (d_sq ** 0.5)
         t.x += dx * inv
         t.y += dy * inv
     else:
