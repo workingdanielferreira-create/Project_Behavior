@@ -214,8 +214,16 @@ class Renderable:
         self.bundle = bundle
         self.run_idx = self.idle_idx = self.anim_tick = 0
 
-    def advance(self):
-        self.anim_tick += 1
+    def advance(self, sf=1.0):
+        """Advance the run/idle animation clock by one tick.
+
+        `sf` is the caller's position speed scale
+        (combat.position_speed_scale) so the walk/idle cycle plays slower
+        the smaller/further the figure is, in lockstep with its movement.
+        anim_tick is therefore fractional — every use is a threshold
+        comparison or a seconds conversion, both float-safe.
+        """
+        self.anim_tick += sf
         if self.is_moving:
             if self.anim_tick >= self.anim_speed:
                 self.anim_tick = 0
