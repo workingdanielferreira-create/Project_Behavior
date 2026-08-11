@@ -92,6 +92,38 @@ POSITION_SCALE_BOTTOM_LEFT   = 5.00   # 500% (max)
 POSITION_SCALE_BOTTOM_RIGHT  = 2.3333 # 233.33% (1/3 of the way min->max, same shape as the original 1.0-1.9 range)
 
 # ---------------------------------------------------------------------------
+# Position-based SPEED scaling — global, always-on (confirmed with Daniel
+# 2026-08-12). Rides the exact same four-corner bilinear grid as
+# POSITION_SCALE_* above, so an entity's speed rises and falls in lockstep
+# with its drawn size: big/near (bottom-left) = full speed, small/far
+# (top-right) = slowest, and the two 1/3-of-the-way corners land 1/3 of the
+# way up the speed range, matching the size grid's shape exactly.
+#
+#     size 5.0000 (BL) -> 1.00 speed      size 1.0000 (TR) -> 0.40 speed
+#     size 2.3333 (TL) -> 0.60 speed      size 2.3333 (BR) -> 0.60 speed
+#
+# This is TIME DILATION, not distance clipping: the factor scales the
+# per-tick position step AND the per-tick age/lifetime increment together,
+# so a bullet fired into the top-right still travels its full range and a
+# particle still lives its full arc — everything simply plays out in slow
+# motion up there. Sampled from each entity's OWN live position every tick
+# (a bullet flying from bottom-left to top-right decelerates smoothly as it
+# climbs). Applied identically to both fielded fighters from the same shared
+# helper, so Solo and Battle behave the same automatically — see
+# combat.position_speed_scale().
+#
+# Scope: figure chase/follow/runaway/bounce movement, projectile + FX travel
+# (bullets, bursts, sprite-emitter particles, crescents, ultimate crescents,
+# petals, clones) and run/idle animation playback. NOT applied to cooldowns,
+# attack cadence, or dash/slash/blink FSM timings.
+# ---------------------------------------------------------------------------
+SPEED_SCALE_ENABLED       = True
+SPEED_SCALE_TOP_LEFT      = 0.60   # 60%  (1/3 of the way min->max)
+SPEED_SCALE_TOP_RIGHT     = 0.40   # 40%  (min — smallest, slowest)
+SPEED_SCALE_BOTTOM_LEFT   = 1.00   # 100% (max — biggest, full speed)
+SPEED_SCALE_BOTTOM_RIGHT  = 0.60   # 60%  (1/3 of the way min->max)
+
+# ---------------------------------------------------------------------------
 # Cursor-collision bounce
 # ---------------------------------------------------------------------------
 BOUNCE_STRENGTH       = 12.0
