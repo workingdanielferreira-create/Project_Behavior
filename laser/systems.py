@@ -227,7 +227,8 @@ class MotionSystem(System):
                 elif dx > 0.001:
                     fig.transform.facing_left = False
                 fig.render.is_moving = False
-                fig.render.advance()
+                fig.render.advance(combat.position_speed_scale(
+                    fig.x, fig.y, fig.screen_w, fig.screen_h))
                 continue
             if battle:
                 motion.update(fig, tx_motion, ty_motion, False, False, False)
@@ -295,7 +296,10 @@ class CombatSystem(System):
                     ctx, cty = world.cursor
                 live_clones = []
                 for cl in fig.combat.clones:
-                    res = cl.tick(ctx, cty)
+                    res = cl.tick(ctx, cty,
+                                  combat.position_speed_scale(
+                                      cl.x, cl.y,
+                                      fig.screen_w, fig.screen_h))
                     if res is None:
                         # Dissolve crackle at the clone's last position.
                         fig.combat.blink_fx_pending.append(
@@ -417,7 +421,12 @@ class ProjectileSystem(System):
             _cm = config.OFFSCREEN_CULL_MARGIN
             _sw, _sh = world.screen_w, world.screen_h
             for proj in world.projectiles:
-                proj.update()
+                # Position speed scale from the bullet's OWN live position,
+                # re-sampled every tick, so a shot fired toward the top-right
+                # decelerates smoothly as it climbs. Range/lifetime are
+                # unaffected (see combat.position_speed_scale).
+                proj.update(combat.position_speed_scale(proj.x, proj.y,
+                                                        _sw, _sh))
                 _beam_diag = (proj.style == "beam")
                 if not proj.alive:
                     if _beam_diag:
