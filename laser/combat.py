@@ -46,6 +46,29 @@ def position_scale(x, y, screen_w, screen_h):
                      config.POSITION_SCALE_BOTTOM_RIGHT)
 
 
+def position_speed_scale(x, y, screen_w, screen_h):
+    """Bilinear speed multiplier for a point at (x, y) — the speed twin of
+    position_scale() above, sharing the identical corner grid and the
+    identical interpolation, so an entity's pace tracks its drawn size.
+
+    Every mover (figures, bullets, particles, crescents, petals, clones)
+    calls this with its OWN current position each tick and multiplies the
+    result into BOTH its position step and its age increment, which keeps
+    ranges and lifetimes intact and simply plays the motion out slower the
+    further "away" (top-right) the entity is. Same helper for both sides =
+    Solo/Battle parity for free. Cheap: a handful of float ops.
+    """
+    if not config.SPEED_SCALE_ENABLED or screen_w <= 0 or screen_h <= 0:
+        return 1.0
+    xf = max(0.0, min(1.0, x / screen_w))
+    yf = max(0.0, min(1.0, y / screen_h))
+    return bilinear(xf, yf,
+                     config.SPEED_SCALE_TOP_LEFT,
+                     config.SPEED_SCALE_TOP_RIGHT,
+                     config.SPEED_SCALE_BOTTOM_LEFT,
+                     config.SPEED_SCALE_BOTTOM_RIGHT)
+
+
 # ---------------------------------------------------------------------------
 # Bullet sprite cache — pre-rendered glow+core pixmaps, keyed by colour/radius.
 #
@@ -314,11 +337,15 @@ class Projectile:
     def alive(self):
         return self.age < self.max_age
 
-    def update(self):
+    def update(self, sf=1.0):
+        # sf = position speed scale (combat.position_speed_scale), sampled
+        # from this bullet's own live position by ProjectileSystem each
+        # tick. Scaling the step AND the age together is time dilation:
+        # range and lifetime are preserved, the flight just plays slower.
         self.trail.append((self.x, self.y))
-        self.x += self.vx
-        self.y += self.vy
-        self.age += 1
+        self.x += self.vx * sf
+        self.y += self.vy * sf
+        self.age += sf
 
     def draw(self, p, pscale=1.0):
         if self.style == "invisible":
@@ -549,7 +576,7 @@ class RichBeamProjectile(Projectile):
             p.setCompositionMode(QPainter.CompositionMode_Plus)
 
         segs = self.segments
-        rng = random.Random(self._jitter_seed + self.age)
+        rng = random.Random(self._jitter_seed + int(self.age))
         for i in range(segs):
             t0, t1 = i / segs, (i + 1) / segs
             hx0 = self.x - ux * reach * t0
@@ -609,14 +636,14 @@ class ZigzagProjectile(Projectile):
         self.freq = frequency
         self.phase = phase_offset
 
-    def update(self):
+    def update(self, sf=1.0):
         self.trail.append((self.x, self.y))
         # Sinusoidal lateral nudge
         lateral = math.sin(self.phase) * self.freq
-        self.x += self.vx + self.ax * lateral
-        self.y += self.vy + self.ay * lateral
-        self.phase += self.freq
-        self.age += 1
+        self.x += (self.vx + self.ax * lateral) * sf
+        self.y += (self.vy + self.ay * lateral) * sf
+        self.phase += self.freq * sf
+        self.age += sf
 
 
 # ---------------------------------------------------------------------------
@@ -638,7 +665,7 @@ class HomingProjectile(Projectile):
         self.turn_rate = turn_rate
         self.speed = (vx * vx + vy * vy) ** 0.5
 
-    def update(self):
+    def update(self, sf=1.0):
         self.trail.append((self.x, self.y))
         # Steer toward target
         tx, ty = self.target[0], self.target[1]
@@ -648,16 +675,16 @@ class HomingProjectile(Projectile):
             desired_vx = dx / dist * self.speed
             desired_vy = dy / dist * self.speed
             # Blend current heading toward desired heading
-            self.vx += (desired_vx - self.vx) * self.turn_rate
-            self.vy += (desired_vy - self.vy) * self.turn_rate
+            self.vx += (desired_vx - self.vx) * self.turn_rate * sf
+            self.vy += (desired_vy - self.vy) * self.turn_rate * sf
             # Re-normalise to constant speed
             cur_spd = (self.vx * self.vx + self.vy * self.vy) ** 0.5
             if cur_spd > 0.001:
                 self.vx = self.vx / cur_spd * self.speed
                 self.vy = self.vy / cur_spd * self.speed
-        self.x += self.vx
-        self.y += self.vy
-        self.age += 1
+        self.x += self.vx * sf
+        self.y += self.vy * sf
+        self.age += sf
 
 
 # ---------------------------------------------------------------------------
@@ -1215,13 +1242,17 @@ class BurstParticle:
     def alive(self):
         return self.age < self.life
 
-    def update(self):
+    def update(self, sf=1.0):
+        # sf = position speed scale for this particle's own position.
+        # Drag is a per-tick decay, so it's eased toward 1.0 by sf (linear
+        # approximation of drag**sf — same feel, no pow() per particle).
         tick_s = config.TICK_MS / 1000.0
-        self.vx *= self.drag
-        self.vy = self.vy * self.drag + self.gravity * tick_s
-        self.x += self.vx * tick_s
-        self.y += self.vy * tick_s
-        self.age += 1
+        drag = 1.0 - (1.0 - self.drag) * sf
+        self.vx *= drag
+        self.vy = self.vy * drag + self.gravity * tick_s * sf
+        self.x += self.vx * tick_s * sf
+        self.y += self.vy * tick_s * sf
+        self.age += sf
 
     def _current_size(self, t):
         s0, s1 = self.size0, self.size1
@@ -1555,13 +1586,13 @@ class SpriteEmitParticle:
     def alive(self):
         return self.age < self.life
 
-    def update(self):
+    def update(self, sf=1.0):
         tick_s = config.TICK_MS / 1000.0
-        self.vx *= 0.96
-        self.vy *= 0.985
-        self.x += self.vx * tick_s
-        self.y += self.vy * tick_s
-        self.age += 1
+        self.vx *= 1.0 - 0.04 * sf
+        self.vy *= 1.0 - 0.015 * sf
+        self.x += self.vx * tick_s * sf
+        self.y += self.vy * tick_s * sf
+        self.age += sf
 
     def draw(self, p, pscale=1.0):
         t = min(1.0, self.age / float(self.life))
@@ -1668,7 +1699,8 @@ def update_sprite_emitter(fig):
     if c.sprite_particles:
         alive = []
         for sp in c.sprite_particles:
-            sp.update()
+            sp.update(position_speed_scale(sp.x, sp.y,
+                                            fig.screen_w, fig.screen_h))
             if sp.alive:
                 alive.append(sp)
         c.sprite_particles = alive
@@ -1782,7 +1814,8 @@ def update_character_bursts(fig):
     if c.particle_bursts:
         alive = []
         for bp in c.particle_bursts:
-            bp.update()
+            bp.update(position_speed_scale(bp.x, bp.y,
+                                            fig.screen_w, fig.screen_h))
             if bp.alive:
                 alive.append(bp)
         c.particle_bursts = alive
@@ -1906,10 +1939,10 @@ class CrescentWave:
     def alive(self):
         return self.age < config.CRESCENT_LIFETIME
 
-    def update(self):
-        self.x += self.dir_x * self.speed
-        self.y += self.dir_y * self.speed
-        self.age += 1
+    def update(self, sf=1.0):
+        self.x += self.dir_x * self.speed * sf
+        self.y += self.dir_y * self.speed * sf
+        self.age += sf
 
     def check_bullet_erase(self, bx, by):
         """True if a bullet at (bx, by) lies on the arc's surface band + span."""
@@ -2084,14 +2117,18 @@ class Petal:
         self.lock_x = 0.0
         self.lock_y = 0.0
 
-    def update(self, anchor_x, anchor_y, threats):
+    def update(self, anchor_x, anchor_y, threats, sf=1.0):
         """Advance one tick. `threats` is a list of (x, y, kind, payload)
         entries — kind 'proj' (payload = the world.enemy_projs tuple) or
         'fig' (payload = partner-figure index). Returns a
         (kind, payload, contact_x, contact_y, dir_x, dir_y) tuple on the
         tick this petal makes contact with its target, else None."""
         cfg = self.cfg
-        tick_s = config.TICK_MS / 1000.0
+        # sf = position speed scale for this petal's own position; folding it
+        # into tick_s slows the orbit rate and the intercept approach step
+        # together. Respawn cooldown ticks are deliberately NOT scaled
+        # (cadence/cooldowns are out of scope for position speed).
+        tick_s = config.TICK_MS / 1000.0 * sf
         if self.state == "cooldown":
             self.cooldown_ticks -= 1
             if self.cooldown_ticks <= 0:
@@ -2303,7 +2340,9 @@ def update_petals(fig, world):
         if independent and claimed:
             threats = [th for th in threats
                        if _threat_key(th[2], th[3]) not in claimed]
-        hit = pt.update(fig.x, fig.y, threats)
+        hit = pt.update(fig.x, fig.y, threats,
+                        position_speed_scale(pt.x, pt.y,
+                                             fig.screen_w, fig.screen_h))
         if independent and pt.state == "intercept" and pt.lock_kind is not None:
             # Find which live threat this petal ended up locked onto (by the
             # position the lock now points at) so later petals this tick
@@ -2858,13 +2897,14 @@ class UltimateCrescent:
     def alive(self):
         return self.age < self.cfg['lifetime']
 
-    def update(self):
-        self.x += self.dir_x * self.cfg['speed']
-        self.y += self.dir_y * self.cfg['speed']
-        self.dist_travelled += self.cfg['speed']
-        self.age += 1
+    def update(self, sf=1.0):
+        step = self.cfg['speed'] * sf
+        self.x += self.dir_x * step
+        self.y += self.dir_y * step
+        self.dist_travelled += step
+        self.age += sf
         if self.reveal_t < 1.0:
-            self.reveal_t = min(1.0, self.reveal_t + 0.1)
+            self.reveal_t = min(1.0, self.reveal_t + 0.1 * sf)
 
     def check_bullet_erase(self, bx, by):
         """True if bullet (bx, by) lies within the blade's arc band."""
@@ -3001,7 +3041,8 @@ def tick_ult_crescents(fig, target_x, target_y):
     if c.ult_crescents:
         live = []
         for uc in c.ult_crescents:
-            uc.update()
+            uc.update(position_speed_scale(uc.x, uc.y,
+                                            fig.screen_w, fig.screen_h))
             if uc.alive:
                 live.append(uc)
         c.ult_crescents = live
@@ -3187,7 +3228,7 @@ class CloneEffect:
         self.attack_cd = 0
         self.moving = False
 
-    def tick(self, tx, ty):
+    def tick(self, tx, ty, sf=1.0):
         """Advance one tick toward (tx, ty).  Returns a list of new
         Projectiles to append to the owner side's world.projectiles
         (empty most ticks), or None when the clone has expired."""
@@ -3200,8 +3241,8 @@ class CloneEffect:
         self.facing_left = dx < 0
         if dist > config.CLONE_STRIKE_RADIUS_PX:
             inv = 1.0 / max(dist, 0.001)
-            self.x += dx * inv * self.speed
-            self.y += dy * inv * self.speed
+            self.x += dx * inv * self.speed * sf
+            self.y += dy * inv * self.speed * sf
             self.moving = True
         else:
             self.moving = False
@@ -3220,7 +3261,7 @@ class CloneEffect:
                                     / max(config.PROJ_SPEED, 0.001)))
             out.append(pr)
             self.attack_cd = config.CLONE_ATTACK_INTERVAL_TICKS
-        self.anim_tick += 1
+        self.anim_tick += sf
         if self.anim_tick >= 5:
             self.anim_tick = 0
             self.run_idx += 1
@@ -3955,7 +3996,8 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance()
+        fig.render.advance(position_speed_scale(fig.x, fig.y,
+                                                fig.screen_w, fig.screen_h))
         return True
 
     # --- Arc travel: curved path around the target.  Radius interpolates from
@@ -4007,14 +4049,16 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance()
+        fig.render.advance(position_speed_scale(fig.x, fig.y,
+                                                fig.screen_w, fig.screen_h))
         return True
 
     # --- Crescent advance + cull (emission happens on dash hit) ---
     if c.crescents:
         live = []
         for cr in c.crescents:
-            cr.update()
+            cr.update(position_speed_scale(cr.x, cr.y,
+                                            fig.screen_w, fig.screen_h))
             if cr.alive:
                 live.append(cr)
         c.crescents = live
@@ -4212,7 +4256,8 @@ def advance_combat(fig, slash_target, fallback):
             fig.face(ox, oy)
             _apply_trail_update(fig, t, True, False)
             fig.render.is_moving = True
-            fig.render.advance()
+            fig.render.advance(position_speed_scale(
+                fig.x, fig.y, fig.screen_w, fig.screen_h))
             return True
 
     # --- Dodge dash execution (triggers wired stage 3; also reached via the
@@ -4255,7 +4300,8 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance()
+        fig.render.advance(position_speed_scale(fig.x, fig.y,
+                                                fig.screen_w, fig.screen_h))
         return True
 
     # --- Primary attack trigger (arms an attack; does NOT consume the tick) ---
