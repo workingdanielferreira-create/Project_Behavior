@@ -273,6 +273,11 @@ IMMUNITY_HIT_LIMIT   = 10        # hits absorbed while immune before resetting
 FIGURE_OFFSETS = [(100, 0), (30, 6), (-30, 6), (34, -14),
                   (-34, -14), (54, 2), (-54, 2), (0, 20)]
 MAX_FIGURES    = 8
+# Offset/palette slot used by the key-'3'/'4' extra fighter (+ side_idx,
+# so P1's extra takes slot 2 and P2's slot 3).  Base fighters hold slots
+# 0 and 1, so all four possible fighters read as visually distinct even
+# when two teams field the same character.
+EXTRA_FIGURE_SLOT = 2
 
 # ---------------------------------------------------------------------------
 # Hit Points (HP)
