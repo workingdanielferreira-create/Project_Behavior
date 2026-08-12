@@ -41,9 +41,8 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
 
     ox, oy = t.x, t.y
 
-    # Position speed scale: every movement step below (and the animation
-    # cycle at the end) is multiplied by this figure's own bilinear speed
-    # factor, so a fighter at the bottom-left runs at 100% and one at the
+    # Position speed scale: every movement step below is multiplied by this
+    # figure's own bilinear speed factor, so a fighter at the bottom-left runs at 100% and one at the
     # top-right at 40% — the same four-corner grid the sprite size uses.
     # Read from the figure's live position each tick, identical maths for
     # both fielded fighters, so Solo and Battle match automatically.
@@ -73,7 +72,7 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
     else:
         fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving,
                           path_follow)
-    fig.render.advance(sf)
+    fig.render.advance()
     return cursor_hit
 
 
