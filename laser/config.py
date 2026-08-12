@@ -112,10 +112,12 @@ POSITION_SCALE_BOTTOM_RIGHT  = 2.3333 # 233.33% (1/3 of the way min->max, same s
 # helper, so Solo and Battle behave the same automatically — see
 # combat.position_speed_scale().
 #
-# Scope: figure chase/follow/runaway/bounce movement, projectile + FX travel
-# (bullets, bursts, sprite-emitter particles, crescents, ultimate crescents,
-# petals, clones) and run/idle animation playback. NOT applied to cooldowns,
-# attack cadence, or dash/slash/blink FSM timings.
+# Scope: figure chase/follow/runaway/bounce movement and projectile + FX
+# travel (bullets, bursts, sprite-emitter particles, crescents, ultimate
+# crescents, petals, clones). NOT applied to the animation frame loop —
+# run/idle playback cadence stays constant everywhere on screen (Daniel,
+# 2026-08-12) — nor to cooldowns, attack cadence, or dash/slash/blink FSM
+# timings.
 # ---------------------------------------------------------------------------
 SPEED_SCALE_ENABLED       = True
 SPEED_SCALE_TOP_LEFT      = 0.60   # 60%  (1/3 of the way min->max)
