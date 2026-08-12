@@ -227,8 +227,7 @@ class MotionSystem(System):
                 elif dx > 0.001:
                     fig.transform.facing_left = False
                 fig.render.is_moving = False
-                fig.render.advance(combat.position_speed_scale(
-                    fig.x, fig.y, fig.screen_w, fig.screen_h))
+                fig.render.advance()
                 continue
             if battle:
                 motion.update(fig, tx_motion, ty_motion, False, False, False)
