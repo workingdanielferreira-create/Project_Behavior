@@ -3261,7 +3261,7 @@ class CloneEffect:
                                     / max(config.PROJ_SPEED, 0.001)))
             out.append(pr)
             self.attack_cd = config.CLONE_ATTACK_INTERVAL_TICKS
-        self.anim_tick += sf
+        self.anim_tick += 1
         if self.anim_tick >= 5:
             self.anim_tick = 0
             self.run_idx += 1
@@ -3996,8 +3996,7 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance(position_speed_scale(fig.x, fig.y,
-                                                fig.screen_w, fig.screen_h))
+        fig.render.advance()
         return True
 
     # --- Arc travel: curved path around the target.  Radius interpolates from
@@ -4049,8 +4048,7 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance(position_speed_scale(fig.x, fig.y,
-                                                fig.screen_w, fig.screen_h))
+        fig.render.advance()
         return True
 
     # --- Crescent advance + cull (emission happens on dash hit) ---
@@ -4256,8 +4254,7 @@ def advance_combat(fig, slash_target, fallback):
             fig.face(ox, oy)
             _apply_trail_update(fig, t, True, False)
             fig.render.is_moving = True
-            fig.render.advance(position_speed_scale(
-                fig.x, fig.y, fig.screen_w, fig.screen_h))
+            fig.render.advance()
             return True
 
     # --- Dodge dash execution (triggers wired stage 3; also reached via the
@@ -4300,8 +4297,7 @@ def advance_combat(fig, slash_target, fallback):
         fig.face(ox, oy)
         _apply_trail_update(fig, t, True, False)
         fig.render.is_moving = True
-        fig.render.advance(position_speed_scale(fig.x, fig.y,
-                                                fig.screen_w, fig.screen_h))
+        fig.render.advance()
         return True
 
     # --- Primary attack trigger (arms an attack; does NOT consume the tick) ---
