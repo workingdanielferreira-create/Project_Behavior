@@ -152,17 +152,28 @@ class World:
     def mode(self):
         return modes.get_mode(self.mode_key)
 
-    def add_figure(self, side_idx=0):
+    def add_figure(self, side_idx=0, mode_key=None, slot=None):
+        """Field one more fighter on `side_idx`.
+
+        `mode_key` overrides the side's base character, which is what lets a
+        single team hold two DIFFERENT characters at once (runner +
+        swordsman, mage + new_fighter, ...) — see cycle_side_extra.  `slot`
+        overrides the offset/palette slot for the same reason.  A Figure
+        owns its own mode/bundle/lut, so nothing below the World level cares
+        that its team-mate is a different character.
+        """
         side = self.sides[side_idx]
         if len(side.figures) >= config.MAX_FIGURES:
             return False
         i = len(side.figures)
+        key = mode_key or side.mode_key
         # Side 1 figures take the next offset/palette slot so the two sides
         # spawn apart and read as distinct fighters at a glance.
-        slot = i + side_idx
-        fig = Figure(modes.get_mode(side.mode_key),
-                     self.assets.bundle(side.mode_key),
-                     lut_for_mode(side.mode_key, slot), slot,
+        if slot is None:
+            slot = i + side_idx
+        fig = Figure(modes.get_mode(key),
+                     self.assets.bundle(key),
+                     lut_for_mode(key, slot), slot,
                      self.screen_w, self.screen_h)
         side.figures.append(fig)
         return True
@@ -175,15 +186,28 @@ class World:
         return False
 
     # --- commands ----------------------------------------------------------
+    def _reskin_figure(self, fig, mode_key):
+        """Switch ONE figure to `mode_key` — sprites, speeds, palette, HP.
+
+        Every character swap in the game funnels through here, so a team of
+        mixed characters stays consistent and Solo/Battle can't diverge:
+        there is only one code path.
+        """
+        fig.set_mode(modes.get_mode(mode_key), self.assets.bundle(mode_key))
+        fig.lut = lut_for_mode(mode_key, fig.index)
+        fig.trail.lut = fig.lut
+
     def _reskin_side(self, side_idx):
-        """Re-apply a side's current mode_key to its live figures."""
+        """Re-apply a side's mode_key to its BASE fighter (slot 0) only.
+
+        Slot 0 belongs to keys '1'/'2' and Alt+Left/Right.  The extra fighter
+        added by key '3'/'4' owns its own character and is deliberately left
+        untouched here — that is exactly what allows one team to field two
+        different characters.
+        """
         side = self.sides[side_idx]
-        mode = modes.get_mode(side.mode_key)
-        bundle = self.assets.bundle(side.mode_key)
-        for fig in side.figures:
-            fig.set_mode(mode, bundle)
-            fig.lut = lut_for_mode(side.mode_key, fig.index)
-            fig.trail.lut = fig.lut
+        if side.figures:
+            self._reskin_figure(side.figures[0], side.mode_key)
 
     def cycle_mode(self, delta, side_idx=0):
         order = modes.ordered_modes()
@@ -224,6 +248,70 @@ class World:
         if side_idx == self.side_idx:
             self.mode_key = side.mode_key
         self._reskin_side(side_idx)
+
+    def cycle_side_extra(self, side_idx):
+        """Key '3' (P1) / '4' (P2): the team's SECOND fighter slot.
+
+        Lets one side field two different characters at once — runner +
+        swordsman, mage + new_fighter, any pairing in the roster.
+
+        Tap 1 fields the extra fighter as the first registered character;
+        every further tap advances it one step through the roster; the tap
+        after the last character retires it (team back to one fighter), and
+        the next tap re-fields the first character again.  Slot 0 is never
+        touched — it stays owned by keys '1'/'2'.
+
+        Identical in Solo and Battle by construction: the per-tick pipeline
+        already runs over every figure on a fielded side and every system
+        routes through `fig.mode`'s predicates, so a two-character team is
+        just two figures with different modes in both modes.
+        """
+        order = modes.ordered_modes()
+        if not order:
+            return
+        side = self.sides[side_idx]
+        if not side.figures:
+            # Team is empty (P2 was cycled OFF with key '2').  Re-field the
+            # base fighter first so slot 0 always belongs to key '1'/'2';
+            # the next tap then stacks the extra fighter on top of it.
+            if side.mode_key not in order:
+                side.mode_key = order[0]
+            self.add_figure(side_idx)
+            return
+        if len(side.figures) < 2:
+            self.add_figure(side_idx, mode_key=order[0],
+                            slot=config.EXTRA_FIGURE_SLOT + side_idx)
+            return
+        fig = side.figures[1]
+        cur = order.index(fig.mode.key) if fig.mode.key in order else -1
+        nxt = cur + 1
+        if nxt >= len(order):
+            self._retire_extra(side_idx)
+            return
+        self._reskin_figure(fig, order[nxt])
+
+    def _retire_extra(self, side_idx):
+        """Remove the key-'3'/'4' fighter and clean up what it owned.
+
+        Its in-flight bullets are killed AT SOURCE via combat.kill_projectile
+        (never by setting `alive`, which is derived).  The side's
+        HP-threshold clones are dropped only when no remaining fighter on
+        that side spawns them, so a retiring team-mate can't leave orphan
+        corner spheres firing on its behalf — and can't take a surviving
+        team-mate's clones with it either.
+        """
+        side = self.sides[side_idx]
+        if len(side.figures) < 2:
+            return
+        fig = side.figures.pop(1)
+        for pr in side.projectiles:
+            if pr.owner is fig:
+                combat.kill_projectile(pr)
+        if side.clones and not any(combat.hpt_clone_cfg(f) is not None
+                                   for f in side.figures):
+            side.clones.clear()
+        if fig in self._dead:
+            self._dead.remove(fig)
 
     def request_manual_ultimate(self, side_idx):
         """Ctrl+1 (side 0) / Ctrl+2 (side 1): force that side's currently
