@@ -22,6 +22,8 @@ VK_LEFT  = 0x25
 VK_RIGHT = 0x27
 VK_1     = 0x31
 VK_2     = 0x32
+VK_3     = 0x33            # P1 extra-fighter slot (World.cycle_side_extra)
+VK_4     = 0x34            # P2 extra-fighter slot (World.cycle_side_extra)
 
 _BELOW_NORMAL = 0x00004000
 
