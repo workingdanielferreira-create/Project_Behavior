@@ -91,6 +91,20 @@ class InputSystem(System):
                 world.ctrl_used = True
             else:
                 world.cycle_side_char(1)
+
+        # 3 / 4: add and then cycle the SECOND fighter on P1's / P2's team,
+        # so one side can field two different characters (runner +
+        # swordsman, mage + new_fighter, ...).  First tap fields it as the
+        # first registered character, each further tap advances it through
+        # the roster, and the tap past the last character retires it (team
+        # back to one fighter).  Slot 0 stays owned by '1'/'2', so the two
+        # slots never fight over the same figure.  See
+        # World.cycle_side_extra — same behaviour in Solo and Battle.
+        if self._pressed(win.VK_3):
+            world.cycle_side_extra(0)
+        if self._pressed(win.VK_4):
+            world.cycle_side_extra(1)
+
         if self._pressed(win.VK_F7):
             world.add_figure()
         if self._pressed(win.VK_F8):
