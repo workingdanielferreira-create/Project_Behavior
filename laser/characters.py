@@ -165,13 +165,18 @@ def _pose_max_joint_dist(J):
 
 
 def _char_scale(char):
-    """Clamped stats.scale (0.5-2.0), defaulting to 1.0."""
+    """Clamped stats.scale (0.1-2.0), defaulting to 1.0.
+
+    The floor was 0.5 while the rig was drawn straight to a small canvas —
+    below that the 3.5px body stroke went sub-pixel and rendered faint and
+    patchy.  rasterize_character now bakes at full res and smooth-downscales
+    (see there), so small scales are safe; 0.1 remains as a sanity guard."""
     stats = char.get("stats", {}) or {}
     try:
         s = float(stats.get("scale", 1.0))
     except (TypeError, ValueError):
         s = 1.0
-    return max(0.5, min(2.0, s))
+    return max(0.1, min(2.0, s))
 
 
 def _render_pose(J, char, half_w, half_h, scale):
@@ -220,17 +225,27 @@ def _render_pose(J, char, half_w, half_h, scale):
     return pm
 
 
-def rasterize_character(char):
+def rasterize_character(char, bake_dir=None):
     """Rasterise every action's keyframes.  Returns {action: [QPixmap, ...]}.
 
     One shared canvas size is computed over ALL actions so the root stays at
-    the pixmap centre in every frame (no jitter between animations)."""
+    the pixmap centre in every frame (no jitter between animations).
+
+    Bake-then-downscale: the rig is always drawn at the reference scale
+    (stats.scale 1.0), written to PNG under <bake_dir>/_baked/<name>/, then
+    reloaded and smooth-scaled by stats.scale — the same full-res-source
+    path the sprite_files characters use.  Drawing the vectors directly at a
+    small scale made the 3.5px stroke sub-pixel (0.70px at scale 0.25) and
+    the linework went faint; baking keeps it crisp before the downscale.
+    PNGs are rewritten every load so JSON rig edits always take effect."""
     bones = dict(_DEFAULT_BONES)
     bones.update(char.get("bones", {}))
     wpn_pts = char.get("weapon", {}).get("points", []) or []
-    # stats.scale (0.5-2.0) multiplies the rasterization scale factor; every
-    # frame still shares one root-centred canvas, so nothing else changes.
-    scale = (config.TARGET_HEAD_PX / _RIG_HEAD_DIAMETER) * _char_scale(char)
+    # Reference (full-res) raster scale — stats.scale is applied afterwards
+    # as a pixmap downscale, not as a paint-time transform.
+    base = config.TARGET_HEAD_PX / _RIG_HEAD_DIAMETER
+    char_sc = _char_scale(char)
+    scale = base * char_sc
 
     joints_per_action = {}
     half_w = half_h = 1.0
@@ -255,10 +270,36 @@ def rasterize_character(char):
     # the existing fixed constants as fallback for built-in figures.
     char["hurtbox_radius"] = idle_max_joint_dist * scale
 
+    out_dir = None
+    if bake_dir:
+        key = str(char.get("name", "char") or "char").strip() or "char"
+        out_dir = os.path.join(bake_dir, "_baked", key)
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except OSError:
+            out_dir = None                    # read-only install — bake in RAM
+
     frames = {}
     for name, js in joints_per_action.items():
-        frames[name] = [_render_pose(J, char, half_w, half_h, scale)
-                        for J in js]
+        out = []
+        for i, J in enumerate(js):
+            pm = _render_pose(J, char, half_w, half_h, base)
+            if out_dir:
+                png = os.path.join(out_dir, "%s_%02d.png" % (name, i))
+                try:
+                    if pm.save(png, "PNG"):
+                        reloaded = QPixmap(png)
+                        if not reloaded.isNull():
+                            pm = reloaded
+                except Exception:
+                    pass                      # bake is an optimisation, not a
+                                              # requirement — keep the in-RAM pm
+            if char_sc != 1.0:
+                pm = pm.scaled(max(1, int(round(pm.width() * char_sc))),
+                               max(1, int(round(pm.height() * char_sc))),
+                               Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            out.append(pm)
+        frames[name] = out
     return frames
 
 
@@ -692,7 +733,7 @@ def load_all(root_dir, bundles):
                 if sprite_src:
                     print("sprite_source %r not found for %s — rasterising"
                           % (sprite_src, key))
-                frames = rasterize_character(char)
+                frames = rasterize_character(char, bake_dir=folder)
                 bundles[key] = _build_bundle(frames)
                 _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
