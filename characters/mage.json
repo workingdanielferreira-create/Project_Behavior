@@ -18,7 +18,7 @@
     "max_hp": 100,
     "chase_speed": 3,
     "follow_speed": 4.5,
-    "scale": 0.125,
+    "scale": 0.25,
     "basic_attack_radius": 180
   },
   "rig": "humanoid_v2",
