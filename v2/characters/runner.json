@@ -1,0 +1,43 @@
+{
+  "format": "pb_character_v2",
+  "schema_version": 2,
+  "key": "runner",
+  "display_name": "Runner",
+  "description": "Kiting shooter. Cycles cone, zigzag and homing volleys, teleports to survive, opens up with a ring burst.",
+  "archetype": "shooter",
+  "attributes": {
+    "hp": 100.0, "hp_max": 100.0,
+    "move_speed": 2.6, "chase_speed": 3.0,
+    "scale": 1.0, "attack_range": 52.0,
+    "aggression": 0.55, "caution": 0.7
+  },
+  "tags": ["style.ranged"],
+  "movement": { "style": "kite", "wander": 1.0, "ideal_range": 300.0, "band": 70.0 },
+  "abilities": [
+    { "key": "projectile_volley", "id": "cone",
+      "params": { "count": 3, "spread_deg": 26, "speed": 7.0, "damage": 1.0,
+                  "pattern": "cone", "ideal_range": 290, "cooldown": 44,
+                  "cue": "bullet", "color": "primary" } },
+    { "key": "projectile_volley", "id": "zigzag",
+      "params": { "count": 5, "spread_deg": 40, "speed": 6.2, "damage": 1.0,
+                  "pattern": "zigzag", "ideal_range": 240, "cooldown": 62,
+                  "cue": "bullet", "color": "primary" } },
+    { "key": "projectile_volley", "id": "homing",
+      "params": { "count": 2, "spread_deg": 12, "speed": 5.4, "damage": 2.0,
+                  "pattern": "cone", "homing": true, "homing_rate": 0.07,
+                  "ideal_range": 360, "cooldown": 96,
+                  "cue": "bullet", "color": "accent" } },
+    { "key": "evade", "id": "survival_teleport",
+      "params": { "style": "teleport", "distance": 260, "hp_below": 0.3,
+                  "invulnerable": true, "weight": 1.0,
+                  "phases": [["blink", 4], ["recover", 8]], "cooldown": 150 } },
+    { "key": "projectile_volley", "id": "ultimate",
+      "priority": 0.5,
+      "params": { "count": 16, "pattern": "ring", "speed": 8.5, "damage": 3.0,
+                  "life": 180, "ideal_range": 300, "cooldown": 420,
+                  "cue": "beam", "color": "accent" } }
+  ],
+  "visual": { "palette": { "primary": 3855871, "accent": 16735952 } },
+  "brains": [{ "key": "utility" }],
+  "notes": "was a hardcoded FigureMode in v1; pure data in v2"
+}

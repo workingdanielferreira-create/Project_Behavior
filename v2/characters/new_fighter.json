@@ -1,0 +1,140 @@
+{
+  "format": "pb_character_v2",
+  "schema_version": 2,
+  "key": "new_fighter",
+  "display_name": "New Fighter",
+  "description": "",
+  "archetype": "shooter",
+  "attributes": {
+    "hp": 75.0,
+    "hp_max": 75.0,
+    "move_speed": 1.0,
+    "chase_speed": 1.0,
+    "scale": 0.25,
+    "attack_range": 470.0,
+    "aggression": 0.5,
+    "caution": 0.7
+  },
+  "tags": [
+    "style.ranged"
+  ],
+  "movement": {
+    "style": "kite",
+    "wander": 0.15,
+    "ideal_range": 300.0
+  },
+  "abilities": [
+    {
+      "key": "beam_shot",
+      "params": {
+        "damage": 10.0,
+        "speed": 3000.0,
+        "radius": 17.0,
+        "life": 90,
+        "pierce": false,
+        "cooldown": 0,
+        "phases": [
+          [
+            "windup",
+            6
+          ],
+          [
+            "fire",
+            2
+          ],
+          [
+            "recover",
+            8
+          ]
+        ],
+        "cue": "beam"
+      }
+    },
+    {
+      "key": "orbitals",
+      "params": {
+        "count": 15,
+        "radius_x": 0.0,
+        "radius_y": 21.0,
+        "orbit_speed": 0.05,
+        "damage": 1.0,
+        "recharge": 87,
+        "hit_radius": 14.0,
+        "proximity_speed": 0.0,
+        "proximity_range": 300.0,
+        "cue": "orb"
+      }
+    },
+    {
+      "key": "evade",
+      "params": {
+        "style": "dash",
+        "distance": 120.0,
+        "speed": 9.0,
+        "invulnerable": true,
+        "hp_below": 0.3,
+        "phases": [
+          [
+            "dodge",
+            8
+          ],
+          [
+            "recover",
+            6
+          ]
+        ],
+        "cooldown": 110
+      }
+    },
+    {
+      "key": "guard",
+      "params": {
+        "arc_deg": 150.0,
+        "reach": 70.0,
+        "reflect": true,
+        "phases": [
+          [
+            "raise",
+            4
+          ],
+          [
+            "hold",
+            14
+          ],
+          [
+            "drop",
+            6
+          ]
+        ],
+        "cooldown": 90
+      }
+    },
+    {
+      "key": "projectile_volley",
+      "params": {
+        "count": 12,
+        "pattern": "ring",
+        "speed": 9.0,
+        "damage": 1.0,
+        "cooldown": 437,
+        "ideal_range": 320.0,
+        "cue": "beam"
+      },
+      "id": "ultimate",
+      "priority": 0.5
+    }
+  ],
+  "visual": {
+    "palette": {
+      "primary": 3806296,
+      "accent": 657936
+    },
+    "sprite": ""
+  },
+  "brains": [
+    {
+      "key": "utility"
+    }
+  ],
+  "notes": "ported from v1 pb_character"
+}

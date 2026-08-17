@@ -1,0 +1,108 @@
+{
+ "scenarios": {
+  "battle_jumper_newfighter": {
+   "marks": {
+    "150": "d820aa8e153641251b3f835d3d4e3fbe",
+    "300": "2360996f68d4fc31001ad49fa2a3ec4e",
+    "600": "1bdbb6a2baf5d5c257574a0a21f5f724",
+    "final": "1bdbb6a2baf5d5c257574a0a21f5f724"
+   },
+   "summary": {
+    "actors_alive": 2,
+    "cues_emitted": 9044,
+    "faults": 0,
+    "hp": {
+     "jumper": 80.0,
+     "new_fighter": 66.0
+    },
+    "motes_alive": 11
+   }
+  },
+  "battle_mage_ronin": {
+   "marks": {
+    "150": "0c7cf7d70c3c18df70859d26f113bc10",
+    "300": "c8e46df6e97b6d8fabd7f0d9bb5d0d3c",
+    "600": "ad9193d1ed13f0d02e279ff6270bd5bb",
+    "final": "ad9193d1ed13f0d02e279ff6270bd5bb"
+   },
+   "summary": {
+    "actors_alive": 2,
+    "cues_emitted": 1958,
+    "faults": 0,
+    "hp": {
+     "mage": 100.0,
+     "ronin": 71.0
+    },
+    "motes_alive": 0
+   }
+  },
+  "battle_runner_swordsman": {
+   "marks": {
+    "150": "bdedeece8797511701019a910497c967",
+    "300": "1c8401ee7347c458610579c9785e2bc1",
+    "600": "072641abe3668b6d49589658190fc38b",
+    "final": "072641abe3668b6d49589658190fc38b"
+   },
+   "summary": {
+    "actors_alive": 2,
+    "cues_emitted": 98,
+    "faults": 0,
+    "hp": {
+     "runner": 92.0,
+     "swordsman": 82.0
+    },
+    "motes_alive": 20
+   }
+  },
+  "hybrid_player_move": {
+   "marks": {
+    "150": "4741bd767b5c06c153a8548038e32021",
+    "300": "9a71c89f64c8c5311ba012ba5ddc87c2",
+    "final": "f8d3c9f5591708e0d62ab5c5156710db"
+   },
+   "summary": {
+    "actors_alive": 2,
+    "cues_emitted": 21,
+    "faults": 0,
+    "hp": {
+     "runner": 100.0,
+     "swordsman": 118.0
+    },
+    "motes_alive": 5
+   }
+  },
+  "solo_mage": {
+   "marks": {
+    "150": "6cc5b240753fc0a1b59c18ec27b76b0c",
+    "300": "13e5cb24e8cd2d2668c512e4af578c0c",
+    "final": "9d675a7bb18a8b83dea73ac1c6a6f2c8"
+   },
+   "summary": {
+    "actors_alive": 1,
+    "cues_emitted": 1600,
+    "faults": 0,
+    "hp": {
+     "mage": 100.0
+    },
+    "motes_alive": 447
+   }
+  },
+  "solo_runner": {
+   "marks": {
+    "150": "fd08b476b294c9248ea179b1e31d4977",
+    "300": "010f2fc129dba953590a81be0f55acaa",
+    "final": "75f808b91fa71c557ce9b9d2cdb4c963"
+   },
+   "summary": {
+    "actors_alive": 1,
+    "cues_emitted": 22,
+    "faults": 0,
+    "hp": {
+     "runner": 100.0
+    },
+    "motes_alive": 28
+   }
+  }
+ },
+ "version": 1
+}

@@ -1,0 +1,114 @@
+{
+  "format": "pb_character_v2",
+  "schema_version": 2,
+  "key": "ronin",
+  "display_name": "Ronin",
+  "description": "Counter archetype: a slow, relentless samurai who blocks or blinks past anything that gets close, then answers with steel.",
+  "archetype": "New",
+  "attributes": {
+    "hp": 100.0,
+    "hp_max": 100.0,
+    "move_speed": 0.9,
+    "chase_speed": 0.9,
+    "scale": 1.0,
+    "attack_range": 180.0,
+    "aggression": 0.75,
+    "caution": 0.4
+  },
+  "tags": [
+    "style.counter_only",
+    "style.melee"
+  ],
+  "movement": {
+    "style": "charge",
+    "wander": 0.15,
+    "ideal_range": 60.0
+  },
+  "abilities": [
+    {
+      "key": "melee_combo",
+      "params": {
+        "damage": 1.0,
+        "knockback": 6.0,
+        "arc_deg": 130.0,
+        "reach_mul": 1.0,
+        "phases": [
+          [
+            "windup",
+            5
+          ],
+          [
+            "hit0",
+            3
+          ],
+          [
+            "recover",
+            10
+          ]
+        ],
+        "cooldown": 37,
+        "cue": "crescent"
+      }
+    },
+    {
+      "key": "evade",
+      "params": {
+        "style": "blink",
+        "distance": 120.0,
+        "speed": 9.0,
+        "invulnerable": true,
+        "hp_below": 0.3,
+        "phases": [
+          [
+            "dodge",
+            8
+          ],
+          [
+            "recover",
+            6
+          ]
+        ],
+        "cooldown": 112
+      }
+    },
+    {
+      "key": "guard",
+      "params": {
+        "arc_deg": 150.0,
+        "reach": 70.0,
+        "reflect": true,
+        "phases": [
+          [
+            "raise",
+            4
+          ],
+          [
+            "hold",
+            14
+          ],
+          [
+            "drop",
+            6
+          ]
+        ],
+        "cooldown": 90
+      },
+      "priority": 0.15
+    }
+  ],
+  "visual": {
+    "palette": {
+      "primary": 8288,
+      "accent": 8288,
+      "tint": 8288
+    },
+    "sprite": "",
+    "outline_glow": true
+  },
+  "brains": [
+    {
+      "key": "utility"
+    }
+  ],
+  "notes": "ported from v1 pb_character"
+}

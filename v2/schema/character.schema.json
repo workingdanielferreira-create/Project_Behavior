@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-behavior/v2/character.schema.json",
+  "title": "pb_character_v2",
+  "description": "A Project Behavior V2 character. Five nouns: attributes, tags, abilities, effects, cues.",
+  "type": "object",
+  "required": [
+    "format",
+    "key"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "pb_character_v2"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "archetype": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "description": "Numeric state. Engine-read names: aggression, attack_range, caution, chase_speed, cooldown_rate, damage, hp, hp_max, hurt_radius, knockback, move_speed, scale"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Hierarchical dotted tags. Replaces all boolean flags."
+    },
+    "movement": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "enum": [
+            "kite",
+            "charge",
+            "orbit",
+            "retreat",
+            "none"
+          ]
+        },
+        "wander": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ideal_range": {
+          "type": "number"
+        },
+        "band": {
+          "type": "number"
+        },
+        "orbit_lead_deg": {
+          "type": "number"
+        },
+        "threshold": {
+          "type": "number"
+        }
+      }
+    },
+    "brains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": []
+          }
+        }
+      }
+    },
+    "abilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "enum": [
+              "beam_shot",
+              "blink",
+              "evade",
+              "guard",
+              "melee_combo",
+              "orbitals",
+              "projectile_volley",
+              "reactive_teleport",
+              "threshold_summon",
+              "vanish_strike"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "instance name; required when a character carries two of the same ability"
+          },
+          "params": {
+            "type": "object"
+          },
+          "require": {
+            "$ref": "#/$defs/tagQuery"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "visual": {
+      "type": "object",
+      "properties": {
+        "palette": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777215
+          }
+        },
+        "sprite": {
+          "type": "string"
+        },
+        "outline_glow": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tagQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "any": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "none": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "required": [
+        "effect"
+      ],
+      "properties": {
+        "effect": {
+          "enum": [
+            "add_tag",
+            "damage",
+            "emit_cue",
+            "heal",
+            "modify",
+            "remove_tag",
+            "teleport"
+          ]
+        },
+        "chance": {
+          "type": "number"
+        },
+        "require": {
+          "$ref": "#/$defs/tagQuery"
+        }
+      }
+    }
+  },
+  "x-capabilities": {
+    "abilities": {
+      "beam_shot": "A travelling beam \u2014 v1's RichBeamProjectile as a normal attack.",
+      "blink": "Instant relocation \u2014 v1's blink and blinkstorm.",
+      "evade": "Short dodge or survival teleport \u2014 v1's dodge_style plus the",
+      "guard": "Deflect incoming motes within an arc \u2014 v1's generalized parry.",
+      "melee_combo": "A multi-hit close-range string.  Damage is authored per hit \u2014 v1's",
+      "orbitals": "Orbiting spheres that damage on contact \u2014 v1's petal system.",
+      "projectile_volley": "Fire a spread/cone/ring of projectiles at the target.",
+      "reactive_teleport": "Teleport away in response to taking damage \u2014 v1's damage_teleport.",
+      "threshold_summon": "Spawn helpers when HP crosses authored thresholds.",
+      "vanish_strike": "Vanish, reappear beside the target, strike.  v1's Flash Cut, generic."
+    },
+    "effects": {
+      "add_tag": "Grant tags, optionally for a limited number of ticks.",
+      "damage": "Reduce target HP. The single damage authority in the entire engine.",
+      "emit_cue": "Fire a purely cosmetic cue.  Carries no gameplay consequence \u2014",
+      "heal": "Restore target HP, clamped to hp_max.",
+      "modify": "Temporarily add/multiply an attribute (a buff or debuff).",
+      "remove_tag": "Strip tags from the target.",
+      "teleport": "Relocate the target \u2014 absolute, relative, or away from the source."
+    },
+    "cues": {}
+  }
+}

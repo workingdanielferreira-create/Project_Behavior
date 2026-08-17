@@ -1,0 +1,159 @@
+{
+  "format": "pb_character_v2",
+  "schema_version": 2,
+  "key": "jumper",
+  "display_name": "Jumper",
+  "description": "a fighter that uses close-quarter, rapid teleportation to overwhelm his opponents",
+  "archetype": "New",
+  "attributes": {
+    "hp": 80.0,
+    "hp_max": 80.0,
+    "move_speed": 6.0,
+    "chase_speed": 4.5,
+    "scale": 0.8,
+    "attack_range": 120.0,
+    "aggression": 0.5,
+    "caution": 0.4
+  },
+  "tags": [
+    "style.melee"
+  ],
+  "movement": {
+    "style": "kite",
+    "wander": 0.7,
+    "ideal_range": 300.0
+  },
+  "abilities": [
+    {
+      "key": "melee_combo",
+      "params": {
+        "damage": 1.0,
+        "knockback": 6.0,
+        "arc_deg": 130.0,
+        "reach_mul": 1.0,
+        "phases": [
+          [
+            "windup",
+            5
+          ],
+          [
+            "hit0",
+            3
+          ],
+          [
+            "link",
+            5
+          ],
+          [
+            "hit1",
+            3
+          ],
+          [
+            "link",
+            5
+          ],
+          [
+            "hit2",
+            3
+          ],
+          [
+            "link",
+            5
+          ],
+          [
+            "hit3",
+            3
+          ],
+          [
+            "recover",
+            10
+          ]
+        ],
+        "cooldown": 37,
+        "cue": "crescent"
+      }
+    },
+    {
+      "key": "blink",
+      "params": {
+        "distance": 190.0,
+        "mode": "reposition",
+        "cooldown": 150,
+        "trail_images": 4
+      }
+    },
+    {
+      "key": "evade",
+      "params": {
+        "style": "dash",
+        "distance": 120.0,
+        "speed": 9.0,
+        "invulnerable": true,
+        "hp_below": 0.3,
+        "phases": [
+          [
+            "dodge",
+            8
+          ],
+          [
+            "recover",
+            6
+          ]
+        ],
+        "cooldown": 110
+      }
+    },
+    {
+      "key": "guard",
+      "params": {
+        "arc_deg": 150.0,
+        "reach": 70.0,
+        "reflect": true,
+        "phases": [
+          [
+            "raise",
+            4
+          ],
+          [
+            "hold",
+            14
+          ],
+          [
+            "drop",
+            6
+          ]
+        ],
+        "cooldown": 90
+      }
+    },
+    {
+      "key": "projectile_volley",
+      "params": {
+        "count": 12,
+        "pattern": "ring",
+        "speed": 9.0,
+        "damage": 4.0,
+        "cooldown": 437,
+        "ideal_range": 320.0,
+        "cue": "beam"
+      },
+      "id": "ultimate",
+      "priority": 0.5
+    }
+  ],
+  "visual": {
+    "palette": {
+      "primary": 58879,
+      "accent": 8257535,
+      "tint": 0
+    },
+    "sprite": "swordsman",
+    "outline_glow": true
+  },
+  "brains": [
+    {
+      "key": "utility"
+    }
+  ],
+  "notes": "ported from v1 pb_character"
+}
