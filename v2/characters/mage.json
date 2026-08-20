@@ -1,134 +1,1198 @@
 {
-  "format": "pb_character_v2",
-  "schema_version": 2,
-  "key": "mage",
-  "display_name": "Mage",
-  "description": "",
-  "archetype": "New",
-  "attributes": {
-    "hp": 100.0,
-    "hp_max": 100.0,
-    "move_speed": 4.5,
-    "chase_speed": 3.0,
-    "scale": 0.25,
-    "attack_range": 180.0,
-    "aggression": 0.5,
-    "caution": 0.7
+ "format": "pb_character_v2",
+ "schema_version": 2,
+ "key": "mage",
+ "display_name": "Mage",
+ "description": "",
+ "archetype": "New",
+ "attributes": {
+  "hp": 100.0,
+  "hp_max": 100.0,
+  "move_speed": 4.5,
+  "chase_speed": 3.0,
+  "scale": 0.25,
+  "attack_range": 180.0,
+  "aggression": 0.5,
+  "caution": 0.7
+ },
+ "tags": [
+  "state.stationary",
+  "block.ability.melee_combo",
+  "style.ranged"
+ ],
+ "movement": {
+  "style": "none",
+  "wander": 0.15,
+  "ideal_range": 60.0
+ },
+ "abilities": [
+  {
+   "key": "projectile_volley",
+   "params": {
+    "count": 3,
+    "spread_deg": 24.0,
+    "speed": 7.0,
+    "damage": 1.0,
+    "pattern": "cone",
+    "homing": false,
+    "cooldown": 0,
+    "ideal_range": 280.0,
+    "cue": "bullet"
+   }
   },
-  "tags": [
-    "state.stationary",
-    "block.ability.melee_combo",
-    "style.ranged"
-  ],
-  "movement": {
-    "style": "none",
-    "wander": 0.15,
-    "ideal_range": 60.0
+  {
+   "key": "orbitals",
+   "params": {
+    "count": 3,
+    "radius_x": 0.0,
+    "radius_y": 0.0,
+    "orbit_speed": 0.05,
+    "damage": 1.0,
+    "recharge": 87,
+    "hit_radius": 14.0,
+    "proximity_speed": 0.0,
+    "proximity_range": 300.0,
+    "cue": "orb"
+   }
   },
-  "abilities": [
-    {
-      "key": "projectile_volley",
-      "params": {
-        "count": 3,
-        "spread_deg": 24.0,
-        "speed": 7.0,
-        "damage": 1.0,
-        "pattern": "cone",
-        "homing": false,
-        "cooldown": 0,
-        "ideal_range": 280.0,
-        "cue": "bullet"
-      }
-    },
-    {
-      "key": "orbitals",
-      "params": {
-        "count": 3,
-        "radius_x": 0.0,
-        "radius_y": 0.0,
-        "orbit_speed": 0.05,
-        "damage": 1.0,
-        "recharge": 87,
-        "hit_radius": 14.0,
-        "proximity_speed": 0.0,
-        "proximity_range": 300.0,
-        "cue": "orb"
-      }
-    },
-    {
-      "key": "threshold_summon",
-      "params": {
-        "thresholds": [
-          0.75,
-          0.5,
-          0.25
-        ],
-        "count": 4,
-        "radius": 240.0,
-        "summon_hp": 1.0,
-        "summon_scale": 0.5,
-        "summon_stationary": true,
-        "summon_life": 0,
-        "cue": "ring"
-      }
-    },
-    {
-      "key": "reactive_teleport",
-      "params": {
-        "distance": 240.0,
-        "chance": 1.0,
-        "cooldown": 118
-      }
-    },
-    {
-      "key": "guard",
-      "params": {
-        "arc_deg": 150.0,
-        "reach": 70.0,
-        "reflect": true,
-        "phases": [
-          [
-            "raise",
-            4
-          ],
-          [
-            "hold",
-            14
-          ],
-          [
-            "drop",
-            6
-          ]
-        ],
-        "cooldown": 90
-      }
-    },
-    {
-      "key": "projectile_volley",
-      "params": {
-        "count": 12,
-        "pattern": "ring",
-        "speed": 9.0,
-        "damage": 10.0,
-        "cooldown": 437,
-        "ideal_range": 320.0,
-        "cue": "beam"
+  {
+   "key": "threshold_summon",
+   "params": {
+    "thresholds": [
+     0.75,
+     0.5,
+     0.25
+    ],
+    "count": 4,
+    "radius": 240.0,
+    "summon_hp": 1.0,
+    "summon_scale": 0.5,
+    "summon_stationary": true,
+    "summon_life": 0,
+    "cue": "ring"
+   }
+  },
+  {
+   "key": "reactive_teleport",
+   "params": {
+    "distance": 240.0,
+    "chance": 1.0,
+    "cooldown": 118
+   }
+  },
+  {
+   "key": "guard",
+   "params": {
+    "arc_deg": 150.0,
+    "reach": 70.0,
+    "reflect": true,
+    "phases": [
+     [
+      "raise",
+      4
+     ],
+     [
+      "hold",
+      14
+     ],
+     [
+      "drop",
+      6
+     ]
+    ],
+    "cooldown": 90
+   }
+  },
+  {
+   "key": "projectile_volley",
+   "params": {
+    "count": 12,
+    "pattern": "ring",
+    "speed": 9.0,
+    "damage": 10.0,
+    "cooldown": 437,
+    "ideal_range": 320.0,
+    "cue": "beam"
+   },
+   "id": "ultimate",
+   "priority": 0.5
+  }
+ ],
+ "visual": {
+  "palette": {
+   "primary": 9412792,
+   "accent": 16732240,
+   "body": 9412792
+  },
+  "outline_glow": {
+   "color": 16732240,
+   "radius": 1.8,
+   "opacity": 110
+  },
+  "rig": {
+   "bones": {
+    "ua": 22,
+    "fa": 20,
+    "th": 26,
+    "sh": 24,
+    "torso": 36
+   },
+   "scale": 0.25,
+   "actions": {
+    "idle": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 2.64,
+        "ry": -39.73,
+        "sp": 4.09,
+        "sp2": -10.55,
+        "hd": 23.06,
+        "lsht": -65.61,
+        "rsht": 53.9,
+        "lpvt": -82.87,
+        "rpvt": 52.13,
+        "lua": 15.0,
+        "lfa": -7.7,
+        "rua": -54.5,
+        "rfa": -141.53,
+        "lth": 4.87,
+        "lsh": 3.74,
+        "rth": -15.71,
+        "rsh": 69.44,
+        "wp": -73.38,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 0.84,
+        "rfas": 0.76,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 0.96,
+        "rshs": 1.08
+       }
       },
-      "id": "ultimate",
-      "priority": 0.5
-    }
-  ],
-  "visual": {
-    "palette": {
-      "primary": 9412792,
-      "accent": 16732240
+      {
+       "p": {
+        "rx": 4.04,
+        "ry": -43.93,
+        "sp": 4.09,
+        "sp2": -10.55,
+        "hd": 23.06,
+        "lsht": -65.61,
+        "rsht": 57.03,
+        "lpvt": -82.87,
+        "rpvt": 71.57,
+        "lua": 15.0,
+        "lfa": -7.7,
+        "rua": -41.71,
+        "rfa": -141.53,
+        "lth": 1.82,
+        "lsh": 9.79,
+        "rth": -15.71,
+        "rsh": 63.22,
+        "wp": -73.38,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 0.81,
+        "rfas": 0.76,
+        "lths": 1.06,
+        "lshs": 1.45,
+        "rths": 0.96,
+        "rshs": 1.13
+       }
+      },
+      {
+       "p": {
+        "rx": 2.64,
+        "ry": -39.73,
+        "sp": 4.09,
+        "sp2": -10.55,
+        "hd": 23.06,
+        "lsht": -65.61,
+        "rsht": 53.9,
+        "lpvt": -82.87,
+        "rpvt": 52.13,
+        "lua": 15.0,
+        "lfa": -7.7,
+        "rua": -54.5,
+        "rfa": -141.53,
+        "lth": 4.87,
+        "lsh": 3.74,
+        "rth": -15.71,
+        "rsh": 69.44,
+        "wp": -73.38,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 0.84,
+        "rfas": 0.76,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 0.96,
+        "rshs": 1.08
+       }
+      }
+     ],
+     "duration_ms": 900.0,
+     "ease": "inout",
+     "loop": true
     },
-    "sprite": ""
-  },
-  "brains": [
-    {
-      "key": "utility"
+    "run": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 28.58,
+        "ry": -62.83,
+        "sp": 84.67,
+        "sp2": -1.0,
+        "hd": -29.54,
+        "lsht": -59.96,
+        "rsht": 109.13,
+        "lpvt": -6.2,
+        "rpvt": 172.01,
+        "lua": 19.92,
+        "lfa": -23.65,
+        "rua": 37.51,
+        "rfa": -38.82,
+        "lth": 92.08,
+        "lsh": 2.73,
+        "rth": 87.62,
+        "rsh": 9.24,
+        "wp": -63.87,
+        "luas": 0.73,
+        "lfas": 1.01,
+        "ruas": 0.68,
+        "rfas": 0.81,
+        "lths": 1.17,
+        "lshs": 1.56,
+        "rths": 1.19,
+        "rshs": 1.62
+       }
+      },
+      {
+       "p": {
+        "rx": 30.49,
+        "ry": -62.59,
+        "sp": 84.67,
+        "sp2": -1.0,
+        "hd": -33.9,
+        "lsht": -59.96,
+        "rsht": 109.13,
+        "lpvt": -6.2,
+        "rpvt": 176.01,
+        "lua": 22.7,
+        "lfa": -23.65,
+        "rua": 25.01,
+        "rfa": -38.82,
+        "lth": 89.82,
+        "lsh": 8.36,
+        "rth": 87.01,
+        "rsh": 15.48,
+        "wp": -63.87,
+        "luas": 0.74,
+        "lfas": 1.01,
+        "ruas": 0.66,
+        "rfas": 0.81,
+        "lths": 1.15,
+        "lshs": 1.54,
+        "rths": 1.18,
+        "rshs": 1.52
+       }
+      },
+      {
+       "p": {
+        "rx": 28.58,
+        "ry": -62.83,
+        "sp": 84.67,
+        "sp2": -1.0,
+        "hd": -29.54,
+        "lsht": -59.96,
+        "rsht": 109.13,
+        "lpvt": -6.2,
+        "rpvt": 162.26,
+        "lua": 19.92,
+        "lfa": -23.65,
+        "rua": 37.51,
+        "rfa": -38.82,
+        "lth": 92.08,
+        "lsh": 2.73,
+        "rth": 92.73,
+        "rsh": 9.61,
+        "wp": -63.87,
+        "luas": 0.73,
+        "lfas": 1.01,
+        "ruas": 0.68,
+        "rfas": 0.81,
+        "lths": 1.17,
+        "lshs": 1.56,
+        "rths": 1.16,
+        "rshs": 1.6
+       }
+      },
+      {
+       "p": {
+        "rx": 28.58,
+        "ry": -62.83,
+        "sp": 84.67,
+        "sp2": -1.0,
+        "hd": -29.54,
+        "lsht": -59.96,
+        "rsht": 109.13,
+        "lpvt": -6.2,
+        "rpvt": 172.01,
+        "lua": 19.92,
+        "lfa": -23.65,
+        "rua": 37.51,
+        "rfa": -38.82,
+        "lth": 92.08,
+        "lsh": 2.73,
+        "rth": 87.62,
+        "rsh": 9.24,
+        "wp": -63.87,
+        "luas": 0.73,
+        "lfas": 1.01,
+        "ruas": 0.68,
+        "rfas": 0.81,
+        "lths": 1.17,
+        "lshs": 1.56,
+        "rths": 1.19,
+        "rshs": 1.62
+       }
+      }
+     ],
+     "duration_ms": 500.0,
+     "ease": "inout",
+     "loop": true
+    },
+    "ultimate": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -75.59,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -187.24,
+        "rfa": 23.62,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.19,
+        "rfas": 1.44,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -63.9,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -181.62,
+        "rfa": 7.42,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.05,
+        "rfas": 1.52,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -39.5,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -179.04,
+        "rfa": -5.14,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.15,
+        "rfas": 1.43,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -26.09,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -171.21,
+        "rfa": -24.66,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.23,
+        "rfas": 1.34,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 0.87,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -164.76,
+        "rfa": -28.84,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.23,
+        "rfas": 1.43,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 16.83,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -152.6,
+        "rfa": -19.1,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.27,
+        "rfas": 1.37,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 30.7,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -124.24,
+        "rfa": -10.87,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.28,
+        "rfas": 1.25,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 65.48,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -49.34,
+        "rfa": -15.24,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.08,
+        "rfas": 1.34,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 95.95,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -7.66,
+        "rfa": -6.46,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.14,
+        "rfas": 1.17,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 65.48,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -49.34,
+        "rfa": -15.24,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.08,
+        "rfas": 1.34,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 30.7,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -124.24,
+        "rfa": -10.87,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.28,
+        "rfas": 1.25,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 16.83,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -152.6,
+        "rfa": -19.1,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.27,
+        "rfas": 1.37,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 0.87,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -164.76,
+        "rfa": -28.84,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.23,
+        "rfas": 1.43,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -63.9,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -181.62,
+        "rfa": 7.42,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.05,
+        "rfas": 1.52,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": -63.9,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -181.62,
+        "rfa": 7.42,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.05,
+        "rfas": 1.52,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 0.87,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -164.76,
+        "rfa": -28.84,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.23,
+        "rfas": 1.43,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 16.83,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -152.6,
+        "rfa": -19.1,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.27,
+        "rfas": 1.37,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 30.7,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -124.24,
+        "rfa": -10.87,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.28,
+        "rfas": 1.25,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 65.48,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -49.34,
+        "rfa": -15.24,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.08,
+        "rfas": 1.34,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      },
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.82,
+        "sp2": -12.45,
+        "hd": 27.4,
+        "lsht": -77.42,
+        "rsht": 100.87,
+        "lpvt": -97.79,
+        "rpvt": 74.85,
+        "lua": 17.7,
+        "lfa": -9.08,
+        "rua": -7.77,
+        "rfa": -15.24,
+        "lth": 5.75,
+        "lsh": 4.42,
+        "rth": -2.53,
+        "rsh": 3.95,
+        "wp": -86.59,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 1.08,
+        "rfas": 1.34,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
+    },
+    "defend": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": -11.93,
+        "ry": -66.66,
+        "sp": -12.53,
+        "sp2": 29.55,
+        "hd": 33.49,
+        "lsht": -148.46,
+        "rsht": 29.72,
+        "lpvt": -138.58,
+        "rpvt": 45.0,
+        "lua": -86.76,
+        "lfa": -15.97,
+        "rua": -101.44,
+        "rfa": -2.72,
+        "lth": -41.18,
+        "lsh": 65.69,
+        "rth": -61.66,
+        "rsh": 3.39,
+        "wp": -73.38,
+        "luas": 0.93,
+        "lfas": 0.99,
+        "ruas": 0.7,
+        "rfas": 0.99,
+        "lths": 0.89,
+        "lshs": 1.2,
+        "rths": 0.99,
+        "rshs": 1.33
+       }
+      },
+      {
+       "p": {
+        "rx": -66.43,
+        "ry": -68.64,
+        "sp": -12.53,
+        "sp2": 29.55,
+        "hd": 20.79,
+        "lsht": 173.78,
+        "rsht": -7.93,
+        "lpvt": -150.8,
+        "rpvt": 30.26,
+        "lua": -108.83,
+        "lfa": -3.05,
+        "rua": -101.44,
+        "rfa": -2.72,
+        "lth": -88.89,
+        "lsh": 128.07,
+        "rth": -61.66,
+        "rsh": 3.39,
+        "wp": -70.24,
+        "luas": 0.69,
+        "lfas": 1.17,
+        "ruas": 0.7,
+        "rfas": 0.99,
+        "lths": 1.1,
+        "lshs": 1.44,
+        "rths": 0.99,
+        "rshs": 1.33
+       }
+      },
+      {
+       "p": {
+        "rx": -121.15,
+        "ry": -70.48,
+        "sp": -12.53,
+        "sp2": 29.55,
+        "hd": 33.49,
+        "lsht": -133.06,
+        "rsht": 29.72,
+        "lpvt": -138.58,
+        "rpvt": 45.0,
+        "lua": -86.76,
+        "lfa": -15.97,
+        "rua": -101.44,
+        "rfa": -2.72,
+        "lth": -41.18,
+        "lsh": 65.69,
+        "rth": -61.66,
+        "rsh": 3.39,
+        "wp": -73.38,
+        "luas": 0.93,
+        "lfas": 0.99,
+        "ruas": 0.7,
+        "rfas": 0.99,
+        "lths": 0.89,
+        "lshs": 1.2,
+        "rths": 0.99,
+        "rshs": 1.33
+       }
+      },
+      {
+       "p": {
+        "rx": -139.59,
+        "ry": -70.48,
+        "sp": -12.53,
+        "sp2": 29.55,
+        "hd": 33.49,
+        "lsht": -133.06,
+        "rsht": 29.72,
+        "lpvt": -138.58,
+        "rpvt": 45.0,
+        "lua": -86.76,
+        "lfa": -15.97,
+        "rua": -101.44,
+        "rfa": -2.72,
+        "lth": -41.18,
+        "lsh": 65.69,
+        "rth": -61.66,
+        "rsh": 3.39,
+        "wp": -73.38,
+        "luas": 0.93,
+        "lfas": 0.99,
+        "ruas": 0.7,
+        "rfas": 0.99,
+        "lths": 0.89,
+        "lshs": 1.2,
+        "rths": 0.99,
+        "rshs": 1.33
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
+    },
+    "special_ability": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.09,
+        "sp2": -10.55,
+        "hd": 23.06,
+        "lsht": -65.61,
+        "rsht": 73.82,
+        "lpvt": -82.87,
+        "rpvt": 63.43,
+        "lua": 15.0,
+        "lfa": -7.7,
+        "rua": 8.42,
+        "rfa": -20.67,
+        "lth": 4.87,
+        "lsh": 3.74,
+        "rth": -2.14,
+        "rsh": 3.35,
+        "wp": -73.38,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 0.91,
+        "rfas": 1.15,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
+    },
+    "impact": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 1.47,
+        "ry": -16.85,
+        "sp": 4.09,
+        "sp2": -10.55,
+        "hd": 23.06,
+        "lsht": -65.61,
+        "rsht": 73.82,
+        "lpvt": -82.87,
+        "rpvt": 63.43,
+        "lua": 15.0,
+        "lfa": -7.7,
+        "rua": 8.42,
+        "rfa": -20.67,
+        "lth": 4.87,
+        "lsh": 3.74,
+        "rth": -2.14,
+        "rsh": 3.35,
+        "wp": -73.38,
+        "luas": 1.0,
+        "lfas": 1.07,
+        "ruas": 0.91,
+        "rfas": 1.15,
+        "lths": 0.98,
+        "lshs": 1.46,
+        "rths": 1.01,
+        "rshs": 1.39
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "overshoot"
     }
-  ],
-  "notes": "ported from v1 pb_character"
+   }
+  },
+  "fx": {
+   "afterimage": {
+    "color": 16732240,
+    "alpha": 96,
+    "life": 13
+   },
+   "trail": {
+    "colors": [
+     9412792,
+     16732240
+    ],
+    "width": 3.0,
+    "length": 16
+   },
+   "crescent": {
+    "color": 16732240,
+    "glow": 16732240
+   }
+  }
+ },
+ "brains": [
+  {
+   "key": "utility"
+  }
+ ],
+ "notes": "ported from v1 pb_character"
 }

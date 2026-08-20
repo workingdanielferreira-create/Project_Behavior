@@ -1,40 +1,194 @@
 {
-  "format": "pb_character_v2",
-  "schema_version": 2,
-  "key": "swordsman",
-  "display_name": "Swordsman",
-  "description": "Charging duelist. Three-hit strings, parry into counter, crescent ultimate at low health.",
-  "archetype": "melee",
-  "attributes": {
-    "hp": 120.0, "hp_max": 120.0,
-    "move_speed": 2.9, "chase_speed": 3.4,
-    "scale": 1.0, "attack_range": 64.0,
-    "aggression": 0.85, "caution": 0.45
+ "format": "pb_character_v2",
+ "schema_version": 2,
+ "key": "swordsman",
+ "display_name": "Swordsman",
+ "description": "Charging duelist. Three-hit strings, parry into counter, crescent ultimate at low health.",
+ "archetype": "melee",
+ "attributes": {
+  "hp": 120.0,
+  "hp_max": 120.0,
+  "move_speed": 2.9,
+  "chase_speed": 3.4,
+  "scale": 1.0,
+  "attack_range": 64.0,
+  "aggression": 0.85,
+  "caution": 0.45
+ },
+ "tags": [
+  "style.melee"
+ ],
+ "movement": {
+  "style": "charge",
+  "wander": 0.15,
+  "ideal_range": 60.0
+ },
+ "abilities": [
+  {
+   "key": "melee_combo",
+   "id": "string",
+   "params": {
+    "damage": 3.0,
+    "knockback": 7.0,
+    "arc_deg": 130,
+    "reach_mul": 1.0,
+    "cooldown": 34,
+    "cue": "crescent",
+    "phases": [
+     [
+      "windup",
+      5
+     ],
+     [
+      "hit0",
+      3
+     ],
+     [
+      "link",
+      4
+     ],
+     [
+      "hit1",
+      3
+     ],
+     [
+      "link",
+      4
+     ],
+     [
+      "hit2",
+      4
+     ],
+     [
+      "recover",
+      10
+     ]
+    ]
+   }
   },
-  "tags": ["style.melee"],
-  "movement": { "style": "charge", "wander": 0.15, "ideal_range": 60.0 },
-  "abilities": [
-    { "key": "melee_combo", "id": "string",
-      "params": { "damage": 3.0, "knockback": 7.0, "arc_deg": 130,
-                  "reach_mul": 1.0, "cooldown": 34, "cue": "crescent",
-                  "phases": [["windup", 5], ["hit0", 3], ["link", 4],
-                             ["hit1", 3], ["link", 4], ["hit2", 4],
-                             ["recover", 10]] } },
-    { "key": "guard", "id": "parry", "priority": 0.2,
-      "params": { "arc_deg": 160, "reach": 74, "reflect": true, "cooldown": 76,
-                  "phases": [["raise", 3], ["hold", 12], ["drop", 5]],
-                  "cue": "crescent" } },
-    { "key": "evade", "id": "dash",
-      "params": { "style": "dash", "distance": 130, "speed": 10.0,
-                  "invulnerable": true, "hp_below": 0.4, "cooldown": 96,
-                  "phases": [["dodge", 7], ["recover", 5]] } },
-    { "key": "vanish_strike", "id": "ultimate", "priority": 0.6,
-      "params": { "damage": 14.0, "offset": 48, "freeze_ticks": 8,
-                  "hp_below": 0.55, "cooldown": 470, "cue": "crescent",
-                  "phases": [["windup", 14], ["vanish", 10],
-                             ["strike", 4], ["hold", 12]] } }
-  ],
-  "visual": { "palette": { "primary": 11592447, "accent": 16777215 } },
-  "brains": [{ "key": "utility" }],
-  "notes": "was a hardcoded FigureMode in v1; pure data in v2"
+  {
+   "key": "guard",
+   "id": "parry",
+   "priority": 0.2,
+   "params": {
+    "arc_deg": 160,
+    "reach": 74,
+    "reflect": true,
+    "cooldown": 76,
+    "phases": [
+     [
+      "raise",
+      3
+     ],
+     [
+      "hold",
+      12
+     ],
+     [
+      "drop",
+      5
+     ]
+    ],
+    "cue": "crescent"
+   }
+  },
+  {
+   "key": "evade",
+   "id": "dash",
+   "params": {
+    "style": "dash",
+    "distance": 130,
+    "speed": 10.0,
+    "invulnerable": true,
+    "hp_below": 0.4,
+    "cooldown": 96,
+    "phases": [
+     [
+      "dodge",
+      7
+     ],
+     [
+      "recover",
+      5
+     ]
+    ]
+   }
+  },
+  {
+   "key": "vanish_strike",
+   "id": "ultimate",
+   "priority": 0.6,
+   "params": {
+    "damage": 14.0,
+    "offset": 48,
+    "freeze_ticks": 8,
+    "hp_below": 0.55,
+    "cooldown": 470,
+    "cue": "crescent",
+    "phases": [
+     [
+      "windup",
+      14
+     ],
+     [
+      "vanish",
+      10
+     ],
+     [
+      "strike",
+      4
+     ],
+     [
+      "hold",
+      12
+     ]
+    ]
+   }
+  }
+ ],
+ "visual": {
+  "palette": {
+   "primary": 11592447,
+   "accent": 16777215
+  },
+  "outline_glow": false,
+  "sprites": {
+   "sets": {
+    "run": "swordrun*.png",
+    "idle": "swordstanding*.png",
+    "attack": "slash*.png"
+   },
+   "src_head": {
+    "run": 105.0,
+    "idle": 205.0,
+    "attack": 155.0
+   },
+   "ticks_per_frame": 4
+  },
+  "fx": {
+   "afterimage": {
+    "color": 14433360,
+    "alpha": 100,
+    "life": 14
+   },
+   "trail": {
+    "colors": [
+     16747098,
+     16761416
+    ],
+    "width": 2.8,
+    "length": 14
+   },
+   "crescent": {
+    "color": 16777215,
+    "glow": 16761416
+   }
+  }
+ },
+ "brains": [
+  {
+   "key": "utility"
+  }
+ ],
+ "notes": "was a hardcoded FigureMode in v1; pure data in v2"
 }

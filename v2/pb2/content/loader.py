@@ -139,15 +139,91 @@ def validate(doc, path="<doc>", strict=True):
                 except Exception as e:
                     raise ValidationError("%s.params.%s" % (p, fx_field), str(e))
 
-    vis = doc.get("visual", {})
-    _require(isinstance(vis, dict), path + ".visual", "must be an object")
+    _validate_visual(doc.get("visual", {}), path + ".visual", strict)
+    return doc
+
+
+_VISUAL_KEYS = {"palette", "sprite", "sprites", "outline_glow", "rig", "fx"}
+_RIG_KEYS = {"bones", "weapon", "scale", "actions"}
+_ACTION_KEYS = {"keyframes", "duration_ms", "ease", "loop"}
+_EASES = {"linear", "in", "out", "inout", "snap", "overshoot"}
+_FX_KEYS = {"afterimage", "trail", "crescent"}
+
+
+def _validate_visual(vis, path, strict=True):
+    """The visual block is cosmetic-only but still validated LOUDLY — a rig
+    keyframe typo must name its JSON path, not silently render a T-pose."""
+    _require(isinstance(vis, dict), path, "must be an object")
+    if strict:
+        unknown = set(vis) - _VISUAL_KEYS
+        _require(not unknown, path, "unknown keys: %s" % sorted(unknown))
     pal = vis.get("palette", {})
-    _require(isinstance(pal, dict), path + ".visual.palette", "must be an object")
+    _require(isinstance(pal, dict), path + ".palette", "must be an object")
     for k, v in pal.items():
         _require(isinstance(v, int) and 0 <= v <= 0xFFFFFF,
-                 "%s.visual.palette.%s" % (path, k),
+                 "%s.palette.%s" % (path, k),
                  "must be an integer 0x000000-0xFFFFFF")
-    return doc
+
+    og = vis.get("outline_glow", False)
+    _require(isinstance(og, (bool, dict)), path + ".outline_glow",
+             "must be a boolean or an object")
+
+    rig = vis.get("rig")
+    if rig is not None:
+        p = path + ".rig"
+        _require(isinstance(rig, dict), p, "must be an object")
+        if strict:
+            unknown = set(rig) - _RIG_KEYS
+            _require(not unknown, p, "unknown keys: %s" % sorted(unknown))
+        bones = rig.get("bones", {})
+        _require(isinstance(bones, dict), p + ".bones", "must be an object")
+        for k, v in bones.items():
+            _require(isinstance(v, (int, float)), "%s.bones.%s" % (p, k),
+                     "must be numeric")
+        actions = rig.get("actions", {})
+        _require(isinstance(actions, dict), p + ".actions", "must be an object")
+        for name, act in actions.items():
+            ap = "%s.actions.%s" % (p, name)
+            _require(isinstance(act, dict), ap, "must be an object")
+            if strict:
+                unknown = set(act) - _ACTION_KEYS
+                _require(not unknown, ap, "unknown keys: %s" % sorted(unknown))
+            kfs = act.get("keyframes", [])
+            _require(isinstance(kfs, list) and kfs, ap + ".keyframes",
+                     "must be a non-empty list")
+            for i, kf in enumerate(kfs):
+                kp = "%s.keyframes[%d]" % (ap, i)
+                _require(isinstance(kf, dict), kp, "must be an object")
+                pose = kf.get("p", {})
+                _require(isinstance(pose, dict), kp + ".p", "must be an object")
+                for pk, pv in pose.items():
+                    _require(isinstance(pv, (int, float)),
+                             "%s.p.%s" % (kp, pk), "must be numeric")
+            ease = act.get("ease", "inout")
+            _require(ease in _EASES, ap + ".ease",
+                     "must be one of %s" % sorted(_EASES))
+
+    spr = vis.get("sprites")
+    if spr is not None:
+        p = path + ".sprites"
+        _require(isinstance(spr, dict), p, "must be an object")
+        sets = spr.get("sets", {})
+        _require(isinstance(sets, dict) and sets, p + ".sets",
+                 "must be a non-empty object of action -> glob pattern")
+        for k, v in sets.items():
+            _require(isinstance(v, str) and v, "%s.sets.%s" % (p, k),
+                     "must be a glob pattern string")
+
+    fx = vis.get("fx")
+    if fx is not None:
+        p = path + ".fx"
+        _require(isinstance(fx, dict), p, "must be an object")
+        if strict:
+            unknown = set(fx) - _FX_KEYS
+            _require(not unknown, p, "unknown keys: %s" % sorted(unknown))
+        for k, v in fx.items():
+            _require(isinstance(v, dict), "%s.%s" % (p, k),
+                     "must be an object")
 
 
 # ======================================================================

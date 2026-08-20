@@ -62,15 +62,87 @@ def build():
                         "require": {"$ref": "#/$defs/tagQuery"},
                         "priority": {"type": "number"},
                         "note": {"type": "string"}}}},
-            "visual": {"type": "object", "properties": {
+            "visual": {"type": "object", "additionalProperties": False,
+                       "properties": {
                 "palette": {"type": "object",
                             "additionalProperties": {
                                 "type": "integer", "minimum": 0,
                                 "maximum": 16777215}},
                 "sprite": {"type": "string"},
-                "outline_glow": {"type": "boolean"}}},
+                "outline_glow": {
+                    "description": "true, or {color, radius, opacity} — "
+                                   "silhouette glow ring behind the figure",
+                    "oneOf": [{"type": "boolean"},
+                              {"type": "object", "properties": {
+                                  "color": {"type": "integer"},
+                                  "radius": {"type": "number"},
+                                  "opacity": {"type": "integer"}}}]},
+                "rig": {"$ref": "#/$defs/rig"},
+                "sprites": {
+                    "type": "object",
+                    "description": "PNG frame playback (V1 art). Patterns "
+                                   "resolve against v2/assets then repo root.",
+                    "properties": {
+                        "sets": {"type": "object", "minProperties": 1,
+                                 "additionalProperties": {"type": "string"}},
+                        "src_head": {"type": "object",
+                                     "additionalProperties": {"type": "number"}},
+                        "target_head_px": {"type": "number"},
+                        "ticks_per_frame": {"type": "integer"},
+                        "remove_bg": {"type": "boolean"}}},
+                "fx": {"type": "object", "additionalProperties": False,
+                       "description": "Cosmetic actor FX, all renderer-owned.",
+                       "properties": {
+                           "afterimage": {"type": "object", "properties": {
+                               "color": {"type": "integer"},
+                               "alpha": {"type": "integer"},
+                               "life": {"type": "integer"},
+                               "min_step": {"type": "number"},
+                               "every": {"type": "integer"}}},
+                           "trail": {"type": "object", "properties": {
+                               "colors": {"type": "array",
+                                          "items": {"type": "integer"},
+                                          "minItems": 1, "maxItems": 2},
+                               "width": {"type": "number"},
+                               "length": {"type": "integer"},
+                               "min_step": {"type": "number"},
+                               "alpha": {"type": "integer"}}},
+                           "crescent": {"type": "object", "properties": {
+                               "color": {"type": "integer"},
+                               "glow": {"type": "integer"}}}}},
+                }},
         },
         "$defs": {
+            "rig": {
+                "type": "object", "additionalProperties": False,
+                "description": "V1 Character-Creator rig: bones + keyframe "
+                               "actions, rendered with continuous "
+                               "interpolation (see pb2.render.rig).",
+                "properties": {
+                    "bones": {"type": "object",
+                              "additionalProperties": {"type": "number"}},
+                    "weapon": {"type": "object", "properties": {
+                        "points": {"type": "array", "items": {
+                            "type": "array", "items": {"type": "number"},
+                            "minItems": 2, "maxItems": 2}},
+                        "thickness": {"type": "number"},
+                        "color": {"type": ["integer", "string"]}}},
+                    "scale": {"type": "number", "minimum": 0.1, "maximum": 2},
+                    "actions": {"type": "object", "additionalProperties": {
+                        "type": "object", "additionalProperties": False,
+                        "required": ["keyframes"],
+                        "properties": {
+                            "keyframes": {"type": "array", "minItems": 1,
+                                          "items": {"type": "object",
+                                                    "properties": {
+                                                        "p": {"type": "object",
+                                                              "additionalProperties":
+                                                                  {"type": "number"}}}}},
+                            "duration_ms": {"type": "number"},
+                            "ease": {"enum": ["linear", "in", "out", "inout",
+                                              "snap", "overshoot"]},
+                            "loop": {"type": "boolean"}}}},
+                }},
             "tagQuery": {"type": "object", "additionalProperties": False,
                          "properties": {
                              "all": {"type": "array", "items": {"type": "string"}},

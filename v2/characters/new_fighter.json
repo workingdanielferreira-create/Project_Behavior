@@ -1,140 +1,796 @@
 {
-  "format": "pb_character_v2",
-  "schema_version": 2,
-  "key": "new_fighter",
-  "display_name": "New Fighter",
-  "description": "",
-  "archetype": "shooter",
-  "attributes": {
-    "hp": 75.0,
-    "hp_max": 75.0,
-    "move_speed": 1.0,
-    "chase_speed": 1.0,
-    "scale": 0.25,
-    "attack_range": 470.0,
-    "aggression": 0.5,
-    "caution": 0.7
+ "format": "pb_character_v2",
+ "schema_version": 2,
+ "key": "new_fighter",
+ "display_name": "New Fighter",
+ "description": "",
+ "archetype": "shooter",
+ "attributes": {
+  "hp": 75.0,
+  "hp_max": 75.0,
+  "move_speed": 1.0,
+  "chase_speed": 1.0,
+  "scale": 0.25,
+  "attack_range": 470.0,
+  "aggression": 0.5,
+  "caution": 0.7
+ },
+ "tags": [
+  "style.ranged"
+ ],
+ "movement": {
+  "style": "kite",
+  "wander": 0.15,
+  "ideal_range": 300.0
+ },
+ "abilities": [
+  {
+   "key": "beam_shot",
+   "params": {
+    "damage": 10.0,
+    "speed": 3000.0,
+    "radius": 17.0,
+    "life": 90,
+    "pierce": false,
+    "cooldown": 0,
+    "phases": [
+     [
+      "windup",
+      6
+     ],
+     [
+      "fire",
+      2
+     ],
+     [
+      "recover",
+      8
+     ]
+    ],
+    "cue": "beam"
+   }
   },
-  "tags": [
-    "style.ranged"
-  ],
-  "movement": {
-    "style": "kite",
-    "wander": 0.15,
-    "ideal_range": 300.0
+  {
+   "key": "orbitals",
+   "params": {
+    "count": 15,
+    "radius_x": 0.0,
+    "radius_y": 21.0,
+    "orbit_speed": 0.05,
+    "damage": 1.0,
+    "recharge": 87,
+    "hit_radius": 14.0,
+    "proximity_speed": 0.0,
+    "proximity_range": 300.0,
+    "cue": "orb"
+   }
   },
-  "abilities": [
-    {
-      "key": "beam_shot",
-      "params": {
-        "damage": 10.0,
-        "speed": 3000.0,
-        "radius": 17.0,
-        "life": 90,
-        "pierce": false,
-        "cooldown": 0,
-        "phases": [
-          [
-            "windup",
-            6
-          ],
-          [
-            "fire",
-            2
-          ],
-          [
-            "recover",
-            8
-          ]
-        ],
-        "cue": "beam"
-      }
-    },
-    {
-      "key": "orbitals",
-      "params": {
-        "count": 15,
-        "radius_x": 0.0,
-        "radius_y": 21.0,
-        "orbit_speed": 0.05,
-        "damage": 1.0,
-        "recharge": 87,
-        "hit_radius": 14.0,
-        "proximity_speed": 0.0,
-        "proximity_range": 300.0,
-        "cue": "orb"
-      }
-    },
-    {
-      "key": "evade",
-      "params": {
-        "style": "dash",
-        "distance": 120.0,
-        "speed": 9.0,
-        "invulnerable": true,
-        "hp_below": 0.3,
-        "phases": [
-          [
-            "dodge",
-            8
-          ],
-          [
-            "recover",
-            6
-          ]
-        ],
-        "cooldown": 110
-      }
-    },
-    {
-      "key": "guard",
-      "params": {
-        "arc_deg": 150.0,
-        "reach": 70.0,
-        "reflect": true,
-        "phases": [
-          [
-            "raise",
-            4
-          ],
-          [
-            "hold",
-            14
-          ],
-          [
-            "drop",
-            6
-          ]
-        ],
-        "cooldown": 90
-      }
-    },
-    {
-      "key": "projectile_volley",
-      "params": {
-        "count": 12,
-        "pattern": "ring",
-        "speed": 9.0,
-        "damage": 1.0,
-        "cooldown": 437,
-        "ideal_range": 320.0,
-        "cue": "beam"
+  {
+   "key": "evade",
+   "params": {
+    "style": "dash",
+    "distance": 120.0,
+    "speed": 9.0,
+    "invulnerable": true,
+    "hp_below": 0.3,
+    "phases": [
+     [
+      "dodge",
+      8
+     ],
+     [
+      "recover",
+      6
+     ]
+    ],
+    "cooldown": 110
+   }
+  },
+  {
+   "key": "guard",
+   "params": {
+    "arc_deg": 150.0,
+    "reach": 70.0,
+    "reflect": true,
+    "phases": [
+     [
+      "raise",
+      4
+     ],
+     [
+      "hold",
+      14
+     ],
+     [
+      "drop",
+      6
+     ]
+    ],
+    "cooldown": 90
+   }
+  },
+  {
+   "key": "projectile_volley",
+   "params": {
+    "count": 12,
+    "pattern": "ring",
+    "speed": 9.0,
+    "damage": 1.0,
+    "cooldown": 437,
+    "ideal_range": 320.0,
+    "cue": "beam"
+   },
+   "id": "ultimate",
+   "priority": 0.5
+  }
+ ],
+ "visual": {
+  "palette": {
+   "primary": 3806296,
+   "accent": 8007336,
+   "body": 3806296
+  },
+  "outline_glow": {
+   "color": 8007336,
+   "radius": 1.8,
+   "opacity": 110
+  },
+  "rig": {
+   "bones": {
+    "ua": 10,
+    "fa": 20,
+    "th": 26,
+    "sh": 25,
+    "torso": 20
+   },
+   "scale": 0.25,
+   "actions": {
+    "idle": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -21.98,
+        "sp2": 38.32,
+        "hd": 11.81,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 18.04,
+        "rth": -22.03,
+        "rsh": 55.25,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
       },
-      "id": "ultimate",
-      "priority": 0.5
-    }
-  ],
-  "visual": {
-    "palette": {
-      "primary": 3806296,
-      "accent": 657936
+      {
+       "p": {
+        "rx": 0.17,
+        "ry": -3.72,
+        "sp": -24.85,
+        "sp2": 39.66,
+        "hd": 19.71,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 10.41,
+        "rth": -22.03,
+        "rsh": 62.97,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.1,
+        "rths": 0.61,
+        "rshs": 0.8
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -21.98,
+        "sp2": 38.32,
+        "hd": 11.81,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 18.04,
+        "rth": -22.03,
+        "rsh": 55.25,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      }
+     ],
+     "duration_ms": 900.0,
+     "ease": "inout",
+     "loop": true
     },
-    "sprite": ""
-  },
-  "brains": [
-    {
-      "key": "utility"
+    "run": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 30.25,
+        "ry": -9.91,
+        "sp": 86.82,
+        "sp2": -1.51,
+        "hd": 2.71,
+        "lsht": -102.15,
+        "rsht": 23.0,
+        "lpvt": 3.2,
+        "rpvt": 165.14,
+        "lua": -52.5,
+        "lfa": -143.03,
+        "rua": -12.21,
+        "rfa": 159.92,
+        "lth": 79.39,
+        "lsh": 32.01,
+        "rth": 94.14,
+        "rsh": 0.83,
+        "wp": -45.0,
+        "luas": 0.5,
+        "lfas": 0.8,
+        "ruas": 0.5,
+        "rfas": 0.59,
+        "lths": 0.83,
+        "lshs": 1.11,
+        "rths": 0.84,
+        "rshs": 1.36
+       }
+      },
+      {
+       "p": {
+        "rx": 35.56,
+        "ry": -6.72,
+        "sp": 86.82,
+        "sp2": -1.93,
+        "hd": -6.87,
+        "lsht": -91.74,
+        "rsht": 23.0,
+        "lpvt": -11.79,
+        "rpvt": 165.14,
+        "lua": -52.5,
+        "lfa": -143.03,
+        "rua": -12.21,
+        "rfa": 159.92,
+        "lth": 79.39,
+        "lsh": 39.07,
+        "rth": 94.14,
+        "rsh": 0.83,
+        "wp": -45.0,
+        "luas": 0.5,
+        "lfas": 0.8,
+        "ruas": 0.5,
+        "rfas": 0.59,
+        "lths": 0.83,
+        "lshs": 1.05,
+        "rths": 0.84,
+        "rshs": 1.36
+       }
+      },
+      {
+       "p": {
+        "rx": 35.56,
+        "ry": -8.85,
+        "sp": 86.82,
+        "sp2": -1.51,
+        "hd": 2.71,
+        "lsht": -102.15,
+        "rsht": 23.0,
+        "lpvt": -5.91,
+        "rpvt": 165.14,
+        "lua": -52.5,
+        "lfa": -143.03,
+        "rua": -12.21,
+        "rfa": 159.92,
+        "lth": 79.39,
+        "lsh": 32.01,
+        "rth": 94.14,
+        "rsh": 0.83,
+        "wp": -45.0,
+        "luas": 0.5,
+        "lfas": 0.8,
+        "ruas": 0.5,
+        "rfas": 0.59,
+        "lths": 0.83,
+        "lshs": 1.11,
+        "rths": 0.84,
+        "rshs": 1.36
+       }
+      }
+     ],
+     "duration_ms": 500.0,
+     "ease": "inout",
+     "loop": true
+    },
+    "attack_normal": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": -1.77,
+        "sp": -25.94,
+        "sp2": 45.21,
+        "hd": 25.45,
+        "lsht": -94.48,
+        "rsht": 43.37,
+        "lpvt": -138.83,
+        "rpvt": 49.8,
+        "lua": -18.07,
+        "lfa": -153.94,
+        "rua": -38.28,
+        "rfa": 135.4,
+        "lth": -32.7,
+        "lsh": 21.28,
+        "rth": -35.25,
+        "rsh": 74.97,
+        "wp": -53.1,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.71,
+        "lshs": 1.05,
+        "rths": 0.63,
+        "rshs": 0.79
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": -0.79,
+        "sp": -25.94,
+        "sp2": 45.21,
+        "hd": 13.94,
+        "lsht": -75.51,
+        "rsht": 51.74,
+        "lpvt": -122.0,
+        "rpvt": 68.52,
+        "lua": -18.07,
+        "lfa": -153.94,
+        "rua": -38.28,
+        "rfa": 135.4,
+        "lth": -13.36,
+        "lsh": 21.98,
+        "rth": -25.99,
+        "rsh": 65.19,
+        "wp": -53.1,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.57,
+        "lshs": 1.04,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      }
+     ],
+     "duration_ms": 900.0,
+     "ease": "snap"
+    },
+    "attack_special": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -25.94,
+        "sp2": 45.21,
+        "hd": 13.94,
+        "lsht": -75.51,
+        "rsht": 51.74,
+        "lpvt": -110.19,
+        "rpvt": 68.52,
+        "lua": -18.07,
+        "lfa": -153.94,
+        "rua": -38.28,
+        "rfa": 135.4,
+        "lth": -8.21,
+        "lsh": 21.28,
+        "rth": -25.99,
+        "rsh": 65.19,
+        "wp": -53.1,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "snap"
+    },
+    "ultimate": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -25.94,
+        "sp2": 45.21,
+        "hd": 13.94,
+        "lsht": -75.51,
+        "rsht": 51.74,
+        "lpvt": -110.19,
+        "rpvt": 68.52,
+        "lua": -18.07,
+        "lfa": -153.94,
+        "rua": -38.28,
+        "rfa": 135.4,
+        "lth": -8.21,
+        "lsh": 21.28,
+        "rth": -25.99,
+        "rsh": 65.19,
+        "wp": -53.1,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
+    },
+    "special_ability": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -21.98,
+        "sp2": 38.32,
+        "hd": 11.81,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 18.04,
+        "rth": -22.03,
+        "rsh": 55.25,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": -4.0,
+        "sp": -6.0,
+        "sp2": 0.0,
+        "hd": 0.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": -140.0,
+        "lfa": -20.0,
+        "rua": -140.0,
+        "rfa": -20.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": -8.0,
+        "sp": -6.0,
+        "sp2": 0.0,
+        "hd": 0.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": -150.0,
+        "lfa": -25.0,
+        "rua": -150.0,
+        "rfa": -25.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": 0.0,
+        "sp2": 0.0,
+        "hd": 0.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": 15.0,
+        "lfa": 5.0,
+        "rua": -15.0,
+        "rfa": -5.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
+    },
+    "impact": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -21.98,
+        "sp2": 38.32,
+        "hd": 11.81,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 18.04,
+        "rth": -22.03,
+        "rsh": 55.25,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      },
+      {
+       "p": {
+        "rx": 14.0,
+        "ry": 4.0,
+        "sp": 14.0,
+        "sp2": 0.0,
+        "hd": 12.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": -25.0,
+        "lfa": 5.0,
+        "rua": 15.0,
+        "rfa": -5.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      },
+      {
+       "p": {
+        "rx": 8.0,
+        "ry": 0.0,
+        "sp": 8.0,
+        "sp2": 0.0,
+        "hd": 6.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": 15.0,
+        "lfa": 5.0,
+        "rua": -15.0,
+        "rfa": -5.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      },
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": 0.0,
+        "sp2": 0.0,
+        "hd": 0.0,
+        "lsht": 0.0,
+        "rsht": 0.0,
+        "lpvt": 0.0,
+        "rpvt": 0.0,
+        "lua": 15.0,
+        "lfa": 5.0,
+        "rua": -15.0,
+        "rfa": -5.0,
+        "lth": 8.0,
+        "lsh": 5.0,
+        "rth": -8.0,
+        "rsh": -5.0,
+        "wp": -45.0,
+        "luas": 1.0,
+        "lfas": 1.0,
+        "ruas": 1.0,
+        "rfas": 1.0,
+        "lths": 1.0,
+        "lshs": 1.0,
+        "rths": 1.0,
+        "rshs": 1.0
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "overshoot"
+    },
+    "defend": {
+     "keyframes": [
+      {
+       "p": {
+        "rx": 0.0,
+        "ry": 0.0,
+        "sp": -21.98,
+        "sp2": 38.32,
+        "hd": 11.81,
+        "lsht": -63.99,
+        "rsht": 43.85,
+        "lpvt": -93.38,
+        "rpvt": 58.07,
+        "lua": -15.32,
+        "lfa": -130.46,
+        "rua": -32.44,
+        "rfa": 114.75,
+        "lth": -6.96,
+        "lsh": 18.04,
+        "rth": -22.03,
+        "rsh": 55.25,
+        "wp": -45.0,
+        "luas": 0.72,
+        "lfas": 0.82,
+        "ruas": 0.5,
+        "rfas": 0.8,
+        "lths": 0.74,
+        "lshs": 1.05,
+        "rths": 0.61,
+        "rshs": 0.82
+       }
+      }
+     ],
+     "duration_ms": 800.0,
+     "ease": "out"
     }
-  ],
-  "notes": "ported from v1 pb_character"
+   }
+  },
+  "fx": {
+   "afterimage": {
+    "color": 8007336,
+    "alpha": 96,
+    "life": 13
+   },
+   "trail": {
+    "colors": [
+     3806296,
+     8007336
+    ],
+    "width": 3.0,
+    "length": 16
+   },
+   "crescent": {
+    "color": 8007336,
+    "glow": 8007336
+   }
+  }
+ },
+ "brains": [
+  {
+   "key": "utility"
+  }
+ ],
+ "notes": "ported from v1 pb_character"
 }
