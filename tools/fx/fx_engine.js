@@ -77,6 +77,7 @@ function onBattleHit(p,chx,chy){const l=p.l,b=l.battle;if(!b)return;const hx=chx
   for(let i=parts.length-1;i>=0;i--){if(parts[i].l===l&&!parts[i].bfx)parts.splice(i,1)}}}
 
 let fx={layers:[]},sel=-1,parts=[],playing=false,t0=0,last=0,acc={},spawned={},curJ=null;
+const $=(id)=>document.getElementById(id);let jsonEl;
 // ---- [TRIGGERS] per-layer trigger system ----
 const TRIG_OPTS=['immediate','on_hit','on_dash','on_fire','on_death','on_parry','on_ult','ambient','after_fx','after_layer'];
 let _lidc=1,hitAt=null;function layerId(l){if(!l._id)l._id='L'+(_lidc++);return l._id}
@@ -490,4 +491,30 @@ function applyJson(){try{const o=JSON.parse($('jta').value);
  if(o.action&&o.action.keyframes){a.keyframes=o.action.keyframes;fixKF(a.keyframes)}
  if(o.name)$('fxname').value=o.name;dummyImport(o.target_dummy);
  gotoStep('act:'+ak);jsonEl.style.display='none';play()}catch(e){alert('Bad JSON: '+e.message)}}
+// ---- [MOVE LIBRARY] ---- save/delete/export/import actions as reusable moves (v49+)
+const MOVES={};let S={moves:{},deleted_builtins:[]};
+function loadMoves(){try{const d=JSON.parse(localStorage.getItem('pbrigforge.v4')||'{}');
+ S.moves=d.moves||{};S.deleted_builtins=d.deleted_builtins||[]}catch(e){}}
+function saveMoves(){localStorage.setItem('pbrigforge.v4',JSON.stringify({moves:S.moves,deleted_builtins:S.deleted_builtins}))}
+function saveActionAsMove(){const name=$('moveNameIn').value.trim(),cat=$('moveCatSel').value,ak=curActionKey();
+ if(!name){alert('Enter a move name');return}if(!ak){alert('No action to save');return}
+ const a=CH.actions[ak];S.moves[name]={cat,dur:a.duration_ms,frames:a.keyframes.map(kf=>({
+ p:JSON.parse(JSON.stringify(kf.pose)),st:kf.in_betweens,ez:kf.ease,h:kf.hold}))};
+ saveMoves();$('moveNameIn').value='';alert(`Saved "${name}"`);}
+function deleteMove(name){if(!S.moves[name]&&!MOVES[name]){alert('Move not found');return}
+ if(S.moves[name]){delete S.moves[name]}else{S.deleted_builtins.push(name)}
+ saveMoves();alert(`Deleted "${name}"`);redrawMoveList()}
+function exportMoves(){const pkg={format:'pb_moves',version:1,moves:S.moves};
+ navigator.clipboard.writeText(JSON.stringify(pkg,null,1));alert('Moves copied to clipboard')}
+function importMoves(){try{const o=JSON.parse(prompt('Paste move library JSON:'));
+ if(o.format!=='pb_moves'){alert('Invalid format');return}
+ Object.assign(S.moves,o.moves||{});saveMoves();alert('Imported '+(Object.keys(o.moves||{}).length)+' moves');
+ redrawMoveList()}catch(e){alert('Bad JSON: '+e.message)}}
+function redrawMoveList(){const out=[];
+ Object.keys(S.moves).filter(n=>!S.deleted_builtins.includes(n)).forEach(name=>{
+ out.push(`<div class="moveRow"><span>${name}</span> (${S.moves[name].cat}) 
+ <button onclick="deleteMove('${name}')" title="Delete this move">✕</button></div>`)});
+ const ml=$('moveList');if(ml)ml.innerHTML=out.length?out.join(''):
+ '<div class="small">No saved moves yet. Save an action as move to start.</div>'}
+window.addEventListener('DOMContentLoaded',()=>{loadMoves();jsonEl=$('json');redrawMoveList()});
 
