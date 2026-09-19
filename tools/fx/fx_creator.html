@@ -14,7 +14,7 @@
 <label>Action trigger <select id="trig" style="width:100px"><option>on_hit</option><option>on_dash</option><option>on_fire</option><option>on_death</option><option>on_parry</option><option>on_ult</option><option>ambient</option></select></label>
 <label>Dur(ms) <input id="dur" type="number" style="width:64px" value="800" onchange="syncDur()"></label>
 <label><input id="loop" type="checkbox" checked> Loop</label>
-<span style="flex:1"></span><button onclick="openJson('char')">Export Character</button><button onclick="openJson('fx')">Export FX</button><button onclick="openJson(0)">Import</button><button onclick="document.getElementById('moveLib').style.display='block'">Move Library</button></div>
+<span style="flex:1"></span><button onclick="openJson('char')">Export Character</button><button onclick="openJson('fx')">Export FX</button><button onclick="openJson(0)">Import</button></div>
 <canvas id="cv"></canvas>
 <div id="tl"></div>
 <div class="hint" style="background:var(--panel2)" id="tlhint"></div>
@@ -33,7 +33,6 @@
 </div>
 <div id="right"><div id="stepui"></div><h3 style="padding-left:0">Layer Properties</h3><div id="props"><em style="color:#7a8599">Select a layer</em></div></div>
 <div id="json"><div style="display:flex;gap:8px"><b id="jt">Export</b><span style="flex:1"></span><button onclick="copyJson()">Copy</button><button onclick="dlJson()">Download</button><button class="pri" onclick="applyJson()">Apply/Import</button><button onclick="jsonEl.style.display='none'">Close</button></div><textarea id="jta"></textarea><small style="color:#7a8599">This JSON includes the figure, action keyframes, and joint anchors — everything Claude needs to implement it in both Solo & Battle.</small></div>
-<div id="moveLib" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--bd);border-radius:6px;padding:16px;width:400px;max-height:70vh;overflow-y:auto;z-index:1000"><h3 style="margin-top:0">Move Library</h3><div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><input id="moveNameIn" type="text" placeholder="Move name" style="flex:1;min-width:150px"><select id="moveCatSel" style="flex:0"><option value="basic">Basic</option><option value="combo">Combo</option><option value="ultimate">Ultimate</option><option value="special">Special</option></select><button class="pri" onclick="saveActionAsMove()">Save</button></div><h4>Saved Moves</h4><div id="moveList" style="font-size:13px;margin-bottom:12px"></div><div style="display:flex;gap:6px"><button onclick="exportMoves()">Export</button><button onclick="importMoves()">Import</button><button onclick="document.getElementById('moveLib').style.display='none'">Close</button></div></div>
 <script src="rig.js"></script>
 <script src="fx_engine.js"></script>
 <script src="character_creator.js"></script>
