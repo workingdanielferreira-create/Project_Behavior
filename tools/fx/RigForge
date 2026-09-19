@@ -1,0 +1,65 @@
+# Rig Forge — move library (v51)
+
+A browsable library of pre-made animated rigs built from the built-in pose atlas, **plus moves you save yourself**.
+
+## v51 — delete built-in moves permanently
+
+The ✕ delete button now works on **both saved moves and built-in moves**. Deleting a built-in move removes it permanently with no recovery — it will not reappear on re-import or reset (only a full factory reset via code changes restores it).
+
+**Behavior:**
+- **Saved move deleted**: if it shadowed a built-in, the built-in is restored.
+- **Built-in move deleted**: the move is gone. The category dropdown and move list are rebuilt immediately.
+- **Deletion via code**: built-ins can be selectively deleted by removing their entries from the `MOVES` object before page load.
+
+Implementation: the delete handler now checks whether a move is in the `MOVES` constant (built-in) or `S.moves` (saved). For built-ins, set a `_deleted` flag in browser storage under `pbrigforge.v4.deleted_builtins` (array of move names); the `redrawMoves()` function filters them out on render. On startup, `loadMoves()` consults the deleted set and excludes those entries.
+
+## v50 — layers reorder by drag
+
+The Layers tab rows are draggable. Press anywhere on a row except the visibility checkbox or the ▲/▼ buttons (the ⠿ grip at the left marks the affordance), drag up or down, and the row follows the cursor through the list; releasing commits the new stack. The ▲/▼ buttons are unchanged and still work.
+
+Scope is the same as the arrows: **this keyframe only**. "Copy to all frames" is still the way to push one order to every key.
+
+Implementation: `layDrag(row, box)` is attached to each row in `buildLayers()` and uses pointer events (mouse, pen and touch alike) with a 4 px threshold before a drag starts. It re-inserts the row in the DOM as the cursor crosses each neighbour's midpoint, and on `pointerup` reads the visual order back with `layOrderFromDOM()` — the list is drawn top = last drawn, so the DOM order is the draw order reversed — then runs the same `commitPreview() → buildLayers(); render(); buildFilm(); save()` path the arrows use. A press that never passes the threshold changes nothing, so clicks on the row still behave.
+
+## v49 — the library is editable
+
+The "Move library" card has **Save action as move…**, **Export** and **Import**.
+
+- **Save action as move…** takes the action being edited and stores it: every key pose, its in-between count, easing and hold frames, and the loop duration. It asks for a name, a category, and whether to generate the off-hand / heavy / quick variants. Saved moves carry their poses **inline**, so they do not depend on atlas names and stay intact if the atlas changes.
+- **Saving under a built-in name** (e.g. `Sword · slash 1`) replaces that move in the list and asks for confirmation first. With variants switched off, the built-in's generated variants are hidden too, so the list never shows a "heavy" derived from a move that is no longer there.
+- **✎ / ✕ on a saved row** rename (and re-file) or delete it. Deleting a saved move that shadowed a built-in restores the built-in, variants and all.
+- **Export** offers `rigforge-moves.json`. The published page asks for the save through the `downloads` capability; opened straight from disk it falls back to an ordinary download; if neither works the JSON lands in the Export tab's box to copy out.
+- **Import** reads a moves file — pick a file, or paste one into the Export tab's JSON box and press Import. Same names are replaced, others added.
+- Saved moves persist in browser storage (`pbrigforge.v4`, alongside characters, poses and reference images) and load at startup.
+
+Implementation: `buildTPL()` rebuilds the template map from `MOVES` + `S.moves` (custom shadows built-in); `redrawMoves()` rebuilds the map, the category dropdown and the list; `tplFrames()` accepts either a pose name (`f.n`, built-ins) or an inline pose (`f.p`, saved moves). File format: `{format:"pb_moves", version:1, moves:{name:{cat, dur, variants, frames:[{p, st, ez, h}]}}}`.
+
+## v47 — Sword · combo 3-hit
+See `claude/sword-animation-rules.md`. 27 keys, 61 frames, 1037 ms: Daniel's cut (keys 1–12) → step-through rising cut → jump, two-handed cock at the apex, overhead slam, recoil, stand.
+
+## v46 — Sword · slash 1 = the Ronin's cut
+Daniel's hand-authored 15 keys ship as `cut1_01…cut1_15`; the recipe runs them at 600 ms with 20 in-betweens. `poseAmp` holds the blade's world angle through the heavy/quick amplification and re-grounds the amplified pose.
+
+## v44 — sword and dash moves rebuilt on the animation principles
+Source: the AnimationTutorial1–3 docs and the firytwig reference sheets.
+
+Rebuilt in place, **Sword**: slash 1, slash 2, combo 3-hit, combo 5-hit, thrust, thrust rush, rising slash, overhead smash, guard crush, spin slash, air slash, plunge, iai draw, dash slash, launcher, feint, crouch cut, air combo. **Dash / mobility**: Run · start, Run · skid stop, Dash · forward burst, Dash · step in, Backstep, Slide. Other categories unchanged and still on the older poses.
+
+### Recipe format
+`[name, category, duration_ms, default_steps, frames]`. A frame is either `"pose"` (tween on, recipe steps) or `[pose, steps, ease, hold]` — `steps` = in-betweens into the next key (0 = cut straight to it), `ease` = linear / in / out / inout / in3 / out3 / snap, `hold` = extra frames the key stays on screen. `duration_ms = 0` means frame count × `FRAME_MS`.
+
+### Timing pattern
+ready → chamber (hold 1–3, in-betweens bunched with `in3`) → breakdown → overshoot (no ease into the hit) → ease out to the hit pose → hold → eased recovery.
+
+### Pose rules (sw2_*, dash2_*)
+Knees and elbows bend only the anatomical way; feet grounded and the rear foot planted through lunges; `wp` within ±180 and every tweened segment under 180° per joint, with `bd_*` breakdowns inserted where a swing would take the long way round.
+
+### Engine/tool changes carried since v44
+`_tween.hold` (0–24) with holds baked on export; `in3` / `out3` eases; the film strip shows `~steps =hold`; `tplFrames()` shared by `applyTPL` and `mkAction`.
+
+### Finding (render probe)
+Many original atlas poses (`stand_ready`, `crouch_idle`, `run_*`, `jump_crouch`) have the rear knee bending backwards. Untouched — outside the scope of the reworks so far.
+
+## Notes
+- Pose angle convention: limbs 0 = straight down, positive = toward the facing direction (+x). Spine 0 = up. Weapon world angle `wang = rua + rfa + wp` (0 up, 90 forward, 180 down).
+- The rig maths in Rig Forge is still a reconstruction from `json-character.md`. Verify one exported action in-engine.
