@@ -15,10 +15,15 @@ SHA).  For each local file we compute the same git blob SHA
 up to date and nothing is downloaded.  No manifest file needed: detection
 is self-healing even if you edit or delete local files by hand.
 
-No token needed: this repo is public and files are fetched via the
-unauthenticated GitHub API (60 req/hour — 1 for the tree + 1 per changed
-file, which is plenty).  Never commit a real token into a file that lives
-in the repo itself.
+No token needed: this repo is public.  The whole check costs 2 GitHub API
+requests (latest commit + file tree); every changed file is then downloaded
+from raw.githubusercontent.com pinned to that commit (not counted against
+the API rate limit) and verified against its git blob SHA before it is
+written, falling back to the API blob endpoint if the raw download fails.
+An optional token (GITHUB_TOKEN env var or a .gh_token file next to this
+script) only raises the API limit; if GitHub rejects it (HTTP 401 — revoked,
+expired, stale or mis-pasted) the updater says so and carries on without it
+instead of aborting.  Never commit a real token into the repo itself.
 """
 import base64
 import hashlib
@@ -27,6 +32,8 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 REPO = "workingdanielferreira-create/Project_Behavior"
@@ -74,43 +81,82 @@ def purge_local_pycache():
     return removed
 
 
+def _token_source():
+    """Where _token() will read from (never the token itself)."""
+    if os.environ.get("GITHUB_TOKEN", "").strip():
+        return "the GITHUB_TOKEN environment variable"
+    if os.path.exists(os.path.join(HERE, ".gh_token")):
+        return "the .gh_token file next to update_game.py"
+    return "no token"
+
+
 def _token():
     """Optional auth for higher rate limits: GITHUB_TOKEN env var, or a
     one-line .gh_token file next to this script.  The file is NOT tracked
     by the repo — never commit a real token into a file that lives in
-    the repo itself."""
+    the repo itself.  Read with utf-8-sig so a Notepad-saved BOM can't
+    corrupt the header."""
     tok = os.environ.get("GITHUB_TOKEN", "").strip()
     if tok:
         return tok
     p = os.path.join(HERE, ".gh_token")
     if os.path.exists(p):
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8-sig") as f:
                 return f.read().strip()
         except OSError:
             pass
     return ""
 
 
+# Set once GitHub answers 401 to our token: every later call goes out
+# unauthenticated (the repo is public, so nothing needs a token).
+_TOKEN_REJECTED = False
+
+
 def gh_json(url):
-    headers = {"Accept": "application/vnd.github+json"}
-    tok = _token()
+    global _TOKEN_REJECTED
+    headers = {"Accept": "application/vnd.github+json",
+               "User-Agent": "Project_Behavior-updater"}
+    tok = "" if _TOKEN_REJECTED else _token()
     if tok:
         headers["Authorization"] = "token " + tok
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        if e.code == 401 and tok:
+            _TOKEN_REJECTED = True
+            print(f"NOTE: GitHub rejected the token from {_token_source()} "
+                  "(401 - revoked, expired or wrong). Continuing without it; "
+                  "replace or delete it to silence this.\n")
+            return gh_json(url)
+        raise
 
 
-def remote_tree():
-    """Every tracked blob in the repo: [(path, sha, size), ...]."""
-    data = gh_json(f"https://api.github.com/repos/{REPO}/git/trees/{BRANCH}"
+def head_commit():
+    """SHA of the branch's latest commit (one API request)."""
+    return gh_json(f"https://api.github.com/repos/{REPO}/git/ref/heads/"
+                   f"{BRANCH}")["object"]["sha"]
+
+
+def remote_tree(commit):
+    """Every tracked blob at `commit`: [(path, sha, size), ...]."""
+    data = gh_json(f"https://api.github.com/repos/{REPO}/git/trees/{commit}"
                    "?recursive=1")
     if data.get("truncated"):
         print("WARNING: repo tree was truncated by GitHub; "
               "some files may not be checked.")
     return [(t["path"], t["sha"], t.get("size", 0))
             for t in data.get("tree", []) if t["type"] == "blob"]
+
+
+def _git_blob_sha(content):
+    h = hashlib.sha1()
+    h.update(b"blob %d\0" % len(content))
+    h.update(content)
+    return h.hexdigest()
 
 
 def local_blob_sha(path):
@@ -120,10 +166,7 @@ def local_blob_sha(path):
             content = f.read()
     except OSError:
         return None
-    h = hashlib.sha1()
-    h.update(b"blob %d\0" % len(content))
-    h.update(content)
-    return h.hexdigest()
+    return _git_blob_sha(content)
 
 
 def download_blob(sha):
@@ -131,12 +174,31 @@ def download_blob(sha):
     return base64.b64decode(data["content"])
 
 
+def download_file(commit, rel_path, sha):
+    """Fetch one file.  Primary: raw.githubusercontent.com pinned to the
+    commit (not counted against the API rate limit), verified against the
+    tree's blob SHA.  Fallback: the API blob endpoint."""
+    url = (f"https://raw.githubusercontent.com/{REPO}/{commit}/"
+           + urllib.parse.quote(rel_path))
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Project_Behavior-updater"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            content = r.read()
+        if _git_blob_sha(content) == sha:
+            return content
+    except Exception:
+        pass
+    return download_blob(sha)
+
+
 def update_files():
     changed, failed, locked = [], [], []
     self_updated = False
 
-    tree = remote_tree()
-    print(f"Checking {len(tree)} tracked files...\n")
+    commit = head_commit()
+    tree = remote_tree(commit)
+    print(f"Checking {len(tree)} tracked files (commit {commit[:7]})...\n")
 
     for rel_path, sha, _size in tree:
         if _is_pycache_path(rel_path):
@@ -145,7 +207,7 @@ def update_files():
         if local_blob_sha(local_path) == sha:
             continue  # up to date
         try:
-            content = download_blob(sha)
+            content = download_file(commit, rel_path, sha)
             os.makedirs(os.path.dirname(local_path) or HERE, exist_ok=True)
             with open(local_path, "wb") as f:
                 f.write(content)
