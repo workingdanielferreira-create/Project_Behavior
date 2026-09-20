@@ -619,43 +619,65 @@ def _write_thumb(folder, key, frames):
 
 def _load_sprite_files(root_dir, sf):
     """Generic `sprite_files` loader: build a FrameBundle from PNG frame
-    sets the character JSON authors itself (files live next to the launcher,
-    like the built-in sets).  Each set carries its own measured
-    `src_head_px` so mixed-scale source art lands at roster size:
+    sets the character JSON authors itself (paths are relative to the game
+    root, so a character may keep its frames in its own subfolder).  Each
+    set carries its own measured `src_head_px` so mixed-scale source art
+    lands at roster size:
 
         "sprite_files": {
           "remove_bg": false,           # skip near-black bg removal (alpha art)
           "run":   {"files": [...], "src_head_px": 406},
           "idle":  {"files": [...], "src_head_px": 117},
           "slash": {"files": [...], "src_head_px": 117},
-          "slide": {"files": [...], "src_head_px": 117}   # optional (2 files)
+          "slide": {"files": [...], "src_head_px": 117},  # optional (2 files)
+          "special":  {"files": [...], "src_head_px": 29}  # optional extras
         }
+
+    Any additional key holding a {"files": [...]} block becomes a named
+    EXTRA set on the bundle (FrameBundle.extra), played by name through
+    Combatant.action_anim — e.g. the charged-counter `special` and loop-beam
+    `ultimate` frame sets.
 
     Missing sets simply stay empty (slide falls back to the idle frame in
     the renderer).  Every process loads through this same path, so Solo and
     Battle see the identical bundle."""
     from .assets import FrameBundle   # lazy: avoids circular import at load
 
-    def _set(name):
-        blk = sf.get(name) or {}
-        files = [os.path.join(root_dir, str(f))
-                 for f in (blk.get("files") or [])]
+    def _scale(blk):
         try:
             head = float(blk.get("src_head_px", 100.0) or 100.0)
         except (TypeError, ValueError):
             head = 100.0
-        return files, config.TARGET_HEAD_PX / max(head, 1.0)
+        return config.TARGET_HEAD_PX / max(head, 1.0)
+
+    def _set(name):
+        blk = sf.get(name) or {}
+        files = [os.path.join(root_dir, str(f))
+                 for f in (blk.get("files") or [])]
+        return files, _scale(blk)
 
     run_files, run_sc = _set("run")
     idle_files, idle_sc = _set("idle")
     slash_files, slash_sc = _set("slash")
     slide_files, slide_sc = _set("slide")
+
+    extra_sets = {}
+    for name, blk in sf.items():
+        if name in ("run", "idle", "slash", "slide", "remove_bg"):
+            continue
+        if not isinstance(blk, dict) or not blk.get("files"):
+            continue
+        extra_sets[str(name)] = (
+            [os.path.join(root_dir, str(f)) for f in blk["files"]],
+            _scale(blk))
+
     return FrameBundle.load(
         run_files, idle_files, run_sc, idle_sc,
         slide_files=slide_files if len(slide_files) >= 2 else None,
         slide_scale=slide_sc,
         slash_files=slash_files or None, slash_scale=slash_sc,
-        remove_bg=bool(sf.get("remove_bg", True)))
+        remove_bg=bool(sf.get("remove_bg", True)),
+        extra_sets=extra_sets or None)
 
 
 def load_all(root_dir, bundles):

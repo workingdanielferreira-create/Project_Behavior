@@ -272,7 +272,12 @@ class Combatant:
                  "sprite_particles", "sprite_emit_acc",
                  "sprite_prev_x", "sprite_prev_y",
                  "dodged_proj_ids",
-                 "manual_ult_queued")
+                 "manual_ult_queued",
+                 "action_anim", "action_idx",
+                 "sp_phase", "sp_f", "sp_tick", "sp_charges", "sp_countered",
+                 "sp_next_strike", "sp_block_pending",
+                 "lb_phase", "lb_loop", "lb_f",
+                 "columns", "lb_beams")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -401,6 +406,31 @@ class Combatant:
         # combat.try_fire_manual_ultimate). True while a force-trigger
         # request is pending; consumed the instant the figure is free.
         self.manual_ult_queued = False
+        # Generic bundle-extra animation driver (see figure._current_frame):
+        # when action_anim names a sprite_files extra set ("special",
+        # "ultimate", ...) the figure draws that set's frame action_idx
+        # instead of the usual run/idle/slash selection.  None = off.
+        self.action_anim = None
+        self.action_idx = 0
+        # Charged-counter special stance (JSON `special_stance`, see
+        # combat.tick_special_stance).  sp_phase: 0 idle / 1 windup /
+        # 2 hold (blocking) / 3 play-out or counter.
+        self.sp_phase = 0
+        self.sp_f = 0.0                  # fractional frame cursor
+        self.sp_tick = 0                 # ticks left in the hold
+        self.sp_charges = 0              # blocked/taken hits toward the stance
+        self.sp_countered = False        # True once a hit was blocked in the hold
+        self.sp_next_strike = 0          # index into the strike-frame list
+        self.sp_block_pending = False    # set by the block hooks during the hold
+        # Loop-beam ultimate (ultimate_playback.style 'loop_beams', see
+        # combat.tick_loop_beams).  lb_phase: 0 idle / 1 casting.
+        self.lb_phase = 0
+        self.lb_loop = 0                 # loops completed so far
+        self.lb_f = 0.0                  # ticks into the current loop
+        # Cosmetic effect lists owned by this figure (Pattern A objects,
+        # ticked by combat.update_loop_fx, drawn in figure.Figure.draw).
+        self.columns = []                # EnergyColumn instances
+        self.lb_beams = []               # LoopBeam instances
 
     def reset(self):
         self.__init__()

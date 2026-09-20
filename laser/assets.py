@@ -71,11 +71,11 @@ class FrameBundle:
 
     __slots__ = ("run", "run_flipped", "idle", "idle_flipped",
                  "slide", "slide_flipped", "slide2", "slide2_flipped",
-                 "slash", "slash_flipped")
+                 "slash", "slash_flipped", "extra")
 
     def __init__(self, run, run_flipped, idle, idle_flipped,
                  slide=None, slide_flipped=None, slide2=None, slide2_flipped=None,
-                 slash=None, slash_flipped=None):
+                 slash=None, slash_flipped=None, extra=None):
         self.run = run
         self.run_flipped = run_flipped
         self.idle = idle
@@ -86,6 +86,11 @@ class FrameBundle:
         self.slide2_flipped = slide2_flipped
         self.slash = slash or []
         self.slash_flipped = slash_flipped or []
+        # Named extra frame sets a sprite_files character authors beyond the
+        # four built-in slots: {name: (frames, flipped_frames)}.  Driven by
+        # Combatant.action_anim (figure._current_frame).  Empty for every
+        # bundle that doesn't author any.
+        self.extra = extra or {}
 
     @property
     def has_frames(self):
@@ -94,7 +99,8 @@ class FrameBundle:
     @classmethod
     def load(cls, run_files, idle_files, run_scale, idle_scale,
              slide_files=None, slide_scale=None,
-             slash_files=None, slash_scale=None, remove_bg=True):
+             slash_files=None, slash_scale=None, remove_bg=True,
+             extra_sets=None):
         run, run_fl = _load_frames(run_files, run_scale, remove_bg)
         idle, idle_fl = _load_frames(idle_files, idle_scale, remove_bg)
 
@@ -110,8 +116,14 @@ class FrameBundle:
         slash, slash_fl = (_load_frames(slash_files, slsc, remove_bg)
                            if slash_files else ([], []))
 
+        extra = {}
+        for name, (files, sc) in (extra_sets or {}).items():
+            fr, fl = _load_frames(files, sc, remove_bg)
+            if fr:
+                extra[name] = (fr, fl)
+
         return cls(run, run_fl, idle, idle_fl,
-                   s1, s1f, s2, s2f, slash, slash_fl)
+                   s1, s1f, s2, s2f, slash, slash_fl, extra)
 
 
 class AssetLibrary:

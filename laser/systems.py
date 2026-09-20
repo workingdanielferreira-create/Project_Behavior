@@ -253,6 +253,8 @@ class MotionSystem(System):
                     # Solo mode cursor bounce costs 1 HP — unless parrying
                     if not fig.combat.parrying:
                         ai.apply_hp_damage(fig, world)
+                    else:
+                        combat.special_blocks_hit(fig)   # special-stance counter
         for fig in world.figures:
             motion.check_walls(fig)
         # Battle-only invisible oval arena boundary — confirmed intentional
@@ -292,6 +294,10 @@ class CombatSystem(System):
             # advance_combat so an armed retaliation dash executes this
             # same tick. No-op for characters without the block. ---
             combat.check_reaction(fig, world)
+            # --- Special stance / loop-beam ultimate launch check + FX
+            # upkeep (opt-in via JSON; no-ops otherwise). ---
+            combat.check_charge_starts(fig, world)
+            combat.update_loop_fx(fig)
             # --- Vanish-cut strike bullets -> live projectile list (same
             # standard fire -> snapshot channel the clones use). ---
             if fig.combat.vc_shots_pending:
@@ -1042,7 +1048,8 @@ class CollisionSystem(System):
                 if not fig.mode.uses_melee():
                     continue
                 c, m = fig.combat, fig.motion
-                if c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending:
+                if (c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending
+                        or c.sp_phase or c.lb_phase):
                     continue
                 if c.dodged_proj_ids:
                     c.dodged_proj_ids &= live_proj_ids  # drop ids of bullets no longer alive
@@ -1169,6 +1176,8 @@ class CollisionSystem(System):
                         # mid-dash-slash (immune — handled by the FSM instead).
                         if not fig.combat.parrying:
                             ai.apply_hp_damage(fig, world)
+                        else:
+                            combat.special_blocks_hit(fig)   # special-stance counter
                         break
 
         # --- Ultimate crescent → enemy figure HP damage (battle mode) ---

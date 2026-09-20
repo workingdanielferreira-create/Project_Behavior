@@ -2025,6 +2025,9 @@ def spawn_deflect_crescent(fig, contact_x, contact_y):
     would leave a crescent frozen and drawn forever. Called from every
     successful bullet-deflect site (Solo & Battle) for any character with a
     deflect defend layer; identical in both modes."""
+    # Every deflect is a blocked hit: counter if braced in a special-stance
+    # hold, otherwise +1 on the special meter (no-op without the block).
+    special_note_blocked(fig)
     if not fig.mode.uses_melee():
         return
     dy = (config.DEFLECT_CRESCENT_REACH
@@ -2779,7 +2782,8 @@ def ultimate_style(fig):
     if not char:
         return "crescent" if fig.mode.uses_melee() else "beam"
     style = (char.get("ultimate_playback") or {}).get("style")
-    if style in ("crescent", "beam", "blinkstorm", "vanish_cut", "none"):
+    if style in ("crescent", "beam", "blinkstorm", "vanish_cut",
+                 "loop_beams", "none"):
         return style
     return "crescent" if fig.mode.uses_melee() else "beam"
 
@@ -3861,6 +3865,597 @@ def check_reaction(fig, world):
         c.ult_charges += 1
 
 
+# ---------------------------------------------------------------------------
+# Generic charged-counter special stance, loop-beam ultimate and final-hit
+# energy column.  All three are opt-in through the character JSON
+# (`special_stance`, ultimate_playback.style == "loop_beams", `final_hit_fx`)
+# and read their frames from named EXTRA sets on the sprite bundle
+# (sprite_files.<set>, played through Combatant.action_anim).  A character
+# without the blocks behaves byte-identically.  Every hook sits in shared
+# pipeline code (advance_combat / CombatSystem / apply_hp_damage), never
+# behind a game-mode branch, so Solo and Battle are identical by construction
+# (Solo's target is the cursor, Battle's is the nearest enemy).
+#
+#   SPECIAL STANCE   charge meter (blocked/taken hits) -> plays frames up to
+#                    hold_frame -> holds hold_ms braced (blocking) -> a hit in
+#                    the hold is blocked and the remaining frames play as a
+#                    counter (one strike per strike_frames entry); if nothing
+#                    hits, the remaining frames play out with no strikes.
+#   LOOP-BEAM ULT    charge meter (landed hits) -> loops the ultimate frames
+#                    `loops` times; each completed loop fires one beam at the
+#                    target from the next origin (corners, then the figure).
+#   ENERGY COLUMN    vertical column of light at the hit point of a combo
+#                    string's finisher.
+# Damage rides invisible pierce/one_hit strike projectiles through the same
+# vc_shots_pending -> world.projectiles -> enemy snapshot channel the
+# vanish-cut uses, so HP/parry/petals interact normally and nothing new
+# crosses any process boundary.
+# ---------------------------------------------------------------------------
+
+_BEAM_PEN = QPen()
+_BEAM_PEN.setCapStyle(Qt.RoundCap)
+
+_SP_DEFAULTS = dict(
+    charges_required=int(config.SPECIAL_STANCE_CHARGES),
+    trigger_range_px=100000.0,
+    frames_set="special",
+    hold_frame=int(config.SPECIAL_STANCE_HOLD_FRAME),
+    hold_ms=float(config.SPECIAL_STANCE_HOLD_MS),
+    duration_ms=float(config.SPECIAL_STANCE_DURATION_MS),
+    counter_hit_damage=float(config.SPECIAL_COUNTER_DAMAGE),
+)
+
+_LB_DEFAULTS = dict(
+    charges_required=int(config.LOOP_BEAM_CHARGES),
+    loops=int(config.LOOP_BEAM_LOOPS),
+    loop_ms=float(config.LOOP_BEAM_LOOP_MS),
+    beam_damage=float(config.LOOP_BEAM_DAMAGE),
+    beam_life_ticks=int(config.LOOP_BEAM_LIFE_TICKS),
+    beam_width=float(config.LOOP_BEAM_WIDTH),
+    trigger_range_px=100000.0,
+    frames_set="ultimate",
+)
+_LB_ORIGIN_NAMES = ("top_right", "top_left", "bottom_left", "bottom_right",
+                    "self")
+
+
+def special_stance_cfg(fig):
+    """Per-figure special-stance tuning, or None unless the character
+    authors a `special_stance` block AND its bundle carries the named extra
+    frame set.  Cached on the mode instance like combo_cfg."""
+    mode = fig.mode
+    if hasattr(mode, "_sp_cfg"):
+        return mode._sp_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("special_stance") if char else None
+    if not isinstance(raw, dict):
+        mode._sp_cfg = None
+        return None
+    sp = dict(_SP_DEFAULTS)
+    for k in sp:
+        if k in raw:
+            try:
+                sp[k] = type(sp[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    ex = fig.render.bundle.extra.get(sp["frames_set"])
+    if not ex or not ex[0]:
+        mode._sp_cfg = None
+        return None
+    n = len(ex[0])
+    sp["n"] = n
+    sp["hold_frame"] = max(0, min(n - 1, sp["hold_frame"]))
+    sp["ticks_per_frame"] = max(0.25, sp["duration_ms"] / n / config.TICK_MS)
+    sp["hold_ticks"] = max(1, int(round(sp["hold_ms"] / config.TICK_MS)))
+    strikes = []
+    for v in (raw.get("strike_frames") or []):
+        try:
+            iv = int(v)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= iv < n:
+            strikes.append(iv)
+    sp["strike_frames"] = sorted(strikes)
+    mode._sp_cfg = sp
+    return sp
+
+
+def loop_beams_cfg(fig):
+    """Per-figure loop-beam ultimate tuning, or None unless the character's
+    ultimate_playback.style is 'loop_beams' AND its bundle carries the named
+    extra frame set.  Cached on the mode instance."""
+    mode = fig.mode
+    if hasattr(mode, "_lb_cfg"):
+        return mode._lb_cfg
+    char = getattr(mode, "character", None)
+    raw = (char.get("ultimate_playback") or {}) if char else {}
+    if raw.get("style") != "loop_beams":
+        mode._lb_cfg = None
+        return None
+    lb = dict(_LB_DEFAULTS)
+    for k in lb:
+        if k in raw:
+            try:
+                lb[k] = type(lb[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    ex = fig.render.bundle.extra.get(lb["frames_set"])
+    if not ex or not ex[0]:
+        mode._lb_cfg = None
+        return None
+    lb["n"] = len(ex[0])
+    lb["loops"] = max(1, lb["loops"])
+    origins = [o for o in (raw.get("origins") or []) if o in _LB_ORIGIN_NAMES]
+    lb["origins"] = origins or list(_LB_ORIGIN_NAMES)
+    pal = (char.get("palette") or {}) if char else {}
+    lb["beam_color"] = _hex_to_rgb(raw.get("beam_color") or pal.get("accent"),
+                                   tuple(config.LOOP_BEAM_RGB))
+    mode._lb_cfg = lb
+    return lb
+
+
+def final_hit_cfg(fig):
+    """Per-figure final-hit FX tuning from the `final_hit_fx` block (only
+    style 'energy_column' exists), or None.  Cached on the mode instance."""
+    mode = fig.mode
+    if hasattr(mode, "_fh_cfg"):
+        return mode._fh_cfg
+    char = getattr(mode, "character", None)
+    raw = char.get("final_hit_fx") if char else None
+    if not isinstance(raw, dict) or raw.get("style") != "energy_column":
+        mode._fh_cfg = None
+        return None
+    pal = (char.get("palette") or {}) if char else {}
+    fh = dict(
+        rgb=_hex_to_rgb(raw.get("color") or pal.get("accent"),
+                        tuple(config.LOOP_BEAM_RGB)),
+        life_ticks=int(config.ENERGY_COLUMN_LIFE_TICKS),
+        rise_ticks=int(config.ENERGY_COLUMN_RISE_TICKS),
+        height_px=float(config.ENERGY_COLUMN_HEIGHT_PX),
+        width_px=float(config.ENERGY_COLUMN_WIDTH_PX),
+    )
+    for k in ("life_ticks", "rise_ticks"):
+        if k in raw:
+            try:
+                fh[k] = max(1, int(raw[k]))
+            except (TypeError, ValueError):
+                pass
+    for k in ("height_px", "width_px"):
+        if k in raw:
+            try:
+                fh[k] = max(1.0, float(raw[k]))
+            except (TypeError, ValueError):
+                pass
+    mode._fh_cfg = fh
+    return fh
+
+
+class EnergyColumn:
+    """Vertical energy column at a hit point: shoots up fast, then thins
+    and fades.  Pure visual (no hit tests, no IPC); ages in update() so it
+    freezes with hitstop like other combat-owned FX."""
+
+    __slots__ = ("x", "y", "rgb", "age", "life", "rise", "h", "w")
+
+    def __init__(self, x, y, rgb, scale, life, rise, height, width):
+        self.x, self.y = float(x), float(y)
+        self.rgb = rgb
+        self.age = 0
+        self.life = max(1, int(life))
+        self.rise = max(1, min(int(rise), self.life))
+        # Sampled once at spawn (like CrescentWave(scale=)) so the column
+        # never resizes mid-life.
+        self.h = float(height) * float(scale)
+        self.w = float(width) * float(scale)
+
+    def update(self):
+        self.age += 1
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def draw(self, p):
+        grow = min(1.0, self.age / self.rise)
+        grow = 1.0 - (1.0 - grow) ** 3          # ease-out: shoots upward
+        fade = (0.0 if self.age <= self.rise
+                else min(1.0, (self.age - self.rise)
+                         / max(1, self.life - self.rise)))
+        alpha = 1.0 - fade * fade
+        h = int(self.h * grow)
+        if alpha <= 0.02 or h < 2:
+            return
+        w = self.w * (1.0 - 0.55 * fade)
+        x, y = int(self.x), int(self.y)
+        r, g, b = self.rgb
+        p.setPen(Qt.NoPen)
+        # Base flash where the column erupts.
+        bw = max(2, int(w * 0.9))
+        bh = max(1, int(w * 0.32))
+        p.setBrush(QColor(r, g, b, int(120 * alpha)))
+        p.drawEllipse(x - bw, y - bh, bw * 2, bh * 2)
+        # Outer glow, body, white-hot core (solid alpha layers, no gradient).
+        for wf, col in ((1.0, QColor(r, g, b, int(70 * alpha))),
+                        (0.6, QColor(r, g, b, int(150 * alpha))),
+                        (0.22, QColor(255, 255, 255, int(230 * alpha)))):
+            ww = max(2, int(w * wf))
+            p.setBrush(col)
+            p.drawRoundedRect(x - ww // 2, y - h, ww, h, ww * 0.5, ww * 0.5)
+
+
+class LoopBeam:
+    """One loop-beam ultimate beam: a straight blue laser from its origin
+    through the aimed target and on past it, flashing in then thinning out.
+    Pure visual — the damage is a separate invisible strike projectile."""
+
+    __slots__ = ("x0", "y0", "x1", "y1", "rgb", "age", "life", "width")
+
+    def __init__(self, ox, oy, tx, ty, rgb, reach, life, width):
+        dx, dy = tx - ox, ty - oy
+        d = (dx * dx + dy * dy) ** 0.5
+        if d < 1.0:
+            dx, dy, d = 1.0, 0.0, 1.0
+        self.x0, self.y0 = float(ox), float(oy)
+        self.x1 = float(ox) + dx / d * reach
+        self.y1 = float(oy) + dy / d * reach
+        self.rgb = rgb
+        self.age = 0
+        self.life = max(1, int(life))
+        self.width = float(width)
+
+    def update(self):
+        self.age += 1
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def draw(self, p):
+        t = self.age / self.life
+        a = 1.0 - t
+        if a <= 0.02:
+            return
+        w = self.width * (1.0 - 0.6 * t)
+        r, g, b = self.rgb
+        pen = _BEAM_PEN
+        x0, y0, x1, y1 = int(self.x0), int(self.y0), int(self.x1), int(self.y1)
+        for wf, col in ((2.8, QColor(r, g, b, int(60 * a))),
+                        (1.5, QColor(r, g, b, int(150 * a))),
+                        (0.5, QColor(255, 255, 255, int(240 * a)))):
+            pen.setColor(col)
+            pen.setWidthF(max(1.0, w * wf))
+            p.setPen(pen)
+            p.drawLine(x0, y0, x1, y1)
+        # Muzzle flash at the origin.
+        mr = max(2, int(w * 1.8))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(r, g, b, int(140 * a)))
+        p.drawEllipse(x0 - mr, y0 - mr, mr * 2, mr * 2)
+
+
+def _face_toward(fig, tx, ty):
+    """Turn to face (tx, ty) without the travel-facing rotation face() adds
+    (the figure is stationary while a stance / ultimate plays)."""
+    t = fig.transform
+    if tx < t.x - 0.001:
+        t.facing_left = True
+    elif tx > t.x + 0.001:
+        t.facing_left = False
+    t.angle = 0.0
+    fig.render.is_moving = False
+
+
+def _queue_strike_shot(fig, tx, ty, damage, ang):
+    """Queue one invisible piercing one-hit strike aimed at (tx, ty).
+    Spawned on a 60px ring around the target so it spends ticks airborne (a
+    bullet born touching the enemy is culled before the victim's side ever
+    snapshots it) — the same recipe as the vanish-cut's HP payload.  Drained
+    into world.projectiles by CombatSystem from vc_shots_pending."""
+    spd = config.PROJ_SPEED * 1.5
+    ox = tx + math.cos(ang) * 60.0
+    oy = ty + math.sin(ang) * 60.0
+    ddx, ddy = tx - ox, ty - oy
+    r, g, b = fig.lut[80]
+    pr = HomingProjectile(ox, oy, ddx / 60.0 * spd, ddy / 60.0 * spd,
+                          (r, g, b), 3,
+                          target=[float(tx), float(ty)], turn_rate=1.0)
+    pr.style = "invisible"
+    pr.damage = float(damage)
+    pr.pierce = True          # a parry stance can't undo the hit
+    pr.one_hit = True         # ...but it lands exactly once
+    pr.max_age = int(60.0 / max(spd, 0.001)) + 30
+    fig.combat.vc_shots_pending.append(pr)
+
+
+# --- Special stance ---------------------------------------------------------
+def start_special_stance(fig, tx, ty):
+    """Begin the charged-counter stance (consumes the special meter)."""
+    sp = special_stance_cfg(fig)
+    if sp is None:
+        return False
+    c = fig.combat
+    c.sp_phase = 1
+    c.sp_f = 0.0
+    c.sp_tick = 0
+    c.sp_charges = 0
+    c.sp_countered = False
+    c.sp_next_strike = 0
+    c.sp_block_pending = False
+    c.action_anim = sp["frames_set"]
+    c.action_idx = 0
+    _face_toward(fig, tx, ty)
+    return True
+
+
+def _end_special_stance(fig):
+    c = fig.combat
+    c.sp_phase = 0
+    c.sp_f = 0.0
+    c.sp_tick = 0
+    c.sp_countered = False
+    c.sp_next_strike = 0
+    c.sp_block_pending = False
+    c.action_anim = None
+    c.action_idx = 0
+    c.parrying = False
+    c.parry_stance_ticks = 0
+    fig.render.run_idx = 0
+    fig.render.anim_tick = 0
+
+
+def _special_counter_strike(fig, sp, tx, ty, last):
+    """One counter strike: crescent + impact FX at the attacker and an
+    invisible damage strike; the last strike also freezes the world."""
+    c = fig.combat
+    t = fig.transform
+    r, g, b = fig.lut[80]
+    c.crescents.append(CrescentWave(t.x, t.y, tx, ty, (r, g, b)))
+    c.impact_fx_pending.append((tx, ty))
+    _queue_strike_shot(fig, tx, ty, sp["counter_hit_damage"],
+                       fig.personality.rng.uniform(0.0, 2.0 * math.pi))
+    if last:
+        c.hitstop_request = True
+
+
+def tick_special_stance(fig, tx, ty):
+    """Advance the special stance.  Returns True while it consumes the
+    figure (advance_combat early-outs, MotionSystem skips)."""
+    c = fig.combat
+    if c.sp_phase == 0:
+        return False
+    sp = special_stance_cfg(fig)
+    if sp is None:                      # config vanished mid-run — bail safe
+        _end_special_stance(fig)
+        return False
+    per = sp["ticks_per_frame"]
+    n = sp["n"]
+    hold = sp["hold_frame"]
+    if c.sp_phase == 1:
+        # Windup: play the sequence up to the hold frame.
+        c.sp_f += 1.0 / per
+        if c.sp_f >= hold:
+            c.sp_f = float(hold)
+            c.sp_phase = 2
+            c.sp_tick = sp["hold_ticks"]
+        c.action_idx = int(c.sp_f)
+        return True
+    if c.sp_phase == 2:
+        # Hold: braced on the hold frame.  parrying=True reuses the
+        # generalized parry gates (bullets deflected, contact damage
+        # skipped); the block hooks set sp_block_pending on any blocked hit.
+        c.action_idx = hold
+        c.parrying = True
+        c.parry_stance_ticks = max(c.parry_stance_ticks, 2)
+        if c.sp_block_pending:
+            c.sp_block_pending = False
+            c.sp_countered = True
+            c.sp_phase = 3
+            c.parrying = False
+            c.parry_stance_ticks = 0
+            c.impact_fx_pending.append((fig.transform.x, fig.transform.y))
+            c.hitstop_request = True    # brief freeze sells the block
+            _face_toward(fig, tx, ty)
+            return True
+        c.sp_tick -= 1
+        if c.sp_tick <= 0:
+            # Nothing hit him: play the rest out with no counter strikes.
+            c.sp_phase = 3
+            c.parrying = False
+            c.parry_stance_ticks = 0
+        return True
+    # Phase 3: the remaining frames (counter attack if a hit was blocked).
+    c.sp_f += 1.0 / per
+    idx = int(c.sp_f)
+    c.action_idx = min(idx, n - 1)
+    if c.sp_countered:
+        strikes = sp["strike_frames"]
+        while (c.sp_next_strike < len(strikes)
+               and idx >= strikes[c.sp_next_strike]):
+            _special_counter_strike(
+                fig, sp, tx, ty, c.sp_next_strike == len(strikes) - 1)
+            c.sp_next_strike += 1
+    if c.sp_f >= n:
+        _end_special_stance(fig)
+    return True
+
+
+def special_blocks_hit(fig):
+    """Block hook: True (and arms the counter) while the figure is braced in
+    the special-stance hold.  Called by every damage path (apply_hp_damage,
+    battle_hit, the parry-gated contact-damage sites)."""
+    c = fig.combat
+    if c.sp_phase == 2:
+        c.sp_block_pending = True
+        return True
+    return False
+
+
+def special_note_hit_taken(fig):
+    """A real hit landed on this figure: +1 on its special meter."""
+    c = fig.combat
+    if c.sp_phase != 0:
+        return
+    sp = special_stance_cfg(fig)
+    if sp is not None:
+        c.sp_charges = min(sp["charges_required"], c.sp_charges + 1)
+
+
+def special_note_blocked(fig):
+    """A hit was blocked/deflected: counter if braced, else +1 on the meter."""
+    if special_blocks_hit(fig):
+        return
+    special_note_hit_taken(fig)
+
+
+# --- Loop-beam ultimate -----------------------------------------------------
+def start_loop_beams(fig, tx, ty):
+    """Begin the loop-beam ultimate (consumes the ultimate meter)."""
+    lb = loop_beams_cfg(fig)
+    if lb is None:
+        return False
+    c = fig.combat
+    c.lb_phase = 1
+    c.lb_loop = 0
+    c.lb_f = 0.0
+    c.ult_charges = 0
+    c.action_anim = lb["frames_set"]
+    c.action_idx = 0
+    _face_toward(fig, tx, ty)
+    return True
+
+
+def _end_loop_beams(fig):
+    c = fig.combat
+    c.lb_phase = 0
+    c.lb_loop = 0
+    c.lb_f = 0.0
+    c.action_anim = None
+    c.action_idx = 0
+    fig.render.run_idx = 0
+    fig.render.anim_tick = 0
+
+
+def _lb_origin(fig, name):
+    w, h = float(fig.screen_w), float(fig.screen_h)
+    if name == "top_right":
+        return (w, 0.0)
+    if name == "top_left":
+        return (0.0, 0.0)
+    if name == "bottom_left":
+        return (0.0, h)
+    if name == "bottom_right":
+        return (w, h)
+    return (fig.transform.x, fig.transform.y)
+
+
+def tick_loop_beams(fig, tx, ty):
+    """Advance the loop-beam ultimate.  Each completed loop of the frame set
+    fires one beam at the live target from the next origin.  Returns True
+    while it consumes the figure."""
+    c = fig.combat
+    if c.lb_phase == 0:
+        return False
+    lb = loop_beams_cfg(fig)
+    if lb is None:                      # config vanished mid-run — bail safe
+        _end_loop_beams(fig)
+        return False
+    per_loop = max(1.0, lb["loop_ms"] / config.TICK_MS)
+    n = lb["n"]
+    c.lb_f += 1.0
+    c.action_idx = max(0, min(n - 1, int(c.lb_f / per_loop * n)))
+    if c.lb_f >= per_loop:
+        c.lb_f -= per_loop
+        origin = lb["origins"][c.lb_loop % len(lb["origins"])]
+        ox, oy = _lb_origin(fig, origin)
+        reach = math.hypot(fig.screen_w, fig.screen_h) * 1.1
+        c.lb_beams.append(LoopBeam(ox, oy, tx, ty, lb["beam_color"], reach,
+                                   lb["beam_life_ticks"], lb["beam_width"]))
+        _queue_strike_shot(fig, tx, ty, lb["beam_damage"],
+                           fig.personality.rng.uniform(0.0, 2.0 * math.pi))
+        c.impact_fx_pending.append((tx, ty))
+        c.lb_loop += 1
+        if c.lb_loop >= lb["loops"]:
+            c.hitstop_request = True    # final beam freezes the world
+            _end_loop_beams(fig)
+    return True
+
+
+# --- Meters, starts, FX upkeep ---------------------------------------------
+def note_landed_hit(fig):
+    """A melee hit landed: +1 on the loop-beam ultimate meter (no-op for any
+    character that doesn't author the loop_beams style)."""
+    if loop_beams_cfg(fig) is not None:
+        fig.combat.ult_charges += 1
+
+
+def spawn_final_hit_fx(fig, tx, ty):
+    """The finisher of a combo string landed at (tx, ty): erupt the
+    character's authored final_hit_fx, if any."""
+    fh = final_hit_cfg(fig)
+    if fh is None:
+        return
+    cols = fig.combat.columns
+    if len(cols) >= 6:
+        del cols[0]
+    k = position_scale(tx, ty, fig.screen_w, fig.screen_h)
+    cols.append(EnergyColumn(tx, ty, fh["rgb"], k, fh["life_ticks"],
+                             fh["rise_ticks"], fh["height_px"],
+                             fh["width_px"]))
+
+
+def check_charge_starts(fig, world):
+    """Per-tick launch check for the special stance and the loop-beam
+    ultimate (ultimate first).  Called by CombatSystem before advance_combat;
+    a no-op for characters without either block.  Only launches when the
+    figure is completely free.  Identical in Solo & Battle."""
+    c = fig.combat
+    if c.sp_phase or c.lb_phase:
+        return
+    lb = loop_beams_cfg(fig)
+    sp = special_stance_cfg(fig)
+    if lb is None and sp is None:
+        return
+    m = fig.motion
+    if (c.busy or c.arc_recoiling or c.arc_repositioning
+            or c.vc_phase != 0 or c.blinkstorm_strikes_left > 0
+            or c.combo_delay_ticks > 0 or c.followup_pending
+            or m.bouncing or m.bounce_ending):
+        return
+    if world.battle_mode and world.partner_figures:
+        tx, ty = world._nearest_enemy(fig.x, fig.y)
+    else:
+        tx, ty = world.cursor
+    dist = math.hypot(tx - fig.transform.x, ty - fig.transform.y)
+    if (lb is not None and c.ult_charges >= lb["charges_required"]
+            and dist <= lb["trigger_range_px"]):
+        start_loop_beams(fig, tx, ty)
+        return
+    if (sp is not None and c.sp_charges >= sp["charges_required"]
+            and dist <= sp["trigger_range_px"]):
+        start_special_stance(fig, tx, ty)
+
+
+def update_loop_fx(fig):
+    """Advance + cull this figure's energy columns and loop beams (Pattern A
+    upkeep; runs every tick for every figure, cheap when the lists are
+    empty)."""
+    c = fig.combat
+    if c.columns:
+        live = []
+        for col in c.columns:
+            col.update()
+            if col.alive:
+                live.append(col)
+        c.columns = live
+    if c.lb_beams:
+        live = []
+        for bm in c.lb_beams:
+            bm.update()
+            if bm.alive:
+                live.append(bm)
+        c.lb_beams = live
+
+
 def try_fire_manual_ultimate(fig, world):
     """Consumes a queued manual-ultimate hotkey request (Ctrl+1 for P1,
     Ctrl+2 for P2 — see systems.InputSystem / World.request_manual_ultimate).
@@ -3876,7 +4471,8 @@ def try_fire_manual_ultimate(fig, world):
     hotkey targeted, and both sides call this every tick.
     """
     c = fig.combat
-    if c.busy or c.blinkstorm_strikes_left > 0 or c.vc_phase != 0:
+    if (c.busy or c.blinkstorm_strikes_left > 0 or c.vc_phase != 0
+            or c.sp_phase or c.lb_phase):
         return  # still mid-action — stays queued for a later tick
     p = fig.personality
     style = ultimate_style(fig)
@@ -3916,6 +4512,9 @@ def try_fire_manual_ultimate(fig, world):
     elif style == "vanish_cut":
         c.ult_charges = 0
         start_vanish_cut(fig, tx, ty)
+        c.manual_ult_queued = False
+    elif style == "loop_beams":
+        start_loop_beams(fig, tx, ty)   # also zeroes the ultimate meter
         c.manual_ult_queued = False
     else:
         c.manual_ult_queued = False  # 'none' style — nothing to force
@@ -4083,6 +4682,14 @@ def advance_combat(fig, slash_target, fallback):
         fig.render.is_moving = False
         return True
 
+    # --- Charged-counter special stance / loop-beam ultimate (generic, JSON
+    #     opt-in): consume the figure while active, same contract as above. ---
+    if (tick_special_stance(fig, _bs_tx, _bs_ty)
+            or tick_loop_beams(fig, _bs_tx, _bs_ty)):
+        _apply_trail_update(fig, t, False, False)
+        fig.render.is_moving = False
+        return True
+
     # --- Slash cycle (stationary; plays once at end of dash/rebound) ---
     if c.slashing:
         ox, oy = t.x, t.y
@@ -4163,6 +4770,7 @@ def advance_combat(fig, slash_target, fallback):
                     # Impact FX: shockwave ring + spark burst at the hit point
                     # (spawned by CombatSystem into world FX lists).
                     c.impact_fx_pending.append((tx, ty))
+                    note_landed_hit(fig)   # loop-beam ultimate meter (opt-in)
                     # ---------------------------------------------------------
                     # ATTACK STRING — count the hit; queue a follow-up (50/50
                     # dashslash vs arcslash with a 0.2 s type lock) until the
@@ -4180,6 +4788,7 @@ def advance_combat(fig, slash_target, fallback):
                             c.attack_hits = 0
                             c.attack_cooldown_ticks = cc['cooldown_ticks']
                             c.hitstop_request = True   # finisher = big hit -> world freeze
+                            spawn_final_hit_fx(fig, tx, ty)   # energy column (opt-in)
                     if chain:
                         # Pick the follow-up type: locked type wins within the
                         # 0.2 s window, otherwise a fresh 50/50 roll locks it.

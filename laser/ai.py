@@ -145,6 +145,12 @@ def apply_hp_damage(fig, world, amount=1):
     Also triggers the runner ultimate when HP first drops to/below 30% of max,
     and the swordsman ultimate when HP first drops to/below 50% of max.
     """
+    # Special-stance block (opt-in): a hit landing while braced in the hold is
+    # blocked outright (no HP loss) and arms the counter; otherwise it feeds
+    # the special meter.  No-ops for characters without `special_stance`.
+    if _combat.special_blocks_hit(fig):
+        return False
+    _combat.special_note_hit_taken(fig)
     p = fig.personality
     note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
@@ -239,6 +245,9 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
+        return
+    # Special-stance hold: the hit is blocked — no knockback, no damage.
+    if _combat.special_blocks_hit(fig):
         return
     p = fig.personality
     m = fig.motion

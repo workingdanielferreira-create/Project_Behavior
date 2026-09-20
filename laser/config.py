@@ -635,3 +635,29 @@ BEAM_ROWS        = 1        # single row: a continuous STRING of bullets
 BEAM_ROW_SPACING = 8.0      # (unused at 1 row; kept for future tuning)
 BEAM_TRAIL_LEN   = 12       # long tails for the continuous-beam look
 BEAM_MAX_AGE     = 150      # shorter life; beam bolts cross the screen fast
+
+
+# ---------------------------------------------------------------------------
+# Charged-counter special stance (JSON `special_stance`), loop-beam ultimate
+# (JSON ultimate_playback.style == "loop_beams") and final-hit energy column
+# (JSON `final_hit_fx`).  Generic + opt-in: a character without those JSON
+# blocks is byte-identical to before.  Every JSON field falls back to these.
+# ---------------------------------------------------------------------------
+SPECIAL_STANCE_CHARGES     = 5       # blocked/taken hits that fill the special meter
+SPECIAL_STANCE_HOLD_FRAME  = 7       # 0-based frame index the stance freezes on
+SPECIAL_STANCE_HOLD_MS     = 2000.0  # ms the stance is held waiting for a hit
+SPECIAL_STANCE_DURATION_MS = 2400.0  # ms for the whole frame sequence (sets frame pace)
+SPECIAL_COUNTER_DAMAGE     = 6.0     # HP per counter strike (one per strike frame)
+
+LOOP_BEAM_CHARGES    = 10      # landed hits that fill the ultimate meter
+LOOP_BEAM_LOOPS      = 5       # times the ultimate frame loop plays
+LOOP_BEAM_LOOP_MS    = 600.0   # ms per loop of the ultimate frame set
+LOOP_BEAM_DAMAGE     = 8.0     # HP per beam
+LOOP_BEAM_LIFE_TICKS = 14      # ticks a beam stays visible (fades over its life)
+LOOP_BEAM_WIDTH      = 9.0     # px core stroke width at spawn
+LOOP_BEAM_RGB        = (63, 176, 234)   # fallback beam colour (palette.accent overrides)
+
+ENERGY_COLUMN_LIFE_TICKS = 40    # ticks from spawn to fully faded
+ENERGY_COLUMN_RISE_TICKS = 8     # ticks the column takes to shoot up to full height
+ENERGY_COLUMN_HEIGHT_PX  = 220.0 # px full height at position-scale 1.0
+ENERGY_COLUMN_WIDTH_PX   = 30.0  # px outer width at position-scale 1.0

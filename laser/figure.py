@@ -129,6 +129,15 @@ class Figure:
         m = self.motion
         left = t.facing_left
 
+        # Generic named-set driver (special stance / loop-beam ultimate):
+        # draw frame action_idx of the bundle's extra set, mirrored when
+        # facing left.  Off (None) for every figure that doesn't use it.
+        if c.action_anim:
+            ex = b.extra.get(c.action_anim)
+            if ex and ex[0]:
+                fs = ex[1] if left else ex[0]
+                return fs[max(0, min(c.action_idx, len(fs) - 1))]
+
         if c.slashing and b.slash:
             fs = b.slash_flipped if left else b.slash
             return fs[min(c.slash_idx, len(fs) - 1)]
@@ -248,6 +257,15 @@ class Figure:
                 uscale = _combat.position_scale(uc.x, uc.y,
                                                  self.screen_w, self.screen_h)
                 uc.draw(p, upen, pscale=uscale)
+
+        # --- Final-hit energy columns + loop-beam ultimate beams (cosmetic,
+        # figure-owned; ticked by combat.update_loop_fx). ---
+        if self.combat.columns:
+            for col in self.combat.columns:
+                col.draw(p)
+        if self.combat.lb_beams:
+            for bm in self.combat.lb_beams:
+                bm.draw(p)
 
         if self.combat.petals:
             for pt in self.combat.petals:
