@@ -1,0 +1,277 @@
+{
+  "format": "pb_character",
+  "version": 2,
+  "name": "ReverseSwordman",
+  "display_name": "Rune",
+  "description": "Side-view melee duelist with a rising slash chain.",
+  "archetype": "melee",
+  "predicates": {
+    "can_shoot": false,
+    "uses_melee": true,
+    "retreats": false,
+    "charges_full": true
+  },
+  "movement": {
+    "wander_strength": 0.25
+  },
+  "stats": {
+    "max_hp": 120,
+    "chase_speed": 3.2,
+    "follow_speed": 2.4,
+    "scale": 1,
+    "basic_attack_radius": 84
+  },
+  "rig": "humanoid_v2",
+  "bones": {
+    "ua": 30,
+    "fa": 30,
+    "th": 38,
+    "sh": 36,
+    "torso": 54,
+    "head": 14
+  },
+  "palette": {
+    "body": "#f2f4f6",
+    "accent": "#3fb0ea"
+  },
+  "defense": {},
+  "weapon": {
+    "points": [
+      [
+        -5.119045575459799,
+        -4.553572336832683
+      ],
+      [
+        -5.119045575459799,
+        0.20833333333333334
+      ],
+      [
+        128.06350578938498,
+        0.2561891434621934
+      ],
+      [
+        121.24424800726432,
+        -4.466325487603639
+      ],
+      [
+        -25.35714308420817,
+        -4.315478006998698
+      ],
+      [
+        -25.35714308420817,
+        0.20833333333333334
+      ],
+      [
+        -4.64285691579183,
+        0.44643402099609375
+      ]
+    ],
+    "shapes": [
+      [
+        [
+          -5.119045575459799,
+          -4.553572336832683
+        ],
+        [
+          -5.119045575459799,
+          0.20833333333333334
+        ],
+        [
+          128.06350578938498,
+          0.2561891434621934
+        ],
+        [
+          121.24424800726432,
+          -4.466325487603639
+        ],
+        [
+          -25.35714308420817,
+          -4.315478006998698
+        ],
+        [
+          -25.35714308420817,
+          0.20833333333333334
+        ],
+        [
+          -4.64285691579183,
+          0.44643402099609375
+        ]
+      ]
+    ]
+  },
+  "sprite_files": {
+    "_comment": "Rig Forge frames baked with tools/fx/rigforge_bake.py (px-per-unit 1, ss 4) and copied here verbatim. remove_bg false: PNGs carry real alpha. Head measured 28.6-29.7 px (max inscribed disc) in every set, so src_head_px is 29 for all four sets. Frames face RIGHT (engine unflipped convention). Files live in a subfolder so the Swordsman's root-level slash*.png glob never collides.",
+    "remove_bg": false,
+    "run": {
+      "files": [
+        "characters/reverseswordman/run_00.png",
+        "characters/reverseswordman/run_01.png",
+        "characters/reverseswordman/run_02.png",
+        "characters/reverseswordman/run_03.png",
+        "characters/reverseswordman/run_04.png",
+        "characters/reverseswordman/run_05.png",
+        "characters/reverseswordman/run_06.png",
+        "characters/reverseswordman/run_07.png",
+        "characters/reverseswordman/run_08.png",
+        "characters/reverseswordman/run_09.png",
+        "characters/reverseswordman/run_10.png",
+        "characters/reverseswordman/run_11.png",
+        "characters/reverseswordman/run_12.png",
+        "characters/reverseswordman/run_13.png",
+        "characters/reverseswordman/run_14.png",
+        "characters/reverseswordman/run_15.png"
+      ],
+      "src_head_px": 29.0
+    },
+    "idle": {
+      "files": [
+        "characters/reverseswordman/idle_00.png",
+        "characters/reverseswordman/idle_01.png",
+        "characters/reverseswordman/idle_02.png",
+        "characters/reverseswordman/idle_03.png",
+        "characters/reverseswordman/idle_04.png",
+        "characters/reverseswordman/idle_05.png",
+        "characters/reverseswordman/idle_06.png",
+        "characters/reverseswordman/idle_07.png",
+        "characters/reverseswordman/idle_08.png",
+        "characters/reverseswordman/idle_09.png",
+        "characters/reverseswordman/idle_10.png",
+        "characters/reverseswordman/idle_11.png",
+        "characters/reverseswordman/idle_12.png",
+        "characters/reverseswordman/idle_13.png",
+        "characters/reverseswordman/idle_14.png",
+        "characters/reverseswordman/idle_15.png",
+        "characters/reverseswordman/idle_16.png",
+        "characters/reverseswordman/idle_17.png"
+      ],
+      "src_head_px": 29.0
+    },
+    "slash": {
+      "files": [
+        "characters/reverseswordman/slash_00.png",
+        "characters/reverseswordman/slash_01.png",
+        "characters/reverseswordman/slash_02.png",
+        "characters/reverseswordman/slash_03.png",
+        "characters/reverseswordman/slash_04.png"
+      ],
+      "src_head_px": 29.0
+    },
+    "slide": {
+      "files": [
+        "characters/reverseswordman/slide_00.png",
+        "characters/reverseswordman/slide_01.png"
+      ],
+      "src_head_px": 29.0
+    }
+  },
+  "ultimate_playback": {
+    "_comment": "INTERIM: 'none' until the loop-beam ultimate (5 loops, beams from TR/TL/BL/BR corners then the character) is built. Do not rely on the crescent default.",
+    "style": "none"
+  },
+  "actions": {
+    "idle": {
+      "trigger": "always",
+      "duration_ms": 900,
+      "keyframes": [
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+      ],
+      "fx_layers": []
+    },
+    "run": {
+      "trigger": "moving",
+      "duration_ms": 1500,
+      "keyframes": [
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+      ],
+      "fx_layers": []
+    },
+    "attack_normal": {
+      "trigger": "in_range",
+      "duration_ms": 2400,
+      "keyframes": [
+        {},
+        {},
+        {},
+        {},
+        {}
+      ],
+      "fx_layers": []
+    },
+    "defend": {
+      "trigger": "incoming",
+      "duration_ms": 320,
+      "keyframes": [
+        {},
+        {}
+      ],
+      "fx_layers": []
+    },
+    "attack_special": {
+      "trigger": "charge_full",
+      "duration_ms": 2400,
+      "keyframes": [],
+      "fx_layers": []
+    },
+    "ultimate": {
+      "trigger": "ultimate_ready",
+      "duration_ms": 600,
+      "keyframes": [],
+      "fx_layers": []
+    },
+    "deflect": {
+      "trigger": "on_deflect",
+      "duration_ms": 600,
+      "keyframes": [],
+      "fx_layers": []
+    }
+  },
+  "rigforge_bake": {
+    "_comment": "Provenance for re-baking. Frame sets are pixel-exact bakes (diff 0.0) of the source JSON at px-per-unit 1, ss 4.",
+    "source_json": "tools/fx/sources/ReverseSwordman_rigforge.json",
+    "script": "tools/fx/rigforge_bake.py",
+    "px_per_unit": 1,
+    "ss": 4,
+    "frame_map": {
+      "idle": "idle[0..17] (all 18)",
+      "run": "run baked idx [0,6,13,20,26,32,39,46,52,58,65,72,78,84,91,98] of 104",
+      "slash": "attack_normal baked idx [4,22,28,29,32] of 42",
+      "slide": "defend baked idx [0,3] of 9"
+    }
+  },
+  "battle_semantics": "Battle properties live per can_hit FX layer, not per action. Attack props (Explode, Scatter, Pierce, Slash) stack and are visual-only; defence props are mutually exclusive per layer and only \"deflect\" has an engine implementation.",
+  "fx_semantics": "fx_layers follow fx-authoring.md. Burst anchors (point, r_hand) are fixed-offset approximations from the character root — no live joint tracking.",
+  "activation_trigger_semantics": "Layers activate via trig / trig_ref / trig_delay_ms chains; cycle fields reference layers as \"action_name:LayerID\".",
+  "authoring_note": "Authored in Rig Forge. Draw-order/visibility layers are an authoring construct and are not exported; in-betweens are baked into keyframes because the loader plays keyframes as authored with no interpolation."
+}
