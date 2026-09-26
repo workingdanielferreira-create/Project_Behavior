@@ -203,11 +203,22 @@ var CONDITION_TYPES = {
 // fx_continuous: when the action loops (idle, run, a held action), effects
 // that last to the end of the action keep running across the loop instead
 // of ending and starting again.
-var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false};
+// movement: "stand" = the fighter stays in place while the action plays;
+// "move" = it keeps moving (at move_speed_pct % of its normal speed).  Only
+// for attack / triggered actions; idle always stands and run always moves.
+var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
+  movement: "stand", move_speed_pct: 100};
 function actionKind(name) {
   if (name === "idle" || name === "run") return "locomotion";
   if (/^attack_normal/.test(name)) return "attack";
   return "triggered";
+}
+// Fraction of normal movement speed the fighter keeps while this action plays.
+function moveFactor(name, cfg) {
+  var k = actionKind(name);
+  if (k === "locomotion") return name === "idle" ? 0 : 1;
+  cfg = cfg || ACTION_DEFAULTS;
+  return cfg.movement === "move" ? Math.max(0, +cfg.move_speed_pct || 0) / 100 : 0;
 }
 function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
@@ -751,5 +762,5 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   newEffect: newEffect, normalize: normalize, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
-  actionKind: actionKind, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
+  actionKind: actionKind, moveFactor: moveFactor, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

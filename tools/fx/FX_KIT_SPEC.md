@@ -40,7 +40,8 @@ these characters; it plays the PNGs.
   "anchors": {"attack_normal": {"haR": [[x, y], "... one per frame"], "wtip": []}},
   "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
-                                    "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false}},
+                                    "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
+                                    "movement": "stand", "move_speed_pct": 100}},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -72,6 +73,13 @@ an effect that lasts to the end of the action (`life_ticks 0`, window
 reaching the last frame) keeps running across the loop. It isn't spawned
 again while it's alive, so a trail keeps flowing instead of restarting.
 Effects with a fixed life, and periodic re-emits, fire as usual on each loop.
+
+Every action also has `movement` (the Studio's **Movement** section) for
+attack and triggered actions: `"stand"` roots the fighter in place for the
+whole action; `"move"` lets it keep moving while the action plays, at
+`move_speed_pct` % of its normal speed (100 = full). `idle` always stands and
+`run` always moves, so the field is ignored for them. The engine applies it in
+Solo and Battle alike (`FXK.moveFactor(name, cfg)` gives the speed fraction).
 
 Every effect carries a `tag` (its FX type, e.g. `fireball`, `slash`) that
 other characters' `hit_by_fx` / `fx_near` conditions match against.

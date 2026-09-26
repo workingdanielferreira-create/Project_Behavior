@@ -617,6 +617,15 @@ function buildActionProps(d) {
   note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
   field(s, "Continuous FX on loop", inp("chk", cfg.fx_continuous, function (v) { cfg.fx_continuous = v; save(); syncContinuous(); })).title =
     "On: effects that last to the end of the action keep running when the animation loops, instead of restarting.";
+  s = sec(d, "Movement", "a-move", "Whether the fighter stands still while doing this action or can keep moving.", "act");
+  if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
+  else {
+    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays.";
+    if (cfg.movement === "move") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
+      "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
+    note(s, "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
+  }
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
@@ -702,10 +711,13 @@ function moveVector() {
   var spd = +$("walk").value || 0, a = (+$("moveDir").value || 0) * Math.PI / 180;
   return [Math.cos(a) * spd, Math.sin(a) * spd];
 }
+// The action's Movement setting scales the sim (idle and run keep the sim's
+// full speed so their FX can still be previewed in motion).
+function simMoveFactor() { return FXK.actionKind(S.action) === "locomotion" ? 1 : FXK.moveFactor(S.action, cfgOf(S.action)); }
 function moveFigure() {
-  var v = S.vel;
-  if (!v[0] && !v[1]) return;
-  S.figX += v[0]; S.figY += v[1];
+  var v = S.vel, f = simMoveFactor();
+  if ((!v[0] && !v[1]) || f <= 0) return;
+  S.figX += v[0] * f; S.figY += v[1] * f;
   var wrap = $("moveMode").value === "wrap";
   [0, 1].forEach(function (i) {
     var key = i ? "figY" : "figX", lim = AREA[i];
@@ -715,7 +727,7 @@ function moveFigure() {
   });
 }
 function drawMoveGuide(g, z) {
-  var v = S.vel; if (!v[0] && !v[1]) return;
+  var v = S.vel; if ((!v[0] && !v[1]) || simMoveFactor() <= 0) return;
   g.save();
   g.strokeStyle = "rgba(125,224,168,.25)"; g.lineWidth = 1 / z; g.setLineDash([4 / z, 4 / z]);
   g.strokeRect(-AREA[0], -AREA[1], AREA[0] * 2, AREA[1] * 2); g.setLineDash([]);
@@ -804,6 +816,7 @@ function draw() {
   }
   $("hud").textContent = S.action + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
+    ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
   $("frameInfo").textContent = "frame " + fr;
   placeHead();
