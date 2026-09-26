@@ -661,3 +661,13 @@ ENERGY_COLUMN_LIFE_TICKS = 40    # ticks from spawn to fully faded
 ENERGY_COLUMN_RISE_TICKS = 8     # ticks the column takes to shoot up to full height
 ENERGY_COLUMN_HEIGHT_PX  = 220.0 # px full height at position-scale 1.0
 ENERGY_COLUMN_WIDTH_PX   = 30.0  # px outer width at position-scale 1.0
+
+# ---------------------------------------------------------------------------
+# Generic hop-back (JSON `movement.hop_back`, see combat.tick_hop_back).
+# Opt-in: a character without the block is byte-identical to before.  Every
+# JSON field falls back to these.
+# ---------------------------------------------------------------------------
+HOP_BACK_TRIGGER_PX  = 110.0   # hop fires when the target is within this range
+HOP_BACK_DISTANCE_PX = 160.0   # px travelled away from the target per hop (position-scale 1.0)
+HOP_BACK_DURATION_MS = 700.0   # ms airtime; also paces the hop frame set
+HOP_BACK_COOLDOWN_MS = 900.0   # ms after landing before the next hop can fire
