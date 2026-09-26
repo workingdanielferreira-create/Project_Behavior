@@ -169,6 +169,14 @@ class AssetLibrary:
         # --- Custom characters (Character Creator pb_character JSONs) ---
         # Registers modes/tuning/LUTs and adds rasterised FrameBundles.
         # Runs in every process, so Solo and Battle see identical rosters.
+        # Characters exported from Rig Forge / FX Studio and dropped into the
+        # game folder (or the repo's drop/) are filed under characters/<name>/
+        # first, so a drop is picked up even before update_game.py organises it.
+        from . import drops as _drops
+        try:
+            _drops.organize_drops(d)
+        except Exception:
+            pass
         from . import characters as _characters
         _characters.load_all(d, self.bundles)
 

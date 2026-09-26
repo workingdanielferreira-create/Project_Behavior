@@ -286,6 +286,30 @@ def close_running_game():
     return killed
 
 
+def organize_exported_characters():
+    """File exported characters dropped into the repo (a Rig Forge
+    <name>.zip or <name>/ folder, and FX Studio's <name>.fxkit.json, at the
+    top level or in drop/) under characters/<name>/.  The logic lives in
+    laser/drops.py (the game runs it at start-up too); it is loaded by path
+    so this works even before the game's own packages import."""
+    path = os.path.join(HERE, "laser", "drops.py")
+    if not os.path.exists(path):
+        return
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("pb_drops", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        lines = mod.organize_drops(HERE)
+    except Exception as e:
+        print(f"\nCould not organise dropped characters ({e}).")
+        return
+    if lines:
+        print("\nExported characters:")
+        for line in lines:
+            print(f"  - {line}")
+
+
 def launch_game():
     """Start the game exactly like run.bat: pythonw.exe laser_cursor.pyw."""
     pythonw = os.path.join(HERE, "pythonw.exe")
@@ -335,6 +359,8 @@ def main():
     if self_updated:
         print("\nNOTE: update_game.py itself was updated — "
               "the new version will be used next run.")
+
+    organize_exported_characters()
 
     purged = purge_local_pycache()
     if purged:

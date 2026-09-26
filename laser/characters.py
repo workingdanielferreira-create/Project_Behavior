@@ -680,15 +680,124 @@ def _load_sprite_files(root_dir, sf):
         extra_sets=extra_sets or None)
 
 
-def load_all(root_dir, bundles):
-    """Scan <root>/characters/*.json, register each, add its FrameBundle."""
+# ---------------------------------------------------------------------------
+# Image characters — Rig Forge "character package" folders
+# ---------------------------------------------------------------------------
+# characters/<name>/character.json (format pb_char_pkg) + <action>_NN.png
+# keyframes, optionally with <name>.fxkit.json from FX Studio.  The package is
+# converted to the same pb_character shape the sprite_files path already
+# plays (see characters/rapid.json, authored that way by hand), so an image
+# character moves, fights and animates through exactly the code paths the
+# existing characters use, in Solo and Battle alike.  Frame timing comes from
+# each action's frame_ms; archetype decides behaviour.  A package replaces an
+# older rig-drawn characters/<name>.json of the same name.
+_PKG_CORE_SETS = {"run": "run", "idle": "idle", "attack_normal": "slash", "defend": "slide"}
+
+
+def package_to_character(man, rel_dir, fxkit=None):
+    """pb_char_pkg (+ optional pb_fxkit) -> pb_character dict for _register."""
+    img = man.get("image") or {}
+    head = float(img.get("head_px") or 58)
+    sprite_files = {"remove_bg": False}
+    actions = {}
+    for name, act in (man.get("actions") or {}).items():
+        files = [rel_dir + "/" + str(f) for f in (act.get("frames") or [])]
+        if not files:
+            continue
+        frame_ms = float(act.get("frame_ms") or 0) or (float(act.get("duration_ms") or 100 * len(files)) / len(files))
+        set_name = _PKG_CORE_SETS.get(name, name)
+        sprite_files[set_name] = {"files": files, "src_head_px": head}
+        if set_name != name:    # the core sets also play by their action name
+            sprite_files.setdefault(name, {"files": files, "src_head_px": head})
+        actions[name] = {"trigger": act.get("trigger", ""),
+                         "duration_ms": round(frame_ms * len(files), 3),
+                         "frame_ms": frame_ms,
+                         "keyframes": [{} for _ in files]}
+    char = {
+        "format": "pb_character", "version": 2,
+        "name": man.get("name", "character"),
+        "display_name": man.get("display_name") or man.get("name", "character"),
+        "description": man.get("description", ""),
+        "archetype": man.get("archetype") or "melee",
+        "predicates": man.get("predicates") or {},
+        "movement": man.get("movement") or {},
+        "stats": man.get("stats") or {},
+        "palette": man.get("palette") or {},
+        "defense": {}, "weapon": {},
+        "sprite_files": sprite_files,
+        "actions": actions,
+        # Kept for the FX runtime and anything that needs the package itself.
+        "_package": {"dir": rel_dir, "image": img, "anchors": man.get("anchors") or {},
+                     "anchor_labels": man.get("anchor_labels") or {}},
+        "_fxkit": fxkit,
+    }
+    return char
+
+
+def _find_packages(root_dir):
+    """[(key, rel_dir, man, fxkit_or_None)] for every characters/<name>/ package."""
+    out = []
     folder = os.path.join(root_dir, "characters")
+    for cj in sorted(glob.glob(os.path.join(folder, "*", "character.json"))):
+        d = os.path.dirname(cj)
+        try:
+            with open(cj, "r", encoding="utf-8-sig") as f:
+                man = json.load(f)
+        except (OSError, ValueError) as e:
+            print("Character package unreadable: %s (%s)" % (cj, e))
+            continue
+        if man.get("format") != "pb_char_pkg":
+            continue
+        key = str(man.get("name", "custom")).strip().lower().replace(" ", "_")
+        fx = None
+        for fp in [os.path.join(d, key + ".fxkit.json")] + sorted(glob.glob(os.path.join(d, "*.fxkit.json"))):
+            if os.path.exists(fp):
+                try:
+                    with open(fp, "r", encoding="utf-8-sig") as f:
+                        fx = json.load(f)
+                except (OSError, ValueError) as e:
+                    print("FX file unreadable: %s (%s)" % (fp, e))
+                break
+        rel = os.path.relpath(d, root_dir).replace(os.sep, "/")
+        out.append((key, rel, man, fx))
+    return out
+
+
+def load_packages(root_dir, bundles, packages=None):
+    """Register every image character package and add its FrameBundle."""
+    folder = os.path.join(root_dir, "characters")
+    for key, rel, man, fx in (packages if packages is not None else _find_packages(root_dir)):
+        try:
+            char = package_to_character(man, rel, fx)
+            key = _register(char)
+            bundle = _load_sprite_files(root_dir, char["sprite_files"])
+            bundles[key] = bundle
+            char["_sprite_src_paths"] = {
+                n: [os.path.join(root_dir, str(f)) for f in
+                    ((char["sprite_files"].get(n) or {}).get("files") or [])]
+                for n in ("run", "idle", "slash")}
+            thumb_path = os.path.join(folder, key + "_thumb.png")
+            if bundle.idle and not os.path.exists(thumb_path):
+                bundle.idle[0].save(thumb_path, "PNG")
+        except Exception as e:                        # never kill the game
+            print("Character package load failed for %s: %s" % (rel, e))
+
+
+def load_all(root_dir, bundles):
+    """Scan <root>/characters/*.json, register each, add its FrameBundle;
+    then the image-character packages in characters/<name>/ (a package
+    replaces a rig-drawn JSON of the same name)."""
+    folder = os.path.join(root_dir, "characters")
+    packages = _find_packages(root_dir)
+    replaced = {p[0] for p in packages}
     for path in sorted(glob.glob(os.path.join(folder, "*.json"))):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 char = json.load(f)
             if char.get("format") != "pb_character":
                 continue
+            if str(char.get("name", "custom")).strip().lower().replace(" ", "_") in replaced:
+                continue   # superseded by an image-character package
             key = _register(char)
             # sprite_source: borrow a built-in mode's .png FrameBundle
             # (e.g. "swordsman") instead of rasterising the rig — the
@@ -760,5 +869,6 @@ def load_all(root_dir, bundles):
                 _write_thumb(folder, key, frames)
         except Exception as e:                        # never kill the game
             print("Character load failed for %s: %s" % (path, e))
+    load_packages(root_dir, bundles, packages)
 
 

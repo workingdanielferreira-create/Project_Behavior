@@ -54,7 +54,26 @@ Runtime reference: `studio/fxkit.js`.
 > play `.fxkit.json` yet; that's Phase 2 (`laser/fxkit.py`, see
 > FX_KIT_SPEC.md §7).
 
-## Legacy
+## Getting a character into the game
+
+1. **Rig Forge → Export character package.** You get `<name>.zip` (or a
+   `<name>/` folder): `character.json` + the `<action>_NN.png` keyframes.
+2. **FX Studio → Save FX to folder.** You get `<name>.fxkit.json`.
+3. **Upload both to the repo's main branch** (GitHub → Add file → Upload
+   files), at the top level or into a `drop/` folder. The zip can stay zipped.
+4. **Run `update_game.bat`.** It downloads them and `laser/drops.py` files
+   them as `characters/<name>/character.json`, `characters/<name>/*.png` and
+   `characters/<name>/<name>.fxkit.json` (the game also does this at start-up).
+   A newer export of the same character replaces the old one (old keyframes
+   it no longer has are removed); if two exports of one character are in the
+   repo, the newest is used and the updater tells you to delete the other.
+5. **In the game**, press `1` / `2` to cycle to the character. It plays in
+   Solo and Battle with its keyframes, frame timing and archetype. A package
+   replaces an older rig-drawn `characters/<name>.json` of the same name.
+   FX from the `.fxkit.json` are loaded with the character; playing them in
+   game is the next Phase 2 step (`laser/fxkit.py`).
+
+
 
 `fx_creator.html` + `rig.js` / `fx_engine.js` / `character_creator.js` /
 `main.js` are the retired Character Wizard (see `WIZARD_AUDIT.md`). Its rig
