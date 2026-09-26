@@ -757,7 +757,11 @@ def package_to_character(man, rel_dir, fxkit=None, game_scale=None):
         "name": man.get("name", "character"),
         "display_name": man.get("display_name") or man.get("name", "character"),
         "description": man.get("description", ""),
-        "archetype": man.get("archetype") or "melee",
+        # The behaviour switches set in Rig Forge are used exactly as set
+        # ("new" = read the predicates block), not replaced by the archetype
+        # preset; with no switches, the archetype preset applies.
+        "archetype": "new" if isinstance(man.get("predicates"), dict) and man.get("predicates") else (man.get("archetype") or "melee"),
+        "archetype_label": man.get("archetype") or "",
         "predicates": man.get("predicates") or {},
         "movement": man.get("movement") or {},
         "stats": man.get("stats") or {},

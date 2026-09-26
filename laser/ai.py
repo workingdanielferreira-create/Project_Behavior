@@ -356,13 +356,6 @@ def battle_target(world, fig):
             fx /= mag
             fy /= mag
         eff = dist * (1.0 if fig.mode.charges_full() else p.aggression)
-        if _actions.is_image(fig):
-            # Image characters hit with FX from their attack radius, so they
-            # close only to ~60% of it (and ease back out when crowded)
-            # instead of charging into the opponent's body.
-            stand = 0.6 * float(config.MODE_CONFIGS.get(fig.mode.key, {}).get(
-                "basic_attack_radius", config.SLASH_RADIUS))
-            eff = min(eff, dist - stand)
         tx, ty = t.x + fx * eff, t.y + fy * eff
     else:
         tx, ty = ex, ey

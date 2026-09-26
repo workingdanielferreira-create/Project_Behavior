@@ -259,6 +259,20 @@ class ActionRunner:
         # Attack mode (Alt+Up) gates attacking exactly as it gates the
         # built-in fighters; defend is always allowed.
         armed = bool(getattr(world, "shoot_mode", True))
+        # A triggered action (defend, ultimate, special, ...) whose conditions
+        # are met cuts into a normal attack instead of waiting for it to end
+        # — the moment (target in range, a hit, an incoming shot) would
+        # otherwise be gone.  It never cuts into another triggered action.
+        if self.playing is not None and _kind(self.playing) == "attack":
+            names = [k for k in (fig.mode.character.get("actions") or {}) if _kind(k) == "triggered"]
+            for name in sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
+                                                      2 if k == "attack_special" else 3, k)):
+                if not armed and name != "defend":
+                    continue
+                if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
+                    self._finish(fig, now)
+                    self._start(fig, name, ctx, now)
+                    break
         if self.playing is None:
             # Triggered actions first (defend, then ultimate, special, others).
             names = [k for k in (fig.mode.character.get("actions") or {}) if _kind(k) == "triggered"]
