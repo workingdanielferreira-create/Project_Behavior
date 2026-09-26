@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit
+from . import motion, modes, config, combat, ai, fxkit, actions
 from . import platform_win as win
 from . import action_log
 
@@ -293,6 +293,11 @@ class CombatSystem(System):
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
+            # Image characters (Rig Forge + FX Studio): their own action
+            # runner plays full actions by the Studio triggers, then the FX
+            # follow the frames it shows.  Identical in Solo & Battle.
+            _img = actions.is_image(fig)
+            _rooted = actions.update(fig, world) if _img else False
             fxkit.update_figure(fig, world)       # FX Studio effects (image characters), all archetypes
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
@@ -345,6 +350,11 @@ class CombatSystem(System):
                         world.projectiles.extend(res)
                     live_clones.append(cl)
                 fig.combat.clones = live_clones
+            if _img:
+                # No built-in melee FSM: attacks are full actions whose FX
+                # (with Deals damage) are the only source of damage.
+                fig.combat.acted = _rooted
+                continue
             if not fig.mode.uses_melee():
                 fig.combat.acted = False
                 continue
@@ -1163,7 +1173,8 @@ class CollisionSystem(System):
                 # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
-                for ex, ey, edash, _eparry in world.partner_figures:
+                _pimg = getattr(world, "partner_image", None) or []
+                for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
@@ -1191,7 +1202,13 @@ class CollisionSystem(System):
                         # Body collision costs 1 HP to the TARGET only.
                         # Skip if parrying, or if the target is a swordsman
                         # mid-dash-slash (immune — handled by the FSM instead).
-                        if not fig.combat.parrying:
+                        # Image characters: their body never deals damage (their
+                        # FX do), and a plain bump never costs them HP either —
+                        # only a real attack (the opponent's dash) does.  The
+                        # push above still applies.
+                        if (_pi < len(_pimg) and _pimg[_pi]) or (actions.is_image(fig) and not edash):
+                            pass
+                        elif not fig.combat.parrying:
                             ai.apply_hp_damage(fig, world)
                         else:
                             combat.special_blocks_hit(fig)   # special-stance counter

@@ -1144,7 +1144,7 @@ class _Host:
         p.restore()
 
     def on_hit(self, inst, damage, dx, dy, knockback, key):
-        self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", "")))
+        self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", ""), inst))
 
 
 class FxDriver:

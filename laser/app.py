@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat
+from . import config, modes, systems, ai, action_log, combat, actions
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -77,6 +77,8 @@ class SideState:
                                     # (see combat.HPTClone / hp_threshold_clones)
         self.hpt_beam_ticks = 0     # shared clock driving the clones'
                                     # synchronized beam volley (combat.tick_hpt_clones)
+        self.enemy_fx = []          # opponent's live damaging FX + bullets: (x, y, tag)
+        self.partner_image = []     # per partner_figures entry: is it an image character
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
 
@@ -126,6 +128,8 @@ class World:
         self.battle_mode = False
         self.partner_figures = []
         self.enemy_projs = []
+        self.enemy_fx = []
+        self.partner_image = []
         self.intercepted_bullets = set()
 
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
@@ -406,6 +410,8 @@ class World:
         self.shot_pause_ticks = s.shot_pause_ticks
         self.intercepted_bullets = s.intercepted_bullets
         self.partner_figures = s.partner_figures
+        self.enemy_fx = s.enemy_fx
+        self.partner_image = s.partner_image
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -450,6 +456,22 @@ class World:
                     (f.x, f.y, bool(f.combat.dashing),
                      bool(f.combat.parrying))
                     for f in other.figures if f.transform.init]
+                side.partner_image = [actions.is_image(f)
+                                      for f in other.figures if f.transform.init]
+                # What the opponent has in the air that can hurt: live
+                # damaging FX instances (tagged) and bullets ("bullet") —
+                # read by the fx_near action condition.
+                efx = []
+                for f in other.figures:
+                    drv = getattr(f, "fx", None)
+                    if drv is None:
+                        continue
+                    for inst in drv.player.insts:
+                        if inst.fx["battle"]["deals_damage"] and not inst.dead:
+                            efx.append((inst.x, inst.y, inst.fx.get("tag", "")))
+                efx.extend((pr.x, pr.y, "bullet") for pr in other.projectiles
+                           if pr.alive and pr.hit_r_sq > 0.0)
+                side.enemy_fx = efx
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and
                 # splinters can never deal damage across the boundary.  The
                 # live Projectile rides along as tuple[8] so an interception
@@ -461,6 +483,8 @@ class World:
                     if pr.alive and pr.hit_r_sq > 0.0]
             else:
                 side.partner_figures = []
+                side.partner_image = []
+                side.enemy_fx = []
                 side.enemy_projs = []
                 side.intercepted_bullets.clear()
         # Deliver FX Studio hits (fxkit) landed last tick: damage and
@@ -470,7 +494,7 @@ class World:
             if not hits or not self.battle_mode:
                 continue
             other = self.sides[1 - i]
-            for (pos, dmg, dx, dy, kb, _tag) in hits:
+            for (pos, dmg, dx, dy, kb, tag, inst) in hits:
                 best = None
                 for ef in other.figures:
                     d = (ef.x - pos[0]) ** 2 + (ef.y - pos[1]) ** 2
@@ -479,6 +503,14 @@ class World:
                 if best is None or best[0] > 80.0 ** 2:
                     continue
                 ef = best[1]
+                # Defence works like it does against bullets: a parry or an
+                # image character's `defend` blocks the hit, and the FX that
+                # was blocked ends at its source (non-piercing).
+                if ef.combat.parrying or actions.blocks_hit(ef):
+                    if not inst.fx["battle"]["pierce"]:
+                        inst.age = max(inst.age, inst.life)
+                    continue
+                actions.note_fx_hit(ef, tag)
                 if dmg > 0:
                     ai.apply_hp_damage(ef, self, dmg)
                 if kb > 0:

@@ -726,6 +726,12 @@ def package_to_character(man, rel_dir, fxkit=None):
         "defense": {}, "weapon": {},
         "sprite_files": sprite_files,
         "actions": actions,
+        # Damage comes only from FX with Deals damage (laser/actions.py):
+        # the archetype's built-in shots / survival teleport / HP-threshold
+        # ultimate are off for image characters.
+        "disable_basic_attack": True,
+        "disable_survival_teleport": True,
+        "ultimate_playback": {"style": "none"},
         # Kept for the FX runtime and anything that needs the package itself.
         "_package": {"dir": rel_dir, "image": img, "anchors": man.get("anchors") or {},
                      "anchor_labels": man.get("anchor_labels") or {}},

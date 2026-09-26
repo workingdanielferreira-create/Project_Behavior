@@ -389,24 +389,53 @@ The presets only seed new FX.
    exactly on its target, where last-digit differences between JavaScript's
    and Python's trig functions can flip its turn.
 
+7. **Actions** (`laser/actions.py`, one `ActionRunner` per image fighter,
+   ticked by `CombatSystem` before its FX):
+   - Every attack or triggered action plays all its frames at `frame_ms`,
+     `anim_loops` times, through `Combatant.action_anim` / `action_idx`.
+     The sprite, FX and anchors follow it.
+   - `movement: "stand"` roots the fighter, facing the target. A knockback
+     still moves it.
+   - `movement: "move"` scales its speed to `move_speed_pct` while the
+     action plays.
+   - **Attacks.** The archetype decides when: melee inside
+     `basic_attack_radius`, shooters from `max(radius, 420 px)`. Attacks are
+     at least 350 ms apart, or `cooldown_ms`. `chain_next` continues the
+     combo when the next attack starts within `chain_reset_ms`.
+   - **Triggered actions** (defend first, then ultimate, attack_special,
+     others) play when their conditions pass (ANY / ALL), no more often
+     than `cooldown_ms`. With no conditions, an action never triggers.
+   - **Conditions:**
+     - `hp_below`: once per crossing unless `repeat`.
+     - `attacks_made` / `hits_taken`: counted since that action last fired.
+     - `target_within` / `target_beyond`: distance to the target.
+     - `hit_by_fx`: tags of hits taken this tick. An FX hit carries its
+       tag; any other hit counts as "".
+     - `fx_near`: the opponent's live damaging FX and bullets (tag
+       "bullet") within px, from `SideState.enemy_fx`, rebuilt each tick by
+       `refresh_battle`.
+     - `bullet_deflected`: a parry just started.
+     - `after_actions`: the last completed actions, in order.
+   - Attack mode (Alt+Up) gates attacks and triggered actions exactly as it
+     gates the built-in fighters. `defend` always works.
+8. **Damage is FX only.** For image characters:
+   - The loader sets `disable_basic_attack`, `disable_survival_teleport` and
+     `ultimate_playback.style: none`.
+   - `CombatSystem` skips the melee dash-slash FSM.
+   - Their body never deals contact damage, and a plain bump never costs
+     them HP. The opponent's dash still does.
+   - In Battle they close only to ~60% of their attack radius instead of
+     charging into the opponent.
+9. **Defence.** While `defend` plays, every incoming hit is blocked: FX,
+   bullets (no knockback either) and contact. An FX hit on a parrying or
+   defending fighter is blocked, and a non-piercing FX that was blocked
+   ends at its source.
+
 **Still to do:**
 
-- **Full actions.** Play every frame of an action at `frame_ms`, and hold the
-  fighter in it until it ends. Honour `movement` / `move_speed_pct` and
-  `anim_loops`. Today the archetype's own attack FSM decides which frame is
-  shown (e.g. the slash frames advance with the dash-slash).
-- **Action triggers.** Extend `ai.evaluate_activation_triggers` with:
-  - `action_settings`, ANY/ALL logic and cooldowns;
-  - the condition types and FX tags;
-  - attack chains.
-
-  `attack_special` / `ultimate` / other actions then play by those triggers.
-- **Archetype damage off.** For image characters, turn off the archetype's
-  built-in hit and projectile damage, so only FX with Deals damage hurt.
-- **Defence against FX.** Add an `enemy_fx` snapshot of the opponent's live
-  damaging instances, so parry, block, petals and deflect act on them. A
-  blocked instance is ended at its source, and `hit_by_fx` / `fx_near` read
-  the snapshot.
+- Parry reflection, petals and deflect crescents acting on FX instances
+  directly. Today they block FX hits; they don't yet destroy FX in flight
+  the way they destroy bullets.
 
 `pb_fxkit` v1 files (`joint_track` in rig units, from the earlier rig-based
 Studio) are superseded by v2 image-px `anchors`.

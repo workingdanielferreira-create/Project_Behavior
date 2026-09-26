@@ -72,8 +72,11 @@ Runtime reference: `studio/fxkit.js`.
    replaces an older rig-drawn `characters/<name>.json` of the same name.
    Its FX from the `.fxkit.json` play in game through `laser/fxkit.py`,
    locked to the frames on screen, and effects with Deals damage hurt the
-   opponent in Battle. Triggered actions (special, ultimate…) and full-length
-   action playback are still to come.
+   opponent in Battle. `laser/actions.py` plays every action at full length
+   (Movement, Animation loops) and fires attacks, chains and triggered
+   actions from the Studio's action settings. Turn attack mode on (Alt+Up)
+   for fighters to attack, the same as the built-ins. Only FX deal damage
+   for these characters, and `defend` blocks incoming hits.
 
 
 

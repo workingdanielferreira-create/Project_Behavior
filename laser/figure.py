@@ -18,7 +18,7 @@ from .components import (Transform, MotionState, TrailComponent,
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx")
+                 "screen_w", "screen_h", "fx", "act")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -44,6 +44,7 @@ class Figure:
         self.combat = Combatant()
         self.personality = Personality(mode.key)
         self.fx = None   # fxkit.FxDriver for image characters with an FX file
+        self.act = None  # actions.ActionRunner for image characters
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -70,6 +71,7 @@ class Figure:
         self.render.afterimage_rgb = spd.get("afterimage_rgb")
         self.render.set_bundle(bundle)
         self.fx = None
+        self.act = None
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")
