@@ -40,7 +40,7 @@ these characters; it plays the PNGs.
   "anchors": {"attack_normal": {"haR": [[x, y], "... one per frame"], "wtip": []}},
   "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
-                                    "chain_next": "", "chain_reset_ms": 1000}},
+                                    "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false}},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -65,6 +65,13 @@ these characters; it plays the PNGs.
 | `fx_near` | `tags`, `px` | an enemy FX with a listed tag comes within px |
 | `bullet_deflected` | — | this character just deflected a bullet |
 | `after_actions` | `sequence` | just completed these actions in order (comma separated) |
+
+Every action also has `fx_continuous` (the Studio's **continuous FX** toggle).
+When the action loops (idle, run, or any action that repeats) and this is on,
+an effect that lasts to the end of the action (`life_ticks 0`, window
+reaching the last frame) keeps running across the loop. It isn't spawned
+again while it's alive, so a trail keeps flowing instead of restarting.
+Effects with a fixed life, and periodic re-emits, fire as usual on each loop.
 
 Every effect carries a `tag` (its FX type, e.g. `fireball`, `slash`) that
 other characters' `hit_by_fx` / `fx_near` conditions match against.

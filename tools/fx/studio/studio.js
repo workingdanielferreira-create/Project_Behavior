@@ -347,7 +347,8 @@ function ingestPresets(o) {
 }
 
 // ------------------------------------------------------------ lists
-function rebuild() { buildActions(); buildAnchors(); buildEffects(); buildProps(); buildTimeline(); }
+function rebuild() { buildActions(); buildAnchors(); buildEffects(); buildProps(); buildTimeline(); syncContinuous(); }
+function syncContinuous() { var c = $("contFx"); if (c) c.checked = !!(C && S.action && cfgOf(S.action).fx_continuous); }
 function buildActions() {
   var d = $("actions"); d.innerHTML = "";
   if (!C) return;
@@ -570,6 +571,8 @@ function buildActionProps(d) {
     : kind === "attack" ? "The archetype decides when to attack. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
   note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
+  field(s, "Continuous FX on loop", inp("chk", cfg.fx_continuous, function (v) { cfg.fx_continuous = v; save(); syncContinuous(); })).title =
+    "On: effects that last to the end of the action keep running when the animation loops, instead of restarting.";
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)");
@@ -639,7 +642,7 @@ function step(allowWrap) {
   if (!C) return;
   var walk = +$("walk").value || 0;
   if (walk) { S.figX += walk * S.walkDir; if (Math.abs(S.figX) > 160) S.walkDir *= -1; }
-  player.tick(actionEffects(), host, S.t, frames(), frameMs());
+  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: $("loop").checked && !!cfgOf(S.action).fx_continuous});
   S.t += 1;
   if (S.t >= totalTicks() && allowWrap && $("loop").checked) { S.t = 0; S.dealt = 0; S.hits = []; }
 }
@@ -726,6 +729,11 @@ $("newPrim").innerHTML = FXK.PRIMS.map(function (p) { return "<option>" + p + "<
 $("bOpen").onclick = pickFolder;
 $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.files); this.value = ""; if (l.length) openFiles(l, null); };
 $("bSave").onclick = saveFx;
+$("contFx").onchange = function () {
+  if (!C) { this.checked = false; return; }
+  cfgOf(S.action).fx_continuous = this.checked; save(); buildProps();
+  toast(this.checked ? "FX keep running when " + S.action + " loops" : "FX restart each time " + S.action + " loops");
+};
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");

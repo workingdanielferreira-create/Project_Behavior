@@ -200,7 +200,10 @@ var CONDITION_TYPES = {
   bullet_deflected: {},                                // this character just deflected a bullet
   after_actions: {sequence: ""}                        // just completed these actions in order, comma separated
 };
-var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000};
+// fx_continuous: when the action loops (idle, run, a held action), effects
+// that last to the end of the action keep running across the loop instead
+// of ending and starting again.
+var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false};
 function actionKind(name) {
   if (name === "idle" || name === "run") return "locomotion";
   if (/^attack_normal/.test(name)) return "attack";
@@ -685,18 +688,28 @@ Player.prototype.window = function (fx, frames, frameMs) {
 };
 // Advance one tick.  `t` counts ticks since the action started (it wraps
 // when the action loops; instances already alive keep running).
-Player.prototype.tick = function (effects, host, t, frames, frameMs) {
-  var self = this;
+// opts.continuous (the action's fx_continuous while it loops): an "open"
+// instance (life 0 = to the end, window reaching the action's end) is kept
+// alive across the loop, and its effect is not spawned again while it lives.
+Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
+  var self = this, cont = !!(opts && opts.continuous);
   effects.forEach(function (fx) {
     if (!fx.enabled) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
-    var fire = t === s || (fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0);
+    var periodic = fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0;
+    var fire = t === s || periodic;
     if (!fire) return;
+    var open = fx.life_ticks <= 0 && e >= w[2];
+    if (cont && open && !periodic && self.insts.some(function (q) { return q.fx === fx && q.open && !q.dead; })) return;
     var n = Math.max(1, trunc(fx.emit.count)), win = e - t;
-    for (var i = 0; i < n; i++)
-      self.insts.push(spawn(fx, host, win, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B)) >>> 0, i, n));
+    for (var i = 0; i < n; i++) {
+      var inst = spawn(fx, host, win, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B)) >>> 0, i, n);
+      inst.open = open;
+      self.insts.push(inst);
+    }
   });
   var ps = host.pscale || 1;
+  if (cont) this.insts.forEach(function (inst) { if (inst.open && inst.age < inst.life) inst.life = Math.max(inst.life, inst.age + 2); });
   this.insts.forEach(function (inst) { tickInst(inst, host); resolveHits(inst, host, ps); });
   this.insts = this.insts.filter(function (i) { return !i.dead; });
 };

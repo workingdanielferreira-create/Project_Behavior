@@ -110,6 +110,7 @@ main{display:flex;flex-direction:column;min-width:0}
     <button id="bPlay">▶ Play</button>
     <button id="bPrev">◀ frame</button><button id="bNext">frame ▶</button>
     <label><input type="checkbox" id="loop" checked> loop</label>
+    <label title="Per action: effects that last to the end of the action keep running when the animation loops, instead of restarting (saved with the character, the game does the same)"><input type="checkbox" id="contFx"> continuous FX</label>
     <label>speed <select id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option></select></label>
     <label>facing <select id="facing"><option value="1">right</option><option value="-1">left</option></select></label>
     <label>move <input type="number" id="walk" value="0" step="0.5" title="Preview movement, px per tick (the figure walks back and forth)"></label>
