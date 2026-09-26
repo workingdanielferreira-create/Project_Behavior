@@ -8022,7 +8022,7 @@
   },
   "defend": {
    "logic": "any",
-   "cooldown_ms": 0,
+   "cooldown_ms": 2000,
    "conditions": [
     {
      "type": "hits_taken",
@@ -8042,7 +8042,7 @@
    "conditions": [
     {
      "type": "target_within",
-     "px": 30
+     "px": 80
     }
    ],
    "chain_next": "",
@@ -8381,5 +8381,5 @@
    }
   }
  ],
- "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"
+ "spec": "tools/fx/FX_KIT_SPEC.md \u2014 runtime reference tools/fx/studio/fxkit.js"
 }
