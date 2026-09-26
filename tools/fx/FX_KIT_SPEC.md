@@ -38,9 +38,36 @@ these characters; it plays the PNGs.
   "palette_lut": {"built_from": ["palette.body", "palette.accent"], "rule": "palette.build_lut([body, accent])"},
   "anchor_labels": {"haR": "near hand", "wtip": "weapon tip", "muzzle": "gun muzzle"},
   "anchors": {"attack_normal": {"haR": [[x, y], "... one per frame"], "wtip": []}},
+  "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
+                                    "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
+                                    "chain_next": "", "chain_reset_ms": 1000}},
   "effects": [ { "...": "section 3" } ]
 }
 ```
+
+### When each action plays (`action_settings`)
+- **`idle` / `run`**: locomotion (standing still / moving). No conditions.
+- **Attack actions (`attack_normal*`)**: the archetype decides when to
+  attack. `chain_next` names the next attack in a combo (e.g.
+  `attack_normal → attack_normal_2 → attack_normal_3`). The chain resets
+  after `chain_reset_ms` without attacking.
+- **Every other action** (`defend`, `deflect`, `attack_special`, `ultimate`,
+  …) fires when its `conditions` are met: `logic: "any"` (OR) or `"all"`
+  (AND), no more often than every `cooldown_ms`. Condition types:
+
+| type | fields | met when |
+|---|---|---|
+| `hp_below` | `pct`, `repeat` | own HP ≤ pct % (once per crossing unless `repeat`) |
+| `attacks_made` | `count` | N attacks made since this action last fired |
+| `hits_taken` | `count` | hit N times since this action last fired |
+| `target_within` / `target_beyond` | `px` | target closer / further than px |
+| `hit_by_fx` | `tags` | hit by an enemy FX whose `tag` is listed (empty = any) |
+| `fx_near` | `tags`, `px` | an enemy FX with a listed tag comes within px |
+| `bullet_deflected` | — | this character just deflected a bullet |
+| `after_actions` | `sequence` | just completed these actions in order (comma separated) |
+
+Every effect carries a `tag` (its FX type, e.g. `fireball`, `slash`) that
+other characters' `hit_by_fx` / `fx_near` conditions match against.
 
 ## 2. Space and time
 
@@ -75,7 +102,7 @@ these characters; it plays the PNGs.
 
 ```json
 {
-  "id": "E…", "name": "Blade trail", "action": "attack_normal", "enabled": true,
+  "id": "E…", "name": "Blade trail", "tag": "slash", "action": "attack_normal", "enabled": true,
   "prim": "ribbon",
   "start_frame": 0, "end_frame": -1, "life_ticks": 0,
   "emit": {"every_ticks": 0, "count": 1, "fan_deg": 0},
@@ -260,20 +287,10 @@ decisions are agreed:
    - Damage goes through `ai.apply_hp_damage(amount=damage)`, and knockback
      through `hit_pending/hit_vx/hit_vy`.
    - Solo: the target is the cursor.
-6. **Action triggers.** Your mapping:
-   - `idle` = standing still
-   - `run` = moving
-   - `attack_normal` = each melee slash or shot, or a sequence
-   - `defend` = block when hit by, or approached by, a chosen FX type
-   - `deflect` = bullet deflected or counter-attack, on the same kinds of
-     condition
-   - `attack_special` / `ultimate` = configurable conditions: HP thresholds,
-     N attacks made, N hits taken, target or self proximity, a completed
-     action sequence
-
-   These will be authored per action in the Studio and evaluated by the game
-   (extending `ai.evaluate_activation_triggers`). The details are still open;
-   see the next design round.
+6. **Action triggers** are authored in the Studio (`action_settings` above)
+   and evaluated by the game, extending `ai.evaluate_activation_triggers` with
+   ANY/ALL logic, the new condition types, FX tags (read from the opponent's
+   `enemy_fx` snapshot) and attack chains.
 7. **Parity test.** Render one character folder in headless Chromium
    (`fxkit.js`) and in offscreen Qt (`fxkit.py`) at fixed ticks, and diff the
    frames with a tolerance for antialiasing. Also compare the per-tick hit

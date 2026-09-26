@@ -17,7 +17,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
 var C = null;
-var S = {effects: [], anchors: {}, labels: {}, action: null, sel: null, selAnchor: null, place: false,
+var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -37,7 +37,8 @@ function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
 function imgScale() { return TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
-function save() { if (C) lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action}); }
+function save() { if (C) lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg}); }
+function cfgOf(a) { return (S.actionCfg[a] = FXK.normalizeAction(S.actionCfg[a])); }
 function anchorIds() { return Object.keys(S.labels); }
 
 // ------------------------------------------------------------ anchors
@@ -158,8 +159,10 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   S.anchors = clone((src && src.anchors) || (man && man.anchors) || {});
   if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
   S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
+  S.actionCfg = clone((src && src.action_settings) || {});
   if (local && pack && !confirm("You have unsaved Studio work for " + name + " in this browser. Keep it? (Cancel loads " + name + ".fxkit.json from the folder instead.)")) {
     S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
+    S.actionCfg = clone(pack.action_settings || {});
   }
   var names = Object.keys(acts);
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
@@ -198,6 +201,7 @@ function packData() {
     timing: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, {frame_ms: C.actions[k].frame_ms, frames: C.actions[k].images.length}]; })),
     palette_lut: {built_from: ["palette.body", "palette.accent"], rule: "palette.build_lut([body, accent])"},
     anchor_labels: S.labels, anchors: anchors,
+    action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -373,9 +377,11 @@ function anchorOptions(withSpecial) {
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = "";
   var fx = selFx();
-  if (!fx) { d.className = "note"; d.textContent = C ? "Select an effect, or add one from a primitive or a preset." : "Open a character folder to begin."; return; }
+  if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
   var s = sec(d, "Effect");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
+  field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
+    "What kind of FX this is (e.g. fireball, slash, beam). Other characters' defend / deflect triggers react to these tags.";
   field(s, "Primitive", inp(FXK.PRIMS, fx.prim, function (v) { fx.prim = v; fx.params = {}; FXK.normalize(fx); buildEffects(); changed(true); }));
   if (fx.prim !== "weapon") {
     field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"]], fx.layer, function (v) { fx.layer = v; changed(); }));
@@ -458,6 +464,50 @@ function buildProps() {
   var r = document.createElement("div"); r.className = "row";
   var b = document.createElement("button"); b.textContent = "Save as preset…"; b.onclick = savePreset; r.appendChild(b);
   d.appendChild(r);
+}
+
+var COND_LABEL = {hp_below: "own HP at or below %", attacks_made: "after N attacks made", hits_taken: "after N hits taken",
+  target_within: "target closer than px", target_beyond: "target further than px", hit_by_fx: "hit by FX tagged",
+  fx_near: "enemy FX tagged … within px", bullet_deflected: "a bullet was deflected", after_actions: "after completing actions in order"};
+var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 100, 1], px: ["Distance px", 1, 2000, 1],
+  tags: ["Tags (comma, empty = any)", "text"], sequence: ["Actions (comma separated)", "text"], repeat: ["Repeat on cooldown", "chk"]};
+// Right panel when no effect is selected: WHEN this action plays.
+function buildActionProps(d) {
+  var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
+  var s = sec(d, "Action: " + a);
+  note(s, kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
+    : kind === "attack" ? "The archetype decides when to attack. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
+    : "Plays when its conditions are met, then runs in full.");
+  note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
+  if (kind === "locomotion") return;
+  if (kind === "attack") {
+    s = sec(d, "Attack chain (combo)");
+    var others = [["", "— none (every attack plays " + a + ") —"]].concat(Object.keys(C.actions).filter(function (k) { return k !== a && FXK.actionKind(k) === "attack"; }).map(function (k) { return [k, k]; }));
+    field(s, "Next attack", inp(others, cfg.chain_next, function (v) { cfg.chain_next = v; save(); buildProps(); }));
+    field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
+    if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
+    return;
+  }
+  s = sec(d, "Trigger conditions");
+  field(s, "Fire when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], cfg.logic, function (v) { cfg.logic = v; save(); }));
+  field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50));
+  cfg.conditions.forEach(function (c, i) {
+    var box = sec(d, (i + 1) + ". " + COND_LABEL[c.type]);
+    Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) {
+      var u = COND_FIELDS[k];
+      field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
+        : u[1] === "chk" ? inp("chk", c[k], function (v) { c[k] = v; save(); })
+        : inp("n", c[k], function (v) { c[k] = v; save(); }, u[1], u[2], u[3]));
+    });
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { cfg.conditions.splice(i, 1); save(); buildProps(); };
+    box.appendChild(rm);
+  });
+  var row = document.createElement("div"); row.className = "row";
+  var sel = inp(Object.keys(FXK.CONDITION_TYPES).map(function (k) { return [k, COND_LABEL[k]]; }), "hp_below", function () {});
+  var add = document.createElement("button"); add.textContent = "+ Condition";
+  add.onclick = function () { cfg.conditions.push(FXK.normalizeAction({conditions: [{type: sel.value}]}).conditions[0]); save(); buildProps(); };
+  row.appendChild(sel); row.appendChild(add); d.appendChild(row);
+  if (!cfg.conditions.length) note(d, "No conditions yet: this action never fires on its own.");
 }
 
 // ------------------------------------------------------------ timeline

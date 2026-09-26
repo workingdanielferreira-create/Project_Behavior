@@ -182,6 +182,36 @@ var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offs
 // Damage settings (fx.battle).  damage is HP per hit, matching
 // ai.apply_hp_damage(amount) — every built-in attack deals 1.
 var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0};
+// Per-action settings (pack.action_settings[action]).  WHEN an action plays:
+//   idle / run      locomotion (standing still / moving), no conditions
+//   attack actions  the archetype decides when to attack; `chain_next` makes
+//                   attacks run as a combo (attack_normal -> attack_normal_2 ...)
+//                   that resets after `chain_reset_ms` without attacking
+//   other actions   fire when their conditions are met (ANY or ALL), no more
+//                   often than every `cooldown_ms`
+var CONDITION_TYPES = {
+  hp_below:      {pct: 50, repeat: false},             // own HP <= pct % (once per crossing unless repeat)
+  attacks_made:  {count: 3},                           // after N attacks since this action last fired
+  hits_taken:    {count: 3},                           // after being hit N times since it last fired
+  target_within: {px: 80},                             // target closer than px
+  target_beyond: {px: 200},                            // target further than px
+  hit_by_fx:     {tags: ""},                           // hit by an enemy FX with one of these tags ("" = any)
+  fx_near:       {tags: "", px: 60},                   // an enemy FX with one of these tags comes within px
+  bullet_deflected: {},                                // this character just deflected a bullet
+  after_actions: {sequence: ""}                        // just completed these actions in order, comma separated
+};
+var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000};
+function actionKind(name) {
+  if (name === "idle" || name === "run") return "locomotion";
+  if (/^attack_normal/.test(name)) return "attack";
+  return "triggered";
+}
+function normalizeAction(cfg) {
+  cfg = fill(cfg || {}, ACTION_DEFAULTS);
+  cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+    .map(function (c) { return fill(c, CONDITION_TYPES[c.type]); });
+  return cfg;
+}
 var _eid = 1;
 function newEffect(prim, action) {
   return normalize({id: "E" + Date.now().toString(36) + (_eid++), name: prim, action: action || "idle",
@@ -191,7 +221,7 @@ function fill(dst, def) { for (var k in def) if (dst[k] === undefined) dst[k] = 
 // Fill every missing field with its default so exported files are explicit.
 function normalize(fx) {
   if (PRIMS.indexOf(fx.prim) < 0) fx.prim = "glow";
-  fill(fx, {name: fx.prim, enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0,
+  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0,
     anchor: "figure", offset: [0, 0], layer: "front", blend: "normal"});
   fx.emit = fill(fx.emit || {}, {every_ticks: 0, count: 1, fan_deg: 0});
   fx.motion = fill(fx.motion || {}, MOTION_DEFAULTS);
@@ -677,5 +707,6 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  newEffect: newEffect, normalize: normalize, Player: Player, bulletSprite: bulletSprite};
+  newEffect: newEffect, normalize: normalize, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
+  actionKind: actionKind, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
