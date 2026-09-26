@@ -403,9 +403,19 @@ function buildEffects() {
   var d = $("effects"); d.innerHTML = "";
   actionEffects().forEach(function (fx) {
     var el = document.createElement("div"); el.className = fx.id === S.sel ? "sel" : "";
-    el.innerHTML = '<input type="checkbox"><span class="n"></span><span class="m"></span><span class="x" title="Duplicate">⧉</span><span class="x" title="Delete">✕</span>';
-    var cb = el.querySelector("input"); cb.checked = fx.enabled;
+    el.innerHTML = '<input type="checkbox"><span class="n"></span><span class="m"></span><span class="ct"></span><span class="x" title="Duplicate">⧉</span><span class="x" title="Delete">✕</span>';
+    var cb = el.querySelector("input"); cb.checked = fx.enabled; cb.title = "Enabled";
     cb.onclick = function (ev) { ev.stopPropagation(); fx.enabled = cb.checked; resetSim(S.t); save(); };
+    // Continuous toggle: the effect keeps producing, never resetting.
+    var ct = el.querySelector(".ct"), can = FXK.canContinue(fx);
+    ct.textContent = "∞"; ct.className = "ct" + (fx.continuous && can ? " on" : "") + (can ? "" : " off");
+    ct.title = can ? (fx.continuous ? "Continuous: ON — keeps producing without resetting (click to turn off)" : "Continuous: off — click so it keeps producing without resetting (e.g. an always-on laser trail)")
+      : "Continuous is for effects that stay on the fighter (attached, static or orbit motion, not arcs)";
+    ct.onclick = function (ev) {
+      ev.stopPropagation();
+      if (!can) return toast("Continuous needs attached, static or orbit motion (not arcs)");
+      fx.continuous = !fx.continuous; buildEffects(); changed(true);
+    };
     el.querySelector(".n").textContent = fx.name;
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
     el.title = fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages";
@@ -463,7 +473,27 @@ function inp(kind, val, onch, a, b, st) {
   e.type = "number"; e.value = val; if (a != null) e.min = a; if (b != null) e.max = b; if (st) e.step = st;
   e.oninput = function () { var v = parseFloat(e.value); if (isFinite(v)) onch(v); }; return e;
 }
-function sec(parent, title) { var s = document.createElement("div"); s.className = "sec"; var b = document.createElement("b"); b.textContent = title; s.appendChild(b); parent.appendChild(s); return s; }
+// A collapsible settings section.  `key` names it for the remembered
+// open/closed state, `desc` says in one line what the section controls, and
+// `scope` colours it: "fx" = this one effect, "act" = the whole action.
+function sec(parent, title, key, desc, scope) {
+  var s = document.createElement("details"); s.className = "sec " + (scope || "fx"); s.open = true;
+  var lk = "pbfxstudio.v1.psec." + (key || title);
+  if (lsGet(lk) === false) s.open = false;
+  s.addEventListener("toggle", function () { lsSet(lk, s.open); });
+  var sm = document.createElement("summary"), b = document.createElement("b"); b.textContent = title; sm.appendChild(b); s.appendChild(sm);
+  if (desc) { var p = document.createElement("div"); p.className = "desc"; p.textContent = desc; s.appendChild(p); }
+  parent.appendChild(s); return s;
+}
+// Top-of-panel banner: which thing the settings below belong to.
+function banner(d, scope, label, name, sub, action) {
+  var b = document.createElement("div"); b.className = "banner " + scope;
+  var t = document.createElement("div"); t.className = "bk"; t.textContent = label; b.appendChild(t);
+  var n = document.createElement("div"); n.className = "bn"; n.textContent = name; b.appendChild(n);
+  if (sub) { var u = document.createElement("div"); u.className = "bs"; u.textContent = sub; b.appendChild(u); }
+  if (action) { var a = document.createElement("button"); a.textContent = action[0]; a.onclick = action[1]; b.appendChild(a); }
+  d.appendChild(b);
+}
 function note(parent, text) { var n = document.createElement("div"); n.className = "note"; n.textContent = text; parent.appendChild(n); }
 function changed(rebuildProps) { resetSim(S.t); buildTimeline(); save(); if (rebuildProps) buildProps(); }
 function anchorOptions(withSpecial) {
@@ -475,7 +505,9 @@ function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = "";
   var fx = selFx();
   if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
-  var s = sec(d, "Effect");
+  banner(d, "fx", "Editing one effect", fx.name + "  ·  " + fx.prim, "Plays on the " + fx.action + " action. The sections below change this effect only.",
+    ["Action settings for " + fx.action, function () { S.sel = null; buildEffects(); buildProps(); buildTimeline(); }]);
+  var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
   field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
     "What kind of FX this is (e.g. fireball, slash, beam). Other characters' defend / deflect triggers react to these tags.";
@@ -486,7 +518,7 @@ function buildProps() {
   }
   field(s, "Action", inp(Object.keys(C.actions), fx.action, function (v) { fx.action = v; S.action = v; rebuild(); resetSim(0); save(); }));
 
-  s = sec(d, "Purpose");
+  s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   else {
@@ -500,7 +532,12 @@ function buildProps() {
     } else note(s, fx.prim === "weapon" ? "The weapon doesn't damage in this window." : "Visual only — this FX never damages.");
   }
 
-  s = sec(d, "Timing (frames of " + fx.action + ": 0–" + (frames() - 1) + ")");
+  s = sec(d, "Timing (frames of " + fx.action + ": 0–" + (frames() - 1) + ")", "timing", "When it plays within the action's frames, how long each copy lives and how often it re-emits.");
+  var canC = FXK.canContinue(fx), isC = canC && fx.continuous;
+  if (canC) field(s, "∞ Continuous", inp("chk", fx.continuous, function (v) { fx.continuous = v; buildEffects(); changed(true); })).title =
+    "On: starts at the start frame and never stops or resets while the action plays, loop after loop (an always-on laser trail). End frame, life and re-emit are ignored and it doesn't fade out.";
+  else note(s, "Continuous (∞) is available for effects that stay on the fighter: attached, static or orbit motion, not arcs.");
+  if (isC) note(s, "∞ Continuous is on: it starts at the start frame and keeps producing without resetting. End frame, life and re-emit below are ignored.");
   field(s, "Start frame", inp("n", fx.start_frame, function (v) { fx.start_frame = Math.max(0, Math.round(v)); changed(); }, 0, frames() - 1, 1));
   field(s, "End frame (-1 = end)", inp("n", fx.end_frame, function (v) { fx.end_frame = Math.round(v); changed(); }, -1, frames() - 1, 1));
   if (fx.prim !== "weapon") {
@@ -510,7 +547,8 @@ function buildProps() {
     field(s, "Fan ° (count > 1)", inp("n", fx.emit.fan_deg, function (v) { fx.emit.fan_deg = v; changed(); }, 0, 360, 1));
   }
 
-  s = sec(d, fx.prim === "weapon" ? "Hitbox (from anchor → to anchor)" : "Anchor");
+  s = sec(d, fx.prim === "weapon" ? "Hitbox (from anchor → to anchor)" : "Anchor", "anchor",
+    fx.prim === "weapon" ? "The two character anchors the hitbox runs between, frame by frame." : "Where on the character it starts: one of the anchors listed on the left, plus an offset.");
   field(s, fx.prim === "weapon" ? "From anchor" : "Joint", inp(anchorOptions(fx.prim !== "weapon"), fx.anchor, function (v) { fx.anchor = v; changed(); }));
   if (fx.prim !== "weapon") {
     field(s, "Offset X px", inp("n", fx.offset[0], function (v) { fx.offset[0] = v; changed(); }, -500, 500, 0.5));
@@ -518,7 +556,7 @@ function buildProps() {
   }
 
   if (fx.prim !== "weapon") {
-    s = sec(d, "Motion");
+    s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags or orbits.");
     field(s, MOTION_UI.kind[0], inp(MOTION_UI.kind[1], fx.motion.kind, function (v) { fx.motion.kind = v; changed(true); }));
     MOTION_KEYS[fx.motion.kind].forEach(function (k) {
       var u = MOTION_UI[k];
@@ -527,7 +565,7 @@ function buildProps() {
         : inp("n", fx.motion[k], function (v) { fx.motion[k] = v; changed(); }, u[1], u[2], u[3]));
     });
 
-    s = sec(d, "Colour");
+    s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;
     field(s, "Source", inp([["palette", "character palette (LUT)"], ["gradient", "two-colour gradient"], ["solid", "solid"]], c.mode, function (v) { c.mode = v; changed(true); }));
     if (c.mode === "palette") {
@@ -549,7 +587,7 @@ function buildProps() {
     }
   }
 
-  s = sec(d, fx.prim + " parameters");
+  s = sec(d, fx.prim + " shape", "params", "Size and look settings that belong to the " + fx.prim + " primitive.");
   PARAM_UI[fx.prim].forEach(function (u) {
     var k = u[0], kind = u[2];
     field(s, u[1], Array.isArray(kind) ? inp(kind, fx.params[k], function (v) { fx.params[k] = v; changed(); })
@@ -571,7 +609,8 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 100, 1], px: ["
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
-  var s = sec(d, "Action: " + a);
+  banner(d, "act", "Action settings", a, "Applies to the whole action and every effect on it. Select an effect on the left or on the timeline to edit that effect.");
+  var s = sec(d, "When it plays", "a-when", "What starts this action in the game, and how long it runs.", "act");
   note(s, kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
     : kind === "attack" ? "The archetype decides when to attack. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
@@ -580,18 +619,18 @@ function buildActionProps(d) {
     "On: effects that last to the end of the action keep running when the animation loops, instead of restarting.";
   if (kind === "locomotion") return;
   if (kind === "attack") {
-    s = sec(d, "Attack chain (combo)");
+    s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
     var others = [["", "— none (every attack plays " + a + ") —"]].concat(Object.keys(C.actions).filter(function (k) { return k !== a && FXK.actionKind(k) === "attack"; }).map(function (k) { return [k, k]; }));
     field(s, "Next attack", inp(others, cfg.chain_next, function (v) { cfg.chain_next = v; save(); buildProps(); }));
     field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
     if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
     return;
   }
-  s = sec(d, "Trigger conditions");
+  s = sec(d, "Trigger conditions", "a-trig", "The conditions that start this action, how they combine, and the cooldown.", "act");
   field(s, "Fire when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], cfg.logic, function (v) { cfg.logic = v; save(); }));
   field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50));
   cfg.conditions.forEach(function (c, i) {
-    var box = sec(d, (i + 1) + ". " + COND_LABEL[c.type]);
+    var box = sec(d, "Condition " + (i + 1) + ": " + COND_LABEL[c.type], "a-cond", null, "act");
     Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) {
       var u = COND_FIELDS[k];
       field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
@@ -624,10 +663,12 @@ function buildTimeline() {
     var w = player.window(fx, n, frameMs());
     var b = document.createElement("div"); b.className = "tlbar" + (fx.id === S.sel ? " sel" : "") + (fx.battle.deals_damage ? " dmg" : "");
     // Bar = the emission window; a one-shot with a fixed life shows that life.
-    var span = (fx.life_ticks > 0 && !(fx.emit.every_ticks > 0)) ? fx.life_ticks : w[1] - w[0];
+    var cont = FXK.isContinuous(fx);
+    if (cont) b.className += " cont";
+    var span = cont ? total - w[0] : (fx.life_ticks > 0 && !(fx.emit.every_ticks > 0)) ? fx.life_ticks : w[1] - w[0];
     b.style.left = (w[0] / total * W) + "px"; b.style.width = Math.max(4, span / total * W) + "px";
     b.title = fx.name + " — " + fx.prim + ", starts frame " + fx.start_frame;
-    b.style.top = (18 + row * 15) + "px"; b.style.opacity = fx.enabled ? 1 : 0.4; b.textContent = fx.name;
+    b.style.top = (18 + row * 15) + "px"; b.style.opacity = fx.enabled ? 1 : 0.4; b.textContent = (cont ? "∞ " : "") + fx.name;
     b.dataset.fx = fx.id;   // selected on release by the timeline's pointer handler
     tl.appendChild(b);
   });

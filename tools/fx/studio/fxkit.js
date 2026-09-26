@@ -215,6 +215,20 @@ function normalizeAction(cfg) {
     .map(function (c) { return fill(c, CONDITION_TYPES[c.type]); });
   return cfg;
 }
+// fx.continuous: the effect never stops producing while its action plays,
+// loop after loop (a laser trail that is always on).  One instance is kept
+// alive with no end (it restarts only if something ends it, e.g. a
+// non-piercing hit); End frame / Life ticks / Emit every are ignored and it
+// does not fade out.  Only for effects that stay on the fighter (attached,
+// static or orbit motion) and are not arcs; travelling shots and crescents
+// are one-shots, so the flag does nothing for them.
+function canContinue(fx) {
+  return fx.prim !== "arc" && ["attached", "static", "orbit"].indexOf(fx.motion.kind) >= 0;
+}
+function isContinuous(fx) { return !!fx.continuous && canContinue(fx); }
+// Progress 0..1 through an instance's window (a continuous instance goes
+// through its window once, then holds at 1).
+function lifeT(inst) { return Math.min(1, inst.age / Math.max(1, inst.cont ? inst.win : inst.life)); }
 var _eid = 1;
 function newEffect(prim, action) {
   return normalize({id: "E" + Date.now().toString(36) + (_eid++), name: prim, action: action || "idle",
@@ -224,7 +238,7 @@ function fill(dst, def) { for (var k in def) if (dst[k] === undefined) dst[k] = 
 // Fill every missing field with its default so exported files are explicit.
 function normalize(fx) {
   if (PRIMS.indexOf(fx.prim) < 0) fx.prim = "glow";
-  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0,
+  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false,
     anchor: "figure", offset: [0, 0], layer: "front", blend: "normal"});
   fx.emit = fill(fx.emit || {}, {every_ticks: 0, count: 1, fan_deg: 0});
   fx.motion = fill(fx.motion || {}, MOTION_DEFAULTS);
@@ -480,7 +494,7 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
     }
   }
   if (reach <= 0) return null;
-  var prog = Math.min(1, inst.age / Math.max(1, inst.life));
+  var prog = lifeT(inst);
   var wT = P.w_start0 + (P.w_start1 - P.w_start0) * prog, wH = P.w_end0 + (P.w_end1 - P.w_end0) * prog;
   var pulse = 1;
   if (P.pulse_hz > 0) pulse = 0.65 + 0.35 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * TICK_MS / 1000));
@@ -559,8 +573,9 @@ DRAW.particles = function (g, inst, host, ps) {   // BurstParticle.draw
 DRAW.glow = function (g, inst, host, ps) {   // TrailComponent head glow + core, as a standalone sphere
   var fx = inst.fx, P = fx.params;
   if (inst.age >= inst.life) return;
-  var t = Math.min(1, inst.age / inst.life), c = colorPair(fx, host.lut)[0].map(trunc);
+  var t = lifeT(inst), c = colorPair(fx, host.lut)[0].map(trunc);
   var k = P.fade === "out" ? 1 - t : P.fade === "in" ? t : P.fade === "inout" ? Math.sin(t * Math.PI) : 1;
+  if (inst.cont) k = P.fade === "in" ? t : 1;   // continuous: fades in once, never out
   if (P.pulse_hz > 0) k *= 0.65 + 0.35 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * TICK_MS / 1000));
   var hx = trunc(inst.x), hy = trunc(inst.y);
   var gr = (P.r_start + (P.r_end - P.r_start) * t) * ps, igr = trunc(gr);
@@ -631,7 +646,7 @@ HIT.sprite = function (inst, tx, ty, hr) {
 HIT.glow = function (inst, tx, ty, hr, ps) {
   var P = inst.fx.params;
   if (inst.age >= inst.life) return false;
-  var t = Math.min(1, inst.age / inst.life), gr = Math.max(P.core_r, P.r_start + (P.r_end - P.r_start) * t) * ps;
+  var t = lifeT(inst), gr = Math.max(P.core_r, P.r_start + (P.r_end - P.r_start) * t) * ps;
   var dx = inst.x - tx, dy = inst.y - ty;
   return Math.sqrt(dx * dx + dy * dy) <= hr + gr;
 };
@@ -693,9 +708,24 @@ Player.prototype.window = function (fx, frames, frameMs) {
 // alive across the loop, and its effect is not spawned again while it lives.
 Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   var self = this, cont = !!(opts && opts.continuous);
+  // A continuous instance ends when its effect is removed, disabled or no
+  // longer continuous.
+  this.insts.forEach(function (inst) {
+    if (inst.cont && (!inst.fx.enabled || effects.indexOf(inst.fx) < 0 || !isContinuous(inst.fx))) inst.dead = true;
+  });
   effects.forEach(function (fx) {
     if (!fx.enabled) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
+    if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
+      if (t < s || self.insts.some(function (q) { return q.fx === fx && q.cont && !q.dead && q.age < q.life; })) return;
+      var nc = Math.max(1, trunc(fx.emit.count));
+      for (var j = 0; j < nc; j++) {
+        var ci = spawn(fx, host, w[2] - s, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (j * 0x85EBCA6B)) >>> 0, j, nc);
+        ci.cont = true; ci.win = ci.life; ci.life = Infinity;
+        self.insts.push(ci);
+      }
+      return;
+    }
     var periodic = fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0;
     var fire = t === s || periodic;
     if (!fire) return;
@@ -720,6 +750,6 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  newEffect: newEffect, normalize: normalize, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
+  newEffect: newEffect, normalize: normalize, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
   actionKind: actionKind, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

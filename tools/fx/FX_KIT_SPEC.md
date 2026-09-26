@@ -111,7 +111,7 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
 {
   "id": "E…", "name": "Blade trail", "tag": "slash", "action": "attack_normal", "enabled": true,
   "prim": "ribbon",
-  "start_frame": 0, "end_frame": -1, "life_ticks": 0,
+  "start_frame": 0, "end_frame": -1, "life_ticks": 0, "continuous": false,
   "emit": {"every_ticks": 0, "count": 1, "fan_deg": 0},
   "anchor": "wtip", "offset": [0, 0],
   "motion": {"kind": "attached", "aim": "target", "angle_deg": 0, "aim_offset_deg": 0, "speed": 8,
@@ -138,6 +138,19 @@ a default.
   that, a ribbon keeps decaying its tail, and particles and ghosts finish
   fading, before the instance is removed.
 - When the action loops, instances that are already alive keep running.
+- `continuous: true` (the Studio's per-effect **∞ Continuous** toggle) makes
+  the effect produce without ever stopping or resetting while its action
+  plays, loop after loop (an always-on laser trail). From `start_frame` on,
+  one set of `emit.count` instances is kept alive with no end: `end_frame`,
+  `life_ticks` and `emit.every_ticks` are ignored and it never fades out
+  (a glow set to fade `in` fades in once over its window, then holds; size
+  and width ramps run once over the window, then hold). A new set starts
+  only if the running one ends, e.g. a non-piercing damaging hit consumes it,
+  or the action restarts. It ends when the action changes. It applies only
+  to effects that stay on the fighter (`attached`, `static` or `orbit`
+  motion) and are not `arc`; for travelling shots and crescents the flag
+  does nothing. It is stronger than the action's `fx_continuous`, which only
+  carries over effects that already last to the end of the action.
 
 ### Motion (`motion.kind`)
 | kind | behaviour | engine source |
