@@ -743,12 +743,22 @@ function fit() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.de
 function zoom() { return Math.max(0.25, +$("zoom").value || 4); }
 function camera(dpr) { return {x: cv.width / 2 / dpr + S.pan[0], y: cv.height * 0.55 / dpr + S.pan[1], z: zoom()}; }
 function toWorld(mx, my) { var dpr = Math.min(2, window.devicePixelRatio || 1), c = camera(dpr); return [(mx - c.x) / c.z, (my - c.y) / c.z]; }
+// ------------------------------------------------------------ light / dark mode
+// Light mode: white page and stage, black text (remembered per browser).
+// Stage guides switch to dark ink so they stay visible on white.
+function isLight() { return document.documentElement.dataset.theme === "light"; }
+function applyTheme(light) {
+  if (light) document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme;
+  var b = $("bTheme"); if (b) b.textContent = light ? "☾ Dark mode" : "☀ Light mode";
+  lsSet("pbfxstudio.v1.theme", light ? "light" : "dark");
+}
+function ink(a) { return (isLight() ? "rgba(0,0,0," : "rgba(255,255,255,") + a + ")"; }
 function draw() {
   var dpr = fit(); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
   if (!C || !act()) return;
   var c = camera(dpr), z = c.z;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.strokeStyle = "rgba(255,255,255,.04)"; g.lineWidth = 1;   // grid: one line per 10 game px
+  g.strokeStyle = ink(isLight() ? .07 : .04); g.lineWidth = 1;   // grid: one line per 10 game px
   var step10 = 10 * z, x0 = ((c.x % step10) + step10) % step10, y0 = ((c.y % step10) + step10) % step10;
   for (var x = x0; x < cv.width / dpr; x += step10) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, cv.height); g.stroke(); }
   for (var y = y0; y < cv.height / dpr; y += step10) { g.beginPath(); g.moveTo(0, y); g.lineTo(cv.width, y); g.stroke(); }
@@ -785,7 +795,7 @@ function draw() {
     var q = imgToGame(p);
     g.fillStyle = j === S.selAnchor ? "#7de0a8" : on ? "#f0c24a" : "rgba(63,176,234,.85)";
     g.beginPath(); g.arc(q[0], q[1], (on ? 3 : 2) / z * 2, 0, 6.2832); if (own) g.fill(); else { g.lineWidth = 1 / z; g.strokeStyle = g.fillStyle; g.stroke(); }
-    if (j === S.selAnchor || show) { g.fillStyle = "rgba(220,230,240,.8)"; g.font = (9 / z) + "px sans-serif"; g.fillText(S.labels[j], q[0] + 5 / z, q[1] - 4 / z); }
+    if (j === S.selAnchor || show) { g.fillStyle = isLight() ? "rgba(0,0,0,.85)" : "rgba(220,230,240,.8)"; g.font = (9 / z) + "px sans-serif"; g.fillText(S.labels[j], q[0] + 5 / z, q[1] - 4 / z); }
   });
   if (S.selAnchor) {   // the anchor's path over the whole action
     g.strokeStyle = "rgba(125,224,168,.35)"; g.lineWidth = 1 / z; g.beginPath();
@@ -816,6 +826,8 @@ $("contFx").onchange = function () {
   cfgOf(S.action).fx_continuous = this.checked; save(); buildProps();
   toast(this.checked ? "FX keep running when " + S.action + " loops" : "FX restart each time " + S.action + " loops");
 };
+$("bTheme").onclick = function () { applyTheme(!isLight()); draw(); };
+applyTheme(lsGet("pbfxstudio.v1.theme") === "light");
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
