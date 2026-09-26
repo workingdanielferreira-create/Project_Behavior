@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, walkDir: 1, hits: [], dealt: 0, dir: null};
+  t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
 
@@ -48,7 +48,12 @@ function frames() { var a = act(); return a ? a.images.length : 0; }
 function frameMs() { var a = act(); return a ? Math.max(1, a.frame_ms) : 16; }
 function totalTicks() { return Math.max(1, Math.round(frames() * frameMs() / FXK.TICK_MS)); }
 function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.min(t, totalTicks() - 1) * FXK.TICK_MS / frameMs()))); }
-function facing() { return +$("facing").value; }
+// Facing: the chosen side, or (with "face movement") the side the figure is
+// moving toward, the way the game flips a moving fighter.
+function facing() {
+  if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
+  return +$("facing").value;
+}
 function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
 function imgScale() { return TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
@@ -116,13 +121,13 @@ function resolveAnchor(action, id, f) {
   for (var j = f + 1; j < row.length; j++) if (row[j]) return row[j];
   return null;
 }
-function imgToGame(p) { var k = imgScale() * pscale(); return [S.figX + (p[0] - C.origin[0]) * k * facing(), (p[1] - C.origin[1]) * k]; }
-function gameToImg(w) { var k = imgScale() * pscale(); return [Math.round(((w[0] - S.figX) / (k * facing()) + C.origin[0]) * 100) / 100, Math.round((w[1] / k + C.origin[1]) * 100) / 100]; }
+function imgToGame(p) { var k = imgScale() * pscale(); return [S.figX + (p[0] - C.origin[0]) * k * facing(), S.figY + (p[1] - C.origin[1]) * k]; }
+function gameToImg(w) { var k = imgScale() * pscale(); return [Math.round(((w[0] - S.figX) / (k * facing()) + C.origin[0]) * 100) / 100, Math.round(((w[1] - S.figY) / k + C.origin[1]) * 100) / 100]; }
 function jointAt(name, fr) {
-  if (name === "figure") return [S.figX, 0];
+  if (name === "figure") return [S.figX, S.figY];
   if (name === "target") return S.target.slice();
   var p = resolveAnchor(S.action, name, fr);
-  return p ? imgToGame(p) : [S.figX, 0];
+  return p ? imgToGame(p) : [S.figX, S.figY];
 }
 
 // ------------------------------------------------------------ figure host
@@ -135,9 +140,9 @@ function tinted(img, rgb) {   // combat.silhouette(): flat colour, the frame's o
   x.fillStyle = "rgb(" + rgb.join(",") + ")"; x.fillRect(0, 0, c.width, c.height);
   TINT.set(key, c); return c;
 }
-function drawFrame(gc, img, figX, fac, alpha, tint) {
+function drawFrame(gc, img, pos, fac, alpha, tint) {
   var k = imgScale() * pscale();
-  gc.save(); gc.translate(figX, 0); gc.scale(fac * k, k);
+  gc.save(); gc.translate(pos[0], pos[1]); gc.scale(fac * k, k);
   if (alpha != null) gc.globalAlpha *= alpha;
   gc.drawImage(tint ? tinted(img, tint) : img, -C.origin[0], -C.origin[1]);
   gc.restore();
@@ -151,10 +156,10 @@ var host = {
   get showHitboxes() { return true; },
   get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
-  snapshot: function () { return {action: S.action, frame: frameAt(S.t), figX: S.figX}; },
+  snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: [S.figX, S.figY]}; },
   drawGhost: function (gc, gh, rgb, a) {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
-    if (img) drawFrame(gc, img, gh.snap.figX, gh.facing, a, rgb);
+    if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb);
   },
   // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
   onHit: function (inst, dmg, dx, dy, kb) {
@@ -234,7 +239,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
 function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.sel = null; S.selAnchor = null; S.figX = 0;
+  S.sel = null; S.selAnchor = null; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
   rebuild(); resetSim(0); persist(); histReset();
@@ -634,18 +639,53 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); S.figX = 0; S.walkDir = 1; S.t = 0; S.hits = []; S.dealt = 0;
+  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.hits = []; S.dealt = 0;
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   while (S.t < target) step(false);
 }
 function step(allowWrap) {
   if (!C) return;
-  var walk = +$("walk").value || 0;
-  if (walk) { S.figX += walk * S.walkDir; if (Math.abs(S.figX) > 160) S.walkDir *= -1; }
+  moveFigure();
   player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: $("loop").checked && !!cfgOf(S.action).fx_continuous});
   S.t += 1;
   if (S.t >= totalTicks() && allowWrap && $("loop").checked) { S.t = 0; S.dealt = 0; S.hits = []; }
 }
+// ------------------------------------------------------------ direction sim
+// The figure travels at "move" px/tick toward "dir" degrees (0 right, 90
+// down, -90 up) inside a 320 x 200 px area, bouncing off its edges or
+// wrapping to the far side.  FX react as they do in the game: attached
+// effects ride along, ribbons and ghosts stretch out behind, and spawned
+// projectiles and particles keep their own world-space paths.
+var AREA = [160, 100];
+function moveVector() {
+  var spd = +$("walk").value || 0, a = (+$("moveDir").value || 0) * Math.PI / 180;
+  return [Math.cos(a) * spd, Math.sin(a) * spd];
+}
+function moveFigure() {
+  var v = S.vel;
+  if (!v[0] && !v[1]) return;
+  S.figX += v[0]; S.figY += v[1];
+  var wrap = $("moveMode").value === "wrap";
+  [0, 1].forEach(function (i) {
+    var key = i ? "figY" : "figX", lim = AREA[i];
+    if (Math.abs(S[key]) <= lim) return;
+    if (wrap) S[key] = S[key] > 0 ? -lim : lim;
+    else { S[key] = Math.max(-lim, Math.min(lim, S[key])); v[i] = -v[i]; }
+  });
+}
+function drawMoveGuide(g, z) {
+  var v = S.vel; if (!v[0] && !v[1]) return;
+  g.save();
+  g.strokeStyle = "rgba(125,224,168,.25)"; g.lineWidth = 1 / z; g.setLineDash([4 / z, 4 / z]);
+  g.strokeRect(-AREA[0], -AREA[1], AREA[0] * 2, AREA[1] * 2); g.setLineDash([]);
+  var m = Math.hypot(v[0], v[1]), ux = v[0] / m, uy = v[1] / m, L = 22, x = S.figX, y = S.figY;
+  g.strokeStyle = "rgba(125,224,168,.85)"; g.fillStyle = g.strokeStyle; g.lineWidth = 2 / z;
+  g.beginPath(); g.moveTo(x, y); g.lineTo(x + ux * L, y + uy * L); g.stroke();
+  g.beginPath(); g.moveTo(x + ux * (L + 6), y + uy * (L + 6));
+  g.lineTo(x + ux * L - uy * 4, y + uy * L + ux * 4); g.lineTo(x + ux * L + uy * 4, y + uy * L - ux * 4); g.fill();
+  g.restore();
+}
+
 var last = 0, acc = 0;
 function loop(now) {
   requestAnimationFrame(loop);
@@ -673,10 +713,11 @@ function draw() {
   for (var y = y0; y < cv.height / dpr; y += step10) { g.beginPath(); g.moveTo(0, y); g.lineTo(cv.width, y); g.stroke(); }
   g.translate(c.x, c.y); g.scale(z, z);
   var ps = pscale(), fr = frameAt(S.t), img = act().images[fr];
-  if ($("lightbg").checked) { g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(S.figX - C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); }
+  if ($("lightbg").checked) { g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(S.figX - C.origin[0] * k, S.figY - C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); }
   player.draw(g, host, "behind", ps);
-  drawFrame(g, img, S.figX, facing());
+  drawFrame(g, img, [S.figX, S.figY], facing());
   player.draw(g, host, "front", ps);
+  drawMoveGuide(g, z);
   // target + hurt radius (the circle damaging FX must touch)
   var hr = host.hurt.r, lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
   g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
@@ -777,7 +818,7 @@ $("bPlay").onclick = function () { if (!C) return; S.playing = !S.playing; if (S
 function gotoFrame(f) { if (!C) return; S.playing = false; $("bPlay").textContent = "▶ Play"; f = (f + frames()) % frames(); resetSim(Math.ceil(f * frameMs() / FXK.TICK_MS)); }
 $("bPrev").onclick = function () { gotoFrame(frameAt(S.t) - 1); };
 $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
-["facing", "walk", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
+["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
 // Timeline scrubbing: press and drag with the left button to move the
 // playhead (the view re-simulates to each tick, so FX show exactly as they
 // play).  A press on an effect's bar selects it on release unless the

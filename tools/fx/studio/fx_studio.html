@@ -52,6 +52,7 @@ main{display:flex;flex-direction:column;min-width:0}
 .tlbar.sel{background:#3fb0ea;color:#061018}
 .tlbar.dmg{border-color:#ff6b6b;background:#5a2a2e}.tlbar.dmg.sel{background:#ff6b6b;color:#1a0507}
 #playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--warn);pointer-events:none}
+.grpmove{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:2px 6px;border:1px solid var(--line);border-radius:6px}
 .note{color:var(--mute);font-size:12px}.warn{color:var(--warn)}
 #lut{height:10px;border-radius:3px;margin:4px 0}
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9}
@@ -113,7 +114,12 @@ main{display:flex;flex-direction:column;min-width:0}
     <label title="Per action: effects that last to the end of the action keep running when the animation loops, instead of restarting (saved with the character, the game does the same)"><input type="checkbox" id="contFx"> continuous FX</label>
     <label>speed <select id="speed"><option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option></select></label>
     <label>facing <select id="facing"><option value="1">right</option><option value="-1">left</option></select></label>
-    <label>move <input type="number" id="walk" value="0" step="0.5" title="Preview movement, px per tick (the figure walks back and forth)"></label>
+    <span class="grpmove" title="Direction sim: the figure travels at this speed and direction so you can see how the FX behave while it moves">
+      <label>move <input type="number" id="walk" value="0" step="0.5" min="0" title="Movement speed, game px per tick (0 = standing still)"></label>
+      <label>dir° <input type="number" id="moveDir" value="0" step="45" title="Direction of travel in degrees: 0 right, 90 down, 180 left, -90 up"></label>
+      <select id="moveMode" title="At the edge of the area"><option value="bounce">bounce</option><option value="wrap">wrap</option></select>
+      <label title="Turn the figure to face the way it moves, as the game does"><input type="checkbox" id="faceMove" checked> face movement</label>
+    </span>
     <label title="engine position_scale() multiplier">pscale <input type="number" id="pscale" value="1" step="0.25" min="0.25"></label>
     <label>zoom <input type="number" id="zoom" value="4" step="0.5" min="0.5"></label>
     <label title="Target hurt radius: a damaging FX hits when its drawn shape touches this circle (engine PROJ_HIT_RADIUS = 16)">hurt r <input type="number" id="hurtR" value="16" step="1" min="1"></label>
