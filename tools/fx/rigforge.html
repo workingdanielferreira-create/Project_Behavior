@@ -205,7 +205,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
           <button id="mvimport" title="Load a moves .json file — same names are replaced">Import</button>
         </div>
         <input type="file" id="mvfile" accept="application/json,.json" style="display:none">
-        <div class="note" style="font-size:11px">Each move is a ready-made set of key poses: anticipation, contact, follow-through, recovery. Click one to replace the current action's frames and its loop duration; Ctrl+click appends it to the end instead, so you can chain moves into a longer combo. Poses come from the built-in atlas, but any pose you save in the library under the same name overrides it. Off-hand swaps the leading side, heavy exaggerates every angle and slows the loop, quick tightens and speeds it up. Sword and dash moves carry their own per-segment timing (in-between count, easing and hold frames per key), following the chamber &rarr; overshoot &rarr; settle &rarr; recovery rules from the animation tutorials; the rest switch in-betweens on for every frame. <strong>Save action as move</strong> puts the action you are editing into this library &mdash; every key pose, its in-betweens, easing, holds and the loop duration &mdash; under a name you choose, and asks whether to generate its off-hand, heavy and quick variants. Saving under a built-in name replaces that move in the list; deleting your copy puts the built-in back. Saved moves live in this browser. Export offers a .json to save, and Import reads one back — pick a file, or paste a moves file into the Export tab's JSON box and press Import.</div>
+        <div class="note" style="font-size:11px">Each move is a ready-made set of key poses: anticipation, contact, follow-through, recovery. Click one to replace the current action's frames and its loop duration; Ctrl+click appends it to the end instead, so you can chain moves into a longer combo. Poses come from the built-in atlas, but any pose you save in the library under the same name overrides it. Off-hand swaps the leading side, heavy exaggerates every angle and slows the loop, quick tightens and speeds it up. Sword and dash moves carry their own per-segment timing (in-between count, easing and hold frames per key), following the chamber &rarr; overshoot &rarr; settle &rarr; recovery rules from the animation tutorials; the rest switch in-betweens on for every frame. <strong>Save action as move</strong> puts the action you are editing into this library &mdash; every key pose, its in-betweens, easing, holds and the loop duration &mdash; under a name you choose, and asks whether to generate its off-hand, heavy and quick variants. Saving under a built-in name replaces that move in the list; deleting your copy puts the built-in back. The ✕ on a plain built-in row deletes it permanently — no undo, no restore. Saved moves live in this browser. Export offers a .json to save, and Import reads one back — pick a file, or paste a moves file into the Export tab's JSON box and press Import.</div>
       </div>
     </section>
   </div>
@@ -430,12 +430,20 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       <label class="tgl"><input type="checkbox" id="bake" checked> bake in-betweens into keyframes</label>
       <div class="note">Actions carry no <code>fx_layers</code> yet &mdash; each exports an empty list plus <code>activation_triggers</code>, ready for the layer format in fx-authoring.md. Rig data drives Solo and Battle identically, so one export covers both modes. Export builds the <strong>active character tab</strong> only &mdash; each character is its own <code>characters/&lt;key&gt;.json</code> file.</div>
       <textarea id="json" spellcheck="false" aria-label="character JSON"></textarea>
+      <div class="grp">PNG frames</div>
+      <div class="fld"><label>square size (px)</label><input type="number" id="pngsize" min="32" max="4096" step="16" value="512"></div>
+      <div class="row">
+        <button id="pngact" class="primary" title="Every frame of the action you are editing, as transparent PNGs in one .zip">This action &rarr; PNG</button>
+        <button id="pngall" title="Every frame of every action on this character, one folder per action, in one .zip">All actions &rarr; PNG</button>
+      </div>
+      <div id="pngread" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted)"></div>
+      <div class="note">Each frame renders onto a transparent square: the rig as a solid black silhouette, the weapon drawn exactly as on the stage, with each keyframe's own layer order and hidden layers. No grid, handles, onion skin or reference images. The <strong>bake in-betweens</strong> box above decides the frames &mdash; ticked exports the full playback sequence (keys, in-betweens and holds), unticked only your authored keyframes. One scale is fitted to the largest extent across <em>all</em> of this character's actions, so the figure is the same size in every PNG whichever button you press; each action is centred on its own motion, and every frame of an action shares that origin, so the frames stack as a sprite sequence. <strong>face left</strong> mirrors the export too. Files are named <code>&lt;action&gt;_000.png</code> upward in playback order.</div>
       <div class="grp">character package (game + FX Studio)</div>
       <div class="fld"><label>head size px</label><input type="number" id="pk_head" value="58" min="8" max="400" step="1"></div>
       <div class="fld"><label>figure colour</label><input type="text" id="pk_col" value="#000000"></div>
       <label class="tgl"><input type="checkbox" id="pk_travel" checked> keep root travel in the frames (one shared camera)</label>
       <div class="row"><button id="pk_export" class="primary">Export character package…</button></div>
-      <div class="note">Writes one folder per character: every action's frames as <code>&lt;action&gt;_NN.png</code> on one shared square canvas sized to fit every move at the chosen head size (in-betweens included, played at the action's ms/frame) plus <code>character.json</code> with the name, archetype, stats, palette, per-action timing and starting anchor points (hands, blade tip, head, feet…). Pick the game's <code>characters</code> folder: a <code>&lt;name&gt;</code> sub-folder is created (or pick that sub-folder itself). Old <code>&lt;action&gt;_NN.png</code> files of the exported actions are replaced. Open the same folder in the FX Studio to build the character's FX. Browsers without folder access (e.g. Firefox) download the files one by one instead.</div>
+      <div class="note">Writes one folder per character: every action's frames as <code>&lt;action&gt;_NN.png</code> on one shared square canvas sized to fit every move at the chosen head size (in-betweens included, played at the action's ms/frame) plus <code>character.json</code> with the name, archetype, stats, palette, per-action timing and starting anchor points (hands, blade tip, head, feet…). Pick the game's <code>characters</code> folder: a <code>&lt;name&gt;</code> sub-folder is created (or pick that sub-folder itself). Old <code>&lt;action&gt;_NN.png</code> files of the exported actions are replaced. Open the same folder in the FX Studio to build the character's FX. Opened from disk in Chrome or Edge it writes straight into the folder you pick; anywhere else (this published page, Firefox) it saves one <code>&lt;name&gt;.zip</code> holding the <code>&lt;name&gt;/</code> folder &mdash; unzip it into <code>characters/</code>. Frames use the same solid silhouette, layer order and hidden layers as the PNG export above.</div>
     </div>
   </div>
 </div>
@@ -1043,15 +1051,15 @@ var TPL={},redrawMoves=function(){};
    built-in of the same name — deleting the saved copy brings the built-in back. */
 function buildTPL(){
   TPL={};
-  var del=(typeof S!=="undefined"&&S.deleted_builtins)?S.deleted_builtins:[];
+  var DEL=(typeof S!=="undefined"&&S.deleted)?S.deleted:{};
   MOVES.forEach(function(m){
-    if(del.indexOf(m[0])>=0)return;
+    if(DEL[m[0]])return;   /* permanently deleted built-in — gone, and none of its variants generate */
     VARIANTS.forEach(function(v){
       if(v.s&&m[1]==="Emote")return;
       var fr=m[4].map(function(e){return typeof e==="string"?{n:e,st:m[3],ez:"smooth",h:0}:
         {n:e[0],st:e[1]|0,ez:e[2]||"inout",h:e[3]|0};});
       var base=m[2]||fr.reduce(function(s,f){return s+1+f.h+f.st;},0)*FRAME_MS;
-      TPL[m[0]+v.s]={cat:m[1],dur:Math.round(base*v.dm),tw:m[3],frames:fr,xf:v.f};
+      TPL[m[0]+v.s]={cat:m[1],dur:Math.round(base*v.dm),tw:m[3],frames:fr,xf:v.f,base:m[0]};
     });
   });
   var SM=(typeof S!=="undefined"&&S.moves)?S.moves:{};
@@ -1137,6 +1145,7 @@ var S={
   lib:clone(LIB),
   img:{},
   moves:{},
+  deleted:{},
   weapon:clone(WPRE.katana),
   actions:{
     idle:mkAction("idle","Stand · combat ready",900,"always"),
@@ -1146,7 +1155,7 @@ var S={
     attack_special:mkAction("attack_special","Sword · combo 3-hit",760,"charge_full"),
     ultimate:mkAction("ultimate","Special · blade storm",1200,"ultimate_ready")
   },
-  cur:"attack_normal",kf:0,playing:false,flip:false,clip:null,preview:null,pIdx:0,previewSrc:0,deleted_builtins:[]
+  cur:"attack_normal",kf:0,playing:false,flip:false,clip:null,preview:null,pIdx:0,previewSrc:0
 };
 var WS={chars:[],ci:0};
 try{
@@ -1154,7 +1163,7 @@ try{
   if(sv){var o=JSON.parse(sv);
     if(o.ws&&o.ws.chars&&o.ws.chars.length){WS=o.ws;}
     if(o.lib)S.lib=o.lib;if(o.img)S.img=o.img;if(o.anat)ANAT=Object.assign(ANAT,o.anat);
-    if(o.moves)S.moves=o.moves;if(o.deleted_builtins)S.deleted_builtins=o.deleted_builtins;}
+    if(o.moves)S.moves=o.moves;if(o.deleted)S.deleted=o.deleted;}
   else{
     var old=localStorage.getItem("pbrigforge.v3");
     if(old){var p0=JSON.parse(old);
@@ -1176,7 +1185,7 @@ if(!S.img)S.img={};
 Object.keys(S.lib).forEach(function(k){normPose(S.lib[k]);});
 Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(normPose);});
 var QWARN=false;
-function save(){try{stashChar();localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:S.img,anat:ANAT,moves:S.moves,deleted_builtins:S.deleted_builtins}));}catch(e){if(!QWARN){QWARN=true;
+function save(){try{stashChar();localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:S.img,anat:ANAT,moves:S.moves,deleted:S.deleted}));}catch(e){if(!QWARN){QWARN=true;
   console.warn("Rig Forge: browser storage is full — reference images are kept for this session only.");}}}
 function stashChar(){var c=WS.chars[WS.ci];if(!c)return;
   c.meta=S.meta;c.rig=S.rig;c.weapon=S.weapon;c.actions=S.actions;c.cur=S.cur;c.kf=S.kf;}
@@ -1755,7 +1764,7 @@ function drawFigure(c,p,rig,opt){
   function draw(id,zi){
     if(hid[id])return;
     var lc=useMask?maskColor(zi,ord.length):col;
-    c.globalAlpha=base*((!out&&!useMask&&LAYERMAP[id]&&LAYERMAP[id].far)?0.82:1);
+    c.globalAlpha=base*((!out&&!useMask&&!opt.sil&&LAYERMAP[id]&&LAYERMAP[id].far)?0.82:1);
     c.strokeStyle=lc;c.fillStyle=lc;
     var Ldef=LAYERMAP[id];if(!Ldef)return;
     if(Ldef.head){c.beginPath();c.arc(j.head.x,j.head.y,rig.head*lw,0,6.2832);
@@ -2260,11 +2269,13 @@ document.getElementById("libreset").onclick=function(){
       if(t.custom&&name===t.base){
         var ren=mini("✎","Rename this saved move, or file it under another category",function(){renameMove(name);});
         ren.style.right="20px";b.appendChild(ren);
-        var del=mini("✕","Delete this move (permanent)",function(){deleteMove(name);});
+        var shadow=isBuiltIn(name)&&!S.deleted[name];
+        var del=mini("✕",shadow?"Delete this saved move and put the built-in back":"Delete this saved move",function(){deleteMove(name);});
         del.style.right="4px";b.appendChild(del);
-      }else if(isBuiltIn(name)){
-        var del=mini("✕","Delete this built-in move permanently",function(){deleteMove(name);});
-        del.style.right="4px";b.appendChild(del);
+      }else if(!t.custom&&name===t.base&&isBuiltIn(name)){
+        b.style.position="relative";
+        var del2=mini("✕","Delete this built-in move permanently",function(){deleteMove(name);});
+        del2.style.right="4px";b.appendChild(del2);
       }
       L.appendChild(b);
     });
@@ -2332,19 +2343,22 @@ function renameMove(nm){
   });
 }
 function deleteMove(nm){
-  var isSaved=S.moves[nm];var isBuilt=isBuiltIn(nm);
-  if(!isSaved&&!isBuilt)return;
-  var msg="Delete \""+nm+"\"?";
-  if(isSaved&&isBuilt)msg+=" The built-in will come back if you restore it.";
-  else if(isBuilt)msg+=" This will permanently remove the built-in move.";
-  askConfirm(msg,function(ok){
+  var saved=S.moves[nm],builtin=isBuiltIn(nm);
+  if(!saved&&!builtin)return;
+  if(saved){
+    var shadow=builtin&&!S.deleted[nm];
+    askConfirm("Delete the saved move \""+nm+"\"?"+(shadow?" The built-in move comes back.":""),function(ok){
+      if(!ok)return;
+      delete S.moves[nm];redrawMoves();save();
+      toast(shadow?"\""+nm+"\" restored to the built-in":"Deleted \""+nm+"\"");
+    });
+    return;
+  }
+  /* a plain built-in with no saved override — deletion here is permanent, no undo */
+  askConfirm("Permanently delete the built-in move \""+nm+"\"? This cannot be undone.",function(ok){
     if(!ok)return;
-    if(isSaved)delete S.moves[nm];
-    if(isBuilt&&S.deleted_builtins.indexOf(nm)<0){
-      S.deleted_builtins.push(nm);
-    }
-    redrawMoves();save();
-    toast(isBuilt?"Permanently deleted \""+nm+"\"":"Deleted \""+nm+"\"");
+    S.deleted[nm]=true;redrawMoves();save();
+    toast("\""+nm+"\" deleted permanently");
   });
 }
 function movesText(){
@@ -3088,6 +3102,250 @@ function build(){
     activation_trigger_semantics:"Layers activate via trig / trig_ref / trig_delay_ms chains; cycle fields reference layers as \"action_name:LayerID\".",
     authoring_note:"Authored in Rig Forge. Draw-order/visibility layers are an authoring construct and are not exported; in-betweens are baked into keyframes because the loader plays keyframes as authored with no interpolation."};
 }
+/* ---- PNG frame export: transparent squares, black rig silhouette, stage weapon, zipped ---- */
+function figBounds(p){
+  /* analytic extent of everything drawFigure paints for this pose (visible layers only) */
+  normPose(p);
+  var j=joints(p,S.rig),hid=p._layers.hidden||{},b={x0:1e9,y0:1e9,x1:-1e9,y1:-1e9},hit=false;
+  function pt(q,r){if(!q)return;hit=true;
+    if(q.x-r<b.x0)b.x0=q.x-r;if(q.x+r>b.x1)b.x1=q.x+r;if(q.y-r<b.y0)b.y0=q.y-r;if(q.y+r>b.y1)b.y1=q.y+r;}
+  p._layers.order.forEach(function(id){
+    if(hid[id])return;var L=LAYERMAP[id];if(!L)return;
+    if(L.head){pt(j.head,S.rig.head+1);return;}
+    if(L.weapon){
+      if(wCount()<3)return;
+      var a=(j.wang-90)*D,ca=Math.cos(a),sa=Math.sin(a),sy=Math.cos(p.wspin*D);
+      if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+      wAllPts().forEach(function(q){
+        var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
+        pt({x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca},1.5);
+      });
+      return;
+    }
+    var r=10*L.w/2+1;
+    pt(j[L.a],r);pt(j[L.b],r);if(L.b2)pt(j[L.b2],r);if(L.mid)pt(j[L.mid],r);
+  });
+  return hit?b:null;
+}
+function actFrames(a){return document.getElementById("bake").checked?playlist(a):a.keyframes.slice();}
+function actBounds(frames){
+  var u=null;
+  frames.forEach(function(p){var b=figBounds(p);if(!b)return;
+    if(!u)u={x0:b.x0,y0:b.y0,x1:b.x1,y1:b.y1};
+    else{u.x0=Math.min(u.x0,b.x0);u.y0=Math.min(u.y0,b.y0);u.x1=Math.max(u.x1,b.x1);u.y1=Math.max(u.y1,b.y1);}});
+  return u;
+}
+var CRCT=null;
+function crc32(u8){
+  if(!CRCT){CRCT=new Uint32Array(256);for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;CRCT[n]=c>>>0;}}
+  var c2=0xFFFFFFFF;for(var i=0;i<u8.length;i++)c2=CRCT[(c2^u8[i])&255]^(c2>>>8);
+  return(c2^0xFFFFFFFF)>>>0;
+}
+function makeZip(files){
+  /* stored (uncompressed) zip — PNG data is already deflated */
+  var enc=new TextEncoder(),parts=[],central=[],off=0,d=new Date();
+  var dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,
+      dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  files.forEach(function(f){
+    var nm=enc.encode(f.name),crc=crc32(f.data),sz=f.data.length;
+    var h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
+    h.setUint16(10,dt,true);h.setUint16(12,dd,true);h.setUint32(14,crc,true);h.setUint32(18,sz,true);h.setUint32(22,sz,true);
+    h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer),nm,f.data);
+    var c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);
+    c.setUint16(12,dt,true);c.setUint16(14,dd,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);
+    c.setUint16(28,nm.length,true);c.setUint16(30,0,true);c.setUint16(32,0,true);c.setUint16(34,0,true);c.setUint16(36,0,true);
+    c.setUint32(38,0,true);c.setUint32(42,off,true);
+    central.push(new Uint8Array(c.buffer),nm);
+    off+=30+nm.length+sz;
+  });
+  var csz=central.reduce(function(s,x){return s+x.length;},0);
+  var e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);
+  e.setUint32(12,csz,true);e.setUint32(16,off,true);
+  return new Blob(parts.concat(central,[new Uint8Array(e.buffer)]),{type:"application/zip"});
+}
+function pngOf(p,N,sc,cx,cy){
+  return new Promise(function(res,rej){
+    var c=document.createElement("canvas");c.width=N;c.height=N;
+    var x=c.getContext("2d");x.clearRect(0,0,N,N);
+    x.save();x.translate(N/2,N/2);x.scale(sc*(S.flip?-1:1),sc);x.translate(-cx,-cy);
+    var q=clone(p);normPose(q);
+    drawFigure(x,q,S.rig,{color:"#000000",noMask:true,sil:true});
+    x.restore();
+    c.toBlob(function(b){
+      if(!b)return rej(new Error("PNG encode failed"));
+      b.arrayBuffer().then(function(ab){res(new Uint8Array(ab));},rej);
+    },"image/png");
+  });
+}
+function saveBlob(name,blob,done,fail){
+  var direct=function(){
+    try{
+      var u=URL.createObjectURL(blob),a2=document.createElement("a");
+      a2.href=u;a2.download=name;document.body.appendChild(a2);a2.click();
+      document.body.removeChild(a2);setTimeout(function(){URL.revokeObjectURL(u);},4000);done();
+    }catch(e){fail("Could not start the download");}
+  };
+  if(window.claude&&typeof claude.use==="function"){
+    claude.use("downloads").then(function(d){
+      if(!d)return fail("Saving files is not available in this view");
+      d.save({filename:name,data:blob}).then(done,function(e){
+        var c=e&&e.code;
+        if(c==="declined")return fail("Save declined");
+        if(c==="rate_limited")return fail("A save prompt is already open — try again in a moment");
+        fail("Could not save the file ("+(c||"error")+")");
+      });
+    },function(){direct();});
+  }else direct();
+}
+var PNGBUSY=false;
+function exportPNG(all){
+  if(PNGBUSY)return;
+  commitPreview();
+  var N=Math.max(32,Math.min(4096,Math.round(+document.getElementById("pngsize").value||512)));
+  document.getElementById("pngsize").value=N;
+  var keys=Object.keys(S.actions),pad=0.05,maxExt=0,jobs=[];
+  keys.forEach(function(k){
+    var fr=actFrames(S.actions[k]),b=actBounds(fr);
+    if(b)maxExt=Math.max(maxExt,b.x1-b.x0,b.y1-b.y0);
+    if(all||k===S.cur)jobs.push({k:k,frames:fr,b:b});
+  });
+  if(!maxExt){toast("Nothing visible to export.");return;}
+  var sc=N*(1-2*pad)/maxExt,files=[],total=0;
+  jobs.forEach(function(jb){total+=jb.frames.length;});
+  var btns=[document.getElementById("pngact"),document.getElementById("pngall")],rd=document.getElementById("pngread");
+  PNGBUSY=true;btns.forEach(function(b){b.disabled=true;});
+  var ch=(S.meta.name||"character").replace(/[^a-z0-9_-]+/gi,"_"),n=0;
+  function fin(msg){PNGBUSY=false;btns.forEach(function(b){b.disabled=false;});rd.textContent=msg;}
+  (async function(){
+    try{
+      for(var i=0;i<jobs.length;i++){
+        var jb=jobs[i],b=jb.b,cx=b?(b.x0+b.x1)/2:0,cy=b?(b.y0+b.y1)/2:0,
+            w=Math.max(3,String(jb.frames.length-1).length),an=jb.k.replace(/[^a-z0-9_-]+/gi,"_");
+        for(var f=0;f<jb.frames.length;f++){
+          var data=await pngOf(jb.frames[f],N,sc,cx,cy),idx=String(f);
+          while(idx.length<w)idx="0"+idx;
+          files.push({name:(all?an+"/":"")+an+"_"+idx+".png",data:data});
+          n++;if(n%8===0||n===total){rd.textContent="rendering "+n+" / "+total+" frames…";await new Promise(function(r){setTimeout(r,0);});}
+        }
+      }
+      var zipName=ch+"_"+(all?"all_actions":jobs[0].k.replace(/[^a-z0-9_-]+/gi,"_"))+"_png.zip";
+      var blob=makeZip(files);
+      var summary=total+" frame"+(total===1?"":"s")+" · "+jobs.length+" action"+(jobs.length===1?"":"s")+" · "+N+"×"+N+" px";
+      saveBlob(zipName,blob,function(){fin(summary+" → "+zipName);toast("Exported "+summary);},
+        function(msg){fin(msg);toast(msg);});
+    }catch(e){fin("PNG export failed: "+e.message);toast("PNG export failed: "+e.message);}
+  })();
+}
+document.getElementById("pngact").onclick=function(){exportPNG(false);};
+document.getElementById("pngall").onclick=function(){exportPNG(true);};
+document.getElementById("pngsize").onkeydown=function(e){e.stopPropagation();};
+["pk_head","pk_col"].forEach(function(id){document.getElementById(id).onkeydown=function(e){e.stopPropagation();};});
+
+/* ---- character package export (PNG frames + character.json) ---- */
+var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","root"];
+function pkgWeaponPts(p,j){
+  if(wCount()<3)return[];
+  var wa=(j.wang-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p.wspin*D);
+  if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+  return wAllPts().map(function(q){var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
+    return{x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca};});
+}
+function pkgFramePose(p,travel){var q=clone(p);normPose(q);if(!travel){q.rx=0;}return q;}
+function pkgPoints(p){
+  var j=joints(p,S.rig),pts=[];
+  Object.keys(j).forEach(function(k){var v=j[k];if(v&&typeof v==="object"&&k!=="root")pts.push(v);});
+  pts=pts.concat(pkgWeaponPts(p,j));
+  var r=S.rig.head;pts.push({x:j.head.x-r,y:j.head.y-r},{x:j.head.x+r,y:j.head.y+r});
+  return pts;
+}
+// Camera shared by every frame of every action: centred on hip x = 0 and the
+// idle action's bounding-box centre (the bake convention).  The scale is set
+// by the head diameter in px (the game normalises every character by head
+// size), and the square canvas grows to fit the widest frame of any action.
+// The image centre is the figure's position in-game.
+function pkgCamera(headPx,travel){
+  var idle=S.actions.idle||A(),iy0=1e9,iy1=-1e9;
+  playlist(idle).forEach(function(p){pkgPoints(pkgFramePose(p,false)).forEach(function(v){iy0=Math.min(iy0,v.y);iy1=Math.max(iy1,v.y);});});
+  var cx=0,cy=(iy0+iy1)/2,ext=1;
+  Object.keys(S.actions).forEach(function(k){playlist(S.actions[k]).forEach(function(p){
+    pkgPoints(pkgFramePose(p,travel)).forEach(function(v){ext=Math.max(ext,Math.abs(v.x-cx)+8,Math.abs(v.y-cy)+8);});});});
+  var ppu=headPx/(2*S.rig.head),size=Math.min(4096,Math.ceil(2*ext*ppu/32)*32);
+  return{cx:cx,cy:cy,ppu:ppu,size:size};
+}
+function pkgName(k,i,n){var w=n>99?3:2,s=String(i+1);while(s.length<w)s="0"+s;return k+"_"+s+".png";}
+function pkgBuild(){
+  var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
+  var col=document.getElementById("pk_col").value||"#000000",travel=document.getElementById("pk_travel").checked;
+  var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={};
+  var toPx=function(v){return[Math.round(((v.x-cam.cx)*cam.ppu+size/2)*100)/100,Math.round(((v.y-cam.cy)*cam.ppu+size/2)*100)/100];};
+  Object.keys(S.actions).forEach(function(k){
+    var a=S.actions[k],list=playlist(a),names=[];
+    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
+    list.forEach(function(p0,i){
+      var p=pkgFramePose(p0,travel),c=document.createElement("canvas");c.width=size;c.height=size;
+      var g=c.getContext("2d");g.translate(size/2,size/2);g.scale(cam.ppu,cam.ppu);g.translate(-cam.cx,-cam.cy);
+      drawFigure(g,p,S.rig,{color:col,noMask:true,sil:true});
+      var nm=pkgName(k,i,list.length);names.push(nm);files.push({name:nm,canvas:c});
+      var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
+    });
+    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
+  });
+  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
+    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
+    image:{size:[size,size],origin_px:[size/2,size/2],head_px:Math.round(S.rig.head*2*cam.ppu*100)/100,
+      px_per_rig_unit:Math.round(cam.ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
+    actions:acts,anchors:anchors,
+    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
+      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
+    note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."};
+  return{manifest:man,files:files};
+}
+function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
+function pkgExport(){
+  commitPreview();
+  var nm=(S.meta.name||"character").replace(/[^A-Za-z0-9_\-]/g,"_");
+  var pkg;try{pkg=pkgBuild();}catch(e){toast("Could not render frames: "+e.message);return;}
+  var json=JSON.stringify(pkg.manifest,null,1);
+  /* Straight into a folder when the page runs top-level with folder access (opened from disk in
+     Chrome/Edge); a published page runs in a sandboxed frame, so it hands over one zip instead. */
+  if(window.showDirectoryPicker&&window.self===window.top){
+    window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
+      var dirP=root.name===nm?Promise.resolve(root):root.getDirectoryHandle(nm,{create:true});
+      return dirP.then(function(dir){
+        var re=new RegExp("^("+Object.keys(S.actions).join("|")+")_\\d+\\.png$"),stale=[];
+        var list=(async function(){for await(var e of dir.values())if(e.kind==="file"&&re.test(e.name))stale.push(e.name);})();
+        return list.then(function(){return Promise.all(stale.map(function(f){return dir.removeEntry(f);}));})
+        .then(function(){
+          var w=function(name,data){return dir.getFileHandle(name,{create:true}).then(function(h){return h.createWritable();})
+            .then(function(wr){return wr.write(data).then(function(){return wr.close();});});};
+          return pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){return w(f.name,b);});});},Promise.resolve())
+            .then(function(){return w("character.json",new Blob([json],{type:"application/json"}));})
+            .then(function(){toast("Exported "+pkg.files.length+" frames + character.json to "+dir.name+"/");});
+        });
+      });
+    }).catch(function(e){if(e&&e.name!=="AbortError")toast("Export failed: "+e.message);});
+    return;
+  }
+  var enc=new TextEncoder(),files=[{name:nm+"/character.json",data:enc.encode(json)}];
+  (async function(){
+    try{
+      for(var i=0;i<pkg.files.length;i++){
+        var b=await pkgBlob(pkg.files[i].canvas),ab=await b.arrayBuffer();
+        files.push({name:nm+"/"+pkg.files[i].name,data:new Uint8Array(ab)});
+      }
+      saveBlob(nm+".zip",makeZip(files),function(){toast("Saved "+nm+".zip — unzip it into the game's characters folder");},
+        function(msg){toast(msg);});
+    }catch(e){toast("Export failed: "+e.message);}
+  })();
+}
+document.getElementById("pk_export").onclick=pkgExport;
+window.RigForgePkg={build:pkgBuild};
+
 document.getElementById("build").onclick=function(){document.getElementById("json").value=JSON.stringify(build(),null,2);};
 document.getElementById("bake").onchange=function(){if(document.getElementById("json").value)document.getElementById("json").value=JSON.stringify(build(),null,2);};
 document.getElementById("copyjson").onclick=function(){
@@ -3156,98 +3414,6 @@ window.addEventListener("resize",function(){fit();render();drawWeapon();});
     n.parentNode.replaceChild(d,n);
   });
 })();
-/* ---- character package export (PNG frames + character.json) ---- */
-var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","root"];
-function pkgWeaponPts(p,j){
-  if(wCount()<3)return[];
-  var wa=(j.wang-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p.wspin*D);
-  if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
-  return wAllPts().map(function(q){var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
-    return{x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca};});
-}
-function pkgFramePose(p,travel){var q=clone(p);normPose(q);if(!travel){q.rx=0;}return q;}
-function pkgPoints(p){
-  var j=joints(p,S.rig),pts=[];
-  Object.keys(j).forEach(function(k){var v=j[k];if(v&&typeof v==="object"&&k!=="root")pts.push(v);});
-  pts=pts.concat(pkgWeaponPts(p,j));
-  var r=S.rig.head;pts.push({x:j.head.x-r,y:j.head.y-r},{x:j.head.x+r,y:j.head.y+r});
-  return pts;
-}
-// Camera shared by every frame of every action: centred on hip x = 0 and the
-// idle action's bounding-box centre (the bake convention).  The scale is set
-// by the head diameter in px (the game normalises every character by head
-// size), and the square canvas grows to fit the widest frame of any action.
-// The image centre is the figure's position in-game.
-function pkgCamera(headPx,travel){
-  var idle=S.actions.idle||A(),iy0=1e9,iy1=-1e9;
-  playlist(idle).forEach(function(p){pkgPoints(pkgFramePose(p,false)).forEach(function(v){iy0=Math.min(iy0,v.y);iy1=Math.max(iy1,v.y);});});
-  var cx=0,cy=(iy0+iy1)/2,ext=1;
-  Object.keys(S.actions).forEach(function(k){playlist(S.actions[k]).forEach(function(p){
-    pkgPoints(pkgFramePose(p,travel)).forEach(function(v){ext=Math.max(ext,Math.abs(v.x-cx)+8,Math.abs(v.y-cy)+8);});});});
-  var ppu=headPx/(2*S.rig.head),size=Math.min(4096,Math.ceil(2*ext*ppu/32)*32);
-  return{cx:cx,cy:cy,ppu:ppu,size:size};
-}
-function pkgName(k,i,n){var w=n>99?3:2,s=String(i+1);while(s.length<w)s="0"+s;return k+"_"+s+".png";}
-function pkgBuild(){
-  var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
-  var col=document.getElementById("pk_col").value||"#000000",travel=document.getElementById("pk_travel").checked;
-  var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={};
-  var toPx=function(v){return[Math.round(((v.x-cam.cx)*cam.ppu+size/2)*100)/100,Math.round(((v.y-cam.cy)*cam.ppu+size/2)*100)/100];};
-  Object.keys(S.actions).forEach(function(k){
-    var a=S.actions[k],list=playlist(a),names=[];
-    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
-    list.forEach(function(p0,i){
-      var p=pkgFramePose(p0,travel),c=document.createElement("canvas");c.width=size;c.height=size;
-      var g=c.getContext("2d");g.translate(size/2,size/2);g.scale(cam.ppu,cam.ppu);g.translate(-cam.cx,-cam.cy);
-      drawFigure(g,p,S.rig,{color:col,noMask:true});
-      var nm=pkgName(k,i,list.length);names.push(nm);files.push({name:nm,canvas:c});
-      var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
-    });
-    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
-  });
-  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
-    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
-    image:{size:[size,size],origin_px:[size/2,size/2],head_px:Math.round(S.rig.head*2*cam.ppu*100)/100,
-      px_per_rig_unit:Math.round(cam.ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
-    actions:acts,anchors:anchors,
-    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
-      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
-      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
-    note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."};
-  return{manifest:man,files:files};
-}
-function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
-function pkgExport(){
-  var nm=(S.meta.name||"character").replace(/[^A-Za-z0-9_\-]/g,"_");
-  var pkg;try{pkg=pkgBuild();}catch(e){toast("Could not render frames: "+e.message);return;}
-  var json=JSON.stringify(pkg.manifest,null,1);
-  if(window.showDirectoryPicker){
-    window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
-      var dirP=root.name===nm?Promise.resolve(root):root.getDirectoryHandle(nm,{create:true});
-      return dirP.then(function(dir){
-        var re=new RegExp("^("+Object.keys(S.actions).join("|")+")_\\d+\\.png$"),stale=[];
-        var list=(async function(){for await(var e of dir.values())if(e.kind==="file"&&re.test(e.name))stale.push(e.name);})();
-        return list.then(function(){return Promise.all(stale.map(function(f){return dir.removeEntry(f);}));})
-        .then(function(){
-          var w=function(name,data){return dir.getFileHandle(name,{create:true}).then(function(h){return h.createWritable();})
-            .then(function(wr){return wr.write(data).then(function(){return wr.close();});});};
-          return pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){return w(f.name,b);});});},Promise.resolve())
-            .then(function(){return w("character.json",new Blob([json],{type:"application/json"}));})
-            .then(function(){toast("Exported "+pkg.files.length+" frames + character.json to "+dir.name+"/");});
-        });
-      });
-    }).catch(function(e){if(e&&e.name!=="AbortError")toast("Export failed: "+e.message);});
-    return;
-  }
-  // Fallback: plain downloads (character.json first), to be placed in characters/<name>/.
-  var dl=function(name,blob){var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();};
-  dl("character.json",new Blob([json],{type:"application/json"}));
-  pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){dl(f.name,b);return new Promise(function(r){setTimeout(r,120);});});});},Promise.resolve())
-    .then(function(){toast("Downloaded "+pkg.files.length+" frames + character.json; move them into characters/"+nm+"/");});
-}
-document.getElementById("pk_export").onclick=pkgExport;
-window.RigForgePkg={build:pkgBuild};
-
 buildTPL();fit();wshapeUI();buildChars();buildLib();buildSliders();buildRefSliders();syncChar();syncAction();refresh();drawWeapon();pushHist();histUI();
 })();
 </script>
