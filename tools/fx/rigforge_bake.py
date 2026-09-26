@@ -6,9 +6,17 @@ Rig Forge exports).  Renders every keyframe of every action to a transparent PNG
 
 usage: rigforge_bake.py <character.json> <out_dir> [--px-per-unit 2] [--ss 4]
 Writes  <out_dir>/<action>/<action>_NN.png  and  <out_dir>/bake_manifest.json
+
+The manifest also carries each action's per-frame joint table (`joints`),
+in rig units relative to the bake origin with rx zeroed -- the same space as
+the sprite pixels / px_per_unit.  FX Studio exports the identical table as
+`fx_studio.joint_track` (tools/fx/studio/rig_rf.js jointTrack()), so FX
+anchored to a hand or blade tip follow the baked animation exactly.
+
+usage: rigforge_bake.py <character.json> --joints-only [out.json]
+Writes only the joint table (no PNGs, Pillow not required).
 """
 import json, math, os, sys
-from PIL import Image, ImageDraw
 
 D = math.pi / 180.0
 LAYERS = [  # id, a, b, b2, mid, width, far, kind
@@ -71,6 +79,21 @@ def joints(p, rig, shapes):
     wang = p["rua"] + p["rfa"] + p["wp"]
     out = dict(hip=hipC, shB=shB, hpL=hpL, hpR=hpR, chest=chest, neck=neck, head=head, shL=shL, shR=shR,
                elL=elL, haL=haL, elR=elR, haR=haR, knL=knL, ftL=ftL, knR=knR, ftR=ftR)
+    # Rig Forge's weapon tip (the weapon point with the largest x, carried
+    # through the grip transform) and "root" marker above the head.
+    out["root"] = (head[0], head[1] - rig["head"] * 2.4)
+    allp = [q for sh in shapes for q in sh]
+    wtip = haR
+    if len(allp) > 2:
+        tp = allp[0]
+        for q in allp:
+            if q[0] > tp[0]:
+                tp = q
+        wa = (wang - 90) * D; wca, wsa = math.cos(wa), math.sin(wa)
+        wsy = math.cos(p["wspin"] * D)
+        lx = (tp[0] - p["wpx"]) * p["wlen"]; ly = (tp[1] - p["wpy"]) * wsy
+        wtip = (haR[0] + lx * wca - ly * wsa, haR[1] + lx * wsa + ly * wca)
+    out["wtip"] = wtip
     if p["rot"]:
         rc, rs = math.cos(p["rot"] * D), math.sin(p["rot"] * D)
         for k, v in list(out.items()):
@@ -152,11 +175,46 @@ def extent(p, rig, shapes, zero_rx):
     q = dict(p)
     if zero_rx: q["rx"] = 0
     j = joints(q, rig, shapes)
-    pts = [j[k] for k in j if k not in ("wang",)]
+    pts = [j[k] for k in j if k not in ("wang", "root", "wtip")]
     for poly in weapon_poly(j, q, shapes): pts += poly
     r = rig["head"] + 3
     xs = [x for x, y in pts]; ys = [y for x, y in pts]
     return min(xs) - 6, max(xs) + 6, min(ys) - r - 6, max(ys) + 6
+
+
+JOINT_NAMES = ("hip", "chest", "neck", "head", "shB", "shL", "shR", "elL", "elR",
+               "haL", "haR", "hpL", "hpR", "knL", "knR", "ftL", "ftR", "wtip", "root")
+
+
+def bake_origin(ch, rig, shapes, zero_rx=True):
+    """hip x = 0, y = centre of the idle action's bounding box."""
+    idle = ch["actions"]["idle"]["keyframes"]
+    e = [extent(p, rig, shapes, zero_rx) for p in idle]
+    return 0.0, (min(x[2] for x in e) + max(x[3] for x in e)) / 2.0
+
+
+def joint_frames(kfs, rig, shapes, cx, cy, zero_rx=True):
+    """Per-frame joint positions relative to the bake origin (rig units,
+    rounded to 0.01) plus the weapon world angle -- one dict per keyframe."""
+    out = []
+    for p in kfs:
+        q = dict(p)
+        if zero_rx: q["rx"] = 0
+        j = joints(q, rig, shapes)
+        f = {k: [round(j[k][0] - cx, 2), round(j[k][1] - cy, 2)] for k in JOINT_NAMES}
+        f["wang"] = round(j["wang"], 2)
+        out.append(f)
+    return out
+
+
+def joint_track(ch):
+    rig = rig_of(ch); shapes = weapon_shapes(ch)
+    cx, cy = bake_origin(ch, rig, shapes)
+    return {name: dict(duration_ms=act.get("duration_ms"),
+                       frames=joint_frames(act["keyframes"], rig, shapes, cx, cy),
+                       root_rx=[round(p.get("rx", 0), 2) for p in act["keyframes"]],
+                       root_ry=[round(p.get("ry", 0), 2) for p in act["keyframes"]])
+            for name, act in ch["actions"].items() if act.get("keyframes")}
 
 
 def _job(args):
@@ -169,16 +227,24 @@ def _job(args):
 
 def main():
     from multiprocessing import Pool
+    if "--joints-only" in sys.argv:
+        ch = json.load(open(sys.argv[1]))
+        args = [a for a in sys.argv[2:] if a != "--joints-only"]
+        txt = json.dumps(joint_track(ch), indent=1)
+        if args:
+            open(args[0], "w").write(txt)
+        else:
+            print(txt)
+        return
+    global Image, ImageDraw
+    from PIL import Image, ImageDraw
     src, out = sys.argv[1], sys.argv[2]
     ppu = float(sys.argv[sys.argv.index("--px-per-unit") + 1]) if "--px-per-unit" in sys.argv else 2.0
     ss = int(sys.argv[sys.argv.index("--ss") + 1]) if "--ss" in sys.argv else 4
     zero_rx = "--keep-rx" not in sys.argv
     ch = json.load(open(src)); rig = rig_of(ch); shapes = weapon_shapes(ch); pal = ch.get("palette", {})
     # common origin: idle bbox centre (y) and hip x=0 so every set registers to the same world point
-    idle = ch["actions"]["idle"]["keyframes"]
-    e = [extent(p, rig, shapes, zero_rx) for p in idle]
-    cy = (min(x[2] for x in e) + max(x[3] for x in e)) / 2.0
-    cx = 0.0
+    cx, cy = bake_origin(ch, rig, shapes, zero_rx)
     manifest = dict(px_per_unit=ppu, head_diameter_px=rig["head"] * 2 * ppu, origin_world=[cx, cy], zero_rx=zero_rx, actions={})
     for name, act in ch["actions"].items():
         kfs = act["keyframes"]
@@ -196,7 +262,8 @@ def main():
         with Pool(os.cpu_count() or 2) as pool:
             pool.map(_job, jobs)
         manifest["actions"][name] = dict(files=files, size=[Wf, Hf], duration_ms=act.get("duration_ms"), root_rx=travel,
-                                          root_ry=[round(p.get("ry", 0), 2) for p in kfs])
+                                          root_ry=[round(p.get("ry", 0), 2) for p in kfs],
+                                          joints=joint_frames(kfs, rig, shapes, cx, cy, zero_rx))
         print(name, len(files), "frames", Wf, "x", Hf)
     json.dump(manifest, open(os.path.join(out, "bake_manifest.json"), "w"), indent=1)
 
