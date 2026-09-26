@@ -226,6 +226,22 @@ class MotionSystem(System):
                 else:
                     p.teleport_ticks -= 1
 
+            # --- Generic hop-back (JSON `movement.hop_back`): a charging
+            # figure that closes to trigger range leaps straight back from
+            # its target, playing its hop frame set. Owns this tick's
+            # movement while airborne but never sets combat.acted, so
+            # ProjectileSystem keeps firing through the hop. Identical in
+            # Solo (target = cursor) and Battle (target = nearest enemy);
+            # no-op for characters without the block. ---
+            if combat.hop_back_cfg(fig) is not None:
+                if battle:
+                    htx, hty = world._nearest_enemy(fig.x, fig.y)
+                else:
+                    htx, hty = world.cursor
+                if combat.tick_hop_back(fig, htx, hty):
+                    fig.render.advance()
+                    continue
+
             tx_motion, ty_motion = world.movement_target(fig)
             _char = getattr(fig.mode, "character", None)
             if _char and _char.get("stationary"):
