@@ -7,3 +7,6 @@ __pycache__/
 
 # Local-only auth token for update_game.py / session scripts — never commit.
 .gh_token
+
+# update_game.py bookkeeping (which character files it last wrote) — local only.
+.sync_state.json

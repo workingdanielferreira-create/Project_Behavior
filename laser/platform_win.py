@@ -14,6 +14,7 @@ VK_ALT   = 0x12
 VK_ENTER = 0x0D
 VK_Q     = 0x51
 VK_R     = 0x52
+VK_F5    = 0x74            # reload characters from disk (World.reload_characters)
 VK_F7    = 0x76
 VK_F8    = 0x77
 VK_F9    = 0x78

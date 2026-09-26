@@ -70,6 +70,11 @@ class InputSystem(System):
         if self._pressed(win.VK_F9):
             world.runner_on = not world.runner_on
 
+        # F5: reload characters from disk — pick up a Rig Forge export or an
+        # FX Studio save without restarting the game.
+        if self._pressed(win.VK_F5):
+            world.reload_characters()
+
         # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
         # registered character; P2 cycles through them and then OFF (side
         # cleared — battle ends), tap again to re-field.

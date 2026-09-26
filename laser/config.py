@@ -37,6 +37,12 @@ ROTATE_TO_FACING_ENABLED = True
 # sets by head diameter.  Change TARGET_HEAD_PX to resize the whole companion
 # while keeping every animation visually consistent.
 TARGET_HEAD_PX        = 16.0
+# Image characters (Rig Forge packages) are sized by how tall they STAND, not
+# by head size, so every one matches the roster: the runner and mage stand
+# 28 px, the others 18-24 px.  The standing height is the visible height of
+# the character's first idle frame.  FX Studio uses the same number
+# (tools/fx/studio/fxkit.js STAND_HEIGHT_PX) so FX are authored at game size.
+IMAGE_STAND_HEIGHT_PX = 28.0
 RUN_SRC_HEAD          = 75.0    # measured avg head diameter in Picture*.png
 IDLE_SRC_HEAD         = 60.0    # head diameter in standing*.png
 SLIDE_SRC_HEAD        = 135.0   # head diameter in slidingback*.png

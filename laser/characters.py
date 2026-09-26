@@ -694,10 +694,49 @@ def _load_sprite_files(root_dir, sf):
 _PKG_CORE_SETS = {"run": "run", "idle": "idle", "attack_normal": "slash", "defend": "slide"}
 
 
-def package_to_character(man, rel_dir, fxkit=None):
+def stand_height_px(path):
+    """Visible height (alpha > 40) of one frame PNG, in image px — the same
+    measurement FX Studio makes (studio.js standHeight)."""
+    img = QImage(path)
+    if img.isNull():
+        return 0
+    img = img.convertToFormat(QImage.Format_ARGB32)
+    w, h, bpl = img.width(), img.height(), img.bytesPerLine()
+    ptr = img.constBits()
+    ptr.setsize(bpl * h)
+    raw = bytes(ptr)
+    top = bot = None
+    for y in range(h):
+        row = raw[y * bpl: y * bpl + w * 4]
+        if max(row[3::4], default=0) > 40:      # ARGB32 is B,G,R,A in memory
+            if top is None:
+                top = y
+            bot = y
+    return 0 if top is None else bot - top + 1
+
+
+def package_scale(man, root_dir, rel_dir):
+    """Game px per image px for a package: it stands IMAGE_STAND_HEIGHT_PX
+    tall, measured on its first idle frame (first frame of its first action
+    when there is no idle)."""
+    acts = man.get("actions") or {}
+    first = (acts.get("idle") or next(iter(acts.values()), {}) or {}).get("frames") or []
+    if first:
+        h = stand_height_px(os.path.join(root_dir, rel_dir, first[0]))
+        if h > 0:
+            return config.IMAGE_STAND_HEIGHT_PX / h
+    img = man.get("image") or {}
+    return config.TARGET_HEAD_PX / max(1.0, float(img.get("head_px") or 58))
+
+
+def package_to_character(man, rel_dir, fxkit=None, game_scale=None):
     """pb_char_pkg (+ optional pb_fxkit) -> pb_character dict for _register."""
     img = man.get("image") or {}
     head = float(img.get("head_px") or 58)
+    if game_scale:
+        # FrameBundle scales by TARGET_HEAD_PX / src_head_px; pick src_head_px
+        # so that equals the stand-height scale.
+        head = config.TARGET_HEAD_PX / game_scale
     sprite_files = {"remove_bg": False}
     actions = {}
     for name, act in (man.get("actions") or {}).items():
@@ -735,6 +774,7 @@ def package_to_character(man, rel_dir, fxkit=None):
         # Kept for the FX runtime and anything that needs the package itself.
         "_package": {"dir": rel_dir, "image": img, "anchors": man.get("anchors") or {},
                      "anchor_labels": man.get("anchor_labels") or {}},
+        "_game_scale": game_scale,
         "_fxkit": fxkit,
     }
     return char
@@ -774,7 +814,7 @@ def load_packages(root_dir, bundles, packages=None):
     folder = os.path.join(root_dir, "characters")
     for key, rel, man, fx in (packages if packages is not None else _find_packages(root_dir)):
         try:
-            char = package_to_character(man, rel, fx)
+            char = package_to_character(man, rel, fx, package_scale(man, root_dir, rel))
             key = _register(char)
             bundle = _load_sprite_files(root_dir, char["sprite_files"])
             bundles[key] = bundle

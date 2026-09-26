@@ -15,6 +15,13 @@ from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
 
+def _is_image_mode(mode):
+    """Rig Forge image characters draw upright, exactly as authored (no
+    rotate-to-travel tilt), so the game matches Rig Forge and FX Studio."""
+    char = getattr(mode, "character", None)
+    return bool(char and char.get("_package"))
+
+
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
@@ -35,7 +42,7 @@ class Figure:
             speed=spd["chase_speed"] + (index % 3) * 0.4,
             follow_speed=spd["follow_speed"] + (index % 3) * 0.5,
             offset_x=ox, offset_y=oy,
-            rotate=config.ROTATE_TO_FACING_ENABLED,
+            rotate=config.ROTATE_TO_FACING_ENABLED and not _is_image_mode(mode),
         )
         self.trail = TrailComponent(lut, gradient=spd.get("trail_gradient"))
         self.render = Renderable(bundle, spd["anim_speed"], spd["idle_anim_speed"],
@@ -62,6 +69,9 @@ class Figure:
     # mode switching --------------------------------------------------------
     def set_mode(self, mode, bundle):
         self.mode = mode
+        self.motion.rotate = config.ROTATE_TO_FACING_ENABLED and not _is_image_mode(mode)
+        if not self.motion.rotate:
+            self.transform.angle = 0.0
         spd = mode.speeds()
         self.motion.speed = spd["chase_speed"] + (self.index % 3) * 0.4
         self.motion.follow_speed = spd["follow_speed"] + (self.index % 3) * 0.5

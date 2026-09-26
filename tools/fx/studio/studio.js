@@ -56,11 +56,11 @@ function facing() {
   return +$("facing").value;
 }
 function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
-function imgScale() { return TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px
+function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px (stand-height scale)
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, scale: imgScale()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -216,6 +216,10 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   C = {man: man, name: name, display: man ? man.display_name || name : name, actions: acts,
     origin: man && man.image ? man.image.origin_px : [first.naturalWidth / 2, first.naturalHeight / 2],
     headPx: man && man.image ? +man.image.head_px : 58};
+  // Game size: the character stands FXK.STAND_HEIGHT_PX tall (the roster's
+  // height), measured on its first idle frame — the same rule the game uses.
+  var standImg = (acts.idle || acts[Object.keys(acts)[0]]).images[0], sh = standImg ? FXK.standHeight(standImg) : 0;
+  if (sh > 0) C.k = FXK.STAND_HEIGHT_PX / sh;
   S.dir = dirHandle || null;
   var pal = (man && man.palette) || {};
   lut = FXK.buildLut([FXK.hexRgb(pal.body, [242, 244, 246]), FXK.hexRgb(pal.accent, [63, 176, 234])]);   // palette.build_lut([body, accent])
@@ -228,6 +232,10 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
   S.actionCfg = clone((src && src.action_settings) || {});
   S.entries = ((src && src.entry_sets) || []).map(FXK.normalizeEntrySet); S.paths = ((src && src.paths) || []).map(FXK.normalizePath);
+  // The scale this work was authored at (older saves used the head-size rule).
+  var oldRule = TARGET_HEAD_PX / Math.max(1, C.headPx);
+  var packScale = function (p) { return (p && p.space && +p.space.game_px_per_image_px) || oldRule; };
+  S.srcScale = src === local ? ((local && +local.scale) || oldRule) : packScale(pack);
   if (local && pack) {
     ask("This browser has Studio work for " + name + " that may differ from " + name + ".fxkit.json in the folder. Which should open?",
       {ok: "My browser work", no: "The folder's file"}, function (keep) {
@@ -235,6 +243,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
           S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
           S.actionCfg = clone(pack.action_settings || {});
           S.entries = (pack.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (pack.paths || []).map(FXK.normalizePath);
+          S.srcScale = packScale(pack);
         }
         finishOpen(man, acts, pack, name, local);
       });
@@ -244,6 +253,13 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
 }
 function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
+  // Work authored at another scale keeps its look around the figure: every
+  // distance is multiplied by the ratio (the game does the same on load).
+  var ratio = S.srcScale ? imgScale() / S.srcScale : 1;
+  if (Math.abs(ratio - 1) > 1e-3) {
+    FXK.rescaleEffects(S.effects, {entry_sets: S.entries, paths: S.paths}, ratio);
+    setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
+  }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
   S.sel = null; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");

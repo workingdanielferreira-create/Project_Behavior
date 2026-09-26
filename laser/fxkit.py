@@ -194,6 +194,47 @@ def normalize(fx):
     return fx
 
 
+# ---------------------------------------------------------------- character scale
+# Image characters stand config.IMAGE_STAND_HEIGHT_PX tall (the roster's
+# height).  An FX file records the scale it was authored at
+# (space.game_px_per_image_px); when the character's game scale differs, every
+# distance in the file is multiplied by the ratio so the FX keep exactly the
+# size and placement they had around the figure.  FXK.rescaleEffects mirrors
+# this (FX Studio applies it when it opens an older file).
+_SCALE_PARAMS = {
+    "ribbon": ("min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"),
+    "arc": ("radius", "width", "back", "lead"),
+    "beam": ("length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"),
+    "sprite": ("radius",),
+    "particles": ("speed_min", "speed_max", "gravity", "size_min", "size_max"),
+    "glow": ("r_start", "r_end", "core_r"),
+    "ghost": (),
+    "weapon": ("width",),
+}
+_SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry")
+
+
+def rescale_effects(effects, lib, r):
+    """Multiply every game-px distance in effects + entry sets + paths by r."""
+    if abs(r - 1.0) < 1e-6:
+        return
+    for fx in effects:
+        off = fx.get("offset") or [0, 0]
+        fx["offset"] = [float(off[0] or 0) * r, float(off[1] or 0) * r]
+        m = fx.get("motion") or {}
+        for k in _SCALE_MOTION:
+            if isinstance(m.get(k), (int, float)):
+                m[k] = m[k] * r
+        P = fx.get("params") or {}
+        for k in _SCALE_PARAMS.get(fx.get("prim"), ()):
+            if isinstance(P.get(k), (int, float)) and not isinstance(P.get(k), bool):
+                P[k] = P[k] * r
+    for e in (lib or {}).get("entry_sets") or []:
+        e["points"] = [[p[0] * r, p[1] * r] for p in e.get("points") or []]
+    for p in (lib or {}).get("paths") or []:
+        p["points"] = [[q[0] * r, q[1] * r] for q in p.get("points") or []]
+
+
 def normalize_action(cfg):
     cfg = _fill(dict(cfg or {}), ACTION_DEFAULTS)
     return cfg
@@ -1038,7 +1079,9 @@ class CharacterFx:
         space = fxk.get("space") or {}
         self.origin = list(space.get("image_origin_px") or img.get("origin_px") or [0, 0])
         head = float(space.get("head_px") or img.get("head_px") or 58)
-        self.k = config.TARGET_HEAD_PX / max(1.0, head)          # game px per image px
+        # Game px per image px: the character's stand-height scale (set by
+        # the loader), else the old head-size rule.
+        self.k = float(char.get("_game_scale") or config.TARGET_HEAD_PX / max(1.0, head))
         self.anchors = fxk.get("anchors") or pkg.get("anchors") or {}
         self.effects = [normalize(dict(e)) for e in (fxk.get("effects") or [])]
         self.by_action = {}
@@ -1047,6 +1090,9 @@ class CharacterFx:
         self.settings = {k: normalize_action(v) for k, v in (fxk.get("action_settings") or {}).items()}
         self.lib = {"entry_sets": [normalize_entry_set(e) for e in (fxk.get("entry_sets") or [])],
                     "paths": [normalize_path(p) for p in (fxk.get("paths") or [])]}
+        authored = float(space.get("game_px_per_image_px") or 0)
+        if authored > 0:
+            rescale_effects(self.effects, self.lib, self.k / authored)
         self.timing = {}
         for name, act in (char.get("actions") or {}).items():
             n = len(act.get("keyframes") or []) or 1

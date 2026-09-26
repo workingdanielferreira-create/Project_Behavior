@@ -228,6 +228,39 @@ function moveFactor(name, cfg) {
   cfg = cfg || ACTION_DEFAULTS;
   return cfg.movement === "move" ? Math.max(0, +cfg.move_speed_pct || 0) / 100 : 0;
 }
+// ---------------------------------------------------------------- character scale
+// Image characters stand STAND_HEIGHT_PX tall in game (laser/config.py
+// IMAGE_STAND_HEIGHT_PX, the roster's height), measured on the first idle
+// frame.  An FX file records the scale it was authored at
+// (space.game_px_per_image_px); a file authored at another scale has every
+// distance multiplied by the ratio (laser/fxkit.py rescale_effects).
+var STAND_HEIGHT_PX = 28;
+var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"], arc: ["radius", "width", "back", "lead"],
+  beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius"],
+  particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"], ghost: [], weapon: ["width"]};
+var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry"];
+function rescaleEffects(effects, lib, r) {
+  if (Math.abs(r - 1) < 1e-6) return;
+  effects.forEach(function (fx) {
+    var off = fx.offset || [0, 0]; fx.offset = [(+off[0] || 0) * r, (+off[1] || 0) * r];
+    var m = fx.motion || {}; SCALE_MOTION.forEach(function (k) { if (typeof m[k] === "number") m[k] *= r; });
+    var P = fx.params || {}; (SCALE_PARAMS[fx.prim] || []).forEach(function (k) { if (typeof P[k] === "number") P[k] *= r; });
+  });
+  ((lib && lib.entry_sets) || []).forEach(function (e) { e.points = (e.points || []).map(function (p) { return [p[0] * r, p[1] * r]; }); });
+  ((lib && lib.paths) || []).forEach(function (p) { p.points = (p.points || []).map(function (q) { return [q[0] * r, q[1] * r]; }); });
+}
+// Visible height (alpha > 40) of an <img>, in image px (characters.py stand_height_px).
+function standHeight(img) {
+  var w = img.naturalWidth, h = img.naturalHeight;
+  if (!w || !h) return 0;
+  var c = document.createElement("canvas"); c.width = w; c.height = h;
+  var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+  var d = g.getImageData(0, 0, w, h).data, top = -1, bot = -1;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 40) { if (top < 0) top = y; bot = y; break; }
+  }
+  return top < 0 ? 0 : bot - top + 1;
+}
 function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
@@ -890,5 +923,6 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
+  STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

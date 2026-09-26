@@ -192,26 +192,72 @@ def download_file(commit, rel_path, sha):
     return download_blob(sha)
 
 
+# Character folders are edited on this PC (Rig Forge exports and FX Studio
+# saves go straight into characters/<name>/).  The updater remembers the git
+# blob SHA of every characters/ file it last wrote or found up to date
+# (.sync_state.json, never committed); a local file whose SHA differs from
+# that record was changed here, so it is kept instead of overwritten.
+SYNC_STATE = os.path.join(HERE, ".sync_state.json")
+
+
+def _load_state():
+    try:
+        with open(SYNC_STATE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state):
+    try:
+        with open(SYNC_STATE, "w", encoding="utf-8") as f:
+            json.dump(state, f)
+    except OSError:
+        pass
+
+
+def _is_local_edit(rel_path, local_sha, remote_sha, state):
+    """True when a characters/ file on this PC was changed here and must not
+    be overwritten by the repo's copy."""
+    if not rel_path.startswith("characters/") or local_sha is None:
+        return False
+    if local_sha == remote_sha:
+        return False
+    # Only files the updater has written/checked before are protected: a
+    # recorded SHA that no longer matches means the file was changed here.
+    recorded = state.get(rel_path)
+    return recorded is not None and recorded != local_sha
+
+
 def update_files():
-    changed, failed, locked = [], [], []
+    changed, failed, locked, kept = [], [], [], []
     self_updated = False
 
     commit = head_commit()
     tree = remote_tree(commit)
     print(f"Checking {len(tree)} tracked files (commit {commit[:7]})...\n")
 
+    state = _load_state()
     for rel_path, sha, _size in tree:
         if _is_pycache_path(rel_path):
             continue  # never sync/trust compiled bytecode cache
         local_path = os.path.join(HERE, *rel_path.split("/"))
-        if local_blob_sha(local_path) == sha:
+        local_sha = local_blob_sha(local_path)
+        if local_sha == sha:
+            if rel_path.startswith("characters/"):
+                state[rel_path] = sha
             continue  # up to date
+        if _is_local_edit(rel_path, local_sha, sha, state):
+            kept.append(rel_path)
+            continue
         try:
             content = download_file(commit, rel_path, sha)
             os.makedirs(os.path.dirname(local_path) or HERE, exist_ok=True)
             with open(local_path, "wb") as f:
                 f.write(content)
             changed.append(rel_path)
+            if rel_path.startswith("characters/"):
+                state[rel_path] = sha
             if rel_path == SELF:
                 self_updated = True
         except OSError as e:
@@ -222,7 +268,17 @@ def update_files():
         except Exception as e:
             failed.append(f"{rel_path} ({e})")
 
+    _save_state(state)
+    _report_kept(kept)
     return changed, failed, locked, self_updated
+
+
+def _report_kept(kept):
+    if kept:
+        print("Kept your local character edits (not overwritten):")
+        for f in kept:
+            print(f"  - {f}")
+        print()
 
 
 def update_files_from_zip():
@@ -233,7 +289,8 @@ def update_files_from_zip():
     download instead of per-file ones."""
     import io
     import zipfile
-    changed, failed, locked = [], [], []
+    changed, failed, locked, kept = [], [], [], []
+    state = _load_state()
     self_updated = False
     url = f"https://codeload.github.com/{REPO}/zip/refs/heads/{BRANCH}"
     req = urllib.request.Request(url, headers={"User-Agent": "Project_Behavior-updater"})
@@ -252,13 +309,22 @@ def update_files_from_zip():
                 continue
             content = z.read(info)
             local_path = os.path.join(HERE, *rel_path.split("/"))
-            if local_blob_sha(local_path) == _git_blob_sha(content):
+            remote_sha = _git_blob_sha(content)
+            local_sha = local_blob_sha(local_path)
+            if local_sha == remote_sha:
+                if rel_path.startswith("characters/"):
+                    state[rel_path] = remote_sha
+                continue
+            if _is_local_edit(rel_path, local_sha, remote_sha, state):
+                kept.append(rel_path)
                 continue
             try:
                 os.makedirs(os.path.dirname(local_path) or HERE, exist_ok=True)
                 with open(local_path, "wb") as f:
                     f.write(content)
                 changed.append(rel_path)
+                if rel_path.startswith("characters/"):
+                    state[rel_path] = remote_sha
                 if rel_path == SELF:
                     self_updated = True
             except OSError as e:
@@ -266,6 +332,8 @@ def update_files_from_zip():
                     locked.append(rel_path)
                 else:
                     failed.append(f"{rel_path} ({e})")
+    _save_state(state)
+    _report_kept(kept)
     return changed, failed, locked, self_updated
 
 

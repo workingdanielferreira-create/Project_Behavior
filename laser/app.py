@@ -137,6 +137,7 @@ class World:
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
+        self.notice = ("", 0)               # (text, ticks left) — on-screen message
         self.impact_rings = []              # [x, y, age, max_radius] shockwaves
         self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
         self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
@@ -192,6 +193,39 @@ class World:
         return False
 
     # --- commands ----------------------------------------------------------
+    def reload_characters(self):
+        """F5: re-read every image character (characters/<name>/ with its
+        Rig Forge character.json, frames and FX Studio file) from disk and
+        re-skin the figures using them, so an export or an FX save shows up
+        in the running game straight away.  Same path for Solo and Battle."""
+        from . import drops, characters as _chars
+        root = self.assets.dir
+        try:
+            drops.organize_drops(root)
+        except Exception:
+            pass
+        pkgs = _chars._find_packages(root)
+        for key, _rel, _man, _fx in pkgs:
+            m = modes.MODE_REGISTRY.get(key)
+            for attr in ("_fxkit_cache", "_combo_cfg"):
+                if m is not None and hasattr(m, attr):
+                    try:
+                        delattr(m, attr)
+                    except AttributeError:
+                        pass
+        _chars.load_packages(root, self.assets.bundles, pkgs)
+        names = {p[0] for p in pkgs}
+        for side in self.sides:
+            for fig in side.figures:
+                if fig.mode.key in names:
+                    self._reskin_figure(fig, fig.mode.key)
+        msg = ("Reloaded " + ", ".join(sorted(names))) if names else "No Rig Forge characters found in characters/"
+        missing = sorted(k for k, _r, _m, fx in pkgs if not fx)
+        if missing:
+            msg += "   (no FX file: " + ", ".join(missing) + ")"
+        self.notice = (msg, 180)
+        action_log.log("RELOAD", msg)
+
     def _reskin_figure(self, fig, mode_key):
         """Switch ONE figure to `mode_key` — sprites, speeds, palette, HP.
 
@@ -843,6 +877,16 @@ class Overlay(QWidget):
                 # Main text
                 p.setPen(QColor(r2, g2, b2, alpha))
                 p.drawText(draw_x, draw_y, label)
+
+        # --- On-screen notice (F5 reload result) ---
+        _txt, _left = w.notice
+        if _left > 0 and _txt:
+            w.notice = (_txt, _left - 1)
+            p.setFont(self._hp_font)
+            p.setPen(QColor(0, 0, 0, 160))
+            p.drawText(21, 41, _txt)
+            p.setPen(QColor(255, 255, 255, 230))
+            p.drawText(20, 40, _txt)
 
         p.end()
 

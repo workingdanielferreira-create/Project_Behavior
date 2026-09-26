@@ -211,6 +211,13 @@ def organize_drops(root):
         if len(c) > 1:
             log.append(f"NOTE: {len(c)} exports of {name} dropped ({', '.join(x[1] for x in c)}); "
                        f"using the newest, {c[-1][1]}. Delete the others from the repo.")
+        # Never overwrite newer local work: a Rig Forge export or FX Studio
+        # save made straight into characters/<name>/ is newer than the drop.
+        src = os.path.join(root, c[-1][1])
+        src = os.path.join(src, "character.json") if os.path.isdir(src) else src
+        dest_cj = os.path.join(root, "characters", name, "character.json")
+        if os.path.exists(dest_cj) and os.path.getmtime(dest_cj) > os.path.getmtime(src) + 1:
+            continue
         _install_package(root, c[-1][2][0], c[-1][2][1], log)
     # FX files last, so they land in the folder their package just made.
     for name in sorted(fxs):
@@ -219,7 +226,10 @@ def organize_drops(root):
             log.append(f"NOTE: {len(c)} FX files for {name} dropped ({', '.join(x[1] for x in c)}); "
                        f"using {c[-1][1]}. Delete the others from the repo.")
         written = []
-        _write(os.path.join(root, "characters", name, name + ".fxkit.json"), c[-1][2], written)
+        dest_fx = os.path.join(root, "characters", name, name + ".fxkit.json")
+        if os.path.exists(dest_fx) and os.path.getmtime(dest_fx) > os.path.getmtime(os.path.join(root, c[-1][1])) + 1:
+            continue   # a newer FX Studio save is already in the character folder
+        _write(dest_fx, c[-1][2], written)
         if written:
             log.append(f"characters/{name}/: FX file updated ({c[-1][1]})")
     return log
