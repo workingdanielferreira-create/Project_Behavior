@@ -362,8 +362,9 @@ function buildActions() {
   });
 }
 function buildAnchors() {
-  var d = $("anchors"); d.innerHTML = "";
+  var d = $("anchors"), top = d.scrollTop; d.innerHTML = "";
   if (!C) return;
+  var keepSel = null;
   anchorIds().forEach(function (id) {
     var placed = ((S.anchors[S.action] || {})[id] || []).filter(Boolean).length;
     var el = document.createElement("div"); el.className = id === S.selAnchor ? "sel" : "";
@@ -380,7 +381,10 @@ function buildAnchors() {
     };
     el.onclick = function () { S.selAnchor = S.selAnchor === id ? null : id; buildAnchors(); anchorTools(); };
     d.appendChild(el);
+    if (id === S.selAnchor) keepSel = el;
   });
+  d.scrollTop = top;   // rebuilding keeps the list where it was scrolled
+  if (keepSel && (keepSel.offsetTop < d.scrollTop || keepSel.offsetTop + keepSel.offsetHeight > d.scrollTop + d.clientHeight)) d.scrollTop = keepSel.offsetTop;
   anchorTools();
 }
 function anchorTools() {
@@ -616,7 +620,7 @@ function buildTimeline() {
     b.style.left = (w[0] / total * W) + "px"; b.style.width = Math.max(4, span / total * W) + "px";
     b.title = fx.name + " — " + fx.prim + ", starts frame " + fx.start_frame;
     b.style.top = (18 + row * 15) + "px"; b.style.opacity = fx.enabled ? 1 : 0.4; b.textContent = fx.name;
-    b.onclick = function (ev) { ev.stopPropagation(); S.sel = fx.id; buildEffects(); buildProps(); buildTimeline(); };
+    b.dataset.fx = fx.id;   // selected on release by the timeline's pointer handler
     tl.appendChild(b);
   });
   placeHead();
@@ -766,7 +770,41 @@ function gotoFrame(f) { if (!C) return; S.playing = false; $("bPlay").textConten
 $("bPrev").onclick = function () { gotoFrame(frameAt(S.t) - 1); };
 $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
 ["facing", "walk", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
-$("timeline").onclick = function (ev) { if (!C) return; var r = this.getBoundingClientRect(); S.playing = false; $("bPlay").textContent = "▶ Play"; resetSim(Math.round((ev.clientX - r.left) / r.width * totalTicks())); };
+// Timeline scrubbing: press and drag with the left button to move the
+// playhead (the view re-simulates to each tick, so FX show exactly as they
+// play).  A press on an effect's bar selects it on release unless the
+// pointer moved, in which case it scrubs.
+(function () {
+  var tl = $("timeline"), scrub = null, pending = null;
+  function tickAt(x) { var r = tl.getBoundingClientRect(); return Math.round(Math.max(0, Math.min(1, (x - r.left) / r.width)) * totalTicks()); }
+  function go(x) {
+    pending = x;
+    if (scrub.raf) return;
+    scrub.raf = requestAnimationFrame(function () { if (scrub) { scrub.raf = 0; resetSim(tickAt(pending)); } });
+  }
+  tl.addEventListener("pointerdown", function (ev) {
+    if (!C || ev.button !== 0) return;
+    S.playing = false; $("bPlay").textContent = "▶ Play";
+    var onBar = ev.target.classList.contains("tlbar");
+    scrub = {x0: ev.clientX, live: !onBar, raf: 0, bar: onBar ? ev.target.dataset.fx : null};
+    try { tl.setPointerCapture(ev.pointerId); } catch (e) {}
+    if (scrub.live) go(ev.clientX);
+    ev.preventDefault();
+  });
+  tl.addEventListener("pointermove", function (ev) {
+    if (!scrub) return;
+    if (!scrub.live && Math.abs(ev.clientX - scrub.x0) > 3) scrub.live = true;
+    if (scrub.live) go(ev.clientX);
+  });
+  function end(ev) {
+    if (!scrub) return;
+    if (scrub.live) { if (scrub.raf) cancelAnimationFrame(scrub.raf); resetSim(tickAt(ev.clientX)); }
+    else if (scrub.bar) { S.sel = scrub.bar; buildEffects(); buildProps(); buildTimeline(); }
+    scrub = null;
+  }
+  tl.addEventListener("pointerup", end);
+  tl.addEventListener("pointercancel", end);
+})();
 window.addEventListener("resize", buildTimeline);
 document.addEventListener("keydown", function (ev) {
   var mod = ev.ctrlKey || ev.metaKey, k = (ev.key || "").toLowerCase(), ae = document.activeElement;
