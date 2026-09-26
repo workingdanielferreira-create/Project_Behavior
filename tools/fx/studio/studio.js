@@ -53,7 +53,49 @@ function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
 function imgScale() { return TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
-function save() { if (C) lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg}); }
+function save() { if (C) { persist(); record(); } }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg}); }
+
+// ------------------------------------------------------------ undo / redo
+// Every edit ends in save(), so history snapshots the editable data there:
+// effects, anchors (and their names) and action settings.  A burst of edits
+// (typing in a field, placing anchors quickly) settles into one step after
+// 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
+var HIST = {past: [], future: [], cur: null, timer: 0};
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg}); }
+function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
+function record() {
+  clearTimeout(HIST.timer);
+  HIST.timer = setTimeout(commitHist, 400);
+}
+function commitHist() {
+  HIST.timer = 0;
+  var now = snapState();
+  if (HIST.cur === null) { HIST.cur = now; return; }
+  if (now === HIST.cur) return;
+  HIST.past.push(HIST.cur); if (HIST.past.length > 200) HIST.past.shift();
+  HIST.cur = now; HIST.future = []; histUI();
+}
+function applyState(str) {
+  var o = JSON.parse(str);
+  S.effects = o.e.map(FXK.normalize); S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
+  if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
+  if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
+  HIST.cur = str; persist(); rebuild(); resetSim(S.t); histUI();
+}
+function undo() {
+  if (!C) return;
+  if (HIST.timer) { clearTimeout(HIST.timer); commitHist(); }
+  if (!HIST.past.length) return toast("Nothing to undo");
+  HIST.future.push(HIST.cur); applyState(HIST.past.pop()); toast("Undone");
+}
+function redo() {
+  if (!C) return;
+  if (HIST.timer) { clearTimeout(HIST.timer); commitHist(); }
+  if (!HIST.future.length) return toast("Nothing to redo");
+  HIST.past.push(HIST.cur); applyState(HIST.future.pop()); toast("Redone");
+}
+function histUI() { var u = $("bUndo"), r = $("bRedo"); if (u) u.disabled = !HIST.past.length; if (r) r.disabled = !HIST.future.length; }
 function cfgOf(a) { return (S.actionCfg[a] = FXK.normalizeAction(S.actionCfg[a])); }
 function anchorIds() { return Object.keys(S.labels); }
 
@@ -195,7 +237,7 @@ function finishOpen(man, acts, pack, name, local) {
   S.sel = null; S.selAnchor = null; S.figX = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
-  rebuild(); resetSim(0); save();
+  rebuild(); resetSim(0); persist(); histReset();
   toast("Opened " + C.display + ": " + names.length + " actions" + (pack ? ", " + S.effects.length + " FX" : ""));
 }
 function pickFolder() {
@@ -680,6 +722,7 @@ $("newPrim").innerHTML = FXK.PRIMS.map(function (p) { return "<option>" + p + "<
 $("bOpen").onclick = pickFolder;
 $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.files); this.value = ""; if (l.length) openFiles(l, null); };
 $("bSave").onclick = saveFx;
+$("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
   var fx = FXK.newEffect($("newPrim").value, S.action);
@@ -726,6 +769,12 @@ $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
 $("timeline").onclick = function (ev) { if (!C) return; var r = this.getBoundingClientRect(); S.playing = false; $("bPlay").textContent = "▶ Play"; resetSim(Math.round((ev.clientX - r.left) / r.width * totalTicks())); };
 window.addEventListener("resize", buildTimeline);
 document.addEventListener("keydown", function (ev) {
+  var mod = ev.ctrlKey || ev.metaKey, k = (ev.key || "").toLowerCase(), ae = document.activeElement;
+  if (mod && (k === "z" || k === "y") && $("dlg").hidden) {
+    // A text field keeps the browser's own typing undo; everything else is the Studio's.
+    var typing = ae && (ae.tagName === "TEXTAREA" || (ae.tagName === "INPUT" && /^(text|search)$/i.test(ae.type)));
+    if (!typing) { ev.preventDefault(); if (k === "y" || ev.shiftKey) redo(); else undo(); return; }
+  }
   if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   if (ev.code === "Space") { ev.preventDefault(); $("bPlay").click(); }
   if (ev.key === "ArrowLeft") $("bPrev").click();
