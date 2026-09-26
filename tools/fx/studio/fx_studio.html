@@ -45,7 +45,12 @@ details.panel>summary:focus-visible{outline:1px solid var(--acc);outline-offset:
 .f label{color:var(--mute);font-size:12px}
 /* Settings sections: blue = one effect, amber = the whole action */
 .sec{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:7px;padding:6px 8px;margin:8px 0;background:var(--panel2)}
-.sec.act{border-left-color:var(--warn)}
+.sec.act{border-left-color:var(--warn)}.sec.geo{border-left-color:var(--ok)}.sec.geo>summary b{color:var(--ok)}
+.banner.geo{border-left-color:var(--ok)}.banner.geo .bk{color:var(--ok)}
+.sub{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:8px 0 2px}
+#entryList,#pathList{max-height:calc(4 * (1.4em + 10px) + 2px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.list .note.empty{padding:2px 8px;cursor:default}
+.f.pt .xy{display:flex;gap:4px;align-items:center}.f.pt .xy input{width:58px}.f.pt .xy button{padding:2px 6px}
 .sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;padding:2px 0}
 .sec>summary::-webkit-details-marker{display:none}
 .sec>summary::before{content:"▸";color:var(--mute);font-size:10px;transition:transform .12s}
@@ -117,6 +122,17 @@ main{display:flex;flex-direction:column;min-width:0}
   <details class="panel" id="secEffects" open><summary><h2>Effects on this action</h2></summary>
   <div class="row"><select id="newPrim"></select><button id="bAdd">+ Add</button></div>
   <div id="effects" class="list"></div>
+  </details>
+  <details class="panel" id="secGeo" open><summary><h2>Paths &amp; entry points</h2></summary>
+  <div class="note">Entry points: where effects come out (effect Anchor = ⊕ set). Paths: routes they follow (effect Motion = path). Shared by every action.</div>
+  <div class="sub">Entry points</div>
+  <div id="entryList" class="list"></div>
+  <div class="sub">Paths</div>
+  <div id="pathList" class="list"></div>
+  <div class="row"><button id="bEntryAdd" title="New set of entry points: then click around the figure to place them">+ Entry set</button><button id="bPathAdd" title="New path: then click the stage to draw its points">+ Path</button><button id="bGeoPlace" disabled>Place points</button></div>
+  <div class="row"><select id="geoPreset" style="flex:1;min-width:0"></select><button id="bGeoPreset">Add</button></div>
+  <div class="note" id="geoPresetDesc"></div>
+  <div class="row"><button id="bGeoPresetDel" disabled>Delete preset</button></div>
   </details>
   <details class="panel" id="secPresets" open><summary><h2>Presets</h2></summary>
   <div class="row"><select id="presetSel" style="flex:1;min-width:0"></select><button id="bPreset">Add</button></div>

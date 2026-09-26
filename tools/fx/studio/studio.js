@@ -12,12 +12,13 @@
 "use strict";
 var $ = function (id) { return document.getElementById(id); };
 var TARGET_HEAD_PX = 16;   // laser/config.py TARGET_HEAD_PX
-var LS_PROJECT = "pbfxstudio.v2.project.", LS_PRESETS = "pbfxstudio.v1.presets";
+var LS_PROJECT = "pbfxstudio.v2.project.", LS_PRESETS = "pbfxstudio.v1.presets", LS_GEO = "pbfxstudio.v1.geopresets";
 var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
+  entries: [], paths: [], geo: null, geoPlace: false,
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -59,7 +60,7 @@ function imgScale() { return TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -67,7 +68,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -84,6 +85,8 @@ function commitHist() {
 function applyState(str) {
   var o = JSON.parse(str);
   S.effects = o.e.map(FXK.normalize); S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
+  S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
+  if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
   HIST.cur = str; persist(); rebuild(); resetSim(S.t); histUI();
@@ -153,6 +156,7 @@ var host = {
   get wang() { return 90; },
   get lut() { return lut; },
   get pscale() { return pscale(); },
+  get lib() { return {entry_sets: S.entries, paths: S.paths}; },
   get showHitboxes() { return true; },
   get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
@@ -223,12 +227,14 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
   S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
   S.actionCfg = clone((src && src.action_settings) || {});
+  S.entries = ((src && src.entry_sets) || []).map(FXK.normalizeEntrySet); S.paths = ((src && src.paths) || []).map(FXK.normalizePath);
   if (local && pack) {
     ask("This browser has Studio work for " + name + " that may differ from " + name + ".fxkit.json in the folder. Which should open?",
       {ok: "My browser work", no: "The folder's file"}, function (keep) {
         if (!keep) {
           S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
           S.actionCfg = clone(pack.action_settings || {});
+          S.entries = (pack.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (pack.paths || []).map(FXK.normalizePath);
         }
         finishOpen(man, acts, pack, name, local);
       });
@@ -239,7 +245,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
 function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.sel = null; S.selAnchor = null; S.figX = 0; S.figY = 0;
+  S.sel = null; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
   rebuild(); resetSim(0); persist(); histReset();
@@ -275,6 +281,8 @@ function packData() {
     palette_lut: {built_from: ["palette.body", "palette.accent"], rule: "palette.build_lut([body, accent])"},
     anchor_labels: S.labels, anchors: anchors,
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
+    entry_sets: S.entries.map(function (e) { return FXK.normalizeEntrySet(clone(e)); }),
+    paths: S.paths.map(function (p) { return FXK.normalizePath(clone(p)); }),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -352,7 +360,7 @@ function ingestPresets(o) {
 }
 
 // ------------------------------------------------------------ lists
-function rebuild() { buildActions(); buildAnchors(); buildEffects(); buildProps(); buildTimeline(); syncContinuous(); }
+function rebuild() { buildActions(); buildAnchors(); buildEffects(); buildGeo(); buildProps(); buildTimeline(); syncContinuous(); }
 function syncContinuous() { var c = $("contFx"); if (c) c.checked = !!(C && S.action && cfgOf(S.action).fx_continuous); }
 function buildActions() {
   var d = $("actions"); d.innerHTML = "";
@@ -363,7 +371,7 @@ function buildActions() {
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = n;
     el.querySelector(".m").textContent = a.images.length + "f · " + Math.round(a.images.length * a.frame_ms) + "ms" + (c ? " · " + c + " fx" : "");
-    el.onclick = function () { S.action = n; S.sel = null; rebuild(); resetSim(0); save(); };
+    el.onclick = function () { S.action = n; S.sel = null; S.geo = null; S.geoPlace = false; rebuild(); resetSim(0); save(); };
     d.appendChild(el);
   });
 }
@@ -422,9 +430,245 @@ function buildEffects() {
     var xs = el.querySelectorAll(".x");
     xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(fx); c.id = FXK.newEffect(c.prim).id; c.name += " copy"; S.effects.push(c); S.sel = c.id; rebuild(); resetSim(S.t); save(); };
     xs[1].onclick = function (ev) { ev.stopPropagation(); S.effects = S.effects.filter(function (e) { return e !== fx; }); if (S.sel === fx.id) S.sel = null; rebuild(); resetSim(S.t); save(); };
-    el.onclick = function () { S.sel = fx.id; buildEffects(); buildProps(); buildTimeline(); };
+    el.onclick = function () { S.sel = fx.id; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); };
     d.appendChild(el);
   });
+}
+
+// ------------------------------------------------------------ paths & entry points
+// The character's shared library (every action can use it):
+//   entry sets: groups of points around the fighter that effects come out
+//     of, all at once or one after another (effect Anchor = ⊕ set);
+//   paths: routes an effect travels along (effect Motion = path).
+// Points are game px, x forward.  Placed by clicking the stage.
+var GEO_PRESETS = [
+  {kind: "set", desc: "Three points in an arc above the head, firing together.",
+    item: {name: "Halo of 3", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-16, -44], [0, -50], [16, -44]]}},
+  {kind: "set", desc: "Three points behind the back, firing one after another.",
+    item: {name: "Back row of 3", base: "figure", mode: "sequential", interval_ticks: 6, points: [[-22, -36], [-30, -18], [-22, 0]]}},
+  {kind: "set", desc: "One point each side of the body, firing together.",
+    item: {name: "Both sides", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-26, -20], [26, -20]]}},
+  {kind: "set", desc: "Six points in a ring around the fighter, firing in turn.",
+    item: {name: "Ring of 6", base: "figure", mode: "sequential", interval_ticks: 4,
+      points: [0, 1, 2, 3, 4, 5].map(function (i) { var a = i * Math.PI / 3 - Math.PI / 2; return [Math.round(Math.cos(a) * 34), Math.round(Math.sin(a) * 34 - 16)]; })}},
+  {kind: "set", desc: "A column of four points in front of the body, firing top to bottom.",
+    item: {name: "Front column of 4", base: "figure", mode: "sequential", interval_ticks: 5, points: [[16, -42], [18, -28], [18, -14], [16, 0]]}},
+  {kind: "path", desc: "Straight ahead, turned toward the aim, and keeps going.",
+    item: {name: "Straight", points: [[0, 0], [120, 0]], smooth: false, ticks: 20, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Lobs up and over toward the aim, then keeps going.",
+    item: {name: "Arc over", points: [[0, 0], [50, -40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Dips under toward the aim, then keeps going.",
+    item: {name: "Arc under", points: [[0, 0], [50, 40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Weaves once each way on its way to the aim.",
+    item: {name: "S-curve", points: [[0, 0], [30, -25], [60, 0], [90, 25], [120, 0]], smooth: true, ticks: 28, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "A tight wave toward the aim.",
+    item: {name: "Sine wave", points: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return [i * 20, i % 2 ? (i % 4 === 1 ? -14 : 14) : 0]; }), smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "A loop-the-loop, then on toward the aim.",
+    item: {name: "Loop", points: [[0, 0], [40, 0], [62, -20], [40, -42], [18, -20], [40, 0], [110, 0]], smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Out and back to the fighter, like a boomerang.",
+    item: {name: "Boomerang", points: [[0, 0], [60, -18], [100, 0], [60, 18], [0, 0]], smooth: true, ticks: 40, orient: "aim", end: "stop", follow: true}},
+  {kind: "path", desc: "Rises straight up above the fighter.",
+    item: {name: "Rise up", points: [[0, 0], [0, -80]], smooth: false, ticks: 30, orient: "facing", end: "stop", follow: false}},
+  {kind: "path", desc: "Spirals outward from where it starts.",
+    item: {name: "Spiral out", points: (function () { var o = []; for (var i = 0; i <= 16; i++) { var a = i * Math.PI / 4, r = 3 + i * 3; o.push([Math.round(Math.cos(a) * r - 3), Math.round(Math.sin(a) * r)]); } o[0] = [0, 0]; return o; })(),
+      smooth: true, ticks: 48, orient: "facing", end: "stop", follow: false}},
+  {kind: "path", desc: "Circles the fighter again and again (use with ∞ Continuous).",
+    item: {name: "Circle around", points: (function () { var o = []; for (var i = 0; i <= 12; i++) { var a = i * Math.PI / 6; o.push([Math.round(30 - Math.cos(a) * 30), Math.round(-Math.sin(a) * 30)]); } o[0] = [0, 0]; return o; })(),
+      smooth: true, ticks: 60, orient: "facing", end: "loop", follow: true}}
+];
+function geoUserPresets() { return lsGet(LS_GEO) || []; }
+function geoAllPresets() { return GEO_PRESETS.map(function (p) { return {p: p, builtin: true}; }).concat(geoUserPresets().map(function (p) { return {p: p, builtin: false}; })); }
+function geoItem() {
+  if (!S.geo) return null;
+  var l = S.geo.kind === "set" ? S.entries : S.paths;
+  return l.filter(function (x) { return x.id === S.geo.id; })[0] || null;
+}
+function geoUsers(kind, id) {
+  return S.effects.filter(function (e) { return kind === "set" ? e.anchor === "set:" + id : e.motion.kind === "path" && e.motion.path === id; });
+}
+function geoSelect(kind, id) {
+  S.geo = id ? {kind: kind, id: id} : null; S.geoPlace = false;
+  if (S.geo) S.sel = null;
+  buildEffects(); buildGeo(); buildProps(); buildTimeline();
+}
+function geoNew(kind, item) {
+  var id = (kind === "set" ? "P" : "T") + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  var o = clone(item); o.id = id;
+  if (kind === "set") S.entries.push(FXK.normalizeEntrySet(o)); else S.paths.push(FXK.normalizePath(o));
+  geoSelect(kind, id); resetSim(S.t); save();
+  return id;
+}
+function buildGeo() {
+  [["set", "entryList", S.entries], ["path", "pathList", S.paths]].forEach(function (g3) {
+    var d = $(g3[1]); if (!d) return; d.innerHTML = "";
+    g3[2].forEach(function (it) {
+      var el = document.createElement("div"); el.className = S.geo && S.geo.kind === g3[0] && S.geo.id === it.id ? "sel" : "";
+      el.innerHTML = '<span class="n"></span><span class="m"></span><span class="x" title="Duplicate">⧉</span><span class="x" title="Delete">✕</span>';
+      el.querySelector(".n").textContent = (g3[0] === "set" ? "⊕ " : "↝ ") + it.name;
+      var used = geoUsers(g3[0], it.id).length;
+      el.querySelector(".m").textContent = (g3[0] === "set" ? it.points.length + " pts · " + (it.mode === "sequential" ? "seq" : "sim") : (it.points.length - 1) + " seg · " + it.ticks + "t") + (used ? " · " + used + " fx" : "");
+      var xs = el.querySelectorAll(".x");
+      xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(it); c.name += " copy"; delete c.id; geoNew(g3[0], c); };
+      xs[1].onclick = function (ev) {
+        ev.stopPropagation();
+        var users = geoUsers(g3[0], it.id);
+        ask("Delete \"" + it.name + "\"?" + (users.length ? " " + users.length + " effect(s) use it and will " + (g3[0] === "set" ? "play from the figure instead." : "stop following a path (motion becomes static).") : ""), {ok: "Delete"}, function (ok) {
+          if (!ok) return;
+          users.forEach(function (e) { if (g3[0] === "set") e.anchor = "figure"; else { e.motion.kind = "static"; e.motion.path = ""; } });
+          if (g3[0] === "set") S.entries = S.entries.filter(function (x) { return x !== it; }); else S.paths = S.paths.filter(function (x) { return x !== it; });
+          if (S.geo && S.geo.id === it.id) { S.geo = null; S.geoPlace = false; }
+          rebuild(); resetSim(S.t); save();
+        });
+      };
+      el.onclick = function () { geoSelect(g3[0], S.geo && S.geo.id === it.id ? null : it.id); };
+      d.appendChild(el);
+    });
+    if (!g3[2].length) { var e0 = document.createElement("div"); e0.className = "note empty"; e0.textContent = g3[0] === "set" ? "No entry sets yet." : "No paths yet."; d.appendChild(e0); }
+  });
+  var sel = $("geoPreset");
+  if (sel && !sel.dataset.built) {
+    sel.dataset.built = "1";
+    var html = "", all = geoAllPresets();
+    [["set", true, "Entry-set presets"], ["path", true, "Path presets"], ["set", false, "My entry sets"], ["path", false, "My paths"]].forEach(function (grp) {
+      var opts = all.map(function (x, i) { return [x, i]; }).filter(function (q) { return q[0].p.kind === grp[0] && q[0].builtin === grp[1]; });
+      if (!opts.length) return;
+      html += '<optgroup label="' + grp[2] + '">' + opts.map(function (q) { return '<option value="' + q[1] + '"></option>'; }).join("") + "</optgroup>";
+    });
+    sel.innerHTML = html;
+    Array.prototype.forEach.call(sel.options, function (o) { var x = all[+o.value]; o.textContent = (x.p.kind === "set" ? "⊕ " : "↝ ") + x.p.item.name; });
+    geoPresetDesc();
+  }
+  geoTools();
+}
+function geoPresetDesc() { var x = geoAllPresets()[+$("geoPreset").value]; $("geoPresetDesc").textContent = x ? (x.p.desc || "Your preset") : ""; $("bGeoPresetDel").disabled = !x || x.builtin; }
+function geoRefreshPresets() { $("geoPreset").dataset.built = ""; buildGeo(); }
+function geoTools() {
+  var it = geoItem(), b = $("bGeoPlace");
+  if (!b) return;
+  b.disabled = !it;
+  b.className = S.geoPlace && it ? "on" : "";
+  b.textContent = !it ? "Place points" : S.geoPlace ? "Placing… click the stage" : (S.geo.kind === "set" ? "Place entry points" : "Draw path points");
+}
+// Where a path is previewed from: the selected effect's spawn point when it
+// uses this path, otherwise the figure.
+function pathPreviewOrigin(path) {
+  var fx = selFx();
+  if (fx && fx.motion.kind === "path" && fx.motion.path === path.id) return jointAtFx(fx);
+  var users = geoUsers("path", path.id).filter(function (e) { return e.action === S.action; });
+  return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
+}
+function jointAtFx(fx) {
+  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0];
+  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)); return [bb[0] + set.points[0][0] * facing(), bb[1] + set.points[0][1]]; })()
+    : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
+  return [b[0] + (+fx.offset[0] || 0) * facing(), b[1] + (+fx.offset[1] || 0)];
+}
+function geoPlaceAt(w) {
+  var it = geoItem(); if (!it) return;
+  var f = facing(), b = S.geo.kind === "set" ? jointAt(it.base, frameAt(S.t)) : pathPreviewOrigin(it);
+  var q = [Math.round((w[0] - b[0]) * f * 2) / 2, Math.round((w[1] - b[1]) * 2) / 2];
+  it.points.push(q);
+  buildGeo(); buildProps(); resetSim(S.t); save();
+}
+function buildGeoProps(d) {
+  var it = geoItem(), isSet = S.geo.kind === "set", users = geoUsers(S.geo.kind, it.id);
+  banner(d, "geo", isSet ? "Editing entry points" : "Editing a path", (isSet ? "⊕ " : "↝ ") + it.name,
+    (isSet ? "Effects whose Anchor is this set come out of these points." : "Effects whose Motion is \"path\" with this path travel along it.") + " Shared by every action. Used by " + (users.length ? users.map(function (e) { return e.name + " (" + e.action + ")"; }).join(", ") : "no effects yet") + ".",
+    ["Done", function () { geoSelect(null); }]);
+  var s = sec(d, isSet ? "Entry set" : "Path", "g-main", isSet ? "Its name, what the points are measured from and how they fire." : "Its name, how long it takes and how it's turned.", "geo");
+  field(s, "Name", inp("text", it.name, function (v) { it.name = v; buildGeo(); save(); }));
+  if (isSet) {
+    field(s, "Measured from", inp([["figure", "figure (image centre)"]].concat(anchorOptions(false)), it.base, function (v) { it.base = v; changed(true); })).title =
+      "The points sit around this spot and move with it (pick an anchor to have them follow a hand, the head…).";
+    field(s, "Firing", inp([["simultaneous", "Simultaneous (all at once)"], ["sequential", "Sequential (one after another)"]], it.mode, function (v) { it.mode = v; buildGeo(); changed(true); }));
+    if (it.mode === "sequential") field(s, "Ticks between points", inp("n", it.interval_ticks, function (v) { it.interval_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1)).title =
+      "Point 1 fires when the effect fires, point 2 this many ticks later, and so on (16 ms per tick).";
+  } else {
+    field(s, "Ticks start → end", inp("n", it.ticks, function (v) { it.ticks = Math.max(1, Math.round(v)); buildGeo(); changed(); }, 1, 2000, 1)).title = "How long it takes to travel the whole path (16 ms per tick).";
+    field(s, "Smooth curve", inp("chk", it.smooth, function (v) { it.smooth = v; changed(); })).title = "On: a smooth curve through the points. Off: straight lines between them.";
+    field(s, "Turned", inp([["facing", "mirrored with the facing"], ["aim", "toward the aim"]], it.orient, function (v) { it.orient = v; changed(); })).title =
+      "Mirrored: drawn to the right, flipped when facing left. Toward the aim: also turned so its start→end line points where the effect aims (set Aim in the effect's Motion).";
+    field(s, "At the end", inp([["stop", "stop there"], ["loop", "start over"], ["continue", "carry on straight"]], it.end, function (v) { it.end = v; changed(); }));
+    field(s, "Rides with the fighter", inp("chk", it.follow, function (v) { it.follow = v; changed(); })).title =
+      "On: the whole path moves with the fighter (orbits, boomerangs). Off: it stays where it started.";
+  }
+  s = sec(d, "Points", "g-points", isSet ? "Click \"Place entry points\" (left) then click the stage around the figure to add points. X is forward, Y is down, in game px." :
+    "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down.", "geo");
+  it.points.forEach(function (p, i) {
+    var row = document.createElement("div"); row.className = "f pt";
+    var l = document.createElement("label"); l.textContent = (isSet ? "#" + (i + 1) : "Point " + i) + (isSet && it.mode === "sequential" ? "  +" + i * it.interval_ticks + "t" : ""); row.appendChild(l);
+    var bx = document.createElement("span"); bx.className = "xy";
+    var ix = inp("n", p[0], function (v) { p[0] = v; changed(); }, -2000, 2000, 0.5), iy = inp("n", p[1], function (v) { p[1] = v; changed(); }, -2000, 2000, 0.5);
+    ix.title = "X (forward)"; iy.title = "Y (down)";
+    if (!isSet && i === 0) { ix.disabled = iy.disabled = true; }
+    bx.appendChild(ix); bx.appendChild(iy);
+    if (isSet || i > 0) { var del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove this point"; del.onclick = function () { it.points.splice(i, 1); buildGeo(); changed(true); }; bx.appendChild(del); }
+    row.appendChild(bx); s.appendChild(row);
+  });
+  if (!it.points.length || (!isSet && it.points.length < 2)) note(s, isSet ? "No points yet: effects using this set play from the figure until you add some." : "Add at least one more point so it has somewhere to go.");
+  var r = document.createElement("div"); r.className = "row";
+  var bp = document.createElement("button"); bp.textContent = S.geoPlace ? "Stop placing" : isSet ? "Place entry points" : "Draw path points"; bp.className = S.geoPlace ? "on" : "";
+  bp.onclick = function () { S.geoPlace = !S.geoPlace; geoTools(); buildProps(); }; r.appendChild(bp);
+  var bc = document.createElement("button"); bc.textContent = "Clear points";
+  bc.onclick = function () { it.points = isSet ? [] : [[0, 0]]; buildGeo(); changed(true); }; r.appendChild(bc);
+  var bs = document.createElement("button"); bs.textContent = "Save as preset";
+  bs.onclick = function () {
+    askText("Preset name", it.name, function (nm) {
+      var item = clone(it); delete item.id; item.name = nm;
+      var mine = geoUserPresets(); mine.push({kind: S.geo.kind, desc: "Your " + (isSet ? "entry set" : "path"), item: item});
+      if (!lsSet(LS_GEO, mine)) return toast("Could not save the preset (browser storage unavailable)");
+      geoRefreshPresets(); toast("Saved preset \"" + nm + "\"");
+    });
+  };
+  r.appendChild(bs); s.appendChild(r);
+}
+// Stage overlay: the selected entry set's points (numbered in firing order)
+// or the selected path, drawn from where it would start.
+function drawGeo(g, z) {
+  var it = geoItem(), fx = selFx(), f = facing();
+  var sets = it && S.geo.kind === "set" ? [it] : fx ? S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; }) : [];
+  var paths = it && S.geo.kind === "path" ? [it] : fx && fx.motion.kind === "path" ? S.paths.filter(function (p) { return p.id === fx.motion.path; }) : [];
+  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
+  g.save(); g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  sets.forEach(function (set) {
+    var b = jointAt(set.base, frameAt(S.t));
+    g.strokeStyle = col + ".5)"; g.lineWidth = 1 / z; g.setLineDash([2 / z, 2 / z]);
+    g.beginPath(); g.moveTo(b[0] - 3 / z, b[1]); g.lineTo(b[0] + 3 / z, b[1]); g.moveTo(b[0], b[1] - 3 / z); g.lineTo(b[0], b[1] + 3 / z); g.stroke();
+    set.points.forEach(function (p, i) {
+      var q = [b[0] + p[0] * f, b[1] + p[1]];
+      g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(q[0], q[1]); g.stroke();
+    });
+    g.setLineDash([]);
+    set.points.forEach(function (p, i) {
+      var q = [b[0] + p[0] * f, b[1] + p[1]], r = 6 / z;
+      g.fillStyle = col + ".9)"; g.beginPath(); g.arc(q[0], q[1], r, 0, 6.2832); g.fill();
+      g.fillStyle = isLight() ? "#fff" : "#061018"; g.fillText(String(i + 1), q[0], q[1] + 0.5 / z);
+    });
+  });
+  paths.forEach(function (path) {
+    // Turned toward the target the way it plays (aim "target"); while you
+    // draw its points it shows unturned so clicks land where you click.
+    var o = pathPreviewOrigin(path), pl = FXK.pathLine(path), M = [f, 0, 0, 1];
+    if (path.orient === "aim" && !(S.geoPlace && it === path)) {
+      var dx = S.target[0] - o[0], dy = S.target[1] - o[1], dm = Math.hypot(dx, dy) || 1;
+      M = FXK.pathMatrix(path, {facing: f}, [dx / dm, dy / dm]);
+    }
+    var W = function (p) { return [o[0] + M[0] * p[0] + M[1] * p[1], o[1] + M[2] * p[0] + M[3] * p[1]]; };
+    g.strokeStyle = col + ".85)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]); g.beginPath();
+    pl.pts.forEach(function (p, i) { var q = W(p); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+    g.stroke(); g.setLineDash([]);
+    if (pl.len > 0) {   // arrow at the end
+      var e = FXK.pathAt(pl, 1), ep = W(e[0]), ed = [M[0] * e[1][0] + M[1] * e[1][1], M[2] * e[1][0] + M[3] * e[1][1]], L = 6 / z;
+      g.fillStyle = col + ".95)"; g.beginPath(); g.moveTo(ep[0] + ed[0] * L, ep[1] + ed[1] * L);
+      g.lineTo(ep[0] - ed[1] * L * 0.6, ep[1] + ed[0] * L * 0.6); g.lineTo(ep[0] + ed[1] * L * 0.6, ep[1] - ed[0] * L * 0.6); g.fill();
+    }
+    path.points.forEach(function (p, i) {
+      var q = W(p);
+      g.fillStyle = i ? col + ".9)" : (isLight() ? "rgba(0,0,0,.8)" : "rgba(255,255,255,.9)");
+      g.beginPath(); g.arc(q[0], q[1], (i ? 2.5 : 3) / z, 0, 6.2832); g.fill();
+    });
+  });
+  g.restore();
 }
 
 // ------------------------------------------------------------ properties
@@ -459,7 +703,7 @@ var MOTION_UI = {
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],
   freq: ["Zigzag freq rad/tick", 0, 2, 0.01], orbit_rx: ["Orbit radius X", 0, 400, 1], orbit_ry: ["Orbit radius Y", 0, 400, 1], orbit_deg: ["Orbit °/tick", -30, 30, 0.02]
 };
-var MOTION_KEYS = {attached: [], static: [], travel: ["aim", "angle_deg", "aim_offset_deg", "speed"],
+var MOTION_KEYS = {attached: [], static: [], path: ["aim", "angle_deg", "aim_offset_deg"], travel: ["aim", "angle_deg", "aim_offset_deg", "speed"],
   homing: ["aim", "angle_deg", "aim_offset_deg", "speed", "turn_deg"], zigzag: ["aim", "angle_deg", "aim_offset_deg", "speed", "amplitude", "freq"],
   orbit: ["orbit_rx", "orbit_ry", "orbit_deg"]};
 function field(parent, label, input) { var w = document.createElement("div"); w.className = "f"; var l = document.createElement("label"); l.textContent = label; w.appendChild(l); w.appendChild(input); parent.appendChild(w); return input; }
@@ -498,15 +742,18 @@ function note(parent, text) { var n = document.createElement("div"); n.className
 function changed(rebuildProps) { resetSim(S.t); buildTimeline(); save(); if (rebuildProps) buildProps(); }
 function anchorOptions(withSpecial) {
   var o = anchorIds().map(function (j) { return [j, S.labels[j] + (S.labels[j] !== j ? " (" + j + ")" : "")]; });
-  return withSpecial ? [["figure", "figure (image centre)"], ["target", "target"]].concat(o) : o;
+  if (!withSpecial) return o;
+  var sets = S.entries.map(function (e) { return ["set:" + e.id, "⊕ " + e.name + " (" + e.points.length + " pts, " + e.mode + ")"]; });
+  return [["figure", "figure (image centre)"], ["target", "target"]].concat(o, sets);
 }
 
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = "";
+  if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
   if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
   banner(d, "fx", "Editing one effect", fx.name + "  ·  " + fx.prim, "Plays on the " + fx.action + " action. The sections below change this effect only.",
-    ["Action settings for " + fx.action, function () { S.sel = null; buildEffects(); buildProps(); buildTimeline(); }]);
+    ["Action settings for " + fx.action, function () { S.sel = null; S.geo = null; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }]);
   var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
   field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
@@ -548,16 +795,29 @@ function buildProps() {
   }
 
   s = sec(d, fx.prim === "weapon" ? "Hitbox (from anchor → to anchor)" : "Anchor", "anchor",
-    fx.prim === "weapon" ? "The two character anchors the hitbox runs between, frame by frame." : "Where on the character it starts: one of the anchors listed on the left, plus an offset.");
+    fx.prim === "weapon" ? "The two character anchors the hitbox runs between, frame by frame." : "Where on the character it starts: an anchor, or ⊕ an entry-point set (from Paths & entry points), plus an offset.");
   field(s, fx.prim === "weapon" ? "From anchor" : "Joint", inp(anchorOptions(fx.prim !== "weapon"), fx.anchor, function (v) { fx.anchor = v; changed(); }));
+  if (fx.prim !== "weapon" && fx.anchor.indexOf("set:") === 0) {
+    var es = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0];
+    if (es) note(s, "Comes out of " + es.points.length + " entry points, " + (es.mode === "sequential" ? "one after another every " + es.interval_ticks + " ticks." : "all at once.") + " Count per emit applies at each point.");
+    else note(s, "That entry set no longer exists; it plays from the figure.");
+  }
   if (fx.prim !== "weapon") {
     field(s, "Offset X px", inp("n", fx.offset[0], function (v) { fx.offset[0] = v; changed(); }, -500, 500, 0.5));
     field(s, "Offset Y px", inp("n", fx.offset[1], function (v) { fx.offset[1] = v; changed(); }, -500, 500, 0.5));
   }
 
   if (fx.prim !== "weapon") {
-    s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags or orbits.");
+    s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags, orbits or follows a path.");
     field(s, MOTION_UI.kind[0], inp(MOTION_UI.kind[1], fx.motion.kind, function (v) { fx.motion.kind = v; changed(true); }));
+    if (fx.motion.kind === "path") {
+      var popts = [["", "— choose a path —"]].concat(S.paths.map(function (p) { return [p.id, p.name]; }));
+      field(s, "Path", inp(popts, fx.motion.path, function (v) { fx.motion.path = v; changed(true); }));
+      var pth = S.paths.filter(function (p) { return p.id === fx.motion.path; })[0];
+      if (!S.paths.length) note(s, "No paths yet: add one under Paths & entry points on the left (there are presets).");
+      else if (!pth) note(s, "Pick a path; until then it stays where it appears.");
+      else note(s, "Runs start to end in " + pth.ticks + " ticks, " + (pth.orient === "aim" ? "turned toward the aim" : "mirrored with the facing") + (pth.follow ? ", riding along with the fighter" : "") + "; at the end it " + ({stop: "stops", loop: "starts over", "continue": "carries on straight"})[pth.end] + ".");
+    }
     MOTION_KEYS[fx.motion.kind].forEach(function (k) {
       var u = MOTION_UI[k];
       if (k === "angle_deg" && fx.motion.aim !== "angle") return;
@@ -793,6 +1053,7 @@ function draw() {
   drawFrame(g, img, [S.figX, S.figY], facing());
   player.draw(g, host, "front", ps);
   drawMoveGuide(g, z);
+  drawGeo(g, z);
   // target + hurt radius (the circle damaging FX must touch)
   var hr = host.hurt.r, lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
   g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
@@ -830,6 +1091,7 @@ function draw() {
   $("hud").textContent = S.action + (nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
+    (S.geoPlace && geoItem() ? "   PLACING " + (S.geo.kind === "set" ? "entry points" : "path points") + " for \"" + geoItem().name + "\": click the stage" : "") +
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
   $("frameInfo").textContent = "frame " + fr;
   placeHead();
@@ -866,7 +1128,7 @@ $("bAdd").onclick = function () {
     fx.anchor = S.labels.haR ? "haR" : anchorIds()[0] || "figure";
     fx.params.to_anchor = S.labels.wtip ? "wtip" : anchorIds()[1] || fx.anchor;
   }
-  S.effects.push(fx); S.sel = fx.id; rebuild(); resetSim(S.t); save();
+  S.effects.push(fx); S.sel = fx.id; S.geo = null; S.geoPlace = false; rebuild(); resetSim(S.t); save();
 };
 $("bAnchorAdd").onclick = function () {
   if (!C) return;
@@ -884,6 +1146,24 @@ $("bFill").onclick = function () {
   buildAnchors(); resetSim(S.t); save(); toast("Copied to all " + row.length + " frames");
 };
 $("bClearKf").onclick = function () { var row = anchorRow(S.action, S.selAnchor); row[frameAt(S.t)] = null; buildAnchors(); resetSim(S.t); save(); };
+$("bEntryAdd").onclick = function () { if (!C) return toast("Open a character folder first"); geoNew("set", {name: "Entry set " + (S.entries.length + 1)}); S.geoPlace = true; geoTools(); buildProps(); toast("Click the stage around the figure to place entry points"); };
+$("bPathAdd").onclick = function () { if (!C) return toast("Open a character folder first"); geoNew("path", {name: "Path " + (S.paths.length + 1)}); S.geoPlace = true; geoTools(); buildProps(); toast("Click the stage to draw the path's points, starting from the figure"); };
+$("bGeoPlace").onclick = function () { if (!geoItem()) return; S.geoPlace = !S.geoPlace; geoTools(); buildProps(); };
+$("geoPreset").onchange = geoPresetDesc;
+$("bGeoPreset").onclick = function () {
+  if (!C) return toast("Open a character folder first");
+  var x = geoAllPresets()[+$("geoPreset").value]; if (!x) return;
+  geoNew(x.p.kind, x.p.item); toast("Added " + (x.p.kind === "set" ? "entry set" : "path") + " \"" + x.p.item.name + "\"");
+};
+$("bGeoPresetDel").onclick = function () {
+  var all = geoAllPresets(), x = all[+$("geoPreset").value]; if (!x || x.builtin) return;
+  ask("Delete your preset \"" + x.p.item.name + "\"?", {ok: "Delete"}, function (ok) {
+    if (!ok) return;
+    var mine = geoUserPresets(), idx = mine.findIndex(function (m) { return JSON.stringify(m) === JSON.stringify(x.p); });
+    if (idx >= 0) { mine.splice(idx, 1); lsSet(LS_GEO, mine); }
+    geoRefreshPresets();
+  });
+};
 $("presetSel").onchange = showPresetDesc; $("bPreset").onclick = addPreset;
 $("bPresetDel").onclick = function () {
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
@@ -927,7 +1207,7 @@ $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
   function end(ev) {
     if (!scrub) return;
     if (scrub.live) { if (scrub.raf) cancelAnimationFrame(scrub.raf); resetSim(tickAt(ev.clientX)); }
-    else if (scrub.bar) { S.sel = scrub.bar; buildEffects(); buildProps(); buildTimeline(); }
+    else if (scrub.bar) { S.sel = scrub.bar; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
     scrub = null;
   }
   tl.addEventListener("pointerup", end);
@@ -943,6 +1223,7 @@ document.addEventListener("keydown", function (ev) {
   }
   if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   if (ev.code === "Space") { ev.preventDefault(); $("bPlay").click(); }
+  if (ev.key === "Escape" && S.geoPlace) { S.geoPlace = false; geoTools(); buildProps(); }
   if (ev.key === "ArrowLeft") $("bPrev").click();
   if (ev.key === "ArrowRight") $("bNext").click();
   if ((ev.key === "p" || ev.key === "P") && S.selAnchor) $("bPlace").click();
@@ -953,6 +1234,7 @@ cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 cv.addEventListener("pointerdown", function (e) {
   if (!C) return;
   var r = cv.getBoundingClientRect(), w = toWorld(e.clientX - r.left, e.clientY - r.top);
+  if (e.button === 0 && S.geoPlace && geoItem()) { geoPlaceAt(w); return; }
   if (e.button === 0 && S.place && S.selAnchor) {
     var fr = frameAt(S.t); anchorRow(S.action, S.selAnchor)[fr] = gameToImg(w);
     buildAnchors(); save();

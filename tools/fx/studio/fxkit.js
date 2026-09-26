@@ -161,7 +161,7 @@ function boltSprite(r, gc, b, radius, stretch, hot) {
 
 // ---------------------------------------------------------------- schema
 var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "ghost", "weapon"];
-var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit"];
+var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit", "path"];
 var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
 var PARAM_DEFAULTS = {
@@ -176,7 +176,7 @@ var PARAM_DEFAULTS = {
   weapon: {to_anchor: "wtip", width: 6}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
-  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12};
+  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, path: ""};
 var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offset: 0, flow_speed: 0.008,
   c1: "#ffffff", c2: "#ff2200", start_fraction: 0};
 // Damage settings (fx.battle).  damage is HP per hit, matching
@@ -242,7 +242,7 @@ function normalizeAction(cfg) {
 // static or orbit motion) and are not arcs; travelling shots and crescents
 // are one-shots, so the flag does nothing for them.
 function canContinue(fx) {
-  return fx.prim !== "arc" && ["attached", "static", "orbit"].indexOf(fx.motion.kind) >= 0;
+  return fx.prim !== "arc" && ["attached", "static", "orbit", "path"].indexOf(fx.motion.kind) >= 0;
 }
 function isContinuous(fx) { return !!fx.continuous && canContinue(fx); }
 // Progress 0..1 through an instance's window (a continuous instance goes
@@ -286,13 +286,109 @@ function aimDir(fx, host, x, y) {
   return [dx, dy];
 }
 function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return [v[0] * c - v[1] * s, v[0] * s + v[1] * c]; }
-function anchorPos(fx, host) {
-  var a = host.anchor(fx.anchor);
+// ---------------------------------------------------------------- entry sets / paths
+// host.lib = {entry_sets: [...], paths: [...]} (the character's shared
+// library, saved in the FX file).
+//
+// Entry set: {id, name, base, mode, interval_ticks, points: [[x, y], ...]}.
+//   An effect whose anchor is "set:<id>" comes out of every point: all at
+//   once ("simultaneous") or one after another, interval_ticks apart
+//   ("sequential").  Points are game px from `base` ("figure" or an anchor
+//   id), x forward (mirrored when facing left).
+// Path: {id, name, points: [[0, 0], [x, y], ...], smooth, ticks, orient, end, follow}.
+//   An effect with motion "path" travels along it from where it spawns,
+//   start to end in `ticks`.  orient "facing" mirrors it with the facing;
+//   "aim" also turns it so its start→end line points along the aim.
+//   end: "stop" holds at the end, "loop" starts over, "continue" carries on
+//   straight along the last direction at the same speed.  follow: the path
+//   rides along with the fighter instead of staying where it started.
+var ENTRY_DEFAULTS = {name: "entry points", base: "figure", mode: "simultaneous", interval_ticks: 6, points: []};
+var PATH_DEFAULTS = {name: "path", points: [[0, 0]], smooth: true, ticks: 30, orient: "facing", end: "stop", follow: false};
+function normalizeEntrySet(e) { e = fill(e || {}, ENTRY_DEFAULTS); e.points = (e.points || []).map(function (p) { return [+p[0] || 0, +p[1] || 0]; }); return e; }
+function normalizePath(p) {
+  p = fill(p || {}, PATH_DEFAULTS);
+  p.points = (p.points || []).map(function (q) { return [+q[0] || 0, +q[1] || 0]; });
+  if (!p.points.length) p.points = [[0, 0]];
+  p.points[0] = [0, 0];
+  p.ticks = Math.max(1, Math.round(+p.ticks || 1));
+  return p;
+}
+function libFind(host, key, id) {
+  var l = host.lib && host.lib[key];
+  if (!l || !id) return null;
+  for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
+  return null;
+}
+function entrySetOf(fx, host) {
+  if (typeof fx.anchor !== "string" || fx.anchor.indexOf("set:") !== 0) return null;
+  var e = libFind(host, "entry_sets", fx.anchor.slice(4));
+  return e && e.points.length ? e : null;
+}
+function entryPoint(set, k, host) {
+  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0];
+  return [b[0] + q[0] * host.facing, b[1] + q[1]];
+}
+function anchorPos(fx, host, inst) {
+  var a, set = entrySetOf(fx, host);
+  if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host);
+  else if (typeof fx.anchor === "string" && fx.anchor.indexOf("set:") === 0) a = host.anchor("figure");   // empty / missing set
+  else a = host.anchor(fx.anchor);
   return [a[0] + (+fx.offset[0] || 0) * host.facing, a[1] + (+fx.offset[1] || 0)];
 }
+// A path as an evenly-spaced polyline (Catmull-Rom through the points when
+// smooth): {pts, len, cum}.
+function pathLine(path) {
+  var P = path.points, pts = [];
+  if (P.length < 2) return {pts: [[0, 0], [0, 0]], cum: [0, 0], len: 0};
+  if (!path.smooth || P.length < 3) pts = P.map(function (q) { return q.slice(); });
+  else {
+    for (var i = 0; i < P.length - 1; i++) {
+      var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+      for (var k = 0; k < 12; k++) {
+        var t = k / 12, t2 = t * t, t3 = t2 * t;
+        pts.push([0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+                  0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)]);
+      }
+    }
+    pts.push(P[P.length - 1].slice());
+  }
+  var cum = [0];
+  for (var j = 1; j < pts.length; j++) cum.push(cum[j - 1] + Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]));
+  return {pts: pts, cum: cum, len: cum[cum.length - 1]};
+}
+// Point and unit direction at fraction u (0..1) of the way along, by distance.
+function pathAt(pl, u) {
+  var n = pl.pts.length, d = Math.max(0, Math.min(1, u)) * pl.len, i = 1;
+  while (i < n - 1 && pl.cum[i] < d) i++;
+  var a = pl.pts[i - 1], b = pl.pts[i], seg = pl.cum[i] - pl.cum[i - 1], f = seg > 1e-9 ? (d - pl.cum[i - 1]) / seg : 0;
+  var dir = norm(b[0] - a[0], b[1] - a[1]);
+  return [[a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], dir];
+}
+// Local path px -> world offset: mirror with the facing, then (orient "aim")
+// turn the start→end line onto the aim direction.
+function pathMatrix(path, host, dir) {
+  var f = host.facing, P = path.points, last = P[P.length - 1];
+  if (path.orient !== "aim" || (!last[0] && !last[1])) return [f, 0, 0, 1];
+  var th = Math.atan2(dir[1], dir[0]) - Math.atan2(last[1], last[0] * f), c = Math.cos(th), s = Math.sin(th);
+  return [c * f, -s, s * f, c];
+}
+function pathWorld(inst, local) { var M = inst.pm; return [inst.po[0] + M[0] * local[0] + M[1] * local[1], inst.po[1] + M[2] * local[0] + M[3] * local[1]]; }
+function pathStep(inst, host) {
+  var path = inst.path, pl = inst.pl, k = inst.age / path.ticks, local, ld;
+  if (path.follow) { var o = anchorPos(inst.fx, host, inst); inst.po = o; }
+  if (path.end === "loop") k = k - Math.floor(k);
+  if (k > 1 && path.end === "continue" && pl.len > 0) {
+    var e = pathAt(pl, 1); ld = e[1];
+    local = [e[0][0] + ld[0] * (k - 1) * pl.len, e[0][1] + ld[1] * (k - 1) * pl.len];
+  } else { var r = pathAt(pl, k); local = r[0]; ld = r[1]; }
+  var w = pathWorld(inst, local), M = inst.pm;
+  inst.x = w[0]; inst.y = w[1];
+  var wd = norm(M[0] * ld[0] + M[1] * ld[1], M[2] * ld[0] + M[3] * ld[1]);
+  if (wd[0] || wd[1]) inst.dir = wd;
+}
 
-function spawn(fx, host, windowTicks, seed, idx, n) {
-  var p = anchorPos(fx, host), m = fx.motion;
+function spawn(fx, host, windowTicks, seed, idx, n, ep) {
+  var p = anchorPos(fx, host, {ep: ep}), m = fx.motion;
   var dir = aimDir(fx, host, p[0], p[1]);
   if (n > 1 && fx.emit.fan_deg) dir = rot(dir, (-fx.emit.fan_deg / 2 + fx.emit.fan_deg * idx / (n - 1)) * host.facing);
   if (m.aim_offset_deg) dir = rot(dir, m.aim_offset_deg * host.facing);
@@ -300,8 +396,12 @@ function spawn(fx, host, windowTicks, seed, idx, n) {
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
     ghosts: [], acc: 0, facing: host.facing, orbitA: 0, phase: 0, zx: 0, zy: 0,
-    hits: 0, lastHit: -1e9};
+    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep};
   var spd = +m.speed || 0;
+  if (m.kind === "path") {
+    inst.path = libFind(host, "paths", m.path);
+    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, host, dir); }
+  }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
     var pr = spd > 0.001 ? [-inst.vy / spd, inst.vx / spd] : [0, 1];
@@ -337,7 +437,12 @@ function spawn(fx, host, windowTicks, seed, idx, n) {
 function moveInst(inst, host) {
   var fx = inst.fx, m = fx.motion;
   inst.px = inst.x; inst.py = inst.y;
-  if (m.kind === "attached") { var a = anchorPos(fx, host); inst.x = a[0]; inst.y = a[1]; }
+  if (m.kind === "attached") { var a = anchorPos(fx, host, inst); inst.x = a[0]; inst.y = a[1]; }
+  if (m.kind === "path" && inst.path) {
+    pathStep(inst, host);
+    inst.vx = inst.x - inst.px; inst.vy = inst.y - inst.py;   // beams / trails read the travel speed
+    return;
+  }
   if (fx.prim === "weapon") { var b2 = host.anchor(fx.params.to_anchor); inst.x2 = b2[0]; inst.y2 = b2[1]; }
   else if (m.kind === "travel") { inst.x += inst.vx; inst.y += inst.vy; }
   else if (m.kind === "homing") {
@@ -355,7 +460,7 @@ function moveInst(inst, host) {
     inst.x += inst.vx + inst.zx * lat; inst.y += inst.vy + inst.zy * lat;
     inst.phase += m.freq;
   } else if (m.kind === "orbit") {
-    var c = anchorPos(fx, host);
+    var c = anchorPos(fx, host, inst);
     inst.orbitA += m.orbit_deg;
     inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
   }
@@ -712,8 +817,8 @@ function drawInst(g, inst, host, ps) {
 // Plays every effect bound to one action, in lock-step with the action's
 // frames.  frameMs = duration_ms / frame count (the engine plays Rig Forge
 // keyframes at exactly this rate).
-function Player() { this.insts = []; this.t = 0; }
-Player.prototype.reset = function () { this.insts = []; this.t = 0; };
+function Player() { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; }
+Player.prototype.reset = function () { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; };
 Player.prototype.window = function (fx, frames, frameMs) {
   var total = Math.max(1, Math.round(frames * frameMs / TICK_MS));
   var s = Math.round(Math.max(0, fx.start_frame) * frameMs / TICK_MS);
@@ -727,6 +832,28 @@ Player.prototype.window = function (fx, frames, frameMs) {
 // alive across the loop, and its effect is not spawned again while it lives.
 Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   var self = this, cont = !!(opts && opts.continuous);
+  // Spawn `n` copies of fx.  With an entry set they come out of every point:
+  // together, or (sequential) one point every interval_ticks.
+  function fireFx(fx, t, n, win, tag) {
+    var set = entrySetOf(fx, host), pts = set ? set.points.length : 1;
+    for (var k = 0; k < pts; k++) {
+      var delay = set && set.mode === "sequential" ? k * Math.max(0, trunc(set.interval_ticks)) : 0;
+      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay};
+      if (delay > 0) self.pending.push(job); else spawnJob(job);
+    }
+  }
+  function spawnJob(j) {
+    for (var i = 0; i < j.n; i++) {
+      var seed = (hash32(j.fx.id) ^ Math.imul(j.t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B) ^ Math.imul((j.ep == null ? 0 : j.ep + 1), 0xC2B2AE35)) >>> 0;
+      var inst = spawn(j.fx, host, Math.max(1, j.win), seed, i, j.n, j.ep);
+      if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
+      else inst.open = j.tag === "open";
+      self.insts.push(inst);
+    }
+  }
+  var due = this.pending.filter(function (j) { return j.due <= self.clock; });
+  this.pending = this.pending.filter(function (j) { return j.due > self.clock; });
+  due.forEach(function (j) { if (j.fx.enabled && effects.indexOf(j.fx) >= 0) spawnJob(j); });
   // A continuous instance ends when its effect is removed, disabled or no
   // longer continuous.
   this.insts.forEach(function (inst) {
@@ -736,13 +863,9 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     if (!fx.enabled) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
     if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
-      if (t < s || self.insts.some(function (q) { return q.fx === fx && q.cont && !q.dead && q.age < q.life; })) return;
-      var nc = Math.max(1, trunc(fx.emit.count));
-      for (var j = 0; j < nc; j++) {
-        var ci = spawn(fx, host, w[2] - s, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (j * 0x85EBCA6B)) >>> 0, j, nc);
-        ci.cont = true; ci.win = ci.life; ci.life = Infinity;
-        self.insts.push(ci);
-      }
+      if (t < s || self.insts.some(function (q) { return q.fx === fx && q.cont && !q.dead && q.age < q.life; })
+        || self.pending.some(function (q) { return q.fx === fx; })) return;
+      fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont");
       return;
     }
     var periodic = fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0;
@@ -750,13 +873,9 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     if (!fire) return;
     var open = fx.life_ticks <= 0 && e >= w[2];
     if (cont && open && !periodic && self.insts.some(function (q) { return q.fx === fx && q.open && !q.dead; })) return;
-    var n = Math.max(1, trunc(fx.emit.count)), win = e - t;
-    for (var i = 0; i < n; i++) {
-      var inst = spawn(fx, host, win, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B)) >>> 0, i, n);
-      inst.open = open;
-      self.insts.push(inst);
-    }
+    fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), e - t, open ? "open" : "");
   });
+  this.clock += 1;
   var ps = host.pscale || 1;
   if (cont) this.insts.forEach(function (inst) { if (inst.open && inst.age < inst.life) inst.life = Math.max(inst.life, inst.age + 2); });
   this.insts.forEach(function (inst) { tickInst(inst, host); resolveHits(inst, host, ps); });
@@ -769,6 +888,7 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  newEffect: newEffect, normalize: normalize, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
+  newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

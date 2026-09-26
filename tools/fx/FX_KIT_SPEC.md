@@ -178,6 +178,7 @@ a default.
 | `homing` | travel, steering up to `turn_deg`/tick toward the target | `HomingProjectile` |
 | `zigzag` | travel plus a lateral sine weave (`amplitude`, `freq`) | `ZigzagProjectile.update` |
 | `orbit` | circles the anchor (`orbit_rx`, `orbit_ry`, `orbit_deg`/tick) | petals |
+| `path` | travels along the path `motion.path` from where it spawns (see 3b) | FX Kit extension |
 
 The aim (`motion.aim`) is one of:
 - `target`
@@ -196,6 +197,49 @@ The aim (`motion.aim`) is one of:
 - `gradient`: `c1` → `c2`. For ribbons and arcs, `c1` holds solid until
   `start_fraction` (the `trail_gradient` rule).
 - `solid`: `c1`.
+
+## 3b. Entry points and paths (shared library)
+
+The FX file carries two lists that every action's effects can use:
+
+```json
+"entry_sets": [{"id": "P…", "name": "Halo of 3", "base": "figure", "mode": "simultaneous",
+                "interval_ticks": 6, "points": [[-16, -44], [0, -50], [16, -44]]}],
+"paths": [{"id": "T…", "name": "Arc over", "points": [[0, 0], [50, -40], [100, 0]], "smooth": true,
+           "ticks": 24, "orient": "aim", "end": "continue", "follow": false}]
+```
+
+**Entry sets.** An effect whose `anchor` is `"set:<id>"` comes out of every
+point in the set instead of one anchor. Points are game px from `base`
+(`"figure"` or an anchor id), x forward (mirrored when facing left), y down.
+The effect's `offset` is added on top. Each time the effect fires (start
+frame, each re-emit, a continuous start), it spawns `emit.count` copies at
+each point:
+- `simultaneous`: all points at once;
+- `sequential`: point 1 at once, point 2 `interval_ticks` later, and so on.
+  Each copy's life is shortened by its delay so they all end with the window.
+Attached and orbit motions ride their own point. An empty or missing set
+plays from the figure.
+
+**Paths.** An effect with `motion.kind "path"` and `motion.path = <id>`
+travels along the path from where it spawns:
+- `points[0]` is always `[0, 0]`, the spawn point; x forward, y down, game px.
+- With `smooth`, the route is a Catmull-Rom curve through the points (12
+  steps per segment); otherwise straight lines. Movement is at constant
+  speed by distance, start to end in `ticks`.
+- `orient "facing"`: mirrored with the facing. `orient "aim"`: also turned
+  so the start→end line points along the effect's aim direction (`motion.aim`,
+  `aim_offset_deg`), fixed when it spawns.
+- `end`: `stop` holds at the end; `loop` starts over; `continue` carries on
+  straight along the last direction at the same speed.
+- `follow`: the path's start moves with the spawn point every tick (orbits,
+  boomerangs); otherwise it stays where it spawned.
+- The instance's direction is the path tangent, so bolts, trails and beams
+  line up with the route.
+
+`fxkit.js` (`entrySetOf`, `entryPoint`, `pathLine`, `pathAt`, `pathMatrix`,
+`pathStep`, `Player.tick`'s `fireFx` / pending queue) is the reference; the
+engine supplies the lists as `host.lib = {entry_sets, paths}`.
 
 ## 4. Randomness
 
