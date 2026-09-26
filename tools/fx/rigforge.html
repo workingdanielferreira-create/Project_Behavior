@@ -430,6 +430,12 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       <label class="tgl"><input type="checkbox" id="bake" checked> bake in-betweens into keyframes</label>
       <div class="note">Actions carry no <code>fx_layers</code> yet &mdash; each exports an empty list plus <code>activation_triggers</code>, ready for the layer format in fx-authoring.md. Rig data drives Solo and Battle identically, so one export covers both modes. Export builds the <strong>active character tab</strong> only &mdash; each character is its own <code>characters/&lt;key&gt;.json</code> file.</div>
       <textarea id="json" spellcheck="false" aria-label="character JSON"></textarea>
+      <div class="grp">character package (game + FX Studio)</div>
+      <div class="fld"><label>head size px</label><input type="number" id="pk_head" value="58" min="8" max="400" step="1"></div>
+      <div class="fld"><label>figure colour</label><input type="text" id="pk_col" value="#000000"></div>
+      <label class="tgl"><input type="checkbox" id="pk_travel" checked> keep root travel in the frames (one shared camera)</label>
+      <div class="row"><button id="pk_export" class="primary">Export character package…</button></div>
+      <div class="note">Writes one folder per character: every action's frames as <code>&lt;action&gt;_NN.png</code> on one shared square canvas sized to fit every move at the chosen head size (in-betweens included, played at the action's ms/frame) plus <code>character.json</code> with the name, archetype, stats, palette, per-action timing and starting anchor points (hands, blade tip, head, feet…). Pick the game's <code>characters</code> folder: a <code>&lt;name&gt;</code> sub-folder is created (or pick that sub-folder itself). Old <code>&lt;action&gt;_NN.png</code> files of the exported actions are replaced. Open the same folder in the FX Studio to build the character's FX. Browsers without folder access (e.g. Firefox) download the files one by one instead.</div>
     </div>
   </div>
 </div>
@@ -3150,6 +3156,98 @@ window.addEventListener("resize",function(){fit();render();drawWeapon();});
     n.parentNode.replaceChild(d,n);
   });
 })();
+/* ---- character package export (PNG frames + character.json) ---- */
+var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","root"];
+function pkgWeaponPts(p,j){
+  if(wCount()<3)return[];
+  var wa=(j.wang-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p.wspin*D);
+  if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+  return wAllPts().map(function(q){var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
+    return{x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca};});
+}
+function pkgFramePose(p,travel){var q=clone(p);normPose(q);if(!travel){q.rx=0;}return q;}
+function pkgPoints(p){
+  var j=joints(p,S.rig),pts=[];
+  Object.keys(j).forEach(function(k){var v=j[k];if(v&&typeof v==="object"&&k!=="root")pts.push(v);});
+  pts=pts.concat(pkgWeaponPts(p,j));
+  var r=S.rig.head;pts.push({x:j.head.x-r,y:j.head.y-r},{x:j.head.x+r,y:j.head.y+r});
+  return pts;
+}
+// Camera shared by every frame of every action: centred on hip x = 0 and the
+// idle action's bounding-box centre (the bake convention).  The scale is set
+// by the head diameter in px (the game normalises every character by head
+// size), and the square canvas grows to fit the widest frame of any action.
+// The image centre is the figure's position in-game.
+function pkgCamera(headPx,travel){
+  var idle=S.actions.idle||A(),iy0=1e9,iy1=-1e9;
+  playlist(idle).forEach(function(p){pkgPoints(pkgFramePose(p,false)).forEach(function(v){iy0=Math.min(iy0,v.y);iy1=Math.max(iy1,v.y);});});
+  var cx=0,cy=(iy0+iy1)/2,ext=1;
+  Object.keys(S.actions).forEach(function(k){playlist(S.actions[k]).forEach(function(p){
+    pkgPoints(pkgFramePose(p,travel)).forEach(function(v){ext=Math.max(ext,Math.abs(v.x-cx)+8,Math.abs(v.y-cy)+8);});});});
+  var ppu=headPx/(2*S.rig.head),size=Math.min(4096,Math.ceil(2*ext*ppu/32)*32);
+  return{cx:cx,cy:cy,ppu:ppu,size:size};
+}
+function pkgName(k,i,n){var w=n>99?3:2,s=String(i+1);while(s.length<w)s="0"+s;return k+"_"+s+".png";}
+function pkgBuild(){
+  var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
+  var col=document.getElementById("pk_col").value||"#000000",travel=document.getElementById("pk_travel").checked;
+  var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={};
+  var toPx=function(v){return[Math.round(((v.x-cam.cx)*cam.ppu+size/2)*100)/100,Math.round(((v.y-cam.cy)*cam.ppu+size/2)*100)/100];};
+  Object.keys(S.actions).forEach(function(k){
+    var a=S.actions[k],list=playlist(a),names=[];
+    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
+    list.forEach(function(p0,i){
+      var p=pkgFramePose(p0,travel),c=document.createElement("canvas");c.width=size;c.height=size;
+      var g=c.getContext("2d");g.translate(size/2,size/2);g.scale(cam.ppu,cam.ppu);g.translate(-cam.cx,-cam.cy);
+      drawFigure(g,p,S.rig,{color:col,noMask:true});
+      var nm=pkgName(k,i,list.length);names.push(nm);files.push({name:nm,canvas:c});
+      var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
+    });
+    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
+  });
+  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
+    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
+    image:{size:[size,size],origin_px:[size/2,size/2],head_px:Math.round(S.rig.head*2*cam.ppu*100)/100,
+      px_per_rig_unit:Math.round(cam.ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
+    actions:acts,anchors:anchors,
+    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
+      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
+    note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."};
+  return{manifest:man,files:files};
+}
+function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
+function pkgExport(){
+  var nm=(S.meta.name||"character").replace(/[^A-Za-z0-9_\-]/g,"_");
+  var pkg;try{pkg=pkgBuild();}catch(e){toast("Could not render frames: "+e.message);return;}
+  var json=JSON.stringify(pkg.manifest,null,1);
+  if(window.showDirectoryPicker){
+    window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
+      var dirP=root.name===nm?Promise.resolve(root):root.getDirectoryHandle(nm,{create:true});
+      return dirP.then(function(dir){
+        var re=new RegExp("^("+Object.keys(S.actions).join("|")+")_\\d+\\.png$"),stale=[];
+        var list=(async function(){for await(var e of dir.values())if(e.kind==="file"&&re.test(e.name))stale.push(e.name);})();
+        return list.then(function(){return Promise.all(stale.map(function(f){return dir.removeEntry(f);}));})
+        .then(function(){
+          var w=function(name,data){return dir.getFileHandle(name,{create:true}).then(function(h){return h.createWritable();})
+            .then(function(wr){return wr.write(data).then(function(){return wr.close();});});};
+          return pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){return w(f.name,b);});});},Promise.resolve())
+            .then(function(){return w("character.json",new Blob([json],{type:"application/json"}));})
+            .then(function(){toast("Exported "+pkg.files.length+" frames + character.json to "+dir.name+"/");});
+        });
+      });
+    }).catch(function(e){if(e&&e.name!=="AbortError")toast("Export failed: "+e.message);});
+    return;
+  }
+  // Fallback: plain downloads (character.json first), to be placed in characters/<name>/.
+  var dl=function(name,blob){var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();};
+  dl("character.json",new Blob([json],{type:"application/json"}));
+  pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){dl(f.name,b);return new Promise(function(r){setTimeout(r,120);});});});},Promise.resolve())
+    .then(function(){toast("Downloaded "+pkg.files.length+" frames + character.json; move them into characters/"+nm+"/");});
+}
+document.getElementById("pk_export").onclick=pkgExport;
+window.RigForgePkg={build:pkgBuild};
+
 buildTPL();fit();wshapeUI();buildChars();buildLib();buildSliders();buildRefSliders();syncChar();syncAction();refresh();drawWeapon();pushHist();histUI();
 })();
 </script>

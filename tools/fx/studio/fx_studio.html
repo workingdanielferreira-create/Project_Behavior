@@ -9,7 +9,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,Segoe UI,sans-serif}
 button,select,input{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:4px 8px}
-button{cursor:pointer}button:hover{border-color:var(--acc)}button.primary{background:var(--acc);border-color:var(--acc);color:#061018;font-weight:600}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button:disabled{opacity:.45;cursor:default}button.primary{background:var(--acc);border-color:var(--acc);color:#061018;font-weight:600}
 button.on{border-color:var(--acc);color:var(--acc)}
 input[type=number]{width:74px}input[type=color]{padding:0;width:34px;height:24px}input[type=checkbox]{accent-color:var(--acc)}
 #app{display:grid;grid-template-columns:250px 1fr 310px;grid-template-rows:auto 1fr;height:100vh}
@@ -55,16 +55,19 @@ main{display:flex;flex-direction:column;min-width:0}
 <header>
   <h1>FX Studio</h1><span id="charname">No character loaded</span>
   <span class="sp"></span>
-  <button id="bImport" class="primary">Import Rig Forge character…</button>
-  <button id="bPaste">Paste JSON…</button>
-  <button id="bExportChar">Export character + FX</button>
-  <button id="bExportPack">Export FX pack</button>
-  <input type="file" id="file" accept=".json,application/json" hidden>
+  <button id="bOpen" class="primary">Open character folder…</button>
+  <button id="bSave">Save FX to folder</button>
+  <input type="file" id="dirIn" webkitdirectory directory multiple hidden>
 </header>
 
 <aside id="left">
   <h2>Actions</h2>
   <div id="actions" class="list"></div>
+  <h2>Anchors</h2>
+  <div id="anchors" class="list"></div>
+  <div class="row"><button id="bAnchorAdd">+ Anchor</button><button id="bPlace" disabled>Place (P)</button></div>
+  <div class="row"><button id="bFill" disabled title="Copy this frame's position to every frame of the action">To all frames</button><button id="bClearKf" disabled title="Remove this frame's position (it holds the previous frame's)">Clear frame</button></div>
+  <label class="note"><input type="checkbox" id="autoNext" checked> next frame after placing</label>
   <h2>Effects on this action</h2>
   <div class="row"><select id="newPrim"></select><button id="bAdd">+ Add</button></div>
   <div id="effects" class="list"></div>
@@ -78,8 +81,8 @@ main{display:flex;flex-direction:column;min-width:0}
 <main>
   <div id="stagewrap"><canvas id="stage"></canvas><div id="hud"></div>
     <div id="empty"><div style="font-size:16px;color:var(--text)">Phase 2 of character creation: FX</div>
-      <div>Import (or drop) a <b>pb_character</b> exported from Rig Forge. Each action's keyframes play here<br>exactly as in Rig Forge, and you build FX around them from the engine's own primitives.</div>
-      <div class="note">Tip: Rig Forge sources live in tools/fx/sources/</div></div>
+      <div>Open (or drop) a character folder exported from Rig Forge with <b>Export character package</b>:<br>its <code>character.json</code> and <code>&lt;action&gt;_NN.png</code> keyframe images. Each action plays at its Rig Forge timing,<br>and you build FX, anchors and the weapon hitbox around the frames.</div>
+      <div class="note">FX save back into the same folder as &lt;name&gt;.fxkit.json.</div></div>
   </div>
   <div id="transport">
     <button id="bPlay">▶ Play</button>
@@ -91,7 +94,8 @@ main{display:flex;flex-direction:column;min-width:0}
     <label title="engine position_scale() multiplier">pscale <input type="number" id="pscale" value="1" step="0.25" min="0.25"></label>
     <label>zoom <input type="number" id="zoom" value="4" step="0.5" min="0.5"></label>
     <label title="Target hurt radius: a damaging FX hits when its drawn shape touches this circle (engine PROJ_HIT_RADIUS = 16)">hurt r <input type="number" id="hurtR" value="16" step="1" min="1"></label>
-    <label><input type="checkbox" id="joints"> joints</label>
+    <label><input type="checkbox" id="joints"> anchors</label>
+    <label title="Light backdrop behind the frame, for dark figures"><input type="checkbox" id="lightbg"> light bg</label>
     <span class="note" id="frameInfo"></span>
   </div>
   <div id="timeline"><div id="playhead"></div></div>
@@ -104,9 +108,8 @@ main{display:flex;flex-direction:column;min-width:0}
   <div class="row" style="justify-content:space-between"><b id="mTitle">JSON</b><span><button id="mCopy">Copy</button> <button id="mApply" class="primary">Load</button> <button id="mClose">Close</button></span></div>
   <textarea id="mText" spellcheck="false"></textarea>
 </div></div>
-<div id="toast"></div><div id="drop">Drop a Rig Forge pb_character, FX pack or preset file</div>
+<div id="toast"></div><div id="drop">Drop a character folder (or a presets file)</div>
 
-<script src="rig_rf.js"></script>
 <script src="fxkit.js"></script>
 <script src="presets.js"></script>
 <script src="studio.js"></script>

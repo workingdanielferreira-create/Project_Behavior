@@ -13,6 +13,8 @@
  *   particles  combat.BurstParticle                 (sparks, dust)
  *   glow       TrailComponent head glow/core        (spheres, flares)
  *   ghost      figure afterimages (silhouette)      (speed ghosts)
+ *   weapon     melee hitbox: a capsule between two anchors (e.g. near hand ->
+ *              weapon tip) that follows the frames; invisible in-game
  *
  * PURPOSE: every effect is either visual-only or a damaging attack
  * (fx.battle.deals_damage).  A damaging effect hits a target when the shape
@@ -158,7 +160,7 @@ function boltSprite(r, gc, b, radius, stretch, hot) {
 }
 
 // ---------------------------------------------------------------- schema
-var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "ghost"];
+var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "ghost", "weapon"];
 var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit"];
 var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
@@ -170,7 +172,8 @@ var PARAM_DEFAULTS = {
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
-  ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12}
+  ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12},
+  weapon: {to_anchor: "wtip", width: 6}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12};
@@ -196,6 +199,7 @@ function normalize(fx) {
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
   fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
+  if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
   return fx;
 }
 
@@ -259,6 +263,7 @@ function spawn(fx, host, windowTicks, seed, idx, n) {
     }
   }
   if (fx.prim === "particles" && fx.params.mode === "burst") emitParticles(inst, fx, host, trunc(fx.params.count));
+  if (fx.prim === "weapon") { var e2 = host.anchor(fx.params.to_anchor); inst.x2 = e2[0]; inst.y2 = e2[1]; }
   inst.px = inst.x; inst.py = inst.y;
   return inst;
 }
@@ -267,6 +272,7 @@ function moveInst(inst, host) {
   var fx = inst.fx, m = fx.motion;
   inst.px = inst.x; inst.py = inst.y;
   if (m.kind === "attached") { var a = anchorPos(fx, host); inst.x = a[0]; inst.y = a[1]; }
+  if (fx.prim === "weapon") { var b2 = host.anchor(fx.params.to_anchor); inst.x2 = b2[0]; inst.y2 = b2[1]; }
   else if (m.kind === "travel") { inst.x += inst.vx; inst.y += inst.vy; }
   else if (m.kind === "homing") {
     var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+m.speed || 0);
@@ -535,6 +541,12 @@ DRAW.glow = function (g, inst, host, ps) {   // TrailComponent head glow + core,
     ellipse(g, hx - idr, hy - idr, idr * 2, idr * 2);
   }
 };
+DRAW.weapon = function (g, inst, host, ps) {   // invisible in-game; the Studio outlines it
+  if (!host.showHitboxes || inst.age >= inst.life) return;
+  g.strokeStyle = inst.fx.battle.deals_damage ? "rgba(255,90,90,.85)" : "rgba(150,160,180,.7)";
+  g.lineWidth = Math.max(1, inst.fx.params.width * ps); g.lineCap = "round"; g.setLineDash([4, 3]);
+  g.beginPath(); g.moveTo(inst.x, inst.y); g.lineTo(inst.x2, inst.y2); g.stroke(); g.setLineDash([]);
+};
 DRAW.ghost = function (g, inst, host, ps) {   // Figure.draw afterimages
   var P = inst.fx.params, c = colorPair(inst.fx, host.lut)[0].map(trunc);
   inst.ghosts.forEach(function (gh) {
@@ -591,6 +603,10 @@ HIT.glow = function (inst, tx, ty, hr, ps) {
   return Math.sqrt(dx * dx + dy * dy) <= hr + gr;
 };
 HIT.ghost = function () { return false; };
+HIT.weapon = function (inst, tx, ty, hr, ps) {
+  if (inst.age >= inst.life) return false;
+  return segDist(tx, ty, inst.x, inst.y, inst.x2, inst.y2) <= hr + inst.fx.params.width * ps / 2;
+};
 function canHit(b, obj, now) { return b.rehit_ticks > 0 ? now - obj.lastHit >= b.rehit_ticks : obj.hits === 0; }
 // Resolve this tick's hits against host.hurt = {x, y, r}.  host.onHit(inst,
 // damage, dirX, dirY, knockback) is called once per hit (the engine routes it

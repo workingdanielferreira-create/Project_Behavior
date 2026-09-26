@@ -1,11 +1,13 @@
-# FX Kit — `pb_fxkit` v1 specification
+# FX Kit — `pb_fxkit` v2 specification
 
-The FX format written by **FX Studio** (`tools/fx/studio/fx_studio.html`), the
-second phase of character creation:
+Characters are **keyframe images**. FX are data. The pipeline:
 
 ```
-Rig Forge (rigforge.html)  ──pb_character──►  FX Studio  ──pb_fxkit──►  game (laser/)
-  pose + animate the rig                       build FX around each action
+Rig Forge (rigforge.html)          FX Studio (studio/fx_studio.html)        game (laser/)
+  pose + animate the rig      ──►    open the character folder         ──►   loads the folder:
+  "Export character package"         anchors, FX, weapon hitbox              PNG frames + character.json
+  writes characters/<name>/          "Save FX to folder" writes               + <name>.fxkit.json
+    character.json + PNG frames        <name>.fxkit.json into it
 ```
 
 The runtime reference is `tools/fx/studio/fxkit.js`. The engine port
@@ -15,29 +17,27 @@ be fixed.
 
 ---
 
-## 1. Where the block lives
+## 1. The character folder
 
-The Studio exports it in two ways, and both hold the same block:
+`characters/<name>/` holds everything for one character:
 
-| Export | File | Shape |
+| File | Written by | Holds |
 |---|---|---|
-| **Export character + FX** | `<name>.json` | the imported Rig Forge `pb_character`, unchanged, plus a top-level `fx_studio` key holding the block |
-| **Export FX pack** | `<name>.fxkit.json` | the block on its own (`"format": "pb_fxkit"`) |
+| `<action>_NN.png` | Rig Forge | every frame of every action (in-betweens included), facing right, on one shared square canvas; the image centre is the figure's position |
+| `character.json` | Rig Forge | `format: "pb_char_pkg"`: name, display name, archetype, predicates, movement, stats, palette, per-action `trigger` / `duration_ms` / `frame_ms` / frame file list, `image {size, origin_px, head_px}`, and the starting `anchors` (every Rig Forge joint, per frame, in image px) |
+| `<name>.fxkit.json` | FX Studio | `format: "pb_fxkit"` v2: the effects, the anchors as you placed them, and each effect's damage |
 
-The FX pack is self-contained: it carries its own joint table, so it doesn't
-need the baked character file next to it to resolve anchors.
+`character.json` contains no rig, poses or FX. The game never draws a rig for
+these characters; it plays the PNGs.
 
 ```json
 {
-  "format": "pb_fxkit", "version": 1, "tick_ms": 16, "character": "ReverseSwordman",
-  "space": {
-    "coords": "game px, y down, relative to the figure position; x mirrors when facing left",
-    "joints": "joint_track values are rig units relative to the bake origin (hip x = 0, idle bbox centre y), rx zeroed",
-    "origin_rig": [0, -6.36], "target_head_px": 16, "head_units": 29, "px_per_unit": 0.551724
-  },
+  "format": "pb_fxkit", "version": 2, "tick_ms": 16, "character": "ronin",
+  "space": {"image_origin_px": [720, 720], "head_px": 58, "target_head_px": 16, "game_px_per_image_px": 0.275862},
+  "timing": {"attack_normal": {"frame_ms": 17.143, "frames": 35}},
   "palette_lut": {"built_from": ["palette.body", "palette.accent"], "rule": "palette.build_lut([body, accent])"},
-  "joint_track": { "<action>": { "duration_ms": 2400, "frames": [ { "haR": [x, y], "wtip": [x, y], "...": [], "wang": 90.0 } ],
-                                 "root_rx": [], "root_ry": [] } },
+  "anchor_labels": {"haR": "near hand", "wtip": "weapon tip", "muzzle": "gun muzzle"},
+  "anchors": {"attack_normal": {"haR": [[x, y], "... one per frame"], "wtip": []}},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -46,29 +46,30 @@ need the baked character file next to it to resolve anchors.
 
 - **Tick.** Everything advances once per 16 ms tick (`config.TICK_MS`). Nothing
   reads wall-clock time.
-- **Action clock.** Each action's frames play at `frame_ms = duration_ms / frames`,
-  which is the clock Rig Forge animates on. Frame `f` begins at tick
-  `round(f * frame_ms / 16)`.
+- **Action clock.** Each action's frames play at its `frame_ms` (Rig Forge's
+  `duration_ms / frames`). Frame `f` begins at tick `round(f * frame_ms / 16)`.
+  The game shows every frame of the action at this rate (Phase 2 decision:
+  "play the full Rig Forge action").
 - **Coordinates.** Game px, y down. `(0, 0)` is the figure position, which is the
-  centre of the baked sprite, i.e. the bake origin. x is mirrored when the figure
-  faces left.
-- **Joints.** `joint_track[action].frames[f][joint]` is in rig units relative to
-  the bake origin, with `rx` zeroed (the engine moves the figure itself).
-  It converts to game px like this:
+  image centre (`image_origin_px`). x is mirrored when the figure faces left.
+- **Image to game scale.** The game sizes every character by head diameter:
+  `game_px_per_image_px = TARGET_HEAD_PX (16) / head_px`. The figure sprite and
+  every anchor use this scale, times `position_scale()`.
+- **Anchors.** `anchors[action][id][frame]` is an image-px point.
+  - Rig Forge pre-fills every joint:
+    - body: `hip chest neck head shB root` (`root` = above the head)
+    - arms: `shL shR elL elR haL haR`
+    - legs: `hpL hpR knL knR ftL ftR`
+    - weapon: `wtip`
 
-  `px = joint * px_per_unit * position_scale`, where `px_per_unit = TARGET_HEAD_PX / head_units`
-
-  `head_units` is the baked head diameter per rig unit (`2*head + 1`, i.e. 29 for
-  head 14). That's the same number `sprite_files.<set>.src_head_px` holds at
-  `px_per_unit 1`, so joints and sprite pixels share one scale.
-- **Identical tables.** `rigforge_bake.py` writes the same table into
-  `bake_manifest.json` (`actions.<name>.joints`), and `--joints-only` writes it
-  without rendering. The Studio's JavaScript table and the bake's Python table
-  have been checked equal (6,900 values, max difference 0.0000 for
-  ReverseSwordman).
-- **Anchors.** `figure` (sprite centre), `target`, and the Rig Forge joints
-  `hip chest neck head shB shL shR elL elR haL haR hpL hpR knL knR ftL ftR wtip root`
-  (the `L` joints are the far limb, the `R` joints the near limb).
+    `L` joints are the far limb and `R` joints the near limb.
+  - The Studio lets you move any of them per frame (click to place) and add
+    your own (e.g. `muzzle`).
+  - A frame you leave empty holds the previous frame's point. The saved file
+    has every frame resolved.
+  - Game px: `(p - image_origin_px) * game_px_per_image_px * position_scale`,
+    mirrored in x when facing left.
+- **Special anchors.** `figure` (the image centre) and `target`.
 
 ## 3. Effect
 
@@ -155,6 +156,7 @@ routine's `config.py` values.
 | `particles` | `BurstParticle` / `_spawn_burst_now` | `mode burst\|stream, count, rate_per_s, angle_deg, spread_deg, speed_min/max (px/s), gravity (px/s²), drag, size_min/max, size_over_life, life_min_ms/max_ms` |
 | `glow` | `TrailComponent` head glow + core | `r_start, r_end, a_center, a_mid, mid, core_r, fade none\|out\|in\|inout, pulse_hz` |
 | `ghost` | `Figure.draw` afterimages (`silhouette`) | `interval 2, ghost_life 14, alpha 150, max 12` |
+| `weapon` | melee hitbox (new) | `to_anchor wtip, width 6`: a capsule from the effect's `anchor` to `to_anchor`, following the frames; never drawn in-game (the Studio outlines it) |
 
 A few rules are FX Kit's own; the engine's classes don't need them:
 - A beam that isn't travelling (`attached`, `static`, `orbit`) extends from its
@@ -196,6 +198,9 @@ primitive (`HIT.*` in `fxkit.js`):
 - `particles`: each particle is within `hurt r + size/2`.
 - `glow`: the circle of the current radius overlaps the hurt circle.
 - `ghost`: never (afterimages are visual only, and the checkbox is disabled).
+- `weapon`: the segment `anchor → to_anchor` passes within `hurt r + width/2`.
+  This is how the weapon deals damage: add a `weapon` effect over the frames
+  where the blade should hurt, and tick **Deals damage**.
 
 Hits are resolved after each tick's movement (`resolveHits`), with the same
 deterministic state that is drawn, so the Studio's hit count is what the engine
@@ -224,43 +229,55 @@ are kept in the browser, and **Export**/**Import** moves them as a
 The built-in characters (Swordsman, Runner) keep their original effect code.
 The presets only seed new FX.
 
-## 7. Phase 2 — engine integration checklist
+## 7. Phase 2 — engine integration (decisions so far)
 
-The engine does **not** read `fx_studio` / `pb_fxkit` yet. To make it play
-exactly as in the Studio, Phase 2 must:
+The engine does **not** read character folders or `pb_fxkit` yet. These
+decisions are agreed:
 
-1. **Port the runtime.** Create `laser/fxkit.py`, a line-for-line port of
-   `fxkit.js`: mulberry32, `build_lut`, `spawn`, `move`, `tick`, and the seven
-   draw routines with QPainter. It must be one self-drawing object per instance
-   (FX_GUIDE Pattern A).
-2. **Load the block.** Load `fx_studio` from the character JSON, or
-   `characters/<name>.fxkit.json`, in `characters.load_all`, and keep it on
-   `mode.character`.
-3. **Resolve joints.** Resolve anchors from `joint_track` on the current frame,
-   using `px_per_unit` from the character's own `sprite_files.src_head_px`.
-   Warn if that differs from the exported `head_units`.
-4. **Play on the Rig Forge clock.** Play the action frames at
-   `duration_ms / frames`. Today a baked character's in-game frame sets are a
-   subset of the Rig Forge frames (e.g. ReverseSwordman `slash` = 5 of 42), so
-   the displayed frame must map back to its source keyframe (the
-   `rigforge_bake.frame_map`), or FX drift off the animation.
-5. **Start effects on action start.** Start an action's effects when that
-   action starts in the combat FSM, identically in Solo and Battle. Drawing is
-   local, so no visuals cross the IPC boundary.
-6. **Route damage (`battle.deals_damage`).** Resolve hits on the attacking
-   side with `fxkit.resolve_hits`, against the target's position:
-   - Solo: the cursor target.
-   - Battle: the opposing fighter from the read-only `partner_figures`
-     snapshot.
+1. **Image characters.** `characters.load_all` loads each `characters/<name>/`
+   that holds a `character.json` (`pb_char_pkg`): its PNG frames per action,
+   the stats/archetype/palette from `character.json`, and `<name>.fxkit.json`.
+   The existing rig-drawn JSON characters keep working until you replace them.
+2. **Full actions.** When an action starts, the game shows every one of its
+   frames at `frame_ms` and holds the fighter in that action until it ends, so
+   a 2.4 s attack takes 2.4 s. Identical in Solo and Battle.
+3. **Archetype = behaviour, FX + weapon = damage.** The archetype still decides
+   how the fighter moves and when it attacks. For these characters, the only
+   damage comes from effects with **Deals damage** ticked, including the
+   `weapon` hitbox. The archetype's built-in hit or projectile damage is off.
+4. **Runtime port.** Create `laser/fxkit.py`, a line-for-line port of
+   `fxkit.js`: mulberry32, `build_lut`, `spawn`, `move`, `tick`, the draw
+   routines with QPainter, and `resolveHits`/`HIT.*`. It must be one
+   self-drawing object per instance (FX_GUIDE Pattern A).
+5. **Defence works like bullets.** Hits are resolved on the defender's side.
+   Each tick, `World.refresh_battle` adds a read-only `enemy_fx` snapshot of the
+   opponent's live damaging instances (the same one-tick boundary as
+   `enemy_projs`; no extra cross-process data, since both sides run in one
+   process).
+   - Parry, special-stance block, petals and deflect act on them.
+   - A blocked or intercepted instance is ended at its source through a kill
+     call, never by editing it directly.
+   - Damage goes through `ai.apply_hp_damage(amount=damage)`, and knockback
+     through `hit_pending/hit_vx/hit_vy`.
+   - Solo: the target is the cursor.
+6. **Action triggers.** Your mapping:
+   - `idle` = standing still
+   - `run` = moving
+   - `attack_normal` = each melee slash or shot, or a sequence
+   - `defend` = block when hit by, or approached by, a chosen FX type
+   - `deflect` = bullet deflected or counter-attack, on the same kinds of
+     condition
+   - `attack_special` / `ultimate` = configurable conditions: HP thresholds,
+     N attacks made, N hits taken, target or self proximity, a completed
+     action sequence
 
-   Apply them through `ai.apply_hp_damage(amount=damage)`, so special-stance
-   blocks, ultimate thresholds and death routing (`World.on_figure_death`)
-   behave as for every other attack. Deliver knockback via
-   `hit_pending/hit_vx/hit_vy`. Arcs, beams and ribbons aren't points, so they
-   can't ride the `enemy_projs` point tuple. If the defender must be able to
-   parry or intercept them (petals, deflect), that needs a new snapshot field,
-   which is an IPC struct-size change to flag before building it.
-7. **Parity test.** Render one FX pack in headless Chromium (`fxkit.js`) and in
-   offscreen Qt (`fxkit.py`) at fixed ticks, and diff the frames with a
-   tolerance for antialiasing. Also compare the per-tick hit list (tick,
-   effect, damage), which must match exactly.
+   These will be authored per action in the Studio and evaluated by the game
+   (extending `ai.evaluate_activation_triggers`). The details are still open;
+   see the next design round.
+7. **Parity test.** Render one character folder in headless Chromium
+   (`fxkit.js`) and in offscreen Qt (`fxkit.py`) at fixed ticks, and diff the
+   frames with a tolerance for antialiasing. Also compare the per-tick hit
+   list (tick, effect, damage), which must match exactly.
+
+`pb_fxkit` v1 files (`joint_track` in rig units, from the earlier rig-based
+Studio) are superseded by v2 image-px `anchors`.
