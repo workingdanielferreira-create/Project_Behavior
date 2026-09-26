@@ -225,6 +225,50 @@ def update_files():
     return changed, failed, locked, self_updated
 
 
+def update_files_from_zip():
+    """Fallback when the GitHub API refuses us (rate limit, outage): fetch
+    the whole branch as one zip from codeload.github.com — not counted
+    against the API limit — and write every file whose git blob SHA
+    differs from the local copy.  Same result as update_files(), one big
+    download instead of per-file ones."""
+    import io
+    import zipfile
+    changed, failed, locked = [], [], []
+    self_updated = False
+    url = f"https://codeload.github.com/{REPO}/zip/refs/heads/{BRANCH}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Project_Behavior-updater"})
+    print("Downloading the whole game as one zip instead (this can take a minute)...\n")
+    with urllib.request.urlopen(req, timeout=300) as r:
+        data = r.read()
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        for info in z.infolist():
+            if info.is_dir():
+                continue
+            parts = info.filename.split("/", 1)   # strip "<repo>-<branch>/"
+            if len(parts) < 2 or not parts[1]:
+                continue
+            rel_path = parts[1]
+            if _is_pycache_path(rel_path):
+                continue
+            content = z.read(info)
+            local_path = os.path.join(HERE, *rel_path.split("/"))
+            if local_blob_sha(local_path) == _git_blob_sha(content):
+                continue
+            try:
+                os.makedirs(os.path.dirname(local_path) or HERE, exist_ok=True)
+                with open(local_path, "wb") as f:
+                    f.write(content)
+                changed.append(rel_path)
+                if rel_path == SELF:
+                    self_updated = True
+            except OSError as e:
+                if rel_path.lower().endswith(LOCKABLE_EXTS):
+                    locked.append(rel_path)
+                else:
+                    failed.append(f"{rel_path} ({e})")
+    return changed, failed, locked, self_updated
+
+
 def _pids_running_game():
     """PIDs of any process whose command line mentions laser_cursor.pyw.
     Tries wmic first (older Windows), falls back to PowerShell's
@@ -337,9 +381,17 @@ def main():
     try:
         changed, failed, locked, self_updated = update_files()
     except Exception as e:
-        print(f"Could not reach GitHub ({e}). Launching current version.")
-        launch_game()
-        return
+        # Usually "HTTP Error 403: rate limit exceeded" (60 API requests an
+        # hour without a token).  The zip download isn't rate limited.
+        print(f"GitHub's file list isn't available right now ({e}).")
+        try:
+            changed, failed, locked, self_updated = update_files_from_zip()
+        except Exception as e2:
+            print(f"Could not download the update either ({e2}). "
+                  "Launching current version.")
+            organize_exported_characters()
+            launch_game()
+            return
 
     if changed:
         print("Updated:")
