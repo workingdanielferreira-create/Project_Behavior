@@ -56,32 +56,32 @@ Runtime reference: `studio/fxkit.js`.
 
 ## Getting a character into the game
 
-1. **Rig Forge → Export character package.** You get `<name>.zip` (or a
-   `<name>/` folder): `character.json` + the `<action>_NN.png` keyframes.
-2. **FX Studio → Save FX to folder.** You get `<name>.fxkit.json`.
-3. **Upload both to the repo's main branch** (GitHub → Add file → Upload
-   files), at the top level or into a `drop/` folder. The zip can stay zipped.
-4. **Run `update_game.bat`.** It downloads them and `laser/drops.py` files
-   them as `characters/<name>/character.json`, `characters/<name>/*.png` and
-   `characters/<name>/<name>.fxkit.json` (the game also does this at start-up).
-   A newer export of the same character replaces the old one (old keyframes
-   it no longer has are removed); if two exports of one character are in the
-   repo, the newest is used and the updater tells you to delete the other.
-5. **In the game**, press `1` / `2` to cycle to the character. It plays in
-   Solo and Battle with its keyframes, frame timing and archetype. A package
-   replaces an older rig-drawn `characters/<name>.json` of the same name.
-   Its FX from the `.fxkit.json` play in game through `laser/fxkit.py`,
-   locked to the frames on screen, and effects with Deals damage hurt the
-   opponent in Battle. `laser/actions.py` plays every action at full length
-   (Movement, Animation loops) and fires attacks, chains and triggered
-   actions from the Studio's action settings. Turn attack mode on (Alt+Up)
-   for fighters to attack, the same as the built-ins. Only FX deal damage
-   for these characters, and `defend` blocks incoming hits.
+Everything happens in the game folder on your PC; no GitHub, no updater.
 
+1. **Rig Forge.** Double-click `Rig Forge.bat` in the game folder. Build the
+   character, then **Export character package** and pick the game's
+   `characters` folder. Rig Forge writes `characters\<name>\character.json`
+   and the frames.
+2. **FX Studio.** Double-click `FX Studio.bat`, **Open character folder**, and
+   pick `characters\<name>`. Build the FX, then **Save FX to folder**. That
+   writes `characters\<name>\<name>.fxkit.json`.
+3. **Game.** Press **F5** to reload characters. The top-left corner shows
+   "Reloaded <name>". Cycle to the character with `1` / `2`, and press Alt+Up
+   for attacks.
 
+The `.bat` launchers open Edge, which can save straight into folders. In
+other browsers the tools download the files instead; move them into
+`characters\<name>\`.
 
-`fx_creator.html` + `rig.js` / `fx_engine.js` / `character_creator.js` /
-`main.js` are the retired Character Wizard (see `WIZARD_AUDIT.md`). Its rig
-differs from Rig Forge's, so it can't open Rig Forge characters. It stays only
-for reference and for existing `pb_fx v1` files: `python tools/fx_preview.py`
-still hot-reloads the newest `*.fx.json` in this folder.
+**Size.** Every image character stands 28 px tall in game, the roster's
+height (`config.IMAGE_STAND_HEIGHT_PX`), measured on its first idle frame.
+FX Studio shows it at that size, so FX look the same in both. An FX file
+authored at an older scale is rescaled on load so its FX keep their place
+around the figure.
+
+**Your edits are safe.** `update_game.bat` never overwrites a character file
+you changed on this PC; it lists the files it kept. Dropping a zip or FX file
+into the repo still works (they are filed under `characters/`), but a newer
+file already in the character folder always wins.
+
+If a character has no FX file, its HP label says "(no FX file)".
