@@ -100,7 +100,7 @@
     ]
   },
   "sprite_files": {
-    "_comment": "Rig Forge frames baked with tools/fx/rigforge_bake.py (px-per-unit 1, ss 4) and copied verbatim. remove_bg false: PNGs carry real alpha. Head measured 28.6-29.7 px (max inscribed disc) in every set, so src_head_px is 29 for all sets. Frames face RIGHT (engine unflipped convention). Files live in a subfolder so the Swordsman's root-level slash*.png glob never collides. Extra sets 'special' and 'ultimate' are named bundle sets played by Combatant.action_anim (see special_stance / ultimate_playback).",
+    "_comment": "Rig Forge frames baked with tools/fx/rigforge_bake.py (px-per-unit 1, ss 4) and copied verbatim. remove_bg false: PNGs carry real alpha. Head measured 28.6-29.7 px (max inscribed disc) in every set, the art head is ~29 px, but src_head_px is 102.5 in every set so the figure stands 28 px like the rest of the roster (config.IMAGE_STAND_HEIGHT_PX); at 29 it stood 99 px. Frames face RIGHT (engine unflipped convention). Files live in a subfolder so the Swordsman's root-level slash*.png glob never collides. Extra sets 'special' and 'ultimate' are named bundle sets played by Combatant.action_anim (see special_stance / ultimate_playback).",
     "remove_bg": false,
     "run": {
       "files": [
@@ -121,7 +121,7 @@
         "characters/reverseswordman/run_14.png",
         "characters/reverseswordman/run_15.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     },
     "idle": {
       "files": [
@@ -144,7 +144,7 @@
         "characters/reverseswordman/idle_16.png",
         "characters/reverseswordman/idle_17.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     },
     "slash": {
       "files": [
@@ -154,14 +154,14 @@
         "characters/reverseswordman/slash_03.png",
         "characters/reverseswordman/slash_04.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     },
     "slide": {
       "files": [
         "characters/reverseswordman/slide_00.png",
         "characters/reverseswordman/slide_01.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     },
     "special": {
       "files": [
@@ -208,7 +208,7 @@
         "characters/reverseswordman/special_40.png",
         "characters/reverseswordman/special_41.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     },
     "ultimate": {
       "files": [
@@ -278,7 +278,7 @@
         "characters/reverseswordman/ultimate_63.png",
         "characters/reverseswordman/ultimate_64.png"
       ],
-      "src_head_px": 29.0
+      "src_head_px": 102.5
     }
   },
   "ultimate_playback": {

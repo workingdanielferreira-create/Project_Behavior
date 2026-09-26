@@ -60,7 +60,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, scale: imgScale()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, scale: imgScale(), img_head: C.headPx, img_origin: C.origin}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -236,6 +236,11 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   var oldRule = TARGET_HEAD_PX / Math.max(1, C.headPx);
   var packScale = function (p) { return (p && p.space && +p.space.game_px_per_image_px) || oldRule; };
   S.srcScale = src === local ? ((local && +local.scale) || oldRule) : packScale(pack);
+  // The frames the work was made against (another export of the same Rig
+  // Forge character can have a different frame size / head px).
+  var packSpace = function (p) { var sp = (p && p.space) || {}; return [+sp.head_px || C.headPx, sp.image_origin_px || C.origin]; };
+  var sp0 = src === local ? [(local && +local.img_head) || C.headPx, (local && local.img_origin) || C.origin] : packSpace(pack);
+  S.srcHead = sp0[0]; S.srcOrigin = sp0[1];
   if (local && pack) {
     ask("This browser has Studio work for " + name + " that may differ from " + name + ".fxkit.json in the folder. Which should open?",
       {ok: "My browser work", no: "The folder's file"}, function (keep) {
@@ -244,6 +249,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
           S.actionCfg = clone(pack.action_settings || {});
           S.entries = (pack.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (pack.paths || []).map(FXK.normalizePath);
           S.srcScale = packScale(pack);
+          var sp1 = packSpace(pack); S.srcHead = sp1[0]; S.srcOrigin = sp1[1];
         }
         finishOpen(man, acts, pack, name, local);
       });
@@ -255,7 +261,18 @@ function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
   // Work authored at another scale keeps its look around the figure: every
   // distance is multiplied by the ratio (the game does the same on load).
-  var ratio = S.srcScale ? imgScale() / S.srcScale : 1;
+  // Anchors from another export: convert into these frames' pixels (Rig
+  // Forge renders every export around the same camera centre) — the same
+  // rule as laser/fxkit.py CharacterFx.
+  var f = C.headPx / Math.max(1e-6, S.srcHead || C.headPx), so = S.srcOrigin || C.origin;
+  if (Math.abs(f - 1) > 1e-6 || so[0] !== C.origin[0] || so[1] !== C.origin[1]) {
+    Object.keys(S.anchors).forEach(function (a) {
+      Object.keys(S.anchors[a] || {}).forEach(function (j) {
+        S.anchors[a][j] = (S.anchors[a][j] || []).map(function (p) { return p ? [(p[0] - so[0]) * f + C.origin[0], (p[1] - so[1]) * f + C.origin[1]] : null; });
+      });
+    });
+  }
+  var ratio = S.srcScale ? (imgScale() / S.srcScale) * f : 1;
   if (Math.abs(ratio - 1) > 1e-3) {
     FXK.rescaleEffects(S.effects, {entry_sets: S.entries, paths: S.paths}, ratio);
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);

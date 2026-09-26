@@ -1077,12 +1077,30 @@ class CharacterFx:
         fxk = char.get("_fxkit") or {}
         img = pkg.get("image") or {}
         space = fxk.get("space") or {}
-        self.origin = list(space.get("image_origin_px") or img.get("origin_px") or [0, 0])
-        head = float(space.get("head_px") or img.get("head_px") or 58)
+        # The frames on disk define image space: the package's origin/head.
+        pkg_origin = list(img.get("origin_px") or space.get("image_origin_px") or [0, 0])
+        pkg_head = float(img.get("head_px") or space.get("head_px") or 58)
+        fx_origin = list(space.get("image_origin_px") or pkg_origin)
+        fx_head = float(space.get("head_px") or pkg_head)
+        self.origin = pkg_origin
         # Game px per image px: the character's stand-height scale (set by
         # the loader), else the old head-size rule.
-        self.k = float(char.get("_game_scale") or config.TARGET_HEAD_PX / max(1.0, head))
-        self.anchors = fxk.get("anchors") or pkg.get("anchors") or {}
+        self.k = float(char.get("_game_scale") or config.TARGET_HEAD_PX / max(1.0, pkg_head))
+        # An FX file made against ANOTHER export of the same Rig Forge
+        # character (different frame size / head px) has its anchors in that
+        # export's pixels.  Rig Forge renders every export around the same
+        # camera centre, so image px convert exactly:
+        #   p_pkg = (p_fx - origin_fx) * head_pkg / head_fx + origin_pkg
+        f = pkg_head / max(1e-6, fx_head)
+        same_space = abs(f - 1.0) < 1e-6 and fx_origin == pkg_origin
+        anchors = fxk.get("anchors") or pkg.get("anchors") or {}
+        if fxk.get("anchors") and not same_space:
+            anchors = {act: {jid: [None if p is None else
+                                   [(p[0] - fx_origin[0]) * f + pkg_origin[0], (p[1] - fx_origin[1]) * f + pkg_origin[1]]
+                                   for p in row]
+                             for jid, row in (joints or {}).items()}
+                       for act, joints in anchors.items()}
+        self.anchors = anchors
         self.effects = [normalize(dict(e)) for e in (fxk.get("effects") or [])]
         self.by_action = {}
         for e in self.effects:
@@ -1090,9 +1108,11 @@ class CharacterFx:
         self.settings = {k: normalize_action(v) for k, v in (fxk.get("action_settings") or {}).items()}
         self.lib = {"entry_sets": [normalize_entry_set(e) for e in (fxk.get("entry_sets") or [])],
                     "paths": [normalize_path(p) for p in (fxk.get("paths") or [])]}
+        # Distances were authored around the figure at its authoring size;
+        # keep them in proportion: r = new game px per rig unit / authored.
         authored = float(space.get("game_px_per_image_px") or 0)
         if authored > 0:
-            rescale_effects(self.effects, self.lib, self.k / authored)
+            rescale_effects(self.effects, self.lib, (self.k / authored) * f)
         self.timing = {}
         for name, act in (char.get("actions") or {}).items():
             n = len(act.get("keyframes") or []) or 1
