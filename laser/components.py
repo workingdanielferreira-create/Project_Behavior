@@ -277,7 +277,8 @@ class Combatant:
                  "sp_phase", "sp_f", "sp_tick", "sp_charges", "sp_countered",
                  "sp_next_strike", "sp_block_pending",
                  "lb_phase", "lb_loop", "lb_f",
-                 "columns", "lb_beams")
+                 "columns", "lb_beams",
+                 "hop_ticks", "hop_total", "hop_dx", "hop_dy", "hop_cd")
 
     def __init__(self):
         self.dashing = self.rebounding = self.slashing = False
@@ -431,6 +432,12 @@ class Combatant:
         # ticked by combat.update_loop_fx, drawn in figure.Figure.draw).
         self.columns = []                # EnergyColumn instances
         self.lb_beams = []               # LoopBeam instances
+        # Generic hop-back (JSON `movement.hop_back`, see
+        # combat.tick_hop_back).  hop_ticks > 0 while airborne.
+        self.hop_ticks = 0               # ticks left in the current hop
+        self.hop_total = 0               # ticks the current hop lasts
+        self.hop_dx = self.hop_dy = 0.0  # total displacement of the hop (px)
+        self.hop_cd = 0                  # ticks until the next hop may fire
 
     def reset(self):
         self.__init__()
