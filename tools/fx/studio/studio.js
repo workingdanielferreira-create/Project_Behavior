@@ -25,6 +25,22 @@ var cv = $("stage"), g = cv.getContext("2d");
 // ------------------------------------------------------------ helpers
 function toast(msg, ms) { var t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast._h); toast._h = setTimeout(function () { t.style.display = "none"; }, ms || 3200); }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
+// In-page dialogs: published pages run in a sandboxed frame where
+// prompt()/confirm() never show, so every question goes through #dlg.
+function ask(msg, opts, cb) {
+  var d = $("dlg"), i = $("dlgIn");
+  $("dlgMsg").textContent = msg;
+  i.hidden = !opts.text; i.value = opts.value || "";
+  $("dlgOk").textContent = opts.ok || "OK"; $("dlgNo").textContent = opts.no || "Cancel";
+  var done = function (ok) { d.hidden = true; $("dlgOk").onclick = $("dlgNo").onclick = i.onkeydown = null; cb(ok, i.value); };
+  $("dlgOk").onclick = function () { done(true); };
+  $("dlgNo").onclick = function () { done(false); };
+  i.onkeydown = function (e) { e.stopPropagation(); if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
+  d.hidden = false;
+  if (opts.text) setTimeout(function () { i.focus(); i.select(); }, 20);
+}
+function askText(msg, value, cb) { ask(msg, {text: true, value: value}, function (ok, v) { if (ok && v.trim()) cb(v.trim()); }); }
+function inFrame() { try { return window.self !== window.top; } catch (e) { return true; } }
 function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 function act() { return C && S.action ? C.actions[S.action] : null; }
@@ -160,10 +176,20 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
   S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
   S.actionCfg = clone((src && src.action_settings) || {});
-  if (local && pack && !confirm("You have unsaved Studio work for " + name + " in this browser. Keep it? (Cancel loads " + name + ".fxkit.json from the folder instead.)")) {
-    S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
-    S.actionCfg = clone(pack.action_settings || {});
+  if (local && pack) {
+    ask("This browser has Studio work for " + name + " that may differ from " + name + ".fxkit.json in the folder. Which should open?",
+      {ok: "My browser work", no: "The folder's file"}, function (keep) {
+        if (!keep) {
+          S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
+          S.actionCfg = clone(pack.action_settings || {});
+        }
+        finishOpen(man, acts, pack, name, local);
+      });
+    return;
   }
+  finishOpen(man, acts, pack, name, local);
+}
+function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
   S.sel = null; S.selAnchor = null; S.figX = 0;
@@ -173,7 +199,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   toast("Opened " + C.display + ": " + names.length + " actions" + (pack ? ", " + S.effects.length + " FX" : ""));
 }
 function pickFolder() {
-  if (window.showDirectoryPicker) {
+  if (window.showDirectoryPicker && !inFrame()) {
     window.showDirectoryPicker({mode: "readwrite"}).then(function (dir) {
       var list = [];
       return (async function () { for await (var e of dir.values()) if (e.kind === "file") list.push(await e.getFile()); })()
@@ -208,7 +234,7 @@ function packData() {
 function saveFx() {
   if (!C) return toast("Open a character folder first");
   var name = C.name + ".fxkit.json", txt = JSON.stringify(packData(), null, 1);
-  if (S.dir && S.dir.getFileHandle) {
+  if (S.dir && S.dir.getFileHandle && !inFrame()) {
     S.dir.getFileHandle(name, {create: true}).then(function (h) { return h.createWritable(); })
       .then(function (w) { return w.write(txt).then(function () { return w.close(); }); })
       .then(function () { toast("Saved " + name + " into " + S.dir.name + "/"); })
@@ -216,6 +242,22 @@ function saveFx() {
   } else download(name, txt);
 }
 function download(name, txt) {
+  // A published page hands files over through the downloads capability
+  // (the viewer confirms each save); opened from disk it is a plain download.
+  if (inFrame() && window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(function (d) {
+      if (!d) return openModal("Copy this JSON into " + name, txt, null);
+      d.save({filename: name, data: new Blob([txt], {type: "application/json"})}).then(function () {
+        toast("Saved " + name + ": put it in characters/" + (C ? C.name : "<name>") + "/");
+      }, function (e) {
+        var c = e && e.code;
+        if (c === "declined") return toast("Save cancelled");
+        if (c === "rate_limited") return toast("A save prompt is already open. Try again in a moment.");
+        openModal("Copy this JSON into " + name, txt, null);
+      });
+    });
+    return;
+  }
   try {
     var a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([txt], {type: "application/json"}));
@@ -247,12 +289,13 @@ function addPreset() {
 }
 function savePreset() {
   var fx = selFx(); if (!fx) return;
-  var name = prompt("Preset name", fx.name); if (!name) return;
+  askText("Save this effect as a preset named:", fx.name, function (name) {
   var e = clone(fx); delete e.id; delete e.action;
   var mine = userPresets().filter(function (p) { return p.name !== name; });
   mine.push({name: name, desc: "Your preset (" + fx.prim + ")", effects: [e]});
   if (!lsSet(LS_PRESETS, mine)) toast("Browser storage unavailable; use Export to keep presets.", 5000);
   buildPresets(); toast("Saved preset " + name);
+  });
 }
 function ingestPresets(o) {
   if (!o || o.format !== "pb_fx_presets") return toast("Not a presets file (pb_fx_presets)");
@@ -287,9 +330,11 @@ function buildAnchors() {
     el.querySelector(".m").textContent = placed + "/" + frames();
     el.querySelector(".x").onclick = function (ev) {
       ev.stopPropagation();
-      if (!confirm("Delete anchor \"" + S.labels[id] + "\" on every action?")) return;
-      delete S.labels[id]; Object.keys(S.anchors).forEach(function (a) { delete S.anchors[a][id]; });
-      if (S.selAnchor === id) S.selAnchor = null; rebuild(); resetSim(S.t); save();
+      ask("Delete anchor \"" + S.labels[id] + "\" on every action?", {ok: "Delete"}, function (ok) {
+        if (!ok) return;
+        delete S.labels[id]; Object.keys(S.anchors).forEach(function (a) { delete S.anchors[a][id]; });
+        if (S.selAnchor === id) S.selAnchor = null; rebuild(); resetSim(S.t); save();
+      });
     };
     el.onclick = function () { S.selAnchor = S.selAnchor === id ? null : id; buildAnchors(); anchorTools(); };
     d.appendChild(el);
@@ -556,7 +601,7 @@ var last = 0, acc = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   var dt = Math.min(100, now - (last || now)); last = now;
-  if (S.playing && C) {
+  if (S.playing && C && act()) {
     acc += dt * (+$("speed").value || 1);
     while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
   }
@@ -570,7 +615,7 @@ function camera(dpr) { return {x: cv.width / 2 / dpr + S.pan[0], y: cv.height * 
 function toWorld(mx, my) { var dpr = Math.min(2, window.devicePixelRatio || 1), c = camera(dpr); return [(mx - c.x) / c.z, (my - c.y) / c.z]; }
 function draw() {
   var dpr = fit(); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
-  if (!C) return;
+  if (!C || !act()) return;
   var c = camera(dpr), z = c.z;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.strokeStyle = "rgba(255,255,255,.04)"; g.lineWidth = 1;   // grid: one line per 10 game px
@@ -650,11 +695,12 @@ $("bAdd").onclick = function () {
 };
 $("bAnchorAdd").onclick = function () {
   if (!C) return;
-  var label = prompt("New anchor name (e.g. blade tip, gun muzzle)"); if (!label) return;
+  askText("New anchor name (e.g. blade tip, gun muzzle):", "", function (label) {
   var id = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "anchor";
   while (S.labels[id]) id += "_2";
   S.labels[id] = label.trim(); S.selAnchor = id; S.place = true; rebuild(); save();
   toast("Click on the figure to place \"" + label + "\" on this frame; it holds on later frames until you place it again.", 5000);
+  });
 };
 $("bPlace").onclick = function () { S.place = !S.place; anchorTools(); };
 $("bFill").onclick = function () {
