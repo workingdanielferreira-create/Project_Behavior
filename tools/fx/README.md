@@ -85,3 +85,10 @@ into the repo still works (they are filed under `characters/`), but a newer
 file already in the character folder always wins.
 
 If a character has no FX file, its HP label says "(no FX file)".
+
+## Reworking the existing characters' FX
+`fx_packages/<name>/` holds an FX Studio package of every existing fighter
+(runner, swordsman, jumper, mage, new_fighter, ronin, reverseswordman), made
+from the game's own frames by `tools/fx/export_packages.py`. Open one with
+**Open character folder...**, author its FX, save, then drop the folder into
+`drop/` to switch that fighter over. See `fx_packages/README.md`.

@@ -29,7 +29,7 @@ import time
 import zipfile
 
 FRAME_RE = re.compile(r"^(.+)_(\d+)\.png$", re.IGNORECASE)
-SKIP_DIRS = {"characters", "laser", "tools", "captures", "scripts", "v2", "drop",
+SKIP_DIRS = {"characters", "laser", "tools", "captures", "scripts", "v2", "drop", "fx_packages",
              ".git", "__pycache__", ".github"}
 
 

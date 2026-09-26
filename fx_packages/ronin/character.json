@@ -1,0 +1,101 @@
+{
+ "format": "pb_char_pkg",
+ "version": 1,
+ "name": "ronin",
+ "display_name": "Ronin",
+ "description": "Counter archetype: a slow, relentless samurai who blocks or blinks past anything that gets close, then answers with steel.",
+ "archetype": "New",
+ "predicates": {
+  "can_shoot": false,
+  "uses_melee": true,
+  "retreats": false,
+  "charges_full": true
+ },
+ "movement": {
+  "wander_strength": 0.15
+ },
+ "stats": {
+  "max_hp": 100,
+  "chase_speed": 0.9,
+  "follow_speed": 0.9,
+  "scale": 1.0,
+  "basic_attack_radius": 180
+ },
+ "palette": {
+  "body": "#002060",
+  "accent": "#002060"
+ },
+ "image": {
+  "size": [
+   112,
+   104
+  ],
+  "origin_px": [
+   56,
+   52
+  ],
+  "head_px": 64.0,
+  "facing": "right"
+ },
+ "actions": {
+  "idle": {
+   "trigger": "always",
+   "duration_ms": 896.0,
+   "frame_ms": 448.0,
+   "frames": [
+    "idle_01.png",
+    "idle_02.png"
+   ]
+  },
+  "run": {
+   "trigger": "moving",
+   "duration_ms": 704.0,
+   "frame_ms": 176.0,
+   "frames": [
+    "run_01.png",
+    "run_02.png",
+    "run_03.png",
+    "run_04.png"
+   ]
+  },
+  "attack_normal": {
+   "trigger": "in_range",
+   "duration_ms": 240.0,
+   "frame_ms": 48.0,
+   "frames": [
+    "attack_normal_01.png",
+    "attack_normal_02.png",
+    "attack_normal_03.png",
+    "attack_normal_04.png",
+    "attack_normal_05.png"
+   ]
+  }
+ },
+ "anchors": {
+  "idle": {},
+  "run": {},
+  "attack_normal": {}
+ },
+ "anchor_labels": {
+  "hip": "hip centre",
+  "chest": "chest",
+  "neck": "neck",
+  "head": "head",
+  "shB": "shoulder base",
+  "shL": "far shoulder",
+  "shR": "near shoulder",
+  "elL": "far elbow",
+  "elR": "near elbow",
+  "haL": "far hand",
+  "haR": "near hand",
+  "hpL": "far hip",
+  "hpR": "near hip",
+  "knL": "far knee",
+  "knR": "near knee",
+  "ftL": "far foot",
+  "ftR": "near foot",
+  "wtip": "weapon tip",
+  "root": "above head"
+ },
+ "note": "Exported from the game by tools/fx/export_packages.py for FX Studio. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX Studio saves <name>.fxkit.json into this folder."
+}

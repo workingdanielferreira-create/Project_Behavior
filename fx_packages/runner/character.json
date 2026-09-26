@@ -1,0 +1,102 @@
+{
+ "format": "pb_char_pkg",
+ "version": 1,
+ "name": "runner",
+ "display_name": "Runner",
+ "description": "",
+ "archetype": "shooter",
+ "predicates": {
+  "can_shoot": true,
+  "uses_melee": false,
+  "retreats": true,
+  "charges_full": false
+ },
+ "movement": {},
+ "stats": {
+  "max_hp": 100,
+  "chase_speed": 3.0,
+  "follow_speed": 4.5,
+  "scale": 1.0,
+  "basic_attack_radius": 180.0
+ },
+ "palette": {
+  "body": "#00ffff",
+  "accent": "#0000ff"
+ },
+ "image": {
+  "size": [
+   120,
+   120
+  ],
+  "origin_px": [
+   60,
+   60
+  ],
+  "head_px": 64.0,
+  "facing": "right"
+ },
+ "actions": {
+  "idle": {
+   "trigger": "always",
+   "duration_ms": 480.0,
+   "frame_ms": 160.0,
+   "frames": [
+    "idle_01.png",
+    "idle_02.png",
+    "idle_03.png"
+   ]
+  },
+  "run": {
+   "trigger": "moving",
+   "duration_ms": 720.0,
+   "frame_ms": 80.0,
+   "frames": [
+    "run_01.png",
+    "run_02.png",
+    "run_03.png",
+    "run_04.png",
+    "run_05.png",
+    "run_06.png",
+    "run_07.png",
+    "run_08.png",
+    "run_09.png"
+   ]
+  },
+  "defend": {
+   "trigger": "incoming",
+   "duration_ms": 300.0,
+   "frame_ms": 150.0,
+   "frames": [
+    "defend_01.png",
+    "defend_02.png"
+   ]
+  }
+ },
+ "anchors": {
+  "idle": {},
+  "run": {},
+  "defend": {}
+ },
+ "anchor_labels": {
+  "hip": "hip centre",
+  "chest": "chest",
+  "neck": "neck",
+  "head": "head",
+  "shB": "shoulder base",
+  "shL": "far shoulder",
+  "shR": "near shoulder",
+  "elL": "far elbow",
+  "elR": "near elbow",
+  "haL": "far hand",
+  "haR": "near hand",
+  "hpL": "far hip",
+  "hpR": "near hip",
+  "knL": "far knee",
+  "knR": "near knee",
+  "ftL": "far foot",
+  "ftR": "near foot",
+  "wtip": "weapon tip",
+  "root": "above head"
+ },
+ "note": "Exported from the game by tools/fx/export_packages.py for FX Studio. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX Studio saves <name>.fxkit.json into this folder."
+}
