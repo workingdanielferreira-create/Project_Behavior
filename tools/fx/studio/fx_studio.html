@@ -21,6 +21,15 @@ aside{background:var(--panel);overflow:auto;padding:10px}
 #left{border-right:1px solid var(--line)}#right{border-left:1px solid var(--line)}
 h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:14px 0 6px;font-weight:600}
 h2:first-child{margin-top:0}
+details.panel{border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:6px}
+details.panel>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary::before{content:"▸";color:var(--mute);font-size:10px;transition:transform .12s}
+details.panel[open]>summary::before{transform:rotate(90deg)}
+details.panel>summary h2{margin:8px 0 6px}
+details.panel>summary:hover h2,details.panel>summary:focus-visible h2{color:var(--text)}
+details.panel>summary:focus-visible{outline:1px solid var(--acc);outline-offset:2px;border-radius:3px}
+@media(prefers-reduced-motion:reduce){details.panel>summary::before{transition:none}}
 .list div{padding:5px 8px;border-radius:5px;cursor:pointer;display:flex;gap:6px;align-items:center}
 .list div:hover{background:var(--panel2)}.list div.sel{background:#1f3242;color:#fff}
 .list .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.list .m{color:var(--mute);font-size:11px}
@@ -66,21 +75,25 @@ main{display:flex;flex-direction:column;min-width:0}
 </header>
 
 <aside id="left">
-  <h2>Actions</h2>
+  <details class="panel" id="secActions" open><summary><h2>Actions</h2></summary>
   <div id="actions" class="list"></div>
-  <h2>Anchors</h2>
+  </details>
+  <details class="panel" id="secAnchors" open><summary><h2>Anchors</h2></summary>
   <div id="anchors" class="list"></div>
   <div class="row"><button id="bAnchorAdd">+ Anchor</button><button id="bPlace" disabled>Place (P)</button></div>
   <div class="row"><button id="bFill" disabled title="Copy this frame's position to every frame of the action">To all frames</button><button id="bClearKf" disabled title="Remove this frame's position (it holds the previous frame's)">Clear frame</button></div>
   <label class="note"><input type="checkbox" id="autoNext" checked> next frame after placing</label>
-  <h2>Effects on this action</h2>
+  </details>
+  <details class="panel" id="secEffects" open><summary><h2>Effects on this action</h2></summary>
   <div class="row"><select id="newPrim"></select><button id="bAdd">+ Add</button></div>
   <div id="effects" class="list"></div>
-  <h2>Presets</h2>
+  </details>
+  <details class="panel" id="secPresets" open><summary><h2>Presets</h2></summary>
   <div class="row"><select id="presetSel" style="flex:1;min-width:0"></select><button id="bPreset">Add</button></div>
   <div class="note" id="presetDesc"></div>
   <div class="row"><button id="bPresetDel">Delete preset</button><button id="bPresetExport">Export</button><button id="bPresetImport">Import</button></div>
   <input type="file" id="pfile" accept=".json,application/json" hidden>
+  </details>
 </aside>
 
 <main>

@@ -780,6 +780,12 @@ window.addEventListener("drop", function (e) {
   else openFiles(Array.prototype.slice.call(e.dataTransfer.files), null);
 });
 
+// Collapsible left-panel sections; open/closed state remembered per browser.
+Array.prototype.forEach.call(document.querySelectorAll("details.panel"), function (d) {
+  var k = "pbfxstudio.v1.sec." + d.id, v = lsGet(k);
+  if (v === false) d.open = false;
+  d.addEventListener("toggle", function () { lsSet(k, d.open); if (d.id === "secEffects" && d.open) buildTimeline(); });
+});
 buildPresets();
 requestAnimationFrame(loop);
 window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, player: player, host: host, rebuild: rebuild};
