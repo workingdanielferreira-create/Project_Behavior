@@ -41,7 +41,7 @@ these characters; it plays the PNGs.
   "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
-                                    "movement": "stand", "move_speed_pct": 100}},
+                                    "movement": "stand", "move_speed_pct": 100, "anim_loops": 1}},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -80,6 +80,15 @@ whole action; `"move"` lets it keep moving while the action plays, at
 `move_speed_pct` % of its normal speed (100 = full). `idle` always stands and
 `run` always moves, so the field is ignored for them. The engine applies it in
 Solo and Battle alike (`FXK.moveFactor(name, cfg)` gives the speed fraction).
+
+Every attack and triggered action also has `anim_loops` (the Studio's
+**Animation loops**, default 1): the animation plays this many times back to
+back, then the action ends, so the action lasts `anim_loops × frames ×
+frame_ms`. Each pass is an ordinary animation loop for the FX: effects fire
+and carry over exactly as they do whenever an animation loops (`fx_continuous`
+and `continuous` effects included). `idle` and `run` ignore it; they loop for
+as long as the fighter stands or moves. `FXK.animLoops(name, cfg)` gives the
+count.
 
 Every effect carries a `tag` (its FX type, e.g. `fireball`, `slash`) that
 other characters' `hit_by_fx` / `fx_near` conditions match against.

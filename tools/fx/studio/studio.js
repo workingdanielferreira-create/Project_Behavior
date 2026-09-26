@@ -615,6 +615,12 @@ function buildActionProps(d) {
     : kind === "attack" ? "The archetype decides when to attack. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
   note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
+  if (kind !== "locomotion") {
+    field(s, "Animation loops", inp("n", cfg.anim_loops, function (v) { cfg.anim_loops = Math.max(1, Math.min(99, Math.round(v) || 1)); save(); buildProps(); resetSim(0); }, 1, 99, 1)).title =
+      "How many times the animation plays before the action ends (1 = once). The FX loop with each pass as they normally do.";
+    var nl = FXK.animLoops(a, cfg);
+    if (nl > 1) note(s, "Plays the animation " + nl + " times = " + Math.round(nl * frames() * frameMs()) + " ms in all, then the action ends.");
+  } else note(s, "Loops for as long as the fighter is " + (a === "idle" ? "standing still." : "moving."));
   field(s, "Continuous FX on loop", inp("chk", cfg.fx_continuous, function (v) { cfg.fx_continuous = v; save(); syncContinuous(); })).title =
     "On: effects that last to the end of the action keep running when the animation loops, instead of restarting.";
   s = sec(d, "Movement", "a-move", "Whether the fighter stands still while doing this action or can keep moving.", "act");
@@ -689,16 +695,22 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.hits = []; S.dealt = 0;
+  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0;
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   while (S.t < target) step(false);
 }
 function step(allowWrap) {
   if (!C) return;
   moveFigure();
-  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: $("loop").checked && !!cfgOf(S.action).fx_continuous});
+  var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = (S.cycle || 0) >= nLoops - 1;
+  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous});
   S.t += 1;
-  if (S.t >= totalTicks() && allowWrap && $("loop").checked) { S.t = 0; S.dealt = 0; S.hits = []; }
+  if (S.t >= totalTicks() && allowWrap) {
+    // Next pass of the animation (Animation loops); after the last pass the
+    // action ends, and "loop" replays the whole action.
+    if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; }
+  }
 }
 // ------------------------------------------------------------ direction sim
 // The figure travels at "move" px/tick toward "dir" degrees (0 right, 90
@@ -814,7 +826,8 @@ function draw() {
     for (var f = 0; f < frames(); f++) { var pp = resolveAnchor(S.action, S.selAnchor, f); if (!pp) continue; var w = imgToGame(pp); if (f) g.lineTo(w[0], w[1]); else g.moveTo(w[0], w[1]); }
     g.stroke();
   }
-  $("hud").textContent = S.action + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
+  var nL = FXK.animLoops(S.action, cfgOf(S.action));
+  $("hud").textContent = S.action + (nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
@@ -990,5 +1003,5 @@ Array.prototype.forEach.call(document.querySelectorAll("details.panel"), functio
 });
 buildPresets();
 requestAnimationFrame(loop);
-window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, player: player, host: host, rebuild: rebuild};
+window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, step: step, player: player, host: host, rebuild: rebuild};
 })();
