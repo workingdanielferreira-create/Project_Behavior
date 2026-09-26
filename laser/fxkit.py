@@ -163,7 +163,11 @@ COLOR_DEFAULTS = dict(mode="palette", lut_index=128, lut_index2=128, lut_offset=
                       c2="#ff2200", start_fraction=0)
 BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0, knockback=0)
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
-                       movement="stand", move_speed_pct=100, anim_loops=1)
+                       movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80)
+# Character-level aiming (pack.aim): the whole frame turns so the weapon
+# direction of the reference action (from -> to anchors, averaged over its
+# frames) points at the target; the fighter always faces the target.
+AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to_anchor="wtip", max_deg=75)
 ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[])
 PATH_DEFAULTS = dict(name="path", points=[[0, 0]], smooth=True, ticks=30, orient="facing", end="stop", follow=False)
 
@@ -1106,6 +1110,27 @@ class CharacterFx:
         for e in self.effects:
             self.by_action.setdefault(e.get("action") or "idle", []).append(e)
         self.settings = {k: normalize_action(v) for k, v in (fxk.get("action_settings") or {}).items()}
+        self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
+        self.aim_ref = None
+        self.aim_from = None
+        if self.aim["enabled"]:
+            ref = (self.anchors.get(self.aim["source"]) or {})
+            a_row, b_row = ref.get(self.aim["from_anchor"]) or [], ref.get(self.aim["to_anchor"]) or []
+            sx = sy = ax = ay = 0.0
+            n = 0
+            for pa, pb in zip(a_row, b_row):
+                if pa and pb:
+                    dx, dy = pb[0] - pa[0], pb[1] - pa[1]
+                    dd = math.hypot(dx, dy)
+                    if dd > 1e-6:
+                        sx += dx / dd
+                        sy += dy / dd
+                        ax += pa[0]
+                        ay += pa[1]
+                        n += 1
+            if n:
+                self.aim_ref = norm(sx, sy)            # barrel direction, right-facing image space
+                self.aim_from = (ax / n, ay / n)       # where the barrel starts (image px)
         self.lib = {"entry_sets": [normalize_entry_set(e) for e in (fxk.get("entry_sets") or [])],
                     "paths": [normalize_path(p) for p in (fxk.get("paths") or [])]}
         # Distances were authored around the figure at its authoring size;
@@ -1143,6 +1168,38 @@ def character_fx(mode):
         cfx = CharacterFx(char)
         mode._fxkit_cache = cfx
     return cfx
+
+
+def aim_angle(cfx, action, frame, facing, pscale, fx, fy, tx, ty):
+    """Degrees to turn the whole frame so the barrel of the frame on show
+    (pack.aim from -> to anchors of this action/frame; the source action's
+    average when the frame has none) points at the target.  facing is +1
+    right / -1 left; the frame is mirrored first, then turned, exactly as
+    Figure draws it and _Host.anchor maps anchors.  None when not aiming."""
+    if cfx is None or not cfx.aim.get("enabled") or cfx.aim_ref is None:
+        return None
+    pa = cfx.anchor_px(action, cfx.aim["from_anchor"], frame)
+    pb = cfx.anchor_px(action, cfx.aim["to_anchor"], frame)
+    if pa and pb and math.hypot(pb[0] - pa[0], pb[1] - pa[1]) > 1e-6:
+        (rx, ry), start = norm(pb[0] - pa[0], pb[1] - pa[1]), pa
+    else:
+        (rx, ry), start = cfx.aim_ref, cfx.aim_from
+    rx *= facing
+    k = cfx.k * (pscale or 1.0)
+    ox = (start[0] - cfx.origin[0]) * k * facing
+    oy = (start[1] - cfx.origin[1]) * k
+    base = math.atan2(ry, rx)
+    lim = math.radians(max(0.0, min(180.0, float(cfx.aim.get("max_deg") or 0))))
+    a = 0.0
+    for _ in range(4):   # the barrel start turns with the frame: settle it
+        ca, sa = math.cos(a), math.sin(a)
+        px, py = fx + ox * ca - oy * sa, fy + ox * sa + oy * ca
+        if (tx - px) ** 2 + (ty - py) ** 2 < 4.0:
+            break
+        a = math.atan2(ty - py, tx - px) - base
+        a = (a + math.pi) % (2 * math.pi) - math.pi
+        a = max(-lim, min(lim, a))
+    return math.degrees(a)
 
 
 def current_action(fig):
@@ -1190,8 +1247,9 @@ class _Host:
             return [fig.x, fig.y]
         k = cfx.k * self.pscale
         ox, oy = (p[0] - cfx.origin[0]) * k * self.facing, (p[1] - cfx.origin[1]) * k
-        if fig.motion.rotate and fig.transform.angle:
-            a = math.radians(fig.transform.angle)
+        ang = fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
+        if ang:
+            a = math.radians(ang)
             ox, oy = ox * math.cos(a) - oy * math.sin(a), ox * math.sin(a) + oy * math.cos(a)
         return [fig.x + ox, fig.y + oy]
 

@@ -204,14 +204,42 @@ var CONDITION_TYPES = {
 // that last to the end of the action keep running across the loop instead
 // of ending and starting again.
 // movement: "stand" = the fighter stays in place while the action plays;
-// "move" = it keeps moving (at move_speed_pct % of its normal speed).  Only
+// "move" = it keeps moving (at move_speed_pct % of its normal speed);
+// "back" = it retreats straight away from the target at move_speed_pct % of
+// its normal speed until back_stop_pct % of the whole action, then holds.  Only
 // for attack / triggered actions; idle always stands and run always moves.
 // anim_loops: how many times the animation plays before the action ends
 // (attack / triggered actions; idle and run loop for as long as they last).
 // Each pass is a normal animation loop for the FX: they carry on exactly as
 // they do when an animation loops (fx_continuous and ∞ effects included).
 var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
-  movement: "stand", move_speed_pct: 100, anim_loops: 1};
+  movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80};
+// Character-level aiming (pack.aim): the fighter always faces the target and
+// the whole frame on show turns so its barrel (from -> to anchor of that
+// frame; the source action's average when the frame has none) points at the
+// target, at most max_deg either way.  Same maths as laser/fxkit.py aim_angle.
+var AIM_DEFAULTS = {enabled: false, source: "attack_normal", from_anchor: "haR", to_anchor: "wtip", max_deg: 75};
+function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
+// ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
+// pa / pb = this frame's from / to anchors (image px) or null; origin, k =
+// image origin and game px per image px (incl. position scale); fig, target
+// = game positions.  Returns degrees (0 when the barrel is unknown).
+function aimAngle(aim, pa, pb, ref, origin, k, facing, fig, target) {
+  var dir, start;
+  if (pa && pb && Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) > 1e-6) { var d = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]); dir = [(pb[0] - pa[0]) / d, (pb[1] - pa[1]) / d]; start = pa; }
+  else if (ref) { dir = ref.dir; start = ref.from; }
+  else return 0;
+  var rx = dir[0] * facing, ry = dir[1], ox = (start[0] - origin[0]) * k * facing, oy = (start[1] - origin[1]) * k;
+  var base = Math.atan2(ry, rx), lim = Math.max(0, Math.min(180, +aim.max_deg || 0)) * Math.PI / 180, a = 0;
+  for (var i = 0; i < 4; i++) {
+    var ca = Math.cos(a), sa = Math.sin(a), px = fig[0] + ox * ca - oy * sa, py = fig[1] + ox * sa + oy * ca;
+    if ((target[0] - px) * (target[0] - px) + (target[1] - py) * (target[1] - py) < 4) break;
+    a = Math.atan2(target[1] - py, target[0] - px) - base;
+    a = ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    a = Math.max(-lim, Math.min(lim, a));
+  }
+  return a * 180 / Math.PI;
+}
 function animLoops(name, cfg) {
   if (actionKind(name) === "locomotion") return 1;
   return Math.max(1, Math.round(+(cfg || ACTION_DEFAULTS).anim_loops || 1));
@@ -226,7 +254,7 @@ function moveFactor(name, cfg) {
   var k = actionKind(name);
   if (k === "locomotion") return name === "idle" ? 0 : 1;
   cfg = cfg || ACTION_DEFAULTS;
-  return cfg.movement === "move" ? Math.max(0, +cfg.move_speed_pct || 0) / 100 : 0;
+  return cfg.movement === "move" || cfg.movement === "back" ? Math.max(0, +cfg.move_speed_pct || 0) / 100 : 0;
 }
 // ---------------------------------------------------------------- character scale
 // Image characters stand STAND_HEIGHT_PX tall in game (laser/config.py
@@ -922,7 +950,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

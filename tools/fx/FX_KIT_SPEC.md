@@ -41,7 +41,8 @@ these characters; it plays the PNGs.
   "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
-                                    "movement": "stand", "move_speed_pct": 100, "anim_loops": 1}},
+                                    "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80}},
+  "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -77,7 +78,10 @@ Effects with a fixed life, and periodic re-emits, fire as usual on each loop.
 Every action also has `movement` (the Studio's **Movement** section) for
 attack and triggered actions: `"stand"` roots the fighter in place for the
 whole action; `"move"` lets it keep moving while the action plays, at
-`move_speed_pct` % of its normal speed (100 = full). `idle` always stands and
+`move_speed_pct` % of its normal speed (100 = full); `"back"` retreats straight
+away from the target at `move_speed_pct` % of its normal speed until
+`back_stop_pct` % of the whole action (all loops) has played, then holds
+still for the rest. `idle` always stands and
 `run` always moves, so the field is ignored for them. The engine applies it in
 Solo and Battle alike (`FXK.moveFactor(name, cfg)` gives the speed fraction).
 
@@ -398,6 +402,14 @@ The presets only seed new FX.
      still moves it.
    - `movement: "move"` scales its speed to `move_speed_pct` while the
      action plays.
+   - `movement: "back"` moves it straight away from the target at
+     `move_speed_pct` % speed until `back_stop_pct` % of the action.
+   - **Aim** (`aim.enabled`): every tick the fighter faces the target and
+     its frame on show turns (`Figure.aim`, degrees, after mirroring) so the
+     barrel line `from_anchor -> to_anchor` of that frame passes through the
+     target (`fxkit.aim_angle`; frames without both anchors use the
+     `source` action's average barrel), at most `max_deg` either way.
+     Anchors and FX turn with it.
    - **Attacks.** The archetype decides when: melee inside
      `basic_attack_radius`, shooters from `max(radius, 420 px)`. Attacks are
      at least 350 ms apart, or `cooldown_ms`. `chain_next` continues the

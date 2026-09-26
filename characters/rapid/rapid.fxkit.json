@@ -8048,9 +8048,10 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "move",
-   "move_speed_pct": 100,
-   "anim_loops": 1
+   "movement": "back",
+   "move_speed_pct": 250,
+   "anim_loops": 1,
+   "back_stop_pct": 80
   },
   "ultimate": {
    "logic": "any",
@@ -8381,5 +8382,12 @@
    }
   }
  ],
- "spec": "tools/fx/FX_KIT_SPEC.md \u2014 runtime reference tools/fx/studio/fxkit.js"
+ "spec": "tools/fx/FX_KIT_SPEC.md \u2014 runtime reference tools/fx/studio/fxkit.js",
+ "aim": {
+  "enabled": true,
+  "source": "attack_normal",
+  "from_anchor": "haR",
+  "to_anchor": "wtip",
+  "max_deg": 180
+ }
 }

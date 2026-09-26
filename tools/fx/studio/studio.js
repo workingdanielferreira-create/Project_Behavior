@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false,
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -52,6 +52,7 @@ function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.
 // Facing: the chosen side, or (with "face movement") the side the figure is
 // moving toward, the way the game flips a moving fighter.
 function facing() {
+  if (S.aim.enabled && aimRef()) return S.target[0] < S.figX - 0.001 ? -1 : 1;   // aiming: always faces the target
   if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
   return +$("facing").value;
 }
@@ -60,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, scale: imgScale(), img_head: C.headPx, img_origin: C.origin}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, scale: imgScale(), img_head: C.headPx, img_origin: C.origin}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -68,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -86,6 +87,7 @@ function applyState(str) {
   var o = JSON.parse(str);
   S.effects = o.e.map(FXK.normalize); S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
   S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
+  S.aim = FXK.normalizeAim(o.am);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
@@ -124,8 +126,39 @@ function resolveAnchor(action, id, f) {
   for (var j = f + 1; j < row.length; j++) if (row[j]) return row[j];
   return null;
 }
-function imgToGame(p) { var k = imgScale() * pscale(); return [S.figX + (p[0] - C.origin[0]) * k * facing(), S.figY + (p[1] - C.origin[1]) * k]; }
-function gameToImg(w) { var k = imgScale() * pscale(); return [Math.round(((w[0] - S.figX) / (k * facing()) + C.origin[0]) * 100) / 100, Math.round(((w[1] - S.figY) / k + C.origin[1]) * 100) / 100]; }
+// Aim (pack.aim): the frame turns by aimDeg() around the figure position,
+// after mirroring — the same order the game draws in.
+function imgToGame(p, rot) {
+  var k = imgScale() * pscale(), ox = (p[0] - C.origin[0]) * k * facing(), oy = (p[1] - C.origin[1]) * k;
+  var a = (rot == null ? aimDeg() : rot) * Math.PI / 180;
+  if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
+  return [S.figX + ox, S.figY + oy];
+}
+function gameToImg(w) {
+  var k = imgScale() * pscale(), ox = w[0] - S.figX, oy = w[1] - S.figY, a = -aimDeg() * Math.PI / 180;
+  if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
+  return [Math.round((ox / (k * facing()) + C.origin[0]) * 100) / 100, Math.round((oy / k + C.origin[1]) * 100) / 100];
+}
+// The fallback barrel: from -> to anchor averaged over the source action.
+function aimRef() {
+  if (!C || !S.aim.enabled || !C.actions[S.aim.source]) return null;
+  var n = C.actions[S.aim.source].images.length, sx = 0, sy = 0, ax = 0, ay = 0, m = 0;
+  for (var f = 0; f < n; f++) {
+    var pa = resolveAnchor(S.aim.source, S.aim.from_anchor, f), pb = resolveAnchor(S.aim.source, S.aim.to_anchor, f);
+    if (!pa || !pb) continue;
+    var d = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]); if (d < 1e-6) continue;
+    sx += (pb[0] - pa[0]) / d; sy += (pb[1] - pa[1]) / d; ax += pa[0]; ay += pa[1]; m++;
+  }
+  if (!m) return null;
+  var L = Math.hypot(sx, sy) || 1;
+  return {dir: [sx / L, sy / L], from: [ax / m, ay / m]};
+}
+function aimDeg(action, fr) {
+  var ref = aimRef(); if (!ref) return 0;
+  action = action || S.action; fr = fr == null ? frameAt(S.t) : fr;
+  return FXK.aimAngle(S.aim, resolveAnchor(action, S.aim.from_anchor, fr), resolveAnchor(action, S.aim.to_anchor, fr), ref,
+    C.origin, imgScale() * pscale(), facing(), [S.figX, S.figY], S.target);
+}
 function jointAt(name, fr) {
   if (name === "figure") return [S.figX, S.figY];
   if (name === "target") return S.target.slice();
@@ -143,9 +176,9 @@ function tinted(img, rgb) {   // combat.silhouette(): flat colour, the frame's o
   x.fillStyle = "rgb(" + rgb.join(",") + ")"; x.fillRect(0, 0, c.width, c.height);
   TINT.set(key, c); return c;
 }
-function drawFrame(gc, img, pos, fac, alpha, tint) {
+function drawFrame(gc, img, pos, fac, alpha, tint, rot) {
   var k = imgScale() * pscale();
-  gc.save(); gc.translate(pos[0], pos[1]); gc.scale(fac * k, k);
+  gc.save(); gc.translate(pos[0], pos[1]); if (rot) gc.rotate(rot * Math.PI / 180); gc.scale(fac * k, k);
   if (alpha != null) gc.globalAlpha *= alpha;
   gc.drawImage(tint ? tinted(img, tint) : img, -C.origin[0], -C.origin[1]);
   gc.restore();
@@ -160,10 +193,10 @@ var host = {
   get showHitboxes() { return true; },
   get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
-  snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: [S.figX, S.figY]}; },
+  snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: [S.figX, S.figY], rot: aimDeg()}; },
   drawGhost: function (gc, gh, rgb, a) {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
-    if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb);
+    if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb, gh.snap.rot);
   },
   // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
   onHit: function (inst, dmg, dx, dy, kb) {
@@ -232,6 +265,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
   S.actionCfg = clone((src && src.action_settings) || {});
   S.entries = ((src && src.entry_sets) || []).map(FXK.normalizeEntrySet); S.paths = ((src && src.paths) || []).map(FXK.normalizePath);
+  S.aim = FXK.normalizeAim(clone((src && src.aim) || {}));
   // The scale this work was authored at (older saves used the head-size rule).
   var oldRule = TARGET_HEAD_PX / Math.max(1, C.headPx);
   var packScale = function (p) { return (p && p.space && +p.space.game_px_per_image_px) || oldRule; };
@@ -248,6 +282,7 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
           S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
           S.actionCfg = clone(pack.action_settings || {});
           S.entries = (pack.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (pack.paths || []).map(FXK.normalizePath);
+          S.aim = FXK.normalizeAim(clone(pack.aim || {}));
           S.srcScale = packScale(pack);
           var sp1 = packSpace(pack); S.srcHead = sp1[0]; S.srcOrigin = sp1[1];
         }
@@ -316,6 +351,7 @@ function packData() {
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
     entry_sets: S.entries.map(function (e) { return FXK.normalizeEntrySet(clone(e)); }),
     paths: S.paths.map(function (p) { return FXK.normalizePath(clone(p)); }),
+    aim: FXK.normalizeAim(clone(S.aim)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -899,6 +935,23 @@ var COND_LABEL = {hp_below: "own HP at or below %", attacks_made: "after N attac
   fx_near: "enemy FX tagged … within px", bullet_deflected: "a bullet was deflected", after_actions: "after completing actions in order"};
 var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 100, 1], px: ["Distance px", 1, 2000, 1],
   tags: ["Tags (comma, empty = any)", "text"], sequence: ["Actions (comma separated)", "text"], repeat: ["Repeat on cooldown", "chk"]};
+// Character-level Aim (pack.aim), shown under every action's settings.
+function buildAimProps(d) {
+  var s = sec(d, "Aim (whole character)", "a-aim", "Always face the target and turn every frame so the weapon points at it. Applies to all actions.", "act");
+  var am = S.aim, ids = anchorIds().map(function (j) { return [j, S.labels[j] || j]; });
+  var ch = function () { save(); buildProps(); resetSim(S.t); };
+  field(s, "Aim at target", inp("chk", am.enabled, function (v) { am.enabled = v; ch(); })).title =
+    "On: the fighter always faces the target, and each frame turns so the barrel line (from → to anchor) points at it.";
+  if (!am.enabled) return;
+  field(s, "Barrel from anchor", inp(ids, am.from_anchor, function (v) { am.from_anchor = v; ch(); })).title = "Where the weapon starts (e.g. the hand).";
+  field(s, "Barrel to anchor", inp(ids, am.to_anchor, function (v) { am.to_anchor = v; ch(); })).title = "The point it shoots from (e.g. the muzzle / weapon tip).";
+  field(s, "Fallback action", inp(Object.keys(C.actions), am.source, function (v) { am.source = v; ch(); })).title =
+    "Frames without both anchors use this action's barrel, averaged over its frames (normally attack_normal).";
+  field(s, "Max turn °", inp("n", am.max_deg, function (v) { am.max_deg = Math.max(0, Math.min(180, v)); save(); resetSim(S.t); }, 0, 180, 5)).title =
+    "How far the frame may turn either way (180 = no limit, always on target).";
+  if (!aimRef()) note(s, "No frames of " + am.source + " have both anchors placed: aiming is off until they are.");
+  else note(s, "Preview: drag the target around the stage; the figure turns to keep the barrel on it (now " + Math.round(aimDeg()) + "°).");
+}
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
@@ -919,12 +972,16 @@ function buildActionProps(d) {
   s = sec(d, "Movement", "a-move", "Whether the fighter stands still while doing this action or can keep moving.", "act");
   if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
   else {
-    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
-      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays.";
-    if (cfg.movement === "move") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
+    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds.";
+    if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = Math.max(0, Math.min(100, v)); save(); resetSim(S.t); }, 0, 100, 5)).title =
+      "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
+    if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
       "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
-    note(s, "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
+    note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
+      : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
+  buildAimProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
@@ -1019,7 +1076,18 @@ function moveVector() {
 // The action's Movement setting scales the sim (idle and run keep the sim's
 // full speed so their FX can still be previewed in motion).
 function simMoveFactor() { return FXK.actionKind(S.action) === "locomotion" ? 1 : FXK.moveFactor(S.action, cfgOf(S.action)); }
+var BACK_BASE_SPEED = 2;   // px/tick "normal speed" for the back-away preview when the sim's move is 0
 function moveFigure() {
+  var cfg = cfgOf(S.action);
+  if (FXK.actionKind(S.action) !== "locomotion" && cfg.movement === "back") {
+    var nL = FXK.animLoops(S.action, cfg), done = ((S.cycle || 0) * totalTicks() + S.t) / (nL * totalTicks());
+    if (done >= (+cfg.back_stop_pct || 0) / 100) return;
+    var bx = S.figX - S.target[0], by = S.figY - S.target[1], d = Math.hypot(bx, by);
+    if (d < 1e-3) { bx = -facing(); by = 0; d = 1; }
+    var spd = (+$("walk").value || BACK_BASE_SPEED) * FXK.moveFactor(S.action, cfg);
+    S.figX += bx / d * spd; S.figY += by / d * spd;
+    return;
+  }
   var v = S.vel, f = simMoveFactor();
   if ((!v[0] && !v[1]) || f <= 0) return;
   S.figX += v[0] * f; S.figY += v[1] * f;
@@ -1032,7 +1100,7 @@ function moveFigure() {
   });
 }
 function drawMoveGuide(g, z) {
-  var v = S.vel; if ((!v[0] && !v[1]) || simMoveFactor() <= 0) return;
+  var v = S.vel; if ((!v[0] && !v[1]) || simMoveFactor() <= 0 || cfgOf(S.action).movement === "back") return;
   g.save();
   g.strokeStyle = "rgba(125,224,168,.25)"; g.lineWidth = 1 / z; g.setLineDash([4 / z, 4 / z]);
   g.strokeRect(-AREA[0], -AREA[1], AREA[0] * 2, AREA[1] * 2); g.setLineDash([]);
@@ -1058,7 +1126,13 @@ function loop(now) {
 // ------------------------------------------------------------ render
 function fit() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return dpr; }
 function zoom() { return Math.max(0.25, +$("zoom").value || 4); }
-function camera(dpr) { return {x: cv.width / 2 / dpr + S.pan[0], y: cv.height * 0.55 / dpr + S.pan[1], z: zoom()}; }
+// A "Move back from target" action travels further than the stage shows:
+// the camera follows the figure while it plays.
+function camFollow() { return C && S.action && FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back"; }
+function camera(dpr) {
+  var z = zoom(), fx = camFollow() ? S.figX * z : 0, fy = camFollow() ? S.figY * z : 0;
+  return {x: cv.width / 2 / dpr + S.pan[0] - fx, y: cv.height * 0.55 / dpr + S.pan[1] - fy, z: z};
+}
 function toWorld(mx, my) { var dpr = Math.min(2, window.devicePixelRatio || 1), c = camera(dpr); return [(mx - c.x) / c.z, (my - c.y) / c.z]; }
 // ------------------------------------------------------------ light / dark mode
 // Light mode: white page and stage, black text (remembered per browser).
@@ -1081,9 +1155,9 @@ function draw() {
   for (var y = y0; y < cv.height / dpr; y += step10) { g.beginPath(); g.moveTo(0, y); g.lineTo(cv.width, y); g.stroke(); }
   g.translate(c.x, c.y); g.scale(z, z);
   var ps = pscale(), fr = frameAt(S.t), img = act().images[fr];
-  if ($("lightbg").checked) { g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(S.figX - C.origin[0] * k, S.figY - C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); }
+  if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   player.draw(g, host, "behind", ps);
-  drawFrame(g, img, [S.figX, S.figY], facing());
+  drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
   player.draw(g, host, "front", ps);
   drawMoveGuide(g, z);
   drawGeo(g, z);

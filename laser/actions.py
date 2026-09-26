@@ -12,6 +12,10 @@ was set up there (pack.action_settings):
                    the chain.
   * Attack mode (Alt+Up) gates attacks and triggered actions the same way
     it gates the built-in fighters; `defend` always works.
+  * Movement "back" retreats straight away from the target at
+    move_speed_pct % speed until back_stop_pct % of the whole action.
+  * Aim (pack.aim): the fighter always faces the target and its frame turns
+    so the normal attack's barrel (from -> to anchor) points at it.
   * everything else (attack_special, ultimate, defend, ...) — plays when its
                    conditions are met (ANY / ALL), no more often than every
                    cooldown_ms.  An action with no conditions never
@@ -289,6 +293,10 @@ class ActionRunner:
                 if atk:
                     self._start(fig, atk, ctx, now)
 
+        from .fxkit import character_fx
+        cfx = character_fx(fig.mode)
+        aiming = bool(cfx is not None and cfx.aim.get("enabled") and cfx.aim_ref is not None)
+
         rooted = False
         if self.playing is not None:
             name = self.playing
@@ -307,7 +315,34 @@ class ActionRunner:
                 c.action_idx = max(0, min(n - 1, frame))
                 self.elapsed += TICK_MS
                 cfg = _cfg(fig, name)
-                if cfg.get("movement") == "move":
+                total = n * fm * max(1, int(round(float(cfg.get("anim_loops") or 1))))
+                done = ((max(1, int(round(float(cfg.get("anim_loops") or 1)))) - self.loops_left) * n * fm
+                        + self.elapsed - TICK_MS)   # time into the whole action before this tick
+                if cfg.get("movement") == "back" and not (fig.motion.bouncing or fig.motion.bounce_ending):
+                    # Retreat straight away from the target at move_speed_pct %
+                    # of normal speed until back_stop_pct % of the action.
+                    rooted = True
+                    fig.render.is_moving = False
+                    if done < total * float(cfg.get("back_stop_pct") or 0) / 100.0:
+                        from . import combat as _combat
+                        bx, by = fig.x - tx, fig.y - ty
+                        d = (bx * bx + by * by) ** 0.5
+                        if d < 0.001:
+                            bx, by, d = (1.0 if fig.transform.facing_left else -1.0), 0.0, 1.0
+                        if self.base_speed is None:
+                            self.base_speed = fig.motion.speed
+                        sf = _combat.position_speed_scale(fig.x, fig.y, fig.screen_w, fig.screen_h)
+                        step = self.base_speed * max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0 * sf
+                        fig.transform.x += bx / d * step
+                        fig.transform.y += by / d * step
+                        fig.render.is_moving = True
+                    if not aiming:
+                        dx = tx - fig.x
+                        if dx < -0.001:
+                            fig.transform.facing_left = True
+                        elif dx > 0.001:
+                            fig.transform.facing_left = False
+                elif cfg.get("movement") == "move":
                     pct = max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0
                     if self.base_speed is None:
                         self.base_speed = fig.motion.speed
@@ -323,6 +358,22 @@ class ActionRunner:
                     elif dx > 0.001:
                         fig.transform.facing_left = False
                     fig.render.is_moving = False
+        # Aiming (FX Studio pack.aim): face the target and turn the frame on
+        # show so its barrel (the point the normal attack shoots from) points
+        # at the target — always, in every action.
+        if aiming:
+            if not (fig.motion.bouncing or fig.motion.bounce_ending):
+                from .fxkit import aim_angle, current_action
+                dx = tx - fig.x
+                if dx < -0.001:
+                    fig.transform.facing_left = True
+                elif dx > 0.001:
+                    fig.transform.facing_left = False
+                act, frame = current_action(fig)
+                fig.aim = aim_angle(cfx, act, frame, -1.0 if fig.transform.facing_left else 1.0,
+                                    fig._position_scale(), fig.x, fig.y, tx, ty)
+        else:
+            fig.aim = None
         self.hit_tags = []
         self.acted = rooted
         return rooted

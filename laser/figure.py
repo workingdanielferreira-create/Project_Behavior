@@ -25,7 +25,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act")
+                 "screen_w", "screen_h", "fx", "act", "aim")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -52,6 +52,7 @@ class Figure:
         self.personality = Personality(mode.key)
         self.fx = None   # fxkit.FxDriver for image characters with an FX file
         self.act = None  # actions.ActionRunner for image characters
+        self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -82,6 +83,7 @@ class Figure:
         self.render.set_bundle(bundle)
         self.fx = None
         self.act = None
+        self.aim = None
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")
@@ -96,6 +98,8 @@ class Figure:
         dx, dy = t.x - ox, t.y - oy
         d_sq = dx * dx + dy * dy
         self.render.is_moving = d_sq > self.motion.min_move_sq
+        if self.aim is not None:
+            return   # aiming at the target: facing and angle are set by actions.py
         if dx < -0.001:
             t.facing_left = True
         elif dx > 0.001:
@@ -233,7 +237,9 @@ class Figure:
                 sx, sy = -silh.width() // 2, -silh.height() // 2
                 p.save()
                 p.translate(self.transform.x, self.transform.y)
-                if self.motion.rotate:
+                if self.aim is not None:
+                    p.rotate(self.aim)
+                elif self.motion.rotate:
                     p.rotate(self.transform.angle)
                 if pscale != 1.0:
                     p.scale(pscale, pscale)
@@ -248,7 +254,9 @@ class Figure:
                 p.restore()
             p.save()
             p.translate(self.transform.x, self.transform.y)
-            if self.motion.rotate:
+            if self.aim is not None:
+                p.rotate(self.aim)
+            elif self.motion.rotate:
                 p.rotate(self.transform.angle)
             if pscale != 1.0:
                 p.scale(pscale, pscale)
