@@ -10,3 +10,9 @@ __pycache__/
 
 # update_game.py bookkeeping (which character files it last wrote) — local only.
 .sync_state.json
+
+# Written by the game at run time (sprite bake cache, roster thumbnails, logs).
+characters/_baked/
+characters/*_thumb.png
+laser_cursor_error.log
+laser_cursor_log.txt
