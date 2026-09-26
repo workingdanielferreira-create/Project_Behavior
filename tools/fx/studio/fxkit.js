@@ -14,6 +14,11 @@
  *   glow       TrailComponent head glow/core        (spheres, flares)
  *   ghost      figure afterimages (silhouette)      (speed ghosts)
  *
+ * PURPOSE: every effect is either visual-only or a damaging attack
+ * (fx.battle.deals_damage).  A damaging effect hits a target when the shape
+ * it DRAWS comes within the target's hurt radius (16 px = PROJ_HIT_RADIUS for
+ * every figure), so it damages exactly where it is seen to touch.
+ *
  * PORTING CONTRACT (Phase 2: laser/fxkit.py must mirror this file 1:1)
  *   - One update() per 16 ms tick (config.TICK_MS); nothing reads wall time.
  *   - All randomness goes through FXK.rng (mulberry32), seeded per instance,
@@ -159,7 +164,8 @@ var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
 var PARAM_DEFAULTS = {
   ribbon: {max_points: 50, min_dist: 2, decay: 2, taper: true, w_tail: 1, w_head: 5, alpha: 220, head_glow_r: 1, head_dot_r: 1},
-  arc: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", angle_deg: 0},
+  arc: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", angle_deg: 0,
+        placement: "anchor", back: 51, lead: 26},
   beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0},
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
@@ -170,6 +176,9 @@ var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12};
 var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offset: 0, flow_speed: 0.008,
   c1: "#ffffff", c2: "#ff2200", start_fraction: 0};
+// Damage settings (fx.battle).  damage is HP per hit, matching
+// ai.apply_hp_damage(amount) — every built-in attack deals 1.
+var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0};
 var _eid = 1;
 function newEffect(prim, action) {
   return normalize({id: "E" + Date.now().toString(36) + (_eid++), name: prim, action: action || "idle",
@@ -185,6 +194,8 @@ function normalize(fx) {
   fx.motion = fill(fx.motion || {}, MOTION_DEFAULTS);
   fx.color = fill(fx.color || {}, COLOR_DEFAULTS);
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
+  fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
+  if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   return fx;
 }
 
@@ -218,7 +229,8 @@ function spawn(fx, host, windowTicks, seed, idx, n) {
   var life = fx.life_ticks > 0 ? fx.life_ticks : Math.max(1, windowTicks);
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
-    ghosts: [], acc: 0, facing: host.facing, orbitA: 0, phase: 0, zx: 0, zy: 0};
+    ghosts: [], acc: 0, facing: host.facing, orbitA: 0, phase: 0, zx: 0, zy: 0,
+    hits: 0, lastHit: -1e9};
   var spd = +m.speed || 0;
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
@@ -234,6 +246,17 @@ function spawn(fx, host, windowTicks, seed, idx, n) {
     // CrescentWave: centre angle perpendicular to the direction of travel.
     var od = fx.params.orient === "angle" ? [Math.cos(fx.params.angle_deg * D) * host.facing, Math.sin(fx.params.angle_deg * D)] : dir;
     inst.centreDeg = angleDegQt(-od[1], od[0]);
+    // CrescentWave.__init__ placements relative to the target (the aim
+    // direction runs from the anchor to the target):
+    //   wrap_target    centre = target - dir * back           (default slash, back 51)
+    //   through_target centre = target + R*(dir_y, -dir_x) - dir * lead
+    //                  so the arc's midpoint starts `lead` short of the target
+    var tg = host.target, P = fx.params;
+    if (P.placement === "wrap_target") { inst.x = tg[0] - od[0] * P.back; inst.y = tg[1] - od[1] * P.back; }
+    else if (P.placement === "through_target") {
+      var R = P.radius;
+      inst.x = tg[0] + od[1] * R - od[0] * P.lead; inst.y = tg[1] - od[0] * R - od[1] * P.lead;
+    }
   }
   if (fx.prim === "particles" && fx.params.mode === "burst") emitParticles(inst, fx, host, trunc(fx.params.count));
   inst.px = inst.x; inst.py = inst.y;
@@ -288,7 +311,7 @@ function emitParticles(inst, fx, host, n) {
     var spd = smax > smin ? inst.r.uniform(smin, smax) : smin;
     var lifeMs = inst.r.uniform(l0, l1);
     inst.parts.push({x: inst.x, y: inst.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, age: 0,
-      life: Math.max(1, trunc(lifeMs / TICK_MS)), s0: s0, s1: s1, rgb1: cp[0], rgb2: cp[1]});
+      life: Math.max(1, trunc(lifeMs / TICK_MS)), s0: s0, s1: s1, rgb1: cp[0], rgb2: cp[1], hits: 0, lastHit: -1e9});
   }
 }
 
@@ -363,35 +386,44 @@ DRAW.ribbon = function (g, inst, host, ps) {   // TrailComponent.draw
     ellipse(g, hx - idr, hy - idr, idr * 2, idr * 2);
   }
 };
-DRAW.arc = function (g, inst, host, ps) {   // CrescentWave.draw
-  var fx = inst.fx, P = fx.params, life = inst.life, age = inst.age;
-  if (age >= life) return;
-  var segs = trunc(P.segs), r2 = P.radius * ps, half = P.span / 2, start = inst.centreDeg - half, step = P.span / segs;
+// Visible arc segments [a0_deg, step_deg, width, tail_t, alpha] (Qt angles).
+function arcSegs(inst, ps) {   // CrescentWave.draw visibility rules
+  var P = inst.fx.params, life = inst.life, age = inst.age, out = [];
+  if (age >= life) return out;
+  var segs = trunc(P.segs), half = P.span / 2, start = inst.centreDeg - half, step = P.span / segs;
   var halfLife = life * P.grow, tip, fade;
   if (age <= halfLife) { tip = age / halfLife; fade = 1; }
   else { tip = 1; fade = 1 - (age - halfLife) / (life - halfLife); }
-  g.lineCap = "round"; g.lineJoin = "round";
   for (var i = 0; i < segs; i++) {
     var st = (i + 0.5) / segs;
     if (st > tip) continue;
     var dft = tip - st;
     if (dft > P.tail) continue;
-    var tt = 1 - dft / P.tail;
-    var c = fx.color.mode === "palette" ? colorAt(fx, inst, st, host.lut) : colorPair(fx, host.lut)[0];
-    var a = trunc(255 * Math.pow(tt, 0.6) * fade);
+    var tt = 1 - dft / P.tail, a = trunc(255 * Math.pow(tt, 0.6) * fade);
     if (a < 4) continue;
-    var a0 = start + i * step;
+    out.push([start + i * step, step, P.width * (0.25 + 0.75 * tt) * ps, tt, a, st]);
+  }
+  return out;
+}
+DRAW.arc = function (g, inst, host, ps) {   // CrescentWave.draw
+  var fx = inst.fx, P = fx.params, r2 = P.radius * ps;
+  g.lineCap = "round"; g.lineJoin = "round";
+  arcSegs(inst, ps).forEach(function (q) {
+    var a0 = q[0], step = q[1], a = q[4];
+    var c = fx.color.mode === "palette" ? colorAt(fx, inst, q[5], host.lut) : colorPair(fx, host.lut)[0];
     // Qt arc angles run CCW with y up; canvas angles run CW with y down.
     var path = function () { g.beginPath(); g.arc(inst.x, inst.y, r2, -a0 * D, -(a0 + step) * D, true); g.stroke(); };
-    g.strokeStyle = rgba(c, a); g.lineWidth = P.width * (0.25 + 0.75 * tt) * ps; path();
+    g.strokeStyle = rgba(c, a); g.lineWidth = q[2]; path();
     g.strokeStyle = "rgba(255,255,255," + trunc(a * P.core_alpha) / 255 + ")";
-    g.lineWidth = P.width * P.core_width * (0.25 + 0.75 * tt) * ps; path();
-  }
+    g.lineWidth = P.width * P.core_width * (0.25 + 0.75 * q[3]) * ps; path();
+  });
 };
-DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
+// Beam geometry shared by draw and hit test: [[x0,y0,x1,y1,width,rgb], ...]
+// plus the alpha multiplier; null when nothing is visible.
+function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   var fx = inst.fx, P = fx.params, m = fx.motion;
   var fade = Math.max(0, 1 - inst.age / inst.life);
-  if (fade <= 0) return;
+  if (fade <= 0) return null;
   var ux = inst.dir[0], uy = inst.dir[1], reach, hx = inst.x, hy = inst.y;
   var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
   var detach = P.detach_ticks > 0 ? P.detach_ticks : 1e9;
@@ -408,24 +440,32 @@ DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
       reach = Math.max(0, rd * (1 - Math.min(1, (inst.age - detach) / post)));
     }
   }
-  if (reach <= 0) return;
+  if (reach <= 0) return null;
   var prog = Math.min(1, inst.age / Math.max(1, inst.life));
   var wT = P.w_start0 + (P.w_start1 - P.w_start0) * prog, wH = P.w_end0 + (P.w_end1 - P.w_end0) * prog;
   var pulse = 1;
   if (P.pulse_hz > 0) pulse = 0.65 + 0.35 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * TICK_MS / 1000));
-  var am = fade * pulse, cp = colorPair(fx, host.lut), c1 = cp[0], c2 = cp[1];
-  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null;
-  var segs = Math.max(1, trunc(P.segments)), jr = rng(inst.seed + trunc(inst.age));
-  g.lineCap = "round";
+  var cp = colorPair(fx, host.lut), c1 = cp[0], c2 = cp[1];
+  var segs = Math.max(1, trunc(P.segments)), jr = rng(inst.seed + trunc(inst.age)), out = [];
   for (var i = 0; i < segs; i++) {
     var t0 = i / segs, t1 = (i + 1) / segs;
     var x0 = hx - ux * reach * t0, y0 = hy - uy * reach * t0, x1 = hx - ux * reach * t1, y1 = hy - uy * reach * t1;
     if (P.jitter > 0) { var j = (jr() * 2 - 1) * P.jitter; x0 += -uy * j; y0 += ux * j; x1 += -uy * j; y1 += ux * j; }
-    var w = (wH + (wT - wH) * t0) * ps;
-    var col = [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0];
-    if (P.glow > 0) { g.strokeStyle = rgba(gc || col.map(trunc), 70 * am); g.lineWidth = w + P.glow * ps; line(g, x0, y0, x1, y1); }
-    g.strokeStyle = rgba(col, 235 * am); g.lineWidth = Math.max(1, w); line(g, x0, y0, x1, y1);
+    out.push([x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
+      [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0]]);
   }
+  return {segs: out, am: fade * pulse};
+}
+DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
+  var P = inst.fx.params, b = beamSegs(inst, host, ps);
+  if (!b) return;
+  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null;
+  g.lineCap = "round";
+  b.segs.forEach(function (q) {
+    var w = q[4], col = q[5];
+    if (P.glow > 0) { g.strokeStyle = rgba(gc || col.map(trunc), 70 * b.am); g.lineWidth = w + P.glow * ps; line(g, q[0], q[1], q[2], q[3]); }
+    g.strokeStyle = rgba(col, 235 * b.am); g.lineWidth = Math.max(1, w); line(g, q[0], q[1], q[2], q[3]);
+  });
 };
 DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;
@@ -503,6 +543,80 @@ DRAW.ghost = function (g, inst, host, ps) {   // Figure.draw afterimages
   });
 };
 
+// ---------------------------------------------------------------- damage
+// Distance from point (px,py) to segment (x0,y0)-(x1,y1).
+function segDist(px, py, x0, y0, x1, y1) {
+  var dx = x1 - x0, dy = y1 - y0, L = dx * dx + dy * dy, t = L > 0 ? ((px - x0) * dx + (py - y0) * dy) / L : 0;
+  t = Math.max(0, Math.min(1, t));
+  var ex = x0 + dx * t - px, ey = y0 + dy * t - py;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+// Does the shape this instance currently DRAWS touch a hurt circle
+// (tx, ty, hr)?  Line shapes count their half stroke width; sprites use the
+// engine's point-vs-hurt-radius rule (Projectile hit_r_sq).
+var HIT = {};
+HIT.ribbon = function (inst, tx, ty, hr, ps) {
+  var P = inst.fx.params, h = inst.hist, n = h.length;
+  for (var i = 1; i < n; i++) {
+    var t = i / n, w = (P.taper ? P.w_tail + (P.w_head - P.w_tail) * t : P.w_head) * ps;
+    if (segDist(tx, ty, h[i - 1][0], h[i - 1][1], h[i][0], h[i][1]) <= hr + w / 2) return true;
+  }
+  return false;
+};
+HIT.arc = function (inst, tx, ty, hr, ps) {
+  var r2 = inst.fx.params.radius * ps, segs = arcSegs(inst, ps);
+  for (var i = 0; i < segs.length; i++) {
+    var q = segs[i], a0 = q[0] * D, a1 = (q[0] + q[1]) * D;   // Qt: (cx + R cos a, cy - R sin a)
+    if (segDist(tx, ty, inst.x + r2 * Math.cos(a0), inst.y - r2 * Math.sin(a0),
+                inst.x + r2 * Math.cos(a1), inst.y - r2 * Math.sin(a1)) <= hr + q[2] / 2) return true;
+  }
+  return false;
+};
+HIT.beam = function (inst, tx, ty, hr, ps, host) {
+  var b = beamSegs(inst, host, ps);
+  if (!b) return false;
+  for (var i = 0; i < b.segs.length; i++) { var q = b.segs[i]; if (segDist(tx, ty, q[0], q[1], q[2], q[3]) <= hr + Math.max(1, q[4]) / 2) return true; }
+  return false;
+};
+HIT.sprite = function (inst, tx, ty, hr) {
+  if (inst.age >= inst.life) return false;
+  var dx = inst.x - tx, dy = inst.y - ty;
+  return dx * dx + dy * dy <= hr * hr;
+};
+HIT.glow = function (inst, tx, ty, hr, ps) {
+  var P = inst.fx.params;
+  if (inst.age >= inst.life) return false;
+  var t = Math.min(1, inst.age / inst.life), gr = Math.max(P.core_r, P.r_start + (P.r_end - P.r_start) * t) * ps;
+  var dx = inst.x - tx, dy = inst.y - ty;
+  return Math.sqrt(dx * dx + dy * dy) <= hr + gr;
+};
+HIT.ghost = function () { return false; };
+function canHit(b, obj, now) { return b.rehit_ticks > 0 ? now - obj.lastHit >= b.rehit_ticks : obj.hits === 0; }
+// Resolve this tick's hits against host.hurt = {x, y, r}.  host.onHit(inst,
+// damage, dirX, dirY, knockback) is called once per hit (the engine routes it
+// to ai.apply_hp_damage + the knockback channel).  A non-piercing hit ends
+// the instance (a hit particle is removed instead).
+function resolveHits(inst, host, ps) {
+  var b = inst.fx.battle, hurt = host.hurt;
+  if (!b.deals_damage || !hurt || inst.dead) return;
+  var now = inst.age;
+  if (inst.fx.prim === "particles") {
+    inst.parts = inst.parts.filter(function (q) {
+      var size = Math.max(0.5, q.s0), dx = q.x - hurt.x, dy = q.y - hurt.y;
+      if (Math.sqrt(dx * dx + dy * dy) > hurt.r + size / 2 || !canHit(b, q, now)) return true;
+      q.hits += 1; q.lastHit = now;
+      var d = norm(q.vx, q.vy);
+      if (host.onHit) host.onHit(inst, b.damage, d[0], d[1], b.knockback);
+      return !!b.pierce;
+    });
+    return;
+  }
+  if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
+  inst.hits += 1; inst.lastHit = now;
+  if (host.onHit) host.onHit(inst, b.damage, inst.dir[0], inst.dir[1], b.knockback);
+  if (!b.pierce) inst.age = Math.max(inst.age, inst.life);
+}
+
 function drawInst(g, inst, host, ps) {
   var add = inst.fx.blend === "additive";
   g.save();
@@ -536,7 +650,8 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs) {
     for (var i = 0; i < n; i++)
       self.insts.push(spawn(fx, host, win, (hash32(fx.id) ^ Math.imul(t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B)) >>> 0, i, n));
   });
-  this.insts.forEach(function (inst) { tickInst(inst, host); });
+  var ps = host.pscale || 1;
+  this.insts.forEach(function (inst) { tickInst(inst, host); resolveHits(inst, host, ps); });
   this.insts = this.insts.filter(function (i) { return !i.dead; });
 };
 Player.prototype.draw = function (g, host, layer, ps) {
@@ -545,6 +660,6 @@ Player.prototype.draw = function (g, host, layer, ps) {
 
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
-  MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS,
+  MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   newEffect: newEffect, normalize: normalize, Player: Player, bulletSprite: bulletSprite};
 })(window);

@@ -84,6 +84,7 @@ need the baked character file next to it to resolve anchors.
   "color": {"mode": "palette", "lut_index": 128, "lut_index2": 128, "lut_offset": 0, "flow_speed": 0.008,
             "c1": "#ffffff", "c2": "#ff2200", "start_fraction": 0},
   "layer": "front", "blend": "normal",
+  "battle": {"deals_damage": false, "damage": 1, "pierce": false, "rehit_ticks": 0, "knockback": 0},
   "params": { "...": "per primitive, section 5" }
 }
 ```
@@ -148,7 +149,7 @@ routine's `config.py` values.
 | prim | engine routine | params |
 |---|---|---|
 | `ribbon` | `TrailComponent.update/draw` | `max_points 50, min_dist 2, decay 2, taper, w_tail 1, w_head 5, alpha 220, head_glow_r 1, head_dot_r 1` |
-| `arc` | `CrescentWave.draw` | `radius 42, span 170, width 6.5, tail 0.95, segs 16, grow 0.85, core_alpha 0.7, core_width 0.3, orient motion\|angle, angle_deg` |
+| `arc` | `CrescentWave.__init__/draw` | `radius 42, span 170, width 6.5, tail 0.95, segs 16, grow 0.85, core_alpha 0.7, core_width 0.3, orient motion\|angle, angle_deg, placement anchor\|wrap_target\|through_target, back 51, lead 26` |
 | `beam` | `RichBeamProjectile.draw` | `length, w_start0/1, w_end0/1, segments, glow, glow_color, pulse_hz, jitter, detach_ticks, grow_ticks` |
 | `sprite` | `bullet_sprite` / `bolt_sprite` + `Projectile.draw` | `shape orb\|bolt, radius, stretch, hot, halo, fade, trail_len` |
 | `particles` | `BurstParticle` / `_spawn_burst_now` | `mode burst\|stream, count, rate_per_s, angle_deg, spread_deg, speed_min/max (px/s), gravity (px/s²), drag, size_min/max, size_over_life, life_min_ms/max_ms` |
@@ -163,6 +164,49 @@ A few rules are FX Kit's own; the engine's classes don't need them:
 - `blend: additive` maps to `QPainter.CompositionMode_Plus` in Qt and
   `lighter` in the canvas.
 - `layer: behind | front` places the effect before or after the figure sprite.
+
+Arc `placement` reproduces `CrescentWave.__init__`. The aim direction `dir`
+runs from the anchor to the target.
+- `anchor`: the arc is centred on the anchor.
+- `wrap_target`: `centre = target - dir * back`, the default slash (`back 51`).
+- `through_target`: `centre = target + R * (dir_y, -dir_x) - dir * lead`, so the
+  arc's midpoint starts `lead` px short of the target and cuts through it.
+
+## 5b. Damage (`battle`)
+
+Every effect has a **Deals damage** checkbox (`battle.deals_damage`). Unticked
+means visual only: the effect never touches HP. Ticked, the effect is an attack:
+
+| field | meaning |
+|---|---|
+| `damage` | HP per hit, passed to `ai.apply_hp_damage(fig, world, amount)`. Every built-in attack deals 1. |
+| `pierce` | `false`: the first hit ends the instance (a bolt stops, a travelling beam or arc vanishes; a particle that hits is removed). `true`: it keeps going. |
+| `rehit_ticks` | `0`: one hit per instance per target. `N`: may hit the same target again every N ticks (held beams, orbiting orbs). Particles count each particle separately. |
+| `knockback` | px of push along the effect's direction on hit, delivered through the existing `fig.combat.hit_pending/hit_vx/hit_vy` channel. |
+
+**Hit rule: what you see is what hits.** An instance hits when the shape it
+*draws* this tick touches the target's hurt circle (centre = target figure,
+radius `PROJ_HIT_RADIUS` = 16 px; the Studio's "hurt r" box previews it). Per
+primitive (`HIT.*` in `fxkit.js`):
+- `sprite`: the centre is within the hurt radius (the engine's `Projectile`
+  `hit_r_sq` rule).
+- `ribbon`, `beam`, `arc`: any visible segment passes within `hurt r + half
+  stroke width`. Beams use the same jittered geometry they draw, and arcs only
+  the segments currently shown.
+- `particles`: each particle is within `hurt r + size/2`.
+- `glow`: the circle of the current radius overlaps the hurt circle.
+- `ghost`: never (afterimages are visual only, and the checkbox is disabled).
+
+Hits are resolved after each tick's movement (`resolveHits`), with the same
+deterministic state that is drawn, so the Studio's hit count is what the engine
+must reproduce.
+
+Built-in attack presets are ticked with the engine's values:
+- 1 HP: crescent, through crescent, cone/zigzag bolts, homing orb, petal orbs,
+  and the held beam (re-hit every 8 ticks)
+- 8 HP: rich beam (`LOOP_BEAM_DAMAGE`)
+
+Trails, sparks, spheres and afterimages are visual.
 
 ## 6. Presets
 
@@ -201,8 +245,22 @@ exactly as in the Studio, Phase 2 must:
    the displayed frame must map back to its source keyframe (the
    `rigforge_bake.frame_map`), or FX drift off the animation.
 5. **Start effects on action start.** Start an action's effects when that
-   action starts in the combat FSM, identically in Solo and Battle. All of this
-   is cosmetic and local, so nothing crosses the IPC boundary.
-6. **Parity test.** Render one FX pack in headless Chromium (`fxkit.js`) and in
+   action starts in the combat FSM, identically in Solo and Battle. Drawing is
+   local, so no visuals cross the IPC boundary.
+6. **Route damage (`battle.deals_damage`).** Resolve hits on the attacking
+   side with `fxkit.resolve_hits`, against the target's position:
+   - Solo: the cursor target.
+   - Battle: the opposing fighter from the read-only `partner_figures`
+     snapshot.
+
+   Apply them through `ai.apply_hp_damage(amount=damage)`, so special-stance
+   blocks, ultimate thresholds and death routing (`World.on_figure_death`)
+   behave as for every other attack. Deliver knockback via
+   `hit_pending/hit_vx/hit_vy`. Arcs, beams and ribbons aren't points, so they
+   can't ride the `enemy_projs` point tuple. If the defender must be able to
+   parry or intercept them (petals, deflect), that needs a new snapshot field,
+   which is an IPC struct-size change to flag before building it.
+7. **Parity test.** Render one FX pack in headless Chromium (`fxkit.js`) and in
    offscreen Qt (`fxkit.py`) at fixed ticks, and diff the frames with a
-   tolerance for antialiasing.
+   tolerance for antialiasing. Also compare the per-tick hit list (tick,
+   effect, damage), which must match exactly.

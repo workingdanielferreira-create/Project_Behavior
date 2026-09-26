@@ -8,7 +8,7 @@ var $ = function (id) { return document.getElementById(id); };
 var TARGET_HEAD_PX = 16;   // laser/config.py TARGET_HEAD_PX
 var LS_PROJECT = "pbfxstudio.v1.project", LS_PRESETS = "pbfxstudio.v1.presets";
 
-var S = {ch: null, effects: [], action: null, sel: null, t: 0, playing: false, headUnits: 29,
+var S = {ch: null, effects: [], action: null, sel: null, t: 0, playing: false, headUnits: 29, hits: [], dealt: 0,
   target: [140, 0], pan: [0, 0], figX: 0, walkDir: 1};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d"), trackCache = null, originCache = null;
@@ -53,6 +53,14 @@ var host = {
   get target() { return S.target; },
   get wang() { var tr = trackCache && trackCache[S.action], f = tr && tr.frames[frameAt(S.t)]; return f ? f.wang : 90; },
   get lut() { return lut; },
+  get pscale() { return pscale(); },
+  get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
+  // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
+  onHit: function (inst, dmg, dx, dy, kb) {
+    S.dealt += dmg;
+    S.hits.push({t: S.t, dmg: dmg, kb: kb, name: inst.fx.name});
+    if (S.hits.length > 60) S.hits.shift();
+  },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
   snapshot: function () { return {action: S.action, frame: frameAt(S.t), figX: S.figX}; },
   drawGhost: function (gc, gh, rgb, a) {
@@ -172,7 +180,8 @@ function buildEffects() {
     var cb = el.querySelector("input"); cb.checked = fx.enabled;
     cb.onclick = function (ev) { ev.stopPropagation(); fx.enabled = cb.checked; resetSim(S.t); save(); };
     el.querySelector(".n").textContent = fx.name;
-    el.querySelector(".m").textContent = fx.prim;
+    el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
+    el.title = fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages";
     var xs = el.querySelectorAll(".x");
     xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(fx); c.id = FXK.newEffect(c.prim).id; c.name += " copy"; S.effects.push(c); S.sel = c.id; rebuild(); resetSim(S.t); save(); };
     xs[1].onclick = function (ev) { ev.stopPropagation(); S.effects = S.effects.filter(function (e) { return e !== fx; }); if (S.sel === fx.id) S.sel = null; rebuild(); resetSim(S.t); save(); };
@@ -188,7 +197,9 @@ var PARAM_UI = {
     ["alpha", "Alpha (0-255)", 0, 255, 1], ["head_glow_r", "Head glow r", 0, 80, 0.5], ["head_dot_r", "Head dot r", 0, 40, 0.5]],
   arc: [["radius", "Radius", 1, 600, 1], ["span", "Span °", 5, 360, 1], ["width", "Width", 0.5, 80, 0.5], ["tail", "Tail fraction", 0.05, 1, 0.01],
     ["segs", "Segments", 2, 64, 1], ["grow", "Grow fraction", 0.05, 1, 0.01], ["core_alpha", "Core alpha", 0, 1, 0.05],
-    ["core_width", "Core width", 0, 1, 0.05], ["orient", "Orient", ["motion", "angle"]], ["angle_deg", "Orient angle °", -180, 180, 1]],
+    ["core_width", "Core width", 0, 1, 0.05], ["orient", "Orient", ["motion", "angle"]], ["angle_deg", "Orient angle °", -180, 180, 1],
+    ["placement", "Placement", ["anchor", "wrap_target", "through_target"]], ["back", "Wrap: centre behind target px", 0, 400, 1],
+    ["lead", "Through: start short px", 0, 400, 1]],
   beam: [["length", "Length", 4, 3000, 5], ["w_start0", "Tail W begin", 0, 200, 0.5], ["w_start1", "Tail W end", 0, 200, 0.5],
     ["w_end0", "Head W begin", 0, 200, 0.5], ["w_end1", "Head W end", 0, 200, 0.5], ["segments", "Segments", 1, 64, 1],
     ["glow", "Glow extra W", 0, 80, 0.5], ["glow_color", "Glow colour", "color"], ["pulse_hz", "Pulse Hz", 0, 30, 0.5],
@@ -238,6 +249,23 @@ function buildProps() {
   field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"]], fx.layer, function (v) { fx.layer = v; changed(); }));
   field(s, "Blend", inp(["normal", "additive"], fx.blend, function (v) { fx.blend = v; changed(); }));
   field(s, "Action", inp(Object.keys(S.ch.actions), fx.action, function (v) { fx.action = v; S.action = v; rebuild(); resetSim(0); save(); }));
+
+  s = sec(d, "Purpose");
+  var bt = fx.battle;
+  if (fx.prim === "ghost") {
+    var gn = document.createElement("div"); gn.className = "note"; gn.textContent = "Afterimages are visual only."; s.appendChild(gn);
+  } else {
+    field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
+      "Checked: this FX is an attack and damages the target where it touches. Unchecked: visual only.";
+    if (bt.deals_damage) {
+      field(s, "Damage HP per hit", inp("n", bt.damage, function (v) { bt.damage = Math.max(0, v); buildEffects(); changed(); }, 0, 1000, 0.5));
+      field(s, "Pierce (keeps going)", inp("chk", bt.pierce, function (v) { bt.pierce = v; changed(); }));
+      field(s, "Re-hit every N ticks (0 = once)", inp("n", bt.rehit_ticks, function (v) { bt.rehit_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1));
+      field(s, "Knockback px", inp("n", bt.knockback, function (v) { bt.knockback = Math.max(0, v); changed(); }, 0, 200, 0.5));
+    } else {
+      var vn = document.createElement("div"); vn.className = "note"; vn.textContent = "Visual only — this FX never damages."; s.appendChild(vn);
+    }
+  }
 
   s = sec(d, "Timing (frames of " + fx.action + ": 0–" + (frames() - 1) + ")");
   field(s, "Start frame", inp("n", fx.start_frame, function (v) { fx.start_frame = Math.max(0, Math.round(v)); changed(); }, 0, frames() - 1, 1));
@@ -308,7 +336,7 @@ function buildTimeline() {
   tl.style.height = Math.min(260, Math.max(96, 24 + actionEffects().length * 15)) + "px";
   actionEffects().forEach(function (fx, row) {
     var w = player.window(fx, n, frameMs());
-    var b = document.createElement("div"); b.className = "tlbar" + (fx.id === S.sel ? " sel" : "");
+    var b = document.createElement("div"); b.className = "tlbar" + (fx.id === S.sel ? " sel" : "") + (fx.battle.deals_damage ? " dmg" : "");
     // Bar = the emission window; a one-shot with a fixed life shows that life.
     var span = (fx.life_ticks > 0 && !(fx.emit.every_ticks > 0)) ? fx.life_ticks : w[1] - w[0];
     b.style.left = (w[0] / total * W) + "px"; b.style.width = Math.max(4, span / total * W) + "px";
@@ -325,7 +353,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); S.figX = 0; S.walkDir = 1; S.t = 0;
+  player.reset(); S.figX = 0; S.walkDir = 1; S.t = 0; S.hits = []; S.dealt = 0;
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   while (S.t < target) step(false);
 }
@@ -335,7 +363,7 @@ function step(allowWrap) {
   if (walk) { S.figX += walk * S.walkDir; if (Math.abs(S.figX) > 160) S.walkDir *= -1; }
   player.tick(actionEffects(), host, S.t, frames(), frameMs());
   S.t += 1;
-  if (S.t >= totalTicks() && allowWrap && $("loop").checked) S.t = 0;
+  if (S.t >= totalTicks() && allowWrap && $("loop").checked) { S.t = 0; S.dealt = 0; S.hits = []; }
 }
 var last = 0, acc = 0;
 function loop(now) {
@@ -368,7 +396,19 @@ function draw() {
   player.draw(g, host, "behind", ps);
   g.save(); g.translate(S.figX, 0); g.scale(facing(), 1); RF.drawFigure(g, p, S.ch, ppu() * ps, {}); g.restore();
   player.draw(g, host, "front", ps);
-  // target marker
+  // target marker + its hurt radius (the circle damaging FX must touch)
+  var hr = host.hurt.r, lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
+  g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
+  g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.fill();
+  g.setLineDash([6 / z, 6 / z]); g.strokeStyle = flash ? "rgba(255,90,90,.95)" : "rgba(240,194,74,.45)"; g.lineWidth = 1 / z;
+  g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.stroke(); g.setLineDash([]);
+  g.font = (11 / z) + "px sans-serif"; g.textAlign = "center";
+  S.hits.forEach(function (h, i) {
+    var age = S.t - h.t; if (age < 0 || age > 40) return;
+    g.fillStyle = "rgba(255,110,110," + (1 - age / 40) + ")";
+    g.fillText("-" + h.dmg + (h.kb ? " ⇢" + h.kb : ""), S.target[0] + ((i % 3) - 1) * 6, S.target[1] - hr - 4 - age * 0.4);
+  });
+  g.textAlign = "start";
   g.strokeStyle = "rgba(240,194,74,.9)"; g.lineWidth = 1.5 / z;
   g.beginPath(); g.arc(S.target[0], S.target[1], 6, 0, 6.2832); g.moveTo(S.target[0] - 9, S.target[1]); g.lineTo(S.target[0] + 9, S.target[1]);
   g.moveTo(S.target[0], S.target[1] - 9); g.lineTo(S.target[0], S.target[1] + 9); g.stroke();
@@ -381,7 +421,7 @@ function draw() {
     });
   }
   $("hud").textContent = S.action + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
-    "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   1 game px = " + z + " screen px";
+    "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP   1 game px = " + z + " screen px";
   $("frameInfo").textContent = "frame " + fr;
   placeHead();
 }
@@ -420,7 +460,7 @@ $("bPlay").onclick = function () { if (!S.ch) return; S.playing = !S.playing; if
 function gotoFrame(f) { if (!S.ch) return; S.playing = false; $("bPlay").textContent = "▶ Play"; f = (f + frames()) % frames(); resetSim(Math.ceil(f * frameMs() / FXK.TICK_MS)); }
 $("bPrev").onclick = function () { gotoFrame(frameAt(S.t) - 1); };
 $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
-["facing", "walk", "pscale"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
+["facing", "walk", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
 $("timeline").onclick = function (ev) { if (!S.ch) return; var r = this.getBoundingClientRect(); S.playing = false; $("bPlay").textContent = "▶ Play"; resetSim(Math.round((ev.clientX - r.left) / r.width * totalTicks())); };
 window.addEventListener("resize", buildTimeline);
 document.addEventListener("keydown", function (ev) {
@@ -456,5 +496,5 @@ buildPresets();
 var saved = lsGet(LS_PROJECT);
 if (saved && saved.ch) { S.action = saved.action; if (loadCharacter(saved.ch, saved.effects) && saved.headUnits) S.headUnits = saved.headUnits; }
 requestAnimationFrame(loop);
-window.FXStudio = {S: S, ingest: ingest, fxBlock: fxBlock, resetSim: resetSim, player: player, host: host};
+window.FXStudio = {S: S, ingest: ingest, rebuild: rebuild, fxBlock: fxBlock, resetSim: resetSim, player: player, host: host};
 })();

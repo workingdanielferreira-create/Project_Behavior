@@ -25,6 +25,13 @@ Each effect anchors to a joint (hand, blade tip, head…), moves (attached,
 static, travel, homing, zigzag, orbit), takes a colour (the character palette,
 a gradient or a solid colour) and plays over a range of frames.
 
+Each effect also has a **Deals damage** checkbox (Purpose panel). Unticked, the
+effect is visual only. Ticked, it's an attack with HP per hit, pierce, a re-hit
+interval and knockback. It hits wherever its drawn shape touches the target's
+hurt circle (16 px, adjustable as "hurt r"). The Studio shows the circle
+flashing, floating damage numbers and a per-loop damage total. Damaging effects
+show ⚔ in the list and a red bar on the timeline.
+
 - Built-in presets rebuild the game's existing effects with their `config.py`
   numbers. **Save as preset** keeps your own, and **Export**/**Import** moves
   them between machines.
