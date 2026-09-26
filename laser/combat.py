@@ -4968,3 +4968,138 @@ def advance_combat(fig, slash_target, fallback):
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# Generic hop-back (JSON `movement.hop_back`).  A charging shooter that closes
+# to trigger_px of its target leaps distance_px straight back away from it,
+# playing the named sprite_files extra set once over duration_ms, then
+# charges in again after cooldown_ms.  Movement-only: it never sets
+# combat.acted, so ProjectileSystem keeps firing on its normal cadence
+# through the whole hop.  Driven from MotionSystem's shared per-figure loop
+# (target = cursor in Solo, nearest enemy in Battle) — no game-mode branch,
+# so Solo and Battle are identical by construction.  A character without the
+# block is byte-identical to before.
+#
+#   "movement": {
+#     "hop_back": {
+#       "trigger_px": 110,      # hop when the target is this close
+#       "distance_px": 160,     # px travelled away (position-scale 1.0)
+#       "duration_ms": 700,     # airtime; paces the frame set
+#       "cooldown_ms": 900,     # after landing, before the next hop
+#       "frames_set": "attack_special"   # sprite_files extra set to play
+#     }
+#   }
+# ---------------------------------------------------------------------------
+_HOP_DEFAULTS = dict(
+    trigger_px=float(config.HOP_BACK_TRIGGER_PX),
+    distance_px=float(config.HOP_BACK_DISTANCE_PX),
+    duration_ms=float(config.HOP_BACK_DURATION_MS),
+    cooldown_ms=float(config.HOP_BACK_COOLDOWN_MS),
+    frames_set="attack_special",
+)
+
+
+def hop_back_cfg(fig):
+    """Per-figure hop-back tuning, or None unless the character authors
+    `movement.hop_back`.  Cached on the mode instance like blink_cfg.  The
+    frame set is optional: without it the hop still moves the figure and
+    the normal run frames play."""
+    mode = fig.mode
+    if hasattr(mode, "_hop_cfg"):
+        return mode._hop_cfg
+    char = getattr(mode, "character", None)
+    raw = ((char.get("movement") or {}).get("hop_back")) if char else None
+    if not isinstance(raw, dict):
+        mode._hop_cfg = None
+        return None
+    hb = dict(_HOP_DEFAULTS)
+    for k in hb:
+        if k in raw:
+            try:
+                hb[k] = type(hb[k])(raw[k])
+            except (TypeError, ValueError):
+                pass
+    hb["ticks"] = max(1, int(round(hb["duration_ms"] / config.TICK_MS)))
+    hb["cooldown_ticks"] = max(0, int(round(hb["cooldown_ms"] / config.TICK_MS)))
+    ex = fig.render.bundle.extra.get(hb["frames_set"])
+    hb["n"] = len(ex[0]) if (ex and ex[0]) else 0
+    mode._hop_cfg = hb
+    return hb
+
+
+def _end_hop_back(fig, hb):
+    c = fig.combat
+    c.hop_ticks = 0
+    c.hop_total = 0
+    c.hop_dx = c.hop_dy = 0.0
+    c.hop_cd = hb["cooldown_ticks"] if hb is not None else 0
+    if hb is not None and c.action_anim == hb["frames_set"]:
+        c.action_anim = None
+        c.action_idx = 0
+    fig.render.run_idx = 0
+    fig.render.anim_tick = 0
+
+
+def tick_hop_back(fig, tx, ty):
+    """Start / advance the hop-back toward-away from (tx, ty).  Returns True
+    while the hop owns this tick's movement (MotionSystem then skips the
+    normal chase step for this figure).  Knockback always wins: a bounce
+    cancels the hop and hands movement back to motion.update."""
+    hb = hop_back_cfg(fig)
+    if hb is None:
+        return False
+    c = fig.combat
+    m = fig.motion
+    t = fig.transform
+    if m.bouncing or m.bounce_ending:
+        if c.hop_ticks > 0:
+            _end_hop_back(fig, hb)
+        return False
+    if c.hop_ticks <= 0:
+        if c.hop_cd > 0:
+            c.hop_cd -= 1
+            return False
+        # Never start while another action animation or attack state owns
+        # the figure (ultimates, stances, melee strings).
+        if (c.busy or c.action_anim is not None or c.sp_phase or c.lb_phase
+                or c.vc_phase != 0):
+            return False
+        dx, dy = t.x - tx, t.y - ty
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > hb["trigger_px"]:
+            return False
+        if dist > 0.001:
+            nx, ny = dx / dist, dy / dist
+        else:
+            nx, ny = (1.0, 0.0) if t.facing_left else (-1.0, 0.0)
+        k = position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
+        c.hop_total = c.hop_ticks = hb["ticks"]
+        c.hop_dx = nx * hb["distance_px"] * k
+        c.hop_dy = ny * hb["distance_px"] * k
+        if hb["n"]:
+            c.action_anim = hb["frames_set"]
+            c.action_idx = 0
+    # Advance: ease-out travel (fast launch, soft landing), facing the
+    # target the whole way so the gun stays on it.
+    total = max(1, c.hop_total)
+    done = total - c.hop_ticks
+    def _ease(u):
+        return 1.0 - (1.0 - u) * (1.0 - u)
+    f0 = _ease(done / total)
+    f1 = _ease((done + 1) / total)
+    t.x += c.hop_dx * (f1 - f0)
+    t.y += c.hop_dy * (f1 - f0)
+    if tx < t.x - 0.001:
+        t.facing_left = True
+    elif tx > t.x + 0.001:
+        t.facing_left = False
+    t.angle = 0.0
+    if hb["n"]:
+        c.action_idx = min(hb["n"] - 1, int(done * hb["n"] / total))
+    c.hop_ticks -= 1
+    _apply_trail_update(fig, t, True, False)
+    fig.render.is_moving = True
+    if c.hop_ticks <= 0:
+        _end_hop_back(fig, hb)
+    return True
