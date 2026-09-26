@@ -824,6 +824,11 @@ class Overlay(QWidget):
                 max_hp = fig.personality.max_hp
                 label = (f"P{side_i + 1} {hp_val} HP" if _battle
                          else f"{hp_val} HP")
+                # A Rig Forge character without its FX Studio file plays with
+                # no FX at all — say so instead of failing silently.
+                _ch = getattr(fig.mode, "character", None) or {}
+                if _ch.get("_package") and not _ch.get("_fxkit"):
+                    label += "  (no FX file)"
                 text_w = fm.horizontalAdvance(label)
                 _hp_offset = 0 if fig.mode.uses_melee() else 70
                 draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R - _hp_offset

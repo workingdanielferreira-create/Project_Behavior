@@ -195,7 +195,9 @@ def organize_drops(root):
             if low.endswith(".zip") and low != "python314.zip":
                 for man, read_file, stamp in _packages_in_zip(p):
                     pkgs.setdefault(_slug(man.get("name")), []).append((stamp, os.path.relpath(p, root), (man, read_file)))
-            elif low.endswith(".fxkit.json"):
+            elif low.endswith(".json") and low != "character.json":
+                # FX Studio files are recognised by their content, not their
+                # name: browsers rename repeat downloads ("rapid.fxkit (2).json").
                 try:
                     with open(p, "rb") as f:
                         raw = f.read()
