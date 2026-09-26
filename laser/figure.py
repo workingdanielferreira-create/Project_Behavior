@@ -18,7 +18,7 @@ from .components import (Transform, MotionState, TrailComponent,
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h")
+                 "screen_w", "screen_h", "fx")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -43,6 +43,7 @@ class Figure:
                                   afterimage_rgb=spd.get("afterimage_rgb"))
         self.combat = Combatant()
         self.personality = Personality(mode.key)
+        self.fx = None   # fxkit.FxDriver for image characters with an FX file
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -68,6 +69,7 @@ class Figure:
         self.render.outline_glow = spd.get("outline_glow")
         self.render.afterimage_rgb = spd.get("afterimage_rgb")
         self.render.set_bundle(bundle)
+        self.fx = None
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")
@@ -193,6 +195,10 @@ class Figure:
                 sp.draw(p, _combat.position_scale(sp.x, sp.y,
                                                    self.screen_w, self.screen_h))
 
+        # --- FX Studio effects (fxkit), "behind" layer ---
+        if self.fx is not None:
+            self.fx.draw(p, self, "behind")
+
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
         # sprite (and its glow) skip drawing while vc_hidden; crescent
@@ -236,6 +242,10 @@ class Figure:
                 p.scale(pscale, pscale)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
             p.restore()
+
+        # --- FX Studio effects (fxkit), "front" layer ---
+        if self.fx is not None:
+            self.fx.draw(p, self, "front")
 
         if self.combat.crescents:
             cpen = QPen()

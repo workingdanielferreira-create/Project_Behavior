@@ -77,6 +77,8 @@ class SideState:
                                     # (see combat.HPTClone / hp_threshold_clones)
         self.hpt_beam_ticks = 0     # shared clock driving the clones'
                                     # synchronized beam volley (combat.tick_hpt_clones)
+        self.fx_hits = []           # FX Studio hits this side landed this tick,
+                                    # delivered to the opponent by refresh_battle
 
 
 class World:
@@ -378,6 +380,10 @@ class World:
     def request_quit(self):
         self._quit = True
 
+    def queue_fx_hits(self, hits):
+        """fxkit hits from the side being simulated (see refresh_battle)."""
+        self.sides[self.side_idx].fx_hits.extend(hits)
+
     def on_figure_death(self, fig):
         """A figure reached 0 HP.  Solo keeps the historical behaviour (the
         run ends); in battle the fallen fighter is removed and the survivor
@@ -457,6 +463,30 @@ class World:
                 side.partner_figures = []
                 side.enemy_projs = []
                 side.intercepted_bullets.clear()
+        # Deliver FX Studio hits (fxkit) landed last tick: damage and
+        # knockback to the opposing fighter nearest where each hit landed.
+        for i, side in enumerate(self.sides):
+            hits, side.fx_hits = side.fx_hits, []
+            if not hits or not self.battle_mode:
+                continue
+            other = self.sides[1 - i]
+            for (pos, dmg, dx, dy, kb, _tag) in hits:
+                best = None
+                for ef in other.figures:
+                    d = (ef.x - pos[0]) ** 2 + (ef.y - pos[1]) ** 2
+                    if best is None or d < best[0]:
+                        best = (d, ef)
+                if best is None or best[0] > 80.0 ** 2:
+                    continue
+                ef = best[1]
+                if dmg > 0:
+                    ai.apply_hp_damage(ef, self, dmg)
+                if kb > 0:
+                    m = ef.motion
+                    if not (m.bouncing or m.bounce_ending):
+                        spd = kb * (1.0 - config.BOUNCE_FRICTION)
+                        m.bounce_vx, m.bounce_vy = dx * spd, dy * spd
+                        m.bouncing = True
         # Deliver dash-slash knockback landed last tick to the other side.
         for i, side in enumerate(self.sides):
             other = self.sides[1 - i]

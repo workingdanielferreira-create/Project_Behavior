@@ -70,8 +70,10 @@ Runtime reference: `studio/fxkit.js`.
 5. **In the game**, press `1` / `2` to cycle to the character. It plays in
    Solo and Battle with its keyframes, frame timing and archetype. A package
    replaces an older rig-drawn `characters/<name>.json` of the same name.
-   FX from the `.fxkit.json` are loaded with the character; playing them in
-   game is the next Phase 2 step (`laser/fxkit.py`).
+   Its FX from the `.fxkit.json` play in game through `laser/fxkit.py`,
+   locked to the frames on screen, and effects with Deals damage hurt the
+   opponent in Battle. Triggered actions (special, ultimate…) and full-length
+   action playback are still to come.
 
 
 

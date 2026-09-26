@@ -337,45 +337,76 @@ are kept in the browser, and **Export**/**Import** moves them as a
 The built-in characters (Swordsman, Runner) keep their original effect code.
 The presets only seed new FX.
 
-## 7. Phase 2 — engine integration (decisions so far)
+## 7. Phase 2 — engine integration
 
-The engine does **not** read character folders or `pb_fxkit` yet. These
-decisions are agreed:
+**Done:**
 
-1. **Image characters.** `characters.load_all` loads each `characters/<name>/`
-   that holds a `character.json` (`pb_char_pkg`): its PNG frames per action,
-   the stats/archetype/palette from `character.json`, and `<name>.fxkit.json`.
-   The existing rig-drawn JSON characters keep working until you replace them.
-2. **Full actions.** When an action starts, the game shows every one of its
-   frames at `frame_ms` and holds the fighter in that action until it ends, so
-   a 2.4 s attack takes 2.4 s. Identical in Solo and Battle.
-3. **Archetype = behaviour, FX + weapon = damage.** The archetype still decides
-   how the fighter moves and when it attacks. For these characters, the only
-   damage comes from effects with **Deals damage** ticked, including the
-   `weapon` hitbox. The archetype's built-in hit or projectile damage is off.
-4. **Runtime port.** Create `laser/fxkit.py`, a line-for-line port of
-   `fxkit.js`: mulberry32, `build_lut`, `spawn`, `move`, `tick`, the draw
-   routines with QPainter, and `resolveHits`/`HIT.*`. It must be one
-   self-drawing object per instance (FX_GUIDE Pattern A).
-5. **Defence works like bullets.** Hits are resolved on the defender's side.
-   Each tick, `World.refresh_battle` adds a read-only `enemy_fx` snapshot of the
-   opponent's live damaging instances (the same one-tick boundary as
-   `enemy_projs`; no extra cross-process data, since both sides run in one
-   process).
-   - Parry, special-stance block, petals and deflect act on them.
-   - A blocked or intercepted instance is ended at its source through a kill
-     call, never by editing it directly.
-   - Damage goes through `ai.apply_hp_damage(amount=damage)`, and knockback
-     through `hit_pending/hit_vx/hit_vy`.
-   - Solo: the target is the cursor.
-6. **Action triggers** are authored in the Studio (`action_settings` above)
-   and evaluated by the game, extending `ai.evaluate_activation_triggers` with
-   ANY/ALL logic, the new condition types, FX tags (read from the opponent's
-   `enemy_fx` snapshot) and attack chains.
-7. **Parity test.** Render one character folder in headless Chromium
-   (`fxkit.js`) and in offscreen Qt (`fxkit.py`) at fixed ticks, and diff the
-   frames with a tolerance for antialiasing. Also compare the per-tick hit
-   list (tick, effect, damage), which must match exactly.
+1. **Getting characters in.** `laser/drops.py` files a Rig Forge package
+   (`<name>.zip` or `<name>/`) and `<name>.fxkit.json`, dropped at the repo
+   top level or in `drop/`, into `characters/<name>/`. It runs in
+   `update_game.py` after syncing and at game start-up.
+2. **Image characters.** `characters.load_all` loads each `characters/<name>/`
+   holding a `character.json` (`pb_char_pkg`). It is converted to the
+   `sprite_files` shape (the same path `rapid.json` uses):
+   - `run`, `idle` and `attack_normal` become run/idle/slash;
+   - `defend` becomes slide;
+   - every action is also an extra set by its own name;
+   - timing comes from `frame_ms`;
+   - archetype, stats and palette come from `character.json`.
+
+   A package replaces a rig-drawn `characters/<name>.json` of the same name.
+   Solo and Battle use the identical path.
+3. **Runtime port.** `laser/fxkit.py` mirrors `fxkit.js`:
+   - mulberry32 and `jround` (JavaScript's Math.round; Python's round()
+     rounds halves to even);
+   - `spawn`, `move`, `tick`, entry sets, paths and continuous effects;
+   - `Player`;
+   - drawing with QPainter, reusing `combat.bullet_sprite` / `bolt_sprite`
+     and `silhouette`;
+   - the hit tests.
+4. **Game hook.** One `FxDriver` per figure whose character has an FX file:
+   - It is ticked by `CombatSystem` and drawn by `Figure.draw`: the "behind"
+     layer before the sprite, "front" after.
+   - The action and frame come from the same state `Figure._current_frame`
+     uses.
+   - Action time follows the frame on screen: it advances inside a frame's
+     span, jumps ahead with fast frames, holds on a held frame, and starts a
+     new pass when frames loop.
+   - Anchors map as (image px − origin) × 16/head_px × position scale,
+     mirrored with facing and rotated with the sprite.
+   - Target: the nearest opponent's snapshot position in Battle, the cursor
+     in Solo.
+5. **Damage.** Hits are tested against the opponent snapshot's 16 px hurt
+   circles and queued on `SideState.fx_hits`. `World.refresh_battle`
+   delivers them at the start of the next tick:
+   - damage goes through `ai.apply_hp_damage(damage)`;
+   - knockback px becomes a bounce at px × (1 − BOUNCE_FRICTION), the same
+     conversion as the dash push.
+
+   Solo deals no FX damage.
+6. **Parity test.** Tick-by-tick instance positions and the full hit list,
+   `fxkit.js` against `fxkit.py`: identical, except a homing shot circling
+   exactly on its target, where last-digit differences between JavaScript's
+   and Python's trig functions can flip its turn.
+
+**Still to do:**
+
+- **Full actions.** Play every frame of an action at `frame_ms`, and hold the
+  fighter in it until it ends. Honour `movement` / `move_speed_pct` and
+  `anim_loops`. Today the archetype's own attack FSM decides which frame is
+  shown (e.g. the slash frames advance with the dash-slash).
+- **Action triggers.** Extend `ai.evaluate_activation_triggers` with:
+  - `action_settings`, ANY/ALL logic and cooldowns;
+  - the condition types and FX tags;
+  - attack chains.
+
+  `attack_special` / `ultimate` / other actions then play by those triggers.
+- **Archetype damage off.** For image characters, turn off the archetype's
+  built-in hit and projectile damage, so only FX with Deals damage hurt.
+- **Defence against FX.** Add an `enemy_fx` snapshot of the opponent's live
+  damaging instances, so parry, block, petals and deflect act on them. A
+  blocked instance is ended at its source, and `hit_by_fx` / `fx_near` read
+  the snapshot.
 
 `pb_fxkit` v1 files (`joint_track` in rig units, from the earlier rig-based
 Studio) are superseded by v2 image-px `anchors`.
