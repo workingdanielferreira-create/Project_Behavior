@@ -307,6 +307,18 @@ function finishOpen(man, acts, pack, name, local) {
       });
     });
   }
+  // An action whose frames changed after this FX work was saved (Rig Forge
+  // added or removed keyframes) takes the package's anchors for it; the
+  // game applies the same rule (laser/fxkit.py CharacterFx).
+  var fresh = [], pa = (man && man.anchors) || {};
+  Object.keys(acts).forEach(function (a) {
+    if (!pa[a]) return;
+    var n = acts[a].images.length, mine = S.anchors[a];
+    var changed = mine && Object.keys(mine).some(function (j) { return (mine[j] || []).length !== n; });
+    if (!mine || !Object.keys(mine).length || changed) { S.anchors[a] = clone(pa[a]); if (changed) fresh.push(a); }
+  });
+  Object.keys((man && man.anchor_labels) || {}).forEach(function (j) { if (!S.labels[j]) S.labels[j] = man.anchor_labels[j]; });
+  if (fresh.length) setTimeout(function () { toast("Frames changed in Rig Forge for " + fresh.join(", ") + ": their anchors were taken from the package. Check any FX on them.", 6000); }, 1800);
   var ratio = S.srcScale ? (imgScale() / S.srcScale) * f : 1;
   if (Math.abs(ratio - 1) > 1e-3) {
     FXK.rescaleEffects(S.effects, {entry_sets: S.entries, paths: S.paths}, ratio);

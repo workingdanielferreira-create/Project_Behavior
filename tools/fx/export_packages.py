@@ -195,6 +195,8 @@ def json_sources(sword_sets):
                                   ("colorize", tint_col) if char.get("sprite_tint") else None)
         else:
             frames, anchors = _rig_frames(char)
+            # The rig's head is drawn TARGET_HEAD_PX * stats.scale across in game.
+            meta["head_px"] = config.TARGET_HEAD_PX * characters._char_scale(char) * EXPORT_MULT
         ms = {}
         melee = "uses_melee" in characters._predicates_for(char)
         for a, fr in frames.items():
@@ -293,7 +295,7 @@ def write_package(key, meta, frames, ms, anchors):
            "predicates": meta.get("predicates") or {}, "movement": meta.get("movement") or {},
            "stats": meta.get("stats") or {}, "palette": meta.get("palette") or {},
            "image": {"size": [w, h], "origin_px": [w // 2, h // 2],
-                     "head_px": config.TARGET_HEAD_PX * EXPORT_MULT, "facing": "right"},
+                     "head_px": round(meta.get("head_px") or config.TARGET_HEAD_PX * EXPORT_MULT, 3), "facing": "right"},
            "actions": actions, "anchors": anc, "anchor_labels": dict(ANCHOR_LABELS),
            "note": "Exported from the game by tools/fx/export_packages.py for FX Studio. Frames face right; "
                    "the image centre (origin_px) is the figure's position in-game; anchors are image px per "

@@ -91,4 +91,6 @@ If a character has no FX file, its HP label says "(no FX file)".
 (runner, swordsman, jumper, mage, new_fighter, ronin, reverseswordman), made
 from the game's own frames by `tools/fx/export_packages.py`. Open one with
 **Open character folder...**, author its FX, save, then drop the folder into
-`drop/` to switch that fighter over. See `fx_packages/README.md`.
+`drop/` to switch that fighter over. Rig Forge's **Import package...** opens the
+same folders to edit poses and add actions, and exports back into them. See
+`fx_packages/README.md`.

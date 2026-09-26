@@ -15,6 +15,23 @@ ratios and frame timing), drawn 4x larger so anchors are easy to place.
    no positions yet), then build the FX, triggers and movement.
 3. **Save FX to folder** -> writes `<name>.fxkit.json` into the same folder.
 
+## Edit poses or add actions (Rig Forge)
+1. Open **Rig Forge** (`Rig Forge.bat`) -> **Import package...** -> pick
+   `fx_packages/<name>` (or pick `fx_packages` and choose the character).
+2. Choose the rig to pose with: the default rig or one of your Rig Forge
+   characters (its bones and weapon).
+   - Skeleton characters (mage, new_fighter) have every joint in their
+     package, so their frames come in as poses you can edit; the original
+     frame shows underneath as a reference.
+   - Image-only fighters (runner, swordsman, jumper, ronin, reverseswordman)
+     come in as their art frames, per action. **+ Action** / **+ Keyframe**
+     adds posed frames drawn with the chosen rig, at the art's size and colour.
+3. **Export character package...** writes back into the same folder (frames,
+   timing, character.json). The folder's `<name>.fxkit.json` is kept and stays
+   aligned; actions whose frame count changed take the new anchor points.
+   The package also records the rig and keyframes, so importing it again
+   brings everything back exactly.
+
 ## Put it in the game
 Copy the whole `fx_packages/<name>` folder (frames, `character.json`,
 `<name>.fxkit.json`) into `drop/` in the repo and run `update_game.bat`, as with

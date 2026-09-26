@@ -169,6 +169,8 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
 <div class="chbar">
   <div id="chartabs" class="chtabs"></div>
   <span style="flex:1"></span>
+  <button id="chimport" class="mini" title="Open a character package folder (fx_packages/<name> or a Rig Forge export) as a character tab">Import package…</button>
+  <input type="file" id="pkgin" webkitdirectory multiple hidden>
   <button id="chadd" class="mini">+ Character</button>
   <button id="chdup" class="mini">Duplicate</button>
   <button id="chdel" class="mini warn">Delete</button>
@@ -443,6 +445,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       <div class="fld"><label>figure colour</label><input type="text" id="pk_col" value="#000000"></div>
       <label class="tgl"><input type="checkbox" id="pk_travel" checked> keep root travel in the frames (one shared camera)</label>
       <div class="row"><button id="pk_export" class="primary">Export character package…</button></div>
+      <div class="note"><strong>Import package…</strong> (top right) opens a package folder &mdash; <code>fx_packages/&lt;name&gt;</code> or one of these exports &mdash; as a character tab. Frames that carry every joint point (skeleton characters) are fitted with the rig so you can edit their poses; image-only fighters come in as their art frames, per action. New actions and keyframes are posed with the rig you choose on import, drawn in the art's colour and size. Export then writes back into the same folder in the same image space, so its <code>&lt;name&gt;.fxkit.json</code> stays aligned, and records the rig and keyframes so the next import is exact.</div>
       <div class="note">Writes one folder per character: every action's frames as <code>&lt;action&gt;_NN.png</code> on one shared square canvas sized to fit every move at the chosen head size (in-betweens included, played at the action's ms/frame) plus <code>character.json</code> with the name, archetype, stats, palette, per-action timing and starting anchor points (hands, blade tip, head, feet…). Pick the game's <code>characters</code> folder: a <code>&lt;name&gt;</code> sub-folder is created (or pick that sub-folder itself). Old <code>&lt;action&gt;_NN.png</code> files of the exported actions are replaced. Open the same folder in the FX Studio to build the character's FX. Opened from disk in Chrome or Edge it writes straight into the folder you pick; anywhere else (this published page, Firefox) it saves one <code>&lt;name&gt;.zip</code> holding the <code>&lt;name&gt;/</code> folder &mdash; unzip it into <code>characters/</code>. Frames use the same solid silhouette, layer order and hidden layers as the PNG export above.</div>
     </div>
   </div>
@@ -452,6 +455,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
   <div class="dlgbox">
     <div id="dlgmsg" class="dlgmsg"></div>
     <input type="text" id="dlginp">
+    <select id="dlgsel" hidden></select>
     <div class="row" style="justify-content:flex-end">
       <button id="dlgcancel">Cancel</button>
       <button id="dlgok" class="primary">OK</button>
@@ -1185,7 +1189,10 @@ if(!S.img)S.img={};
 Object.keys(S.lib).forEach(function(k){normPose(S.lib[k]);});
 Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(normPose);});
 var QWARN=false;
-function save(){try{stashChar();localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:S.img,anat:ANAT,moves:S.moves,deleted:S.deleted}));}catch(e){if(!QWARN){QWARN=true;
+function save(){try{stashChar();
+  /* imported package frames ("pk:" ids) live in IndexedDB — see pkDb() */
+  var im={};Object.keys(S.img).forEach(function(k){if(k.indexOf("pk:")!==0)im[k]=S.img[k];});
+  localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:im,anat:ANAT,moves:S.moves,deleted:S.deleted}));}catch(e){if(!QWARN){QWARN=true;
   console.warn("Rig Forge: browser storage is full — reference images are kept for this session only.");}}}
 function stashChar(){var c=WS.chars[WS.ci];if(!c)return;
   c.meta=S.meta;c.rig=S.rig;c.weapon=S.weapon;c.actions=S.actions;c.cur=S.cur;c.kf=S.kf;}
@@ -1194,8 +1201,10 @@ function loadChar(i){
   stashChar();WS.ci=i;var c=WS.chars[i];
   S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;
   S.cur=c.cur&&c.actions[c.cur]?c.cur:Object.keys(c.actions)[0];S.kf=c.kf||0;S.preview=null;
+  if(S.meta.pkg&&S.meta.pkg.colour){var pc=document.getElementById("pk_col");if(pc)pc.value=S.meta.pkg.colour;}
   HIST.length=0;REDO.length=0;HLAST="";
   buildChars();syncChar();syncAction();refresh();drawWeapon();pushHist();
+  if(typeof pkgPreload==="function")pkgPreload();
 }
 function buildChars(){
   var B=document.getElementById("chartabs");if(!B)return;B.innerHTML="";
@@ -1259,7 +1268,8 @@ function playlist(act){
     for(var h=0;h<hd;h++){var hc=lerpPose(p,p,0,"short");hc._hold=true;out.push(hc);}
     if(tw&&tw.on&&n>1){
       var nx=normPose(act.keyframes[(i+1)%n]),st=Math.max(1,Math.min(12,tw.steps|0));
-      for(var s=1;s<=st;s++)out.push(lerpPose(p,nx,easeT(s/(st+1),tw.ease),tw.dir||"short"));
+      if(!p._img&&!nx._img)   /* art frames (imported images) have no pose to blend */
+        for(var s=1;s<=st;s++)out.push(lerpPose(p,nx,easeT(s/(st+1),tw.ease),tw.dir||"short"));
     }
   });
   return out;
@@ -1756,6 +1766,7 @@ function wAddShape(){
 function bone(c,a,b,w){c.lineWidth=w;c.lineCap="round";c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
 function drawFigure(c,p,rig,opt){
   normPose(p);
+  if(p._img){drawArt(c,p,opt);return joints(p,rig);}   /* imported art frame */
   var j=joints(p,rig),col=opt.color||"#ffffff",lw=(opt.w||1),out=!!opt.outline;
   var base=opt.alpha==null?1:opt.alpha;
   c.save();c.strokeStyle=col;c.fillStyle=col;
@@ -1796,8 +1807,16 @@ function drawFigure(c,p,rig,opt){
   c.restore();
   return j;
 }
+/* Imported art frame: the package image, placed so its centre (the figure's
+   position in game) sits on rig point (pkg.cx, pkg.cy), pkg.ppu image px per rig unit. */
+function drawArt(c,p,opt){
+  var pk=S.meta.pkg,im=getImg(p._img);if(!pk||!im)return;
+  c.save();c.globalAlpha*=(opt&&opt.alpha!=null?opt.alpha:1);
+  c.translate(pk.cx,pk.cy);c.scale(1/pk.ppu,1/pk.ppu);
+  c.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);c.restore();
+}
 function weaponTip(p,rig){
-  if(wCount()<3)return null;
+  if(wCount()<3||p._img)return null;
   var j=joints(p,rig);return{a:j.haR,b:j.wtip};
 }
 
@@ -1862,7 +1881,7 @@ function render(){
   }
   ctx.restore();
 
-  if(document.getElementById("joints").checked&&!S.playing&&!S.preview){
+  if(document.getElementById("joints").checked&&!S.playing&&!S.preview&&!p._img){
     var j=joints(p,S.rig);
     var rs=toStage(j.root),hs=toStage(j.head);
     ctx.strokeStyle="rgba(255,159,69,.45)";ctx.lineWidth=1.2;ctx.setLineDash([4,4]);
@@ -1929,7 +1948,7 @@ function render(){
       ctx.strokeStyle="#e8622a";ctx.lineWidth=1.8;ctx.stroke();}
   }
   document.getElementById("zoomread").textContent=Math.round(VIEW.scale/2.1*100)+"%";
-  document.getElementById("stagetag").textContent=S.cur+" · kf "+(S.kf+1)+"/"+a.keyframes.length+(S.preview?" · in-between (editable)":"")+(drag&&drag.ik?" · skeleton solve":(SOLVE?" · skeleton mode":""));
+  document.getElementById("stagetag").textContent=S.cur+" · kf "+(S.kf+1)+"/"+a.keyframes.length+(p._img?" · art frame (imported image — + Keyframe adds a posed frame)":"")+(S.preview?" · in-between (editable)":"")+(drag&&drag.ik?" · skeleton solve":(SOLVE?" · skeleton mode":""));
   var tw=tweenCount(a);
   var lf=loopFrames(a);
   document.getElementById("fpsread").textContent="loop "+a.duration_ms+" ms · "+a.keyframes.length+" kf"+
@@ -2436,12 +2455,19 @@ solveUI();
 var DLGCB=null;
 function dlgClose(ok){
   var d=document.getElementById("dlg"),cb=DLGCB;DLGCB=null;d.hidden=true;
-  if(cb)cb(ok?(cb.needsText?document.getElementById("dlginp").value:true):null);
+  document.getElementById("dlgsel").hidden=true;
+  if(cb)cb(ok?(cb.needsText?document.getElementById("dlginp").value:cb.needsSel?document.getElementById("dlgsel").value:true):null);
 }
 function askText(msg,def,cb){
   var d=document.getElementById("dlg"),i=document.getElementById("dlginp");
   document.getElementById("dlgmsg").textContent=msg;i.hidden=false;i.value=def||"";
   cb.needsText=true;DLGCB=cb;d.hidden=false;setTimeout(function(){i.focus();i.select();},20);
+}
+function askSelect(msg,opts,def,cb){
+  var d=document.getElementById("dlg"),sel=document.getElementById("dlgsel");
+  document.getElementById("dlgmsg").textContent=msg;document.getElementById("dlginp").hidden=true;
+  sel.innerHTML="";opts.forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.value=def;sel.hidden=false;cb.needsSel=true;cb.needsText=false;DLGCB=cb;d.hidden=false;
 }
 function askConfirm(msg,cb){
   var d=document.getElementById("dlg"),i=document.getElementById("dlginp");
@@ -2791,6 +2817,7 @@ cv.addEventListener("pointerdown",function(e){
     }
   }
   if(e.button===2)return;
+  if(!MARK&&KF()._img)return;   /* art frames have no pose to drag */
   if(MARK){
     var lm=fromStage(pos(e)),key=MARKSEQ[MARK.step][0],g=neighbourPts(key);
     if(g){
@@ -3278,6 +3305,7 @@ function pkgCamera(headPx,travel){
 }
 function pkgName(k,i,n){var w=n>99?3:2,s=String(i+1);while(s.length<w)s="0"+s;return k+"_"+s+".png";}
 function pkgBuild(){
+  if(S.meta.pkg)return pkgBuildPkg();   /* imported package: keep its image space */
   var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
   var col=document.getElementById("pk_col").value||"#000000",travel=document.getElementById("pk_travel").checked;
   var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={};
@@ -3308,14 +3336,22 @@ function pkgBuild(){
 function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
 function pkgExport(){
   commitPreview();
+  if(!pkgReady()){pkgPreload().then(pkgExport);return;}   /* art frames decode on first use */
   var nm=(S.meta.name||"character").replace(/[^A-Za-z0-9_\-]/g,"_");
   var pkg;try{pkg=pkgBuild();}catch(e){toast("Could not render frames: "+e.message);return;}
   var json=JSON.stringify(pkg.manifest,null,1);
   /* Straight into a folder when the page runs top-level with folder access (opened from disk in
      Chrome/Edge); a published page runs in a sandboxed frame, so it hands over one zip instead. */
   if(window.showDirectoryPicker&&window.self===window.top){
-    window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
-      var dirP=root.name===nm?Promise.resolve(root):root.getDirectoryHandle(nm,{create:true});
+    /* An imported package goes back into the folder it came from (its FX file stays). */
+    pkgDirFor(S.meta.name).then(function(h){
+      if(!h)return window.showDirectoryPicker({mode:"readwrite"});
+      return h.requestPermission({mode:"readwrite"}).then(function(st){
+        if(st!=="granted")return window.showDirectoryPicker({mode:"readwrite"});
+        return{_dir:h};});
+    }).then(function(root){
+      /* the remembered package folder itself; otherwise the picked folder (or its <name> sub-folder) */
+      var dirP=root._dir?Promise.resolve(root._dir):root.name===nm?Promise.resolve(root):root.getDirectoryHandle(nm,{create:true});
       return dirP.then(function(dir){
         var re=new RegExp("^("+Object.keys(S.actions).join("|")+")_\\d+\\.png$"),stale=[];
         var list=(async function(){for await(var e of dir.values())if(e.kind==="file"&&re.test(e.name))stale.push(e.name);})();
@@ -3344,7 +3380,330 @@ function pkgExport(){
   })();
 }
 document.getElementById("pk_export").onclick=pkgExport;
-window.RigForgePkg={build:pkgBuild};
+window.RigForgePkg={build:pkgBuild,preload:pkgPreload,state:function(){return{S:S,WS:WS};},joints:function(p){return joints(normPose(p),S.rig);},pick:function(files){pkgChoose(pkgFolders(files));}};
+
+/* ---- character package import ------------------------------------------------
+   Opens a character package folder (fx_packages/<name> exported from the game,
+   or a Rig Forge export) as a character tab.
+   * A package exported by this Rig Forge carries its rig, weapon and every
+     keyframe (character.json "rigforge"), so it comes back exactly.
+   * Frames with the full set of joint anchors (skeleton characters: mage,
+     new_fighter, rapid) are fitted with the rig, so their poses can be edited;
+     the frame stays under the pose as a reference image.
+   * Anything else (image-only fighters) comes in as art frames: the images
+     themselves, per action.  New actions and keyframes are posed with the rig
+     chosen on import and drawn in the same image space, so they line up.
+   Export writes back into the same folder in the same image space (size,
+   origin and head px kept; the canvas only grows evenly when a posed frame
+   needs room), so the folder's <name>.fxkit.json stays aligned. */
+var PKDB=null,PKDIRS={};
+function pkDb(){
+  if(!PKDB)PKDB=new Promise(function(res,rej){
+    if(!window.indexedDB){rej(new Error("IndexedDB unavailable"));return;}
+    var r=indexedDB.open("pbrigforge.pkg",1);
+    r.onupgradeneeded=function(){r.result.createObjectStore("img");r.result.createObjectStore("dir");};
+    r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};
+  });
+  return PKDB;
+}
+function pkStore(store,mode,fn){
+  return pkDb().then(function(db){return new Promise(function(res){
+    var t=db.transaction(store,mode),o=fn(t.objectStore(store));
+    t.oncomplete=function(){res(o&&"result" in o?o.result:null);};t.onerror=t.onabort=function(){res(null);};});
+  }).catch(function(){return null;});
+}
+function pkSaveImgs(map){return pkStore("img","readwrite",function(st){Object.keys(map).forEach(function(k){st.put(map[k],k);});});}
+function pkLoadImgs(){
+  return pkDb().then(function(db){return new Promise(function(res){
+    var n=0,t=db.transaction("img","readonly"),rq=t.objectStore("img").openCursor();
+    rq.onsuccess=function(){var c=rq.result;if(!c)return;if(!S.img[c.key]){S.img[c.key]=c.value;n++;}c.continue();};
+    t.oncomplete=function(){res(n);};t.onerror=function(){res(n);};});
+  }).catch(function(){return 0;});
+}
+/* drop stored frames no character tab uses any more */
+function pkGC(){
+  stashChar();var used={};
+  WS.chars.forEach(function(c){Object.keys(c.actions||{}).forEach(function(k){(c.actions[k].keyframes||[]).forEach(function(p){
+    if(p._img)used[p._img]=1;if(p._ref&&p._ref.id)used[p._ref.id]=1;});});});
+  Object.keys(S.img).forEach(function(k){if(k.indexOf("pk:")===0&&!used[k]){delete S.img[k];delete IMGC[k];}});
+  return pkDb().then(function(db){return new Promise(function(res){
+    var t=db.transaction("img","readwrite"),rq=t.objectStore("img").openCursor();
+    rq.onsuccess=function(){var c=rq.result;if(!c)return;if(!used[c.key])c.delete();c.continue();};
+    t.oncomplete=res;t.onerror=res;});}).catch(function(){});
+}
+/* every art / reference frame of the current character, decoded */
+function pkgIds(){var ids={};Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(function(p){
+  if(p._img)ids[p._img]=1;});});return Object.keys(ids);}
+function pkgReady(){return pkgIds().every(function(id){return!S.img[id]||(IMGC[id]&&IMGC[id].complete&&IMGC[id].naturalWidth);});}
+function pkgPreload(){
+  return Promise.all(pkgIds().map(function(id){
+    getImg(id);var im=IMGC[id];if(!im||im.complete)return null;
+    return new Promise(function(res){im.addEventListener("load",res);im.addEventListener("error",res);});
+  }));
+}
+function pkgDirFor(name){
+  if(PKDIRS[name])return Promise.resolve(PKDIRS[name]);
+  if(!S.meta.pkg)return Promise.resolve(null);
+  return pkStore("dir","readonly",function(st){return st.get(name);}).then(function(h){return h||null;});
+}
+function pkRememberDir(name,h){if(!h)return;PKDIRS[name]=h;pkStore("dir","readwrite",function(st){st.put(h,name);});}
+
+function fileURL(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result);};r.onerror=function(){rej(r.error);};r.readAsDataURL(f);});}
+function urlImage(u){return new Promise(function(res,rej){var im=new Image();im.onload=function(){res(im);};im.onerror=function(){rej(new Error("bad image"));};im.src=u;});}
+/* visible rows (alpha > 40) of an image — the game's stand-height rule */
+function visRows(im){
+  var c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+  var x=c.getContext("2d",{willReadFrequently:true});x.drawImage(im,0,0);
+  var d=x.getImageData(0,0,c.width,c.height).data,top=-1,bot=-1;
+  for(var y=0;y<c.height;y++){for(var xx=0;xx<c.width;xx++){if(d[(y*c.width+xx)*4+3]>40){if(top<0)top=y;bot=y;break;}}}
+  return top<0?null:{top:top,bottom:bot};
+}
+/* average colour of an image's solid pixels, as #rrggbb */
+function avgColour(im){
+  var c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+  var x=c.getContext("2d",{willReadFrequently:true});x.drawImage(im,0,0);
+  var d=x.getImageData(0,0,c.width,c.height).data,r=0,g=0,b=0,n=0;
+  for(var i=0;i<d.length;i+=4)if(d[i+3]>200){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+  if(!n)return null;var h=function(v){v=Math.round(v/n).toString(16);return v.length<2?"0"+v:v;};
+  return"#"+h(r)+h(g)+h(b);
+}
+/* the default standing pose of a rig: {top, bottom} in rig units */
+function rigStand(rig){
+  var p=normPose(clone(DEFLIB.Idle||PDEF)),j=joints(p,rig);
+  return{top:j.head.y-rig.head,bottom:Math.max(j.ftL.y,j.ftR.y)+5};
+}
+var FIT_JOINTS=["hip","chest","neck","head","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR"];
+/* Pose p so the rig's joints land on P (rig units, Rig Forge joint names). */
+function fitPose(p,rig,P){
+  var hip=P.hip,chest=P.chest,neck=P.neck,hc=P.head;
+  var hr=rig.head,dn=dist(neck,hc);
+  /* rigs whose head sits right on the neck (the game's older rig): keep the
+     head where it is and put the neck 1.3 head radii below it, as this rig has it */
+  if(dn<hr*1.04){var ux=(hc.x-neck.x)/(dn||1),uy=(hc.y-neck.y)/(dn||1);if(!dn){ux=0;uy=-1;}neck={x:hc.x-ux*hr*1.3,y:hc.y-uy*hr*1.3};}
+  p.rot=0;p.rx=hip.x-rig.hipx;p.ry=hip.y-rig.hipy;
+  /* spine: hip -> chest -> neck is two links of 0.55 and 0.45 x torso (one scale).
+     Reach the neck exactly; the chest takes the bend nearest its own mark. */
+  var T=Math.max(1e-3,dist(hip,chest)+dist(chest,neck)),a1=0.55*T,b1=0.45*T,dd=dist(hip,neck),ch=chest;
+  if(dd>=T-1e-6||dd<=Math.abs(a1-b1)+1e-6){T=Math.max(dd,1e-3);a1=0.55*T;ch=lerpP(hip,neck,0.55);}
+  else{
+    var ca=(a1*a1+dd*dd-b1*b1)/(2*a1*dd),ang=Math.acos(Math.max(-1,Math.min(1,ca))),base=Math.atan2(neck.y-hip.y,neck.x-hip.x);
+    var c1={x:hip.x+Math.cos(base+ang)*a1,y:hip.y+Math.sin(base+ang)*a1},c2={x:hip.x+Math.cos(base-ang)*a1,y:hip.y+Math.sin(base-ang)*a1};
+    ch=dist(c1,chest)<=dist(c2,chest)?c1:c2;
+  }
+  p.sp=up(hip,ch);p.torsos=Math.max(0.05,T/rig.torso);
+  p.sp2=clampA(up(ch,neck)-p.sp);
+  p.hd=clampA(up(neck,hc)-p.sp-p.sp2);
+  p.shlx=p.shly=p.shrx=p.shry=p.hplx=p.hply=p.hprx=p.hpry=0;
+  var j=joints(p,rig);
+  p.shlx=P.shL.x-j.shL.x;p.shly=P.shL.y-j.shL.y;p.shrx=P.shR.x-j.shR.x;p.shry=P.shR.y-j.shR.y;
+  p.hplx=P.hpL.x-j.hpL.x;p.hply=P.hpL.y-j.hpL.y;p.hprx=P.hpR.x-j.hpR.x;p.hpry=P.hpR.y-j.hpR.y;
+  j=joints(p,rig);
+  fitLimb(p,rig,j.shL,P.elL,P.haL,"lua","lfa","ua","fa","luas","lfas","haL",true);
+  fitLimb(p,rig,j.shR,P.elR,P.haR,"rua","rfa","ua","fa","ruas","rfas","haR",true);
+  fitLimb(p,rig,j.hpL,P.knL,P.ftL,"lth","lsh","th","sh","lths","lshs","ftL",true);
+  fitLimb(p,rig,j.hpR,P.knR,P.ftR,"rth","rsh","th","sh","rths","rshs","ftR",true);
+  /* weapon: swing and stretch it so its tip lands on the weapon-tip anchor */
+  if(P.wtip&&wCount()>2){
+    j=joints(p,rig);var dx=P.wtip.x-j.haR.x,dy=P.wtip.y-j.haR.y,L=Math.hypot(dx,dy);
+    if(L>0.5){
+      var w0=wAllPts(),tp=w0.reduce(function(m,q){return q[0]>m[0]?q:m;},w0[0]);
+      var ly=(tp[1]-p.wpy)*Math.cos(p.wspin*D),bx=tp[0]-p.wpx;
+      if(bx>1e-3){var lx=Math.sqrt(Math.max(1e-6,L*L-ly*ly));p.wlen=Math.max(0.05,lx/bx);
+        var wang=(Math.atan2(dy,dx)-Math.atan2(ly,lx))/D+90;p.wp=clampA(wang-p.rua-p.rfa);}
+    }
+  }
+  PKEYS.forEach(function(k){if(typeof p[k]==="number")p[k]=Math.round(p[k]*1000)/1000;});
+  return p;
+}
+
+/* files of the picked folder: [{dir, files:{name:File}}] for every folder holding a character.json */
+function pkgFolders(list){
+  var by={};
+  list.forEach(function(f){var rp=(f.webkitRelativePath||f.name).split("/");var nm=rp.pop();var d=rp.join("/");
+    (by[d]=by[d]||{})[nm]=f;});
+  return Object.keys(by).filter(function(d){return by[d]["character.json"];}).sort().map(function(d){return{dir:d,files:by[d]};});
+}
+function pkgPick(){
+  if(window.showDirectoryPicker&&window.self===window.top){
+    window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
+      return (async function(){
+        var out=[];
+        async function scan(h,path,depth){
+          var files={},subs=[];
+          for await(var e of h.values()){if(e.kind==="file")files[e.name]=e;else if(depth<1)subs.push(e);}
+          if(files["character.json"]){var fs={};for(var k in files)fs[k]=await files[k].getFile();out.push({dir:path||h.name,files:fs,handle:h});}
+          for(var i=0;i<subs.length;i++)await scan(subs[i],(path?path+"/":"")+subs[i].name,depth+1);
+        }
+        await scan(root,"",0);return out;
+      })();
+    }).then(pkgChoose).catch(function(e){if(e&&e.name!=="AbortError")toast("Could not open: "+e.message);});
+  }else document.getElementById("pkgin").click();
+}
+document.getElementById("pkgin").onchange=function(){var l=Array.prototype.slice.call(this.files||[]);this.value="";pkgChoose(pkgFolders(l));};
+document.getElementById("chimport").onclick=pkgPick;
+function pkgChoose(found){
+  if(!found||!found.length){toast("No character.json in that folder — pick a character package folder (e.g. fx_packages/runner).");return;}
+  if(found.length===1){pkgRead(found[0]);return;}
+  askSelect("That folder holds "+found.length+" character packages. Which one?",found.map(function(f,i){return[String(i),f.dir];}),"0",
+    function(v){if(v!=null)pkgRead(found[+v]);});
+}
+function pkgRead(pk){
+  pk.files["character.json"].text().then(function(t){
+    var man;try{man=JSON.parse(t.replace(/^﻿/,""));}catch(e){toast("character.json is not valid JSON");return;}
+    if(man.format!=="pb_char_pkg"||!man.actions){toast("Not a character package (format pb_char_pkg).");return;}
+    if(man.rigforge&&man.rigforge.rig){pkgBuildChar(man,pk,null);return;}
+    /* the rig for fitting and for new actions: the default rig or one of your characters */
+    var opts=[["-1","Rig Forge default rig"]];
+    WS.chars.forEach(function(c,i){opts.push([String(i),(c.meta.display_name||c.meta.name)+" — its rig and weapon"]);});
+    askSelect("Rig to use for "+(man.display_name||man.name)+" (posing new actions, and fitting frames that carry joint points):",
+      opts,"-1",function(v){if(v==null)return;pkgBuildChar(man,pk,+v>=0?WS.chars[+v]:null);});
+  }).catch(function(e){toast("Could not read character.json: "+e.message);});
+}
+function pkgBuildChar(man,pk,rigSrc){
+  toast("Importing "+(man.display_name||man.name)+"…");
+  var emb=man.rigforge||null,img=man.image||{},name=String(man.name||"character").toLowerCase().replace(/[^a-z0-9_\-]+/g,"_");
+  var rig=Object.assign(clone(RIGDEF),emb?emb.rig:(rigSrc?rigSrc.rig:{}));
+  var weapon=emb?clone(emb.weapon||[]):(rigSrc?clone(rigSrc.weapon):clone(WPRE.katana));
+  var stamp=Date.now().toString(36),urls={},ims={};
+  var frameFiles=[];Object.keys(man.actions).forEach(function(k){(man.actions[k].frames||[]).forEach(function(f){if(frameFiles.indexOf(f)<0)frameFiles.push(f);});});
+  var missing=frameFiles.filter(function(f){return!pk.files[f];});
+  Promise.all(frameFiles.filter(function(f){return pk.files[f];}).map(function(f){
+    return fileURL(pk.files[f]).then(function(u){urls[f]=u;return urlImage(u);}).then(function(im){ims[f]=im;});
+  })).then(function(){
+    var anyF=frameFiles.filter(function(f){return ims[f];})[0];if(!anyF)throw new Error("no frame images found");
+    var W=ims[anyF].naturalWidth,H=ims[anyF].naturalHeight;
+    var anc=man.anchors||{},acts={},store={};
+    var idF=function(f){var id="pk:"+name+"/"+stamp+"/"+f;if(!S.img[id]){S.img[id]=urls[f];store[id]=urls[f];}return id;};
+    /* image space -> rig units: pkg.ppu image px per unit, image centre on rig point (cx, cy) */
+    var pkg;
+    var WSsave=S.weapon;S.weapon=weapon;   /* wCount()/wAllPts() read the current weapon */
+    try{
+      if(emb&&emb.pkg)pkg={ppu:+emb.pkg.ppu,cx:+emb.pkg.cx,cy:+emb.pkg.cy};
+      else{
+        var idle=(man.actions.idle||man.actions[Object.keys(man.actions)[0]]).frames||[],im0=ims[idle[0]]||ims[anyF],vr=visRows(im0),rs=rigStand(rig);
+        var ppu=+img.px_per_rig_unit||(vr?(vr.bottom-vr.top+1)/(rs.bottom-rs.top):4);
+        var h0=((anc.idle||{}).hip||[])[0];
+        if(h0){pkg={ppu:ppu,cx:rig.hipx-(h0[0]-W/2)/ppu,cy:rig.hipy-(h0[1]-H/2)/ppu};
+          if(+img.head_px>0)rig.head=Math.round(+img.head_px/(2*ppu)*100)/100;}   /* the character's own head size */
+        else pkg={ppu:ppu,cx:rig.hipx,cy:rs.bottom-((vr?vr.bottom:H)-H/2)/ppu};
+      }
+      pkg.size=img.size||[W,H];pkg.head_px=+img.head_px||0;
+      /* posed frames are drawn in the package's figure colour, else the art's own colour */
+      var idl=((man.actions.idle||{}).frames||[])[0];
+      pkg.colour=img.figure_colour||avgColour(ims[idl]||ims[anyF])||"#000000";
+      var toRig=function(q){return q?{x:(q[0]-W/2)/pkg.ppu+pkg.cx,y:(q[1]-H/2)/pkg.ppu+pkg.cy}:null;};
+      var fitted=0,art=0,fitList=[];
+      Object.keys(man.actions).forEach(function(k){
+        var a=man.actions[k],fr=(a.frames||[]).filter(function(f){return ims[f];}),A2=anc[k]||{};
+        var fm=+a.frame_ms||((+a.duration_ms||100*fr.length)/Math.max(1,fr.length));
+        var kfs;
+        var ancOf=function(i){var o=null;Object.keys(A2).forEach(function(jn){var q=(A2[jn]||[])[i];if(q){o=o||{};o[jn]=[Math.round((q[0]-W/2)*100)/100,Math.round((q[1]-H/2)*100)/100];}});return o;};
+        if(emb&&emb.actions&&emb.actions[k]){
+          kfs=emb.actions[k].keyframes.map(function(q0){var q=normPose(clone(q0));
+            if(q._frame){if(ims[q._frame]){q._img=idF(q._frame);art++;}delete q._frame;}else fitted++;
+            return q;});
+          acts[k]={name:k,duration_ms:emb.actions[k].duration_ms||Math.round(fm*fr.length),trigger:emb.actions[k].trigger||a.trigger||"",
+                   retrigger_cooldown_ms:emb.actions[k].retrigger_cooldown_ms||0,keyframes:kfs};
+          return;
+        }
+        kfs=fr.map(function(f,i){
+          var fi=(a.frames||[]).indexOf(f),P={},ok=true;
+          FIT_JOINTS.forEach(function(jn){var q=(A2[jn]||[])[fi];if(q)P[jn]=toRig(q);else ok=false;});
+          var wt=(A2.wtip||[])[fi];if(wt)P.wtip=toRig(wt);
+          var q=newPose();q._tween.on=false;
+          if(ok){fitPose(q,rig,P);fitList.push(q);q._ref={id:idF(f),x:pkg.cx,y:pkg.cy,rot:0,scale:Math.round(1e5/pkg.ppu)/1e5,alpha:.4,front:false};fitted++;}
+          else{q._img=idF(f);q._anc=ancOf(fi);art++;}
+          return q;
+        });
+        if(!kfs.length)return;
+        acts[k]={name:k,duration_ms:Math.round(fm*kfs.length*1000)/1000,trigger:a.trigger||"",retrigger_cooldown_ms:0,keyframes:kfs};
+      });
+      /* The rig takes the character's own bone lengths (median of the fitted
+         frames), so poses and new actions keep its proportions at bone scale 1. */
+      if(fitList.length){
+        [["ua",["luas","ruas"]],["fa",["lfas","rfas"]],["th",["lths","rths"]],["sh",["lshs","rshs"]],["torso",["torsos"]]].forEach(function(b){
+          var v=[];fitList.forEach(function(q){b[1].forEach(function(k){v.push(q[k]);});});v.sort(function(x,y){return x-y;});
+          var m=v[v.length>>1];if(!(m>0))return;
+          rig[b[0]]=Math.round(rig[b[0]]*m*100)/100;
+          fitList.forEach(function(q){b[1].forEach(function(k){q[k]=Math.round(q[k]/m*1000)/1000;});});
+        });
+      }
+      /* joint anchors with no weapon tip: the character carries no weapon */
+      if(!emb&&fitted&&!Object.keys(anc).some(function(k){return(anc[k].wtip||[]).some(Boolean);}))weapon=[];
+    }finally{S.weapon=WSsave;}
+    if(!pkg.head_px)pkg.head_px=Math.round(rig.head*2*pkg.ppu*100)/100;
+    var c={meta:{name:name,display_name:man.display_name||name,description:man.description||"",
+        archetype:man.archetype||"melee",predicates:Object.assign({can_shoot:false,uses_melee:false,retreats:false,charges_full:false},man.predicates||{}),
+        movement:Object.assign({wander_strength:0.25},man.movement||{}),stats:Object.assign({},man.stats||{}),
+        palette:Object.assign({body:"#f2f4f6",accent:"#3fb0ea"},man.palette||{}),pkg:pkg},
+      rig:rig,weapon:weapon,actions:acts,cur:acts.idle?"idle":Object.keys(acts)[0],kf:0};
+    return pkSaveImgs(store).then(function(){
+      var at=-1;WS.chars.forEach(function(ch,i){if(ch.meta.name===name)at=i;});
+      var done=function(replace){
+        stashChar();
+        if(replace&&at>=0){WS.chars[at]=c;
+          /* replacing the open tab: point the editor at it too, or switching tabs would stash the old one back */
+          if(at===WS.ci){S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;S.cur=c.cur;S.kf=0;}}
+        else{if(at>=0){c.meta.name=name;c.meta.display_name+=" (import)";}WS.chars.push(c);at=WS.chars.length-1;}
+        if(pk.handle)pkRememberDir(c.meta.name,pk.handle);
+        loadChar(at);pkgPreload();if(pkg.colour)document.getElementById("pk_col").value=pkg.colour;
+        save();pkGC();
+        toast("Imported "+c.meta.display_name+": "+Object.keys(acts).length+" actions, "+fitted+" posed frames, "+art+" art frames"+
+          (missing.length?" — "+missing.length+" frame file(s) missing":""));
+      };
+      if(at>=0)askConfirm("\""+(WS.chars[at].meta.display_name||name)+"\" is already open in Rig Forge. OK replaces it with the package; Cancel opens the package as another tab.",done);
+      else done(false);
+    });
+  }).catch(function(e){toast("Import failed: "+e.message);});
+}
+/* Export of an imported package: same image space (size / origin / head px),
+   art frames as they came, posed frames drawn by the rig in that space. */
+function pkgBuildPkg(){
+  var pk=S.meta.pkg,col=document.getElementById("pk_col").value||pk.colour||"#000000",travel=document.getElementById("pk_travel").checked;
+  var ppu=pk.ppu,W=pk.size[0],H=pk.size[1],nx=W/2,ny=H/2;
+  var r2=function(v){return Math.round(v*100)/100;};
+  Object.keys(S.actions).forEach(function(k){playlist(S.actions[k]).forEach(function(p0){if(p0._img)return;
+    pkgPoints(pkgFramePose(p0,travel)).forEach(function(v){nx=Math.max(nx,Math.abs((v.x-pk.cx)*ppu)+8);ny=Math.max(ny,Math.abs((v.y-pk.cy)*ppu)+8);});});});
+  /* grow evenly on both sides, so the figure position stays the image centre */
+  var W2=Math.min(4096,Math.max(W,2*Math.ceil(nx))),H2=Math.min(4096,Math.max(H,2*Math.ceil(ny))),ox=W2/2,oy=H2/2;
+  var toPx=function(v){return[r2((v.x-pk.cx)*ppu+ox),r2((v.y-pk.cy)*ppu+oy)];};
+  var files=[],acts={},anchors={},emb={};
+  Object.keys(S.actions).forEach(function(k){
+    var a=S.actions[k],list=playlist(a),names=[],fileOf=new Map();
+    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
+    list.forEach(function(p0,i){
+      var c=document.createElement("canvas");c.width=W2;c.height=H2;var g=c.getContext("2d");
+      var nm=pkgName(k,i,list.length);
+      if(p0._img){
+        var im=getImg(p0._img);if(!im)throw new Error("an imported frame of "+k+" is still loading — try again in a moment");
+        g.drawImage(im,ox-im.naturalWidth/2,oy-im.naturalHeight/2);
+        PKG_JOINTS.forEach(function(jn){var q=p0._anc&&p0._anc[jn];anchors[k][jn].push(q?[r2(ox+q[0]),r2(oy+q[1])]:null);});
+      }else{
+        var p=pkgFramePose(p0,travel);g.translate(ox,oy);g.scale(ppu,ppu);g.translate(-pk.cx,-pk.cy);
+        drawFigure(g,p,S.rig,{color:col,noMask:true,sil:true});
+        var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
+      }
+      names.push(nm);files.push({name:nm,canvas:c});if(!p0._gen)fileOf.set(p0,nm);
+    });
+    PKG_JOINTS.forEach(function(jn){if(!anchors[k][jn].some(Boolean))delete anchors[k][jn];});
+    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
+    emb[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
+      keyframes:a.keyframes.map(function(p){var q=clone(p);delete q._ref;delete q._gen;delete q._hold;
+        if(p._img){delete q._img;q._frame=fileOf.get(p);}return q;})};
+  });
+  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
+    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
+    image:{size:[W2,H2],origin_px:[ox,oy],head_px:pk.head_px,px_per_rig_unit:Math.round(ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
+    actions:acts,anchors:anchors,
+    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
+      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
+    rigforge:{version:1,rig:S.rig,weapon:S.weapon,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
+    note:"Exported by Rig Forge from an imported package. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. \"rigforge\" holds the rig and keyframes so Rig Forge can import this package exactly. FX live in <name>.fxkit.json in this folder."};
+  return{manifest:man,files:files};
+}
+document.getElementById("pk_col").addEventListener("change",function(){if(S.meta.pkg){S.meta.pkg.colour=this.value;save();}});
+pkLoadImgs().then(function(n){if(n){IMGC={};pkgPreload().then(function(){render();buildFilm();});}});
 
 document.getElementById("build").onclick=function(){document.getElementById("json").value=JSON.stringify(build(),null,2);};
 document.getElementById("bake").onchange=function(){if(document.getElementById("json").value)document.getElementById("json").value=JSON.stringify(build(),null,2);};

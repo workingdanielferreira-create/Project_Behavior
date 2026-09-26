@@ -1104,6 +1104,17 @@ class CharacterFx:
                                    for p in row]
                              for jid, row in (joints or {}).items()}
                        for act, joints in anchors.items()}
+        # An action whose frames changed after the FX file was saved (Rig
+        # Forge added or removed keyframes) takes the package's own anchors —
+        # the same rule FX Studio applies when it opens the folder.
+        pkg_anchors = pkg.get("anchors") or {}
+        if fxk.get("anchors"):
+            anchors = dict(anchors)
+            for act, a in (char.get("actions") or {}).items():
+                n = len(a.get("keyframes") or [])
+                mine = anchors.get(act)
+                if act in pkg_anchors and (not mine or any(len(r or []) != n for r in mine.values())):
+                    anchors[act] = pkg_anchors[act]
         self.anchors = anchors
         self.effects = [normalize(dict(e)) for e in (fxk.get("effects") or [])]
         self.by_action = {}
