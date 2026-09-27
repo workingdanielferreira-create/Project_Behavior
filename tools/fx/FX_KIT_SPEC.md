@@ -325,6 +325,52 @@ Built-in attack presets are ticked with the engine's values:
 
 Trails, sparks, spheres and afterimages are visual.
 
+## 5c. Intercept (`intercept`) — auto-projectile tracker
+
+Projectiles only (motion `travel`, `homing` or `zigzag`; not weapon or ghost).
+FX Studio shows it as the **Intercept** section.
+
+```json
+"intercept": {"enabled": false, "radius": 90, "turn_deg": 10, "contact": 10,
+              "mode": "block", "deflect_who": "enemy", "hurts_owner": false}
+```
+
+| field | meaning |
+|---|---|
+| `enabled` | **Auto-projectile tracker** on/off. Off: the shot ignores enemy projectiles, as before. |
+| `radius` | px. The nearest enemy projectile inside it is chased: the shot steers at it like homing, keeping its speed. |
+| `turn_deg` | max turn per tick while chasing. |
+| `contact` | px between centres at which the two collide. |
+| `mode` | `block`: both are nullified. `deflect`: see below. `destroy`: the enemy projectile is nullified and this one keeps going. |
+| `deflect_who` | `enemy`: only the enemy projectile is knocked away and this one carries on. `both`: this one is knocked away too, and then flies straight. |
+| `hurts_owner` | deflect only. `true`: the deflected enemy projectile changes sides and can damage the fighter who fired it. `false`: it flies off harmlessly. |
+
+- **Deflect direction** is the combined momentum (the two velocities added).
+  Each projectile keeps its own speed. If they meet head-on at similar
+  speeds, the sum nearly cancels (under 25% of the faster speed), so the
+  enemy projectile is knocked sideways instead, to the side it struck. With
+  `both`, the two fly apart ±15° (`DEFLECT_FAN_DEG`).
+- **After the chase**, when nothing is left in range, the shot goes back to
+  the velocity it had before the chase and carries on with its own motion.
+- **Enemy projectiles** are the opponent's real bullets (runner-style,
+  `hit_r_sq > 0`) and its travelling damaging FX instances (travel, homing,
+  zigzag or path motion; not particles, weapon or ghost).
+  `World.refresh_battle` rebuilds them each tick as `fxkit.Shot` in
+  `SideState.enemy_shots`, and each Shot carries its live object, so the
+  result is applied at the source:
+  - bullets are killed with `combat.kill_projectile`;
+  - FX instances are ended;
+  - a deflect adds a copy on the deflecting side (a `Projectile`, or an FX
+    instance with motion `travel`), harmless or damaging per `hurts_owner`.
+- Solo has no opponent, so there is nothing to intercept. It is the same
+  code path in both modes.
+- **Studio preview:** tick **test shots** under the stage. A dummy enemy at
+  the target marker fires a shot at the fighter every 40 ticks. Deflected
+  shots fly off red (they hurt their owner) or grey (harmless), and every
+  contact flashes a ring: gold = block, red = destroy, green = deflect.
+- **Parity:** `fxkit.js interceptStep` and `fxkit.py intercept_step` produce
+  identical positions and events.
+
 ## 6. Presets
 
 Built-in presets (`studio/presets.js`) rebuild the game's hardcoded effects from
