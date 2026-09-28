@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, scale: imgScale(), img_head: C.headPx, img_origin: C.origin}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -243,14 +243,21 @@ function openFiles(list, dirHandle) {
         trigger: ma ? ma.trigger : "", files: files.map(function (f) { return f.name; }), images: []};
       files.forEach(function (f, i) { jobs.push(loadImage(f).then(function (im) { acts[k].images[i] = im; })); });
     });
-    var fxName = man ? man.name + ".fxkit.json" : null;
-    var fxF = (fxName && byName[fxName]) || list.filter(function (f) { return /\.fxkit\.json$/i.test(f.name); })[0];
+    // The folder's FX file: the most recently saved one.  Browsers rename a
+    // repeat download ("new_fighter.fxkit (1).json"), so the exact name can
+    // be the OLDER copy; the same rule as laser/drops.py (newest wins).
+    var fxFiles = list.filter(function (f) { return /\.fxkit[^/\\]*\.json$/i.test(f.name); })
+      .sort(function (a, b) { return (b.lastModified || 0) - (a.lastModified || 0); });
+    var fxF = fxFiles[0] || null;
     jobs.push(fxF ? readText(fxF).then(JSON.parse) : Promise.resolve(null));
-    return Promise.all(jobs).then(function (res) { return {man: man, acts: acts, pack: res[res.length - 1]}; });
-  }).then(function (r) { useCharacter(r.man, r.acts, r.pack, dirHandle, folder); })
+    return Promise.all(jobs).then(function (res) {
+      return {man: man, acts: acts, pack: res[res.length - 1],
+        packFile: fxF ? {name: fxF.name, time: fxF.lastModified || 0, others: fxFiles.length - 1} : null};
+    });
+  }).then(function (r) { useCharacter(r.man, r.acts, r.pack, dirHandle, folder, r.packFile); })
     .catch(function (e) { toast("Could not open the folder: " + e.message, 6000); });
 }
-function useCharacter(man, acts, pack, dirHandle, folder) {
+function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
   var first = acts[Object.keys(acts)[0]].images[0];
   var name = man ? man.name : (pack && pack.character) || folder || "character";
   C = {man: man, name: name, display: man ? man.display_name || name : name, actions: acts,
@@ -263,41 +270,53 @@ function useCharacter(man, acts, pack, dirHandle, folder) {
   S.dir = dirHandle || null;
   var pal = (man && man.palette) || {};
   lut = FXK.buildLut([FXK.hexRgb(pal.body, [242, 244, 246]), FXK.hexRgb(pal.accent, [63, 176, 234])]);   // palette.build_lut([body, accent])
-  // Anchors: this Studio's saved work wins, then the FX pack in the folder,
-  // then the starting points Rig Forge exported.
-  var local = lsGet(LS_PROJECT + name), src = local || pack;
-  S.labels = clone((src && (src.labels || src.anchor_labels)) || (man && man.anchor_labels) || {});
-  S.anchors = clone((src && src.anchors) || (man && man.anchors) || {});
-  if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
-  S.effects = ((src && src.effects) || []).map(function (e) { return FXK.normalize(e); });
-  S.actionCfg = clone((src && src.action_settings) || {});
-  S.entries = ((src && src.entry_sets) || []).map(FXK.normalizeEntrySet); S.paths = ((src && src.paths) || []).map(FXK.normalizePath);
-  S.aim = FXK.normalizeAim(clone((src && src.aim) || {}));
-  // The scale this work was authored at (older saves used the head-size rule).
+  // Where the work comes from: this browser's saved Studio work or the
+  // folder's FX file.  When both exist (or the browser has work and the
+  // folder has none) you choose; the chosen source fills EVERYTHING
+  // (effects, anchors, labels, action settings, entry sets, paths, aim,
+  // scale) and nothing is carried over from the other.  The browser's copy
+  // is only replaced by what opens once the choice is made.
+  var local = lsGet(LS_PROJECT + name);
   var oldRule = TARGET_HEAD_PX / Math.max(1, C.headPx);
-  var packScale = function (p) { return (p && p.space && +p.space.game_px_per_image_px) || oldRule; };
-  S.srcScale = src === local ? ((local && +local.scale) || oldRule) : packScale(pack);
-  // The frames the work was made against (another export of the same Rig
-  // Forge character can have a different frame size / head px).
-  var packSpace = function (p) { var sp = (p && p.space) || {}; return [+sp.head_px || C.headPx, sp.image_origin_px || C.origin]; };
-  var sp0 = src === local ? [(local && +local.img_head) || C.headPx, (local && local.img_origin) || C.origin] : packSpace(pack);
-  S.srcHead = sp0[0]; S.srcOrigin = sp0[1];
-  if (local && pack) {
-    ask("This browser has Studio work for " + name + " that may differ from " + name + ".fxkit.json in the folder. Which should open?",
-      {ok: "My browser work", no: "The folder's file"}, function (keep) {
-        if (!keep) {
-          S.labels = clone(pack.anchor_labels || S.labels); S.anchors = clone(pack.anchors || {}); S.effects = (pack.effects || []).map(FXK.normalize);
-          S.actionCfg = clone(pack.action_settings || {});
-          S.entries = (pack.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (pack.paths || []).map(FXK.normalizePath);
-          S.aim = FXK.normalizeAim(clone(pack.aim || {}));
-          S.srcScale = packScale(pack);
-          var sp1 = packSpace(pack); S.srcHead = sp1[0]; S.srcOrigin = sp1[1];
-        }
-        finishOpen(man, acts, pack, name, local);
-      });
+  function loadFrom(src, isLocal) {
+    src = src || {};
+    S.labels = clone(src.labels || src.anchor_labels || (man && man.anchor_labels) || {});
+    S.anchors = clone(src.anchors || (man && man.anchors) || {});
+    if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
+    S.effects = (src.effects || []).map(function (e) { return FXK.normalize(clone(e)); });
+    S.actionCfg = clone(src.action_settings || {});
+    S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
+    S.aim = FXK.normalizeAim(clone(src.aim || {}));
+    // The scale and frames this work was made against (older saves used the
+    // head-size rule; another export of the same Rig Forge character can
+    // have a different frame size / head px).
+    if (isLocal) {
+      S.srcScale = +src.scale || oldRule;
+      S.srcHead = +src.img_head || C.headPx; S.srcOrigin = src.img_origin || C.origin;
+    } else {
+      var sp = src.space || {};
+      S.srcScale = +sp.game_px_per_image_px || oldRule;
+      S.srcHead = +sp.head_px || C.headPx; S.srcOrigin = sp.image_origin_px || C.origin;
+    }
+  }
+  function when(t) { return t ? new Date(t).toLocaleString() : "unknown time"; }
+  function fxCount(src) { return ((src && src.effects) || []).length; }
+  function open(useLocal) {
+    loadFrom(useLocal ? local : pack, useLocal);
+    S.openedFrom = useLocal ? "your browser work" : pack ? packFile.name + " from the folder" : "the folder (no FX file)";
+    finishOpen(man, acts, pack, name, useLocal ? local : null);
+  }
+  if (local) {
+    var folderTxt = pack
+      ? "The folder's file: " + packFile.name + " — " + fxCount(pack) + " FX, saved " + when(packFile.time) +
+        (packFile.others > 0 ? " (newest of " + (packFile.others + 1) + " FX files in the folder)" : "") + "."
+      : "The folder has no FX file (opening it starts with no FX).";
+    ask("This browser has saved Studio work for " + name + ".\n\nMy browser work: " + fxCount(local) + " FX, last saved " + when(local.saved_at) +
+      ".\n" + folderTxt + "\n\nWhich should open? (The one you don't pick is replaced in this browser.)",
+      {ok: "My browser work", no: pack ? "The folder's file" : "The folder (no FX)"}, function (keep) { open(!!keep); });
     return;
   }
-  finishOpen(man, acts, pack, name, local);
+  open(false);
 }
 function finishOpen(man, acts, pack, name, local) {
   var names = Object.keys(acts);
@@ -336,7 +355,7 @@ function finishOpen(man, acts, pack, name, local) {
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
   rebuild(); resetSim(0); persist(); histReset();
-  toast("Opened " + C.display + ": " + names.length + " actions" + (pack ? ", " + S.effects.length + " FX" : ""));
+  toast("Opened " + C.display + ": " + names.length + " actions, " + S.effects.length + " FX" + (S.openedFrom ? " — from " + S.openedFrom : ""), 5000);
 }
 function pickFolder() {
   if (window.showDirectoryPicker && !inFrame()) {
