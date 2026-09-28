@@ -25,7 +25,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -52,6 +52,7 @@ class Figure:
         self.personality = Personality(mode.key)
         self.fx = None   # fxkit.FxDriver for image characters with an FX file
         self.act = None  # actions.ActionRunner for image characters
+        self.retreat = None  # retreat.RetreatState (tactical retreat)
         self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
 
     # convenience aliases ---------------------------------------------------
@@ -84,6 +85,7 @@ class Figure:
         self.fx = None
         self.act = None
         self.aim = None
+        self.retreat = None
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")

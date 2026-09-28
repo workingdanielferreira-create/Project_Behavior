@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -69,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -89,6 +89,7 @@ function applyState(str) {
   S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
   S.aim = FXK.normalizeAim(o.am);
   S.damaged = FXK.normalizeDamaged(o.dm);
+  S.retreat = FXK.normalizeRetreat(o.rt);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
@@ -289,6 +290,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
     S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
+    S.retreat = FXK.normalizeRetreat(clone(src.retreat || {}));
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -393,6 +395,7 @@ function packData() {
     paths: S.paths.map(function (p) { return FXK.normalizePath(clone(p)); }),
     aim: FXK.normalizeAim(clone(S.aim)),
     damaged: FXK.normalizeDamaged(clone(S.damaged)),
+    retreat: FXK.normalizeRetreat(clone(S.retreat)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -1034,6 +1037,54 @@ function buildDamagedProps(d) {
     "After a hit takes HP, the character is invincible (no HP loss, no knockback) for this long. The next hit after it ends takes HP again. 0 = every hit takes HP.";
   say(); s.appendChild(info);
 }
+// Character-level Tactical retreat (pack.retreat), shown under every action's settings.
+var RETREAT_COND_LABEL = {hp_below: "own HP at or below %", projectile_count: "enemy projectiles on screen at once"};
+function buildRetreatProps(d) {
+  var s = sec(d, "Tactical retreat (whole character)", "a-retreat",
+    "Dash away from harm, or round to the target's back to attack it, when the conditions below are met. Applies to all actions.", "act");
+  var rt = S.retreat, ch = function () { save(); buildProps(); };
+  field(s, "Tactical retreat", inp("chk", rt.enabled, function (v) { rt.enabled = v; ch(); })).title =
+    "On: the character dashes when the trigger conditions are met.";
+  if (!rt.enabled) return;
+  field(s, "Mode", inp([["avoid", "Avoid"], ["reengage", "Re-engage"]], rt.mode,
+    function (v) { rt.mode = v; ch(); })).title =
+    "Avoid: dashes along the angle and curve, steering away from enemy projectiles and the target. Re-engage: heads for the side opposite the way the target was facing when the retreat started, and attacks on arrival.";
+  field(s, "Dash angle °", inp("n", rt.angle_deg, function (v) { rt.angle_deg = Math.max(-180, Math.min(180, v)); save(); }, -180, 180, 5)).title =
+    "Measured from the direction to the target: 0 = straight at it, 180 or -180 = straight away, 90 = sideways (positive turns clockwise on screen).";
+  field(s, "Curve °/s", inp("n", rt.curve_deg_s, function (v) { rt.curve_deg_s = Math.max(-1440, Math.min(1440, v)); save(); }, -1440, 1440, 5)).title =
+    rt.mode === "reengage" ? "0 = straight to the target's back. Otherwise it leaves along the dash angle and swings round toward the target's back at this many degrees per second."
+      : "How much the dash bends, in degrees per second (0 = straight, positive = clockwise).";
+  field(s, "Speed %", inp("n", rt.speed_pct, function (v) { rt.speed_pct = Math.max(0, Math.min(1000, v)); save(); }, 0, 1000, 10)).title =
+    "Dash speed as a % of the character's normal speed (100 = normal, 200 = twice as fast).";
+  field(s, "Proximity px", inp("n", rt.proximity_px, function (v) { rt.proximity_px = Math.max(0, Math.min(1000, v)); save(); }, 0, 1000, 5)).title =
+    "How close harm may get before the character steers away from it during the dash (enemy projectiles; in Avoid also the target itself). 0 = no steering.";
+  if (rt.mode === "reengage") field(s, "Re-engage duration ms", inp("n", rt.reengage_duration_ms, function (v) { rt.reengage_duration_ms = v < 0 ? -1 : Math.min(60000, v); save(); }, -1, 60000, 50)).title =
+    "How long it keeps trying to reach the target's back. -1 = no limit (until it gets there and attacks).";
+  else field(s, "Avoid duration ms", inp("n", rt.avoid_duration_ms, function (v) { rt.avoid_duration_ms = v < 0 ? -1 : Math.min(60000, v); save(); }, -1, 60000, 50)).title =
+    "How long the avoiding dash lasts. -1 = no limit (it never stops avoiding).";
+  field(s, "Cooldown ms", inp("n", rt.cooldown_ms, function (v) { rt.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
+    "After a retreat ends, how long before another can start.";
+  field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], rt.logic, function (v) { rt.logic = v; save(); }));
+  rt.conditions.forEach(function (c, i) {
+    var box = sec(s, "Condition " + (i + 1) + ": " + RETREAT_COND_LABEL[c.type], "a-rcond", null, "act");
+    if (c.type === "hp_below") {
+      field(box, "HP %", inp("n", c.pct, function (v) { c.pct = Math.max(1, Math.min(100, v)); save(); }, 1, 100, 1));
+      field(box, "Repeat on cooldown", inp("chk", c.repeat, function (v) { c.repeat = v; save(); })).title =
+        "On: while HP stays at or below the %, it can retreat again every time the cooldown ends. Off: once when HP first drops to the %.";
+    } else {
+      field(box, "Projectiles", inp("n", c.count, function (v) { c.count = Math.max(1, Math.round(v)); save(); }, 1, 200, 1)).title =
+        "Triggers when this many or more enemy projectiles are in the air at the same time.";
+    }
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { rt.conditions.splice(i, 1); ch(); };
+    box.appendChild(rm);
+  });
+  var row = document.createElement("div"); row.className = "row";
+  var sel = inp(Object.keys(FXK.RETREAT_CONDITIONS).map(function (k) { return [k, RETREAT_COND_LABEL[k]]; }), "hp_below", function () {});
+  var add = document.createElement("button"); add.textContent = "+ Condition";
+  add.onclick = function () { rt.conditions.push(FXK.normalizeRetreat({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
+  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
+  if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
+}
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
@@ -1065,6 +1116,7 @@ function buildActionProps(d) {
   }
   buildAimProps(d);
   buildDamagedProps(d);
+  buildRetreatProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");

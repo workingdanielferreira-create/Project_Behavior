@@ -44,6 +44,10 @@ these characters; it plays the PNGs.
                                     "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0},
+  "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
+              "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
+              "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false},
+                                              {"type": "projectile_count", "count": 5}]},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -308,6 +312,30 @@ next hit after that takes HP again. `0` = every hit takes HP. It covers every
 HP source (bullets, FX, dash-slash, contact, petals, clones), in Solo and
 Battle alike (`ai.damage_immune`). A rig-drawn `pb_character` JSON can set the
 same top-level `"damaged": {"cooldown_ms": N}` block.
+
+**Tactical retreat (`retreat`, whole character; `laser/retreat.py`).** When
+its conditions are met (`logic` any / all) the fighter dashes at `speed_pct` %
+of its speed. `angle_deg` is measured from the direction to the target: 0 = at
+it, 180 / -180 = straight away, positive = clockwise on screen. `curve_deg_s`
+bends the path that many degrees per second. The mode runs during the dash for
+its own duration (`-1` = no limit):
+- `avoid` (`avoid_duration_ms`): dash along the angle and curve, steering away
+  from harm within `proximity_px` (enemy projectiles and the target).
+- `reengage` (`reengage_duration_ms`): head for the target's back, the side
+  opposite the way it faced when the retreat started, going round its body and
+  steering round enemy projectiles within `proximity_px`. With a curve it
+  leaves along the angle and swings round at `curve_deg_s`; with 0 it goes
+  straight there. On arrival it attacks (melee dash-slash, or an image
+  character's `attack_normal`) and the retreat ends.
+
+A new retreat can start `cooldown_ms` after the last one ended. Conditions:
+`hp_below` (`pct`, `repeat`: once, or again every cooldown while below) and
+`projectile_count` (`count` or more enemy projectiles in the air at once). The
+dash owns the fighter's movement (knockback still wins) and cancels a melee
+move in progress, but never an ultimate or special stance. Solo and Battle run
+the same code; Solo has no enemy projectiles, and the cursor's back is the far
+side from the fighter. A rig-drawn `pb_character` JSON can set the same block
+as top-level `"tactical_retreat"`.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,

@@ -397,6 +397,17 @@ def update(fig, world):
     return r.update(fig, world) if r is not None else False
 
 
+def force_attack(fig, world):
+    """Start attack_normal now if nothing is playing (tactical retreat's
+    re-engage strike).  True when it started."""
+    r = runner(fig)
+    if r is None or r.playing is not None or "attack_normal" not in fig.render.bundle.extra:
+        return False
+    p = fig.personality
+    return r._start(fig, "attack_normal", {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)},
+                    world.global_tick)
+
+
 def blocks_hit(fig):
     """True while this fighter's `defend` action plays: the hit is blocked."""
     r = getattr(fig, "act", None)
