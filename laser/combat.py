@@ -4932,7 +4932,27 @@ def advance_combat(fig, slash_target, fallback):
         # Solo & Battle — both read the same MODE_CONFIGS entry.
         atk_radius = config.MODE_CONFIGS.get(fig.mode.key, {}).get(
             "basic_attack_radius", config.SLASH_RADIUS)
-        if cc['hit_radius'] < dist <= atk_radius:
+        if dist <= cc['hit_radius']:
+            # Already on top of the target (overlapping it): strike on the
+            # spot.  Neither the dash nor the arc below can start from inside
+            # the hit radius, and body contact only pushes the pair apart
+            # under 18 px, so without this the fighter kept chasing a target
+            # it was standing on — facing flipping every tick, never
+            # attacking.  Arm a dash toward the target (or straight ahead
+            # when dead-centre); the dash hit-check lands it next tick and
+            # its knockback separates the two.
+            c.attack_hits = 0  # fresh string
+            lspd = m.speed * cc['dash_speed_mult']
+            if dist > 0.001:
+                ux, uy = dx / dist, dy / dist
+            else:
+                ux, uy = (-1.0 if t.facing_left else 1.0), 0.0
+            c.slash_vx = ux * lspd
+            c.slash_vy = uy * lspd
+            c.slash_dist_budget = max(lspd * 2.0, 1.0)
+            c.dashing = True
+            c.rebounding = False
+        elif dist <= atk_radius:
             c.attack_hits = 0  # fresh string
             if rng.random() < 0.5:
                 # --- Primary DASHSLASH: straight in ---

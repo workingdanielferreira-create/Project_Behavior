@@ -525,7 +525,9 @@ class World:
                                 and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
                                 and fxd["prim"] not in ("weapon", "ghost", "particles")):
                             shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
-                                                    "fx", inst))
+                                                    "fx", inst,
+                                                    blockable=fxd["battle"].get("blockable", True),
+                                                    deflectable=fxd["battle"].get("deflectable", True)))
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 side.enemy_shots = shots
@@ -561,16 +563,22 @@ class World:
                 if best is None or best[0] > 80.0 ** 2:
                     continue
                 ef = best[1]
+                # Damage cooldown: the fighter is invincible — the hit
+                # neither damages nor knocks back.
+                if ai.damage_immune(ef, self):
+                    continue
                 # Defence works like it does against bullets: a parry or an
                 # image character's `defend` blocks the hit, and the FX that
-                # was blocked ends at its source (non-piercing).
-                if ef.combat.parrying or actions.blocks_hit(ef):
+                # was blocked ends at its source (non-piercing).  An effect
+                # with Blockable off goes straight through every block.
+                blockable = inst.fx["battle"].get("blockable", True)
+                if blockable and (ef.combat.parrying or actions.blocks_hit(ef)):
                     if not inst.fx["battle"]["pierce"]:
                         inst.age = max(inst.age, inst.life)
                     continue
                 actions.note_fx_hit(ef, tag)
                 if dmg > 0:
-                    ai.apply_hp_damage(ef, self, dmg)
+                    ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable)
                 if kb > 0:
                     m = ef.motion
                     if not (m.bouncing or m.bounce_ending):
@@ -585,10 +593,24 @@ class World:
                     f.combat.hit_pending = False
                     if not self.battle_mode:
                         continue
+                    # Image characters take a landed dash-slash's HP here: a
+                    # plain body bump never costs them HP (CollisionSystem),
+                    # and the dashing-contact window it relies on is gone by
+                    # the time the struck image fighter's pass reads it, so
+                    # melee hits used to only push them.  The struck one is
+                    # the enemy nearest the attacker (its melee target).
+                    struck = min(other.figures, default=None,
+                                 key=lambda e: (e.x - f.x) ** 2 + (e.y - f.y) ** 2)
                     for ef in other.figures:
                         m = ef.motion
+                        kb_ok = not ai.knockback_immune(ef, self)
+                        if (ef is struck and actions.is_image(ef)
+                                and not ef.combat.parrying):
+                            ai.apply_hp_damage(ef, self)
                         if m.bouncing or m.bounce_ending:
                             continue
+                        if not kb_ok:
+                            continue   # damage cooldown: invincible
                         m.bounce_vx = f.combat.hit_vx
                         m.bounce_vy = f.combat.hit_vy
                         m.bouncing = True

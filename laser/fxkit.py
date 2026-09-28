@@ -161,7 +161,12 @@ MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_de
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, path="")
 COLOR_DEFAULTS = dict(mode="palette", lut_index=128, lut_index2=128, lut_offset=0, flow_speed=0.008, c1="#ffffff",
                       c2="#ff2200", start_fraction=0)
-BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0, knockback=0)
+# blockable / deflectable (FXK.BATTLE_DEFAULTS): whether the other fighter's
+# defences can stop this effect.  Block = defend action, special stance,
+# parry stance, Intercept block / destroy; deflect = Intercept deflect.  Off =
+# that defence ignores it and the hit lands.
+BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0, knockback=0,
+                       blockable=True, deflectable=True)
 # Intercept settings (fx.intercept): the auto-projectile tracker, mirrors
 # FXK.INTERCEPT_DEFAULTS.  Only for projectiles (travel, homing or zigzag
 # motion): an enemy projectile within `radius` px is chased (up to
@@ -179,6 +184,10 @@ ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="",
 # direction of the reference action (from -> to anchors, averaged over its
 # frames) points at the target; the fighter always faces the target.
 AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to_anchor="wtip", max_deg=75)
+# Character-level "Damaged" (pack.damaged, FXK.DAMAGED_DEFAULTS): after a hit
+# ticks HP the fighter is invincible for cooldown_ms (read by ai.py
+# damage_cooldown_ticks straight from the pack).
+DAMAGED_DEFAULTS = dict(cooldown_ms=0)
 ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[])
 PATH_DEFAULTS = dict(name="path", points=[[0, 0]], smooth=True, ticks=30, orient="facing", end="stop", follow=False)
 
@@ -583,19 +592,26 @@ def intercept_on(fx):
 class Shot:
     """One enemy projectile in a side's snapshot: a built-in bullet
     (kind "bullet", ref = the live combat.Projectile) or an FX Studio
-    instance (kind "fx", ref = the live Inst)."""
-    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref")
+    instance (kind "fx", ref = the live Inst).  blockable / deflectable come
+    from the effect's battle settings (built-in bullets are both)."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable")
 
-    def __init__(self, x, y, vx, vy, kind, ref):
+    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True):
         self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
         self.dead = False
         self.kind, self.ref = kind, ref
+        self.blockable, self.deflectable = bool(blockable), bool(deflectable)
 
 
-def _nearest_shot(inst, host, r):
+def _shot_takes(s, mode):
+    """Whether an intercept in `mode` may take shot s (FXK.shotTakes)."""
+    return s.deflectable if mode == "deflect" else s.blockable
+
+
+def _nearest_shot(inst, host, r, mode=None):
     best, bd, r2 = None, 0.0, r * r
     for s in getattr(host, "shots", None) or ():
-        if s.dead:
+        if s.dead or (mode and not _shot_takes(s, mode)):
             continue
         dx, dy = s.x - inst.x, s.y - inst.y
         d = dx * dx + dy * dy
@@ -637,7 +653,7 @@ def intercept_step(inst, host):
     if not intercept_on(fx):
         return False
     ic = fx["intercept"]
-    hit = _nearest_shot(inst, host, max(0.0, float(ic.get("contact") or 0)))
+    hit = _nearest_shot(inst, host, max(0.0, float(ic.get("contact") or 0)), ic.get("mode"))
     if hit is not None:
         hit.dead = True
         if inst.chase:
@@ -660,7 +676,7 @@ def intercept_step(inst, host):
             if ic.get("mode") == "block":
                 inst.age = max(inst.age, inst.life)
                 return True
-    tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)))
+    tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)), ic.get("mode"))
     if tgt is None:
         if inst.chase:   # back to its own motion
             inst.chase = False

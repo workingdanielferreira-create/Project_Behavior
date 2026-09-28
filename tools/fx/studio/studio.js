@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -69,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -88,6 +88,7 @@ function applyState(str) {
   S.effects = o.e.map(FXK.normalize); S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
   S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
   S.aim = FXK.normalizeAim(o.am);
+  S.damaged = FXK.normalizeDamaged(o.dm);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
@@ -287,6 +288,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.actionCfg = clone(src.action_settings || {});
     S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
+    S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -390,6 +392,7 @@ function packData() {
     entry_sets: S.entries.map(function (e) { return FXK.normalizeEntrySet(clone(e)); }),
     paths: S.paths.map(function (p) { return FXK.normalizePath(clone(p)); }),
     aim: FXK.normalizeAim(clone(S.aim)),
+    damaged: FXK.normalizeDamaged(clone(S.damaged)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -883,6 +886,10 @@ function buildProps() {
       field(s, "Pierce (keeps going)", inp("chk", bt.pierce, function (v) { bt.pierce = v; changed(); }));
       field(s, "Re-hit every N ticks (0 = once)", inp("n", bt.rehit_ticks, function (v) { bt.rehit_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1));
       field(s, "Knockback px", inp("n", bt.knockback, function (v) { bt.knockback = Math.max(0, v); changed(); }, 0, 200, 0.5));
+      field(s, "Blockable", inp("chk", bt.blockable, function (v) { bt.blockable = v; changed(); })).title =
+        "On: the other fighter's blocks stop it (defend action, special stance, parry stance, Intercept block / destroy). Off: blocks ignore it and the hit lands.";
+      field(s, "Deflectable", inp("chk", bt.deflectable, function (v) { bt.deflectable = v; changed(); })).title =
+        "On: the other fighter's deflects knock it away (Intercept deflect, parry ricochet). Off: deflects ignore it and the hit lands.";
     } else note(s, fx.prim === "weapon" ? "The weapon doesn't damage in this window." : "Visual only — this FX never damages.");
   }
 
@@ -1014,6 +1021,19 @@ function buildAimProps(d) {
   if (!aimRef()) note(s, "No frames of " + am.source + " have both anchors placed: aiming is off until they are.");
   else note(s, "Preview: drag the target around the stage; the figure turns to keep the barrel on it (now " + Math.round(aimDeg()) + "°).");
 }
+// Character-level Damaged settings (pack.damaged), shown under every action's settings.
+function buildDamagedProps(d) {
+  var s = sec(d, "Damaged (whole character)", "a-damaged", "How this character takes hits. Applies to every action and every kind of hit.", "act");
+  var dm = S.damaged, info = document.createElement("div"); info.className = "note";
+  function say() {
+    var ms = +dm.cooldown_ms || 0;
+    info.textContent = ms > 0 ? "A hit takes HP, then the character is invincible for " + Math.round(ms) + " ms (about " + Math.max(1, Math.round(ms / FXK.TICK_MS)) + " ticks)."
+      : "0: every hit takes HP.";
+  }
+  field(s, "Hit cooldown ms", inp("n", dm.cooldown_ms, function (v) { dm.cooldown_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
+    "After a hit takes HP, the character is invincible (no HP loss, no knockback) for this long. The next hit after it ends takes HP again. 0 = every hit takes HP.";
+  say(); s.appendChild(info);
+}
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
@@ -1044,6 +1064,7 @@ function buildActionProps(d) {
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
   buildAimProps(d);
+  buildDamagedProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");

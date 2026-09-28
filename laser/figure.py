@@ -91,6 +91,8 @@ class Figure:
         _mhp = config.MODE_CONFIGS.get(mode.key, {}).get("max_hp", 30)
         self.personality.max_hp = _mhp
         self.personality.hp = _mhp
+        self.personality.dmg_immune_until = 0
+        self.personality.dmg_hit_tick = -10
 
     # facing / motion classification ---------------------------------------
     def face(self, ox, oy):

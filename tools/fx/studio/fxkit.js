@@ -181,7 +181,12 @@ var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offs
   c1: "#ffffff", c2: "#ff2200", start_fraction: 0};
 // Damage settings (fx.battle).  damage is HP per hit, matching
 // ai.apply_hp_damage(amount) — every built-in attack deals 1.
-var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0};
+// blockable / deflectable: whether the OTHER fighter's defences can stop this
+// effect.  Block = its defend action, special stance, parry stance and
+// Intercept "block" / "destroy"; deflect = Intercept "deflect" (and parry
+// ricochets).  Off = that defence ignores the effect and the hit lands.
+var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0,
+  blockable: true, deflectable: true};
 // Intercept settings (fx.intercept): the auto-projectile tracker.  Only for
 // projectiles (travel, homing or zigzag motion).  When an enemy projectile
 // comes within `radius` px the shot steers at it (up to `turn_deg` per tick,
@@ -233,6 +238,12 @@ var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next:
 // target, at most max_deg either way.  Same maths as laser/fxkit.py aim_angle.
 var AIM_DEFAULTS = {enabled: false, source: "attack_normal", from_anchor: "haR", to_anchor: "wtip", max_deg: 75};
 function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
+// Character-level "Damaged" settings (pack.damaged): after a hit ticks HP the
+// fighter is invincible (no HP loss, no knockback) for cooldown_ms; the next
+// hit after that ticks HP again.  0 = every hit ticks HP (the old behaviour).
+// Read by laser/ai.py damage_immune() for every HP source.
+var DAMAGED_DEFAULTS = {cooldown_ms: 0};
+function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
 // image origin and game px per image px (incl. position scale); fig, target
@@ -581,10 +592,16 @@ function canIntercept(fx) {
   return fx.prim !== "weapon" && fx.prim !== "ghost" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
-function nearestShot(inst, host, r) {
+// Whether an intercept in `mode` may take shot s: deflect needs a
+// deflectable shot, block / destroy a blockable one (shots without the flags,
+// e.g. built-in bullets, are both).
+function shotTakes(s, mode) {
+  return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
+}
+function nearestShot(inst, host, r, mode) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
   for (var i = 0; i < shots.length; i++) {
-    var s = shots[i]; if (s.dead) continue;
+    var s = shots[i]; if (s.dead || (mode && !shotTakes(s, mode))) continue;
     var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -612,7 +629,7 @@ function interceptStep(inst, host) {
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
   if (!interceptOn(fx)) return false;
-  var I = fx.intercept, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0));
+  var I = fx.intercept, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0), I.mode);
   if (hit) {
     hit.dead = true;
     if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }
@@ -625,7 +642,7 @@ function interceptStep(inst, host) {
       if (I.mode === "block") { inst.age = Math.max(inst.age, inst.life); return true; }
     }
   }
-  var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0));
+  var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0), I.mode);
   if (!tgt) {
     if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }   // back to its own motion
     return false;
@@ -1041,6 +1058,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);

@@ -1183,6 +1183,10 @@ class CollisionSystem(System):
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:
+                        # Damage cooldown: a dashing enemy's hit neither
+                        # launches nor damages an invincible fighter.
+                        if edash and ai.knockback_immune(fig, world):
+                            break
                         dist = d_sq ** 0.5
                         if edash:
                             inv = dash_push_spd / dist
@@ -1190,15 +1194,16 @@ class CollisionSystem(System):
                             inv = push / dist
                         nvx = ddx * inv
                         nvy = ddy * inv
-                        if m.bouncing:
-                            # Already airborne: launch opposite to the collision
-                            # source — away from the collider's direction.
-                            m.bounce_vx = -nvx
-                            m.bounce_vy = -nvy
-                        else:
-                            m.bounce_vx = nvx
-                            m.bounce_vy = nvy
-                            m.bouncing = True
+                        # Launch away from the collider (n points from it to
+                        # this figure), airborne or not.  An airborne figure
+                        # used to get -n, which threw two overlapping fighters
+                        # INTO each other every tick: they passed through,
+                        # collided, reversed and repeated — facing flipping
+                        # each tick, and a melee fighter stuck bouncing can
+                        # never start an attack.
+                        m.bounce_vx = nvx
+                        m.bounce_vy = nvy
+                        m.bouncing = True
                         # Dot on every collision, including mid-knockback re-hits
                         if edash or m.bouncing:
                             cx = (fig.x + ex) * 0.5
@@ -1208,10 +1213,10 @@ class CollisionSystem(System):
                         # Skip if parrying, or if the target is a swordsman
                         # mid-dash-slash (immune — handled by the FSM instead).
                         # Image characters: their body never deals damage (their
-                        # FX do), and a plain bump never costs them HP either —
-                        # only a real attack (the opponent's dash) does.  The
-                        # push above still applies.
-                        if (_pi < len(_pimg) and _pimg[_pi]) or (actions.is_image(fig) and not edash):
+                        # FX do), and body contact never costs them HP — a
+                        # landed dash-slash does, delivered once per hit by
+                        # World.refresh_battle.  The push above still applies.
+                        if (_pi < len(_pimg) and _pimg[_pi]) or actions.is_image(fig):
                             pass
                         elif not fig.combat.parrying:
                             ai.apply_hp_damage(fig, world)

@@ -43,6 +43,7 @@ these characters; it plays the PNGs.
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
                                     "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
+  "damaged": {"cooldown_ms": 0},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -140,7 +141,8 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
   "color": {"mode": "palette", "lut_index": 128, "lut_index2": 128, "lut_offset": 0, "flow_speed": 0.008,
             "c1": "#ffffff", "c2": "#ff2200", "start_fraction": 0},
   "layer": "front", "blend": "normal",
-  "battle": {"deals_damage": false, "damage": 1, "pierce": false, "rehit_ticks": 0, "knockback": 0},
+  "battle": {"deals_damage": false, "damage": 1, "pierce": false, "rehit_ticks": 0, "knockback": 0,
+             "blockable": true, "deflectable": true},
   "params": { "...": "per primitive, section 5" }
 }
 ```
@@ -297,6 +299,15 @@ means visual only: the effect never touches HP. Ticked, the effect is an attack:
 | `pierce` | `false`: the first hit ends the instance (a bolt stops, a travelling beam or arc vanishes; a particle that hits is removed). `true`: it keeps going. |
 | `rehit_ticks` | `0`: one hit per instance per target. `N`: may hit the same target again every N ticks (held beams, orbiting orbs). Particles count each particle separately. |
 | `knockback` | px of push along the effect's direction on hit, delivered through the existing `fig.combat.hit_pending/hit_vx/hit_vy` channel. |
+| `blockable` | `true`: the other fighter's blocks stop it: its `defend` action, special stance, parry stance, and Intercept `block` / `destroy`. `false`: those ignore it and the hit lands. |
+| `deflectable` | `true`: the other fighter's deflects knock it away (Intercept `deflect`). `false`: deflects ignore it and the hit lands. |
+
+**Damaged (`damaged`, whole character).** `cooldown_ms`: after a hit takes
+HP, the character is invincible (no HP loss, no knockback) until it ends; the
+next hit after that takes HP again. `0` = every hit takes HP. It covers every
+HP source (bullets, FX, dash-slash, contact, petals, clones), in Solo and
+Battle alike (`ai.damage_immune`). A rig-drawn `pb_character` JSON can set the
+same top-level `"damaged": {"cooldown_ms": N}` block.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,
@@ -480,8 +491,9 @@ The presets only seed new FX.
    - The loader sets `disable_basic_attack`, `disable_survival_teleport` and
      `ultimate_playback.style: none`.
    - `CombatSystem` skips the melee dash-slash FSM.
-   - Their body never deals contact damage, and a plain bump never costs
-     them HP. The opponent's dash still does.
+   - Their body never deals contact damage, and body contact never costs
+     them HP. A landed dash-slash costs them 1 HP, delivered once per hit
+     with its knockback (`World.refresh_battle`).
    - In Battle they close only to ~60% of their attack radius instead of
      charging into the opponent.
 9. **Defence.** While `defend` plays, every incoming hit is blocked: FX,
