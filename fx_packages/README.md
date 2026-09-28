@@ -10,7 +10,7 @@ ratios and frame timing), drawn 4x larger so anchors are easy to place.
 ## Rework a character's FX
 1. Open **FX Studio** (`FX Studio.bat`) -> **Open character folder...** -> pick
    `fx_packages/<name>`.
-2. Place anchors where you need them (mage and new_fighter come with every
+2. Place anchors where you need them (mage comes with every
    joint already placed; the image fighters have the joint names ready, with
    no positions yet), then build the FX, triggers and movement.
 3. **Save FX to folder** -> writes `<name>.fxkit.json` into the same folder.
@@ -20,7 +20,7 @@ ratios and frame timing), drawn 4x larger so anchors are easy to place.
    `fx_packages/<name>` (or pick `fx_packages` and choose the character).
 2. Choose the rig to pose with: the default rig or one of your Rig Forge
    characters (its bones and weapon).
-   - Skeleton characters (mage, new_fighter) have every joint in their
+   - Skeleton characters (mage) have every joint in their
      package, so their frames come in as poses you can edit; the original
      frame shows underneath as a reference.
    - Image-only fighters (runner, swordsman, jumper, ronin, reverseswordman)
