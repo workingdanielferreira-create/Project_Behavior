@@ -198,6 +198,13 @@ var host = {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
     if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb, gh.snap.rot);
   },
+  // Test enemy projectiles (the "test shots" toggle) for the auto-projectile tracker.
+  get shots() { return S.shots || []; },
+  onIntercept: function (inst, shot, mode, vel, hurtsOwner) {
+    shot.dead = true;
+    if (mode === "deflect") S.ricochets.push({x: shot.x, y: shot.y, vx: vel[0], vy: vel[1], age: 0, hurts: hurtsOwner, trail: []});
+    S.bursts.push({x: shot.x, y: shot.y, age: 0, mode: mode});
+  },
   // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
   onHit: function (inst, dmg, dx, dy, kb) {
     S.dealt += dmg;
@@ -906,6 +913,30 @@ function buildProps() {
         : inp("n", fx.motion[k], function (v) { fx.motion[k] = v; changed(); }, u[1], u[2], u[3]));
     });
 
+    if (FXK.canIntercept(fx)) {
+      s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects or destroys them.");
+      var I = fx.intercept;
+      field(s, "Auto-projectile tracker", inp("chk", I.enabled, function (v) { I.enabled = v; changed(true); })).title =
+        "On: when an enemy projectile comes within the tracker radius, this projectile steers at it (like homing). With none in range it carries on with its own motion.";
+      if (I.enabled) {
+        field(s, "Tracker radius px", inp("n", I.radius, function (v) { I.radius = Math.max(0, v); changed(); }, 0, 1000, 1)).title =
+          "Enemy projectiles closer than this are chased.";
+        field(s, "Turn rate °/tick", inp("n", I.turn_deg, function (v) { I.turn_deg = Math.max(0, v); changed(); }, 0, 180, 0.5)).title =
+          "How sharply it can turn toward the enemy projectile each tick.";
+        field(s, "Contact px", inp("n", I.contact, function (v) { I.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
+          "The two projectiles collide when their centres come this close.";
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"]], I.mode,
+          function (v) { I.mode = v; changed(true); }));
+        if (I.mode === "deflect") {
+          field(s, "Deflect", inp([["enemy", "enemy projectile only"], ["both", "both projectiles"]], I.deflect_who, function (v) { I.deflect_who = v; changed(); })).title =
+            "Enemy only: this projectile carries on. Both: this one is knocked away too. They fly off along their combined momentum.";
+          field(s, "Deflected shot hurts its owner", inp("chk", I.hurts_owner, function (v) { I.hurts_owner = v; changed(); })).title =
+            "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
+        }
+        note(s, "Tick \"test shots\" under the stage to fire dummy enemy projectiles at the fighter and watch it work.");
+      }
+    }
+
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;
     field(s, "Source", inp([["palette", "character palette (LUT)"], ["gradient", "two-colour gradient"], ["solid", "solid"]], c.mode, function (v) { c.mode = v; changed(true); }));
@@ -1058,12 +1089,14 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
   player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0;
+  S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   while (S.t < target) step(false);
 }
 function step(allowWrap) {
   if (!C) return;
   moveFigure();
+  stepTestShots();
   var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = (S.cycle || 0) >= nLoops - 1;
   player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous});
   S.t += 1;
@@ -1073,6 +1106,44 @@ function step(allowWrap) {
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; }
     else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; }
   }
+}
+// ------------------------------------------------------------ test shots
+// "test shots": a dummy enemy fires a projectile from the target marker at
+// the fighter every TEST_SHOT_EVERY ticks, so the auto-projectile tracker
+// (Intercept) can be previewed.  Deterministic from tick 0 like the rest of
+// the sim.  Deflected ones fly off as ricochets: red when they now hurt
+// their owner (the dummy), grey when harmless.
+var TEST_SHOT_EVERY = 40, TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
+function stepTestShots() {
+  S.clock = (S.clock || 0) + 1;
+  S.shots = (S.shots || []).filter(function (q) { return !q.dead && q.age < TEST_SHOT_LIFE; });
+  S.shots.forEach(function (q) { q.x += q.vx; q.y += q.vy; q.age += 1; });
+  if ($("testShots").checked && S.clock % TEST_SHOT_EVERY === 1) {
+    var d = [S.figX - S.target[0], S.figY - S.target[1]], m = Math.hypot(d[0], d[1]) || 1;
+    S.shots.push({x: S.target[0], y: S.target[1], vx: d[0] / m * TEST_SHOT_SPEED, vy: d[1] / m * TEST_SHOT_SPEED, age: 0, dead: false});
+  }
+  S.ricochets = (S.ricochets || []).filter(function (q) { return q.age < RICOCHET_LIFE; });
+  S.ricochets.forEach(function (q) { q.trail.push([q.x, q.y]); if (q.trail.length > 6) q.trail.shift(); q.x += q.vx; q.y += q.vy; q.age += 1; });
+  S.bursts = (S.bursts || []).filter(function (q) { return q.age < 14; });
+  S.bursts.forEach(function (q) { q.age += 1; });
+}
+function drawTestShots(g, z) {
+  (S.shots || []).forEach(function (q) {
+    if (q.dead) return;
+    g.fillStyle = "rgba(255,70,70,.95)"; g.beginPath(); g.arc(q.x, q.y, 2.5, 0, 6.2832); g.fill();
+    g.strokeStyle = "rgba(255,70,70,.4)"; g.lineWidth = 1 / z; g.beginPath(); g.moveTo(q.x, q.y); g.lineTo(q.x - q.vx * 3, q.y - q.vy * 3); g.stroke();
+  });
+  (S.ricochets || []).forEach(function (q) {
+    var a = 1 - q.age / RICOCHET_LIFE, col = q.hurts ? "255,90,60" : "170,175,190";
+    g.strokeStyle = "rgba(" + col + "," + (a * .5) + ")"; g.lineWidth = 1 / z; g.beginPath();
+    q.trail.forEach(function (p, i) { if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); }); g.lineTo(q.x, q.y); g.stroke();
+    g.fillStyle = "rgba(" + col + "," + a + ")"; g.beginPath(); g.arc(q.x, q.y, 2.5, 0, 6.2832); g.fill();
+  });
+  (S.bursts || []).forEach(function (q) {
+    var a = 1 - q.age / 14, col = q.mode === "block" ? "240,194,74" : q.mode === "destroy" ? "255,90,90" : "125,224,168";
+    g.strokeStyle = "rgba(" + col + "," + a + ")"; g.lineWidth = 1.5 / z;
+    g.beginPath(); g.arc(q.x, q.y, 3 + q.age * 0.8, 0, 6.2832); g.stroke();
+  });
 }
 // ------------------------------------------------------------ direction sim
 // The figure travels at "move" px/tick toward "dir" degrees (0 right, 90
@@ -1171,6 +1242,7 @@ function draw() {
   player.draw(g, host, "behind", ps);
   drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
   player.draw(g, host, "front", ps);
+  drawTestShots(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
   // target + hurt radius (the circle damaging FX must touch)
@@ -1296,7 +1368,7 @@ $("bPlay").onclick = function () { if (!C) return; S.playing = !S.playing; if (S
 function gotoFrame(f) { if (!C) return; S.playing = false; $("bPlay").textContent = "▶ Play"; f = (f + frames()) % frames(); resetSim(Math.ceil(f * frameMs() / FXK.TICK_MS)); }
 $("bPrev").onclick = function () { gotoFrame(frameAt(S.t) - 1); };
 $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
-["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
+["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR", "testShots"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
 // Timeline scrubbing: press and drag with the left button to move the
 // playhead (the view re-simulates to each tick, so FX show exactly as they
 // play).  A press on an effect's bar selects it on release unless the

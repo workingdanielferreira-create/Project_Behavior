@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -78,6 +78,8 @@ class SideState:
         self.hpt_beam_ticks = 0     # shared clock driving the clones'
                                     # synchronized beam volley (combat.tick_hpt_clones)
         self.enemy_fx = []          # opponent's live damaging FX + bullets: (x, y, tag)
+        self.enemy_shots = []       # opponent's projectiles as fxkit.Shot, for the
+                                    # FX Studio auto-projectile tracker (Intercept)
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
@@ -129,6 +131,7 @@ class World:
         self.partner_figures = []
         self.enemy_projs = []
         self.enemy_fx = []
+        self.enemy_shots = []
         self.partner_image = []
         self.intercepted_bullets = set()
 
@@ -445,6 +448,7 @@ class World:
         self.intercepted_bullets = s.intercepted_bullets
         self.partner_figures = s.partner_figures
         self.enemy_fx = s.enemy_fx
+        self.enemy_shots = s.enemy_shots
         self.partner_image = s.partner_image
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
@@ -506,6 +510,25 @@ class World:
                 efx.extend((pr.x, pr.y, "bullet") for pr in other.projectiles
                            if pr.alive and pr.hit_r_sq > 0.0)
                 side.enemy_fx = efx
+                # The same projectiles as fxkit.Shot for the auto-projectile
+                # tracker: travelling damaging FX instances and real bullets.
+                # Each keeps its live object so an interception acts on it
+                # at its source (kill_projectile / ending the instance).
+                shots = []
+                for f in other.figures:
+                    drv = getattr(f, "fx", None)
+                    if drv is None:
+                        continue
+                    for inst in drv.player.insts:
+                        fxd = inst.fx
+                        if (fxd["battle"]["deals_damage"] and not inst.dead and inst.age < inst.life
+                                and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                                and fxd["prim"] not in ("weapon", "ghost", "particles")):
+                            shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
+                                                    "fx", inst))
+                shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
+                             for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
+                side.enemy_shots = shots
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and
                 # splinters can never deal damage across the boundary.  The
                 # live Projectile rides along as tuple[8] so an interception
@@ -519,6 +542,7 @@ class World:
                 side.partner_figures = []
                 side.partner_image = []
                 side.enemy_fx = []
+                side.enemy_shots = []
                 side.enemy_projs = []
                 side.intercepted_bullets.clear()
         # Deliver FX Studio hits (fxkit) landed last tick: damage and

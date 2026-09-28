@@ -162,6 +162,17 @@ MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_de
 COLOR_DEFAULTS = dict(mode="palette", lut_index=128, lut_index2=128, lut_offset=0, flow_speed=0.008, c1="#ffffff",
                       c2="#ff2200", start_fraction=0)
 BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0, knockback=0)
+# Intercept settings (fx.intercept): the auto-projectile tracker, mirrors
+# FXK.INTERCEPT_DEFAULTS.  Only for projectiles (travel, homing or zigzag
+# motion): an enemy projectile within `radius` px is chased (up to
+# `turn_deg`/tick); within `contact` px the two collide:
+#   block    both nullified
+#   deflect  the enemy projectile ("enemy") or both ("both") fly off along
+#            their combined momentum; hurts_owner turns the deflected enemy
+#            projectile against the fighter who fired it
+#   destroy  the enemy projectile is nullified, this one keeps going
+INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
+                          hurts_owner=False)
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
                        movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80)
 # Character-level aiming (pack.aim): the whole frame turns so the weapon
@@ -190,6 +201,7 @@ def normalize(fx):
     fx["color"] = _fill(dict(fx.get("color") or {}), COLOR_DEFAULTS)
     fx["params"] = _fill(dict(fx.get("params") or {}), PARAM_DEFAULTS[fx["prim"]])
     fx["battle"] = _fill(dict(fx.get("battle") or {}), BATTLE_DEFAULTS)
+    fx["intercept"] = _fill(dict(fx.get("intercept") or {}), INTERCEPT_DEFAULTS)
     if fx["prim"] == "ghost":
         fx["battle"]["deals_damage"] = False
     if fx["prim"] == "weapon":
@@ -216,6 +228,7 @@ _SCALE_PARAMS = {
     "weapon": ("width",),
 }
 _SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry")
+_SCALE_INTERCEPT = ("radius", "contact")
 
 
 def rescale_effects(effects, lib, r):
@@ -233,6 +246,10 @@ def rescale_effects(effects, lib, r):
         for k in _SCALE_PARAMS.get(fx.get("prim"), ()):
             if isinstance(P.get(k), (int, float)) and not isinstance(P.get(k), bool):
                 P[k] = P[k] * r
+        ic = fx.get("intercept") or {}
+        for k in _SCALE_INTERCEPT:
+            if isinstance(ic.get(k), (int, float)) and not isinstance(ic.get(k), bool):
+                ic[k] = ic[k] * r
     for e in (lib or {}).get("entry_sets") or []:
         e["points"] = [[p[0] * r, p[1] * r] for p in e.get("points") or []]
     for p in (lib or {}).get("paths") or []:
@@ -396,9 +413,13 @@ def aim_dir(fx, host, x, y):
 class Inst:
     __slots__ = ("fx", "x", "y", "px", "py", "vx", "vy", "dir", "age", "life", "seed", "r", "flow", "dead", "hist",
                  "trail", "parts", "ghosts", "acc", "facing", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
-                 "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets")
+                 "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
+                 "chase", "bvx", "bvy", "free")
 
     def __init__(self):
+        self.chase = False     # intercept: steering at an enemy projectile
+        self.bvx = self.bvy = 0.0   # its own velocity from before the chase
+        self.free = False      # deflected: flies straight on
         self.path = None
         self.cont = False
         self.win = 1
@@ -541,6 +562,128 @@ def move_inst(inst, host):
         inst.dir = rot(d, m["aim_offset_deg"] * host.facing) if m["aim_offset_deg"] else d
 
 
+# ---------------------------------------------------------------- intercept
+# The auto-projectile tracker (fx.intercept) — FXK.interceptStep.
+# host.shots: the enemy's live projectiles (Shot: x, y, vx, vy, dead), read
+# only except `dead`, which marks one already taken this tick.
+# host.on_intercept(inst, shot, mode, enemy_vel, hurts_owner) applies the
+# result to the enemy projectile at its source.
+DEFLECT_FAN_DEG = 15   # with deflect "both", the two fly apart this far either side
+INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
+
+
+def can_intercept(fx):
+    return fx["prim"] not in ("weapon", "ghost") and fx["motion"]["kind"] in INTERCEPT_MOTIONS
+
+
+def intercept_on(fx):
+    return bool((fx.get("intercept") or {}).get("enabled")) and can_intercept(fx)
+
+
+class Shot:
+    """One enemy projectile in a side's snapshot: a built-in bullet
+    (kind "bullet", ref = the live combat.Projectile) or an FX Studio
+    instance (kind "fx", ref = the live Inst)."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref")
+
+    def __init__(self, x, y, vx, vy, kind, ref):
+        self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
+        self.dead = False
+        self.kind, self.ref = kind, ref
+
+
+def _nearest_shot(inst, host, r):
+    best, bd, r2 = None, 0.0, r * r
+    for s in getattr(host, "shots", None) or ():
+        if s.dead:
+            continue
+        dx, dy = s.x - inst.x, s.y - inst.y
+        d = dx * dx + dy * dy
+        if d <= r2 and (best is None or d < bd):
+            best, bd = s, d
+    return best
+
+
+def deflect_vels(inst, s, both):
+    """Combined momentum: the two velocities added together.  Head-on at
+    similar speeds they nearly cancel, so the enemy projectile is knocked
+    sideways instead, to the side it hit on."""
+    si = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+    ss = math.sqrt(s.vx * s.vx + s.vy * s.vy)
+    sx, sy = inst.vx + s.vx, inst.vy + s.vy
+    sm = math.sqrt(sx * sx + sy * sy)
+    side = 1 if inst.vx * (s.y - inst.y) - inst.vy * (s.x - inst.x) >= 0 else -1
+    d = [sx / sm, sy / sm] if sm >= 0.25 * max(si, ss, 0.001) else rot(norm(inst.vx, inst.vy), 90 * side)
+    de = rot(d, DEFLECT_FAN_DEG * side) if both else d
+    dm = rot(d, -DEFLECT_FAN_DEG * side)
+    return [de[0] * ss, de[1] * ss], [dm[0] * si, dm[1] * si]
+
+
+def _straight_step(inst):
+    inst.px, inst.py = inst.x, inst.y
+    inst.x += inst.vx
+    inst.y += inst.vy
+    mdx, mdy = inst.x - inst.px, inst.y - inst.py
+    if mdx * mdx + mdy * mdy > 1e-6:
+        inst.dir = norm(mdx, mdy)
+
+
+def intercept_step(inst, host):
+    """Runs before the instance moves; True when it moved the instance."""
+    if inst.free:
+        _straight_step(inst)
+        return True
+    fx = inst.fx
+    if not intercept_on(fx):
+        return False
+    ic = fx["intercept"]
+    hit = _nearest_shot(inst, host, max(0.0, float(ic.get("contact") or 0)))
+    if hit is not None:
+        hit.dead = True
+        if inst.chase:
+            inst.chase = False
+            inst.vx, inst.vy = inst.bvx, inst.bvy
+        cb = getattr(host, "on_intercept", None)
+        if ic.get("mode") == "deflect":
+            both = ic.get("deflect_who") == "both"
+            ev, mv = deflect_vels(inst, hit, both)
+            if cb:
+                cb(inst, hit, "deflect", ev, bool(ic.get("hurts_owner")))
+            if both:
+                inst.vx, inst.vy = mv[0], mv[1]
+                inst.free = True
+                _straight_step(inst)
+                return True
+        else:
+            if cb:
+                cb(inst, hit, ic.get("mode"), None, False)
+            if ic.get("mode") == "block":
+                inst.age = max(inst.age, inst.life)
+                return True
+    tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)))
+    if tgt is None:
+        if inst.chase:   # back to its own motion
+            inst.chase = False
+            inst.vx, inst.vy = inst.bvx, inst.bvy
+        return False
+    if not inst.chase:
+        inst.chase = True
+        inst.bvx, inst.bvy = inst.vx, inst.vy
+    spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or float(fx["motion"]["speed"] or 0)
+    want = math.atan2(tgt.y - inst.y, tgt.x - inst.x)
+    cur = math.atan2(inst.vy, inst.vx)
+    da = want - cur
+    while da > math.pi:
+        da -= 2 * math.pi
+    while da < -math.pi:
+        da += 2 * math.pi
+    lim = float(ic.get("turn_deg") or 0) * D
+    cur += max(-lim, min(lim, da))
+    inst.vx, inst.vy = math.cos(cur) * spd, math.sin(cur) * spd
+    _straight_step(inst)
+    return True
+
+
 def tick_inst(inst, host):
     fx, P = inst.fx, inst.fx["params"]
     active = inst.age < inst.life
@@ -549,7 +692,8 @@ def tick_inst(inst, host):
             inst.trail.append((inst.x, inst.y))
             while len(inst.trail) > max(0, trunc(P.get("trail_len") or 0)):
                 inst.trail.pop(0)
-        move_inst(inst, host)
+        if not intercept_step(inst, host):
+            move_inst(inst, host)
     inst.flow = (inst.flow + float(fx["color"].get("flow_speed") or 0)) % 1
     prim = fx["prim"]
     if prim == "ribbon":
@@ -1066,6 +1210,8 @@ class Player:
     def draw(self, p, host, layer):
         ps = host.pscale or 1.0
         for inst in self.insts:
+            if inst.dead:   # ended at its source by the other side this tick
+                continue
             if inst.fx.get("layer", "front") == layer:
                 draw_inst(p, inst, host, ps)
 
@@ -1246,6 +1392,9 @@ class _Host:
         self.wang = 90.0
         self.target = drv.target
         self.hurts = drv.hurts
+        # Enemy projectiles for the auto-projectile tracker (Battle only;
+        # Solo has no opponent, so there is nothing to intercept).
+        self.shots = getattr(world, "enemy_shots", None) or []
 
     def anchor(self, name):
         fig, cfx, drv = self.fig, self.drv.cfx, self.drv
@@ -1278,8 +1427,60 @@ class _Host:
         p.drawPixmap(trunc(gh["x"]) - pm.width() // 2, trunc(gh["y"]) - pm.height() // 2, pm)
         p.restore()
 
+    def on_intercept(self, inst, shot, mode, vel, hurts_owner):
+        """Apply an interception to the enemy projectile AT ITS SOURCE (the
+        same rule as petals / parries): block and destroy nullify it; deflect
+        replaces it with a copy flying at `vel` on this side — harmless, or
+        (hurts_owner) able to damage the fighter who fired it."""
+        from . import combat as _combat
+        ref = shot.ref
+        if shot.kind == "bullet":
+            _combat.kill_projectile(ref)
+            if mode == "deflect":
+                pr = _combat.Projectile(ref.x, ref.y, vel[0], vel[1], (ref.r, ref.g, ref.b), config.PROJ_TRAIL_LEN)
+                pr.style = ref.style
+                pr.radius = ref.radius
+                pr.owner = self.fig
+                if hurts_owner:
+                    pr.damage = float(getattr(ref, "damage", 1.0))
+                else:
+                    pr.hit_r_sq = 0.0
+                    pr.max_age = config.DEFLECT_MAX_AGE
+                self.world.projectiles.append(pr)
+        else:
+            if mode == "deflect":   # copied before the source is ended (keeps its remaining life)
+                self.drv.player.insts.append(_deflected_copy(ref, vel, hurts_owner))
+            ref.age = max(ref.age, ref.life)
+            ref.dead = True
+        dots = getattr(self.world, "collision_dots", None)
+        if dots is not None:
+            dots.append([shot.x, shot.y, 0])
+
     def on_hit(self, inst, damage, dx, dy, knockback, key):
         self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", ""), inst))
+
+
+def _deflected_copy(src, vel, hurts_owner):
+    """An enemy FX projectile knocked away by a deflect, now owned by the
+    deflecting side: it flies straight at vel, damaging (hurts_owner) or
+    visual only, and never intercepts anything itself."""
+    import copy
+    fx = copy.deepcopy(src.fx)
+    fx["battle"]["deals_damage"] = bool(hurts_owner)
+    fx.setdefault("intercept", {})["enabled"] = False
+    fx["motion"]["kind"] = "travel"
+    q = copy.copy(src)
+    q.fx = fx
+    q.r = copy.copy(src.r)
+    q.hist, q.trail, q.ghosts = list(src.hist), list(src.trail), []
+    q.parts = [dict(p) for p in src.parts]
+    q.vx, q.vy = float(vel[0]), float(vel[1])
+    q.free, q.chase, q.dead, q.cont, q.open = True, False, False, False, False
+    q.path = None
+    q.age = 0
+    q.life = max(config.DEFLECT_MAX_AGE, trunc(src.life - src.age) if src.life != INF else 0)
+    q.hits, q.last_hit = 0, -1e9
+    return q
 
 
 class FxDriver:

@@ -182,6 +182,19 @@ var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offs
 // Damage settings (fx.battle).  damage is HP per hit, matching
 // ai.apply_hp_damage(amount) — every built-in attack deals 1.
 var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0};
+// Intercept settings (fx.intercept): the auto-projectile tracker.  Only for
+// projectiles (travel, homing or zigzag motion).  When an enemy projectile
+// comes within `radius` px the shot steers at it (up to `turn_deg` per tick,
+// like homing); when it gets within `contact` px of it:
+//   block    both projectiles are nullified
+//   deflect  the enemy projectile (deflect_who "enemy") or both ("both") fly
+//            off along their combined momentum; hurts_owner makes the
+//            deflected enemy projectile able to damage the fighter who fired it
+//   destroy  the enemy projectile is nullified, this one keeps going
+// With no enemy projectile in range the shot resumes its own motion.
+var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
+  deflect_who: "enemy", hurts_owner: false};
+var INTERCEPT_MODES = ["block", "deflect", "destroy"];
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
 //   idle / run      locomotion (standing still / moving), no conditions
 //   attack actions  the archetype decides when to attack; `chain_next` makes
@@ -267,12 +280,14 @@ var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "hea
   beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius"],
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"], ghost: [], weapon: ["width"]};
 var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry"];
+var SCALE_INTERCEPT = ["radius", "contact"];
 function rescaleEffects(effects, lib, r) {
   if (Math.abs(r - 1) < 1e-6) return;
   effects.forEach(function (fx) {
     var off = fx.offset || [0, 0]; fx.offset = [(+off[0] || 0) * r, (+off[1] || 0) * r];
     var m = fx.motion || {}; SCALE_MOTION.forEach(function (k) { if (typeof m[k] === "number") m[k] *= r; });
     var P = fx.params || {}; (SCALE_PARAMS[fx.prim] || []).forEach(function (k) { if (typeof P[k] === "number") P[k] *= r; });
+    var I = fx.intercept || {}; SCALE_INTERCEPT.forEach(function (k) { if (typeof I[k] === "number") I[k] *= r; });
   });
   ((lib && lib.entry_sets) || []).forEach(function (e) { e.points = (e.points || []).map(function (p) { return [p[0] * r, p[1] * r]; }); });
   ((lib && lib.paths) || []).forEach(function (p) { p.points = (p.points || []).map(function (q) { return [q[0] * r, q[1] * r]; }); });
@@ -325,6 +340,7 @@ function normalize(fx) {
   fx.color = fill(fx.color || {}, COLOR_DEFAULTS);
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
   fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
+  fx.intercept = fill(fx.intercept || {}, INTERCEPT_DEFAULTS);
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
   return fx;
@@ -553,12 +569,85 @@ function emitParticles(inst, fx, host, n) {
   }
 }
 
+// ---------------------------------------------------------------- intercept
+// The auto-projectile tracker (fx.intercept, see INTERCEPT_DEFAULTS).
+// host.shots: the enemy's live projectiles [{x, y, vx, vy, dead}], read-only
+// except `dead`, which marks one already taken this tick.
+// host.onIntercept(inst, shot, mode, enemyVel, hurtsOwner): the host applies
+// the result to the enemy projectile at its source (nullify, or send it off
+// at enemyVel for a deflect).  laser/fxkit.py intercept_step mirrors this.
+var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
+function canIntercept(fx) {
+  return fx.prim !== "weapon" && fx.prim !== "ghost" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
+}
+function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
+function nearestShot(inst, host, r) {
+  var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
+  for (var i = 0; i < shots.length; i++) {
+    var s = shots[i]; if (s.dead) continue;
+    var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
+    if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
+  }
+  return best;
+}
+// Deflect: the new direction is the two velocities added together (their
+// combined momentum).  Head-on at similar speeds they nearly cancel, so the
+// enemy projectile is knocked sideways instead, to the side it hit on.
+function deflectVels(inst, s, both) {
+  var si = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy), ss = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+  var sx = inst.vx + s.vx, sy = inst.vy + s.vy, sm = Math.sqrt(sx * sx + sy * sy);
+  var side = inst.vx * (s.y - inst.y) - inst.vy * (s.x - inst.x) >= 0 ? 1 : -1;
+  var dir = sm >= 0.25 * Math.max(si, ss, 0.001) ? [sx / sm, sy / sm] : rot(norm(inst.vx, inst.vy), 90 * side);
+  var de = both ? rot(dir, DEFLECT_FAN_DEG * side) : dir, dm = rot(dir, -DEFLECT_FAN_DEG * side);
+  return {enemy: [de[0] * ss, de[1] * ss], mine: [dm[0] * si, dm[1] * si]};
+}
+function straightStep(inst) {
+  inst.px = inst.x; inst.py = inst.y;
+  inst.x += inst.vx; inst.y += inst.vy;
+  var mdx = inst.x - inst.px, mdy = inst.y - inst.py;
+  if (mdx * mdx + mdy * mdy > 1e-6) inst.dir = norm(mdx, mdy);
+}
+// Runs before the instance moves; true when it moved the instance itself.
+function interceptStep(inst, host) {
+  if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
+  var fx = inst.fx;
+  if (!interceptOn(fx)) return false;
+  var I = fx.intercept, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0));
+  if (hit) {
+    hit.dead = true;
+    if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }
+    if (I.mode === "deflect") {
+      var both = I.deflect_who === "both", v = deflectVels(inst, hit, both);
+      if (host.onIntercept) host.onIntercept(inst, hit, "deflect", v.enemy, !!I.hurts_owner);
+      if (both) { inst.vx = v.mine[0]; inst.vy = v.mine[1]; inst.free = true; straightStep(inst); return true; }
+    } else {
+      if (host.onIntercept) host.onIntercept(inst, hit, I.mode, null, false);
+      if (I.mode === "block") { inst.age = Math.max(inst.age, inst.life); return true; }
+    }
+  }
+  var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0));
+  if (!tgt) {
+    if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }   // back to its own motion
+    return false;
+  }
+  if (!inst.chase) { inst.chase = true; inst.bvx = inst.vx; inst.bvy = inst.vy; }
+  var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+fx.motion.speed || 0);
+  var want = Math.atan2(tgt.y - inst.y, tgt.x - inst.x), cur = Math.atan2(inst.vy, inst.vx), dA = want - cur;
+  while (dA > Math.PI) dA -= 2 * Math.PI;
+  while (dA < -Math.PI) dA += 2 * Math.PI;
+  var lim = (+I.turn_deg || 0) * D;
+  cur += Math.max(-lim, Math.min(lim, dA));
+  inst.vx = Math.cos(cur) * spd; inst.vy = Math.sin(cur) * spd;
+  straightStep(inst);
+  return true;
+}
+
 function tickInst(inst, host) {
   var fx = inst.fx, P = fx.params;
   var active = inst.age < inst.life;
   if (active) {
     if (fx.prim === "sprite" || fx.prim === "beam") { inst.trail.push([inst.x, inst.y]); if (inst.trail.length > Math.max(0, trunc(P.trail_len || 0))) inst.trail.shift(); }
-    moveInst(inst, host);
+    if (!interceptStep(inst, host)) moveInst(inst, host);
   }
   inst.flow = (inst.flow + (+fx.color.flow_speed || 0)) % 1;
   if (fx.prim === "ribbon") {   // TrailComponent.update (path_follow = False)
@@ -949,6 +1038,7 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
