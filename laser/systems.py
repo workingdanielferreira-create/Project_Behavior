@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat
 from . import platform_win as win
 from . import action_log
 
@@ -355,6 +355,13 @@ class CombatSystem(System):
                         world.projectiles.extend(res)
                     live_clones.append(cl)
                 fig.combat.clones = live_clones
+            # --- Tactical retreat (FX Studio pack.retreat / JSON
+            # tactical_retreat): while it dashes it owns the figure's
+            # movement — the melee FSM and MotionSystem skip it.  Target =
+            # nearest enemy in Battle, the cursor in Solo. ---
+            if retreat.tick(fig, world):
+                fig.combat.acted = True
+                continue
             if _img:
                 # No built-in melee FSM: attacks are full actions whose FX
                 # (with Deals damage) are the only source of damage.

@@ -81,6 +81,7 @@ class SideState:
         self.enemy_shots = []       # opponent's projectiles as fxkit.Shot, for the
                                     # FX Studio auto-projectile tracker (Intercept)
         self.partner_image = []     # per partner_figures entry: is it an image character
+        self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
 
@@ -133,6 +134,7 @@ class World:
         self.enemy_fx = []
         self.enemy_shots = []
         self.partner_image = []
+        self.partner_facing = []
         self.intercepted_bullets = set()
 
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
@@ -450,6 +452,7 @@ class World:
         self.enemy_fx = s.enemy_fx
         self.enemy_shots = s.enemy_shots
         self.partner_image = s.partner_image
+        self.partner_facing = s.partner_facing
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -496,6 +499,8 @@ class World:
                     for f in other.figures if f.transform.init]
                 side.partner_image = [actions.is_image(f)
                                       for f in other.figures if f.transform.init]
+                side.partner_facing = [bool(f.transform.facing_left)
+                                       for f in other.figures if f.transform.init]
                 # What the opponent has in the air that can hurt: live
                 # damaging FX instances (tagged) and bullets ("bullet") —
                 # read by the fx_near action condition.
@@ -543,6 +548,7 @@ class World:
             else:
                 side.partner_figures = []
                 side.partner_image = []
+                side.partner_facing = []
                 side.enemy_fx = []
                 side.enemy_shots = []
                 side.enemy_projs = []

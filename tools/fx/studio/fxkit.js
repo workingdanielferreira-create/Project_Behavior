@@ -244,6 +244,29 @@ function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
 // Read by laser/ai.py damage_immune() for every HP source.
 var DAMAGED_DEFAULTS = {cooldown_ms: 0};
 function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
+// Character-level "Tactical retreat" (pack.retreat), run by laser/retreat.py.
+// When its conditions are met (ANY / ALL) the fighter dashes at speed_pct % of
+// its speed.  angle_deg is measured from the direction to the target: 0 = at
+// it, 180 / -180 = straight away, positive = clockwise; curve_deg_s bends the
+// path that many degrees per second.  The mode runs during the dash for its own
+// duration (-1 = no limit):
+//   avoid     steer away from harm (enemy projectiles, the target) within proximity_px
+//   reengage  head for the target's back (opposite the way it faced when the
+//             retreat started), dodging projectiles within proximity_px, and
+//             attack on arrival
+// A new retreat can start cooldown_ms after the last one ended.
+var RETREAT_DEFAULTS = {enabled: false, mode: "avoid", angle_deg: 180, curve_deg_s: 0, speed_pct: 200,
+  proximity_px: 80, avoid_duration_ms: 1500, reengage_duration_ms: 2000, cooldown_ms: 3000, logic: "any", conditions: []};
+var RETREAT_CONDITIONS = {
+  hp_below:         {pct: 50, repeat: false},   // own HP <= pct % (once, or every cooldown while below with repeat)
+  projectile_count: {count: 5}                  // count or more enemy projectiles in the air at once
+};
+function normalizeRetreat(a) {
+  a = fill(a || {}, RETREAT_DEFAULTS);
+  a.conditions = (a.conditions || []).filter(function (c) { return c && RETREAT_CONDITIONS[c.type]; })
+    .map(function (c) { return fill(c, RETREAT_CONDITIONS[c.type]); });
+  return a;
+}
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
 // image origin and game px per image px (incl. position scale); fig, target
@@ -1059,6 +1082,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
+  RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
