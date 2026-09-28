@@ -378,7 +378,12 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
     </div>
 
     <div class="pane" id="p-weapon">
-      <div class="note">Weapon polyline, local space, blade along +x. Click to add points to the selected shape; <strong>+ Shape</strong> starts a separate piece that does not join the others, so a guard, pommel or second blade can be its own outline. The orange dot is the grip pivot &mdash; drag it, or use the <code>wpx</code>/<code>wpy</code> sliders, to choose where the hand holds the weapon. Ctrl+wheel zooms, wheel pans, Shift+wheel pans across, middle-drag pans freely.</div>
+      <div class="row">
+        <button id="wpsel0" class="primary" title="Edit the first weapon">Weapon 1</button>
+        <button id="wpsel1" title="Edit the second weapon — a separate weapon with its own shape, attach point and pivots">Weapon 2</button>
+      </div>
+      <div class="fld"><label>attach</label><select id="wpattach" title="The pivot point this weapon's grip rides on — for every keyframe of every action"></select></div>
+      <div class="note">Weapon polyline, local space, blade along +x. Click to add points to the selected shape; <strong>+ Shape</strong> starts a separate piece that does not join the others, so a guard, pommel or second blade can be its own outline. The orange dot is the grip pivot &mdash; drag it, or use the <code>wpx</code>/<code>wpy</code> sliders, to choose where the weapon is held. <strong>attach</strong> picks the pivot point the grip rides on (near hand by default for Weapon 1, far hand for Weapon 2) for the whole character; the weapon then follows the bone that ends at that point &mdash; forearm for a hand, upper arm for an elbow, thigh for a knee, shin for a foot, the spine for the chest, neck and shoulders, the head bone for the head, while the hips and hip centre only turn with <code>rot</code>. <strong>Weapon 2</strong> is a separate weapon with its own shape, attach point, <code>w2&hellip;</code> pivots and a pink tip handle on the stage. Ctrl+wheel zooms, wheel pans, Shift+wheel pans across, middle-drag pans freely.</div>
       <canvas id="wpcv" width="620" height="300"></canvas>
       <div class="row">
         <select id="wppreset">
@@ -395,7 +400,8 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       </div>
       <div class="grp">pivots (per keyframe)</div>
       <div id="wsliders"></div>
-      <div class="note"><code>wp</code> swings the weapon around the grip. <code>wlen</code> stretches the blade along its length (Alt+drag the tip aims and stretches at once), and <code>wspin</code> rolls it about its own long axis &mdash; in side view that reads as the blade turning edge-on, so the profile narrows to a line at 90&deg; and flips past it.</div>
+      <div id="wsliders2" style="display:none"></div>
+      <div class="note"><code>wp</code> (<code>w2p</code> for Weapon 2) swings the weapon around the grip. <code>wlen</code> stretches the blade along its length (Alt+drag the tip aims and stretches at once), and <code>wspin</code> rolls it about its own long axis &mdash; in side view that reads as the blade turning edge-on, so the profile narrows to a line at 90&deg; and flips past it.</div>
     </div>
 
     <div class="pane" id="p-char">
@@ -489,16 +495,19 @@ var POSE=[
                     ["lths",0,6,1],["lshs",0,6,1],["rths",0,6,1],["rshs",0,6,1],["torsos",0,6,1]]}
 ];
 var WPOSE=[["wp",-360,360,0],["wpx",-300,300,4],["wpy",-300,300,0],["wspin",-360,360,0],["wlen",0,8,1]];
+var W2POSE=[["w2p",-360,360,0],["w2px",-300,300,4],["w2py",-300,300,0],["w2spin",-360,360,0],["w2len",0,8,1]];
 POSE.push({g:"weapon",k:WPOSE});
+POSE.push({g:"weapon 2",k:W2POSE});
 var PKEYS=[],PDEF={};POSE.forEach(function(g){g.k.forEach(function(r){PKEYS.push(r[0]);PDEF[r[0]]=r[3];});});
 
 var JOINTLBL={head:"head",neck:"neck",chest:"chest",hip:"hip centre",shB:"shoulder base",
   shL:"far shoulder",shR:"near shoulder",elL:"far elbow",elR:"near elbow",
   haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",
-  knL:"far knee",knR:"near knee",ftL:"far foot",ftR:"near foot",wtip:"weapon tip"};
+  knL:"far knee",knR:"near knee",ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip"};
 var LAYERS=[
   {id:"far_upper_arm",a:"shL",b:"elL",w:0.94,far:true},
   {id:"far_forearm",a:"elL",b:"haL",w:0.83,far:true},
+  {id:"weapon2",a:"haL",b:"wtip2",w:1,weapon:true,wi:1},
   {id:"far_thigh",a:"hpL",b:"knL",w:1.00,far:true},
   {id:"far_shin",a:"knL",b:"ftL",w:0.88,far:true},
   {id:"pelvis_girdle",a:"hip",b:"hpL",b2:"hpR",w:0.98,pair:true},
@@ -510,11 +519,11 @@ var LAYERS=[
   {id:"near_shin",a:"knR",b:"ftR",w:0.96},
   {id:"near_upper_arm",a:"shR",b:"elR",w:1.00},
   {id:"near_forearm",a:"elR",b:"haR",w:0.90},
-  {id:"weapon",a:"haR",b:"wtip",w:1,weapon:true}
+  {id:"weapon",a:"haR",b:"wtip",w:1,weapon:true,wi:0}
 ];
 LAYERS.forEach(function(L){
   L.n=L.head?"head (neck → head)":
-      L.weapon?"weapon (near hand → tip)":
+      L.weapon?(L.wi?"weapon 2 (attach → tip)":"weapon (attach → tip)"):
       L.pair?(JOINTLBL[L.a]+" → "+JOINTLBL[L.b].replace("far ","")+"s"):
       (JOINTLBL[L.a]+" → "+JOINTLBL[L.b]);
 });
@@ -527,7 +536,8 @@ function normPose(p){
   PKEYS.forEach(function(k){if(typeof p[k]!=="number")p[k]=PDEF[k];});
   if(!p._layers||!p._layers.order||p._layers.order.some(function(id){return LAYER_IDS.indexOf(id)<0;}))
     p._layers=defLayers();
-  else{LAYER_IDS.forEach(function(id){if(p._layers.order.indexOf(id)<0)p._layers.order.push(id);});
+  else{LAYER_IDS.forEach(function(id,ix){var od=p._layers.order;if(od.indexOf(id)>=0)return;
+         od.splice(ix?od.indexOf(LAYER_IDS[ix-1])+1:0,0,id);});
        p._layers.order=p._layers.order.filter(function(id){return LAYER_IDS.indexOf(id)>=0;});
        if(!p._layers.hidden)p._layers.hidden={};}
   if(!p._tween)p._tween=defTween();
@@ -539,6 +549,32 @@ function normPose(p){
 var RIGSPEC=[["ua",0,200,30],["fa",0,200,30],["th",0,200,38],["sh",0,200,36],["torso",0,240,54],["head",0,80,15],
              ["shx",-150,150,0],["shy",-150,150,1],["hipx",-150,150,0],["hipy",-150,150,0],["sep",-60,60,3]];
 var RIGDEF={};RIGSPEC.forEach(function(r){RIGDEF[r[0]]=r[3];});
+/* weapon attach pivots (per character): the joint each weapon's grip rides on */
+RIGDEF.w1at="haR";RIGDEF.w2at="haL";
+var WATTACH=[["haR","near hand"],["haL","far hand"],["elR","near elbow"],["elL","far elbow"],
+  ["shR","near shoulder"],["shL","far shoulder"],["ftR","near foot"],["ftL","far foot"],
+  ["knR","near knee"],["knL","far knee"],["hpR","near hip"],["hpL","far hip"],
+  ["hip","hip centre"],["chest","chest"],["neck","neck"],["head","head"]];
+var WPN=[
+  {data:"weapon",at:"w1at",tip:"wtip",ang:"wang",lay:"weapon",k:{p:"wp",px:"wpx",py:"wpy",spin:"wspin",len:"wlen"}},
+  {data:"weapon2",at:"w2at",tip:"wtip2",ang:"wang2",lay:"weapon2",k:{p:"w2p",px:"w2px",py:"w2py",spin:"w2spin",len:"w2len"}}];
+function wAt(rig,i){var v=rig&&rig[WPN[i||0].at];return v||(i?"haL":"haR");}
+/* World angle of the bone a weapon is attached through, in the same convention the near
+   hand has always used (rua+rfa): the weapon follows its parent bone, and wp is added on
+   top.  Shoulders ride the upper spine; the hips and hip centre sit on the pelvis, which
+   only turns with rot (added in joints()). */
+function attachAng(at,p){
+  switch(at){
+    case"haR":return p.rua+p.rfa;case"elR":return p.rua;
+    case"haL":return p.lua+p.lfa;case"elL":return p.lua;
+    case"ftR":return p.rth+p.rsh;case"knR":return p.rth;
+    case"ftL":return p.lth+p.lsh;case"knL":return p.lth;
+    case"chest":return 180-p.sp;
+    case"neck":case"shR":case"shL":case"shB":return 180-p.sp-p.sp2;
+    case"head":return 180-p.sp-p.sp2-p.hd;
+    default:return 180;
+  }
+}
 
 /* ---- forward kinematics ---- */
 function joints(p,rig){
@@ -556,15 +592,19 @@ function joints(p,rig){
   var knL=add(hpL,sd(p.lth,rig.th*p.lths)), ftL=add(knL,sd(p.lth+p.lsh,rig.sh*p.lshs));
   var knR=add(hpR,sd(p.rth,rig.th*p.rths)), ftR=add(knR,sd(p.rth+p.rsh,rig.sh*p.rshs));
   var rootH={x:head.x,y:head.y-rig.head*2.4};
-  var wang=p.rua+p.rfa+p.wp,wtip=haR;
-  if(wCount()>2){
-    var wap0=wAllPts(),tp=wap0.reduce(function(m,q){return q[0]>m[0]?q:m;},wap0[0]);
-    var wa=(wang-90)*D,wca=Math.cos(wa),wsa=Math.sin(wa),wsy=Math.cos(p.wspin*D);
-    var lx=(tp[0]-p.wpx)*p.wlen,ly=(tp[1]-p.wpy)*wsy;
-    wtip={x:haR.x+lx*wca-ly*wsa,y:haR.y+lx*wsa+ly*wca};
-  }
-  var out={hip:hipC,root:rootH,shB:shB,hpL:hpL,hpR:hpR,wtip:wtip,chest:chest,neck:neck,head:head,shL:shL,shR:shR,
-         elL:elL,haL:haL,elR:elR,haR:haR,knL:knL,ftL:ftL,knR:knR,ftR:ftR,wang:p.rua+p.rfa+p.wp};
+  var out={hip:hipC,root:rootH,shB:shB,hpL:hpL,hpR:hpR,chest:chest,neck:neck,head:head,shL:shL,shR:shR,
+         elL:elL,haL:haL,elR:elR,haR:haR,knL:knL,ftL:ftL,knR:knR,ftR:ftR};
+  /* each weapon: grip on its attach joint, tip = the point with the largest x through the grip transform */
+  WPN.forEach(function(W,i){
+    var k=W.k,at=wAt(rig,i),g=out[at]||haR,wang=attachAng(at,p)+p[k.p],wtip=g;
+    if(wCount(i)>2){
+      var wap0=wAllPts(i),tp=wap0.reduce(function(m,q){return q[0]>m[0]?q:m;},wap0[0]);
+      var wa=(wang-90)*D,wca=Math.cos(wa),wsa=Math.sin(wa),wsy=Math.cos(p[k.spin]*D);
+      var lx=(tp[0]-p[k.px])*p[k.len],ly=(tp[1]-p[k.py])*wsy;
+      wtip={x:g.x+lx*wca-ly*wsa,y:g.y+lx*wsa+ly*wca};
+    }
+    out[W.tip]=wtip;out[W.ang]=wang;
+  });
   if(p.rot){
     var rc=Math.cos(p.rot*D),rs=Math.sin(p.rot*D);
     Object.keys(out).forEach(function(k){
@@ -572,7 +612,7 @@ function joints(p,rig){
       var dx=v.x-hipC.x,dy=v.y-hipC.y;
       out[k]={x:hipC.x+dx*rc-dy*rs,y:hipC.y+dx*rs+dy*rc};
     });
-    out.hip=hipC;out.wang=p.rua+p.rfa+p.wp+p.rot;
+    out.hip=hipC;out.wang+=p.rot;out.wang2+=p.rot;
   }
   return out;
 }
@@ -1024,12 +1064,14 @@ function poseAmp(p,f){
      angles grow, so wp is re-solved to keep rua+rfa+wp+rot where the pose authored it and the
      cut still lands where it was aimed. */
   var q=clone(p),base=ATLAS.stand_neutral;
-  var w0=p.rua+p.rfa+p.wp+p.rot;
+  var rg=(typeof S!=="undefined"&&S.rig)?S.rig:RIGDEF,pn=normPose(clone(p));
+  var w0=WPN.map(function(W,i){return attachAng(wAt(rg,i),pn)+pn[W.k.p]+pn.rot;});
   Object.keys(ANGKEYS).forEach(function(k){
-    if(k==="wspin"||k==="wp")return;
+    if(k==="wspin"||k==="wp"||k==="w2spin"||k==="w2p")return;
     var b=base[k]||0;q[k]=Math.round((b+(p[k]-b)*f)*10)/10;
   });
-  var w=w0-q.rua-q.rfa-q.rot;q.wp=Math.round((((w+180)%360+360)%360-180)*10)/10;
+  WPN.forEach(function(W,i){
+    var w=w0[i]-attachAng(wAt(rg,i),normPose(clone(q)))-q.rot;q[W.k.p]=Math.round((((w+180)%360+360)%360-180)*10)/10;});
   q.rx=Math.round(p.rx*f*10)/10;q.ry=Math.round(p.ry*f*10)/10;
   return q;
 }
@@ -1137,7 +1179,7 @@ function newChar(nm){
       movement:{wander_strength:0.25},
       stats:{max_hp:120,chase_speed:3.2,follow_speed:2.4,scale:1.0,basic_attack_radius:84},
       palette:{body:"#f2f4f6",accent:"#3fb0ea"}},
-    rig:clone(RIGDEF),weapon:clone(WPRE.katana),actions:mkActionSet(),cur:"idle",kf:0};
+    rig:clone(RIGDEF),weapon:clone(WPRE.katana),weapon2:[],actions:mkActionSet(),cur:"idle",kf:0};
 }
 var S={
   meta:{name:"ronin",display_name:"Ronin",description:"Side-view melee duelist with a rising slash chain.",
@@ -1151,6 +1193,7 @@ var S={
   moves:{},
   deleted:{},
   weapon:clone(WPRE.katana),
+  weapon2:[],
   actions:{
     idle:mkAction("idle","Stand · combat ready",900,"always"),
     run:mkAction("run","Run · cycle",520,"moving"),
@@ -1175,15 +1218,15 @@ try{
       if(p0&&p0.lib)S.lib=p0.lib;if(p0&&p0.img)S.img=p0.img;}
   }
 }catch(e){}
-if(!WS.chars.length)WS.chars=[{meta:S.meta,rig:S.rig,weapon:S.weapon,actions:S.actions,cur:S.cur,kf:0}];
+if(!WS.chars.length)WS.chars=[{meta:S.meta,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,actions:S.actions,cur:S.cur,kf:0}];
 if(WS.ci>=WS.chars.length)WS.ci=0;
 WS.chars.forEach(function(c){
   c.rig=Object.assign(clone(RIGDEF),c.rig||{});
-  c.meta=c.meta||{};c.weapon=c.weapon||[];
+  c.meta=c.meta||{};c.weapon=c.weapon||[];c.weapon2=c.weapon2||[];
   Object.keys(c.actions||{}).forEach(function(k){c.actions[k].keyframes.forEach(normPose);});
 });
 (function(){var c=WS.chars[WS.ci];
-  S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;S.cur=c.cur||Object.keys(c.actions)[0];S.kf=c.kf||0;})();
+  S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.weapon2=c.weapon2;S.actions=c.actions;S.cur=c.cur||Object.keys(c.actions)[0];S.kf=c.kf||0;})();
 if(!S.lib||!Object.keys(S.lib).length)S.lib=clone(DEFLIB);
 if(!S.img)S.img={};
 Object.keys(S.lib).forEach(function(k){normPose(S.lib[k]);});
@@ -1195,11 +1238,11 @@ function save(){try{stashChar();
   localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:im,anat:ANAT,moves:S.moves,deleted:S.deleted}));}catch(e){if(!QWARN){QWARN=true;
   console.warn("Rig Forge: browser storage is full — reference images are kept for this session only.");}}}
 function stashChar(){var c=WS.chars[WS.ci];if(!c)return;
-  c.meta=S.meta;c.rig=S.rig;c.weapon=S.weapon;c.actions=S.actions;c.cur=S.cur;c.kf=S.kf;}
+  c.meta=S.meta;c.rig=S.rig;c.weapon=S.weapon;c.weapon2=S.weapon2;c.actions=S.actions;c.cur=S.cur;c.kf=S.kf;}
 function loadChar(i){
   if(i<0||i>=WS.chars.length)return;
   stashChar();WS.ci=i;var c=WS.chars[i];
-  S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;
+  S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.weapon2=c.weapon2||[];S.actions=c.actions;
   S.cur=c.cur&&c.actions[c.cur]?c.cur:Object.keys(c.actions)[0];S.kf=c.kf||0;S.preview=null;
   if(S.meta.pkg&&S.meta.pkg.colour){var pc=document.getElementById("pk_col");if(pc)pc.value=S.meta.pkg.colour;}
   HIST.length=0;REDO.length=0;HLAST="";
@@ -1229,7 +1272,7 @@ function easeT(t,mode){
   if(mode==="inout")return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
   return t;
 }
-var ANGKEYS={sp:1,sp2:1,hd:1,lua:1,lfa:1,rua:1,rfa:1,lth:1,lsh:1,rth:1,rsh:1,wp:1,wspin:1,rot:1};
+var ANGKEYS={sp:1,sp2:1,hd:1,lua:1,lfa:1,rua:1,rfa:1,lth:1,lsh:1,rth:1,rsh:1,wp:1,wspin:1,w2p:1,w2spin:1,rot:1};
 function arcDelta(a,b,dir){
   var d=b-a;
   if(dir==="linear")return d;
@@ -1728,10 +1771,10 @@ function matchFromPoints(P,fitBones){
 }
 /* ---- history ---- */
 var HIST=[],REDO=[],HLAST="";
-function snap(){return JSON.stringify({actions:S.actions,rig:S.rig,weapon:S.weapon,lib:S.lib,anat:ANAT,cur:S.cur,kf:S.kf});}
+function snap(){return JSON.stringify({actions:S.actions,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,lib:S.lib,anat:ANAT,cur:S.cur,kf:S.kf});}
 function pushHist(){var v=snap();if(v===HLAST)return;HIST.push(v);HLAST=v;if(HIST.length>80)HIST.shift();REDO.length=0;histUI();}
 function applySnap(v){
-  var o=JSON.parse(v);S.actions=o.actions;S.rig=o.rig;S.weapon=o.weapon;S.cur=o.cur;S.kf=o.kf;
+  var o=JSON.parse(v);S.actions=o.actions;S.rig=o.rig;S.weapon=o.weapon;S.weapon2=o.weapon2||[];S.cur=o.cur;S.kf=o.kf;
   if(o.lib)S.lib=o.lib;if(o.anat){ANAT=Object.assign(ANAT,o.anat);syncAnat();}buildLib();
   Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(normPose);});
   S.preview=null;HLAST=v;stashChar();buildChars();syncAction();refresh();drawWeapon();histUI();
@@ -1752,16 +1795,19 @@ function maskColor(i,n){
   var t=n<2?1:i/(n-1);
   return"rgb("+MASK_BOT.map(function(v,k){return Math.round(v+(MASK_TOP[k]-v)*t);}).join(",")+")";
 }
-function wShapes(){
-  if(!S.weapon||!S.weapon.length)return[];
-  return(typeof S.weapon[0][0]==="number")?[S.weapon]:S.weapon;
+/* i: 0 = weapon (S.weapon), 1 = weapon 2 (S.weapon2); omitted = weapon */
+function wShapes(i){
+  var w=S[WPN[i||0].data];
+  if(!w||!w.length)return[];
+  return(typeof w[0][0]==="number")?[w]:w;
 }
-function wCount(){var n=0;wShapes().forEach(function(sh){n+=sh.length;});return n;}
-function wAllPts(){var a=[];wShapes().forEach(function(sh){sh.forEach(function(q){a.push(q);});});return a;}
-function wAddShape(){
-  if(!S.weapon.length){S.weapon=[[]];return 0;}
-  if(typeof S.weapon[0][0]==="number")S.weapon=[S.weapon];
-  S.weapon.push([]);return S.weapon.length-1;
+function wCount(i){var n=0;wShapes(i).forEach(function(sh){n+=sh.length;});return n;}
+function wAllPts(i){var a=[];wShapes(i).forEach(function(sh){sh.forEach(function(q){a.push(q);});});return a;}
+function wAddShape(i){
+  var key=WPN[i||0].data;
+  if(!S[key]||!S[key].length){S[key]=[[]];return 0;}
+  if(typeof S[key][0][0]==="number")S[key]=[S[key]];
+  S[key].push([]);return S[key].length-1;
 }
 function bone(c,a,b,w){c.lineWidth=w;c.lineCap="round";c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
 function drawFigure(c,p,rig,opt){
@@ -1787,12 +1833,13 @@ function drawFigure(c,p,rig,opt){
       bone(c,hub,j[Ldef.b2],(Ldef.far?Wf:W)*Ldef.w);
     }
     else if(!Ldef.weapon){bone(c,j[Ldef.a],j[Ldef.b],(Ldef.far?Wf:W)*Ldef.w);}
-    else if(Ldef.weapon&&wCount()>2){
-      c.save();c.translate(j.haR.x,j.haR.y);c.rotate((j.wang-90)*D);
-      var sy=Math.cos(p.wspin*D);if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
-      c.scale(p.wlen,sy);c.translate(-p.wpx*lw,-p.wpy*lw);
+    else if(Ldef.weapon&&wCount(Ldef.wi)>2){
+      var WD=WPN[Ldef.wi],wk=WD.k,wg=j[wAt(rig,Ldef.wi)];
+      c.save();c.translate(wg.x,wg.y);c.rotate((j[WD.ang]-90)*D);
+      var sy=Math.cos(p[wk.spin]*D);if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+      c.scale(p[wk.len],sy);c.translate(-p[wk.px]*lw,-p[wk.py]*lw);
       c.beginPath();
-      wShapes().forEach(function(sh){
+      wShapes(Ldef.wi).forEach(function(sh){
         if(sh.length<2)return;
         sh.forEach(function(pt,i){var x=pt[0]*lw,y=pt[1]*lw;i?c.lineTo(x,y):c.moveTo(x,y);});
         c.closePath();
@@ -1815,10 +1862,20 @@ function drawArt(c,p,opt){
   c.translate(pk.cx,pk.cy);c.scale(1/pk.ppu,1/pk.ppu);
   c.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);c.restore();
 }
-function weaponTip(p,rig){
-  if(wCount()<3||p._img)return null;
-  var j=joints(p,rig);return{a:j.haR,b:j.wtip};
+function weaponTip(p,rig,i){
+  i=i||0;if(wCount(i)<3||p._img)return null;
+  var j=joints(p,rig);return{a:j[wAt(rig,i)],b:j[WPN[i].tip]};
 }
+/* every point of weapon i in world space for pose p (j = joints(p, S.rig)) */
+function wWorldPts(p,j,i){
+  i=i||0;if(wCount(i)<3)return[];
+  var k=WPN[i].k,g=j[wAt(S.rig,i)],wa=(j[WPN[i].ang]-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p[k.spin]*D);
+  if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+  return wAllPts(i).map(function(q){var lx=(q[0]-p[k.px])*p[k.len],ly=(q[1]-p[k.py])*sy;
+    return{x:g.x+lx*ca-ly*sa,y:g.y+lx*sa+ly*ca};});
+}
+/* stage handle id -> weapon index (wtip / wtip2), or -1 */
+function tipWi(id){return id==="wtip"?0:id==="wtip2"?1:-1;}
 
 var cv=document.getElementById("stage"),ctx=cv.getContext("2d");
 var VIEW={w:900,h:540,scale:2.1,ox:0,oy:0};
@@ -1835,7 +1892,7 @@ function fromStage(p){return{x:(p.x-camX())/VIEW.scale*(S.flip?-1:1),y:(p.y-camY
 var HANDLES=[["haL","lfa","lua","#3fb0ea"],["elL","lua",null,"#3fb0ea"],["haR","rfa","rua","#3fb0ea"],["elR","rua",null,"#3fb0ea"],
              ["ftL","lsh","lth","#3fb0ea"],["knL","lth",null,"#3fb0ea"],["ftR","rsh","rth","#3fb0ea"],["knR","rth",null,"#3fb0ea"],
              ["head","hd",null,"#3fb0ea"],["neck","sp2",null,"#3fb0ea"],
-             ["chest","sp",null,"#c4a6ff"],["wtip","__wp",null,"#e8622a"],
+             ["chest","sp",null,"#c4a6ff"],["wtip","__wp",0,"#e8622a"],["wtip2","__wp",1,"#f25f8a"],
              ["shL","__piv",["shlx","shly"],"#7de0a8"],["shR","__piv",["shrx","shry"],"#7de0a8"],
              ["hpL","__piv",["hplx","hply"],"#f0c24a"],["hpR","__piv",["hprx","hpry"],"#f0c24a"],
              ["hip","__pelvis",null,"#e8622a"],["root","__rootmove",null,"#ff9f45"]];
@@ -1874,9 +1931,11 @@ function render(){
   drawRef(ctx,p,true);
   if(gd&&n>1&&!S.preview){
     [[prev,"#1e9bd7"],[next,"#e8622a"]].forEach(function(pair){
-      var L=weaponTip(pair[0],S.rig);if(!L)return;
-      ctx.globalAlpha=.72;ctx.strokeStyle=pair[1];ctx.lineWidth=2.6;ctx.lineCap="round";
-      ctx.beginPath();ctx.moveTo(L.a.x,L.a.y);ctx.lineTo(L.b.x,L.b.y);ctx.stroke();ctx.globalAlpha=1;
+      [0,1].forEach(function(wi){
+        var L=weaponTip(pair[0],S.rig,wi);if(!L)return;
+        ctx.globalAlpha=.72;ctx.strokeStyle=pair[1];ctx.lineWidth=2.6;ctx.lineCap="round";
+        ctx.beginPath();ctx.moveTo(L.a.x,L.a.y);ctx.lineTo(L.b.x,L.b.y);ctx.stroke();ctx.globalAlpha=1;
+      });
     });
   }
   ctx.restore();
@@ -1937,15 +1996,17 @@ function render(){
       });
     }
     HANDLES.forEach(function(h){
-      if(h[0]==="wtip"&&wCount()<3)return;
+      var twi=tipWi(h[0]);if(twi>=0&&wCount(twi)<3)return;
       var s=toStage(j[h[0]]);
-      ctx.beginPath();ctx.arc(s.x,s.y,(h[0]==="wtip"||h[0]==="root"?6:5),0,6.2832);
+      ctx.beginPath();ctx.arc(s.x,s.y,(twi>=0||h[0]==="root"?6:5),0,6.2832);
       ctx.fillStyle=h[3];ctx.globalAlpha=.9;ctx.fill();
       ctx.globalAlpha=1;ctx.lineWidth=1.4;ctx.strokeStyle="rgba(0,0,0,.5)";ctx.stroke();
     });
-    var L=weaponTip(p,S.rig);
-    if(L){var g=toStage(j.haR);ctx.beginPath();ctx.arc(g.x,g.y,4.2,0,6.2832);
-      ctx.strokeStyle="#e8622a";ctx.lineWidth=1.8;ctx.stroke();}
+    [0,1].forEach(function(wi){
+      var L=weaponTip(p,S.rig,wi);if(!L)return;
+      var g=toStage(L.a);ctx.beginPath();ctx.arc(g.x,g.y,4.2,0,6.2832);
+      ctx.strokeStyle=wi?"#f25f8a":"#e8622a";ctx.lineWidth=1.8;ctx.stroke();
+    });
   }
   document.getElementById("zoomread").textContent=Math.round(VIEW.scale/2.1*100)+"%";
   document.getElementById("stagetag").textContent=S.cur+" · kf "+(S.kf+1)+"/"+a.keyframes.length+(p._img?" · art frame (imported image — + Keyframe adds a posed frame)":"")+(S.preview?" · in-between (editable)":"")+(drag&&drag.ik?" · skeleton solve":(SOLVE?" · skeleton mode":""));
@@ -2016,15 +2077,15 @@ function buildFilm(){
   });
 }
 function buildSliders(){
-  var box=document.getElementById("sliders"),wbox=document.getElementById("wsliders");
-  box.innerHTML="";wbox.innerHTML="";
+  var box=document.getElementById("sliders"),wbox=document.getElementById("wsliders"),wbox2=document.getElementById("wsliders2");
+  box.innerHTML="";wbox.innerHTML="";wbox2.innerHTML="";
   POSE.forEach(function(g){
-    var host=(g.g==="weapon")?wbox:box;
-    if(g.g!=="weapon")host.appendChild(el("div","grp",g.g));
+    var host=(g.g==="weapon")?wbox:(g.g==="weapon 2")?wbox2:box;
+    if(g.g!=="weapon"&&g.g!=="weapon 2")host.appendChild(el("div","grp",g.g));
     g.k.forEach(function(r){
       var row=el("div","sl"),lab=el("label",null,r[0]);
       var inp=document.createElement("input");inp.type="range";inp.min=r[1];inp.max=r[2];
-      inp.step=(r[0].slice(-1)==="s"&&r[2]<=8)||r[0]==="wlen"?0.01:1;inp.id="sl_"+r[0];
+      inp.step=(r[0].slice(-1)==="s"&&r[2]<=8)||r[0]==="wlen"||r[0]==="w2len"?0.01:1;inp.id="sl_"+r[0];
       var v=el("span","val");
       inp.oninput=function(){commitPreview();KF()[r[0]]=parseFloat(inp.value);
         v.textContent=(+inp.value).toFixed(inp.step==1?0:2);render();buildFilm();save();};
@@ -2516,7 +2577,8 @@ var WINDLBL=[["rot","whole figure (rot)"],["sp","lower spine (hip → chest)"],[
   ["rua","near upper arm (shR → elR)"],["rfa","near forearm (elR → haR)"],
   ["lth","far thigh (hpL → knL)"],["lsh","far shin (knL → ftL)"],
   ["rth","near thigh (hpR → knR)"],["rsh","near shin (knR → ftR)"],
-  ["wp","weapon swing (wp)"],["wspin","weapon spin (wspin)"]];
+  ["wp","weapon swing (wp)"],["wspin","weapon spin (wspin)"],
+  ["w2p","weapon 2 swing (w2p)"],["w2spin","weapon 2 spin (w2spin)"]];
 function flipWind(v){
   if(wound(v))return clampA(v);
   return(v>0)?Math.round((v-360)*100)/100:Math.round((v+360)*100)/100;
@@ -2603,7 +2665,7 @@ document.getElementById("chdel").onclick=function(){
     if(!ok)return;
     WS.chars.splice(WS.ci,1);WS.ci=Math.max(0,WS.ci-1);
     var c=WS.chars[WS.ci];
-    S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;S.cur=c.cur;S.kf=c.kf||0;
+    S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.weapon2=c.weapon2||[];S.actions=c.actions;S.cur=c.cur;S.kf=c.kf||0;
     HIST.length=0;REDO.length=0;HLAST="";
     buildChars();syncChar();syncAction();refresh();drawWeapon();save();toast("Deleted \""+nm+"\"");
   });
@@ -2740,7 +2802,7 @@ function frameBounds(p){
   var N=520,c=document.createElement("canvas");c.width=N;c.height=N;
   var x=c.getContext("2d",{willReadFrequently:true});
   var q=clone(p);normPose(q);
-  q._layers.hidden=Object.assign({},q._layers.hidden,{weapon:true}); // body only
+  q._layers.hidden=Object.assign({},q._layers.hidden,{weapon:true,weapon2:true}); // body only
   x.save();x.translate(N/2,N/2);drawFigure(x,q,S.rig,{color:"#ffffff",noMask:true});x.restore();
   var d=x.getImageData(0,0,N,N).data,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,hit=0;
   for(var yy=0;yy<N;yy++)for(var xx=0;xx<N;xx++){
@@ -2830,14 +2892,14 @@ cv.addEventListener("pointerdown",function(e){
   }
   var ikMode=ANAT.ik&&SOLVE&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey;
   var m=pos(e),j=joints(KF(),S.rig),best=null,bd=18;
-  HANDLES.forEach(function(h){if(h[0]==="wtip"&&wCount()<3)return;
+  HANDLES.forEach(function(h){var twi=tipWi(h[0]);if(twi>=0&&wCount(twi)<3)return;
     var s=toStage(j[h[0]]),d=Math.hypot(s.x-m.x,s.y-m.y);if(d<bd){bd=d;best=h;}});
   if(!best)return;e.preventDefault();try{cv.setPointerCapture(e.pointerId);}catch(_e){}var mod=e.ctrlKey||e.metaKey;
   if(ikMode&&best[0]==="hip"){var j0=joints(KF(),S.rig);
     PLANT={L:{x:j0.ftL.x,y:j0.ftL.y},R:{x:j0.ftR.x,y:j0.ftR.y}};}
   else PLANT=null;
   drag={h:best,ik:ikMode,plant:PLANT,shift:e.shiftKey,ctrl:mod,alt:e.altKey&&!mod,lastAng:null,
-         snap:e.altKey&&!mod&&best[0]!=="wtip",
+         snap:e.altKey&&!mod&&tipWi(best[0])<0,
          stretch:mod&&!!STRETCH[best[0]],last:null,off:null};
 });
 cv.addEventListener("pointermove",function(e){
@@ -2868,26 +2930,27 @@ cv.addEventListener("pointermove",function(e){
     if(bestC)m={x:bestC.x,y:bestC.y};
   }
   if(h[1]==="__wp"){
-    var hand=j.haR;
+    /* weapon tip handle: h[2] is the weapon index; the grip rides on that weapon's attach joint */
+    var wi=h[2]||0,wk=WPN[wi].k,hand=j[wAt(S.rig,wi)],wbase=attachAng(wAt(S.rig,wi),p)+p.rot;
     if(drag.alt){
-      var wap=wAllPts(),tp2=wap.reduce(function(mm,q){return q[0]>mm[0]?q:mm;},wap[0]);
-      var syw=Math.cos(p.wspin*D);
-      var base=Math.hypot(tp2[0]-p.wpx,(tp2[1]-p.wpy)*syw)||1;
+      var wap=wAllPts(wi),tp2=wap.reduce(function(mm,q){return q[0]>mm[0]?q:mm;},wap[0]);
+      var syw=Math.cos(p[wk.spin]*D);
+      var base=Math.hypot(tp2[0]-p[wk.px],(tp2[1]-p[wk.py])*syw)||1;
       var dl=Math.hypot(m.x-hand.x,m.y-hand.y)/base;
-      p.wlen=Math.max(0,Math.round(dl*1000)/1000);
+      p[wk.len]=Math.max(0,Math.round(dl*1000)/1000);
       var degA=Math.atan2(m.y-hand.y,m.x-hand.x)/D+90;
-      p.wp=clampA(degA-(p.rua+p.rfa));
+      p[wk.p]=clampA(degA-wbase);
       syncSliders();render();return;
     }
     if(drag.ctrl){
-      var ax=(j.wang-90)*D,ux=Math.cos(ax),uy=Math.sin(ax);
+      var ax=(j[WPN[wi].ang]-90)*D,ux=Math.cos(ax),uy=Math.sin(ax);
       var perp=(m.x-hand.x)*(-uy)+(m.y-hand.y)*ux;
       if(drag.last!=null){var dv=perp-drag.last;
-        var w=p.wspin+dv*2.2;while(w>180)w-=360;while(w<-180)w+=360;p.wspin=Math.round(w*10)/10;}
+        var w=p[wk.spin]+dv*2.2;while(w>180)w-=360;while(w<-180)w+=360;p[wk.spin]=Math.round(w*10)/10;}
       drag.last=perp;
     }else{
       var deg=Math.atan2(m.y-hand.y,m.x-hand.x)/D+90;
-      p.wp=clampA(deg-(p.rua+p.rfa));
+      p[wk.p]=clampA(deg-wbase);
     }
     syncSliders();render();return;
   }
@@ -2976,7 +3039,8 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(t){
 });
 
 /* weapon editor */
-var wc=document.getElementById("wpcv"),wx=wc.getContext("2d"),wdrag=-1,wdragS=0,WSEL=0;
+/* WSELW: the weapon being edited (0 = Weapon 1, 1 = Weapon 2); WSEL: its selected shape */
+var wc=document.getElementById("wpcv"),wx=wc.getContext("2d"),wdrag=-1,wdragS=0,WSEL=0,WSELW=0;
 var WV={w:560,h:150,s:2.4,ox:0,oy:0},wpan=null;
 function wfit(){var w=wc.clientWidth||560,h=190,dpr=Math.min(2,window.devicePixelRatio||1);
   wc.width=w*dpr;wc.height=h*dpr;wx.setTransform(dpr,0,0,dpr,0,0);WV.w=w;WV.h=h;}
@@ -2985,7 +3049,7 @@ function wcy(){return WV.h/2+WV.oy;}
 function wTo(p){return{x:wcx()+p[0]*WV.s,y:wcy()+p[1]*WV.s};}
 function wFrom(p){return[(p.x-wcx())/WV.s,(p.y-wcy())/WV.s];}
 function drawWeapon(){
-  wfit();wx.clearRect(0,0,WV.w,WV.h);
+  wshapeUI();wfit();wx.clearRect(0,0,WV.w,WV.h);
   wx.strokeStyle="rgba(255,255,255,.07)";
   var gs=Math.max(10,10*WV.s),x0=((wcx()%gs)+gs)%gs,y0=((wcy()%gs)+gs)%gs;
   for(var i=x0;i<WV.w;i+=gs){wx.beginPath();wx.moveTo(i+.5,0);wx.lineTo(i+.5,WV.h);wx.stroke();}
@@ -2993,7 +3057,7 @@ function drawWeapon(){
   wx.strokeStyle="rgba(255,255,255,.2)";
   wx.beginPath();wx.moveTo(0,wcy()+.5);wx.lineTo(WV.w,wcy()+.5);wx.stroke();
   wx.beginPath();wx.moveTo(wcx()+.5,0);wx.lineTo(wcx()+.5,WV.h);wx.stroke();
-  var shs=wShapes();
+  var shs=wShapes(WSELW);
   shs.forEach(function(sh,si){
     if(sh.length>1){
       wx.beginPath();sh.forEach(function(p,i){var s=wTo(p);i?wx.lineTo(s.x,s.y):wx.moveTo(s.x,s.y);});
@@ -3003,7 +3067,7 @@ function drawWeapon(){
     sh.forEach(function(p){var s=wTo(p);wx.beginPath();wx.arc(s.x,s.y,si===WSEL?3.4:2.6,0,6.2832);
       wx.fillStyle=si===WSEL?"#cfd6de":"#6d757e";wx.fill();});
   });
-  var k=KF(),g=wTo([k.wpx,k.wpy]);
+  var k=KF(),wk=WPN[WSELW].k,g=wTo([k[wk.px],k[wk.py]]);
   wx.beginPath();wx.arc(g.x,g.y,5.4,0,6.2832);wx.fillStyle="#e8622a";wx.fill();
   wx.beginPath();wx.arc(g.x,g.y,9,0,6.2832);wx.strokeStyle="#e8622a";wx.lineWidth=1.2;wx.stroke();
 }
@@ -3025,16 +3089,16 @@ wc.addEventListener("auxclick",function(e){if(e.button===1)e.preventDefault();})
 wc.addEventListener("pointerdown",function(e){
   if(e.button===1){e.preventDefault();wpan={x:e.clientX,y:e.clientY};
     try{wc.setPointerCapture(e.pointerId);}catch(_e){}wc.style.cursor="grabbing";return;}
-  var r=wc.getBoundingClientRect(),m={x:e.clientX-r.left,y:e.clientY-r.top},k=KF();
-  var g=wTo([k.wpx,k.wpy]);
+  var r=wc.getBoundingClientRect(),m={x:e.clientX-r.left,y:e.clientY-r.top},k=KF(),wk=WPN[WSELW].k;
+  var g=wTo([k[wk.px],k[wk.py]]);
   if(Math.hypot(g.x-m.x,g.y-m.y)<10){wdrag=-2;try{wc.setPointerCapture(e.pointerId);}catch(_e){}return;}
-  var shs=wShapes(),hit=-1,hs=0;
+  var shs=wShapes(WSELW),hit=-1,hs=0;
   shs.forEach(function(sh,si){sh.forEach(function(p,i){
     var s=wTo(p);if(Math.hypot(s.x-m.x,s.y-m.y)<8){hit=i;hs=si;}});});
   if(hit<0){
-    if(!shs.length)wAddShape();
-    if(WSEL>=wShapes().length)WSEL=wShapes().length-1;
-    wShapes()[WSEL].push(wFrom(m));hit=wShapes()[WSEL].length-1;hs=WSEL;
+    if(!shs.length)wAddShape(WSELW);
+    if(WSEL>=wShapes(WSELW).length)WSEL=wShapes(WSELW).length-1;
+    wShapes(WSELW)[WSEL].push(wFrom(m));hit=wShapes(WSELW)[WSEL].length-1;hs=WSEL;
   }
   WSEL=hs;wdrag=hit;wdragS=hs;try{wc.setPointerCapture(e.pointerId);}catch(_e){}
   wshapeUI();drawWeapon();render();buildFilm();
@@ -3043,27 +3107,30 @@ wc.addEventListener("pointermove",function(e){
   if(wpan){e.preventDefault();WV.ox+=e.clientX-wpan.x;WV.oy+=e.clientY-wpan.y;
     wpan={x:e.clientX,y:e.clientY};drawWeapon();return;}
   if(wdrag===-1)return;var r=wc.getBoundingClientRect(),m={x:e.clientX-r.left,y:e.clientY-r.top};
-  if(wdrag===-2){var v=wFrom(m),k=KF();k.wpx=Math.round(v[0]*10)/10;k.wpy=Math.round(v[1]*10)/10;syncSliders();}
-  else wShapes()[wdragS][wdrag]=wFrom(m);
+  if(wdrag===-2){var v=wFrom(m),k=KF(),wk=WPN[WSELW].k;k[wk.px]=Math.round(v[0]*10)/10;k[wk.py]=Math.round(v[1]*10)/10;syncSliders();}
+  else wShapes(WSELW)[wdragS][wdrag]=wFrom(m);
   drawWeapon();render();
 });
 wc.addEventListener("pointerup",function(){
   if(wpan){wpan=null;wc.style.cursor="crosshair";}
   if(wdrag!==-1){wdrag=-1;buildFilm();save();}});
 wc.addEventListener("pointercancel",function(){wpan=null;wdrag=-1;wc.style.cursor="crosshair";});
-document.getElementById("wppreset").onchange=function(){S.weapon=clone(WPRE[this.value]);WSEL=0;wshapeUI();drawWeapon();refresh();};
+document.getElementById("wppreset").onchange=function(){S[WPN[WSELW].data]=clone(WPRE[this.value]);WSEL=0;wshapeUI();drawWeapon();refresh();};
 document.getElementById("wpundo").onclick=function(){
-  var shs=wShapes();if(!shs.length)return;
+  var shs=wShapes(WSELW);if(!shs.length)return;
   if(WSEL>=shs.length)WSEL=shs.length-1;
   shs[WSEL].pop();
-  if(!shs[WSEL].length&&shs.length>1){S.weapon.splice(WSEL,1);WSEL=Math.max(0,WSEL-1);}
+  if(!shs[WSEL].length&&shs.length>1){shs.splice(WSEL,1);WSEL=Math.max(0,WSEL-1);}
   wshapeUI();drawWeapon();refresh();};
 document.getElementById("wpnew").onclick=function(){
-  WSEL=wAddShape();wshapeUI();drawWeapon();
+  WSEL=wAddShape(WSELW);wshapeUI();drawWeapon();
   toast("New shape "+(WSEL+1)+" — clicks now add points to it alone");};
 function wshapeUI(){
+  [0,1].forEach(function(i){var b=document.getElementById("wpsel"+i);if(b)b.className=i===WSELW?"primary":"";
+    var sl=document.getElementById(i?"wsliders2":"wsliders");if(sl)sl.style.display=i===WSELW?"":"none";});
+  var at=document.getElementById("wpattach");if(at)at.value=wAt(S.rig,WSELW);
   var el2=document.getElementById("wpshapes");if(!el2)return;
-  var shs=wShapes();
+  var shs=wShapes(WSELW);
   el2.innerHTML="";
   shs.forEach(function(sh,si){
     var b=el("button","mini"+(si===WSEL?" primary":""),"Shape "+(si+1)+" ("+sh.length+")");
@@ -3071,8 +3138,15 @@ function wshapeUI(){
     el2.appendChild(b);
   });
 }
-document.getElementById("wpclear").onclick=function(){S.weapon=[];WSEL=0;wshapeUI();drawWeapon();refresh();};
+document.getElementById("wpclear").onclick=function(){S[WPN[WSELW].data]=[];WSEL=0;wshapeUI();drawWeapon();refresh();};
 document.getElementById("wpview").onclick=function(){WV.s=2.4;WV.ox=0;WV.oy=0;drawWeapon();};
+/* Weapon 1 / Weapon 2 selector and the attach pivot of the weapon being edited */
+(function(){
+  var sel=document.getElementById("wpattach");
+  WATTACH.forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.onchange=function(){S.rig[WPN[WSELW].at]=this.value;refresh();save();};
+  [0,1].forEach(function(i){document.getElementById("wpsel"+i).onclick=function(){WSELW=i;WSEL=0;wshapeUI();drawWeapon();};});
+})();
 
 /* character pane */
 var CF=[["c_name","name"],["c_disp","display_name"],["c_desc","description"],["c_arch","archetype"]];
@@ -3122,8 +3196,9 @@ function build(){
     movement:S.meta.movement,stats:S.meta.stats,
     rig:{bones:{ua:S.rig.ua,fa:S.rig.fa,th:S.rig.th,sh:S.rig.sh,torso:S.rig.torso,head:S.rig.head},
          pivots:{shoulder_x:S.rig.shx,shoulder_y:S.rig.shy,hip_x:S.rig.hipx,hip_y:S.rig.hipy,side_separation:S.rig.sep},
-         pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers"},
-    palette:S.meta.palette,defense:{},weapon:{points:wShapes()[0]||[],shapes:wShapes()},special_ability:null,actions:acts,
+         pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers; weapon.attach / weapon2.attach name the joint each grip rides on, the weapon turning with the bone that ends there (Rig Forge extension); weapon2 is a second, independent weapon posed by w2p/w2px/w2py/w2spin/w2len"},
+    palette:S.meta.palette,defense:{},weapon:{points:wShapes(0)[0]||[],shapes:wShapes(0),attach:wAt(S.rig,0)},
+    weapon2:{points:wShapes(1)[0]||[],shapes:wShapes(1),attach:wAt(S.rig,1)},special_ability:null,actions:acts,
     battle_semantics:"Battle properties live per can_hit FX layer, not per action. Attack props (Explode, Scatter, Pierce, Slash) stack and are visual-only; defence props are mutually exclusive per layer and only \"deflect\" has an engine implementation.",
     fx_semantics:"fx_layers follow fx-authoring.md. Burst anchors (point, r_hand) are fixed-offset approximations from the character root — no live joint tracking.",
     activation_trigger_semantics:"Layers activate via trig / trig_ref / trig_delay_ms chains; cycle fields reference layers as \"action_name:LayerID\".",
@@ -3140,13 +3215,7 @@ function figBounds(p){
     if(hid[id])return;var L=LAYERMAP[id];if(!L)return;
     if(L.head){pt(j.head,S.rig.head+1);return;}
     if(L.weapon){
-      if(wCount()<3)return;
-      var a=(j.wang-90)*D,ca=Math.cos(a),sa=Math.sin(a),sy=Math.cos(p.wspin*D);
-      if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
-      wAllPts().forEach(function(q){
-        var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
-        pt({x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca},1.5);
-      });
+      wWorldPts(p,j,L.wi).forEach(function(q){pt(q,1.5);});
       return;
     }
     var r=10*L.w/2+1;
@@ -3273,14 +3342,8 @@ document.getElementById("pngsize").onkeydown=function(e){e.stopPropagation();};
 ["pk_head","pk_col"].forEach(function(id){document.getElementById(id).onkeydown=function(e){e.stopPropagation();};});
 
 /* ---- character package export (PNG frames + character.json) ---- */
-var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","root"];
-function pkgWeaponPts(p,j){
-  if(wCount()<3)return[];
-  var wa=(j.wang-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p.wspin*D);
-  if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
-  return wAllPts().map(function(q){var lx=(q[0]-p.wpx)*p.wlen,ly=(q[1]-p.wpy)*sy;
-    return{x:j.haR.x+lx*ca-ly*sa,y:j.haR.y+lx*sa+ly*ca};});
-}
+var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","wtip2","root"];
+function pkgWeaponPts(p,j){return wWorldPts(p,j,0).concat(wWorldPts(p,j,1));}
 function pkgFramePose(p,travel){var q=clone(p);normPose(q);if(!travel){q.rx=0;}return q;}
 function pkgPoints(p){
   var j=joints(p,S.rig),pts=[];
@@ -3329,7 +3392,7 @@ function pkgBuild(){
     actions:acts,anchors:anchors,
     anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
       elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
-      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"},
     note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."};
   return{manifest:man,files:files};
 }
@@ -3502,16 +3565,17 @@ function fitPose(p,rig,P){
   fitLimb(p,rig,j.shR,P.elR,P.haR,"rua","rfa","ua","fa","ruas","rfas","haR",true);
   fitLimb(p,rig,j.hpL,P.knL,P.ftL,"lth","lsh","th","sh","lths","lshs","ftL",true);
   fitLimb(p,rig,j.hpR,P.knR,P.ftR,"rth","rsh","th","sh","rths","rshs","ftR",true);
-  /* weapon: swing and stretch it so its tip lands on the weapon-tip anchor */
-  if(P.wtip&&wCount()>2){
-    j=joints(p,rig);var dx=P.wtip.x-j.haR.x,dy=P.wtip.y-j.haR.y,L=Math.hypot(dx,dy);
+  /* weapons: swing and stretch each so its tip lands on its weapon-tip anchor */
+  WPN.forEach(function(W,wi){
+    var k=W.k,T=P[W.tip];if(!T||wCount(wi)<3)return;
+    j=joints(p,rig);var g=j[wAt(rig,wi)],dx=T.x-g.x,dy=T.y-g.y,L=Math.hypot(dx,dy);
     if(L>0.5){
-      var w0=wAllPts(),tp=w0.reduce(function(m,q){return q[0]>m[0]?q:m;},w0[0]);
-      var ly=(tp[1]-p.wpy)*Math.cos(p.wspin*D),bx=tp[0]-p.wpx;
-      if(bx>1e-3){var lx=Math.sqrt(Math.max(1e-6,L*L-ly*ly));p.wlen=Math.max(0.05,lx/bx);
-        var wang=(Math.atan2(dy,dx)-Math.atan2(ly,lx))/D+90;p.wp=clampA(wang-p.rua-p.rfa);}
+      var w0=wAllPts(wi),tp=w0.reduce(function(m,q){return q[0]>m[0]?q:m;},w0[0]);
+      var ly=(tp[1]-p[k.py])*Math.cos(p[k.spin]*D),bx=tp[0]-p[k.px];
+      if(bx>1e-3){var lx=Math.sqrt(Math.max(1e-6,L*L-ly*ly));p[k.len]=Math.max(0.05,lx/bx);
+        var wang=(Math.atan2(dy,dx)-Math.atan2(ly,lx))/D+90;p[k.p]=clampA(wang-attachAng(wAt(rig,wi),p)-p.rot);}
     }
-  }
+  });
   PKEYS.forEach(function(k){if(typeof p[k]==="number")p[k]=Math.round(p[k]*1000)/1000;});
   return p;
 }
@@ -3564,6 +3628,7 @@ function pkgBuildChar(man,pk,rigSrc){
   var emb=man.rigforge||null,img=man.image||{},name=String(man.name||"character").toLowerCase().replace(/[^a-z0-9_\-]+/g,"_");
   var rig=Object.assign(clone(RIGDEF),emb?emb.rig:(rigSrc?rigSrc.rig:{}));
   var weapon=emb?clone(emb.weapon||[]):(rigSrc?clone(rigSrc.weapon):clone(WPRE.katana));
+  var weapon2=emb?clone(emb.weapon2||[]):(rigSrc?clone(rigSrc.weapon2||[]):[]);
   var stamp=Date.now().toString(36),urls={},ims={};
   var frameFiles=[];Object.keys(man.actions).forEach(function(k){(man.actions[k].frames||[]).forEach(function(f){if(frameFiles.indexOf(f)<0)frameFiles.push(f);});});
   var missing=frameFiles.filter(function(f){return!pk.files[f];});
@@ -3576,7 +3641,7 @@ function pkgBuildChar(man,pk,rigSrc){
     var idF=function(f){var id="pk:"+name+"/"+stamp+"/"+f;if(!S.img[id]){S.img[id]=urls[f];store[id]=urls[f];}return id;};
     /* image space -> rig units: pkg.ppu image px per unit, image centre on rig point (cx, cy) */
     var pkg;
-    var WSsave=S.weapon;S.weapon=weapon;   /* wCount()/wAllPts() read the current weapon */
+    var WSsave=S.weapon,WSsave2=S.weapon2;S.weapon=weapon;S.weapon2=weapon2;   /* wCount()/wAllPts() read the current weapons */
     try{
       if(emb&&emb.pkg)pkg={ppu:+emb.pkg.ppu,cx:+emb.pkg.cx,cy:+emb.pkg.cy};
       else{
@@ -3610,6 +3675,7 @@ function pkgBuildChar(man,pk,rigSrc){
           var fi=(a.frames||[]).indexOf(f),P={},ok=true;
           FIT_JOINTS.forEach(function(jn){var q=(A2[jn]||[])[fi];if(q)P[jn]=toRig(q);else ok=false;});
           var wt=(A2.wtip||[])[fi];if(wt)P.wtip=toRig(wt);
+          var wt2=(A2.wtip2||[])[fi];if(wt2)P.wtip2=toRig(wt2);
           var q=newPose();q._tween.on=false;
           if(ok){fitPose(q,rig,P);fitList.push(q);q._ref={id:idF(f),x:pkg.cx,y:pkg.cy,rot:0,scale:Math.round(1e5/pkg.ppu)/1e5,alpha:.4,front:false};fitted++;}
           else{q._img=idF(f);q._anc=ancOf(fi);art++;}
@@ -3630,20 +3696,20 @@ function pkgBuildChar(man,pk,rigSrc){
       }
       /* joint anchors with no weapon tip: the character carries no weapon */
       if(!emb&&fitted&&!Object.keys(anc).some(function(k){return(anc[k].wtip||[]).some(Boolean);}))weapon=[];
-    }finally{S.weapon=WSsave;}
+    }finally{S.weapon=WSsave;S.weapon2=WSsave2;}
     if(!pkg.head_px)pkg.head_px=Math.round(rig.head*2*pkg.ppu*100)/100;
     var c={meta:{name:name,display_name:man.display_name||name,description:man.description||"",
         archetype:man.archetype||"melee",predicates:Object.assign({can_shoot:false,uses_melee:false,retreats:false,charges_full:false},man.predicates||{}),
         movement:Object.assign({wander_strength:0.25},man.movement||{}),stats:Object.assign({},man.stats||{}),
         palette:Object.assign({body:"#f2f4f6",accent:"#3fb0ea"},man.palette||{}),pkg:pkg},
-      rig:rig,weapon:weapon,actions:acts,cur:acts.idle?"idle":Object.keys(acts)[0],kf:0};
+      rig:rig,weapon:weapon,weapon2:weapon2,actions:acts,cur:acts.idle?"idle":Object.keys(acts)[0],kf:0};
     return pkSaveImgs(store).then(function(){
       var at=-1;WS.chars.forEach(function(ch,i){if(ch.meta.name===name)at=i;});
       var done=function(replace){
         stashChar();
         if(replace&&at>=0){WS.chars[at]=c;
           /* replacing the open tab: point the editor at it too, or switching tabs would stash the old one back */
-          if(at===WS.ci){S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.actions=c.actions;S.cur=c.cur;S.kf=0;}}
+          if(at===WS.ci){S.meta=c.meta;S.rig=c.rig;S.weapon=c.weapon;S.weapon2=c.weapon2;S.actions=c.actions;S.cur=c.cur;S.kf=0;}}
         else{if(at>=0){c.meta.name=name;c.meta.display_name+=" (import)";}WS.chars.push(c);at=WS.chars.length-1;}
         if(pk.handle)pkRememberDir(c.meta.name,pk.handle);
         loadChar(at);pkgPreload();if(pkg.colour)document.getElementById("pk_col").value=pkg.colour;
@@ -3697,8 +3763,8 @@ function pkgBuildPkg(){
     actions:acts,anchors:anchors,
     anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
       elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
-      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",root:"above head"},
-    rigforge:{version:1,rig:S.rig,weapon:S.weapon,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"},
+    rigforge:{version:1,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
     note:"Exported by Rig Forge from an imported package. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. \"rigforge\" holds the rig and keyframes so Rig Forge can import this package exactly. FX live in <name>.fxkit.json in this folder."};
   return{manifest:man,files:files};
 }
@@ -3724,6 +3790,9 @@ document.getElementById("loadjson").onclick=function(){
       if(pv.side_separation!=null)S.rig.sep=pv.side_separation;}
     if(o.weapon&&o.weapon.shapes&&o.weapon.shapes.length>1)S.weapon=o.weapon.shapes;
     else if(o.weapon&&o.weapon.points)S.weapon=o.weapon.points;
+    if(o.weapon&&o.weapon.attach)S.rig.w1at=o.weapon.attach;
+    if(o.weapon2){S.weapon2=(o.weapon2.shapes&&o.weapon2.shapes.length)?o.weapon2.shapes:(o.weapon2.points||[]);
+      if(o.weapon2.attach)S.rig.w2at=o.weapon2.attach;}
     if(o.palette)S.meta.palette=Object.assign(S.meta.palette,o.palette);
     if(o.stats)S.meta.stats=Object.assign(S.meta.stats,o.stats);
     if(o.movement)S.meta.movement=Object.assign(S.meta.movement,o.movement);

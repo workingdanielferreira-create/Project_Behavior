@@ -22,6 +22,7 @@ D = math.pi / 180.0
 LAYERS = [  # id, a, b, b2, mid, width, far, kind
     ("far_upper_arm", "shL", "elL", None, None, 0.94, True, "bone"),
     ("far_forearm", "elL", "haL", None, None, 0.83, True, "bone"),
+    ("weapon2", "haL", "wtip2", None, None, 1, False, "weapon"),
     ("far_thigh", "hpL", "knL", None, None, 1.00, True, "bone"),
     ("far_shin", "knL", "ftL", None, None, 0.88, True, "bone"),
     ("pelvis_girdle", "hip", "hpL", "hpR", None, 0.98, False, "pair"),
@@ -39,7 +40,10 @@ PDEF = dict(rx=0, ry=0, rot=0, sp=0, sp2=0, hd=0, shlx=0, shly=0, shrx=0, shry=0
             hplx=0, hply=0, hprx=0, hpry=0, lua=168, lfa=12, rua=192, rfa=-12,
             lth=8, lsh=10, rth=-8, rsh=12, luas=1, lfas=1, ruas=1, rfas=1,
             lths=1, lshs=1, rths=1, rshs=1, torsos=1, wp=0, wpx=4, wpy=0,
-            wspin=0, wlen=1)
+            wspin=0, wlen=1, w2p=0, w2px=4, w2py=0, w2spin=0, w2len=1)
+# Rig Forge weapons: (character.json key, pose keys p/px/py/spin/len, tip joint, angle key, default attach)
+WPN = (("weapon", ("wp", "wpx", "wpy", "wspin", "wlen"), "wtip", "wang", "haR"),
+       ("weapon2", ("w2p", "w2px", "w2py", "w2spin", "w2len"), "wtip2", "wang2", "haL"))
 
 
 def sd(a, l): return (math.sin(a * D) * l, math.cos(a * D) * l)
@@ -56,9 +60,22 @@ def rig_of(ch):
 
 
 def weapon_shapes(ch):
-    w = ch.get("weapon") or {}
-    sh = w.get("shapes") or ([w["points"]] if w.get("points") else [])
-    return [s for s in sh if s]
+    """Both weapons: [(shapes, attach_joint), (shapes2, attach_joint2)]."""
+    out = []
+    for key, _k, _tip, _ang, dflt in WPN:
+        w = ch.get(key) or {}
+        sh = w.get("shapes") or ([w["points"]] if w.get("points") else [])
+        out.append(([s for s in sh if s], w.get("attach") or dflt))
+    return out
+
+
+def attach_ang(at, p):
+    """World angle of the bone a weapon rides on (rigforge.html attachAng)."""
+    return {"haR": p["rua"] + p["rfa"], "elR": p["rua"], "haL": p["lua"] + p["lfa"], "elL": p["lua"],
+            "ftR": p["rth"] + p["rsh"], "knR": p["rth"], "ftL": p["lth"] + p["lsh"], "knL": p["lth"],
+            "chest": 180 - p["sp"], "neck": 180 - p["sp"] - p["sp2"], "shR": 180 - p["sp"] - p["sp2"],
+            "shL": 180 - p["sp"] - p["sp2"], "shB": 180 - p["sp"] - p["sp2"],
+            "head": 180 - p["sp"] - p["sp2"] - p["hd"]}.get(at, 180)
 
 
 def joints(p, rig, shapes):
@@ -76,45 +93,58 @@ def joints(p, rig, shapes):
     elR = add(shR, sd(p["rua"], rig["ua"] * p["ruas"])); haR = add(elR, sd(p["rua"] + p["rfa"], rig["fa"] * p["rfas"]))
     knL = add(hpL, sd(p["lth"], rig["th"] * p["lths"])); ftL = add(knL, sd(p["lth"] + p["lsh"], rig["sh"] * p["lshs"]))
     knR = add(hpR, sd(p["rth"], rig["th"] * p["rths"])); ftR = add(knR, sd(p["rth"] + p["rsh"], rig["sh"] * p["rshs"]))
-    wang = p["rua"] + p["rfa"] + p["wp"]
     out = dict(hip=hipC, shB=shB, hpL=hpL, hpR=hpR, chest=chest, neck=neck, head=head, shL=shL, shR=shR,
                elL=elL, haL=haL, elR=elR, haR=haR, knL=knL, ftL=ftL, knR=knR, ftR=ftR)
-    # Rig Forge's weapon tip (the weapon point with the largest x, carried
-    # through the grip transform) and "root" marker above the head.
+    # Rig Forge's weapon tips (the weapon point with the largest x, carried
+    # through the grip transform on each weapon's attach joint) and "root"
+    # marker above the head.
     out["root"] = (head[0], head[1] - rig["head"] * 2.4)
-    allp = [q for sh in shapes for q in sh]
-    wtip = haR
-    if len(allp) > 2:
-        tp = allp[0]
-        for q in allp:
-            if q[0] > tp[0]:
-                tp = q
-        wa = (wang - 90) * D; wca, wsa = math.cos(wa), math.sin(wa)
-        wsy = math.cos(p["wspin"] * D)
-        lx = (tp[0] - p["wpx"]) * p["wlen"]; ly = (tp[1] - p["wpy"]) * wsy
-        wtip = (haR[0] + lx * wca - ly * wsa, haR[1] + lx * wsa + ly * wca)
-    out["wtip"] = wtip
+    angs = {}
+    for (_key, k, tipk, angk, _d), (wsh, at) in zip(WPN, shapes):
+        g = out.get(at, haR)
+        wang = attach_ang(at, p) + p[k[0]]
+        allp = [q for sh in wsh for q in sh]
+        wtip = g
+        if len(allp) > 2:
+            tp = allp[0]
+            for q in allp:
+                if q[0] > tp[0]:
+                    tp = q
+            wa = (wang - 90) * D; wca, wsa = math.cos(wa), math.sin(wa)
+            wsy = math.cos(p[k[3]] * D)
+            lx = (tp[0] - p[k[1]]) * p[k[4]]; ly = (tp[1] - p[k[2]]) * wsy
+            wtip = (g[0] + lx * wca - ly * wsa, g[1] + lx * wsa + ly * wca)
+        out[tipk] = wtip; angs[angk] = wang
     if p["rot"]:
         rc, rs = math.cos(p["rot"] * D), math.sin(p["rot"] * D)
         for k, v in list(out.items()):
             dx, dy = v[0] - hipC[0], v[1] - hipC[1]
             out[k] = (hipC[0] + dx * rc - dy * rs, hipC[1] + dx * rs + dy * rc)
-        out["hip"] = hipC; wang += p["rot"]
-    out["wang"] = wang
+        out["hip"] = hipC
+        for k in angs:
+            angs[k] += p["rot"]
+    out.update(angs)
     return out
 
 
-def weapon_poly(j, p, shapes):
+def weapon_poly(j, p, shapes, wi=None):
+    """World polygons of weapon wi (0 or 1), or of both weapons when wi is None."""
+    if wi is None:
+        return weapon_poly(j, p, shapes, 0) + weapon_poly(j, p, shapes, 1)
     p = {**PDEF, **p}
-    wa = (j["wang"] - 90) * D; ca, sa = math.cos(wa), math.sin(wa)
-    sy = math.cos(p["wspin"] * D)
+    _key, k, _tip, angk, _d = WPN[wi]
+    wsh, at = shapes[wi]
+    if sum(len(sh) for sh in wsh) < 3:
+        return []
+    wa = (j[angk] - 90) * D; ca, sa = math.cos(wa), math.sin(wa)
+    sy = math.cos(p[k[3]] * D)
     if abs(sy) < 0.035: sy = (-1 if sy < 0 else 1) * 0.035
-    hx, hy = j["haR"]
+    hx, hy = j.get(at, j["haR"])
     polys = []
-    for sh in shapes:
+    for sh in wsh:
         pts = []
         for x, y in sh:
-            lx = (x - p["wpx"]) * p["wlen"]; ly = (y - p["wpy"]) * sy
+            lx = (x - p[k[1]]) * p[k[4]]; ly = (y - p[k[2]]) * sy
             pts.append((hx + lx * ca - ly * sa, hy + lx * sa + ly * ca))
         polys.append(pts)
     return polys
@@ -157,7 +187,7 @@ def draw_frame(p, rig, shapes, pal, S, cx, cy, W, H, outline=True):
         elif kind == "bone":
             stroke(lay_edge, j[a], j[b], Wl + 2.2, edge); stroke(lay_fill, j[a], j[b], Wl, col)
         else:
-            polys = weapon_poly(j, p, shapes)
+            polys = weapon_poly(j, p, shapes, 1 if lid == "weapon2" else 0)
             for pts in polys:
                 if len(pts) < 3: continue
                 t = [tf(q) for q in pts]
@@ -175,7 +205,7 @@ def extent(p, rig, shapes, zero_rx):
     q = dict(p)
     if zero_rx: q["rx"] = 0
     j = joints(q, rig, shapes)
-    pts = [j[k] for k in j if k not in ("wang", "root", "wtip")]
+    pts = [j[k] for k in j if k not in ("wang", "wang2", "root", "wtip", "wtip2")]
     for poly in weapon_poly(j, q, shapes): pts += poly
     r = rig["head"] + 3
     xs = [x for x, y in pts]; ys = [y for x, y in pts]
@@ -183,7 +213,7 @@ def extent(p, rig, shapes, zero_rx):
 
 
 JOINT_NAMES = ("hip", "chest", "neck", "head", "shB", "shL", "shR", "elL", "elR",
-               "haL", "haR", "hpL", "hpR", "knL", "knR", "ftL", "ftR", "wtip", "root")
+               "haL", "haR", "hpL", "hpR", "knL", "knR", "ftL", "ftR", "wtip", "wtip2", "root")
 
 
 def bake_origin(ch, rig, shapes, zero_rx=True):
@@ -195,7 +225,7 @@ def bake_origin(ch, rig, shapes, zero_rx=True):
 
 def joint_frames(kfs, rig, shapes, cx, cy, zero_rx=True):
     """Per-frame joint positions relative to the bake origin (rig units,
-    rounded to 0.01) plus the weapon world angle -- one dict per keyframe."""
+    rounded to 0.01) plus both weapons' world angles -- one dict per keyframe."""
     out = []
     for p in kfs:
         q = dict(p)
@@ -203,6 +233,7 @@ def joint_frames(kfs, rig, shapes, cx, cy, zero_rx=True):
         j = joints(q, rig, shapes)
         f = {k: [round(j[k][0] - cx, 2), round(j[k][1] - cy, 2)] for k in JOINT_NAMES}
         f["wang"] = round(j["wang"], 2)
+        f["wang2"] = round(j["wang2"], 2)
         out.append(f)
     return out
 
