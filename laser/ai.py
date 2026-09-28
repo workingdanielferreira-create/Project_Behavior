@@ -134,7 +134,49 @@ def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
     return fired
 
 
-def apply_hp_damage(fig, world, amount=1):
+# ---------------------------------------------------------------------------
+# Damage cooldown ("Damaged" in FX Studio: pack.damaged.cooldown_ms; a JSON
+# character can set the same top-level `damaged` block).  After a hit ticks
+# HP the figure is invincible — no HP loss and no knockback — until the
+# cooldown ends; the next hit after that ticks HP again.  0 (the default, and
+# every built-in) = every hit ticks HP.  Counted in world.global_tick, which
+# both sides share and hit-stop freezes, so Solo and Battle time it alike.
+# ---------------------------------------------------------------------------
+def damage_cooldown_ticks(fig):
+    mode = fig.mode
+    ticks = getattr(mode, "_dmg_cd_ticks", None)
+    if ticks is None:
+        ms = 0.0
+        char = getattr(mode, "character", None)
+        if char:
+            src = ((char.get("_fxkit") or {}).get("damaged")
+                   or char.get("damaged") or {})
+            try:
+                ms = max(0.0, float(src.get("cooldown_ms") or 0))
+            except (TypeError, ValueError, AttributeError):
+                ms = 0.0
+        ticks = int(round(ms / config.TICK_MS))
+        mode._dmg_cd_ticks = ticks
+    return ticks
+
+
+def damage_immune(fig, world):
+    """True while fig's damage cooldown from its last HP hit is running."""
+    if world is None:
+        return False
+    return fig.personality.dmg_immune_until > world.global_tick
+
+
+def knockback_immune(fig, world):
+    """damage_immune for knockback delivered apart from the HP hit (dash-slash
+    launch, dash body push).  Those land up to one tick after the hit that
+    started the cooldown, and belong to it, so they still apply then."""
+    if not damage_immune(fig, world):
+        return False
+    return world.global_tick > fig.personality.dmg_hit_tick + 1
+
+
+def apply_hp_damage(fig, world, amount=1, unblockable=False):
     """Deduct `amount` HP from fig (default 1, the historical flat per-hit
     value every built-in attack still uses) and report the death when HP
     reaches 0 (solo: run ends; battle: the fallen fighter is removed and the
@@ -145,21 +187,33 @@ def apply_hp_damage(fig, world, amount=1):
     Safe to call from any system.  Returns True if the figure just died.
     Also triggers the runner ultimate when HP first drops to/below 30% of max,
     and the swordsman ultimate when HP first drops to/below 50% of max.
+
+    `unblockable` (an FX Studio effect with Blockable off) skips the blocks
+    below: the special stance and the `defend` action don't stop it.
     """
-    # Special-stance block (opt-in): a hit landing while braced in the hold is
-    # blocked outright (no HP loss) and arms the counter; otherwise it feeds
-    # the special meter.  No-ops for characters without `special_stance`.
-    if _combat.special_blocks_hit(fig):
+    # Damage cooldown: still invincible from the last hit — nothing lands.
+    if damage_immune(fig, world):
         return False
-    # Image characters: a hit landing while `defend` plays is blocked.
-    if _actions.blocks_hit(fig):
-        return False
+    if not unblockable:
+        # Special-stance block (opt-in): a hit landing while braced in the
+        # hold is blocked outright (no HP loss) and arms the counter;
+        # otherwise it feeds the special meter.  No-ops for characters
+        # without `special_stance`.
+        if _combat.special_blocks_hit(fig):
+            return False
+        # Image characters: a hit landing while `defend` plays is blocked.
+        if _actions.blocks_hit(fig):
+            return False
     _actions.note_damage(fig)
     _combat.special_note_hit_taken(fig)
     p = fig.personality
     note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
     p.hp -= amount
+    cd = damage_cooldown_ticks(fig)
+    if cd > 0 and world is not None:
+        p.dmg_immune_until = world.global_tick + cd
+        p.dmg_hit_tick = world.global_tick
     if p.hp <= 0:
         p.hp = 0
         world.on_figure_death(fig)
@@ -250,6 +304,9 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     """
     speed = (proj_vx * proj_vx + proj_vy * proj_vy) ** 0.5
     if speed < 0.001:
+        return
+    # Damage cooldown: invincible — no damage and no knockback.
+    if damage_immune(fig, world):
         return
     # Special-stance hold: the hit is blocked — no knockback, no damage.
     if _combat.special_blocks_hit(fig):

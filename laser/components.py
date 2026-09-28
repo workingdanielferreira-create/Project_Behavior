@@ -460,7 +460,7 @@ class Personality:
                  "knockback_count", "immunity_hits",
                  "ultimate_ticks", "teleport_ticks",
                  "sword_ult_fired_thresholds",
-                 "trigger_state")
+                 "trigger_state", "dmg_immune_until", "dmg_hit_tick")
 
     def __init__(self, mode_key="runner"):
         self.rng = random.Random(int.from_bytes(os.urandom(8), "little"))
@@ -484,6 +484,8 @@ class Personality:
         self.teleport_ticks = 0   # ticks until next survival teleport (0 = ready)
         self.sword_ult_fired_thresholds = set()  # set of thresholds (fractions) already fired
         self.trigger_state = {}  # per-action bookkeeping for ai.evaluate_activation_triggers
+        self.dmg_immune_until = 0  # world.global_tick the damage cooldown ends (ai.damage_immune)
+        self.dmg_hit_tick = -10    # world.global_tick of the hit that started it
 
 
 
