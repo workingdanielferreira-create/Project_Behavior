@@ -200,37 +200,54 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
 var INTERCEPT_MODES = ["block", "deflect", "destroy"];
-// Flip (fx.flip): when enabled and the fighter faces the other way from
-// `facing` (the Studio facing the effect was created at, 1 right / -1 left),
-// the effect is mirrored left <-> right only, never up <-> down.  Offsets,
-// anchors, paths, particle / fixed angles already mirror with the facing; flip
-// also mirrors the arc's sweep and the orbit's side and spin.  Target-aimed
-// effects still aim at the target, and their up / down (the arc's side of
-// its line, the zigzag's first swing, the aim offset) is judged against the
-// facing, so it stays put whichever side the target is on.  Off = the old
-// behaviour.
+// Flip (fx.flip): when enabled the effect is laid out toward the side the
+// target is on (fxFacing), whichever way the fighter itself faces, and it
+// plays as the mirror image (left <-> right only, never up <-> down) when
+// that side is the other one from `facing` (the Studio facing it was created
+// at, 1 right / -1 left): on top of offsets, entry points, paths and
+// particle / fixed angles, flip mirrors the arc's sweep and the orbit's side
+// and spin.  Target-aimed effects still aim at the target.  Off = everything
+// follows the fighter's facing (the old behaviour).
 var FLIP_DEFAULTS = {enabled: false, facing: 1};
 // -1 when this effect plays mirrored for a fighter facing `facing`, else 1.
 function flipSign(fx, facing) {
   var f = fx.flip;
   return f && f.enabled && facing !== (+f.facing < 0 ? -1 : 1) ? -1 : 1;
 }
-// Follow direction (fx.follow_dir): the whole effect turns with the body's
-// rotation (host.rot: the aim turn, or a rotating runner's tilt; degrees,
-// applied after mirroring, the way anchors turn), not just its facing.
-// Offsets, entry points, facing / angle / weapon aims, the arc's angle,
-// particle angles, orbits and paths all turn; target aims still track the
-// target.  The body's own unturned frame is the reference.
-function bodyDeg(fx, host) { return fx.follow_dir ? (+host.rot || 0) : 0; }
+// 1 when the target is right of the figure, -1 left (the facing when level).
+function targetSide(host) {
+  var b = host.anchor("figure"), dx = host.target[0] - b[0];
+  return dx < -0.001 ? -1 : dx > 0.001 ? 1 : host.facing;
+}
+// The facing an effect is laid out for: the target's side with Flip on,
+// else the fighter's facing.
+function fxFacing(fx, host) { return fx.flip && fx.flip.enabled ? targetSide(host) : host.facing; }
+// Follow direction (fx.follow_dir): the whole effect turns toward the target
+// at any angle.  As authored it points straight forward (along its facing);
+// it turns by the angle from there to the figure -> target line (degrees,
+// applied after mirroring, the way anchors turn): target above -> it turns
+// up.  With Flip on as well it first mirrors to the target's side, so it
+// only ever tilts up / down; without Flip a target behind turns it right
+// round.  Offsets, entry points, facing / angle / weapon aims, the arc's
+// angle, particle angles, orbits and paths all turn; target aims already
+// track the target.
+function bodyDeg(fx, host) {
+  if (!fx.follow_dir) return 0;
+  var b = host.anchor("figure"), dx = host.target[0] - b[0], dy = host.target[1] - b[1];
+  if (dx * dx + dy * dy < 1e-6) return 0;
+  var a = Math.atan2(dy, dx) / D - (fxFacing(fx, host) < 0 ? 180 : 0);
+  return ((a % 360) + 540) % 360 - 180;
+}
 function turnBy(v, deg) { return deg ? rot(v, deg) : v; }
 // Sign for the facing-relative turns (fan, aim offset) and, times inst.flip,
 // the arc / zigzag side.  Without Flip: the facing (the old behaviour).  With
-// Flip, a target aim heading backward (the target behind the fighter) counts
-// as forward, so the effect's up / down never swaps.
+// Flip, a target aim heading backward counts as forward, so the effect's
+// up / down never swaps.
 function turnSign(fx, host, d) {
-  if (!fx.flip || !fx.flip.enabled || fx.motion.aim !== "target") return host.facing;
+  var f = fxFacing(fx, host);
+  if (!fx.flip || !fx.flip.enabled || fx.motion.aim !== "target") return f;
   var u = turnBy(d, -bodyDeg(fx, host));
-  return u[0] * host.facing < 0 ? -host.facing : host.facing;
+  return u[0] * f < 0 ? -f : f;
 }
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
 //   idle / run      locomotion (standing still / moving), no conditions
@@ -264,6 +281,7 @@ var CONDITION_TYPES = {
 // they do when an animation loops (fx_continuous and ∞ effects included).
 var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
   movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80};
+// blink: the action's Blink (BLINK_DEFAULTS below).
 // Character-level aiming (pack.aim): the fighter always faces the target and
 // the whole frame on show turns so its barrel (from -> to anchor of that
 // frame; the source action's average when the frame has none) points at the
@@ -299,35 +317,59 @@ function normalizeRetreat(a) {
     .map(function (c) { return fill(c, RETREAT_CONDITIONS[c.type]); });
   return a;
 }
-// Character-level "Blink" (pack.blink), run by laser/blink.py.  When its
-// conditions are met (ANY / ALL) the fighter vanishes, stays gone for gone_ms
-// (the Studio's "Teleport speed"), then reappears proximity_px from the
-// anchor ("target" = the target when it reappears, "self" = where it
-// vanished) in the chosen direction:
-//   behind  the target's back (opposite the way it faces)
-//   front   the side the target faces
+// Blink (action_settings[action].blink), run by laser/blink.py: a teleport
+// inside one action, set per action.  While that action plays, the fighter
+// vanishes when it reaches start_frame and reappears once it passes
+// end_frame (-1 = the last frame), or when the action ends, whichever comes
+// first.  It reappears proximity_px from the anchor ("target" = the target
+// where it is at that moment, "self" = the spot the fighter vanished from)
+// in the chosen direction (blinkLanding):
+//   behind  the target's back (opposite the way it faces; the Solo cursor
+//           and the Studio target have no facing: the far side from the fighter)
+//   front   the side the target faces (no facing: the fighter's side)
 //   toward  along the fighter -> target line
 //   away    along the target -> fighter line
 //   random  any direction
 //   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
 //           positive = clockwise)
-// While gone it is invisible and untouchable and fires no new FX; freeze
-// stops its action and animation until it reappears (off: they keep running
-// hidden).  flash = crackle + afterimage at both ends.  A new blink can start
-// cooldown_ms after it reappears.  Conditions: every action condition plus
-// projectile_count.
-var BLINK_DEFAULTS = {enabled: false, gone_ms: 300, freeze: true, anchor: "target", direction: "behind", angle_deg: 0,
-  proximity_px: 60, flash: true, cooldown_ms: 3000, logic: "any", conditions: []};
+// While gone it is invisible and untouchable, stays put and fires no new FX
+// (shots already flying carry on); the action and its animation keep running
+// hidden, so the frames tick on to end_frame.  flash = crackle + afterimage
+// at both ends.  Each loop of a looping action blinks again.
+var BLINK_DEFAULTS = {enabled: false, start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
+  proximity_px: 60, flash: true};
 var BLINK_ANCHORS = ["target", "self"];
 var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "random", "angle"];
-var BLINK_CONDITIONS = Object.assign({}, CONDITION_TYPES, {projectile_count: {count: 5}});
 function normalizeBlink(a) {
   a = fill(a || {}, BLINK_DEFAULTS);
   if (BLINK_ANCHORS.indexOf(a.anchor) < 0) a.anchor = BLINK_DEFAULTS.anchor;
   if (BLINK_DIRECTIONS.indexOf(a.direction) < 0) a.direction = BLINK_DEFAULTS.direction;
-  a.conditions = (a.conditions || []).filter(function (c) { return c && BLINK_CONDITIONS[c.type]; })
-    .map(function (c) { return fill(c, BLINK_CONDITIONS[c.type]); });
+  a.start_frame = Math.max(0, Math.round(+a.start_frame || 0));
+  a.end_frame = Math.round(+a.end_frame);
+  if (!(a.end_frame >= -1)) a.end_frame = -1;
   return a;
+}
+// Whether frame `fr` of an action with `frames` frames is inside the blink.
+function blinkActive(b, fr, frames) {
+  if (!b || !b.enabled) return false;
+  var e = b.end_frame < 0 ? frames - 1 : Math.min(frames - 1, b.end_frame);
+  return fr >= b.start_frame && fr <= e;
+}
+// Landing spot: from = where the fighter vanished, target = [x, y],
+// tface = the target's facing (1 / -1) or null (no facing), facing = the
+// fighter's (a fallback when it stands on the target), rnd = 0..1 (random).
+function blinkLanding(b, from, target, tface, facing, rnd) {
+  var lx = target[0] - from[0], ly = target[1] - from[1], d = Math.hypot(lx, ly), ux, uy, dx, dy;
+  if (d > 0.001) { ux = lx / d; uy = ly / d; } else { ux = facing < 0 ? -1 : 1; uy = 0; }
+  if (b.direction === "toward") { dx = ux; dy = uy; }
+  else if (b.direction === "away") { dx = -ux; dy = -uy; }
+  else if (b.direction === "behind" || b.direction === "front") {
+    if (tface == null) { dx = ux; dy = uy; } else { dx = tface < 0 ? 1 : -1; dy = 0; }
+    if (b.direction === "front") { dx = -dx; dy = -dy; }
+  } else if (b.direction === "random") { var r = rnd * 2 * Math.PI; dx = Math.cos(r); dy = Math.sin(r); }
+  else { var a = Math.atan2(uy, ux) + (+b.angle_deg || 0) * D; dx = Math.cos(a); dy = Math.sin(a); }
+  var an = b.anchor === "target" ? target : from, prox = Math.max(0, +b.proximity_px || 0);
+  return [an[0] + dx * prox, an[1] + dy * prox];
 }
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
@@ -402,6 +444,7 @@ function standHeight(img) {
 }
 function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
+  cfg.blink = normalizeBlink(cfg.blink);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(c, CONDITION_TYPES[c.type]); });
   return cfg;
@@ -454,7 +497,7 @@ function normalize(fx) {
 //   host.snapshot()   -> opaque figure frame for ghosts
 //   host.lut          -> 256-entry palette LUT
 function aimDir(fx, host, x, y) {
-  var m = fx.motion, f = host.facing, dx, dy;
+  var m = fx.motion, f = fxFacing(fx, host), dx, dy;
   if (m.aim === "target") return norm(host.target[0] - x, host.target[1] - y);   // tracks the target, never turned
   if (m.aim === "angle") { dx = Math.cos(m.angle_deg * D) * f; dy = Math.sin(m.angle_deg * D); }
   else if (m.aim === "weapon") { dx = Math.sin(host.wang * D) * f; dy = -Math.cos(host.wang * D); }
@@ -500,16 +543,16 @@ function entrySetOf(fx, host) {
   var e = libFind(host, "entry_sets", fx.anchor.slice(4));
   return e && e.points.length ? e : null;
 }
-function entryPoint(set, k, host, deg) {
-  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0], o = turnBy([q[0] * host.facing, q[1]], deg);
+function entryPoint(set, k, host, deg, f) {
+  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0], o = turnBy([q[0] * (f || host.facing), q[1]], deg);
   return [b[0] + o[0], b[1] + o[1]];
 }
 function anchorPos(fx, host, inst) {
-  var a, set = entrySetOf(fx, host), deg = bodyDeg(fx, host);
-  if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host, deg);
+  var a, set = entrySetOf(fx, host), deg = bodyDeg(fx, host), f = fxFacing(fx, host);
+  if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host, deg, f);
   else if (typeof fx.anchor === "string" && fx.anchor.indexOf("set:") === 0) a = host.anchor("figure");   // empty / missing set
   else a = host.anchor(fx.anchor);
-  var o = turnBy([(+fx.offset[0] || 0) * host.facing, +fx.offset[1] || 0], deg);
+  var o = turnBy([(+fx.offset[0] || 0) * f, +fx.offset[1] || 0], deg);
   return [a[0] + o[0], a[1] + o[1]];
 }
 // Orbit position around centre c (flip mirrors its side and spin).
@@ -575,21 +618,21 @@ function pathStep(inst, host) {
 }
 
 function spawn(fx, host, windowTicks, seed, idx, n, ep) {
-  var p = anchorPos(fx, host, {ep: ep}), m = fx.motion;
+  var p = anchorPos(fx, host, {ep: ep}), m = fx.motion, ef = fxFacing(fx, host);
   var dir = aimDir(fx, host, p[0], p[1]), ts = turnSign(fx, host, dir);
   if (n > 1 && fx.emit.fan_deg) dir = rot(dir, (-fx.emit.fan_deg / 2 + fx.emit.fan_deg * idx / (n - 1)) * ts);
   if (m.aim_offset_deg) dir = rot(dir, m.aim_offset_deg * ts);
   var life = fx.life_ticks > 0 ? fx.life_ticks : Math.max(1, windowTicks);
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
-    ghosts: [], acc: 0, facing: host.facing, flip: flipSign(fx, host.facing), orbitA: 0, phase: 0, zx: 0, zy: 0,
+    ghosts: [], acc: 0, facing: ef, flip: flipSign(fx, ef), orbitA: 0, phase: 0, zx: 0, zy: 0,
     hits: 0, lastHit: -1e9, ep: ep == null ? null : ep};
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
-  inst.side = inst.flip * ts * host.facing;
+  inst.side = inst.flip * ts * ef;
   var spd = +m.speed || 0;
   if (m.kind === "path") {
     inst.path = libFind(host, "paths", m.path);
-    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, host, dir, bodyDeg(fx, host)); }
+    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host)); }
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
@@ -603,7 +646,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   }
   if (fx.prim === "arc") {
     // CrescentWave: centre angle perpendicular to the direction of travel.
-    var od = fx.params.orient === "angle" ? turnBy([Math.cos(fx.params.angle_deg * D) * host.facing, Math.sin(fx.params.angle_deg * D)], bodyDeg(fx, host)) : dir;
+    var od = fx.params.orient === "angle" ? turnBy([Math.cos(fx.params.angle_deg * D) * ef, Math.sin(fx.params.angle_deg * D)], bodyDeg(fx, host)) : dir;
     // Which side of its line the crescent sits (inst.side, see turnSign).
     var sd = fx.params.orient === "angle" ? inst.flip : inst.side;
     inst.centreDeg = angleDegQt(-od[1] * sd, od[0] * sd);
@@ -668,11 +711,11 @@ function moveInst(inst, host) {
 }
 
 function emitParticles(inst, fx, host, n) {
-  // combat._spawn_burst_now: fan around angle_deg, mirrored with facing.
+  // combat._spawn_burst_now: fan around angle_deg, mirrored with the effect's facing (fxFacing).
   var P = fx.params, cp = colorPair(fx, host.lut);
   var spread = P.spread_deg * D, base = P.angle_deg * D;
   if (inst.facing < 0) base = Math.PI - base;
-  base += bodyDeg(fx, host) * D;   // Follow direction: turns with the body
+  base += bodyDeg(fx, host) * D;   // Follow direction: turns toward the target
   var smin = +P.speed_min, smax = Math.max(smin, +P.speed_max);
   var s0 = Math.max(0.5, +P.size_min), s1 = Math.max(s0, +P.size_max);
   var l0 = Math.max(1, +P.life_min_ms), l1 = Math.max(l0, +P.life_max_ms);
@@ -1100,6 +1143,8 @@ Player.prototype.window = function (fx, frames, frameMs) {
 };
 // Advance one tick.  `t` counts ticks since the action started (it wraps
 // when the action loops; instances already alive keep running).
+// opts.hold (Blink, while the fighter is gone): nothing new fires; live
+// instances keep updating.
 // opts.continuous (the action's fx_continuous while it loops): an "open"
 // instance (life 0 = to the end, window reaching the action's end) is kept
 // alive across the loop, and its effect is not spawned again while it lives.
@@ -1133,7 +1178,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     if (inst.cont && (!inst.fx.enabled || effects.indexOf(inst.fx) < 0 || !isContinuous(inst.fx))) inst.dead = true;
   });
   effects.forEach(function (fx) {
-    if (!fx.enabled) return;
+    if (!fx.enabled || (opts && opts.hold)) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
     if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
       if (t < s || self.insts.some(function (q) { return q.fx === fx && q.cont && !q.dead && q.age < q.life; })
@@ -1154,19 +1199,24 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   this.insts.forEach(function (inst) { tickInst(inst, host); resolveHits(inst, host, ps); });
   this.insts = this.insts.filter(function (i) { return !i.dead; });
 };
-Player.prototype.draw = function (g, host, layer, ps) {
-  this.insts.forEach(function (inst) { if (inst.fx.layer === layer) drawInst(g, inst, host, ps); });
+// hidden (Blink, while the fighter is gone): its body FX are not drawn.
+Player.prototype.draw = function (g, host, layer, ps, hidden) {
+  this.insts.forEach(function (inst) { if (inst.fx.layer === layer && !(hidden && bodyBound(inst))) drawInst(g, inst, host, ps); });
 };
+// FX that sit on the fighter's body (attached / orbit motion, weapon
+// hitboxes): hidden and harmless while it is blinked out.
+function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached" || fx.motion.kind === "orbit" || fx.prim === "weapon"; }
 
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
-  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_CONDITIONS: BLINK_CONDITIONS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
+  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
+  blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
