@@ -440,6 +440,36 @@ FX Studio shows it as the **Intercept** section.
 - **Parity:** `fxkit.js interceptStep` and `fxkit.py intercept_step` produce
   identical positions and events.
 
+## 5d. Flip (`flip`) — mirror for the other facing
+
+Every effect except the weapon hitbox. FX Studio shows it as the **Flip**
+section.
+
+```json
+"flip": {"enabled": false, "facing": 1}
+```
+
+| field | meaning |
+|---|---|
+| `enabled` | Off (default): the effect behaves as before. On: when the fighter faces the other way from `facing`, it plays as the exact mirror image of how it was authored. |
+| `facing` | The facing the effect was created at: `1` right, `-1` left. The Studio records the stage's facing when the effect is added, and the **Created facing** dropdown changes it. |
+
+- Offsets, anchors, entry points, paths, particle angles and fixed or weapon
+  aims already mirror with the facing. Flip also mirrors the handedness that
+  doesn't:
+  - **arc**: the crescent sits on the mirrored side of its aim line
+    (perpendicular and `through_target` offset reversed) and sweeps the other
+    way round;
+  - **orbit**: its x offset is mirrored, so it starts on the mirrored side
+    and spins the other way;
+  - **zigzag**: its first swing goes to the mirrored side.
+- Target-aimed effects still aim at the target.
+- Decided once per instance at spawn (`inst.flip`, `flipSign` /
+  `flip_sign`), from the facing at that moment. The same code runs in Solo and
+  Battle.
+- **Parity:** `fxkit.js` and `fxkit.py` produce identical positions and arc
+  segments with flip on and off.
+
 ## 6. Presets
 
 Built-in presets (`studio/presets.js`) rebuild the game's hardcoded effects from

@@ -39,6 +39,12 @@ timing.
   frames, and has a **Deals damage** checkbox (HP per hit, pierce, re-hit,
   knockback). It hits wherever its drawn shape touches the target's hurt
   circle.
+- **Flip.** Tick **Flip** on an effect to play it as a mirror image when
+  the fighter faces the other way from the facing it was created at. That
+  includes the arc's side and sweep, the orbit's spin and the zigzag's first
+  swing. **Created facing** is set from the stage's facing when you add the
+  effect, and you can change it. Target-aimed effects still aim at the
+  target.
 - **Blink (whole character).** Under any action's settings: a teleport with
   its own trigger conditions. **Teleport speed** is how long the character
   stays gone, **Freeze** stops its animation until it reappears, **Anchor** +
