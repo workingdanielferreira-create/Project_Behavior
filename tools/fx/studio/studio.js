@@ -190,6 +190,7 @@ var host = {
   get facing() { return facing(); },
   get target() { return S.target; },
   get wang() { return 90; },
+  get rot() { return aimDeg(); },   // body rotation: Follow-direction effects turn with it
   get lut() { return lut; },
   get pscale() { return pscale(); },
   get lib() { return {entry_sets: S.entries, paths: S.paths}; },
@@ -675,10 +676,12 @@ function pathPreviewOrigin(path) {
   return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
 }
 function jointAtFx(fx) {
-  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0];
-  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)); return [bb[0] + set.points[0][0] * facing(), bb[1] + set.points[0][1]]; })()
+  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host);
+  var turn = function (v) { var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v; };
+  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * facing(), set.points[0][1]]); return [bb[0] + q[0], bb[1] + q[1]]; })()
     : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
-  return [b[0] + (+fx.offset[0] || 0) * facing(), b[1] + (+fx.offset[1] || 0)];
+  var o = turn([(+fx.offset[0] || 0) * facing(), +fx.offset[1] || 0]);
+  return [b[0] + o[0], b[1] + o[1]];
 }
 function geoPlaceAt(w) {
   var it = geoItem(); if (!it) return;
@@ -769,6 +772,10 @@ function drawGeo(g, z) {
     if (path.orient === "aim" && !(S.geoPlace && it === path)) {
       var dx = S.target[0] - o[0], dy = S.target[1] - o[1], dm = Math.hypot(dx, dy) || 1;
       M = FXK.pathMatrix(path, {facing: f}, [dx / dm, dy / dm]);
+    } else if (!(S.geoPlace && it === path)) {   // a Follow-direction user turns it with the body
+      var sf = selFx(), pfx = sf && sf.motion.kind === "path" && sf.motion.path === path.id ? sf
+        : geoUsers("path", path.id).filter(function (e) { return e.action === S.action; })[0];
+      if (pfx) M = FXK.pathMatrix(path, {facing: f}, [f, 0], FXK.bodyDeg(pfx, host));
     }
     var W = function (p) { return [o[0] + M[0] * p[0] + M[1] * p[1], o[1] + M[2] * p[0] + M[3] * p[1]]; };
     g.strokeStyle = col + ".85)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]); g.beginPath();
@@ -970,15 +977,18 @@ function buildProps() {
       }
     }
 
-    s = sec(d, "Flip", "flip", "Mirror image when the fighter faces the other way from the facing this effect was created at.");
+    s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right when the fighter faces the other way from the facing this effect was created at. Follow direction: turn with the character's body.");
     var F = fx.flip;
     field(s, "Flip", inp("chk", F.enabled, function (v) { F.enabled = v; changed(true); })).title =
       "On: when the fighter faces the other way from \"created facing\", the whole effect plays as a mirror image: arc side and sweep, orbit spin and zigzag swing included. Target-aimed effects still aim at the target. Off: only position and angles follow the facing.";
     if (F.enabled) {
       field(s, "Created facing", inp([["1", "right"], ["-1", "left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; changed(true); })).title =
         "The facing this effect was authored at. It plays as authored when the fighter faces this way, and mirrored when it faces the other way.";
-      note(s, "Facing " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Facing " + (F.facing < 0 ? "right" : "left") + ": mirrored. Switch the stage's facing to preview both.");
+      note(s, "Facing " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Facing " + (F.facing < 0 ? "right" : "left") + ": mirrored left \u2194 right (never up \u2194 down). Switch the stage's facing to preview both.");
     }
+    field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; changed(true); })).title =
+      "On: the whole effect turns with the character's body (its aim turn), not just its facing, so it keeps the same place and direction relative to the body as when it was made, e.g. head \u2192 feet even while the character looks down. Target-aimed effects still aim at the target.";
+    if (fx.follow_dir && !(S.aim.enabled && aimRef())) note(s, "This character doesn't turn (Aim is off), so Follow direction only matters in game for a rotating runner.");
 
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;
@@ -1530,6 +1540,13 @@ $("bPlay").onclick = function () { if (!C) return; S.playing = !S.playing; if (S
 function gotoFrame(f) { if (!C) return; S.playing = false; $("bPlay").textContent = "▶ Play"; f = (f + frames()) % frames(); resetSim(Math.ceil(f * frameMs() / FXK.TICK_MS)); }
 $("bPrev").onclick = function () { gotoFrame(frameAt(S.t) - 1); };
 $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
+// Changing the facing turns the fighter toward the target, as the game does
+// (the fighter faces its target while it acts): a target left behind is
+// mirrored to the new front.
+$("facing").addEventListener("change", function () {
+  var f = +$("facing").value;
+  if (S.target[0] * f < 0) S.target = [-S.target[0], S.target[1]];   // about the start position (x 0)
+});
 ["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR", "testShots"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
 // Timeline scrubbing: press and drag with the left button to move the
 // playhead (the view re-simulates to each tick, so FX show exactly as they

@@ -180,10 +180,12 @@ INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mod
                           hurts_owner=False)
 # Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled and the fighter faces the
 # other way from `facing` (the Studio facing the effect was created at, 1 right
-# / -1 left) the effect plays as the exact mirror image of how it was authored.
-# On top of what already mirrors with the facing, flip mirrors the arc's side
-# and sweep, the orbit's side and spin and the zigzag's first swing.
-# Target-aimed effects still aim at the target.  Off = the old behaviour.
+# / -1 left) the effect is mirrored left <-> right only, never up <-> down.  On
+# top of what already mirrors with the facing, flip mirrors the arc's sweep
+# and the orbit's side and spin.  Target-aimed effects still aim at the
+# target, and their up / down (the arc's side of its line, the zigzag's first
+# swing, the aim offset) is judged against the facing (turn_sign), so it stays
+# put whichever side the target is on.  Off = the old behaviour.
 FLIP_DEFAULTS = dict(enabled=False, facing=1)
 
 
@@ -193,6 +195,31 @@ def flip_sign(fx, facing):
     if not f.get("enabled"):
         return 1
     return -1 if facing != (-1 if float(f.get("facing") or 1) < 0 else 1) else 1
+
+
+# Follow direction (fx.follow_dir, FXK.bodyDeg): the whole effect turns with
+# the body's rotation (host.rot: Figure.aim, or a rotating runner's tilt;
+# degrees, after mirroring, the way anchors turn), not just its facing.
+# Offsets, entry points, facing / angle / weapon aims, the arc's angle,
+# particle angles, orbits and paths all turn; target aims still track the
+# target.
+def body_deg(fx, host):
+    return float(getattr(host, "rot", 0.0) or 0.0) if fx.get("follow_dir") else 0.0
+
+
+def turn_by(v, deg):
+    return rot(v, deg) if deg else v
+
+
+def turn_sign(fx, host, d):
+    """Sign for the facing-relative turns (fan, aim offset); times inst.flip,
+    the arc / zigzag side.  Without Flip: the facing.  With Flip, a target aim
+    heading backward counts as forward, so up / down never swaps."""
+    f = fx.get("flip") or {}
+    if not f.get("enabled") or fx["motion"]["aim"] != "target":
+        return host.facing
+    u = turn_by(d, -body_deg(fx, host))
+    return -host.facing if u[0] * host.facing < 0 else host.facing
 
 
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
@@ -230,6 +257,7 @@ def normalize(fx):
     fx["intercept"] = _fill(dict(fx.get("intercept") or {}), INTERCEPT_DEFAULTS)
     fx["flip"] = _fill(dict(fx.get("flip") or {}), FLIP_DEFAULTS)
     fx["flip"]["facing"] = -1 if float(fx["flip"]["facing"] or 1) < 0 else 1
+    fx["follow_dir"] = bool(fx.get("follow_dir"))
     if fx["prim"] == "ghost":
         fx["battle"]["deals_damage"] = False
     if fx["prim"] == "weapon":
@@ -342,23 +370,34 @@ def entry_set_of(fx, host):
     return e if e and e["points"] else None
 
 
-def entry_point(eset, k, host):
+def entry_point(eset, k, host, deg=0.0):
     b = host.anchor(eset.get("base") or "figure")
     q = eset["points"][k] if k < len(eset["points"]) else [0, 0]
-    return [b[0] + q[0] * host.facing, b[1] + q[1]]
+    o = turn_by([q[0] * host.facing, q[1]], deg)
+    return [b[0] + o[0], b[1] + o[1]]
 
 
 def anchor_pos(fx, host, ep=None):
     eset = entry_set_of(fx, host)
     a = fx.get("anchor")
+    deg = body_deg(fx, host)
     if eset:
-        p = entry_point(eset, (ep if ep is not None else 0) % len(eset["points"]), host)
+        p = entry_point(eset, (ep if ep is not None else 0) % len(eset["points"]), host, deg)
     elif isinstance(a, str) and a.startswith("set:"):
         p = host.anchor("figure")
     else:
         p = host.anchor(a)
     off = fx.get("offset") or [0, 0]
-    return [p[0] + float(off[0] or 0) * host.facing, p[1] + float(off[1] or 0)]
+    o = turn_by([float(off[0] or 0) * host.facing, float(off[1] or 0)], deg)
+    return [p[0] + o[0], p[1] + o[1]]
+
+
+def orbit_pos(inst, host, c):
+    """Orbit position around centre c (flip mirrors its side and spin)."""
+    m = inst.fx["motion"]
+    o = turn_by([math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip, math.sin(inst.orbitA * D) * m["orbit_ry"]],
+                body_deg(inst.fx, host))
+    return [c[0] + o[0], c[1] + o[1]]
 
 
 def path_line(path):
@@ -397,11 +436,14 @@ def path_at(pl, u):
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], norm(b[0] - a[0], b[1] - a[1])
 
 
-def path_matrix(path, host, d):
+def path_matrix(path, host, d, deg=0.0):
     f = host.facing
     last = path["points"][-1]
     if path.get("orient") != "aim" or (not last[0] and not last[1]):
-        return [f, 0, 0, 1]
+        if not deg:
+            return [f, 0, 0, 1]
+        c0, s0 = math.cos(deg * D), math.sin(deg * D)
+        return [c0 * f, -s0, s0 * f, c0]
     th = math.atan2(d[1], d[0]) - math.atan2(last[1], last[0] * f)
     c, s = math.cos(th), math.sin(th)
     return [c * f, -s, s * f, c]
@@ -432,10 +474,12 @@ def aim_dir(fx, host, x, y):
     if m["aim"] == "target":
         return norm(host.target[0] - x, host.target[1] - y)
     if m["aim"] == "angle":
-        return [math.cos(m["angle_deg"] * D) * f, math.sin(m["angle_deg"] * D)]
-    if m["aim"] == "weapon":
-        return [math.sin(host.wang * D) * f, -math.cos(host.wang * D)]
-    return [float(f), 0.0]
+        v = [math.cos(m["angle_deg"] * D) * f, math.sin(m["angle_deg"] * D)]
+    elif m["aim"] == "weapon":
+        v = [math.sin(host.wang * D) * f, -math.cos(host.wang * D)]
+    else:
+        v = [float(f), 0.0]
+    return turn_by(v, body_deg(fx, host))
 
 
 class Inst:
@@ -462,6 +506,7 @@ def emit_particles(inst, fx, host, n):
     spread, base = P["spread_deg"] * D, P["angle_deg"] * D
     if inst.facing < 0:
         base = math.pi - base
+    base += body_deg(fx, host) * D   # Follow direction: turns with the body
     smin = float(P["speed_min"])
     smax = max(smin, float(P["speed_max"]))
     s0 = max(0.5, float(P["size_min"]))
@@ -481,10 +526,11 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     m = fx["motion"]
     p = anchor_pos(fx, host, ep)
     d = aim_dir(fx, host, p[0], p[1])
+    ts = turn_sign(fx, host, d)
     if n > 1 and fx["emit"]["fan_deg"]:
-        d = rot(d, (-fx["emit"]["fan_deg"] / 2 + fx["emit"]["fan_deg"] * idx / (n - 1)) * host.facing)
+        d = rot(d, (-fx["emit"]["fan_deg"] / 2 + fx["emit"]["fan_deg"] * idx / (n - 1)) * ts)
     if m["aim_offset_deg"]:
-        d = rot(d, m["aim_offset_deg"] * host.facing)
+        d = rot(d, m["aim_offset_deg"] * ts)
     life = fx["life_ticks"] if fx["life_ticks"] > 0 else max(1, window_ticks)
     inst = Inst()
     inst.fx = fx
@@ -502,6 +548,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.acc = 0.0
     inst.facing = host.facing
     inst.flip = flip_sign(fx, host.facing)
+    side = inst.flip * ts * host.facing   # arc / zigzag side of its line (turn_sign)
     inst.orbitA = inst.phase = inst.zx = inst.zy = 0.0
     inst.hits = 0
     inst.last_hit = -1e9
@@ -512,27 +559,30 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         if inst.path:
             inst.pl = path_line(inst.path)
             inst.po = list(p)
-            inst.pm = path_matrix(inst.path, host, d)
+            inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host))
     if m["kind"] in ("travel", "homing", "zigzag"):
         inst.vx, inst.vy = d[0] * spd, d[1] * spd
     if m["kind"] == "zigzag":
-        pr = [-inst.vy / spd * inst.flip, inst.vx / spd * inst.flip] if spd > 0.001 else [0, inst.flip]
+        pr = [-inst.vy / spd * side, inst.vx / spd * side] if spd > 0.001 else [0, side]
         inst.zx, inst.zy = pr[0] * m["amplitude"], pr[1] * m["amplitude"]
         inst.phase = math.pi * idx if n > 1 else 0.0
     if m["kind"] == "orbit":
         inst.orbitA = 360.0 * idx / max(1, n)
-        inst.x = p[0] + math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip
-        inst.y = p[1] + math.sin(inst.orbitA * D) * m["orbit_ry"]
+        inst.x, inst.y = orbit_pos(inst, host, p)
     if fx["prim"] == "arc":
         P = fx["params"]
-        od = [math.cos(P["angle_deg"] * D) * host.facing, math.sin(P["angle_deg"] * D)] if P["orient"] == "angle" else d
-        # Flipped: the perpendicular turns the other way (mirror image).
-        inst.centre_deg = angle_deg_qt(-od[1] * inst.flip, od[0] * inst.flip)
+        if P["orient"] == "angle":
+            od = turn_by([math.cos(P["angle_deg"] * D) * host.facing, math.sin(P["angle_deg"] * D)], body_deg(fx, host))
+        else:
+            od = d
+        # Which side of its line the crescent sits (see turn_sign).
+        sd = inst.flip if P["orient"] == "angle" else side
+        inst.centre_deg = angle_deg_qt(-od[1] * sd, od[0] * sd)
         tg = host.target
         if P["placement"] == "wrap_target":
             inst.x, inst.y = tg[0] - od[0] * P["back"], tg[1] - od[1] * P["back"]
         elif P["placement"] == "through_target":
-            R = P["radius"] * inst.flip
+            R = P["radius"] * sd
             inst.x = tg[0] + od[1] * R - od[0] * P["lead"]
             inst.y = tg[1] - od[0] * R - od[1] * P["lead"]
     if fx["prim"] == "particles" and fx["params"]["mode"] == "burst":
@@ -582,15 +632,14 @@ def move_inst(inst, host):
     elif m["kind"] == "orbit":
         c = anchor_pos(fx, host, inst.ep)
         inst.orbitA += m["orbit_deg"]
-        inst.x = c[0] + math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip
-        inst.y = c[1] + math.sin(inst.orbitA * D) * m["orbit_ry"]
+        inst.x, inst.y = orbit_pos(inst, host, c)
     if m["kind"] in ("travel", "homing", "zigzag"):
         mdx, mdy = inst.x - inst.px, inst.y - inst.py
         if mdx * mdx + mdy * mdy > 1e-6:
             inst.dir = norm(mdx, mdy)
     elif fx["prim"] == "beam":
         d = aim_dir(fx, host, inst.x, inst.y)
-        inst.dir = rot(d, m["aim_offset_deg"] * host.facing) if m["aim_offset_deg"] else d
+        inst.dir = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d)) if m["aim_offset_deg"] else d
 
 
 # ---------------------------------------------------------------- intercept
@@ -1445,6 +1494,13 @@ class _Host:
         # Solo has no opponent, so there is nothing to intercept).
         self.shots = getattr(world, "enemy_shots", None) or []
 
+    @property
+    def rot(self):
+        """Body rotation (degrees, after mirroring): the turn anchors get, and
+        Follow-direction effects with them."""
+        fig = self.fig
+        return fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
+
     def anchor(self, name):
         fig, cfx, drv = self.fig, self.drv.cfx, self.drv
         if name == "figure" or not name:
@@ -1456,7 +1512,7 @@ class _Host:
             return [fig.x, fig.y]
         k = cfx.k * self.pscale
         ox, oy = (p[0] - cfx.origin[0]) * k * self.facing, (p[1] - cfx.origin[1]) * k
-        ang = fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
+        ang = self.rot
         if ang:
             a = math.radians(ang)
             ox, oy = ox * math.cos(a) - oy * math.sin(a), ox * math.sin(a) + oy * math.cos(a)
