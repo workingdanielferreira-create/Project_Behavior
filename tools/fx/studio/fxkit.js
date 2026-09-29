@@ -200,6 +200,19 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
 var INTERCEPT_MODES = ["block", "deflect", "destroy"];
+// Flip (fx.flip): when enabled and the fighter faces the other way from
+// `facing` (the Studio facing the effect was created at, 1 right / -1 left),
+// the effect plays as the exact mirror image of how it was authored.  Offsets,
+// anchors, paths, particle / fixed angles already mirror with the facing; flip
+// also mirrors the handedness that doesn't: the arc's side and sweep, the
+// orbit's side and spin, and the zigzag's first swing.  Target-aimed effects
+// still aim at the target.  Off = today's behaviour.
+var FLIP_DEFAULTS = {enabled: false, facing: 1};
+// -1 when this effect plays mirrored for a fighter facing `facing`, else 1.
+function flipSign(fx, facing) {
+  var f = fx.flip;
+  return f && f.enabled && facing !== (+f.facing < 0 ? -1 : 1) ? -1 : 1;
+}
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
 //   idle / run      locomotion (standing still / moving), no conditions
 //   attack actions  the archetype decides when to attack; `chain_next` makes
@@ -405,6 +418,8 @@ function normalize(fx) {
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
   fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
   fx.intercept = fill(fx.intercept || {}, INTERCEPT_DEFAULTS);
+  fx.flip = fill(fx.flip || {}, FLIP_DEFAULTS);
+  fx.flip.facing = +fx.flip.facing < 0 ? -1 : 1;
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
   return fx;
@@ -536,7 +551,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var life = fx.life_ticks > 0 ? fx.life_ticks : Math.max(1, windowTicks);
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
-    ghosts: [], acc: 0, facing: host.facing, orbitA: 0, phase: 0, zx: 0, zy: 0,
+    ghosts: [], acc: 0, facing: host.facing, flip: flipSign(fx, host.facing), orbitA: 0, phase: 0, zx: 0, zy: 0,
     hits: 0, lastHit: -1e9, ep: ep == null ? null : ep};
   var spd = +m.speed || 0;
   if (m.kind === "path") {
@@ -545,18 +560,19 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
-    var pr = spd > 0.001 ? [-inst.vy / spd, inst.vx / spd] : [0, 1];
+    var pr = spd > 0.001 ? [-inst.vy / spd * inst.flip, inst.vx / spd * inst.flip] : [0, inst.flip];
     inst.zx = pr[0] * m.amplitude; inst.zy = pr[1] * m.amplitude;
     inst.phase = n > 1 ? Math.PI * idx : 0;
   }
   if (m.kind === "orbit") {
     inst.orbitA = 360 * idx / Math.max(1, n);
-    var c = p; inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
+    var c = p; inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
   }
   if (fx.prim === "arc") {
     // CrescentWave: centre angle perpendicular to the direction of travel.
     var od = fx.params.orient === "angle" ? [Math.cos(fx.params.angle_deg * D) * host.facing, Math.sin(fx.params.angle_deg * D)] : dir;
-    inst.centreDeg = angleDegQt(-od[1], od[0]);
+    // Flipped: the perpendicular turns the other way (mirror image).
+    inst.centreDeg = angleDegQt(-od[1] * inst.flip, od[0] * inst.flip);
     // CrescentWave.__init__ placements relative to the target (the aim
     // direction runs from the anchor to the target):
     //   wrap_target    centre = target - dir * back           (default slash, back 51)
@@ -566,7 +582,8 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     if (P.placement === "wrap_target") { inst.x = tg[0] - od[0] * P.back; inst.y = tg[1] - od[1] * P.back; }
     else if (P.placement === "through_target") {
       var R = P.radius;
-      inst.x = tg[0] + od[1] * R - od[0] * P.lead; inst.y = tg[1] - od[0] * R - od[1] * P.lead;
+      var Rf = R * inst.flip;
+      inst.x = tg[0] + od[1] * Rf - od[0] * P.lead; inst.y = tg[1] - od[0] * Rf - od[1] * P.lead;
     }
   }
   if (fx.prim === "particles" && fx.params.mode === "burst") emitParticles(inst, fx, host, trunc(fx.params.count));
@@ -603,7 +620,7 @@ function moveInst(inst, host) {
   } else if (m.kind === "orbit") {
     var c = anchorPos(fx, host, inst);
     inst.orbitA += m.orbit_deg;
-    inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
+    inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") {
     var mdx = inst.x - inst.px, mdy = inst.y - inst.py;
@@ -798,7 +815,8 @@ function arcSegs(inst, ps) {   // CrescentWave.draw visibility rules
     if (dft > P.tail) continue;
     var tt = 1 - dft / P.tail, a = trunc(255 * Math.pow(tt, 0.6) * fade);
     if (a < 4) continue;
-    out.push([start + i * step, step, P.width * (0.25 + 0.75 * tt) * ps, tt, a, st]);
+    // Flipped: the sweep grows the other way round (mirror image).
+    out.push([inst.flip < 0 ? inst.centreDeg + half - (i + 1) * step : start + i * step, step, P.width * (0.25 + 0.75 * tt) * ps, tt, a, st]);
   }
   return out;
 }
@@ -1108,7 +1126,7 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

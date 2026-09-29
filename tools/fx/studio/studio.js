@@ -451,6 +451,7 @@ function addPreset() {
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
   var added = x.p.effects.map(function (e) {
     var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = S.action;
+    if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: facing()};   // created at the current facing
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
     return FXK.normalize(fx);
   });
@@ -969,6 +970,16 @@ function buildProps() {
       }
     }
 
+    s = sec(d, "Flip", "flip", "Mirror image when the fighter faces the other way from the facing this effect was created at.");
+    var F = fx.flip;
+    field(s, "Flip", inp("chk", F.enabled, function (v) { F.enabled = v; changed(true); })).title =
+      "On: when the fighter faces the other way from \"created facing\", the whole effect plays as a mirror image: arc side and sweep, orbit spin and zigzag swing included. Target-aimed effects still aim at the target. Off: only position and angles follow the facing.";
+    if (F.enabled) {
+      field(s, "Created facing", inp([["1", "right"], ["-1", "left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; changed(true); })).title =
+        "The facing this effect was authored at. It plays as authored when the fighter faces this way, and mirrored when it faces the other way.";
+      note(s, "Facing " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Facing " + (F.facing < 0 ? "right" : "left") + ": mirrored. Switch the stage's facing to preview both.");
+    }
+
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;
     field(s, "Source", inp([["palette", "character palette (LUT)"], ["gradient", "two-colour gradient"], ["solid", "solid"]], c.mode, function (v) { c.mode = v; changed(true); }));
@@ -1461,6 +1472,7 @@ $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
   var fx = FXK.newEffect($("newPrim").value, S.action);
+  fx.flip.facing = facing();   // Flip: the facing it was created at
   if (fx.prim === "ghost") fx.layer = "behind";
   if (["arc", "beam", "sprite"].indexOf(fx.prim) >= 0) { fx.motion.kind = "travel"; fx.life_ticks = fx.prim === "arc" ? 5 : 60; }
   if (fx.prim === "particles") { fx.motion.kind = "static"; fx.life_ticks = 1; }

@@ -178,6 +178,23 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #   destroy  the enemy projectile is nullified, this one keeps going
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
                           hurts_owner=False)
+# Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled and the fighter faces the
+# other way from `facing` (the Studio facing the effect was created at, 1 right
+# / -1 left) the effect plays as the exact mirror image of how it was authored.
+# On top of what already mirrors with the facing, flip mirrors the arc's side
+# and sweep, the orbit's side and spin and the zigzag's first swing.
+# Target-aimed effects still aim at the target.  Off = the old behaviour.
+FLIP_DEFAULTS = dict(enabled=False, facing=1)
+
+
+def flip_sign(fx, facing):
+    """-1 when this effect plays mirrored for a fighter facing `facing`, else 1."""
+    f = fx.get("flip") or {}
+    if not f.get("enabled"):
+        return 1
+    return -1 if facing != (-1 if float(f.get("facing") or 1) < 0 else 1) else 1
+
+
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
                        movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80)
 # Character-level aiming (pack.aim): the whole frame turns so the weapon
@@ -211,6 +228,8 @@ def normalize(fx):
     fx["params"] = _fill(dict(fx.get("params") or {}), PARAM_DEFAULTS[fx["prim"]])
     fx["battle"] = _fill(dict(fx.get("battle") or {}), BATTLE_DEFAULTS)
     fx["intercept"] = _fill(dict(fx.get("intercept") or {}), INTERCEPT_DEFAULTS)
+    fx["flip"] = _fill(dict(fx.get("flip") or {}), FLIP_DEFAULTS)
+    fx["flip"]["facing"] = -1 if float(fx["flip"]["facing"] or 1) < 0 else 1
     if fx["prim"] == "ghost":
         fx["battle"]["deals_damage"] = False
     if fx["prim"] == "weapon":
@@ -421,7 +440,7 @@ def aim_dir(fx, host, x, y):
 
 class Inst:
     __slots__ = ("fx", "x", "y", "px", "py", "vx", "vy", "dir", "age", "life", "seed", "r", "flow", "dead", "hist",
-                 "trail", "parts", "ghosts", "acc", "facing", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
+                 "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free")
 
@@ -435,6 +454,7 @@ class Inst:
         self.open = False
         self.x2 = self.y2 = 0.0
         self.centre_deg = 0.0
+        self.flip = 1
 
 
 def emit_particles(inst, fx, host, n):
@@ -481,6 +501,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.hist, inst.trail, inst.parts, inst.ghosts = [], [], [], []
     inst.acc = 0.0
     inst.facing = host.facing
+    inst.flip = flip_sign(fx, host.facing)
     inst.orbitA = inst.phase = inst.zx = inst.zy = 0.0
     inst.hits = 0
     inst.last_hit = -1e9
@@ -495,22 +516,23 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     if m["kind"] in ("travel", "homing", "zigzag"):
         inst.vx, inst.vy = d[0] * spd, d[1] * spd
     if m["kind"] == "zigzag":
-        pr = [-inst.vy / spd, inst.vx / spd] if spd > 0.001 else [0, 1]
+        pr = [-inst.vy / spd * inst.flip, inst.vx / spd * inst.flip] if spd > 0.001 else [0, inst.flip]
         inst.zx, inst.zy = pr[0] * m["amplitude"], pr[1] * m["amplitude"]
         inst.phase = math.pi * idx if n > 1 else 0.0
     if m["kind"] == "orbit":
         inst.orbitA = 360.0 * idx / max(1, n)
-        inst.x = p[0] + math.cos(inst.orbitA * D) * m["orbit_rx"]
+        inst.x = p[0] + math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip
         inst.y = p[1] + math.sin(inst.orbitA * D) * m["orbit_ry"]
     if fx["prim"] == "arc":
         P = fx["params"]
         od = [math.cos(P["angle_deg"] * D) * host.facing, math.sin(P["angle_deg"] * D)] if P["orient"] == "angle" else d
-        inst.centre_deg = angle_deg_qt(-od[1], od[0])
+        # Flipped: the perpendicular turns the other way (mirror image).
+        inst.centre_deg = angle_deg_qt(-od[1] * inst.flip, od[0] * inst.flip)
         tg = host.target
         if P["placement"] == "wrap_target":
             inst.x, inst.y = tg[0] - od[0] * P["back"], tg[1] - od[1] * P["back"]
         elif P["placement"] == "through_target":
-            R = P["radius"]
+            R = P["radius"] * inst.flip
             inst.x = tg[0] + od[1] * R - od[0] * P["lead"]
             inst.y = tg[1] - od[0] * R - od[1] * P["lead"]
     if fx["prim"] == "particles" and fx["params"]["mode"] == "burst":
@@ -560,7 +582,7 @@ def move_inst(inst, host):
     elif m["kind"] == "orbit":
         c = anchor_pos(fx, host, inst.ep)
         inst.orbitA += m["orbit_deg"]
-        inst.x = c[0] + math.cos(inst.orbitA * D) * m["orbit_rx"]
+        inst.x = c[0] + math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip
         inst.y = c[1] + math.sin(inst.orbitA * D) * m["orbit_ry"]
     if m["kind"] in ("travel", "homing", "zigzag"):
         mdx, mdy = inst.x - inst.px, inst.y - inst.py
@@ -790,7 +812,9 @@ def arc_segs(inst, ps):
         a = trunc(255 * (tt ** 0.6) * fade)
         if a < 4:
             continue
-        out.append((start + i * step, step, P["width"] * (0.25 + 0.75 * tt) * ps, tt, a, st))
+        # Flipped: the sweep grows the other way round (mirror image).
+        a0 = inst.centre_deg + half - (i + 1) * step if inst.flip < 0 else start + i * step
+        out.append((a0, step, P["width"] * (0.25 + 0.75 * tt) * ps, tt, a, st))
     return out
 
 
