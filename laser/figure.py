@@ -25,7 +25,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim", "retreat")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -53,6 +53,7 @@ class Figure:
         self.fx = None   # fxkit.FxDriver for image characters with an FX file
         self.act = None  # actions.ActionRunner for image characters
         self.retreat = None  # retreat.RetreatState (tactical retreat)
+        self.blink = None    # blink.BlinkState (FX Studio blink teleport)
         self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
 
     # convenience aliases ---------------------------------------------------
@@ -86,6 +87,7 @@ class Figure:
         self.act = None
         self.aim = None
         self.retreat = None
+        self.blink = None
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")
@@ -198,7 +200,11 @@ class Figure:
             c0.afterimages = live
 
         fig_pscale = self._position_scale()
-        self.trail.draw(p, pen, self.motion.follow, fig_pscale)
+        # FX Studio blink: while blinked out the fighter, its trail and its
+        # body-bound FX are hidden (shots already in flight still draw).
+        gone = self.blink is not None and self.blink.gone
+        if not gone:
+            self.trail.draw(p, pen, self.motion.follow, fig_pscale)
 
         # --- Sprite-line emitter FX (JSON `sprite_emitter`): pulsing glow
         # dots pinned to the current frame's colour-matched line points
@@ -207,7 +213,8 @@ class Figure:
         # the figure moves on). Drawn before the sprite frame so the
         # particle layers sit behind the character. Cheap no-ops without
         # the block. ---
-        _combat.draw_sprite_emitter_glow(self, p, self.render.anim_tick)
+        if not gone:
+            _combat.draw_sprite_emitter_glow(self, p, self.render.anim_tick)
         if self.combat.sprite_particles:
             for sp in self.combat.sprite_particles:
                 # These detach and drift on their own, so they scale by
@@ -217,13 +224,13 @@ class Figure:
 
         # --- FX Studio effects (fxkit), "behind" layer ---
         if self.fx is not None:
-            self.fx.draw(p, self, "behind")
+            self.fx.draw(p, self, "behind", hidden=gone)
 
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
         # sprite (and its glow) skip drawing while vc_hidden; crescent
         # slashes / sparks / impact FX below still render.
-        if frame is not None and not c0.vc_hidden:
+        if frame is not None and not c0.vc_hidden and not gone:
             pscale = fig_pscale
             og = self.render.outline_glow
             if og is not None:
@@ -269,7 +276,7 @@ class Figure:
 
         # --- FX Studio effects (fxkit), "front" layer ---
         if self.fx is not None:
-            self.fx.draw(p, self, "front")
+            self.fx.draw(p, self, "front", hidden=gone)
 
         if self.combat.crescents:
             cpen = QPen()

@@ -10,6 +10,7 @@ import math
 from . import config
 from . import combat as _combat
 from . import actions as _actions
+from . import blink as _blink
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +162,10 @@ def damage_cooldown_ticks(fig):
 
 
 def damage_immune(fig, world):
-    """True while fig's damage cooldown from its last HP hit is running."""
+    """True while fig's damage cooldown from its last HP hit is running, or
+    while it is blinked out (FX Studio blink: untouchable while gone)."""
+    if _blink.gone(fig):
+        return True
     if world is None:
         return False
     return fig.personality.dmg_immune_until > world.global_tick
@@ -171,6 +175,8 @@ def knockback_immune(fig, world):
     """damage_immune for knockback delivered apart from the HP hit (dash-slash
     launch, dash body push).  Those land up to one tick after the hit that
     started the cooldown, and belong to it, so they still apply then."""
+    if _blink.gone(fig):
+        return True
     if not damage_immune(fig, world):
         return False
     return world.global_tick > fig.personality.dmg_hit_tick + 1

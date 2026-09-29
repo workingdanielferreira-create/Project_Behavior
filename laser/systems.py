@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink
 from . import platform_win as win
 from . import action_log
 
@@ -302,8 +302,18 @@ class CombatSystem(System):
             # runner plays full actions by the Studio triggers, then the FX
             # follow the frames it shows.  Identical in Solo & Battle.
             _img = actions.is_image(fig)
-            _rooted = actions.update(fig, world) if _img else False
-            fxkit.update_figure(fig, world)       # FX Studio effects (image characters), all archetypes
+            # --- Blink (FX Studio pack.blink): while blinked out the fighter
+            # is invisible and untouchable, stays put, and fires no new FX.
+            # Freeze on stops its action clock; off lets it run hidden. ---
+            _gone = blink.tick(fig, world)
+            _frozen = _gone and blink.frozen(fig)
+            if _gone and not _frozen:
+                _bx, _by = fig.transform.x, fig.transform.y
+            _rooted = actions.update(fig, world) if _img and not _frozen else False
+            if _gone and not _frozen:
+                fig.transform.x, fig.transform.y = _bx, _by   # gone = doesn't move
+            fxkit.update_figure(fig, world,       # FX Studio effects (image characters), all archetypes
+                                hold=("freeze" if _frozen else "run") if _gone else None)
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
@@ -359,6 +369,11 @@ class CombatSystem(System):
             # tactical_retreat): while it dashes it owns the figure's
             # movement — the melee FSM and MotionSystem skip it.  Target =
             # nearest enemy in Battle, the cursor in Solo. ---
+            if _gone:
+                if not _frozen:
+                    fig.render.advance()   # animation keeps running while hidden
+                fig.combat.acted = True
+                continue
             if retreat.tick(fig, world):
                 fig.combat.acted = True
                 continue
@@ -531,7 +546,7 @@ class ProjectileSystem(System):
                         # (BEAM_CULL 'parried age=1'). Cross-figure parries
                         # (e.g. solo swordsman parrying runner bullets) keep
                         # working. Identical in Solo & Battle.
-                        if proj.owner is fig:
+                        if proj.owner is fig or blink.gone(fig):
                             continue
                         ddx, ddy = proj.x - fig.x, proj.y - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
@@ -575,7 +590,10 @@ class ProjectileSystem(System):
 
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
-                    for ex, ey, _edash, eparry in world.partner_figures:
+                    _pgone = getattr(world, "partner_gone", None) or []
+                    for _pi, (ex, ey, _edash, eparry) in enumerate(world.partner_figures):
+                        if _pi < len(_pgone) and _pgone[_pi]:
+                            continue   # blinked out: shots pass where it was
                         ddx, ddy = proj.x - ex, proj.y - ey
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                             world.collision_dots.append([proj.x, proj.y, 0])
@@ -1027,6 +1045,8 @@ class CollisionSystem(System):
                         if not (fig.mode.uses_melee()
                                 or combat.has_defend_deflect(fig)):
                             continue
+                        if blink.gone(fig):
+                            continue
                         ddx, ddy = ex - fig.x, ey - fig.y
                         if ddx * ddx + ddy * ddy <= parry_rsq:
                             if fig.combat.parrying:
@@ -1053,6 +1073,8 @@ class CollisionSystem(System):
             world.enemy_projs = surviving_enemy
 
             for fig in world.figures:
+                if blink.gone(fig):
+                    continue   # blinked out: untouchable
                 hb = fig.mode.hurtbox_radius()
                 proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
                 for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
@@ -1088,7 +1110,7 @@ class CollisionSystem(System):
                     continue
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending
-                        or c.sp_phase or c.lb_phase):
+                        or c.sp_phase or c.lb_phase or blink.gone(fig)):
                     continue
                 if c.dodged_proj_ids:
                     c.dodged_proj_ids &= live_proj_ids  # drop ids of bullets no longer alive
@@ -1142,10 +1164,12 @@ class CollisionSystem(System):
                     continue
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.dodge_counter
-                        or c.slashing or m.bouncing or m.bounce_ending):
+                        or c.slashing or m.bouncing or m.bounce_ending
+                        or blink.gone(fig)):
                     continue
-                for ex, ey, edash, _eparry in world.partner_figures:
-                    if not edash:
+                _pgone = getattr(world, "partner_gone", None) or []
+                for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):
+                    if not edash or (_pi < len(_pgone) and _pgone[_pi]):
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     d_sq = ddx * ddx + ddy * ddy
@@ -1185,8 +1209,14 @@ class CollisionSystem(System):
                 # in the combat FSM (advance_combat), so we skip it entirely here.
                 if fig.mode.uses_melee() and fig.combat.dashing:
                     continue
+                # Blink: a blinked-out fighter has no body to collide with.
+                if blink.gone(fig):
+                    continue
                 _pimg = getattr(world, "partner_image", None) or []
+                _pgone = getattr(world, "partner_gone", None) or []
                 for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):
+                    if _pi < len(_pgone) and _pgone[_pi]:
+                        continue
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
                     if 0 < d_sq <= bsq:

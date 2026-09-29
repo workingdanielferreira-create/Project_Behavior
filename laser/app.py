@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -82,6 +82,7 @@ class SideState:
                                     # FX Studio auto-projectile tracker (Intercept)
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
+        self.partner_gone = []      # per partner_figures entry: blinked out (FX Studio blink)
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
 
@@ -135,6 +136,7 @@ class World:
         self.enemy_shots = []
         self.partner_image = []
         self.partner_facing = []
+        self.partner_gone = []
         self.intercepted_bullets = set()
 
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
@@ -212,7 +214,7 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg"):
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_fxblink_cfg"):
                 if m is not None and hasattr(m, attr):
                     try:
                         delattr(m, attr)
@@ -453,6 +455,7 @@ class World:
         self.enemy_shots = s.enemy_shots
         self.partner_image = s.partner_image
         self.partner_facing = s.partner_facing
+        self.partner_gone = s.partner_gone
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -501,6 +504,8 @@ class World:
                                       for f in other.figures if f.transform.init]
                 side.partner_facing = [bool(f.transform.facing_left)
                                        for f in other.figures if f.transform.init]
+                side.partner_gone = [blink.gone(f)
+                                     for f in other.figures if f.transform.init]
                 # What the opponent has in the air that can hurt: live
                 # damaging FX instances (tagged) and bullets ("bullet") —
                 # read by the fx_near action condition.
@@ -549,6 +554,7 @@ class World:
                 side.partner_figures = []
                 side.partner_image = []
                 side.partner_facing = []
+                side.partner_gone = []
                 side.enemy_fx = []
                 side.enemy_shots = []
                 side.enemy_projs = []

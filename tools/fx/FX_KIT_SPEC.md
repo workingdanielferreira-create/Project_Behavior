@@ -48,6 +48,9 @@ these characters; it plays the PNGs.
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false},
                                               {"type": "projectile_count", "count": 5}]},
+  "blink": {"enabled": false, "gone_ms": 300, "freeze": true, "anchor": "target", "direction": "behind",
+            "angle_deg": 0, "proximity_px": 60, "flash": true, "cooldown_ms": 3000,
+            "logic": "any", "conditions": [{"type": "hits_taken", "count": 3}]},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -336,6 +339,33 @@ move in progress, but never an ultimate or special stance. Solo and Battle run
 the same code; Solo has no enemy projectiles, and the cursor's back is the far
 side from the fighter. A rig-drawn `pb_character` JSON can set the same block
 as top-level `"tactical_retreat"`.
+
+**Blink (`blink`, whole character; `laser/blink.py`).** A teleport. When its
+conditions are met (`logic` any / all) the fighter vanishes where it stands,
+stays gone for `gone_ms` (the Studio's **Teleport speed**; `0` = instant),
+then reappears `proximity_px` from `anchor`:
+- `anchor`: `target` (the target, where it is when the fighter reappears) or
+  `self` (the spot the fighter vanished from).
+- `direction`: `behind` / `front` (opposite / along the way the target faces;
+  Solo: the cursor's far / near side from the fighter), `toward` / `away`
+  (along the fighter → target line / the reverse), `random`, or `angle`
+  (`angle_deg` from the fighter → target line: 0 = toward, 180 = away,
+  positive = clockwise).
+- The landing spot is kept 20 px inside the screen.
+
+While gone the fighter is invisible and untouchable (`ai.damage_immune`: no
+HP, knockback or body contact; enemy shots and FX pass where it was), doesn't
+move, and fires no new FX. Its body-bound FX (`attached` / `orbit` motion,
+`weapon`) are hidden and land no hits; shots already in flight carry on.
+`freeze: true` stops its action and animation until it reappears (same
+frame); `false` lets them keep running hidden. `flash` adds a crackle and an
+afterimage at both ends. A new blink can start `cooldown_ms` after it
+reappears. Conditions: every action condition type (evaluated by the
+fighter's action runner under the name `__blink__`, with its own counters)
+plus `projectile_count`. Each reappearance adds `blink` to the action
+history, so an action's `after_actions` can follow it (e.g. `blink`). A blink
+never starts during a tactical retreat dash, an ultimate or a special stance,
+and it cancels a knockback in progress. Solo and Battle run the same code.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,
