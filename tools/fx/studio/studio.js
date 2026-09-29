@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), blink: FXK.normalizeBlink({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, blink: S.blink, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -69,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat, bk: S.blink}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -90,6 +90,7 @@ function applyState(str) {
   S.aim = FXK.normalizeAim(o.am);
   S.damaged = FXK.normalizeDamaged(o.dm);
   S.retreat = FXK.normalizeRetreat(o.rt);
+  S.blink = FXK.normalizeBlink(o.bk);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
@@ -291,6 +292,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
     S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
     S.retreat = FXK.normalizeRetreat(clone(src.retreat || {}));
+    S.blink = FXK.normalizeBlink(clone(src.blink || {}));
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -396,6 +398,7 @@ function packData() {
     aim: FXK.normalizeAim(clone(S.aim)),
     damaged: FXK.normalizeDamaged(clone(S.damaged)),
     retreat: FXK.normalizeRetreat(clone(S.retreat)),
+    blink: FXK.normalizeBlink(clone(S.blink)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -1085,6 +1088,60 @@ function buildRetreatProps(d) {
   row.appendChild(sel); row.appendChild(add); s.appendChild(row);
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
+// Character-level Blink (pack.blink), shown under every action's settings.
+var BLINK_COND_LABEL = Object.assign({}, COND_LABEL, {projectile_count: "enemy projectiles on screen at once"});
+var BLINK_COND_FIELDS = Object.assign({}, COND_FIELDS, {count: ["Count", 1, 200, 1]});
+function buildBlinkProps(d) {
+  var s = sec(d, "Blink (whole character)", "a-blink",
+    "Teleport: vanish, stay gone for a moment, then reappear near the target or near where it vanished, when the conditions below are met. Applies to all actions.", "act");
+  var bk = S.blink, ch = function () { save(); buildProps(); };
+  field(s, "Blink", inp("chk", bk.enabled, function (v) { bk.enabled = v; ch(); })).title =
+    "On: the character teleports when the trigger conditions are met.";
+  if (!bk.enabled) return;
+  var info = document.createElement("div"); info.className = "note";
+  function say() {
+    var ms = Math.max(0, +bk.gone_ms || 0), t = Math.round(ms / FXK.TICK_MS);
+    info.textContent = t > 0 ? "Gone for " + Math.round(ms) + " ms (about " + t + " ticks), then reappears." : "0: vanishes and reappears in the same tick (instant).";
+  }
+  field(s, "Teleport speed ms", inp("n", bk.gone_ms, function (v) { bk.gone_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
+    "How long the character stays gone before reappearing. 0 = instant.";
+  say(); s.appendChild(info);
+  field(s, "Freeze", inp("chk", bk.freeze, function (v) { bk.freeze = v; ch(); })).title =
+    "On: the character's action and animation stop while it is gone and carry on from the same frame when it reappears. Off: they keep running while it is hidden.";
+  field(s, "Anchor", inp([["target", "Target"], ["self", "Self (where it vanished)"]], bk.anchor, function (v) { bk.anchor = v; ch(); })).title =
+    "What the proximity is measured from. Target: the target, where it is when the character reappears. Self: the spot the character vanished from.";
+  field(s, "Direction", inp([["behind", "Behind the target"], ["front", "In front of the target"], ["toward", "Toward the target"],
+    ["away", "Away from the target"], ["random", "Random"], ["angle", "Fixed angle"]], bk.direction, function (v) { bk.direction = v; ch(); })).title =
+    "Which side of the anchor it reappears on. Behind / in front: opposite / along the way the target faces (Solo: the cursor's far / near side). Toward / away: along the line between the character and the target. Random: any side. Fixed angle: the angle below.";
+  if (bk.direction === "angle") field(s, "Angle °", inp("n", bk.angle_deg, function (v) { bk.angle_deg = Math.max(-180, Math.min(180, v)); save(); }, -180, 180, 5)).title =
+    "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
+  field(s, "Proximity px", inp("n", bk.proximity_px, function (v) { bk.proximity_px = Math.max(0, Math.min(2000, v)); save(); }, 0, 2000, 5)).title =
+    "How far from the anchor it reappears (game px). 0 = right on the anchor.";
+  field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
+    "On: a crackle and an afterimage where it vanishes and where it reappears.";
+  field(s, "Cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
+    "After it reappears, how long before another blink can start.";
+  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). After a blink, \"blink\" counts as a completed action for after_actions conditions.");
+  field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], bk.logic, function (v) { bk.logic = v; save(); }));
+  bk.conditions.forEach(function (c, i) {
+    var box = sec(s, "Condition " + (i + 1) + ": " + BLINK_COND_LABEL[c.type], "a-bcond", null, "act");
+    Object.keys(FXK.BLINK_CONDITIONS[c.type]).forEach(function (k) {
+      var u = BLINK_COND_FIELDS[k];
+      field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
+        : u[1] === "chk" ? inp("chk", c[k], function (v) { c[k] = v; save(); })
+        : inp("n", c[k], function (v) { c[k] = v; save(); }, u[1], u[2], u[3]));
+    });
+    if (c.type === "projectile_count") box.lastChild.title = "Triggers when this many or more enemy projectiles are in the air at the same time.";
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { bk.conditions.splice(i, 1); ch(); };
+    box.appendChild(rm);
+  });
+  var row = document.createElement("div"); row.className = "row";
+  var sel = inp(Object.keys(FXK.BLINK_CONDITIONS).map(function (k) { return [k, BLINK_COND_LABEL[k]]; }), "hp_below", function () {});
+  var add = document.createElement("button"); add.textContent = "+ Condition";
+  add.onclick = function () { bk.conditions.push(FXK.normalizeBlink({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
+  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
+  if (!bk.conditions.length) note(s, "No conditions yet: add one, or the blink never triggers.");
+}
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
@@ -1117,6 +1174,7 @@ function buildActionProps(d) {
   buildAimProps(d);
   buildDamagedProps(d);
   buildRetreatProps(d);
+  buildBlinkProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");

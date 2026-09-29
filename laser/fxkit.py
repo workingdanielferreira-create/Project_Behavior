@@ -1223,13 +1223,22 @@ class Player:
             resolve_hits(inst, host, ps)
         self.insts = [i for i in self.insts if not i.dead]
 
-    def draw(self, p, host, layer):
+    def draw(self, p, host, layer, hidden=False):
         ps = host.pscale or 1.0
         for inst in self.insts:
             if inst.dead:   # ended at its source by the other side this tick
                 continue
+            if hidden and body_bound(inst):
+                continue    # blinked out: the fighter's own body FX are hidden
             if inst.fx.get("layer", "front") == layer:
                 draw_inst(p, inst, host, ps)
+
+
+def body_bound(inst):
+    """FX that sit on the fighter's body (attached / orbit motion, weapon
+    hitboxes): hidden and harmless while it is blinked out (laser/blink.py)."""
+    fx = inst.fx
+    return fx["motion"]["kind"] in ("attached", "orbit") or fx["prim"] == "weapon"
 
 
 # ===========================================================================
@@ -1519,16 +1528,21 @@ class FxDriver:
         n, fm = self.cfx.timing.get(action, (1, 100.0))
         return n, fm
 
-    def update(self, fig, world):
+    def update(self, fig, world, hold=None):
         # Action time follows the frame on screen: it advances one tick per
         # tick inside the frame's own span (frame_ms), jumps forward when the
         # engine's frames run ahead, holds when a frame is held, and starts
         # a new pass when the frames loop back (idle / run cycles).
+        # hold (FX Studio blink, while the fighter is gone): nothing new
+        # fires, live instances keep updating.  "freeze" also stops the
+        # action time; "run" lets it follow the frames as usual.
         action, frame = current_action(fig)
         n, fm = self._time_for(action)
         f0 = jround(frame * fm / TICK_MS)
         f1 = max(f0, jround((frame + 1) * fm / TICK_MS) - 1)
-        if action != self.action:
+        if hold == "freeze" and action == self.action:
+            self.t_prev = self.t
+        elif action != self.action:
             self.action, self.cycle = action, 0
             self.t, self.t_prev = f0, -1
         elif frame < self.frame:
@@ -1543,10 +1557,13 @@ class FxDriver:
         hurts = []
         if world.battle_mode and world.partner_figures:
             best = None
+            pgone = getattr(world, "partner_gone", None) or []
             for idx, pf in enumerate(world.partner_figures):
                 d = (pf[0] - fig.x) ** 2 + (pf[1] - fig.y) ** 2
                 if best is None or d < best[0]:
                     best = (d, pf)
+                if idx < len(pgone) and pgone[idx]:
+                    continue    # blinked out: nothing can hit it
                 hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS), (pf[0], pf[1])))
             self.target = (best[1][0], best[1][1])
         else:
@@ -1556,21 +1573,26 @@ class FxDriver:
         self.host = host
         cfg = self.cfx.settings.get(action) or normalize_action({})
         effects = self.cfx.by_action.get(action) or []
-        self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")), t_prev=self.t_prev)
+        self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
+                         t_prev=self.t if hold else self.t_prev)
+        if hold:
+            # Blinked out: the body-bound FX land no hits.
+            self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
 
-    def draw(self, p, fig, layer):
+    def draw(self, p, fig, layer, hidden=False):
         if self.host is None or not self.player.insts:
             return
         self.host.fig = fig
-        self.player.draw(p, self.host, layer)
+        self.player.draw(p, self.host, layer, hidden)
 
     def take_hits(self):
         h, self.hits_out = self.hits_out, []
         return h
 
 
-def update_figure(fig, world):
-    """CombatSystem hook: tick this figure's FX (no-op without an FX file)."""
+def update_figure(fig, world, hold=None):
+    """CombatSystem hook: tick this figure's FX (no-op without an FX file).
+    hold: see FxDriver.update (FX Studio blink)."""
     cfx = character_fx(fig.mode)
     drv = getattr(fig, "fx", None)
     if cfx is None:
@@ -1580,7 +1602,7 @@ def update_figure(fig, world):
     if drv is None or drv.cfx is not cfx:
         drv = FxDriver(cfx)
         fig.fx = drv
-    drv.update(fig, world)
+    drv.update(fig, world, hold)
     hits = drv.take_hits()
     if hits and world.battle_mode:
         world.queue_fx_hits(hits)

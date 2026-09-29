@@ -267,6 +267,36 @@ function normalizeRetreat(a) {
     .map(function (c) { return fill(c, RETREAT_CONDITIONS[c.type]); });
   return a;
 }
+// Character-level "Blink" (pack.blink), run by laser/blink.py.  When its
+// conditions are met (ANY / ALL) the fighter vanishes, stays gone for gone_ms
+// (the Studio's "Teleport speed"), then reappears proximity_px from the
+// anchor ("target" = the target when it reappears, "self" = where it
+// vanished) in the chosen direction:
+//   behind  the target's back (opposite the way it faces)
+//   front   the side the target faces
+//   toward  along the fighter -> target line
+//   away    along the target -> fighter line
+//   random  any direction
+//   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
+//           positive = clockwise)
+// While gone it is invisible and untouchable and fires no new FX; freeze
+// stops its action and animation until it reappears (off: they keep running
+// hidden).  flash = crackle + afterimage at both ends.  A new blink can start
+// cooldown_ms after it reappears.  Conditions: every action condition plus
+// projectile_count.
+var BLINK_DEFAULTS = {enabled: false, gone_ms: 300, freeze: true, anchor: "target", direction: "behind", angle_deg: 0,
+  proximity_px: 60, flash: true, cooldown_ms: 3000, logic: "any", conditions: []};
+var BLINK_ANCHORS = ["target", "self"];
+var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "random", "angle"];
+var BLINK_CONDITIONS = Object.assign({}, CONDITION_TYPES, {projectile_count: {count: 5}});
+function normalizeBlink(a) {
+  a = fill(a || {}, BLINK_DEFAULTS);
+  if (BLINK_ANCHORS.indexOf(a.anchor) < 0) a.anchor = BLINK_DEFAULTS.anchor;
+  if (BLINK_DIRECTIONS.indexOf(a.direction) < 0) a.direction = BLINK_DEFAULTS.direction;
+  a.conditions = (a.conditions || []).filter(function (c) { return c && BLINK_CONDITIONS[c.type]; })
+    .map(function (c) { return fill(c, BLINK_CONDITIONS[c.type]); });
+  return a;
+}
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
 // image origin and game px per image px (incl. position scale); fig, target
@@ -1083,6 +1113,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
+  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_CONDITIONS: BLINK_CONDITIONS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
