@@ -1579,6 +1579,16 @@ class FxDriver:
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
 
+    def jump(self, action, frame):
+        """The action skipped ahead to `frame` (FX Studio blink, freeze with
+        an action): the next update continues from that frame's start tick,
+        so only effects starting there fire — none from the skipped frames."""
+        if action != self.action:
+            return
+        _n, fm = self._time_for(action)
+        self.frame = frame
+        self.t = jround(frame * fm / TICK_MS) - 1
+
     def draw(self, p, fig, layer, hidden=False):
         if self.host is None or not self.player.insts:
             return

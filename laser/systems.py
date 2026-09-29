@@ -305,6 +305,9 @@ class CombatSystem(System):
             # --- Blink (FX Studio pack.blink): while blinked out the fighter
             # is invisible and untouchable, stays put, and fires no new FX.
             # Freeze on stops its action clock; off lets it run hidden. ---
+            # An entry with an action vanishes on its start frame and (freeze
+            # off) reappears on its end frame: after_action checks those
+            # right after the runner shows the frame.
             _gone = blink.tick(fig, world)
             _frozen = _gone and blink.frozen(fig)
             if _gone and not _frozen:
@@ -312,6 +315,8 @@ class CombatSystem(System):
             _rooted = actions.update(fig, world) if _img and not _frozen else False
             if _gone and not _frozen:
                 fig.transform.x, fig.transform.y = _bx, _by   # gone = doesn't move
+            _gone = blink.after_action(fig, world) or (_gone and blink.gone(fig))
+            _frozen = _gone and blink.frozen(fig)
             fxkit.update_figure(fig, world,       # FX Studio effects (image characters), all archetypes
                                 hold=("freeze" if _frozen else "run") if _gone else None)
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes

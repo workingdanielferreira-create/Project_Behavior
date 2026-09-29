@@ -1088,59 +1088,102 @@ function buildRetreatProps(d) {
   row.appendChild(sel); row.appendChild(add); s.appendChild(row);
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
-// Character-level Blink (pack.blink), shown under every action's settings.
+// Character-level Blink (pack.blink), shown under every action's settings:
+// a list of teleports, each with its own action, frames, settings and triggers.
 var BLINK_COND_LABEL = Object.assign({}, COND_LABEL, {projectile_count: "enemy projectiles on screen at once"});
 var BLINK_COND_FIELDS = Object.assign({}, COND_FIELDS, {count: ["Count", 1, 200, 1]});
 function buildBlinkProps(d) {
   var s = sec(d, "Blink (whole character)", "a-blink",
-    "Teleport: vanish, stay gone for a moment, then reappear near the target or near where it vanished, when the conditions below are met. Applies to all actions.", "act");
+    "Teleports: vanish, stay gone for a moment, then reappear near the target or near where it vanished. Each blink has its own action, frames and trigger conditions. Applies to all actions.", "act");
   var bk = S.blink, ch = function () { save(); buildProps(); };
   field(s, "Blink", inp("chk", bk.enabled, function (v) { bk.enabled = v; ch(); })).title =
-    "On: the character teleports when the trigger conditions are met.";
+    "On: the character teleports when any blink below has its trigger conditions met.";
   if (!bk.enabled) return;
-  var info = document.createElement("div"); info.className = "note";
-  function say() {
-    var ms = Math.max(0, +bk.gone_ms || 0), t = Math.round(ms / FXK.TICK_MS);
-    info.textContent = t > 0 ? "Gone for " + Math.round(ms) + " ms (about " + t + " ticks), then reappears." : "0: vanishes and reappears in the same tick (instant).";
-  }
-  field(s, "Teleport speed ms", inp("n", bk.gone_ms, function (v) { bk.gone_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
-    "How long the character stays gone before reappearing. 0 = instant.";
-  say(); s.appendChild(info);
-  field(s, "Freeze", inp("chk", bk.freeze, function (v) { bk.freeze = v; ch(); })).title =
-    "On: the character's action and animation stop while it is gone and carry on from the same frame when it reappears. Off: they keep running while it is hidden.";
-  field(s, "Anchor", inp([["target", "Target"], ["self", "Self (where it vanished)"]], bk.anchor, function (v) { bk.anchor = v; ch(); })).title =
-    "What the proximity is measured from. Target: the target, where it is when the character reappears. Self: the spot the character vanished from.";
-  field(s, "Direction", inp([["behind", "Behind the target"], ["front", "In front of the target"], ["toward", "Toward the target"],
-    ["away", "Away from the target"], ["random", "Random"], ["angle", "Fixed angle"]], bk.direction, function (v) { bk.direction = v; ch(); })).title =
-    "Which side of the anchor it reappears on. Behind / in front: opposite / along the way the target faces (Solo: the cursor's far / near side). Toward / away: along the line between the character and the target. Random: any side. Fixed angle: the angle below.";
-  if (bk.direction === "angle") field(s, "Angle °", inp("n", bk.angle_deg, function (v) { bk.angle_deg = Math.max(-180, Math.min(180, v)); save(); }, -180, 180, 5)).title =
-    "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
-  field(s, "Proximity px", inp("n", bk.proximity_px, function (v) { bk.proximity_px = Math.max(0, Math.min(2000, v)); save(); }, 0, 2000, 5)).title =
-    "How far from the anchor it reappears (game px). 0 = right on the anchor.";
-  field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
-    "On: a crackle and an afterimage where it vanishes and where it reappears.";
-  field(s, "Cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
-    "After it reappears, how long before another blink can start.";
+  bk.entries.forEach(function (e, i) { buildBlinkEntry(s, bk, e, i, ch); });
+  var row = document.createElement("div"); row.className = "row";
+  var add = document.createElement("button"); add.textContent = "+ Blink";
+  add.onclick = function () {
+    bk.entries.push(FXK.normalizeBlinkEntry({id: "B" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36),
+      name: "Blink " + (bk.entries.length + 1)}));
+    ch();
+  };
+  row.appendChild(add); s.appendChild(row);
+  if (!bk.entries.length) note(s, "No blinks yet: press + Blink to add one.");
   note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). After a blink, \"blink\" counts as a completed action for after_actions conditions.");
-  field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], bk.logic, function (v) { bk.logic = v; save(); }));
-  bk.conditions.forEach(function (c, i) {
-    var box = sec(s, "Condition " + (i + 1) + ": " + BLINK_COND_LABEL[c.type], "a-bcond", null, "act");
+}
+function buildBlinkEntry(s, bk, e, i, ch) {
+  var box = sec(s, (i + 1) + ". " + (e.name || "Blink") + (e.action ? " — " + e.action : " — no action"), "a-bk-" + e.id, null, "act");
+  field(box, "Name", inp("text", e.name, function (v) { e.name = v; save(); }));
+  field(box, "On", inp("chk", e.enabled, function (v) { e.enabled = v; save(); })).title = "Off: this blink never triggers (its settings are kept).";
+  var acts = [["", "— none (vanish the moment it triggers) —"]].concat(Object.keys(C.actions)
+    .filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }).map(function (k) { return [k, k]; }));
+  field(box, "Action", inp(acts, e.action, function (v) { e.action = v; ch(); })).title =
+    "The action this blink plays. It starts when the conditions below are met; the character vanishes on the start frame and reappears on the end frame. None: it vanishes the moment it triggers, whatever is playing.";
+  var ac = e.action && C.actions[e.action], n = ac ? ac.images.length : 0, fm = ac ? +ac.frame_ms || 0 : 0;
+  if (e.action && !ac) note(box, "This character has no action named " + e.action + ": pick another.");
+  if (ac) {
+    field(box, "Start frame", inp("n", e.start_frame, function (v) { e.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); say(); save(); }, 0, n - 1, 1)).title =
+      "The frame the character vanishes on (0 = the first frame).";
+    field(box, "End frame", inp("n", e.end_frame, function (v) { e.end_frame = v < 0 ? -1 : Math.max(0, Math.min(n - 1, Math.round(v))); say(); save(); }, -1, n - 1, 1)).title =
+      "The frame the character reappears on (-1 = the last frame). Freeze on: the frames between start and end are skipped. Freeze off: they play while it is hidden.";
+  }
+  field(box, "Freeze", inp("chk", e.freeze, function (v) { e.freeze = v; ch(); })).title =
+    "On: the animation stops while the character is gone" + (ac ? " (holding the start frame), then carries on from the end frame." : ", and carries on from the same frame when it reappears.") +
+    " Off: the animation keeps running while it is hidden.";
+  if (e.freeze) field(box, "Freeze timer ms", inp("n", e.freeze_ms, function (v) { e.freeze_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
+    "How long the freeze lasts: how long the character stays gone with its animation stopped. 0 = no hold.";
+  else if (!ac) field(box, "Teleport speed ms", inp("n", e.gone_ms, function (v) { e.gone_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
+    "How long the character stays gone before reappearing. 0 = instant.";
+  var info = document.createElement("div"); info.className = "note"; box.appendChild(info);
+  function say() {
+    var tk = function (ms) { return Math.round(ms) + " ms (about " + Math.round(ms / FXK.TICK_MS) + " ticks)"; };
+    if (ac) {
+      var st = Math.max(0, Math.min(n - 1, e.start_frame)), en = e.end_frame < 0 ? n - 1 : Math.min(n - 1, e.end_frame);
+      if (en < st) en = st;
+      var skipped = en - st > 1 ? " (frames " + (st + 1) + "–" + (en - 1) + " skipped)" : "";
+      info.textContent = "Plays " + e.action + " to frame " + st + " (" + Math.round(st * fm) + " ms in), vanishes, " +
+        (e.freeze ? "holds frame " + st + " for " + tk(e.freeze_ms) + ", then reappears on frame " + en + " and plays on" + skipped + "."
+          : "plays frames " + st + "–" + en + " hidden (" + tk((en - st) * fm) + "), then reappears on frame " + en + " and plays on.");
+    } else info.textContent = "Vanishes the moment it triggers, gone for " + tk(e.freeze ? e.freeze_ms : e.gone_ms) +
+      (e.freeze ? " with its animation stopped." : " with its animation running.");
+  }
+  say();
+  field(box, "Anchor", inp([["target", "Target"], ["self", "Self (where it vanished)"]], e.anchor, function (v) { e.anchor = v; ch(); })).title =
+    "What the proximity is measured from. Target: the target, where it is when the character reappears. Self: the spot the character vanished from.";
+  field(box, "Direction", inp([["behind", "Behind the target"], ["front", "In front of the target"], ["toward", "Toward the target"],
+    ["away", "Away from the target"], ["random", "Random"], ["angle", "Fixed angle"]], e.direction, function (v) { e.direction = v; ch(); })).title =
+    "Which side of the anchor it reappears on. Behind / in front: opposite / along the way the target faces (Solo: the cursor's far / near side). Toward / away: along the line between the character and the target. Random: any side. Fixed angle: the angle below.";
+  if (e.direction === "angle") field(box, "Angle °", inp("n", e.angle_deg, function (v) { e.angle_deg = Math.max(-180, Math.min(180, v)); save(); }, -180, 180, 5)).title =
+    "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
+  field(box, "Proximity px", inp("n", e.proximity_px, function (v) { e.proximity_px = Math.max(0, Math.min(2000, v)); save(); }, 0, 2000, 5)).title =
+    "How far from the anchor it reappears (game px). 0 = right on the anchor.";
+  field(box, "Flash FX", inp("chk", e.flash, function (v) { e.flash = v; save(); })).title =
+    "On: a crackle and an afterimage where it vanishes and where it reappears.";
+  field(box, "Cooldown ms", inp("n", e.cooldown_ms, function (v) { e.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
+    "After it reappears, how long before this blink can start again.";
+  field(box, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], e.logic, function (v) { e.logic = v; save(); }));
+  e.conditions.forEach(function (c, ci) {
+    var cb = sec(box, "Condition " + (ci + 1) + ": " + BLINK_COND_LABEL[c.type], "a-bcond", null, "act");
     Object.keys(FXK.BLINK_CONDITIONS[c.type]).forEach(function (k) {
       var u = BLINK_COND_FIELDS[k];
-      field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
+      field(cb, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
         : u[1] === "chk" ? inp("chk", c[k], function (v) { c[k] = v; save(); })
         : inp("n", c[k], function (v) { c[k] = v; save(); }, u[1], u[2], u[3]));
     });
-    if (c.type === "projectile_count") box.lastChild.title = "Triggers when this many or more enemy projectiles are in the air at the same time.";
-    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { bk.conditions.splice(i, 1); ch(); };
-    box.appendChild(rm);
+    if (c.type === "projectile_count") cb.lastChild.title = "Triggers when this many or more enemy projectiles are in the air at the same time.";
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { e.conditions.splice(ci, 1); ch(); };
+    cb.appendChild(rm);
   });
   var row = document.createElement("div"); row.className = "row";
   var sel = inp(Object.keys(FXK.BLINK_CONDITIONS).map(function (k) { return [k, BLINK_COND_LABEL[k]]; }), "hp_below", function () {});
   var add = document.createElement("button"); add.textContent = "+ Condition";
-  add.onclick = function () { bk.conditions.push(FXK.normalizeBlink({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
-  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
-  if (!bk.conditions.length) note(s, "No conditions yet: add one, or the blink never triggers.");
+  add.onclick = function () { e.conditions.push(FXK.normalizeBlinkEntry({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
+  row.appendChild(sel); row.appendChild(add); box.appendChild(row);
+  if (!e.conditions.length) note(box, "No conditions yet: add one, or this blink never triggers.");
+  var r2 = document.createElement("div"); r2.className = "row";
+  var del = document.createElement("button"); del.textContent = "Delete blink";
+  del.onclick = function () { bk.entries.splice(i, 1); ch(); };
+  r2.appendChild(del); box.appendChild(r2);
 }
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {

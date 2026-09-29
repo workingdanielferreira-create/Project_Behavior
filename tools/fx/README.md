@@ -39,11 +39,14 @@ timing.
   frames, and has a **Deals damage** checkbox (HP per hit, pierce, re-hit,
   knockback). It hits wherever its drawn shape touches the target's hurt
   circle.
-- **Blink (whole character).** Under any action's settings: a teleport with
-  its own trigger conditions. **Teleport speed** is how long the character
-  stays gone, **Freeze** stops its animation until it reappears, **Anchor** +
-  **Direction** + **Proximity** set where it lands. While gone it can't be
-  hit.
+- **Blink (whole character).** Under any action's settings: a list of
+  teleports (**+ Blink**), each with its own trigger conditions. Pick an
+  **Action** and its **Start frame** (vanish) and **End frame** (reappear).
+  With **Freeze** on it holds the start frame for the **Freeze timer**, then
+  reappears on the end frame. With Freeze off the frames in between play
+  hidden. With no action it vanishes at once, for the Freeze timer or
+  **Teleport speed**. **Anchor** + **Direction** + **Proximity** set where it
+  lands. While gone it can't be hit.
 - **Presets.** Built-in presets rebuild the game's existing effects with their
   `config.py` numbers. **Save as preset** keeps your own, and
   **Export**/**Import** moves them between machines.

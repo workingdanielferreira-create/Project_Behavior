@@ -267,35 +267,50 @@ function normalizeRetreat(a) {
     .map(function (c) { return fill(c, RETREAT_CONDITIONS[c.type]); });
   return a;
 }
-// Character-level "Blink" (pack.blink), run by laser/blink.py.  When its
-// conditions are met (ANY / ALL) the fighter vanishes, stays gone for gone_ms
-// (the Studio's "Teleport speed"), then reappears proximity_px from the
-// anchor ("target" = the target when it reappears, "self" = where it
-// vanished) in the chosen direction:
-//   behind  the target's back (opposite the way it faces)
-//   front   the side the target faces
-//   toward  along the fighter -> target line
-//   away    along the target -> fighter line
-//   random  any direction
-//   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
-//           positive = clockwise)
-// While gone it is invisible and untouchable and fires no new FX; freeze
-// stops its action and animation until it reappears (off: they keep running
-// hidden).  flash = crackle + afterimage at both ends.  A new blink can start
-// cooldown_ms after it reappears.  Conditions: every action condition plus
-// projectile_count.
-var BLINK_DEFAULTS = {enabled: false, gone_ms: 300, freeze: true, anchor: "target", direction: "behind", angle_deg: 0,
+// Character-level "Blink" (pack.blink), run by laser/blink.py:
+// {enabled, entries: [entry, ...]}.  Each entry is one teleport with its own
+// conditions (ANY / ALL, every action condition plus projectile_count) and
+// cooldown; the first entry whose conditions pass starts, one at a time.
+//   action ""   vanish the moment it triggers; gone for freeze_ms (freeze on,
+//               animation stopped) or gone_ms (freeze off, animation runs)
+//   action X    X starts and plays to start_frame S, where it vanishes.
+//               Freeze on: holds on S for freeze_ms, then jumps to end_frame
+//               E (frames between skipped) and reappears.  Freeze off: S..E
+//               play hidden, it reappears on E.  end_frame -1 = last frame.
+// It reappears proximity_px from the anchor ("target" = the target when it
+// reappears, "self" = where it vanished) in the chosen direction:
+//   behind / front  opposite / along the way the target faces
+//   toward / away   along the fighter -> target line / the reverse
+//   random          any direction
+//   angle           angle_deg from the fighter -> target line
+// While gone it is invisible and untouchable and fires no new FX.  flash =
+// crackle + afterimage at both ends.  An entry can start again cooldown_ms
+// after it reappears.  The first version kept one entry's fields directly in
+// pack.blink; normalizeBlink turns that into entry 1.
+var BLINK_ENTRY_DEFAULTS = {id: "", name: "Blink", enabled: true, action: "", start_frame: 0, end_frame: -1,
+  freeze: true, freeze_ms: 300, gone_ms: 300, anchor: "target", direction: "behind", angle_deg: 0,
   proximity_px: 60, flash: true, cooldown_ms: 3000, logic: "any", conditions: []};
 var BLINK_ANCHORS = ["target", "self"];
 var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "random", "angle"];
 var BLINK_CONDITIONS = Object.assign({}, CONDITION_TYPES, {projectile_count: {count: 5}});
-function normalizeBlink(a) {
-  a = fill(a || {}, BLINK_DEFAULTS);
-  if (BLINK_ANCHORS.indexOf(a.anchor) < 0) a.anchor = BLINK_DEFAULTS.anchor;
-  if (BLINK_DIRECTIONS.indexOf(a.direction) < 0) a.direction = BLINK_DEFAULTS.direction;
-  a.conditions = (a.conditions || []).filter(function (c) { return c && BLINK_CONDITIONS[c.type]; })
+function normalizeBlinkEntry(e, i) {
+  e = fill(e || {}, BLINK_ENTRY_DEFAULTS);
+  if (!e.id) e.id = "B" + (i || 0);
+  e.action = String(e.action || "");
+  if (BLINK_ANCHORS.indexOf(e.anchor) < 0) e.anchor = BLINK_ENTRY_DEFAULTS.anchor;
+  if (BLINK_DIRECTIONS.indexOf(e.direction) < 0) e.direction = BLINK_ENTRY_DEFAULTS.direction;
+  e.conditions = (e.conditions || []).filter(function (c) { return c && BLINK_CONDITIONS[c.type]; })
     .map(function (c) { return fill(c, BLINK_CONDITIONS[c.type]); });
-  return a;
+  return e;
+}
+function normalizeBlink(a) {
+  a = a || {};
+  if (!a.entries && (a.conditions || a.gone_ms !== undefined)) {
+    var old = JSON.parse(JSON.stringify(a)); delete old.enabled;
+    if (old.freeze_ms === undefined) old.freeze_ms = old.gone_ms !== undefined ? old.gone_ms : BLINK_ENTRY_DEFAULTS.gone_ms;
+    a = {enabled: !!a.enabled, entries: [old]};
+  }
+  return {enabled: !!a.enabled, entries: (a.entries || []).map(normalizeBlinkEntry)};
 }
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
@@ -1113,7 +1128,8 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
-  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_CONDITIONS: BLINK_CONDITIONS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
+  BLINK_ENTRY_DEFAULTS: BLINK_ENTRY_DEFAULTS, BLINK_CONDITIONS: BLINK_CONDITIONS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
+  normalizeBlink: normalizeBlink, normalizeBlinkEntry: normalizeBlinkEntry,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
