@@ -440,35 +440,56 @@ FX Studio shows it as the **Intercept** section.
 - **Parity:** `fxkit.js interceptStep` and `fxkit.py intercept_step` produce
   identical positions and events.
 
-## 5d. Flip (`flip`) — mirror for the other facing
+## 5d. Flip (`flip`) and Follow direction (`follow_dir`)
 
-Every effect except the weapon hitbox. FX Studio shows it as the **Flip**
-section.
+Every effect except the weapon hitbox. FX Studio shows both in the **Flip &
+direction** section.
 
 ```json
-"flip": {"enabled": false, "facing": 1}
+"flip": {"enabled": false, "facing": 1},
+"follow_dir": false
 ```
 
 | field | meaning |
 |---|---|
-| `enabled` | Off (default): the effect behaves as before. On: when the fighter faces the other way from `facing`, it plays as the exact mirror image of how it was authored. |
-| `facing` | The facing the effect was created at: `1` right, `-1` left. The Studio records the stage's facing when the effect is added, and the **Created facing** dropdown changes it. |
+| `flip.enabled` | Off (default): the effect behaves as before. On: when the fighter faces the other way from `flip.facing`, the effect is mirrored left ↔ right only, never up ↔ down. |
+| `flip.facing` | The facing the effect was created at: `1` right, `-1` left. The Studio records the stage's facing when the effect is added, and the **Created facing** dropdown changes it. |
+| `follow_dir` | Off (default): as before. On: the whole effect turns with the body's rotation as well as its facing, so it keeps its place and direction relative to the body. |
 
+**Flip**
 - Offsets, anchors, entry points, paths, particle angles and fixed or weapon
-  aims already mirror with the facing. Flip also mirrors the handedness that
-  doesn't:
-  - **arc**: the crescent sits on the mirrored side of its aim line
-    (perpendicular and `through_target` offset reversed) and sweeps the other
-    way round;
-  - **orbit**: its x offset is mirrored, so it starts on the mirrored side
-    and spins the other way;
-  - **zigzag**: its first swing goes to the mirrored side.
-- Target-aimed effects still aim at the target.
-- Decided once per instance at spawn (`inst.flip`, `flipSign` /
-  `flip_sign`), from the facing at that moment. The same code runs in Solo and
-  Battle.
-- **Parity:** `fxkit.js` and `fxkit.py` produce identical positions and arc
-  segments with flip on and off.
+  aims already mirror with the facing. Flip also mirrors the arc's sweep
+  (it grows the other way round) and the orbit (its side and spin).
+- Target-aimed effects still aim at the target. Their up / down (the side of
+  its line the arc sits on, the zigzag's first swing, the aim offset and fan)
+  is judged against the facing (`turnSign` / `turn_sign`): an aim heading
+  backward (target behind the fighter) counts as forward. So the arc under a
+  slash stays under it whichever side the target is on.
+- Decided once per instance at spawn (`inst.flip`, `inst.side`) from the
+  facing at that moment.
+
+**Follow direction**
+- The body's rotation is `host.rot` (degrees, applied after mirroring, the
+  turn anchors already get): `Figure.aim` for an aiming character, or a
+  rotating runner's tilt. In the Studio it is the Aim turn (`aimDeg`).
+- Turned by it: the offset, entry points, facing / angle / weapon aims (and
+  so held beams and projectiles fired along them), the arc's `orient
+  "angle"`, particle angles, the orbit ellipse, and `orient "facing"` paths.
+  `orient "aim"` paths already follow the aim.
+- Target aims still track the target and are not turned.
+- The reference is the body's own unturned frame, as Rig Forge drew it.
+- Attached and orbiting effects read the rotation every tick. Projectiles,
+  arcs and particle bursts take it at spawn.
+
+Both are the same code in Solo and Battle. **Parity:** `fxkit.js` and
+`fxkit.py` produce identical positions, directions, particle velocities and
+arc segments across random effects with both settings on and off. The
+exception is a homing shot that passes within a fraction of a pixel of its
+target, where float rounding picks the turn.
+
+**Studio stage:** changing the facing dropdown moves a target that's now
+behind the fighter to the mirrored spot in front, as in the game, where the
+fighter faces its target while it acts.
 
 ## 6. Presets
 

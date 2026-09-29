@@ -202,16 +202,35 @@ var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10,
 var INTERCEPT_MODES = ["block", "deflect", "destroy"];
 // Flip (fx.flip): when enabled and the fighter faces the other way from
 // `facing` (the Studio facing the effect was created at, 1 right / -1 left),
-// the effect plays as the exact mirror image of how it was authored.  Offsets,
+// the effect is mirrored left <-> right only, never up <-> down.  Offsets,
 // anchors, paths, particle / fixed angles already mirror with the facing; flip
-// also mirrors the handedness that doesn't: the arc's side and sweep, the
-// orbit's side and spin, and the zigzag's first swing.  Target-aimed effects
-// still aim at the target.  Off = today's behaviour.
+// also mirrors the arc's sweep and the orbit's side and spin.  Target-aimed
+// effects still aim at the target, and their up / down (the arc's side of
+// its line, the zigzag's first swing, the aim offset) is judged against the
+// facing, so it stays put whichever side the target is on.  Off = the old
+// behaviour.
 var FLIP_DEFAULTS = {enabled: false, facing: 1};
 // -1 when this effect plays mirrored for a fighter facing `facing`, else 1.
 function flipSign(fx, facing) {
   var f = fx.flip;
   return f && f.enabled && facing !== (+f.facing < 0 ? -1 : 1) ? -1 : 1;
+}
+// Follow direction (fx.follow_dir): the whole effect turns with the body's
+// rotation (host.rot: the aim turn, or a rotating runner's tilt; degrees,
+// applied after mirroring, the way anchors turn), not just its facing.
+// Offsets, entry points, facing / angle / weapon aims, the arc's angle,
+// particle angles, orbits and paths all turn; target aims still track the
+// target.  The body's own unturned frame is the reference.
+function bodyDeg(fx, host) { return fx.follow_dir ? (+host.rot || 0) : 0; }
+function turnBy(v, deg) { return deg ? rot(v, deg) : v; }
+// Sign for the facing-relative turns (fan, aim offset) and, times inst.flip,
+// the arc / zigzag side.  Without Flip: the facing (the old behaviour).  With
+// Flip, a target aim heading backward (the target behind the fighter) counts
+// as forward, so the effect's up / down never swaps.
+function turnSign(fx, host, d) {
+  if (!fx.flip || !fx.flip.enabled || fx.motion.aim !== "target") return host.facing;
+  var u = turnBy(d, -bodyDeg(fx, host));
+  return u[0] * host.facing < 0 ? -host.facing : host.facing;
 }
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
 //   idle / run      locomotion (standing still / moving), no conditions
@@ -420,6 +439,7 @@ function normalize(fx) {
   fx.intercept = fill(fx.intercept || {}, INTERCEPT_DEFAULTS);
   fx.flip = fill(fx.flip || {}, FLIP_DEFAULTS);
   fx.flip.facing = +fx.flip.facing < 0 ? -1 : 1;
+  fx.follow_dir = !!fx.follow_dir;
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
   return fx;
@@ -435,11 +455,11 @@ function normalize(fx) {
 //   host.lut          -> 256-entry palette LUT
 function aimDir(fx, host, x, y) {
   var m = fx.motion, f = host.facing, dx, dy;
-  if (m.aim === "target") { var d = norm(host.target[0] - x, host.target[1] - y); dx = d[0]; dy = d[1]; }
-  else if (m.aim === "angle") { dx = Math.cos(m.angle_deg * D) * f; dy = Math.sin(m.angle_deg * D); }
+  if (m.aim === "target") return norm(host.target[0] - x, host.target[1] - y);   // tracks the target, never turned
+  if (m.aim === "angle") { dx = Math.cos(m.angle_deg * D) * f; dy = Math.sin(m.angle_deg * D); }
   else if (m.aim === "weapon") { dx = Math.sin(host.wang * D) * f; dy = -Math.cos(host.wang * D); }
   else { dx = f; dy = 0; }
-  return [dx, dy];
+  return turnBy([dx, dy], bodyDeg(fx, host));
 }
 function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return [v[0] * c - v[1] * s, v[0] * s + v[1] * c]; }
 // ---------------------------------------------------------------- entry sets / paths
@@ -480,16 +500,22 @@ function entrySetOf(fx, host) {
   var e = libFind(host, "entry_sets", fx.anchor.slice(4));
   return e && e.points.length ? e : null;
 }
-function entryPoint(set, k, host) {
-  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0];
-  return [b[0] + q[0] * host.facing, b[1] + q[1]];
+function entryPoint(set, k, host, deg) {
+  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0], o = turnBy([q[0] * host.facing, q[1]], deg);
+  return [b[0] + o[0], b[1] + o[1]];
 }
 function anchorPos(fx, host, inst) {
-  var a, set = entrySetOf(fx, host);
-  if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host);
+  var a, set = entrySetOf(fx, host), deg = bodyDeg(fx, host);
+  if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host, deg);
   else if (typeof fx.anchor === "string" && fx.anchor.indexOf("set:") === 0) a = host.anchor("figure");   // empty / missing set
   else a = host.anchor(fx.anchor);
-  return [a[0] + (+fx.offset[0] || 0) * host.facing, a[1] + (+fx.offset[1] || 0)];
+  var o = turnBy([(+fx.offset[0] || 0) * host.facing, +fx.offset[1] || 0], deg);
+  return [a[0] + o[0], a[1] + o[1]];
+}
+// Orbit position around centre c (flip mirrors its side and spin).
+function orbitPos(inst, host, c) {
+  var m = inst.fx.motion, o = turnBy([Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip, Math.sin(inst.orbitA * D) * m.orbit_ry], bodyDeg(inst.fx, host));
+  return [c[0] + o[0], c[1] + o[1]];
 }
 // A path as an evenly-spaced polyline (Catmull-Rom through the points when
 // smooth): {pts, len, cum}.
@@ -521,10 +547,15 @@ function pathAt(pl, u) {
   return [[a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], dir];
 }
 // Local path px -> world offset: mirror with the facing, then (orient "aim")
-// turn the start→end line onto the aim direction.
-function pathMatrix(path, host, dir) {
+// turn the start→end line onto the aim direction, else turn it by `deg`
+// (Follow direction's body turn).
+function pathMatrix(path, host, dir, deg) {
   var f = host.facing, P = path.points, last = P[P.length - 1];
-  if (path.orient !== "aim" || (!last[0] && !last[1])) return [f, 0, 0, 1];
+  if (path.orient !== "aim" || (!last[0] && !last[1])) {
+    if (!deg) return [f, 0, 0, 1];
+    var c0 = Math.cos(deg * D), s0 = Math.sin(deg * D);
+    return [c0 * f, -s0, s0 * f, c0];
+  }
   var th = Math.atan2(dir[1], dir[0]) - Math.atan2(last[1], last[0] * f), c = Math.cos(th), s = Math.sin(th);
   return [c * f, -s, s * f, c];
 }
@@ -545,34 +576,37 @@ function pathStep(inst, host) {
 
 function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var p = anchorPos(fx, host, {ep: ep}), m = fx.motion;
-  var dir = aimDir(fx, host, p[0], p[1]);
-  if (n > 1 && fx.emit.fan_deg) dir = rot(dir, (-fx.emit.fan_deg / 2 + fx.emit.fan_deg * idx / (n - 1)) * host.facing);
-  if (m.aim_offset_deg) dir = rot(dir, m.aim_offset_deg * host.facing);
+  var dir = aimDir(fx, host, p[0], p[1]), ts = turnSign(fx, host, dir);
+  if (n > 1 && fx.emit.fan_deg) dir = rot(dir, (-fx.emit.fan_deg / 2 + fx.emit.fan_deg * idx / (n - 1)) * ts);
+  if (m.aim_offset_deg) dir = rot(dir, m.aim_offset_deg * ts);
   var life = fx.life_ticks > 0 ? fx.life_ticks : Math.max(1, windowTicks);
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
     ghosts: [], acc: 0, facing: host.facing, flip: flipSign(fx, host.facing), orbitA: 0, phase: 0, zx: 0, zy: 0,
     hits: 0, lastHit: -1e9, ep: ep == null ? null : ep};
+  // Arc / zigzag side of its line: flipped with the facing, kept up / down.
+  inst.side = inst.flip * ts * host.facing;
   var spd = +m.speed || 0;
   if (m.kind === "path") {
     inst.path = libFind(host, "paths", m.path);
-    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, host, dir); }
+    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, host, dir, bodyDeg(fx, host)); }
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
-    var pr = spd > 0.001 ? [-inst.vy / spd * inst.flip, inst.vx / spd * inst.flip] : [0, inst.flip];
+    var pr = spd > 0.001 ? [-inst.vy / spd * inst.side, inst.vx / spd * inst.side] : [0, inst.side];
     inst.zx = pr[0] * m.amplitude; inst.zy = pr[1] * m.amplitude;
     inst.phase = n > 1 ? Math.PI * idx : 0;
   }
   if (m.kind === "orbit") {
     inst.orbitA = 360 * idx / Math.max(1, n);
-    var c = p; inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
+    var op = orbitPos(inst, host, p); inst.x = op[0]; inst.y = op[1];
   }
   if (fx.prim === "arc") {
     // CrescentWave: centre angle perpendicular to the direction of travel.
-    var od = fx.params.orient === "angle" ? [Math.cos(fx.params.angle_deg * D) * host.facing, Math.sin(fx.params.angle_deg * D)] : dir;
-    // Flipped: the perpendicular turns the other way (mirror image).
-    inst.centreDeg = angleDegQt(-od[1] * inst.flip, od[0] * inst.flip);
+    var od = fx.params.orient === "angle" ? turnBy([Math.cos(fx.params.angle_deg * D) * host.facing, Math.sin(fx.params.angle_deg * D)], bodyDeg(fx, host)) : dir;
+    // Which side of its line the crescent sits (inst.side, see turnSign).
+    var sd = fx.params.orient === "angle" ? inst.flip : inst.side;
+    inst.centreDeg = angleDegQt(-od[1] * sd, od[0] * sd);
     // CrescentWave.__init__ placements relative to the target (the aim
     // direction runs from the anchor to the target):
     //   wrap_target    centre = target - dir * back           (default slash, back 51)
@@ -582,7 +616,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     if (P.placement === "wrap_target") { inst.x = tg[0] - od[0] * P.back; inst.y = tg[1] - od[1] * P.back; }
     else if (P.placement === "through_target") {
       var R = P.radius;
-      var Rf = R * inst.flip;
+      var Rf = R * sd;
       inst.x = tg[0] + od[1] * Rf - od[0] * P.lead; inst.y = tg[1] - od[0] * Rf - od[1] * P.lead;
     }
   }
@@ -620,7 +654,7 @@ function moveInst(inst, host) {
   } else if (m.kind === "orbit") {
     var c = anchorPos(fx, host, inst);
     inst.orbitA += m.orbit_deg;
-    inst.x = c[0] + Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip; inst.y = c[1] + Math.sin(inst.orbitA * D) * m.orbit_ry;
+    var op2 = orbitPos(inst, host, c); inst.x = op2[0]; inst.y = op2[1];
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") {
     var mdx = inst.x - inst.px, mdy = inst.y - inst.py;
@@ -629,7 +663,7 @@ function moveInst(inst, host) {
     // A held beam keeps re-aiming (at the target, the facing, the fixed
     // angle or the weapon) while its anchor moves.
     var d = aimDir(fx, host, inst.x, inst.y);
-    inst.dir = m.aim_offset_deg ? rot(d, m.aim_offset_deg * host.facing) : d;
+    inst.dir = m.aim_offset_deg ? rot(d, m.aim_offset_deg * turnSign(fx, host, d)) : d;
   }
 }
 
@@ -638,6 +672,7 @@ function emitParticles(inst, fx, host, n) {
   var P = fx.params, cp = colorPair(fx, host.lut);
   var spread = P.spread_deg * D, base = P.angle_deg * D;
   if (inst.facing < 0) base = Math.PI - base;
+  base += bodyDeg(fx, host) * D;   // Follow direction: turns with the body
   var smin = +P.speed_min, smax = Math.max(smin, +P.speed_max);
   var s0 = Math.max(0.5, +P.size_min), s1 = Math.max(s0, +P.size_max);
   var l0 = Math.max(1, +P.life_min_ms), l1 = Math.max(l0, +P.life_max_ms);
@@ -1126,7 +1161,7 @@ Player.prototype.draw = function (g, host, layer, ps) {
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
