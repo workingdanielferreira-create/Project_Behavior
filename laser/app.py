@@ -214,7 +214,7 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_fxblink_cfg"):
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg"):
                 if m is not None and hasattr(m, attr):
                     try:
                         delattr(m, attr)

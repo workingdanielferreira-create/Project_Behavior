@@ -302,18 +302,18 @@ class CombatSystem(System):
             # runner plays full actions by the Studio triggers, then the FX
             # follow the frames it shows.  Identical in Solo & Battle.
             _img = actions.is_image(fig)
-            # --- Blink (FX Studio pack.blink): while blinked out the fighter
-            # is invisible and untouchable, stays put, and fires no new FX.
-            # Freeze on stops its action clock; off lets it run hidden. ---
+            # --- Blink (FX Studio, per action: action_settings[action].blink):
+            # between its start and end frames the fighter is invisible and
+            # untouchable, stays put, and fires no new FX; its action keeps
+            # running hidden so the frames reach the end frame. ---
             _gone = blink.tick(fig, world)
-            _frozen = _gone and blink.frozen(fig)
-            if _gone and not _frozen:
+            if _gone:
                 _bx, _by = fig.transform.x, fig.transform.y
-            _rooted = actions.update(fig, world) if _img and not _frozen else False
-            if _gone and not _frozen:
+            _rooted = actions.update(fig, world) if _img else False
+            if _gone:
                 fig.transform.x, fig.transform.y = _bx, _by   # gone = doesn't move
             fxkit.update_figure(fig, world,       # FX Studio effects (image characters), all archetypes
-                                hold=("freeze" if _frozen else "run") if _gone else None)
+                                hold="run" if _gone else None)
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
@@ -370,8 +370,7 @@ class CombatSystem(System):
             # movement — the melee FSM and MotionSystem skip it.  Target =
             # nearest enemy in Battle, the cursor in Solo. ---
             if _gone:
-                if not _frozen:
-                    fig.render.advance()   # animation keeps running while hidden
+                fig.render.advance()   # animation keeps running while hidden
                 fig.combat.acted = True
                 continue
             if retreat.tick(fig, world):

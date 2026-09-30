@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), blink: FXK.normalizeBlink({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, blink: S.blink, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -69,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat, bk: S.blink}); }
+function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -90,7 +90,6 @@ function applyState(str) {
   S.aim = FXK.normalizeAim(o.am);
   S.damaged = FXK.normalizeDamaged(o.dm);
   S.retreat = FXK.normalizeRetreat(o.rt);
-  S.blink = FXK.normalizeBlink(o.bk);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
@@ -190,7 +189,6 @@ var host = {
   get facing() { return facing(); },
   get target() { return S.target; },
   get wang() { return 90; },
-  get rot() { return aimDeg(); },   // body rotation: Follow-direction effects turn with it
   get lut() { return lut; },
   get pscale() { return pscale(); },
   get lib() { return {entry_sets: S.entries, paths: S.paths}; },
@@ -293,7 +291,6 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
     S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
     S.retreat = FXK.normalizeRetreat(clone(src.retreat || {}));
-    S.blink = FXK.normalizeBlink(clone(src.blink || {}));
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -399,7 +396,6 @@ function packData() {
     aim: FXK.normalizeAim(clone(S.aim)),
     damaged: FXK.normalizeDamaged(clone(S.damaged)),
     retreat: FXK.normalizeRetreat(clone(S.retreat)),
-    blink: FXK.normalizeBlink(clone(S.blink)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
@@ -452,7 +448,7 @@ function addPreset() {
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
   var added = x.p.effects.map(function (e) {
     var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = S.action;
-    if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: facing()};   // created at the current facing
+    if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: S.target[0] < S.figX - 0.001 ? -1 : 1};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
     return FXK.normalize(fx);
   });
@@ -676,11 +672,11 @@ function pathPreviewOrigin(path) {
   return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
 }
 function jointAtFx(fx) {
-  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host);
+  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host), ef = FXK.fxFacing(fx, host);
   var turn = function (v) { var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v; };
-  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * facing(), set.points[0][1]]); return [bb[0] + q[0], bb[1] + q[1]]; })()
+  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ef, set.points[0][1]]); return [bb[0] + q[0], bb[1] + q[1]]; })()
     : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
-  var o = turn([(+fx.offset[0] || 0) * facing(), +fx.offset[1] || 0]);
+  var o = turn([(+fx.offset[0] || 0) * ef, +fx.offset[1] || 0]);
   return [b[0] + o[0], b[1] + o[1]];
 }
 function geoPlaceAt(w) {
@@ -745,7 +741,7 @@ function buildGeoProps(d) {
 // Stage overlay: the selected entry set's points (numbered in firing order)
 // or the selected path, drawn from where it would start.
 function drawGeo(g, z) {
-  var it = geoItem(), fx = selFx(), f = facing();
+  var it = geoItem(), fx = selFx(), f = fx && !(S.geoPlace && it) ? FXK.fxFacing(fx, host) : facing();
   var sets = it && S.geo.kind === "set" ? [it] : fx ? S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; }) : [];
   var paths = it && S.geo.kind === "path" ? [it] : fx && fx.motion.kind === "path" ? S.paths.filter(function (p) { return p.id === fx.motion.path; }) : [];
   var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
@@ -775,7 +771,7 @@ function drawGeo(g, z) {
     } else if (!(S.geoPlace && it === path)) {   // a Follow-direction user turns it with the body
       var sf = selFx(), pfx = sf && sf.motion.kind === "path" && sf.motion.path === path.id ? sf
         : geoUsers("path", path.id).filter(function (e) { return e.action === S.action; })[0];
-      if (pfx) M = FXK.pathMatrix(path, {facing: f}, [f, 0], FXK.bodyDeg(pfx, host));
+      if (pfx) { var pf = FXK.fxFacing(pfx, host); M = FXK.pathMatrix(path, {facing: pf}, [pf, 0], FXK.bodyDeg(pfx, host)); }
     }
     var W = function (p) { return [o[0] + M[0] * p[0] + M[1] * p[1], o[1] + M[2] * p[0] + M[3] * p[1]]; };
     g.strokeStyle = col + ".85)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]); g.beginPath();
@@ -977,18 +973,19 @@ function buildProps() {
       }
     }
 
-    s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right when the fighter faces the other way from the facing this effect was created at. Follow direction: turn with the character's body.");
+    s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right to whichever side the target is on. Follow direction: turn toward the target at any angle.");
     var F = fx.flip;
     field(s, "Flip", inp("chk", F.enabled, function (v) { F.enabled = v; changed(true); })).title =
-      "On: when the fighter faces the other way from \"created facing\", the whole effect plays as a mirror image: arc side and sweep, orbit spin and zigzag swing included. Target-aimed effects still aim at the target. Off: only position and angles follow the facing.";
+      "On: the effect plays on the side the target is on. When the target is on the other side from \"created side\", the whole effect plays as a mirror image: arc side and sweep, orbit spin and zigzag swing included. Off: it follows the fighter's facing only.";
     if (F.enabled) {
-      field(s, "Created facing", inp([["1", "right"], ["-1", "left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; changed(true); })).title =
-        "The facing this effect was authored at. It plays as authored when the fighter faces this way, and mirrored when it faces the other way.";
-      note(s, "Facing " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Facing " + (F.facing < 0 ? "right" : "left") + ": mirrored left \u2194 right (never up \u2194 down). Switch the stage's facing to preview both.");
+      field(s, "Created side", inp([["1", "target right"], ["-1", "target left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; changed(true); })).title =
+        "The side the target was on when this effect was authored. It plays as authored with the target on this side, and mirrored with the target on the other side.";
+      note(s, "Target " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Target " + (F.facing < 0 ? "right" : "left") + ": mirrored left \u2194 right (never up \u2194 down). Drag the target across the fighter to preview both.");
     }
     field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; changed(true); })).title =
-      "On: the whole effect turns with the character's body (its aim turn), not just its facing, so it keeps the same place and direction relative to the body as when it was made, e.g. head \u2192 feet even while the character looks down. Target-aimed effects still aim at the target.";
-    if (fx.follow_dir && !(S.aim.enabled && aimRef())) note(s, "This character doesn't turn (Aim is off), so Follow direction only matters in game for a rotating runner.");
+      "On: the whole effect turns toward the target. As authored it points straight ahead; with the target above or below it turns by that angle (offsets, arc, particles, orbit and paths included). Target-aimed effects already aim at the target.";
+    if (fx.follow_dir) note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
+      : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
 
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;
@@ -1109,59 +1106,39 @@ function buildRetreatProps(d) {
   row.appendChild(sel); row.appendChild(add); s.appendChild(row);
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
-// Character-level Blink (pack.blink), shown under every action's settings.
-var BLINK_COND_LABEL = Object.assign({}, COND_LABEL, {projectile_count: "enemy projectiles on screen at once"});
-var BLINK_COND_FIELDS = Object.assign({}, COND_FIELDS, {count: ["Count", 1, 200, 1]});
+// Blink (action_settings[action].blink): this action's own teleport.  The
+// fighter vanishes at the start frame and reappears after the end frame.
 function buildBlinkProps(d) {
-  var s = sec(d, "Blink (whole character)", "a-blink",
-    "Teleport: vanish, stay gone for a moment, then reappear near the target or near where it vanished, when the conditions below are met. Applies to all actions.", "act");
-  var bk = S.blink, ch = function () { save(); buildProps(); };
+  var a = S.action, bk = cfgOf(a).blink, n = frames();
+  var s = sec(d, "Blink (this action)", "a-blink",
+    "A teleport inside this action: the fighter vanishes at the start frame and reappears after the end frame. Each action has its own.", "act");
+  var ch = function () { save(); buildProps(); resetSim(S.t); };
   field(s, "Blink", inp("chk", bk.enabled, function (v) { bk.enabled = v; ch(); })).title =
-    "On: the character teleports when the trigger conditions are met.";
+    "On: every time this action plays, the character vanishes at the start frame and reappears after the end frame.";
   if (!bk.enabled) return;
-  var info = document.createElement("div"); info.className = "note";
-  function say() {
-    var ms = Math.max(0, +bk.gone_ms || 0), t = Math.round(ms / FXK.TICK_MS);
-    info.textContent = t > 0 ? "Gone for " + Math.round(ms) + " ms (about " + t + " ticks), then reappears." : "0: vanishes and reappears in the same tick (instant).";
+  field(s, "Vanish at frame", inp("n", bk.start_frame, function (v) { bk.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); ch(); }, 0, n - 1, 1)).title =
+    "The frame the character disappears on.";
+  field(s, "Reappear after frame (-1 = end)", inp("n", bk.end_frame, function (v) { bk.end_frame = Math.max(-1, Math.min(n - 1, Math.round(v))); ch(); }, -1, n - 1, 1)).title =
+    "The last frame it stays gone for; it reappears on the next frame. -1 = gone until the action ends.";
+  var e = bk.end_frame < 0 ? n - 1 : Math.min(n - 1, bk.end_frame);
+  if (e < bk.start_frame) note(s, "The reappear frame is before the vanish frame, so it never vanishes. Set it to " + bk.start_frame + " or later.");
+  else {
+    var ms = Math.round((e - bk.start_frame + 1) * frameMs());
+    note(s, "Gone for frames " + bk.start_frame + "\u2013" + e + " (about " + ms + " ms)" + (bk.end_frame < 0 || e === n - 1 ? ", then reappears when the action ends." : ", reappears on frame " + (e + 1) + ".")
+      + " The animation keeps running while it's hidden.");
   }
-  field(s, "Teleport speed ms", inp("n", bk.gone_ms, function (v) { bk.gone_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
-    "How long the character stays gone before reappearing. 0 = instant.";
-  say(); s.appendChild(info);
-  field(s, "Freeze", inp("chk", bk.freeze, function (v) { bk.freeze = v; ch(); })).title =
-    "On: the character's action and animation stop while it is gone and carry on from the same frame when it reappears. Off: they keep running while it is hidden.";
-  field(s, "Anchor", inp([["target", "Target"], ["self", "Self (where it vanished)"]], bk.anchor, function (v) { bk.anchor = v; ch(); })).title =
-    "What the proximity is measured from. Target: the target, where it is when the character reappears. Self: the spot the character vanished from.";
-  field(s, "Direction", inp([["behind", "Behind the target"], ["front", "In front of the target"], ["toward", "Toward the target"],
-    ["away", "Away from the target"], ["random", "Random"], ["angle", "Fixed angle"]], bk.direction, function (v) { bk.direction = v; ch(); })).title =
-    "Which side of the anchor it reappears on. Behind / in front: opposite / along the way the target faces (Solo: the cursor's far / near side). Toward / away: along the line between the character and the target. Random: any side. Fixed angle: the angle below.";
-  if (bk.direction === "angle") field(s, "Angle °", inp("n", bk.angle_deg, function (v) { bk.angle_deg = Math.max(-180, Math.min(180, v)); save(); }, -180, 180, 5)).title =
+  field(s, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"]], bk.anchor, function (v) { bk.anchor = v; ch(); })).title =
+    "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from.";
+  field(s, "Side", inp([["behind", "behind the target"], ["front", "in front of the target"], ["toward", "toward the target"],
+    ["away", "away from the target"], ["random", "random"], ["angle", "fixed angle"]], bk.direction, function (v) { bk.direction = v; ch(); })).title =
+    "Which way from that point it lands. Behind / in front: the far / near side of the target (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Fixed angle: the angle below.";
+  if (bk.direction === "angle") field(s, "Angle \u00b0", inp("n", bk.angle_deg, function (v) { bk.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
     "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
-  field(s, "Proximity px", inp("n", bk.proximity_px, function (v) { bk.proximity_px = Math.max(0, Math.min(2000, v)); save(); }, 0, 2000, 5)).title =
-    "How far from the anchor it reappears (game px). 0 = right on the anchor.";
+  field(s, "Distance px", inp("n", bk.proximity_px, function (v) { bk.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =
+    "How far from that point it lands (game px). 0 = right on it.";
   field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
     "On: a crackle and an afterimage where it vanishes and where it reappears.";
-  field(s, "Cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
-    "After it reappears, how long before another blink can start.";
-  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). After a blink, \"blink\" counts as a completed action for after_actions conditions.");
-  field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], bk.logic, function (v) { bk.logic = v; save(); }));
-  bk.conditions.forEach(function (c, i) {
-    var box = sec(s, "Condition " + (i + 1) + ": " + BLINK_COND_LABEL[c.type], "a-bcond", null, "act");
-    Object.keys(FXK.BLINK_CONDITIONS[c.type]).forEach(function (k) {
-      var u = BLINK_COND_FIELDS[k];
-      field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
-        : u[1] === "chk" ? inp("chk", c[k], function (v) { c[k] = v; save(); })
-        : inp("n", c[k], function (v) { c[k] = v; save(); }, u[1], u[2], u[3]));
-    });
-    if (c.type === "projectile_count") box.lastChild.title = "Triggers when this many or more enemy projectiles are in the air at the same time.";
-    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { bk.conditions.splice(i, 1); ch(); };
-    box.appendChild(rm);
-  });
-  var row = document.createElement("div"); row.className = "row";
-  var sel = inp(Object.keys(FXK.BLINK_CONDITIONS).map(function (k) { return [k, BLINK_COND_LABEL[k]]; }), "hp_below", function () {});
-  var add = document.createElement("button"); add.textContent = "+ Condition";
-  add.onclick = function () { bk.conditions.push(FXK.normalizeBlink({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
-  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
-  if (!bk.conditions.length) note(s, "No conditions yet: add one, or the blink never triggers.");
+  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
 }
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
@@ -1192,10 +1169,10 @@ function buildActionProps(d) {
     note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
+  buildBlinkProps(d);
   buildAimProps(d);
   buildDamagedProps(d);
   buildRetreatProps(d);
-  buildBlinkProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
@@ -1259,17 +1236,19 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0;
+  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
+  blinkStep();
   while (S.t < target) step(false);
 }
 function step(allowWrap) {
   if (!C) return;
-  moveFigure();
+  var gone = blinkGone();
+  if (!gone) moveFigure();
   stepTestShots();
   var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = (S.cycle || 0) >= nLoops - 1;
-  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous});
+  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone});
   S.t += 1;
   if (S.t >= totalTicks() && allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
@@ -1277,6 +1256,41 @@ function step(allowWrap) {
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; }
     else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; }
   }
+  blinkStep();   // for the tick now on show (past the action's end: it reappears)
+}
+// Blink preview (the action's Blink): vanish when the frame on show enters
+// the blink's frames, reappear at the landing spot once it leaves them (or
+// the action ends).  Run for each new tick, so S.blink always matches S.t.  S.blink = {gone, from, to}; the Studio target has no
+// facing, so behind / in front are the far / near side from the fighter.
+function blinkGone() { return !!(S.blink && S.blink.gone); }
+function blinkStep() {
+  var b = cfgOf(S.action).blink, on = S.t < totalTicks() && FXK.blinkActive(b, frameAt(S.t), frames());
+  if (on && !blinkGone()) S.blink = {gone: true, from: [S.figX, S.figY], to: null};
+  else if (!on && blinkGone()) {
+    var rnd = FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1);
+    var to = FXK.blinkLanding(b, S.blink.from, S.target, null, facing(), rnd);
+    S.figX = to[0]; S.figY = to[1]; S.blink.gone = false; S.blink.to = to;
+  }
+}
+// Where the blink would land from here (drawn while it's gone).
+function blinkPreviewLanding() {
+  var b = cfgOf(S.action).blink, from = blinkGone() ? S.blink.from : [S.figX, S.figY];
+  return FXK.blinkLanding(b, from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
+}
+function drawBlink(g, z, img) {
+  var b = cfgOf(S.action).blink; if (!b.enabled) return;
+  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
+  var from = blinkGone() ? S.blink.from : S.blink && S.blink.to ? S.blink.from : [S.figX, S.figY];
+  var to = blinkGone() || !(S.blink && S.blink.to) ? blinkPreviewLanding() : S.blink.to;
+  g.save();
+  if (blinkGone()) drawFrame(g, img, S.blink.from, facing(), 0.3, null, aimDeg());   // where it vanished
+  g.setLineDash([3 / z, 3 / z]); g.strokeStyle = col + ".7)"; g.lineWidth = 1 / z;
+  g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
+  g.setLineDash([]); g.lineWidth = 1.5 / z; g.strokeStyle = col + ".95)";
+  g.beginPath(); g.arc(to[0], to[1], 5, 0, 6.2832); g.stroke();
+  g.fillStyle = col + ".95)"; g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center";
+  g.fillText(blinkGone() ? "gone \u2014 lands here" : S.blink && S.blink.to ? "blinked here" : "blink lands here", to[0], to[1] - 8);
+  g.restore();
 }
 // ------------------------------------------------------------ test shots
 // "test shots": a dummy enemy fires a projectile from the target marker at
@@ -1410,9 +1424,11 @@ function draw() {
   g.translate(c.x, c.y); g.scale(z, z);
   var ps = pscale(), fr = frameAt(S.t), img = act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
-  player.draw(g, host, "behind", ps);
-  drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
-  player.draw(g, host, "front", ps);
+  var gone = blinkGone();
+  player.draw(g, host, "behind", ps, gone);
+  if (!gone) drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
+  player.draw(g, host, "front", ps, gone);
+  drawBlink(g, z, img);
   drawTestShots(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
@@ -1453,6 +1469,7 @@ function draw() {
   $("hud").textContent = S.action + (nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
+    (blinkGone() ? "   BLINKED OUT" : "") +
     (S.geoPlace && geoItem() ? "   PLACING " + (S.geo.kind === "set" ? "entry points" : "path points") + " for \"" + geoItem().name + "\": click the stage" : "") +
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
   $("frameInfo").textContent = "frame " + fr;
@@ -1482,7 +1499,7 @@ $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
   var fx = FXK.newEffect($("newPrim").value, S.action);
-  fx.flip.facing = facing();   // Flip: the facing it was created at
+  fx.flip.facing = S.target[0] < S.figX - 0.001 ? -1 : 1;   // Flip: the side the target was on when it was created
   if (fx.prim === "ghost") fx.layer = "behind";
   if (["arc", "beam", "sprite"].indexOf(fx.prim) >= 0) { fx.motion.kind = "travel"; fx.life_ticks = fx.prim === "arc" ? 5 : 60; }
   if (fx.prim === "particles") { fx.motion.kind = "static"; fx.life_ticks = 1; }

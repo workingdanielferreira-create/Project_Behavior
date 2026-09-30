@@ -39,20 +39,21 @@ timing.
   frames, and has a **Deals damage** checkbox (HP per hit, pierce, re-hit,
   knockback). It hits wherever its drawn shape touches the target's hurt
   circle.
-- **Flip & direction.** Tick **Flip** on an effect to mirror it left ↔ right
-  (never up ↔ down) when the fighter faces the other way from the facing it
-  was created at, including the arc's sweep and the orbit's spin. **Created
-  facing** is set from the stage's facing when you add the effect, and you
-  can change it. Tick **Follow direction** to make the whole effect turn with
-  the character's body (its Aim turn), not just its facing. A crescent made
-  head → feet then stays head → feet while the character looks down.
-  Target-aimed effects still aim at the target either way. Changing the
-  stage's facing keeps the target in front of the fighter, as in the game.
-- **Blink (whole character).** Under any action's settings: a teleport with
-  its own trigger conditions. **Teleport speed** is how long the character
-  stays gone, **Freeze** stops its animation until it reappears, **Anchor** +
-  **Direction** + **Proximity** set where it lands. While gone it can't be
-  hit.
+- **Flip & direction.** Tick **Flip** on an effect to make it play on the
+  side the target is on: drag the target behind the fighter and the effect
+  mirrors left ↔ right to face it (never up ↔ down), arc sweep and orbit
+  spin included. **Created side** is the side the target was on when you
+  added the effect; you can change it. Tick **Follow direction** to make the
+  whole effect turn toward the target at any angle: target above, it turns
+  up. With both ticked it mirrors to the target's side and then tilts up or
+  down toward it.
+- **Blink (per action).** Under each action's settings: a teleport inside
+  that action. The character vanishes at **Vanish at frame** and reappears
+  after **Reappear after frame** (-1 = when the action ends). **Reappear
+  near** + **Side** + **Distance** set where it lands. While gone it can't
+  be hit, doesn't move and fires no new FX; its animation keeps running.
+  The stage shows it: the figure disappears over those frames, a faint
+  outline marks where it vanished and a ring marks where it lands.
 - **Presets.** Built-in presets rebuild the game's existing effects with their
   `config.py` numbers. **Save as preset** keeps your own, and
   **Export**/**Import** moves them between machines.

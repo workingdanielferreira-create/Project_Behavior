@@ -41,16 +41,15 @@ these characters; it plays the PNGs.
   "action_settings": {"ultimate": {"logic": "all", "cooldown_ms": 0,
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
-                                    "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80}},
+                                    "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80,
+                                    "blink": {"enabled": false, "start_frame": 0, "end_frame": -1, "anchor": "target",
+                                              "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false},
                                               {"type": "projectile_count", "count": 5}]},
-  "blink": {"enabled": false, "gone_ms": 300, "freeze": true, "anchor": "target", "direction": "behind",
-            "angle_deg": 0, "proximity_px": 60, "flash": true, "cooldown_ms": 3000,
-            "logic": "any", "conditions": [{"type": "hits_taken", "count": 3}]},
   "effects": [ { "...": "section 3" } ]
 }
 ```
@@ -340,32 +339,32 @@ the same code; Solo has no enemy projectiles, and the cursor's back is the far
 side from the fighter. A rig-drawn `pb_character` JSON can set the same block
 as top-level `"tactical_retreat"`.
 
-**Blink (`blink`, whole character; `laser/blink.py`).** A teleport. When its
-conditions are met (`logic` any / all) the fighter vanishes where it stands,
-stays gone for `gone_ms` (the Studio's **Teleport speed**; `0` = instant),
-then reappears `proximity_px` from `anchor`:
+**Blink (`action_settings[action].blink`, per action; `laser/blink.py`).** A
+teleport inside one action; each action has its own. While that action plays,
+the fighter vanishes when the frame on show reaches `start_frame` and
+reappears once it passes `end_frame` (`-1` = the last frame), or when the
+action ends, whichever comes first. A looping action blinks again on every
+loop. It reappears `proximity_px` from `anchor`:
 - `anchor`: `target` (the target, where it is when the fighter reappears) or
   `self` (the spot the fighter vanished from).
 - `direction`: `behind` / `front` (opposite / along the way the target faces;
-  Solo: the cursor's far / near side from the fighter), `toward` / `away`
-  (along the fighter → target line / the reverse), `random`, or `angle`
-  (`angle_deg` from the fighter → target line: 0 = toward, 180 = away,
-  positive = clockwise).
+  Solo and the Studio: the target's far / near side from the fighter),
+  `toward` / `away` (along the fighter → target line / the reverse),
+  `random`, or `angle` (`angle_deg` from the fighter → target line: 0 =
+  toward, 180 = away, positive = clockwise).
 - The landing spot is kept 20 px inside the screen.
 
 While gone the fighter is invisible and untouchable (`ai.damage_immune`: no
 HP, knockback or body contact; enemy shots and FX pass where it was), doesn't
 move, and fires no new FX. Its body-bound FX (`attached` / `orbit` motion,
-`weapon`) are hidden and land no hits; shots already in flight carry on.
-`freeze: true` stops its action and animation until it reappears (same
-frame); `false` lets them keep running hidden. `flash` adds a crackle and an
-afterimage at both ends. A new blink can start `cooldown_ms` after it
-reappears. Conditions: every action condition type (evaluated by the
-fighter's action runner under the name `__blink__`, with its own counters)
-plus `projectile_count`. Each reappearance adds `blink` to the action
-history, so an action's `after_actions` can follow it (e.g. `blink`). A blink
-never starts during a tactical retreat dash, an ultimate or a special stance,
-and it cancels a knockback in progress. Solo and Battle run the same code.
+`weapon`) are hidden and land no hits; shots already in flight carry on. Its
+action and animation keep running hidden, so the frames reach `end_frame`.
+`flash` adds a crackle and an afterimage at both ends. A blink never starts
+during a tactical retreat dash, an ultimate or a special stance, and it
+cancels a knockback in progress. Solo and Battle run the same code. The
+Studio previews it on the stage: the figure disappears over those frames, a
+faint outline marks where it vanished and a ring marks where it lands. (The
+older character-wide `pack.blink` block is no longer read.)
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,
@@ -452,34 +451,40 @@ direction** section.
 
 | field | meaning |
 |---|---|
-| `flip.enabled` | Off (default): the effect behaves as before. On: when the fighter faces the other way from `flip.facing`, the effect is mirrored left ↔ right only, never up ↔ down. |
-| `flip.facing` | The facing the effect was created at: `1` right, `-1` left. The Studio records the stage's facing when the effect is added, and the **Created facing** dropdown changes it. |
-| `follow_dir` | Off (default): as before. On: the whole effect turns with the body's rotation as well as its facing, so it keeps its place and direction relative to the body. |
+| `flip.enabled` | Off (default): the effect follows the fighter's facing. On: it plays on the side the target is on, mirrored left ↔ right (never up ↔ down) when that side is the other one from `flip.facing`. |
+| `flip.facing` | The side the target was on when the effect was created: `1` right, `-1` left. The Studio records it when the effect is added, and the **Created side** dropdown changes it. |
+| `follow_dir` | Off (default): no turn. On: the whole effect turns toward the target at any angle. |
 
 **Flip**
-- Offsets, anchors, entry points, paths, particle angles and fixed or weapon
-  aims already mirror with the facing. Flip also mirrors the arc's sweep
-  (it grows the other way round) and the orbit (its side and spin).
+- The effect's facing (`fxFacing` / `fx_facing`) is the side the target is on
+  (target x vs. the figure's x; level = the fighter's facing), whichever way
+  the fighter itself faces. Offsets, entry points, paths, particle angles,
+  fixed / weapon aims and the arc's `orient "angle"` all mirror with it.
+  Anchors are body points and stay where the body puts them.
+- On top of that, when the target's side differs from `flip.facing`, flip
+  mirrors the arc's sweep (it grows the other way round) and the orbit (its
+  side and spin).
 - Target-aimed effects still aim at the target. Their up / down (the side of
   its line the arc sits on, the zigzag's first swing, the aim offset and fan)
-  is judged against the facing (`turnSign` / `turn_sign`): an aim heading
-  backward (target behind the fighter) counts as forward. So the arc under a
-  slash stays under it whichever side the target is on.
-- Decided once per instance at spawn (`inst.flip`, `inst.side`) from the
-  facing at that moment.
+  never swaps (`turnSign` / `turn_sign`).
+- Decided per instance at spawn (`inst.facing`, `inst.flip`, `inst.side`);
+  attached and orbiting effects re-read the target's side every tick for
+  their position.
 
 **Follow direction**
-- The body's rotation is `host.rot` (degrees, applied after mirroring, the
-  turn anchors already get): `Figure.aim` for an aiming character, or a
-  rotating runner's tilt. In the Studio it is the Aim turn (`aimDeg`).
+- As authored the effect points straight forward along its facing. It turns
+  by the angle from there to the figure → target line (`bodyDeg` /
+  `body_deg`, degrees, applied after mirroring): target above → it turns up.
+- With Flip on as well it first mirrors to the target's side, so it only ever
+  tilts up / down (at most ±90°). Without Flip a target behind turns it right
+  round (upside down).
 - Turned by it: the offset, entry points, facing / angle / weapon aims (and
   so held beams and projectiles fired along them), the arc's `orient
   "angle"`, particle angles, the orbit ellipse, and `orient "facing"` paths.
   `orient "aim"` paths already follow the aim.
-- Target aims still track the target and are not turned.
-- The reference is the body's own unturned frame, as Rig Forge drew it.
-- Attached and orbiting effects read the rotation every tick. Projectiles,
-  arcs and particle bursts take it at spawn.
+- Target aims already track the target and are not turned.
+- Attached and orbiting effects read the angle every tick. Projectiles, arcs
+  and particle bursts take it at spawn.
 
 Both are the same code in Solo and Battle. **Parity:** `fxkit.js` and
 `fxkit.py` produce identical positions, directions, particle velocities and

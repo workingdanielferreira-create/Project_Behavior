@@ -178,14 +178,14 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #   destroy  the enemy projectile is nullified, this one keeps going
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
                           hurts_owner=False)
-# Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled and the fighter faces the
-# other way from `facing` (the Studio facing the effect was created at, 1 right
-# / -1 left) the effect is mirrored left <-> right only, never up <-> down.  On
-# top of what already mirrors with the facing, flip mirrors the arc's sweep
-# and the orbit's side and spin.  Target-aimed effects still aim at the
-# target, and their up / down (the arc's side of its line, the zigzag's first
-# swing, the aim offset) is judged against the facing (turn_sign), so it stays
-# put whichever side the target is on.  Off = the old behaviour.
+# Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled the effect is laid out
+# toward the side the target is on (fx_facing), whichever way the fighter
+# itself faces, and it plays as the mirror image (left <-> right only, never
+# up <-> down) when that side is the other one from `facing` (the side the
+# target was on when the effect was created, 1 right / -1 left): on top of
+# offsets, entry points, paths and particle / fixed angles, flip mirrors the
+# arc's sweep and the orbit's side and spin.  Target-aimed effects still aim
+# at the target.  Off = everything follows the fighter's facing.
 FLIP_DEFAULTS = dict(enabled=False, facing=1)
 
 
@@ -197,14 +197,37 @@ def flip_sign(fx, facing):
     return -1 if facing != (-1 if float(f.get("facing") or 1) < 0 else 1) else 1
 
 
-# Follow direction (fx.follow_dir, FXK.bodyDeg): the whole effect turns with
-# the body's rotation (host.rot: Figure.aim, or a rotating runner's tilt;
-# degrees, after mirroring, the way anchors turn), not just its facing.
-# Offsets, entry points, facing / angle / weapon aims, the arc's angle,
-# particle angles, orbits and paths all turn; target aims still track the
-# target.
+def target_side(host):
+    """1 when the target is right of the figure, -1 left (the facing when level)."""
+    b = host.anchor("figure")
+    dx = host.target[0] - b[0]
+    return -1 if dx < -0.001 else 1 if dx > 0.001 else host.facing
+
+
+def fx_facing(fx, host):
+    """The facing an effect is laid out for: the target's side with Flip on,
+    else the fighter's facing."""
+    return target_side(host) if (fx.get("flip") or {}).get("enabled") else host.facing
+
+
+# Follow direction (fx.follow_dir, FXK.bodyDeg): the whole effect turns
+# toward the target at any angle.  As authored it points straight forward
+# (along its facing); it turns by the angle from there to the figure ->
+# target line (degrees, after mirroring, the way anchors turn): target above
+# -> it turns up.  With Flip on as well it first mirrors to the target's side,
+# so it only ever tilts up / down; without Flip a target behind turns it right
+# round.  Offsets, entry points, facing / angle / weapon aims, the arc's
+# angle, particle angles, orbits and paths all turn; target aims already
+# track the target.
 def body_deg(fx, host):
-    return float(getattr(host, "rot", 0.0) or 0.0) if fx.get("follow_dir") else 0.0
+    if not fx.get("follow_dir"):
+        return 0.0
+    b = host.anchor("figure")
+    dx, dy = host.target[0] - b[0], host.target[1] - b[1]
+    if dx * dx + dy * dy < 1e-6:
+        return 0.0
+    a = math.degrees(math.atan2(dy, dx)) - (180.0 if fx_facing(fx, host) < 0 else 0.0)
+    return (math.fmod(a, 360.0) + 540.0) % 360.0 - 180.0
 
 
 def turn_by(v, deg):
@@ -215,15 +238,39 @@ def turn_sign(fx, host, d):
     """Sign for the facing-relative turns (fan, aim offset); times inst.flip,
     the arc / zigzag side.  Without Flip: the facing.  With Flip, a target aim
     heading backward counts as forward, so up / down never swaps."""
-    f = fx.get("flip") or {}
-    if not f.get("enabled") or fx["motion"]["aim"] != "target":
-        return host.facing
+    f = fx_facing(fx, host)
+    if not (fx.get("flip") or {}).get("enabled") or fx["motion"]["aim"] != "target":
+        return f
     u = turn_by(d, -body_deg(fx, host))
-    return -host.facing if u[0] * host.facing < 0 else host.facing
+    return -f if u[0] * f < 0 else f
 
 
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
                        movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80)
+# The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): the
+# fighter vanishes at start_frame and reappears after end_frame (-1 = the
+# last frame) or when the action ends.  Run by laser/blink.py.
+BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
+                      proximity_px=60.0, flash=True)
+BLINK_ANCHORS = ("target", "self")
+BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
+
+
+def normalize_blink(b):
+    b = _fill(dict(b or {}), BLINK_DEFAULTS)
+    if b.get("anchor") not in BLINK_ANCHORS:
+        b["anchor"] = BLINK_DEFAULTS["anchor"]
+    if b.get("direction") not in BLINK_DIRECTIONS:
+        b["direction"] = BLINK_DEFAULTS["direction"]
+    try:
+        b["start_frame"] = max(0, jround(float(b.get("start_frame") or 0)))
+    except (TypeError, ValueError):
+        b["start_frame"] = 0
+    try:
+        b["end_frame"] = max(-1, jround(float(b.get("end_frame"))))
+    except (TypeError, ValueError):
+        b["end_frame"] = -1
+    return b
 # Character-level aiming (pack.aim): the whole frame turns so the weapon
 # direction of the reference action (from -> to anchors, averaged over its
 # frames) points at the target; the fighter always faces the target.
@@ -314,6 +361,7 @@ def rescale_effects(effects, lib, r):
 
 def normalize_action(cfg):
     cfg = _fill(dict(cfg or {}), ACTION_DEFAULTS)
+    cfg["blink"] = normalize_blink(cfg.get("blink"))
     return cfg
 
 
@@ -370,10 +418,10 @@ def entry_set_of(fx, host):
     return e if e and e["points"] else None
 
 
-def entry_point(eset, k, host, deg=0.0):
+def entry_point(eset, k, host, deg=0.0, f=None):
     b = host.anchor(eset.get("base") or "figure")
     q = eset["points"][k] if k < len(eset["points"]) else [0, 0]
-    o = turn_by([q[0] * host.facing, q[1]], deg)
+    o = turn_by([q[0] * (host.facing if f is None else f), q[1]], deg)
     return [b[0] + o[0], b[1] + o[1]]
 
 
@@ -381,14 +429,15 @@ def anchor_pos(fx, host, ep=None):
     eset = entry_set_of(fx, host)
     a = fx.get("anchor")
     deg = body_deg(fx, host)
+    f = fx_facing(fx, host)
     if eset:
-        p = entry_point(eset, (ep if ep is not None else 0) % len(eset["points"]), host, deg)
+        p = entry_point(eset, (ep if ep is not None else 0) % len(eset["points"]), host, deg, f)
     elif isinstance(a, str) and a.startswith("set:"):
         p = host.anchor("figure")
     else:
         p = host.anchor(a)
     off = fx.get("offset") or [0, 0]
-    o = turn_by([float(off[0] or 0) * host.facing, float(off[1] or 0)], deg)
+    o = turn_by([float(off[0] or 0) * f, float(off[1] or 0)], deg)
     return [p[0] + o[0], p[1] + o[1]]
 
 
@@ -436,8 +485,8 @@ def path_at(pl, u):
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], norm(b[0] - a[0], b[1] - a[1])
 
 
-def path_matrix(path, host, d, deg=0.0):
-    f = host.facing
+def path_matrix(path, host, d, deg=0.0, f=None):
+    f = host.facing if f is None else f
     last = path["points"][-1]
     if path.get("orient") != "aim" or (not last[0] and not last[1]):
         if not deg:
@@ -470,7 +519,7 @@ def path_step(inst, host):
 
 # ---------------------------------------------------------------- instances
 def aim_dir(fx, host, x, y):
-    m, f = fx["motion"], host.facing
+    m, f = fx["motion"], fx_facing(fx, host)
     if m["aim"] == "target":
         return norm(host.target[0] - x, host.target[1] - y)
     if m["aim"] == "angle":
@@ -506,7 +555,7 @@ def emit_particles(inst, fx, host, n):
     spread, base = P["spread_deg"] * D, P["angle_deg"] * D
     if inst.facing < 0:
         base = math.pi - base
-    base += body_deg(fx, host) * D   # Follow direction: turns with the body
+    base += body_deg(fx, host) * D   # Follow direction: turns toward the target
     smin = float(P["speed_min"])
     smax = max(smin, float(P["speed_max"]))
     s0 = max(0.5, float(P["size_min"]))
@@ -546,9 +595,10 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.dead = False
     inst.hist, inst.trail, inst.parts, inst.ghosts = [], [], [], []
     inst.acc = 0.0
-    inst.facing = host.facing
-    inst.flip = flip_sign(fx, host.facing)
-    side = inst.flip * ts * host.facing   # arc / zigzag side of its line (turn_sign)
+    ef = fx_facing(fx, host)
+    inst.facing = ef
+    inst.flip = flip_sign(fx, ef)
+    side = inst.flip * ts * ef   # arc / zigzag side of its line (turn_sign)
     inst.orbitA = inst.phase = inst.zx = inst.zy = 0.0
     inst.hits = 0
     inst.last_hit = -1e9
@@ -559,7 +609,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         if inst.path:
             inst.pl = path_line(inst.path)
             inst.po = list(p)
-            inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host))
+            inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host), ef)
     if m["kind"] in ("travel", "homing", "zigzag"):
         inst.vx, inst.vy = d[0] * spd, d[1] * spd
     if m["kind"] == "zigzag":
@@ -572,7 +622,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     if fx["prim"] == "arc":
         P = fx["params"]
         if P["orient"] == "angle":
-            od = turn_by([math.cos(P["angle_deg"] * D) * host.facing, math.sin(P["angle_deg"] * D)], body_deg(fx, host))
+            od = turn_by([math.cos(P["angle_deg"] * D) * ef, math.sin(P["angle_deg"] * D)], body_deg(fx, host))
         else:
             od = d
         # Which side of its line the crescent sits (see turn_sign).
@@ -1496,8 +1546,7 @@ class _Host:
 
     @property
     def rot(self):
-        """Body rotation (degrees, after mirroring): the turn anchors get, and
-        Follow-direction effects with them."""
+        """Body rotation (degrees, after mirroring): the turn anchors get."""
         fig = self.fig
         return fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
 
@@ -1613,9 +1662,10 @@ class FxDriver:
         # tick inside the frame's own span (frame_ms), jumps forward when the
         # engine's frames run ahead, holds when a frame is held, and starts
         # a new pass when the frames loop back (idle / run cycles).
-        # hold (FX Studio blink, while the fighter is gone): nothing new
+        # hold (an action's Blink, while the fighter is gone): nothing new
         # fires, live instances keep updating.  "freeze" also stops the
-        # action time; "run" lets it follow the frames as usual.
+        # action time; "run" (what laser/blink.py uses) lets it follow the
+        # frames as usual.
         action, frame = current_action(fig)
         n, fm = self._time_for(action)
         f0 = jround(frame * fm / TICK_MS)
