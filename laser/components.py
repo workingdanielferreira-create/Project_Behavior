@@ -83,6 +83,9 @@ class TrailComponent:
         sprite_emitter trail_anchor source), so the trail pins exactly to
         that point instead of being nudged behind/below it."""
         trail = self.trail
+        if not config.TRAIL_ENABLED:
+            trail.clear()
+            return
         if apply_offset:
             tx = x + config.TRAIL_BACK if facing_left else x - config.TRAIL_BACK
             ty = y + config.TRAIL_DOWN
@@ -126,6 +129,8 @@ class TrailComponent:
         return self.lut[idx]
 
     def draw(self, p, pen, path_follow, pscale=1.0):
+        if not config.TRAIL_ENABLED:
+            return
         trail = self.trail
         n = len(trail)
         if n <= 1:
