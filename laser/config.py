@@ -55,6 +55,7 @@ BG_REMOVE_TOLERANCE   = 40      # black-background -> transparent threshold
 # ---------------------------------------------------------------------------
 # Trail (per figure)
 # ---------------------------------------------------------------------------
+TRAIL_ENABLED   = False         # master switch: False = no movement trail (Solo & Battle)
 TRAIL_LEN       = 50            # chase-mode tail length (points)
 TRAIL_DECAY     = 2            # points dropped per idle tick
 TRAIL_MIN_D_SQ  = 4.0          # min sq distance between recorded points
