@@ -47,6 +47,15 @@ timing.
   frames, and has a **Deals damage** checkbox (HP per hit, pierce, re-hit,
   knockback). It hits wherever its drawn shape touches the target's hurt
   circle.
+- **Keyframes (per effect).** Animate an effect's numbers and colours over
+  the action. Move the playhead to a frame, press **◆ + Key at frame N** in
+  the effect's *Keyframes* section, then change any number or colour below:
+  it's stored in that key (chips list what each key sets; × removes one).
+  Values move from the previous key into each key along its **ease**
+  (Linear, Ease in / out / in-out, Strong in / out / in-out, Hold, Bounce,
+  Elastic) and hold after the last key. The effect's own settings are the
+  start. Keys show as ◆ on the effect's timeline row; click one to edit it.
+  Shots already flying follow the animation (e.g. speed 20 → 100 mid-flight).
 - **Flip & direction.** Tick **Flip** on an effect to make it play on the
   side the target is on: drag the target behind the fighter and the effect
   mirrors left ↔ right to face it (never up ↔ down), arc sweep and orbit
