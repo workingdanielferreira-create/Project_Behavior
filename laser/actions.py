@@ -9,7 +9,9 @@ was set up there (pack.action_settings):
                    archetype decides WHEN: melee attacks once the target is
                    inside stats.basic_attack_radius, shooters from shooting
                    range.  Consecutive attacks within chain_reset_ms continue
-                   the chain.
+                   the chain.  An attack with trigger conditions also needs
+                   them to pass (ANY / ALL) on top of that range check; with
+                   none it attacks on range alone.
   * Attack mode (Alt+Up) gates attacks and triggered actions the same way
     it gates the built-in fighters; `defend` always works.
   * Movement "back" retreats straight away from the target at
@@ -20,6 +22,13 @@ was set up there (pack.action_settings):
                    conditions are met (ANY / ALL), no more often than every
                    cooldown_ms.  An action with no conditions never
                    triggers by itself.
+
+Every condition can be inverted (`not`: met when the check is false).  The
+condition types are listed in CONDITION_TYPES below (mirror of the Studio's
+FXK.CONDITION_TYPES).  Target state in Battle comes from the per-tick
+read-only snapshots (partner_figures / partner_facing / partner_state); in
+Solo the target is the cursor, which has no HP and never attacks or defends
+(those checks are false), and "faces" the way it last moved sideways.
 
 An action plays every frame at its own frame_ms, anim_loops times, then
 ends.  Its Movement setting either roots the fighter ("stand") or lets it
@@ -37,6 +46,7 @@ Identical in Solo and Battle: both call update() from CombatSystem with the
 same inputs (target = nearest enemy in Battle, the cursor in Solo).
 """
 
+import random
 import re
 
 from . import config
@@ -45,6 +55,26 @@ TICK_MS = config.TICK_MS
 DEFAULT_ATTACK_GAP_MS = 350     # minimum gap between attacks without a cooldown
 SHOOTER_RANGE_PX = 420          # shooters attack from this far (or their radius)
 HISTORY = 12
+SPEED_WINDOW = 6                # ticks averaged for own / target speed (px/s)
+DAMAGE_WINDOW_MS = 60000        # how far back damage_taken can look
+
+# Condition types and their defaults (Studio: FXK.CONDITION_TYPES).  Every
+# condition also carries `not` (False): True inverts it.
+CONDITION_TYPES = {
+    "hp_below": dict(pct=50.0, repeat=False), "hp_above": dict(pct=80.0),
+    "self_speed_above": dict(px_s=120.0), "self_speed_below": dict(px_s=20.0),
+    "target_within": dict(px=80.0), "target_beyond": dict(px=200.0),
+    "target_between": dict(min_px=60.0, max_px=200.0),
+    "target_above": dict(px=40.0), "target_below": dict(px=40.0),
+    "target_facing": dict(dir="toward"), "target_attacking": {}, "target_defending": {},
+    "target_hp_below": dict(pct=50.0), "target_hp_above": dict(pct=80.0),
+    "target_speed_above": dict(px_s=120.0), "target_speed_below": dict(px_s=20.0),
+    "attacks_made": dict(count=3), "hits_taken": dict(count=3), "damage_taken": dict(hp=10.0, ms=2000.0),
+    "landed_hit": {}, "hit_by_fx": dict(tags=""), "fx_near": dict(tags="", px=60.0),
+    "projectile_count": dict(count=5), "bullet_deflected": {},
+    "after_actions": dict(sequence=""), "since_action": dict(action="", ms=2000.0),
+    "every_ms": dict(ms=3000.0), "idle_for": dict(ms=1000.0), "chance": dict(pct_s=30.0),
+}
 
 
 def is_image(fig):
@@ -81,10 +111,31 @@ def _tag_match(want, tag):
     return not want or (tag or "").lower() in want
 
 
+def _track_speed(track, x, y):
+    """Append (x, y) and return the average speed over the window, px/s."""
+    track.append((x, y))
+    del track[:-(SPEED_WINDOW + 1)]
+    if len(track) < 2:
+        return 0.0
+    (x0, y0), n = track[0], len(track) - 1
+    return ((x - x0) ** 2 + (y - y0) ** 2) ** 0.5 / n * (1000.0 / TICK_MS)
+
+
+def _nearest_index(partners, fx, fy):
+    best, bi = float("inf"), -1
+    for i, f in enumerate(partners or []):
+        d = (f[0] - fx) ** 2 + (f[1] - fy) ** 2
+        if d < best:
+            best, bi = d, i
+    return bi
+
+
 class ActionRunner:
     __slots__ = ("playing", "elapsed", "loops_left", "started", "cooldown_until", "since_attacks", "since_hits",
                  "hp_fired", "history", "last_attack_end", "chain_pos", "hit_tags", "next_tag", "deflected",
-                 "was_parrying", "base_speed", "acted", "attack_count")
+                 "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
+                 "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
+                 "rng")
 
     def __init__(self):
         self.playing = None
@@ -105,6 +156,17 @@ class ActionRunner:
         self.base_speed = None
         self.acted = False
         self.attack_count = 0
+        self.born = None
+        self.last_start = {}
+        self.last_end = {}
+        self.idle_since = None
+        self.own_track = []
+        self.tgt_track = []
+        self.last_hp = None
+        self.hp_drops = []
+        self.landed = 0
+        self.cursor_facing_left = None
+        self.rng = random.Random()
 
     # ------------------------------------------------------------ events
     def note_damage(self):
@@ -118,20 +180,58 @@ class ActionRunner:
 
     # ------------------------------------------------------------ conditions
     def _cond_true(self, fig, name, cond, ctx):
+        """The condition's own check (before `not`)."""
         t = cond.get("type")
+        now = ctx["now"]
         if t == "hp_below":
             pct = float(cond.get("pct", 50))
             if ctx["hp_pct"] > pct:
                 return False
             return bool(cond.get("repeat")) or pct not in self.hp_fired.get(name, set())
+        if t == "hp_above":
+            return ctx["hp_pct"] >= float(cond.get("pct", 80))
+        if t == "self_speed_above":
+            return ctx["own_speed"] >= float(cond.get("px_s", 120))
+        if t == "self_speed_below":
+            return ctx["own_speed"] <= float(cond.get("px_s", 20))
         if t == "attacks_made":
             return self.since_attacks.get(name, self.attack_count) >= int(cond.get("count", 3))
         if t == "hits_taken":
             return self.since_hits.get(name, self.since_hits.get("*", 0)) >= int(cond.get("count", 3))
+        if t == "damage_taken":
+            since = now - int(float(cond.get("ms", 2000)) / TICK_MS)
+            return sum(d for (tk, d) in self.hp_drops if tk > since) >= float(cond.get("hp", 10))
+        if t == "landed_hit":
+            return ctx["landed"] > 0
         if t == "target_within":
             return ctx["dist"] <= float(cond.get("px", 80))
         if t == "target_beyond":
             return ctx["dist"] >= float(cond.get("px", 200))
+        if t == "target_between":
+            lo, hi = float(cond.get("min_px", 60)), float(cond.get("max_px", 200))
+            return min(lo, hi) <= ctx["dist"] <= max(lo, hi)
+        if t == "target_above":
+            return ctx["target"][1] <= fig.y - float(cond.get("px", 40))
+        if t == "target_below":
+            return ctx["target"][1] >= fig.y + float(cond.get("px", 40))
+        if t == "target_facing":
+            fl = ctx["tgt_facing_left"]
+            if fl is None:
+                return False
+            toward = (fig.x < ctx["target"][0]) == bool(fl)
+            return toward if cond.get("dir", "toward") != "away" else not toward
+        if t == "target_attacking":
+            return bool(ctx["tgt_state"] and ctx["tgt_state"][1])
+        if t == "target_defending":
+            return bool(ctx["tgt_state"] and ctx["tgt_state"][2])
+        if t == "target_hp_below":
+            return bool(ctx["tgt_state"]) and ctx["tgt_state"][0] <= float(cond.get("pct", 50))
+        if t == "target_hp_above":
+            return bool(ctx["tgt_state"]) and ctx["tgt_state"][0] >= float(cond.get("pct", 80))
+        if t == "target_speed_above":
+            return ctx["tgt_speed"] >= float(cond.get("px_s", 120))
+        if t == "target_speed_below":
+            return ctx["tgt_speed"] <= float(cond.get("px_s", 20))
         if t == "hit_by_fx":
             want = _tags(cond.get("tags"))
             return any(_tag_match(want, tg) for tg in ctx["hit_tags"])
@@ -142,20 +242,43 @@ class ActionRunner:
                 if (x - fig.x) ** 2 + (y - fig.y) ** 2 <= px2 and _tag_match(want, tg):
                     return True
             return False
+        if t == "projectile_count":
+            return len(ctx["enemy_fx"]) >= int(cond.get("count", 5))
         if t == "bullet_deflected":
             return ctx["deflected"]
         if t == "after_actions":
             seq = [s.strip() for s in str(cond.get("sequence") or "").split(",") if s.strip()]
             return bool(seq) and self.history[-len(seq):] == seq
+        if t == "since_action":
+            other = str(cond.get("action") or "") or name
+            ref = self.last_end.get(other, self.born)
+            return other != self.playing and now - ref >= int(float(cond.get("ms", 2000)) / TICK_MS)
+        if t == "every_ms":
+            ref = self.last_start.get(name, self.born)
+            return now - ref >= int(float(cond.get("ms", 3000)) / TICK_MS)
+        if t == "idle_for":
+            return self.playing is None and now - self.idle_since >= int(float(cond.get("ms", 1000)) / TICK_MS)
+        if t == "chance":
+            p = max(0.0, min(100.0, float(cond.get("pct_s", 30)))) / 100.0
+            return self.rng.random() < 1.0 - (1.0 - p) ** (TICK_MS / 1000.0)
         return False
+
+    def _cond_met(self, fig, name, cond, ctx):
+        r = self._cond_true(fig, name, cond, ctx)
+        return (not r) if cond.get("not") else r
+
+    def _conds_pass(self, fig, name, cfg, ctx):
+        res = [self._cond_met(fig, name, c, ctx) for c in cfg.get("conditions") or []
+               if c.get("type") in CONDITION_TYPES]
+        if not res:
+            return False
+        return all(res) if cfg.get("logic") == "all" else any(res)
 
     def _triggered(self, fig, name, ctx, now):
         cfg = _cfg(fig, name)
-        conds = cfg.get("conditions") or []
-        if not conds or now < self.cooldown_until.get(name, 0):
+        if not cfg.get("conditions") or now < self.cooldown_until.get(name, 0):
             return False
-        res = [self._cond_true(fig, name, c, ctx) for c in conds]
-        return all(res) if cfg.get("logic") == "all" else any(res)
+        return self._conds_pass(fig, name, cfg, ctx)
 
     # ------------------------------------------------------------ playback
     def _frames(self, fig, name):
@@ -175,13 +298,14 @@ class ActionRunner:
         self.elapsed = 0.0
         self.loops_left = max(1, int(round(float(cfg.get("anim_loops") or 1)))) if _kind(name) != "locomotion" else 1
         self.started = now
+        self.last_start[name] = now
         cd = float(cfg.get("cooldown_ms") or 0)
         self.cooldown_until[name] = now + int(cd / TICK_MS)
         # Counters that belong to this action restart when it fires.
         self.since_attacks[name] = 0
         self.since_hits[name] = 0
         for c in cfg.get("conditions") or []:
-            if c.get("type") == "hp_below" and ctx["hp_pct"] <= float(c.get("pct", 50)):
+            if c.get("type") == "hp_below" and not c.get("not") and ctx["hp_pct"] <= float(c.get("pct", 50)):
                 self.hp_fired.setdefault(name, set()).add(float(c.get("pct", 50)))
         if _kind(name) == "attack":
             self.attack_count += 1
@@ -202,6 +326,8 @@ class ActionRunner:
             c.action_idx = 0
         self.history.append(name)
         del self.history[:-HISTORY]
+        self.last_end[name] = now
+        self.idle_since = now
         if _kind(name) == "attack":
             self.last_attack_end = now
             self.chain_pos = name
@@ -238,6 +364,12 @@ class ActionRunner:
                 self.chain_pos = None
         if now < self.cooldown_until.get(name, 0):
             return None
+        # Trigger conditions on an attack gate it on top of the range check
+        # (none = range alone).  A chained attack that fails waits; the
+        # chain resets to attack_normal after chain_reset_ms.
+        cfg = _cfg(fig, name)
+        if cfg.get("conditions") and not self._conds_pass(fig, name, cfg, ctx):
+            return None
         return name if name in fig.render.bundle.extra else None
 
     def update(self, fig, world):
@@ -255,10 +387,39 @@ class ActionRunner:
         parrying = bool(c.parrying)
         self.deflected = parrying and not self.was_parrying
         self.was_parrying = parrying
-        ctx = {"target": (tx, ty), "dist": dist,
+        if self.born is None:
+            self.born = now
+            self.idle_since = now
+        # HP lost (damage_taken), own / target speed (px/s over SPEED_WINDOW ticks).
+        if self.last_hp is not None and p.hp < self.last_hp:
+            self.hp_drops.append((now, self.last_hp - p.hp))
+        self.last_hp = p.hp
+        keep = now - int(DAMAGE_WINDOW_MS / TICK_MS)
+        while self.hp_drops and self.hp_drops[0][0] <= keep:
+            self.hp_drops.pop(0)
+        if self.tgt_track and not battle:
+            dxc = tx - self.tgt_track[-1][0]
+            if dxc < -0.5:
+                self.cursor_facing_left = True
+            elif dxc > 0.5:
+                self.cursor_facing_left = False
+        own_speed = _track_speed(self.own_track, fig.x, fig.y)
+        tgt_speed = _track_speed(self.tgt_track, tx, ty)
+        tgt_state, tgt_facing_left = None, (None if battle else self.cursor_facing_left)
+        if battle:
+            i = _nearest_index(world.partner_figures, fig.x, fig.y)
+            st = getattr(world, "partner_state", None) or []
+            fc = getattr(world, "partner_facing", None) or []
+            if 0 <= i < len(st):
+                tgt_state = st[i]
+            if 0 <= i < len(fc):
+                tgt_facing_left = fc[i]
+        ctx = {"target": (tx, ty), "dist": dist, "now": now,
                "hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp),
                "hit_tags": self.hit_tags, "deflected": self.deflected,
-               "enemy_fx": getattr(world, "enemy_fx", None) or []}
+               "enemy_fx": getattr(world, "enemy_fx", None) or [],
+               "own_speed": own_speed, "tgt_speed": tgt_speed, "tgt_state": tgt_state,
+               "tgt_facing_left": tgt_facing_left, "landed": self.landed}
 
         # Attack mode (Alt+Up) gates attacking exactly as it gates the
         # built-in fighters; defend is always allowed.
@@ -375,6 +536,7 @@ class ActionRunner:
         else:
             fig.aim = None
         self.hit_tags = []
+        self.landed = 0
         self.acted = rooted
         return rooted
 
@@ -424,3 +586,24 @@ def note_damage(fig):
     r = getattr(fig, "act", None)
     if r is not None:
         r.note_damage()
+
+
+def note_landed(fig):
+    """One of this fighter's FX hits connected (landed_hit condition)."""
+    r = getattr(fig, "act", None)
+    if r is not None:
+        r.landed += 1
+
+
+def target_state(fig):
+    """(hp_pct, attacking, defending) as the opponent's conditions see this
+    fighter: attacking = dashing / slashing, or an image character playing an
+    attack, attack_special or ultimate; defending = parrying or `defend`."""
+    p, c = fig.personality, fig.combat
+    hp = 100.0 * p.hp / max(1e-6, p.max_hp)
+    attacking = bool(c.dashing or c.slashing)
+    r = getattr(fig, "act", None)
+    if r is not None and r.playing:
+        attacking = attacking or r.playing.startswith("attack") or r.playing == "ultimate"
+    defending = bool(c.parrying) or blocks_hit(fig)
+    return (hp, attacking, defending)

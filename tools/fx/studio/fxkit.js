@@ -251,22 +251,52 @@ function turnSign(fx, host, d) {
 }
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
 //   idle / run      locomotion (standing still / moving), no conditions
-//   attack actions  the archetype decides when to attack; `chain_next` makes
-//                   attacks run as a combo (attack_normal -> attack_normal_2 ...)
-//                   that resets after `chain_reset_ms` without attacking
+//   attack actions  the archetype decides when to attack (target in range);
+//                   trigger conditions, if any, must ALSO pass.  `chain_next`
+//                   makes attacks run as a combo (attack_normal -> attack_normal_2
+//                   ...) that resets after `chain_reset_ms` without attacking
 //   other actions   fire when their conditions are met (ANY or ALL), no more
 //                   often than every `cooldown_ms`
+// Every condition also has `not` (false): true inverts it.  Mirrored by
+// laser/actions.py CONDITION_TYPES.  Speeds are game px per second.  In Solo
+// the target is the cursor: no HP, never attacks / defends, and "faces" the
+// way it last moved sideways.
 var CONDITION_TYPES = {
+  // own state
   hp_below:      {pct: 50, repeat: false},             // own HP <= pct % (once per crossing unless repeat)
-  attacks_made:  {count: 3},                           // after N attacks since this action last fired
-  hits_taken:    {count: 3},                           // after being hit N times since it last fired
+  hp_above:      {pct: 80},                            // own HP >= pct %
+  self_speed_above: {px_s: 120},                       // moving at least px/s
+  self_speed_below: {px_s: 20},                        // moving at most px/s (20 ~ standing)
+  // the target
   target_within: {px: 80},                             // target closer than px
   target_beyond: {px: 200},                            // target further than px
+  target_between: {min_px: 60, max_px: 200},           // target distance inside the band
+  target_above:  {px: 40},                             // target at least px higher on screen
+  target_below:  {px: 40},                             // target at least px lower on screen
+  target_facing: {dir: "toward"},                      // target faces toward / away from this fighter
+  target_attacking: {},                                // target is attacking (dash, slash, attack / ultimate action)
+  target_defending: {},                                // target is parrying / playing defend
+  target_hp_below: {pct: 50},                          // target HP <= pct % (Battle)
+  target_hp_above: {pct: 80},                          // target HP >= pct % (Battle)
+  target_speed_above: {px_s: 120},                     // target moving at least px/s
+  target_speed_below: {px_s: 20},                      // target moving at most px/s
+  // hits and projectiles
+  attacks_made:  {count: 3},                           // after N attacks since this action last fired
+  hits_taken:    {count: 3},                           // after being hit N times since it last fired
+  damage_taken:  {hp: 10, ms: 2000},                   // lost at least hp HP in the last ms
+  landed_hit:    {},                                   // one of this fighter's FX just hit the target
   hit_by_fx:     {tags: ""},                           // hit by an enemy FX with one of these tags ("" = any)
   fx_near:       {tags: "", px: 60},                   // an enemy FX with one of these tags comes within px
+  projectile_count: {count: 5},                        // count or more enemy projectiles / damaging FX live
   bullet_deflected: {},                                // this character just deflected a bullet
-  after_actions: {sequence: ""}                        // just completed these actions in order, comma separated
+  // timing and order
+  after_actions: {sequence: ""},                       // just completed these actions in order, comma separated
+  since_action:  {action: "", ms: 2000},               // action ("" = this one) last ended at least ms ago (or never ran)
+  every_ms:      {ms: 3000},                           // at least ms since this action last started (or the fight began)
+  idle_for:      {ms: 1000},                           // no action playing for at least ms
+  chance:        {pct_s: 30}                           // random: pct % chance per second
 };
+var CONDITION_COMMON = {not: false};
 // fx_continuous: when the action loops (idle, run, a held action), effects
 // that last to the end of the action keep running across the loop instead
 // of ending and starting again.
@@ -446,7 +476,7 @@ function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
   cfg.blink = normalizeBlink(cfg.blink);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
-    .map(function (c) { return fill(c, CONDITION_TYPES[c.type]); });
+    .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return cfg;
 }
 // fx.continuous: the effect never stops producing while its action plays,

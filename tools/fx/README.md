@@ -54,6 +54,15 @@ timing.
   be hit, doesn't move and fires no new FX; its animation keeps running.
   The stage shows it: the figure disappears over those frames, a faint
   outline marks where it vanished and a ring marks where it lands.
+- **Trigger conditions (per action).** Every attack and triggered action
+  has them under its action settings. On a triggered action (defend,
+  ultimate, attack_special, …) they decide when it plays; on an attack they
+  are an extra check on top of the target being in range (none = attack on
+  range alone). Pick from the grouped list (own state, target, hits &
+  projectiles, timing & order), combine with ANY / ALL, and tick **Not** to
+  invert one. **Live preview** shows which conditions hold right now: drag
+  the target for distance / height, and set own HP, target HP, facing,
+  attacking and defending there (preview only, not saved).
 - **Presets.** Built-in presets rebuild the game's existing effects with their
   `config.py` numbers. **Save as preset** keeps your own, and
   **Export**/**Import** moves them between machines.

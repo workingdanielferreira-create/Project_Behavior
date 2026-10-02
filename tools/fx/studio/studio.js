@@ -1023,11 +1023,158 @@ function buildProps() {
   d.appendChild(r);
 }
 
-var COND_LABEL = {hp_below: "own HP at or below %", attacks_made: "after N attacks made", hits_taken: "after N hits taken",
-  target_within: "target closer than px", target_beyond: "target further than px", hit_by_fx: "hit by FX tagged",
-  fx_near: "enemy FX tagged … within px", bullet_deflected: "a bullet was deflected", after_actions: "after completing actions in order"};
-var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 100, 1], px: ["Distance px", 1, 2000, 1],
-  tags: ["Tags (comma, empty = any)", "text"], sequence: ["Actions (comma separated)", "text"], repeat: ["Repeat on cooldown", "chk"]};
+// Trigger conditions (action_settings[action].conditions): grouped picker,
+// labels, field editors and the live preview against the stage.
+var COND_GROUPS = [
+  ["Own state", ["hp_below", "hp_above", "self_speed_above", "self_speed_below"]],
+  ["Target", ["target_within", "target_beyond", "target_between", "target_above", "target_below", "target_facing",
+    "target_attacking", "target_defending", "target_hp_below", "target_hp_above", "target_speed_above", "target_speed_below"]],
+  ["Hits & projectiles", ["attacks_made", "hits_taken", "damage_taken", "landed_hit", "hit_by_fx", "fx_near", "projectile_count", "bullet_deflected"]],
+  ["Timing & order", ["after_actions", "since_action", "every_ms", "idle_for", "chance"]]];
+var COND_LABEL = {hp_below: "own HP at or below %", hp_above: "own HP at or above %",
+  self_speed_above: "own speed at least px/s", self_speed_below: "own speed at most px/s",
+  target_within: "target closer than px", target_beyond: "target further than px", target_between: "target distance between px",
+  target_above: "target above me", target_below: "target below me", target_facing: "target facing me / away",
+  target_attacking: "target is attacking", target_defending: "target is defending",
+  target_hp_below: "target HP at or below %", target_hp_above: "target HP at or above %",
+  target_speed_above: "target speed at least px/s", target_speed_below: "target speed at most px/s",
+  attacks_made: "after N attacks made", hits_taken: "after N hits taken", damage_taken: "HP lost recently",
+  landed_hit: "just landed a hit", hit_by_fx: "hit by FX tagged", fx_near: "enemy FX tagged … within px",
+  projectile_count: "enemy projectiles on screen", bullet_deflected: "a bullet was deflected",
+  after_actions: "after completing actions in order", since_action: "time since an action last played",
+  every_ms: "every N ms", idle_for: "idle (no action) for ms", chance: "random chance per second"};
+var COND_HELP = {
+  hp_below: "Own HP is at or below the %. Fires once each time HP drops past it, unless Repeat on cooldown is on.",
+  hp_above: "Own HP is at or above the % (e.g. only while healthy).",
+  self_speed_above: "This fighter is moving at least this fast (game px per second, averaged over ~0.1 s).",
+  self_speed_below: "This fighter is moving at most this fast. Around 20 px/s means standing still.",
+  target_within: "The target is this close or closer.", target_beyond: "The target is this far or further.",
+  target_between: "The target's distance is inside the band (e.g. 60–200 px: not too close, not too far).",
+  target_above: "The target is at least this many px higher on screen.", target_below: "The target is at least this many px lower on screen.",
+  target_facing: "Toward: the target faces this fighter. Away: it has its back turned. In Solo the cursor faces the way it last moved sideways.",
+  target_attacking: "The target is dashing / slashing, or playing an attack, attack_special or ultimate action. Battle only (the Solo cursor never attacks).",
+  target_defending: "The target is parrying or playing its defend action. Battle only.",
+  target_hp_below: "The target's HP is at or below the %. Battle only (the Solo cursor has no HP).",
+  target_hp_above: "The target's HP is at or above the %. Battle only.",
+  target_speed_above: "The target is moving at least this fast (px/s).", target_speed_below: "The target is moving at most this fast (px/s).",
+  attacks_made: "This many attacks were made since this action last fired.", hits_taken: "Hit this many times since this action last fired.",
+  damage_taken: "Lost at least this much HP within the time window.",
+  landed_hit: "One of this fighter's damaging FX hit the target this tick (Battle).",
+  hit_by_fx: "Hit this tick by an enemy FX with one of these tags (empty = any hit).",
+  fx_near: "An enemy damaging FX / bullet with one of these tags is within the distance (empty = any).",
+  projectile_count: "At least this many enemy projectiles and damaging FX are live at once.",
+  bullet_deflected: "This fighter just started a parry / deflect.",
+  after_actions: "The last actions completed were exactly these, in this order.",
+  since_action: "The chosen action last ended at least this long ago (or has never played). Good for spacing moves apart.",
+  every_ms: "At least this long since this action last started (or since the fight began): a repeating timer.",
+  idle_for: "No attack or triggered action has played for at least this long.",
+  chance: "A random roll: this % chance per second while the other conditions hold (100 = always)."};
+var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["Distance px", 0, 2000, 1],
+  min_px: ["From px", 0, 2000, 5], max_px: ["To px", 0, 2000, 5], px_s: ["Speed px/s", 0, 5000, 5],
+  hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
+  tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
+  dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"]};
+// Preview-only state for the conditions the stage can't show (not saved).
+var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false};
+function condSelect() {
+  var e = document.createElement("select");
+  COND_GROUPS.forEach(function (gr) {
+    var og = document.createElement("optgroup"); og.label = gr[0];
+    gr[1].forEach(function (k) { var o = document.createElement("option"); o.value = k; o.textContent = COND_LABEL[k]; o.title = COND_HELP[k]; og.appendChild(o); });
+    e.appendChild(og);
+  });
+  return e;
+}
+// Tags the hit_by_fx / fx_near fields can match: every effect's tag, plus "bullet".
+function knownTags() {
+  var t = {bullet: 1}; S.effects.forEach(function (e) { if (e.tag) t[e.tag] = 1; });
+  ["fireball", "slash", "beam", "laser", "bolt", "orb"].forEach(function (k) { t[k] = 1; });
+  return Object.keys(t).sort();
+}
+function tagsInput(c, k) {
+  var e = inp("text", c[k], function (v) { c[k] = v; save(); });
+  e.setAttribute("list", "fxTagList"); e.placeholder = "any";
+  return e;
+}
+// after_actions: one picker per step, stored as the comma separated string.
+function sequenceEditor(c) {
+  var w = document.createElement("div"); w.className = "seq";
+  var seq = String(c.sequence || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+  var acts = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });   // idle / run never "complete"
+  function commit() { c.sequence = seq.join(", "); save(); buildProps(); }
+  seq.forEach(function (a, i) {
+    var r = document.createElement("div"); r.className = "row";
+    var sl = inp(acts.indexOf(a) < 0 ? [a].concat(acts) : acts, a, function (v) { seq[i] = v; commit(); });
+    var x = document.createElement("button"); x.textContent = "×"; x.title = "Remove this step"; x.onclick = function () { seq.splice(i, 1); commit(); };
+    var n = document.createElement("span"); n.className = "note"; n.textContent = (i + 1) + ".";
+    r.appendChild(n); r.appendChild(sl); r.appendChild(x); w.appendChild(r);
+  });
+  var r2 = document.createElement("div"); r2.className = "row";
+  var add = inp([["", "+ add step…"]].concat(acts), "", function (v) { if (v) { seq.push(v); commit(); } });
+  r2.appendChild(add); w.appendChild(r2);
+  return w;
+}
+function condField(box, c, k) {
+  var u = COND_FIELDS[k];
+  if (!u) return;
+  if (u[1] === "chk") return field(box, u[0], inp("chk", c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "tags") return field(box, u[0], tagsInput(c, k));
+  if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
+  if (u[1] === "action") return field(box, u[0], inp([["", "— this action —"]].concat(Object.keys(C.actions).filter(function (a) { return a !== S.action; })),
+    c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "dir") return field(box, u[0], inp([["toward", "toward me"], ["away", "away (back turned)"]], c[k], function (v) { c[k] = v; save(); }));
+  return field(box, u[0], inp("n", c[k], function (v) { c[k] = Math.max(u[1], Math.min(u[2], v)); save(); }, u[1], u[2], u[3]));
+}
+// Live preview: what each condition reads right now against the stage
+// (distance and height to the dragged target, the sim's movement) and the
+// preview state above.  null = only known in the game.
+function condNow(c) {
+  var dx = S.target[0] - S.figX, dy = S.target[1] - S.figY, dist = Math.hypot(dx, dy);
+  var own = Math.hypot(S.vel[0], S.vel[1]) * simMoveFactor() * 1000 / FXK.TICK_MS, v = null, why = "";
+  switch (c.type) {
+    case "hp_below": v = PREV.hp <= c.pct; break;
+    case "hp_above": v = PREV.hp >= c.pct; break;
+    case "self_speed_above": v = own >= c.px_s; break;
+    case "self_speed_below": v = own <= c.px_s; break;
+    case "target_within": v = dist <= c.px; break;
+    case "target_beyond": v = dist >= c.px; break;
+    case "target_between": v = dist >= Math.min(c.min_px, c.max_px) && dist <= Math.max(c.min_px, c.max_px); break;
+    case "target_above": v = -dy >= c.px; break;
+    case "target_below": v = dy >= c.px; break;
+    case "target_facing": v = (c.dir === "away") === (PREV.tface === "away"); break;
+    case "target_attacking": v = PREV.tatk; break;
+    case "target_defending": v = PREV.tdef; break;
+    case "target_hp_below": v = PREV.thp <= c.pct; break;
+    case "target_hp_above": v = PREV.thp >= c.pct; break;
+    case "target_speed_above": v = 0 >= c.px_s; why = "the Studio target stands still"; break;
+    case "target_speed_below": v = 0 <= c.px_s; why = "the Studio target stands still"; break;
+    case "chance": why = "random: " + Math.round(c.pct_s) + "% per second"; break;
+    default: why = "known in the game only";
+  }
+  if (v !== null && c.not) v = !v;
+  return {v: v, why: why, dist: dist, own: own};
+}
+function condPreviewText(r) {
+  return r.v === true ? "✓ met now" : r.v === false ? "✗ not met now" : "– " + r.why;
+}
+function refreshCondPreview() {
+  var box = $("condAll");
+  if (!box || !C || !S.action) return;
+  var cfg = cfgOf(S.action), known = [], unknown = 0;
+  cfg.conditions.forEach(function (c, i) {
+    var r = condNow(c), el = document.querySelector('.cpv[data-i="' + i + '"]');
+    if (el) { var t = condPreviewText(r); if (el.textContent !== t) { el.textContent = t; el.className = "cpv " + (r.v === true ? "ok" : r.v === false ? "bad" : "mute"); } }
+    if (r.v === null) unknown++; else known.push(r.v);
+  });
+  var all = cfg.logic === "all", res;
+  if (!cfg.conditions.length) res = FXK.actionKind(S.action) === "attack" ? "No conditions: attacks whenever the target is in range." : "No conditions: never fires.";
+  else if (all ? known.indexOf(false) >= 0 : known.indexOf(true) >= 0) res = all ? "✗ would not fire now" : "✓ would fire now";
+  else if (unknown) res = "– depends on game-only conditions";
+  else res = all ? "✓ would fire now" : "✗ would not fire now";
+  var r0 = condNow({type: "target_within", px: 0}), extra = "  (target " + Math.round(r0.dist) + " px away, own speed " + Math.round(r0.own) + " px/s)";
+  if (FXK.actionKind(S.action) === "attack" && cfg.conditions.length && res.charAt(0) === "✓") res += " — when the target is in range";
+  if (box.textContent !== res + extra) box.textContent = res + extra;
+}
 // Character-level Aim (pack.aim), shown under every action's settings.
 function buildAimProps(d) {
   var s = sec(d, "Aim (whole character)", "a-aim", "Always face the target and turn every frame so the weapon points at it. Applies to all actions.", "act");
@@ -1146,7 +1293,7 @@ function buildActionProps(d) {
   banner(d, "act", "Action settings", a, "Applies to the whole action and every effect on it. Select an effect on the left or on the timeline to edit that effect.");
   var s = sec(d, "When it plays", "a-when", "What starts this action in the game, and how long it runs.", "act");
   note(s, kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
-    : kind === "attack" ? "The archetype decides when to attack. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
+    : kind === "attack" ? "Attacks when the target is in attack range and its trigger conditions (below, if any) pass. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
   note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
   if (kind !== "locomotion") {
@@ -1180,28 +1327,52 @@ function buildActionProps(d) {
     field(s, "Next attack", inp(others, cfg.chain_next, function (v) { cfg.chain_next = v; save(); buildProps(); }));
     field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
     if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
-    return;
   }
-  s = sec(d, "Trigger conditions", "a-trig", "The conditions that start this action, how they combine, and the cooldown.", "act");
+  buildTriggerProps(d, a, cfg, kind);
+}
+// Trigger conditions for an attack or triggered action.
+function buildTriggerProps(d, a, cfg, kind) {
+  var s = sec(d, "Trigger conditions", "a-trig", kind === "attack"
+    ? "Extra conditions for this attack, checked on top of the target being in attack range. None = it attacks on range alone."
+    : "The conditions that start this action, how they combine, and the cooldown.", "act");
+  var ch = function () { save(); buildProps(); };
   field(s, "Fire when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], cfg.logic, function (v) { cfg.logic = v; save(); }));
-  field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50));
+  field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
+    "After it starts, how long before it can start again.";
+  var dl = document.createElement("datalist"); dl.id = "fxTagList";
+  knownTags().forEach(function (t) { var o = document.createElement("option"); o.value = t; dl.appendChild(o); });
+  s.appendChild(dl);
   cfg.conditions.forEach(function (c, i) {
-    var box = sec(d, "Condition " + (i + 1) + ": " + COND_LABEL[c.type], "a-cond", null, "act");
-    Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) {
-      var u = COND_FIELDS[k];
-      field(box, u[0], u[1] === "text" ? inp("text", c[k], function (v) { c[k] = v; save(); })
-        : u[1] === "chk" ? inp("chk", c[k], function (v) { c[k] = v; save(); })
-        : inp("n", c[k], function (v) { c[k] = v; save(); }, u[1], u[2], u[3]));
-    });
-    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { cfg.conditions.splice(i, 1); save(); buildProps(); };
-    box.appendChild(rm);
+    var box = sec(s, "Condition " + (i + 1) + ": " + (c.not ? "NOT " : "") + COND_LABEL[c.type], "a-cond", COND_HELP[c.type], "act");
+    Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) { condField(box, c, k); });
+    field(box, "Not (invert)", inp("chk", c.not, function (v) { c.not = v; ch(); })).title =
+      "On: the condition counts as met when its check is FALSE (e.g. NOT target attacking).";
+    var pv = document.createElement("div"); pv.className = "cpv mute"; pv.dataset.i = i; box.appendChild(pv);
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up"; up.disabled = i === 0;
+    up.onclick = function () { cfg.conditions.splice(i - 1, 0, cfg.conditions.splice(i, 1)[0]); ch(); };
+    var dup = document.createElement("button"); dup.textContent = "Duplicate";
+    dup.onclick = function () { cfg.conditions.splice(i + 1, 0, clone(c)); ch(); };
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { cfg.conditions.splice(i, 1); ch(); };
+    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
   });
   var row = document.createElement("div"); row.className = "row";
-  var sel = inp(Object.keys(FXK.CONDITION_TYPES).map(function (k) { return [k, COND_LABEL[k]]; }), "hp_below", function () {});
+  var sel = condSelect(), help = document.createElement("div"); help.className = "note";
+  sel.onchange = function () { help.textContent = COND_HELP[sel.value]; };
   var add = document.createElement("button"); add.textContent = "+ Condition";
-  add.onclick = function () { cfg.conditions.push(FXK.normalizeAction({conditions: [{type: sel.value}]}).conditions[0]); save(); buildProps(); };
-  row.appendChild(sel); row.appendChild(add); d.appendChild(row);
-  if (!cfg.conditions.length) note(d, "No conditions yet: this action never fires on its own.");
+  add.onclick = function () { cfg.conditions.push(FXK.normalizeAction({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
+  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
+  help.textContent = COND_HELP[sel.value]; s.appendChild(help);
+  if (!cfg.conditions.length) note(s, kind === "attack" ? "No conditions: it attacks whenever the target is in range." : "No conditions yet: this action never fires on its own.");
+  // Live preview
+  var p = sec(s, "Live preview", "a-cpv", "Which conditions hold right now. Drag the target on the stage; set what the stage can't show here (preview only, not saved).", "act");
+  field(p, "Own HP %", inp("n", PREV.hp, function (v) { PREV.hp = Math.max(0, Math.min(100, v)); }, 0, 100, 5));
+  field(p, "Target HP %", inp("n", PREV.thp, function (v) { PREV.thp = Math.max(0, Math.min(100, v)); }, 0, 100, 5));
+  field(p, "Target faces", inp([["toward", "toward me"], ["away", "away"]], PREV.tface, function (v) { PREV.tface = v; }));
+  field(p, "Target attacking", inp("chk", PREV.tatk, function (v) { PREV.tatk = v; }));
+  field(p, "Target defending", inp("chk", PREV.tdef, function (v) { PREV.tdef = v; }));
+  var all = document.createElement("div"); all.id = "condAll"; all.className = "cpv"; p.appendChild(all);
+  refreshCondPreview();
 }
 
 // ------------------------------------------------------------ timeline
@@ -1389,6 +1560,7 @@ function loop(now) {
     while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
   }
   draw();
+  refreshCondPreview();
 }
 
 // ------------------------------------------------------------ render
