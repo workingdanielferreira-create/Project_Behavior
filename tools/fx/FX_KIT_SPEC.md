@@ -234,6 +234,33 @@ The aim (`motion.aim`) is one of:
   `start_fraction` (the `trail_gradient` rule).
 - `solid`: `c1`.
 
+### Keyframes (`keys`)
+An effect can animate its numbers and custom colours over the action
+(`FXK.fxAt`, mirrored by `laser/fxkit.py fx_at`):
+
+```json
+"keys": [{"frame": 8,  "ease": "strong_out", "set": {"motion.speed": 100, "color.c1": "#ff8000", "offset.1": -12}},
+         {"frame": 14, "ease": "elastic",    "set": {"motion.speed": 40}}]
+```
+
+- The effect's own settings are its values at its `start_frame`. Each key
+  sets new values for the settings it lists. A setting moves from the
+  previous point that set it (the start, or an earlier key) to this key
+  along the key's `ease`, and holds after its last key.
+- Keyable: every number and every `#rrggbb` colour in `params`, `motion`,
+  `emit`, `color`, `battle` and `intercept`, plus `offset.0`, `offset.1` and
+  `life_ticks`. Choices and toggles aren't keyable.
+- `ease` (how the value moves into this key): `linear`, `in`, `out`, `inout`,
+  `strong_in`, `strong_out`, `strong_inout` (quartic), `hold` (stays, then
+  jumps at the key), `bounce`, `elastic`.
+- Live instances sample the effect each tick at their own action time (the
+  tick they spawned + their age, in frames at the action's `frame_ms`), so a
+  shot already in flight follows the animation. A keyed `motion.speed`
+  rescales the velocity of travelling, homing and zigzag shots while keeping
+  their direction. A deflected copy freezes at its values when deflected.
+- `rescaleEffects` / `rescale_effects` scale keyed distances the same way as
+  the base settings.
+
 ## 3b. Entry points and paths (shared library)
 
 The FX file carries two lists that every action's effects can use:

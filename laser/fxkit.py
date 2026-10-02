@@ -310,6 +310,7 @@ def normalize(fx):
     if fx["prim"] == "weapon":
         fx["motion"]["kind"] = "attached"
     fx.setdefault("id", "E" + str(id(fx)))
+    normalize_keys(fx)
     return fx
 
 
@@ -334,6 +335,147 @@ _SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry")
 _SCALE_INTERCEPT = ("radius", "contact")
 
 
+# ---------------------------------------------------------------- keyframes
+# fx["keys"] = [{frame, ease, set: {"motion.speed": 100, "color.c1": "#ff0000"}}]
+# (FX Studio: FXK.fxAt).  The effect's own settings are its values at its
+# start frame; each key sets new values for the settings it lists, and each
+# such setting moves from the previous point that set it to this key along the
+# key's ease.  After its last key a setting holds.  Live instances sample the
+# effect at their own action time (spawn tick + age), so a shot in flight
+# follows the animation.
+EASES = ("linear", "in", "out", "inout", "strong_in", "strong_out", "strong_inout", "hold", "bounce", "elastic")
+KEY_GROUPS = ("params", "motion", "emit", "color", "battle", "intercept")
+
+
+def _bounce_out(u):
+    n, d = 7.5625, 2.75
+    if u < 1 / d:
+        return n * u * u
+    if u < 2 / d:
+        u -= 1.5 / d
+        return n * u * u + 0.75
+    if u < 2.5 / d:
+        u -= 2.25 / d
+        return n * u * u + 0.9375
+    u -= 2.625 / d
+    return n * u * u + 0.984375
+
+
+def ease(name, u):
+    u = max(0.0, min(1.0, u))
+    if name == "linear":
+        return u
+    if name == "in":
+        return u * u
+    if name == "out":
+        return 1 - (1 - u) * (1 - u)
+    if name == "strong_in":
+        return u ** 4
+    if name == "strong_out":
+        return 1 - (1 - u) ** 4
+    if name == "strong_inout":
+        return 8 * u ** 4 if u < 0.5 else 1 - (-2 * u + 2) ** 4 / 2
+    if name == "hold":
+        return 0.0 if u < 1 else 1.0
+    if name == "bounce":
+        return _bounce_out(u)
+    if name == "elastic":
+        if u <= 0:
+            return 0.0
+        if u >= 1:
+            return 1.0
+        return 2 ** (-10 * u) * math.sin((u * 10 - 0.75) * (2 * math.pi / 3)) + 1
+    return 2 * u * u if u < 0.5 else 1 - (-2 * u + 2) ** 2 / 2   # inout
+
+
+def _keyable(v):
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return math.isfinite(v)
+    return isinstance(v, str) and len(v) == 7 and v[0] == "#" and hex_rgb(v, None) is not None
+
+
+def normalize_keys(fx):
+    out = []
+    for k in fx.get("keys") or []:
+        if not isinstance(k, dict) or not isinstance(k.get("set"), dict):
+            continue
+        try:
+            frame = max(0, int(round(float(k.get("frame") or 0))))
+        except (TypeError, ValueError):
+            frame = 0
+        out.append({"frame": frame, "ease": k.get("ease") if k.get("ease") in EASES else "inout",
+                    "set": {p: v for p, v in k["set"].items() if _keyable(v)}})
+    out.sort(key=lambda k: k["frame"])
+    fx["keys"] = out
+    return fx
+
+
+def _get_path(fx, path):
+    a, _, b = path.partition(".")
+    o = fx.get(a)
+    if not b:
+        return o
+    if a == "offset":
+        try:
+            return (o or [0, 0])[int(b)]
+        except (IndexError, ValueError):
+            return 0
+    return (o or {}).get(b)
+
+
+def _lerp_val(a, b, u):
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return a + (b - a) * u
+    if isinstance(a, str) and isinstance(b, str):
+        A, B = hex_rgb(a, [255, 255, 255]), hex_rgb(b, [255, 255, 255])
+        return "#" + "".join("%02x" % int(round(max(0, min(255, A[i] + (B[i] - A[i]) * u)))) for i in range(3))
+    return a if u < 1 else b
+
+
+def sample_key(fx, path, tf):
+    """The value of one setting at action frame tf (fractional) — FXK.sampleKey."""
+    pts = [(max(0, fx.get("start_frame") or 0), _get_path(fx, path), "linear")]
+    pts += [(k["frame"], k["set"][path], k["ease"]) for k in fx.get("keys") or [] if path in k["set"]]
+    pts.sort(key=lambda q: q[0])
+    if tf <= pts[0][0]:
+        return pts[0][1]
+    for i in range(len(pts) - 1):
+        p0, p1 = pts[i], pts[i + 1]
+        if tf < p1[0]:
+            u = ease(p1[2], (tf - p0[0]) / (p1[0] - p0[0])) if p1[0] > p0[0] else 1.0
+            return _lerp_val(p0[1], p1[1], u)
+    return pts[-1][1]
+
+
+def fx_at(fx, tf):
+    """fx with every keyed setting at its value at action frame tf (fx itself
+    when it has no keys) — FXK.fxAt."""
+    keys = fx.get("keys")
+    if not keys:
+        return fx
+    v = dict(fx)
+    for g in KEY_GROUPS:
+        v[g] = dict(fx.get(g) or {})
+    v["offset"] = list(fx.get("offset") or [0, 0])
+    done = set()
+    for key in keys:
+        for path in key["set"]:
+            if path in done:
+                continue
+            done.add(path)
+            val = sample_key(fx, path, tf)
+            a, _, b = path.partition(".")
+            if not b:
+                v[a] = val
+            elif a == "offset":
+                v["offset"][int(b)] = val
+            elif a in KEY_GROUPS:
+                v[a][b] = val
+    return v
+
+
 def rescale_effects(effects, lib, r):
     """Multiply every game-px distance in effects + entry sets + paths by r."""
     if abs(r - 1.0) < 1e-6:
@@ -353,6 +495,14 @@ def rescale_effects(effects, lib, r):
         for k in _SCALE_INTERCEPT:
             if isinstance(ic.get(k), (int, float)) and not isinstance(ic.get(k), bool):
                 ic[k] = ic[k] * r
+        scaled = (["offset.0", "offset.1"] + ["motion." + k for k in _SCALE_MOTION]
+                  + ["params." + k for k in _SCALE_PARAMS.get(fx.get("prim"), ())]
+                  + ["intercept." + k for k in _SCALE_INTERCEPT])
+        for key in fx.get("keys") or []:
+            for path in scaled:
+                val = key.get("set", {}).get(path)
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    key["set"][path] = val * r
     for e in (lib or {}).get("entry_sets") or []:
         e["points"] = [[p[0] * r, p[1] * r] for p in e.get("points") or []]
     for p in (lib or {}).get("paths") or []:
@@ -535,7 +685,7 @@ class Inst:
     __slots__ = ("fx", "x", "y", "px", "py", "vx", "vy", "dir", "age", "life", "seed", "r", "flow", "dead", "hist",
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
-                 "chase", "bvx", "bvy", "free")
+                 "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd")
 
     def __init__(self):
         self.chase = False     # intercept: steering at an enemy projectile
@@ -548,6 +698,10 @@ class Inst:
         self.x2 = self.y2 = 0.0
         self.centre_deg = 0.0
         self.flip = 1
+        self.src = None        # the authored effect (identity); fx is its keyframed view
+        self.t0 = 0
+        self.fms = 100.0
+        self.spd = 0.0
 
 
 def emit_particles(inst, fx, host, n):
@@ -604,6 +758,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.last_hit = -1e9
     inst.ep = ep
     spd = float(m["speed"] or 0)
+    inst.spd = spd   # keyframed speed: move_inst rescales the velocity when it changes
     if m["kind"] == "path":
         inst.path = lib_find(host, "paths", m.get("path"))
         if inst.path:
@@ -654,6 +809,18 @@ def move_inst(inst, host):
         path_step(inst, host)
         inst.vx, inst.vy = inst.x - inst.px, inst.y - inst.py
         return
+    if m["kind"] in ("travel", "homing", "zigzag") and not inst.free:
+        # Keyframed speed: an instance in flight follows it (direction kept).
+        ns = float(m["speed"] or 0)
+        if ns != inst.spd:
+            cs = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+            if cs > 1e-6 and inst.spd > 1e-6:
+                f = ns / inst.spd
+                inst.vx *= f
+                inst.vy *= f
+            else:
+                inst.vx, inst.vy = inst.dir[0] * ns, inst.dir[1] * ns
+            inst.spd = ns
     if fx["prim"] == "weapon":
         b2 = host.anchor(fx["params"]["to_anchor"])
         inst.x2, inst.y2 = b2[0], b2[1]
@@ -1263,6 +1430,7 @@ class Player:
         self.insts = []
         self.clock = 0
         self.pending = []
+        self._fms = 100.0
 
     def reset(self):
         self.insts = []
@@ -1281,7 +1449,9 @@ class Player:
             ep = j["ep"]
             seed = (hash32(j["fx"]["id"]) ^ imul(j["t"] + 1, 0x9E3779B1) ^ imul(i, 0x85EBCA6B)
                     ^ imul(0 if ep is None else ep + 1, 0xC2B2AE35)) & M32
-            inst = spawn(j["fx"], host, max(1, j["win"]), seed, i, j["n"], ep)
+            t0 = j["t"] + j.get("delay", 0)
+            inst = spawn(fx_at(j["fx"], t0 * TICK_MS / j["fms"]), host, max(1, j["win"]), seed, i, j["n"], ep)
+            inst.src, inst.t0, inst.fms = j["fx"], t0, j["fms"]
             if j["tag"] == "cont":
                 inst.cont = True
                 inst.win = inst.life
@@ -1296,7 +1466,7 @@ class Player:
         for k in range(pts):
             delay = k * max(0, trunc(eset["interval_ticks"])) if eset and eset.get("mode") == "sequential" else 0
             job = {"fx": fx, "t": t, "n": n, "win": win - delay, "ep": k if eset else None, "tag": tag,
-                   "due": self.clock + delay}
+                   "due": self.clock + delay, "delay": delay, "fms": self._fms}
             if delay > 0:
                 self.pending.append(job)
             else:
@@ -1306,22 +1476,24 @@ class Player:
         # t_prev == t: the action is holding a frame (time did not advance),
         # so nothing new fires this tick; live instances still update.
         held = t_prev is not None and t_prev == t
+        self._fms = max(1e-6, float(frame_ms))
         if t_prev is None or t_prev > t:
             t_prev = t - 1
         due = [j for j in self.pending if j["due"] <= self.clock]
         self.pending = [j for j in self.pending if j["due"] > self.clock]
         for j in due:
-            if j["fx"].get("enabled", True) and j["fx"] in effects:
+            if j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects):
                 self._spawn_job(j, host)
         for inst in self.insts:
-            if inst.cont and (not inst.fx.get("enabled", True) or inst.fx not in effects or not is_continuous(inst.fx)):
+            src = inst.src or inst.fx
+            if inst.cont and (not src.get("enabled", True) or not any(e is src for e in effects) or not is_continuous(src)):
                 inst.dead = True
         for fx in (() if held else effects):
             if not fx.get("enabled", True):
                 continue
             s, e, total = self.window(fx, frames, frame_ms)
             if is_continuous(fx):
-                if t < s or any(q.fx is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
+                if t < s or any((q.src or q.fx) is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
                         or any(q["fx"] is fx for q in self.pending):
                     continue
                 self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host)
@@ -1332,7 +1504,7 @@ class Player:
             if not fire:
                 continue
             opn = fx["life_ticks"] <= 0 and e >= total
-            if continuous and opn and not periodic and any(q.fx is fx and q.open and not q.dead for q in self.insts):
+            if continuous and opn and not periodic and any((q.src or q.fx) is fx and q.open and not q.dead for q in self.insts):
                 continue
             self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), e - t, "open" if opn else "", host)
         self.clock += 1
@@ -1342,6 +1514,10 @@ class Player:
                 if inst.open and inst.age < inst.life:
                     inst.life = max(inst.life, inst.age + 2)
         for inst in self.insts:
+            src = inst.src
+            if src is not None and src.get("keys"):
+                # Keyframes: this tick's values at the instance's own action time.
+                inst.fx = fx_at(src, (inst.t0 + inst.age) * TICK_MS / inst.fms)
             tick_inst(inst, host)
             resolve_hits(inst, host, ps)
         self.insts = [i for i in self.insts if not i.dead]
@@ -1623,8 +1799,10 @@ def _deflected_copy(src, vel, hurts_owner):
     fx["battle"]["deals_damage"] = bool(hurts_owner)
     fx.setdefault("intercept", {})["enabled"] = False
     fx["motion"]["kind"] = "travel"
+    fx["keys"] = []   # frozen at the values it had when deflected
     q = copy.copy(src)
     q.fx = fx
+    q.src = fx
     q.r = copy.copy(src.r)
     q.hist, q.trail, q.ghosts = list(src.hist), list(src.trail), []
     q.parts = [dict(p) for p in src.parts]

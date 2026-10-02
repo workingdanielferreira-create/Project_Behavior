@@ -456,6 +456,9 @@ function rescaleEffects(effects, lib, r) {
     var m = fx.motion || {}; SCALE_MOTION.forEach(function (k) { if (typeof m[k] === "number") m[k] *= r; });
     var P = fx.params || {}; (SCALE_PARAMS[fx.prim] || []).forEach(function (k) { if (typeof P[k] === "number") P[k] *= r; });
     var I = fx.intercept || {}; SCALE_INTERCEPT.forEach(function (k) { if (typeof I[k] === "number") I[k] *= r; });
+    var scaled = ["offset.0", "offset.1"].concat(SCALE_MOTION.map(function (k) { return "motion." + k; }),
+      (SCALE_PARAMS[fx.prim] || []).map(function (k) { return "params." + k; }), SCALE_INTERCEPT.map(function (k) { return "intercept." + k; }));
+    (fx.keys || []).forEach(function (key) { scaled.forEach(function (p) { if (typeof key.set[p] === "number") key.set[p] *= r; }); });
   });
   ((lib && lib.entry_sets) || []).forEach(function (e) { e.points = (e.points || []).map(function (p) { return [p[0] * r, p[1] * r]; }); });
   ((lib && lib.paths) || []).forEach(function (p) { p.points = (p.points || []).map(function (q) { return [q[0] * r, q[1] * r]; }); });
@@ -515,7 +518,106 @@ function normalize(fx) {
   fx.follow_dir = !!fx.follow_dir;
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
+  normalizeKeys(fx);
   return fx;
+}
+
+// ---------------------------------------------------------------- keyframes
+// fx.keys = [{frame, ease, set: {"motion.speed": 100, "color.c1": "#ff0000", ...}}]
+// sorted by frame.  The effect's own settings are its values at its start
+// frame; each key sets new values for the settings it lists, and every such
+// setting moves from the previous point that set it (the start, or an earlier
+// key) to this key along the key's ease.  After its last key a setting holds.
+// Keyable: number settings and custom colours (#rrggbb) in params, motion,
+// emit, color, battle and intercept, plus offset.0 / offset.1 and life_ticks.
+// Live instances sample the effect at their own action time (the tick they
+// spawned + their age), so a shot already flying follows the animation.
+// Mirrored by laser/fxkit.py (fx_at / ease).
+var EASES = ["linear", "in", "out", "inout", "strong_in", "strong_out", "strong_inout", "hold", "bounce", "elastic"];
+var KEY_GROUPS = ["params", "motion", "emit", "color", "battle", "intercept"];
+function bounceOut(u) {
+  var n = 7.5625, d = 2.75;
+  if (u < 1 / d) return n * u * u;
+  if (u < 2 / d) { u -= 1.5 / d; return n * u * u + 0.75; }
+  if (u < 2.5 / d) { u -= 2.25 / d; return n * u * u + 0.9375; }
+  u -= 2.625 / d; return n * u * u + 0.984375;
+}
+function ease(name, u) {
+  u = Math.max(0, Math.min(1, u));
+  switch (name) {
+    case "linear": return u;
+    case "in": return u * u;
+    case "out": return 1 - (1 - u) * (1 - u);
+    case "strong_in": return u * u * u * u;
+    case "strong_out": return 1 - Math.pow(1 - u, 4);
+    case "strong_inout": return u < 0.5 ? 8 * u * u * u * u : 1 - Math.pow(-2 * u + 2, 4) / 2;
+    case "hold": return u < 1 ? 0 : 1;
+    case "bounce": return bounceOut(u);
+    case "elastic": return u <= 0 ? 0 : u >= 1 ? 1 : Math.pow(2, -10 * u) * Math.sin((u * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
+    default: return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;   // inout
+  }
+}
+function keyableValue(v) { return (typeof v === "number" && isFinite(v)) || (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)); }
+function getPath(fx, path) {
+  var i = path.indexOf("."), a = i < 0 ? path : path.slice(0, i), b = i < 0 ? null : path.slice(i + 1);
+  var o = fx[a];
+  return b == null ? o : (o && o[b]);
+}
+// Every keyable setting of fx: [path, ...].
+function keyPaths(fx) {
+  var out = [];
+  KEY_GROUPS.forEach(function (g) { var o = fx[g] || {}; Object.keys(o).forEach(function (k) { if (keyableValue(o[k])) out.push(g + "." + k); }); });
+  out.push("offset.0", "offset.1", "life_ticks");
+  return out;
+}
+function isKeyable(fx, path) { return keyPaths(fx).indexOf(path) >= 0; }
+function normalizeKeys(fx) {
+  fx.keys = (Array.isArray(fx.keys) ? fx.keys : []).filter(function (k) { return k && typeof k.set === "object"; }).map(function (k) {
+    var set = {};
+    Object.keys(k.set || {}).forEach(function (p) { if (keyableValue(k.set[p])) set[p] = k.set[p]; });
+    return {frame: Math.max(0, Math.round(+k.frame || 0)), ease: EASES.indexOf(k.ease) >= 0 ? k.ease : "inout", set: set};
+  }).sort(function (a, b) { return a.frame - b.frame; });
+  return fx;
+}
+function hexLerp(a, b, u) {
+  var A = hexRgb(a, [255, 255, 255]), B = hexRgb(b, [255, 255, 255]);
+  return "#" + [0, 1, 2].map(function (i) { var v = Math.round(Math.max(0, Math.min(255, A[i] + (B[i] - A[i]) * u))); return (v < 16 ? "0" : "") + v.toString(16); }).join("");
+}
+function lerpVal(a, b, u) {
+  if (typeof a === "number" && typeof b === "number") return a + (b - a) * u;
+  if (typeof a === "string" && typeof b === "string") return hexLerp(a, b, u);
+  return u < 1 ? a : b;
+}
+// The value of one setting at action frame tf (fractional).
+function sampleKey(fx, path, tf) {
+  var pts = [[Math.max(0, fx.start_frame || 0), getPath(fx, path), "linear"]];
+  (fx.keys || []).forEach(function (k) { if (path in k.set) pts.push([k.frame, k.set[path], k.ease]); });
+  pts.sort(function (a, b) { return a[0] - b[0]; });
+  if (tf <= pts[0][0]) return pts[0][1];
+  for (var i = 0; i + 1 < pts.length; i++) {
+    var p0 = pts[i], p1 = pts[i + 1];
+    if (tf < p1[0]) return lerpVal(p0[1], p1[1], p1[0] > p0[0] ? ease(p1[2], (tf - p0[0]) / (p1[0] - p0[0])) : 1);
+  }
+  return pts[pts.length - 1][1];
+}
+// fx with every keyed setting at its value at action frame tf (fx itself when it has no keys).
+function fxAt(fx, tf) {
+  if (!fx.keys || !fx.keys.length) return fx;
+  var v = {};
+  for (var k in fx) v[k] = fx[k];
+  KEY_GROUPS.forEach(function (g) { var o = {}, src = fx[g] || {}; for (var q in src) o[q] = src[q]; v[g] = o; });
+  v.offset = (fx.offset || [0, 0]).slice();
+  var done = {};
+  fx.keys.forEach(function (key) {
+    Object.keys(key.set).forEach(function (path) {
+      if (done[path]) return; done[path] = 1;
+      var val = sampleKey(fx, path, tf), i = path.indexOf(".");
+      if (i < 0) v[path] = val;
+      else if (path.slice(0, i) === "offset") v.offset[+path.slice(i + 1)] = val;
+      else v[path.slice(0, i)][path.slice(i + 1)] = val;
+    });
+  });
+  return v;
 }
 
 // ---------------------------------------------------------------- instances
@@ -660,6 +762,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
   var spd = +m.speed || 0;
+  inst.spd = spd;   // keyframed speed: moveInst rescales the velocity when it changes
   if (m.kind === "path") {
     inst.path = libFind(host, "paths", m.path);
     if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host)); }
@@ -707,6 +810,16 @@ function moveInst(inst, host) {
     pathStep(inst, host);
     inst.vx = inst.x - inst.px; inst.vy = inst.y - inst.py;   // beams / trails read the travel speed
     return;
+  }
+  if ((m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") && !inst.free) {
+    // Keyframed speed: an instance in flight follows it (its direction is kept).
+    var ns = +m.speed || 0;
+    if (ns !== inst.spd) {
+      var cs = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
+      if (cs > 1e-6 && inst.spd > 1e-6) { var f = ns / inst.spd; inst.vx *= f; inst.vy *= f; }
+      else { inst.vx = inst.dir[0] * ns; inst.vy = inst.dir[1] * ns; }
+      inst.spd = ns;
+    }
   }
   if (fx.prim === "weapon") { var b2 = host.anchor(fx.params.to_anchor); inst.x2 = b2[0]; inst.y2 = b2[1]; }
   else if (m.kind === "travel") { inst.x += inst.vx; inst.y += inst.vy; }
@@ -1186,14 +1299,15 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     var set = entrySetOf(fx, host), pts = set ? set.points.length : 1;
     for (var k = 0; k < pts; k++) {
       var delay = set && set.mode === "sequential" ? k * Math.max(0, trunc(set.interval_ticks)) : 0;
-      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay};
+      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay, delay: delay};
       if (delay > 0) self.pending.push(job); else spawnJob(job);
     }
   }
   function spawnJob(j) {
     for (var i = 0; i < j.n; i++) {
       var seed = (hash32(j.fx.id) ^ Math.imul(j.t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B) ^ Math.imul((j.ep == null ? 0 : j.ep + 1), 0xC2B2AE35)) >>> 0;
-      var inst = spawn(j.fx, host, Math.max(1, j.win), seed, i, j.n, j.ep);
+      var t0 = j.t + (j.delay || 0), inst = spawn(fxAt(j.fx, t0 * TICK_MS / frameMs), host, Math.max(1, j.win), seed, i, j.n, j.ep);
+      inst.src = j.fx; inst.t0 = t0; inst.fms = frameMs;
       if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
       else inst.open = j.tag === "open";
       self.insts.push(inst);
@@ -1205,13 +1319,14 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   // A continuous instance ends when its effect is removed, disabled or no
   // longer continuous.
   this.insts.forEach(function (inst) {
-    if (inst.cont && (!inst.fx.enabled || effects.indexOf(inst.fx) < 0 || !isContinuous(inst.fx))) inst.dead = true;
+    var src = inst.src || inst.fx;
+    if (inst.cont && (!src.enabled || effects.indexOf(src) < 0 || !isContinuous(src))) inst.dead = true;
   });
   effects.forEach(function (fx) {
     if (!fx.enabled || (opts && opts.hold)) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
     if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
-      if (t < s || self.insts.some(function (q) { return q.fx === fx && q.cont && !q.dead && q.age < q.life; })
+      if (t < s || self.insts.some(function (q) { return (q.src || q.fx) === fx && q.cont && !q.dead && q.age < q.life; })
         || self.pending.some(function (q) { return q.fx === fx; })) return;
       fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont");
       return;
@@ -1220,13 +1335,17 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     var fire = t === s || periodic;
     if (!fire) return;
     var open = fx.life_ticks <= 0 && e >= w[2];
-    if (cont && open && !periodic && self.insts.some(function (q) { return q.fx === fx && q.open && !q.dead; })) return;
+    if (cont && open && !periodic && self.insts.some(function (q) { return (q.src || q.fx) === fx && q.open && !q.dead; })) return;
     fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), e - t, open ? "open" : "");
   });
   this.clock += 1;
   var ps = host.pscale || 1;
   if (cont) this.insts.forEach(function (inst) { if (inst.open && inst.age < inst.life) inst.life = Math.max(inst.life, inst.age + 2); });
-  this.insts.forEach(function (inst) { tickInst(inst, host); resolveHits(inst, host, ps); });
+  this.insts.forEach(function (inst) {
+    // Keyframes: this tick's values at the instance's own action time.
+    if (inst.src && inst.src.keys && inst.src.keys.length) inst.fx = fxAt(inst.src, (inst.t0 + inst.age) * TICK_MS / inst.fms);
+    tickInst(inst, host); resolveHits(inst, host, ps);
+  });
   this.insts = this.insts.filter(function (i) { return !i.dead; });
 };
 // hidden (Blink, while the fighter is gone): its body FX are not drawn.
@@ -1248,5 +1367,6 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
+  EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
 })(window);
