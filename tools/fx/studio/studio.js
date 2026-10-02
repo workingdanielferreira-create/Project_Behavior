@@ -1075,7 +1075,18 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
   tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
   dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"]};
 // Preview-only state for the conditions the stage can't show (not saved).
-var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false};
+var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
+  landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
+  since: {}, everyMs: 0, idleMs: 0, chanceHit: false};
+// Which preview inputs each condition type reads (the Live preview shows only these).
+var PREV_USES = {hp_below: ["hp"], hp_above: ["hp"], self_speed_above: ["own"], self_speed_below: ["own"],
+  target_facing: ["tface"], target_attacking: ["tatk"], target_defending: ["tdef"], target_hp_below: ["thp"], target_hp_above: ["thp"],
+  target_speed_above: ["tspeed"], target_speed_below: ["tspeed"], attacks_made: ["attacks"], hits_taken: ["hits"],
+  damage_taken: ["hplost"], landed_hit: ["landed"], hit_by_fx: ["hitOn", "hitTag"], fx_near: ["nearOn", "nearTag", "nearPx"],
+  projectile_count: ["proj"], bullet_deflected: ["deflected"], after_actions: ["history"], since_action: ["since"],
+  every_ms: ["everyMs"], idle_for: ["idleMs"], chance: ["chanceHit"]};
+function prevTags(s) { return String(s || "").split(",").map(function (t) { return t.trim().toLowerCase(); }).filter(Boolean); }
+function prevTagMatch(want, tag) { return !want.length || want.indexOf(String(tag || "").trim().toLowerCase()) >= 0; }
 function condSelect() {
   var e = document.createElement("select");
   COND_GROUPS.forEach(function (gr) {
@@ -1127,10 +1138,11 @@ function condField(box, c, k) {
 }
 // Live preview: what each condition reads right now against the stage
 // (distance and height to the dragged target, the sim's movement) and the
-// preview state above.  null = only known in the game.
+// preview inputs in the Live preview section (same rules as laser/actions.py).
 function condNow(c) {
   var dx = S.target[0] - S.figX, dy = S.target[1] - S.figY, dist = Math.hypot(dx, dy);
-  var own = Math.hypot(S.vel[0], S.vel[1]) * simMoveFactor() * 1000 / FXK.TICK_MS, v = null, why = "";
+  var sim = Math.hypot(S.vel[0], S.vel[1]) * simMoveFactor() * 1000 / FXK.TICK_MS;
+  var own = PREV.own >= 0 ? PREV.own : sim, v = null, why = "";
   switch (c.type) {
     case "hp_below": v = PREV.hp <= c.pct; break;
     case "hp_above": v = PREV.hp >= c.pct; break;
@@ -1146,13 +1158,89 @@ function condNow(c) {
     case "target_defending": v = PREV.tdef; break;
     case "target_hp_below": v = PREV.thp <= c.pct; break;
     case "target_hp_above": v = PREV.thp >= c.pct; break;
-    case "target_speed_above": v = 0 >= c.px_s; why = "the Studio target stands still"; break;
-    case "target_speed_below": v = 0 <= c.px_s; why = "the Studio target stands still"; break;
-    case "chance": why = "random: " + Math.round(c.pct_s) + "% per second"; break;
+    case "target_speed_above": v = PREV.tspeed >= c.px_s; break;
+    case "target_speed_below": v = PREV.tspeed <= c.px_s; break;
+    case "attacks_made": v = PREV.attacks >= c.count; break;
+    case "hits_taken": v = PREV.hits >= c.count; break;
+    case "damage_taken": v = PREV.hplost >= c.hp; break;
+    case "landed_hit": v = PREV.landed; break;
+    case "hit_by_fx": v = PREV.hitOn && prevTagMatch(prevTags(c.tags), PREV.hitTag); break;
+    case "fx_near": v = PREV.nearOn && PREV.nearPx <= c.px && prevTagMatch(prevTags(c.tags), PREV.nearTag); break;
+    case "projectile_count": v = PREV.proj >= c.count; break;
+    case "bullet_deflected": v = PREV.deflected; break;
+    case "after_actions":
+      var seq = String(c.sequence || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      var hist = String(PREV.history || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      v = seq.length > 0 && hist.slice(-seq.length).join(",") === seq.join(","); break;
+    case "since_action": v = prevSince(c.action || S.action) >= c.ms; break;
+    case "every_ms": v = PREV.everyMs >= c.ms; break;
+    case "idle_for": v = PREV.idleMs >= c.ms; break;
+    case "chance": v = PREV.chanceHit; break;
     default: why = "known in the game only";
   }
   if (v !== null && c.not) v = !v;
   return {v: v, why: why, dist: dist, own: own};
+}
+function prevSince(a) { var v = PREV.since[a]; return v == null ? 5000 : v; }
+// The Live preview inputs for the condition types this action uses.
+function buildPrevInputs(p, cfg) {
+  var used = {}, sinceActs = [];
+  cfg.conditions.forEach(function (c) {
+    (PREV_USES[c.type] || []).forEach(function (k) { used[k] = 1; });
+    if (c.type === "since_action") { var a = c.action || S.action; if (sinceActs.indexOf(a) < 0) sinceActs.push(a); }
+  });
+  var num = function (label, k, lo, hi, st, tip) {
+    field(p, label, inp("n", PREV[k], function (v) { PREV[k] = Math.max(lo, Math.min(hi, v)); }, lo, hi, st)).title = tip || "";
+  };
+  var chk = function (label, k, tip) { field(p, label, inp("chk", PREV[k], function (v) { PREV[k] = v; })).title = tip || ""; };
+  if (used.hp) num("Own HP %", "hp", 0, 100, 5);
+  if (used.own) num("Own speed px/s", "own", -1, 5000, 10, "-1 = use the sim's movement below the stage.");
+  if (used.thp) num("Target HP %", "thp", 0, 100, 5);
+  if (used.tface) field(p, "Target faces", inp([["toward", "toward me"], ["away", "away"]], PREV.tface, function (v) { PREV.tface = v; }));
+  if (used.tatk) chk("Target attacking", "tatk");
+  if (used.tdef) chk("Target defending", "tdef");
+  if (used.tspeed) num("Target speed px/s", "tspeed", 0, 5000, 10);
+  if (used.attacks) num("Attacks made since", "attacks", 0, 200, 1, "Attacks made since this action last fired.");
+  if (used.hits) num("Hits taken since", "hits", 0, 200, 1, "Hits taken since this action last fired.");
+  if (used.hplost) num("HP lost in window", "hplost", 0, 10000, 1, "HP lost within the condition's time window.");
+  if (used.landed) chk("Just landed a hit", "landed");
+  if (used.hitOn) {
+    chk("Hit this tick", "hitOn");
+    var ht = inp("text", PREV.hitTag, function (v) { PREV.hitTag = v; }); ht.setAttribute("list", "fxTagList"); ht.placeholder = "(untagged)";
+    field(p, "…by FX tagged", ht).title = "The tag of the FX that hit (empty = an untagged hit).";
+  }
+  if (used.nearOn) {
+    chk("Enemy FX nearby", "nearOn");
+    var nt = inp("text", PREV.nearTag, function (v) { PREV.nearTag = v; }); nt.setAttribute("list", "fxTagList"); nt.placeholder = "(untagged)";
+    field(p, "…tagged", nt);
+    num("…at distance px", "nearPx", 0, 2000, 5);
+  }
+  if (used.proj) num("Enemy projectiles live", "proj", 0, 200, 1);
+  if (used.deflected) chk("Just deflected a bullet", "deflected");
+  if (used.history) {
+    var acts = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
+    var hw = document.createElement("div"); hw.className = "seq";
+    var hist = String(PREV.history || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    var redo = function () { PREV.history = hist.join(", "); buildProps(); };
+    hist.forEach(function (a, i) {
+      var r = document.createElement("div"); r.className = "row";
+      var n = document.createElement("span"); n.className = "note"; n.textContent = (i + 1) + ".";
+      var x = document.createElement("button"); x.textContent = "×"; x.onclick = function () { hist.splice(i, 1); redo(); };
+      r.appendChild(n); r.appendChild(inp(acts, a, function (v) { hist[i] = v; redo(); })); r.appendChild(x); hw.appendChild(r);
+    });
+    var r2 = document.createElement("div"); r2.className = "row";
+    r2.appendChild(inp([["", "+ completed…"]].concat(acts), "", function (v) { if (v) { hist.push(v); redo(); } }));
+    hw.appendChild(r2);
+    field(p, "Last completed (oldest → newest)", hw);
+  }
+  sinceActs.forEach(function (a) {
+    field(p, "ms since " + a + " ended", inp("n", prevSince(a), function (v) { PREV.since[a] = Math.max(0, v); }, 0, 60000, 100)).title =
+      "How long ago " + a + " last ended (a large value = it hasn't played).";
+  });
+  if (used.everyMs) num("ms since this started", "everyMs", 0, 60000, 100, "Time since " + S.action + " last started.");
+  if (used.idleMs) num("ms idle (no action)", "idleMs", 0, 60000, 100);
+  if (used.chanceHit) chk("Chance roll succeeds", "chanceHit", "In the game it's a random roll each tick; tick to preview a successful roll.");
+  if (!Object.keys(used).length) note(p, cfg.conditions.length ? "These conditions read only the stage: drag the target." : "Add a condition to preview it.");
 }
 function condPreviewText(r) {
   return r.v === true ? "✓ met now" : r.v === false ? "✗ not met now" : "– " + r.why;
@@ -1365,12 +1453,8 @@ function buildTriggerProps(d, a, cfg, kind) {
   help.textContent = COND_HELP[sel.value]; s.appendChild(help);
   if (!cfg.conditions.length) note(s, kind === "attack" ? "No conditions: it attacks whenever the target is in range." : "No conditions yet: this action never fires on its own.");
   // Live preview
-  var p = sec(s, "Live preview", "a-cpv", "Which conditions hold right now. Drag the target on the stage; set what the stage can't show here (preview only, not saved).", "act");
-  field(p, "Own HP %", inp("n", PREV.hp, function (v) { PREV.hp = Math.max(0, Math.min(100, v)); }, 0, 100, 5));
-  field(p, "Target HP %", inp("n", PREV.thp, function (v) { PREV.thp = Math.max(0, Math.min(100, v)); }, 0, 100, 5));
-  field(p, "Target faces", inp([["toward", "toward me"], ["away", "away"]], PREV.tface, function (v) { PREV.tface = v; }));
-  field(p, "Target attacking", inp("chk", PREV.tatk, function (v) { PREV.tatk = v; }));
-  field(p, "Target defending", inp("chk", PREV.tdef, function (v) { PREV.tdef = v; }));
+  var p = sec(s, "Live preview", "a-cpv", "Test each condition: drag the target on the stage for distance and height, and set the values below for everything else. Each condition shows ✓ / ✗ and the result shows whether the action would fire (preview only, not saved).", "act");
+  buildPrevInputs(p, cfg);
   var all = document.createElement("div"); all.id = "condAll"; all.className = "cpv"; p.appendChild(all);
   refreshCondPreview();
 }
