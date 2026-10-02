@@ -60,9 +60,12 @@ timing.
   are an extra check on top of the target being in range (none = attack on
   range alone). Pick from the grouped list (own state, target, hits &
   projectiles, timing & order), combine with ANY / ALL, and tick **Not** to
-  invert one. **Live preview** shows which conditions hold right now: drag
-  the target for distance / height, and set own HP, target HP, facing,
-  attacking and defending there (preview only, not saved).
+  invert one. **Live preview** tests every condition: drag the target for
+  distance / height, and set a value for each other condition the action
+  uses (HP, speeds, hits, projectiles, nearby FX tags, last actions, timers,
+  the chance roll; only the ones in use are shown). Each condition shows
+  ✓ / ✗ and the section says whether the action would fire (preview only,
+  not saved).
 - **Presets.** Built-in presets rebuild the game's existing effects with their
   `config.py` numbers. **Save as preset** keeps your own, and
   **Export**/**Import** moves them between machines.
