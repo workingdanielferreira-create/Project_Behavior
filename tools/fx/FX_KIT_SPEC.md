@@ -57,23 +57,47 @@ these characters; it plays the PNGs.
 ### When each action plays (`action_settings`)
 - **`idle` / `run`**: locomotion (standing still / moving). No conditions.
 - **Attack actions (`attack_normal*`)**: the archetype decides when to
-  attack. `chain_next` names the next attack in a combo (e.g.
+  attack (target inside attack range). If the attack has `conditions`, they
+  must ALSO pass (`logic` any / all); with none it attacks on range alone.
+  `chain_next` names the next attack in a combo (e.g.
   `attack_normal → attack_normal_2 → attack_normal_3`). The chain resets
   after `chain_reset_ms` without attacking.
 - **Every other action** (`defend`, `deflect`, `attack_special`, `ultimate`,
   …) fires when its `conditions` are met: `logic: "any"` (OR) or `"all"`
-  (AND), no more often than every `cooldown_ms`. Condition types:
+  (AND), no more often than every `cooldown_ms`.
+
+Every condition has `not` (default `false`): `true` inverts it (met when the
+check is false). Speeds are game px per second. In Solo the target is the
+cursor: it has no HP and never attacks or defends (those checks are false),
+and it "faces" the way it last moved sideways. Condition types
+(`FXK.CONDITION_TYPES`, mirrored by `laser/actions.py CONDITION_TYPES`):
 
 | type | fields | met when |
 |---|---|---|
 | `hp_below` | `pct`, `repeat` | own HP ≤ pct % (once per crossing unless `repeat`) |
+| `hp_above` | `pct` | own HP ≥ pct % |
+| `self_speed_above` / `self_speed_below` | `px_s` | own speed ≥ / ≤ px_s (averaged over 6 ticks) |
+| `target_within` / `target_beyond` | `px` | target closer / further than px |
+| `target_between` | `min_px`, `max_px` | target distance inside the band |
+| `target_above` / `target_below` | `px` | target at least px higher / lower on screen |
+| `target_facing` | `dir` (`toward` / `away`) | target faces this fighter / has its back turned |
+| `target_attacking` | — | target dashing / slashing, or playing an `attack*` or `ultimate` action |
+| `target_defending` | — | target parrying or playing `defend` |
+| `target_hp_below` / `target_hp_above` | `pct` | target HP ≤ / ≥ pct % |
+| `target_speed_above` / `target_speed_below` | `px_s` | target speed ≥ / ≤ px_s |
 | `attacks_made` | `count` | N attacks made since this action last fired |
 | `hits_taken` | `count` | hit N times since this action last fired |
-| `target_within` / `target_beyond` | `px` | target closer / further than px |
+| `damage_taken` | `hp`, `ms` | lost at least hp HP within the last ms |
+| `landed_hit` | — | one of this fighter's FX hits connected this tick |
 | `hit_by_fx` | `tags` | hit by an enemy FX whose `tag` is listed (empty = any) |
 | `fx_near` | `tags`, `px` | an enemy FX with a listed tag comes within px |
+| `projectile_count` | `count` | count or more enemy damaging FX / bullets live |
 | `bullet_deflected` | — | this character just deflected a bullet |
 | `after_actions` | `sequence` | just completed these actions in order (comma separated) |
+| `since_action` | `action`, `ms` | `action` ("" = this one) last ended ≥ ms ago, or never played |
+| `every_ms` | `ms` | ≥ ms since this action last started (or since the fighter spawned) |
+| `idle_for` | `ms` | no attack / triggered action has played for ≥ ms |
+| `chance` | `pct_s` | random roll: pct_s % chance per second |
 
 Every action also has `fx_continuous` (the Studio's **continuous FX** toggle).
 When the action loops (idle, run, or any action that repeats) and this is on,
@@ -599,6 +623,15 @@ The presets only seed new FX.
        `refresh_battle`.
      - `bullet_deflected`: a parry just started.
      - `after_actions`: the last completed actions, in order.
+     - Target state (`target_facing`, `target_attacking`,
+       `target_defending`, `target_hp_*`): the nearest enemy, from
+       `partner_facing` / `partner_state`, rebuilt each tick by
+       `refresh_battle`. Solo: the cursor (no HP, never attacks / defends,
+       faces the way it last moved sideways).
+     - `landed_hit`: noted by `refresh_battle` when one of this fighter's FX
+       hits is delivered (not blocked, not immune).
+     - Any condition with `not: true` is inverted. An attack's conditions
+       gate it on top of the range check.
    - Attack mode (Alt+Up) gates attacks and triggered actions exactly as it
      gates the built-in fighters. `defend` always works.
 8. **Damage is FX only.** For image characters:

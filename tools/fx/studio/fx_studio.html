@@ -84,6 +84,8 @@ main{display:flex;flex-direction:column;min-width:0}
 #playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--warn);pointer-events:none}
 .grpmove{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:2px 6px;border:1px solid var(--line);border-radius:6px}
 .note{color:var(--mute);font-size:12px}.warn{color:var(--warn)}
+.seq .row{flex-wrap:nowrap;margin:2px 0}.seq select{min-width:0;flex:1}
+.cpv{font-size:12px;margin:4px 0;font-weight:600}.cpv.ok{color:var(--ok)}.cpv.bad{color:var(--bad)}.cpv.mute{color:var(--mute);font-weight:400}
 #lut{height:10px;border-radius:3px;margin:4px 0}
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9}
 #modal .box{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px;width:min(760px,92vw)}

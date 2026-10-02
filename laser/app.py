@@ -83,6 +83,8 @@ class SideState:
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
         self.partner_gone = []      # per partner_figures entry: blinked out (FX Studio blink)
+        self.partner_state = []     # per partner_figures entry: (hp_pct, attacking, defending)
+                                    # for FX Studio target_* trigger conditions
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
 
@@ -137,6 +139,7 @@ class World:
         self.partner_image = []
         self.partner_facing = []
         self.partner_gone = []
+        self.partner_state = []
         self.intercepted_bullets = set()
 
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
@@ -456,6 +459,7 @@ class World:
         self.partner_image = s.partner_image
         self.partner_facing = s.partner_facing
         self.partner_gone = s.partner_gone
+        self.partner_state = s.partner_state
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -506,6 +510,8 @@ class World:
                                        for f in other.figures if f.transform.init]
                 side.partner_gone = [blink.gone(f)
                                      for f in other.figures if f.transform.init]
+                side.partner_state = [actions.target_state(f)
+                                      for f in other.figures if f.transform.init]
                 # What the opponent has in the air that can hurt: live
                 # damaging FX instances (tagged) and bullets ("bullet") —
                 # read by the fx_near action condition.
@@ -555,6 +561,7 @@ class World:
                 side.partner_image = []
                 side.partner_facing = []
                 side.partner_gone = []
+                side.partner_state = []
                 side.enemy_fx = []
                 side.enemy_shots = []
                 side.enemy_projs = []
@@ -589,6 +596,13 @@ class World:
                         inst.age = max(inst.age, inst.life)
                     continue
                 actions.note_fx_hit(ef, tag)
+                # The fighter whose FX connected (landed_hit condition); a
+                # one-fighter side owns it even if the instance has ended.
+                owner = next((af for af in side.figures if getattr(af, "fx", None) is not None
+                              and inst in af.fx.player.insts),
+                             side.figures[0] if len(side.figures) == 1 else None)
+                if owner is not None:
+                    actions.note_landed(owner)
                 if dmg > 0:
                     ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable)
                 if kb > 0:
