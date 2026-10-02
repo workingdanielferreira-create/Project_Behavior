@@ -551,6 +551,17 @@ var RIGSPEC=[["ua",0,200,30],["fa",0,200,30],["th",0,200,38],["sh",0,200,36],["t
 var RIGDEF={};RIGSPEC.forEach(function(r){RIGDEF[r[0]]=r[3];});
 /* weapon attach pivots (per character): the joint each weapon's grip rides on */
 RIGDEF.w1at="haR";RIGDEF.w2at="haL";
+/* component widths (per character): rig.wd[layer id] = [start %, end %] of the
+   layer's default width (start = its first joint, end = the far joint; pair
+   layers taper from the hub out).  Weapons use [thickness %] (perpendicular to
+   the blade).  rig.wdsep: near/far limbs edited separately (else linked). */
+RIGDEF.wd={};RIGDEF.wdsep=false;
+var WGROUPS=[["upper arm",["near_upper_arm","far_upper_arm"]],["forearm",["near_forearm","far_forearm"]],
+  ["thigh",["near_thigh","far_thigh"]],["shin",["near_shin","far_shin"]],["shoulders",["shoulder_girdle"]],
+  ["upper spine",["upper_spine"]],["lower spine",["lower_spine"]],["pelvis",["pelvis_girdle"]],
+  ["weapon",["weapon"]],["weapon 2",["weapon2"]]];
+function wdOf(rig,id){var v=rig&&rig.wd&&rig.wd[id];
+  return[v&&isFinite(+v[0])?+v[0]:100,v&&isFinite(+v[1])?+v[1]:(v&&isFinite(+v[0])?+v[0]:100)];}
 var WATTACH=[["haR","near hand"],["haL","far hand"],["elR","near elbow"],["elL","far elbow"],
   ["shR","near shoulder"],["shL","far shoulder"],["ftR","near foot"],["ftL","far foot"],
   ["knR","near knee"],["knL","far knee"],["hpR","near hip"],["hpL","far hip"],
@@ -1810,6 +1821,17 @@ function wAddShape(i){
   S[key].push([]);return S[key].length-1;
 }
 function bone(c,a,b,w){c.lineWidth=w;c.lineCap="round";c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+/* a bone that is wa wide at a and wb wide at b (round ends): a tapered capsule */
+function seg(c,a,b,wa,wb){
+  if(Math.abs(wa-wb)<0.01){bone(c,a,b,wa);return;}
+  var ra=Math.max(0,wa/2),rb=Math.max(0,wb/2),dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+  c.beginPath();
+  if(d<=Math.abs(ra-rb)+1e-6){var big=ra>rb?a:b;c.arc(big.x,big.y,Math.max(ra,rb),0,6.2832);c.fill();return;}
+  var an=Math.atan2(dy,dx),off=Math.acos((ra-rb)/d);
+  c.arc(a.x,a.y,ra,an+off,an+6.2832-off);
+  c.arc(b.x,b.y,rb,an-off,an+off);
+  c.closePath();c.fill();
+}
 function drawFigure(c,p,rig,opt){
   normPose(p);
   if(p._img){drawArt(c,p,opt);return joints(p,rig);}   /* imported art frame */
@@ -1827,17 +1849,20 @@ function drawFigure(c,p,rig,opt){
     if(Ldef.head){c.beginPath();c.arc(j.head.x,j.head.y,rig.head*lw,0,6.2832);
       if(out){c.lineWidth=2.2;c.stroke();}else c.fill();}
     else if(Ldef.pair){
-      var hub=Ldef.mid?j[Ldef.mid]:j[Ldef.a];
-      if(Ldef.mid)bone(c,j[Ldef.a],hub,(Ldef.far?Wf:W)*Ldef.w);
-      bone(c,hub,j[Ldef.b],(Ldef.far?Wf:W)*Ldef.w);
-      bone(c,hub,j[Ldef.b2],(Ldef.far?Wf:W)*Ldef.w);
+      var hub=Ldef.mid?j[Ldef.mid]:j[Ldef.a],bw=(Ldef.far?Wf:W)*Ldef.w,pw=out?[100,100]:wdOf(rig,id);
+      var wa=bw*pw[0]/100,wb=bw*pw[1]/100;
+      if(Ldef.mid)seg(c,j[Ldef.a],hub,wa,wa);
+      seg(c,hub,j[Ldef.b],wa,wb);
+      seg(c,hub,j[Ldef.b2],wa,wb);
     }
-    else if(!Ldef.weapon){bone(c,j[Ldef.a],j[Ldef.b],(Ldef.far?Wf:W)*Ldef.w);}
+    else if(!Ldef.weapon){var bw2=(Ldef.far?Wf:W)*Ldef.w,pw2=out?[100,100]:wdOf(rig,id);
+      seg(c,j[Ldef.a],j[Ldef.b],bw2*pw2[0]/100,bw2*pw2[1]/100);}
     else if(Ldef.weapon&&wCount(Ldef.wi)>2){
       var WD=WPN[Ldef.wi],wk=WD.k,wg=j[wAt(rig,Ldef.wi)];
       c.save();c.translate(wg.x,wg.y);c.rotate((j[WD.ang]-90)*D);
       var sy=Math.cos(p[wk.spin]*D);if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
-      c.scale(p[wk.len],sy);c.translate(-p[wk.px]*lw,-p[wk.py]*lw);
+      sy*=wdOf(rig,id)[0]/100;   /* weapon thickness */
+      c.scale(p[wk.len],sy||0.001);c.translate(-p[wk.px]*lw,-p[wk.py]*lw);
       c.beginPath();
       wShapes(Ldef.wi).forEach(function(sh){
         if(sh.length<2)return;
@@ -1871,6 +1896,7 @@ function wWorldPts(p,j,i){
   i=i||0;if(wCount(i)<3)return[];
   var k=WPN[i].k,g=j[wAt(S.rig,i)],wa=(j[WPN[i].ang]-90)*D,ca=Math.cos(wa),sa=Math.sin(wa),sy=Math.cos(p[k.spin]*D);
   if(Math.abs(sy)<0.035)sy=(sy<0?-1:1)*0.035;
+  sy*=wdOf(S.rig,WPN[i].lay)[0]/100;   /* weapon thickness */
   return wAllPts(i).map(function(q){var lx=(q[0]-p[k.px])*p[k.len],ly=(q[1]-p[k.py])*sy;
     return{x:g.x+lx*ca-ly*sa,y:g.y+lx*sa+ly*ca};});
 }
@@ -2102,6 +2128,40 @@ function buildSliders(){
     inp.oninput=function(){S.rig[r[0]]=parseFloat(inp.value);v.textContent=inp.value;render();buildFilm();save();};
     row.appendChild(lab);row.appendChild(inp);row.appendChild(v);rb.appendChild(row);
   });
+  buildWidthSliders(rb);
+}
+/* Component widths (rig.wd): start / end % per body part (taper), thickness % per weapon. */
+function buildWidthSliders(rb){
+  if(!S.rig.wd)S.rig.wd={};
+  rb.appendChild(el("div","grp","component widths (%)"));
+  var sep=el("label","note");var cb=document.createElement("input");cb.type="checkbox";cb.checked=!!S.rig.wdsep;
+  cb.onchange=function(){S.rig.wdsep=cb.checked;save();buildSliders();};
+  sep.appendChild(cb);sep.appendChild(document.createTextNode(" separate near / far limbs"));
+  sep.title="Off: one width per limb drives both sides. On: near and far limbs each get their own.";rb.appendChild(sep);
+  var rows=[];
+  WGROUPS.forEach(function(g){
+    if(S.rig.wdsep&&g[1].length>1)g[1].forEach(function(id){rows.push([(id.indexOf("near")===0?"near ":"far ")+g[0],[id]]);});
+    else rows.push([g[0],g[1]]);
+  });
+  rows.forEach(function(r){
+    var L=LAYERMAP[r[1][0]],wpn=!!L.weapon,cur=wdOf(S.rig,r[1][0]);
+    var ends=wpn?[["thickness",0]]:[[(L.pair&&L.mid?"centre":JOINTLBL[L.mid||L.a].replace(/^(near|far) /,""))+" end",0],
+      [JOINTLBL[L.b].replace(/^(near|far) /,"")+" end",1]];
+    ends.forEach(function(e,k){
+      var row=el("div","sl"),lab=el("label",null,(k?"\u2003\u2003":r[0]+" \u00b7 ")+e[0]);
+      lab.title=wpn?"Weapon thickness across the blade, % of its drawn shape.":
+        "Width at the "+e[0]+", % of the default. Different start and end widths taper the part. Double-click to reset to 100.";
+      var inp=document.createElement("input");inp.type="range";inp.min=wpn?10:0;inp.max=300;inp.step=1;inp.value=cur[e[1]];
+      var v=el("span","val",String(Math.round(cur[e[1]])));
+      function set(val){r[1].forEach(function(id){var w=wdOf(S.rig,id);w[e[1]]=val;if(wpn)w[1]=val;S.rig.wd[id]=w;});
+        inp.value=val;v.textContent=String(Math.round(val));render();buildFilm();save();}
+      inp.oninput=function(){set(parseFloat(inp.value));};
+      inp.ondblclick=function(){set(100);};
+      row.appendChild(lab);row.appendChild(inp);row.appendChild(v);rb.appendChild(row);
+    });
+  });
+  var rs=document.createElement("button");rs.textContent="Reset all widths";
+  rs.onclick=function(){S.rig.wd={};save();buildSliders();render();buildFilm();};rb.appendChild(rs);
 }
 function syncSliders(){
   var p=CUR();
@@ -3195,6 +3255,7 @@ function build(){
     description:S.meta.description,archetype:S.meta.archetype,predicates:S.meta.predicates,
     movement:S.meta.movement,stats:S.meta.stats,
     rig:{bones:{ua:S.rig.ua,fa:S.rig.fa,th:S.rig.th,sh:S.rig.sh,torso:S.rig.torso,head:S.rig.head},
+         widths:clone(S.rig.wd||{}),
          pivots:{shoulder_x:S.rig.shx,shoulder_y:S.rig.shy,hip_x:S.rig.hipx,hip_y:S.rig.hipy,side_separation:S.rig.sep},
          pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers; weapon.attach / weapon2.attach name the joint each grip rides on, the weapon turning with the bone that ends there (Rig Forge extension); weapon2 is a second, independent weapon posed by w2p/w2px/w2py/w2spin/w2len"},
     palette:S.meta.palette,defense:{},weapon:{points:wShapes(0)[0]||[],shapes:wShapes(0),attach:wAt(S.rig,0)},
@@ -3218,7 +3279,7 @@ function figBounds(p){
       wWorldPts(p,j,L.wi).forEach(function(q){pt(q,1.5);});
       return;
     }
-    var r=10*L.w/2+1;
+    var pw=wdOf(S.rig,id),r=10*L.w*Math.max(pw[0],pw[1])/100/2+1;
     pt(j[L.a],r);pt(j[L.b],r);if(L.b2)pt(j[L.b2],r);if(L.mid)pt(j[L.mid],r);
   });
   return hit?b:null;

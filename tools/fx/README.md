@@ -7,6 +7,14 @@ Characters are keyframe **images**; FX are data.
 | 1. Rig & animate | `rigforge.html` (Rig Forge) → **Export character package…** | `<action>_NN.png` frames + `character.json` (name, archetype, stats, palette, timing, starting anchors) |
 | 2. FX | `studio/fx_studio.html` (FX Studio) → **Open character folder…** / **Save FX to folder** | `<name>.fxkit.json` (FX, anchors, damage) |
 
+**Component widths.** In Rig Forge's rig settings, under *component widths
+(%)*, every body part has a width at each end (e.g. thigh: hip end / knee
+end). Set them differently to taper the part, or double-click a slider to go
+back to 100. Near and far limbs share one width unless *separate near / far
+limbs* is ticked. Each weapon has a *thickness* (across the blade). Widths
+belong to the character, so they apply to every action and frame, and the
+exported frames use them.
+
 In Rig Forge, open the IO tab and use **Export character package…**. Pick the
 game's `characters` folder; a `<name>` sub-folder is created. Chrome and Edge
 write the files straight into the folder. Other browsers download them for you
