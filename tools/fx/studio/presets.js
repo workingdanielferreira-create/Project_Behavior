@@ -286,6 +286,8 @@ G.FX_PRESETS = [
   // (frames 0-20); once it passes half size (frame 10) the light halo and rays fade in
   // (additive, keyed up from black); frames 24-30 the rays retract into the core.
   // A held beam re-aims every tick (emit fan is not kept), so each ray is its own effect.
+  // The 16 rays point in random directions on a sphere seen face-on, fade from the core to their tips,
+  // and spin clockwise at a constant 6 deg/frame (motion.angle_deg keyed linearly to +120 by frame 30).
   {name: "Radiant core", group: "Energy", desc: "Energy charges from nothing into a light source; past half size light rays fade in, then retract into the core (frames 0-30)",
    effects: [
      {prim: "glow", name: "Core charge", tag: "energy", anchor: "figure", start_frame: 0, motion: {kind: "attached"}, blend: "additive",
@@ -305,22 +307,17 @@ G.FX_PRESETS = [
       keys: [{frame: 20, ease: "in", set: {"params.rate_per_s": 160}},
              {frame: 24, ease: "linear", set: {"params.rate_per_s": 160}},
              {frame: 30, ease: "strong_in", set: {"params.rate_per_s": 0}}]}
-   ].concat([0, 45, 90, 135, 180, 225, 270, 315].map(function (deg, i) {   // long rays, uneven lengths
-     var len = [72, 58, 80, 64, 76, 60, 84, 62][i];
-     return {prim: "beam", name: "Long ray " + deg, tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
+   ].concat([[15.9, 82], [23.4, 83], [57.7, 80], [74.2, 83], [102.1, 82], [109.0, 40], [118.0, 84], [154.4, 83],
+             [164.5, 79], [197.6, 78], [217.1, 58], [238.3, 78], [276.4, 57], [296.5, 65], [323.4, 81], [343.0, 73]
+   ].map(function (r, i) {   // [angle deg, length px]: random directions on a sphere, seen face-on
+     var deg = r[0], len = r[1], w = 1.2 + 1.6 * len / 84;
+     return {prim: "beam", name: "Ray " + (i + 1), tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
        motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
-       params: {length: len, w_start0: 2.6, w_start1: 2.6, w_end0: 0.4, w_end1: 0.4, segments: 1, glow: 4, glow_color: "#000000", pulse_hz: 0, jitter: 0, grow_ticks: 0},
-       keys: [{frame: 17, ease: "out", set: {"color.c1": "#ffffff", "color.c2": "#0b4f6e", "params.glow_color": "#1fa0d0"}},
+       params: {length: len, w_start0: w, w_start1: w, w_end0: 0.3, w_end1: 0.3, segments: 4, glow: 3, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 0},   // 4 segments carry the core-to-tip fade (glow follows it)
+       keys: [{frame: 16 + (i % 3), ease: "out", set: {"color.c1": "#9ff0ff", "color.c2": "#000000"}},
               {frame: 24, ease: "linear", set: {"params.length": len}},
-              {frame: 30, ease: "strong_in", set: {"params.length": 0}}]};
-   })).concat([22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5].map(function (deg, i) {   // short rays between them
-     var len = [38, 30, 42, 34, 40, 32, 44, 36][i];
-     return {prim: "beam", name: "Short ray " + deg, tag: "light", anchor: "figure", start_frame: 12, life_ticks: 120, blend: "additive",
-       motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
-       params: {length: len, w_start0: 2, w_start1: 2, w_end0: 0.3, w_end1: 0.3, segments: 1, glow: 3, glow_color: "#000000", pulse_hz: 0, jitter: 0, grow_ticks: 0},
-       keys: [{frame: 18, ease: "out", set: {"color.c1": "#e8ffff", "color.c2": "#083f5a", "params.glow_color": "#1890c0"}},
-              {frame: 24, ease: "linear", set: {"params.length": len}},
-              {frame: 30, ease: "strong_in", set: {"params.length": 0}}]};
+              {frame: 30, ease: "strong_in", set: {"params.length": 0}},
+              {frame: 30, ease: "linear", set: {"motion.angle_deg": deg + 120}}]};   // constant clockwise spin
    }))}
 
 ];
