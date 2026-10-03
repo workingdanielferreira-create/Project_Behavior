@@ -125,28 +125,35 @@ function radial(g, cx, cy, r, stops) {
   return gr;
 }
 function ellipse(g, x, y, w, h) { g.beginPath(); g.ellipse(x + w / 2, y + h / 2, Math.max(0, w / 2), Math.max(0, h / 2), 0, 0, 6.283185307179586); g.fill(); }
-function bulletSprite(r, gc, b, radius) {
-  var key = "b" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100;
+// glowPct: brightness of the soft outer glow (0 = none, 100 = the original);
+// glowSizePct: how far it spreads (100 = 3 x radius).  combat.bullet_sprite.
+function bulletSprite(r, gc, b, radius, glowPct, glowSizePct) {
+  var ga = Math.max(0, Math.min(255, Math.round(140 * Math.max(0, glowPct == null ? 100 : +glowPct) / 100)));
+  var gs = Math.max(0, glowSizePct == null ? 100 : +glowSizePct) / 100;
+  var key = "b" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100 + "," + ga + "," + Math.round(gs * 100) / 100;
   if (SPR[key]) return SPR[key];
-  var glow = Math.max(1, radius * 3), size = Math.ceil(glow * 2) + 2, c = size / 2;
+  var glow = Math.max(1, radius * 3 * gs), rad = Math.max(1, radius), size = Math.ceil(Math.max(glow, rad) * 2) + 2, c = size / 2;
   var cv = canvas(size, size), g = cv.getContext("2d");
-  g.fillStyle = radial(g, c, c, glow, [[0, rgba([r, gc, b], 140)], [1, rgba([r, gc, b], 0)]]);
-  ellipse(g, trunc(c - glow), trunc(c - glow), trunc(glow * 2), trunc(glow * 2));
-  var rad = Math.max(1, radius);
+  if (ga > 0) {
+    g.fillStyle = radial(g, c, c, glow, [[0, rgba([r, gc, b], ga)], [1, rgba([r, gc, b], 0)]]);
+    ellipse(g, trunc(c - glow), trunc(c - glow), trunc(glow * 2), trunc(glow * 2));
+  }
   g.fillStyle = radial(g, c, c, rad, [[0, "rgba(255,255,255," + 240 / 255 + ")"], [0.5, rgba([r, gc, b], 210)], [1, rgba([r, gc, b], 140)]]);
   ellipse(g, trunc(c - rad), trunc(c - rad), trunc(rad * 2), trunc(rad * 2));
   return (SPR[key] = {cv: cv, half: trunc(size / 2)});
 }
-function boltSprite(r, gc, b, radius, stretch, hot) {
-  var key = "o" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100 + "," + Math.round(stretch * 100) / 100 + "," + (hot ? 1 : 0);
+function boltSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
+  var ga = Math.max(0, Math.min(255, Math.round(170 * Math.max(0, glowPct == null ? 100 : +glowPct) / 100)));
+  var gs = Math.max(0, glowSizePct == null ? 100 : +glowSizePct) / 100;
+  var key = "o" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100 + "," + Math.round(stretch * 100) / 100 + "," + (hot ? 1 : 0) + "," + ga + "," + Math.round(gs * 100) / 100;
   if (SPR[key]) return SPR[key];
-  var glow = Math.max(1, radius * 3);
+  var glow = Math.max(1, radius * 3 * gs, Math.max(1, radius) * 1.2);   // never smaller than the head
   var w = Math.ceil(glow * 2 * stretch) + 2, h = Math.ceil(glow * 2) + 2;
   var cx = w / 2, cy = h / 2, headX = w - glow;
   var cv = canvas(w, h), g = cv.getContext("2d");
   g.save(); g.translate(cx, cy); g.scale(stretch, 1);
-  g.fillStyle = radial(g, 0, 0, glow, [[0, rgba([r, gc, b], 170)], [1, rgba([r, gc, b], 0)]]);
-  ellipse(g, trunc(-glow), trunc(-glow), trunc(glow * 2), trunc(glow * 2));
+  g.fillStyle = radial(g, 0, 0, glow, [[0, rgba([r, gc, b], ga)], [1, rgba([r, gc, b], 0)]]);
+  if (ga > 0) ellipse(g, trunc(-glow), trunc(-glow), trunc(glow * 2), trunc(glow * 2));
   if (hot) {
     var g6 = glow * 0.6;
     g.fillStyle = radial(g, 0, 0, g6, [[0, "rgba(255,255,255," + 150 / 255 + ")"], [1, "rgba(255,255,255,0)"]]);
@@ -169,7 +176,7 @@ var PARAM_DEFAULTS = {
   arc: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", angle_deg: 0,
         placement: "anchor", back: 51, lead: 26},
   beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0},
-  sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5},
+  sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
   ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12},
@@ -1117,15 +1124,15 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var spd2 = inst.vx * inst.vx + inst.vy * inst.vy;
   g.save(); g.translate(hx, hy);
   if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
-    var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot);
+    var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(Math.atan2(inst.vy, inst.vx)); g.scale(ps, ps); g.globalAlpha *= fade;
     g.drawImage(b.cv, trunc(-b.headX), trunc(-b.halfH));
   } else if (P.shape === "bolt") {
-    var o = boltSprite(c[0], c[1], c[2], P.radius, 1, !!P.hot);
+    var o = boltSprite(c[0], c[1], c[2], P.radius, 1, !!P.hot, P.glow, P.glow_size);
     g.scale(ps, ps); g.globalAlpha *= fade;
     g.drawImage(o.cv, -trunc(o.cv.width / 2), -trunc(o.cv.height / 2));
   } else {
-    var s = bulletSprite(c[0], c[1], c[2], P.radius);
+    var s = bulletSprite(c[0], c[1], c[2], P.radius, P.glow, P.glow_size);
     g.scale(ps, ps); g.globalAlpha *= fade;
     g.drawImage(s.cv, -s.half, -s.half);
   }
