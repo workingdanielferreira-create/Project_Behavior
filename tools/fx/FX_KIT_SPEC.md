@@ -417,6 +417,19 @@ arcs) are held for the dash; shots fire at the start of each pass and on their
 flying finish. The original effect still plays on its own action. A missing id
 plays nothing.
 
+**Triggered-reaction FX (effect `action`).** Besides an action name, an
+effect's `action` can be a reaction key (FX Studio: Actions > Triggered
+reactions). These never play on an action of their own:
+- `"@retreat"`: built on the run frames (`run`, else `idle`) and played for
+  the whole Tactical retreat dash (`FxDriver._retreat_tick`), on their own
+  player and clock from the dash's first tick, looping on the run timing with
+  continuous FX on. When the dash ends the held FX stop and shots already
+  flying finish. They play alongside `retreat.fx`, which keeps its own lane.
+- `"@blink:<action>"`: built on `<action>`'s frames and played with that
+  action's own FX, on the same clock, while its Blink is `enabled`
+  (`CharacterFx.with_blink`). The Blink rules apply to them as to the
+  action's own FX: while gone nothing new fires and body-bound FX are hidden.
+
 **Blink (`action_settings[action].blink`, per action; `laser/blink.py`).** A
 teleport inside one action; each action has its own. While that action plays,
 the fighter vanishes when the frame on show reaches `start_frame` and

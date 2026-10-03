@@ -254,6 +254,11 @@ BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target
                       proximity_px=60.0, flash=True)
 BLINK_ANCHORS = ("target", "self")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
+# Triggered-reaction FX (effect "action"): built in FX Studio under Actions >
+# Triggered reactions.  "@retreat" plays for the whole Tactical retreat dash;
+# "@blink:<action>" plays over <action> while its Blink is on.
+RETREAT_KEY = "@retreat"
+BLINK_KEY = "@blink:"
 
 
 def normalize_blink(b):
@@ -1648,6 +1653,13 @@ class CharacterFx:
         for e in self.effects:
             self.by_action.setdefault(e.get("action") or "idle", []).append(e)
         self.settings = {k: normalize_action(v) for k, v in (fxk.get("action_settings") or {}).items()}
+        # Triggered reactions (FX Studio > Actions > Triggered reactions):
+        # "@blink:<action>" FX play over that action alongside its own while
+        # its Blink is on; "@retreat" FX play for the whole Tactical retreat
+        # dash (FxDriver._retreat_tick).  Neither plays on its own.
+        self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
+                           for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
+        self.retreat_own = self.by_action.get(RETREAT_KEY) or []
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None
@@ -1681,6 +1693,9 @@ class CharacterFx:
             n = len(act.get("keyframes") or []) or 1
             fm = float(act.get("frame_ms") or 0) or float(act.get("duration_ms") or 100 * n) / n
             self.timing[name] = (n, fm)
+        # The animation the dash shows (and FX Studio builds "@retreat" FX on).
+        self.retreat_host = "run" if "run" in self.timing else "idle" if "idle" in self.timing \
+            else next(iter(self.timing), "run")
         self._retreat_fx = {}
 
     def retreat_effects(self, key):
@@ -1916,12 +1931,11 @@ class FxDriver:
         self.hurts = []
         self.hits_out = []
         self.host = None
-        # Tactical retreat FX: their own player and clock, running on the
-        # chosen effects' action timing for as long as the dash lasts.
-        self.rplayer = Player()
-        self.r_on = False
-        self.rt = 0
-        self.rt_prev = -1
+        # Tactical retreat FX, each lane on its own player and clock for as
+        # long as the dash lasts: the borrowed retreat "fx" (on its action's
+        # timing) and the FX built on the reaction ("@retreat", on the run
+        # timing).  Lane = [player, on, t, t_prev].
+        self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1]]
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -1972,7 +1986,10 @@ class FxDriver:
         host = _Host(self, fig, world)
         self.host = host
         cfg = self.cfx.settings.get(action) or normalize_action({})
-        effects = self.cfx.by_action.get(action) or []
+        if cfg["blink"]["enabled"] and action in self.cfx.with_blink:
+            effects = self.cfx.with_blink[action]
+        else:
+            effects = self.cfx.by_action.get(action) or []
         self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
                          t_prev=self.t if hold else self.t_prev)
         self._retreat_tick(fig, host, hold)
@@ -1981,38 +1998,46 @@ class FxDriver:
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
 
     def _retreat_tick(self, fig, host, hold):
-        """Tactical retreat FX: the chosen effect / group plays for the whole
-        dash, looping on its action's timing (shots re-fire each pass and on
-        their own cadence); when the dash ends the held FX stop and shots
-        already flying finish."""
+        """Tactical retreat FX: the borrowed effect / group and the FX built
+        on the reaction play for the whole dash, each looping on its own
+        action's timing (shots re-fire each pass and on their own cadence);
+        when the dash ends the held FX stop and shots already flying finish."""
         from . import retreat
         st, cfg = fig.retreat, retreat.config_for(fig)
-        effs, act = self.cfx.retreat_effects(cfg.get("fx")) if (cfg and st is not None and st.active) else ([], None)
+        dashing = bool(cfg and st is not None and st.active)
+        borrowed = self.cfx.retreat_effects(cfg.get("fx")) if dashing else ([], None)
+        own = (self.cfx.retreat_own, self.cfx.retreat_host) if dashing else ([], None)
+        for lane, (effs, act) in zip(self.rlanes, (borrowed, own)):
+            self._lane_tick(lane, effs, act, host, hold)
+
+    def _lane_tick(self, lane, effs, act, host, hold):
+        pl = lane[0]
         if effs:
             n, fm = self._time_for(act)
             total = max(1, jround(n * fm / TICK_MS))
-            if not self.r_on or self.rt >= total:
-                self.r_on, self.rt, self.rt_prev = True, 0, -1
-            self.rplayer.tick(effs, host, self.rt, n, fm, continuous=True,
-                              t_prev=self.rt if hold else self.rt_prev)
+            if not lane[1] or lane[2] >= total:
+                lane[1], lane[2], lane[3] = True, 0, -1
+            pl.tick(effs, host, lane[2], n, fm, continuous=True,
+                    t_prev=lane[2] if hold else lane[3])
             if not hold:
-                self.rt_prev, self.rt = self.rt, self.rt + 1
+                lane[3], lane[2] = lane[2], lane[2] + 1
             return
-        if self.r_on:
-            self.r_on = False
-            for inst in self.rplayer.insts:
+        if lane[1]:
+            lane[1] = False
+            for inst in pl.insts:
                 if inst.cont or inst.open:
                     inst.dead = True
-            self.rplayer.pending = []
-        if self.rplayer.insts:
-            self.rplayer.tick((), host, 0, 1, TICK_MS, t_prev=0)
+            pl.pending = []
+        if pl.insts:
+            pl.tick((), host, 0, 1, TICK_MS, t_prev=0)
 
     def draw(self, p, fig, layer, hidden=False):
-        if self.host is None or not (self.player.insts or self.rplayer.insts):
+        if self.host is None or not (self.player.insts or any(ln[0].insts for ln in self.rlanes)):
             return
         self.host.fig = fig
         self.player.draw(p, self.host, layer, hidden)
-        self.rplayer.draw(p, self.host, layer, hidden)
+        for ln in self.rlanes:
+            ln[0].draw(p, self.host, layer, hidden)
 
     def take_hits(self):
         h, self.hits_out = self.hits_out, []
