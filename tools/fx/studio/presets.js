@@ -281,7 +281,47 @@ G.FX_PRESETS = [
       motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ffffff", c2: "#ff3a5a"},
       params: {length: 420, w_start0: 7, w_start1: 7, w_end0: 4, w_end1: 4, segments: 1, glow: 10, glow_color: "#ff6a80", pulse_hz: 14, jitter: 0, grow_ticks: 3},
       keys: [{frame: 12, ease: "linear", set: {"params.glow": 12}},
-             {frame: 18, ease: "strong_in", set: {"params.w_start0": 1, "params.w_start1": 1, "params.w_end0": 0.5, "params.w_end1": 0.5, "params.glow": 1}}]}]}
+             {frame: 18, ease: "strong_in", set: {"params.w_start0": 1, "params.w_start1": 1, "params.w_end0": 0.5, "params.w_end1": 0.5, "params.glow": 1}}]}]},
+  // Radiant core: visual only, built for a 30+ frame action.  The core grows from nothing
+  // (frames 0-20); once it passes half size (frame 10) the light halo and rays fade in
+  // (additive, keyed up from black); frames 24-30 the rays retract into the core.
+  // A held beam re-aims every tick (emit fan is not kept), so each ray is its own effect.
+  {name: "Radiant core", group: "Energy", desc: "Energy charges from nothing into a light source; past half size light rays fade in, then retract into the core (frames 0-30)",
+   effects: [
+     {prim: "glow", name: "Core charge", tag: "energy", anchor: "figure", start_frame: 0, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "solid", c1: "#8ff2ff"}, params: {r_start: 0, r_end: 0, a_center: 150, a_mid: 60, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 6},
+      keys: [{frame: 20, ease: "inout", set: {"params.r_start": 16, "params.r_end": 16, "params.core_r": 5, "params.a_center": 255, "params.a_mid": 120}},
+             {frame: 24, ease: "linear", set: {"params.r_start": 16, "params.r_end": 16, "params.core_r": 5}},
+             {frame: 30, ease: "strong_in", set: {"params.r_start": 19, "params.r_end": 19, "params.core_r": 7}}]},
+     {prim: "glow", name: "Light halo", tag: "energy", anchor: "figure", start_frame: 10, motion: {kind: "attached"}, layer: "behind", blend: "additive",
+      color: {mode: "solid", c1: "#000000"}, params: {r_start: 8, r_end: 8, a_center: 200, a_mid: 70, mid: 0.3, core_r: 0, fade: "none", pulse_hz: 0},
+      keys: [{frame: 18, ease: "out", set: {"color.c1": "#1aa8d8", "params.r_start": 44, "params.r_end": 44}},
+             {frame: 24, ease: "linear", set: {"color.c1": "#1aa8d8", "params.r_start": 44, "params.r_end": 44}},
+             {frame: 30, ease: "strong_in", set: {"color.c1": "#0a4a60", "params.r_start": 14, "params.r_end": 14}}]},
+     {prim: "particles", name: "Core sparkles", tag: "energy", anchor: "figure", start_frame: 0, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#3fd8ff"},
+      params: {mode: "stream", rate_per_s: 0, angle_deg: 0, spread_deg: 360, speed_min: 20, speed_max: 90, gravity: 0, drag: 0.93,
+               size_min: 1.5, size_max: 3.5, size_over_life: "pulse", life_min_ms: 250, life_max_ms: 650},
+      keys: [{frame: 20, ease: "in", set: {"params.rate_per_s": 160}},
+             {frame: 24, ease: "linear", set: {"params.rate_per_s": 160}},
+             {frame: 30, ease: "strong_in", set: {"params.rate_per_s": 0}}]}
+   ].concat([0, 45, 90, 135, 180, 225, 270, 315].map(function (deg, i) {   // long rays, uneven lengths
+     var len = [72, 58, 80, 64, 76, 60, 84, 62][i];
+     return {prim: "beam", name: "Long ray " + deg, tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
+       motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
+       params: {length: len, w_start0: 2.6, w_start1: 2.6, w_end0: 0.4, w_end1: 0.4, segments: 1, glow: 4, glow_color: "#000000", pulse_hz: 0, jitter: 0, grow_ticks: 0},
+       keys: [{frame: 17, ease: "out", set: {"color.c1": "#ffffff", "color.c2": "#0b4f6e", "params.glow_color": "#1fa0d0"}},
+              {frame: 24, ease: "linear", set: {"params.length": len}},
+              {frame: 30, ease: "strong_in", set: {"params.length": 0}}]};
+   })).concat([22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5].map(function (deg, i) {   // short rays between them
+     var len = [38, 30, 42, 34, 40, 32, 44, 36][i];
+     return {prim: "beam", name: "Short ray " + deg, tag: "light", anchor: "figure", start_frame: 12, life_ticks: 120, blend: "additive",
+       motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
+       params: {length: len, w_start0: 2, w_start1: 2, w_end0: 0.3, w_end1: 0.3, segments: 1, glow: 3, glow_color: "#000000", pulse_hz: 0, jitter: 0, grow_ticks: 0},
+       keys: [{frame: 18, ease: "out", set: {"color.c1": "#e8ffff", "color.c2": "#083f5a", "params.glow_color": "#1890c0"}},
+              {frame: 24, ease: "linear", set: {"params.length": len}},
+              {frame: 30, ease: "strong_in", set: {"params.length": 0}}]};
+   }))}
 
 ];
 })(window);
