@@ -143,7 +143,7 @@ def seg_dist(px, py, x0, y0, x1, y1):
 
 
 # ---------------------------------------------------------------- schema
-PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "ghost", "weapon"]
+PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"]
 PARAM_DEFAULTS = {
     "ribbon": dict(max_points=50, min_dist=2, decay=2, taper=True, w_tail=1, w_head=5, alpha=220, head_glow_r=1, head_dot_r=1),
     "arc": dict(radius=42, span=170, width=6.5, tail=0.95, segs=16, grow=0.85, core_alpha=0.7, core_width=0.3, orient="motion",
@@ -154,6 +154,11 @@ PARAM_DEFAULTS = {
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
+    # Radial pulse: rings that expand from r_start to r_end over expand_ms
+    # (see pulse_rings).  rings = how many, gap_ms apart (0 = one every
+    # gap_ms for as long as the effect lasts).
+    "pulse": dict(r_start=0, r_end=120, width=6, width_end=2, expand_ms=400, rings=1, gap_ms=200, ease="out",
+                  fade="out", glow=8, fill_alpha=0),
     "ghost": dict(interval=2, ghost_life=14, alpha=150, max=12),
     "weapon": dict(to_anchor="wtip", width=6),
 }
@@ -245,13 +250,18 @@ def turn_sign(fx, host, d):
     return -f if u[0] * f < 0 else f
 
 
+# attack_px (normal attacks): how close the target must be for this attack
+# to start, game px at 100 % character scale; 0 = the character's
+# stats.basic_attack_radius (shooters: their shooting range).  laser/actions.py.
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
-                       movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80)
+                       movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80, attack_px=0)
 # The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): the
 # fighter vanishes at start_frame and reappears after end_frame (-1 = the
-# last frame) or when the action ends.  Run by laser/blink.py.
+# last frame) or when the action ends.  cooldown_ms: after it reappears, the
+# action blinks again only once this long has passed (meanwhile it plays
+# without vanishing).  Run by laser/blink.py.
 BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
-                      proximity_px=60.0, flash=True)
+                      proximity_px=60.0, flash=True, cooldown_ms=0.0)
 BLINK_ANCHORS = ("target", "self")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
 # Triggered-reaction FX (effect "action"): built in FX Studio under Actions >
@@ -333,6 +343,7 @@ _SCALE_PARAMS = {
     "sprite": ("radius",),
     "particles": ("speed_min", "speed_max", "gravity", "size_min", "size_max"),
     "glow": ("r_start", "r_end", "core_r"),
+    "pulse": ("r_start", "r_end", "width", "width_end", "glow"),
     "ghost": (),
     "weapon": ("width",),
 }
@@ -707,7 +718,7 @@ class Inst:
     __slots__ = ("fx", "x", "y", "px", "py", "vx", "vy", "dir", "age", "life", "seed", "r", "flow", "dead", "hist",
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
-                 "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps")
+                 "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits")
 
     def __init__(self):
         self.chase = False     # intercept: steering at an enemy projectile
@@ -725,6 +736,7 @@ class Inst:
         self.fms = 100.0
         self.spd = 0.0
         self.ps = 1.0          # figure size when fired (host_scale)
+        self.ring_hits = None  # pulse: {(ring, target slot)} already hit
 
 
 def emit_particles(inst, fx, host, n):
@@ -817,6 +829,8 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
             inst.y = tg[1] - od[0] * R - od[1] * P["lead"] * ps
     if fx["prim"] == "particles" and fx["params"]["mode"] == "burst":
         emit_particles(inst, fx, host, trunc(fx["params"]["count"]))
+    if fx["prim"] == "pulse":
+        inst.ring_hits = set()
     if fx["prim"] == "weapon":
         e2 = host.anchor(fx["params"]["to_anchor"])
         inst.x2, inst.y2 = e2[0], e2[1]
@@ -895,7 +909,7 @@ INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
 
 
 def can_intercept(fx):
-    return fx["prim"] not in ("weapon", "ghost") and fx["motion"]["kind"] in INTERCEPT_MOTIONS
+    return fx["prim"] not in ("weapon", "ghost", "pulse") and fx["motion"]["kind"] in INTERCEPT_MOTIONS
 
 
 def intercept_on(fx):
@@ -1074,6 +1088,10 @@ def tick_inst(inst, host):
         inst.ghosts = [gh for gh in inst.ghosts if gh["age"] < P["ghost_life"]]
         if not active and not inst.ghosts:
             inst.dead = True
+    elif prim == "pulse":
+        # Rings already expanding finish after the effect's life ends.
+        if not active and not pulse_rings(inst, inst.ps):
+            inst.dead = True
     elif not active:
         inst.dead = True
     inst.age += 1
@@ -1162,6 +1180,40 @@ def beam_segs(inst, host, ps):
     return out, fade * pulse, info
 
 
+def _pulse_ease(u, mode):
+    return 1 - (1 - u) * (1 - u) if mode == "out" else u * u if mode == "in" else u
+
+
+def _pulse_fade(u, mode):
+    return 1 - u if mode == "out" else u if mode == "in" else math.sin(u * math.pi) if mode == "inout" else 1.0
+
+
+def pulse_rings(inst, ps, age=None):
+    """Live rings of a radial pulse at `age` (default: now), as
+    [(ring index, radius, width, alpha 0..1)].  Ring k starts k * gap_ms
+    into the effect (only while the effect still lasts) and grows from
+    r_start to r_end over expand_ms (eased), its line going from width to
+    width_end and fading by `fade`.  rings 0 = keep starting rings."""
+    P = inst.fx["params"]
+    age = inst.age if age is None else age
+    if age < 0:
+        return []
+    exp = max(1.0, float(P["expand_ms"]) / TICK_MS)
+    gap = max(1.0, float(P["gap_ms"]) / TICK_MS)
+    n = trunc(P["rings"])
+    out = []
+    k = max(0, trunc((age - exp) / gap))
+    while k * gap <= age and (n <= 0 or k < n) and k * gap < inst.life:
+        u = (age - k * gap) / exp
+        if 0 <= u < 1:
+            e = _pulse_ease(u, P["ease"])
+            r = (P["r_start"] + (P["r_end"] - P["r_start"]) * e) * ps
+            w = (P["width"] + (P["width_end"] - P["width"]) * u) * ps
+            out.append((k, max(0.0, r), max(0.0, w), _pulse_fade(u, P["fade"])))
+        k += 1
+    return out
+
+
 def _hit_shape(inst, tx, ty, hr, ps, host):
     prim, P = inst.fx["prim"], inst.fx["params"]
     if prim == "ribbon":
@@ -1219,6 +1271,29 @@ def resolve_hits(inst, host, ps):
     if not b["deals_damage"] or not hurts or inst.dead:
         return
     now = inst.age
+    if inst.fx["prim"] == "pulse":
+        # Each ring hits each target once, when its edge sweeps over it
+        # (this tick's radius and last tick's, so a fast ring can't skip a
+        # target), pushing outward from the centre.  Rings never end on a
+        # hit: Pierce and Re-hit don't apply.
+        prev = {k: r for (k, r, _w, _a) in pulse_rings(inst, ps, inst.age - 1)}
+        for (k, r, w, _a) in pulse_rings(inst, ps):
+            rp = prev.get(k, r)
+            lo, hi = min(r, rp) - w / 2, max(r, rp) + w / 2
+            for i, (hx, hy, hr, key) in enumerate(hurts):
+                # The hurt key is the target's snapshot position (it moves):
+                # remember the target by its slot instead.
+                if (k, i) in inst.ring_hits:
+                    continue
+                dx, dy = hx - inst.x, hy - inst.y
+                d = math.hypot(dx, dy)
+                if lo - hr <= d <= hi + hr:
+                    inst.ring_hits.add((k, i))
+                    inst.hits += 1
+                    inst.last_hit = now
+                    ux, uy = (dx / d, dy / d) if d > 0.001 else (inst.dir[0], inst.dir[1])
+                    host.on_hit(inst, b["damage"], ux, uy, b["knockback"], key)
+        return
     if inst.fx["prim"] == "particles":
         keep = []
         for q in inst.parts:
@@ -1480,6 +1555,25 @@ def _draw_glow(p, inst, host, ps):
                                         (0.5, qcolor(c, 180 * k)), (1, qcolor(c, 100 * k))], idr)
 
 
+def _draw_pulse(p, inst, host, ps):
+    P = inst.fx["params"]
+    c1, c2 = color_pair(inst.fx, host.lut)
+    cx, cy = inst.x, inst.y
+    for (_k, r, w, k) in pulse_rings(inst, ps):
+        if k <= 0.004:
+            continue
+        if P["fill_alpha"] > 0 and r >= 1:
+            _radial_ellipse(p, cx, cy, r, [(0, qcolor(c2, 0)), (0.7, qcolor(c2, P["fill_alpha"] * k * 0.35)),
+                                           (1, qcolor(c2, P["fill_alpha"] * k))], trunc(r))
+        p.setBrush(Qt.NoBrush)
+        if P["glow"] > 0:
+            p.setPen(_pen(qcolor(c2, 70 * k), w + P["glow"] * ps))
+            p.drawEllipse(QPointF(cx, cy), r, r)
+        if w > 0:
+            p.setPen(_pen(qcolor(c1, 235 * k), w))
+            p.drawEllipse(QPointF(cx, cy), r, r)
+
+
 def _draw_ghost(p, inst, host, ps):
     P = inst.fx["params"]
     c = tuple(trunc(v) for v in color_pair(inst.fx, host.lut)[0])
@@ -1490,7 +1584,7 @@ def _draw_ghost(p, inst, host, ps):
 
 
 _DRAW = {"ribbon": _draw_ribbon, "arc": _draw_arc, "beam": _draw_beam, "sprite": _draw_sprite,
-         "particles": _draw_particles, "glow": _draw_glow, "ghost": _draw_ghost, "weapon": lambda *a: None}
+         "particles": _draw_particles, "glow": _draw_glow, "pulse": _draw_pulse, "ghost": _draw_ghost, "weapon": lambda *a: None}
 
 
 def draw_inst(p, inst, host, ps):
@@ -2009,7 +2103,9 @@ class FxDriver:
         host = _Host(self, fig, world)
         self.host = host
         cfg = self.cfx.settings.get(action) or normalize_action({})
-        if cfg["blink"]["enabled"] and action in self.cfx.with_blink:
+        from . import blink as _blink
+        if (cfg["blink"]["enabled"] and action in self.cfx.with_blink
+                and _blink.fx_on(fig, action, world.global_tick)):
             effects = self.cfx.with_blink[action]
         else:
             effects = self.cfx.by_action.get(action) or []

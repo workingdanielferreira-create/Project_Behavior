@@ -74,6 +74,18 @@ timing.
   be hit, doesn't move and fires no new FX; its animation keeps running.
   The stage shows it: the figure disappears over those frames, a faint
   outline marks where it vanished and a ring marks where it lands.
+  **Blink cooldown ms** (0 = none): after it reappears, the action plays
+  without blinking (and without its Blink FX) until the cooldown is over.
+- **Attack distance (normal attacks).** Under each `attack_normal*` action:
+  **Attack distance px** — the attack starts once the target is this close
+  (scales with Character scale). 0 = the character's basic attack radius.
+- **Radial pulse FX.** Primitive `pulse`: rings that expand from **Radius
+  start** to **Radius end** over **Expand ms**, **Rings** of them **Gap** ms
+  apart (0 = repeat for the whole effect). With Deals damage each ring hits
+  a target once as its edge sweeps over it, knocking it outward.
+- **Tactical retreat conditions.** The retreat takes every action trigger
+  condition (with Not). "This action" counters and timers count from the
+  last retreat.
 - **Tactical retreat FX.** Under *Tactical retreat (whole character)*,
   **Retreat FX** picks an optional effect, or a whole ▣ group, from any action
   to play for as long as the dash lasts. FX that stay on the fighter are held

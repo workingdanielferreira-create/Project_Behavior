@@ -8,7 +8,9 @@ was set up there (pack.action_settings):
   * attacks      — attack_normal and its chain (chain_next ...).  The
                    archetype decides WHEN: melee attacks once the target is
                    inside stats.basic_attack_radius, shooters from shooting
-                   range.  Consecutive attacks within chain_reset_ms continue
+                   range — or, when the attack sets its own attack_px
+                   (Attack distance), once the target is that close (times
+                   the character scale).  Consecutive attacks within chain_reset_ms continue
                    the chain.  An attack with trigger conditions also needs
                    them to pass (ANY / ALL) on top of that range check; with
                    none it attacks on range alone.
@@ -135,7 +137,7 @@ class ActionRunner:
                  "hp_fired", "history", "last_attack_end", "chain_pos", "hit_tags", "next_tag", "deflected",
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
-                 "rng")
+                 "rng", "ctx", "ctx_tick", "was_attacking")
 
     def __init__(self):
         self.playing = None
@@ -167,6 +169,9 @@ class ActionRunner:
         self.landed = 0
         self.cursor_facing_left = None
         self.rng = random.Random()
+        self.ctx = None              # the last observe() result (conditions read it)
+        self.ctx_tick = None         # the tick it was taken on
+        self.was_attacking = False   # tracker for non-image fighters: dash / slash edge
 
     # ------------------------------------------------------------ events
     def note_damage(self):
@@ -348,11 +353,6 @@ class ActionRunner:
             return None
         if now < self.last_attack_end + int(DEFAULT_ATTACK_GAP_MS / TICK_MS):
             return None
-        mode = fig.mode
-        radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS)) * mode.body_scale()
-        rng = radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
-        if ctx["dist"] > rng:
-            return None
         name = "attack_normal"
         if self.chain_pos:
             cfg = _cfg(fig, self.chain_pos)
@@ -364,6 +364,8 @@ class ActionRunner:
                 self.chain_pos = None
         if now < self.cooldown_until.get(name, 0):
             return None
+        if ctx["dist"] > attack_range(fig, name):
+            return None
         # Trigger conditions on an attack gate it on top of the range check
         # (none = range alone).  A chained attack that fails waits; the
         # chain resets to attack_normal after chain_reset_ms.
@@ -372,9 +374,11 @@ class ActionRunner:
             return None
         return name if name in fig.render.bundle.extra else None
 
-    def update(self, fig, world):
-        """One tick.  Returns True when the fighter is rooted this tick
-        (MotionSystem then leaves it where it is)."""
+    def observe(self, fig, world):
+        """Take this tick's readings (HP lost, speeds, the target's state)
+        and return the condition context.  Once per tick: update() calls it
+        for image characters; laser/retreat.py calls it (through
+        tracker_ctx) for any other fighter with a Tactical retreat."""
         now = world.global_tick
         c = fig.combat
         p = fig.personality
@@ -420,6 +424,22 @@ class ActionRunner:
                "enemy_fx": getattr(world, "enemy_fx", None) or [],
                "own_speed": own_speed, "tgt_speed": tgt_speed, "tgt_state": tgt_state,
                "tgt_facing_left": tgt_facing_left, "landed": self.landed}
+        self.ctx = ctx
+        self.ctx_tick = now
+        return ctx
+
+    def end_tick(self):
+        """Per-tick events (hits taken, hits landed) are read: clear them."""
+        self.hit_tags = []
+        self.landed = 0
+
+    def update(self, fig, world):
+        """One tick.  Returns True when the fighter is rooted this tick
+        (MotionSystem then leaves it where it is)."""
+        now = world.global_tick
+        c = fig.combat
+        ctx = self.observe(fig, world)
+        tx, ty = ctx["target"]
 
         # Attack mode (Alt+Up) gates attacking exactly as it gates the
         # built-in fighters; defend is always allowed.
@@ -535,8 +555,7 @@ class ActionRunner:
                                     fig._position_scale(), fig.x, fig.y, tx, ty)
         else:
             fig.aim = None
-        self.hit_tags = []
-        self.landed = 0
+        self.end_tick()
         self.acted = rooted
         return rooted
 
@@ -551,6 +570,47 @@ def runner(fig):
         r = ActionRunner()
         fig.act = r
     return r
+
+
+def attack_range(fig, name):
+    """How close the target must be for attack `name` to start: its own
+    attack_px (Attack distance) when set, else stats.basic_attack_radius
+    (shooters: at least SHOOTER_RANGE_PX); times the character scale."""
+    mode = fig.mode
+    own = float(_cfg(fig, name).get("attack_px") or 0)
+    if own > 0:
+        return own * mode.body_scale()
+    radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS)) * mode.body_scale()
+    return radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
+
+
+def tracker_ctx(fig, world):
+    """(runner, ctx) for conditions evaluated outside the action runner
+    (the Tactical retreat).  Image characters reuse their ActionRunner and
+    the readings it took this tick; any other fighter gets a runner used
+    only as a condition tracker (it never plays actions), whose attacks are
+    its dashes / slashes."""
+    r = getattr(fig, "act", None)
+    if r is None:
+        r = ActionRunner()
+        fig.act = r
+    now = world.global_tick
+    if r.ctx is not None and r.ctx_tick == now:
+        return r, r.ctx
+    if not is_image(fig):
+        c = fig.combat
+        attacking = bool(c.dashing or c.slashing)
+        if attacking and not r.was_attacking:
+            r.attack_count += 1
+            for k in list(r.since_attacks.keys()):
+                r.since_attacks[k] += 1
+        r.was_attacking = attacking
+        if attacking:
+            r.idle_since = now
+    ctx = r.observe(fig, world)
+    if not is_image(fig):
+        r.end_tick()
+    return r, ctx
 
 
 def update(fig, world):

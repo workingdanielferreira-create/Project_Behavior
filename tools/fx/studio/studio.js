@@ -1060,6 +1060,10 @@ var PARAM_UI = {
   glow: [["r_start", "Radius start", 0, 300, 0.5], ["r_end", "Radius end", 0, 300, 0.5], ["a_center", "Centre alpha", 0, 255, 1],
     ["a_mid", "Mid alpha", 0, 255, 1], ["mid", "Mid stop", 0.05, 0.95, 0.05], ["core_r", "White core r", 0, 100, 0.5],
     ["fade", "Alpha curve", ["none", "out", "in", "inout"]], ["pulse_hz", "Pulse Hz", 0, 30, 0.5]],
+  pulse: [["r_start", "Radius start", 0, 1000, 1], ["r_end", "Radius end", 0, 2000, 1], ["width", "Ring width start", 0, 80, 0.5],
+    ["width_end", "Ring width end", 0, 80, 0.5], ["expand_ms", "Expand ms", 16, 10000, 10], ["rings", "Rings (0 = repeat)", 0, 50, 1],
+    ["gap_ms", "Gap between rings ms", 16, 10000, 10], ["ease", "Expansion", ["out", "linear", "in"]],
+    ["fade", "Alpha curve", ["out", "none", "in", "inout"]], ["glow", "Glow extra W", 0, 80, 0.5], ["fill_alpha", "Inner fill alpha", 0, 255, 1]],
   ghost: [["interval", "Every N ticks", 1, 60, 1], ["ghost_life", "Ghost life ticks", 1, 240, 1], ["alpha", "Start alpha", 0, 255, 1], ["max", "Max ghosts", 1, 60, 1]],
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]]
 };
@@ -1287,6 +1291,7 @@ function buildProps() {
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
+  if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
       "Checked: this FX is an attack and damages the target where it touches. Unchecked: visual only.";
@@ -1532,13 +1537,13 @@ function sequenceEditor(c) {
   r2.appendChild(add); w.appendChild(r2);
   return w;
 }
-function condField(box, c, k) {
+function condField(box, c, k, ownLabel) {
   var u = COND_FIELDS[k];
   if (!u) return;
   if (u[1] === "chk") return field(box, u[0], inp("chk", c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "tags") return field(box, u[0], tagsInput(c, k));
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
-  if (u[1] === "action") return field(box, u[0], inp([["", "— this action —"]].concat(Object.keys(C.actions).filter(function (a) { return a !== S.action; })),
+  if (u[1] === "action") return field(box, u[0], inp([["", ownLabel || "— this action —"]].concat(Object.keys(C.actions).filter(function (a) { return ownLabel || a !== S.action; })),
     c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "dir") return field(box, u[0], inp([["toward", "toward me"], ["away", "away (back turned)"]], c[k], function (v) { c[k] = v; save(); }));
   return field(box, u[0], inp("n", c[k], function (v) { c[k] = Math.max(u[1], Math.min(u[2], v)); save(); }, u[1], u[2], u[3]));
@@ -1701,7 +1706,13 @@ function buildDamagedProps(d) {
   say(); s.appendChild(info);
 }
 // Character-level Tactical retreat (pack.retreat), shown under every action's settings.
-var RETREAT_COND_LABEL = {hp_below: "own HP at or below %", projectile_count: "enemy projectiles on screen at once"};
+// Its conditions are the action trigger conditions; "this action" = the retreat.
+var RETREAT_COND_HELP = {hp_below: "Own HP is at or below the %. Retreats once when HP drops past it, unless Repeat on cooldown is on (then again every cooldown while below).",
+  attacks_made: "This many attacks were made since the last retreat started (or the fight began).",
+  hits_taken: "Hit this many times since the last retreat started (or the fight began).",
+  every_ms: "At least this long since the last retreat started (or since the fight began): a repeating timer.",
+  since_action: "The chosen action last ended at least this long ago (or has never played). \"— last retreat —\" = since the last retreat ended.",
+  projectile_count: "At least this many enemy projectiles (shots) are in the air at once."};
 function buildRetreatProps(d) {
   var s = sec(d, "Tactical retreat (whole character)", "a-retreat",
     "Dash away from harm, or round to the target's back to attack it, when the conditions below are met. Applies to all actions.", "act");
@@ -1736,24 +1747,34 @@ function buildRetreatProps(d) {
   field(s, "Retreat FX (borrowed)", inp(fxOpts, rt.fx, function (v) { rt.fx = v; save(); })).title =
     "Optional, on top of the FX built on the Tactical retreat reaction (Actions > Triggered reactions): an effect or a whole group (▣) that plays for as long as the dash lasts. FX that stay on the fighter (attached, static, orbit, path) are held; shots keep firing on their action's timing. It still plays on its own action too.";
   field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], rt.logic, function (v) { rt.logic = v; save(); }));
+  var helpOf = function (t) { return RETREAT_COND_HELP[t] || COND_HELP[t]; };
+  var dl = document.createElement("datalist"); dl.id = "fxTagListR";
+  knownTags().forEach(function (t) { var o = document.createElement("option"); o.value = t; dl.appendChild(o); });
+  s.appendChild(dl);
   rt.conditions.forEach(function (c, i) {
-    var box = sec(s, "Condition " + (i + 1) + ": " + RETREAT_COND_LABEL[c.type], "a-rcond", null, "act");
-    if (c.type === "hp_below") {
-      field(box, "HP %", inp("n", c.pct, function (v) { c.pct = Math.max(1, Math.min(100, v)); save(); }, 1, 100, 1));
-      field(box, "Repeat on cooldown", inp("chk", c.repeat, function (v) { c.repeat = v; save(); })).title =
-        "On: while HP stays at or below the %, it can retreat again every time the cooldown ends. Off: once when HP first drops to the %.";
-    } else {
-      field(box, "Projectiles", inp("n", c.count, function (v) { c.count = Math.max(1, Math.round(v)); save(); }, 1, 200, 1)).title =
-        "Triggers when this many or more enemy projectiles are in the air at the same time.";
-    }
+    var box = sec(s, "Condition " + (i + 1) + ": " + (c.not ? "NOT " : "") + COND_LABEL[c.type], "a-rcond", helpOf(c.type), "act");
+    Object.keys(FXK.RETREAT_CONDITIONS[c.type]).forEach(function (k) {
+      var e = condField(box, c, k, "— last retreat —");
+      if (e && e.getAttribute && e.getAttribute("list") === "fxTagList") e.setAttribute("list", "fxTagListR");
+    });
+    field(box, "Not (invert)", inp("chk", c.not, function (v) { c.not = v; ch(); })).title =
+      "On: the condition counts as met when its check is FALSE (e.g. NOT target attacking).";
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up"; up.disabled = i === 0;
+    up.onclick = function () { rt.conditions.splice(i - 1, 0, rt.conditions.splice(i, 1)[0]); ch(); };
+    var dup = document.createElement("button"); dup.textContent = "Duplicate";
+    dup.onclick = function () { rt.conditions.splice(i + 1, 0, clone(c)); ch(); };
     var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { rt.conditions.splice(i, 1); ch(); };
-    box.appendChild(rm);
+    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
   });
   var row = document.createElement("div"); row.className = "row";
-  var sel = inp(Object.keys(FXK.RETREAT_CONDITIONS).map(function (k) { return [k, RETREAT_COND_LABEL[k]]; }), "hp_below", function () {});
+  var sel = condSelect(), help = document.createElement("div"); help.className = "note";
+  sel.onchange = function () { help.textContent = helpOf(sel.value); };
   var add = document.createElement("button"); add.textContent = "+ Condition";
   add.onclick = function () { rt.conditions.push(FXK.normalizeRetreat({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
   row.appendChild(sel); row.appendChild(add); s.appendChild(row);
+  help.textContent = helpOf(sel.value); s.appendChild(help);
+  note(s, "Same conditions as action triggers. Where one says \"this action\", it means the retreat: attack / hit counts and Every N ms run from the last retreat start.");
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
 // Character scale (pack character_scale), shown under every action's and
@@ -1798,6 +1819,8 @@ function buildBlinkProps(d) {
     "How far from that point it lands (game px). 0 = right on it.";
   field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
     "On: a crackle and an afterimage where it vanishes and where it reappears.";
+  field(s, "Blink cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, Math.min(60000, v)); save(); }, 0, 60000, 50)).title =
+    "After it reappears, how long before this action can blink again. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
   note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
 }
 // Right panel for a triggered reaction (Actions > Triggered reactions) when
@@ -1864,6 +1887,11 @@ function buildActionProps(d) {
   buildRetreatProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
+    s = sec(d, "Attack distance", "a-range", "How close the target must be for this attack to start.", "act");
+    field(s, "Attack distance px (0 = default)", inp("n", cfg.attack_px, function (v) { cfg.attack_px = Math.max(0, Math.min(3000, v)); save(); buildProps(); }, 0, 3000, 5)).title =
+      "This attack starts once the target is this close (game px at 100 % character scale; grows and shrinks with Character scale). 0 = the character's basic attack radius (shooters: their shooting range, at least 420 px). Each attack in a chain has its own.";
+    note(s, +cfg.attack_px > 0 ? "Attacks when the target is within " + Math.round(cfg.attack_px * charScale()) + " px (at the current character scale). Shooters keep their distance (about 320 px): below that they rarely get close enough."
+      : "0: uses the character's basic attack radius (Rig Forge stats).");
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
     var others = [["", "— none (every attack plays " + a + ") —"]].concat(Object.keys(C.actions).filter(function (k) { return k !== a && FXK.actionKind(k) === "attack"; }).map(function (k) { return [k, k]; }));
     field(s, "Next attack", inp(others, cfg.chain_next, function (v) { cfg.chain_next = v; save(); buildProps(); }));

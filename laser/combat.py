@@ -4399,9 +4399,12 @@ def tick_loop_beams(fig, tx, ty):
 # --- Meters, starts, FX upkeep ---------------------------------------------
 def note_landed_hit(fig):
     """A melee hit landed: +1 on the loop-beam ultimate meter (no-op for any
-    character that doesn't author the loop_beams style)."""
+    character that doesn't author the loop_beams style), and the landed_hit
+    condition (Tactical retreat) sees it."""
     if loop_beams_cfg(fig) is not None:
         fig.combat.ult_charges += 1
+    from . import actions
+    actions.note_landed(fig)
 
 
 def spawn_final_hit_fx(fig, tx, ty):
