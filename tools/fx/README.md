@@ -79,6 +79,24 @@ timing.
   to play for as long as the dash lasts. FX that stay on the fighter are held
   for the dash; shots keep firing on their action's timing. It still plays on
   its own action too.
+- **Triggered reactions (Actions panel).** Under the actions list, a
+  *Triggered reactions* subsection always lists **⚡ Tactical retreat** and
+  **⚡ Blink** ("(off)" until switched on). Select one to build FX that play
+  when that reaction triggers, and to preview it on the stage:
+  - **Tactical retreat**: FX are built on the run frames and play for the
+    whole dash, replaying each loop of the frames (effects that last to the
+    end of the frames keep running across loops). The stage dashes the
+    figure from its start spot with the retreat's settings (angle, curve,
+    speed, avoid / re-engage, duration; -1 previews 3 s), and the loop replays
+    it. Its settings panel is the same Tactical retreat block; the old
+    **Retreat FX (borrowed)** dropdown still adds an effect / group from
+    another action on top.
+  - **Blink**: a dropdown at the top picks which action's Blink you work on.
+    FX are built on that action's frames and play alongside its own FX
+    whenever it plays with Blink on. The Blink settings are the same ones as
+    under the action's settings (both edit the same data).
+  An effect's **Action** dropdown also lists the reactions, so an effect can
+  be moved onto or off one.
 - **Trigger conditions (per action).** Every attack and triggered action
   has them under its action settings. On a triggered action (defend,
   ultimate, attack_special, …) they decide when it plays; on an attack they

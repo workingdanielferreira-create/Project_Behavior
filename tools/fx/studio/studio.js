@@ -17,7 +17,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
 var C = null;
-var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
+var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -53,15 +53,41 @@ function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.
 // moving toward, the way the game flips a moving fighter.
 function facing() {
   if (S.aim.enabled && aimRef()) return S.target[0] < S.figX - 0.001 ? -1 : 1;   // aiming: always faces the target
+  if (S.react === "retreat" && S.dash && S.dash.face) return S.dash.face;   // the dash faces the way it moves (fig.face)
   if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
   return +$("facing").value;
 }
 function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
 function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px (stand-height scale)
-function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
+// Triggered reactions (Actions panel): FX built on a reaction are saved with
+// action "@retreat" (the Tactical retreat dash, built on the run frames) or
+// "@blink:<action>" (that action's Blink, built on its frames).  S.react =
+// null | "retreat" | "blink"; S.action stays the real action whose frames,
+// anchors and timing are on show.
+var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:";
+function retreatHost() { return C.actions.run ? "run" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
+function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.action; }
+function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key; }
+function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key; }
+function selectKey(key) { S.react = key === RETREAT_KEY ? "retreat" : key.indexOf(BLINK_KEY) === 0 ? "blink" : null; S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action; }
+function fxKeyOptions() {
+  var acts = Object.keys(C.actions);
+  return acts.map(function (a) { return [a, a]; }).concat([[RETREAT_KEY, "⚡ Tactical retreat"]],
+    acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }));
+}
+// The effects listed and edited: this action's, or the selected reaction's.
+function actionEffects() { var k = fxKey(); return S.effects.filter(function (e) { return e.action === k; }); }
+// The effects the stage plays: an action's own plus its Blink's (as the game
+// does while Blink is on; always while editing the Blink reaction), or the
+// Tactical retreat's.
+function playEffects() {
+  if (S.react === "retreat") return actionEffects();
+  var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;
+  return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
+}
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { syncKeyView(); persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, react: S.react, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -358,6 +384,9 @@ function finishOpen(man, acts, pack, name, local) {
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
+  S.react = local && (local.react === "retreat" || local.react === "blink") ? local.react : null;
+  if (S.react === "retreat") S.action = retreatHost();
+  S.blinkAct = S.react === "blink" ? S.action : null;
   S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
@@ -461,7 +490,7 @@ function addPreset() {
   // laid out around its pivot exactly as they were saved.
   var gr = x.p.group ? newGroup(x.p.name, x.p.group.anchor || (x.p.effects[0] || {}).anchor || "figure", x.p.group.offset) : null;
   var added = x.p.effects.map(function (e) {
-    var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = S.action;
+    var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = fxKey();
     if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
     if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: S.target[0] < S.figX - 0.001 ? -1 : 1};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
@@ -499,11 +528,11 @@ function ingestPresets(o) {
 var _gid = 1;
 function newGroup(name, anchor, offset) {
   var off = offset || [0, 0];
-  return {id: "G" + Date.now().toString(36) + (_gid++), name: name, action: S.action, anchor: anchor, offset: [+off[0] || 0, +off[1] || 0]};
+  return {id: "G" + Date.now().toString(36) + (_gid++), name: name, action: fxKey(), anchor: anchor, offset: [+off[0] || 0, +off[1] || 0]};
 }
 function groupById(id) { return S.groups.filter(function (gr) { return gr.id === id; })[0] || null; }
 function groupMembers(gr) { return S.effects.filter(function (e) { return e.group === gr.id; }); }
-function selGroup() { var gr = S.selGroup && groupById(S.selGroup); return gr && gr.action === S.action ? gr : null; }
+function selGroup() { var gr = S.selGroup && groupById(S.selGroup); return gr && gr.action === fxKey() ? gr : null; }
 // Drop groups with no members, and memberships of groups that are gone.
 function pruneGroups() {
   S.groups = (S.groups || []).filter(function (gr) { return S.effects.some(function (e) { return e.group === gr.id; }); });
@@ -541,7 +570,7 @@ function makeGroup() {
   if (bad.length) return toast("\"" + bad[0].name + "\" can't be grouped: weapon hitboxes and entry-set (⊕) effects use their own anchors.", 6000);
   if (picked.length < 2) return toast("Ctrl+click two or more effects in the list, then press Group.");
   var lead = picked[0], pivot = lead.anchor, spots = picked.map(fxSpot);
-  var gr = newGroup("Group " + (S.groups.filter(function (x) { return x.action === S.action; }).length + 1), pivot);
+  var gr = newGroup("Group " + (S.groups.filter(function (x) { return x.action === fxKey(); }).length + 1), pivot);
   picked.forEach(function (fx, i) {
     if (fx !== lead) { fx.flip = clone(lead.flip); fx.follow_dir = lead.follow_dir; }
     var now = FXK.fxAt(fx, frameAt(S.t)).offset;
@@ -590,7 +619,7 @@ function saveGroupPreset(gr) {
 }
 function buildGroupProps(d, gr) {
   var ms = groupMembers(gr);
-  banner(d, "fx", "Editing a group", "▣ " + gr.name, ms.length + " effects on the " + gr.action + " action, riding one pivot. Moving or re-attaching the group keeps every effect's place relative to the others.",
+  banner(d, "fx", "Editing a group", "▣ " + gr.name, ms.length + " effects on " + fxKeyLabel(gr.action) + ", riding one pivot. Moving or re-attaching the group keeps every effect's place relative to the others.",
     ["Done", function () { S.selGroup = null; buildEffects(); buildProps(); draw(); }]);
   var s = sec(d, "Group", "group", "The pivot every member rides, and where the whole group sits on it.");
   field(s, "Name", inp("text", gr.name, function (v) { gr.name = v; buildEffects(); save(); }));
@@ -623,13 +652,40 @@ function buildActions() {
   if (!C) return;
   Object.keys(C.actions).forEach(function (n) {
     var a = C.actions[n], c = S.effects.filter(function (e) { return e.action === n; }).length;
-    var el = document.createElement("div"); el.className = n === S.action ? "sel" : "";
+    var el = document.createElement("div"); el.className = !S.react && n === S.action ? "sel" : "";
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = n;
     el.querySelector(".m").textContent = a.images.length + "f · " + Math.round(a.images.length * a.frame_ms) + "ms" + (c ? " · " + c + " fx" : "");
-    el.onclick = function () { S.action = n; S.sel = null; S.geo = null; S.geoPlace = false; rebuild(); resetSim(0); save(); };
+    el.onclick = function () { S.react = null; S.action = n; S.sel = null; S.geo = null; S.geoPlace = false; rebuild(); resetSim(0); save(); };
     d.appendChild(el);
   });
+  // Triggered reactions: always listed, "(off)" until switched on.
+  var h = document.createElement("div"); h.className = "sub"; h.textContent = "Triggered reactions"; d.appendChild(h);
+  var nOn = Object.keys(C.actions).filter(function (k) { return cfgOf(k).blink.enabled; }).length;
+  var nBk = S.effects.filter(function (e) { return e.action.indexOf(BLINK_KEY) === 0; }).length;
+  var nRt = S.effects.filter(function (e) { return e.action === RETREAT_KEY; }).length;
+  [["retreat", "⚡ Tactical retreat", S.retreat.enabled, nRt ? nRt + " fx" : ""],
+   ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")]].forEach(function (r) {
+    var el = document.createElement("div"); el.className = (S.react === r[0] ? "sel" : "") + (r[2] ? "" : " off");
+    el.innerHTML = '<span class="n"></span><span class="m"></span>';
+    el.querySelector(".n").textContent = r[1];
+    el.querySelector(".m").textContent = r[2] ? r[3] : "(off)" + (r[3] ? " · " + r[3] : "");
+    el.title = r[0] === "retreat" ? "The Tactical retreat dash: build FX that play for the whole dash (on the " + retreatHost() + " frames) and preview the dash."
+      : "An action's Blink: pick the action at the top of its settings, build FX that play over that action while its Blink is on, and preview the blink.";
+    el.onclick = function () { openReaction(r[0]); };
+    d.appendChild(el);
+  });
+}
+function openReaction(kind) {
+  if (!S.react) S.lastAct = S.action;   // Blink opens on the action you were on
+  if (kind === "retreat") S.action = retreatHost();
+  else {
+    var acts = Object.keys(C.actions), on = acts.filter(function (k) { return cfgOf(k).blink.enabled; });
+    S.action = C.actions[S.blinkAct] ? S.blinkAct : on.length ? on[0] : C.actions[S.lastAct] ? S.lastAct : acts[0];
+    S.blinkAct = S.action;
+  }
+  S.react = kind; S.sel = null; S.selGroup = null; S.geo = null; S.geoPlace = false;
+  rebuild(); resetSim(0); save();
 }
 function buildAnchors() {
   var d = $("anchors"), top = d.scrollTop; d.innerHTML = "";
@@ -840,7 +896,7 @@ function geoTools() {
 function pathPreviewOrigin(path) {
   var fx = selFx();
   if (fx && fx.motion.kind === "path" && fx.motion.path === path.id) return jointAtFx(fx);
-  var users = geoUsers("path", path.id).filter(function (e) { return e.action === S.action; });
+  var users = geoUsers("path", path.id).filter(function (e) { return e.action === fxKey(); });
   return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
 }
 function jointAtFx(fx) {
@@ -861,7 +917,7 @@ function geoPlaceAt(w) {
 function buildGeoProps(d) {
   var it = geoItem(), isSet = S.geo.kind === "set", users = geoUsers(S.geo.kind, it.id);
   banner(d, "geo", isSet ? "Editing entry points" : "Editing a path", (isSet ? "⊕ " : "↝ ") + it.name,
-    (isSet ? "Effects whose Anchor is this set come out of these points." : "Effects whose Motion is \"path\" with this path travel along it.") + " Shared by every action. Used by " + (users.length ? users.map(function (e) { return e.name + " (" + e.action + ")"; }).join(", ") : "no effects yet") + ".",
+    (isSet ? "Effects whose Anchor is this set come out of these points." : "Effects whose Motion is \"path\" with this path travel along it.") + " Shared by every action. Used by " + (users.length ? users.map(function (e) { return e.name + " (" + fxKeyLabel(e.action) + ")"; }).join(", ") : "no effects yet") + ".",
     ["Done", function () { geoSelect(null); }]);
   var s = sec(d, isSet ? "Entry set" : "Path", "g-main", isSet ? "Its name, what the points are measured from and how they fire." : "Its name, how long it takes and how it's turned.", "geo");
   field(s, "Name", inp("text", it.name, function (v) { it.name = v; buildGeo(); save(); }));
@@ -942,7 +998,7 @@ function drawGeo(g, z) {
       M = FXK.pathMatrix(path, {facing: f}, [dx / dm, dy / dm]);
     } else if (!(S.geoPlace && it === path)) {   // a Follow-direction user turns it with the body
       var sf = selFx(), pfx = sf && sf.motion.kind === "path" && sf.motion.path === path.id ? sf
-        : geoUsers("path", path.id).filter(function (e) { return e.action === S.action; })[0];
+        : geoUsers("path", path.id).filter(function (e) { return e.action === fxKey(); })[0];
       if (pfx) { var pf = FXK.fxFacing(pfx, host); M = FXK.pathMatrix(path, {facing: pf}, [pf, 0], FXK.bodyDeg(pfx, host)); }
     }
     var W = function (p) { return [o[0] + M[0] * p[0] + M[1] * p[1], o[1] + M[2] * p[0] + M[3] * p[1]]; };
@@ -1195,12 +1251,12 @@ function buildProps() {
   var fx = selFx();
   if (fx) S.selGroup = null;
   else if (C && selGroup()) return buildGroupProps(d, selGroup());
-  if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
+  if (!fx) { if (C) (S.react ? buildReactionProps : buildActionProps)(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
   PROPS_FRAME = frameAt(S.t);
   fx = keyViewFor(fx);
   buildKeyProps(d);
-  banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim, "Plays on the " + fx.action + " action. The sections below change this effect only.",
-    ["Action settings for " + fx.action, function () { S.sel = null; S.geo = null; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }]);
+  banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim, "Plays on " + (fx.action === S.action ? "the " + fx.action + " action" : fxKeyLabel(fx.action)) + ". The sections below change this effect only.",
+    [(S.react ? "Reaction settings: " : "Action settings for ") + fxKeyLabel(fx.action), function () { S.sel = null; S.geo = null; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }]);
   var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
   field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
@@ -1210,7 +1266,8 @@ function buildProps() {
     field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"]], fx.layer, function (v) { fx.layer = v; changed(); }));
     field(s, "Blend", inp(["normal", "additive"], fx.blend, function (v) { fx.blend = v; changed(); }));
   }
-  field(s, "Action", inp(Object.keys(C.actions), fx.action, function (v) { fx.action = v; S.action = v; delete fx.group; pruneGroups(); rebuild(); resetSim(0); save(); }));
+  field(s, "Action", inp(fxKeyOptions(), fx.action, function (v) { fx.action = v; selectKey(v); delete fx.group; pruneGroups(); rebuild(); resetSim(0); save(); })).title =
+    "Where this effect plays: an action, or a triggered reaction (⚡): the Tactical retreat dash (built on the " + retreatHost() + " frames) or an action's Blink (built on that action's frames).";
 
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
@@ -1230,7 +1287,7 @@ function buildProps() {
     } else note(s, fx.prim === "weapon" ? "The weapon doesn't damage in this window." : "Visual only — this FX never damages.");
   }
 
-  s = sec(d, "Timing (frames of " + fx.action + ": 0–" + (frames() - 1) + ")", "timing", "When it plays within the action's frames, how long each copy lives and how often it re-emits.");
+  s = sec(d, "Timing (frames of " + S.action + ": 0–" + (frames() - 1) + ")", "timing", "When it plays within the action's frames, how long each copy lives and how often it re-emits.");
   var canC = FXK.canContinue(fx), isC = canC && fx.continuous;
   if (canC) field(s, "∞ Continuous", inp("chk", fx.continuous, function (v) { fx.continuous = v; buildEffects(); changed(true); })).title =
     "On: starts at the start frame and never stops or resets while the action plays, loop after loop (an always-on laser trail). End frame, life and re-emit are ignored and it doesn't fade out.";
@@ -1658,11 +1715,11 @@ function buildRetreatProps(d) {
   // Optional FX for the whole dash: one effect or a whole group, from any
   // action (it keeps playing on its own action too).
   var fxOpts = [["", "— none —"]], known = {"": 1};
-  S.groups.forEach(function (gr) { var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + gr.action + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
-  S.effects.forEach(function (e) { fxOpts.push(["fx:" + e.id, e.name + " (" + e.action + ")"]); known["fx:" + e.id] = 1; });
+  S.groups.forEach(function (gr) { if (gr.action === RETREAT_KEY) return; var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
+  S.effects.forEach(function (e) { if (e.action === RETREAT_KEY) return; fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
   if (!known[rt.fx]) fxOpts.push([rt.fx, "(missing: deleted effect or group)"]);
-  field(s, "Retreat FX", inp(fxOpts, rt.fx, function (v) { rt.fx = v; save(); })).title =
-    "Optional: an effect or a whole group (▣) that plays for as long as the dash lasts. FX that stay on the fighter (attached, static, orbit, path) are held; shots keep firing on their action's timing. It still plays on its own action too.";
+  field(s, "Retreat FX (borrowed)", inp(fxOpts, rt.fx, function (v) { rt.fx = v; save(); })).title =
+    "Optional, on top of the FX built on the Tactical retreat reaction (Actions > Triggered reactions): an effect or a whole group (▣) that plays for as long as the dash lasts. FX that stay on the fighter (attached, static, orbit, path) are held; shots keep firing on their action's timing. It still plays on its own action too.";
   field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], rt.logic, function (v) { rt.logic = v; save(); }));
   rt.conditions.forEach(function (c, i) {
     var box = sec(s, "Condition " + (i + 1) + ": " + RETREAT_COND_LABEL[c.type], "a-rcond", null, "act");
@@ -1717,6 +1774,32 @@ function buildBlinkProps(d) {
   field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
     "On: a crackle and an afterimage where it vanishes and where it reappears.";
   note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
+}
+// Right panel for a triggered reaction (Actions > Triggered reactions) when
+// no effect is selected: its settings, and what the FX built on it do.
+function buildReactionProps(d) {
+  var n = actionEffects().length;
+  if (S.react === "retreat") {
+    banner(d, "act", "Triggered reaction", "⚡ Tactical retreat", "FX added here play for the whole dash, on the " + S.action + " frames (the animation the dash shows), repeating each time those frames loop. Select an effect on the left or on the timeline to edit it.");
+    var s = sec(d, "Reaction FX", "r-fx", "What the effects built on this reaction do in the game.", "act");
+    note(s, (n ? n + " effect" + (n > 1 ? "s" : "") + " on the dash." : "No effects yet: add one under Effects on the left.") +
+      " They start when the dash starts and replay each loop of the frames; effects that last to the end of the frames keep running across loops (like Continuous FX) for the whole dash. When the dash ends those stop and shots already flying finish." +
+      (S.retreat.enabled ? "" : " Tactical retreat is off, so they won't play in the game until it's switched on below."));
+    note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. Test shots (below the stage) count as projectiles to avoid.");
+    buildRetreatProps(d);
+    return;
+  }
+  var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
+  banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
+  var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");
+  field(s2, "Action", inp(acts.map(function (k) { return [k, k + (cfgOf(k).blink.enabled ? "  (on)" : "  (off)") + (S.effects.some(function (e) { return e.action === BLINK_KEY + k; }) ? "  ✦ fx" : "")]; }), a,
+    function (v) { S.action = v; S.blinkAct = v; S.sel = null; S.selGroup = null; rebuild(); resetSim(0); save(); })).title =
+    "The action whose Blink (and Blink FX) you are editing. (on) = its Blink is switched on; ✦ fx = it already has Blink FX.";
+  note(s2, (n ? n + " Blink effect" + (n > 1 ? "s" : "") + " on " + a + "." : "No Blink effects on " + a + " yet: add one under Effects on the left.") +
+    " Keyed on " + a + "'s frames like its own FX: set their frames around the vanish / reappear frames below. While the fighter is gone its body FX (attached, orbit) are hidden and nothing new fires." +
+    (on ? "" : " Blink is off for " + a + ", so they won't play in the game until it's switched on below.") +
+    " The stage plays " + a + "'s own FX too.");
+  buildBlinkProps(d);
 }
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
@@ -1844,23 +1927,27 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 function resetSim(t) {
   player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
+  S.dash = null; if (S.react === "retreat") dashStart();
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   blinkStep();
   while (S.t < target) step(false);
 }
 function step(allowWrap) {
   if (!C) return;
-  var gone = blinkGone();
-  if (!gone) moveFigure();
+  var gone = blinkGone(), dash = S.react === "retreat";
+  if (dash) dashStep();
+  else if (!gone) moveFigure();
   stepTestShots();
-  var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = (S.cycle || 0) >= nLoops - 1;
-  player.tick(actionEffects(), host, S.t, frames(), frameMs(), {continuous: (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone});
+  // Tactical retreat: the run frames loop until the dash ends; then its held
+  // FX stop (no effects passed) and shots already flying finish.
+  var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = dash ? dashOver() : (S.cycle || 0) >= nLoops - 1;
+  player.tick(dash && dashOver() ? [] : playEffects(), host, S.t, frames(), frameMs(), {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone});
   S.t += 1;
   if (S.t >= totalTicks() && allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
     // action ends, and "loop" replays the whole action.
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; }
-    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; if (dash) { S.figX = 0; S.figY = 0; dashStart(); } }
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
 }
@@ -1943,6 +2030,79 @@ function drawTestShots(g, z) {
 // effects ride along, ribbons and ghosts stretch out behind, and spawned
 // projectiles and particles keep their own world-space paths.
 var AREA = [160, 100];
+// Tactical retreat preview (laser/retreat.py tick): the dash starts on tick 0
+// from the start spot at speed_pct % of the sim's move speed (2 px/tick when
+// it's 0) and runs for its duration (-1 = no limit: previewed for 3 s) while
+// the run frames loop.  Avoid: heads angle_deg off the line to the target,
+// bent by curve_deg_s, pushed off the target and the test shots within
+// proximity_px.  Re-engage: heads for the target's far side (the Studio
+// target has no facing, like the Solo cursor), curling round the target and
+// ending on arrival (where the game attacks).
+var DASH_PREVIEW_MS = 3000, ARRIVE_PX = 30, BACK_STANDOFF_PX = 60, STEER_WEIGHT = 1.6;
+function dashStart() {
+  var rt = S.retreat, re = rt.mode === "reengage", ms = re ? rt.reengage_duration_ms : rt.avoid_duration_ms;
+  var bx = S.target[0] - S.figX, by = S.target[1] - S.figY, d = Math.hypot(bx, by);
+  S.dash = {mode: re ? "reengage" : "avoid", endless: ms < 0, limit: Math.max(1, Math.round((ms < 0 ? DASH_PREVIEW_MS : ms) / FXK.TICK_MS)),
+    elapsed: 0, heading: Math.atan2(by, bx) + (+rt.angle_deg || 0) * Math.PI / 180, back: d > 0.001 ? [bx / d, by / d] : [1, 0],
+    start: [S.figX, S.figY], over: false, arrived: false, face: 0};
+}
+function dashOver() { return !!(S.dash && S.dash.over); }
+function wrapPi(a) { var m = 2 * Math.PI; return ((a + Math.PI) % m + m) % m - Math.PI; }
+function dashGoal() { var b = S.dash.back; return [S.target[0] + b[0] * BACK_STANDOFF_PX, S.target[1] + b[1] * BACK_STANDOFF_PX]; }
+function dashSteer(prox, withTarget) {   // retreat._steer
+  var px = 0, py = 0; if (prox <= 0) return [0, 0];
+  var threats = S.shots.filter(function (sh) { return !sh.dead; }).map(function (sh) { return [sh.x, sh.y]; });
+  if (withTarget) threats.push(S.target);
+  threats.forEach(function (h) {
+    var dx = S.figX - h[0], dy = S.figY - h[1], d = Math.hypot(dx, dy); if (d >= prox) return;
+    var w = 1 - d / prox; if (d > 0.001) { px += dx / d * w; py += dy / d * w; } else px += w;
+  });
+  return [px, py];
+}
+function dashAround(gx, gy, stand) {   // retreat._around_target
+  var tx = S.target[0], ty = S.target[1], rx = S.figX - tx, ry = S.figY - ty, d = Math.hypot(rx, ry), clear = stand + 25;
+  if (d >= clear * 1.6) return [0, 0];
+  if (d < 0.001) { rx = 1; ry = 0; d = 1; }
+  var ux = rx / d, uy = ry / d;
+  if ((gx - tx) * ux + (gy - ty) * uy > 0.5 * stand) return [0, 0];
+  var t1 = [-uy, ux]; if (t1[0] * (gx - S.figX) + t1[1] * (gy - S.figY) < 0) t1 = [uy, -ux];
+  var w = Math.max(0, Math.min(1, 1 - (d - clear) / (clear * 0.6))), out = d < clear ? 1 : 0;
+  return [(t1[0] * 2 + ux * out) * w, (t1[1] * 2 + uy * out) * w];
+}
+function dashStep() {
+  var ds = S.dash, rt = S.retreat; if (!ds || ds.over) return;
+  ds.elapsed += 1;
+  if (ds.elapsed > ds.limit) { ds.over = true; return; }
+  var dt = FXK.TICK_MS / 1000, curve = (+rt.curve_deg_s || 0) * Math.PI / 180, tx = S.target[0], ty = S.target[1];
+  var aT = Math.atan2(ty - S.figY, tx - S.figX), want, withTarget = ds.mode === "avoid", goal = null;
+  if (withTarget) want = aT + (+rt.angle_deg || 0) * Math.PI / 180 + curve * ds.elapsed * dt;
+  else {
+    goal = dashGoal();
+    if (Math.hypot(goal[0] - S.figX, goal[1] - S.figY) <= ARRIVE_PX) { ds.over = true; ds.arrived = true; return; }
+    var aG = Math.atan2(goal[1] - S.figY, goal[0] - S.figX), lim = Math.abs(curve) * dt;
+    if (!curve) want = aG;
+    else { ds.heading += Math.max(-lim, Math.min(lim, wrapPi(aG - ds.heading))); want = ds.heading; }
+  }
+  var hx = Math.cos(want), hy = Math.sin(want);
+  if (goal) { var o = dashAround(goal[0], goal[1], BACK_STANDOFF_PX); hx += o[0]; hy += o[1]; }
+  var st = dashSteer(+rt.proximity_px || 0, withTarget);
+  var vx = hx + st[0] * STEER_WEIGHT, vy = hy + st[1] * STEER_WEIGHT, vm = Math.hypot(vx, vy);
+  if (vm < 1e-6) { vx = hx; vy = hy; vm = 1; }
+  var spd = (+$("walk").value || BACK_BASE_SPEED) * Math.max(0, +rt.speed_pct || 0) / 100;
+  S.figX += vx / vm * spd; S.figY += vy / vm * spd;
+  if (Math.abs(vx) > 1e-3) ds.face = vx < 0 ? -1 : 1;
+}
+function drawDash(g, z) {
+  var ds = S.dash; if (S.react !== "retreat" || !ds) return;
+  g.save(); g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 4 / z]); g.strokeStyle = "rgba(240,190,90,.8)";
+  g.beginPath(); g.moveTo(ds.start[0], ds.start[1]); g.lineTo(S.figX, S.figY); g.stroke();
+  g.beginPath(); g.arc(ds.start[0], ds.start[1], 5, 0, 6.2832); g.stroke();
+  if (ds.mode === "reengage") { var gp = dashGoal(); g.beginPath(); g.arc(gp[0], gp[1], ARRIVE_PX, 0, 6.2832); g.stroke(); }
+  g.setLineDash([]); g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  g.fillText("dash start", ds.start[0], ds.start[1] - 8);
+  if (ds.mode === "reengage") { var gq = dashGoal(); g.fillText(ds.arrived ? "arrived \u2014 attacks" : "re-engage point", gq[0], gq[1] - ARRIVE_PX - 4); }
+  g.restore();
+}
 function moveVector() {
   var spd = +$("walk").value || 0, a = (+$("moveDir").value || 0) * Math.PI / 180;
   return [Math.cos(a) * spd, Math.sin(a) * spd];
@@ -1974,7 +2134,7 @@ function moveFigure() {
   });
 }
 function drawMoveGuide(g, z) {
-  var v = S.vel; if ((!v[0] && !v[1]) || simMoveFactor() <= 0 || cfgOf(S.action).movement === "back") return;
+  var v = S.vel; if (S.react === "retreat" || (!v[0] && !v[1]) || simMoveFactor() <= 0 || cfgOf(S.action).movement === "back") return;
   g.save();
   g.strokeStyle = "rgba(125,224,168,.25)"; g.lineWidth = 1 / z; g.setLineDash([4 / z, 4 / z]);
   g.strokeRect(-AREA[0], -AREA[1], AREA[0] * 2, AREA[1] * 2); g.setLineDash([]);
@@ -2004,7 +2164,7 @@ function fit() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.de
 function zoom() { return Math.max(0.25, +$("zoom").value || 4); }
 // A "Move back from target" action travels further than the stage shows:
 // the camera follows the figure while it plays.
-function camFollow() { return C && S.action && FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back"; }
+function camFollow() { return C && S.action && (S.react === "retreat" || (FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back")); }
 function camera(dpr) {
   var z = zoom(), fx = camFollow() ? S.figX * z : 0, fy = camFollow() ? S.figY * z : 0;
   return {x: cv.width / 2 / dpr + S.pan[0] - fx, y: cv.height * 0.55 / dpr + S.pan[1] - fy, z: z};
@@ -2037,6 +2197,7 @@ function draw() {
   if (!gone) drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
   player.draw(g, host, "front", ps, gone);
   drawBlink(g, z, img);
+  drawDash(g, z);
   drawTestShots(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
@@ -2075,7 +2236,10 @@ function draw() {
     g.stroke();
   }
   var nL = FXK.animLoops(S.action, cfgOf(S.action));
-  $("hud").textContent = S.action + (nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
+  var ds = S.react === "retreat" && S.dash;
+  $("hud").textContent = (S.react ? fxKeyLabel(fxKey()) + " (" + S.action + " frames)" : S.action) +
+    (ds ? "   dash " + Math.round(Math.min(ds.elapsed, ds.limit) * FXK.TICK_MS) + "/" + Math.round(ds.limit * FXK.TICK_MS) + " ms" + (ds.endless ? " (no limit: 3 s shown)" : "") + (ds.over ? (ds.arrived ? "   ARRIVED" : "   DASH OVER") : "") : "") +
+    (!ds && nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
     (blinkGone() ? "   BLINKED OUT" : "") +
@@ -2125,7 +2289,7 @@ applyTheme(lsGet("pbfxstudio.v1.theme") === "light");
 $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
-  var fx = FXK.newEffect($("newPrim").value, S.action);
+  var fx = FXK.newEffect($("newPrim").value, fxKey());
   fx.flip.facing = S.target[0] < S.figX - 0.001 ? -1 : 1;   // Flip: the side the target was on when it was created
   if (fx.prim === "ghost") fx.layer = "behind";
   if (["arc", "beam", "sprite"].indexOf(fx.prim) >= 0) { fx.motion.kind = "travel"; fx.life_ticks = fx.prim === "arc" ? 5 : 60; }
