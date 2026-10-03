@@ -322,7 +322,7 @@ routine's `config.py` values.
 |---|---|---|
 | `ribbon` | `TrailComponent.update/draw` | `max_points 50, min_dist 2, decay 2, taper, w_tail 1, w_head 5, alpha 220, head_glow_r 1, head_dot_r 1` |
 | `arc` | `CrescentWave.__init__/draw` | `radius 42, span 170, width 6.5, tail 0.95, segs 16, grow 0.85, core_alpha 0.7, core_width 0.3, orient motion\|angle, angle_deg, placement anchor\|wrap_target\|through_target, back 51, lead 26` |
-| `beam` | `RichBeamProjectile.draw` | `length, w_start0/1, w_end0/1, segments, glow, glow_color, pulse_hz, jitter, detach_ticks, grow_ticks` |
+| `beam` | `RichBeamProjectile.draw` | `length, w_start0/1, w_end0/1, segments, glow, glow_color, pulse_hz, jitter, detach_ticks, grow_ticks, tip_fade` (`tip_fade`: fraction of the length, from the head, over which the beam fades out; 0 = off; use enough `segments` for a smooth fade) |
 | `sprite` | `bullet_sprite` / `bolt_sprite` + `Projectile.draw` | `shape orb\|bolt, radius, stretch, hot, halo, fade, trail_len, glow, glow_size` (glow: outer-glow brightness %, 0 = none, 100 = original; glow_size: its spread %, 100 = 3 × radius) |
 | `particles` | `BurstParticle` / `_spawn_burst_now` | `mode burst\|stream, count, rate_per_s, angle_deg, spread_deg, speed_min/max (px/s), gravity (px/s²), drag, size_min/max, size_over_life, life_min_ms/max_ms` |
 | `glow` | `TrailComponent` head glow + core | `r_start, r_end, a_center, a_mid, mid, core_r, fade none\|out\|in\|inout, pulse_hz` |
@@ -332,9 +332,10 @@ routine's `config.py` values.
 A few rules are FX Kit's own; the engine's classes don't need them:
 - A beam that isn't travelling (`attached`, `static`, `orbit`) extends from its
   anchor along the aim over `grow_ticks` and re-aims every tick.
-- A straight beam with `segments > 1` (no `jitter`) joins its segments flat and
-  is rounded only at its two outer ends, so its colour gradient has no bright
-  overlapping joints. A jittered beam keeps round caps on every segment.
+- A straight beam with `segments > 1` (no `jitter`) is drawn as one tapered,
+  round-ended capsule filled with a smooth gradient along its length (colour and
+  `tip_fade`), so it has no joints, seams or width steps. A jittered or
+  single-segment beam strokes each segment with round caps.
 - `particles` values are in game px directly. The old `fx_layers` path
   multiplied by a canvas-to-game scale; FX Kit does not.
 - `blend: additive` maps to `QPainter.CompositionMode_Plus` in Qt and

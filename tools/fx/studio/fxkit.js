@@ -175,7 +175,7 @@ var PARAM_DEFAULTS = {
   ribbon: {max_points: 50, min_dist: 2, decay: 2, taper: true, w_tail: 1, w_head: 5, alpha: 220, head_glow_r: 1, head_dot_r: 1},
   arc: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", angle_deg: 0,
         placement: "anchor", back: 51, lead: 26},
-  beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0},
+  beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0, tip_fade: 0},
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
@@ -1061,7 +1061,7 @@ DRAW.arc = function (g, inst, host, ps) {   // CrescentWave.draw
     g.lineWidth = P.width * P.core_width * (0.25 + 0.75 * q[3]) * ps; path();
   });
 };
-// Beam geometry shared by draw and hit test: [[x0,y0,x1,y1,width,rgb], ...]
+// Beam geometry shared by draw and hit test: [[x0,y0,x1,y1,width,rgb,alpha], ...]
 // plus the alpha multiplier; null when nothing is visible.
 function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   var fx = inst.fx, P = fx.params, m = fx.motion;
@@ -1090,38 +1090,58 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   if (P.pulse_hz > 0) pulse = 0.65 + 0.35 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * TICK_MS / 1000));
   var cp = colorPair(fx, host.lut), c1 = cp[0], c2 = cp[1];
   var segs = Math.max(1, trunc(P.segments)), jr = rng(inst.seed + trunc(inst.age)), out = [];
+  var tf = Math.max(0, Math.min(1, +P.tip_fade || 0));   // fraction of the length, from the head, that fades out
   for (var i = 0; i < segs; i++) {
     var t0 = i / segs, t1 = (i + 1) / segs;
     var x0 = hx - ux * reach * t0, y0 = hy - uy * reach * t0, x1 = hx - ux * reach * t1, y1 = hy - uy * reach * t1;
     if (P.jitter > 0) { var j = (jr() * 2 - 1) * P.jitter; x0 += -uy * j; y0 += ux * j; x1 += -uy * j; y1 += ux * j; }
     out.push([x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
-      [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0]]);
+      [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0],
+      tf > 0 ? Math.min(1, (t0 + t1) / 2 / tf) : 1]);
   }
-  return {segs: out, am: fade * pulse};
+  // Smooth-draw info for straight beams: head and tail points, widths, colours, tip fade.
+  return {segs: out, am: fade * pulse, hx: hx, hy: hy, tx: hx - ux * reach, ty: hy - uy * reach,
+          wH: wH * ps, wT: wT * ps, c1: c1, c2: c2, tf: tf};
+}
+// A straight multi-segment beam (no jitter) is drawn as one tapered capsule filled
+// with a smooth gradient along its length (colour c2 at the head to c1 at the tail,
+// tip_fade alpha), so it has no joints, seams or width steps.  Jittered and
+// single-segment beams stroke their segments with round caps as before.
+function beamCapsule(b, wHead, wTail) {
+  var ah = Math.atan2(b.hy - b.ty, b.hx - b.tx), pts = [], k, a;
+  for (k = 0; k <= 12; k++) { a = ah + Math.PI + (k / 12 - 0.5) * Math.PI; pts.push([b.tx + Math.cos(a) * wTail / 2, b.ty + Math.sin(a) * wTail / 2]); }
+  for (k = 0; k <= 12; k++) { a = ah + (k / 12 - 0.5) * Math.PI; pts.push([b.hx + Math.cos(a) * wHead / 2, b.hy + Math.sin(a) * wHead / 2]); }
+  return pts;
+}
+function beamStops(b, colAt, a) {   // [t from head, rgb, alpha]
+  var ts = [0, 1];
+  if (b.tf > 0 && b.tf < 1) ts.splice(1, 0, b.tf);
+  return ts.map(function (t) { return [t, colAt(t), a * (b.tf > 0 ? Math.min(1, t / b.tf) : 1)]; });
 }
 DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
   var P = inst.fx.params, b = beamSegs(inst, host, ps);
   if (!b) return;
-  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null, n = b.segs.length;
-  // A straight multi-segment beam joins its segments flat (no overlapping round
-  // caps, which brighten every joint under additive blend) and is rounded only at
-  // its two outer ends.  Jittered beams keep round caps so their bends stay closed.
-  var flat = n > 1 && !(P.jitter > 0);
-  function stroke(c, a, wOf) {
-    g.lineCap = flat ? "butt" : "round";
-    b.segs.forEach(function (q) {
-      g.strokeStyle = rgba(c(q), a); g.lineWidth = wOf(q);
-      if (flat) { g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[3]); g.stroke(); }
-      else line(g, q[0], q[1], q[2], q[3]);
-    });
-    if (!flat) return;
-    [[b.segs[0], 0], [b.segs[n - 1], 2]].forEach(function (e) {   // outer half-disc caps: tip, core end
-      var q = e[0], k = e[1], x = q[k], y = q[k + 1], a0 = Math.atan2(y - q[3 - k], x - q[2 - k]);
-      g.fillStyle = rgba(c(q), a); g.beginPath(); g.arc(x, y, wOf(q) / 2, a0 - Math.PI / 2, a0 + Math.PI / 2); g.closePath(); g.fill();
-    });
+  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null;
+  if (b.segs.length > 1 && !(P.jitter > 0)) {
+    var colAt = function (t) { return [b.c2[0] + (b.c1[0] - b.c2[0]) * t, b.c2[1] + (b.c1[1] - b.c2[1]) * t, b.c2[2] + (b.c1[2] - b.c2[2]) * t]; };
+    var fill = function (cAt, a, wHead, wTail) {
+      var gr = g.createLinearGradient(b.hx, b.hy, b.tx, b.ty);
+      beamStops(b, cAt, a).forEach(function (s) { gr.addColorStop(s[0], rgba(s[1], s[2])); });
+      var pts = beamCapsule(b, wHead, wTail);
+      g.fillStyle = gr; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+      for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+      g.closePath(); g.fill();
+    };
+    if (P.glow > 0) fill(gc ? function () { return gc; } : function (t) { return colAt(t).map(trunc); }, 70 * b.am, b.wH + P.glow * ps, b.wT + P.glow * ps);
+    fill(colAt, 235 * b.am, Math.max(1, b.wH), Math.max(1, b.wT));
+    return;
   }
-  if (P.glow > 0) stroke(function (q) { return gc || q[5].map(trunc); }, 70 * b.am, function (q) { return q[4] + P.glow * ps; });
-  stroke(function (q) { return q[5]; }, 235 * b.am, function (q) { return Math.max(1, q[4]); });
+  g.lineCap = "round";
+  b.segs.forEach(function (q) {
+    var w = q[4], col = q[5];
+    if (P.glow > 0) { g.strokeStyle = rgba(gc || col.map(trunc), 70 * b.am * q[6]); g.lineWidth = w + P.glow * ps; line(g, q[0], q[1], q[2], q[3]); }
+    g.strokeStyle = rgba(col, 235 * b.am * q[6]); g.lineWidth = Math.max(1, w); line(g, q[0], q[1], q[2], q[3]);
+  });
 };
 DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;

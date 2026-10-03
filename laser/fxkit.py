@@ -23,7 +23,7 @@ import math
 import re
 
 from PyQt5.QtCore import Qt, QPointF, QRectF
-from PyQt5.QtGui import QColor, QPen, QPainter, QPainterPath, QRadialGradient
+from PyQt5.QtGui import QBrush, QColor, QLinearGradient, QPen, QPainter, QPainterPath, QRadialGradient
 
 from . import config
 
@@ -149,7 +149,7 @@ PARAM_DEFAULTS = {
     "arc": dict(radius=42, span=170, width=6.5, tail=0.95, segs=16, grow=0.85, core_alpha=0.7, core_width=0.3, orient="motion",
                 angle_deg=0, placement="anchor", back=51, lead=26),
     "beam": dict(length=200, w_start0=6, w_start1=6, w_end0=2, w_end1=2, segments=1, glow=0, glow_color="", pulse_hz=0,
-                 jitter=0, detach_ticks=0, grow_ticks=0),
+                 jitter=0, detach_ticks=0, grow_ticks=0, tip_fade=0),
     "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100),
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
@@ -1115,6 +1115,7 @@ def beam_segs(inst, host, ps):
     c1, c2 = color_pair(fx, host.lut)
     segs = max(1, trunc(P["segments"]))
     jr = Rng((inst.seed + trunc(inst.age if inst.age != INF else 0)) & M32)
+    tf = max(0.0, min(1.0, float(P.get("tip_fade") or 0)))   # fraction of the length, from the head, that fades out
     out = []
     for i in range(segs):
         t0, t1 = i / segs, (i + 1) / segs
@@ -1127,8 +1128,12 @@ def beam_segs(inst, host, ps):
             x1 += -uy * j
             y1 += ux * j
         out.append((x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
-                    [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0]))
-    return out, fade * pulse
+                    [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0],
+                    min(1.0, (t0 + t1) / 2 / tf) if tf > 0 else 1.0))
+    # Smooth-draw info for straight beams: head and tail points, widths, colours, tip fade.
+    info = {"hx": hx, "hy": hy, "tx": hx - ux * reach, "ty": hy - uy * reach,
+            "wH": wH * ps, "wT": wT * ps, "c1": c1, "c2": c2, "tf": tf}
+    return out, fade * pulse, info
 
 
 def _hit_shape(inst, tx, ty, hr, ps, host):
@@ -1287,47 +1292,70 @@ def _draw_arc(p, inst, host, ps):
         p.drawPath(path)
 
 
+def _beam_capsule(b, w_head, w_tail):
+    """Outline of a tapered capsule from the tail to the head (FXK beamCapsule)."""
+    ah = math.atan2(b["hy"] - b["ty"], b["hx"] - b["tx"])
+    pts = []
+    for k in range(13):
+        a = ah + math.pi + (k / 12 - 0.5) * math.pi
+        pts.append((b["tx"] + math.cos(a) * w_tail / 2, b["ty"] + math.sin(a) * w_tail / 2))
+    for k in range(13):
+        a = ah + (k / 12 - 0.5) * math.pi
+        pts.append((b["hx"] + math.cos(a) * w_head / 2, b["hy"] + math.sin(a) * w_head / 2))
+    return pts
+
+
+def _beam_stops(b, col_at, a):
+    """[(t from head, rgb, alpha)] (FXK beamStops)."""
+    ts = [0.0, 1.0]
+    if 0 < b["tf"] < 1:
+        ts.insert(1, b["tf"])
+    return [(t, col_at(t), a * (min(1.0, t / b["tf"]) if b["tf"] > 0 else 1.0)) for t in ts]
+
+
 def _draw_beam(p, inst, host, ps):
     P = inst.fx["params"]
     b = beam_segs(inst, host, ps)
     if not b:
         return
-    segs, am = b
+    segs, am, info = b
     gc = hex_rgb(P["glow_color"], None) if P.get("glow_color") else None
-    # A straight multi-segment beam joins its segments flat (no overlapping round
-    # caps, which brighten every joint under additive blend) and is rounded only at
-    # its two outer ends.  Jittered beams keep round caps so their bends stay closed.
-    flat = len(segs) > 1 and not P["jitter"] > 0
+    # A straight multi-segment beam (no jitter) is drawn as one tapered capsule filled
+    # with a smooth gradient along its length (colour c2 at the head to c1 at the tail,
+    # tip_fade alpha), so it has no joints, seams or width steps.  Jittered and
+    # single-segment beams stroke their segments with round caps as before.
+    if len(segs) > 1 and not P["jitter"] > 0:
+        c1, c2 = info["c1"], info["c2"]
 
-    def stroke(col_of, alpha, w_of):
-        for q in segs:
-            pen = _pen(qcolor(col_of(q), alpha), w_of(q))
-            if flat:
-                pen.setCapStyle(Qt.FlatCap)
-                p.setPen(pen)
-                p.drawLine(QPointF(q[0], q[1]), QPointF(q[2], q[3]))
-            else:
-                p.setPen(pen)
-                _line(p, q[0], q[1], q[2], q[3])
-        if not flat:
-            return
-        p.setPen(Qt.NoPen)
-        for q, k in ((segs[0], 0), (segs[-1], 2)):   # outer half-disc caps: tip, core end
-            x, y = q[k], q[k + 1]
-            a0 = math.atan2(y - q[3 - k], x - q[2 - k])
-            r = w_of(q) / 2
-            path = QPainterPath(QPointF(x, y))
-            for i in range(13):
-                a = a0 - math.pi / 2 + math.pi * i / 12
-                path.lineTo(x + r * math.cos(a), y + r * math.sin(a))
+        def col_at(t):
+            return [c2[i] + (c1[i] - c2[i]) * t for i in range(3)]
+
+        def fill(c_at, a, w_head, w_tail):
+            grad = QLinearGradient(info["hx"], info["hy"], info["tx"], info["ty"])
+            for t, col, al in _beam_stops(info, c_at, a):
+                grad.setColorAt(t, qcolor(col, al))
+            pts = _beam_capsule(info, w_head, w_tail)
+            path = QPainterPath(QPointF(*pts[0]))
+            for q in pts[1:]:
+                path.lineTo(*q)
             path.closeSubpath()
-            p.setBrush(qcolor(col_of(q), alpha))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(grad))
             p.drawPath(path)
-        p.setBrush(Qt.NoBrush)
+            p.setBrush(Qt.NoBrush)
 
-    if P["glow"] > 0:
-        stroke(lambda q: gc or [trunc(v) for v in q[5]], 70 * am, lambda q: q[4] + P["glow"] * ps)
-    stroke(lambda q: q[5], 235 * am, lambda q: max(1.0, q[4]))
+        if P["glow"] > 0:
+            fill((lambda t: gc) if gc else (lambda t: [trunc(v) for v in col_at(t)]), 70 * am,
+                 info["wH"] + P["glow"] * ps, info["wT"] + P["glow"] * ps)
+        fill(col_at, 235 * am, max(1.0, info["wH"]), max(1.0, info["wT"]))
+        return
+    for q in segs:
+        w, col = q[4], q[5]
+        if P["glow"] > 0:
+            p.setPen(_pen(qcolor(gc or [trunc(v) for v in col], 70 * am * q[6]), w + P["glow"] * ps))
+            _line(p, q[0], q[1], q[2], q[3])
+        p.setPen(_pen(qcolor(col, 235 * am * q[6]), max(1.0, w)))
+        _line(p, q[0], q[1], q[2], q[3])
 
 
 def _draw_sprite(p, inst, host, ps):
