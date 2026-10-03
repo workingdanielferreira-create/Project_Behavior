@@ -167,7 +167,7 @@ function boltSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
 }
 
 // ---------------------------------------------------------------- schema
-var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "ghost", "weapon"];
+var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"];
 var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit", "path"];
 var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
@@ -179,6 +179,10 @@ var PARAM_DEFAULTS = {
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
+  // Radial pulse: rings that expand from r_start to r_end over expand_ms
+  // (pulseRings).  rings = how many, gap_ms apart (0 = one every gap_ms for
+  // as long as the effect lasts).
+  pulse: {r_start: 0, r_end: 120, width: 6, width_end: 2, expand_ms: 400, rings: 1, gap_ms: 200, ease: "out", fade: "out", glow: 8, fill_alpha: 0},
   ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12},
   weapon: {to_anchor: "wtip", width: 6}
 };
@@ -316,8 +320,11 @@ var CONDITION_COMMON = {not: false};
 // (attack / triggered actions; idle and run loop for as long as they last).
 // Each pass is a normal animation loop for the FX: they carry on exactly as
 // they do when an animation loops (fx_continuous and ∞ effects included).
+// attack_px (normal attacks): how close the target must be for this attack to
+// start, game px at 100 % character scale; 0 = the character's
+// stats.basic_attack_radius (shooters: their shooting range).
 var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
-  movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80};
+  movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80, attack_px: 0};
 // blink: the action's Blink (BLINK_DEFAULTS below).
 // Character-level aiming (pack.aim): the fighter always faces the target and
 // the whole frame on show turns so its barrel (from -> to anchor of that
@@ -344,14 +351,15 @@ function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 // A new retreat can start cooldown_ms after the last one ended.
 var RETREAT_DEFAULTS = {enabled: false, mode: "avoid", angle_deg: 180, curve_deg_s: 0, speed_pct: 200,
   proximity_px: 80, avoid_duration_ms: 1500, reengage_duration_ms: 2000, cooldown_ms: 3000, logic: "any", conditions: [], fx: ""};
-var RETREAT_CONDITIONS = {
-  hp_below:         {pct: 50, repeat: false},   // own HP <= pct % (once, or every cooldown while below with repeat)
-  projectile_count: {count: 5}                  // count or more enemy projectiles in the air at once
-};
+// Retreat conditions: every action trigger condition (CONDITION_TYPES, with
+// `not`).  "This action" means the retreat: attacks_made / hits_taken /
+// every_ms count from the last retreat start, since_action "" from the last
+// retreat end.  projectile_count counts enemy shots only.
+var RETREAT_CONDITIONS = CONDITION_TYPES;
 function normalizeRetreat(a) {
   a = fill(a || {}, RETREAT_DEFAULTS);
   a.conditions = (a.conditions || []).filter(function (c) { return c && RETREAT_CONDITIONS[c.type]; })
-    .map(function (c) { return fill(c, RETREAT_CONDITIONS[c.type]); });
+    .map(function (c) { return fill(fill(c, RETREAT_CONDITIONS[c.type]), CONDITION_COMMON); });
   return a;
 }
 // Blink (action_settings[action].blink), run by laser/blink.py: a teleport
@@ -372,9 +380,11 @@ function normalizeRetreat(a) {
 // While gone it is invisible and untouchable, stays put and fires no new FX
 // (shots already flying carry on); the action and its animation keep running
 // hidden, so the frames tick on to end_frame.  flash = crackle + afterimage
-// at both ends.  Each loop of a looping action blinks again.
+// at both ends.  Each loop of a looping action blinks again.  cooldown_ms
+// (0 = none): after it reappears, the action's Blink stays off this long (the
+// action still plays, without vanishing or its Blink FX).
 var BLINK_DEFAULTS = {enabled: false, start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
-  proximity_px: 60, flash: true};
+  proximity_px: 60, flash: true, cooldown_ms: 0};
 var BLINK_ANCHORS = ["target", "self"];
 var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "random", "angle"];
 function normalizeBlink(a) {
@@ -453,7 +463,8 @@ function moveFactor(name, cfg) {
 var STAND_HEIGHT_PX = 28;
 var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"], arc: ["radius", "width", "back", "lead"],
   beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius"],
-  particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"], ghost: [], weapon: ["width"]};
+  particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
+  pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"]};
 var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry"];
 var SCALE_INTERCEPT = ["radius", "contact"];
 function rescaleEffects(effects, lib, r) {
@@ -813,6 +824,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   }
   if (fx.prim === "particles" && fx.params.mode === "burst") emitParticles(inst, fx, host, trunc(fx.params.count));
   if (fx.prim === "weapon") { var e2 = host.anchor(fx.params.to_anchor); inst.x2 = e2[0]; inst.y2 = e2[1]; }
+  if (fx.prim === "pulse") inst.ringHits = {};   // "ring" -> true: each ring hits once
   inst.px = inst.x; inst.py = inst.y;
   return inst;
 }
@@ -895,7 +907,7 @@ function emitParticles(inst, fx, host, n) {
 // at enemyVel for a deflect).  laser/fxkit.py intercept_step mirrors this.
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
 function canIntercept(fx) {
-  return fx.prim !== "weapon" && fx.prim !== "ghost" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
+  return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
 // Whether an intercept in `mode` may take shot s: deflect needs a
@@ -1003,6 +1015,8 @@ function tickInst(inst, host) {
     inst.ghosts.forEach(function (g) { g.age += 1; });
     inst.ghosts = inst.ghosts.filter(function (g) { return g.age < P.ghost_life; });
     if (!active && !inst.ghosts.length) inst.dead = true;
+  } else if (fx.prim === "pulse") {
+    if (!active && !pulseRings(inst, inst.ps || 1).length) inst.dead = true;   // expanding rings finish
   } else if (!active) {
     inst.dead = true;
   }
@@ -1220,6 +1234,43 @@ DRAW.glow = function (g, inst, host, ps) {   // TrailComponent head glow + core,
     ellipse(g, hx - idr, hy - idr, idr * 2, idr * 2);
   }
 };
+// Radial pulse rings at `age` (default now): [{k, r, w, a}].  Ring k starts
+// k * gap_ms in (only while the effect lasts) and grows r_start -> r_end over
+// expand_ms (eased), its line width -> width_end, fading by `fade`.
+function pulseEase(u, m) { return m === "out" ? 1 - (1 - u) * (1 - u) : m === "in" ? u * u : u; }
+function pulseFade(u, m) { return m === "out" ? 1 - u : m === "in" ? u : m === "inout" ? Math.sin(u * Math.PI) : 1; }
+function pulseRings(inst, ps, age) {
+  var P = inst.fx.params, out = [];
+  if (age == null) age = inst.age;
+  if (age < 0) return out;
+  var exp = Math.max(1, +P.expand_ms / TICK_MS), gap = Math.max(1, +P.gap_ms / TICK_MS), n = trunc(P.rings);
+  for (var k = Math.max(0, trunc((age - exp) / gap)); k * gap <= age && (n <= 0 || k < n) && k * gap < inst.life; k++) {
+    var u = (age - k * gap) / exp;
+    if (u < 0 || u >= 1) continue;
+    var e = pulseEase(u, P.ease);
+    out.push({k: k, r: Math.max(0, (P.r_start + (P.r_end - P.r_start) * e) * ps),
+      w: Math.max(0, (P.width + (P.width_end - P.width) * u) * ps), a: pulseFade(u, P.fade)});
+  }
+  return out;
+}
+DRAW.pulse = function (g, inst, host, ps) {
+  var P = inst.fx.params, cp = colorPair(inst.fx, host.lut), c1 = cp[0].map(trunc), c2 = cp[1].map(trunc);
+  pulseRings(inst, ps).forEach(function (q) {
+    if (q.a <= 0.004) return;
+    if (P.fill_alpha > 0 && q.r >= 1) {
+      g.fillStyle = radial(g, inst.x, inst.y, q.r, [[0, rgba(c2, 0)], [0.7, rgba(c2, P.fill_alpha * q.a * 0.35)], [1, rgba(c2, P.fill_alpha * q.a)]]);
+      ellipse(g, inst.x - q.r, inst.y - q.r, q.r * 2, q.r * 2);
+    }
+    if (P.glow > 0) {
+      g.strokeStyle = rgba(c2, 70 * q.a); g.lineWidth = q.w + P.glow * ps;
+      g.beginPath(); g.arc(inst.x, inst.y, q.r, 0, 2 * Math.PI); g.stroke();
+    }
+    if (q.w > 0) {
+      g.strokeStyle = rgba(c1, 235 * q.a); g.lineWidth = q.w;
+      g.beginPath(); g.arc(inst.x, inst.y, q.r, 0, 2 * Math.PI); g.stroke();
+    }
+  });
+};
 DRAW.weapon = function (g, inst, host, ps) {   // invisible in-game; the Studio outlines it
   if (!host.showHitboxes || inst.age >= inst.life) return;
   g.strokeStyle = inst.fx.battle.deals_damage ? "rgba(255,90,90,.85)" : "rgba(150,160,180,.7)";
@@ -1282,6 +1333,7 @@ HIT.glow = function (inst, tx, ty, hr, ps) {
   return Math.sqrt(dx * dx + dy * dy) <= hr + gr;
 };
 HIT.ghost = function () { return false; };
+HIT.pulse = function () { return false; };   // resolved per ring in resolveHits
 HIT.weapon = function (inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   return segDist(tx, ty, inst.x, inst.y, inst.x2, inst.y2) <= hr + inst.fx.params.width * ps / 2;
@@ -1295,6 +1347,21 @@ function resolveHits(inst, host, ps) {
   var b = inst.fx.battle, hurt = host.hurt;
   if (!b.deals_damage || !hurt || inst.dead) return;
   var now = inst.age;
+  if (inst.fx.prim === "pulse") {
+    // Each ring hits once, when its edge sweeps over the target (this tick's
+    // radius and last tick's), pushing outward.  Rings never end on a hit.
+    var prev = {};
+    pulseRings(inst, ps, inst.age - 1).forEach(function (q) { prev[q.k] = q.r; });
+    pulseRings(inst, ps).forEach(function (q) {
+      if (inst.ringHits[q.k]) return;
+      var rp = prev[q.k] == null ? q.r : prev[q.k], lo = Math.min(q.r, rp) - q.w / 2, hi = Math.max(q.r, rp) + q.w / 2;
+      var dx = hurt.x - inst.x, dy = hurt.y - inst.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < lo - hurt.r || d > hi + hurt.r) return;
+      inst.ringHits[q.k] = true; inst.hits += 1; inst.lastHit = now;
+      if (host.onHit) host.onHit(inst, b.damage, d > 0.001 ? dx / d : inst.dir[0], d > 0.001 ? dy / d : inst.dir[1], b.knockback);
+    });
+    return;
+  }
   if (inst.fx.prim === "particles") {
     inst.parts = inst.parts.filter(function (q) {
       var size = Math.max(0.5, q.s0), dx = q.x - hurt.x, dy = q.y - hurt.y;

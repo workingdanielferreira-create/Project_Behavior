@@ -42,14 +42,16 @@ these characters; it plays the PNGs.
                                     "conditions": [{"type": "hp_below", "pct": 50, "repeat": false}, {"type": "target_within", "px": 80}],
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
                                     "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80,
+                                    "attack_px": 0,
                                     "blink": {"enabled": false, "start_frame": 0, "end_frame": -1, "anchor": "target",
-                                              "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true}}},
+                                              "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true,
+                                              "cooldown_ms": 0}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
-              "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false},
-                                              {"type": "projectile_count", "count": 5}]},
+              "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
+                                              {"type": "projectile_count", "count": 5, "not": false}]},
   "effects": [ { "...": "section 3" } ],
   "groups": [{"id": "G…", "name": "Group 1", "action": "attack_normal", "anchor": "haR", "offset": [0, 0]}]
 }
@@ -58,7 +60,10 @@ these characters; it plays the PNGs.
 ### When each action plays (`action_settings`)
 - **`idle` / `run`**: locomotion (standing still / moving). No conditions.
 - **Attack actions (`attack_normal*`)**: the archetype decides when to
-  attack (target inside attack range). If the attack has `conditions`, they
+  attack (target inside attack range). `attack_px` (the Studio's **Attack
+  distance**) sets that range for this attack in game px at 100 % character
+  scale; `0` = the character's `basic_attack_radius` (shooters:
+  `max(radius, 420 px)`). Each attack in a chain has its own. If the attack has `conditions`, they
   must ALSO pass (`logic` any / all); with none it attacks on range alone.
   `chain_next` names the next attack in a combo (e.g.
   `attack_normal → attack_normal_2 → attack_normal_3`). The chain resets
@@ -366,6 +371,7 @@ routine's `config.py` values.
 | `sprite` | `bullet_sprite` / `bolt_sprite` + `Projectile.draw` | `shape orb\|bolt, radius, stretch, hot, halo, fade, trail_len, glow, glow_size` (glow: outer-glow brightness %, 0 = none, 100 = original; glow_size: its spread %, 100 = 3 × radius) |
 | `particles` | `BurstParticle` / `_spawn_burst_now` | `mode burst\|stream, count, rate_per_s, angle_deg, spread_deg, speed_min/max (px/s), gravity (px/s²), drag, size_min/max, size_over_life, life_min_ms/max_ms` |
 | `glow` | `TrailComponent` head glow + core | `r_start, r_end, a_center, a_mid, mid, core_r, fade none\|out\|in\|inout, pulse_hz` |
+| `pulse` | radial pulse rings (new) | `r_start 0, r_end 120, width 6, width_end 2, expand_ms 400, rings 1, gap_ms 200, ease out\|linear\|in, fade out\|none\|in\|inout, glow 8, fill_alpha 0`: ring *k* starts `k × gap_ms` in (only while the effect lasts; `rings 0` = keep starting rings) and grows `r_start → r_end` over `expand_ms`, its line `width → width_end`; `glow` = a soft wider ring, `fill_alpha` = a faint inner fill (both colour 2). Rings already growing finish after the effect's life ends |
 | `ghost` | `Figure.draw` afterimages (`silhouette`) | `interval 2, ghost_life 14, alpha 150, max 12` |
 | `weapon` | melee hitbox (new) | `to_anchor wtip, width 6`: a capsule from the effect's `anchor` to `to_anchor`, following the frames; never drawn in-game (the Studio outlines it) |
 
@@ -426,8 +432,15 @@ its own duration (`-1` = no limit):
   character's `attack_normal`) and the retreat ends.
 
 A new retreat can start `cooldown_ms` after the last one ended. Conditions:
-`hp_below` (`pct`, `repeat`: once, or again every cooldown while below) and
-`projectile_count` (`count` or more enemy projectiles in the air at once). The
+every action trigger condition (section "Conditions" above, each with `not`),
+read the same way. Where one means "this action" it means the retreat:
+`hp_below` (`pct`, `repeat`: once, or again every cooldown while below),
+`attacks_made` / `hits_taken` count from the last retreat start, `every_ms`
+times from the last retreat start, and `since_action` with `action ""` from
+the last retreat end. `projectile_count` counts enemy projectiles in the air
+(shots, not stationary damaging FX). A rig-drawn character without an action
+runner gets a condition tracker that counts its dashes / slashes as attacks
+and its melee hits as `landed_hit`. The
 dash owns the fighter's movement (knockback still wins) and cancels a melee
 move in progress, but never an ultimate or special stance. Solo and Battle run
 the same code; Solo has no enemy projectiles, and the cursor's back is the far
@@ -462,7 +475,9 @@ teleport inside one action; each action has its own. While that action plays,
 the fighter vanishes when the frame on show reaches `start_frame` and
 reappears once it passes `end_frame` (`-1` = the last frame), or when the
 action ends, whichever comes first. A looping action blinks again on every
-loop. It reappears `proximity_px` from `anchor`:
+loop. `cooldown_ms` (0 = none): after the fighter reappears, that action's
+Blink stays off this long; the action still plays when it triggers, without
+vanishing and without its `@blink:` FX. It reappears `proximity_px` from `anchor`:
 - `anchor`: `target` (the target, where it is when the fighter reappears) or
   `self` (the spot the fighter vanished from).
 - `direction`: `behind` / `front` (opposite / along the way the target faces;
@@ -495,6 +510,10 @@ primitive (`HIT.*` in `fxkit.js`):
   the segments currently shown.
 - `particles`: each particle is within `hurt r + size/2`.
 - `glow`: the circle of the current radius overlaps the hurt circle.
+- `pulse`: each ring hits each target once, when its edge (this tick's and
+  last tick's radius, ± half its width) sweeps over the hurt circle, pushing
+  outward from the centre. Rings never end on a hit (`pierce` / `rehit_ticks`
+  don't apply), and a pulse is never a projectile (no Intercept).
 - `ghost`: never (afterimages are visual only, and the checkbox is disabled).
 - `weapon`: the segment `anchor → to_anchor` passes within `hurt r + width/2`.
   This is how the weapon deals damage: add a `weapon` effect over the frames
@@ -703,7 +722,8 @@ The presets only seed new FX.
      `source` action's average barrel), at most `max_deg` either way.
      Anchors and FX turn with it.
    - **Attacks.** The archetype decides when: melee inside
-     `basic_attack_radius`, shooters from `max(radius, 420 px)`. Attacks are
+     `basic_attack_radius`, shooters from `max(radius, 420 px)`, or inside the
+     attack's own `attack_px` when set (× character scale). Attacks are
      at least 350 ms apart, or `cooldown_ms`. `chain_next` continues the
      combo when the next attack starts within `chain_reset_ms`.
    - **Triggered actions** (defend first, then ultimate, attack_special,

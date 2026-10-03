@@ -25,10 +25,19 @@ fx (optional): "fx:<effect id>" or "group:<group id>" from the FX file; that
 effect / group plays for the whole dash (laser/fxkit.py FxDriver), and still
 plays on its own action too.
 
-Conditions:
+Conditions: every trigger condition an action can use (laser/actions.py
+CONDITION_TYPES, each with `not` to invert it), read the same way.  Where a
+condition means "this action", it means the retreat:
   hp_below          own HP at or below pct % (once, or again after every
                     cooldown while still below when repeat is on)
+  attacks_made / hits_taken   counted since the last retreat started
+  every_ms          since the last retreat started (or the fight began)
+  since_action      action "" = since the last retreat ended
   projectile_count  `count` or more enemy projectiles in the air at once
+                    (shots only, as before — not stationary damaging FX)
+after_actions / since_action with an action name and idle_for read the
+fighter's real actions.  Fighters without an action runner (rig-drawn JSON
+characters) get a tracker that counts their dashes / slashes as attacks.
 
 Driven from CombatSystem for every figure (target = nearest enemy in Battle,
 the cursor in Solo), so Solo and Battle run the same code.  Solo has no enemy
@@ -41,12 +50,13 @@ import math
 
 from . import config
 
+from .actions import CONDITION_TYPES as CONDITIONS
+
 DEFAULTS = dict(enabled=False, mode="avoid", angle_deg=180.0, curve_deg_s=0.0,
                 speed_pct=200.0, proximity_px=80.0,
                 avoid_duration_ms=1500.0, reengage_duration_ms=2000.0,
                 cooldown_ms=3000.0, logic="any", conditions=[], fx="")
-CONDITIONS = {"hp_below": dict(pct=50.0, repeat=False),
-              "projectile_count": dict(count=5)}
+KEY = "@retreat"          # the retreat's name in the condition tracker
 
 ARRIVE_PX = 30.0          # re-engage: this close to the back point = arrived
 BACK_STANDOFF_PX = 60.0   # back point distance behind the target (max)
@@ -63,6 +73,7 @@ def normalize(cfg):
         t = (c or {}).get("type")
         if t in CONDITIONS:
             cc = dict(CONDITIONS[t])
+            cc["not"] = False
             cc.update(c)
             conds.append(cc)
     out["conditions"] = conds
@@ -88,7 +99,7 @@ def config_for(fig):
 
 class RetreatState:
     __slots__ = ("active", "mode", "ticks_left", "elapsed", "heading", "back",
-                 "cooldown_until", "hp_fired")
+                 "cooldown_until")
 
     def __init__(self):
         self.active = False
@@ -98,7 +109,6 @@ class RetreatState:
         self.heading = 0.0
         self.back = (1.0, 0.0)
         self.cooldown_until = 0
-        self.hp_fired = set()
 
 
 def _ticks(ms):
@@ -128,20 +138,16 @@ def _hp_pct(fig):
     return 100.0 * p.hp / max(1e-6, p.max_hp)
 
 
-def _cond_true(fig, st, c, world):
-    t = c["type"]
-    if t == "hp_below":
-        pct = float(c.get("pct", 50))
-        if _hp_pct(fig) > pct:
-            return False
-        return bool(c.get("repeat")) or pct not in st.hp_fired
-    if t == "projectile_count":
-        return len(getattr(world, "enemy_shots", None) or []) >= max(1, int(c.get("count", 5)))
-    return False
+def _cond_met(fig, r, c, ctx, world):
+    if c["type"] == "projectile_count":
+        v = len(getattr(world, "enemy_shots", None) or []) >= max(1, int(c.get("count", 5)))
+    else:
+        v = r._cond_true(fig, KEY, c, ctx)
+    return (not v) if c.get("not") else v
 
 
-def _triggered(fig, st, cfg, world):
-    res = [_cond_true(fig, st, c, world) for c in cfg["conditions"]]
+def _triggered(fig, r, ctx, cfg, world):
+    res = [_cond_met(fig, r, c, ctx, world) for c in cfg["conditions"]]
     return all(res) if cfg.get("logic") == "all" else any(res)
 
 
@@ -152,7 +158,7 @@ def _can_start(fig):
                 or c.blinkstorm_strikes_left > 0)
 
 
-def _start(fig, st, cfg, world, tx, ty, tface):
+def _start(fig, st, cfg, world, tx, ty, tface, r):
     st.active = True
     st.mode = "reengage" if cfg.get("mode") == "reengage" else "avoid"
     st.ticks_left = _ticks(cfg["reengage_duration_ms"] if st.mode == "reengage"
@@ -168,9 +174,15 @@ def _start(fig, st, cfg, world, tx, ty, tface):
     else:
         # Opposite the way the target faces.
         st.back = (1.0, 0.0) if tface else (-1.0, 0.0)
+    # The tracker's "this action" counters restart with each retreat.
+    now = world.global_tick
+    r.last_start[KEY] = now
+    r.since_attacks[KEY] = 0
+    r.since_hits[KEY] = 0
     for c in cfg["conditions"]:
-        if c["type"] == "hp_below" and _hp_pct(fig) <= float(c.get("pct", 50)):
-            st.hp_fired.add(float(c.get("pct", 50)))
+        if (c["type"] == "hp_below" and not c.get("not")
+                and _hp_pct(fig) <= float(c.get("pct", 50))):
+            r.hp_fired.setdefault(KEY, set()).add(float(c.get("pct", 50)))
     # The dash takes over from any melee move in progress.
     c = fig.combat
     c.dashing = c.rebounding = c.slashing = False
@@ -180,7 +192,10 @@ def _start(fig, st, cfg, world, tx, ty, tface):
     c.followup_pending = 0
 
 
-def _end(st, cfg, now):
+def _end(fig, st, cfg, now):
+    r = getattr(fig, "act", None)
+    if r is not None:
+        r.last_end[KEY] = now
     st.active = False
     st.cooldown_until = now + int(max(0.0, float(cfg.get("cooldown_ms") or 0)) / config.TICK_MS)
 
@@ -276,17 +291,20 @@ def tick(fig, world):
         fig.retreat = st
     now = world.global_tick
     tx, ty, tface = _target(world, fig)
+    # Readings every tick (HP lost, speeds, hits), retreating or not.
+    from . import actions
+    r, ctx = actions.tracker_ctx(fig, world)
     if not st.active:
-        if now < st.cooldown_until or not _can_start(fig) or not _triggered(fig, st, cfg, world):
+        if now < st.cooldown_until or not _can_start(fig) or not _triggered(fig, r, ctx, cfg, world):
             return False
-        _start(fig, st, cfg, world, tx, ty, tface)
+        _start(fig, st, cfg, world, tx, ty, tface, r)
 
     # Duration (the time runs through knockback too).
     st.elapsed += 1
     if st.ticks_left is not None:
         st.ticks_left -= 1
         if st.ticks_left < 0:
-            _end(st, cfg, now)
+            _end(fig, st, cfg, now)
             return False
     m = fig.motion
     if m.bouncing or m.bounce_ending:
@@ -307,7 +325,7 @@ def tick(fig, world):
         stand = max(arrive, min(BACK_STANDOFF_PX * bs, _attack_radius(fig) * 0.5))
         gx, gy = tx + st.back[0] * stand, ty + st.back[1] * stand
         if math.hypot(gx - fig.x, gy - fig.y) <= arrive:
-            _end(st, cfg, now)
+            _end(fig, st, cfg, now)
             _strike(fig, world, tx, ty)
             return False
         a_g = math.atan2(gy - fig.y, gx - fig.x)

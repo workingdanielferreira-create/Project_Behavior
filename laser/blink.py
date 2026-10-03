@@ -8,7 +8,9 @@ separate JSON block.)
 While an action with Blink on plays, the fighter vanishes when the frame on
 show reaches start_frame and reappears once it passes end_frame (-1 = the
 last frame), or when the action ends, whichever comes first.  A looping
-action blinks again on every loop.  It reappears proximity_px from the
+action blinks again on every loop.  cooldown_ms (0 = none): after the
+fighter reappears, that action's Blink stays off for this long — the action
+still plays when its own triggers say so, just without vanishing.  It reappears proximity_px from the
 landing anchor:
 
   anchor     "target"  measured from the target (nearest enemy in Battle,
@@ -61,12 +63,34 @@ def _active(fig, cfg, action, frame):
 
 
 class BlinkState:
-    __slots__ = ("gone", "x0", "y0", "cfg")
+    __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play")
 
     def __init__(self):
         self.gone = False
         self.x0 = self.y0 = 0.0
         self.cfg = None
+        self.action = None
+        self.ready_at = {}    # action -> tick its Blink is off cooldown
+        self.play = None      # the play (_play_key) that last blinked
+
+
+def _play_key(fig, action):
+    """Identifies one play of `action` (a new play = a new key)."""
+    r = getattr(fig, "act", None)
+    return (action, r.started if r is not None and r.playing == action else None)
+
+
+def _cooling(st, action, now):
+    return st is not None and now < st.ready_at.get(action, -1)
+
+
+def fx_on(fig, action, now):
+    """Whether the FX built on `action`'s Blink play now (its Blink is on):
+    not while the Blink is on cooldown, unless this play already blinked."""
+    st = getattr(fig, "blink", None)
+    if st is None or st.gone or not _cooling(st, action, now):
+        return True
+    return st.play == _play_key(fig, action)
 
 
 def gone(fig):
@@ -85,10 +109,12 @@ def _can_start(fig):
                 or (rt is not None and rt.active))
 
 
-def _vanish(fig, st, cfg):
+def _vanish(fig, st, cfg, action):
     from . import combat
     st.gone = True
     st.cfg = cfg
+    st.action = action
+    st.play = _play_key(fig, action)
     st.x0, st.y0 = fig.x, fig.y
     # A blink takes the fighter out of any knockback or melee move.
     m, c = fig.motion, fig.combat
@@ -152,6 +178,10 @@ def _reappear(fig, st, world):
     fig.trail.clear()           # no streak from the old spot to the new one
     st.gone = False
     st.cfg = None
+    # Cooldown from the moment it reappears.
+    cd = max(0.0, float(cfg.get("cooldown_ms") or 0))
+    if cd > 0 and st.action is not None:
+        st.ready_at[st.action] = world.global_tick + int(round(cd / config.TICK_MS))
     if cfg.get("flash", True):
         fig.combat.blink_fx_pending.append((nx, ny, nx, ny))
 
@@ -179,8 +209,8 @@ def tick(fig, world):
             return True
         _reappear(fig, st, world)
         return False
-    if on and fig.transform.init and _can_start(fig):
-        _vanish(fig, st, cfg)
+    if on and fig.transform.init and _can_start(fig) and not _cooling(st, action, world.global_tick):
+        _vanish(fig, st, cfg, action)
         return True
     return False
 
