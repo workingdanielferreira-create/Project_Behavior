@@ -157,6 +157,24 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
   - Game px: `(p - image_origin_px) * game_px_per_image_px * position_scale`,
     mirrored in x when facing left.
 - **Special anchors.** `figure` (the image centre) and `target`.
+- **FX scale with the figure (`position_scale`).** Every FX distance is
+  authored at the figure's base size (FX Studio `pscale` 1) and multiplied by
+  the figure's on-screen size, the same factor its sprite, anchors, widths and
+  radii use, so a fighter drawn 3x shows its FX as a 3x zoom of what was
+  built (`laser/fxkit.py` `host_scale`, `FXK.hostScale`):
+  - Placement around the body follows the figure's current size: `offset`,
+    entry-set points, orbit `orbit_rx` / `orbit_ry`, path points, beam
+    `length` / `jitter`, arc `back` / `lead` / `radius` placement, ribbon
+    `min_dist`.
+  - What is launched keeps the size it was fired at (`inst.ps`): `motion.speed`
+    (travel / homing / zigzag, keyframed speed included), zigzag `amplitude`,
+    particle `speed_min` / `speed_max` / `gravity`, intercept `radius` /
+    `contact`. A shot fired by a 3x figure moves 3x as far per tick.
+  - Widths and radii (ribbon, arc, beam, sprite, particles, glow, weapon) are
+    multiplied when drawn and hit-tested, as before.
+  The Studio's stage editors (dragging a group, placing entry / path points,
+  their guides) convert by the preview `pscale`, so edits made at any pscale
+  are stored at base size.
 
 ## 3. Effect
 

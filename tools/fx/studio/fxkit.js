@@ -677,13 +677,19 @@ function libFind(host, key, id) {
   for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
   return null;
 }
+// Figure size (laser/fxkit.py host_scale): every FX distance is authored at
+// pscale 1 and multiplied by the figure's on-screen size like widths and
+// radii.  Placement around the body follows the current size; what is
+// launched (shot speed, zigzag sway, particle speed / gravity, intercept
+// range) keeps the size it was fired at (inst.ps).
+function hostScale(host) { return +(host && host.pscale) || 1; }
 function entrySetOf(fx, host) {
   if (typeof fx.anchor !== "string" || fx.anchor.indexOf("set:") !== 0) return null;
   var e = libFind(host, "entry_sets", fx.anchor.slice(4));
   return e && e.points.length ? e : null;
 }
 function entryPoint(set, k, host, deg, f) {
-  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0], o = turnBy([q[0] * (f || host.facing), q[1]], deg);
+  var b = host.anchor(set.base || "figure"), q = set.points[k] || [0, 0], ps = hostScale(host), o = turnBy([q[0] * ps * (f || host.facing), q[1] * ps], deg);
   return [b[0] + o[0], b[1] + o[1]];
 }
 function anchorPos(fx, host, inst) {
@@ -691,12 +697,12 @@ function anchorPos(fx, host, inst) {
   if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host, deg, f);
   else if (typeof fx.anchor === "string" && fx.anchor.indexOf("set:") === 0) a = host.anchor("figure");   // empty / missing set
   else a = host.anchor(fx.anchor);
-  var o = turnBy([(+fx.offset[0] || 0) * f, +fx.offset[1] || 0], deg);
+  var ps = hostScale(host), o = turnBy([(+fx.offset[0] || 0) * ps * f, (+fx.offset[1] || 0) * ps], deg);
   return [a[0] + o[0], a[1] + o[1]];
 }
 // Orbit position around centre c (flip mirrors its side and spin).
 function orbitPos(inst, host, c) {
-  var m = inst.fx.motion, o = turnBy([Math.cos(inst.orbitA * D) * m.orbit_rx * inst.flip, Math.sin(inst.orbitA * D) * m.orbit_ry], bodyDeg(inst.fx, host));
+  var m = inst.fx.motion, ps = hostScale(host), o = turnBy([Math.cos(inst.orbitA * D) * m.orbit_rx * ps * inst.flip, Math.sin(inst.orbitA * D) * m.orbit_ry * ps], bodyDeg(inst.fx, host));
   return [c[0] + o[0], c[1] + o[1]];
 }
 // A path as an evenly-spaced polyline (Catmull-Rom through the points when
@@ -750,6 +756,7 @@ function pathStep(inst, host) {
     var e = pathAt(pl, 1); ld = e[1];
     local = [e[0][0] + ld[0] * (k - 1) * pl.len, e[0][1] + ld[1] * (k - 1) * pl.len];
   } else { var r = pathAt(pl, k); local = r[0]; ld = r[1]; }
+  var ps = hostScale(host); local = [local[0] * ps, local[1] * ps];
   var w = pathWorld(inst, local), M = inst.pm;
   inst.x = w[0]; inst.y = w[1];
   var wd = norm(M[0] * ld[0] + M[1] * ld[1], M[2] * ld[0] + M[3] * ld[1]);
@@ -765,7 +772,8 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
     ghosts: [], acc: 0, facing: ef, flip: flipSign(fx, ef), orbitA: 0, phase: 0, zx: 0, zy: 0,
-    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep};
+    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host)};
+  var ps = inst.ps;   // the figure's size when fired: what is launched keeps it
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
   var spd = +m.speed || 0;
@@ -774,10 +782,10 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     inst.path = libFind(host, "paths", m.path);
     if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host)); }
   }
-  if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd; inst.vy = dir[1] * spd; }
+  if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd * ps; inst.vy = dir[1] * spd * ps; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
-    var pr = spd > 0.001 ? [-inst.vy / spd * inst.side, inst.vx / spd * inst.side] : [0, inst.side];
-    inst.zx = pr[0] * m.amplitude; inst.zy = pr[1] * m.amplitude;
+    var pr = spd > 0.001 ? [-dir[1] * inst.side, dir[0] * inst.side] : [0, inst.side];
+    inst.zx = pr[0] * m.amplitude * ps; inst.zy = pr[1] * m.amplitude * ps;
     inst.phase = n > 1 ? Math.PI * idx : 0;
   }
   if (m.kind === "orbit") {
@@ -796,11 +804,11 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     //   through_target centre = target + R*(dir_y, -dir_x) - dir * lead
     //                  so the arc's midpoint starts `lead` short of the target
     var tg = host.target, P = fx.params;
-    if (P.placement === "wrap_target") { inst.x = tg[0] - od[0] * P.back; inst.y = tg[1] - od[1] * P.back; }
+    if (P.placement === "wrap_target") { inst.x = tg[0] - od[0] * P.back * ps; inst.y = tg[1] - od[1] * P.back * ps; }
     else if (P.placement === "through_target") {
-      var R = P.radius;
+      var R = P.radius * ps;
       var Rf = R * sd;
-      inst.x = tg[0] + od[1] * Rf - od[0] * P.lead; inst.y = tg[1] - od[0] * Rf - od[1] * P.lead;
+      inst.x = tg[0] + od[1] * Rf - od[0] * P.lead * ps; inst.y = tg[1] - od[0] * Rf - od[1] * P.lead * ps;
     }
   }
   if (fx.prim === "particles" && fx.params.mode === "burst") emitParticles(inst, fx, host, trunc(fx.params.count));
@@ -824,14 +832,14 @@ function moveInst(inst, host) {
     if (ns !== inst.spd) {
       var cs = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
       if (cs > 1e-6 && inst.spd > 1e-6) { var f = ns / inst.spd; inst.vx *= f; inst.vy *= f; }
-      else { inst.vx = inst.dir[0] * ns; inst.vy = inst.dir[1] * ns; }
+      else { inst.vx = inst.dir[0] * ns * (inst.ps || 1); inst.vy = inst.dir[1] * ns * (inst.ps || 1); }
       inst.spd = ns;
     }
   }
   if (fx.prim === "weapon") { var b2 = host.anchor(fx.params.to_anchor); inst.x2 = b2[0]; inst.y2 = b2[1]; }
   else if (m.kind === "travel") { inst.x += inst.vx; inst.y += inst.vy; }
   else if (m.kind === "homing") {
-    var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+m.speed || 0);
+    var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+m.speed || 0) * (inst.ps || 1);
     var want = Math.atan2(host.target[1] - inst.y, host.target[0] - inst.x);
     var cur = Math.atan2(inst.vy, inst.vx), dA = want - cur;
     while (dA > Math.PI) dA -= 2 * Math.PI;
@@ -866,7 +874,7 @@ function emitParticles(inst, fx, host, n) {
   var spread = P.spread_deg * D, base = P.angle_deg * D;
   if (inst.facing < 0) base = Math.PI - base;
   base += bodyDeg(fx, host) * D;   // Follow direction: turns toward the target
-  var smin = +P.speed_min, smax = Math.max(smin, +P.speed_max);
+  var ips = inst.ps || 1, smin = +P.speed_min * ips, smax = Math.max(smin, +P.speed_max * ips);
   var s0 = Math.max(0.5, +P.size_min), s1 = Math.max(s0, +P.size_max);
   var l0 = Math.max(1, +P.life_min_ms), l1 = Math.max(l0, +P.life_max_ms);
   for (var i = 0; i < n; i++) {
@@ -927,7 +935,7 @@ function interceptStep(inst, host) {
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
   if (!interceptOn(fx)) return false;
-  var I = fx.intercept, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0), I.mode);
+  var I = fx.intercept, ips = inst.ps || 1, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0) * ips, I.mode);
   if (hit) {
     hit.dead = true;
     if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }
@@ -940,13 +948,13 @@ function interceptStep(inst, host) {
       if (I.mode === "block") { inst.age = Math.max(inst.age, inst.life); return true; }
     }
   }
-  var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0), I.mode);
+  var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0) * ips, I.mode);
   if (!tgt) {
     if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }   // back to its own motion
     return false;
   }
   if (!inst.chase) { inst.chase = true; inst.bvx = inst.vx; inst.bvy = inst.vy; }
-  var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+fx.motion.speed || 0);
+  var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+fx.motion.speed || 0) * ips;
   var want = Math.atan2(tgt.y - inst.y, tgt.x - inst.x), cur = Math.atan2(inst.vy, inst.vx), dA = want - cur;
   while (dA > Math.PI) dA -= 2 * Math.PI;
   while (dA < -Math.PI) dA += 2 * Math.PI;
@@ -969,7 +977,7 @@ function tickInst(inst, host) {
     var h = inst.hist;
     if (active) {
       var moved = true;
-      if (h.length) { var l = h[h.length - 1], dx = inst.x - l[0], dy = inst.y - l[1]; moved = dx * dx + dy * dy >= P.min_dist * P.min_dist; }
+      if (h.length) { var l = h[h.length - 1], dx = inst.x - l[0], dy = inst.y - l[1]; var md = P.min_dist * hostScale(host); moved = dx * dx + dy * dy >= md * md; }
       if (moved) { h.push([inst.x, inst.y]); while (h.length > P.max_points) h.shift(); }
       var mx = inst.x - inst.px, my = inst.y - inst.py;
       if (mx * mx + my * my < 0.01) for (var d = 0; d < P.decay; d++) if (h.length > 1) h.shift();
@@ -984,7 +992,7 @@ function tickInst(inst, host) {
     }
     inst.parts.forEach(function (q) {   // BurstParticle.update (sf = 1)
       var drag = +P.drag;
-      q.vx *= drag; q.vy = q.vy * drag + P.gravity * TICK_S;
+      q.vx *= drag; q.vy = q.vy * drag + P.gravity * (inst.ps || 1) * TICK_S;
       q.x += q.vx * TICK_S; q.y += q.vy * TICK_S; q.age += 1;
     });
     inst.parts = inst.parts.filter(function (q) { return q.age < q.life; });
@@ -1073,13 +1081,13 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   if (m.kind === "attached" || m.kind === "static" || m.kind === "orbit" || spd < 0.0001) {
     // FX Kit extension: a beam held at its anchor, extending along the aim
     // over grow_ticks (0 = full length at once).
-    reach = P.length * (P.grow_ticks > 0 ? Math.min(1, inst.age / P.grow_ticks) : 1);
+    reach = P.length * ps * (P.grow_ticks > 0 ? Math.min(1, inst.age / P.grow_ticks) : 1);
     hx = inst.x + ux * reach; hy = inst.y + uy * reach;
   } else {
     var dist = spd * inst.age;
-    if (inst.age < detach) reach = Math.min(P.length, dist);
+    if (inst.age < detach) reach = Math.min(P.length * ps, dist);
     else {
-      var rd = Math.min(P.length, spd * detach), post = Math.max(1, inst.life - detach);
+      var rd = Math.min(P.length * ps, spd * detach), post = Math.max(1, inst.life - detach);
       reach = Math.max(0, rd * (1 - Math.min(1, (inst.age - detach) / post)));
     }
   }
@@ -1094,7 +1102,7 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   for (var i = 0; i < segs; i++) {
     var t0 = i / segs, t1 = (i + 1) / segs;
     var x0 = hx - ux * reach * t0, y0 = hy - uy * reach * t0, x1 = hx - ux * reach * t1, y1 = hy - uy * reach * t1;
-    if (P.jitter > 0) { var j = (jr() * 2 - 1) * P.jitter; x0 += -uy * j; y0 += ux * j; x1 += -uy * j; y1 += ux * j; }
+    if (P.jitter > 0) { var j = (jr() * 2 - 1) * P.jitter * ps; x0 += -uy * j; y0 += ux * j; x1 += -uy * j; y1 += ux * j; }
     out.push([x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
       [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0],
       tf > 0 ? Math.min(1, (t0 + t1) / 2 / tf) : 1]);
