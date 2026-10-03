@@ -343,7 +343,7 @@ function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 //             attack on arrival
 // A new retreat can start cooldown_ms after the last one ended.
 var RETREAT_DEFAULTS = {enabled: false, mode: "avoid", angle_deg: 180, curve_deg_s: 0, speed_pct: 200,
-  proximity_px: 80, avoid_duration_ms: 1500, reengage_duration_ms: 2000, cooldown_ms: 3000, logic: "any", conditions: []};
+  proximity_px: 80, avoid_duration_ms: 1500, reengage_duration_ms: 2000, cooldown_ms: 3000, logic: "any", conditions: [], fx: ""};
 var RETREAT_CONDITIONS = {
   hp_below:         {pct: 50, repeat: false},   // own HP <= pct % (once, or every cooldown while below with repeat)
   projectile_count: {count: 5}                  // count or more enemy projectiles in the air at once

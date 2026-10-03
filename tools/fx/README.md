@@ -74,6 +74,11 @@ timing.
   be hit, doesn't move and fires no new FX; its animation keeps running.
   The stage shows it: the figure disappears over those frames, a faint
   outline marks where it vanished and a ring marks where it lands.
+- **Tactical retreat FX.** Under *Tactical retreat (whole character)*,
+  **Retreat FX** picks an optional effect, or a whole ▣ group, from any action
+  to play for as long as the dash lasts. FX that stay on the fighter are held
+  for the dash; shots keep firing on their action's timing. It still plays on
+  its own action too.
 - **Trigger conditions (per action).** Every attack and triggered action
   has them under its action settings. On a triggered action (defend,
   ultimate, attack_special, …) they decide when it plays; on an attack they

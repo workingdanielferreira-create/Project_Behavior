@@ -1681,6 +1681,35 @@ class CharacterFx:
             n = len(act.get("keyframes") or []) or 1
             fm = float(act.get("frame_ms") or 0) or float(act.get("duration_ms") or 100 * n) / n
             self.timing[name] = (n, fm)
+        self._retreat_fx = {}
+
+    def retreat_effects(self, key):
+        """The effects a Tactical retreat plays for its whole dash (retreat
+        "fx": "fx:<effect id>" or "group:<group id>"), as copies that start
+        on the dash's first tick (keys shifted with them) and hold while it
+        lasts when they can.  The originals keep playing on their own action.
+        Returns (effects, action whose timing they use); ([], None) = none."""
+        key = key or ""
+        if key in self._retreat_fx:
+            return self._retreat_fx[key]
+        kind, _, ident = key.partition(":")
+        if kind == "fx":
+            src = [e for e in self.effects if e.get("id") == ident][:1]
+        elif kind == "group":
+            src = [e for e in self.effects if e.get("group") == ident]
+        else:
+            src = []
+        out = []
+        for e in src:
+            c = dict(e)
+            sf = max(0, int(c.get("start_frame") or 0))
+            c["start_frame"], c["end_frame"] = 0, -1
+            c["keys"] = [dict(k, frame=max(0, int(k["frame"]) - sf)) for k in (c.get("keys") or [])]
+            c["continuous"] = can_continue(c)
+            out.append(c)
+        res = (out, (src[0].get("action") or "idle") if src else None)
+        self._retreat_fx[key] = res
+        return res
 
     def anchor_px(self, action, ident, frame):
         row = (self.anchors.get(action) or {}).get(ident)
@@ -1887,6 +1916,12 @@ class FxDriver:
         self.hurts = []
         self.hits_out = []
         self.host = None
+        # Tactical retreat FX: their own player and clock, running on the
+        # chosen effects' action timing for as long as the dash lasts.
+        self.rplayer = Player()
+        self.r_on = False
+        self.rt = 0
+        self.rt_prev = -1
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -1940,15 +1975,44 @@ class FxDriver:
         effects = self.cfx.by_action.get(action) or []
         self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
                          t_prev=self.t if hold else self.t_prev)
+        self._retreat_tick(fig, host, hold)
         if hold:
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
 
+    def _retreat_tick(self, fig, host, hold):
+        """Tactical retreat FX: the chosen effect / group plays for the whole
+        dash, looping on its action's timing (shots re-fire each pass and on
+        their own cadence); when the dash ends the held FX stop and shots
+        already flying finish."""
+        from . import retreat
+        st, cfg = fig.retreat, retreat.config_for(fig)
+        effs, act = self.cfx.retreat_effects(cfg.get("fx")) if (cfg and st is not None and st.active) else ([], None)
+        if effs:
+            n, fm = self._time_for(act)
+            total = max(1, jround(n * fm / TICK_MS))
+            if not self.r_on or self.rt >= total:
+                self.r_on, self.rt, self.rt_prev = True, 0, -1
+            self.rplayer.tick(effs, host, self.rt, n, fm, continuous=True,
+                              t_prev=self.rt if hold else self.rt_prev)
+            if not hold:
+                self.rt_prev, self.rt = self.rt, self.rt + 1
+            return
+        if self.r_on:
+            self.r_on = False
+            for inst in self.rplayer.insts:
+                if inst.cont or inst.open:
+                    inst.dead = True
+            self.rplayer.pending = []
+        if self.rplayer.insts:
+            self.rplayer.tick((), host, 0, 1, TICK_MS, t_prev=0)
+
     def draw(self, p, fig, layer, hidden=False):
-        if self.host is None or not self.player.insts:
+        if self.host is None or not (self.player.insts or self.rplayer.insts):
             return
         self.host.fig = fig
         self.player.draw(p, self.host, layer, hidden)
+        self.rplayer.draw(p, self.host, layer, hidden)
 
     def take_hits(self):
         h, self.hits_out = self.hits_out, []
