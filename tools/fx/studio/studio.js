@@ -1361,7 +1361,7 @@ function buildProps() {
     });
 
     if (FXK.canIntercept(fx)) {
-      s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects or destroys them.");
+      s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects, destroys or clashes with them.");
       var I = fx.intercept;
       field(s, "Auto-projectile tracker", inp("chk", I.enabled, function (v) { I.enabled = v; changed(true); })).title =
         "On: when an enemy projectile comes within the tracker radius, this projectile steers at it (like homing). With none in range it carries on with its own motion.";
@@ -1372,8 +1372,13 @@ function buildProps() {
           "How sharply it can turn toward the enemy projectile each tick.";
         field(s, "Contact px", inp("n", I.contact, function (v) { I.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
           "The two projectiles collide when their centres come this close.";
-        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"]], I.mode,
-          function (v) { I.mode = v; changed(true); }));
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"],
+          ["clash", "clash: knockback decides"]], I.mode,
+          function (v) { I.mode = v; changed(true); })).title =
+          "Clash: beats any projectile without clash (it is nullified, this one keeps going). Against another clash projectile the Knockback values (Damage section) decide: more than " +
+          FXK.CLASH_KB_MARGIN + " higher nullifies the lower one; otherwise both freeze where they met until one runs out of life or its owner is hit, then the survivor carries on.";
+        if (I.mode === "clash")
+          note(s, "Clash vs clash compares Knockback: more than " + FXK.CLASH_KB_MARGIN + " apart \u2192 the higher one wins; otherwise they lock together. Test shots have no clash, so here they are simply nullified.");
         if (I.mode === "deflect") {
           field(s, "Deflect", inp([["enemy", "enemy projectile only"], ["both", "both projectiles"]], I.deflect_who, function (v) { I.deflect_who = v; changed(); })).title =
             "Enemy only: this projectile carries on. Both: this one is knocked away too. They fly off along their combined momentum.";
@@ -2075,7 +2080,7 @@ function drawTestShots(g, z) {
     g.fillStyle = "rgba(" + col + "," + a + ")"; g.beginPath(); g.arc(q.x, q.y, 2.5, 0, 6.2832); g.fill();
   });
   (S.bursts || []).forEach(function (q) {
-    var a = 1 - q.age / 14, col = q.mode === "block" ? "240,194,74" : q.mode === "destroy" ? "255,90,90" : "125,224,168";
+    var a = 1 - q.age / 14, col = q.mode === "block" ? "240,194,74" : q.mode === "destroy" ? "255,90,90" : q.mode === "clash" ? "200,130,255" : "125,224,168";
     g.strokeStyle = "rgba(" + col + "," + a + ")"; g.lineWidth = 1.5 / z;
     g.beginPath(); g.arc(q.x, q.y, 3 + q.age * 0.8, 0, 6.2832); g.stroke();
   });

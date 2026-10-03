@@ -542,13 +542,16 @@ class World:
                         continue
                     for inst in drv.player.insts:
                         fxd = inst.fx
-                        if (fxd["battle"]["deals_damage"] and not inst.dead and inst.age < inst.life
+                        if ((fxd["battle"]["deals_damage"] or fxkit.clash_on(fxd))
+                                and not inst.dead and inst.age < inst.life
                                 and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
                                 and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                             shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
                                                     "fx", inst,
                                                     blockable=fxd["battle"].get("blockable", True),
-                                                    deflectable=fxd["battle"].get("deflectable", True)))
+                                                    deflectable=fxd["battle"].get("deflectable", True),
+                                                    clash=fxkit.clash_on(fxd),
+                                                    knockback=fxkit.fx_knockback(fxd)))
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 side.enemy_shots = shots
