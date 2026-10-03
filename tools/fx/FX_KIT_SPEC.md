@@ -50,7 +50,8 @@ these characters; it plays the PNGs.
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false},
                                               {"type": "projectile_count", "count": 5}]},
-  "effects": [ { "...": "section 3" } ]
+  "effects": [ { "...": "section 3" } ],
+  "groups": [{"id": "G…", "name": "Group 1", "action": "attack_normal", "anchor": "haR", "offset": [0, 0]}]
 }
 ```
 
@@ -260,6 +261,18 @@ An effect can animate its numbers and custom colours over the action
   their direction. A deflected copy freezes at its values when deflected.
 - `rescaleEffects` / `rescale_effects` scale keyed distances the same way as
   the base settings.
+
+### Groups (`groups`, `group`) — Studio only
+
+An effect with `"group": "<id>"` belongs to that entry of `groups`. Every
+member shares the group's `anchor` (its pivot) and the same `flip` and
+`follow_dir`, and keeps its own `offset` from the pivot, so the group moves
+and re-attaches as one rigid piece. Grouping converts each member's spot on
+the current frame into an offset from the pivot. Moving the group adds the
+same delta to every member's `offset` and offset keys; the group's `offset`
+records the total move. Re-attaching sets every member's `anchor` and keeps
+the offsets. The saved effects already carry their final `anchor` and
+`offset`, so the game ignores `group` / `groups`.
 
 ## 3b. Entry points and paths (shared library)
 
@@ -563,6 +576,9 @@ are kept in the browser, and **Export**/**Import** moves them as a
 ```json
 {"format": "pb_fx_presets", "version": 1, "presets": [{"name": "…", "desc": "…", "effects": [ … ]}]}
 ```
+
+A group preset also has `"group": {"name", "anchor", "offset"}`; adding it
+makes a new group on the current action with its effects laid out as saved.
 
 The built-in characters (Swordsman, Runner) keep their original effect code.
 The presets only seed new FX.

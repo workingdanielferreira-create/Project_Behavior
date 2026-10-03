@@ -98,6 +98,17 @@ timing.
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets), and **Export**/**Import** moves them
   between machines.
+- **Groups.** Ctrl+click two or more effects in the effect list and press
+  **Group**. They now ride one pivot (the first one's joint) as a single
+  piece: each keeps its place relative to the others, and they share Flip and
+  Follow direction so they mirror and turn together. Click the ▣ group row to
+  edit it: **Pivot** re-attaches the whole group to another joint (or figure /
+  target) without changing its layout, **Move X / Y** shifts every member
+  equally, and on the stage you drag the ▣ handle (or Shift+drag anywhere).
+  A member's own Offset moves it within the group. **Save group as preset…**
+  stores the whole group as one preset; adding it brings the group back on
+  the current action. **Ungroup** (⊟) leaves every effect where it is.
+  Weapon hitboxes and ⊕ entry-set effects can't be grouped.
 - **Orb glow.** Orbs and bolts (sprite) have **Glow %** (brightness of the
   soft outer glow, 0 = none, 100 = as before) and **Glow size %** (how far it
   spreads). Both can be keyframed. *Soft petal orbs* is a dim-glow petal preset.

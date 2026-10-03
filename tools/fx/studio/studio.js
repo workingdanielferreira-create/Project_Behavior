@@ -17,7 +17,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
 var C = null;
-var S = {effects: [], anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
+var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -61,7 +61,7 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 function actionEffects() { return S.effects.filter(function (e) { return e.action === S.action; }); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { syncKeyView(); persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -69,7 +69,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, anchors: S.
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
+function snapState() { return JSON.stringify({e: S.effects, g: S.groups, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -85,13 +85,14 @@ function commitHist() {
 }
 function applyState(str) {
   var o = JSON.parse(str);
-  S.effects = o.e.map(FXK.normalize); S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
+  S.effects = o.e.map(FXK.normalize); S.groups = o.g || []; S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
   S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
   S.aim = FXK.normalizeAim(o.am);
   S.damaged = FXK.normalizeDamaged(o.dm);
   S.retreat = FXK.normalizeRetreat(o.rt);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
+  pruneGroups();
   if (S.selAnchor && !S.labels[S.selAnchor]) { S.selAnchor = null; S.place = false; }
   HIST.cur = str; persist(); rebuild(); resetSim(S.t); histUI();
 }
@@ -286,6 +287,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.anchors = clone(src.anchors || (man && man.anchors) || {});
     if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
     S.effects = (src.effects || []).map(function (e) { return FXK.normalize(clone(e)); });
+    S.groups = clone(src.groups || []); pruneGroups();
     S.actionCfg = clone(src.action_settings || {});
     S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
@@ -352,10 +354,11 @@ function finishOpen(man, acts, pack, name, local) {
   var ratio = S.srcScale ? (imgScale() / S.srcScale) * f : 1;
   if (Math.abs(ratio - 1) > 1e-3) {
     FXK.rescaleEffects(S.effects, {entry_sets: S.entries, paths: S.paths}, ratio);
+    S.groups.forEach(function (gr) { gr.offset = [(+gr.offset[0] || 0) * ratio, (+gr.offset[1] || 0) * ratio]; });
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.sel = null; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
+  S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
   $("empty").style.display = "none";
   rebuild(); resetSim(0); persist(); histReset();
@@ -397,6 +400,7 @@ function packData() {
     damaged: FXK.normalizeDamaged(clone(S.damaged)),
     retreat: FXK.normalizeRetreat(clone(S.retreat)),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
+    groups: clone(S.groups),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
 }
 function saveFx() {
@@ -453,20 +457,26 @@ function showPresetDesc() { var x = allPresets()[+$("presetSel").value]; $("pres
 function addPreset() {
   if (!C) return toast("Open a character folder first");
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
+  // A group preset comes in as a new group on this action, members still
+  // laid out around its pivot exactly as they were saved.
+  var gr = x.p.group ? newGroup(x.p.name, x.p.group.anchor || (x.p.effects[0] || {}).anchor || "figure", x.p.group.offset) : null;
   var added = x.p.effects.map(function (e) {
     var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = S.action;
+    if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
     if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: S.target[0] < S.figX - 0.001 ? -1 : 1};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
     return FXK.normalize(fx);
   });
-  S.effects = S.effects.concat(added); S.sel = added[0].id; rebuild(); resetSim(S.t); save();
+  S.effects = S.effects.concat(added); S.multi = [];
+  if (gr) { S.groups.push(gr); S.sel = null; S.selGroup = gr.id; } else S.sel = added[0].id;
+  rebuild(); resetSim(S.t); save();
   var missing = added.filter(function (fx) { return fx.anchor !== "figure" && fx.anchor !== "target" && !S.labels[fx.anchor]; });
-  if (missing.length) toast("This character has no \"" + missing[0].anchor + "\" anchor: add it under Anchors, or pick another joint.", 6000);
+  if (missing.length) toast("This character has no \"" + missing[0].anchor + "\" anchor: " + (gr ? "pick another Pivot for the group (its effects keep their layout)." : "add it under Anchors, or pick another joint."), 6000);
 }
 function savePreset() {
   var fx = selFx(); if (!fx) return;
   askText("Save this effect as a preset named:", fx.name, function (name) {
-  var e = clone(fx); delete e.id; delete e.action;
+  var e = clone(fx); delete e.id; delete e.action; delete e.group;
   var mine = userPresets().filter(function (p) { return p.name !== name; });
   mine.push({name: name, desc: "Your preset (" + fx.prim + ")", effects: [e]});
   if (!lsSet(LS_PRESETS, mine)) toast("Browser storage unavailable; use Export to keep presets.", 5000);
@@ -478,6 +488,131 @@ function ingestPresets(o) {
   var mine = userPresets(), n = 0;
   (o.presets || []).forEach(function (p) { if (p && p.name && p.effects) { mine = mine.filter(function (q) { return q.name !== p.name; }); mine.push(p); n++; } });
   lsSet(LS_PRESETS, mine); buildPresets(); toast("Imported " + n + " presets");
+}
+
+// ------------------------------------------------------------ groups
+// S.groups[i] = {id, name, action, anchor, offset}: effects with
+// fx.group === id ride ONE pivot (the group's anchor) and keep their own
+// offsets from it, so the group moves and re-attaches as a rigid unit.
+// The saved effects still carry a plain anchor + offset each (the game
+// never reads groups); gr.offset is how far the whole group was moved.
+var _gid = 1;
+function newGroup(name, anchor, offset) {
+  var off = offset || [0, 0];
+  return {id: "G" + Date.now().toString(36) + (_gid++), name: name, action: S.action, anchor: anchor, offset: [+off[0] || 0, +off[1] || 0]};
+}
+function groupById(id) { return S.groups.filter(function (gr) { return gr.id === id; })[0] || null; }
+function groupMembers(gr) { return S.effects.filter(function (e) { return e.group === gr.id; }); }
+function selGroup() { var gr = S.selGroup && groupById(S.selGroup); return gr && gr.action === S.action ? gr : null; }
+// Drop groups with no members, and memberships of groups that are gone.
+function pruneGroups() {
+  S.groups = (S.groups || []).filter(function (gr) { return S.effects.some(function (e) { return e.group === gr.id; }); });
+  S.effects.forEach(function (e) { if (e.group && !groupById(e.group)) delete e.group; });
+  if (S.selGroup && !groupById(S.selGroup)) S.selGroup = null;
+}
+function canGroup(fx) { return fx.prim !== "weapon" && fx.anchor.indexOf("set:") !== 0; }
+// Effect-local (x forward, y down) <-> world, the way its offset is applied.
+function fxTurn(fx, v, inverse) {
+  var deg = FXK.bodyDeg(fx, host) * (inverse ? -1 : 1), a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v;
+}
+function worldToLocal(fx, d) { var q = fxTurn(fx, d, true); return [q[0] * FXK.fxFacing(fx, host), q[1]]; }
+// Where the effect sits on the frame under the playhead (keyed offset included).
+function fxSpot(fx) { return jointAtFx(FXK.fxAt(fx, frameAt(S.t))); }
+// Shift an effect's offset (and every offset key) by d, in its local px.
+function shiftOffset(fx, d) {
+  var r = function (v) { return Math.round(v * 100) / 100; };
+  fx.offset = [r((+fx.offset[0] || 0) + d[0]), r((+fx.offset[1] || 0) + d[1])];
+  (fx.keys || []).forEach(function (k) {
+    if ("offset.0" in k.set) k.set["offset.0"] = r(+k.set["offset.0"] + d[0]);
+    if ("offset.1" in k.set) k.set["offset.1"] = r(+k.set["offset.1"] + d[1]);
+  });
+}
+// Group the Ctrl+clicked effects: every member moves onto the first one's
+// pivot, its spot on this frame turned into an offset from that pivot, so
+// nothing jumps.  Flip / Follow direction follow the first member so the
+// group mirrors and turns as one piece.
+function makeGroup() {
+  if (!C) return toast("Open a character folder first");
+  var ids = S.multi.slice(); if (S.sel && ids.indexOf(S.sel) < 0) ids.unshift(S.sel);
+  var picked = actionEffects().filter(function (e) { return ids.indexOf(e.id) >= 0; });
+  picked.sort(function (a, b) { return ids.indexOf(a.id) - ids.indexOf(b.id); });
+  var bad = picked.filter(function (e) { return !canGroup(e); });
+  if (bad.length) return toast("\"" + bad[0].name + "\" can't be grouped: weapon hitboxes and entry-set (⊕) effects use their own anchors.", 6000);
+  if (picked.length < 2) return toast("Ctrl+click two or more effects in the list, then press Group.");
+  var lead = picked[0], pivot = lead.anchor, spots = picked.map(fxSpot);
+  var gr = newGroup("Group " + (S.groups.filter(function (x) { return x.action === S.action; }).length + 1), pivot);
+  picked.forEach(function (fx, i) {
+    if (fx !== lead) { fx.flip = clone(lead.flip); fx.follow_dir = lead.follow_dir; }
+    var now = FXK.fxAt(fx, frameAt(S.t)).offset;
+    fx.anchor = pivot; fx.group = gr.id;
+    var b = jointAt(pivot, frameAt(S.t)), want = worldToLocal(fx, [spots[i][0] - b[0], spots[i][1] - b[1]]);
+    shiftOffset(fx, [want[0] - (+now[0] || 0), want[1] - (+now[1] || 0)]);
+  });
+  S.groups.push(gr); pruneGroups();
+  S.multi = []; S.sel = null; S.selGroup = gr.id;
+  rebuild(); resetSim(S.t); save();
+  toast("Grouped " + picked.length + " effects on " + (S.labels[pivot] || pivot) + ".");
+}
+function moveGroup(gr, d) {
+  if (!d[0] && !d[1]) return;
+  groupMembers(gr).forEach(function (fx) { shiftOffset(fx, d); });
+  gr.offset = [Math.round((gr.offset[0] + d[0]) * 100) / 100, Math.round((gr.offset[1] + d[1]) * 100) / 100];
+}
+// Re-attach: every member takes the new pivot and keeps its offset, so the
+// layout is unchanged and the whole group now rides the new joint.
+function attachGroup(gr, anchor) { gr.anchor = anchor; groupMembers(gr).forEach(function (fx) { fx.anchor = anchor; }); }
+function ungroup(gr) {
+  groupMembers(gr).forEach(function (fx) { delete fx.group; });
+  S.groups = S.groups.filter(function (x) { return x !== gr; });
+  if (S.selGroup === gr.id) S.selGroup = null;
+  rebuild(); resetSim(S.t); save(); toast("Ungrouped " + gr.name + ": every effect stays where it is.");
+}
+// Flip / Follow direction changed on one member: the rest follow it.
+function syncGroupTurn(fx) {
+  var gr = fx.group && groupById(fx.group); if (!gr) return;
+  groupMembers(gr).forEach(function (e) { if (e !== fx) { e.flip = clone(fx.flip); e.follow_dir = fx.follow_dir; } });
+}
+// The group's handle on the stage: the middle of its members on this frame.
+function groupCentre(gr) {
+  var ms = groupMembers(gr); if (!ms.length) return null;
+  var sx = 0, sy = 0; ms.forEach(function (fx) { var p = fxSpot(fx); sx += p[0]; sy += p[1]; });
+  return [sx / ms.length, sy / ms.length];
+}
+function saveGroupPreset(gr) {
+  askText("Save this group as a preset named:", gr.name, function (name) {
+    var ms = groupMembers(gr).map(function (fx) { var e = clone(fx); delete e.id; delete e.action; delete e.group; return e; });
+    var mine = userPresets().filter(function (p) { return p.name !== name; });
+    mine.push({name: name, desc: "Your group preset (" + ms.length + " effects on one pivot)", group: {name: gr.name, anchor: gr.anchor, offset: gr.offset.slice()}, effects: ms});
+    if (!lsSet(LS_PRESETS, mine)) toast("Browser storage unavailable; use Export to keep presets.", 5000);
+    buildPresets(); toast("Saved group preset " + name);
+  });
+}
+function buildGroupProps(d, gr) {
+  var ms = groupMembers(gr);
+  banner(d, "fx", "Editing a group", "▣ " + gr.name, ms.length + " effects on the " + gr.action + " action, riding one pivot. Moving or re-attaching the group keeps every effect's place relative to the others.",
+    ["Done", function () { S.selGroup = null; buildEffects(); buildProps(); draw(); }]);
+  var s = sec(d, "Group", "group", "The pivot every member rides, and where the whole group sits on it.");
+  field(s, "Name", inp("text", gr.name, function (v) { gr.name = v; buildEffects(); save(); }));
+  field(s, "Pivot", inp([["figure", "figure (image centre)"], ["target", "target"]].concat(anchorOptions(false)), gr.anchor, function (v) {
+    attachGroup(gr, v); changed(true); buildEffects();
+  })).title = "The joint the whole group rides. Changing it moves the group onto the new joint; the effects keep their layout.";
+  field(s, "Move X px", inp("n", gr.offset[0], function (v) { moveGroup(gr, [v - gr.offset[0], 0]); changed(); }, -500, 500, 0.5));
+  field(s, "Move Y px", inp("n", gr.offset[1], function (v) { moveGroup(gr, [0, v - gr.offset[1]]); changed(); }, -500, 500, 0.5));
+  note(s, "Or drag the ▣ handle on the stage (Shift+drag anywhere also moves the group). X is forward, mirrored when facing left.");
+  s = sec(d, "Members", "groupmembers", "Click one to edit it; its own Offset moves it within the group.");
+  ms.forEach(function (fx) {
+    var r = document.createElement("div"); r.className = "row";
+    var b = document.createElement("button"); b.textContent = fx.name + " · " + fx.prim; b.style.flex = "1";
+    b.onclick = function () { S.sel = fx.id; S.selGroup = null; buildEffects(); buildProps(); buildTimeline(); };
+    var x = document.createElement("button"); x.textContent = "Remove"; x.title = "Take it out of the group (it stays where it is)";
+    x.onclick = function () { delete fx.group; pruneGroups(); rebuild(); resetSim(S.t); save(); };
+    r.appendChild(b); r.appendChild(x); s.appendChild(r);
+  });
+  var r = document.createElement("div"); r.className = "row";
+  var bp = document.createElement("button"); bp.textContent = "Save group as preset…"; bp.onclick = function () { saveGroupPreset(gr); };
+  var bu = document.createElement("button"); bu.textContent = "Ungroup"; bu.onclick = function () { ungroup(gr); };
+  r.appendChild(bp); r.appendChild(bu); d.appendChild(r);
 }
 
 // ------------------------------------------------------------ lists
@@ -530,8 +665,12 @@ function anchorTools() {
 }
 function buildEffects() {
   var d = $("effects"); d.innerHTML = "";
-  actionEffects().forEach(function (fx) {
-    var el = document.createElement("div"); el.className = fx.id === S.sel ? "sel" : "";
+  var list = actionEffects(), shown = {}, sg = !S.sel && selGroup();
+  S.multi = S.multi.filter(function (id) { return list.some(function (e) { return e.id === id; }); });
+  // Ctrl+click picks several effects (for Group); a plain click selects one.
+  function row(fx, member) {
+    var el = document.createElement("div");
+    el.className = (fx.id === S.sel ? "sel" : "") + (S.multi.indexOf(fx.id) >= 0 ? " multi" : "") + (member ? " gm" : "");
     el.innerHTML = '<input type="checkbox"><span class="n"></span><span class="m"></span><span class="ct"></span><span class="x" title="Duplicate">⧉</span><span class="x" title="Delete">✕</span>';
     var cb = el.querySelector("input"); cb.checked = fx.enabled; cb.title = "Enabled";
     cb.onclick = function (ev) { ev.stopPropagation(); fx.enabled = cb.checked; resetSim(S.t); save(); };
@@ -547,13 +686,39 @@ function buildEffects() {
     };
     el.querySelector(".n").textContent = fx.name;
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
-    el.title = fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages";
+    el.title = (fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages") + ". Ctrl+click to pick several for Group.";
     var xs = el.querySelectorAll(".x");
     xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(fx); c.id = FXK.newEffect(c.prim).id; c.name += " copy"; S.effects.push(c); S.sel = c.id; rebuild(); resetSim(S.t); save(); };
-    xs[1].onclick = function (ev) { ev.stopPropagation(); S.effects = S.effects.filter(function (e) { return e !== fx; }); if (S.sel === fx.id) S.sel = null; rebuild(); resetSim(S.t); save(); };
-    el.onclick = function () { S.sel = fx.id; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); };
+    xs[1].onclick = function (ev) { ev.stopPropagation(); S.effects = S.effects.filter(function (e) { return e !== fx; }); if (S.sel === fx.id) S.sel = null; pruneGroups(); rebuild(); resetSim(S.t); save(); };
+    el.onclick = function (ev) {
+      if (ev.ctrlKey || ev.metaKey) {
+        if (S.sel && S.multi.indexOf(S.sel) < 0 && S.sel !== fx.id) S.multi.push(S.sel);
+        var i = S.multi.indexOf(fx.id); if (i >= 0) S.multi.splice(i, 1); else S.multi.push(fx.id);
+        buildEffects(); return;
+      }
+      S.multi = []; S.sel = fx.id; S.selGroup = null; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline();
+    };
     d.appendChild(el);
+  }
+  list.forEach(function (fx) {
+    if (shown[fx.id]) return;
+    var gr = fx.group && groupById(fx.group);
+    if (!gr) { row(fx, false); return; }
+    var ms = list.filter(function (e) { return e.group === gr.id; });
+    var h = document.createElement("div"); h.className = "grp" + (sg === gr ? " sel" : "");
+    h.innerHTML = '<span class="tw"></span><span class="n"></span><span class="m"></span><span class="x" title="Ungroup (every effect stays where it is)">⊟</span>';
+    h.querySelector(".tw").textContent = gr.collapsed ? "▸" : "▾";
+    h.querySelector(".tw").onclick = function (ev) { ev.stopPropagation(); gr.collapsed = !gr.collapsed; buildEffects(); save(); };
+    h.querySelector(".n").textContent = "▣ " + gr.name;
+    h.querySelector(".m").textContent = ms.length + " fx · " + (S.labels[gr.anchor] || gr.anchor);
+    h.title = "Group: click to move it, re-attach it to another pivot or save it as a preset.";
+    h.querySelector(".x").onclick = function (ev) { ev.stopPropagation(); ungroup(gr); };
+    h.onclick = function () { S.sel = null; S.multi = []; S.selGroup = gr.id; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); };
+    d.appendChild(h);
+    ms.forEach(function (e) { shown[e.id] = 1; if (!gr.collapsed) row(e, true); });
   });
+  var bg = $("bGroup");
+  if (bg) { var n = S.multi.length + (S.sel && S.multi.length && S.multi.indexOf(S.sel) < 0 ? 1 : 0); bg.textContent = n > 1 ? "Group " + n + " selected" : "Group"; bg.disabled = n < 2; }
 }
 
 // ------------------------------------------------------------ paths & entry points
@@ -1028,6 +1193,8 @@ function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
+  if (fx) S.selGroup = null;
+  else if (C && selGroup()) return buildGroupProps(d, selGroup());
   if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
   PROPS_FRAME = frameAt(S.t);
   fx = keyViewFor(fx);
@@ -1043,7 +1210,7 @@ function buildProps() {
     field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"]], fx.layer, function (v) { fx.layer = v; changed(); }));
     field(s, "Blend", inp(["normal", "additive"], fx.blend, function (v) { fx.blend = v; changed(); }));
   }
-  field(s, "Action", inp(Object.keys(C.actions), fx.action, function (v) { fx.action = v; S.action = v; rebuild(); resetSim(0); save(); }));
+  field(s, "Action", inp(Object.keys(C.actions), fx.action, function (v) { fx.action = v; S.action = v; delete fx.group; pruneGroups(); rebuild(); resetSim(0); save(); }));
 
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
@@ -1080,6 +1247,13 @@ function buildProps() {
 
   s = sec(d, fx.prim === "weapon" ? "Hitbox (from anchor → to anchor)" : "Anchor", "anchor",
     fx.prim === "weapon" ? "The two character anchors the hitbox runs between, frame by frame." : "Where on the character it starts: an anchor, or ⊕ an entry-point set (from Paths & entry points), plus an offset.");
+  var fgr = fx.group && groupById(fx.group);
+  if (fgr) {
+    note(s, "Part of group \"" + fgr.name + "\": it rides the group's pivot (" + (S.labels[fgr.anchor] || fgr.anchor) + "). Its offset places it within the group.");
+    var eg = document.createElement("button"); eg.textContent = "Edit group ▣ " + fgr.name;
+    eg.onclick = function () { S.sel = null; S.selGroup = fgr.id; buildEffects(); buildProps(); buildTimeline(); };
+    s.appendChild(eg);
+  } else
   field(s, fx.prim === "weapon" ? "From anchor" : "Joint", inp(anchorOptions(fx.prim !== "weapon"), fx.anchor, function (v) { fx.anchor = v; changed(); }));
   if (fx.prim !== "weapon" && fx.anchor.indexOf("set:") === 0) {
     var es = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0];
@@ -1135,14 +1309,15 @@ function buildProps() {
 
     s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right to whichever side the target is on. Follow direction: turn toward the target at any angle.");
     var F = fx.flip;
-    field(s, "Flip", inp("chk", F.enabled, function (v) { F.enabled = v; changed(true); })).title =
+    if (fgr) note(s, "Shared by every effect in group \"" + fgr.name + "\", so the group mirrors and turns as one piece.");
+    field(s, "Flip", inp("chk", F.enabled, function (v) { F.enabled = v; syncGroupTurn(fx); changed(true); })).title =
       "On: the effect plays on the side the target is on. When the target is on the other side from \"created side\", the whole effect plays as a mirror image: arc side and sweep, orbit spin and zigzag swing included. Off: it follows the fighter's facing only.";
     if (F.enabled) {
-      field(s, "Created side", inp([["1", "target right"], ["-1", "target left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; changed(true); })).title =
+      field(s, "Created side", inp([["1", "target right"], ["-1", "target left"]], String(F.facing), function (v) { F.facing = +v < 0 ? -1 : 1; syncGroupTurn(fx); changed(true); })).title =
         "The side the target was on when this effect was authored. It plays as authored with the target on this side, and mirrored with the target on the other side.";
       note(s, "Target " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Target " + (F.facing < 0 ? "right" : "left") + ": mirrored left \u2194 right (never up \u2194 down). Drag the target across the fighter to preview both.");
     }
-    field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; changed(true); })).title =
+    field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; syncGroupTurn(fx); changed(true); })).title =
       "On: the whole effect turns toward the target. As authored it points straight ahead; with the target above or below it turns by that angle (offsets, arc, particles, orbit and paths included). Target-aimed effects already aim at the target.";
     if (fx.follow_dir) note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
       : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
@@ -1857,6 +2032,7 @@ function draw() {
   drawTestShots(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
+  drawGroup(g, z);
   // target + hurt radius (the circle damaging FX must touch)
   var hr = host.hurt.r, lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
   g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
@@ -1899,6 +2075,24 @@ function draw() {
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
   $("frameInfo").textContent = "frame " + fr;
   placeHead();
+}
+
+// The selected group: its pivot, a line to each member, a dashed box round
+// them and the ▣ handle (drag it, or Shift+drag anywhere, to move the group).
+function drawGroup(g, z) {
+  var gr = !S.sel && selGroup(); if (!gr) return;
+  var c = groupCentre(gr); if (!c) return;
+  var pv = jointAt(gr.anchor, frameAt(S.t)), spots = groupMembers(gr).map(fxSpot);
+  var x0 = c[0], y0 = c[1], x1 = c[0], y1 = c[1];
+  g.strokeStyle = "rgba(125,224,168,.55)"; g.lineWidth = 1 / z; g.beginPath();
+  spots.forEach(function (p) { g.moveTo(pv[0], pv[1]); g.lineTo(p[0], p[1]); x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+  g.stroke();
+  var pad = 6 / z; g.setLineDash([4 / z, 3 / z]); g.strokeRect(x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2); g.setLineDash([]);
+  g.fillStyle = "#7de0a8"; g.beginPath(); g.arc(pv[0], pv[1], 3 / z, 0, 6.2832); g.fill();
+  var h = 5 / z; g.fillStyle = "rgba(125,224,168,.9)"; g.fillRect(c[0] - h, c[1] - h, h * 2, h * 2);
+  g.strokeStyle = isLight() ? "#000" : "#0b0d11"; g.strokeRect(c[0] - h, c[1] - h, h * 2, h * 2);
+  g.fillStyle = isLight() ? "rgba(0,0,0,.85)" : "rgba(220,230,240,.85)"; g.font = (9 / z) + "px sans-serif";
+  g.fillText("▣ " + gr.name + " on " + (S.labels[gr.anchor] || gr.anchor), x0 - pad, y0 - pad - 3 / z);
 }
 
 // ------------------------------------------------------------ modal
@@ -1969,6 +2163,7 @@ $("bGeoPresetDel").onclick = function () {
     geoRefreshPresets();
   });
 };
+$("bGroup").onclick = makeGroup;
 $("presetSel").onchange = showPresetDesc; $("bPreset").onclick = addPreset;
 $("bPresetDel").onclick = function () {
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
@@ -2054,6 +2249,10 @@ cv.addEventListener("pointerdown", function (e) {
     if ($("autoNext").checked && fr < frames() - 1) gotoFrame(fr + 1); else resetSim(S.t);
     return;
   }
+  var gsel = e.button === 0 && !S.sel && selGroup(), gc = gsel && groupCentre(gsel);
+  if (gc && (e.shiftKey || Math.hypot(w[0] - gc[0], w[1] - gc[1]) * zoom() <= 9)) {
+    drag = {kind: "group", gr: gsel, last: w}; cv.setPointerCapture(e.pointerId); return;
+  }
   drag = e.button === 0 ? {kind: "target"} : {kind: "pan", x: e.clientX, y: e.clientY, p: S.pan.slice()};
   if (drag.kind === "target") { S.target = w; if (!S.playing) resetSim(S.t); }
   cv.setPointerCapture(e.pointerId);
@@ -2061,10 +2260,15 @@ cv.addEventListener("pointerdown", function (e) {
 cv.addEventListener("pointermove", function (e) {
   if (!drag) return;
   var r = cv.getBoundingClientRect();
-  if (drag.kind === "target") { S.target = toWorld(e.clientX - r.left, e.clientY - r.top); if (!S.playing) resetSim(S.t); }
+  if (drag.kind === "group") {
+    var w = toWorld(e.clientX - r.left, e.clientY - r.top), lead = groupMembers(drag.gr)[0];
+    if (lead) moveGroup(drag.gr, worldToLocal(lead, [w[0] - drag.last[0], w[1] - drag.last[1]]));
+    drag.last = w; drag.moved = true; if (!S.playing) resetSim(S.t);
+  }
+  else if (drag.kind === "target") { S.target = toWorld(e.clientX - r.left, e.clientY - r.top); if (!S.playing) resetSim(S.t); }
   else S.pan = [drag.p[0] + e.clientX - drag.x, drag.p[1] + e.clientY - drag.y];
 });
-cv.addEventListener("pointerup", function () { drag = null; });
+cv.addEventListener("pointerup", function () { var d = drag; drag = null; if (d && d.kind === "group" && d.moved) { buildProps(); save(); } });
 cv.addEventListener("wheel", function (e) { e.preventDefault(); var z = zoom() * (e.deltaY < 0 ? 1.15 : 1 / 1.15); $("zoom").value = Math.round(Math.max(0.5, Math.min(40, z)) * 100) / 100; }, {passive: false});
 // drag-and-drop: a whole character folder, or its files
 var dropEl = $("drop");
