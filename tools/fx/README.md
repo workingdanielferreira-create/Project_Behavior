@@ -48,14 +48,17 @@ timing.
   knockback). It hits wherever its drawn shape touches the target's hurt
   circle.
 - **Keyframes (per effect).** Animate an effect's numbers and colours over
-  the action. Move the playhead to a frame, press **◆ + Key at frame N** in
-  the effect's *Keyframes* section, then change any number or colour below:
-  it's stored in that key (chips list what each key sets; × removes one).
-  Values move from the previous key into each key along its **ease**
-  (Linear, Ease in / out / in-out, Strong in / out / in-out, Hold, Bounce,
-  Elastic) and hold after the last key. The effect's own settings are the
-  start. Keys show as ◆ on the effect's timeline row; click one to edit it.
-  Shots already flying follow the animation (e.g. speed 20 → 100 mid-flight).
+  the action. Press **◆ + Key at frame N** to add the first key. From then
+  on the effect's panel edits the frame under the playhead: move the
+  playhead (timeline or ← →) and change any number or colour, and it's
+  stored in the key on that frame (a key is added there if there isn't one
+  yet). Between keys the panel shows the in-between values. Each key's
+  **ease** (Linear, Ease in / out / in-out, Strong in / out / in-out, Hold,
+  Bounce, Elastic) shapes the change from the previous key, spread across
+  every frame in between; values hold after the last key. The effect's own
+  settings are the start (playhead on the start frame). Keys show as ◆ on the
+  effect's timeline row; click one to jump there. Shots already flying follow
+  the animation (e.g. speed 20 → 100 mid-flight).
 - **Flip & direction.** Tick **Flip** on an effect to make it play on the
   side the target is on: drag the target behind the fighter and the effect
   mirrors left ↔ right to face it (never up ↔ down), arc sweep and orbit
@@ -86,8 +89,11 @@ timing.
 - **Presets.** Grouped in the list: Trails, Slashes, Shots, Beams, Orbs &
   auras, Bursts & afterimages, plus special abilities: **Fire** (Fireball,
   Flame slash, Eruption), **Lightning** (Chain lightning, Thunder strike,
-  Spark volley), **Shadow** (Void orb, Shadow dash, Void collapse) and
-  **Holy** (Radiant beam, Halo burst). The first groups rebuild the game's
+  Spark volley), **Shadow** (Void orb, Shadow dash, Void collapse),
+  **Holy** (Radiant beam, Halo burst), **Ice & wind** (Ice shards, Frost
+  nova, Wind blades, Cyclone), **Earth & poison** (Quake, Toxic cloud),
+  **Arcane & cosmic** (Arcane missiles, Rune circle, Meteor, Starfall) and
+  **Energy** (Charged laser). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets), and **Export**/**Import** moves them
