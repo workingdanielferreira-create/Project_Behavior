@@ -281,7 +281,57 @@ G.FX_PRESETS = [
       motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ffffff", c2: "#ff3a5a"},
       params: {length: 420, w_start0: 7, w_start1: 7, w_end0: 4, w_end1: 4, segments: 1, glow: 10, glow_color: "#ff6a80", pulse_hz: 14, jitter: 0, grow_ticks: 3},
       keys: [{frame: 12, ease: "linear", set: {"params.glow": 12}},
-             {frame: 18, ease: "strong_in", set: {"params.w_start0": 1, "params.w_start1": 1, "params.w_end0": 0.5, "params.w_end1": 0.5, "params.glow": 1}}]}]}
+             {frame: 18, ease: "strong_in", set: {"params.w_start0": 1, "params.w_start1": 1, "params.w_end0": 0.5, "params.w_end1": 0.5, "params.glow": 1}}]}]},
+  // Radiant core: visual only, built for a 30+ frame action.  The core grows from nothing
+  // (frames 0-20); once it passes half size (frame 10) the light halo and rays fade in
+  // (additive, keyed up from black); frames 24-30 the rays retract into the core.
+  // A held beam re-aims every tick (emit fan is not kept), so each ray is its own effect.
+  // 10 bright solid rays (tips dim over the last 25%, width set by each ray's 3D depth) over 16 faint
+  // rays that fade from core to tip; all spin clockwise at a constant 6 deg/frame (angle keyed to +120 by frame 30).
+  {name: "Radiant core", group: "Energy", desc: "Energy charges from nothing into a light source; past half size light rays fade in, then retract into the core (frames 0-30)",
+   effects: [
+     {prim: "glow", name: "Core charge", tag: "energy", anchor: "figure", start_frame: 0, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "solid", c1: "#8ff2ff"}, params: {r_start: 0, r_end: 0, a_center: 150, a_mid: 60, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 6},
+      keys: [{frame: 20, ease: "inout", set: {"params.r_start": 16, "params.r_end": 16, "params.core_r": 5, "params.a_center": 255, "params.a_mid": 120}},
+             {frame: 24, ease: "linear", set: {"params.r_start": 16, "params.r_end": 16, "params.core_r": 5}},
+             {frame: 30, ease: "strong_in", set: {"params.r_start": 19, "params.r_end": 19, "params.core_r": 7}}]},
+     {prim: "glow", name: "Light halo", tag: "energy", anchor: "figure", start_frame: 10, motion: {kind: "attached"}, layer: "behind", blend: "additive",
+      color: {mode: "solid", c1: "#000000"}, params: {r_start: 8, r_end: 8, a_center: 200, a_mid: 70, mid: 0.3, core_r: 0, fade: "none", pulse_hz: 0},
+      keys: [{frame: 18, ease: "out", set: {"color.c1": "#1aa8d8", "params.r_start": 44, "params.r_end": 44}},
+             {frame: 24, ease: "linear", set: {"color.c1": "#1aa8d8", "params.r_start": 44, "params.r_end": 44}},
+             {frame: 30, ease: "strong_in", set: {"color.c1": "#0a4a60", "params.r_start": 14, "params.r_end": 14}}]},
+     {prim: "particles", name: "Core sparkles", tag: "energy", anchor: "figure", start_frame: 0, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#3fd8ff"},
+      params: {mode: "stream", rate_per_s: 0, angle_deg: 0, spread_deg: 360, speed_min: 20, speed_max: 90, gravity: 0, drag: 0.93,
+               size_min: 1.5, size_max: 3.5, size_over_life: "pulse", life_min_ms: 250, life_max_ms: 650},
+      keys: [{frame: 20, ease: "in", set: {"params.rate_per_s": 160}},
+             {frame: 24, ease: "linear", set: {"params.rate_per_s": 160}},
+             {frame: 30, ease: "strong_in", set: {"params.rate_per_s": 0}}]}
+   ].concat([[15.9, 82], [23.4, 83], [57.7, 80], [74.2, 83], [102.1, 82], [109.0, 40], [118.0, 84], [154.4, 83],
+             [164.5, 79], [197.6, 78], [217.1, 58], [238.3, 78], [276.4, 57], [296.5, 65], [323.4, 81], [343.0, 73]
+   ].map(function (r, i) {   // faint inner rays: [angle deg, length px], fade from core to tip
+     var deg = r[0], len = r[1], w = 2.4 + 1.4 * len / 84, wt = w * 1.18;
+     return {prim: "beam", name: "Faint ray " + (i + 1), tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
+       motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
+       params: {length: len, w_start0: w, w_start1: w, w_end0: wt, w_end1: wt, segments: 2, glow: 3, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 0, tip_fade: 0},
+       keys: [{frame: 16 + (i % 3), ease: "out", set: {"color.c1": "#3f8896", "color.c2": "#000000"}},
+              {frame: 24, ease: "linear", set: {"params.length": len}},
+              {frame: 30, ease: "strong_in", set: {"params.length": 0}},
+              {frame: 30, ease: "linear", set: {"motion.angle_deg": deg + 120}}]};   // constant clockwise spin
+   })).concat([[24.3, 164, 1.08], [26.2, 117, 0.4], [92.6, 111, 0.35], [104.1, 165, 1.09], [166.2, 126, 2.14],
+             [231.0, 145, 0.76], [235.6, 137, 2.1], [303.1, 99, 0.35], [330.3, 171, 1.23], [357.3, 122, 2.15]
+   ].map(function (r, i) {   // bright rays: [angle deg, length px, tip/base width] from a random 3D direction:
+     // leaning toward the viewer widens the tip (wedge), leaning into the background narrows it
+     var deg = r[0], len = r[1], w = 5, wt = w * r[2];
+     return {prim: "beam", name: "Bright ray " + (i + 1), tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
+       motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "solid", c1: "#000000"},
+       params: {length: len, w_start0: w, w_start1: w, w_end0: wt, w_end1: wt, segments: 2, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 0,
+                tip_fade: 0.25},   // solid, dimming over the last 25% of its length
+       keys: [{frame: 15 + (i % 3), ease: "out", set: {"color.c1": "#c4ffff"}},
+              {frame: 24, ease: "linear", set: {"params.length": len}},
+              {frame: 30, ease: "strong_in", set: {"params.length": 0}},
+              {frame: 30, ease: "linear", set: {"motion.angle_deg": deg + 120}}]};   // constant clockwise spin
+   }))}
 
 ];
 })(window);
