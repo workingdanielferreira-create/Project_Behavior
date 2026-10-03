@@ -79,6 +79,12 @@ timing.
   to play for as long as the dash lasts. FX that stay on the fighter are held
   for the dash; shots keep firing on their action's timing. It still plays on
   its own action too.
+- **FX scale with the fighter.** Build FX at **pscale** 1 (the fighter's
+  base size). In the game, and in the Studio when you raise **pscale**, every
+  FX distance grows with the fighter's on-screen size, like a zoom: offsets,
+  entry points, orbits, paths, beam length, arc placement, particle spread
+  and gravity, intercept range, and shot speed (so range scales too). Shots
+  keep the size they were fired at.
 - **Triggered reactions (Actions panel).** Under the actions list, a
   *Triggered reactions* subsection always lists **⚡ Tactical retreat** and
   **⚡ Blink** ("(off)" until switched on). Select one to build FX that play

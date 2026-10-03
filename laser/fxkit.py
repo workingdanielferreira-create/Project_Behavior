@@ -554,6 +554,19 @@ def life_t(inst):
     return min(1.0, inst.age / max(1, inst.win if inst.cont else inst.life))
 
 
+# ---------------------------------------------------------------- figure size
+# Every FX distance is authored at the figure's base size (FX Studio pscale 1)
+# and multiplied by its on-screen size (host.pscale, combat.position_scale)
+# the same way widths and radii are, so a fighter drawn 3x shows its FX as a
+# 3x zoom of what was built.  Placement around the body (offsets, entry
+# points, orbit radius, path shape, beam length / jitter, arc placement,
+# ribbon spacing) follows the figure's current size; what is launched (shot
+# speed, zigzag sway, particle speed / gravity, intercept range) keeps the
+# size it was fired at (inst.ps).  FXK.hostScale mirrors this.
+def host_scale(host):
+    return float(getattr(host, "pscale", None) or 1.0)
+
+
 # ---------------------------------------------------------------- entry sets / paths
 def lib_find(host, key, ident):
     lib = host.lib
@@ -576,7 +589,8 @@ def entry_set_of(fx, host):
 def entry_point(eset, k, host, deg=0.0, f=None):
     b = host.anchor(eset.get("base") or "figure")
     q = eset["points"][k] if k < len(eset["points"]) else [0, 0]
-    o = turn_by([q[0] * (host.facing if f is None else f), q[1]], deg)
+    ps = host_scale(host)
+    o = turn_by([q[0] * ps * (host.facing if f is None else f), q[1] * ps], deg)
     return [b[0] + o[0], b[1] + o[1]]
 
 
@@ -592,14 +606,15 @@ def anchor_pos(fx, host, ep=None):
     else:
         p = host.anchor(a)
     off = fx.get("offset") or [0, 0]
-    o = turn_by([float(off[0] or 0) * f, float(off[1] or 0)], deg)
+    ps = host_scale(host)
+    o = turn_by([float(off[0] or 0) * ps * f, float(off[1] or 0) * ps], deg)
     return [p[0] + o[0], p[1] + o[1]]
 
 
 def orbit_pos(inst, host, c):
     """Orbit position around centre c (flip mirrors its side and spin)."""
-    m = inst.fx["motion"]
-    o = turn_by([math.cos(inst.orbitA * D) * m["orbit_rx"] * inst.flip, math.sin(inst.orbitA * D) * m["orbit_ry"]],
+    m, ps = inst.fx["motion"], host_scale(host)
+    o = turn_by([math.cos(inst.orbitA * D) * m["orbit_rx"] * ps * inst.flip, math.sin(inst.orbitA * D) * m["orbit_ry"] * ps],
                 body_deg(inst.fx, host))
     return [c[0] + o[0], c[1] + o[1]]
 
@@ -665,6 +680,8 @@ def path_step(inst, host):
         local = [e[0] + ld[0] * (k - 1) * pl["len"], e[1] + ld[1] * (k - 1) * pl["len"]]
     else:
         local, ld = path_at(pl, k)
+    ps = host_scale(host)
+    local = [local[0] * ps, local[1] * ps]
     M = inst.pm
     inst.x = inst.po[0] + M[0] * local[0] + M[1] * local[1]
     inst.y = inst.po[1] + M[2] * local[0] + M[3] * local[1]
@@ -690,7 +707,7 @@ class Inst:
     __slots__ = ("fx", "x", "y", "px", "py", "vx", "vy", "dir", "age", "life", "seed", "r", "flow", "dead", "hist",
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
-                 "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd")
+                 "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps")
 
     def __init__(self):
         self.chase = False     # intercept: steering at an enemy projectile
@@ -707,6 +724,7 @@ class Inst:
         self.t0 = 0
         self.fms = 100.0
         self.spd = 0.0
+        self.ps = 1.0          # figure size when fired (host_scale)
 
 
 def emit_particles(inst, fx, host, n):
@@ -715,8 +733,8 @@ def emit_particles(inst, fx, host, n):
     if inst.facing < 0:
         base = math.pi - base
     base += body_deg(fx, host) * D   # Follow direction: turns toward the target
-    smin = float(P["speed_min"])
-    smax = max(smin, float(P["speed_max"]))
+    smin = float(P["speed_min"]) * inst.ps
+    smax = max(smin, float(P["speed_max"]) * inst.ps)
     s0 = max(0.5, float(P["size_min"]))
     s1 = max(s0, float(P["size_max"]))
     l0 = max(1.0, float(P["life_min_ms"]))
@@ -763,6 +781,8 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.last_hit = -1e9
     inst.ep = ep
     spd = float(m["speed"] or 0)
+    ps = host_scale(host)
+    inst.ps = ps     # the figure's size when fired: what is launched keeps it
     inst.spd = spd   # keyframed speed: move_inst rescales the velocity when it changes
     if m["kind"] == "path":
         inst.path = lib_find(host, "paths", m.get("path"))
@@ -771,10 +791,10 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
             inst.po = list(p)
             inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host), ef)
     if m["kind"] in ("travel", "homing", "zigzag"):
-        inst.vx, inst.vy = d[0] * spd, d[1] * spd
+        inst.vx, inst.vy = d[0] * spd * ps, d[1] * spd * ps
     if m["kind"] == "zigzag":
-        pr = [-inst.vy / spd * side, inst.vx / spd * side] if spd > 0.001 else [0, side]
-        inst.zx, inst.zy = pr[0] * m["amplitude"], pr[1] * m["amplitude"]
+        pr = [-d[1] * side, d[0] * side] if spd > 0.001 else [0, side]
+        inst.zx, inst.zy = pr[0] * m["amplitude"] * ps, pr[1] * m["amplitude"] * ps
         inst.phase = math.pi * idx if n > 1 else 0.0
     if m["kind"] == "orbit":
         inst.orbitA = 360.0 * idx / max(1, n)
@@ -790,11 +810,11 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         inst.centre_deg = angle_deg_qt(-od[1] * sd, od[0] * sd)
         tg = host.target
         if P["placement"] == "wrap_target":
-            inst.x, inst.y = tg[0] - od[0] * P["back"], tg[1] - od[1] * P["back"]
+            inst.x, inst.y = tg[0] - od[0] * P["back"] * ps, tg[1] - od[1] * P["back"] * ps
         elif P["placement"] == "through_target":
-            R = P["radius"] * sd
-            inst.x = tg[0] + od[1] * R - od[0] * P["lead"]
-            inst.y = tg[1] - od[0] * R - od[1] * P["lead"]
+            R = P["radius"] * ps * sd
+            inst.x = tg[0] + od[1] * R - od[0] * P["lead"] * ps
+            inst.y = tg[1] - od[0] * R - od[1] * P["lead"] * ps
     if fx["prim"] == "particles" and fx["params"]["mode"] == "burst":
         emit_particles(inst, fx, host, trunc(fx["params"]["count"]))
     if fx["prim"] == "weapon":
@@ -824,7 +844,7 @@ def move_inst(inst, host):
                 inst.vx *= f
                 inst.vy *= f
             else:
-                inst.vx, inst.vy = inst.dir[0] * ns, inst.dir[1] * ns
+                inst.vx, inst.vy = inst.dir[0] * ns * inst.ps, inst.dir[1] * ns * inst.ps
             inst.spd = ns
     if fx["prim"] == "weapon":
         b2 = host.anchor(fx["params"]["to_anchor"])
@@ -833,7 +853,7 @@ def move_inst(inst, host):
         inst.x += inst.vx
         inst.y += inst.vy
     elif m["kind"] == "homing":
-        spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or float(m["speed"] or 0)
+        spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or float(m["speed"] or 0) * inst.ps
         want = math.atan2(host.target[1] - inst.y, host.target[0] - inst.x)
         cur = math.atan2(inst.vy, inst.vx)
         da = want - cur
@@ -946,7 +966,7 @@ def intercept_step(inst, host):
     if not intercept_on(fx):
         return False
     ic = fx["intercept"]
-    hit = _nearest_shot(inst, host, max(0.0, float(ic.get("contact") or 0)), ic.get("mode"))
+    hit = _nearest_shot(inst, host, max(0.0, float(ic.get("contact") or 0)) * inst.ps, ic.get("mode"))
     if hit is not None:
         hit.dead = True
         if inst.chase:
@@ -969,7 +989,7 @@ def intercept_step(inst, host):
             if ic.get("mode") == "block":
                 inst.age = max(inst.age, inst.life)
                 return True
-    tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)), ic.get("mode"))
+    tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)) * inst.ps, ic.get("mode"))
     if tgt is None:
         if inst.chase:   # back to its own motion
             inst.chase = False
@@ -978,7 +998,7 @@ def intercept_step(inst, host):
     if not inst.chase:
         inst.chase = True
         inst.bvx, inst.bvy = inst.vx, inst.vy
-    spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or float(fx["motion"]["speed"] or 0)
+    spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or float(fx["motion"]["speed"] or 0) * inst.ps
     want = math.atan2(tgt.y - inst.y, tgt.x - inst.x)
     cur = math.atan2(inst.vy, inst.vx)
     da = want - cur
@@ -1012,7 +1032,8 @@ def tick_inst(inst, host):
             if h:
                 lx, ly = h[-1]
                 dx, dy = inst.x - lx, inst.y - ly
-                moved = dx * dx + dy * dy >= P["min_dist"] * P["min_dist"]
+                md = P["min_dist"] * host_scale(host)
+                moved = dx * dx + dy * dy >= md * md
             if moved:
                 h.append((inst.x, inst.y))
                 while len(h) > P["max_points"]:
@@ -1038,7 +1059,7 @@ def tick_inst(inst, host):
         drag = float(P["drag"])
         for q in inst.parts:
             q["vx"] *= drag
-            q["vy"] = q["vy"] * drag + P["gravity"] * TICK_S
+            q["vy"] = q["vy"] * drag + P["gravity"] * inst.ps * TICK_S
             q["x"] += q["vx"] * TICK_S
             q["y"] += q["vy"] * TICK_S
             q["age"] += 1
@@ -1099,14 +1120,14 @@ def beam_segs(inst, host, ps):
     spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
     detach = P["detach_ticks"] if P["detach_ticks"] > 0 else 1e9
     if m["kind"] in ("attached", "static", "orbit") or spd < 0.0001:
-        reach = P["length"] * (min(1.0, inst.age / P["grow_ticks"]) if P["grow_ticks"] > 0 else 1.0)
+        reach = P["length"] * ps * (min(1.0, inst.age / P["grow_ticks"]) if P["grow_ticks"] > 0 else 1.0)
         hx, hy = inst.x + ux * reach, inst.y + uy * reach
     else:
         dist = spd * inst.age
         if inst.age < detach:
-            reach = min(P["length"], dist)
+            reach = min(P["length"] * ps, dist)
         else:
-            rd = min(P["length"], spd * detach)
+            rd = min(P["length"] * ps, spd * detach)
             post = max(1, inst.life - detach)
             reach = max(0.0, rd * (1 - min(1.0, (inst.age - detach) / post)))
     if reach <= 0:
@@ -1127,7 +1148,7 @@ def beam_segs(inst, host, ps):
         x0, y0 = hx - ux * reach * t0, hy - uy * reach * t0
         x1, y1 = hx - ux * reach * t1, hy - uy * reach * t1
         if P["jitter"] > 0:
-            j = (jr() * 2 - 1) * P["jitter"]
+            j = (jr() * 2 - 1) * P["jitter"] * ps
             x0 += -uy * j
             y0 += ux * j
             x1 += -uy * j

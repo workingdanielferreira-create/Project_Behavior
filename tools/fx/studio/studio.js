@@ -545,7 +545,9 @@ function fxTurn(fx, v, inverse) {
   var deg = FXK.bodyDeg(fx, host) * (inverse ? -1 : 1), a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
   return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v;
 }
-function worldToLocal(fx, d) { var q = fxTurn(fx, d, true); return [q[0] * FXK.fxFacing(fx, host), q[1]]; }
+// Stage px -> the effect's own px: FX distances are authored at pscale 1 and
+// grow with the figure (FXK.hostScale), so divide by the preview's pscale.
+function worldToLocal(fx, d) { var q = fxTurn(fx, d, true), ps = pscale(); return [q[0] * FXK.fxFacing(fx, host) / ps, q[1] / ps]; }
 // Where the effect sits on the frame under the playhead (keyed offset included).
 function fxSpot(fx) { return jointAtFx(FXK.fxAt(fx, frameAt(S.t))); }
 // Shift an effect's offset (and every offset key) by d, in its local px.
@@ -902,15 +904,16 @@ function pathPreviewOrigin(path) {
 function jointAtFx(fx) {
   var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host), ef = FXK.fxFacing(fx, host);
   var turn = function (v) { var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v; };
-  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ef, set.points[0][1]]); return [bb[0] + q[0], bb[1] + q[1]]; })()
+  var ps = pscale();
+  var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ps * ef, set.points[0][1] * ps]); return [bb[0] + q[0], bb[1] + q[1]]; })()
     : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
-  var o = turn([(+fx.offset[0] || 0) * ef, +fx.offset[1] || 0]);
+  var o = turn([(+fx.offset[0] || 0) * ps * ef, (+fx.offset[1] || 0) * ps]);
   return [b[0] + o[0], b[1] + o[1]];
 }
 function geoPlaceAt(w) {
   var it = geoItem(); if (!it) return;
   var f = facing(), b = S.geo.kind === "set" ? jointAt(it.base, frameAt(S.t)) : pathPreviewOrigin(it);
-  var q = [Math.round((w[0] - b[0]) * f * 2) / 2, Math.round((w[1] - b[1]) * 2) / 2];
+  var ps = pscale(), q = [Math.round((w[0] - b[0]) * f / ps * 2) / 2, Math.round((w[1] - b[1]) / ps * 2) / 2];
   it.points.push(q);
   buildGeo(); buildProps(); resetSim(S.t); save();
 }
@@ -972,19 +975,19 @@ function drawGeo(g, z) {
   var it = geoItem(), fx = selFx(), f = fx && !(S.geoPlace && it) ? FXK.fxFacing(fx, host) : facing();
   var sets = it && S.geo.kind === "set" ? [it] : fx ? S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; }) : [];
   var paths = it && S.geo.kind === "path" ? [it] : fx && fx.motion.kind === "path" ? S.paths.filter(function (p) { return p.id === fx.motion.path; }) : [];
-  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
+  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,", ps = pscale();
   g.save(); g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
   sets.forEach(function (set) {
     var b = jointAt(set.base, frameAt(S.t));
     g.strokeStyle = col + ".5)"; g.lineWidth = 1 / z; g.setLineDash([2 / z, 2 / z]);
     g.beginPath(); g.moveTo(b[0] - 3 / z, b[1]); g.lineTo(b[0] + 3 / z, b[1]); g.moveTo(b[0], b[1] - 3 / z); g.lineTo(b[0], b[1] + 3 / z); g.stroke();
     set.points.forEach(function (p, i) {
-      var q = [b[0] + p[0] * f, b[1] + p[1]];
+      var q = [b[0] + p[0] * ps * f, b[1] + p[1] * ps];
       g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(q[0], q[1]); g.stroke();
     });
     g.setLineDash([]);
     set.points.forEach(function (p, i) {
-      var q = [b[0] + p[0] * f, b[1] + p[1]], r = 6 / z;
+      var q = [b[0] + p[0] * ps * f, b[1] + p[1] * ps], r = 6 / z;
       g.fillStyle = col + ".9)"; g.beginPath(); g.arc(q[0], q[1], r, 0, 6.2832); g.fill();
       g.fillStyle = isLight() ? "#fff" : "#061018"; g.fillText(String(i + 1), q[0], q[1] + 0.5 / z);
     });
@@ -1001,7 +1004,7 @@ function drawGeo(g, z) {
         : geoUsers("path", path.id).filter(function (e) { return e.action === fxKey(); })[0];
       if (pfx) { var pf = FXK.fxFacing(pfx, host); M = FXK.pathMatrix(path, {facing: pf}, [pf, 0], FXK.bodyDeg(pfx, host)); }
     }
-    var W = function (p) { return [o[0] + M[0] * p[0] + M[1] * p[1], o[1] + M[2] * p[0] + M[3] * p[1]]; };
+    var W = function (p) { var x = p[0] * ps, y = p[1] * ps; return [o[0] + M[0] * x + M[1] * y, o[1] + M[2] * x + M[3] * y]; };
     g.strokeStyle = col + ".85)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]); g.beginPath();
     pl.pts.forEach(function (p, i) { var q = W(p); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
     g.stroke(); g.setLineDash([]);
