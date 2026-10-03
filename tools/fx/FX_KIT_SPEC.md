@@ -407,6 +407,16 @@ the same code; Solo has no enemy projectiles, and the cursor's back is the far
 side from the fighter. A rig-drawn `pb_character` JSON can set the same block
 as top-level `"tactical_retreat"`.
 
+`fx` (optional, default `""`): `"fx:<effect id>"` or `"group:<group id>"`.
+That effect, or every member of that group, plays for the whole dash
+(`laser/fxkit.py` `FxDriver._retreat_tick`) on its own player, as a copy that
+starts on the dash's first tick (keys shifted with it) and loops on its
+action's timing. FX that can be continuous (attached, static, orbit, path; not
+arcs) are held for the dash; shots fire at the start of each pass and on their
+`emit.every_ticks`. When the dash ends the held FX stop and shots already
+flying finish. The original effect still plays on its own action. A missing id
+plays nothing.
+
 **Blink (`action_settings[action].blink`, per action; `laser/blink.py`).** A
 teleport inside one action; each action has its own. While that action plays,
 the fighter vanishes when the frame on show reaches `start_frame` and

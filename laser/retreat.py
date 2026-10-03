@@ -21,6 +21,10 @@ second (0 = straight).  The mode runs during the dash, for its own duration
 
 A new retreat can start cooldown_ms after the last one ended.
 
+fx (optional): "fx:<effect id>" or "group:<group id>" from the FX file; that
+effect / group plays for the whole dash (laser/fxkit.py FxDriver), and still
+plays on its own action too.
+
 Conditions:
   hp_below          own HP at or below pct % (once, or again after every
                     cooldown while still below when repeat is on)
@@ -40,7 +44,7 @@ from . import config
 DEFAULTS = dict(enabled=False, mode="avoid", angle_deg=180.0, curve_deg_s=0.0,
                 speed_pct=200.0, proximity_px=80.0,
                 avoid_duration_ms=1500.0, reengage_duration_ms=2000.0,
-                cooldown_ms=3000.0, logic="any", conditions=[])
+                cooldown_ms=3000.0, logic="any", conditions=[], fx="")
 CONDITIONS = {"hp_below": dict(pct=50.0, repeat=False),
               "projectile_count": dict(count=5)}
 

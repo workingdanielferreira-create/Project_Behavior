@@ -1655,6 +1655,14 @@ function buildRetreatProps(d) {
     "How long the avoiding dash lasts. -1 = no limit (it never stops avoiding).";
   field(s, "Cooldown ms", inp("n", rt.cooldown_ms, function (v) { rt.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
     "After a retreat ends, how long before another can start.";
+  // Optional FX for the whole dash: one effect or a whole group, from any
+  // action (it keeps playing on its own action too).
+  var fxOpts = [["", "— none —"]], known = {"": 1};
+  S.groups.forEach(function (gr) { var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + gr.action + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
+  S.effects.forEach(function (e) { fxOpts.push(["fx:" + e.id, e.name + " (" + e.action + ")"]); known["fx:" + e.id] = 1; });
+  if (!known[rt.fx]) fxOpts.push([rt.fx, "(missing: deleted effect or group)"]);
+  field(s, "Retreat FX", inp(fxOpts, rt.fx, function (v) { rt.fx = v; save(); })).title =
+    "Optional: an effect or a whole group (▣) that plays for as long as the dash lasts. FX that stay on the fighter (attached, static, orbit, path) are held; shots keep firing on their action's timing. It still plays on its own action too.";
   field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], rt.logic, function (v) { rt.logic = v; save(); }));
   rt.conditions.forEach(function (c, i) {
     var box = sec(s, "Condition " + (i + 1) + ": " + RETREAT_COND_LABEL[c.type], "a-rcond", null, "act");
