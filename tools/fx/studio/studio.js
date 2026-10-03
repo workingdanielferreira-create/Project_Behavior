@@ -1063,7 +1063,8 @@ var PARAM_UI = {
   pulse: [["r_start", "Radius start", 0, 1000, 1], ["r_end", "Radius end", 0, 2000, 1], ["width", "Ring width start", 0, 80, 0.5],
     ["width_end", "Ring width end", 0, 80, 0.5], ["expand_ms", "Expand ms", 16, 10000, 10], ["rings", "Rings (0 = repeat)", 0, 50, 1],
     ["gap_ms", "Gap between rings ms", 16, 10000, 10], ["ease", "Expansion", ["out", "linear", "in"]],
-    ["fade", "Alpha curve", ["out", "none", "in", "inout"]], ["glow", "Glow extra W", 0, 80, 0.5], ["fill_alpha", "Inner fill alpha", 0, 255, 1]],
+    ["fade", "Alpha curve", ["out", "none", "in", "inout"]], ["glow", "Glow extra W", 0, 80, 0.5], ["fill_alpha", "Inner fill alpha", 0, 255, 1],
+    ["stretch_x", "Stretch X", 0.05, 5, 0.05], ["stretch_y", "Stretch Y", 0.05, 5, 0.05], ["tilt_deg", "Tilt °", -180, 180, 1]],
   ghost: [["interval", "Every N ticks", 1, 60, 1], ["ghost_life", "Ghost life ticks", 1, 240, 1], ["alpha", "Start alpha", 0, 255, 1], ["max", "Max ghosts", 1, 60, 1]],
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]]
 };
@@ -1291,7 +1292,7 @@ function buildProps() {
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
-  if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts.");
+  if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
       "Checked: this FX is an attack and damages the target where it touches. Unchecked: visual only.";

@@ -155,10 +155,12 @@ PARAM_DEFAULTS = {
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
     # Radial pulse: rings that expand from r_start to r_end over expand_ms
-    # (see pulse_rings).  rings = how many, gap_ms apart (0 = one every
+    # (see pulse_rings).  stretch_x / stretch_y stretch them into ellipses
+    # (radius multipliers, 1 = round) tilted by tilt_deg, like an orbit's
+    # radius X / Y (pulse_shape).  rings = how many, gap_ms apart (0 = one every
     # gap_ms for as long as the effect lasts).
     "pulse": dict(r_start=0, r_end=120, width=6, width_end=2, expand_ms=400, rings=1, gap_ms=200, ease="out",
-                  fade="out", glow=8, fill_alpha=0),
+                  fade="out", glow=8, fill_alpha=0, stretch_x=1, stretch_y=1, tilt_deg=0),
     "ghost": dict(interval=2, ghost_life=14, alpha=150, max=12),
     "weapon": dict(to_anchor="wtip", width=6),
 }
@@ -1316,6 +1318,31 @@ def pulse_rings(inst, ps, age=None):
     return out
 
 
+PULSE_MIN_STRETCH = 0.05
+
+
+def pulse_shape(inst, host):
+    """(stretch_x, stretch_y, tilt_deg) of a pulse's rings: radius X / Y
+    multipliers and the ellipse's tilt.  Flip mirrors the tilt and Follow
+    direction turns it, as they do an orbit's ellipse (orbit_pos)."""
+    P = inst.fx["params"]
+    sx = max(PULSE_MIN_STRETCH, float(P.get("stretch_x", 1)))
+    sy = max(PULSE_MIN_STRETCH, float(P.get("stretch_y", 1)))
+    tilt = float(P.get("tilt_deg", 0) or 0) * inst.flip + body_deg(inst.fx, host)
+    return sx, sy, tilt
+
+
+def pulse_scale_toward(sx, sy, tilt, dx, dy):
+    """How far a ring of radius 1 reaches toward offset (dx, dy): the
+    ellipse's radius in that direction."""
+    lx, ly = rot([dx, dy], -tilt)
+    d = math.hypot(lx, ly)
+    if d < 1e-6:
+        return min(sx, sy)
+    rho = math.hypot(lx / sx, ly / sy)
+    return d / rho
+
+
 def _hit_shape(inst, tx, ty, hr, ps, host):
     prim, P = inst.fx["prim"], inst.fx["params"]
     if prim == "ribbon":
@@ -1378,10 +1405,12 @@ def resolve_hits(inst, host, ps):
         # (this tick's radius and last tick's, so a fast ring can't skip a
         # target), pushing outward from the centre.  Rings never end on a
         # hit: Pierce and Re-hit don't apply.
+        # Stretched rings: the edge reaches r * the ellipse's radius in the
+        # target's direction (pulse_scale_toward).
+        sx, sy, tilt = pulse_shape(inst, host)
         prev = {k: r for (k, r, _w, _a) in pulse_rings(inst, ps, inst.age - 1)}
         for (k, r, w, _a) in pulse_rings(inst, ps):
             rp = prev.get(k, r)
-            lo, hi = min(r, rp) - w / 2, max(r, rp) + w / 2
             for i, (hx, hy, hr, key) in enumerate(hurts):
                 # The hurt key is the target's snapshot position (it moves):
                 # remember the target by its slot instead.
@@ -1389,6 +1418,8 @@ def resolve_hits(inst, host, ps):
                     continue
                 dx, dy = hx - inst.x, hy - inst.y
                 d = math.hypot(dx, dy)
+                f = pulse_scale_toward(sx, sy, tilt, dx, dy)
+                lo, hi = min(r, rp) * f - w / 2, max(r, rp) * f + w / 2
                 if lo - hr <= d <= hi + hr:
                     inst.ring_hits.add((k, i))
                     inst.hits += 1
@@ -1660,20 +1691,28 @@ def _draw_glow(p, inst, host, ps):
 def _draw_pulse(p, inst, host, ps):
     P = inst.fx["params"]
     c1, c2 = color_pair(inst.fx, host.lut)
-    cx, cy = inst.x, inst.y
+    sx, sy, tilt = pulse_shape(inst, host)
+    p.save()
+    p.translate(inst.x, inst.y)
+    if tilt:
+        p.rotate(tilt)
     for (_k, r, w, k) in pulse_rings(inst, ps):
         if k <= 0.004:
             continue
         if P["fill_alpha"] > 0 and r >= 1:
-            _radial_ellipse(p, cx, cy, r, [(0, qcolor(c2, 0)), (0.7, qcolor(c2, P["fill_alpha"] * k * 0.35)),
-                                           (1, qcolor(c2, P["fill_alpha"] * k))], trunc(r))
+            p.save()
+            p.scale(sx, sy)
+            _radial_ellipse(p, 0.0, 0.0, r, [(0, qcolor(c2, 0)), (0.7, qcolor(c2, P["fill_alpha"] * k * 0.35)),
+                                             (1, qcolor(c2, P["fill_alpha"] * k))], trunc(r))
+            p.restore()
         p.setBrush(Qt.NoBrush)
         if P["glow"] > 0:
             p.setPen(_pen(qcolor(c2, 70 * k), w + P["glow"] * ps))
-            p.drawEllipse(QPointF(cx, cy), r, r)
+            p.drawEllipse(QPointF(0.0, 0.0), r * sx, r * sy)
         if w > 0:
             p.setPen(_pen(qcolor(c1, 235 * k), w))
-            p.drawEllipse(QPointF(cx, cy), r, r)
+            p.drawEllipse(QPointF(0.0, 0.0), r * sx, r * sy)
+    p.restore()
 
 
 def _draw_ghost(p, inst, host, ps):

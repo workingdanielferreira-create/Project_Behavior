@@ -180,9 +180,12 @@ var PARAM_DEFAULTS = {
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
   // Radial pulse: rings that expand from r_start to r_end over expand_ms
+  // stretch_x / stretch_y stretch them into ellipses (radius multipliers,
+  // 1 = round) tilted by tilt_deg, like an orbit's radius X / Y (pulseShape).
   // (pulseRings).  rings = how many, gap_ms apart (0 = one every gap_ms for
   // as long as the effect lasts).
-  pulse: {r_start: 0, r_end: 120, width: 6, width_end: 2, expand_ms: 400, rings: 1, gap_ms: 200, ease: "out", fade: "out", glow: 8, fill_alpha: 0},
+  pulse: {r_start: 0, r_end: 120, width: 6, width_end: 2, expand_ms: 400, rings: 1, gap_ms: 200, ease: "out", fade: "out", glow: 8, fill_alpha: 0,
+    stretch_x: 1, stretch_y: 1, tilt_deg: 0},
   ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12},
   weapon: {to_anchor: "wtip", width: 6}
 };
@@ -1301,21 +1304,38 @@ function pulseRings(inst, ps, age) {
   }
   return out;
 }
+// (stretch_x, stretch_y, tilt_deg) of a pulse's rings.  Flip mirrors the tilt
+// and Follow direction turns it, as they do an orbit's ellipse (orbitPos).
+var PULSE_MIN_STRETCH = 0.05;
+function pulseShape(inst, host) {
+  var P = inst.fx.params, sx = P.stretch_x == null ? 1 : +P.stretch_x, sy = P.stretch_y == null ? 1 : +P.stretch_y;
+  return {sx: Math.max(PULSE_MIN_STRETCH, sx), sy: Math.max(PULSE_MIN_STRETCH, sy),
+    tilt: (+P.tilt_deg || 0) * (inst.flip || 1) + bodyDeg(inst.fx, host)};
+}
+// How far a ring of radius 1 reaches toward offset (dx, dy).
+function pulseScaleToward(sh, dx, dy) {
+  var l = rot([dx, dy], -sh.tilt), d = Math.sqrt(l[0] * l[0] + l[1] * l[1]);
+  if (d < 1e-6) return Math.min(sh.sx, sh.sy);
+  return d / Math.sqrt((l[0] / sh.sx) * (l[0] / sh.sx) + (l[1] / sh.sy) * (l[1] / sh.sy));
+}
 DRAW.pulse = function (g, inst, host, ps) {
   var P = inst.fx.params, cp = colorPair(inst.fx, host.lut), c1 = cp[0].map(trunc), c2 = cp[1].map(trunc);
+  var sh = pulseShape(inst, host), ta = sh.tilt * D;
   pulseRings(inst, ps).forEach(function (q) {
     if (q.a <= 0.004) return;
     if (P.fill_alpha > 0 && q.r >= 1) {
-      g.fillStyle = radial(g, inst.x, inst.y, q.r, [[0, rgba(c2, 0)], [0.7, rgba(c2, P.fill_alpha * q.a * 0.35)], [1, rgba(c2, P.fill_alpha * q.a)]]);
-      ellipse(g, inst.x - q.r, inst.y - q.r, q.r * 2, q.r * 2);
+      g.save(); g.translate(inst.x, inst.y); g.rotate(ta); g.scale(sh.sx, sh.sy);
+      g.fillStyle = radial(g, 0, 0, q.r, [[0, rgba(c2, 0)], [0.7, rgba(c2, P.fill_alpha * q.a * 0.35)], [1, rgba(c2, P.fill_alpha * q.a)]]);
+      ellipse(g, -q.r, -q.r, q.r * 2, q.r * 2);
+      g.restore();
     }
     if (P.glow > 0) {
       g.strokeStyle = rgba(c2, 70 * q.a); g.lineWidth = q.w + P.glow * ps;
-      g.beginPath(); g.arc(inst.x, inst.y, q.r, 0, 2 * Math.PI); g.stroke();
+      g.beginPath(); g.ellipse(inst.x, inst.y, q.r * sh.sx, q.r * sh.sy, ta, 0, 2 * Math.PI); g.stroke();
     }
     if (q.w > 0) {
       g.strokeStyle = rgba(c1, 235 * q.a); g.lineWidth = q.w;
-      g.beginPath(); g.arc(inst.x, inst.y, q.r, 0, 2 * Math.PI); g.stroke();
+      g.beginPath(); g.ellipse(inst.x, inst.y, q.r * sh.sx, q.r * sh.sy, ta, 0, 2 * Math.PI); g.stroke();
     }
   });
 };
@@ -1398,12 +1418,13 @@ function resolveHits(inst, host, ps) {
   if (inst.fx.prim === "pulse") {
     // Each ring hits once, when its edge sweeps over the target (this tick's
     // radius and last tick's), pushing outward.  Rings never end on a hit.
-    var prev = {};
+    // Stretched rings reach r * the ellipse's radius toward the target.
+    var prev = {}, sh = pulseShape(inst, host);
     pulseRings(inst, ps, inst.age - 1).forEach(function (q) { prev[q.k] = q.r; });
     pulseRings(inst, ps).forEach(function (q) {
       if (inst.ringHits[q.k]) return;
-      var rp = prev[q.k] == null ? q.r : prev[q.k], lo = Math.min(q.r, rp) - q.w / 2, hi = Math.max(q.r, rp) + q.w / 2;
-      var dx = hurt.x - inst.x, dy = hurt.y - inst.y, d = Math.sqrt(dx * dx + dy * dy);
+      var dx = hurt.x - inst.x, dy = hurt.y - inst.y, d = Math.sqrt(dx * dx + dy * dy), f = pulseScaleToward(sh, dx, dy);
+      var rp = prev[q.k] == null ? q.r : prev[q.k], lo = Math.min(q.r, rp) * f - q.w / 2, hi = Math.max(q.r, rp) * f + q.w / 2;
       if (d < lo - hurt.r || d > hi + hurt.r) return;
       inst.ringHits[q.k] = true; inst.hits += 1; inst.lastHit = now;
       if (host.onHit) host.onHit(inst, b.damage, d > 0.001 ? dx / d : inst.dir[0], d > 0.001 ? dy / d : inst.dir[1], b.knockback);
