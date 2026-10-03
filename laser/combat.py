@@ -4947,7 +4947,7 @@ def advance_combat(fig, slash_target, fallback):
         # SLASH_RADIUS for figures that don't define one). Identical in
         # Solo & Battle — both read the same MODE_CONFIGS entry.
         atk_radius = config.MODE_CONFIGS.get(fig.mode.key, {}).get(
-            "basic_attack_radius", config.SLASH_RADIUS)
+            "basic_attack_radius", config.SLASH_RADIUS) * fig.mode.body_scale()
         if dist <= cc['hit_radius']:
             # Already on top of the target (overlapping it): strike on the
             # spot.  Neither the dash nor the arc below can start from inside

@@ -157,6 +157,15 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
   - Game px: `(p - image_origin_px) * game_px_per_image_px * position_scale`,
     mirrored in x when facing left.
 - **Special anchors.** `figure` (the image centre) and `target`.
+- **Character scale (`character_scale`, top level, default 1 = 100 %, 10-200 %).**
+  The whole character at that size, in proportion (`laser/characters.py`
+  `character_scale`): the game scale (sprite and anchors) is multiplied by it,
+  so every FX distance and width follows (`game_px_per_image_px` stays the
+  100 % value), and so do its body hit circles (cursor bounce, enemy bullets,
+  enemy FX via `partner_scale`), attack range (`basic_attack_radius`), and the
+  Tactical retreat / Blink distances (`proximity_px`, re-engage stand-off and
+  arrival). Movement and dash speed are unchanged. FX Studio previews it on
+  top of `pscale`; FX are still stored at 100 %.
 - **FX scale with the figure (`position_scale`).** Every FX distance is
   authored at the figure's base size (FX Studio `pscale` 1) and multiplied by
   the figure's on-screen size, the same factor its sprite, anchors, widths and

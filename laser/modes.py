@@ -40,6 +40,13 @@ class FigureMode:
     def speeds(self):
         return config.MODE_CONFIGS[self.key]
 
+    def body_scale(self):
+        """Character scale of an image character (FX Studio, pack
+        character_scale; 1.0 otherwise): its body hit circles and attack
+        range grow with it."""
+        char = getattr(self, "character", None)
+        return float((char or {}).get("_char_scale") or 1.0)
+
     def hurtbox_radius(self):
         """Rig-derived hit radius (Creator characters only, via mode.character
         ['hurtbox_radius']).  Returns None for built-in modes (swordsman,

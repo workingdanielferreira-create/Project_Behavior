@@ -715,6 +715,18 @@ def stand_height_px(path):
     return 0 if top is None else bot - top + 1
 
 
+CHARACTER_SCALE_MIN, CHARACTER_SCALE_MAX = 0.1, 2.0
+
+
+def character_scale(fxkit):
+    """The FX file's character_scale (1 = 100 %), clamped to 10-200 %."""
+    try:
+        s = float((fxkit or {}).get("character_scale") or 1.0)
+    except (TypeError, ValueError):
+        s = 1.0
+    return max(CHARACTER_SCALE_MIN, min(CHARACTER_SCALE_MAX, s))
+
+
 def package_scale(man, root_dir, rel_dir):
     """Game px per image px for a package: it stands IMAGE_STAND_HEIGHT_PX
     tall, measured on its first idle frame (first frame of its first action
@@ -818,7 +830,13 @@ def load_packages(root_dir, bundles, packages=None):
     folder = os.path.join(root_dir, "characters")
     for key, rel, man, fx in (packages if packages is not None else _find_packages(root_dir)):
         try:
-            char = package_to_character(man, rel, fx, package_scale(man, root_dir, rel))
+            # Character scale (FX Studio "Character scale", pack
+            # character_scale): the whole character - sprite, anchors, FX,
+            # body hit circles, attack range, retreat / blink distances -
+            # at that size, in proportion.  Movement speed is unchanged.
+            cs = character_scale(fx)
+            char = package_to_character(man, rel, fx, package_scale(man, root_dir, rel) * cs)
+            char["_char_scale"] = cs
             key = _register(char)
             bundle = _load_sprite_files(root_dir, char["sprite_files"])
             bundles[key] = bundle

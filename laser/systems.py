@@ -590,11 +590,13 @@ class ProjectileSystem(System):
                 # --- Bullet vs enemy figures (battle only) ---
                 if not hit and world.battle_mode and world.partner_figures:
                     _pgone = getattr(world, "partner_gone", None) or []
+                    _pscale = getattr(world, "partner_scale", None) or []
                     for _pi, (ex, ey, _edash, eparry) in enumerate(world.partner_figures):
                         if _pi < len(_pgone) and _pgone[_pi]:
                             continue   # blinked out: shots pass where it was
+                        _bs = _pscale[_pi] if _pi < len(_pscale) else 1.0   # its character scale
                         ddx, ddy = proj.x - ex, proj.y - ey
-                        if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
+                        if ddx * ddx + ddy * ddy <= proj.hit_r_sq * _bs * _bs:
                             world.collision_dots.append([proj.x, proj.y, 0])
                             if not eparry:
                                 # Partner takes the HP loss on their side --
@@ -1075,7 +1077,8 @@ class CollisionSystem(System):
                 if blink.gone(fig):
                     continue   # blinked out: untouchable
                 hb = fig.mode.hurtbox_radius()
-                proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ
+                bs = fig.mode.body_scale()
+                proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ * bs * bs
                 for ex, ey, evx, evy, _r, _g, _b, _dmg, _src in world.enemy_projs:
                     # Pierce ignores an active parry stance too — a piercing
                     # shot still damages a parrying figure. Non-piercing shots

@@ -133,7 +133,7 @@ def _landing(fig, st, cfg, world):
         a = math.atan2(uy, ux) + math.radians(float(cfg.get("angle_deg") or 0))
         dx, dy = math.cos(a), math.sin(a)
     ax, ay = (tx, ty) if cfg.get("anchor") == "target" else (st.x0, st.y0)
-    prox = max(0.0, float(cfg.get("proximity_px") or 0))
+    prox = max(0.0, float(cfg.get("proximity_px") or 0)) * fig.mode.body_scale()   # character scale
     nx, ny = ax + dx * prox, ay + dy * prox
     nx = max(MARGIN_PX, min(fig.screen_w - MARGIN_PX, nx))
     ny = max(MARGIN_PX, min(fig.screen_h - MARGIN_PX, ny))

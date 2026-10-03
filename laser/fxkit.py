@@ -1993,13 +1993,15 @@ class FxDriver:
         if world.battle_mode and world.partner_figures:
             best = None
             pgone = getattr(world, "partner_gone", None) or []
+            pscale = getattr(world, "partner_scale", None) or []
             for idx, pf in enumerate(world.partner_figures):
                 d = (pf[0] - fig.x) ** 2 + (pf[1] - fig.y) ** 2
                 if best is None or d < best[0]:
                     best = (d, pf)
                 if idx < len(pgone) and pgone[idx]:
                     continue    # blinked out: nothing can hit it
-                hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS), (pf[0], pf[1])))
+                bs = pscale[idx] if idx < len(pscale) else 1.0   # its character scale
+                hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS) * bs, (pf[0], pf[1])))
             self.target = (best[1][0], best[1][1])
         else:
             self.target = tuple(world.cursor)

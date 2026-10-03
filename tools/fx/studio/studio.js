@@ -17,7 +17,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
 var C = null;
-var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
+var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -58,6 +58,15 @@ function facing() {
   return +$("facing").value;
 }
 function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
+// Character scale (pack character_scale, 10-200 %): the whole character -
+// sprite, anchors, every FX, body hit circles, attack range, retreat / blink
+// distances - at that size, in proportion (laser/characters.py
+// character_scale).  FX are still authored at 100 %: the preview multiplies
+// it in with pscale.  Movement speed is unchanged.
+var CHAR_SCALE_MIN = 0.1, CHAR_SCALE_MAX = 2;
+function clampCharScale(v) { v = +v; return Math.max(CHAR_SCALE_MIN, Math.min(CHAR_SCALE_MAX, isFinite(v) && v > 0 ? v : 1)); }
+function charScale() { return S.charScale || 1; }
+function viewScale() { return pscale() * charScale(); }
 function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   // game px per image px (stand-height scale)
 // Triggered reactions (Actions panel): FX built on a reaction are saved with
 // action "@retreat" (the Tactical retreat dash, built on the run frames) or
@@ -87,7 +96,7 @@ function playEffects() {
 }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { syncKeyView(); persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, react: S.react, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, react: S.react, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, character_scale: S.charScale, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -95,7 +104,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.g
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, g: S.groups, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat}); }
+function snapState() { return JSON.stringify({e: S.effects, g: S.groups, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat, cs: S.charScale}); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -116,6 +125,7 @@ function applyState(str) {
   S.aim = FXK.normalizeAim(o.am);
   S.damaged = FXK.normalizeDamaged(o.dm);
   S.retreat = FXK.normalizeRetreat(o.rt);
+  S.charScale = clampCharScale(o.cs);
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   pruneGroups();
@@ -158,13 +168,13 @@ function resolveAnchor(action, id, f) {
 // Aim (pack.aim): the frame turns by aimDeg() around the figure position,
 // after mirroring — the same order the game draws in.
 function imgToGame(p, rot) {
-  var k = imgScale() * pscale(), ox = (p[0] - C.origin[0]) * k * facing(), oy = (p[1] - C.origin[1]) * k;
+  var k = imgScale() * viewScale(), ox = (p[0] - C.origin[0]) * k * facing(), oy = (p[1] - C.origin[1]) * k;
   var a = (rot == null ? aimDeg() : rot) * Math.PI / 180;
   if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
   return [S.figX + ox, S.figY + oy];
 }
 function gameToImg(w) {
-  var k = imgScale() * pscale(), ox = w[0] - S.figX, oy = w[1] - S.figY, a = -aimDeg() * Math.PI / 180;
+  var k = imgScale() * viewScale(), ox = w[0] - S.figX, oy = w[1] - S.figY, a = -aimDeg() * Math.PI / 180;
   if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
   return [Math.round((ox / (k * facing()) + C.origin[0]) * 100) / 100, Math.round((oy / k + C.origin[1]) * 100) / 100];
 }
@@ -186,7 +196,7 @@ function aimDeg(action, fr) {
   var ref = aimRef(); if (!ref) return 0;
   action = action || S.action; fr = fr == null ? frameAt(S.t) : fr;
   return FXK.aimAngle(S.aim, resolveAnchor(action, S.aim.from_anchor, fr), resolveAnchor(action, S.aim.to_anchor, fr), ref,
-    C.origin, imgScale() * pscale(), facing(), [S.figX, S.figY], S.target);
+    C.origin, imgScale() * viewScale(), facing(), [S.figX, S.figY], S.target);
 }
 function jointAt(name, fr) {
   if (name === "figure") return [S.figX, S.figY];
@@ -206,7 +216,7 @@ function tinted(img, rgb) {   // combat.silhouette(): flat colour, the frame's o
   TINT.set(key, c); return c;
 }
 function drawFrame(gc, img, pos, fac, alpha, tint, rot) {
-  var k = imgScale() * pscale();
+  var k = imgScale() * viewScale();
   gc.save(); gc.translate(pos[0], pos[1]); if (rot) gc.rotate(rot * Math.PI / 180); gc.scale(fac * k, k);
   if (alpha != null) gc.globalAlpha *= alpha;
   gc.drawImage(tint ? tinted(img, tint) : img, -C.origin[0], -C.origin[1]);
@@ -217,7 +227,7 @@ var host = {
   get target() { return S.target; },
   get wang() { return 90; },
   get lut() { return lut; },
-  get pscale() { return pscale(); },
+  get pscale() { return viewScale(); },
   get lib() { return {entry_sets: S.entries, paths: S.paths}; },
   get showHitboxes() { return true; },
   get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
@@ -319,6 +329,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
     S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
     S.retreat = FXK.normalizeRetreat(clone(src.retreat || {}));
+    S.charScale = clampCharScale(src.character_scale);
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -428,6 +439,7 @@ function packData() {
     aim: FXK.normalizeAim(clone(S.aim)),
     damaged: FXK.normalizeDamaged(clone(S.damaged)),
     retreat: FXK.normalizeRetreat(clone(S.retreat)),
+    character_scale: clampCharScale(S.charScale),
     effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
     groups: clone(S.groups),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
@@ -547,7 +559,7 @@ function fxTurn(fx, v, inverse) {
 }
 // Stage px -> the effect's own px: FX distances are authored at pscale 1 and
 // grow with the figure (FXK.hostScale), so divide by the preview's pscale.
-function worldToLocal(fx, d) { var q = fxTurn(fx, d, true), ps = pscale(); return [q[0] * FXK.fxFacing(fx, host) / ps, q[1] / ps]; }
+function worldToLocal(fx, d) { var q = fxTurn(fx, d, true), ps = viewScale(); return [q[0] * FXK.fxFacing(fx, host) / ps, q[1] / ps]; }
 // Where the effect sits on the frame under the playhead (keyed offset included).
 function fxSpot(fx) { return jointAtFx(FXK.fxAt(fx, frameAt(S.t))); }
 // Shift an effect's offset (and every offset key) by d, in its local px.
@@ -904,7 +916,7 @@ function pathPreviewOrigin(path) {
 function jointAtFx(fx) {
   var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host), ef = FXK.fxFacing(fx, host);
   var turn = function (v) { var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v; };
-  var ps = pscale();
+  var ps = viewScale();
   var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ps * ef, set.points[0][1] * ps]); return [bb[0] + q[0], bb[1] + q[1]]; })()
     : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
   var o = turn([(+fx.offset[0] || 0) * ps * ef, (+fx.offset[1] || 0) * ps]);
@@ -913,7 +925,7 @@ function jointAtFx(fx) {
 function geoPlaceAt(w) {
   var it = geoItem(); if (!it) return;
   var f = facing(), b = S.geo.kind === "set" ? jointAt(it.base, frameAt(S.t)) : pathPreviewOrigin(it);
-  var ps = pscale(), q = [Math.round((w[0] - b[0]) * f / ps * 2) / 2, Math.round((w[1] - b[1]) / ps * 2) / 2];
+  var ps = viewScale(), q = [Math.round((w[0] - b[0]) * f / ps * 2) / 2, Math.round((w[1] - b[1]) / ps * 2) / 2];
   it.points.push(q);
   buildGeo(); buildProps(); resetSim(S.t); save();
 }
@@ -975,7 +987,7 @@ function drawGeo(g, z) {
   var it = geoItem(), fx = selFx(), f = fx && !(S.geoPlace && it) ? FXK.fxFacing(fx, host) : facing();
   var sets = it && S.geo.kind === "set" ? [it] : fx ? S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; }) : [];
   var paths = it && S.geo.kind === "path" ? [it] : fx && fx.motion.kind === "path" ? S.paths.filter(function (p) { return p.id === fx.motion.path; }) : [];
-  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,", ps = pscale();
+  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,", ps = viewScale();
   g.save(); g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
   sets.forEach(function (set) {
     var b = jointAt(set.base, frameAt(S.t));
@@ -1705,7 +1717,7 @@ function buildRetreatProps(d) {
   field(s, "Curve °/s", inp("n", rt.curve_deg_s, function (v) { rt.curve_deg_s = Math.max(-1440, Math.min(1440, v)); save(); }, -1440, 1440, 5)).title =
     rt.mode === "reengage" ? "0 = straight to the target's back. Otherwise it leaves along the dash angle and swings round toward the target's back at this many degrees per second."
       : "How much the dash bends, in degrees per second (0 = straight, positive = clockwise).";
-  field(s, "Speed %", inp("n", rt.speed_pct, function (v) { rt.speed_pct = Math.max(0, Math.min(1000, v)); save(); }, 0, 1000, 10)).title =
+  field(s, "Speed %", inp("n", rt.speed_pct, function (v) { rt.speed_pct = Math.max(0, Math.min(3000, v)); save(); }, 0, 3000, 10)).title =
     "Dash speed as a % of the character's normal speed (100 = normal, 200 = twice as fast).";
   field(s, "Proximity px", inp("n", rt.proximity_px, function (v) { rt.proximity_px = Math.max(0, Math.min(1000, v)); save(); }, 0, 1000, 5)).title =
     "How close harm may get before the character steers away from it during the dash (enemy projectiles; in Avoid also the target itself). 0 = no steering.";
@@ -1743,6 +1755,16 @@ function buildRetreatProps(d) {
   add.onclick = function () { rt.conditions.push(FXK.normalizeRetreat({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
   row.appendChild(sel); row.appendChild(add); s.appendChild(row);
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
+}
+// Character scale (pack character_scale), shown under every action's and
+// reaction's settings.
+function buildCharScaleProps(d) {
+  var s = sec(d, "Character scale (whole character)", "a-cscale",
+    "The size of the whole character in the game: sprite, anchors, every FX, its body hit circles, attack range and retreat / blink distances, all in proportion. Movement speed stays the same.", "act");
+  var pct = Math.round(charScale() * 100);
+  field(s, "Scale %", inp("n", pct, function (v) { S.charScale = clampCharScale((+v || 100) / 100); save(); buildProps(); resetSim(S.t); }, CHAR_SCALE_MIN * 100, CHAR_SCALE_MAX * 100, 5)).title =
+    "10-200 %. 100 = the normal size. Build FX at any scale: they are stored at 100 % and grow or shrink with the character.";
+  note(s, pct === 100 ? "Normal size." : "Shown on the stage at " + pct + " % (times pscale). Effects keep their numbers at 100 %; the game and the stage scale them by " + pct + " %.");
 }
 // Blink (action_settings[action].blink): this action's own teleport.  The
 // fighter vanishes at the start frame and reappears after the end frame.
@@ -1790,6 +1812,7 @@ function buildReactionProps(d) {
       (S.retreat.enabled ? "" : " Tactical retreat is off, so they won't play in the game until it's switched on below."));
     note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. Test shots (below the stage) count as projectiles to avoid.");
     buildRetreatProps(d);
+    buildCharScaleProps(d);
     return;
   }
   var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
@@ -1803,6 +1826,7 @@ function buildReactionProps(d) {
     (on ? "" : " Blink is off for " + a + ", so they won't play in the game until it's switched on below.") +
     " The stage plays " + a + "'s own FX too.");
   buildBlinkProps(d);
+  buildCharScaleProps(d);
 }
 // Right panel when no effect is selected: WHEN this action plays.
 function buildActionProps(d) {
@@ -1833,6 +1857,7 @@ function buildActionProps(d) {
     note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
+  buildCharScaleProps(d);
   buildBlinkProps(d);
   buildAimProps(d);
   buildDamagedProps(d);
@@ -1958,20 +1983,21 @@ function step(allowWrap) {
 // the blink's frames, reappear at the landing spot once it leaves them (or
 // the action ends).  Run for each new tick, so S.blink always matches S.t.  S.blink = {gone, from, to}; the Studio target has no
 // facing, so behind / in front are the far / near side from the fighter.
+function scaledBlink(b) { var c = clone(b); c.proximity_px = (+b.proximity_px || 0) * charScale(); return c; }   // character scale
 function blinkGone() { return !!(S.blink && S.blink.gone); }
 function blinkStep() {
   var b = cfgOf(S.action).blink, on = S.t < totalTicks() && FXK.blinkActive(b, frameAt(S.t), frames());
   if (on && !blinkGone()) S.blink = {gone: true, from: [S.figX, S.figY], to: null};
   else if (!on && blinkGone()) {
     var rnd = FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1);
-    var to = FXK.blinkLanding(b, S.blink.from, S.target, null, facing(), rnd);
+    var to = FXK.blinkLanding(scaledBlink(b), S.blink.from, S.target, null, facing(), rnd);
     S.figX = to[0]; S.figY = to[1]; S.blink.gone = false; S.blink.to = to;
   }
 }
 // Where the blink would land from here (drawn while it's gone).
 function blinkPreviewLanding() {
   var b = cfgOf(S.action).blink, from = blinkGone() ? S.blink.from : [S.figX, S.figY];
-  return FXK.blinkLanding(b, from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
+  return FXK.blinkLanding(scaledBlink(b), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
 }
 function drawBlink(g, z, img) {
   var b = cfgOf(S.action).blink; if (!b.enabled) return;
@@ -2051,7 +2077,7 @@ function dashStart() {
 }
 function dashOver() { return !!(S.dash && S.dash.over); }
 function wrapPi(a) { var m = 2 * Math.PI; return ((a + Math.PI) % m + m) % m - Math.PI; }
-function dashGoal() { var b = S.dash.back; return [S.target[0] + b[0] * BACK_STANDOFF_PX, S.target[1] + b[1] * BACK_STANDOFF_PX]; }
+function dashGoal() { var b = S.dash.back, st = BACK_STANDOFF_PX * charScale(); return [S.target[0] + b[0] * st, S.target[1] + b[1] * st]; }
 function dashSteer(prox, withTarget) {   // retreat._steer
   var px = 0, py = 0; if (prox <= 0) return [0, 0];
   var threats = S.shots.filter(function (sh) { return !sh.dead; }).map(function (sh) { return [sh.x, sh.y]; });
@@ -2081,14 +2107,14 @@ function dashStep() {
   if (withTarget) want = aT + (+rt.angle_deg || 0) * Math.PI / 180 + curve * ds.elapsed * dt;
   else {
     goal = dashGoal();
-    if (Math.hypot(goal[0] - S.figX, goal[1] - S.figY) <= ARRIVE_PX) { ds.over = true; ds.arrived = true; return; }
+    if (Math.hypot(goal[0] - S.figX, goal[1] - S.figY) <= ARRIVE_PX * charScale()) { ds.over = true; ds.arrived = true; return; }
     var aG = Math.atan2(goal[1] - S.figY, goal[0] - S.figX), lim = Math.abs(curve) * dt;
     if (!curve) want = aG;
     else { ds.heading += Math.max(-lim, Math.min(lim, wrapPi(aG - ds.heading))); want = ds.heading; }
   }
   var hx = Math.cos(want), hy = Math.sin(want);
-  if (goal) { var o = dashAround(goal[0], goal[1], BACK_STANDOFF_PX); hx += o[0]; hy += o[1]; }
-  var st = dashSteer(+rt.proximity_px || 0, withTarget);
+  if (goal) { var o = dashAround(goal[0], goal[1], BACK_STANDOFF_PX * charScale()); hx += o[0]; hy += o[1]; }
+  var st = dashSteer((+rt.proximity_px || 0) * charScale(), withTarget);
   var vx = hx + st[0] * STEER_WEIGHT, vy = hy + st[1] * STEER_WEIGHT, vm = Math.hypot(vx, vy);
   if (vm < 1e-6) { vx = hx; vy = hy; vm = 1; }
   var spd = (+$("walk").value || BACK_BASE_SPEED) * Math.max(0, +rt.speed_pct || 0) / 100;
@@ -2100,10 +2126,10 @@ function drawDash(g, z) {
   g.save(); g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 4 / z]); g.strokeStyle = "rgba(240,190,90,.8)";
   g.beginPath(); g.moveTo(ds.start[0], ds.start[1]); g.lineTo(S.figX, S.figY); g.stroke();
   g.beginPath(); g.arc(ds.start[0], ds.start[1], 5, 0, 6.2832); g.stroke();
-  if (ds.mode === "reengage") { var gp = dashGoal(); g.beginPath(); g.arc(gp[0], gp[1], ARRIVE_PX, 0, 6.2832); g.stroke(); }
+  if (ds.mode === "reengage") { var gp = dashGoal(); g.beginPath(); g.arc(gp[0], gp[1], ARRIVE_PX * charScale(), 0, 6.2832); g.stroke(); }
   g.setLineDash([]); g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
   g.fillText("dash start", ds.start[0], ds.start[1] - 8);
-  if (ds.mode === "reengage") { var gq = dashGoal(); g.fillText(ds.arrived ? "arrived \u2014 attacks" : "re-engage point", gq[0], gq[1] - ARRIVE_PX - 4); }
+  if (ds.mode === "reengage") { var gq = dashGoal(); g.fillText(ds.arrived ? "arrived \u2014 attacks" : "re-engage point", gq[0], gq[1] - ARRIVE_PX * charScale() - 4); }
   g.restore();
 }
 function moveVector() {
@@ -2193,7 +2219,7 @@ function draw() {
   for (var x = x0; x < cv.width / dpr; x += step10) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, cv.height); g.stroke(); }
   for (var y = y0; y < cv.height / dpr; y += step10) { g.beginPath(); g.moveTo(0, y); g.lineTo(cv.width, y); g.stroke(); }
   g.translate(c.x, c.y); g.scale(z, z);
-  var ps = pscale(), fr = frameAt(S.t), img = act().images[fr];
+  var ps = viewScale(), fr = frameAt(S.t), img = act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   var gone = blinkGone();
   player.draw(g, host, "behind", ps, gone);
