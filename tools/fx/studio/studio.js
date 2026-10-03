@@ -439,7 +439,14 @@ function userPresets() { return lsGet(LS_PRESETS) || []; }
 function allPresets() { return FX_PRESETS.map(function (p) { return {p: p, builtin: true}; }).concat(userPresets().map(function (p) { return {p: p, builtin: false}; })); }
 function buildPresets() {
   var s = $("presetSel"); s.innerHTML = "";
-  allPresets().forEach(function (x, i) { var o = document.createElement("option"); o.value = i; o.textContent = (x.builtin ? "" : "★ ") + x.p.name; s.appendChild(o); });
+  // Grouped: built-in groups in the order they first appear, then your own presets.
+  var groups = [], by = {};
+  allPresets().forEach(function (x, i) {
+    var g = x.builtin ? (x.p.group || "Other") : "★ Your presets";
+    if (!by[g]) { by[g] = document.createElement("optgroup"); by[g].label = g; groups.push(g); }
+    var o = document.createElement("option"); o.value = i; o.textContent = (x.builtin ? "" : "★ ") + x.p.name; by[g].appendChild(o);
+  });
+  groups.forEach(function (g) { s.appendChild(by[g]); });
   showPresetDesc();
 }
 function showPresetDesc() { var x = allPresets()[+$("presetSel").value]; $("presetDesc").textContent = x ? (x.p.desc || (x.builtin ? "" : "Your preset")) : ""; }
@@ -806,7 +813,8 @@ var PARAM_UI = {
     ["glow", "Glow extra W", 0, 80, 0.5], ["glow_color", "Glow colour", "color"], ["pulse_hz", "Pulse Hz", 0, 30, 0.5],
     ["jitter", "Jitter px", 0, 30, 0.5], ["detach_ticks", "Detach tick (0=never)", 0, 2000, 1], ["grow_ticks", "Grow ticks (held)", 0, 600, 1]],
   sprite: [["shape", "Shape", ["orb", "bolt"]], ["radius", "Radius", 0.5, 60, 0.5], ["stretch", "Bolt stretch", 1, 8, 0.1],
-    ["hot", "White-hot streak", "chk"], ["halo", "Pulsing halo", "chk"], ["fade", "Fade over life", "chk"], ["trail_len", "Trail points", 0, 60, 1]],
+    ["hot", "White-hot streak", "chk"], ["halo", "Pulsing halo", "chk"], ["fade", "Fade over life", "chk"], ["trail_len", "Trail points", 0, 60, 1],
+    ["glow", "Glow %", 0, 200, 5], ["glow_size", "Glow size %", 0, 300, 5]],
   particles: [["mode", "Mode", ["burst", "stream"]], ["count", "Burst count", 1, 400, 1], ["rate_per_s", "Stream /s", 1, 600, 1],
     ["angle_deg", "Angle °", -180, 180, 1], ["spread_deg", "Spread °", 0, 360, 1], ["speed_min", "Speed min px/s", 0, 2000, 5],
     ["speed_max", "Speed max px/s", 0, 2000, 5], ["gravity", "Gravity px/s²", -2000, 2000, 10], ["drag", "Drag /tick", 0.5, 1, 0.01],

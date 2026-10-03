@@ -84,25 +84,32 @@ _TRAIL_PEN = QPen()
 _TRAIL_PEN.setCapStyle(Qt.RoundCap)
 
 
-def bullet_sprite(r, g, b, radius):
-    """Return (pixmap, half_size) for a bullet of this colour and radius."""
-    key = (r, g, b, round(float(radius), 2))
+def bullet_sprite(r, g, b, radius, glow_pct=100.0, glow_size_pct=100.0):
+    """Return (pixmap, half_size) for a bullet of this colour and radius.
+    glow_pct scales the soft outer glow's brightness (0 = none, 100 = the
+    original look) and glow_size_pct how far it spreads (100 = 3 x radius) —
+    FX Studio sprite params glow / glow_size and the petals layer's glow /
+    glow_size."""
+    ga = max(0, min(255, int(round(140 * max(0.0, float(glow_pct)) / 100.0))))
+    gs = max(0.0, float(glow_size_pct)) / 100.0
+    key = (r, g, b, round(float(radius), 2), ga, round(gs, 2))
     entry = _BULLET_SPRITES.get(key)
     if entry is None:
-        glow = max(1.0, float(radius) * 3.0)
-        size = int(math.ceil(glow * 2)) + 2
+        glow = max(1.0, float(radius) * 3.0 * gs)
+        rad = max(1.0, float(radius))
+        size = int(math.ceil(max(glow, rad) * 2)) + 2
         c = size / 2.0
         pm = QPixmap(size, size)
         pm.fill(Qt.transparent)
         qp = QPainter(pm)
         qp.setRenderHint(QPainter.Antialiasing)
         qp.setPen(Qt.NoPen)
-        grad = QRadialGradient(c, c, glow)
-        grad.setColorAt(0.0, QColor(r, g, b, 140))
-        grad.setColorAt(1.0, QColor(r, g, b, 0))
-        qp.setBrush(grad)
-        qp.drawEllipse(int(c - glow), int(c - glow), int(glow * 2), int(glow * 2))
-        rad = max(1.0, float(radius))
+        if ga > 0:
+            grad = QRadialGradient(c, c, glow)
+            grad.setColorAt(0.0, QColor(r, g, b, ga))
+            grad.setColorAt(1.0, QColor(r, g, b, 0))
+            qp.setBrush(grad)
+            qp.drawEllipse(int(c - glow), int(c - glow), int(glow * 2), int(glow * 2))
         core = QRadialGradient(c, c, rad)
         core.setColorAt(0.0, QColor(255, 255, 255, 240))
         core.setColorAt(0.5, QColor(r, g, b, 210))
@@ -135,11 +142,14 @@ def _style_stretch(style):
     }.get(style, config.BOLT_STRETCH_CONE)
 
 
-def bolt_sprite(r, g, b, radius, stretch, hot=False):
-    key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), hot)
+def bolt_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_pct=100.0):
+    ga = max(0, min(255, int(round(170 * max(0.0, float(glow_pct)) / 100.0))))
+    gs = max(0.0, float(glow_size_pct)) / 100.0
+    key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), hot, ga, round(gs, 2))
     entry = _BOLT_SPRITES.get(key)
     if entry is None:
-        glow = max(1.0, float(radius) * 3.0)
+        # Never smaller than the head, so a tiny glow keeps the bolt whole.
+        glow = max(1.0, float(radius) * 3.0 * gs, max(1.0, float(radius)) * 1.2)
         w = int(math.ceil(glow * 2 * stretch)) + 2
         h = int(math.ceil(glow * 2)) + 2
         cx, cy = w / 2.0, h / 2.0
@@ -154,10 +164,11 @@ def bolt_sprite(r, g, b, radius, stretch, hot=False):
         qp.translate(cx, cy)
         qp.scale(stretch, 1.0)
         grad = QRadialGradient(0, 0, glow)
-        grad.setColorAt(0.0, QColor(r, g, b, 170))
+        grad.setColorAt(0.0, QColor(r, g, b, ga))
         grad.setColorAt(1.0, QColor(r, g, b, 0))
         qp.setBrush(grad)
-        qp.drawEllipse(int(-glow), int(-glow), int(glow * 2), int(glow * 2))
+        if ga > 0:
+            qp.drawEllipse(int(-glow), int(-glow), int(glow * 2), int(glow * 2))
         if hot:
             # White-hot inner streak for the zigzag flair
             hotg = QRadialGradient(0, 0, glow * 0.6)
@@ -2079,7 +2090,12 @@ _PETAL_DEFAULTS = dict(count=3, hover_radius=46.0, orbit_speed_deg=70.0,
                         # layer's battle.damage when not set at layer top
                         # level). FX interception still deals no damage — it
                         # negates the incoming FX instead.
-                        damage=1.0)
+                        damage=1.0,
+                        # Outer glow of each petal orb: brightness % (0 =
+                        # none, 100 = the original) and spread % (100 =
+                        # 3 x the orb radius).  Not "glow": older layers
+                        # carry an unrelated legacy "glow" field.
+                        orb_glow=100.0, orb_glow_size=100.0)
 # Rendering-only (not floated like the mechanics keys above): resolved once
 # in _petals_config from the layer's own size_min/size_max/c1, since Petal
 # objects previously had no visual at all (see Petal.draw).
@@ -2221,7 +2237,7 @@ class Petal:
             return
         r, g, b = self.cfg.get("_rgb", _PETAL_DEFAULT_RGB)
         radius = self.cfg.get("_radius", _PETAL_DEFAULT_RADIUS)
-        pm, half = bullet_sprite(r, g, b, radius)
+        pm, half = bullet_sprite(r, g, b, radius, self.cfg.get("orb_glow", 100.0), self.cfg.get("orb_glow_size", 100.0))
         p.save()
         p.translate(int(self.x), int(self.y))
         if pscale != 1.0:

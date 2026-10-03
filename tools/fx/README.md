@@ -83,9 +83,20 @@ timing.
   the chance roll; only the ones in use are shown). Each condition shows
   ✓ / ✗ and the section says whether the action would fire (preview only,
   not saved).
-- **Presets.** Built-in presets rebuild the game's existing effects with their
-  `config.py` numbers. **Save as preset** keeps your own, and
-  **Export**/**Import** moves them between machines.
+- **Presets.** Grouped in the list: Trails, Slashes, Shots, Beams, Orbs &
+  auras, Bursts & afterimages, plus special abilities: **Fire** (Fireball,
+  Flame slash, Eruption), **Lightning** (Chain lightning, Thunder strike,
+  Spark volley), **Shadow** (Void orb, Shadow dash, Void collapse) and
+  **Holy** (Radiant beam, Halo burst). The first groups rebuild the game's
+  existing effects with their `config.py` numbers; the special abilities use
+  keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
+  your own (listed under ★ Your presets), and **Export**/**Import** moves them
+  between machines.
+- **Orb glow.** Orbs and bolts (sprite) have **Glow %** (brightness of the
+  soft outer glow, 0 = none, 100 = as before) and **Glow size %** (how far it
+  spreads). Both can be keyframed. *Soft petal orbs* is a dim-glow petal preset.
+  The game's legacy JSON petals layer (mage, new_fighter) reads the same as
+  `orb_glow` / `orb_glow_size` (the layer's old `glow` field is unrelated).
 - **Saving.** **Save FX to folder** writes `<name>.fxkit.json` next to the
   images. Work also autosaves in the browser per character.
 - **Controls.** `space` play/pause, `← →` step a frame, left-drag moves the

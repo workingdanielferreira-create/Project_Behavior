@@ -150,7 +150,7 @@ PARAM_DEFAULTS = {
                 angle_deg=0, placement="anchor", back=51, lead=26),
     "beam": dict(length=200, w_start0=6, w_start1=6, w_end0=2, w_end1=2, segments=1, glow=0, glow_color="", pulse_hz=0,
                  jitter=0, detach_ticks=0, grow_ticks=0),
-    "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5),
+    "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100),
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
@@ -1321,16 +1321,18 @@ def _draw_sprite(p, inst, host, ps):
     p.translate(hx, hy)
     p.setOpacity(p.opacity() * fade)
     if P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
-        pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]))
+        pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
+                                                     P.get("glow", 100), P.get("glow_size", 100))
         p.rotate(math.degrees(math.atan2(inst.vy, inst.vx)))
         p.scale(ps, ps)
         p.drawPixmap(trunc(-head_x), trunc(-half_h), pm)
     elif P["shape"] == "bolt":
-        pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], 1, bool(P["hot"]))
+        pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], 1, bool(P["hot"]),
+                                                     P.get("glow", 100), P.get("glow_size", 100))
         p.scale(ps, ps)
         p.drawPixmap(-trunc(pm.width() / 2), -trunc(pm.height() / 2), pm)
     else:
-        pm, half = _combat.bullet_sprite(c[0], c[1], c[2], P["radius"])
+        pm, half = _combat.bullet_sprite(c[0], c[1], c[2], P["radius"], P.get("glow", 100), P.get("glow_size", 100))
         p.scale(ps, ps)
         p.drawPixmap(-half, -half, pm)
     p.restore()
