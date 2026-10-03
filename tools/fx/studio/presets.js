@@ -8,7 +8,7 @@
  * presets only seed new FX.
  * `group` sorts the preset list; every effect carries its FX `tag` so other
  * characters' defend / deflect triggers can react to it.  The special-ability
- * presets (Fire, Lightning, Shadow, Holy) use keyframes (fx.keys).
+ * presets (Fire, Lightning, Shadow, Holy, Ice & wind, Earth & poison, Arcane & cosmic, Energy) use keyframes (fx.keys).
  */
 (function (G) {
 "use strict";
@@ -181,6 +181,107 @@ G.FX_PRESETS = [
      {prim: "particles", name: "Halo motes", tag: "holy", anchor: "figure", life_ticks: 1, motion: {kind: "static"},
       color: {mode: "gradient", c1: "#ffffff", c2: "#ffc94a"},
       params: {mode: "burst", count: 36, angle_deg: 0, spread_deg: 360, speed_min: 90, speed_max: 240, gravity: -30, drag: 0.92,
-               size_min: 1.5, size_max: 3, size_over_life: "shrink", life_min_ms: 300, life_max_ms: 650}}]}
+               size_min: 1.5, size_max: 3, size_over_life: "shrink", life_min_ms: 300, life_max_ms: 650}}]},
+
+  {name: "Ice shards", group: "Ice & wind", desc: "A tight volley of five frozen shards, crisp low glow",
+   effects: [{prim: "sprite", name: "Ice shards", tag: "ice", anchor: "haR", life_ticks: 90, emit: {count: 5, fan_deg: 24},
+     battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 3},
+     motion: {kind: "travel", aim: "target", speed: 10}, color: {mode: "solid", c1: "#cfefff"},
+     params: {shape: "bolt", radius: 2, stretch: 3, hot: false, fade: false, trail_len: 6, glow: 60, glow_size: 70}}]},
+  {name: "Frost nova", group: "Ice & wind", desc: "Shards burst out in every direction from the fighter with an icy flash and frost motes",
+   effects: [
+     {prim: "sprite", name: "Nova shards", tag: "ice", anchor: "figure", life_ticks: 24, emit: {count: 10, fan_deg: 324},
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 12},
+      motion: {kind: "travel", aim: "facing", speed: 3}, color: {mode: "solid", c1: "#e6f8ff"},
+      params: {shape: "bolt", radius: 2.2, stretch: 2.6, hot: true, fade: true, trail_len: 5, glow: 80, glow_size: 80},
+      keys: [{frame: 3, ease: "strong_out", set: {"motion.speed": 9}}]},
+     {prim: "glow", name: "Nova flash", tag: "ice", anchor: "figure", life_ticks: 16, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "solid", c1: "#a8e6ff"}, params: {r_start: 6, r_end: 72, a_center: 170, a_mid: 60, mid: 0.4, core_r: 5, fade: "out", pulse_hz: 0}},
+     {prim: "particles", name: "Frost motes", tag: "ice", anchor: "figure", life_ticks: 1, motion: {kind: "static"},
+      color: {mode: "gradient", c1: "#ffffff", c2: "#7fd0ff"},
+      params: {mode: "burst", count: 30, angle_deg: 0, spread_deg: 360, speed_min: 60, speed_max: 200, gravity: 40, drag: 0.9,
+               size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 300, life_max_ms: 700}}]},
+  {name: "Wind blades", group: "Ice & wind", desc: "Two quick pale-green crescents that cut through the target one after the other",
+   effects: [{prim: "arc", name: "Wind blades", tag: "wind", anchor: "figure", start_frame: 0, end_frame: 6, life_ticks: 6, emit: {every_ticks: 5},
+     battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 6}, blend: "additive",
+     motion: {kind: "travel", aim: "target", speed: 11}, color: {mode: "gradient", c1: "#f2fff8", c2: "#4fd18b"},
+     params: {radius: 34, span: 150, width: 4, tail: 0.9, segs: 16, grow: 0.8, core_alpha: 0.6, core_width: 0.3, orient: "motion",
+              placement: "through_target", lead: 20}}]},
+  {name: "Cyclone", group: "Ice & wind", desc: "A whirling column on the target: wind streaks spinning in a flat ring while gusts rise, tightening as it spins up",
+   effects: [
+     {prim: "sprite", name: "Cyclone streaks", tag: "wind", anchor: "target", life_ticks: 60, emit: {count: 8},
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 10, knockback: 0},
+      motion: {kind: "orbit", orbit_rx: 44, orbit_ry: 12, orbit_deg: 9}, color: {mode: "solid", c1: "#d8fff0"},
+      params: {shape: "orb", radius: 2, fade: false, trail_len: 9, glow: 50, glow_size: 80},
+      keys: [{frame: 12, ease: "inout", set: {"motion.orbit_rx": 22, "motion.orbit_ry": 6, "motion.orbit_deg": 16}}]},
+     {prim: "particles", name: "Cyclone gusts", tag: "wind", anchor: "target", life_ticks: 56, motion: {kind: "static"},
+      color: {mode: "gradient", c1: "#ffffff", c2: "#8fe8c0"},
+      params: {mode: "stream", rate_per_s: 70, angle_deg: -90, spread_deg: 50, speed_min: 60, speed_max: 160, gravity: -60, drag: 0.96,
+               size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 550}}]},
+
+  {name: "Quake", group: "Earth & poison", desc: "The ground bursts under the target: heavy rock chunks fly up and fall back in a dust cloud",
+   effects: [
+     {prim: "particles", name: "Quake rocks", tag: "earth", anchor: "target", offset: [0, 10], life_ticks: 1, motion: {kind: "static"},
+      color: {mode: "gradient", c1: "#c8a070", c2: "#5a3a1e"},
+      params: {mode: "burst", count: 28, angle_deg: -90, spread_deg: 130, speed_min: 150, speed_max: 380, gravity: 950, drag: 0.98,
+               size_min: 2, size_max: 5, size_over_life: "constant", life_min_ms: 400, life_max_ms: 800}},
+     {prim: "glow", name: "Quake dust", tag: "earth", anchor: "target", offset: [0, 10], life_ticks: 30, motion: {kind: "static"},
+      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 18},
+      color: {mode: "solid", c1: "#9a7a55"}, params: {r_start: 8, r_end: 46, a_center: 110, a_mid: 45, mid: 0.5, core_r: 0, fade: "out", pulse_hz: 0}}]},
+  {name: "Toxic cloud", group: "Earth & poison", desc: "A lingering green cloud on the target that breathes in and out and bubbles, hurting while it lasts",
+   effects: [
+     {prim: "glow", name: "Toxic cloud", tag: "poison", anchor: "target", life_ticks: 120, motion: {kind: "static"},
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 20, knockback: 0},
+      color: {mode: "solid", c1: "#7dff4a"}, params: {r_start: 6, r_end: 30, a_center: 120, a_mid: 55, mid: 0.55, core_r: 0, fade: "none", pulse_hz: 1.5},
+      keys: [{frame: 6, ease: "out", set: {"params.r_start": 30, "params.r_end": 36}}]},
+     {prim: "particles", name: "Toxic bubbles", tag: "poison", anchor: "target", life_ticks: 110, motion: {kind: "static"},
+      color: {mode: "gradient", c1: "#d6ff9a", c2: "#3c8f1a"},
+      params: {mode: "stream", rate_per_s: 22, angle_deg: -90, spread_deg: 80, speed_min: 10, speed_max: 40, gravity: -25, drag: 0.98,
+               size_min: 1.5, size_max: 3.5, size_over_life: "grow", life_min_ms: 500, life_max_ms: 1000}}]},
+
+  {name: "Arcane missiles", group: "Arcane & cosmic", desc: "Four magenta missiles fan out, then curve in and speed up toward the target",
+   effects: [{prim: "sprite", name: "Arcane missiles", tag: "arcane", anchor: "haR", life_ticks: 160, emit: {count: 4, fan_deg: 120},
+     battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2},
+     motion: {kind: "homing", aim: "target", speed: 4, turn_deg: 7}, color: {mode: "solid", c1: "#ff5ef2"}, blend: "additive",
+     params: {shape: "orb", radius: 2.5, halo: false, fade: false, trail_len: 12, glow: 120, glow_size: 100},
+     keys: [{frame: 8, ease: "in", set: {"motion.speed": 9}}]}]},
+  {name: "Rune circle", group: "Arcane & cosmic", desc: "A flat ring of runes circles the fighter's feet over a soft blue aura (guards against contact)",
+   effects: [
+     {prim: "sprite", name: "Rune ring", tag: "arcane", anchor: "figure", offset: [0, 12], emit: {count: 6},
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 20, knockback: 6},
+      motion: {kind: "orbit", orbit_rx: 34, orbit_ry: 10, orbit_deg: 2.5}, color: {mode: "solid", c1: "#8fd3ff"},
+      params: {shape: "orb", radius: 2, fade: false, trail_len: 3, glow: 80, glow_size: 90}},
+     {prim: "glow", name: "Rune aura", tag: "arcane", anchor: "figure", offset: [0, 4], motion: {kind: "attached"}, layer: "behind",
+      color: {mode: "solid", c1: "#4aa8ff"}, params: {r_start: 22, r_end: 22, a_center: 60, a_mid: 25, mid: 0.5, core_r: 0, fade: "none", pulse_hz: 2}}]},
+  {name: "Meteor", group: "Arcane & cosmic", desc: "A burning rock falls from the sky behind the fighter and slams into the target, speeding up as it drops",
+   effects: [
+     {prim: "sprite", name: "Meteor", tag: "meteor", anchor: "target", offset: [-150, -230], life_ticks: 90,
+      battle: {deals_damage: true, damage: 4, pierce: false, rehit_ticks: 0, knockback: 22},
+      motion: {kind: "travel", aim: "target", speed: 3}, color: {mode: "solid", c1: "#ff9a3c"},
+      params: {shape: "orb", radius: 7, fade: false, trail_len: 14, glow: 150, glow_size: 110},
+      keys: [{frame: 10, ease: "strong_in", set: {"motion.speed": 14}}]},
+     {prim: "particles", name: "Meteor fire", tag: "meteor", anchor: "target", offset: [-150, -230], life_ticks: 90,
+      motion: {kind: "travel", aim: "target", speed: 3}, color: {mode: "gradient", c1: "#ffe08a", c2: "#ff2a00"},
+      params: {mode: "stream", rate_per_s: 120, angle_deg: -150, spread_deg: 60, speed_min: 20, speed_max: 70, gravity: -40, drag: 0.94,
+               size_min: 2, size_max: 4.5, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 450},
+      keys: [{frame: 10, ease: "strong_in", set: {"motion.speed": 14}}]}]},
+  {name: "Starfall", group: "Arcane & cosmic", desc: "Little stars rain down around the target in waves",
+   effects: [{prim: "sprite", name: "Starfall", tag: "star", anchor: "target", offset: [0, -200], life_ticks: 40, emit: {every_ticks: 6, count: 3, fan_deg: 40},
+     battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0}, blend: "additive",
+     motion: {kind: "travel", aim: "angle", angle_deg: 90, speed: 7}, color: {mode: "solid", c1: "#fff6c8"},
+     params: {shape: "bolt", radius: 1.8, stretch: 2.2, hot: true, fade: true, trail_len: 6, glow: 110, glow_size: 90}}]},
+
+  {name: "Charged laser", group: "Energy", desc: "Energy gathers in the hand (keyframed charge, strong ease in), then a thin piercing laser fires",
+   effects: [
+     {prim: "glow", name: "Laser charge", tag: "laser", anchor: "haR", start_frame: 0, end_frame: 8, motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "solid", c1: "#ff4a6a"}, params: {r_start: 2, r_end: 2, a_center: 220, a_mid: 90, mid: 0.4, core_r: 1, fade: "none", pulse_hz: 10},
+      keys: [{frame: 8, ease: "strong_in", set: {"params.r_start": 18, "params.r_end": 18, "params.core_r": 6}}]},
+     {prim: "beam", name: "Charged laser", tag: "laser", anchor: "haR", start_frame: 8, life_ticks: 16, blend: "additive",
+      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 10},
+      motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ffffff", c2: "#ff3a5a"},
+      params: {length: 420, w_start0: 7, w_start1: 7, w_end0: 4, w_end1: 4, segments: 1, glow: 10, glow_color: "#ff6a80", pulse_hz: 14, jitter: 0, grow_ticks: 3},
+      keys: [{frame: 12, ease: "linear", set: {"params.glow": 12}},
+             {frame: 18, ease: "strong_in", set: {"params.w_start0": 1, "params.w_start1": 1, "params.w_end0": 0.5, "params.w_end1": 0.5, "params.glow": 1}}]}]}
+
 ];
 })(window);

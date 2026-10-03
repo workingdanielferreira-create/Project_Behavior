@@ -878,29 +878,51 @@ function anchorOptions(withSpecial) {
 // ------------------------------------------------------------ effect keyframes
 // fx.keys (FXK.fxAt): each key sets new values for some number / colour
 // settings at a frame; they move there from the previous point along the
-// key's ease.  Editing a key shows the effect as it is at that frame; every
-// number / colour you change is stored in the key, anything else (a choice,
-// a toggle) changes the whole effect.
+// key's ease.  Once an effect has keys, the panel edits the frame under the
+// playhead: it shows the effect as it is at that frame, and the numbers /
+// colours you change go into the key on that frame (one is added there if
+// there isn't one yet).  Anything else (a choice, a toggle) changes the whole
+// effect.  At or before the effect's start frame (with no key there) the
+// panel edits the effect's own settings: the start of the animation.
 var EASE_LABEL = {linear: "Linear", "in": "Ease in", out: "Ease out", inout: "Ease in-out", strong_in: "Strong in",
   strong_out: "Strong out", strong_inout: "Strong in-out", hold: "Hold (jump)", bounce: "Bounce", elastic: "Elastic"};
-var KV = null;   // {fx (authored), key, view (what the panel edits), before (view as built)}
-// The object the effect panel edits: the effect itself, or (editing a key) its view at that key's frame.
+var KV = null;   // {fx (authored), key (maybe pending = not added yet), frame, view (what the panel edits), before}
+var PROPS_FRAME = -1;   // playhead frame the effect panel was built for (rebuilt when it moves)
+function keyAt(fx, f) { return (fx.keys || []).filter(function (k) { return k.frame === f; })[0] || null; }
+// The object the effect panel edits: the effect itself, or its view at the playhead frame.
 function keyViewFor(fx) {
   KV = null;
-  var ke = S.keyEdit;
-  if (!ke || ke.fx !== fx.id || !fx.keys || !fx.keys[ke.i]) { S.keyEdit = null; return fx; }
-  var key = fx.keys[ke.i], view = clone(FXK.fxAt(fx, key.frame));
-  KV = {fx: fx, key: key, view: view, before: clone(view)};
+  if (!fx.keys || !fx.keys.length) return fx;
+  var f = frameAt(S.t), key = keyAt(fx, f);
+  if (!key && f <= Math.max(0, fx.start_frame)) return fx;
+  if (!key) key = {frame: f, ease: "inout", set: {}, pending: true};
+  var view = clone(FXK.fxAt(fx, f));
+  FXK.keyPaths(view).forEach(function (p) {   // in-between values: shown rounded
+    var v = FXK.getPath(view, p);
+    if (typeof v !== "number" || Math.round(v * 1000) === v * 1000) return;
+    var i = p.indexOf("."), r = Math.round(v * 1000) / 1000;
+    if (i < 0) view[p] = r; else if (p.slice(0, i) === "offset") view.offset[+p.slice(i + 1)] = r; else view[p.slice(0, i)][p.slice(i + 1)] = r;
+  });
+  KV = {fx: fx, key: key, frame: f, view: view, before: clone(view)};
   return view;
 }
-// Copy the panel's edits back: keyable values into the key, the rest into the effect.
+// Copy the panel's edits back: keyable values into the playhead frame's key
+// (adding it on the first change), the rest into the effect.
 function syncKeyView() {
   if (!KV) return;
-  var fx = KV.fx, v = KV.view, b = KV.before, paths = FXK.keyPaths(v);
+  var fx = KV.fx, v = KV.view, b = KV.before, paths = FXK.keyPaths(v), keyed = false;
   paths.forEach(function (p) {
     var nv = FXK.getPath(v, p), ov = FXK.getPath(b, p);
-    if (nv !== ov) KV.key.set[p] = nv;
+    if (nv !== ov) { KV.key.set[p] = nv; keyed = true; }
   });
+  if (keyed && KV.key.pending) {
+    delete KV.key.pending;
+    fx.keys.push(KV.key); fx.keys.sort(function (x, y) { return x.frame - y.frame; });
+    toast("Added a key at frame " + KV.key.frame);
+    var bk = document.querySelector("#props .banner .bk"); if (bk) bk.textContent = "Editing keyframe at frame " + KV.key.frame;
+    // Show it in the key list once you leave the field (rebuilding now would steal the focus).
+    $("props").addEventListener("focusout", function () { setTimeout(buildProps, 0); }, {once: true});
+  }
   Object.keys(v).forEach(function (k) {
     if (k === "keys" || k === "id") return;
     if (["params", "motion", "emit", "color", "battle", "intercept", "flip"].indexOf(k) >= 0) {
@@ -911,8 +933,8 @@ function syncKeyView() {
     } else if (k !== "offset" && k !== "life_ticks" && JSON.stringify(v[k]) !== JSON.stringify(b[k])) fx[k] = clone(v[k]);
   });
   KV.before = clone(v);
-  var ls = $("kvChips"); if (ls) fillKeyChips(ls, KV.key, true);
-  buildTimeline();   // diamond tooltips list what each key sets
+  var ls = $("kvChips"); if (ls && !KV.key.pending) fillKeyChips(ls, KV.key, true);
+  if (keyed) buildTimeline();   // the new / changed diamond
 }
 function keyLabel(p) {
   var i = p.indexOf("."), g = i < 0 ? "" : p.slice(0, i), k = i < 0 ? p : p.slice(i + 1);
@@ -920,9 +942,10 @@ function keyLabel(p) {
   return (g && g !== "params" ? g + " " : "") + k.replace(/_/g, " ");
 }
 function keyValText(v) { return typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v); }
-function editKey(fx, i) {
-  S.sel = fx.id; S.geo = null; S.keyEdit = i == null ? null : {fx: fx.id, i: i};
-  if (i != null) gotoFrame(fx.keys[i].frame);
+// Select fx and put the playhead on frame f (its key there is then the one edited).
+function editKey(fx, f) {
+  S.sel = fx.id; S.geo = null;
+  gotoFrame(f == null ? Math.max(0, fx.start_frame) : f);
   buildEffects(); buildProps(); buildTimeline();
 }
 // The values a key sets, as removable chips (the key being edited: id kvChips, refreshed as you type).
@@ -945,58 +968,70 @@ function fillKeyChips(ls, k, on) {
   });
 }
 function buildKeyProps(d) {
-  var fx = KV ? KV.fx : selFx(), keys = fx.keys, cur = frameAt(S.t);   // cur: frame on show when the panel was built
+  var fx = KV ? KV.fx : selFx(), keys = fx.keys, cur = frameAt(S.t), st = Math.max(0, fx.start_frame);
   var s = sec(d, "Keyframes (" + keys.length + ")", "fx-keys",
-    "Animate this effect's numbers and colours over the action. Each key sets new values at a frame; they move there from the previous key along its ease, and hold after the last key.");
+    "Animate this effect's numbers and colours over the action. Each key sets new values at a frame; they move there from the previous key across all the frames in between, along the key's ease, and hold after the last key.");
   var row0 = document.createElement("div"); row0.className = "keyrow" + (KV ? "" : " sel");
   row0.innerHTML = "<span class='kd'>●</span>";
-  var t0 = document.createElement("span"); t0.className = "kt"; t0.textContent = "Start · frame " + Math.max(0, fx.start_frame) + " · the effect's own settings"; row0.appendChild(t0);
-  var e0 = document.createElement("button"); e0.textContent = KV ? "Edit" : "Editing"; e0.disabled = !KV;
-  e0.onclick = function () { editKey(fx, null); }; row0.appendChild(e0); s.appendChild(row0);
+  var t0 = document.createElement("span"); t0.className = "kt"; t0.textContent = "Start · frame " + st + " · the effect's own settings"; row0.appendChild(t0);
+  var e0 = document.createElement("button"); e0.textContent = KV ? "Go to" : "Editing"; e0.disabled = !KV || !!keyAt(fx, st);
+  e0.title = "Put the playhead on the start frame to edit the effect's own settings.";
+  e0.onclick = function () { editKey(fx, st); }; row0.appendChild(e0); s.appendChild(row0);
   keys.forEach(function (k, i) {
     var on = KV && KV.key === k, r = document.createElement("div"); r.className = "keyrow" + (on ? " sel" : "");
     var dm = document.createElement("span"); dm.className = "kd"; dm.textContent = "◆"; r.appendChild(dm);
-    var fr = inp("n", k.frame, function (v) { k.frame = Math.max(0, Math.min(frames() - 1, Math.round(v))); FXK.normalizeKeys(fx);
-      S.keyEdit = on ? {fx: fx.id, i: fx.keys.indexOf(k)} : S.keyEdit; changed(true); }, 0, frames() - 1, 1);
+    var fr = inp("n", k.frame, function (v) {
+      var nf = Math.max(0, Math.min(frames() - 1, Math.round(v)));
+      if (nf === k.frame || keyAt(fx, nf)) return;   // one key per frame
+      k.frame = nf; fx.keys.sort(function (x, y) { return x.frame - y.frame; });
+      if (on) gotoFrame(nf);
+      changed(true);
+    }, 0, frames() - 1, 1);
     fr.title = "The frame this key sits on."; fr.className = "kf"; r.appendChild(fr);
+    var prev = i ? keys[i - 1].frame : st;
     var ez = inp(FXK.EASES.map(function (e) { return [e, EASE_LABEL[e]]; }), k.ease, function (v) { k.ease = v; changed(); });
-    ez.title = "How the values move from the previous key into this one. Ease in: starts slow. Ease out: ends slow. Strong: more so. Hold: stays put, then jumps at this key. Bounce / Elastic: bounce or spring into the new value."; r.appendChild(ez);
-    var ed = document.createElement("button"); ed.textContent = on ? "Editing" : "Edit"; ed.disabled = on;
-    ed.onclick = function () { editKey(fx, i); }; r.appendChild(ed);
+    ez.title = "How the values move into this key, over frames " + Math.min(prev, k.frame) + "–" + k.frame + ". Ease in: starts slow. Ease out: ends slow. Strong: more so. Hold: stays put, then jumps at this key. Bounce / Elastic: bounce or spring into the new value."; r.appendChild(ez);
+    var ed = document.createElement("button"); ed.textContent = on ? "Editing" : "Go to"; ed.disabled = on;
+    ed.title = "Put the playhead on frame " + k.frame + " to edit this key.";
+    ed.onclick = function () { editKey(fx, k.frame); }; r.appendChild(ed);
     var rm = document.createElement("button"); rm.textContent = "✕"; rm.title = "Delete this keyframe";
-    rm.onclick = function () { fx.keys.splice(i, 1); S.keyEdit = null; KV = null; changed(true); }; r.appendChild(rm);
+    rm.onclick = function () { fx.keys.splice(fx.keys.indexOf(k), 1); changed(true); }; r.appendChild(rm);
     s.appendChild(r);
-    var ls = keyChips(fx, k, on);
-    s.appendChild(ls);
+    s.appendChild(keyChips(fx, k, on));
   });
   var add = document.createElement("button"); add.id = "keyAdd";
   add.title = "Move the playhead (timeline or ← →) to the frame you want, then add a key there.";
   add.onclick = function () {
-    var f = frameAt(S.t), at = fx.keys.findIndex(function (k) { return k.frame === f; });
-    if (at < 0) { fx.keys.push({frame: f, ease: "inout", set: {}}); FXK.normalizeKeys(fx); at = fx.keys.findIndex(function (k) { return k.frame === f; }); save(); }
-    editKey(fx, at);
+    var f = frameAt(S.t);
+    if (!keyAt(fx, f)) { fx.keys.push({frame: f, ease: "inout", set: {}}); fx.keys.sort(function (x, y) { return x.frame - y.frame; }); save(); }
+    editKey(fx, f);
   };
   s.appendChild(add); refreshKeyAdd();
-  if (KV) note(s, "Editing the key at frame " + KV.key.frame + ": the panel shows the effect as it is at this frame. Numbers and colours you change are stored in this key; choices and toggles change the whole effect.");
-  else if (cur <= fx.start_frame && keys.length) note(s, "Editing the start: these settings are where the animation begins.");
+  if (KV && KV.key.pending) note(s, "Frame " + cur + " has no key yet: change any number or colour below and a key is added here. It moves there from the previous key over every frame in between.");
+  else if (KV) note(s, "Editing the key at frame " + KV.key.frame + " (the playhead). Move the playhead to edit another frame; numbers and colours you change are stored in the key on that frame. Choices and toggles change the whole effect.");
+  else if (keys.length) note(s, "Editing the start (frame " + st + "): these settings are where the animation begins. Move the playhead to a later frame to key it.");
 }
 
 // "+ Key" follows the playhead (refreshed every frame by loop()).
 function refreshKeyAdd() {
   var b = $("keyAdd"), fx = KV ? KV.fx : selFx();
   if (!b || !fx || !C) return;
-  var f = frameAt(S.t), has = (fx.keys || []).some(function (k) { return k.frame === f; });
-  var t = has ? "◆ Edit the key at frame " + f : "◆ + Key at frame " + f + " (playhead)";
+  var f = frameAt(S.t), has = !!keyAt(fx, f);
+  var t = has ? "◆ Key at frame " + f + " (playhead)" : "◆ + Key at frame " + f + " (playhead)";
   if (b.textContent !== t) b.textContent = t;
+  b.disabled = has;
+  // Once animated, the panel follows the playhead: rebuild when it lands on another frame.
+  if (!S.playing && fx.keys && fx.keys.length && f !== PROPS_FRAME && document.activeElement && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) buildProps();
 }
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
   if (!fx) { if (C) buildActionProps(d); else { d.className = "note"; d.textContent = "Open a character folder to begin."; } return; }
+  PROPS_FRAME = frameAt(S.t);
   fx = keyViewFor(fx);
   buildKeyProps(d);
-  banner(d, "fx", KV ? "Editing keyframe at frame " + KV.key.frame : "Editing one effect", fx.name + "  ·  " + fx.prim, "Plays on the " + fx.action + " action. The sections below change this effect only.",
+  banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim, "Plays on the " + fx.action + " action. The sections below change this effect only.",
     ["Action settings for " + fx.action, function () { S.sel = null; S.geo = null; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }]);
   var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
@@ -1608,7 +1643,7 @@ function buildTimeline() {
     tl.appendChild(b);
     (fx.keys || []).forEach(function (k, ki) {
       var dm = document.createElement("div");
-      dm.className = "tlkey" + (S.keyEdit && S.keyEdit.fx === fx.id && S.keyEdit.i === ki ? " sel" : "");
+      dm.className = "tlkey" + (fx.id === S.sel && k.frame === frameAt(S.t) ? " sel" : "");
       dm.style.left = (Math.round(k.frame * frameMs() / FXK.TICK_MS) / total * W - 5) + "px"; dm.style.top = (18 + row * 15 + 1) + "px";
       dm.title = fx.name + " key at frame " + k.frame + " (" + EASE_LABEL[k.ease] + "): " + (Object.keys(k.set).map(keyLabel).join(", ") || "nothing yet");
       dm.dataset.fx = fx.id; dm.dataset.key = ki;
@@ -1983,8 +2018,8 @@ $("facing").addEventListener("change", function () {
   function end(ev) {
     if (!scrub) return;
     if (scrub.live) { if (scrub.raf) cancelAnimationFrame(scrub.raf); resetSim(tickAt(ev.clientX)); }
-    else if (scrub.bar && scrub.key != null) { var kf = S.effects.filter(function (e) { return e.id === scrub.bar; })[0]; if (kf) { S.geoPlace = false; editKey(kf, scrub.key); buildGeo(); } }
-    else if (scrub.bar) { if (S.sel !== scrub.bar) S.keyEdit = null; S.sel = scrub.bar; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
+    else if (scrub.bar && scrub.key != null) { var kf = S.effects.filter(function (e) { return e.id === scrub.bar; })[0]; if (kf && kf.keys[scrub.key]) { S.geoPlace = false; editKey(kf, kf.keys[scrub.key].frame); buildGeo(); } }
+    else if (scrub.bar) { S.sel = scrub.bar; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
     scrub = null;
   }
   tl.addEventListener("pointerup", end);
