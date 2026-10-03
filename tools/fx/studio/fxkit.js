@@ -207,10 +207,12 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 //            off along their combined momentum; hurts_owner makes the
 //            deflected enemy projectile able to damage the fighter who fired it
 //   destroy  the enemy projectile is nullified, this one keeps going
+//   clash    beats every non-clash projectile; against another clash one,
+//            knockback decides (see CLASH_KB_MARGIN / interceptStep)
 // With no enemy projectile in range the shot resumes its own motion.
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
-var INTERCEPT_MODES = ["block", "deflect", "destroy"];
+var INTERCEPT_MODES = ["block", "deflect", "destroy", "clash"];
 // Flip (fx.flip): when enabled the effect is laid out toward the side the
 // target is on (fxFacing), whichever way the fighter itself faces, and it
 // plays as the mirror image (left <-> right only, never up <-> down) when
@@ -901,25 +903,44 @@ function emitParticles(inst, fx, host, n) {
 // ---------------------------------------------------------------- intercept
 // The auto-projectile tracker (fx.intercept, see INTERCEPT_DEFAULTS).
 // host.shots: the enemy's live projectiles [{x, y, vx, vy, dead}], read-only
-// except `dead`, which marks one already taken this tick.
+// except `dead`, which marks one already taken this tick.  In the game a shot
+// also carries clash / knockback (the enemy effect's intercept mode and
+// battle.knockback; bullets: no clash, knockback 0).
 // host.onIntercept(inst, shot, mode, enemyVel, hurtsOwner): the host applies
 // the result to the enemy projectile at its source (nullify, or send it off
-// at enemyVel for a deflect).  laser/fxkit.py intercept_step mirrors this.
+// at enemyVel for a deflect; "clash_lock" leaves it).  laser/fxkit.py
+// intercept_step mirrors this.
+//
+// Clash: an effect WITHOUT clash always loses to one with it — the clash
+// projectile nullifies any non-clash projectile it touches, and a non-clash
+// interceptor touching an enemy clash projectile is the one nullified.  Two
+// clash projectiles compare knockback: more than CLASH_KB_MARGIN apart, the
+// higher one nullifies the lower and keeps going; otherwise both freeze
+// where they met until one's life runs out or its owner is hit, and the
+// survivor then resumes the motion it had before the clash.
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
+var CLASH_KB_MARGIN = 10;
 function canIntercept(fx) {
   return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
-// Whether an intercept in `mode` may take shot s: deflect needs a
+function clashOn(fx) { return interceptOn(fx) && fx.intercept.mode === "clash"; }
+function fxKnockback(fx) { return +((fx.battle || {}).knockback) || 0; }
+// Whether an intercept in `mode` may take shot s: clash takes anything; the
+// others never go after a clash shot (they would lose to it); deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
 // e.g. built-in bullets, are both).
 function shotTakes(s, mode) {
+  if (mode === "clash") return true;
+  if (s.clash) return false;
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
-function nearestShot(inst, host, r, mode) {
+function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
+function nearestShot(inst, host, r, mode, onlyClash) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
   for (var i = 0; i < shots.length; i++) {
-    var s = shots[i]; if (s.dead || (mode && !shotTakes(s, mode))) continue;
+    var s = shots[i]; if (s.dead || shotGone(s)) continue;
+    if (onlyClash ? !s.clash : (mode && !shotTakes(s, mode))) continue;
     var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -942,16 +963,46 @@ function straightStep(inst) {
   var mdx = inst.x - inst.px, mdy = inst.y - inst.py;
   if (mdx * mdx + mdy * mdy > 1e-6) inst.dir = norm(mdx, mdy);
 }
+function endChase(inst) { if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; } }
+function clashLock(inst) { endChase(inst); inst.cvx = inst.vx; inst.cvy = inst.vy; inst.px = inst.x; inst.py = inst.y; }
+// While locked: hold still until the partner ends, then resume.  True while held.
+function clashHold(inst) {
+  var q = inst.clashWith;
+  if (!(q.dead || q.age >= q.life || q.clashWith !== inst)) { inst.px = inst.x; inst.py = inst.y; return true; }
+  inst.clashWith = null; inst.vx = inst.cvx; inst.vy = inst.cvy;
+  return false;
+}
+// inst (clash mode) touched shot hit: "lost" (inst nullified), "locked", or null (hit nullified).
+function clashContact(inst, hit, host) {
+  if (hit.clash) {
+    var diff = fxKnockback(inst.fx) - (+hit.knockback || 0);
+    if (diff < -CLASH_KB_MARGIN) { inst.age = Math.max(inst.age, inst.life); return "lost"; }
+    if (diff <= CLASH_KB_MARGIN) {
+      var q = hit.ref; clashLock(inst); clashLock(q); inst.clashWith = q; q.clashWith = inst;
+      if (host.onIntercept) host.onIntercept(inst, hit, "clash_lock", null, false);
+      return "locked";
+    }
+  }
+  if (host.onIntercept) host.onIntercept(inst, hit, "clash", null, false);
+  return null;
+}
 // Runs before the instance moves; true when it moved the instance itself.
 function interceptStep(inst, host) {
+  if (inst.clashWith && clashHold(inst)) return true;
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
   if (!interceptOn(fx)) return false;
-  var I = fx.intercept, ips = inst.ps || 1, hit = nearestShot(inst, host, Math.max(0, +I.contact || 0) * ips, I.mode);
+  var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips;
+  if (I.mode !== "clash" && nearestShot(inst, host, contact, null, true)) {   // loses to a clash projectile
+    inst.age = Math.max(inst.age, inst.life); return true;
+  }
+  var hit = nearestShot(inst, host, contact, I.mode);
   if (hit) {
     hit.dead = true;
-    if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }
-    if (I.mode === "deflect") {
+    endChase(inst);
+    if (I.mode === "clash") {
+      if (clashContact(inst, hit, host) !== null) return true;
+    } else if (I.mode === "deflect") {
       var both = I.deflect_who === "both", v = deflectVels(inst, hit, both);
       if (host.onIntercept) host.onIntercept(inst, hit, "deflect", v.enemy, !!I.hurts_owner);
       if (both) { inst.vx = v.mine[0]; inst.vy = v.mine[1]; inst.free = true; straightStep(inst); return true; }
@@ -961,10 +1012,7 @@ function interceptStep(inst, host) {
     }
   }
   var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0) * ips, I.mode);
-  if (!tgt) {
-    if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; }   // back to its own motion
-    return false;
-  }
+  if (!tgt) { endChase(inst); return false; }   // back to its own motion
   if (!inst.chase) { inst.chase = true; inst.bvx = inst.vx; inst.bvy = inst.vy; }
   var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || (+fx.motion.speed || 0) * ips;
   var want = Math.atan2(tgt.y - inst.y, tgt.x - inst.x), cur = Math.atan2(inst.vy, inst.vx), dA = want - cur;
@@ -1474,7 +1522,7 @@ function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
