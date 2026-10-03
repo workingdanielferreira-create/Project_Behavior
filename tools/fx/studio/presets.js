@@ -310,10 +310,10 @@ G.FX_PRESETS = [
    ].concat([[15.9, 82], [23.4, 83], [57.7, 80], [74.2, 83], [102.1, 82], [109.0, 40], [118.0, 84], [154.4, 83],
              [164.5, 79], [197.6, 78], [217.1, 58], [238.3, 78], [276.4, 57], [296.5, 65], [323.4, 81], [343.0, 73]
    ].map(function (r, i) {   // [angle deg, length px]: random directions on a sphere, seen face-on
-     var deg = r[0], len = r[1], w = 1.2 + 1.6 * len / 84;
+     var deg = r[0], len = r[1], w = 2.4 + 1.4 * len / 84, wt = w * 1.18;   // tip 18% wider than the base (keep within 20%)
      return {prim: "beam", name: "Ray " + (i + 1), tag: "light", anchor: "figure", start_frame: 10, life_ticks: 120, blend: "additive",
        motion: {kind: "attached", aim: "angle", angle_deg: deg}, color: {mode: "gradient", c1: "#000000", c2: "#000000"},
-       params: {length: len, w_start0: w, w_start1: w, w_end0: 0.3, w_end1: 0.3, segments: 4, glow: 3, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 0},   // 4 segments carry the core-to-tip fade (glow follows it)
+       params: {length: len, w_start0: w, w_start1: w, w_end0: wt, w_end1: wt, segments: 4, glow: 3, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 0},   // 4 segments carry the core-to-tip fade (glow follows it)
        keys: [{frame: 16 + (i % 3), ease: "out", set: {"color.c1": "#9ff0ff", "color.c2": "#000000"}},
               {frame: 24, ease: "linear", set: {"params.length": len}},
               {frame: 30, ease: "strong_in", set: {"params.length": 0}},
