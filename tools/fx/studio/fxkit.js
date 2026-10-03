@@ -1102,13 +1102,26 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
 DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
   var P = inst.fx.params, b = beamSegs(inst, host, ps);
   if (!b) return;
-  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null;
-  g.lineCap = "round";
-  b.segs.forEach(function (q) {
-    var w = q[4], col = q[5];
-    if (P.glow > 0) { g.strokeStyle = rgba(gc || col.map(trunc), 70 * b.am); g.lineWidth = w + P.glow * ps; line(g, q[0], q[1], q[2], q[3]); }
-    g.strokeStyle = rgba(col, 235 * b.am); g.lineWidth = Math.max(1, w); line(g, q[0], q[1], q[2], q[3]);
-  });
+  var gc = P.glow_color ? hexRgb(P.glow_color, null) : null, n = b.segs.length;
+  // A straight multi-segment beam joins its segments flat (no overlapping round
+  // caps, which brighten every joint under additive blend) and is rounded only at
+  // its two outer ends.  Jittered beams keep round caps so their bends stay closed.
+  var flat = n > 1 && !(P.jitter > 0);
+  function stroke(c, a, wOf) {
+    g.lineCap = flat ? "butt" : "round";
+    b.segs.forEach(function (q) {
+      g.strokeStyle = rgba(c(q), a); g.lineWidth = wOf(q);
+      if (flat) { g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[3]); g.stroke(); }
+      else line(g, q[0], q[1], q[2], q[3]);
+    });
+    if (!flat) return;
+    [[b.segs[0], 0], [b.segs[n - 1], 2]].forEach(function (e) {   // outer half-disc caps: tip, core end
+      var q = e[0], k = e[1], x = q[k], y = q[k + 1], a0 = Math.atan2(y - q[3 - k], x - q[2 - k]);
+      g.fillStyle = rgba(c(q), a); g.beginPath(); g.arc(x, y, wOf(q) / 2, a0 - Math.PI / 2, a0 + Math.PI / 2); g.closePath(); g.fill();
+    });
+  }
+  if (P.glow > 0) stroke(function (q) { return gc || q[5].map(trunc); }, 70 * b.am, function (q) { return q[4] + P.glow * ps; });
+  stroke(function (q) { return q[5]; }, 235 * b.am, function (q) { return Math.max(1, q[4]); });
 };
 DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;

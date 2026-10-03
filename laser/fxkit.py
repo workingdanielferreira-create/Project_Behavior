@@ -1294,13 +1294,40 @@ def _draw_beam(p, inst, host, ps):
         return
     segs, am = b
     gc = hex_rgb(P["glow_color"], None) if P.get("glow_color") else None
-    for q in segs:
-        w, col = q[4], q[5]
-        if P["glow"] > 0:
-            p.setPen(_pen(qcolor(gc or [trunc(v) for v in col], 70 * am), w + P["glow"] * ps))
-            _line(p, q[0], q[1], q[2], q[3])
-        p.setPen(_pen(qcolor(col, 235 * am), max(1.0, w)))
-        _line(p, q[0], q[1], q[2], q[3])
+    # A straight multi-segment beam joins its segments flat (no overlapping round
+    # caps, which brighten every joint under additive blend) and is rounded only at
+    # its two outer ends.  Jittered beams keep round caps so their bends stay closed.
+    flat = len(segs) > 1 and not P["jitter"] > 0
+
+    def stroke(col_of, alpha, w_of):
+        for q in segs:
+            pen = _pen(qcolor(col_of(q), alpha), w_of(q))
+            if flat:
+                pen.setCapStyle(Qt.FlatCap)
+                p.setPen(pen)
+                p.drawLine(QPointF(q[0], q[1]), QPointF(q[2], q[3]))
+            else:
+                p.setPen(pen)
+                _line(p, q[0], q[1], q[2], q[3])
+        if not flat:
+            return
+        p.setPen(Qt.NoPen)
+        for q, k in ((segs[0], 0), (segs[-1], 2)):   # outer half-disc caps: tip, core end
+            x, y = q[k], q[k + 1]
+            a0 = math.atan2(y - q[3 - k], x - q[2 - k])
+            r = w_of(q) / 2
+            path = QPainterPath(QPointF(x, y))
+            for i in range(13):
+                a = a0 - math.pi / 2 + math.pi * i / 12
+                path.lineTo(x + r * math.cos(a), y + r * math.sin(a))
+            path.closeSubpath()
+            p.setBrush(qcolor(col_of(q), alpha))
+            p.drawPath(path)
+        p.setBrush(Qt.NoBrush)
+
+    if P["glow"] > 0:
+        stroke(lambda q: gc or [trunc(v) for v in q[5]], 70 * am, lambda q: q[4] + P["glow"] * ps)
+    stroke(lambda q: q[5], 235 * am, lambda q: max(1.0, q[4]))
 
 
 def _draw_sprite(p, inst, host, ps):
