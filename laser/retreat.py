@@ -187,7 +187,7 @@ def _end(st, cfg, now):
 
 def _attack_radius(fig):
     return float(config.MODE_CONFIGS.get(fig.mode.key, {}).get(
-        "basic_attack_radius", config.SLASH_RADIUS))
+        "basic_attack_radius", config.SLASH_RADIUS)) * fig.mode.body_scale()
 
 
 def _strike(fig, world, tx, ty):
@@ -302,9 +302,11 @@ def tick(fig, world):
         want = a_t + math.radians(float(cfg.get("angle_deg") or 0)) + curve * st.elapsed * dt
         include_target = True
     else:
-        stand = max(ARRIVE_PX, min(BACK_STANDOFF_PX, _attack_radius(fig) * 0.5))
+        bs = fig.mode.body_scale()   # character scale: distances in proportion
+        arrive = ARRIVE_PX * bs
+        stand = max(arrive, min(BACK_STANDOFF_PX * bs, _attack_radius(fig) * 0.5))
         gx, gy = tx + st.back[0] * stand, ty + st.back[1] * stand
-        if math.hypot(gx - fig.x, gy - fig.y) <= ARRIVE_PX:
+        if math.hypot(gx - fig.x, gy - fig.y) <= arrive:
             _end(st, cfg, now)
             _strike(fig, world, tx, ty)
             return False
@@ -320,7 +322,7 @@ def tick(fig, world):
     if st.mode == "reengage":
         ox_, oy_ = _around_target(fig, tx, ty, gx, gy, stand)
         hx, hy = hx + ox_, hy + oy_
-    sx, sy = _steer(fig, world, float(cfg.get("proximity_px") or 0), include_target, tx, ty)
+    sx, sy = _steer(fig, world, float(cfg.get("proximity_px") or 0) * fig.mode.body_scale(), include_target, tx, ty)
     wx, wy = ai._wall_repulsion(fig)
     wn = max(1e-6, float(config.WALL_PUSH))
     vx = hx + sx * STEER_WEIGHT + wx / wn

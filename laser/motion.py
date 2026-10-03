@@ -31,7 +31,8 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
         dy = ty - t.y
         d_sq = dx * dx + dy * dy
         hb = fig.mode.hurtbox_radius()
-        hit_sq = hb * hb if hb else config.HIT_RADIUS_SQ
+        bs = fig.mode.body_scale()
+        hit_sq = hb * hb if hb else config.HIT_RADIUS_SQ * bs * bs
         if 0 < d_sq < hit_sq:
             inv = config.BOUNCE_STRENGTH / (d_sq ** 0.5)
             m.bounce_vx = -dx * inv

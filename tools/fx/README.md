@@ -79,6 +79,11 @@ timing.
   to play for as long as the dash lasts. FX that stay on the fighter are held
   for the dash; shots keep firing on their action's timing. It still plays on
   its own action too.
+- **Character scale (whole character).** Under every action's settings:
+  **Scale %** (10-200, default 100) sizes the whole character in the game:
+  sprite, anchors, every FX, its body hit circles, attack range and retreat /
+  blink distances, all in proportion. Movement speed stays the same. The stage
+  shows it; effects keep their numbers at 100 %.
 - **FX scale with the fighter.** Build FX at **pscale** 1 (the fighter's
   base size). In the game, and in the Studio when you raise **pscale**, every
   FX distance grows with the fighter's on-screen size, like a zoom: offsets,

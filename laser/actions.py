@@ -349,7 +349,7 @@ class ActionRunner:
         if now < self.last_attack_end + int(DEFAULT_ATTACK_GAP_MS / TICK_MS):
             return None
         mode = fig.mode
-        radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS))
+        radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS)) * mode.body_scale()
         rng = radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
         if ctx["dist"] > rng:
             return None

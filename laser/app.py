@@ -83,6 +83,7 @@ class SideState:
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
         self.partner_gone = []      # per partner_figures entry: blinked out (FX Studio blink)
+        self.partner_scale = []     # per partner_figures entry: character scale (body hit circle)
         self.partner_state = []     # per partner_figures entry: (hp_pct, attacking, defending)
                                     # for FX Studio target_* trigger conditions
         self.fx_hits = []           # FX Studio hits this side landed this tick,
@@ -139,6 +140,7 @@ class World:
         self.partner_image = []
         self.partner_facing = []
         self.partner_gone = []
+        self.partner_scale = []
         self.partner_state = []
         self.intercepted_bullets = set()
 
@@ -459,6 +461,7 @@ class World:
         self.partner_image = s.partner_image
         self.partner_facing = s.partner_facing
         self.partner_gone = s.partner_gone
+        self.partner_scale = s.partner_scale
         self.partner_state = s.partner_state
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
@@ -508,6 +511,8 @@ class World:
                                       for f in other.figures if f.transform.init]
                 side.partner_facing = [bool(f.transform.facing_left)
                                        for f in other.figures if f.transform.init]
+                side.partner_scale = [f.mode.body_scale()
+                                      for f in other.figures if f.transform.init]
                 side.partner_gone = [blink.gone(f)
                                      for f in other.figures if f.transform.init]
                 side.partner_state = [actions.target_state(f)
@@ -561,6 +566,7 @@ class World:
                 side.partner_image = []
                 side.partner_facing = []
                 side.partner_gone = []
+                side.partner_scale = []
                 side.partner_state = []
                 side.enemy_fx = []
                 side.enemy_shots = []
