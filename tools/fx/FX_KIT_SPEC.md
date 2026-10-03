@@ -332,6 +332,9 @@ routine's `config.py` values.
 A few rules are FX Kit's own; the engine's classes don't need them:
 - A beam that isn't travelling (`attached`, `static`, `orbit`) extends from its
   anchor along the aim over `grow_ticks` and re-aims every tick.
+- A straight beam with `segments > 1` (no `jitter`) joins its segments flat and
+  is rounded only at its two outer ends, so its colour gradient has no bright
+  overlapping joints. A jittered beam keeps round caps on every segment.
 - `particles` values are in game px directly. The old `fx_layers` path
   multiplied by a canvas-to-game scale; FX Kit does not.
 - `blend: additive` maps to `QPainter.CompositionMode_Plus` in Qt and
