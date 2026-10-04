@@ -151,7 +151,12 @@ PARAM_DEFAULTS = {
                 angle_deg=0, placement="anchor", back=51, lead=26),
     "beam": dict(length=200, w_start0=6, w_start1=6, w_end0=2, w_end1=2, segments=1, glow=0, glow_color="", pulse_hz=0,
                  jitter=0, detach_ticks=0, grow_ticks=0, tip_fade=0),
-    "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100),
+    # Blade only: lodge_ms = how long a non-piercing blade stays stuck in the
+    # target it hits (0 = it ends on the hit); blade_orient motion = the tip
+    # points where it moves, angle = it holds blade_angle_deg (0 = right,
+    # 90 = down; Flip mirrors it).
+    "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100,
+                   lodge_ms=1500, blade_orient="motion", blade_angle_deg=90),
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
@@ -724,9 +729,10 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy")
+                 "clash_with", "cvx", "cvy", "lodge")
 
     def __init__(self):
+        self.lodge = None      # blade stuck in the target it hit (blade_lodge)
         self.chase = False     # intercept: steering at an enemy projectile
         self.bvx = self.bvy = 0.0   # its own velocity from before the chase
         self.free = False      # deflected: flies straight on
@@ -1135,7 +1141,9 @@ def intercept_step(inst, host):
 def tick_inst(inst, host):
     fx, P = inst.fx, inst.fx["params"]
     active = inst.age < inst.life
-    if active:
+    if active and inst.lodge is not None:
+        blade_follow(inst, host.hurts or [], inst.ps)
+    elif active:
         if fx["prim"] in ("sprite", "beam"):
             inst.trail.append((inst.x, inst.y))
             while len(inst.trail) > max(0, trunc(P.get("trail_len") or 0)):
@@ -1373,11 +1381,13 @@ def _hit_shape(inst, tx, ty, hr, ps, host):
     if prim == "sprite":
         if inst.age >= inst.life:
             return False
-        if P["shape"] == "blade":   # the whole blade, tip to tail, half-width wide
-            rad = max(0.5, float(P["radius"]))
-            L = 2 * rad * max(1.0, float(P["stretch"])) * ps
+        if P["shape"] == "blade":   # the whole blade, tip to pommel, half-width wide
+            if inst.lodge is not None:
+                return False
+            L = blade_length(P, ps)
             a = blade_angle(inst)
-            return seg_dist(tx, ty, inst.x, inst.y, inst.x - math.cos(a) * L, inst.y - math.sin(a) * L) <= hr + rad * ps
+            return seg_dist(tx, ty, inst.x, inst.y, inst.x - math.cos(a) * L, inst.y - math.sin(a) * L) \
+                <= hr + max(0.5, float(P["radius"])) * ps
         dx, dy = inst.x - tx, inst.y - ty
         return dx * dx + dy * dy <= hr * hr
     if prim == "glow":
@@ -1403,7 +1413,7 @@ def resolve_hits(inst, host, ps):
     (a hit particle is removed instead)."""
     b = inst.fx["battle"]
     hurts = host.hurts
-    if not b["deals_damage"] or not hurts or inst.dead:
+    if not b["deals_damage"] or not hurts or inst.dead or inst.lodge is not None:
         return
     now = inst.age
     if inst.fx["prim"] == "pulse":
@@ -1461,7 +1471,10 @@ def resolve_hits(inst, host, ps):
             inst.last_hit = now
             host.on_hit(inst, b["damage"], inst.dir[0], inst.dir[1], b["knockback"], key)
             if not b["pierce"]:
-                inst.age = max(inst.age, inst.life)
+                if can_lodge(inst):
+                    blade_lodge(inst, hx, hy, hr, ps)
+                else:
+                    inst.age = max(inst.age, inst.life)
             return
 
 
@@ -1601,14 +1614,25 @@ def _draw_beam(p, inst, host, ps):
 _BLADE_SPRITES = {}
 
 
+def _js_round(v):
+    """Math.round: halves round up (Python's round() rounds them to even)."""
+    return int(math.floor(v + 0.5))
+
+
+BLADE_SHOULDER, BLADE_BASE, BLADE_LODGE_FADE_MS, BLADE_LODGE_JITTER_DEG = 0.18, 0.82, 300, 10
+BLADE_LODGE_GLOW = 0.35
+
+
 def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_pct=100.0):
-    """Ethereal blade (fxkit.js bladeSprite): a long tapered needle of light,
-    tip pointing +x, with a soft halo along its length and a white core.
-    Half-width = radius, length = 2 x radius x stretch; hot brightens the
-    core and the tip flare.  Returns (pixmap, tip_x, half_h): draw at
-    (-tip_x, -half_h) after translating to the tip and rotating to
-    blade_angle."""
-    ga = max(0, min(255, int(round(150 * max(0.0, float(glow_pct)) / 100.0))))
+    """Ethereal blade (fxkit.js bladeSprite): a sword of light, tip pointing
+    +x.  Half-width = radius, length = 2 x radius x stretch (tip to pommel).
+    A diamond-faceted blade (light upper facet, deeper lower facet, white
+    ridge) widest near the tip, a crystal guard at 82 % of the length, a
+    fading grip, a tight bloom and a wide halo (glow / glow_size) along it,
+    and a four-point glint at the tip (hot: brighter ridge and glint, bigger
+    glint).  Returns (pixmap, tip_x, half_h): draw at (-tip_x, -half_h) after
+    translating to the tip and rotating to blade_angle."""
+    ga = max(0, min(255, _js_round(150 * max(0.0, float(glow_pct)) / 100.0)))
     gs = max(0.0, float(glow_size_pct)) / 100.0
     key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), bool(hot), ga, round(gs, 2))
     entry = _BLADE_SPRITES.get(key)
@@ -1618,46 +1642,75 @@ def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_
     L = 2 * rad * max(1.0, float(stretch))
     gw = rad * 3 * gs
     ry, rx = rad + gw, L / 2 + gw
-    fl = rad * 1.2 * (1.6 if hot else 1.0)
+    fl = rad * 2.4 * (1.5 if hot else 1.0)
+    gh = rad * 1.9
     pad = max(1.0, gw, fl)
     w = int(math.ceil(L + 2 * pad)) + 2
-    h = int(math.ceil(2 * max(ry, fl))) + 2
+    h = int(math.ceil(2 * max(ry, fl, gh))) + 2
     tip_x, cy = w - pad, h / 2.0
-    tail, sh = tip_x - L, tip_x - L * 0.3
+    sx, bx, ex = tip_x - L * BLADE_SHOULDER, tip_x - L * BLADE_BASE, tip_x - L
+    col = (r, g, b)
+    lt = (trunc(r + (255 - r) * 0.55), trunc(g + (255 - g) * 0.55), trunc(b + (255 - b) * 0.55))   # light facet tint
     pm = QPixmap(w, h)
     pm.fill(Qt.transparent)
     qp = QPainter(pm)
     qp.setRenderHint(QPainter.Antialiasing)
     qp.setPen(Qt.NoPen)
-    if ga > 0:   # halo: a radial glow stretched along the blade
-        qp.save()
-        qp.translate(tip_x - L / 2, cy)
-        qp.scale(rx / ry, 1.0)
-        grad = QRadialGradient(0, 0, ry)
-        grad.setColorAt(0.0, QColor(r, g, b, ga))
-        grad.setColorAt(1.0, QColor(r, g, b, 0))
-        qp.setBrush(grad)
-        qp.drawEllipse(int(-ry), int(-ry), int(ry * 2), int(ry * 2))
-        qp.restore()
 
-    def poly(hw, back, stops):
-        lg = QLinearGradient(tail, cy, tip_x, cy)
+    def poly(pts, x0, x1, stops):
+        lg = QLinearGradient(x0, cy, x1, cy)
         for t, qc in stops:
             lg.setColorAt(t, qc)
         qp.setBrush(lg)
-        qp.drawPolygon(QPolygonF([QPointF(tip_x, cy), QPointF(sh, cy - hw),
-                                  QPointF(tip_x - L * back, cy), QPointF(sh, cy + hw)]))
+        qp.drawPolygon(QPolygonF([QPointF(x, y) for x, y in pts]))
 
-    poly(rad, 1.0, [(0.0, QColor(r, g, b, 0)), (0.55, QColor(r, g, b, 150)), (1.0, QColor(r, g, b, 235))])   # body
-    ca = 245 if hot else 170
-    poly(rad * 0.4, 0.85, [(0.0, QColor(255, 255, 255, 0)), (1.0, QColor(255, 255, 255, ca))])   # core
-    fx0 = tip_x - rad * 0.5   # tip flare
-    core = QRadialGradient(fx0, cy, fl)
+    def halo(cx, hrx, hry, c, a):   # radial glow stretched along the blade
+        qp.save()
+        qp.translate(cx, cy)
+        qp.scale(hrx / hry, 1.0)
+        grad = QRadialGradient(0, 0, hry)
+        grad.setColorAt(0.0, qcolor(c, a))
+        grad.setColorAt(1.0, qcolor(c, 0))
+        qp.setBrush(grad)
+        qp.drawEllipse(int(-hry), int(-hry), int(hry * 2), int(hry * 2))
+        qp.restore()
+
+    if ga > 0:
+        halo(tip_x - L / 2, rx, ry, col, ga)   # wide halo
+        halo(tip_x - L * 0.4, L * 0.45 + rad, rad * 1.9, lt, _js_round(ga * 0.8))   # tight bloom
+    # grip, fading toward the pommel
+    poly([(bx - rad * 0.3, cy - rad * 0.3), (ex, cy - rad * 0.18), (ex, cy + rad * 0.18), (bx - rad * 0.3, cy + rad * 0.3)],
+         ex, bx, [(0.0, qcolor(lt, 0)), (1.0, qcolor(lt, 170))])
+
+    def fs(c):   # blade facets: brightest at the tip
+        return [(0.0, qcolor(c, 110)), (0.7, qcolor(c, 200)), (1.0, qcolor(c, 245))]
+
+    poly([(tip_x, cy), (sx, cy - rad), (bx, cy - rad * 0.55), (bx, cy)], bx, tip_x, fs(lt))
+    poly([(tip_x, cy), (sx, cy + rad), (bx, cy + rad * 0.55), (bx, cy)], bx, tip_x, fs(col))
+    # white ridge down the middle
+    ra = 255 if hot else 200
+    poly([(tip_x, cy), (sx, cy - rad * 0.14), (bx, cy - rad * 0.1), (bx, cy + rad * 0.1), (sx, cy + rad * 0.14)], bx, tip_x,
+         [(0.0, QColor(255, 255, 255, 60)), (1.0, QColor(255, 255, 255, ra))])
+    # crystal guard
+    poly([(bx, cy - gh), (bx + rad * 0.3, cy), (bx, cy + gh), (bx - rad * 0.3, cy)], bx - rad * 0.3, bx + rad * 0.3,
+         [(0.0, qcolor(lt, 200)), (1.0, QColor(255, 255, 255, 220))])
+    # four-point glint at the tip
+    core = QRadialGradient(tip_x, cy, fl * 0.45)
     core.setColorAt(0.0, QColor(255, 255, 255, 245))
-    core.setColorAt(0.5, QColor(r, g, b, 200))
-    core.setColorAt(1.0, QColor(r, g, b, 0))
+    core.setColorAt(0.5, qcolor(col, 180))
+    core.setColorAt(1.0, qcolor(col, 0))
     qp.setBrush(core)
-    qp.drawEllipse(int(fx0 - fl), int(cy - fl), int(fl * 2), int(fl * 2))
+    qp.drawEllipse(int(tip_x - fl * 0.45), int(cy - fl * 0.45), int(fl * 0.9), int(fl * 0.9))
+    for kx, ky in ((1.0, 0.1), (0.1, 1.0)):
+        qp.save()
+        qp.translate(tip_x, cy)
+        qp.scale(kx, ky)
+        st = QRadialGradient(0, 0, fl)
+        st.setColorAt(0.0, QColor(255, 255, 255, 230))
+        st.setColorAt(1.0, QColor(255, 255, 255, 0))
+        qp.setBrush(st)
+        qp.drawEllipse(int(-fl), int(-fl), int(fl * 2), int(fl * 2))
+        qp.restore()
     qp.end()
     entry = (pm, tip_x, h / 2.0)
     _BLADE_SPRITES[key] = entry
@@ -1665,9 +1718,16 @@ def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_
 
 
 def blade_angle(inst):
-    """Which way a blade's tip points (radians): along its velocity, else
-    along this tick's movement (orbit, attached), else straight down.
-    fxkit.js bladeAngle."""
+    """Which way a blade's tip points (radians): its impact angle while
+    lodged; with blade_orient "angle" the held blade_angle_deg (mirrored by
+    Flip); else along its velocity, else along this tick's movement (orbit,
+    attached), else straight down.  fxkit.js bladeAngle."""
+    if inst.lodge is not None:
+        return inst.lodge["a"]
+    P = inst.fx["params"]
+    if P.get("blade_orient") == "angle":
+        fa = float(P.get("blade_angle_deg") or 0) * D
+        return math.pi - fa if inst.flip < 0 else fa
     if inst.vx * inst.vx + inst.vy * inst.vy > 0.0001:
         return math.atan2(inst.vy, inst.vx)
     dx, dy = inst.x - inst.px, inst.y - inst.py
@@ -1676,10 +1736,102 @@ def blade_angle(inst):
     return math.pi / 2
 
 
+def blade_length(P, ps):
+    rad = max(0.5, float(P["radius"]))
+    return 2 * rad * max(1.0, float(P["stretch"])) * ps
+
+
+def can_lodge(inst):
+    fx = inst.fx
+    return fx["prim"] == "sprite" and fx["params"]["shape"] == "blade" and float(fx["params"].get("lodge_ms", 0)) > 0
+
+
+def blade_lodge(inst, hx, hy, hr, ps):
+    """A non-piercing blade that hits a hurt circle (hx, hy, hr) lodges
+    instead of ending (fxkit.js bladeLodge): turned up to
+    BLADE_LODGE_JITTER_DEG off its impact direction (the instance's seeded
+    rng, so blades on one path don't stack), its tip is driven along it
+    toward the point nearest the circle's centre (70-100 % of the way, no
+    deeper than 45 % of the blade), it stays at that angle and offset from the
+    target, following it, for lodge_ms (fading out over the last 300 ms),
+    hidden where it is inside the target, and deals no more damage."""
+    P = inst.fx["params"]
+    a = blade_angle(inst) + inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D
+    ux, uy = math.cos(a), math.sin(a)
+    L = blade_length(P, ps)
+    s0 = (hx - inst.x) * ux + (hy - inst.y) * uy   # along the blade to the point nearest the centre
+    tx, ty = inst.x + ux * s0, inst.y + uy * s0
+    px, py = hx - tx, hy - ty
+    half = math.sqrt(max(0.0, hr * hr - px * px - py * py))
+    inside = min(half * inst.r.uniform(0.7, 1), L * 0.45)
+    if half > inside:
+        tx -= ux * (half - inside)
+        ty -= uy * (half - inside)
+    n = max(1, _js_round(float(P["lodge_ms"]) / TICK_MS))
+    inst.lodge = {"a": a, "ox": tx - hx, "oy": ty - hy, "hx": hx, "hy": hy, "depth": inside, "n": n}
+    inst.x = inst.px = tx
+    inst.y = inst.py = ty
+    inst.vx = inst.vy = 0.0
+    inst.trail = []
+    inst.life = inst.age + n
+
+
+def blade_follow(inst, hurts, ps):
+    """Each tick a lodged blade follows the hurt circle nearest where its
+    target last was (within 200 px x scale); with none (target gone or
+    blinked out) it stays put.  fxkit.js bladeFollow."""
+    lg = inst.lodge
+    best, bd = None, (200 * ps) ** 2
+    for q in hurts:
+        dx, dy = q[0] - lg["hx"], q[1] - lg["hy"]
+        d = dx * dx + dy * dy
+        if d <= bd:
+            bd, best = d, q
+    if best is not None:
+        lg["hx"], lg["hy"] = best[0], best[1]
+    inst.px, inst.py = inst.x, inst.y
+    inst.x, inst.y = lg["hx"] + lg["ox"], lg["hy"] + lg["oy"]
+
+
+def _draw_lodged(p, inst, host, ps):
+    """A lodged blade (fxkit.js drawLodged): only the part outside the
+    target is drawn, with a soft glow where it enters; it fades out over its
+    last BLADE_LODGE_FADE_MS.  Drawn with normal blending and
+    BLADE_LODGE_GLOW of its glow, so dozens stuck in one target stay
+    separate swords instead of one white mass."""
+    P, lg = inst.fx["params"], inst.lodge
+    c = [trunc(v) for v in color_pair(inst.fx, host.lut)[0]]
+    k = min(1.0, (inst.life - inst.age) / max(1.0, BLADE_LODGE_FADE_MS / TICK_MS))
+    pm, tip_x, half_h = blade_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
+                                     float(P.get("glow", 100)) * BLADE_LODGE_GLOW, P.get("glow_size", 100))
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    cut = lg["depth"] / ps   # sprite units hidden inside the target
+    p.save()
+    p.translate(trunc(inst.x), trunc(inst.y))
+    p.rotate(math.degrees(lg["a"]))
+    p.scale(ps, ps)
+    p.setOpacity(p.opacity() * k)
+    p.setClipRect(QRectF(-pm.width() - 2, -pm.height(), pm.width() + 2 - cut, pm.height() * 2))
+    p.drawPixmap(trunc(-tip_x), trunc(-half_h), pm)
+    p.restore()
+    er = max(1.0, float(P["radius"])) * 1.4 * ps
+    ex, ey = inst.x - math.cos(lg["a"]) * lg["depth"], inst.y - math.sin(lg["a"]) * lg["depth"]
+    grad = QRadialGradient(ex, ey, er)
+    grad.setColorAt(0.0, qcolor((255, 255, 255), 110 * k))
+    grad.setColorAt(0.4, qcolor(c, 70 * k))
+    grad.setColorAt(1.0, qcolor(c, 0))
+    p.setPen(Qt.NoPen)
+    p.setBrush(grad)
+    p.drawEllipse(int(ex - er), int(ey - er), int(er * 2), int(er * 2))
+
+
 def _draw_sprite(p, inst, host, ps):
     from . import combat as _combat
     fx, P = inst.fx, inst.fx["params"]
     if inst.age >= inst.life:
+        return
+    if inst.lodge is not None:
+        _draw_lodged(p, inst, host, ps)
         return
     fade = max(0.0, 1 - inst.age / inst.life) if P["fade"] else 1.0
     c = [trunc(v) for v in color_pair(fx, host.lut)[0]]
@@ -2259,6 +2411,7 @@ def _deflected_copy(src, vel, hurts_owner):
     q.vx, q.vy = float(vel[0]), float(vel[1])
     q.free, q.chase, q.dead, q.cont, q.open = True, False, False, False, False
     q.clash_with = None
+    q.lodge = None
     q.path = None
     q.age = 0
     q.life = max(config.DEFLECT_MAX_AGE, trunc(src.life - src.age) if src.life != INF else 0)

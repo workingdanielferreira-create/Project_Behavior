@@ -1084,7 +1084,8 @@ var PARAM_UI = {
     ["tip_fade", "Tip fade (fraction)", 0, 1, 0.05]],
   sprite: [["shape", "Shape", ["orb", "bolt", "blade"]], ["radius", "Radius (blade: half-width)", 0.5, 60, 0.5], ["stretch", "Stretch (bolt / blade length)", 1, 30, 0.1],
     ["hot", "White-hot streak", "chk"], ["halo", "Pulsing halo", "chk"], ["fade", "Fade over life", "chk"], ["trail_len", "Trail points", 0, 60, 1],
-    ["glow", "Glow %", 0, 200, 5], ["glow_size", "Glow size %", 0, 300, 5]],
+    ["glow", "Glow %", 0, 200, 5], ["glow_size", "Glow size %", 0, 300, 5], ["lodge_ms", "Lodge ms (blade)", 0, 10000, 50],
+    ["blade_orient", "Blade points", ["motion", "angle"]], ["blade_angle_deg", "Blade angle ° (90 = down)", -180, 180, 1]],
   particles: [["mode", "Mode", ["burst", "stream"]], ["count", "Burst count", 1, 400, 1], ["rate_per_s", "Stream /s", 1, 600, 1],
     ["angle_deg", "Angle °", -180, 180, 1], ["spread_deg", "Spread °", 0, 360, 1], ["speed_min", "Speed min px/s", 0, 2000, 5],
     ["speed_max", "Speed max px/s", 0, 2000, 5], ["gravity", "Gravity px/s²", -2000, 2000, 10], ["drag", "Drag /tick", 0.5, 1, 0.01],
@@ -1325,7 +1326,7 @@ function buildProps() {
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
-  if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a tapered needle of light, Radius wide (half-width) and 2 × Radius × Stretch long, its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still. It hits along its whole length.");
+  if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =

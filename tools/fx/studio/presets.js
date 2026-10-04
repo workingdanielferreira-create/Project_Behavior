@@ -334,47 +334,68 @@ G.FX_PRESETS = [
    }))},
 
   // ---------------------------------------------------------------- Ethereal
-  // Ethereal blades: dozens of spectral blades (sprite shape "blade"), built for a
-  // 30-frame action.  Frames 0-10: 16 blades whirl in a flat ring around the
-  // fighter, spinning up.  Frames 10-24: three columns of blades rain down on the
-  // target in waves of 3 (every 6 ticks each), speeding up as they fall.
-  // Frames 22-27: two huge light-blade sweeps cut through the target over a burst
-  // of shards.  Every damaging part uses the standard damage settings.
-  {name: "Ethereal blades", group: "Ethereal", desc: "Dozens of spectral blades: a whirling ring around the fighter (frames 0-10), a rain of blades on the target (10-24), then two huge light-blade sweeps (22-27)",
+  // Ethereal blade: one sword of light (sprite shape "blade"), standing still
+  // above the fighter, visual only.  Set its count, motion, anchor and damage
+  // yourself; without Pierce a damaging blade lodges in what it hits.
+  {name: "Ethereal blade", group: "Ethereal", desc: "One sword of light (sprite shape blade), still and visual only: the building block for your own blade FX",
+   effects: [{prim: "sprite", name: "Ethereal blade", tag: "blade", anchor: "figure", offset: [0, -34], motion: {kind: "static"}, blend: "additive",
+     color: {mode: "solid", c1: "#a9c1ff"},
+     params: {shape: "blade", radius: 2.2, stretch: 9, hot: true, halo: false, fade: false, trail_len: 0, glow: 100, glow_size: 90,
+              lodge_ms: 1500, blade_orient: "motion", blade_angle_deg: 90}}]},
+  // Ethereal blades, built for a 30-frame action.  After Ye Shunguang's sword
+  // formation (Zenless Zone Zero) and Byakuya's Senkei (Bleach):
+  //   0-12  six swords rise above the fighter, points up, slowly turning;
+  //   0-26  three rows of upright swords close in round the target and
+  //         circle it, each row the other way (visual only);
+  //   10-22 swords rain on the target down six converging lanes and lodge
+  //         in it (no pierce);
+  //   22-   a giant blade drops on the target and lodges, with a light-blade
+  //         sweep, a flash and shards.
+  {name: "Ethereal blades", group: "Ethereal", desc: "A sword formation: six swords rise over the fighter, three rows of swords close in round the target, a rain of swords lodges in it, then a giant blade drops (frames 0-30)",
    effects: [
      {prim: "glow", name: "Ethereal aura", tag: "blade", anchor: "figure", start_frame: 0, end_frame: 24, motion: {kind: "attached"}, layer: "behind", blend: "additive",
-      color: {mode: "solid", c1: "#5f7dff"}, params: {r_start: 26, r_end: 30, a_center: 90, a_mid: 40, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 3}},
-     {prim: "sprite", name: "Blade ring", tag: "blade", anchor: "figure", offset: [0, -6], start_frame: 0, end_frame: 10, emit: {count: 16},
-      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 20, knockback: 0}, blend: "additive",
-      motion: {kind: "orbit", orbit_rx: 38, orbit_ry: 14, orbit_deg: 4}, color: {mode: "solid", c1: "#d6e2ff"},
-      params: {shape: "blade", radius: 1.5, stretch: 6, hot: true, halo: false, fade: false, trail_len: 0, glow: 90, glow_size: 80},
-      keys: [{frame: 10, ease: "in", set: {"motion.orbit_rx": 46, "motion.orbit_ry": 18, "motion.orbit_deg": 9}}]}
-   ].concat([[-32, -230, 10], [0, -250, 12], [32, -230, 11]].map(function (c, i) {
-     return {prim: "sprite", name: "Blade rain " + ["left", "centre", "right"][i], tag: "blade", anchor: "target", offset: [c[0], c[1]],
-       start_frame: c[2], end_frame: 24, life_ticks: 34, emit: {every_ticks: 6, count: 3, fan_deg: 8},
-       battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2}, blend: "additive",
-       motion: {kind: "travel", aim: "angle", angle_deg: 90, speed: 8}, color: {mode: "solid", c1: "#cfdcff"},
-       params: {shape: "blade", radius: 1.3, stretch: 13, hot: true, halo: false, fade: false, trail_len: 6, glow: 110, glow_size: 90},
+      color: {mode: "solid", c1: "#4f6dff"}, params: {r_start: 24, r_end: 28, a_center: 80, a_mid: 34, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 2}},
+     {prim: "sprite", name: "Summoned swords", tag: "blade", anchor: "figure", offset: [0, -40], start_frame: 0, end_frame: 12, emit: {count: 6}, blend: "additive",
+      motion: {kind: "orbit", orbit_rx: 18, orbit_ry: 5, orbit_deg: 1.5}, color: {mode: "solid", c1: "#b8ccff"},
+      params: {shape: "blade", radius: 1.8, stretch: 8, hot: true, halo: false, fade: false, trail_len: 0, glow: 100, glow_size: 90,
+               lodge_ms: 0, blade_orient: "angle", blade_angle_deg: -90},
+      keys: [{frame: 6, ease: "out", set: {"motion.orbit_rx": 26, "motion.orbit_ry": 7}}]}
+   ].concat([[-8, 1.1], [-30, -0.9], [-52, 0.7]].map(function (row, i) {
+     return {prim: "sprite", name: "Sword ring " + (i + 1), tag: "blade", anchor: "target", offset: [0, row[0]], start_frame: 0, end_frame: 26,
+       emit: {count: 14}, blend: "additive",
+       motion: {kind: "orbit", orbit_rx: 120, orbit_ry: 26, orbit_deg: row[1]}, color: {mode: "solid", c1: i === 1 ? "#c9d6ff" : "#9fb6ff"},
+       params: {shape: "blade", radius: 1.6, stretch: 8, hot: false, halo: false, fade: false, trail_len: 0, glow: 80, glow_size: 80,
+                lodge_ms: 0, blade_orient: "angle", blade_angle_deg: 90},
+       keys: [{frame: 8, ease: "strong_out", set: {"motion.orbit_rx": 64, "motion.orbit_ry": 16}}]};
+   })).concat([[-70, -240, 74, 10, 8], [-30, -250, 83, 12, 7], [0, -260, 90, 11, 9], [12, -230, 93, 13, 8], [30, -250, 97, 10, 10], [70, -240, 106, 12, 9]].map(function (c, i) {
+     // [x, y, angle, start frame, every ticks]: six lanes converging on the target from above
+     return {prim: "sprite", name: "Sword rain " + (i + 1), tag: "blade", anchor: "target", offset: [c[0], c[1]],
+       start_frame: c[3], end_frame: 22, life_ticks: 40, emit: {every_ticks: c[4], count: 1},
+       battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 1}, blend: "additive",
+       motion: {kind: "travel", aim: "angle", angle_deg: c[2], speed: 8}, color: {mode: "solid", c1: "#c4d3ff"},
+       params: {shape: "blade", radius: 1.5, stretch: 10, hot: true, halo: false, fade: false, trail_len: 4, glow: 100, glow_size: 85,
+                lodge_ms: 1500, blade_orient: "motion", blade_angle_deg: 90},
        keys: [{frame: 16, ease: "strong_in", set: {"motion.speed": 14}}]};
    })).concat([
+     {prim: "sprite", name: "Heaven-cleaving blade", tag: "blade", anchor: "target", offset: [0, -280], start_frame: 22, life_ticks: 60,
+      battle: {deals_damage: true, damage: 4, pierce: false, rehit_ticks: 0, knockback: 16}, blend: "additive",
+      motion: {kind: "travel", aim: "angle", angle_deg: 90, speed: 6}, color: {mode: "solid", c1: "#d4e0ff"},
+      params: {shape: "blade", radius: 5, stretch: 14, hot: true, halo: false, fade: false, trail_len: 6, glow: 120, glow_size: 100,
+               lodge_ms: 1800, blade_orient: "motion", blade_angle_deg: 90},
+      keys: [{frame: 24, ease: "strong_in", set: {"motion.speed": 22}}]},
      {prim: "arc", name: "Spectral sweep", tag: "blade", anchor: "figure", start_frame: 22, life_ticks: 12, blend: "additive",
-      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 14},
+      battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 10},
       motion: {kind: "travel", aim: "target", speed: 9}, color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
       params: {radius: 64, span: 200, width: 9, tail: 0.95, segs: 24, grow: 0.8, core_alpha: 0.85, core_width: 0.35, orient: "motion",
                placement: "through_target", lead: 30},
       keys: [{frame: 25, ease: "out", set: {"params.radius": 84, "params.width": 3}}]},
-     {prim: "arc", name: "Spectral cross-sweep", tag: "blade", anchor: "figure", start_frame: 24, life_ticks: 10, blend: "additive",
-      battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 10},
-      motion: {kind: "travel", aim: "target", speed: 11}, color: {mode: "gradient", c1: "#f2f6ff", c2: "#8fa6ff"},
-      params: {radius: 48, span: 170, width: 7, tail: 0.9, segs: 20, grow: 0.8, core_alpha: 0.8, core_width: 0.3, orient: "motion",
-               placement: "through_target", lead: 22},
-      keys: [{frame: 27, ease: "out", set: {"params.radius": 62, "params.width": 2}}]},
-     {prim: "particles", name: "Blade shards", tag: "blade", anchor: "target", start_frame: 22, life_ticks: 1, motion: {kind: "static"},
+     {prim: "glow", name: "Impact flash", tag: "blade", anchor: "target", start_frame: 25, life_ticks: 18, motion: {kind: "static"}, blend: "additive",
+      color: {mode: "solid", c1: "#9fb6ff"}, params: {r_start: 10, r_end: 60, a_center: 220, a_mid: 90, mid: 0.35, core_r: 8, fade: "out", pulse_hz: 0}},
+     {prim: "particles", name: "Blade shards", tag: "blade", anchor: "target", start_frame: 25, life_ticks: 1, motion: {kind: "static"},
       color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
-      params: {mode: "burst", count: 40, angle_deg: 0, spread_deg: 360, speed_min: 80, speed_max: 300, gravity: 60, drag: 0.92,
-               size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 650}}
+      params: {mode: "burst", count: 40, angle_deg: -90, spread_deg: 200, speed_min: 80, speed_max: 320, gravity: 260, drag: 0.93,
+               size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 700}}
    ])}
-
 ];
 // Built-in entry-set and path presets (Paths & entry points panel).  kind
 // "set" items are entry sets, "path" items paths, in the shapes

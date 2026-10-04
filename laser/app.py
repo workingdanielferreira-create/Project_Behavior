@@ -526,7 +526,8 @@ class World:
                     if drv is None:
                         continue
                     for inst in drv.player.insts:
-                        if inst.fx["battle"]["deals_damage"] and not inst.dead:
+                        # A lodged blade is stuck in its target and harmless.
+                        if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
                             efx.append((inst.x, inst.y, inst.fx.get("tag", "")))
                 efx.extend((pr.x, pr.y, "bullet") for pr in other.projectiles
                            if pr.alive and pr.hit_r_sq > 0.0)
@@ -543,7 +544,7 @@ class World:
                     for inst in drv.player.insts:
                         fxd = inst.fx
                         if ((fxd["battle"]["deals_damage"] or fxkit.clash_on(fxd))
-                                and not inst.dead and inst.age < inst.life
+                                and not inst.dead and inst.age < inst.life and inst.lodge is None
                                 and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
                                 and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                             shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
