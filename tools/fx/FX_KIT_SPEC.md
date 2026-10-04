@@ -658,6 +658,10 @@ direction** section.
   turned (`placeDeg` / `place_deg` is 0), so the effect keeps the spot it
   was placed at and a group no longer swings round its pivot. Everything
   else in the list above still turns, about the effect's own centre.
+  Blades (`sprite` shape `blade`) each pivot on their own centre (the middle
+  of the blade as authored) so the tip points straight at the target, re-aimed
+  every tick (`bladePose` / `blade_pose`, which drawing, hits and lodging all
+  use). Lodged and deflected blades keep their own angle.
 - Attached and orbiting effects read the angle every tick. Projectiles, arcs
   and particle bursts take it at spawn.
 

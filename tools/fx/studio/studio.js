@@ -1504,11 +1504,11 @@ function buildProps() {
       "On: the whole effect turns toward the target. As authored it points straight ahead; with the target above or below it turns by that angle (offsets, arc, particles, orbit and paths included). Target-aimed effects already aim at the target.";
     if (fx.follow_dir) {
       field(s, "Each in place", inp("chk", fx.follow_each, function (v) { fx.follow_each = v; syncGroupTurn(fx); changed(true); })).title =
-        "Off: the whole effect turns as one piece round its anchor (its offset and entry points swing round too; a group swings round its pivot). On: every effect stays where it was placed and turns to face the target about its own centre.";
+        "Off: the whole effect turns as one piece round its anchor (its offset and entry points swing round too; a group swings round its pivot). On: every effect stays where it was placed and turns to face the target about its own centre. Blades pivot on their own centre so each tip points straight at the target.";
       note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
         : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
-      if (fx.follow_each) note(s, fgr ? "Each in place: every effect in the group keeps its spot and turns on its own centre."
-        : "Each in place: it keeps its spot and turns on its own centre.");
+      if (fx.follow_each) note(s, (fgr ? "Each in place: every effect in the group keeps its spot and turns on its own centre."
+        : "Each in place: it keeps its spot and turns on its own centre.") + (fx.prim === "sprite" && fx.params.shape === "blade" ? " Every blade pivots on its centre so its tip points at the target." : ""));
     }
 
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");

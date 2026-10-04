@@ -90,7 +90,8 @@ timing.
   up. With both ticked it mirrors to the target's side and then tilts up or
   down toward it. Tick **Each in place** (under Follow direction) to keep
   every effect where you placed it and turn each one about its own centre,
-  instead of swinging the whole effect round its anchor.
+  instead of swinging the whole effect round its anchor. Blades each pivot on
+  their own centre so every tip points at the target.
 - **Blink (per action).** Under each action's settings: a teleport inside
   that action. The character vanishes at **Vanish at frame** and reappears
   after **Reappear after frame** (-1 = when the action ends). **Reappear

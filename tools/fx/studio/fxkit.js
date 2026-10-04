@@ -243,6 +243,25 @@ function bladeAngle(inst) {
   return Math.PI / 2;
 }
 function bladeLength(P, ps) { var rad = Math.max(0.5, +P.radius); return 2 * rad * Math.max(1, +P.stretch) * ps; }
+// Follow direction + Each in place on a blade: the target it aims at (copied
+// each tick), else null.  laser/fxkit.py aim_target.
+function aimTarget(fx, host) {
+  return fx.follow_dir && fx.follow_each && fx.prim === "sprite" && fx.params.shape === "blade" ? [+host.target[0], +host.target[1]] : null;
+}
+// Where a blade's tip is and which way it points: [x, y, angle].  As authored,
+// inst.x / inst.y is the tip and bladeAngle the direction.  With Follow
+// direction + Each in place the blade pivots on its own centre (the middle of
+// the authored blade) so its tip points at the target; lodged and deflected
+// blades keep their own pose.  laser/fxkit.py blade_pose.
+function bladePose(inst, ps) {
+  var a = bladeAngle(inst), T = inst.tgt;
+  if (!T || inst.lodge || inst.free) return [inst.x, inst.y, a];
+  var h = bladeLength(inst.fx.params, ps) / 2, cx = inst.x - Math.cos(a) * h, cy = inst.y - Math.sin(a) * h;
+  var dx = T[0] - cx, dy = T[1] - cy;
+  if (dx * dx + dy * dy < 1e-6) return [inst.x, inst.y, a];
+  a = Math.atan2(dy, dx);
+  return [cx + Math.cos(a) * h, cy + Math.sin(a) * h, a];
+}
 // A non-piercing blade that hits a hurt circle (hx, hy, hr) lodges instead of
 // ending: turned up to BLADE_LODGE_JITTER_DEG off its impact direction (the
 // instance's seeded rng, so blades on one path don't stack), its tip is
@@ -253,10 +272,11 @@ function bladeLength(P, ps) { var rad = Math.max(0.5, +P.radius); return 2 * rad
 // more damage.  laser/fxkit.py blade_lodge.
 var BLADE_LODGE_JITTER_DEG = 10;
 function bladeLodge(inst, hx, hy, hr, ps) {
-  var P = inst.fx.params, a = bladeAngle(inst) + inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D, ux = Math.cos(a), uy = Math.sin(a), L = bladeLength(P, ps);
-  var s0 = (hx - inst.x) * ux + (hy - inst.y) * uy;   // along the blade to the point nearest the centre
-  var px = hx - (inst.x + ux * s0), py = hy - (inst.y + uy * s0), half = Math.sqrt(Math.max(0, hr * hr - px * px - py * py));
-  var inside = Math.min(half * inst.r.uniform(0.7, 1), L * 0.45), tx = inst.x + ux * s0, ty = inst.y + uy * s0;
+  var P = inst.fx.params, bp = bladePose(inst, ps), bx = bp[0], by = bp[1];
+  var a = bp[2] + inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D, ux = Math.cos(a), uy = Math.sin(a), L = bladeLength(P, ps);
+  var s0 = (hx - bx) * ux + (hy - by) * uy;   // along the blade to the point nearest the centre
+  var px = hx - (bx + ux * s0), py = hy - (by + uy * s0), half = Math.sqrt(Math.max(0, hr * hr - px * px - py * py));
+  var inside = Math.min(half * inst.r.uniform(0.7, 1), L * 0.45), tx = bx + ux * s0, ty = by + uy * s0;
   if (half > inside) { tx -= ux * (half - inside); ty -= uy * (half - inside); }
   var n = Math.max(1, Math.round(+P.lodge_ms / TICK_MS));
   inst.lodge = {a: a, ox: tx - hx, oy: ty - hy, hx: hx, hy: hy, depth: inside, n: n};
@@ -928,7 +948,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
     ghosts: [], acc: 0, facing: ef, flip: flipSign(fx, ef), orbitA: 0, phase: 0, zx: 0, zy: 0,
-    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host)};
+    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host), tgt: aimTarget(fx, host)};
   var ps = inst.ps;   // the figure's size when fired: what is launched keeps it
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
@@ -978,6 +998,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
 function moveInst(inst, host) {
   var fx = inst.fx, m = fx.motion;
   inst.px = inst.x; inst.py = inst.y;
+  inst.tgt = aimTarget(fx, host);
   if (m.kind === "attached") { var a = anchorPos(fx, host, inst); inst.x = a[0]; inst.y = a[1]; }
   if (m.kind === "path" && inst.path) {
     pathStep(inst, host);
@@ -1362,7 +1383,8 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;
   if (inst.age >= inst.life) return;
   if (inst.lodge) { drawLodged(g, inst, host, ps); return; }
-  var c = colorPair(fx, host.lut)[0].map(trunc), hx = trunc(inst.x), hy = trunc(inst.y);
+  var c = colorPair(fx, host.lut)[0].map(trunc), hx = trunc(inst.x), hy = trunc(inst.y), bp = null;
+  if (P.shape === "blade") { bp = bladePose(inst, ps); hx = trunc(bp[0]); hy = trunc(bp[1]); }   // Each in place turns it on its own centre
   var pts = inst.trail, n = pts.length;
   g.lineCap = "round";
   for (var i = 1; i < n; i++) {
@@ -1374,7 +1396,7 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   g.save(); g.translate(hx, hy);
   if (P.shape === "blade") {
     var k = bladeSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
-    g.rotate(bladeAngle(inst)); g.scale(ps, ps); g.globalAlpha *= fade;
+    g.rotate(bp[2]); g.scale(ps, ps); g.globalAlpha *= fade;
     g.drawImage(k.cv, trunc(-k.tipX), trunc(-k.halfH));
   } else if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
     var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
@@ -1559,8 +1581,8 @@ HIT.sprite = function (inst, tx, ty, hr, ps) {
   var P = inst.fx.params;
   if (P.shape === "blade") {   // the whole blade, tip to pommel, half-width wide
     if (inst.lodge) return false;
-    var L = bladeLength(P, ps), a = bladeAngle(inst);
-    return segDist(tx, ty, inst.x, inst.y, inst.x - Math.cos(a) * L, inst.y - Math.sin(a) * L) <= hr + Math.max(0.5, +P.radius) * ps;
+    var L = bladeLength(P, ps), bp = bladePose(inst, ps), a = bp[2];
+    return segDist(tx, ty, bp[0], bp[1], bp[0] - Math.cos(a) * L, bp[1] - Math.sin(a) * L) <= hr + Math.max(0.5, +P.radius) * ps;
   }
   var dx = inst.x - tx, dy = inst.y - ty;
   return dx * dx + dy * dy <= hr * hr;
