@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -149,6 +149,13 @@ class World:
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
+        # FX Studio Time control (laser/timefx.py), set per time sub-pass:
+        # ids of the figures whose FX step in it (None = all), the figures
+        # whose FX step while their body is stopped, and whether the side's
+        # shared FX (HP-threshold clones) step.
+        self.time_fx_on = None
+        self.time_fx_only = ()
+        self.time_side_fx = True
         self.notice = ("", 0)               # (text, ticks left) — on-screen message
         self.impact_rings = []              # [x, y, age, max_radius] shockwaves
         self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
@@ -515,7 +522,7 @@ class World:
                                       for f in other.figures if f.transform.init]
                 side.partner_gone = [blink.gone(f)
                                      for f in other.figures if f.transform.init]
-                side.partner_state = [actions.target_state(f)
+                side.partner_state = [actions.target_state(f, self.global_tick)
                                       for f in other.figures if f.transform.init]
                 # What the opponent has in the air that can hurt: live
                 # damaging FX instances (tagged) and bullets ("bullet") —
@@ -770,6 +777,9 @@ class Overlay(QWidget):
         # regardless of pass order — preserving the independent, reactive
         # feel of two fighters thinking for themselves.
         w.refresh_battle()
+        # FX Studio Time control: each figure's body / FX time scale this
+        # tick (None = no time effect running anywhere).
+        time_plan = timefx.plan(w)
         for i in w.fielded_sides():
             # Cinematic freeze: a vanish-cut on the other side suspends this
             # side's whole pass (combat, motion, collisions, projectiles).
@@ -777,6 +787,14 @@ class Overlay(QWidget):
             if w.cinematic_frozen(i):
                 continue
             w.bind_side(i)
+            if time_plan is not None:
+                # Time sub-passes: slowed / stopped / sped-up figures, FX
+                # and bullets take their own number of steps (timefx.run_side).
+                if not timefx.run_side(w, self.pipeline):
+                    self._shutdown()
+                    return
+                w.unbind_side()
+                continue
             for system in self.pipeline:
                 try:
                     system.update(w)

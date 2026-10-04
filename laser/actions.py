@@ -76,6 +76,7 @@ CONDITION_TYPES = {
     "projectile_count": dict(count=5), "bullet_deflected": {},
     "after_actions": dict(sequence=""), "since_action": dict(action="", ms=2000.0),
     "every_ms": dict(ms=3000.0), "idle_for": dict(ms=1000.0), "chance": dict(pct_s=30.0),
+    "action_triggered": dict(who="target", action="", ms=300.0),
 }
 
 
@@ -266,6 +267,14 @@ class ActionRunner:
         if t == "chance":
             p = max(0.0, min(100.0, float(cond.get("pct_s", 30)))) / 100.0
             return self.rng.random() < 1.0 - (1.0 - p) ** (TICK_MS / 1000.0)
+        if t == "action_triggered":
+            info = ctx.get("own_action") if cond.get("who") == "self" else ctx.get("tgt_action")
+            if not info or not info[0]:
+                return False
+            want = str(cond.get("action") or "").strip()
+            if want and info[0] != want:
+                return False
+            return now - info[1] <= int(float(cond.get("ms", 300)) / TICK_MS)
         return False
 
     def _cond_met(self, fig, name, cond, ctx):
@@ -294,6 +303,16 @@ class ActionRunner:
         fm = float(act.get("frame_ms") or 0) or (float(act.get("duration_ms") or 100 * max(1, n)) / max(1, n))
         return n, max(1.0, fm)
 
+    def mark_fired(self, name, cfg, ctx, now):
+        """`name` fired now: the counters that belong to it restart (an
+        action, or a Time control keyed "@time:<action>")."""
+        self.last_start[name] = now
+        self.since_attacks[name] = 0
+        self.since_hits[name] = 0
+        for c in cfg.get("conditions") or []:
+            if c.get("type") == "hp_below" and not c.get("not") and ctx["hp_pct"] <= float(c.get("pct", 50)):
+                self.hp_fired.setdefault(name, set()).add(float(c.get("pct", 50)))
+
     def _start(self, fig, name, ctx, now):
         n, _fm = self._frames(fig, name)
         if n <= 0:
@@ -303,15 +322,10 @@ class ActionRunner:
         self.elapsed = 0.0
         self.loops_left = max(1, int(round(float(cfg.get("anim_loops") or 1)))) if _kind(name) != "locomotion" else 1
         self.started = now
-        self.last_start[name] = now
         cd = float(cfg.get("cooldown_ms") or 0)
         self.cooldown_until[name] = now + int(cd / TICK_MS)
         # Counters that belong to this action restart when it fires.
-        self.since_attacks[name] = 0
-        self.since_hits[name] = 0
-        for c in cfg.get("conditions") or []:
-            if c.get("type") == "hp_below" and not c.get("not") and ctx["hp_pct"] <= float(c.get("pct", 50)):
-                self.hp_fired.setdefault(name, set()).add(float(c.get("pct", 50)))
+        self.mark_fired(name, cfg, ctx, now)
         if _kind(name) == "attack":
             self.attack_count += 1
             for k in list(self.since_attacks.keys()):
@@ -423,7 +437,9 @@ class ActionRunner:
                "hit_tags": self.hit_tags, "deflected": self.deflected,
                "enemy_fx": getattr(world, "enemy_fx", None) or [],
                "own_speed": own_speed, "tgt_speed": tgt_speed, "tgt_state": tgt_state,
-               "tgt_facing_left": tgt_facing_left, "landed": self.landed}
+               "tgt_facing_left": tgt_facing_left, "landed": self.landed,
+               "own_action": action_info(fig, now),
+               "tgt_action": (tuple(tgt_state[3:5]) if tgt_state and len(tgt_state) >= 5 else None)}
         self.ctx = ctx
         self.ctx_tick = now
         return ctx
@@ -655,10 +671,11 @@ def note_landed(fig):
         r.landed += 1
 
 
-def target_state(fig):
-    """(hp_pct, attacking, defending) as the opponent's conditions see this
-    fighter: attacking = dashing / slashing, or an image character playing an
-    attack, attack_special or ultimate; defending = parrying or `defend`."""
+def target_state(fig, now=0):
+    """(hp_pct, attacking, defending, action, action_start_tick) as the
+    opponent's conditions see this fighter: attacking = dashing / slashing,
+    or an image character playing an attack, attack_special or ultimate;
+    defending = parrying or `defend`; action / start = action_info."""
     p, c = fig.personality, fig.combat
     hp = 100.0 * p.hp / max(1e-6, p.max_hp)
     attacking = bool(c.dashing or c.slashing)
@@ -666,4 +683,40 @@ def target_state(fig):
     if r is not None and r.playing:
         attacking = attacking or r.playing.startswith("attack") or r.playing == "ultimate"
     defending = bool(c.parrying) or blocks_hit(fig)
-    return (hp, attacking, defending)
+    name, start = action_info(fig, now)
+    return (hp, attacking, defending, name, start)
+
+
+def current_action_name(fig):
+    """The action this fighter is doing, as the action_triggered condition
+    names it: an image character's playing action; for a built-in fighter
+    its ultimate (vanish-cut, special stance, loop beam, ultimate crescents)
+    = "ultimate", a dash / slash = "attack_normal", a parry = "defend".
+    None while it only stands or moves."""
+    r = getattr(fig, "act", None)
+    if r is not None and r.playing:
+        return r.playing
+    if is_image(fig):
+        return None
+    c = fig.combat
+    if c.vc_phase or getattr(c, "sp_phase", 0) or getattr(c, "lb_phase", 0) or c.ult_crescents:
+        return "ultimate"
+    if c.dashing or c.slashing:
+        return "attack_normal"
+    if c.parrying:
+        return "defend"
+    return None
+
+
+def action_info(fig, now):
+    """(action, tick it started) for the action_triggered condition; the
+    start is the first tick the action was seen (an image character's own
+    start tick when it has one).  (None, 0) while no action plays."""
+    from .timefx import state
+    st = state(fig)
+    name = current_action_name(fig)
+    if name != st.act_name:
+        st.act_name = name
+        r = getattr(fig, "act", None)
+        st.act_start = (r.last_start.get(name, now) if (r is not None and name and r.playing == name) else now)
+    return (name, st.act_start) if name else (None, 0)

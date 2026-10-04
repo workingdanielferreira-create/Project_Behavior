@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx
 from . import platform_win as win
 from . import action_log
 
@@ -295,6 +295,11 @@ class CombatSystem(System):
     whether it consumed the tick (so MotionSystem can skip those figures)."""
 
     def update(self, world):
+        # FX Studio Time control: figures whose body is stopped (or has no
+        # step left in this sub-pass) while their FX still run — the FX
+        # move, the action clock holds (laser/timefx.py).
+        for fig in getattr(world, "time_fx_only", ()):
+            fxkit.update_figure(fig, world, hold="time")
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
@@ -312,8 +317,12 @@ class CombatSystem(System):
             _rooted = actions.update(fig, world) if _img else False
             if _gone:
                 fig.transform.x, fig.transform.y = _bx, _by   # gone = doesn't move
+            # FX Studio Time control: start / advance / end this figure's
+            # own time effect (it never slows the caster itself).
+            timefx.update_caster(fig, world)
             fxkit.update_figure(fig, world,       # FX Studio effects (image characters), all archetypes
-                                hold="run" if _gone else None)
+                                hold="run" if _gone else None,
+                                frozen=not timefx.fx_on(world, fig))
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
             # Parry cooldown/stance ticks for ANY archetype that can deflect
@@ -413,8 +422,10 @@ class CombatSystem(System):
 
         # HP-threshold stationary clones: orbit/attack + hittability for
         # every clone this side owns (spawn checks already ran per-figure
-        # above). Identical in Solo & Battle.
-        combat.tick_hpt_clones(world)
+        # above). Identical in Solo & Battle.  They are the side's FX, so
+        # Time control stops / slows them with its FX (time_side_fx).
+        if getattr(world, "time_side_fx", True):
+            combat.tick_hpt_clones(world)
 
 
 def _basic_shot(fig, tx, ty):
@@ -453,7 +464,10 @@ class ProjectileSystem(System):
     """
 
     def update(self, world):
-        if world.runner_on and world.shoot_mode:
+        # world.figures is empty only in a Time control sub-pass where every
+        # fighter on this side is stopped / out of steps: the side's shared
+        # firing cadence holds with them (its bullets still move below).
+        if world.runner_on and world.shoot_mode and world.figures:
             battle = bool(world.battle_mode and world.partner_figures)
             # Fire when in an active battle, or when not in battle mode at all.
             # (battle_mode True with no partner figures yet = hold fire, as before.)
@@ -1053,7 +1067,7 @@ class CollisionSystem(System):
                             if fig.combat.parrying:
                                 world.collision_dots.append([ex, ey, 0])
                                 erased_by_parry = True
-                            elif combat.trigger_parry(fig):
+                            elif not timefx.frozen(fig) and combat.trigger_parry(fig):
                                 world.collision_dots.append([ex, ey, 0])
                                 erased_by_parry = True
                             if erased_by_parry:
@@ -1112,7 +1126,8 @@ class CollisionSystem(System):
                     continue
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending
-                        or c.sp_phase or c.lb_phase or blink.gone(fig)):
+                        or c.sp_phase or c.lb_phase or blink.gone(fig)
+                        or timefx.frozen(fig)):   # time stopped: can't react
                     continue
                 if c.dodged_proj_ids:
                     c.dodged_proj_ids &= live_proj_ids  # drop ids of bullets no longer alive
@@ -1167,7 +1182,7 @@ class CollisionSystem(System):
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.dodge_counter
                         or c.slashing or m.bouncing or m.bounce_ending
-                        or blink.gone(fig)):
+                        or blink.gone(fig) or timefx.frozen(fig)):   # time stopped: can't react
                     continue
                 _pgone = getattr(world, "partner_gone", None) or []
                 for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):

@@ -25,7 +25,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -54,6 +54,7 @@ class Figure:
         self.act = None  # actions.ActionRunner for image characters
         self.retreat = None  # retreat.RetreatState (tactical retreat)
         self.blink = None    # blink.BlinkState (FX Studio blink teleport)
+        self.time = None     # timefx.TimeState (FX Studio time control: caster + time scales)
         self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
 
     # convenience aliases ---------------------------------------------------

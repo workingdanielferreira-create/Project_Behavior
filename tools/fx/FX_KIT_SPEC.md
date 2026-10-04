@@ -45,7 +45,10 @@ these characters; it plays the PNGs.
                                     "attack_px": 0,
                                     "blink": {"enabled": false, "start_frame": 0, "end_frame": -1, "anchor": "target",
                                               "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true,
-                                              "cooldown_ms": 0}}},
+                                              "cooldown_ms": 0},
+                                    "time": {"enabled": false, "start_frame": 0, "end_frame": -1, "scope": "enemy_fighters",
+                                             "speed": 0, "keys": [{"ms": 200, "speed": 3, "ease": "inout"}],
+                                             "logic": "any", "conditions": []}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
@@ -104,6 +107,7 @@ and it "faces" the way it last moved sideways. Condition types
 | `every_ms` | `ms` | ≥ ms since this action last started (or since the fighter spawned) |
 | `idle_for` | `ms` | no attack / triggered action has played for ≥ ms |
 | `chance` | `pct_s` | random roll: pct_s % chance per second |
+| `action_triggered` | `who` (`self` / `target`), `action`, `ms` | that fighter started `action` ("" = any action) within the last ms (0 = only on the tick it starts). Built-in fighters: a dash / slash counts as `attack_normal`, a parry as `defend`, an ultimate (vanish-cut, special stance, loop beam, ultimate crescents) as `ultimate`. Solo: the cursor never acts |
 
 Every action also has `fx_continuous` (the Studio's **continuous FX** toggle).
 When the action loops (idle, run, or any action that repeats) and this is on,
@@ -542,6 +546,48 @@ cancels a knockback in progress. Solo and Battle run the same code. The
 Studio previews it on the stage: the figure disappears over those frames, a
 faint outline marks where it vanished and a ring marks where it lands. (The
 older character-wide `pack.blink` block is no longer read.)
+
+**Time control (`action_settings[action].time`, per action; `laser/timefx.py`).**
+Bends time while the action plays, for cinematic and dynamic attacks. While
+the action is between `start_frame` and `end_frame` (`-1` = the last frame)
+and its `conditions` pass (`logic` any / all, every action trigger
+condition; none = always), time runs at `speed` for what `scope` names. The
+duration comes from the frames. The fighter doing the action (the caster)
+always keeps normal speed: it controls the time.
+
+| field | meaning |
+|---|---|
+| `enabled` | the Studio's **Time control** toggle |
+| `start_frame` / `end_frame` | the window; it ends when the action passes `end_frame`, loops or ends. Each pass of the action can trigger it once, the first tick in the window its conditions pass |
+| `scope` | `enemy_fx` (the enemy's FX and bullets), `own_fx` (the caster's), `all_fx`, `enemy_fighters`, `all_fighters` (every fighter except the caster), `everything` (all FX + every fighter except the caster) |
+| `speed` | 0 = stopped, 1 = normal, up to `TIME_SPEED_MAX` 8. The Studio slider: far left 0, middle 1, far right 8 |
+| `keys` | `[{ms, speed, ease}]`: the speed eases from the previous point (the start, or an earlier key) to each key, `ms` counted from the moment the time effect started, and holds after the last key (`FXK.timeSpeed` / `fxkit.time_speed`) |
+
+- **Steps.** Every tick each fighter gets a body scale and an FX scale (the
+  product of every running time effect that names it); an accumulator turns
+  each into steps this tick (0.5 = a step every other tick, 3 = three). The
+  side's pipeline pass runs as that many sub-passes (`timefx.run_side`).
+- **Fighters.** A slowed fighter moves, animates, plays its actions and
+  attacks at its own steps. A stopped one still takes hits (damage now,
+  knockback once time resumes) but cannot dodge, parry or counter.
+- **FX.** A stopped FX holds still and lands no hits (`Player.tick`
+  `frozen`); what its fighter fires meanwhile appears and holds too. Stopped
+  enemy bullets are left out of the damage snapshot. Sped-up FX take extra
+  steps on the same action time. Built-in archetype FX (crescents, petals,
+  ...) follow their fighter's body time; HP-threshold clones follow the
+  side's FX time.
+- Several time effects multiply. A fighter running its own time effect is
+  never slowed by another one (its FX can be), so two at once both play out.
+  Cooldowns and timers on the global clock run on real time; hit-stop and
+  the vanish-cut freeze still apply on top.
+- Solo and Battle run the same code. Solo has no enemy, so the enemy scopes
+  do nothing there; `own_fx` / `all_fx` / `everything` act on the fighter's
+  own FX.
+- **Studio preview:** the time effect plays whenever the action reaches the
+  start frame (conditions are game-only). Own FX slow / stop on the stage;
+  enemy FX = the test shots; the enemy fighter = the target marker (a stopped
+  target fires no test shots). The timeline shows the window (⏱) and its
+  speed keys, the HUD the current speed.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,
