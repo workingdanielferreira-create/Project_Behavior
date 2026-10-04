@@ -330,7 +330,7 @@ An effect can animate its numbers and custom colours over the action
 
 An effect with `"group": "<id>"` belongs to that entry of `groups`. Every
 member shares the group's `anchor` (its pivot) and the same `flip` and
-`follow_dir`, and keeps its own `offset` from the pivot, so the group moves
+`follow_dir` / `follow_each`, and keeps its own `offset` from the pivot, so the group moves
 and re-attaches as one rigid piece. Grouping converts each member's spot on
 the current frame into an offset from the pivot. Moving the group adds the
 same delta to every member's `offset` and offset keys; the group's `offset`
@@ -615,7 +615,8 @@ direction** section.
 
 ```json
 "flip": {"enabled": false, "facing": 1},
-"follow_dir": false
+"follow_dir": false,
+"follow_each": false
 ```
 
 | field | meaning |
@@ -623,6 +624,7 @@ direction** section.
 | `flip.enabled` | Off (default): the effect follows the fighter's facing. On: it plays on the side the target is on, mirrored left ↔ right (never up ↔ down) when that side is the other one from `flip.facing`. |
 | `flip.facing` | The side the target was on when the effect was created: `1` right, `-1` left. The Studio records it when the effect is added, and the **Created side** dropdown changes it. |
 | `follow_dir` | Off (default): no turn. On: the whole effect turns toward the target at any angle. |
+| `follow_each` | Only with `follow_dir` on. Off (default): the effect turns as one piece round its anchor. On ("Each in place"): it stays where it was placed and turns about its own centre. |
 
 **Flip**
 - The effect's facing (`fxFacing` / `fx_facing`) is the side the target is on
@@ -652,6 +654,10 @@ direction** section.
   "angle"`, particle angles, the orbit ellipse, and `orient "facing"` paths.
   `orient "aim"` paths already follow the aim.
 - Target aims already track the target and are not turned.
+- **Each in place** (`follow_each`): the offset and entry points are not
+  turned (`placeDeg` / `place_deg` is 0), so the effect keeps the spot it
+  was placed at and a group no longer swings round its pivot. Everything
+  else in the list above still turns, about the effect's own centre.
 - Attached and orbiting effects read the angle every tick. Projectiles, arcs
   and particle bursts take it at spawn.
 
