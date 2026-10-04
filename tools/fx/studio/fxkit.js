@@ -616,28 +616,29 @@ function normalizeAction(cfg) {
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return cfg;
 }
-// fx.continuous: the effect never stops producing while its action plays,
-// loop after loop (a laser trail that is always on).  One instance is kept
-// alive with no end (it restarts only if something ends it, e.g. a
-// non-piercing hit); End frame / Life ticks / Emit every are ignored and it
-// does not fade out.  Only for effects that stay on the fighter (attached,
-// static or orbit motion) and are not arcs; travelling shots and crescents
-// are one-shots, so the flag does nothing for them.
+// fx.always_on (∞ Always on): the effect never stops producing while its
+// action plays, loop after loop (a laser trail that is always on).  One
+// instance is kept alive with no end (it restarts only if something ends it,
+// e.g. a non-piercing hit, or the action restarts after a key launched it);
+// End frame / Life ticks / Emit every are ignored and it does not fade out.
+// Only for effects that stay on the fighter (attached, static or orbit
+// motion) and are not arcs.
 function canContinue(fx) {
   return fx.prim !== "arc" && ["attached", "static", "orbit", "path"].indexOf(fx.motion.kind) >= 0;
 }
-function isContinuous(fx) { return !!fx.continuous && canContinue(fx); }
-// fx.cycles (Continuous only): instead of one never-ending set, the effect
-// plays its lifespan (Life ticks, or start frame -> end frame) as a cycle:
-// a new set each cycle, its keys replayed from the start frame, every set
-// ending with its lifespan (a launched instance lives Life ticks from its
-// launch instead).  count: -1 = forever, 0 = the first cycle only, N = N
-// more cycles.  Cycles run on their own clock: they carry on when the
-// action ends or changes, and playing the action again starts another run
-// alongside (at most CYCLE_MAX_RUNS per effect; the oldest stops).
+function isAlwaysOn(fx) { return !!fx.always_on && canContinue(fx); }
+// fx.continuous (⟳ Continuous): the effect plays its whole sequence through,
+// exactly as authored (start / end frame, Emit every, count, fan, entry
+// points, Life ticks, keys, any motion), on its own clock: it carries on to
+// the end when the action ends early, changes or restarts.  Each time the
+// action reaches the start frame a run starts; replaying the action starts
+// another alongside (at most CYCLE_MAX_RUNS per effect; the oldest stops).
+// A run lasts its sequence: start frame -> end frame, or the first copy's
+// Life ticks if that is longer.  fx.cycles {enabled, count} then replays the
+// whole sequence: count -1 = forever, 0 = once, N = N more times.
 var CYCLE_DEFAULTS = {enabled: false, count: 0};
 var CYCLE_MAX_RUNS = 8;
-function isCycling(fx) { return isContinuous(fx) && !!(fx.cycles && fx.cycles.enabled); }
+function isContinuous(fx) { return !!fx.continuous; }
 // Progress 0..1 through an instance's window (a continuous instance goes
 // through its window once, then holds at 1).
 function lifeT(inst) { return Math.min(1, inst.age / Math.max(1, inst.cont ? inst.win : inst.life)); }
@@ -650,7 +651,10 @@ function fill(dst, def) { for (var k in def) if (dst[k] === undefined) dst[k] = 
 // Fill every missing field with its default so exported files are explicit.
 function normalize(fx) {
   if (PRIMS.indexOf(fx.prim) < 0) fx.prim = "glow";
-  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false,
+  // Files from before ∞ Always on was split out (no always_on, no cycles):
+  // their continuous meant always on.
+  if (fx.always_on === undefined && fx.cycles === undefined && fx.continuous) { fx.always_on = true; fx.continuous = false; }
+  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false, always_on: false,
     anchor: "figure", offset: [0, 0], layer: "front", blend: "normal"});
   fx.emit = fill(fx.emit || {}, {every_ticks: 0, count: 1, fan_deg: 0});
   fx.cycles = fill(fx.cycles || {}, CYCLE_DEFAULTS);
@@ -1630,7 +1634,7 @@ function drawInst(g, inst, host, ps) {
 // keyed Speed; coming off the fighter (from attached / static / orbit) it is
 // a shot from then on, living Life ticks from the launch (0 = LAUNCH_LIFE).
 // Into orbit it carries on round its anchor from its own angle; into
-// attached / static it stops.  Returns true when a continuous instance
+// attached / static it stops.  Returns true when an always-on instance
 // launched (its set is spent).  laser/fxkit.py motion_switch.
 var MOVERS = {travel: 1, homing: 1, zigzag: 1};
 var LAUNCH_LIFE = 220;
@@ -1665,7 +1669,7 @@ function motionSwitch(inst, host) {
   return false;
 }
 
-// runs: loop-cycle runs (isCycling); spent: continuous effects whose set
+// runs: Continuous runs (stepRun); spent: always-on effects whose set
 // launched (no new set until the action restarts or changes); lastT: the
 // previous tick's t (a smaller t = the action restarted).
 function Player() { this.reset(); }
@@ -1687,8 +1691,8 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   var self = this, cont = !!(opts && opts.continuous);
   // Spawn `n` copies of fx.  With an entry set they come out of every point:
   // together, or (sequential) one point every interval_ticks.
-  // run (loop cycles): its frame time and cycle number, so each cycle's keys
-  // replay on the action's timing and its randomness differs.
+  // run (Continuous): its frame time and cycle number, so its keys play on
+  // the action's timing and each cycle's randomness differs.
   function fireFx(fx, t, n, win, tag, run) {
     var set = entrySetOf(fx, host), pts = set ? set.points.length : 1;
     for (var k = 0; k < pts; k++) {
@@ -1705,50 +1709,56 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
       var t0 = j.t + (j.delay || 0), inst = spawn(fxAt(j.fx, t0 * TICK_MS / j.fms), host, Math.max(1, j.win), seed, i, j.n, j.ep);
       inst.src = j.fx; inst.t0 = t0; inst.fms = j.fms;
       if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
-      else { inst.open = j.tag === "open"; inst.cyc = j.tag === "cyc"; }
+      else { inst.open = j.tag === "open"; inst.run = j.tag === "run"; }
       self.insts.push(inst);
     }
   }
+  // One tick of a Continuous run: the effect's own emissions at run time
+  // r.rt (exactly as the action would fire them), then the clock moves on.
+  // False once the sequence (and every cycle) is done.
+  function stepRun(r) {
+    var fx = r.fx, ev = fx.emit.every_ticks;
+    if (r.rt === r.s || (ev > 0 && r.rt > r.s && r.rt < r.e && (r.rt - r.s) % ev === 0))
+      fireFx(fx, r.rt, Math.max(1, trunc(fx.emit.count)), r.e - r.rt, "run", r);
+    r.rt += 1;
+    if (r.rt - r.s < r.len) return true;
+    if (!r.loop || r.left === 0) return false;
+    if (r.left > 0) r.left -= 1;
+    r.k += 1; r.rt = r.s;
+    return true;
+  }
   var due = this.pending.filter(function (j) { return j.due <= self.clock; });
   this.pending = this.pending.filter(function (j) { return j.due > self.clock; });
-  due.forEach(function (j) { if (j.tag === "cyc" || (j.fx.enabled && effects.indexOf(j.fx) >= 0)) spawnJob(j); });
+  due.forEach(function (j) { if (j.tag === "run" || (j.fx.enabled && effects.indexOf(j.fx) >= 0)) spawnJob(j); });
   // The action restarted (t went back) or an effect left it: its spent
-  // continuous set may start again.
+  // always-on set may start again.
   if (t < this.lastT) this.spent = [];
   this.spent = this.spent.filter(function (f) { return effects.indexOf(f) >= 0; });
   this.lastT = t;
-  // Loop-cycle runs, on their own clock whatever the action is doing.
-  // runCycle fires one cycle's set; false once the run has no cycles left.
-  function runCycle(r) {
-    fireFx(r.fx, r.s, Math.max(1, trunc(r.fx.emit.count)), r.len, "cyc", r);
-    r.k += 1; r.next = self.clock + r.len;
-    if (r.left === 0) return false;
-    if (r.left > 0) r.left -= 1;
-    return true;
-  }
-  this.runs = this.runs.filter(function (r) { return self.clock < r.next || runCycle(r); });
-  // A continuous instance ends when its effect is removed, disabled or no
-  // longer continuous.
+  // Continuous runs, on their own clock whatever the action is doing.
+  this.runs = this.runs.filter(stepRun);
+  // An always-on instance ends when its effect is removed, disabled or no
+  // longer always on.
   this.insts.forEach(function (inst) {
     var src = inst.src || inst.fx;
-    if (inst.cont && (!src.enabled || effects.indexOf(src) < 0 || !isContinuous(src))) inst.dead = true;
+    if (inst.cont && (!src.enabled || effects.indexOf(src) < 0 || !isAlwaysOn(src))) inst.dead = true;
   });
   effects.forEach(function (fx) {
     if (!fx.enabled || (opts && opts.hold)) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
-    if (isCycling(fx)) {   // a new run of cycles each time the action reaches the start frame
-      if (t !== s) return;
-      var mine = self.runs.filter(function (r) { return r.fx === fx; });
-      if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
-      var run = {fx: fx, s: s, len: Math.max(1, fx.life_ticks > 0 ? trunc(fx.life_ticks) : e - s), fms: frameMs, k: 0, next: 0,
-        left: trunc(fx.cycles.count)};
-      if (runCycle(run)) self.runs.push(run);   // the first cycle starts on this tick
-      return;
-    }
-    if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
+    if (isAlwaysOn(fx)) {   // one never-ending instance, started at its start frame
       if (t < s || self.spent.indexOf(fx) >= 0 || self.insts.some(function (q) { return (q.src || q.fx) === fx && q.cont && !q.dead && q.age < q.life; })
         || self.pending.some(function (q) { return q.fx === fx; })) return;
       fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont");
+      return;
+    }
+    if (isContinuous(fx)) {   // a run of its whole sequence each time the action reaches the start frame
+      if (t !== s) return;
+      var mine = self.runs.filter(function (r) { return r.fx === fx; });
+      if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
+      var run = {fx: fx, s: s, e: e, rt: s, len: Math.max(1, e - s, fx.life_ticks > 0 ? trunc(fx.life_ticks) : 0), fms: frameMs, k: 0,
+        loop: !!fx.cycles.enabled, left: trunc(fx.cycles.count)};
+      if (stepRun(run)) self.runs.push(run);   // its first tick is this one
       return;
     }
     var periodic = fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0;
@@ -1789,6 +1799,6 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,
-  KEY_CHOICES: KEY_CHOICES, CYCLE_DEFAULTS: CYCLE_DEFAULTS, CYCLE_MAX_RUNS: CYCLE_MAX_RUNS, isCycling: isCycling, LAUNCH_LIFE: LAUNCH_LIFE,
+  KEY_CHOICES: KEY_CHOICES, CYCLE_DEFAULTS: CYCLE_DEFAULTS, CYCLE_MAX_RUNS: CYCLE_MAX_RUNS, isAlwaysOn: isAlwaysOn, LAUNCH_LIFE: LAUNCH_LIFE,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite};
 })(window);

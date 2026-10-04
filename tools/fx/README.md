@@ -65,16 +65,22 @@ timing.
   an orbit keyed to **travel** launches each copy along its Aim at the keyed
   Speed (each from its own spot on the ring), and it then lives **Life ticks**
   from the launch (0 = 220 ticks); a shot keyed to **orbit** starts circling
-  its anchor from where it is. A **∞ Continuous** set that launches doesn't
+  its anchor from where it is. An **∞ Always on** set that launches doesn't
   come back until the action plays again.
-- **⟳ Loop cycles (with ∞ Continuous).** Tick **Loop cycles** under Timing to
-  replay the effect's lifespan (Life ticks, or start frame to end frame) as
-  cycles: each cycle brings a new set and replays its keys from the start
-  frame, and a set that hasn't launched ends with its cycle. **Loops**: -1 =
-  forever, 0 = the first cycle only, 1 or more = that many more cycles. The
-  cycles keep going after the action ends or changes; playing the action
-  again starts another run alongside (up to 8 at once per effect, after
-  that the oldest stops).
+- **⟳ Continuous (Timing).** The effect plays its whole sequence through,
+  exactly as you set it up, with nothing restricted: re-emit, count, fan,
+  entry points (sequential too), life, keys and any motion. It runs on its own
+  clock, so it finishes even if the action ends early, changes or restarts;
+  playing the action again starts another run alongside (up to 8 at once per
+  effect, after that the oldest stops). Example: an orbit effect on a
+  sequential entry set with re-emit builds up a ring of swords, and a key that
+  switches Motion to travel launches every sword made so far at the target.
+  **Loop cycles** (under it) plays the whole sequence again when it is done:
+  **Loops** -1 = forever, 0 = once, 1 or more = that many more times.
+- **∞ Always on** (the ∞ button in the effects list, or under Timing). The
+  old "never stops while the action plays" mode, for permanent trails and
+  auras: one set kept alive with no end. Effects saved before this split
+  that had Continuous on open as Always on.
 - **Flip & direction.** Tick **Flip** on an effect to make it play on the
   side the target is on: drag the target behind the fighter and the effect
   mirrors left ↔ right to face it (never up ↔ down), arc sweep and orbit

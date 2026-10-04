@@ -196,7 +196,8 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
 {
   "id": "E…", "name": "Blade trail", "tag": "slash", "action": "attack_normal", "enabled": true,
   "prim": "ribbon",
-  "start_frame": 0, "end_frame": -1, "life_ticks": 0, "continuous": false,
+  "start_frame": 0, "end_frame": -1, "life_ticks": 0, "continuous": false, "always_on": false,
+  "cycles": {"enabled": false, "count": 0},
   "emit": {"every_ticks": 0, "count": 1, "fan_deg": 0},
   "anchor": "wtip", "offset": [0, 0],
   "motion": {"kind": "attached", "aim": "target", "angle_deg": 0, "aim_offset_deg": 0, "speed": 8,
@@ -224,30 +225,37 @@ a default.
   that, a ribbon keeps decaying its tail, and particles and ghosts finish
   fading, before the instance is removed.
 - When the action loops, instances that are already alive keep running.
-- `continuous: true` (the Studio's per-effect **∞ Continuous** toggle) makes
-  the effect produce without ever stopping or resetting while its action
-  plays, loop after loop (an always-on laser trail). From `start_frame` on,
-  one set of `emit.count` instances is kept alive with no end: `end_frame`,
+- `continuous: true` (the Studio's **⟳ Continuous**): the effect plays its
+  whole sequence through, exactly as authored, and restricts nothing: start /
+  end frame, `emit.every_ticks`, `count`, `fan_deg`, entry sets (sequential
+  too), `life_ticks`, keys and any motion all work as usual. Each time the
+  action reaches `start_frame` a **run** starts and plays the effect's own
+  timeline on its own clock (`stepRun` / `_step_run`): it finishes even if
+  the action ends early, changes or restarts, and playing the action again
+  starts another run alongside (at most `CYCLE_MAX_RUNS` 8 per effect;
+  starting a ninth stops the oldest). A run lasts `start_frame` →
+  `end_frame`, or the first copy's `life_ticks` if that is longer; every copy
+  lives its own life. Keys that switch the motion (orbit → travel) act on
+  every copy made so far.
+- `cycles: {enabled, count}` (with `continuous`, `CYCLE_DEFAULTS`
+  `{enabled: false, count: 0}`): **loop cycles**: when a run's sequence is
+  done it plays again from `start_frame` (keys and emissions replayed, new
+  copies). `count` -1 = forever, 0 = once, N = N more times.
+- `always_on: true` (the Studio's per-effect **∞ Always on**) makes the
+  effect produce without ever stopping or resetting while its action plays,
+  loop after loop (an always-on laser trail). From `start_frame` on, one set
+  of `emit.count` instances is kept alive with no end: `end_frame`,
   `life_ticks` and `emit.every_ticks` are ignored and it never fades out
   (a glow set to fade `in` fades in once over its window, then holds; size
   and width ramps run once over the window, then hold). A new set starts
   only if the running one ends, e.g. a non-piercing damaging hit consumes it,
   or the action restarts. It ends when the action changes. It applies only
   to effects that stay on the fighter (`attached`, `static` or `orbit`
-  motion) and are not `arc`; for travelling shots and crescents the flag
-  does nothing. It is stronger than the action's `fx_continuous`, which only
-  carries over effects that already last to the end of the action.
-- `cycles: {enabled, count}` (with `continuous` only, `CYCLE_DEFAULTS`
-  `{enabled: false, count: 0}`): **loop cycles**. Instead of one never-ending
-  set, the effect plays its lifespan (`life_ticks`, or `start_frame` →
-  `end_frame`) as a cycle: each cycle spawns a new set of `emit.count`, its
-  keys replayed from `start_frame`, and the set ends with the cycle (an
-  instance launched by a key lives `life_ticks` from its launch instead).
-  `count` -1 = forever, 0 = the first cycle only, N = N more cycles after the
-  first. A run starts each time the action reaches `start_frame` and then
-  runs on its own clock: it carries on when the action ends or changes, and
-  playing the action again starts another run alongside (at most
-  `CYCLE_MAX_RUNS` 8 per effect; starting a ninth stops the oldest).
+  motion) and are not `arc`. It is stronger than the action's
+  `fx_continuous`, which only carries over effects that already last to the
+  end of the action. Files written before `always_on` existed (no
+  `always_on` and no `cycles`) had this under `continuous`; they are read as
+  `always_on`.
 
 ### Motion (`motion.kind`)
 | kind | behaviour | engine source |
@@ -302,8 +310,8 @@ An effect can animate its numbers and custom colours over the action
   where it is. Into `travel` / `homing` / `zigzag` it launches along its aim
   (with `aim_offset_deg`) at the keyed `speed`; coming off the fighter (from
   `attached` / `static` / `orbit`) it is a shot from then on: it lives
-  `life_ticks` from the launch (0 = `LAUNCH_LIFE` 220), and a continuous
-  instance stops being continuous (its effect makes no new set until the
+  `life_ticks` from the launch (0 = `LAUNCH_LIFE` 220), and an always-on
+  instance stops being always on (its effect makes no new set until the
   action restarts or changes). Into `orbit` it carries on round its anchor at
   the angle it is at (at the orbit's radius); into `attached` / `static` it
   stops. Deflected, lodged and weapon instances never switch.
@@ -475,7 +483,7 @@ as top-level `"tactical_retreat"`.
 That effect, or every member of that group, plays for the whole dash
 (`laser/fxkit.py` `FxDriver._retreat_tick`) on its own player, as a copy that
 starts on the dash's first tick (keys shifted with it) and loops on its
-action's timing. FX that can be continuous (attached, static, orbit, path; not
+action's timing. FX that can be always on (attached, static, orbit, path; not
 arcs) are held for the dash; shots fire at the start of each pass and on their
 `emit.every_ticks`. When the dash ends the held FX stop and shots already
 flying finish. The original effect still plays on its own action. A missing id

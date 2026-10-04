@@ -431,7 +431,7 @@ G.GEO_PRESETS = [
   {kind: "path", desc: "Spirals outward from where it starts.",
     item: {name: "Spiral out", points: (function () { var o = []; for (var i = 0; i <= 16; i++) { var a = i * Math.PI / 4, r = 3 + i * 3; o.push([Math.round(Math.cos(a) * r - 3), Math.round(Math.sin(a) * r)]); } o[0] = [0, 0]; return o; })(),
       smooth: true, ticks: 48, orient: "facing", end: "stop", follow: false}},
-  {kind: "path", desc: "Circles the fighter again and again (use with ∞ Continuous).",
+  {kind: "path", desc: "Circles the fighter again and again (use with ∞ Always on).",
     item: {name: "Circle around", points: (function () { var o = []; for (var i = 0; i <= 12; i++) { var a = i * Math.PI / 6; o.push([Math.round(30 - Math.cos(a) * 30), Math.round(-Math.sin(a) * 30)]); } o[0] = [0, 0]; return o; })(),
       smooth: true, ticks: 60, orient: "facing", end: "loop", follow: true}}
 ];
