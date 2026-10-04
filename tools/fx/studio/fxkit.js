@@ -172,8 +172,8 @@ function boltSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
 // a crystal guard at 82 % of the length, a fading grip, a tight bloom and a
 // wide halo (glow / glow_size) along it, and a four-point glint at the tip
 // (hot makes the ridge and glint brighter and the glint bigger).
-// laser/fxkit.py blade_sprite.  Returns {cv, tipX, halfH}: draw at
-// (-tipX, -halfH) after translating to the tip and rotating to bladeAngle.
+// laser/fxkit.py blade_sprite.  Returns {cv, tipX, halfH}; blitBlade draws
+// it end for end (the glint at the hilt, the fading grip as the point).
 var BLADE_SHOULDER = 0.18, BLADE_BASE = 0.82, BLADE_LODGE_FADE_MS = 300;
 function bladeSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
   var ga = Math.max(0, Math.min(255, Math.round(150 * Math.max(0, glowPct == null ? 100 : +glowPct) / 100)));
@@ -242,6 +242,12 @@ function bladeAngle(inst) {
   if (dx * dx + dy * dy > 1e-6) return Math.atan2(dy, dx);
   return Math.PI / 2;
 }
+// Draw a blade sprite (already translated to the blade's tip, rotated to its
+// angle and scaled) end for end: the art is mirrored along the blade so the
+// fading end leads and the glint sits at the hilt; the blade covers the same
+// tip-to-pommel line as before (hits and lodging unchanged).
+// laser/fxkit.py _blit_blade.
+function blitBlade(g, k, P) { g.scale(-1, 1); g.drawImage(k.cv, trunc(bladeLength(P, 1) - k.tipX), trunc(-k.halfH)); }
 function bladeLength(P, ps) { var rad = Math.max(0.5, +P.radius); return 2 * rad * Math.max(1, +P.stretch) * ps; }
 // Each particle on a blade: the target it aims at (copied each tick), else
 // null.  laser/fxkit.py aim_target.
@@ -255,7 +261,7 @@ function aimTarget(fx, host) {
 // blades keep their own pose.  laser/fxkit.py blade_pose.
 function bladePose(inst, ps) {
   var a = bladeAngle(inst), T = inst.tgt;
-  if (!T || inst.lodge || inst.free) return [inst.x, inst.y, a];
+  if (!T || inst.lodge || inst.free || inst.vx * inst.vx + inst.vy * inst.vy > 0.0001) return [inst.x, inst.y, a];   // flying blades point along their flight
   var h = bladeLength(inst.fx.params, ps) / 2, cx = inst.x - Math.cos(a) * h, cy = inst.y - Math.sin(a) * h;
   var dx = T[0] - cx, dy = T[1] - cy;
   if (dx * dx + dy * dy < 1e-6) return [inst.x, inst.y, a];
@@ -386,26 +392,32 @@ function fxFacing(fx, host) { return fx.flip && fx.flip.enabled ? targetSide(hos
 //                                  placed; blades aim their tips at the
 //                                  target (bladePose).
 // Either one turns the effect's own direction (bodyDeg); both together do
-// both.
-function bodyDeg(fx, host) {
-  if (!fx.follow_dir && !fx.follow_each) return 0;
-  var b = host.anchor("figure"), dx = host.target[0] - b[0], dy = host.target[1] - b[1];
+// both.  With Each particle the turn is measured from the particle's own spot
+// (`at`) to the target, so every particle points at the target from where it
+// is (aims, launches, arcs, beams, particle angles, paths, orbits, tilt).
+function degToTarget(fx, host, b) {
+  var dx = host.target[0] - b[0], dy = host.target[1] - b[1];
   if (dx * dx + dy * dy < 1e-6) return 0;
   var a = Math.atan2(dy, dx) / D - (fxFacing(fx, host) < 0 ? 180 : 0);
   return ((a % 360) + 540) % 360 - 180;
 }
+function bodyDeg(fx, host, at) {
+  if (fx.follow_each && at) return degToTarget(fx, host, at);
+  if (!fx.follow_dir && !fx.follow_each) return 0;
+  return degToTarget(fx, host, host.anchor("figure"));
+}
 // The turn for where the effect sits (offset, entry points): only Follow
 // direction swings it round its anchor.
-function placeDeg(fx, host) { return fx.follow_dir ? bodyDeg(fx, host) : 0; }
+function placeDeg(fx, host) { return fx.follow_dir ? degToTarget(fx, host, host.anchor("figure")) : 0; }
 function turnBy(v, deg) { return deg ? rot(v, deg) : v; }
 // Sign for the facing-relative turns (fan, aim offset) and, times inst.flip,
 // the arc / zigzag side.  Without Flip: the facing (the old behaviour).  With
 // Flip, a target aim heading backward counts as forward, so the effect's
 // up / down never swaps.
-function turnSign(fx, host, d) {
+function turnSign(fx, host, d, at) {
   var f = fxFacing(fx, host);
   if (!fx.flip || !fx.flip.enabled || fx.motion.aim !== "target") return f;
-  var u = turnBy(d, -bodyDeg(fx, host));
+  var u = turnBy(d, -bodyDeg(fx, host, at));
   return u[0] * f < 0 ? -f : f;
 }
 // Per-action settings (pack.action_settings[action]).  WHEN an action plays:
@@ -824,7 +836,7 @@ function aimDir(fx, host, x, y) {
   if (m.aim === "angle") { dx = Math.cos(m.angle_deg * D) * f; dy = Math.sin(m.angle_deg * D); }
   else if (m.aim === "weapon") { dx = Math.sin(host.wang * D) * f; dy = -Math.cos(host.wang * D); }
   else { dx = f; dy = 0; }
-  return turnBy([dx, dy], bodyDeg(fx, host));
+  return turnBy([dx, dy], bodyDeg(fx, host, [x, y]));
 }
 function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return [v[0] * c - v[1] * s, v[0] * s + v[1] * c]; }
 // ---------------------------------------------------------------- entry sets / paths
@@ -843,9 +855,20 @@ function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return 
 //   end: "stop" holds at the end, "loop" starts over, "continue" carries on
 //   straight along the last direction at the same speed.  follow: the path
 //   rides along with the fighter instead of staying where it started.
-var ENTRY_DEFAULTS = {name: "entry points", base: "figure", mode: "simultaneous", interval_ticks: 6, points: []};
+// start_frame / stop_frame: the action frames the set produces particles in
+// (stop -1 = to the end); what it already spawned lives on as usual.
+// order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
+var ENTRY_DEFAULTS = {name: "entry points", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [],
+  start_frame: 0, stop_frame: -1, order: "forward"};
+var ENTRY_ORDERS = ["forward", "reverse", "pingpong", "random"];
 var PATH_DEFAULTS = {name: "path", points: [[0, 0]], smooth: true, ticks: 30, orient: "facing", end: "stop", follow: false};
-function normalizeEntrySet(e) { e = fill(e || {}, ENTRY_DEFAULTS); e.points = (e.points || []).map(function (p) { return [+p[0] || 0, +p[1] || 0]; }); return e; }
+function normalizeEntrySet(e) {
+  e = fill(e || {}, ENTRY_DEFAULTS); e.points = (e.points || []).map(function (p) { return [+p[0] || 0, +p[1] || 0]; });
+  e.start_frame = Math.max(0, Math.round(+e.start_frame || 0));
+  e.stop_frame = Math.max(-1, Math.round(e.stop_frame == null ? -1 : +e.stop_frame));
+  if (ENTRY_ORDERS.indexOf(e.order) < 0) e.order = "forward";
+  return e;
+}
 function normalizePath(p) {
   p = fill(p || {}, PATH_DEFAULTS);
   p.points = (p.points || []).map(function (q) { return [+q[0] || 0, +q[1] || 0]; });
@@ -885,7 +908,7 @@ function anchorPos(fx, host, inst) {
 }
 // Orbit position around centre c (flip mirrors its side and spin).
 function orbitPos(inst, host, c) {
-  var m = inst.fx.motion, ps = hostScale(host), o = turnBy([Math.cos(inst.orbitA * D) * m.orbit_rx * ps * inst.flip, Math.sin(inst.orbitA * D) * m.orbit_ry * ps], bodyDeg(inst.fx, host));
+  var m = inst.fx.motion, ps = hostScale(host), o = turnBy([Math.cos(inst.orbitA * D) * m.orbit_rx * ps * inst.flip, Math.sin(inst.orbitA * D) * m.orbit_ry * ps], bodyDeg(inst.fx, host, c));
   return [c[0] + o[0], c[1] + o[1]];
 }
 // A path as an evenly-spaced polyline (Catmull-Rom through the points when
@@ -948,7 +971,7 @@ function pathStep(inst, host) {
 
 function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var p = anchorPos(fx, host, {ep: ep}), m = fx.motion, ef = fxFacing(fx, host);
-  var dir = aimDir(fx, host, p[0], p[1]), ts = turnSign(fx, host, dir);
+  var dir = aimDir(fx, host, p[0], p[1]), ts = turnSign(fx, host, dir, p);
   if (n > 1 && fx.emit.fan_deg) dir = rot(dir, (-fx.emit.fan_deg / 2 + fx.emit.fan_deg * idx / (n - 1)) * ts);
   if (m.aim_offset_deg) dir = rot(dir, m.aim_offset_deg * ts);
   var life = fx.life_ticks > 0 ? fx.life_ticks : Math.max(1, windowTicks);
@@ -963,7 +986,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   inst.spd = spd;   // keyframed speed: moveInst rescales the velocity when it changes
   if (m.kind === "path") {
     inst.path = libFind(host, "paths", m.path);
-    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host)); }
+    if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host, p)); }
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd * ps; inst.vy = dir[1] * spd * ps; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
@@ -977,7 +1000,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   }
   if (fx.prim === "arc") {
     // CrescentWave: centre angle perpendicular to the direction of travel.
-    var od = fx.params.orient === "angle" ? turnBy([Math.cos(fx.params.angle_deg * D) * ef, Math.sin(fx.params.angle_deg * D)], bodyDeg(fx, host)) : dir;
+    var od = fx.params.orient === "angle" ? turnBy([Math.cos(fx.params.angle_deg * D) * ef, Math.sin(fx.params.angle_deg * D)], bodyDeg(fx, host, p)) : dir;
     // Which side of its line the crescent sits (inst.side, see turnSign).
     var sd = fx.params.orient === "angle" ? inst.flip : inst.side;
     inst.centreDeg = angleDegQt(-od[1] * sd, od[0] * sd);
@@ -1050,7 +1073,7 @@ function moveInst(inst, host) {
     // A held beam keeps re-aiming (at the target, the facing, the fixed
     // angle or the weapon) while its anchor moves.
     var d = aimDir(fx, host, inst.x, inst.y);
-    inst.dir = m.aim_offset_deg ? rot(d, m.aim_offset_deg * turnSign(fx, host, d)) : d;
+    inst.dir = m.aim_offset_deg ? rot(d, m.aim_offset_deg * turnSign(fx, host, d, [inst.x, inst.y])) : d;
   }
 }
 
@@ -1059,7 +1082,7 @@ function emitParticles(inst, fx, host, n) {
   var P = fx.params, cp = colorPair(fx, host.lut);
   var spread = P.spread_deg * D, base = P.angle_deg * D;
   if (inst.facing < 0) base = Math.PI - base;
-  base += bodyDeg(fx, host) * D;   // Follow direction: turns toward the target
+  base += bodyDeg(fx, host, [inst.x, inst.y]) * D;   // Follow direction / Each particle: turns toward the target
   var ips = inst.ps || 1, smin = +P.speed_min * ips, smax = Math.max(smin, +P.speed_max * ips);
   var s0 = Math.max(0.5, +P.size_min), s1 = Math.max(s0, +P.size_max);
   var l0 = Math.max(1, +P.life_min_ms), l1 = Math.max(l0, +P.life_max_ms);
@@ -1404,7 +1427,7 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   if (P.shape === "blade") {
     var k = bladeSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(bp[2]); g.scale(ps, ps); g.globalAlpha *= fade;
-    g.drawImage(k.cv, trunc(-k.tipX), trunc(-k.halfH));
+    blitBlade(g, k, P);
   } else if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
     var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(Math.atan2(inst.vy, inst.vx)); g.scale(ps, ps); g.globalAlpha *= fade;
@@ -1438,7 +1461,7 @@ function drawLodged(g, inst, host, ps) {
   var cut = lg.depth / ps;   // sprite units hidden inside the target
   g.save(); g.translate(trunc(inst.x), trunc(inst.y)); g.rotate(lg.a); g.scale(ps, ps); g.globalAlpha *= k;
   g.beginPath(); g.rect(-sp.cv.width - 2, -sp.cv.height, sp.cv.width + 2 - cut, sp.cv.height * 2); g.clip();
-  g.drawImage(sp.cv, trunc(-sp.tipX), trunc(-sp.halfH));
+  blitBlade(g, sp, P);
   g.restore();
   var er = Math.max(1, +P.radius) * 1.4 * ps, ex = inst.x - Math.cos(lg.a) * lg.depth, ey = inst.y - Math.sin(lg.a) * lg.depth;
   g.fillStyle = radial(g, ex, ey, er, [[0, rgba([255, 255, 255], 110 * k)], [0.4, rgba(c, 70 * k)], [1, rgba(c, 0)]]);
@@ -1505,7 +1528,7 @@ var PULSE_MIN_STRETCH = 0.05;
 function pulseShape(inst, host) {
   var P = inst.fx.params, sx = P.stretch_x == null ? 1 : +P.stretch_x, sy = P.stretch_y == null ? 1 : +P.stretch_y;
   return {sx: Math.max(PULSE_MIN_STRETCH, sx), sy: Math.max(PULSE_MIN_STRETCH, sy),
-    tilt: (+P.tilt_deg || 0) * (inst.flip || 1) + bodyDeg(inst.fx, host)};
+    tilt: (+P.tilt_deg || 0) * (inst.flip || 1) + bodyDeg(inst.fx, host, [inst.x, inst.y])};
 }
 // How far a ring of radius 1 reaches toward offset (dx, dy).
 function pulseScaleToward(sh, dx, dy) {
@@ -1679,12 +1702,19 @@ function motionSwitch(inst, host) {
   if (inst.free || inst.lodge || fx.prim === "weapon" || inst.age >= inst.life) return false;
   var ps = inst.ps || 1;
   if (MOVERS[m.kind]) {
-    var d = aimDir(fx, host, inst.x, inst.y);
-    if (m.aim_offset_deg) d = rot(d, m.aim_offset_deg * turnSign(fx, host, d));
+    var d = aimDir(fx, host, inst.x, inst.y), at = [inst.x, inst.y];
+    if (!MOVERS[from] && inst.tgt) {
+      // Each particle blade: it launches from where it is drawn, along where
+      // it points (bladePose).
+      var bp = bladePose(inst, hostScale(host));
+      inst.x = inst.px = bp[0]; inst.y = inst.py = bp[1];
+      d = [Math.cos(bp[2]), Math.sin(bp[2])]; at = [bp[0], bp[1]];
+    }
+    if (m.aim_offset_deg) d = rot(d, m.aim_offset_deg * turnSign(fx, host, d, at));
     var spd = +m.speed || 0;
     inst.dir = d; inst.spd = spd; inst.vx = d[0] * spd * ps; inst.vy = d[1] * spd * ps;
     if (m.kind === "zigzag") {   // as spawn: its side of the new line
-      inst.side = inst.flip * turnSign(fx, host, d) * inst.facing;
+      inst.side = inst.flip * turnSign(fx, host, d, at) * inst.facing;
       var pr = spd > 0.001 ? [-d[1] * inst.side, d[0] * inst.side] : [0, inst.side];
       inst.zx = pr[0] * m.amplitude * ps; inst.zy = pr[1] * m.amplitude * ps; inst.phase = 0;
     }
@@ -1698,7 +1728,7 @@ function motionSwitch(inst, host) {
   inst.vx = 0; inst.vy = 0;
   if (m.kind === "orbit") {
     var c = anchorPos(fx, host, inst), hs = hostScale(host);
-    var v = turnBy([inst.x - c[0], inst.y - c[1]], -bodyDeg(fx, host));
+    var v = turnBy([inst.x - c[0], inst.y - c[1]], -bodyDeg(fx, host, c));
     inst.orbitA = Math.atan2(v[1] / Math.max(1e-6, m.orbit_ry * hs), v[0] / Math.max(1e-6, m.orbit_rx * hs * inst.flip)) / D;
   }
   return false;
@@ -1709,6 +1739,26 @@ function motionSwitch(inst, host) {
 // previous tick's t (a smaller t = the action restarted).
 function Player() { this.reset(); }
 Player.prototype.reset = function () { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; this.runs = []; this.spent = []; this.lastT = -1; };
+// An entry-set effect's production window in action ticks: [first tick, stop
+// tick].  Nothing is produced before the set's Start frame or from the tick
+// after its Stop frame on.  laser/fxkit.py Player.entry_window.
+Player.prototype.entryWindow = function (fx, host, frames, frameMs) {
+  var set = entrySetOf(fx, host);
+  if (!set) return [0, Infinity];
+  var s = Math.round(Math.max(0, set.start_frame) * frameMs / TICK_MS), st = set.stop_frame;
+  return [s, st < 0 ? Infinity : Math.round((Math.min(frames - 1, st) + 1) * frameMs / TICK_MS)];
+};
+// The order a sequential set's points fire in.  laser/fxkit.py Player.entry_order.
+function entryOrder(set, fx, t, salt) {
+  var n = set.points.length, o = set.order, idx = [], i;
+  for (i = 0; i < n; i++) idx.push(i);
+  if (set.mode !== "sequential" || o === "forward" || n < 2) return idx;
+  if (o === "reverse") return idx.reverse();
+  if (o === "pingpong") { for (i = n - 2; i > 0; i--) idx.push(i); return idx; }
+  var r = rng((hash32(fx.id) ^ Math.imul(t + 1, 0x2C1B3C6D) ^ Math.imul(salt, 0x297A2D39)) >>> 0);
+  for (i = n - 1; i > 0; i--) { var j = Math.min(i, Math.floor(r() * (i + 1))), tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp; }
+  return idx;
+}
 Player.prototype.window = function (fx, frames, frameMs) {
   var total = Math.max(1, Math.round(frames * frameMs / TICK_MS));
   var s = Math.round(Math.max(0, fx.start_frame) * frameMs / TICK_MS);
@@ -1728,12 +1778,13 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   // together, or (sequential) one point every interval_ticks.
   // run (Continuous): its frame time and cycle number, so its keys play on
   // the action's timing and each cycle's randomness differs.
-  function fireFx(fx, t, n, win, tag, run) {
-    var set = entrySetOf(fx, host), pts = set ? set.points.length : 1;
-    for (var k = 0; k < pts; k++) {
-      var delay = set && set.mode === "sequential" ? k * Math.max(0, trunc(set.interval_ticks)) : 0;
-      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay, delay: delay,
-        fms: run ? run.fms : frameMs, salt: run ? run.k + 1 : 0};
+  // stop: the entry set's stop tick (entryWindow).
+  function fireFx(fx, t, n, win, tag, run, stop) {
+    var set = entrySetOf(fx, host), salt = run ? run.k + 1 : 0, order = set ? entryOrder(set, fx, t, salt) : [null];
+    for (var pos = 0; pos < order.length; pos++) {
+      var delay = set && set.mode === "sequential" ? pos * Math.max(0, trunc(set.interval_ticks)) : 0;
+      var job = {fx: fx, t: t, n: n, win: win - delay, ep: order[pos], tag: tag, due: self.clock + delay, delay: delay,
+        fms: run ? run.fms : frameMs, salt: salt, stop: run ? run.stop : stop == null ? Infinity : stop};
       if (delay > 0) self.pending.push(job); else spawnJob(job);
     }
   }
@@ -1741,7 +1792,9 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     for (var i = 0; i < j.n; i++) {
       var seed = (hash32(j.fx.id) ^ Math.imul(j.t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B) ^ Math.imul((j.ep == null ? 0 : j.ep + 1), 0xC2B2AE35)
         ^ Math.imul(j.salt || 0, 0x27D4EB2F)) >>> 0;
-      var t0 = j.t + (j.delay || 0), inst = spawn(fxAt(j.fx, t0 * TICK_MS / j.fms), host, Math.max(1, j.win), seed, i, j.n, j.ep);
+      var t0 = j.t + (j.delay || 0);
+      if (t0 >= j.stop) return;   // past its entry set's Stop frame: no more particles
+      var inst = spawn(fxAt(j.fx, t0 * TICK_MS / j.fms), host, Math.max(1, j.win), seed, i, j.n, j.ep);
       inst.src = j.fx; inst.t0 = t0; inst.fms = j.fms;
       if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
       else { inst.open = j.tag === "open"; inst.run = j.tag === "run"; }
@@ -1780,11 +1833,15 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   });
   effects.forEach(function (fx) {
     if (!fx.enabled || (opts && opts.hold)) return;
-    var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
+    var w = self.window(fx, frames, frameMs), s = w[0], e = w[1], ew = self.entryWindow(fx, host, frames, frameMs), stop = ew[1];
+    if (ew[0] > s) {   // the entry set starts producing later than the effect
+      s = ew[0];
+      if (s >= w[2] || (s >= e && !isAlwaysOn(fx))) return;
+    }
     if (isAlwaysOn(fx)) {   // one never-ending instance, started at its start frame
       if (t < s || self.spent.indexOf(fx) >= 0 || self.insts.some(function (q) { return (q.src || q.fx) === fx && q.cont && !q.dead && q.age < q.life; })
         || self.pending.some(function (q) { return q.fx === fx; })) return;
-      fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont");
+      fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont", null, stop);
       return;
     }
     if (isContinuous(fx)) {   // a run of its whole sequence each time the action reaches the start frame
@@ -1792,7 +1849,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
       var mine = self.runs.filter(function (r) { return r.fx === fx; });
       if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
       var run = {fx: fx, s: s, e: e, rt: s, len: Math.max(1, e - s, fx.life_ticks > 0 ? trunc(fx.life_ticks) : 0), fms: frameMs, k: 0,
-        loop: !!fx.cycles.enabled, left: trunc(fx.cycles.count)};
+        loop: !!fx.cycles.enabled, left: trunc(fx.cycles.count), stop: stop};
       if (stepRun(run)) self.runs.push(run);   // its first tick is this one
       return;
     }
@@ -1801,7 +1858,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     if (!fire) return;
     var open = fx.life_ticks <= 0 && e >= w[2];
     if (cont && open && !periodic && self.insts.some(function (q) { return (q.src || q.fx) === fx && q.open && !q.dead; })) return;
-    fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), e - t, open ? "open" : "");
+    fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), e - t, open ? "open" : "", null, stop);
   });
   this.clock += 1;
   var ps = host.pscale || 1;
@@ -1827,7 +1884,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,

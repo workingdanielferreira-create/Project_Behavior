@@ -92,7 +92,14 @@ timing.
   own: every particle stays where you placed it and turns on its own
   sub-anchor (its own centre) toward the target; nothing swings round the
   anchor. Blades each pivot on their centre so every tip points at the
-  target. Tick both to get the swing and the per-particle turn together.
+  target, and launch the way they point; shots from different points each
+  aim at the target from their own spot. Tick both to get the swing and the
+  per-particle turn together.
+- **Entry point timing.** In the entry points panel, **Start frame** and
+  **Stop frame** set the action frames the points produce particles on;
+  after the stop frame they stop producing and what is already out carries
+  on. Sequential sets also have an **Order**: forward, reverse, ping-pong or
+  random.
 - **Blink (per action).** Under each action's settings: a teleport inside
   that action. The character vanishes at **Vanish at frame** and reappears
   after **Reappear after frame** (-1 = when the action ends). **Reappear

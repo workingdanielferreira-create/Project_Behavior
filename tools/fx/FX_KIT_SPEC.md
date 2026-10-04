@@ -344,7 +344,8 @@ The FX file carries two lists that every action's effects can use:
 
 ```json
 "entry_sets": [{"id": "P…", "name": "Halo of 3", "base": "figure", "mode": "simultaneous",
-                "interval_ticks": 6, "points": [[-16, -44], [0, -50], [16, -44]]}],
+                "interval_ticks": 6, "order": "forward", "start_frame": 0, "stop_frame": -1,
+                "points": [[-16, -44], [0, -50], [16, -44]]}],
 "paths": [{"id": "T…", "name": "Arc over", "points": [[0, 0], [50, -40], [100, 0]], "smooth": true,
            "ticks": 24, "orient": "aim", "end": "continue", "follow": false}]
 ```
@@ -356,8 +357,19 @@ The effect's `offset` is added on top. Each time the effect fires (start
 frame, each re-emit, a continuous start), it spawns `emit.count` copies at
 each point:
 - `simultaneous`: all points at once;
-- `sequential`: point 1 at once, point 2 `interval_ticks` later, and so on.
-  Each copy's life is shortened by its delay so they all end with the window.
+- `sequential`: the first point at once, the next `interval_ticks` later, and
+  so on. Each copy's life is shortened by its delay so they all end with the
+  window. `order` picks which point fires first: `forward` (1 → n),
+  `reverse` (n → 1), `pingpong` (1 → n → 2, so 2n − 2 shots) or `random`
+  (a seeded shuffle each time it fires, the same in the Studio and the game;
+  `entryOrder` / `Player.entry_order`).
+- `start_frame` / `stop_frame` (action frames, stop `-1` = the end): the set
+  only produces particles inside that range (`entryWindow` /
+  `Player.entry_window`). A later start delays the effect's first fire (and
+  a Continuous run's start) to it; from the tick after the stop frame on, no
+  new particles come out (pending sequential points and re-emits are
+  dropped). Particles already out live on as usual: Continuous / always-on
+  ones keep living for the rest of the action.
 Attached and orbit motions ride their own point. An empty or missing set
 plays from the figure.
 
@@ -661,11 +673,18 @@ direction** section.
   direction (aims, arc angle, particle angles, orbit, paths) turns about the
   particle's own centre (`bodyDeg` / `body_deg` is on when either tick is).
   With both ticks on, the spots swing round the anchor and each particle
-  also turns on its own sub-anchor.
+  also turns on its own sub-anchor. The turn is measured from each
+  particle's own spot to the target (`bodyDeg(fx, host, at)`), so shots from
+  different entry points each aim at the target instead of flying parallel.
   Blades (`sprite` shape `blade`) each pivot on their own centre (the middle
   of the blade as authored) so the tip points straight at the target, re-aimed
   every tick (`bladePose` / `blade_pose`, which drawing, hits and lodging all
-  use). Lodged and deflected blades keep their own angle.
+  use). Lodged, deflected and flying blades keep their own angle. When a key
+  launches such a blade (attached / static / orbit → travel / homing /
+  zigzag) it launches from where it is drawn, along where it points.
+- The blade's art is drawn end for end along it (`blitBlade` /
+  `_blit_blade`): the fading grip leads as the point and the glint sits at
+  the hilt. Its hit line, lodging and angles are unchanged.
 - Attached and orbiting effects read the angle every tick. Projectiles, arcs
   and particle bursts take it at spawn.
 
