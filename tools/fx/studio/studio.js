@@ -52,11 +52,14 @@ function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.
 // Facing: the chosen side, or (with "face movement") the side the figure is
 // moving toward, the way the game flips a moving fighter.
 function facing() {
-  if (S.aim.enabled && aimRef()) return S.target[0] < S.figX - 0.001 ? -1 : 1;   // aiming: always faces the target
+  if (S.aim.enabled && aimRef()) return targetSideNow();   // aiming: always faces the target
   if (S.react === "retreat" && S.dash && S.dash.face) return S.dash.face;   // the dash faces the way it moves (fig.face)
   if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
   return +$("facing").value;
 }
+// The side the target is on right now (1 = right of the fighter, -1 = left):
+// what aiming faces, and the Flip "created side" a new effect records.
+function targetSideNow() { return S.target[0] < S.figX - 0.001 ? -1 : 1; }
 function pscale() { return Math.max(0.25, +$("pscale").value || 1); }
 // Character scale (pack character_scale, 10-200 %): the whole character -
 // sprite, anchors, every FX, body hit circles, attack range, retreat / blink
@@ -94,6 +97,12 @@ function playEffects() {
   var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;
   return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
 }
+// Select one effect (fx id), one group (group id) or neither (the action /
+// reaction settings).  Every other selection is cleared: the Ctrl+click
+// picks, the path / entry set being edited and its point placing.
+function setSel(fxId, groupId) { S.sel = fxId || null; S.selGroup = groupId || null; S.multi = []; S.geo = null; S.geoPlace = false; }
+// The panels that show the selection.
+function refreshSel() { buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { syncKeyView(); persist(); record(); } }
 // The character's editable data, listed once: [S field, key in saved work and
@@ -186,15 +195,13 @@ function resolveAnchor(action, id, f) {
 // Aim (pack.aim): the frame turns by aimDeg() around the figure position,
 // after mirroring — the same order the game draws in.
 function imgToGame(p, rot) {
-  var k = imgScale() * viewScale(), ox = (p[0] - C.origin[0]) * k * facing(), oy = (p[1] - C.origin[1]) * k;
-  var a = (rot == null ? aimDeg() : rot) * Math.PI / 180;
-  if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
-  return [S.figX + ox, S.figY + oy];
+  var k = imgScale() * viewScale();
+  var o = FXK.turnBy([(p[0] - C.origin[0]) * k * facing(), (p[1] - C.origin[1]) * k], rot == null ? aimDeg() : rot);
+  return [S.figX + o[0], S.figY + o[1]];
 }
 function gameToImg(w) {
-  var k = imgScale() * viewScale(), ox = w[0] - S.figX, oy = w[1] - S.figY, a = -aimDeg() * Math.PI / 180;
-  if (a) { var c = Math.cos(a), s = Math.sin(a), t = ox * c - oy * s; oy = ox * s + oy * c; ox = t; }
-  return [Math.round((ox / (k * facing()) + C.origin[0]) * 100) / 100, Math.round((oy / k + C.origin[1]) * 100) / 100];
+  var k = imgScale() * viewScale(), o = FXK.turnBy([w[0] - S.figX, w[1] - S.figY], -aimDeg());
+  return [Math.round((o[0] / (k * facing()) + C.origin[0]) * 100) / 100, Math.round((o[1] / k + C.origin[1]) * 100) / 100];
 }
 // The fallback barrel: from -> to anchor averaged over the source action.
 function aimRef() {
@@ -566,12 +573,12 @@ function addPreset() {
   var added = x.p.effects.map(function (e) {
     var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = fxKey();
     if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
-    if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: S.target[0] < S.figX - 0.001 ? -1 : 1};   // created with the target on this side
+    if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: targetSideNow()};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
     return FXK.normalize(fx);
   });
   S.effects = S.effects.concat(added); S.multi = [];
-  if (gr) { S.groups.push(gr); S.sel = null; S.selGroup = gr.id; } else S.sel = added[0].id;
+  if (gr) { S.groups.push(gr); setSel(null, gr.id); } else setSel(added[0].id);
   rebuild(); resetSim(S.t); save();
   var missing = added.filter(function (fx) { return fx.anchor !== "figure" && fx.anchor !== "target" && !S.labels[fx.anchor]; });
   if (missing.length) toast("This character has no \"" + missing[0].anchor + "\" anchor: " + (gr ? "pick another Pivot for the group (its effects keep their layout)." : "add it under Anchors, or pick another joint."), 6000);
@@ -619,10 +626,7 @@ function pruneGroups() {
 }
 function canGroup(fx) { return fx.prim !== "weapon" && fx.anchor.indexOf("set:") !== 0; }
 // Effect-local (x forward, y down) <-> world, the way its offset is applied.
-function fxTurn(fx, v, inverse) {
-  var deg = FXK.bodyDeg(fx, host) * (inverse ? -1 : 1), a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-  return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v;
-}
+function fxTurn(fx, v, inverse) { return FXK.turnBy(v, FXK.bodyDeg(fx, host) * (inverse ? -1 : 1)); }
 // Stage px -> the effect's own px: FX distances are authored at pscale 1 and
 // grow with the figure (FXK.hostScale), so divide by the preview's pscale.
 function worldToLocal(fx, d) { var q = fxTurn(fx, d, true), ps = viewScale(); return [q[0] * FXK.fxFacing(fx, host) / ps, q[1] / ps]; }
@@ -659,7 +663,7 @@ function makeGroup() {
     shiftOffset(fx, [want[0] - (+now[0] || 0), want[1] - (+now[1] || 0)]);
   });
   S.groups.push(gr); pruneGroups();
-  S.multi = []; S.sel = null; S.selGroup = gr.id;
+  setSel(null, gr.id);
   rebuild(); resetSim(S.t); save();
   toast("Grouped " + picked.length + " effects on " + (S.labels[pivot] || pivot) + ".");
 }
@@ -699,7 +703,7 @@ function saveGroupPreset(gr) {
 function buildGroupProps(d, gr) {
   var ms = groupMembers(gr);
   banner(d, "fx", "Editing a group", "▣ " + gr.name, ms.length + " effects on " + fxKeyLabel(gr.action) + ", riding one pivot. Moving or re-attaching the group keeps every effect's place relative to the others.",
-    ["Done", function () { S.selGroup = null; buildEffects(); buildProps(); draw(); }]);
+    ["Done", function () { setSel(); refreshSel(); }]);
   var s = sec(d, "Group", "group", "The pivot every member rides, and where the whole group sits on it.");
   field(s, "Name", inp("text", gr.name, function (v) { gr.name = v; buildEffects(); save(); }));
   field(s, "Pivot", inp([["figure", "figure (image centre)"], ["target", "target"]].concat(anchorOptions(false)), gr.anchor, function (v) {
@@ -712,7 +716,7 @@ function buildGroupProps(d, gr) {
   ms.forEach(function (fx) {
     var r = document.createElement("div"); r.className = "row";
     var b = document.createElement("button"); b.textContent = fx.name + " · " + fx.prim; b.style.flex = "1";
-    b.onclick = function () { S.sel = fx.id; S.selGroup = null; buildEffects(); buildProps(); buildTimeline(); };
+    b.onclick = function () { setSel(fx.id); refreshSel(); };
     var x = document.createElement("button"); x.textContent = "Remove"; x.title = "Take it out of the group (it stays where it is)";
     x.onclick = function () { delete fx.group; pruneGroups(); rebuild(); resetSim(S.t); save(); };
     r.appendChild(b); r.appendChild(x); s.appendChild(r);
@@ -735,7 +739,7 @@ function buildActions() {
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = n;
     el.querySelector(".m").textContent = a.images.length + "f · " + Math.round(a.images.length * a.frame_ms) + "ms" + (c ? " · " + c + " fx" : "");
-    el.onclick = function () { S.react = null; S.action = n; S.sel = null; S.geo = null; S.geoPlace = false; rebuild(); resetSim(0); save(); };
+    el.onclick = function () { S.react = null; S.action = n; setSel(); rebuild(); resetSim(0); save(); };
     d.appendChild(el);
   });
   // Triggered reactions: always listed, "(off)" until switched on.
@@ -763,7 +767,7 @@ function openReaction(kind) {
     S.action = C.actions[S.blinkAct] ? S.blinkAct : on.length ? on[0] : C.actions[S.lastAct] ? S.lastAct : acts[0];
     S.blinkAct = S.action;
   }
-  S.react = kind; S.sel = null; S.selGroup = null; S.geo = null; S.geoPlace = false;
+  S.react = kind; setSel();
   rebuild(); resetSim(0); save();
 }
 function buildAnchors() {
@@ -823,7 +827,7 @@ function buildEffects() {
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
     el.title = (fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages") + ". Ctrl+click to pick several for Group.";
     var xs = el.querySelectorAll(".x");
-    xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(fx); c.id = FXK.newEffect(c.prim).id; c.name += " copy"; S.effects.push(c); S.sel = c.id; rebuild(); resetSim(S.t); save(); };
+    xs[0].onclick = function (ev) { ev.stopPropagation(); var c = clone(fx); c.id = FXK.newEffect(c.prim).id; c.name += " copy"; S.effects.push(c); setSel(c.id); rebuild(); resetSim(S.t); save(); };
     xs[1].onclick = function (ev) { ev.stopPropagation(); S.effects = S.effects.filter(function (e) { return e !== fx; }); if (S.sel === fx.id) S.sel = null; pruneGroups(); rebuild(); resetSim(S.t); save(); };
     el.onclick = function (ev) {
       if (ev.ctrlKey || ev.metaKey) {
@@ -831,7 +835,7 @@ function buildEffects() {
         var i = S.multi.indexOf(fx.id); if (i >= 0) S.multi.splice(i, 1); else S.multi.push(fx.id);
         buildEffects(); return;
       }
-      S.multi = []; S.sel = fx.id; S.selGroup = null; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline();
+      setSel(fx.id); refreshSel();
     };
     d.appendChild(el);
   }
@@ -848,7 +852,7 @@ function buildEffects() {
     h.querySelector(".m").textContent = ms.length + " fx · " + (S.labels[gr.anchor] || gr.anchor);
     h.title = "Group: click to move it, re-attach it to another pivot or save it as a preset.";
     h.querySelector(".x").onclick = function (ev) { ev.stopPropagation(); ungroup(gr); };
-    h.onclick = function () { S.sel = null; S.multi = []; S.selGroup = gr.id; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); };
+    h.onclick = function () { setSel(null, gr.id); refreshSel(); };
     d.appendChild(h);
     ms.forEach(function (e) { shown[e.id] = 1; if (!gr.collapsed) row(e, true); });
   });
@@ -946,7 +950,7 @@ function pathPreviewOrigin(path) {
 }
 function jointAtFx(fx) {
   var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host), ef = FXK.fxFacing(fx, host);
-  var turn = function (v) { var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return deg ? [v[0] * c - v[1] * s, v[0] * s + v[1] * c] : v; };
+  var turn = function (v) { return FXK.turnBy(v, deg); };
   var ps = viewScale();
   var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ps * ef, set.points[0][1] * ps]); return [bb[0] + q[0], bb[1] + q[1]]; })()
     : jointAt(fx.anchor.indexOf("set:") === 0 ? "figure" : fx.anchor, frameAt(S.t));
@@ -1216,9 +1220,9 @@ function keyLabel(p) {
 function keyValText(v) { return typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v); }
 // Select fx and put the playhead on frame f (its key there is then the one edited).
 function editKey(fx, f) {
-  S.sel = fx.id; S.geo = null;
+  setSel(fx.id);
   gotoFrame(f == null ? Math.max(0, fx.start_frame) : f);
-  buildEffects(); buildProps(); buildTimeline();
+  refreshSel();
 }
 // The values a key sets, as removable chips (the key being edited: id kvChips, refreshed as you type).
 function keyChips(fx, k, on) {
@@ -1306,7 +1310,7 @@ function buildProps() {
   fx = keyViewFor(fx);
   buildKeyProps(d);
   banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim, "Plays on " + (fx.action === S.action ? "the " + fx.action + " action" : fxKeyLabel(fx.action)) + ". The sections below change this effect only.",
-    [(S.react ? "Reaction settings: " : "Action settings for ") + fxKeyLabel(fx.action), function () { S.sel = null; S.geo = null; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }]);
+    [(S.react ? "Reaction settings: " : "Action settings for ") + fxKeyLabel(fx.action), function () { setSel(); refreshSel(); }]);
   var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
   field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
@@ -1359,7 +1363,7 @@ function buildProps() {
   if (fgr) {
     note(s, "Part of group \"" + fgr.name + "\": it rides the group's pivot (" + (S.labels[fgr.anchor] || fgr.anchor) + "). Its offset places it within the group.");
     var eg = document.createElement("button"); eg.textContent = "Edit group ▣ " + fgr.name;
-    eg.onclick = function () { S.sel = null; S.selGroup = fgr.id; buildEffects(); buildProps(); buildTimeline(); };
+    eg.onclick = function () { setSel(null, fgr.id); refreshSel(); };
     s.appendChild(eg);
   } else
   field(s, fx.prim === "weapon" ? "From anchor" : "Joint", inp(anchorOptions(fx.prim !== "weapon"), fx.anchor, function (v) { fx.anchor = v; changed(); }));
@@ -1869,7 +1873,7 @@ function buildReactionProps(d) {
   banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
   var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");
   field(s2, "Action", inp(acts.map(function (k) { return [k, k + (cfgOf(k).blink.enabled ? "  (on)" : "  (off)") + (S.effects.some(function (e) { return e.action === BLINK_KEY + k; }) ? "  ✦ fx" : "")]; }), a,
-    function (v) { S.action = v; S.blinkAct = v; S.sel = null; S.selGroup = null; rebuild(); resetSim(0); save(); })).title =
+    function (v) { S.action = v; S.blinkAct = v; setSel(); rebuild(); resetSim(0); save(); })).title =
     "The action whose Blink (and Blink FX) you are editing. (on) = its Blink is switched on; ✦ fx = it already has Blink FX.";
   note(s2, (n ? n + " Blink effect" + (n > 1 ? "s" : "") + " on " + a + "." : "No Blink effects on " + a + " yet: add one under Effects on the left.") +
     " Keyed on " + a + "'s frames like its own FX: set their frames around the vanish / reappear frames below. While the fighter is gone its body FX (attached, orbit) are hidden and nothing new fires." +
@@ -2058,16 +2062,17 @@ function blinkStep() {
   var b = cfgOf(S.action).blink, on = S.t < totalTicks() && FXK.blinkActive(b, frameAt(S.t), frames());
   if (on && !blinkGone()) S.blink = {gone: true, from: [S.figX, S.figY], to: null};
   else if (!on && blinkGone()) {
-    var rnd = FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1);
-    var to = FXK.blinkLanding(scaledBlink(b), S.blink.from, S.target, null, facing(), rnd);
+    var to = blinkLandingFrom(S.blink.from);
     S.figX = to[0]; S.figY = to[1]; S.blink.gone = false; S.blink.to = to;
   }
 }
 // Where the blink would land from here (drawn while it's gone).
-function blinkPreviewLanding() {
-  var b = cfgOf(S.action).blink, from = blinkGone() ? S.blink.from : [S.figX, S.figY];
-  return FXK.blinkLanding(scaledBlink(b), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
+// Where the blink lands from `from`: the same roll for every pass of the
+// action (seeded by the loop count), so the preview and the landing agree.
+function blinkLandingFrom(from) {
+  return FXK.blinkLanding(scaledBlink(cfgOf(S.action).blink), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
 }
+function blinkPreviewLanding() { return blinkLandingFrom(blinkGone() ? S.blink.from : [S.figX, S.figY]); }
 function drawBlink(g, z, img) {
   var b = cfgOf(S.action).blink; if (!b.enabled) return;
   var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
@@ -2388,7 +2393,7 @@ $("bUndo").onclick = undo; $("bRedo").onclick = redo; histUI();
 $("bAdd").onclick = function () {
   if (!C) return toast("Open a character folder first");
   var fx = FXK.newEffect($("newPrim").value, fxKey());
-  fx.flip.facing = S.target[0] < S.figX - 0.001 ? -1 : 1;   // Flip: the side the target was on when it was created
+  fx.flip.facing = targetSideNow();   // Flip: the side the target was on when it was created
   if (fx.prim === "ghost") fx.layer = "behind";
   if (["arc", "beam", "sprite"].indexOf(fx.prim) >= 0) { fx.motion.kind = "travel"; fx.life_ticks = fx.prim === "arc" ? 5 : 60; }
   if (fx.prim === "particles") { fx.motion.kind = "static"; fx.life_ticks = 1; }
@@ -2397,7 +2402,7 @@ $("bAdd").onclick = function () {
     fx.anchor = S.labels.haR ? "haR" : anchorIds()[0] || "figure";
     fx.params.to_anchor = S.labels.wtip ? "wtip" : anchorIds()[1] || fx.anchor;
   }
-  S.effects.push(fx); S.sel = fx.id; S.geo = null; S.geoPlace = false; rebuild(); resetSim(S.t); save();
+  S.effects.push(fx); setSel(fx.id); rebuild(); resetSim(S.t); save();
 };
 $("bAnchorAdd").onclick = function () {
   if (!C) return;
@@ -2487,8 +2492,8 @@ $("facing").addEventListener("change", function () {
   function end(ev) {
     if (!scrub) return;
     if (scrub.live) { if (scrub.raf) cancelAnimationFrame(scrub.raf); resetSim(tickAt(ev.clientX)); }
-    else if (scrub.bar && scrub.key != null) { var kf = S.effects.filter(function (e) { return e.id === scrub.bar; })[0]; if (kf && kf.keys[scrub.key]) { S.geoPlace = false; editKey(kf, kf.keys[scrub.key].frame); buildGeo(); } }
-    else if (scrub.bar) { S.sel = scrub.bar; S.geo = null; S.geoPlace = false; buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
+    else if (scrub.bar && scrub.key != null) { var kf = S.effects.filter(function (e) { return e.id === scrub.bar; })[0]; if (kf && kf.keys[scrub.key]) editKey(kf, kf.keys[scrub.key].frame); }
+    else if (scrub.bar) { setSel(scrub.bar); refreshSel(); }
     scrub = null;
   }
   tl.addEventListener("pointerup", end);

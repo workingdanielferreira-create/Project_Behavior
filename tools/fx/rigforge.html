@@ -3434,6 +3434,20 @@ function pkgCamera(headPx,travel){
   return{cx:cx,cy:cy,ppu:ppu,size:size};
 }
 function pkgName(k,i,n){var w=n>99?3:2,s=String(i+1);while(s.length<w)s="0"+s;return k+"_"+s+".png";}
+/* character.json, as both package exports write it (a new export, and the re-export of an imported
+   package): the character's identity, stats and palette, the frames' image space, the actions and the
+   per-frame anchors with their names.  `extra` adds the export's own fields (note; the re-export's
+   rigforge block) after them.  FX Studio reads anchors / anchor_labels as each frame's starting anchors. */
+var PKG_ANCHOR_LABELS={hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
+      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
+      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"};
+function pkgManifest(image,acts,anchors,extra){
+  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
+    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
+    image:image,actions:acts,anchors:anchors,anchor_labels:PKG_ANCHOR_LABELS};
+  for(var k in extra)man[k]=extra[k];
+  return man;
+}
 function pkgBuild(){
   if(S.meta.pkg)return pkgBuildPkg();   /* imported package: keep its image space */
   var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
@@ -3452,15 +3466,8 @@ function pkgBuild(){
     });
     acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
   });
-  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
-    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
-    image:{size:[size,size],origin_px:[size/2,size/2],head_px:Math.round(S.rig.head*2*cam.ppu*100)/100,
-      px_per_rig_unit:Math.round(cam.ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
-    actions:acts,anchors:anchors,
-    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
-      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
-      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"},
-    note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."};
+  var man=pkgManifest({size:[size,size],origin_px:[size/2,size/2],head_px:Math.round(S.rig.head*2*cam.ppu*100)/100,
+      px_per_rig_unit:Math.round(cam.ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},acts,anchors,{note:"Exported by Rig Forge. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. FX live in <name>.fxkit.json, written by the FX Studio into this folder."});
   return{manifest:man,files:files};
 }
 function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
@@ -3824,15 +3831,8 @@ function pkgBuildPkg(){
       keyframes:a.keyframes.map(function(p){var q=clone(p);delete q._ref;delete q._gen;delete q._hold;
         if(p._img){delete q._img;q._frame=fileOf.get(p);}return q;})};
   });
-  var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
-    archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
-    image:{size:[W2,H2],origin_px:[ox,oy],head_px:pk.head_px,px_per_rig_unit:Math.round(ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},
-    actions:acts,anchors:anchors,
-    anchor_labels:{hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
-      elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
-      ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"},
-    rigforge:{version:1,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
-    note:"Exported by Rig Forge from an imported package. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. \"rigforge\" holds the rig and keyframes so Rig Forge can import this package exactly. FX live in <name>.fxkit.json in this folder."};
+  var man=pkgManifest({size:[W2,H2],origin_px:[ox,oy],head_px:pk.head_px,px_per_rig_unit:Math.round(ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},acts,anchors,{rigforge:{version:1,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
+    note:"Exported by Rig Forge from an imported package. Frames face right; the image centre (origin_px) is the figure's position in-game; anchors are image px per frame. \"rigforge\" holds the rig and keyframes so Rig Forge can import this package exactly. FX live in <name>.fxkit.json in this folder."});
   return{manifest:man,files:files};
 }
 document.getElementById("pk_col").addEventListener("change",function(){if(S.meta.pkg){S.meta.pkg.colour=this.value;save();}});
