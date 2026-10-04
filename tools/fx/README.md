@@ -168,9 +168,17 @@ timing.
 Format and engine contract: [`FX_KIT_SPEC.md`](FX_KIT_SPEC.md).
 Runtime reference: `studio/fxkit.js`.
 
-> **Status:** the tools are done. The game doesn't load character folders or
-> play `.fxkit.json` yet; that's Phase 2 (`laser/fxkit.py`, see
-> FX_KIT_SPEC.md §7).
+**Keeping the Studio and the game in step.** The game plays `.fxkit.json`
+with `laser/fxkit.py`, a hand-kept port of `studio/fxkit.js`; trigger
+conditions run in `laser/actions.py` and the Tactical retreat in
+`laser/retreat.py`. After changing a default, a condition type, a scaled
+parameter or a retreat constant on either side, run (from the game folder):
+
+    python tools\fx\check_parity.py
+
+It compares every table the two sides share and lists any difference (exit
+code 1). "agree on every shared table" means an effect plays in Solo and
+Battle exactly as the Studio previews it.
 
 ## Getting a character into the game
 

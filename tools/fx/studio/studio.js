@@ -1477,50 +1477,79 @@ function buildProps() {
 
 // Trigger conditions (action_settings[action].conditions): grouped picker,
 // labels, field editors and the live preview against the stage.
-var COND_GROUPS = [
-  ["Own state", ["hp_below", "hp_above", "self_speed_above", "self_speed_below"]],
-  ["Target", ["target_within", "target_beyond", "target_between", "target_above", "target_below", "target_facing",
-    "target_attacking", "target_defending", "target_hp_below", "target_hp_above", "target_speed_above", "target_speed_below"]],
-  ["Hits & projectiles", ["attacks_made", "hits_taken", "damage_taken", "landed_hit", "hit_by_fx", "fx_near", "projectile_count", "bullet_deflected"]],
-  ["Timing & order", ["after_actions", "since_action", "every_ms", "idle_for", "chance"]]];
-var COND_LABEL = {hp_below: "own HP at or below %", hp_above: "own HP at or above %",
-  self_speed_above: "own speed at least px/s", self_speed_below: "own speed at most px/s",
-  target_within: "target closer than px", target_beyond: "target further than px", target_between: "target distance between px",
-  target_above: "target above me", target_below: "target below me", target_facing: "target facing me / away",
-  target_attacking: "target is attacking", target_defending: "target is defending",
-  target_hp_below: "target HP at or below %", target_hp_above: "target HP at or above %",
-  target_speed_above: "target speed at least px/s", target_speed_below: "target speed at most px/s",
-  attacks_made: "after N attacks made", hits_taken: "after N hits taken", damage_taken: "HP lost recently",
-  landed_hit: "just landed a hit", hit_by_fx: "hit by FX tagged", fx_near: "enemy FX tagged … within px",
-  projectile_count: "enemy projectiles on screen", bullet_deflected: "a bullet was deflected",
-  after_actions: "after completing actions in order", since_action: "time since an action last played",
-  every_ms: "every N ms", idle_for: "idle (no action) for ms", chance: "random chance per second"};
-var COND_HELP = {
-  hp_below: "Own HP is at or below the %. Fires once each time HP drops past it, unless Repeat on cooldown is on.",
-  hp_above: "Own HP is at or above the % (e.g. only while healthy).",
-  self_speed_above: "This fighter is moving at least this fast (game px per second, averaged over ~0.1 s).",
-  self_speed_below: "This fighter is moving at most this fast. Around 20 px/s means standing still.",
-  target_within: "The target is this close or closer.", target_beyond: "The target is this far or further.",
-  target_between: "The target's distance is inside the band (e.g. 60–200 px: not too close, not too far).",
-  target_above: "The target is at least this many px higher on screen.", target_below: "The target is at least this many px lower on screen.",
-  target_facing: "Toward: the target faces this fighter. Away: it has its back turned. In Solo the cursor faces the way it last moved sideways.",
-  target_attacking: "The target is dashing / slashing, or playing an attack, attack_special or ultimate action. Battle only (the Solo cursor never attacks).",
-  target_defending: "The target is parrying or playing its defend action. Battle only.",
-  target_hp_below: "The target's HP is at or below the %. Battle only (the Solo cursor has no HP).",
-  target_hp_above: "The target's HP is at or above the %. Battle only.",
-  target_speed_above: "The target is moving at least this fast (px/s).", target_speed_below: "The target is moving at most this fast (px/s).",
-  attacks_made: "This many attacks were made since this action last fired.", hits_taken: "Hit this many times since this action last fired.",
-  damage_taken: "Lost at least this much HP within the time window.",
-  landed_hit: "One of this fighter's damaging FX hit the target this tick (Battle).",
-  hit_by_fx: "Hit this tick by an enemy FX with one of these tags (empty = any hit).",
-  fx_near: "An enemy damaging FX / bullet with one of these tags is within the distance (empty = any).",
-  projectile_count: "At least this many enemy projectiles and damaging FX are live at once.",
-  bullet_deflected: "This fighter just started a parry / deflect.",
-  after_actions: "The last actions completed were exactly these, in this order.",
-  since_action: "The chosen action last ended at least this long ago (or has never played). Good for spacing moves apart.",
-  every_ms: "At least this long since this action last started (or since the fight began): a repeating timer.",
-  idle_for: "No attack or triggered action has played for at least this long.",
-  chance: "A random roll: this % chance per second while the other conditions hold (100 = always)."};
+// One entry per condition type (defaults: FXK.CONDITION_TYPES): its group in
+// the picker, its label, the Live preview inputs it reads, and its help.
+// tools/fx/check_parity.py checks every type has an entry.
+var COND_META = {
+  // own state
+  hp_below: {group: "Own state", label: "own HP at or below %", prev: ["hp"],
+    help: "Own HP is at or below the %. Fires once each time HP drops past it, unless Repeat on cooldown is on."},
+  hp_above: {group: "Own state", label: "own HP at or above %", prev: ["hp"],
+    help: "Own HP is at or above the % (e.g. only while healthy)."},
+  self_speed_above: {group: "Own state", label: "own speed at least px/s", prev: ["own"],
+    help: "This fighter is moving at least this fast (game px per second, averaged over ~0.1 s)."},
+  self_speed_below: {group: "Own state", label: "own speed at most px/s", prev: ["own"],
+    help: "This fighter is moving at most this fast. Around 20 px/s means standing still."},
+  // target
+  target_within: {group: "Target", label: "target closer than px", prev: [],
+    help: "The target is this close or closer."},
+  target_beyond: {group: "Target", label: "target further than px", prev: [],
+    help: "The target is this far or further."},
+  target_between: {group: "Target", label: "target distance between px", prev: [],
+    help: "The target's distance is inside the band (e.g. 60–200 px: not too close, not too far)."},
+  target_above: {group: "Target", label: "target above me", prev: [],
+    help: "The target is at least this many px higher on screen."},
+  target_below: {group: "Target", label: "target below me", prev: [],
+    help: "The target is at least this many px lower on screen."},
+  target_facing: {group: "Target", label: "target facing me / away", prev: ["tface"],
+    help: "Toward: the target faces this fighter. Away: it has its back turned. In Solo the cursor faces the way it last moved sideways."},
+  target_attacking: {group: "Target", label: "target is attacking", prev: ["tatk"],
+    help: "The target is dashing / slashing, or playing an attack, attack_special or ultimate action. Battle only (the Solo cursor never attacks)."},
+  target_defending: {group: "Target", label: "target is defending", prev: ["tdef"],
+    help: "The target is parrying or playing its defend action. Battle only."},
+  target_hp_below: {group: "Target", label: "target HP at or below %", prev: ["thp"],
+    help: "The target's HP is at or below the %. Battle only (the Solo cursor has no HP)."},
+  target_hp_above: {group: "Target", label: "target HP at or above %", prev: ["thp"],
+    help: "The target's HP is at or above the %. Battle only."},
+  target_speed_above: {group: "Target", label: "target speed at least px/s", prev: ["tspeed"],
+    help: "The target is moving at least this fast (px/s)."},
+  target_speed_below: {group: "Target", label: "target speed at most px/s", prev: ["tspeed"],
+    help: "The target is moving at most this fast (px/s)."},
+  // hits & projectiles
+  attacks_made: {group: "Hits & projectiles", label: "after N attacks made", prev: ["attacks"],
+    help: "This many attacks were made since this action last fired."},
+  hits_taken: {group: "Hits & projectiles", label: "after N hits taken", prev: ["hits"],
+    help: "Hit this many times since this action last fired."},
+  damage_taken: {group: "Hits & projectiles", label: "HP lost recently", prev: ["hplost"],
+    help: "Lost at least this much HP within the time window."},
+  landed_hit: {group: "Hits & projectiles", label: "just landed a hit", prev: ["landed"],
+    help: "One of this fighter's damaging FX hit the target this tick (Battle)."},
+  hit_by_fx: {group: "Hits & projectiles", label: "hit by FX tagged", prev: ["hitOn", "hitTag"],
+    help: "Hit this tick by an enemy FX with one of these tags (empty = any hit)."},
+  fx_near: {group: "Hits & projectiles", label: "enemy FX tagged … within px", prev: ["nearOn", "nearTag", "nearPx"],
+    help: "An enemy damaging FX / bullet with one of these tags is within the distance (empty = any)."},
+  projectile_count: {group: "Hits & projectiles", label: "enemy projectiles on screen", prev: ["proj"],
+    help: "At least this many enemy projectiles and damaging FX are live at once."},
+  bullet_deflected: {group: "Hits & projectiles", label: "a bullet was deflected", prev: ["deflected"],
+    help: "This fighter just started a parry / deflect."},
+  // timing & order
+  after_actions: {group: "Timing & order", label: "after completing actions in order", prev: ["history"],
+    help: "The last actions completed were exactly these, in this order."},
+  since_action: {group: "Timing & order", label: "time since an action last played", prev: ["since"],
+    help: "The chosen action last ended at least this long ago (or has never played). Good for spacing moves apart."},
+  every_ms: {group: "Timing & order", label: "every N ms", prev: ["everyMs"],
+    help: "At least this long since this action last started (or since the fight began): a repeating timer."},
+  idle_for: {group: "Timing & order", label: "idle (no action) for ms", prev: ["idleMs"],
+    help: "No attack or triggered action has played for at least this long."},
+  chance: {group: "Timing & order", label: "random chance per second", prev: ["chanceHit"],
+    help: "A random roll: this % chance per second while the other conditions hold (100 = always)."}
+};
+var COND_GROUPS = [], COND_LABEL = {}, COND_HELP = {}, PREV_USES = {};
+Object.keys(COND_META).forEach(function (k) {
+  var m = COND_META[k], gr = COND_GROUPS.filter(function (x) { return x[0] === m.group; })[0];
+  if (!gr) COND_GROUPS.push(gr = [m.group, []]);
+  gr[1].push(k); COND_LABEL[k] = m.label; COND_HELP[k] = m.help; PREV_USES[k] = m.prev;
+});
 var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["Distance px", 0, 2000, 1],
   min_px: ["From px", 0, 2000, 5], max_px: ["To px", 0, 2000, 5], px_s: ["Speed px/s", 0, 5000, 5],
   hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
@@ -1530,13 +1559,6 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
   since: {}, everyMs: 0, idleMs: 0, chanceHit: false};
-// Which preview inputs each condition type reads (the Live preview shows only these).
-var PREV_USES = {hp_below: ["hp"], hp_above: ["hp"], self_speed_above: ["own"], self_speed_below: ["own"],
-  target_facing: ["tface"], target_attacking: ["tatk"], target_defending: ["tdef"], target_hp_below: ["thp"], target_hp_above: ["thp"],
-  target_speed_above: ["tspeed"], target_speed_below: ["tspeed"], attacks_made: ["attacks"], hits_taken: ["hits"],
-  damage_taken: ["hplost"], landed_hit: ["landed"], hit_by_fx: ["hitOn", "hitTag"], fx_near: ["nearOn", "nearTag", "nearPx"],
-  projectile_count: ["proj"], bullet_deflected: ["deflected"], after_actions: ["history"], since_action: ["since"],
-  every_ms: ["everyMs"], idle_for: ["idleMs"], chance: ["chanceHit"]};
 function prevTags(s) { return String(s || "").split(",").map(function (t) { return t.trim().toLowerCase(); }).filter(Boolean); }
 function prevTagMatch(want, tag) { return !want.length || want.indexOf(String(tag || "").trim().toLowerCase()) >= 0; }
 function condSelect() {
