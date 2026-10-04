@@ -1,8 +1,8 @@
-/* FX Kit runtime (pb_fxkit v1) — the reference implementation.
+/* FX Kit runtime (pb_fxkit v2) — the reference implementation.
  *
  * Every FX the Studio authors is an EFFECT: one drawing primitive + where it
  * starts (anchor joint), how it moves (motion), what colour it takes (colour
- * source) and when it plays (frames of the character's action).  The seven
+ * source) and when it plays (frames of the character's action).  The nine
  * primitives are the engine's own drawing routines, lifted out of the
  * hardcoded effect classes so any character can compose them:
  *
@@ -12,6 +12,7 @@
  *   sprite     combat.bullet_sprite / bolt_sprite + Projectile.draw (orbs, bolts)
  *   particles  combat.BurstParticle                 (sparks, dust)
  *   glow       TrailComponent head glow/core        (spheres, flares)
+ *   pulse      radial pulse rings (new)             (shockwaves, auras)
  *   ghost      figure afterimages (silhouette)      (speed ghosts)
  *   weapon     melee hitbox: a capsule between two anchors (e.g. near hand ->
  *              weapon tip) that follows the frames; invisible in-game

@@ -324,6 +324,7 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
     if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
     S.effects = (src.effects || []).map(function (e) { return FXK.normalize(clone(e)); });
     S.groups = clone(src.groups || []); pruneGroups();
+    S.repaired = repairPresetGroups();
     S.actionCfg = clone(src.action_settings || {});
     S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
     S.aim = FXK.normalizeAim(clone(src.aim || {}));
@@ -387,6 +388,7 @@ function finishOpen(man, acts, pack, name, local) {
     if (!mine || !Object.keys(mine).length || changed) { S.anchors[a] = clone(pa[a]); if (changed) fresh.push(a); }
   });
   Object.keys((man && man.anchor_labels) || {}).forEach(function (j) { if (!S.labels[j]) S.labels[j] = man.anchor_labels[j]; });
+  if (S.repaired) setTimeout(function () { toast("Repaired " + S.repaired + " effect(s) added from built-in presets: they are back on their preset's anchor and no longer a group. Save FX to folder to keep it.", 6000); }, 2400);
   if (fresh.length) setTimeout(function () { toast("Frames changed in Rig Forge for " + fresh.join(", ") + ": their anchors were taken from the package. Check any FX on them.", 6000); }, 1800);
   var ratio = S.srcScale ? (imgScale() / S.srcScale) * f : 1;
   if (Math.abs(ratio - 1) > 1e-3) {
@@ -480,6 +482,37 @@ function download(name, txt) {
 }
 
 // ------------------------------------------------------------ presets
+// A preset's `group` is either the built-in list's category name (a string,
+// presets.js) or a saved group preset {name, anchor, offset}.  Only the
+// object is a group.  (A string must never be read as one: every string has
+// a built-in .anchor() method, which used to become the pivot.)
+function groupPresetOf(p) {
+  var g = p && p.group;
+  if (!g || typeof g !== "object") return null;
+  var a = typeof g.anchor === "string" && g.anchor ? g.anchor : (p.effects && p.effects[0] && typeof p.effects[0].anchor === "string" && p.effects[0].anchor) || "figure";
+  return {anchor: a, offset: g.offset};
+}
+// Work saved while built-in presets were added as broken groups (pivot =
+// String.prototype.anchor, lost on save): those groups have no anchor and
+// carry the preset's name.  Dissolve them (as adding the preset now does)
+// and give each member back the anchor its preset effect had.
+function repairPresetGroups() {
+  var fixed = 0;
+  (S.groups || []).forEach(function (gr) {
+    if (typeof gr.anchor === "string" && gr.anchor) return;
+    var pre = FX_PRESETS.filter(function (p) { return p.name === gr.name && !groupPresetOf(p); })[0];
+    groupMembers(gr).forEach(function (fx) {
+      var src = pre && pre.effects.filter(function (e) { return e.name === fx.name && e.prim === fx.prim; })[0];
+      if (pre) { fx.anchor = (src && src.anchor) || "figure"; delete fx.group; }
+      else if (typeof fx.anchor !== "string") fx.anchor = "figure";
+      fixed++;
+    });
+    if (!pre) { var m = groupMembers(gr)[0]; gr.anchor = m ? m.anchor : "figure"; }
+  });
+  S.effects.forEach(function (fx) { if (typeof fx.anchor !== "string" || !fx.anchor) { fx.anchor = "figure"; fixed++; } });
+  pruneGroups();
+  return fixed;
+}
 function userPresets() { return lsGet(LS_PRESETS) || []; }
 function allPresets() { return FX_PRESETS.map(function (p) { return {p: p, builtin: true}; }).concat(userPresets().map(function (p) { return {p: p, builtin: false}; })); }
 function buildPresets() {
@@ -500,7 +533,8 @@ function addPreset() {
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
   // A group preset comes in as a new group on this action, members still
   // laid out around its pivot exactly as they were saved.
-  var gr = x.p.group ? newGroup(x.p.name, x.p.group.anchor || (x.p.effects[0] || {}).anchor || "figure", x.p.group.offset) : null;
+  var gp = groupPresetOf(x.p);
+  var gr = gp ? newGroup(x.p.name, gp.anchor, gp.offset) : null;
   var added = x.p.effects.map(function (e) {
     var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = fxKey();
     if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
