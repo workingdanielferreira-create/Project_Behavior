@@ -552,7 +552,8 @@ class World:
                                                     blockable=fxd["battle"].get("blockable", True),
                                                     deflectable=fxd["battle"].get("deflectable", True),
                                                     clash=fxkit.clash_on(fxd),
-                                                    knockback=fxkit.fx_knockback(fxd)))
+                                                    knockback=fxkit.fx_knockback(fxd),
+                                                    body=fxkit.inst_body(inst)))
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 side.enemy_shots = shots
