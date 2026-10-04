@@ -787,11 +787,12 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run")
+                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt")
 
     def __init__(self):
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
         self.run = False       # spawned by a Continuous run
+        self.tgt = None        # Each in place: the target this blade aims at (blade_pose)
         self.lodge = None      # blade stuck in the target it hit (blade_lodge)
         self.chase = False     # intercept: steering at an enemy projectile
         self.bvx = self.bvy = 0.0   # its own velocity from before the chase
@@ -866,6 +867,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.hits = 0
     inst.last_hit = -1e9
     inst.ep = ep
+    inst.tgt = aim_target(fx, host)
     spd = float(m["speed"] or 0)
     ps = host_scale(host)
     inst.ps = ps     # the figure's size when fired: what is launched keeps it
@@ -961,6 +963,7 @@ def motion_switch(inst, host):
 def move_inst(inst, host):
     fx, m = inst.fx, inst.fx["motion"]
     inst.px, inst.py = inst.x, inst.y
+    inst.tgt = aim_target(fx, host)
     if m["kind"] == "attached":
         a = anchor_pos(fx, host, inst.ep)
         inst.x, inst.y = a[0], a[1]
@@ -1491,8 +1494,8 @@ def _hit_shape(inst, tx, ty, hr, ps, host):
             if inst.lodge is not None:
                 return False
             L = blade_length(P, ps)
-            a = blade_angle(inst)
-            return seg_dist(tx, ty, inst.x, inst.y, inst.x - math.cos(a) * L, inst.y - math.sin(a) * L) \
+            bx, by, a = blade_pose(inst, ps)
+            return seg_dist(tx, ty, bx, by, bx - math.cos(a) * L, by - math.sin(a) * L) \
                 <= hr + max(0.5, float(P["radius"])) * ps
         dx, dy = inst.x - tx, inst.y - ty
         return dx * dx + dy * dy <= hr * hr
@@ -1847,6 +1850,33 @@ def blade_length(P, ps):
     return 2 * rad * max(1.0, float(P["stretch"])) * ps
 
 
+def aim_target(fx, host):
+    """Follow direction + Each in place on a blade: the target it aims at
+    (copied each tick), else None.  fxkit.js aimTarget."""
+    if fx.get("follow_dir") and fx.get("follow_each") and fx["prim"] == "sprite" and fx["params"]["shape"] == "blade":
+        return (float(host.target[0]), float(host.target[1]))
+    return None
+
+
+def blade_pose(inst, ps):
+    """Where a blade's tip is and which way it points: (x, y, angle).  As
+    authored, inst.x / inst.y is the tip and blade_angle the direction.  With
+    Follow direction + Each in place the blade pivots on its own centre (the
+    middle of the authored blade) so its tip points at the target; lodged and
+    deflected blades keep their own pose.  fxkit.js bladePose."""
+    a = blade_angle(inst)
+    T = inst.tgt
+    if T is None or inst.lodge is not None or inst.free:
+        return inst.x, inst.y, a
+    h = blade_length(inst.fx["params"], ps) / 2
+    cx, cy = inst.x - math.cos(a) * h, inst.y - math.sin(a) * h
+    dx, dy = T[0] - cx, T[1] - cy
+    if dx * dx + dy * dy < 1e-6:
+        return inst.x, inst.y, a
+    a = math.atan2(dy, dx)
+    return cx + math.cos(a) * h, cy + math.sin(a) * h, a
+
+
 def can_lodge(inst):
     fx = inst.fx
     return fx["prim"] == "sprite" and fx["params"]["shape"] == "blade" and float(fx["params"].get("lodge_ms", 0)) > 0
@@ -1862,11 +1892,12 @@ def blade_lodge(inst, hx, hy, hr, ps):
     target, following it, for lodge_ms (fading out over the last 300 ms),
     hidden where it is inside the target, and deals no more damage."""
     P = inst.fx["params"]
-    a = blade_angle(inst) + inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D
+    bx, by, a = blade_pose(inst, ps)
+    a += inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D
     ux, uy = math.cos(a), math.sin(a)
     L = blade_length(P, ps)
-    s0 = (hx - inst.x) * ux + (hy - inst.y) * uy   # along the blade to the point nearest the centre
-    tx, ty = inst.x + ux * s0, inst.y + uy * s0
+    s0 = (hx - bx) * ux + (hy - by) * uy   # along the blade to the point nearest the centre
+    tx, ty = bx + ux * s0, by + uy * s0
     px, py = hx - tx, hy - ty
     half = math.sqrt(max(0.0, hr * hr - px * px - py * py))
     inside = min(half * inst.r.uniform(0.7, 1), L * 0.45)
@@ -1942,6 +1973,9 @@ def _draw_sprite(p, inst, host, ps):
     fade = max(0.0, 1 - inst.age / inst.life) if P["fade"] else 1.0
     c = [trunc(v) for v in color_pair(fx, host.lut)[0]]
     hx, hy = trunc(inst.x), trunc(inst.y)
+    if P["shape"] == "blade":   # Each in place turns it on its own centre (blade_pose)
+        bx, by, ba = blade_pose(inst, ps)
+        hx, hy = trunc(bx), trunc(by)
     pts, n = inst.trail, len(inst.trail)
     for i in range(1, n):
         t = i / n
@@ -1954,7 +1988,7 @@ def _draw_sprite(p, inst, host, ps):
     if P["shape"] == "blade":
         pm, tip_x, half_h = blade_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
                                          P.get("glow", 100), P.get("glow_size", 100))
-        p.rotate(math.degrees(blade_angle(inst)))
+        p.rotate(math.degrees(ba))
         p.scale(ps, ps)
         p.drawPixmap(trunc(-tip_x), trunc(-half_h), pm)
     elif P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
