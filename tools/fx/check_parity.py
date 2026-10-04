@@ -181,6 +181,13 @@ def same_keys(a, b, path, out, a_name, b_name):
 
 
 def main():
+    # A Windows console or a redirected log may not use UTF-8: escape what it
+    # can't show instead of failing halfway through the report.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
     js = JsTables(FXKIT_JS)
     studio = JsTables(STUDIO_JS)
     cfg = PyTables(PY["config"])
