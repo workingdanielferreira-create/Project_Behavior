@@ -624,7 +624,7 @@ direction** section.
 | `flip.enabled` | Off (default): the effect follows the fighter's facing. On: it plays on the side the target is on, mirrored left ↔ right (never up ↔ down) when that side is the other one from `flip.facing`. |
 | `flip.facing` | The side the target was on when the effect was created: `1` right, `-1` left. The Studio records it when the effect is added, and the **Created side** dropdown changes it. |
 | `follow_dir` | Off (default): no turn. On: the whole effect turns toward the target at any angle. |
-| `follow_each` | Only with `follow_dir` on. Off (default): the effect turns as one piece round its anchor. On ("Each in place"): it stays where it was placed and turns about its own centre. |
+| `follow_each` | Independent of `follow_dir`. Off (default): no per-particle turn. On ("Each particle"): every particle stays where it was placed and turns on its own sub-anchor (its own centre) toward the target. |
 
 **Flip**
 - The effect's facing (`fxFacing` / `fx_facing`) is the side the target is on
@@ -654,10 +654,14 @@ direction** section.
   "angle"`, particle angles, the orbit ellipse, and `orient "facing"` paths.
   `orient "aim"` paths already follow the aim.
 - Target aims already track the target and are not turned.
-- **Each in place** (`follow_each`): the offset and entry points are not
-  turned (`placeDeg` / `place_deg` is 0), so the effect keeps the spot it
-  was placed at and a group no longer swings round its pivot. Everything
-  else in the list above still turns, about the effect's own centre.
+- **Each particle** (`follow_each`) works on its own, without `follow_dir`.
+  It never turns the offset or entry points (`placeDeg` / `place_deg` turns
+  them only with `follow_dir`), so every particle keeps the spot it was
+  placed at and a group never swings round its pivot. The effect's own
+  direction (aims, arc angle, particle angles, orbit, paths) turns about the
+  particle's own centre (`bodyDeg` / `body_deg` is on when either tick is).
+  With both ticks on, the spots swing round the anchor and each particle
+  also turns on its own sub-anchor.
   Blades (`sprite` shape `blade`) each pivot on their own centre (the middle
   of the blade as authored) so the tip points straight at the target, re-aimed
   every tick (`bladePose` / `blade_pose`, which drawing, hits and lodging all

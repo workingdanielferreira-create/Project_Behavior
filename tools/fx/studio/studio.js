@@ -693,7 +693,7 @@ function shiftOffset(fx, d) {
 }
 // Group the Ctrl+clicked effects: every member moves onto the first one's
 // pivot, its spot on this frame turned into an offset from that pivot, so
-// nothing jumps.  Flip / Follow direction / Each in place follow the first
+// nothing jumps.  Flip / Follow direction / Each particle follow the first
 // member so the group mirrors and turns as one piece.
 function makeGroup() {
   if (!C) return toast("Open a character folder first");
@@ -731,7 +731,7 @@ function ungroup(gr) {
   if (S.selGroup === gr.id) S.selGroup = null;
   rebuild(); resetSim(S.t); save(); toast("Ungrouped " + gr.name + ": every effect stays where it is.");
 }
-// Flip / Follow direction / Each in place changed on one member: the rest follow it.
+// Flip / Follow direction / Each particle changed on one member: the rest follow it.
 function syncGroupTurn(fx) {
   var gr = fx.group && groupById(fx.group); if (!gr) return;
   groupMembers(gr).forEach(function (e) { if (e !== fx) { e.flip = clone(fx.flip); e.follow_dir = fx.follow_dir; e.follow_each = fx.follow_each; } });
@@ -1501,15 +1501,14 @@ function buildProps() {
       note(s, "Target " + (F.facing < 0 ? "left" : "right") + ": plays as authored. Target " + (F.facing < 0 ? "right" : "left") + ": mirrored left \u2194 right (never up \u2194 down). Drag the target across the fighter to preview both.");
     }
     field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; syncGroupTurn(fx); changed(true); })).title =
-      "On: the whole effect turns toward the target. As authored it points straight ahead; with the target above or below it turns by that angle (offsets, arc, particles, orbit and paths included). Target-aimed effects already aim at the target.";
-    if (fx.follow_dir) {
-      field(s, "Each in place", inp("chk", fx.follow_each, function (v) { fx.follow_each = v; syncGroupTurn(fx); changed(true); })).title =
-        "Off: the whole effect turns as one piece round its anchor (its offset and entry points swing round too; a group swings round its pivot). On: every effect stays where it was placed and turns to face the target about its own centre. Blades pivot on their own centre so each tip points straight at the target.";
-      note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
-        : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
-      if (fx.follow_each) note(s, (fgr ? "Each in place: every effect in the group keeps its spot and turns on its own centre."
-        : "Each in place: it keeps its spot and turns on its own centre.") + (fx.prim === "sprite" && fx.params.shape === "blade" ? " Every blade pivots on its centre so its tip points at the target." : ""));
-    }
+      "On: the whole effect turns toward the target as one piece round its anchor: offsets and entry points swing round it (a group swings round its pivot), and arc, particles, orbit and paths turn with it. Independent of Each particle.";
+    if (fx.follow_dir) note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
+      : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
+    field(s, "Each particle", inp("chk", fx.follow_each, function (v) { fx.follow_each = v; syncGroupTurn(fx); changed(true); })).title =
+      "On: every particle stays where it was placed and turns on its own sub-anchor (its own centre) toward the target. Nothing swings round the anchor. Blades pivot on their centre so each tip points straight at the target. Independent of Follow direction.";
+    if (fx.follow_each) note(s, (fgr ? "Each particle: every effect in the group keeps its spot and turns on its own sub-anchor."
+      : "Each particle: it keeps its spot and turns on its own sub-anchor.") + (fx.prim === "sprite" && fx.params.shape === "blade" ? " Every blade pivots on its centre so its tip points at the target." : "")
+      + (fx.follow_dir ? " Follow direction is on too, so the spots also swing round the anchor." : ""));
 
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;

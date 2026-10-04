@@ -243,14 +243,14 @@ function bladeAngle(inst) {
   return Math.PI / 2;
 }
 function bladeLength(P, ps) { var rad = Math.max(0.5, +P.radius); return 2 * rad * Math.max(1, +P.stretch) * ps; }
-// Follow direction + Each in place on a blade: the target it aims at (copied
-// each tick), else null.  laser/fxkit.py aim_target.
+// Each particle on a blade: the target it aims at (copied each tick), else
+// null.  laser/fxkit.py aim_target.
 function aimTarget(fx, host) {
-  return fx.follow_dir && fx.follow_each && fx.prim === "sprite" && fx.params.shape === "blade" ? [+host.target[0], +host.target[1]] : null;
+  return fx.follow_each && fx.prim === "sprite" && fx.params.shape === "blade" ? [+host.target[0], +host.target[1]] : null;
 }
 // Where a blade's tip is and which way it points: [x, y, angle].  As authored,
-// inst.x / inst.y is the tip and bladeAngle the direction.  With Follow
-// direction + Each in place the blade pivots on its own centre (the middle of
+// inst.x / inst.y is the tip and bladeAngle the direction.  With Each
+// particle the blade pivots on its own centre (the middle of
 // the authored blade) so its tip points at the target; lodged and deflected
 // blades keep their own pose.  laser/fxkit.py blade_pose.
 function bladePose(inst, ps) {
@@ -377,19 +377,26 @@ function fxFacing(fx, host) { return fx.flip && fx.flip.enabled ? targetSide(hos
 // only ever tilts up / down; without Flip a target behind turns it right
 // round.  Offsets, entry points, facing / angle / weapon aims, the arc's
 // angle, particle angles, orbits and paths all turn; target aims already
-// track the target.  With "Each in place" (fx.follow_each) the offset and
-// entry points stay where they were authored (placeDeg is 0) and only the
-// effect's own direction turns, about its own centre.
+// track the target.
+// The two ticks are independent:
+//   Follow direction (follow_dir)  the offset and entry points swing round
+//                                  the anchor (placeDeg).
+//   Each particle (follow_each)    every particle turns on its own sub-anchor
+//                                  (its own centre) and stays where it was
+//                                  placed; blades aim their tips at the
+//                                  target (bladePose).
+// Either one turns the effect's own direction (bodyDeg); both together do
+// both.
 function bodyDeg(fx, host) {
-  if (!fx.follow_dir) return 0;
+  if (!fx.follow_dir && !fx.follow_each) return 0;
   var b = host.anchor("figure"), dx = host.target[0] - b[0], dy = host.target[1] - b[1];
   if (dx * dx + dy * dy < 1e-6) return 0;
   var a = Math.atan2(dy, dx) / D - (fxFacing(fx, host) < 0 ? 180 : 0);
   return ((a % 360) + 540) % 360 - 180;
 }
-// The turn for where the effect sits (offset, entry points): the whole effect
-// swings round its anchor, unless Each in place keeps it put.
-function placeDeg(fx, host) { return fx.follow_each ? 0 : bodyDeg(fx, host); }
+// The turn for where the effect sits (offset, entry points): only Follow
+// direction swings it round its anchor.
+function placeDeg(fx, host) { return fx.follow_dir ? bodyDeg(fx, host) : 0; }
 function turnBy(v, deg) { return deg ? rot(v, deg) : v; }
 // Sign for the facing-relative turns (fan, aim offset) and, times inst.flip,
 // the arc / zigzag side.  Without Flip: the facing (the old behaviour).  With
