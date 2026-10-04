@@ -242,11 +242,18 @@ def fx_facing(fx, host):
 # so it only ever tilts up / down; without Flip a target behind turns it right
 # round.  Offsets, entry points, facing / angle / weapon aims, the arc's
 # angle, particle angles, orbits and paths all turn; target aims already
-# track the target.  With "Each in place" (fx.follow_each) the offset and
-# entry points stay where they were authored (place_deg is 0) and only the
-# effect's own direction turns, about its own centre.
+# track the target.
+# The two ticks are independent:
+#   Follow direction (follow_dir)  the offset and entry points swing round
+#                                  the anchor (place_deg).
+#   Each particle (follow_each)    every particle turns on its own sub-anchor
+#                                  (its own centre) and stays where it was
+#                                  placed; blades aim their tips at the
+#                                  target (blade_pose).
+# Either one turns the effect's own direction (body_deg); both together do
+# both.
 def body_deg(fx, host):
-    if not fx.get("follow_dir"):
+    if not (fx.get("follow_dir") or fx.get("follow_each")):
         return 0.0
     b = host.anchor("figure")
     dx, dy = host.target[0] - b[0], host.target[1] - b[1]
@@ -257,9 +264,9 @@ def body_deg(fx, host):
 
 
 def place_deg(fx, host):
-    """The turn for where the effect sits (offset, entry points): the whole
-    effect swings round its anchor, unless Each in place keeps it put."""
-    return 0.0 if fx.get("follow_each") else body_deg(fx, host)
+    """The turn for where the effect sits (offset, entry points): only
+    Follow direction swings it round its anchor."""
+    return body_deg(fx, host) if fx.get("follow_dir") else 0.0
 
 
 def turn_by(v, deg):
@@ -1851,9 +1858,9 @@ def blade_length(P, ps):
 
 
 def aim_target(fx, host):
-    """Follow direction + Each in place on a blade: the target it aims at
-    (copied each tick), else None.  fxkit.js aimTarget."""
-    if fx.get("follow_dir") and fx.get("follow_each") and fx["prim"] == "sprite" and fx["params"]["shape"] == "blade":
+    """Each particle on a blade: the target it aims at (copied each tick),
+    else None.  fxkit.js aimTarget."""
+    if fx.get("follow_each") and fx["prim"] == "sprite" and fx["params"]["shape"] == "blade":
         return (float(host.target[0]), float(host.target[1]))
     return None
 
@@ -1861,7 +1868,7 @@ def aim_target(fx, host):
 def blade_pose(inst, ps):
     """Where a blade's tip is and which way it points: (x, y, angle).  As
     authored, inst.x / inst.y is the tip and blade_angle the direction.  With
-    Follow direction + Each in place the blade pivots on its own centre (the
+    Each particle the blade pivots on its own centre (the
     middle of the authored blade) so its tip points at the target; lodged and
     deflected blades keep their own pose.  fxkit.js bladePose."""
     a = blade_angle(inst)

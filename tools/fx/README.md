@@ -88,10 +88,11 @@ timing.
   added the effect; you can change it. Tick **Follow direction** to make the
   whole effect turn toward the target at any angle: target above, it turns
   up. With both ticked it mirrors to the target's side and then tilts up or
-  down toward it. Tick **Each in place** (under Follow direction) to keep
-  every effect where you placed it and turn each one about its own centre,
-  instead of swinging the whole effect round its anchor. Blades each pivot on
-  their own centre so every tip points at the target.
+  down toward it. **Each particle** is a separate tick that works on its
+  own: every particle stays where you placed it and turns on its own
+  sub-anchor (its own centre) toward the target; nothing swings round the
+  anchor. Blades each pivot on their centre so every tip points at the
+  target. Tick both to get the swing and the per-particle turn together.
 - **Blink (per action).** Under each action's settings: a teleport inside
   that action. The character vanishes at **Vanish at frame** and reappears
   after **Reappear after frame** (-1 = when the action ends). **Reappear
@@ -178,7 +179,7 @@ timing.
 - **Groups.** Ctrl+click two or more effects in the effect list and press
   **Group**. They now ride one pivot (the first one's joint) as a single
   piece: each keeps its place relative to the others, and they share Flip,
-  Follow direction and Each in place so they mirror and turn together. Click the ▣ group row to
+  Follow direction and Each particle so they mirror and turn together. Click the ▣ group row to
   edit it: **Pivot** re-attaches the whole group to another joint (or figure /
   target) without changing its layout, **Move X / Y** shifts every member
   equally, and on the stage you drag the ▣ handle (or Shift+drag anywhere).
