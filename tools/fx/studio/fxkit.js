@@ -166,6 +166,51 @@ function boltSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
   ellipse(g, trunc(headX - rad), trunc(cy - rad), trunc(rad * 2), trunc(rad * 2));
   return (SPR[key] = {cv: cv, headX: headX, halfH: h / 2});
 }
+// Ethereal blade: a long tapered needle of light, tip pointing +x, with a
+// soft halo around its length and a white core.  Half-width = radius,
+// length = 2 x radius x stretch.  hot brightens the core and the tip flare.
+// laser/fxkit.py blade_sprite.  Returns {cv, tipX, halfH}: draw at
+// (-tipX, -halfH) after translating to the tip and rotating to bladeAngle.
+function bladeSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
+  var ga = Math.max(0, Math.min(255, Math.round(150 * Math.max(0, glowPct == null ? 100 : +glowPct) / 100)));
+  var gs = Math.max(0, glowSizePct == null ? 100 : +glowSizePct) / 100;
+  var key = "k" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100 + "," + Math.round(stretch * 100) / 100 + "," + (hot ? 1 : 0) + "," + ga + "," + Math.round(gs * 100) / 100;
+  if (SPR[key]) return SPR[key];
+  var rad = Math.max(0.5, +radius), L = 2 * rad * Math.max(1, +stretch), gw = rad * 3 * gs;
+  var ry = rad + gw, rx = L / 2 + gw, fl = rad * 1.2 * (hot ? 1.6 : 1);
+  var pad = Math.max(1, gw, fl);
+  var w = Math.ceil(L + 2 * pad) + 2, h = Math.ceil(2 * Math.max(ry, fl)) + 2;
+  var tipX = w - pad, cy = h / 2, tail = tipX - L, sh = tipX - L * 0.3;
+  var cv = canvas(w, h), g = cv.getContext("2d"), col = [r, gc, b];
+  if (ga > 0) {   // halo: a radial glow stretched along the blade
+    g.save(); g.translate(tipX - L / 2, cy); g.scale(rx / ry, 1);
+    g.fillStyle = radial(g, 0, 0, ry, [[0, rgba(col, ga)], [1, rgba(col, 0)]]);
+    ellipse(g, trunc(-ry), trunc(-ry), trunc(ry * 2), trunc(ry * 2));
+    g.restore();
+  }
+  var poly = function (hw, back, stops) {
+    var gr = g.createLinearGradient(tail, cy, tipX, cy);
+    stops.forEach(function (st) { gr.addColorStop(st[0], st[1]); });
+    g.fillStyle = gr; g.beginPath();
+    g.moveTo(tipX, cy); g.lineTo(sh, cy - hw); g.lineTo(tipX - L * back, cy); g.lineTo(sh, cy + hw);
+    g.closePath(); g.fill();
+  };
+  poly(rad, 1, [[0, rgba(col, 0)], [0.55, rgba(col, 150)], [1, rgba(col, 235)]]);   // body
+  var ca = hot ? 245 : 170;
+  poly(rad * 0.4, 0.85, [[0, "rgba(255,255,255,0)"], [1, "rgba(255,255,255," + ca / 255 + ")"]]);   // core
+  var fx0 = tipX - rad * 0.5;   // tip flare
+  g.fillStyle = radial(g, fx0, cy, fl, [[0, "rgba(255,255,255," + 245 / 255 + ")"], [0.5, rgba(col, 200)], [1, rgba(col, 0)]]);
+  ellipse(g, trunc(fx0 - fl), trunc(cy - fl), trunc(fl * 2), trunc(fl * 2));
+  return (SPR[key] = {cv: cv, tipX: tipX, halfH: h / 2});
+}
+// Which way a blade's tip points: along its velocity, else along this
+// tick's movement (orbit, attached), else straight down.  laser/fxkit.py blade_angle.
+function bladeAngle(inst) {
+  if (inst.vx * inst.vx + inst.vy * inst.vy > 0.0001) return Math.atan2(inst.vy, inst.vx);
+  var dx = inst.x - inst.px, dy = inst.y - inst.py;
+  if (dx * dx + dy * dy > 1e-6) return Math.atan2(dy, dx);
+  return Math.PI / 2;
+}
 
 // ---------------------------------------------------------------- schema
 var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"];
@@ -1230,7 +1275,11 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   }
   var spd2 = inst.vx * inst.vx + inst.vy * inst.vy;
   g.save(); g.translate(hx, hy);
-  if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
+  if (P.shape === "blade") {
+    var k = bladeSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
+    g.rotate(bladeAngle(inst)); g.scale(ps, ps); g.globalAlpha *= fade;
+    g.drawImage(k.cv, trunc(-k.tipX), trunc(-k.halfH));
+  } else if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
     var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(Math.atan2(inst.vy, inst.vx)); g.scale(ps, ps); g.globalAlpha *= fade;
     g.drawImage(b.cv, trunc(-b.headX), trunc(-b.halfH));
@@ -1389,8 +1438,13 @@ HIT.beam = function (inst, tx, ty, hr, ps, host) {
   for (var i = 0; i < b.segs.length; i++) { var q = b.segs[i]; if (segDist(tx, ty, q[0], q[1], q[2], q[3]) <= hr + Math.max(1, q[4]) / 2) return true; }
   return false;
 };
-HIT.sprite = function (inst, tx, ty, hr) {
+HIT.sprite = function (inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
+  var P = inst.fx.params;
+  if (P.shape === "blade") {   // the whole blade, tip to tail, half-width wide
+    var rad = Math.max(0.5, +P.radius), L = 2 * rad * Math.max(1, +P.stretch) * ps, a = bladeAngle(inst);
+    return segDist(tx, ty, inst.x, inst.y, inst.x - Math.cos(a) * L, inst.y - Math.sin(a) * L) <= hr + rad * ps;
+  }
   var dx = inst.x - tx, dy = inst.y - ty;
   return dx * dx + dy * dy <= hr * hr;
 };
@@ -1553,5 +1607,5 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,
-  actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite};
+  actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite};
 })(window);

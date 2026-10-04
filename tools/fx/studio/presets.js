@@ -8,7 +8,7 @@
  * presets only seed new FX.
  * `group` sorts the preset list; every effect carries its FX `tag` so other
  * characters' defend / deflect triggers can react to it.  The special-ability
- * presets (Fire, Lightning, Shadow, Holy, Ice & wind, Earth & poison, Arcane & cosmic, Energy) use keyframes (fx.keys).
+ * presets (Fire, Lightning, Shadow, Holy, Ice & wind, Earth & poison, Arcane & cosmic, Energy, Ethereal) use keyframes (fx.keys).
  */
 (function (G) {
 "use strict";
@@ -331,7 +331,49 @@ G.FX_PRESETS = [
               {frame: 24, ease: "linear", set: {"params.length": len}},
               {frame: 30, ease: "strong_in", set: {"params.length": 0}},
               {frame: 30, ease: "linear", set: {"motion.angle_deg": deg + 120}}]};   // constant clockwise spin
-   }))}
+   }))},
+
+  // ---------------------------------------------------------------- Ethereal
+  // Ethereal blades: dozens of spectral blades (sprite shape "blade"), built for a
+  // 30-frame action.  Frames 0-10: 16 blades whirl in a flat ring around the
+  // fighter, spinning up.  Frames 10-24: three columns of blades rain down on the
+  // target in waves of 3 (every 6 ticks each), speeding up as they fall.
+  // Frames 22-27: two huge light-blade sweeps cut through the target over a burst
+  // of shards.  Every damaging part uses the standard damage settings.
+  {name: "Ethereal blades", group: "Ethereal", desc: "Dozens of spectral blades: a whirling ring around the fighter (frames 0-10), a rain of blades on the target (10-24), then two huge light-blade sweeps (22-27)",
+   effects: [
+     {prim: "glow", name: "Ethereal aura", tag: "blade", anchor: "figure", start_frame: 0, end_frame: 24, motion: {kind: "attached"}, layer: "behind", blend: "additive",
+      color: {mode: "solid", c1: "#5f7dff"}, params: {r_start: 26, r_end: 30, a_center: 90, a_mid: 40, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 3}},
+     {prim: "sprite", name: "Blade ring", tag: "blade", anchor: "figure", offset: [0, -6], start_frame: 0, end_frame: 10, emit: {count: 16},
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 20, knockback: 0}, blend: "additive",
+      motion: {kind: "orbit", orbit_rx: 38, orbit_ry: 14, orbit_deg: 4}, color: {mode: "solid", c1: "#d6e2ff"},
+      params: {shape: "blade", radius: 1.5, stretch: 6, hot: true, halo: false, fade: false, trail_len: 0, glow: 90, glow_size: 80},
+      keys: [{frame: 10, ease: "in", set: {"motion.orbit_rx": 46, "motion.orbit_ry": 18, "motion.orbit_deg": 9}}]}
+   ].concat([[-32, -230, 10], [0, -250, 12], [32, -230, 11]].map(function (c, i) {
+     return {prim: "sprite", name: "Blade rain " + ["left", "centre", "right"][i], tag: "blade", anchor: "target", offset: [c[0], c[1]],
+       start_frame: c[2], end_frame: 24, life_ticks: 34, emit: {every_ticks: 6, count: 3, fan_deg: 8},
+       battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2}, blend: "additive",
+       motion: {kind: "travel", aim: "angle", angle_deg: 90, speed: 8}, color: {mode: "solid", c1: "#cfdcff"},
+       params: {shape: "blade", radius: 1.3, stretch: 13, hot: true, halo: false, fade: false, trail_len: 6, glow: 110, glow_size: 90},
+       keys: [{frame: 16, ease: "strong_in", set: {"motion.speed": 14}}]};
+   })).concat([
+     {prim: "arc", name: "Spectral sweep", tag: "blade", anchor: "figure", start_frame: 22, life_ticks: 12, blend: "additive",
+      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 14},
+      motion: {kind: "travel", aim: "target", speed: 9}, color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+      params: {radius: 64, span: 200, width: 9, tail: 0.95, segs: 24, grow: 0.8, core_alpha: 0.85, core_width: 0.35, orient: "motion",
+               placement: "through_target", lead: 30},
+      keys: [{frame: 25, ease: "out", set: {"params.radius": 84, "params.width": 3}}]},
+     {prim: "arc", name: "Spectral cross-sweep", tag: "blade", anchor: "figure", start_frame: 24, life_ticks: 10, blend: "additive",
+      battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 10},
+      motion: {kind: "travel", aim: "target", speed: 11}, color: {mode: "gradient", c1: "#f2f6ff", c2: "#8fa6ff"},
+      params: {radius: 48, span: 170, width: 7, tail: 0.9, segs: 20, grow: 0.8, core_alpha: 0.8, core_width: 0.3, orient: "motion",
+               placement: "through_target", lead: 22},
+      keys: [{frame: 27, ease: "out", set: {"params.radius": 62, "params.width": 2}}]},
+     {prim: "particles", name: "Blade shards", tag: "blade", anchor: "target", start_frame: 22, life_ticks: 1, motion: {kind: "static"},
+      color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+      params: {mode: "burst", count: 40, angle_deg: 0, spread_deg: 360, speed_min: 80, speed_max: 300, gravity: 60, drag: 0.92,
+               size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 650}}
+   ])}
 
 ];
 // Built-in entry-set and path presets (Paths & entry points panel).  kind

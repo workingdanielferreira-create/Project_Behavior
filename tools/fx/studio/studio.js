@@ -1082,7 +1082,7 @@ var PARAM_UI = {
     ["glow", "Glow extra W", 0, 80, 0.5], ["glow_color", "Glow colour", "color"], ["pulse_hz", "Pulse Hz", 0, 30, 0.5],
     ["jitter", "Jitter px", 0, 30, 0.5], ["detach_ticks", "Detach tick (0=never)", 0, 2000, 1], ["grow_ticks", "Grow ticks (held)", 0, 600, 1],
     ["tip_fade", "Tip fade (fraction)", 0, 1, 0.05]],
-  sprite: [["shape", "Shape", ["orb", "bolt"]], ["radius", "Radius", 0.5, 60, 0.5], ["stretch", "Bolt stretch", 1, 8, 0.1],
+  sprite: [["shape", "Shape", ["orb", "bolt", "blade"]], ["radius", "Radius (blade: half-width)", 0.5, 60, 0.5], ["stretch", "Stretch (bolt / blade length)", 1, 30, 0.1],
     ["hot", "White-hot streak", "chk"], ["halo", "Pulsing halo", "chk"], ["fade", "Fade over life", "chk"], ["trail_len", "Trail points", 0, 60, 1],
     ["glow", "Glow %", 0, 200, 5], ["glow_size", "Glow size %", 0, 300, 5]],
   particles: [["mode", "Mode", ["burst", "stream"]], ["count", "Burst count", 1, 400, 1], ["rate_per_s", "Stream /s", 1, 600, 1],
@@ -1325,6 +1325,7 @@ function buildProps() {
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
+  if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a tapered needle of light, Radius wide (half-width) and 2 × Radius × Stretch long, its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still. It hits along its whole length.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
