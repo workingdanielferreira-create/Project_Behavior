@@ -465,7 +465,9 @@ var CONDITION_TYPES = {
   since_action:  {action: "", ms: 2000},               // action ("" = this one) last ended at least ms ago (or never ran)
   every_ms:      {ms: 3000},                           // at least ms since this action last started (or the fight began)
   idle_for:      {ms: 1000},                           // no action playing for at least ms
-  chance:        {pct_s: 30}                           // random: pct % chance per second
+  chance:        {pct_s: 30},                          // random: pct % chance per second
+  // actions
+  action_triggered: {who: "target", action: "", ms: 300} // own / the target's `action` ("" = any) started within the last ms (0 = this tick)
 };
 var CONDITION_COMMON = {not: false};
 // fx_continuous: when the action loops (idle, run, a held action), effects
@@ -555,6 +557,58 @@ function normalizeBlink(a) {
   a.end_frame = Math.round(+a.end_frame);
   if (!(a.end_frame >= -1)) a.end_frame = -1;
   return a;
+}
+// Time control (action_settings[action].time), run by laser/timefx.py: while
+// the action plays between start_frame and end_frame (-1 = the last frame) and
+// its conditions pass (ANY / ALL; none = always), time runs at `speed` for
+// what `scope` names; the fighter doing the action (the caster) is never
+// slowed by its own time effect.
+//   enemy_fx        the enemy's FX and bullets
+//   own_fx          the caster's own FX and bullets
+//   all_fx          every FX (enemy and own)
+//   enemy_fighters  the enemy fighters (their FX keep their own time)
+//   all_fighters    every fighter except the caster
+//   everything      every FX and every fighter except the caster
+// speed: 0 = stopped, 1 = normal, up to TIME_SPEED_MAX.  keys = [{ms, speed,
+// ease}]: the speed eases from the previous point (the start, or an earlier
+// key) to each key, ms counted from the moment the time effect started, and
+// holds after the last key (timeSpeed).  It ends when the action passes
+// end_frame, loops or ends.
+var TIME_DEFAULTS = {enabled: false, start_frame: 0, end_frame: -1, scope: "enemy_fighters", speed: 0, keys: [],
+  logic: "any", conditions: []};
+var TIME_SCOPES = ["enemy_fx", "own_fx", "all_fx", "enemy_fighters", "all_fighters", "everything"];
+var TIME_SPEED_MAX = 8;
+function timeNum(v, d) { v = +v; return isFinite(v) ? v : d; }
+function normalizeTime(tc) {
+  tc = fill(tc || {}, TIME_DEFAULTS);
+  tc.enabled = !!tc.enabled;
+  if (TIME_SCOPES.indexOf(tc.scope) < 0) tc.scope = TIME_DEFAULTS.scope;
+  tc.start_frame = Math.max(0, Math.round(timeNum(tc.start_frame, 0)));
+  tc.end_frame = Math.max(-1, Math.round(timeNum(tc.end_frame, -1)));
+  tc.speed = Math.max(0, Math.min(TIME_SPEED_MAX, timeNum(tc.speed, 0)));
+  if (tc.logic !== "all") tc.logic = "any";
+  // Keys are normalised in place (the Studio edits them through references).
+  tc.keys = (tc.keys || []).filter(function (k) { return k && typeof k === "object"; }).map(function (k) {
+    k.ms = Math.max(0, timeNum(k.ms, 0)); k.speed = Math.max(0, Math.min(TIME_SPEED_MAX, timeNum(k.speed, 1)));
+    if (EASES.indexOf(k.ease) < 0) k.ease = "linear";
+    return k;
+  }).sort(function (a, b) { return a.ms - b.ms; });
+  tc.conditions = (tc.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+    .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
+  return tc;
+}
+// The speed `ms` after the time effect started.  laser/fxkit.py time_speed.
+function timeSpeed(tc, ms) {
+  var pm = 0, ps = tc.speed;
+  for (var i = 0; i < tc.keys.length; i++) {
+    var k = tc.keys[i];
+    if (ms < k.ms) {
+      var u = (ms - pm) / Math.max(1e-6, k.ms - pm);
+      return Math.max(0, Math.min(TIME_SPEED_MAX, ps + (k.speed - ps) * ease(k.ease, u)));
+    }
+    pm = k.ms; ps = k.speed;
+  }
+  return ps;
 }
 // Whether frame `fr` of an action with `frames` frames is inside the blink.
 function blinkActive(b, fr, frames) {
@@ -656,6 +710,7 @@ function standHeight(img) {
 function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
   cfg.blink = normalizeBlink(cfg.blink);
+  cfg.time = normalizeTime(cfg.time);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return cfg;
@@ -1868,11 +1923,15 @@ Player.prototype.window = function (fx, frames, frameMs) {
 // when the action loops; instances already alive keep running).
 // opts.hold (Blink, while the fighter is gone): nothing new fires; live
 // instances keep updating.
+// opts.frozen (Time control stopped these FX this tick, laser/timefx.py):
+// what the action fires now still appears, but nothing moves, ages or hits,
+// the player's own clock (pending sequential points, Continuous runs) holds,
+// and a new Continuous run waits to start.  laser/fxkit.py Player.tick.
 // opts.continuous (the action's fx_continuous while it loops): an "open"
 // instance (life 0 = to the end, window reaching the action's end) is kept
 // alive across the loop, and its effect is not spawned again while it lives.
 Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
-  var self = this, cont = !!(opts && opts.continuous);
+  var self = this, cont = !!(opts && opts.continuous), frozen = !!(opts && opts.frozen);
   // Spawn `n` copies of fx.  With an entry set they come out of every point:
   // together, or (sequential) one point every interval_ticks.
   // run (Continuous): its frame time and cycle number, so its keys play on
@@ -1914,8 +1973,8 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     r.k += 1; r.rt = r.s;
     return true;
   }
-  var due = this.pending.filter(function (j) { return j.due <= self.clock; });
-  this.pending = this.pending.filter(function (j) { return j.due > self.clock; });
+  var due = frozen ? [] : this.pending.filter(function (j) { return j.due <= self.clock; });
+  if (due.length) this.pending = this.pending.filter(function (j) { return j.due > self.clock; });
   due.forEach(function (j) { if (j.tag === "run" || (j.fx.enabled && effects.indexOf(j.fx) >= 0)) spawnJob(j); });
   // The action restarted (t went back) or an effect left it: its spent
   // always-on set may start again.
@@ -1923,7 +1982,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   this.spent = this.spent.filter(function (f) { return effects.indexOf(f) >= 0; });
   this.lastT = t;
   // Continuous runs, on their own clock whatever the action is doing.
-  this.runs = this.runs.filter(stepRun);
+  if (!frozen) this.runs = this.runs.filter(stepRun);
   // An always-on instance ends when its effect is removed, disabled or no
   // longer always on.
   this.insts.forEach(function (inst) {
@@ -1949,7 +2008,8 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
       if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
       var run = {fx: fx, s: s, e: e, rt: s, len: Math.max(1, e - s, fx.life_ticks > 0 ? trunc(fx.life_ticks) : 0), fms: frameMs, k: 0,
         loop: !!fx.cycles.enabled, left: trunc(fx.cycles.count), stop: stop};
-      if (stepRun(run)) self.runs.push(run);   // its first tick is this one
+      if (frozen) self.runs.push(run);   // its first tick waits for time to run
+      else if (stepRun(run)) self.runs.push(run);   // its first tick is this one
       return;
     }
     var periodic = fx.emit.every_ticks > 0 && t > s && t < e && (t - s) % fx.emit.every_ticks === 0;
@@ -1959,6 +2019,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
     if (cont && open && !periodic && self.insts.some(function (q) { return (q.src || q.fx) === fx && q.open && !q.dead; })) return;
     fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), e - t, open ? "open" : "", null, stop);
   });
+  if (frozen) { this.insts = this.insts.filter(function (i) { return !i.dead; }); return; }
   this.clock += 1;
   var ps = host.pscale || 1;
   if (cont) this.insts.forEach(function (inst) { if (inst.open && inst.age < inst.life) inst.life = Math.max(inst.life, inst.age + 2); });
@@ -1987,6 +2048,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
+  TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,

@@ -322,6 +322,18 @@ BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target
                       proximity_px=60.0, flash=True, cooldown_ms=0.0)
 BLINK_ANCHORS = ("target", "self")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
+# The action's Time control (action_settings[action].time, FXK.TIME_DEFAULTS):
+# while the action plays between start_frame and end_frame (-1 = the last
+# frame) and its conditions pass (none = always), time runs at `speed` for
+# what `scope` names, the caster itself never included.  0 = stopped, 1 =
+# normal, up to TIME_SPEED_MAX.  keys = [{ms, speed, ease}]: the speed moves
+# from the previous point (the start, or an earlier key) to each key along its
+# ease, ms counted from the moment the time effect started, and holds after
+# the last key.  Run by laser/timefx.py.
+TIME_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, scope="enemy_fighters", speed=0.0, keys=[],
+                     logic="any", conditions=[])
+TIME_SCOPES = ("enemy_fx", "own_fx", "all_fx", "enemy_fighters", "all_fighters", "everything")
+TIME_SPEED_MAX = 8
 # Triggered-reaction FX (effect "action"): built in FX Studio under Actions >
 # Triggered reactions.  "@retreat" plays for the whole Tactical retreat dash;
 # "@blink:<action>" plays over <action> while its Blink is on.
@@ -606,9 +618,60 @@ def rescale_effects(effects, lib, r):
         p["points"] = [[q[0] * r, q[1] * r] for q in p.get("points") or []]
 
 
+def _num(v, d):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return d
+    return v if math.isfinite(v) else d
+
+
+def normalize_time(tc):
+    """An action's Time control block, every field present (FXK.normalizeTime)."""
+    from .actions import CONDITION_TYPES
+    tc = _fill(dict(tc or {}), TIME_DEFAULTS)
+    tc["enabled"] = bool(tc.get("enabled"))
+    if tc.get("scope") not in TIME_SCOPES:
+        tc["scope"] = TIME_DEFAULTS["scope"]
+    tc["start_frame"] = max(0, jround(_num(tc.get("start_frame"), 0)))
+    tc["end_frame"] = max(-1, jround(_num(tc.get("end_frame"), -1)))
+    tc["speed"] = max(0.0, min(float(TIME_SPEED_MAX), _num(tc.get("speed"), 0.0)))
+    if tc.get("logic") not in ("any", "all"):
+        tc["logic"] = "any"
+    keys = []
+    for k in tc.get("keys") or []:
+        if not isinstance(k, dict):
+            continue
+        keys.append({"ms": max(0.0, _num(k.get("ms"), 0.0)),
+                     "speed": max(0.0, min(float(TIME_SPEED_MAX), _num(k.get("speed"), 1.0))),
+                     "ease": k.get("ease") if k.get("ease") in EASES else "linear"})
+    keys.sort(key=lambda k: k["ms"])
+    tc["keys"] = keys
+    conds = []
+    for c in tc.get("conditions") or []:
+        if isinstance(c, dict) and c.get("type") in CONDITION_TYPES:
+            conds.append(_fill(_fill(dict(c), CONDITION_TYPES[c["type"]]), {"not": False}))
+    tc["conditions"] = conds
+    return tc
+
+
+def time_speed(tc, ms):
+    """Time control speed `ms` after the time effect started (FXK.timeSpeed):
+    the base speed at 0, eased toward each key in turn, held after the last."""
+    prev_ms, prev_sp = 0.0, tc["speed"]
+    for k in tc["keys"]:
+        if ms < k["ms"]:
+            u = (ms - prev_ms) / max(1e-6, k["ms"] - prev_ms)
+            v = prev_sp + (k["speed"] - prev_sp) * ease(k["ease"], u)
+            return max(0.0, min(float(TIME_SPEED_MAX), v))
+        prev_ms, prev_sp = k["ms"], k["speed"]
+    return prev_sp
+
+
 def normalize_action(cfg):
     cfg = _fill(dict(cfg or {}), ACTION_DEFAULTS)
     cfg["blink"] = normalize_blink(cfg.get("blink"))
+    cfg["time"] = normalize_time(cfg.get("time"))
     return cfg
 
 
@@ -2392,15 +2455,20 @@ class Player:
             else:
                 self._spawn_job(job, host)
 
-    def tick(self, effects, host, t, frames, frame_ms, continuous=False, t_prev=None):
+    def tick(self, effects, host, t, frames, frame_ms, continuous=False, t_prev=None, frozen=False):
         # t_prev == t: the action is holding a frame (time did not advance),
         # so nothing new fires this tick; live instances still update.
+        # frozen (Time control stopped these FX this tick, laser/timefx.py):
+        # what the action fires now still appears, but nothing moves, ages
+        # or hits, the player's own clock (pending sequential points,
+        # Continuous runs) holds, and a new Continuous run waits to start.
         held = t_prev is not None and t_prev == t
         self._fms = max(1e-6, float(frame_ms))
         if t_prev is None or t_prev > t:
             t_prev = t - 1
-        due = [j for j in self.pending if j["due"] <= self.clock]
-        self.pending = [j for j in self.pending if j["due"] > self.clock]
+        due = [] if frozen else [j for j in self.pending if j["due"] <= self.clock]
+        if due:
+            self.pending = [j for j in self.pending if j["due"] > self.clock]
         for j in due:
             if j["tag"] == "run" or (j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects)):
                 self._spawn_job(j, host)
@@ -2411,7 +2479,8 @@ class Player:
         self.spent = [f for f in self.spent if any(e is f for e in effects)]
         self._last_t = t
         # Continuous runs, on their own clock whatever the action is doing.
-        self.runs = [r for r in self.runs if self._step_run(r, host)]
+        if not frozen:
+            self.runs = [r for r in self.runs if self._step_run(r, host)]
         for inst in self.insts:
             src = inst.src or inst.fx
             if inst.cont and (not src.get("enabled", True) or not any(e is src for e in effects) or not is_always_on(src)):
@@ -2442,7 +2511,9 @@ class Player:
                        "len": max(1, e - s, trunc(fx["life_ticks"]) if fx["life_ticks"] > 0 else 0),
                        "fms": self._fms, "k": 0, "loop": bool(fx["cycles"]["enabled"]), "left": trunc(fx["cycles"]["count"]),
                        "stop": stop}
-                if self._step_run(run, host):   # its first tick is this one
+                if frozen:
+                    self.runs.append(run)       # its first tick waits for time to run
+                elif self._step_run(run, host):   # its first tick is this one
                     self.runs.append(run)
                 continue
             every = fx["emit"]["every_ticks"]
@@ -2454,6 +2525,9 @@ class Player:
             if continuous and opn and not periodic and any((q.src or q.fx) is fx and q.open and not q.dead for q in self.insts):
                 continue
             self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), e - t, "open" if opn else "", host, stop=stop)
+        if frozen:
+            self.insts = [i for i in self.insts if not i.dead]
+            return
         self.clock += 1
         ps = host.pscale or 1.0
         if continuous:
@@ -2855,7 +2929,7 @@ class FxDriver:
         n, fm = self.cfx.timing.get(action, (1, 100.0))
         return n, fm
 
-    def update(self, fig, world, hold=None):
+    def update(self, fig, world, hold=None, frozen=False):
         # Action time follows the frame on screen: it advances one tick per
         # tick inside the frame's own span (frame_ms), jumps forward when the
         # engine's frames run ahead, holds when a frame is held, and starts
@@ -2863,13 +2937,16 @@ class FxDriver:
         # hold (an action's Blink, while the fighter is gone): nothing new
         # fires, live instances keep updating.  "freeze" also stops the
         # action time; "run" (what laser/blink.py uses) lets it follow the
-        # frames as usual.
+        # frames as usual.  "time" (Time control stopped the fighter,
+        # laser/timefx.py) holds the action time like "freeze", and its FX
+        # still hit.  frozen: Time control stopped this fighter's FX
+        # (Player.tick).
         self._clash_owner_hit(fig)
         action, frame = current_action(fig)
         n, fm = self._time_for(action)
         f0 = jround(frame * fm / TICK_MS)
         f1 = max(f0, jround((frame + 1) * fm / TICK_MS) - 1)
-        if hold == "freeze" and action == self.action:
+        if hold in ("freeze", "time") and action == self.action:
             self.t_prev = self.t
         elif action != self.action:
             self.action, self.cycle = action, 0
@@ -2910,9 +2987,9 @@ class FxDriver:
         else:
             effects = self.cfx.by_action.get(action) or []
         self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
-                         t_prev=self.t if hold else self.t_prev)
-        self._retreat_tick(fig, host, hold)
-        if hold:
+                         t_prev=self.t if hold else self.t_prev, frozen=frozen)
+        self._retreat_tick(fig, host, hold, frozen)
+        if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
 
@@ -2929,7 +3006,7 @@ class FxDriver:
                 if inst.clash_with is not None:
                     inst.age = max(inst.age, inst.life)
 
-    def _retreat_tick(self, fig, host, hold):
+    def _retreat_tick(self, fig, host, hold, frozen=False):
         """Tactical retreat FX: the borrowed effect / group and the FX built
         on the reaction play for the whole dash, each looping on its own
         action's timing (shots re-fire each pass and on their own cadence);
@@ -2940,9 +3017,9 @@ class FxDriver:
         borrowed = self.cfx.retreat_effects(cfg.get("fx")) if dashing else ([], None)
         own = (self.cfx.retreat_own, self.cfx.retreat_host) if dashing else ([], None)
         for lane, (effs, act) in zip(self.rlanes, (borrowed, own)):
-            self._lane_tick(lane, effs, act, host, hold)
+            self._lane_tick(lane, effs, act, host, hold, frozen)
 
-    def _lane_tick(self, lane, effs, act, host, hold):
+    def _lane_tick(self, lane, effs, act, host, hold, frozen=False):
         pl = lane[0]
         if effs:
             n, fm = self._time_for(act)
@@ -2950,7 +3027,7 @@ class FxDriver:
             if not lane[1] or lane[2] >= total:
                 lane[1], lane[2], lane[3] = True, 0, -1
             pl.tick(effs, host, lane[2], n, fm, continuous=True,
-                    t_prev=lane[2] if hold else lane[3])
+                    t_prev=lane[2] if hold else lane[3], frozen=frozen)
             if not hold:
                 lane[3], lane[2] = lane[2], lane[2] + 1
             return
@@ -2961,7 +3038,7 @@ class FxDriver:
                     inst.dead = True
             pl.pending = []
         if pl.insts:
-            pl.tick((), host, 0, 1, TICK_MS, t_prev=0)
+            pl.tick((), host, 0, 1, TICK_MS, t_prev=0, frozen=frozen)
 
     def draw(self, p, fig, layer, hidden=False):
         if self.host is None or not (self.player.insts or any(ln[0].insts for ln in self.rlanes)):
@@ -2976,9 +3053,10 @@ class FxDriver:
         return h
 
 
-def update_figure(fig, world, hold=None):
+def update_figure(fig, world, hold=None, frozen=False):
     """CombatSystem hook: tick this figure's FX (no-op without an FX file).
-    hold: see FxDriver.update (FX Studio blink)."""
+    hold: see FxDriver.update (FX Studio blink / Time control).
+    frozen: Time control stopped this figure's FX this step."""
     cfx = character_fx(fig.mode)
     drv = getattr(fig, "fx", None)
     if cfx is None:
@@ -2988,7 +3066,7 @@ def update_figure(fig, world, hold=None):
     if drv is None or drv.cfx is not cfx:
         drv = FxDriver(cfx)
         fig.fx = drv
-    drv.update(fig, world, hold)
+    drv.update(fig, world, hold, frozen)
     hits = drv.take_hits()
     if hits and world.battle_mode:
         world.queue_fx_hits(hits)

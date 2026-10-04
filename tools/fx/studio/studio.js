@@ -19,7 +19,8 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
-  t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null};
+  t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
+  time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
 
@@ -1641,7 +1642,10 @@ var COND_META = {
   idle_for: {group: "Timing & order", label: "idle (no action) for ms", prev: ["idleMs"],
     help: "No attack or triggered action has played for at least this long."},
   chance: {group: "Timing & order", label: "random chance per second", prev: ["chanceHit"],
-    help: "A random roll: this % chance per second while the other conditions hold (100 = always)."}
+    help: "A random roll: this % chance per second while the other conditions hold (100 = always)."},
+  // actions
+  action_triggered: {group: "Actions", label: "own / enemy action triggered", prev: [],
+    help: "This fighter (own) or the target (enemy) started the named action within the time window (0 ms = only on the tick it starts). Empty action = any action. Built-in fighters count a dash / slash as attack_normal, a parry as defend and their ultimates as ultimate. Battle only for the enemy (the Solo cursor never acts)."}
 };
 var COND_GROUPS = [], COND_LABEL = {}, COND_HELP = {}, PREV_USES = {};
 Object.keys(COND_META).forEach(function (k) {
@@ -1653,7 +1657,7 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
   min_px: ["From px", 0, 2000, 5], max_px: ["To px", 0, 2000, 5], px_s: ["Speed px/s", 0, 5000, 5],
   hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
   tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
-  dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"]};
+  dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"], who: ["Whose action", "who"]};
 // Preview-only state for the conditions the stage can't show (not saved).
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
@@ -1712,6 +1716,16 @@ function condField(box, c, k, ownLabel, listId) {
   if (u[1] === "chk") return field(box, u[0], inp("chk", c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "tags") return field(box, u[0], tagsInput(c, k, listId));
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
+  if (u[1] === "who") return field(box, u[0], inp([["target", "the enemy (target)"], ["self", "own (this fighter)"]], c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "action" && c.type === "action_triggered") {   // any action name: own, or the enemy's (unknown here)
+    var names = {attack_normal: 1, attack_special: 1, ultimate: 1, defend: 1};
+    Object.keys(C.actions).forEach(function (a) { if (FXK.actionKind(a) !== "locomotion") names[a] = 1; });
+    var dlid = "actTrigList", dl = document.getElementById(dlid);
+    if (!dl) { dl = document.createElement("datalist"); dl.id = dlid; document.body.appendChild(dl); }
+    dl.innerHTML = ""; Object.keys(names).sort().forEach(function (n) { var op = document.createElement("option"); op.value = n; dl.appendChild(op); });
+    var ai = inp("text", c[k], function (v) { c[k] = v.trim(); save(); }); ai.setAttribute("list", dlid); ai.placeholder = "any action";
+    return field(box, "Action (empty = any)", ai);
+  }
   if (u[1] === "action") return field(box, u[0], inp([["", ownLabel || "— this action —"]].concat(Object.keys(C.actions).filter(function (a) { return ownLabel || a !== S.action; })),
     c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "dir") return field(box, u[0], inp([["toward", "toward me"], ["away", "away (back turned)"]], c[k], function (v) { c[k] = v; save(); }));
@@ -1953,6 +1967,82 @@ function buildBlinkProps(d) {
     "After it reappears, how long before this action can blink again. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
   note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
 }
+// ------------------------------------------------------------ time control
+// Time control (action_settings[action].time; laser/timefx.py): while this
+// action plays between its frames and the conditions pass, time runs at the
+// speed for what "Affects" names, never the fighter doing the action.  The
+// slider is 0 (stopped) at the far left, 1x in the middle, 8x at the right.
+var TIME_SCOPE_LABEL = {enemy_fx: "Enemy FX only", own_fx: "Own FX only", all_fx: "All FX (enemy + own)",
+  enemy_fighters: "Enemy fighters only", all_fighters: "All fighters (not me)", everything: "Everything (all FX + all fighters, not me)"};
+var TIME_SLIDER = 1000;
+function speedToSlider(v) { var h = TIME_SLIDER / 2; return Math.round(v <= 1 ? v * h : h + (v - 1) / (FXK.TIME_SPEED_MAX - 1) * h); }
+function sliderToSpeed(p) { var h = TIME_SLIDER / 2; p = +p; var v = p <= h ? p / h : 1 + (p - h) / h * (FXK.TIME_SPEED_MAX - 1); return Math.abs(v - 1) < 0.02 ? 1 : Math.round(v * 100) / 100; }
+function speedWord(v) { return v <= 0 ? "time stopped" : v < 1 ? "slow motion" : v === 1 ? "normal speed" : "sped up"; }
+// A speed slider + exact number, kept in step; onch(speed) on every change.
+function speedControl(val, onch) {
+  var w = document.createElement("div"); w.className = "tspd";
+  var r = document.createElement("input"); r.type = "range"; r.min = 0; r.max = TIME_SLIDER; r.step = 1; r.value = speedToSlider(val);
+  var n = inp("n", val, function (v) { v = Math.max(0, Math.min(FXK.TIME_SPEED_MAX, v)); r.value = speedToSlider(v); lab.textContent = speedWord(v); onch(v); }, 0, FXK.TIME_SPEED_MAX, 0.05);
+  var lab = document.createElement("span"); lab.className = "note"; lab.textContent = speedWord(val);
+  r.oninput = function () { var v = sliderToSpeed(r.value); n.value = v; lab.textContent = speedWord(v); onch(v); };
+  r.title = "Far left = time stopped (0x), middle = normal (1x), far right = " + FXK.TIME_SPEED_MAX + "x faster.";
+  w.appendChild(r); w.appendChild(n); w.appendChild(lab);
+  return w;
+}
+function timeEnd(tc) { var n = frames(); return tc.end_frame < 0 ? n - 1 : Math.min(n - 1, tc.end_frame); }
+function timeWindowMs(tc) { return Math.max(0, Math.round((timeEnd(tc) - tc.start_frame + 1) * frameMs())); }
+function buildTimeProps(d) {
+  var a = S.action, tc = cfgOf(a).time, n = frames();
+  var s = sec(d, "Time control (this action)", "a-time",
+    "Bend time while this action plays: stop, slow down or speed up the enemy, the FX or everything between two frames. You (the fighter doing this action) always keep normal speed.", "act");
+  var ch = function () { save(); buildProps(); resetSim(S.t); buildTimeline(); }, soft = function () { save(); resetSim(S.t); buildTimeline(); };
+  field(s, "Time control", inp("chk", tc.enabled, function (v) { tc.enabled = v; ch(); })).title =
+    "On: when this action plays and its conditions below are met, time changes for what \"Affects\" names between the two frames.";
+  if (!tc.enabled) return;
+  field(s, "From frame", inp("n", tc.start_frame, function (v) { tc.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); ch(); }, 0, n - 1, 1)).title =
+    "The frame the time effect can start on.";
+  field(s, "To frame (-1 = end)", inp("n", tc.end_frame, function (v) { tc.end_frame = Math.max(-1, Math.min(n - 1, Math.round(v))); ch(); }, -1, n - 1, 1)).title =
+    "The last frame the time effect lasts for. Time goes back to normal once the action passes it (or the action ends). -1 = until the action ends.";
+  var e = timeEnd(tc);
+  if (e < tc.start_frame) note(s, "The end frame is before the start frame, so time never changes. Set it to " + tc.start_frame + " or later.");
+  else note(s, "Runs over frames " + tc.start_frame + "\u2013" + e + " = about " + timeWindowMs(tc) + " ms (the duration comes from the frames; the action itself always plays at normal speed).");
+  field(s, "Affects", inp(FXK.TIME_SCOPES.map(function (k) { return [k, TIME_SCOPE_LABEL[k]]; }), tc.scope, function (v) { tc.scope = v; soft(); })).title =
+    "What the time change acts on. FX = effects and bullets (frozen FX hang in the air and land no hits until time runs again). Fighters = their movement, actions and attacks (a stopped fighter can still be hit; its knockback plays out when time resumes). You are never affected.";
+  field(s, "Speed", speedControl(tc.speed, function (v) { tc.speed = v; soft(); })).title =
+    "Far left = time stopped, middle = normal, right = faster (up to " + FXK.TIME_SPEED_MAX + "x). This is the speed when the time effect starts; keys below change it over time.";
+  // Speed keys
+  var k = sec(s, "Speed keys", "a-tkeys", "Change the speed while the time effect runs: each key sets a speed at a time (ms after the effect started) and the speed eases there from the previous key. After the last key it holds.", "act");
+  var win = timeWindowMs(tc);
+  tc.keys.forEach(function (key, i) {
+    var box = document.createElement("div"); box.className = "keyrow";
+    var ms = inp("n", key.ms, function (v) { key.ms = Math.max(0, Math.min(60000, v)); save(); resetSim(S.t); buildTimeline(); }, 0, 60000, 10);
+    ms.className = "kf"; ms.style.width = "72px"; ms.title = "When this key is reached, ms after the time effect started (the window is about " + win + " ms).";
+    ms.onchange = function () { ch(); };   // re-list in time order when done typing
+    var ez = inp(FXK.EASES.map(function (e2) { return [e2, EASE_LABEL[e2]]; }), key.ease, function (v) { key.ease = v; soft(); });
+    ez.title = "How the speed moves into this key from the previous one.";
+    var rm = document.createElement("button"); rm.textContent = "×"; rm.title = "Remove this key"; rm.onclick = function () { var j = cfgOf(a).time.keys.indexOf(key); if (j >= 0) cfgOf(a).time.keys.splice(j, 1); ch(); };
+    var lb = document.createElement("span"); lb.className = "kt"; lb.textContent = "at ms";
+    box.appendChild(lb); box.appendChild(ms); box.appendChild(ez); box.appendChild(rm); k.appendChild(box);
+    var sp = speedControl(key.speed, function (v) { key.speed = v; soft(); }); sp.style.marginLeft = "20px"; k.appendChild(sp);
+    if (key.ms > win) note(k, "Key " + (i + 1) + " is after the window ends (" + win + " ms), so it is never reached.");
+  });
+  var add = document.createElement("button"); add.textContent = "+ Speed key";
+  add.title = "Add a key after the last one (half way to the end of the window, or 100 ms later).";
+  add.onclick = function () {
+    var lastMs = tc.keys.length ? tc.keys[tc.keys.length - 1].ms : 0, lastSp = tc.keys.length ? tc.keys[tc.keys.length - 1].speed : tc.speed;
+    var at = lastMs < win ? Math.round(lastMs + Math.max(10, (win - lastMs) / 2)) : lastMs + 100;
+    cfgOf(a).time.keys.push({ms: at, speed: lastSp <= 0 ? 1 : lastSp, ease: "linear"}); ch();
+  };
+  var row = document.createElement("div"); row.className = "row"; row.appendChild(add); k.appendChild(row);
+  if (!tc.keys.length) note(k, "No keys: the speed stays " + tc.speed + "x for the whole window.");
+  // Trigger conditions
+  var c = sec(s, "Time trigger conditions", "a-tcond", "When the time effect happens. It triggers the first moment the action is between the two frames and these conditions are met (once per play of the action). No conditions = every time the action reaches the start frame.", "act");
+  field(c, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], tc.logic, function (v) { tc.logic = v; save(); }));
+  conditionList(c, function () { return cfgOf(a).time.conditions; }, {key: "a-tcondi", listId: "fxTagListTime", preview: false, onChange: function () { save(); buildProps(); },
+    helpOf: function (t) { return COND_HELP[t]; },
+    make: function (t) { return FXK.normalizeTime({conditions: [{type: t}]}).conditions[0]; }});
+  note(s, "Preview: the stage plays the time effect whenever the action reaches the start frame (conditions are checked in the game only). Own FX slow / stop on the stage; enemy FX = the test shots (tick \"test shots\" below the stage); the enemy fighter = the target marker (a stopped enemy fires no test shots).");
+}
 // Right panel for a triggered reaction (Actions > Triggered reactions) when
 // no effect is selected: its settings, and what the FX built on it do.
 function buildReactionProps(d) {
@@ -2012,6 +2102,7 @@ function buildActionProps(d) {
   }
   buildCharScaleProps(d);
   buildBlinkProps(d);
+  buildTimeProps(d);
   buildAimProps(d);
   buildDamagedProps(d);
   buildRetreatProps(d);
@@ -2094,9 +2185,23 @@ function buildTimeline() {
     if (i % lab) continue;
     var f = document.createElement("div"); f.className = "tlf"; f.style.left = (i * fw) + "px"; f.textContent = i; tl.appendChild(f);
   }
-  var total = totalTicks();
-  tl.style.height = Math.min(260, Math.max(96, 24 + actionEffects().length * 15)) + "px";
+  var total = totalTicks(), tc = S.react ? null : cfgOf(S.action).time, toff = tc && tc.enabled ? 15 : 0;
+  tl.style.height = Math.min(260, Math.max(96, 24 + toff + actionEffects().length * 15)) + "px";
+  if (toff) {   // Time control window (scrubs like the empty timeline) + its speed keys
+    var ts = Math.round(tc.start_frame * frameMs() / FXK.TICK_MS), te = Math.round((timeEnd(tc) + 1) * frameMs() / FXK.TICK_MS);
+    var tb = document.createElement("div"); tb.className = "tltime";
+    tb.style.left = (ts / total * W) + "px"; tb.style.width = Math.max(4, (te - ts) / total * W) + "px"; tb.style.top = "18px";
+    tb.textContent = "\u23f1 " + tc.speed + "x " + TIME_SCOPE_LABEL[tc.scope].toLowerCase();
+    tb.title = "Time control: frames " + tc.start_frame + "\u2013" + timeEnd(tc) + ", " + TIME_SCOPE_LABEL[tc.scope] + ", starts at " + tc.speed + "x" + (tc.keys.length ? ", " + tc.keys.length + " speed key(s)" : "");
+    tl.appendChild(tb);
+    tc.keys.forEach(function (k) {
+      var kt = ts + Math.round(k.ms / FXK.TICK_MS); if (kt > te) return;
+      var km = document.createElement("div"); km.className = "tltkey"; km.style.left = (kt / total * W - 4) + "px"; km.style.top = "20px";
+      km.title = "Speed key at " + k.ms + " ms: " + k.speed + "x (" + EASE_LABEL[k.ease] + ")"; tl.appendChild(km);
+    });
+  }
   actionEffects().forEach(function (fx, row) {
+    row += toff ? 1 : 0;
     var w = player.window(fx, n, frameMs());
     var b = document.createElement("div"); b.className = "tlbar" + (fx.id === S.sel ? " sel" : "") + (fx.battle.deals_damage ? " dmg" : "");
     // Bar = the emission window; a one-shot with a fixed life shows that life.
@@ -2127,6 +2232,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 function resetSim(t) {
   player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
+  S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   blinkStep();
@@ -2137,11 +2243,22 @@ function step(allowWrap) {
   var gone = blinkGone(), dash = S.react === "retreat";
   if (dash) dashStep();
   else if (!gone) moveFigure();
-  stepTestShots();
+  // Time control: own FX, the test shots (enemy FX) and the target (the
+  // enemy fighter, who fires them) each take their own steps this tick.
+  var ts = timeStep();
+  stepTestShots(ts.efx, ts.eb);
   // Tactical retreat: the run frames loop until the dash ends; then its held
   // FX stop (no effects passed) and shots already flying finish.
   var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = dash ? dashOver() : (S.cycle || 0) >= nLoops - 1;
-  player.tick(dash && dashOver() ? [] : playEffects(), host, S.t, frames(), frameMs(), {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone});
+  var effs = dash && dashOver() ? [] : playEffects();
+  var opts = {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone};
+  if (ts.own === 0) player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, hold: gone, frozen: true});
+  else {
+    player.tick(effs, host, S.t, frames(), frameMs(), opts);
+    // Sped-up FX: extra steps on the same action time (nothing new fires),
+    // as the game's time sub-passes do (laser/timefx.py).
+    for (var k = 1; k < ts.own; k++) player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, hold: true});
+  }
   S.t += 1;
   if (S.t >= totalTicks() && allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
@@ -2150,6 +2267,38 @@ function step(allowWrap) {
     else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; if (dash) { S.figX = 0; S.figY = 0; dashStart(); } }
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
+}
+// Time control preview (laser/timefx.py update_caster / plan): the time
+// effect starts when the frame on show reaches the start frame (conditions
+// are taken as met: they are game-only), runs to the end frame, and once per
+// pass of the action.  Returns this tick's steps for own FX, enemy FX (test
+// shots) and the enemy fighter (the target's firing clock).
+function timeSteps(key, scale) {
+  if (scale === 1) { S.tacc[key] = 0; return 1; }
+  var a = S.tacc[key] + scale, n = Math.floor(a + 1e-9);
+  S.tacc[key] = a - n;
+  return Math.min(8, n);
+}
+function timeStep() {
+  var tc = cfgOf(S.action).time, T = S.time, fr = frameAt(S.t);
+  var newPass = fr < T.lastFrame || S.t < T.lastT;
+  T.lastFrame = fr; T.lastT = S.t;
+  if (newPass) T.fired = false;
+  if (T.active) { if (newPass || fr > T.end || !tc.enabled) T.active = false; else T.t += 1; }
+  if (!T.active && !T.fired && tc.enabled && !S.react) {
+    var e = timeEnd(tc);
+    if (tc.start_frame <= fr && fr <= e) { T.active = true; T.fired = true; T.t = 0; T.end = e; }
+  }
+  var sp = T.active ? FXK.timeSpeed(tc, T.t * FXK.TICK_MS) : 1, sc = tc.scope;
+  T.speed = sp;
+  var all = sc === "everything";
+  return {own: timeSteps("own", all || sc === "own_fx" || sc === "all_fx" ? sp : 1),
+    efx: timeSteps("efx", all || sc === "enemy_fx" || sc === "all_fx" ? sp : 1),
+    eb: timeSteps("eb", all || sc === "enemy_fighters" || sc === "all_fighters" ? sp : 1)};
+}
+function timeLabel() {
+  var T = S.time; if (!T || !T.active) return "";
+  return "   TIME " + (Math.round(T.speed * 100) / 100) + "x on " + TIME_SCOPE_LABEL[cfgOf(S.action).time.scope].toLowerCase();
 }
 // Blink preview (the action's Blink): vanish when the frame on show enters
 // the blink's frames, reappear at the landing spot once it leaves them (or
@@ -2194,13 +2343,19 @@ function drawBlink(g, z, img) {
 // the sim.  Deflected ones fly off as ricochets: red when they now hurt
 // their owner (the dummy), grey when harmless.
 var TEST_SHOT_EVERY = 40, TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
-function stepTestShots() {
-  S.clock = (S.clock || 0) + 1;
+// nMove: steps the shots in flight take this tick, nFire: steps of the dummy
+// enemy's firing clock (Time control; both 1 normally).
+function stepTestShots(nMove, nFire) {
+  if (nMove == null) nMove = 1;
+  if (nFire == null) nFire = 1;
   S.shots = (S.shots || []).filter(function (q) { return !q.dead && q.age < TEST_SHOT_LIFE; });
-  S.shots.forEach(function (q) { q.x += q.vx; q.y += q.vy; q.age += 1; });
-  if ($("testShots").checked && S.clock % TEST_SHOT_EVERY === 1) {
-    var d = [S.figX - S.target[0], S.figY - S.target[1]], m = Math.hypot(d[0], d[1]) || 1;
-    S.shots.push({x: S.target[0], y: S.target[1], vx: d[0] / m * TEST_SHOT_SPEED, vy: d[1] / m * TEST_SHOT_SPEED, age: 0, dead: false});
+  for (var k = 0; k < nMove; k++) S.shots.forEach(function (q) { q.x += q.vx; q.y += q.vy; q.age += 1; });
+  for (var f = 0; f < nFire; f++) {
+    S.clock = (S.clock || 0) + 1;
+    if ($("testShots").checked && S.clock % TEST_SHOT_EVERY === 1) {
+      var d = [S.figX - S.target[0], S.figY - S.target[1]], m = Math.hypot(d[0], d[1]) || 1;
+      S.shots.push({x: S.target[0], y: S.target[1], vx: d[0] / m * TEST_SHOT_SPEED, vy: d[1] / m * TEST_SHOT_SPEED, age: 0, dead: false});
+    }
   }
   S.ricochets = (S.ricochets || []).filter(function (q) { return q.age < RICOCHET_LIFE; });
   S.ricochets.forEach(function (q) { q.trail.push([q.x, q.y]); if (q.trail.length > 6) q.trail.shift(); q.x += q.vx; q.y += q.vy; q.age += 1; });
@@ -2417,6 +2572,7 @@ function draw() {
     g.fillText("-" + h.dmg + (h.kb ? " ⇢" + h.kb : ""), S.target[0] + ((i % 3) - 1) * 6, S.target[1] - hr - 4 - age * 0.4);
   });
   g.textAlign = "start";
+  drawTimeMarks(g, z, hr);
   g.strokeStyle = "rgba(240,194,74,.9)"; g.lineWidth = 1.5 / z;
   g.beginPath(); g.arc(S.target[0], S.target[1], 6, 0, 6.2832); g.moveTo(S.target[0] - 9, S.target[1]); g.lineTo(S.target[0] + 9, S.target[1]);
   g.moveTo(S.target[0], S.target[1] - 9); g.lineTo(S.target[0], S.target[1] + 9); g.stroke();
@@ -2444,13 +2600,25 @@ function draw() {
     (!ds && nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + player.insts.length + " live FX   damage this loop " + S.dealt + " HP" +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
-    (blinkGone() ? "   BLINKED OUT" : "") +
+    (blinkGone() ? "   BLINKED OUT" : "") + timeLabel() +
     (S.geoPlace && geoItem() ? "   PLACING " + (S.geo.kind === "set" ? "entry points" : "path points") + " for \"" + geoItem().name + "\": click the stage" : "") +
     (S.place && S.selAnchor ? "   PLACING \"" + S.labels[S.selAnchor] + "\": click the figure" : "");
   $("frameInfo").textContent = "frame " + fr;
   placeHead();
 }
 
+// Time control on the stage: a ring on the target (the enemy fighter) while
+// its time is changed, with the speed.
+function drawTimeMarks(g, z, hr) {
+  var T = S.time; if (!T || !T.active) return;
+  var sc = cfgOf(S.action).time.scope, onEnemy = sc === "everything" || sc === "enemy_fighters" || sc === "all_fighters";
+  var col = isLight() ? "rgba(20,110,200," : "rgba(110,190,255,";
+  g.save(); g.strokeStyle = col + ".9)"; g.lineWidth = 2 / z; g.setLineDash(onEnemy ? [] : [2 / z, 3 / z]);
+  g.beginPath(); g.arc(S.target[0], S.target[1], hr + 5, 0, 6.2832); g.stroke(); g.setLineDash([]);
+  g.fillStyle = col + ".95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  g.fillText((onEnemy ? (T.speed <= 0 ? "STOPPED" : Math.round(T.speed * 100) / 100 + "x") : "FX " + Math.round(T.speed * 100) / 100 + "x"), S.target[0], S.target[1] + hr + 7 + 10 / z);
+  g.restore();
+}
 // The selected group: its pivot, a line to each member, a dashed box round
 // them and the ▣ handle (drag it, or Shift+drag anywhere, to move the group).
 function drawGroup(g, z) {

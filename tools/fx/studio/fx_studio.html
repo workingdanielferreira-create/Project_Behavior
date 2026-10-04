@@ -88,6 +88,9 @@ main{display:flex;flex-direction:column;min-width:0}
 #playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--warn);pointer-events:none}
 .tlkey{position:absolute;width:9px;height:9px;transform:rotate(45deg);background:var(--warn);border:1px solid var(--bg);cursor:pointer;z-index:2}
 .tlkey.sel{background:var(--bad);width:11px;height:11px}
+.tltime{position:absolute;height:12px;border-radius:3px;background:rgba(110,190,255,.16);border:1px dashed #6ebeff;font-size:9px;line-height:10px;padding-left:4px;overflow:hidden;white-space:nowrap;color:var(--text)}
+.tltkey{position:absolute;width:8px;height:8px;transform:rotate(45deg);background:#6ebeff;border:1px solid var(--bg);pointer-events:none;z-index:2}
+.tspd{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tspd input[type=range]{flex:1 1 120px;min-width:90px}.tspd input[type=number]{width:64px}
 .keyrow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:3px 0;padding:2px 4px;border-radius:5px}
 .keyrow.sel{background:var(--sel);color:var(--seltext)}
 .keyrow .kd{color:var(--warn);width:12px;text-align:center}.keyrow .kt{flex:1;font-size:12px}
