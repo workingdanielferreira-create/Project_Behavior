@@ -143,6 +143,23 @@ def seg_dist(px, py, x0, y0, x1, y1):
     return math.sqrt(ex * ex + ey * ey)
 
 
+def seg_seg_dist(a, b):
+    """Closest distance between segments a and b, each (x0, y0, x1, y1);
+    0 when they cross.  A point is a segment with both ends equal."""
+    ax0, ay0, ax1, ay1 = a[0], a[1], a[2], a[3]
+    bx0, by0, bx1, by1 = b[0], b[1], b[2], b[3]
+    rx, ry, sx, sy = ax1 - ax0, ay1 - ay0, bx1 - bx0, by1 - by0
+    den = rx * sy - ry * sx
+    if abs(den) > 1e-9:
+        qx, qy = bx0 - ax0, by0 - ay0
+        t = (qx * sy - qy * sx) / den
+        u = (qx * ry - qy * rx) / den
+        if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
+            return 0.0
+    return min(seg_dist(ax0, ay0, bx0, by0, bx1, by1), seg_dist(ax1, ay1, bx0, by0, bx1, by1),
+               seg_dist(bx0, by0, ax0, ay0, ax1, ay1), seg_dist(bx1, by1, ax0, ay0, ax1, ay1))
+
+
 # ---------------------------------------------------------------- schema
 PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"]
 PARAM_DEFAULTS = {
@@ -1054,10 +1071,16 @@ def move_inst(inst, host):
 
 # ---------------------------------------------------------------- intercept
 # The auto-projectile tracker (fx.intercept) — FXK.interceptStep.
-# host.shots: the enemy's live projectiles (Shot: x, y, vx, vy, dead), read
-# only except `dead`, which marks one already taken this tick.
+# host.shots: the enemy's live projectiles (Shot: x, y, vx, vy, dead, body),
+# read only except `dead`, which marks one already taken this tick.
 # host.on_intercept(inst, shot, mode, enemy_vel, hurts_owner) applies the
 # result to the enemy projectile at its source.
+#
+# Contact is measured between BODIES, not centre points: a beam is its whole
+# drawn line (head to tail, plus half its width), anything else its centre.
+# Two beams therefore meet as soon as any part of one touches any part of
+# the other, instead of sliding through each other until their heads happen
+# to pass within `contact` px.
 #
 # Clash mode (FXK.CLASH_*): an effect WITHOUT clash always loses to one with
 # it — the clash projectile nullifies any non-clash projectile / bullet it
@@ -1068,12 +1091,27 @@ def move_inst(inst, host):
 # other, until one's life runs out or its owner is hit (the hit owner's
 # projectile ends, FxDriver.update) — the survivor then resumes the motion it
 # had before the clash.
+#
+# Guard (FXK.guardStep): a ribbon that stays on the fighter (any motion but
+# travel / homing / zigzag) cannot chase, so it guards instead: every enemy
+# projectile whose path this tick passes within `contact` px of the ribbon's
+# HEAD is caught.  block / destroy nullify it, deflect bounces it off the
+# ribbon's surface (mirrored across the head segment, speed kept), and the
+# ribbon itself carries on either way.  It never takes a clash projectile.
 DEFLECT_FAN_DEG = 15   # with deflect "both", the two fly apart this far either side
 INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
 CLASH_KB_MARGIN = 10.0
+GUARD_MODES = ("block", "deflect", "destroy")
+
+
+def is_guard(fx):
+    """A ribbon held on the fighter: it intercepts by guarding (guard_step)."""
+    return fx["prim"] == "ribbon" and fx["motion"]["kind"] not in INTERCEPT_MOTIONS
 
 
 def can_intercept(fx):
+    if is_guard(fx):
+        return True
     return fx["prim"] not in ("weapon", "ghost", "pulse") and fx["motion"]["kind"] in INTERCEPT_MOTIONS
 
 
@@ -1081,9 +1119,13 @@ def intercept_on(fx):
     return bool((fx.get("intercept") or {}).get("enabled")) and can_intercept(fx)
 
 
+def guard_on(fx):
+    return intercept_on(fx) and is_guard(fx)
+
+
 def clash_on(fx):
-    """True when this effect intercepts in clash mode."""
-    return intercept_on(fx) and fx["intercept"].get("mode") == "clash"
+    """True when this effect intercepts in clash mode (never a guard)."""
+    return intercept_on(fx) and not is_guard(fx) and fx["intercept"].get("mode") == "clash"
 
 
 def fx_knockback(fx):
@@ -1093,21 +1135,35 @@ def fx_knockback(fx):
         return 0.0
 
 
+def inst_body(inst):
+    """What an instance collides with: (x0, y0, x1, y1, half_width).  A beam
+    is its drawn line, head to tail; anything else its centre point."""
+    if inst.fx["prim"] == "beam":
+        ps = inst.ps
+        hx, hy, ux, uy, reach = beam_reach(inst, ps)
+        if reach > 0:
+            P = inst.fx["params"]
+            hw = max(P["w_start0"], P["w_start1"], P["w_end0"], P["w_end1"]) * ps / 2
+            return (hx, hy, hx - ux * reach, hy - uy * reach, max(0.0, hw))
+    return (inst.x, inst.y, inst.x, inst.y, 0.0)
+
+
 class Shot:
     """One enemy projectile in a side's snapshot: a built-in bullet
     (kind "bullet", ref = the live combat.Projectile) or an FX Studio
     instance (kind "fx", ref = the live Inst).  blockable / deflectable come
     from the effect's battle settings (built-in bullets are both); clash /
     knockback from its intercept mode and battle.knockback (bullets: no
-    clash, knockback 0)."""
-    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "clash", "knockback")
+    clash, knockback 0); body from inst_body (bullets: their centre)."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "clash", "knockback", "body")
 
-    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, clash=False, knockback=0.0):
+    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, clash=False, knockback=0.0, body=None):
         self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
         self.dead = False
         self.kind, self.ref = kind, ref
         self.blockable, self.deflectable = bool(blockable), bool(deflectable)
         self.clash, self.knockback = bool(clash), float(knockback or 0)
+        self.body = tuple(body) if body is not None else (self.x, self.y, self.x, self.y, 0.0)
 
 
 def _shot_takes(s, mode):
@@ -1128,6 +1184,7 @@ def _shot_gone(s):
 
 
 def _nearest_shot(inst, host, r, mode=None, only_clash=False):
+    """Nearest shot by centre point within r (the tracker radius)."""
     best, bd, r2 = None, 0.0, r * r
     for s in getattr(host, "shots", None) or ():
         if s.dead or _shot_gone(s):
@@ -1140,6 +1197,25 @@ def _nearest_shot(inst, host, r, mode=None, only_clash=False):
         dx, dy = s.x - inst.x, s.y - inst.y
         d = dx * dx + dy * dy
         if d <= r2 and (best is None or d < bd):
+            best, bd = s, d
+    return best
+
+
+def _contact_shot(inst, host, contact, mode=None, only_clash=False):
+    """Nearest shot whose body touches this instance's body: the gap between
+    the two (centre lines minus half widths) is at most `contact`."""
+    mine = inst_body(inst)
+    best, bd = None, 0.0
+    for s in getattr(host, "shots", None) or ():
+        if s.dead or _shot_gone(s):
+            continue
+        if only_clash:
+            if not s.clash:
+                continue
+        elif mode and not _shot_takes(s, mode):
+            continue
+        d = seg_seg_dist(mine, s.body) - mine[4] - s.body[4]
+        if d <= contact and (best is None or d < bd):
             best, bd = s, d
     return best
 
@@ -1222,17 +1298,17 @@ def intercept_step(inst, host):
         _straight_step(inst)
         return True
     fx = inst.fx
-    if not intercept_on(fx):
+    if not intercept_on(fx) or is_guard(fx):
         return False
     ic = fx["intercept"]
     mode = ic.get("mode")
     contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
     cb = getattr(host, "on_intercept", None)
-    if mode != "clash" and _nearest_shot(inst, host, contact, only_clash=True) is not None:
+    if mode != "clash" and _contact_shot(inst, host, contact, only_clash=True) is not None:
         # A non-clash interceptor always loses to a clash projectile.
         inst.age = max(inst.age, inst.life)
         return True
-    hit = _nearest_shot(inst, host, contact, mode)
+    hit = _contact_shot(inst, host, contact, mode)
     if hit is not None:
         hit.dead = True
         _end_chase(inst)
@@ -1278,6 +1354,60 @@ def intercept_step(inst, host):
     return True
 
 
+GUARD_MIN_BOUNCE_DEG = 20.0   # a guard-deflected shot leaves the surface at least this steeply
+
+
+def guard_reflect(inst, s):
+    """A shot's velocity bounced off the ribbon's surface at its head: the
+    part along the head segment stays, the part across it is sent back out
+    the side the shot came from, at least GUARD_MIN_BOUNCE_DEG off the
+    surface so a glancing shot cannot skim on along the ribbon into the
+    fighter.  Speed kept.  With no segment yet (the ribbon has not moved)
+    it goes straight back."""
+    h = inst.hist
+    spd = math.sqrt(s.vx * s.vx + s.vy * s.vy)
+    tx, ty = (h[-1][0] - h[-2][0], h[-1][1] - h[-2][1]) if len(h) >= 2 else (0.0, 0.0)
+    tl = math.sqrt(tx * tx + ty * ty)
+    if tl < 1e-6 or spd < 1e-6:
+        return [-s.vx, -s.vy]
+    tx, ty = tx / tl, ty / tl
+    nx, ny = -ty, tx
+    along, across = s.vx * tx + s.vy * ty, s.vx * nx + s.vy * ny
+    rel = (s.x - inst.x) * nx + (s.y - inst.y) * ny
+    side = (1.0 if rel > 0 else -1.0) if abs(rel) > 1e-6 else (-1.0 if across > 0 else 1.0)
+    out = max(abs(across), spd * math.sin(GUARD_MIN_BOUNCE_DEG * D))
+    along = math.copysign(min(abs(along), math.sqrt(max(0.0, spd * spd - out * out))), along)
+    return [along * tx + side * out * nx, along * ty + side * out * ny]
+
+
+def guard_step(inst, host):
+    """A guarding ribbon (is_guard) catches every enemy projectile whose path
+    this tick passes within `contact` px of its head (the head's own path
+    this tick counts too, so fast swings do not skip shots)."""
+    ic = inst.fx["intercept"]
+    mode = ic.get("mode")
+    if mode not in GUARD_MODES:
+        mode = "block"
+    contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
+    head = (inst.px, inst.py, inst.x, inst.y)
+    cb = getattr(host, "on_intercept", None)
+    for s in getattr(host, "shots", None) or ():
+        if s.dead or _shot_gone(s) or not _shot_takes(s, mode):
+            continue
+        path = (s.x, s.y, s.x + s.vx, s.y + s.vy)
+        if s.body[0] != s.body[2] or s.body[1] != s.body[3]:
+            path = s.body[0:4]   # a beam: its whole line
+        if seg_seg_dist(head, path) - s.body[4] > contact:
+            continue
+        s.dead = True
+        if not cb:
+            continue
+        if mode == "deflect":
+            cb(inst, s, "deflect", guard_reflect(inst, s), bool(ic.get("hurts_owner")))
+        else:
+            cb(inst, s, mode, None, False)
+
+
 def tick_inst(inst, host):
     fx, P = inst.fx, inst.fx["params"]
     active = inst.age < inst.life
@@ -1310,6 +1440,8 @@ def tick_inst(inst, host):
                 for _ in range(int(P["decay"])):
                     if len(h) > 1:
                         h.pop(0)
+            if guard_on(fx):
+                guard_step(inst, host)
         else:
             for _ in range(max(1, int(P["decay"]))):
                 if h:
@@ -1381,11 +1513,10 @@ def arc_segs(inst, ps):
     return out
 
 
-def beam_segs(inst, host, ps):
-    fx, P, m = inst.fx, inst.fx["params"], inst.fx["motion"]
-    fade = max(0.0, 1 - inst.age / inst.life)
-    if fade <= 0:
-        return None
+def beam_reach(inst, ps):
+    """The beam's head point, unit direction and drawn length:
+    (hx, hy, ux, uy, reach), reach <= 0 when nothing is drawn."""
+    P, m = inst.fx["params"], inst.fx["motion"]
     ux, uy = inst.dir
     hx, hy = inst.x, inst.y
     spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
@@ -1401,6 +1532,15 @@ def beam_segs(inst, host, ps):
             rd = min(P["length"] * ps, spd * detach)
             post = max(1, inst.life - detach)
             reach = max(0.0, rd * (1 - min(1.0, (inst.age - detach) / post)))
+    return hx, hy, ux, uy, reach
+
+
+def beam_segs(inst, host, ps):
+    fx, P = inst.fx, inst.fx["params"]
+    fade = max(0.0, 1 - inst.age / inst.life)
+    if fade <= 0:
+        return None
+    hx, hy, ux, uy, reach = beam_reach(inst, ps)
     if reach <= 0:
         return None
     prog = life_t(inst)

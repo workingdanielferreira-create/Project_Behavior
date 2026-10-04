@@ -1472,7 +1472,24 @@ function buildProps() {
         : inp("n", fx.motion[k], function (v) { fx.motion[k] = v; changed(); }, u[1], u[2], u[3]));
     });
 
-    if (FXK.canIntercept(fx)) {
+    if (FXK.canIntercept(fx) && FXK.isGuard(fx)) {
+      // A ribbon held on the fighter cannot chase: it guards with its head.
+      s = sec(d, "Intercept", "intercept", "Guard: enemy projectiles that touch this ribbon's head are blocked, deflected or destroyed. The ribbon itself carries on.");
+      var G = fx.intercept;
+      field(s, "Guard with ribbon head", inp("chk", G.enabled, function (v) { G.enabled = v; changed(true); })).title =
+        "On: every enemy projectile whose path passes within Contact px of the ribbon's head is caught. The ribbon stays where it is (it never chases) and is never used up.";
+      if (G.enabled) {
+        field(s, "Contact px", inp("n", G.contact, function (v) { G.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
+          "A projectile is caught when its path this tick comes this close to the ribbon's head.";
+        field(s, "On contact", inp([["block", "block: enemy's nullified"], ["deflect", "deflect: bounced off the ribbon"], ["destroy", "destroy: enemy's nullified"]],
+          FXK.GUARD_MODES.indexOf(G.mode) >= 0 ? G.mode : "block", function (v) { G.mode = v; changed(true); })).title =
+          "Block / destroy: the enemy projectile is nullified. Deflect: it bounces off the ribbon's surface at the head (mirrored, speed kept, always back out the side it came from). Clash projectiles always get through a guard.";
+        if (G.mode === "deflect")
+          field(s, "Deflected shot hurts its owner", inp("chk", G.hurts_owner, function (v) { G.hurts_owner = v; changed(); })).title =
+            "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
+        note(s, "Tick \"test shots\" under the stage to fire dummy enemy projectiles at the fighter and watch it work.");
+      }
+    } else if (FXK.canIntercept(fx)) {
       s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects, destroys or clashes with them.");
       var I = fx.intercept;
       field(s, "Auto-projectile tracker", inp("chk", I.enabled, function (v) { I.enabled = v; changed(true); })).title =
@@ -1483,7 +1500,7 @@ function buildProps() {
         field(s, "Turn rate °/tick", inp("n", I.turn_deg, function (v) { I.turn_deg = Math.max(0, v); changed(); }, 0, 180, 0.5)).title =
           "How sharply it can turn toward the enemy projectile each tick.";
         field(s, "Contact px", inp("n", I.contact, function (v) { I.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
-          "The two projectiles collide when their centres come this close.";
+          "The two projectiles collide when their bodies come this close (a beam counts its whole line and width, anything else its centre).";
         field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"],
           ["clash", "clash: knockback decides"]], I.mode,
           function (v) { I.mode = v; changed(true); })).title =

@@ -1097,14 +1097,19 @@ function emitParticles(inst, fx, host, n) {
 
 // ---------------------------------------------------------------- intercept
 // The auto-projectile tracker (fx.intercept, see INTERCEPT_DEFAULTS).
-// host.shots: the enemy's live projectiles [{x, y, vx, vy, dead}], read-only
-// except `dead`, which marks one already taken this tick.  In the game a shot
-// also carries clash / knockback (the enemy effect's intercept mode and
-// battle.knockback; bullets: no clash, knockback 0).
+// host.shots: the enemy's live projectiles [{x, y, vx, vy, dead, body}],
+// read-only except `dead`, which marks one already taken this tick.  In the
+// game a shot also carries clash / knockback (the enemy effect's intercept
+// mode and battle.knockback; bullets: no clash, knockback 0).
 // host.onIntercept(inst, shot, mode, enemyVel, hurtsOwner): the host applies
 // the result to the enemy projectile at its source (nullify, or send it off
 // at enemyVel for a deflect; "clash_lock" leaves it).  laser/fxkit.py
 // intercept_step mirrors this.
+//
+// Contact is measured between BODIES, not centre points: a beam is its whole
+// drawn line (head to tail, plus half its width), anything else its centre
+// (shot.body [x0, y0, x1, y1, halfWidth]; none = its centre).  Two beams meet
+// as soon as any part of one touches any part of the other.
 //
 // Clash: an effect WITHOUT clash always loses to one with it — the clash
 // projectile nullifies any non-clash projectile it touches, and a non-clash
@@ -1113,14 +1118,40 @@ function emitParticles(inst, fx, host, n) {
 // higher one nullifies the lower and keeps going; otherwise both freeze
 // where they met until one's life runs out or its owner is hit, and the
 // survivor then resumes the motion it had before the clash.
+//
+// Guard: a ribbon that stays on the fighter (any motion but travel / homing /
+// zigzag) cannot chase, so it guards instead: every enemy projectile whose
+// path this tick passes within `contact` px of the ribbon's HEAD is caught.
+// block / destroy nullify it, deflect bounces it off the ribbon's surface
+// (guardReflect), and the ribbon carries on either way.  It never takes a
+// clash projectile.
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
 var CLASH_KB_MARGIN = 10;
+var GUARD_MODES = ["block", "deflect", "destroy"];
+var GUARD_MIN_BOUNCE_DEG = 20;   // a guard-deflected shot leaves the surface at least this steeply
+var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag"];
+function isGuard(fx) { return fx.prim === "ribbon" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) < 0; }
 function canIntercept(fx) {
-  return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && ["travel", "homing", "zigzag"].indexOf(fx.motion.kind) >= 0;
+  if (isGuard(fx)) return true;
+  return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) >= 0;
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
-function clashOn(fx) { return interceptOn(fx) && fx.intercept.mode === "clash"; }
+function guardOn(fx) { return interceptOn(fx) && isGuard(fx); }
+function clashOn(fx) { return interceptOn(fx) && !isGuard(fx) && fx.intercept.mode === "clash"; }
 function fxKnockback(fx) { return +((fx.battle || {}).knockback) || 0; }
+// What an instance collides with: [x0, y0, x1, y1, halfWidth].  A beam is its
+// drawn line, head to tail; anything else its centre point.
+function instBody(inst) {
+  if (inst.fx.prim === "beam") {
+    var ps = inst.ps || 1, b = beamReach(inst, ps);
+    if (b.reach > 0) {
+      var P = inst.fx.params, hw = Math.max(P.w_start0, P.w_start1, P.w_end0, P.w_end1) * ps / 2;
+      return [b.hx, b.hy, b.hx - b.ux * b.reach, b.hy - b.uy * b.reach, Math.max(0, hw)];
+    }
+  }
+  return [inst.x, inst.y, inst.x, inst.y, 0];
+}
+function shotBody(s) { return s.body || [s.x, s.y, s.x, s.y, 0]; }
 // Whether an intercept in `mode` may take shot s: clash takes anything; the
 // others never go after a clash shot (they would lose to it); deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
@@ -1131,6 +1162,7 @@ function shotTakes(s, mode) {
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
 function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
+// Nearest shot by centre point within r (the tracker radius).
 function nearestShot(inst, host, r, mode, onlyClash) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
   for (var i = 0; i < shots.length; i++) {
@@ -1138,6 +1170,18 @@ function nearestShot(inst, host, r, mode, onlyClash) {
     if (onlyClash ? !s.clash : (mode && !shotTakes(s, mode))) continue;
     var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
+  }
+  return best;
+}
+// Nearest shot whose body touches this instance's body: the gap between the
+// two (centre lines minus half widths) is at most `contact`.
+function contactShot(inst, host, contact, mode, onlyClash) {
+  var mine = instBody(inst), best = null, bd = 0, shots = host.shots || [];
+  for (var i = 0; i < shots.length; i++) {
+    var s = shots[i]; if (s.dead || shotGone(s)) continue;
+    if (onlyClash ? !s.clash : (mode && !shotTakes(s, mode))) continue;
+    var sb = shotBody(s), d = segSegDist(mine, sb) - mine[4] - sb[4];
+    if (d <= contact && (best === null || d < bd)) { best = s; bd = d; }
   }
   return best;
 }
@@ -1186,12 +1230,12 @@ function interceptStep(inst, host) {
   if (inst.clashWith && clashHold(inst)) return true;
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
-  if (!interceptOn(fx)) return false;
+  if (!interceptOn(fx) || isGuard(fx)) return false;
   var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips;
-  if (I.mode !== "clash" && nearestShot(inst, host, contact, null, true)) {   // loses to a clash projectile
+  if (I.mode !== "clash" && contactShot(inst, host, contact, null, true)) {   // loses to a clash projectile
     inst.age = Math.max(inst.age, inst.life); return true;
   }
-  var hit = nearestShot(inst, host, contact, I.mode);
+  var hit = contactShot(inst, host, contact, I.mode);
   if (hit) {
     hit.dead = true;
     endChase(inst);
@@ -1219,6 +1263,42 @@ function interceptStep(inst, host) {
   straightStep(inst);
   return true;
 }
+// A shot's velocity bounced off the ribbon's surface at its head: the part
+// along the head segment stays, the part across it is sent back out the side
+// the shot came from, at least GUARD_MIN_BOUNCE_DEG off the surface (a
+// glancing shot cannot skim on along the ribbon into the fighter).  Speed
+// kept.  No segment yet (the ribbon has not moved): straight back.
+function guardReflect(inst, s) {
+  var h = inst.hist, spd = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+  var tx = h.length >= 2 ? h[h.length - 1][0] - h[h.length - 2][0] : 0, ty = h.length >= 2 ? h[h.length - 1][1] - h[h.length - 2][1] : 0;
+  var tl = Math.sqrt(tx * tx + ty * ty);
+  if (tl < 1e-6 || spd < 1e-6) return [-s.vx, -s.vy];
+  tx /= tl; ty /= tl;
+  var nx = -ty, ny = tx, along = s.vx * tx + s.vy * ty, across = s.vx * nx + s.vy * ny;
+  var rel = (s.x - inst.x) * nx + (s.y - inst.y) * ny;
+  var side = Math.abs(rel) > 1e-6 ? (rel > 0 ? 1 : -1) : (across > 0 ? -1 : 1);
+  var out = Math.max(Math.abs(across), spd * Math.sin(GUARD_MIN_BOUNCE_DEG * D));
+  var al = Math.min(Math.abs(along), Math.sqrt(Math.max(0, spd * spd - out * out))) * (along < 0 ? -1 : 1);
+  return [al * tx + side * out * nx, al * ty + side * out * ny];
+}
+// A guarding ribbon (isGuard) catches every enemy projectile whose path this
+// tick passes within `contact` px of its head (the head's own path this tick
+// counts too).  laser/fxkit.py guard_step.
+function guardStep(inst, host) {
+  var I = inst.fx.intercept, mode = GUARD_MODES.indexOf(I.mode) >= 0 ? I.mode : "block";
+  var contact = Math.max(0, +I.contact || 0) * (inst.ps || 1), head = [inst.px, inst.py, inst.x, inst.y];
+  var shots = host.shots || [];
+  for (var i = 0; i < shots.length; i++) {
+    var s = shots[i]; if (s.dead || shotGone(s) || !shotTakes(s, mode)) continue;
+    var sb = shotBody(s), path = [s.x, s.y, s.x + s.vx, s.y + s.vy];
+    if (sb[0] !== sb[2] || sb[1] !== sb[3]) path = sb.slice(0, 4);   // a beam: its whole line
+    if (segSegDist(head, path) - sb[4] > contact) continue;
+    s.dead = true;
+    if (!host.onIntercept) continue;
+    if (mode === "deflect") host.onIntercept(inst, s, "deflect", guardReflect(inst, s), !!I.hurts_owner);
+    else host.onIntercept(inst, s, mode, null, false);
+  }
+}
 
 function tickInst(inst, host) {
   var fx = inst.fx, P = fx.params;
@@ -1237,6 +1317,7 @@ function tickInst(inst, host) {
       if (moved) { h.push([inst.x, inst.y]); while (h.length > P.max_points) h.shift(); }
       var mx = inst.x - inst.px, my = inst.y - inst.py;
       if (mx * mx + my * my < 0.01) for (var d = 0; d < P.decay; d++) if (h.length > 1) h.shift();
+      if (guardOn(fx)) guardStep(inst, host);
     } else {
       for (var e = 0; e < Math.max(1, P.decay); e++) if (h.length) h.shift();
     }
@@ -1329,10 +1410,10 @@ DRAW.arc = function (g, inst, host, ps) {   // CrescentWave.draw
 };
 // Beam geometry shared by draw and hit test: [[x0,y0,x1,y1,width,rgb,alpha], ...]
 // plus the alpha multiplier; null when nothing is visible.
-function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
-  var fx = inst.fx, P = fx.params, m = fx.motion;
-  var fade = Math.max(0, 1 - inst.age / inst.life);
-  if (fade <= 0) return null;
+// The beam's head point, unit direction and drawn length {hx, hy, ux, uy, reach}
+// (reach <= 0: nothing drawn).  laser/fxkit.py beam_reach.
+function beamReach(inst, ps) {
+  var P = inst.fx.params, m = inst.fx.motion;
   var ux = inst.dir[0], uy = inst.dir[1], reach, hx = inst.x, hy = inst.y;
   var spd = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
   var detach = P.detach_ticks > 0 ? P.detach_ticks : 1e9;
@@ -1349,6 +1430,13 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
       reach = Math.max(0, rd * (1 - Math.min(1, (inst.age - detach) / post)));
     }
   }
+  return {hx: hx, hy: hy, ux: ux, uy: uy, reach: reach};
+}
+function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
+  var fx = inst.fx, P = fx.params;
+  var fade = Math.max(0, 1 - inst.age / inst.life);
+  if (fade <= 0) return null;
+  var br = beamReach(inst, ps), hx = br.hx, hy = br.hy, ux = br.ux, uy = br.uy, reach = br.reach;
   if (reach <= 0) return null;
   var prog = lifeT(inst);
   var wT = P.w_start0 + (P.w_start1 - P.w_start0) * prog, wH = P.w_end0 + (P.w_end1 - P.w_end0) * prog;
@@ -1578,6 +1666,17 @@ function segDist(px, py, x0, y0, x1, y1) {
   t = Math.max(0, Math.min(1, t));
   var ex = x0 + dx * t - px, ey = y0 + dy * t - py;
   return Math.sqrt(ex * ex + ey * ey);
+}
+// Closest distance between segments a and b ([x0, y0, x1, y1]); 0 when they
+// cross.  A point is a segment with both ends equal.  laser/fxkit.py seg_seg_dist.
+function segSegDist(a, b) {
+  var rx = a[2] - a[0], ry = a[3] - a[1], sx = b[2] - b[0], sy = b[3] - b[1], den = rx * sy - ry * sx;
+  if (Math.abs(den) > 1e-9) {
+    var qx = b[0] - a[0], qy = b[1] - a[1], t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return 0;
+  }
+  return Math.min(segDist(a[0], a[1], b[0], b[1], b[2], b[3]), segDist(a[2], a[3], b[0], b[1], b[2], b[3]),
+                  segDist(b[0], b[1], a[0], a[1], a[2], a[3]), segDist(b[2], b[3], a[0], a[1], a[2], a[3]));
 }
 // Does the shape this instance currently DRAWS touch a hurt circle
 // (tx, ty, hr)?  Line shapes count their half stroke width; sprites use the
@@ -1882,7 +1981,7 @@ function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
