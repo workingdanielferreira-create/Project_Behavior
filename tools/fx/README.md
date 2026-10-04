@@ -139,9 +139,12 @@ timing.
   **Holy** (Radiant beam, Halo burst), **Ice & wind** (Ice shards, Frost
   nova, Wind blades, Cyclone), **Earth & poison** (Quake, Toxic cloud),
   **Arcane & cosmic** (Arcane missiles, Rune circle, Meteor, Starfall),
-  **Energy** (Charged laser) and **Ethereal** (Ethereal blades: a whirling
-  ring of blades, a rain of blades on the target, then two light-blade
-  sweeps; built for a 30-frame action). The first groups rebuild the game's
+  **Energy** (Charged laser) and **Ethereal** (**Ethereal blade**: one still
+  sword of light, visual only, to build your own blade FX from; **Ethereal
+  blades**: a sword formation for a 30-frame action — six swords rise over the
+  fighter, three rows of upright swords close in round the target and circle
+  it, swords rain down six lanes and lodge in it, then a giant blade drops and
+  lodges). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets); saving a name you already have
@@ -158,10 +161,21 @@ timing.
   stores the whole group as one preset; adding it brings the group back on
   the current action. **Ungroup** (⊟) leaves every effect where it is.
   Weapon hitboxes and ⊕ entry-set effects can't be grouped.
-- **Blade shape.** Orbs and bolts (sprite) also come as **blade**: a long,
-  tapered needle of light. **Radius** is its half-width and **Stretch** its
-  length (2 × Radius × Stretch). It points where it is moving (shots, orbits)
-  and straight down when still, and it hits along its whole length.
+- **Blade shape.** Orbs and bolts (sprite) also come as **blade**: a sword of
+  light (faceted blade with a white ridge, crystal guard, grip, halo and a
+  glint at the tip). **Radius** is its half-width and **Stretch** its length
+  (2 × Radius × Stretch, tip to pommel). **Blade points** = motion: it points
+  where it is moving (shots, orbits) and straight down when still; = angle: it
+  holds **Blade angle °** (90 = down, -90 = up; Flip mirrors it). It hits
+  along its whole length.
+- **Lodging blades.** A damaging blade *without Pierce* doesn't vanish when
+  it hits: it lodges in the target at the angle it struck (turned up to 10°
+  so a stream of blades doesn't stack), only the part outside the target
+  showing, and stays stuck there, following the target, for **Lodge ms**
+  (fading over the last 300 ms). A lodged blade deals no more damage and
+  can't be intercepted. **Lodge ms** 0 = it ends on the hit like any shot.
+  Hits only happen where damage is dealt, so lodging shows in Battle (and in
+  the Studio preview), not in Solo, where nothing takes damage.
 - **Orb glow.** Orbs and bolts (sprite) have **Glow %** (brightness of the
   soft outer glow, 0 = none, 100 = as before) and **Glow size %** (how far it
   spreads). Both can be keyframed. *Soft petal orbs* is a dim-glow petal preset.

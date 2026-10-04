@@ -166,50 +166,110 @@ function boltSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
   ellipse(g, trunc(headX - rad), trunc(cy - rad), trunc(rad * 2), trunc(rad * 2));
   return (SPR[key] = {cv: cv, headX: headX, halfH: h / 2});
 }
-// Ethereal blade: a long tapered needle of light, tip pointing +x, with a
-// soft halo around its length and a white core.  Half-width = radius,
-// length = 2 x radius x stretch.  hot brightens the core and the tip flare.
+// Ethereal blade: a sword of light, tip pointing +x.  Half-width = radius,
+// length = 2 x radius x stretch (tip to pommel).  A diamond-faceted blade
+// (light upper facet, deeper lower facet, white ridge) widest near the tip,
+// a crystal guard at 82 % of the length, a fading grip, a tight bloom and a
+// wide halo (glow / glow_size) along it, and a four-point glint at the tip
+// (hot makes the ridge and glint brighter and the glint bigger).
 // laser/fxkit.py blade_sprite.  Returns {cv, tipX, halfH}: draw at
 // (-tipX, -halfH) after translating to the tip and rotating to bladeAngle.
+var BLADE_SHOULDER = 0.18, BLADE_BASE = 0.82, BLADE_LODGE_FADE_MS = 300;
 function bladeSprite(r, gc, b, radius, stretch, hot, glowPct, glowSizePct) {
   var ga = Math.max(0, Math.min(255, Math.round(150 * Math.max(0, glowPct == null ? 100 : +glowPct) / 100)));
   var gs = Math.max(0, glowSizePct == null ? 100 : +glowSizePct) / 100;
   var key = "k" + r + "," + gc + "," + b + "," + Math.round(radius * 100) / 100 + "," + Math.round(stretch * 100) / 100 + "," + (hot ? 1 : 0) + "," + ga + "," + Math.round(gs * 100) / 100;
   if (SPR[key]) return SPR[key];
   var rad = Math.max(0.5, +radius), L = 2 * rad * Math.max(1, +stretch), gw = rad * 3 * gs;
-  var ry = rad + gw, rx = L / 2 + gw, fl = rad * 1.2 * (hot ? 1.6 : 1);
+  var ry = rad + gw, rx = L / 2 + gw, fl = rad * 2.4 * (hot ? 1.5 : 1), gh = rad * 1.9;
   var pad = Math.max(1, gw, fl);
-  var w = Math.ceil(L + 2 * pad) + 2, h = Math.ceil(2 * Math.max(ry, fl)) + 2;
-  var tipX = w - pad, cy = h / 2, tail = tipX - L, sh = tipX - L * 0.3;
+  var w = Math.ceil(L + 2 * pad) + 2, h = Math.ceil(2 * Math.max(ry, fl, gh)) + 2;
+  var tipX = w - pad, cy = h / 2, sx = tipX - L * BLADE_SHOULDER, bx = tipX - L * BLADE_BASE, ex = tipX - L;
   var cv = canvas(w, h), g = cv.getContext("2d"), col = [r, gc, b];
-  if (ga > 0) {   // halo: a radial glow stretched along the blade
-    g.save(); g.translate(tipX - L / 2, cy); g.scale(rx / ry, 1);
-    g.fillStyle = radial(g, 0, 0, ry, [[0, rgba(col, ga)], [1, rgba(col, 0)]]);
-    ellipse(g, trunc(-ry), trunc(-ry), trunc(ry * 2), trunc(ry * 2));
-    g.restore();
-  }
-  var poly = function (hw, back, stops) {
-    var gr = g.createLinearGradient(tail, cy, tipX, cy);
+  var lt = [trunc(r + (255 - r) * 0.55), trunc(gc + (255 - gc) * 0.55), trunc(b + (255 - b) * 0.55)];   // light facet tint
+  var poly = function (pts, x0, x1, stops) {
+    var gr = g.createLinearGradient(x0, cy, x1, cy);
     stops.forEach(function (st) { gr.addColorStop(st[0], st[1]); });
-    g.fillStyle = gr; g.beginPath();
-    g.moveTo(tipX, cy); g.lineTo(sh, cy - hw); g.lineTo(tipX - L * back, cy); g.lineTo(sh, cy + hw);
+    g.fillStyle = gr; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
     g.closePath(); g.fill();
   };
-  poly(rad, 1, [[0, rgba(col, 0)], [0.55, rgba(col, 150)], [1, rgba(col, 235)]]);   // body
-  var ca = hot ? 245 : 170;
-  poly(rad * 0.4, 0.85, [[0, "rgba(255,255,255,0)"], [1, "rgba(255,255,255," + ca / 255 + ")"]]);   // core
-  var fx0 = tipX - rad * 0.5;   // tip flare
-  g.fillStyle = radial(g, fx0, cy, fl, [[0, "rgba(255,255,255," + 245 / 255 + ")"], [0.5, rgba(col, 200)], [1, rgba(col, 0)]]);
-  ellipse(g, trunc(fx0 - fl), trunc(cy - fl), trunc(fl * 2), trunc(fl * 2));
+  var halo = function (cx, hrx, hry, c, a) {   // radial glow stretched along the blade
+    g.save(); g.translate(cx, cy); g.scale(hrx / hry, 1);
+    g.fillStyle = radial(g, 0, 0, hry, [[0, rgba(c, a)], [1, rgba(c, 0)]]);
+    ellipse(g, trunc(-hry), trunc(-hry), trunc(hry * 2), trunc(hry * 2));
+    g.restore();
+  };
+  if (ga > 0) {
+    halo(tipX - L / 2, rx, ry, col, ga);   // wide halo
+    halo(tipX - L * 0.4, L * 0.45 + rad, rad * 1.9, lt, Math.round(ga * 0.8));   // tight bloom
+  }
+  // grip, fading toward the pommel
+  poly([[bx - rad * 0.3, cy - rad * 0.3], [ex, cy - rad * 0.18], [ex, cy + rad * 0.18], [bx - rad * 0.3, cy + rad * 0.3]], ex, bx,
+       [[0, rgba(lt, 0)], [1, rgba(lt, 170)]]);
+  // blade facets: light upper, deeper lower, brightest at the tip
+  var fs = function (c) { return [[0, rgba(c, 110)], [0.7, rgba(c, 200)], [1, rgba(c, 245)]]; };
+  poly([[tipX, cy], [sx, cy - rad], [bx, cy - rad * 0.55], [bx, cy]], bx, tipX, fs(lt));
+  poly([[tipX, cy], [sx, cy + rad], [bx, cy + rad * 0.55], [bx, cy]], bx, tipX, fs(col));
+  // white ridge down the middle
+  var ra = hot ? 255 : 200;
+  poly([[tipX, cy], [sx, cy - rad * 0.14], [bx, cy - rad * 0.1], [bx, cy + rad * 0.1], [sx, cy + rad * 0.14]], bx, tipX,
+       [[0, "rgba(255,255,255," + 60 / 255 + ")"], [1, "rgba(255,255,255," + ra / 255 + ")"]]);
+  // crystal guard
+  poly([[bx, cy - gh], [bx + rad * 0.3, cy], [bx, cy + gh], [bx - rad * 0.3, cy]], bx - rad * 0.3, bx + rad * 0.3,
+       [[0, rgba(lt, 200)], [1, rgba([255, 255, 255], 220)]]);
+  // four-point glint at the tip
+  g.fillStyle = radial(g, tipX, cy, fl * 0.45, [[0, "rgba(255,255,255," + 245 / 255 + ")"], [0.5, rgba(col, 180)], [1, rgba(col, 0)]]);
+  ellipse(g, trunc(tipX - fl * 0.45), trunc(cy - fl * 0.45), trunc(fl * 0.9), trunc(fl * 0.9));
+  [[1, 0.1], [0.1, 1]].forEach(function (k) {
+    g.save(); g.translate(tipX, cy); g.scale(k[0], k[1]);
+    g.fillStyle = radial(g, 0, 0, fl, [[0, "rgba(255,255,255," + 230 / 255 + ")"], [1, "rgba(255,255,255,0)"]]);
+    ellipse(g, trunc(-fl), trunc(-fl), trunc(fl * 2), trunc(fl * 2));
+    g.restore();
+  });
   return (SPR[key] = {cv: cv, tipX: tipX, halfH: h / 2});
 }
-// Which way a blade's tip points: along its velocity, else along this
-// tick's movement (orbit, attached), else straight down.  laser/fxkit.py blade_angle.
+// Which way a blade's tip points: its impact angle while lodged; with
+// blade_orient "angle" the held blade_angle_deg (mirrored by Flip); else
+// along its velocity, else along this tick's movement (orbit, attached),
+// else straight down.  laser/fxkit.py blade_angle.
 function bladeAngle(inst) {
+  if (inst.lodge) return inst.lodge.a;
+  var P = inst.fx.params;
+  if (P.blade_orient === "angle") { var fa = (+P.blade_angle_deg || 0) * D; return inst.flip < 0 ? Math.PI - fa : fa; }
   if (inst.vx * inst.vx + inst.vy * inst.vy > 0.0001) return Math.atan2(inst.vy, inst.vx);
   var dx = inst.x - inst.px, dy = inst.y - inst.py;
   if (dx * dx + dy * dy > 1e-6) return Math.atan2(dy, dx);
   return Math.PI / 2;
+}
+function bladeLength(P, ps) { var rad = Math.max(0.5, +P.radius); return 2 * rad * Math.max(1, +P.stretch) * ps; }
+// A non-piercing blade that hits a hurt circle (hx, hy, hr) lodges instead of
+// ending: turned up to BLADE_LODGE_JITTER_DEG off its impact direction (the
+// instance's seeded rng, so blades on one path don't stack), its tip is
+// driven along it toward the point nearest the circle's centre (70-100 % of
+// the way, no deeper than 45 % of the blade), it stays at that
+// angle and offset from the target, following it, for lodge_ms (fading out
+// over the last 300 ms), hidden where it is inside the target, and deals no
+// more damage.  laser/fxkit.py blade_lodge.
+var BLADE_LODGE_JITTER_DEG = 10;
+function bladeLodge(inst, hx, hy, hr, ps) {
+  var P = inst.fx.params, a = bladeAngle(inst) + inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D, ux = Math.cos(a), uy = Math.sin(a), L = bladeLength(P, ps);
+  var s0 = (hx - inst.x) * ux + (hy - inst.y) * uy;   // along the blade to the point nearest the centre
+  var px = hx - (inst.x + ux * s0), py = hy - (inst.y + uy * s0), half = Math.sqrt(Math.max(0, hr * hr - px * px - py * py));
+  var inside = Math.min(half * inst.r.uniform(0.7, 1), L * 0.45), tx = inst.x + ux * s0, ty = inst.y + uy * s0;
+  if (half > inside) { tx -= ux * (half - inside); ty -= uy * (half - inside); }
+  var n = Math.max(1, Math.round(+P.lodge_ms / TICK_MS));
+  inst.lodge = {a: a, ox: tx - hx, oy: ty - hy, hx: hx, hy: hy, depth: inside, n: n};
+  inst.x = tx; inst.y = ty; inst.px = tx; inst.py = ty; inst.vx = 0; inst.vy = 0; inst.trail = [];
+  inst.life = inst.age + n;
+}
+// Each tick a lodged blade follows the hurt circle nearest where its target
+// last was (within 200 px x scale); with none (target gone) it stays put.
+function bladeFollow(inst, hurts, ps) {
+  var lg = inst.lodge, best = null, bd = 200 * ps * 200 * ps;
+  hurts.forEach(function (q) { var dx = q[0] - lg.hx, dy = q[1] - lg.hy, d = dx * dx + dy * dy; if (d <= bd) { bd = d; best = q; } });
+  if (best) { lg.hx = best[0]; lg.hy = best[1]; }
+  inst.px = inst.x; inst.py = inst.y; inst.x = lg.hx + lg.ox; inst.y = lg.hy + lg.oy;
 }
 
 // ---------------------------------------------------------------- schema
@@ -222,7 +282,10 @@ var PARAM_DEFAULTS = {
   arc: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", angle_deg: 0,
         placement: "anchor", back: 51, lead: 26},
   beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0, tip_fade: 0},
-  sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100},
+  // Blade only: lodge_ms = how long a non-piercing blade stays stuck in the target it hits (0 = it ends on the hit);
+  // blade_orient motion = the tip points where it moves, angle = it holds blade_angle_deg (0 = right, 90 = down; Flip mirrors it).
+  sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100, lodge_ms: 1500,
+           blade_orient: "motion", blade_angle_deg: 90},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
   // Radial pulse: rings that expand from r_start to r_end over expand_ms
@@ -1077,7 +1140,8 @@ function interceptStep(inst, host) {
 function tickInst(inst, host) {
   var fx = inst.fx, P = fx.params;
   var active = inst.age < inst.life;
-  if (active) {
+  if (active && inst.lodge) bladeFollow(inst, host.hurt ? [[host.hurt.x, host.hurt.y]] : [], inst.ps || 1);
+  else if (active) {
     if (fx.prim === "sprite" || fx.prim === "beam") { inst.trail.push([inst.x, inst.y]); if (inst.trail.length > Math.max(0, trunc(P.trail_len || 0))) inst.trail.shift(); }
     if (!interceptStep(inst, host)) moveInst(inst, host);
   }
@@ -1265,6 +1329,7 @@ DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
 DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;
   if (inst.age >= inst.life) return;
+  if (inst.lodge) { drawLodged(g, inst, host, ps); return; }
   var c = colorPair(fx, host.lut)[0].map(trunc), hx = trunc(inst.x), hy = trunc(inst.y);
   var pts = inst.trail, n = pts.length;
   g.lineCap = "round";
@@ -1299,6 +1364,25 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
       g.beginPath(); g.ellipse(hx, hy, ihr, ihr, 0, 0, 6.2832); g.stroke(); }
   }
 };
+// A lodged blade: only the part outside the target is drawn, with a soft
+// glow where it enters; it fades out over its last BLADE_LODGE_FADE_MS.
+// Drawn with normal blending and BLADE_LODGE_GLOW of its glow, so dozens
+// stuck in one target stay separate swords instead of one white mass.
+var BLADE_LODGE_GLOW = 0.35;
+function drawLodged(g, inst, host, ps) {
+  var P = inst.fx.params, lg = inst.lodge, c = colorPair(inst.fx, host.lut)[0].map(trunc);
+  var k = Math.min(1, (inst.life - inst.age) / Math.max(1, BLADE_LODGE_FADE_MS / TICK_MS));
+  var sp = bladeSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, (P.glow == null ? 100 : +P.glow) * BLADE_LODGE_GLOW, P.glow_size);
+  g.globalCompositeOperation = "source-over";
+  var cut = lg.depth / ps;   // sprite units hidden inside the target
+  g.save(); g.translate(trunc(inst.x), trunc(inst.y)); g.rotate(lg.a); g.scale(ps, ps); g.globalAlpha *= k;
+  g.beginPath(); g.rect(-sp.cv.width - 2, -sp.cv.height, sp.cv.width + 2 - cut, sp.cv.height * 2); g.clip();
+  g.drawImage(sp.cv, trunc(-sp.tipX), trunc(-sp.halfH));
+  g.restore();
+  var er = Math.max(1, +P.radius) * 1.4 * ps, ex = inst.x - Math.cos(lg.a) * lg.depth, ey = inst.y - Math.sin(lg.a) * lg.depth;
+  g.fillStyle = radial(g, ex, ey, er, [[0, rgba([255, 255, 255], 110 * k)], [0.4, rgba(c, 70 * k)], [1, rgba(c, 0)]]);
+  ellipse(g, trunc(ex - er), trunc(ey - er), trunc(er * 2), trunc(er * 2));
+}
 DRAW.particles = function (g, inst, host, ps) {   // BurstParticle.draw
   var P = inst.fx.params;
   inst.parts.forEach(function (q) {
@@ -1441,9 +1525,10 @@ HIT.beam = function (inst, tx, ty, hr, ps, host) {
 HIT.sprite = function (inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var P = inst.fx.params;
-  if (P.shape === "blade") {   // the whole blade, tip to tail, half-width wide
-    var rad = Math.max(0.5, +P.radius), L = 2 * rad * Math.max(1, +P.stretch) * ps, a = bladeAngle(inst);
-    return segDist(tx, ty, inst.x, inst.y, inst.x - Math.cos(a) * L, inst.y - Math.sin(a) * L) <= hr + rad * ps;
+  if (P.shape === "blade") {   // the whole blade, tip to pommel, half-width wide
+    if (inst.lodge) return false;
+    var L = bladeLength(P, ps), a = bladeAngle(inst);
+    return segDist(tx, ty, inst.x, inst.y, inst.x - Math.cos(a) * L, inst.y - Math.sin(a) * L) <= hr + Math.max(0.5, +P.radius) * ps;
   }
   var dx = inst.x - tx, dy = inst.y - ty;
   return dx * dx + dy * dy <= hr * hr;
@@ -1468,7 +1553,7 @@ function canHit(b, obj, now) { return b.rehit_ticks > 0 ? now - obj.lastHit >= b
 // the instance (a hit particle is removed instead).
 function resolveHits(inst, host, ps) {
   var b = inst.fx.battle, hurt = host.hurt;
-  if (!b.deals_damage || !hurt || inst.dead) return;
+  if (!b.deals_damage || !hurt || inst.dead || inst.lodge) return;
   var now = inst.age;
   if (inst.fx.prim === "pulse") {
     // Each ring hits once, when its edge sweeps over the target (this tick's
@@ -1500,8 +1585,11 @@ function resolveHits(inst, host, ps) {
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
   if (host.onHit) host.onHit(inst, b.damage, inst.dir[0], inst.dir[1], b.knockback);
-  if (!b.pierce) inst.age = Math.max(inst.age, inst.life);
+  if (b.pierce) return;
+  if (canLodge(inst)) bladeLodge(inst, hurt.x, hurt.y, hurt.r, ps);
+  else inst.age = Math.max(inst.age, inst.life);
 }
+function canLodge(inst) { var fx = inst.fx; return fx.prim === "sprite" && fx.params.shape === "blade" && +fx.params.lodge_ms > 0; }
 
 function drawInst(g, inst, host, ps) {
   var add = inst.fx.blend === "additive";
