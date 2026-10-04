@@ -521,9 +521,8 @@ function repairPresetGroups() {
     var pre = FX_PRESETS.filter(function (p) { return p.name === gr.name && !groupPresetOf(p); })[0];
     groupMembers(gr).forEach(function (fx) {
       var src = pre && pre.effects.filter(function (e) { return e.name === fx.name && e.prim === fx.prim; })[0];
-      if (pre) { fx.anchor = (src && src.anchor) || "figure"; delete fx.group; }
-      else if (typeof fx.anchor !== "string") fx.anchor = "figure";
-      fixed++;
+      if (pre) { fx.anchor = (src && src.anchor) || "figure"; delete fx.group; fixed++; }
+      else if (typeof fx.anchor !== "string") { fx.anchor = "figure"; fixed++; }
     });
     if (!pre) { var m = groupMembers(gr)[0]; gr.anchor = m ? m.anchor : "figure"; }
   });
