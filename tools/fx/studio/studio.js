@@ -1396,11 +1396,21 @@ function buildProps() {
   }
 
   s = sec(d, "Timing (frames of " + S.action + ": 0–" + (frames() - 1) + ")", "timing", "When it plays within the action's frames, how long each copy lives and how often it re-emits.");
-  var canC = FXK.canContinue(fx), isC = canC && fx.continuous;
+  // Continuous follows the effect's own (start-frame) motion, not a keyed switch at the playhead.
+  var base = KV ? KV.fx : fx, canC = FXK.canContinue(base), isC = canC && fx.continuous, cyc = fx.cycles;
   if (canC) field(s, "∞ Continuous", inp("chk", fx.continuous, function (v) { fx.continuous = v; buildEffects(); changed(true); })).title =
     "On: starts at the start frame and never stops or resets while the action plays, loop after loop (an always-on laser trail). End frame, life and re-emit are ignored and it doesn't fade out.";
   else note(s, "Continuous (∞) is available for effects that stay on the fighter: attached, static or orbit motion, not arcs.");
-  if (isC) note(s, "∞ Continuous is on: it starts at the start frame and keeps producing without resetting. End frame, life and re-emit below are ignored.");
+  if (isC) {
+    field(s, "⟳ Loop cycles", inp("chk", cyc.enabled, function (v) { cyc.enabled = v; changed(true); })).title =
+      "On: the effect plays its lifespan as a cycle (Life ticks, or start frame to end frame), a new set each cycle, keys replayed from the start frame.";
+    if (cyc.enabled) {
+      field(s, "Loops (-1 = forever)", inp("n", cyc.count, function (v) { cyc.count = Math.max(-1, Math.round(v)); changed(); }, -1, 999, 1)).title =
+        "-1 = forever; 0 = the first cycle only, then done; 1 or more = that many more cycles after the first.";
+      note(s, "⟳ Loop cycles: each cycle lasts the lifespan (Life ticks, or start frame to end frame) and brings a new set; a set that hasn't launched ends with its cycle. " +
+        "Cycles carry on when the action ends or changes, and playing the action again starts another run alongside (up to " + FXK.CYCLE_MAX_RUNS + " at once per effect; the oldest stops).");
+    } else note(s, "∞ Continuous is on: it starts at the start frame and keeps producing without resetting. End frame, life and re-emit below are ignored. If a key launches its set (Motion → travel), no new set comes until the action plays again.");
+  }
   field(s, "Start frame", inp("n", fx.start_frame, function (v) { fx.start_frame = Math.max(0, Math.round(v)); changed(); }, 0, frames() - 1, 1));
   field(s, "End frame (-1 = end)", inp("n", fx.end_frame, function (v) { fx.end_frame = Math.round(v); changed(); }, -1, frames() - 1, 1));
   if (fx.prim !== "weapon") {
@@ -1433,6 +1443,8 @@ function buildProps() {
   if (fx.prim !== "weapon") {
     s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags, orbits or follows a path.");
     field(s, MOTION_UI.kind[0], inp(MOTION_UI.kind[1], fx.motion.kind, function (v) { fx.motion.kind = v; changed(true); }));
+    note(s, "Motion, Aim and Orbit direction can be keyed (◆): they switch at the key, and copies already playing change from where they are. " +
+      "Orbit → travel launches each copy along its Aim at the keyed Speed, living Life ticks from the launch (0 = " + FXK.LAUNCH_LIFE + "); travel → orbit picks the orbit up from where it is.");
     if (fx.motion.kind === "path") {
       var popts = [["", "— choose a path —"]].concat(S.paths.map(function (p) { return [p.id, p.name]; }));
       field(s, "Path", inp(popts, fx.motion.path, function (v) { fx.motion.path = v; changed(true); }));

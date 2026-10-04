@@ -331,6 +331,7 @@ def normalize(fx):
     _fill(fx, dict(name=fx["prim"], tag="", enabled=True, start_frame=0, end_frame=-1, life_ticks=0, continuous=False,
                    anchor="figure", offset=[0, 0], layer="front", blend="normal"))
     fx["emit"] = _fill(dict(fx.get("emit") or {}), dict(every_ticks=0, count=1, fan_deg=0))
+    fx["cycles"] = _fill(dict(fx.get("cycles") or {}), CYCLE_DEFAULTS)
     fx["motion"] = _fill(dict(fx.get("motion") or {}), MOTION_DEFAULTS)
     fx["color"] = _fill(dict(fx.get("color") or {}), COLOR_DEFAULTS)
     fx["params"] = _fill(dict(fx.get("params") or {}), PARAM_DEFAULTS[fx["prim"]])
@@ -423,12 +424,23 @@ def ease(name, u):
     return 2 * u * u if u < 0.5 else 1 - (-2 * u + 2) ** 2 / 2   # inout
 
 
-def _keyable(v):
+def _keyable(v, path=None):
+    """A value keys can hold: a number, a #rrggbb colour, or (path given) one
+    of KEY_CHOICES[path] — FXK.keyableAt."""
     if isinstance(v, bool):
         return False
     if isinstance(v, (int, float)):
         return math.isfinite(v)
-    return isinstance(v, str) and len(v) == 7 and v[0] == "#" and hex_rgb(v, None) is not None
+    if isinstance(v, str) and len(v) == 7 and v[0] == "#" and hex_rgb(v, None) is not None:
+        return True
+    return path in KEY_CHOICES and v in KEY_CHOICES[path]
+
+
+# Choice settings keys can switch: the value holds until the next key (no
+# in-between), and instances already alive switch with it (motion_switch):
+# an orbit keyed to travel launches from where it is.  FXK.KEY_CHOICES.
+KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag"],
+               "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]}
 
 
 def normalize_keys(fx):
@@ -441,7 +453,7 @@ def normalize_keys(fx):
         except (TypeError, ValueError):
             frame = 0
         out.append({"frame": frame, "ease": k.get("ease") if k.get("ease") in EASES else "inout",
-                    "set": {p: v for p, v in k["set"].items() if _keyable(v)}})
+                    "set": {p: v for p, v in k["set"].items() if _keyable(v, p)}})
     out.sort(key=lambda k: k["frame"])
     fx["keys"] = out
     return fx
@@ -463,10 +475,10 @@ def _get_path(fx, path):
 def _lerp_val(a, b, u):
     if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
         return a + (b - a) * u
-    if isinstance(a, str) and isinstance(b, str):
+    if isinstance(a, str) and isinstance(b, str) and _keyable(a) and _keyable(b):
         A, B = hex_rgb(a, [255, 255, 255]), hex_rgb(b, [255, 255, 255])
         return "#" + "".join("%02x" % int(round(max(0, min(255, A[i] + (B[i] - A[i]) * u)))) for i in range(3))
-    return a if u < 1 else b
+    return a if u < 1 else b   # choices hold until the key
 
 
 def sample_key(fx, path, tf):
@@ -578,6 +590,22 @@ def can_continue(fx):
 
 def is_continuous(fx):
     return bool(fx.get("continuous")) and can_continue(fx)
+
+
+# fx["cycles"] (Continuous only): instead of one never-ending set, the effect
+# plays its lifespan (Life ticks, or start frame -> end frame) as a cycle: a
+# new set each cycle, its keys replayed from the start frame, every set
+# ending with its lifespan (a launched instance lives Life ticks from its
+# launch instead).  count: -1 = forever, 0 = the first cycle only, N = N more
+# cycles.  Cycles run on their own clock: they carry on when the action ends
+# or changes, and playing the action again starts another run alongside (at
+# most CYCLE_MAX_RUNS per effect; the oldest stops).  FXK.isCycling.
+CYCLE_DEFAULTS = dict(enabled=False, count=0)
+CYCLE_MAX_RUNS = 8
+
+
+def is_cycling(fx):
+    return is_continuous(fx) and bool((fx.get("cycles") or {}).get("enabled"))
 
 
 def life_t(inst):
@@ -738,9 +766,11 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge")
+                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "cyc")
 
     def __init__(self):
+        self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
+        self.cyc = False       # spawned by a loop-cycle run
         self.lodge = None      # blade stuck in the target it hit (blade_lodge)
         self.chase = False     # intercept: steering at an enemy projectile
         self.bvx = self.bvy = 0.0   # its own velocity from before the chase
@@ -858,7 +888,53 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         e2 = host.anchor(fx["params"]["to_anchor"])
         inst.x2, inst.y2 = e2[0], e2[1]
     inst.px, inst.py = inst.x, inst.y
+    inst.mk, inst.ma = m["kind"], m["aim"]   # keyed switches compare against these (motion_switch)
     return inst
+
+
+MOVERS = ("travel", "homing", "zigzag")
+LAUNCH_LIFE = 220
+
+
+def motion_switch(inst, host):
+    """A key switched an alive instance's motion (or aim): it changes from
+    where it is (FXK motionSwitch).  Into travel / homing / zigzag it launches
+    along its Aim at the keyed Speed; coming off the fighter (from attached /
+    static / orbit) it is a shot from then on, living Life ticks from the
+    launch (0 = LAUNCH_LIFE).  Into orbit it carries on round its anchor from
+    its own angle; into attached / static it stops.  Returns True when a
+    continuous instance launched (its set is spent)."""
+    fx = inst.fx
+    m = fx["motion"]
+    frm, was_cont = inst.mk, bool(inst.cont)
+    inst.mk, inst.ma = m["kind"], m["aim"]
+    if inst.free or inst.lodge is not None or fx["prim"] == "weapon" or inst.age >= inst.life:
+        return False
+    ps = inst.ps or 1.0
+    if m["kind"] in MOVERS:
+        d = aim_dir(fx, host, inst.x, inst.y)
+        if m["aim_offset_deg"]:
+            d = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d))
+        spd = float(m["speed"] or 0)
+        inst.dir, inst.spd = d, spd
+        inst.vx, inst.vy = d[0] * spd * ps, d[1] * spd * ps
+        if m["kind"] == "zigzag":   # as spawn: its side of the new line
+            side = inst.flip * turn_sign(fx, host, d) * inst.facing
+            pr = (-d[1] * side, d[0] * side) if spd > 0.001 else (0.0, side)
+            inst.zx, inst.zy = pr[0] * m["amplitude"] * ps, pr[1] * m["amplitude"] * ps
+            inst.phase = 0.0
+        if frm not in MOVERS:
+            inst.cont = inst.open = False
+            inst.trail = []
+            inst.life = inst.age + (fx["life_ticks"] if fx["life_ticks"] > 0 else LAUNCH_LIFE)
+            return was_cont
+        return False
+    inst.vx = inst.vy = 0.0
+    if m["kind"] == "orbit":
+        c, hs = anchor_pos(fx, host, inst.ep), host_scale(host)
+        v = turn_by([inst.x - c[0], inst.y - c[1]], -body_deg(fx, host))
+        inst.orbitA = math.atan2(v[1] / max(1e-6, m["orbit_ry"] * hs), v[0] / max(1e-6, m["orbit_rx"] * hs * inst.flip)) / D
+    return False
 
 
 def move_inst(inst, host):
@@ -1996,15 +2072,16 @@ class Player:
     exactly)."""
 
     def __init__(self):
-        self.insts = []
-        self.clock = 0
-        self.pending = []
         self._fms = 100.0
+        self.reset()
 
     def reset(self):
         self.insts = []
         self.clock = 0
         self.pending = []
+        self.runs = []      # loop-cycle runs (is_cycling)
+        self.spent = []     # continuous effects whose set launched: none again until the action restarts / changes
+        self._last_t = -1   # previous tick's t (a smaller t = the action restarted)
 
     @staticmethod
     def window(fx, frames, frame_ms):
@@ -2017,7 +2094,7 @@ class Player:
         for i in range(j["n"]):
             ep = j["ep"]
             seed = (hash32(j["fx"]["id"]) ^ imul(j["t"] + 1, 0x9E3779B1) ^ imul(i, 0x85EBCA6B)
-                    ^ imul(0 if ep is None else ep + 1, 0xC2B2AE35)) & M32
+                    ^ imul(0 if ep is None else ep + 1, 0xC2B2AE35) ^ imul(j.get("salt", 0), 0x27D4EB2F)) & M32
             t0 = j["t"] + j.get("delay", 0)
             inst = spawn(fx_at(j["fx"], t0 * TICK_MS / j["fms"]), host, max(1, j["win"]), seed, i, j["n"], ep)
             inst.src, inst.t0, inst.fms = j["fx"], t0, j["fms"]
@@ -2027,15 +2104,19 @@ class Player:
                 inst.life = INF
             else:
                 inst.open = j["tag"] == "open"
+                inst.cyc = j["tag"] == "cyc"
             self.insts.append(inst)
 
-    def _fire(self, fx, t, n, win, tag, host):
+    def _fire(self, fx, t, n, win, tag, host, run=None):
+        # run (loop cycles): its frame time and cycle number, so each cycle's
+        # keys replay on the action's timing and its randomness differs.
         eset = entry_set_of(fx, host)
         pts = len(eset["points"]) if eset else 1
         for k in range(pts):
             delay = k * max(0, trunc(eset["interval_ticks"])) if eset and eset.get("mode") == "sequential" else 0
             job = {"fx": fx, "t": t, "n": n, "win": win - delay, "ep": k if eset else None, "tag": tag,
-                   "due": self.clock + delay, "delay": delay, "fms": self._fms}
+                   "due": self.clock + delay, "delay": delay, "fms": run["fms"] if run else self._fms,
+                   "salt": run["k"] + 1 if run else 0}
             if delay > 0:
                 self.pending.append(job)
             else:
@@ -2051,8 +2132,16 @@ class Player:
         due = [j for j in self.pending if j["due"] <= self.clock]
         self.pending = [j for j in self.pending if j["due"] > self.clock]
         for j in due:
-            if j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects):
+            if j["tag"] == "cyc" or (j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects)):
                 self._spawn_job(j, host)
+        # The action restarted (t went back) or an effect left it: its spent
+        # continuous set may start again.
+        if t < self._last_t:
+            self.spent = []
+        self.spent = [f for f in self.spent if any(e is f for e in effects)]
+        self._last_t = t
+        # Loop-cycle runs, on their own clock whatever the action is doing.
+        self.runs = [r for r in self.runs if self.clock < r["next"] or self._run_cycle(r, host)]
         for inst in self.insts:
             src = inst.src or inst.fx
             if inst.cont and (not src.get("enabled", True) or not any(e is src for e in effects) or not is_continuous(src)):
@@ -2061,8 +2150,20 @@ class Player:
             if not fx.get("enabled", True):
                 continue
             s, e, total = self.window(fx, frames, frame_ms)
+            if is_cycling(fx):   # a new run of cycles each time the action reaches the start frame
+                if not (t_prev < s <= t):
+                    continue
+                mine = [r for r in self.runs if r["fx"] is fx]
+                if len(mine) >= CYCLE_MAX_RUNS:
+                    self.runs.remove(mine[0])
+                run = {"fx": fx, "s": s, "len": max(1, trunc(fx["life_ticks"]) if fx["life_ticks"] > 0 else e - s),
+                       "fms": self._fms, "k": 0, "next": 0, "left": trunc(fx["cycles"]["count"])}
+                if self._run_cycle(run, host):   # the first cycle starts on this tick
+                    self.runs.append(run)
+                continue
             if is_continuous(fx):
-                if t < s or any((q.src or q.fx) is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
+                if t < s or any(f is fx for f in self.spent) \
+                        or any((q.src or q.fx) is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
                         or any(q["fx"] is fx for q in self.pending):
                     continue
                 self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host)
@@ -2087,9 +2188,23 @@ class Player:
             if src is not None and src.get("keys"):
                 # Keyframes: this tick's values at the instance's own action time.
                 inst.fx = fx_at(src, (inst.t0 + inst.age) * TICK_MS / inst.fms)
+            if (inst.mk != inst.fx["motion"]["kind"] or inst.ma != inst.fx["motion"]["aim"]) and motion_switch(inst, host) \
+                    and not any(f is inst.src for f in self.spent):
+                self.spent.append(inst.src)
             tick_inst(inst, host)
             resolve_hits(inst, host, ps)
         self.insts = [i for i in self.insts if not i.dead]
+
+    def _run_cycle(self, r, host):
+        """Fire one cycle's set of run r; False once it has no cycles left."""
+        self._fire(r["fx"], r["s"], max(1, trunc(r["fx"]["emit"]["count"])), r["len"], "cyc", host, r)
+        r["k"] += 1
+        r["next"] = self.clock + r["len"]
+        if r["left"] == 0:
+            return False
+        if r["left"] > 0:
+            r["left"] -= 1
+        return True
 
     def draw(self, p, host, layer, hidden=False):
         ps = host.pscale or 1.0
@@ -2421,6 +2536,7 @@ def _deflected_copy(src, vel, hurts_owner):
     q.free, q.chase, q.dead, q.cont, q.open = True, False, False, False, False
     q.clash_with = None
     q.lodge = None
+    q.mk, q.ma = "travel", fx["motion"]["aim"]
     q.path = None
     q.age = 0
     q.life = max(config.DEFLECT_MAX_AGE, trunc(src.life - src.age) if src.life != INF else 0)

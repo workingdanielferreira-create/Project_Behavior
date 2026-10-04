@@ -59,6 +59,22 @@ timing.
   settings are the start (playhead on the start frame). Keys show as ◆ on the
   effect's timeline row; click one to jump there. Shots already flying follow
   the animation (e.g. speed 20 → 100 mid-flight).
+- **Keyframing the motion.** **Motion**, **Aim** and **Orbit direction** can
+  be keyed like any number: move the playhead, change the dropdown, and it
+  switches at that frame. Copies already playing change from where they are:
+  an orbit keyed to **travel** launches each copy along its Aim at the keyed
+  Speed (each from its own spot on the ring), and it then lives **Life ticks**
+  from the launch (0 = 220 ticks); a shot keyed to **orbit** starts circling
+  its anchor from where it is. A **∞ Continuous** set that launches doesn't
+  come back until the action plays again.
+- **⟳ Loop cycles (with ∞ Continuous).** Tick **Loop cycles** under Timing to
+  replay the effect's lifespan (Life ticks, or start frame to end frame) as
+  cycles: each cycle brings a new set and replays its keys from the start
+  frame, and a set that hasn't launched ends with its cycle. **Loops**: -1 =
+  forever, 0 = the first cycle only, 1 or more = that many more cycles. The
+  cycles keep going after the action ends or changes; playing the action
+  again starts another run alongside (up to 8 at once per effect, after
+  that the oldest stops).
 - **Flip & direction.** Tick **Flip** on an effect to make it play on the
   side the target is on: drag the target behind the fighter and the effect
   mirrors left ↔ right to face it (never up ↔ down), arc sweep and orbit
