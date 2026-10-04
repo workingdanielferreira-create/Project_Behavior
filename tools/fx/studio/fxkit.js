@@ -558,11 +558,13 @@ function normalizeBlink(a) {
   if (!(a.end_frame >= -1)) a.end_frame = -1;
   return a;
 }
-// Time control (action_settings[action].time), run by laser/timefx.py: while
-// the action plays between start_frame and end_frame (-1 = the last frame) and
-// its conditions pass (ANY / ALL; none = always), time runs at `speed` for
-// what `scope` names; the fighter doing the action (the caster) is never
-// slowed by its own time effect.
+// Time control (action_settings[action].time), run by laser/timefx.py: a
+// pause / unpause placed between two neighbouring frames of the action.  When
+// the action passes from `frame` to frame + 1 and its conditions pass (ANY /
+// ALL; none = always), time runs at `speed` for what `scope` names for
+// duration_ms (its own length, whatever the action does meanwhile), then goes
+// back to normal.  The fighter doing the action (the caster) is never
+// affected and keeps playing.
 //   enemy_fx        the enemy's FX and bullets
 //   own_fx          the caster's own FX and bullets
 //   all_fx          every FX (enemy and own)
@@ -571,11 +573,11 @@ function normalizeBlink(a) {
 //   everything      every FX and every fighter except the caster
 // speed: 0 = stopped, 1 = normal, up to TIME_SPEED_MAX.  keys = [{ms, speed,
 // ease}]: the speed eases from the previous point (the start, or an earlier
-// key) to each key, ms counted from the moment the time effect started, and
-// holds after the last key (timeSpeed).  It ends when the action passes
-// end_frame, loops or ends.
-var TIME_DEFAULTS = {enabled: false, start_frame: 0, end_frame: -1, scope: "enemy_fighters", speed: 0, keys: [],
+// key) to each key, ms counted from the moment the pause started, and holds
+// after the last key (timeSpeed).
+var TIME_DEFAULTS = {enabled: false, frame: 0, duration_ms: 1000, scope: "enemy_fighters", speed: 0, keys: [],
   logic: "any", conditions: []};
+var TIME_MAX_MS = 60000;
 var TIME_SCOPES = ["enemy_fx", "own_fx", "all_fx", "enemy_fighters", "all_fighters", "everything"];
 var TIME_SPEED_MAX = 8;
 function timeNum(v, d) { v = +v; return isFinite(v) ? v : d; }
@@ -583,8 +585,8 @@ function normalizeTime(tc) {
   tc = fill(tc || {}, TIME_DEFAULTS);
   tc.enabled = !!tc.enabled;
   if (TIME_SCOPES.indexOf(tc.scope) < 0) tc.scope = TIME_DEFAULTS.scope;
-  tc.start_frame = Math.max(0, Math.round(timeNum(tc.start_frame, 0)));
-  tc.end_frame = Math.max(-1, Math.round(timeNum(tc.end_frame, -1)));
+  tc.frame = Math.max(0, Math.round(timeNum(tc.frame, 0)));
+  tc.duration_ms = Math.max(0, Math.min(TIME_MAX_MS, timeNum(tc.duration_ms, 1000)));
   tc.speed = Math.max(0, Math.min(TIME_SPEED_MAX, timeNum(tc.speed, 0)));
   if (tc.logic !== "all") tc.logic = "any";
   // Keys are normalised in place (the Studio edits them through references).
@@ -2048,7 +2050,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
-  TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
+  TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, TIME_MAX_MS: TIME_MAX_MS, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,

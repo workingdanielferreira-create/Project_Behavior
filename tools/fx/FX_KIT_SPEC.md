@@ -46,7 +46,7 @@ these characters; it plays the PNGs.
                                     "blink": {"enabled": false, "start_frame": 0, "end_frame": -1, "anchor": "target",
                                               "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true,
                                               "cooldown_ms": 0},
-                                    "time": {"enabled": false, "start_frame": 0, "end_frame": -1, "scope": "enemy_fighters",
+                                    "time": {"enabled": false, "frame": 6, "duration_ms": 1000, "scope": "enemy_fighters",
                                              "speed": 0, "keys": [{"ms": 200, "speed": 3, "ease": "inout"}],
                                              "logic": "any", "conditions": []}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
@@ -548,20 +548,23 @@ faint outline marks where it vanished and a ring marks where it lands. (The
 older character-wide `pack.blink` block is no longer read.)
 
 **Time control (`action_settings[action].time`, per action; `laser/timefx.py`).**
-Bends time while the action plays, for cinematic and dynamic attacks. While
-the action is between `start_frame` and `end_frame` (`-1` = the last frame)
-and its `conditions` pass (`logic` any / all, every action trigger
-condition; none = always), time runs at `speed` for what `scope` names. The
-duration comes from the frames. The fighter doing the action (the caster)
-always keeps normal speed: it controls the time.
+A pause / unpause for cinematic and dynamic attacks, placed between two
+neighbouring frames of the action. When the action passes from `frame` to
+`frame + 1` and its `conditions` pass at that moment (`logic` any / all,
+every action trigger condition; none = always), time runs at `speed` for
+what `scope` names for `duration_ms`, then resumes. The duration is its own
+length, not the action's frames: the fighter doing the action (the caster)
+is never affected, keeps playing, and the pause carries on even if the
+action ends meanwhile.
 
 | field | meaning |
 |---|---|
 | `enabled` | the Studio's **Time control** toggle |
-| `start_frame` / `end_frame` | the window; it ends when the action passes `end_frame`, loops or ends. Each pass of the action can trigger it once, the first tick in the window its conditions pass |
+| `frame` | the pause sits between `frame` and `frame + 1` (the Studio's **Pause at** list). Each pass of the action can pause again once the last pause has ended |
+| `duration_ms` | how long the pause lasts, 0 – `TIME_MAX_MS` 60000, on the caster's clock |
 | `scope` | `enemy_fx` (the enemy's FX and bullets), `own_fx` (the caster's), `all_fx`, `enemy_fighters`, `all_fighters` (every fighter except the caster), `everything` (all FX + every fighter except the caster) |
 | `speed` | 0 = stopped, 1 = normal, up to `TIME_SPEED_MAX` 8. The Studio slider: far left 0, middle 1, far right 8 |
-| `keys` | `[{ms, speed, ease}]`: the speed eases from the previous point (the start, or an earlier key) to each key, `ms` counted from the moment the time effect started, and holds after the last key (`FXK.timeSpeed` / `fxkit.time_speed`) |
+| `keys` | `[{ms, speed, ease}]`: the speed eases from the previous point (the start, or an earlier key) to each key, `ms` counted from the moment the pause started, and holds after the last key until it ends (`FXK.timeSpeed` / `fxkit.time_speed`) |
 
 - **Steps.** Every tick each fighter gets a body scale and an FX scale (the
   product of every running time effect that names it); an accumulator turns
@@ -583,11 +586,11 @@ always keeps normal speed: it controls the time.
 - Solo and Battle run the same code. Solo has no enemy, so the enemy scopes
   do nothing there; `own_fx` / `all_fx` / `everything` act on the fighter's
   own FX.
-- **Studio preview:** the time effect plays whenever the action reaches the
-  start frame (conditions are game-only). Own FX slow / stop on the stage;
+- **Studio preview:** the pause plays whenever the action passes its point
+  (conditions are game-only). Own FX slow / stop on the stage;
   enemy FX = the test shots; the enemy fighter = the target marker (a stopped
-  target fires no test shots). The timeline shows the window (⏱) and its
-  speed keys, the HUD the current speed.
+  target fires no test shots). The timeline shows the pause (⏸) from its
+  point for its duration, with its speed keys; the HUD the current speed.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
 *draws* this tick touches the target's hurt circle (centre = target figure,

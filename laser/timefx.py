@@ -1,23 +1,26 @@
 """
 Time control (FX Studio: action_settings[action].time).
 
-An image character's action can bend time while it plays: between the
-action's start_frame and end_frame (-1 = the last frame), once its trigger
-conditions pass (ANY / ALL, every action trigger condition; none = always),
-time runs at `speed` for what `scope` names.  The fighter doing the action
-(the caster) controls the time and is never slowed by its own time effect.
+An image character's action can pause / unpause time: the pause sits
+between two neighbouring frames of the action.  When the action passes from
+`frame` to frame + 1 and its trigger conditions pass (ANY / ALL, every action
+trigger condition; none = always), time runs at `speed` for what `scope`
+names for duration_ms - its own length, whatever the action does meanwhile -
+then goes back to normal.  The fighter doing the action (the caster)
+controls the time: it is never slowed by its own time effect and keeps
+playing.
 
     speed   0 = stopped, 1 = normal, up to fxkit.TIME_SPEED_MAX (8)
     keys    [{ms, speed, ease}] - the speed eases from the previous point to
-            each key, ms counted from the moment the time effect started
+            each key, ms counted from the moment the pause started
             (fxkit.time_speed), so a cut can slow, stop, then burst forward
     scope   enemy_fx / own_fx / all_fx       - FX Studio effects and bullets
             enemy_fighters / all_fighters    - fighters (not the caster)
             everything                       - every FX and every fighter
                                                except the caster
 
-It ends when the action passes end_frame, loops or ends; each pass of the
-action can trigger it once.  Several time effects at once multiply, and a
+Each pass of the action can trigger it again once the last one has ended
+(a new crossing while it runs is ignored).  Several time effects at once multiply, and a
 fighter running its own time effect is never slowed by another one (its FX
 can be), so two at once both play out instead of stopping each other.
 
@@ -53,7 +56,7 @@ class TimeState:
     """Per figure: its own time effect (as a caster), the time scales other
     casters put on it this tick, and the action tracking action_triggered
     reads."""
-    __slots__ = ("active", "action", "t", "fired", "last_action", "last_frame", "end", "cfg", "speed",
+    __slots__ = ("active", "action", "t", "last_action", "last_frame", "cfg", "speed",
                  "body", "fx", "body_acc", "fx_acc", "body_steps", "fx_steps", "frozen",
                  "act_name", "act_start")
 
@@ -61,10 +64,8 @@ class TimeState:
         self.active = False       # this figure's time effect is running
         self.action = None
         self.t = 0                # its ticks since it started (keys read t * TICK_MS)
-        self.fired = False        # already triggered on this pass of the action
-        self.last_action = None
+        self.last_action = None   # action / frame on show last step (frame crossing)
         self.last_frame = -1
-        self.end = -1
         self.cfg = None
         self.speed = 1.0
         self.body = 1.0           # time scale on this figure's body this tick
@@ -101,7 +102,9 @@ def _conds_ok(fig, world, action, cfg):
 
 def update_caster(fig, world):
     """CombatSystem hook, once per body step of an image character, after
-    its action runner: start / advance / end this figure's time effect."""
+    its action runner: start / advance / end this figure's time effect.  It
+    starts on the step the action on show passes from `frame` to a later
+    frame of the same pass, and lasts duration_ms of the caster's own time."""
     from .fxkit import character_fx, current_action, time_speed
     st = state(fig)
     cfx = character_fx(fig.mode)
@@ -110,24 +113,20 @@ def update_caster(fig, world):
         st.speed = 1.0
         return
     action, frame = current_action(fig)
-    new_pass = action != st.last_action or frame < st.last_frame
+    prev_action, prev_frame = st.last_action, st.last_frame
     st.last_action, st.last_frame = action, frame
-    if new_pass:
-        st.fired = False
     if st.active:
-        if new_pass or frame > st.end:
+        st.t += 1
+        if st.t * TICK_MS >= st.cfg["duration_ms"]:
             st.active = False
-        else:
-            st.t += 1
-    if not st.active and not st.fired:
+    if not st.active and action == prev_action:
         cfg = (cfx.settings.get(action) or {}).get("time")
-        if cfg and cfg["enabled"]:
-            n, _fm = cfx.timing.get(action, (1, 100.0))
-            end = n - 1 if cfg["end_frame"] < 0 else min(n - 1, cfg["end_frame"])
-            if cfg["start_frame"] <= frame <= end and _conds_ok(fig, world, action, cfg):
-                st.active, st.fired, st.t, st.cfg, st.action, st.end = True, True, 0, cfg, action, end
-                action_log.log("TIME", "%s %s: %s x%.2f frames %d-%d" % (
-                    fig.mode.key, action, cfg["scope"], cfg["speed"], cfg["start_frame"], end))
+        if (cfg and cfg["enabled"] and prev_frame <= cfg["frame"] < frame
+                and _conds_ok(fig, world, action, cfg)):
+            st.active, st.t, st.cfg, st.action = True, 0, cfg, action
+            action_log.log("TIME", "%s %s: %s x%.2f between frames %d-%d for %d ms" % (
+                fig.mode.key, action, cfg["scope"], cfg["speed"], cfg["frame"], cfg["frame"] + 1,
+                cfg["duration_ms"]))
     st.speed = time_speed(st.cfg, st.t * TICK_MS) if st.active else 1.0
 
 

@@ -323,15 +323,17 @@ BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target
 BLINK_ANCHORS = ("target", "self")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
 # The action's Time control (action_settings[action].time, FXK.TIME_DEFAULTS):
-# while the action plays between start_frame and end_frame (-1 = the last
-# frame) and its conditions pass (none = always), time runs at `speed` for
-# what `scope` names, the caster itself never included.  0 = stopped, 1 =
-# normal, up to TIME_SPEED_MAX.  keys = [{ms, speed, ease}]: the speed moves
-# from the previous point (the start, or an earlier key) to each key along its
-# ease, ms counted from the moment the time effect started, and holds after
-# the last key.  Run by laser/timefx.py.
-TIME_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, scope="enemy_fighters", speed=0.0, keys=[],
+# a pause / unpause placed between two neighbouring frames of the action:
+# when the action passes from `frame` to frame + 1 and its conditions pass
+# (none = always), time runs at `speed` for what `scope` names for
+# duration_ms, then goes back to normal.  The caster is never included and
+# keeps playing.  0 = stopped, 1 = normal, up to TIME_SPEED_MAX.  keys =
+# [{ms, speed, ease}]: the speed moves from the previous point (the start, or
+# an earlier key) to each key along its ease, ms counted from the moment the
+# pause started, and holds after the last key.  Run by laser/timefx.py.
+TIME_DEFAULTS = dict(enabled=False, frame=0, duration_ms=1000.0, scope="enemy_fighters", speed=0.0, keys=[],
                      logic="any", conditions=[])
+TIME_MAX_MS = 60000
 TIME_SCOPES = ("enemy_fx", "own_fx", "all_fx", "enemy_fighters", "all_fighters", "everything")
 TIME_SPEED_MAX = 8
 # Triggered-reaction FX (effect "action"): built in FX Studio under Actions >
@@ -633,8 +635,8 @@ def normalize_time(tc):
     tc["enabled"] = bool(tc.get("enabled"))
     if tc.get("scope") not in TIME_SCOPES:
         tc["scope"] = TIME_DEFAULTS["scope"]
-    tc["start_frame"] = max(0, jround(_num(tc.get("start_frame"), 0)))
-    tc["end_frame"] = max(-1, jround(_num(tc.get("end_frame"), -1)))
+    tc["frame"] = max(0, jround(_num(tc.get("frame"), 0)))
+    tc["duration_ms"] = max(0.0, min(float(TIME_MAX_MS), _num(tc.get("duration_ms"), 1000.0)))
     tc["speed"] = max(0.0, min(float(TIME_SPEED_MAX), _num(tc.get("speed"), 0.0)))
     if tc.get("logic") not in ("any", "all"):
         tc["logic"] = "any"

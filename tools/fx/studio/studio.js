@@ -1968,9 +1968,11 @@ function buildBlinkProps(d) {
   note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
 }
 // ------------------------------------------------------------ time control
-// Time control (action_settings[action].time; laser/timefx.py): while this
-// action plays between its frames and the conditions pass, time runs at the
-// speed for what "Affects" names, never the fighter doing the action.  The
+// Time control (action_settings[action].time; laser/timefx.py): a pause /
+// unpause placed between two neighbouring frames.  When the action passes
+// that point and the conditions pass, time runs at the speed for what
+// "Affects" names for its own duration, never the fighter doing the action
+// (it keeps playing).  The
 // slider is 0 (stopped) at the far left, 1x in the middle, 8x at the right.
 var TIME_SCOPE_LABEL = {enemy_fx: "Enemy FX only", own_fx: "Own FX only", all_fx: "All FX (enemy + own)",
   enemy_fighters: "Enemy fighters only", all_fighters: "All fighters (not me)", everything: "Everything (all FX + all fighters, not me)"};
@@ -1989,34 +1991,38 @@ function speedControl(val, onch) {
   w.appendChild(r); w.appendChild(n); w.appendChild(lab);
   return w;
 }
-function timeEnd(tc) { var n = frames(); return tc.end_frame < 0 ? n - 1 : Math.min(n - 1, tc.end_frame); }
-function timeWindowMs(tc) { return Math.max(0, Math.round((timeEnd(tc) - tc.start_frame + 1) * frameMs())); }
+// The tick the pause starts on: the first tick of frame + 1.
+function timeStartTick(tc) { return Math.round((tc.frame + 1) * frameMs() / FXK.TICK_MS); }
 function buildTimeProps(d) {
   var a = S.action, tc = cfgOf(a).time, n = frames();
   var s = sec(d, "Time control (this action)", "a-time",
-    "Bend time while this action plays: stop, slow down or speed up the enemy, the FX or everything between two frames. You (the fighter doing this action) always keep normal speed.", "act");
+    "A pause / unpause between two frames of this action: when the action passes that point, time stops, slows down or speeds up for the enemy, the FX or everything, for as long as you set, then resumes. You (the fighter doing this action) keep playing at normal speed.", "act");
   var ch = function () { save(); buildProps(); resetSim(S.t); buildTimeline(); }, soft = function () { save(); resetSim(S.t); buildTimeline(); };
   field(s, "Time control", inp("chk", tc.enabled, function (v) { tc.enabled = v; ch(); })).title =
-    "On: when this action plays and its conditions below are met, time changes for what \"Affects\" names between the two frames.";
+    "On: when this action passes the point between the two frames below and its conditions are met, time changes for what \"Affects\" names for the duration.";
   if (!tc.enabled) return;
-  field(s, "From frame", inp("n", tc.start_frame, function (v) { tc.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); ch(); }, 0, n - 1, 1)).title =
-    "The frame the time effect can start on.";
-  field(s, "To frame (-1 = end)", inp("n", tc.end_frame, function (v) { tc.end_frame = Math.max(-1, Math.min(n - 1, Math.round(v))); ch(); }, -1, n - 1, 1)).title =
-    "The last frame the time effect lasts for. Time goes back to normal once the action passes it (or the action ends). -1 = until the action ends.";
-  var e = timeEnd(tc);
-  if (e < tc.start_frame) note(s, "The end frame is before the start frame, so time never changes. Set it to " + tc.start_frame + " or later.");
-  else note(s, "Runs over frames " + tc.start_frame + "\u2013" + e + " = about " + timeWindowMs(tc) + " ms (the duration comes from the frames; the action itself always plays at normal speed).");
+  var pairs = [];
+  for (var f = 0; f < n - 1; f++) pairs.push([String(f), "between frame " + f + " and " + (f + 1)]);
+  if (!pairs.length) { note(s, "This action has only one frame, so there is no point between two frames to pause at."); return; }
+  if (tc.frame > n - 2) tc.frame = n - 2;
+  field(s, "Pause at", inp(pairs, String(tc.frame), function (v) { tc.frame = +v; ch(); })).title =
+    "The two neighbouring frames the pause sits between: it starts the moment the action moves on from the first to the second.";
+  var pauseText = function () { return "Pauses between frame " + tc.frame + " and " + (tc.frame + 1) + " for " + Math.round(tc.duration_ms) + " ms, then time resumes. You keep playing through it."; };
+  var pn;
+  field(s, "Duration ms", inp("n", tc.duration_ms, function (v) { tc.duration_ms = Math.max(0, Math.min(FXK.TIME_MAX_MS, v)); pn.textContent = pauseText(); soft(); }, 0, FXK.TIME_MAX_MS, 50)).title =
+    "How long the pause lasts, in ms, before time resumes. It is its own length: the action keeps playing (and may end) while it runs.";
+  note(s, pauseText()); pn = s.lastChild;
   field(s, "Affects", inp(FXK.TIME_SCOPES.map(function (k) { return [k, TIME_SCOPE_LABEL[k]]; }), tc.scope, function (v) { tc.scope = v; soft(); })).title =
     "What the time change acts on. FX = effects and bullets (frozen FX hang in the air and land no hits until time runs again). Fighters = their movement, actions and attacks (a stopped fighter can still be hit; its knockback plays out when time resumes). You are never affected.";
   field(s, "Speed", speedControl(tc.speed, function (v) { tc.speed = v; soft(); })).title =
     "Far left = time stopped, middle = normal, right = faster (up to " + FXK.TIME_SPEED_MAX + "x). This is the speed when the time effect starts; keys below change it over time.";
   // Speed keys
-  var k = sec(s, "Speed keys", "a-tkeys", "Change the speed while the time effect runs: each key sets a speed at a time (ms after the effect started) and the speed eases there from the previous key. After the last key it holds.", "act");
-  var win = timeWindowMs(tc);
+  var k = sec(s, "Speed keys", "a-tkeys", "Change the speed while the pause runs: each key sets a speed at a time (ms after the pause started) and the speed eases there from the previous key. After the last key it holds until the pause ends.", "act");
+  var win = Math.round(tc.duration_ms);
   tc.keys.forEach(function (key, i) {
     var box = document.createElement("div"); box.className = "keyrow";
     var ms = inp("n", key.ms, function (v) { key.ms = Math.max(0, Math.min(60000, v)); save(); resetSim(S.t); buildTimeline(); }, 0, 60000, 10);
-    ms.className = "kf"; ms.style.width = "72px"; ms.title = "When this key is reached, ms after the time effect started (the window is about " + win + " ms).";
+    ms.className = "kf"; ms.style.width = "72px"; ms.title = "When this key is reached, ms after the pause started (the pause lasts " + win + " ms).";
     ms.onchange = function () { ch(); };   // re-list in time order when done typing
     var ez = inp(FXK.EASES.map(function (e2) { return [e2, EASE_LABEL[e2]]; }), key.ease, function (v) { key.ease = v; soft(); });
     ez.title = "How the speed moves into this key from the previous one.";
@@ -2024,24 +2030,24 @@ function buildTimeProps(d) {
     var lb = document.createElement("span"); lb.className = "kt"; lb.textContent = "at ms";
     box.appendChild(lb); box.appendChild(ms); box.appendChild(ez); box.appendChild(rm); k.appendChild(box);
     var sp = speedControl(key.speed, function (v) { key.speed = v; soft(); }); sp.style.marginLeft = "20px"; k.appendChild(sp);
-    if (key.ms > win) note(k, "Key " + (i + 1) + " is after the window ends (" + win + " ms), so it is never reached.");
+    if (key.ms > win) note(k, "Key " + (i + 1) + " is after the pause ends (" + win + " ms), so it is never reached.");
   });
   var add = document.createElement("button"); add.textContent = "+ Speed key";
-  add.title = "Add a key after the last one (half way to the end of the window, or 100 ms later).";
+  add.title = "Add a key after the last one (half way to the end of the pause, or 100 ms later).";
   add.onclick = function () {
     var lastMs = tc.keys.length ? tc.keys[tc.keys.length - 1].ms : 0, lastSp = tc.keys.length ? tc.keys[tc.keys.length - 1].speed : tc.speed;
     var at = lastMs < win ? Math.round(lastMs + Math.max(10, (win - lastMs) / 2)) : lastMs + 100;
     cfgOf(a).time.keys.push({ms: at, speed: lastSp <= 0 ? 1 : lastSp, ease: "linear"}); ch();
   };
   var row = document.createElement("div"); row.className = "row"; row.appendChild(add); k.appendChild(row);
-  if (!tc.keys.length) note(k, "No keys: the speed stays " + tc.speed + "x for the whole window.");
+  if (!tc.keys.length) note(k, "No keys: the speed stays " + tc.speed + "x for the whole pause.");
   // Trigger conditions
-  var c = sec(s, "Time trigger conditions", "a-tcond", "When the time effect happens. It triggers the first moment the action is between the two frames and these conditions are met (once per play of the action). No conditions = every time the action reaches the start frame.", "act");
+  var c = sec(s, "Time trigger conditions", "a-tcond", "Whether the pause happens: they are checked the moment the action passes from frame " + tc.frame + " to " + (tc.frame + 1) + ". No conditions = it pauses every time.", "act");
   field(c, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], tc.logic, function (v) { tc.logic = v; save(); }));
   conditionList(c, function () { return cfgOf(a).time.conditions; }, {key: "a-tcondi", listId: "fxTagListTime", preview: false, onChange: function () { save(); buildProps(); },
     helpOf: function (t) { return COND_HELP[t]; },
     make: function (t) { return FXK.normalizeTime({conditions: [{type: t}]}).conditions[0]; }});
-  note(s, "Preview: the stage plays the time effect whenever the action reaches the start frame (conditions are checked in the game only). Own FX slow / stop on the stage; enemy FX = the test shots (tick \"test shots\" below the stage); the enemy fighter = the target marker (a stopped enemy fires no test shots).");
+  note(s, "Preview: the stage plays the pause whenever the action passes that point (conditions are checked in the game only). Own FX slow / stop on the stage; enemy FX = the test shots (tick \"test shots\" below the stage); the enemy fighter = the target marker (a stopped enemy fires no test shots).");
 }
 // Right panel for a triggered reaction (Actions > Triggered reactions) when
 // no effect is selected: its settings, and what the FX built on it do.
@@ -2188,14 +2194,17 @@ function buildTimeline() {
   var total = totalTicks(), tc = S.react ? null : cfgOf(S.action).time, toff = tc && tc.enabled ? 15 : 0;
   tl.style.height = Math.min(260, Math.max(96, 24 + toff + actionEffects().length * 15)) + "px";
   if (toff) {   // Time control window (scrubs like the empty timeline) + its speed keys
-    var ts = Math.round(tc.start_frame * frameMs() / FXK.TICK_MS), te = Math.round((timeEnd(tc) + 1) * frameMs() / FXK.TICK_MS);
+    // The bar starts where the pause sits (frame -> frame + 1) and shows its
+    // duration on the action's time scale (cut off at the action's end).
+    var ts = timeStartTick(tc), te = ts + Math.max(1, Math.round(tc.duration_ms / FXK.TICK_MS));
     var tb = document.createElement("div"); tb.className = "tltime";
-    tb.style.left = (ts / total * W) + "px"; tb.style.width = Math.max(4, (te - ts) / total * W) + "px"; tb.style.top = "18px";
-    tb.textContent = "\u23f1 " + tc.speed + "x " + TIME_SCOPE_LABEL[tc.scope].toLowerCase();
-    tb.title = "Time control: frames " + tc.start_frame + "\u2013" + timeEnd(tc) + ", " + TIME_SCOPE_LABEL[tc.scope] + ", starts at " + tc.speed + "x" + (tc.keys.length ? ", " + tc.keys.length + " speed key(s)" : "");
+    tb.style.left = (ts / total * W) + "px"; tb.style.width = Math.max(4, (Math.min(te, total) - ts) / total * W) + "px"; tb.style.top = "18px";
+    if (te > total) tb.style.borderRight = "none";
+    tb.textContent = "\u23f8 " + tc.speed + "x " + Math.round(tc.duration_ms) + " ms " + TIME_SCOPE_LABEL[tc.scope].toLowerCase();
+    tb.title = "Time control: pause between frame " + tc.frame + " and " + (tc.frame + 1) + " for " + Math.round(tc.duration_ms) + " ms, " + TIME_SCOPE_LABEL[tc.scope] + ", starts at " + tc.speed + "x" + (tc.keys.length ? ", " + tc.keys.length + " speed key(s)" : "") + (te > total ? " (runs on past the end of the action)" : "");
     tl.appendChild(tb);
     tc.keys.forEach(function (k) {
-      var kt = ts + Math.round(k.ms / FXK.TICK_MS); if (kt > te) return;
+      var kt = ts + Math.round(k.ms / FXK.TICK_MS); if (kt > te || kt > total) return;
       var km = document.createElement("div"); km.className = "tltkey"; km.style.left = (kt / total * W - 4) + "px"; km.style.top = "20px";
       km.title = "Speed key at " + k.ms + " ms: " + k.speed + "x (" + EASE_LABEL[k.ease] + ")"; tl.appendChild(km);
     });
@@ -2232,7 +2241,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 function resetSim(t) {
   player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
-  S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
+  S.time = {active: false, t: 0, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
   blinkStep();
@@ -2268,10 +2277,10 @@ function step(allowWrap) {
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
 }
-// Time control preview (laser/timefx.py update_caster / plan): the time
-// effect starts when the frame on show reaches the start frame (conditions
-// are taken as met: they are game-only), runs to the end frame, and once per
-// pass of the action.  Returns this tick's steps for own FX, enemy FX (test
+// Time control preview (laser/timefx.py update_caster / plan): the pause
+// starts when the frame on show passes from tc.frame to a later frame of the
+// same pass (conditions are taken as met: they are game-only) and lasts
+// duration_ms, whatever the action does meanwhile.  Returns this tick's steps for own FX, enemy FX (test
 // shots) and the enemy fighter (the target's firing clock).
 function timeSteps(key, scale) {
   if (scale === 1) { S.tacc[key] = 0; return 1; }
@@ -2281,14 +2290,10 @@ function timeSteps(key, scale) {
 }
 function timeStep() {
   var tc = cfgOf(S.action).time, T = S.time, fr = frameAt(S.t);
-  var newPass = fr < T.lastFrame || S.t < T.lastT;
+  var samePass = S.t > T.lastT, prev = T.lastFrame;
   T.lastFrame = fr; T.lastT = S.t;
-  if (newPass) T.fired = false;
-  if (T.active) { if (newPass || fr > T.end || !tc.enabled) T.active = false; else T.t += 1; }
-  if (!T.active && !T.fired && tc.enabled && !S.react) {
-    var e = timeEnd(tc);
-    if (tc.start_frame <= fr && fr <= e) { T.active = true; T.fired = true; T.t = 0; T.end = e; }
-  }
+  if (T.active) { T.t += 1; if (!tc.enabled || T.t * FXK.TICK_MS >= tc.duration_ms) T.active = false; }
+  if (!T.active && tc.enabled && !S.react && samePass && prev <= tc.frame && tc.frame < fr) { T.active = true; T.t = 0; }
   var sp = T.active ? FXK.timeSpeed(tc, T.t * FXK.TICK_MS) : 1, sc = tc.scope;
   T.speed = sp;
   var all = sc === "everything";
