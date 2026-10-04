@@ -242,7 +242,9 @@ def fx_facing(fx, host):
 # so it only ever tilts up / down; without Flip a target behind turns it right
 # round.  Offsets, entry points, facing / angle / weapon aims, the arc's
 # angle, particle angles, orbits and paths all turn; target aims already
-# track the target.
+# track the target.  With "Each in place" (fx.follow_each) the offset and
+# entry points stay where they were authored (place_deg is 0) and only the
+# effect's own direction turns, about its own centre.
 def body_deg(fx, host):
     if not fx.get("follow_dir"):
         return 0.0
@@ -252,6 +254,12 @@ def body_deg(fx, host):
         return 0.0
     a = math.degrees(math.atan2(dy, dx)) - (180.0 if fx_facing(fx, host) < 0 else 0.0)
     return (math.fmod(a, 360.0) + 540.0) % 360.0 - 180.0
+
+
+def place_deg(fx, host):
+    """The turn for where the effect sits (offset, entry points): the whole
+    effect swings round its anchor, unless Each in place keeps it put."""
+    return 0.0 if fx.get("follow_each") else body_deg(fx, host)
 
 
 def turn_by(v, deg):
@@ -345,6 +353,7 @@ def normalize(fx):
     fx["flip"] = _fill(dict(fx.get("flip") or {}), FLIP_DEFAULTS)
     fx["flip"]["facing"] = -1 if float(fx["flip"]["facing"] or 1) < 0 else 1
     fx["follow_dir"] = bool(fx.get("follow_dir"))
+    fx["follow_each"] = bool(fx.get("follow_each"))
     if fx["prim"] == "ghost":
         fx["battle"]["deals_damage"] = False
     if fx["prim"] == "weapon":
@@ -667,7 +676,7 @@ def entry_point(eset, k, host, deg=0.0, f=None):
 def anchor_pos(fx, host, ep=None):
     eset = entry_set_of(fx, host)
     a = fx.get("anchor")
-    deg = body_deg(fx, host)
+    deg = place_deg(fx, host)
     f = fx_facing(fx, host)
     if eset:
         p = entry_point(eset, (ep if ep is not None else 0) % len(eset["points"]), host, deg, f)

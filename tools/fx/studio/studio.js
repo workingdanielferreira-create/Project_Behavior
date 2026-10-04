@@ -676,7 +676,7 @@ function pruneGroups() {
 }
 function canGroup(fx) { return fx.prim !== "weapon" && fx.anchor.indexOf("set:") !== 0; }
 // Effect-local (x forward, y down) <-> world, the way its offset is applied.
-function fxTurn(fx, v, inverse) { return FXK.turnBy(v, FXK.bodyDeg(fx, host) * (inverse ? -1 : 1)); }
+function fxTurn(fx, v, inverse) { return FXK.turnBy(v, FXK.placeDeg(fx, host) * (inverse ? -1 : 1)); }
 // Stage px -> the effect's own px: FX distances are authored at pscale 1 and
 // grow with the figure (FXK.hostScale), so divide by the preview's pscale.
 function worldToLocal(fx, d) { var q = fxTurn(fx, d, true), ps = viewScale(); return [q[0] * FXK.fxFacing(fx, host) / ps, q[1] / ps]; }
@@ -693,8 +693,8 @@ function shiftOffset(fx, d) {
 }
 // Group the Ctrl+clicked effects: every member moves onto the first one's
 // pivot, its spot on this frame turned into an offset from that pivot, so
-// nothing jumps.  Flip / Follow direction follow the first member so the
-// group mirrors and turns as one piece.
+// nothing jumps.  Flip / Follow direction / Each in place follow the first
+// member so the group mirrors and turns as one piece.
 function makeGroup() {
   if (!C) return toast("Open a character folder first");
   var ids = S.multi.slice(); if (S.sel && ids.indexOf(S.sel) < 0) ids.unshift(S.sel);
@@ -706,7 +706,7 @@ function makeGroup() {
   var lead = picked[0], pivot = lead.anchor, spots = picked.map(fxSpot);
   var gr = newGroup("Group " + (S.groups.filter(function (x) { return x.action === fxKey(); }).length + 1), pivot);
   picked.forEach(function (fx, i) {
-    if (fx !== lead) { fx.flip = clone(lead.flip); fx.follow_dir = lead.follow_dir; }
+    if (fx !== lead) { fx.flip = clone(lead.flip); fx.follow_dir = lead.follow_dir; fx.follow_each = lead.follow_each; }
     var now = FXK.fxAt(fx, frameAt(S.t)).offset;
     fx.anchor = pivot; fx.group = gr.id;
     var b = jointAt(pivot, frameAt(S.t)), want = worldToLocal(fx, [spots[i][0] - b[0], spots[i][1] - b[1]]);
@@ -731,10 +731,10 @@ function ungroup(gr) {
   if (S.selGroup === gr.id) S.selGroup = null;
   rebuild(); resetSim(S.t); save(); toast("Ungrouped " + gr.name + ": every effect stays where it is.");
 }
-// Flip / Follow direction changed on one member: the rest follow it.
+// Flip / Follow direction / Each in place changed on one member: the rest follow it.
 function syncGroupTurn(fx) {
   var gr = fx.group && groupById(fx.group); if (!gr) return;
-  groupMembers(gr).forEach(function (e) { if (e !== fx) { e.flip = clone(fx.flip); e.follow_dir = fx.follow_dir; } });
+  groupMembers(gr).forEach(function (e) { if (e !== fx) { e.flip = clone(fx.flip); e.follow_dir = fx.follow_dir; e.follow_each = fx.follow_each; } });
 }
 // The group's handle on the stage: the middle of its members on this frame.
 function groupCentre(gr) {
@@ -999,7 +999,7 @@ function pathPreviewOrigin(path) {
   return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
 }
 function jointAtFx(fx) {
-  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.bodyDeg(fx, host), ef = FXK.fxFacing(fx, host);
+  var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.placeDeg(fx, host), ef = FXK.fxFacing(fx, host);
   var turn = function (v) { return FXK.turnBy(v, deg); };
   var ps = viewScale();
   var b = set && set.points.length ? (function () { var bb = jointAt(set.base, frameAt(S.t)), q = turn([set.points[0][0] * ps * ef, set.points[0][1] * ps]); return [bb[0] + q[0], bb[1] + q[1]]; })()
@@ -1502,8 +1502,14 @@ function buildProps() {
     }
     field(s, "Follow direction", inp("chk", fx.follow_dir, function (v) { fx.follow_dir = v; syncGroupTurn(fx); changed(true); })).title =
       "On: the whole effect turns toward the target. As authored it points straight ahead; with the target above or below it turns by that angle (offsets, arc, particles, orbit and paths included). Target-aimed effects already aim at the target.";
-    if (fx.follow_dir) note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
-      : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
+    if (fx.follow_dir) {
+      field(s, "Each in place", inp("chk", fx.follow_each, function (v) { fx.follow_each = v; syncGroupTurn(fx); changed(true); })).title =
+        "Off: the whole effect turns as one piece round its anchor (its offset and entry points swing round too; a group swings round its pivot). On: every effect stays where it was placed and turns to face the target about its own centre.";
+      note(s, F.enabled ? "Mirrors to the target's side, then tilts up / down toward it. Drag the target around to preview."
+        : "Turns toward the target at any angle; a target behind turns it right round (upside down). Tick Flip as well to mirror instead.");
+      if (fx.follow_each) note(s, fgr ? "Each in place: every effect in the group keeps its spot and turns on its own centre."
+        : "Each in place: it keeps its spot and turns on its own centre.");
+    }
 
     s = sec(d, "Colour", "colour", "Its colour: the character's palette, a two-colour gradient or a solid colour.");
     var c = fx.color;

@@ -357,7 +357,9 @@ function fxFacing(fx, host) { return fx.flip && fx.flip.enabled ? targetSide(hos
 // only ever tilts up / down; without Flip a target behind turns it right
 // round.  Offsets, entry points, facing / angle / weapon aims, the arc's
 // angle, particle angles, orbits and paths all turn; target aims already
-// track the target.
+// track the target.  With "Each in place" (fx.follow_each) the offset and
+// entry points stay where they were authored (placeDeg is 0) and only the
+// effect's own direction turns, about its own centre.
 function bodyDeg(fx, host) {
   if (!fx.follow_dir) return 0;
   var b = host.anchor("figure"), dx = host.target[0] - b[0], dy = host.target[1] - b[1];
@@ -365,6 +367,9 @@ function bodyDeg(fx, host) {
   var a = Math.atan2(dy, dx) / D - (fxFacing(fx, host) < 0 ? 180 : 0);
   return ((a % 360) + 540) % 360 - 180;
 }
+// The turn for where the effect sits (offset, entry points): the whole effect
+// swings round its anchor, unless Each in place keeps it put.
+function placeDeg(fx, host) { return fx.follow_each ? 0 : bodyDeg(fx, host); }
 function turnBy(v, deg) { return deg ? rot(v, deg) : v; }
 // Sign for the facing-relative turns (fan, aim offset) and, times inst.flip,
 // the arc / zigzag side.  Without Flip: the facing (the old behaviour).  With
@@ -666,6 +671,7 @@ function normalize(fx) {
   fx.flip = fill(fx.flip || {}, FLIP_DEFAULTS);
   fx.flip.facing = +fx.flip.facing < 0 ? -1 : 1;
   fx.follow_dir = !!fx.follow_dir;
+  fx.follow_each = !!fx.follow_each;
   if (fx.prim === "ghost") fx.battle.deals_damage = false;   // afterimages are visual only
   if (fx.prim === "weapon") fx.motion.kind = "attached";      // a hitbox rides its anchors
   normalizeKeys(fx);
@@ -843,7 +849,7 @@ function entryPoint(set, k, host, deg, f) {
   return [b[0] + o[0], b[1] + o[1]];
 }
 function anchorPos(fx, host, inst) {
-  var a, set = entrySetOf(fx, host), deg = bodyDeg(fx, host), f = fxFacing(fx, host);
+  var a, set = entrySetOf(fx, host), deg = placeDeg(fx, host), f = fxFacing(fx, host);
   if (set) a = entryPoint(set, inst && inst.ep != null ? inst.ep % set.points.length : 0, host, deg, f);
   else if (typeof fx.anchor === "string" && fx.anchor.indexOf("set:") === 0) a = host.anchor("figure");   // empty / missing set
   else a = host.anchor(fx.anchor);
@@ -1790,7 +1796,7 @@ function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
