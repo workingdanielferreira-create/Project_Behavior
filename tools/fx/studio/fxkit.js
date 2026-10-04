@@ -627,6 +627,17 @@ function canContinue(fx) {
   return fx.prim !== "arc" && ["attached", "static", "orbit", "path"].indexOf(fx.motion.kind) >= 0;
 }
 function isContinuous(fx) { return !!fx.continuous && canContinue(fx); }
+// fx.cycles (Continuous only): instead of one never-ending set, the effect
+// plays its lifespan (Life ticks, or start frame -> end frame) as a cycle:
+// a new set each cycle, its keys replayed from the start frame, every set
+// ending with its lifespan (a launched instance lives Life ticks from its
+// launch instead).  count: -1 = forever, 0 = the first cycle only, N = N
+// more cycles.  Cycles run on their own clock: they carry on when the
+// action ends or changes, and playing the action again starts another run
+// alongside (at most CYCLE_MAX_RUNS per effect; the oldest stops).
+var CYCLE_DEFAULTS = {enabled: false, count: 0};
+var CYCLE_MAX_RUNS = 8;
+function isCycling(fx) { return isContinuous(fx) && !!(fx.cycles && fx.cycles.enabled); }
 // Progress 0..1 through an instance's window (a continuous instance goes
 // through its window once, then holds at 1).
 function lifeT(inst) { return Math.min(1, inst.age / Math.max(1, inst.cont ? inst.win : inst.life)); }
@@ -642,6 +653,7 @@ function normalize(fx) {
   fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false,
     anchor: "figure", offset: [0, 0], layer: "front", blend: "normal"});
   fx.emit = fill(fx.emit || {}, {every_ticks: 0, count: 1, fan_deg: 0});
+  fx.cycles = fill(fx.cycles || {}, CYCLE_DEFAULTS);
   fx.motion = fill(fx.motion || {}, MOTION_DEFAULTS);
   fx.color = fill(fx.color || {}, COLOR_DEFAULTS);
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
@@ -692,6 +704,12 @@ function ease(name, u) {
   }
 }
 function keyableValue(v) { return (typeof v === "number" && isFinite(v)) || (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)); }
+// Choice settings keys can switch: the value holds until the next key (no
+// in-between), and instances already alive switch with it (motionSwitch):
+// an orbit keyed to travel launches from where it is.
+var KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag"],
+  "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]};
+function keyableAt(path, v) { return keyableValue(v) || (KEY_CHOICES[path] ? KEY_CHOICES[path].indexOf(v) >= 0 : false); }
 function getPath(fx, path) {
   var i = path.indexOf("."), a = i < 0 ? path : path.slice(0, i), b = i < 0 ? null : path.slice(i + 1);
   var o = fx[a];
@@ -700,7 +718,8 @@ function getPath(fx, path) {
 // Every keyable setting of fx: [path, ...].
 function keyPaths(fx) {
   var out = [];
-  KEY_GROUPS.forEach(function (g) { var o = fx[g] || {}; Object.keys(o).forEach(function (k) { if (keyableValue(o[k])) out.push(g + "." + k); }); });
+  KEY_GROUPS.forEach(function (g) { var o = fx[g] || {}; Object.keys(o).forEach(function (k) {
+    if (keyableAt(g + "." + k, o[k]) && !(fx.prim === "weapon" && g === "motion")) out.push(g + "." + k); }); });
   out.push("offset.0", "offset.1", "life_ticks");
   return out;
 }
@@ -708,7 +727,7 @@ function isKeyable(fx, path) { return keyPaths(fx).indexOf(path) >= 0; }
 function normalizeKeys(fx) {
   fx.keys = (Array.isArray(fx.keys) ? fx.keys : []).filter(function (k) { return k && typeof k.set === "object"; }).map(function (k) {
     var set = {};
-    Object.keys(k.set || {}).forEach(function (p) { if (keyableValue(k.set[p])) set[p] = k.set[p]; });
+    Object.keys(k.set || {}).forEach(function (p) { if (keyableAt(p, k.set[p])) set[p] = k.set[p]; });
     return {frame: Math.max(0, Math.round(+k.frame || 0)), ease: EASES.indexOf(k.ease) >= 0 ? k.ease : "inout", set: set};
   }).sort(function (a, b) { return a.frame - b.frame; });
   return fx;
@@ -719,8 +738,8 @@ function hexLerp(a, b, u) {
 }
 function lerpVal(a, b, u) {
   if (typeof a === "number" && typeof b === "number") return a + (b - a) * u;
-  if (typeof a === "string" && typeof b === "string") return hexLerp(a, b, u);
-  return u < 1 ? a : b;
+  if (keyableValue(a) && keyableValue(b) && typeof a === "string" && typeof b === "string") return hexLerp(a, b, u);
+  return u < 1 ? a : b;   // choices hold until the key
 }
 // The value of one setting at action frame tf (fractional).
 function sampleKey(fx, path, tf) {
@@ -942,6 +961,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   if (fx.prim === "weapon") { var e2 = host.anchor(fx.params.to_anchor); inst.x2 = e2[0]; inst.y2 = e2[1]; }
   if (fx.prim === "pulse") inst.ringHits = {};   // "ring" -> true: each ring hits once
   inst.px = inst.x; inst.py = inst.y;
+  inst.mk = m.kind; inst.ma = m.aim;   // keyed switches compare against these (motionSwitch)
   return inst;
 }
 
@@ -1605,8 +1625,51 @@ function drawInst(g, inst, host, ps) {
 // Plays every effect bound to one action, in lock-step with the action's
 // frames.  frameMs = duration_ms / frame count (the engine plays Rig Forge
 // keyframes at exactly this rate).
-function Player() { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; }
-Player.prototype.reset = function () { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; };
+// A key switched an alive instance's motion (or aim): it changes from where
+// it is.  Into travel / homing / zigzag it launches along its Aim at the
+// keyed Speed; coming off the fighter (from attached / static / orbit) it is
+// a shot from then on, living Life ticks from the launch (0 = LAUNCH_LIFE).
+// Into orbit it carries on round its anchor from its own angle; into
+// attached / static it stops.  Returns true when a continuous instance
+// launched (its set is spent).  laser/fxkit.py motion_switch.
+var MOVERS = {travel: 1, homing: 1, zigzag: 1};
+var LAUNCH_LIFE = 220;
+function motionSwitch(inst, host) {
+  var fx = inst.fx, m = fx.motion, from = inst.mk, wasCont = !!inst.cont;
+  inst.mk = m.kind; inst.ma = m.aim;
+  if (inst.free || inst.lodge || fx.prim === "weapon" || inst.age >= inst.life) return false;
+  var ps = inst.ps || 1;
+  if (MOVERS[m.kind]) {
+    var d = aimDir(fx, host, inst.x, inst.y);
+    if (m.aim_offset_deg) d = rot(d, m.aim_offset_deg * turnSign(fx, host, d));
+    var spd = +m.speed || 0;
+    inst.dir = d; inst.spd = spd; inst.vx = d[0] * spd * ps; inst.vy = d[1] * spd * ps;
+    if (m.kind === "zigzag") {   // as spawn: its side of the new line
+      inst.side = inst.flip * turnSign(fx, host, d) * inst.facing;
+      var pr = spd > 0.001 ? [-d[1] * inst.side, d[0] * inst.side] : [0, inst.side];
+      inst.zx = pr[0] * m.amplitude * ps; inst.zy = pr[1] * m.amplitude * ps; inst.phase = 0;
+    }
+    if (!MOVERS[from]) {
+      inst.cont = false; inst.open = false; inst.trail = [];
+      inst.life = inst.age + (fx.life_ticks > 0 ? fx.life_ticks : LAUNCH_LIFE);
+      return wasCont;
+    }
+    return false;
+  }
+  inst.vx = 0; inst.vy = 0;
+  if (m.kind === "orbit") {
+    var c = anchorPos(fx, host, inst), hs = hostScale(host);
+    var v = turnBy([inst.x - c[0], inst.y - c[1]], -bodyDeg(fx, host));
+    inst.orbitA = Math.atan2(v[1] / Math.max(1e-6, m.orbit_ry * hs), v[0] / Math.max(1e-6, m.orbit_rx * hs * inst.flip)) / D;
+  }
+  return false;
+}
+
+// runs: loop-cycle runs (isCycling); spent: continuous effects whose set
+// launched (no new set until the action restarts or changes); lastT: the
+// previous tick's t (a smaller t = the action restarted).
+function Player() { this.reset(); }
+Player.prototype.reset = function () { this.insts = []; this.t = 0; this.clock = 0; this.pending = []; this.runs = []; this.spent = []; this.lastT = -1; };
 Player.prototype.window = function (fx, frames, frameMs) {
   var total = Math.max(1, Math.round(frames * frameMs / TICK_MS));
   var s = Math.round(Math.max(0, fx.start_frame) * frameMs / TICK_MS);
@@ -1624,27 +1687,46 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   var self = this, cont = !!(opts && opts.continuous);
   // Spawn `n` copies of fx.  With an entry set they come out of every point:
   // together, or (sequential) one point every interval_ticks.
-  function fireFx(fx, t, n, win, tag) {
+  // run (loop cycles): its frame time and cycle number, so each cycle's keys
+  // replay on the action's timing and its randomness differs.
+  function fireFx(fx, t, n, win, tag, run) {
     var set = entrySetOf(fx, host), pts = set ? set.points.length : 1;
     for (var k = 0; k < pts; k++) {
       var delay = set && set.mode === "sequential" ? k * Math.max(0, trunc(set.interval_ticks)) : 0;
-      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay, delay: delay};
+      var job = {fx: fx, t: t, n: n, win: win - delay, ep: set ? k : null, tag: tag, due: self.clock + delay, delay: delay,
+        fms: run ? run.fms : frameMs, salt: run ? run.k + 1 : 0};
       if (delay > 0) self.pending.push(job); else spawnJob(job);
     }
   }
   function spawnJob(j) {
     for (var i = 0; i < j.n; i++) {
-      var seed = (hash32(j.fx.id) ^ Math.imul(j.t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B) ^ Math.imul((j.ep == null ? 0 : j.ep + 1), 0xC2B2AE35)) >>> 0;
-      var t0 = j.t + (j.delay || 0), inst = spawn(fxAt(j.fx, t0 * TICK_MS / frameMs), host, Math.max(1, j.win), seed, i, j.n, j.ep);
-      inst.src = j.fx; inst.t0 = t0; inst.fms = frameMs;
+      var seed = (hash32(j.fx.id) ^ Math.imul(j.t + 1, 0x9E3779B1) ^ (i * 0x85EBCA6B) ^ Math.imul((j.ep == null ? 0 : j.ep + 1), 0xC2B2AE35)
+        ^ Math.imul(j.salt || 0, 0x27D4EB2F)) >>> 0;
+      var t0 = j.t + (j.delay || 0), inst = spawn(fxAt(j.fx, t0 * TICK_MS / j.fms), host, Math.max(1, j.win), seed, i, j.n, j.ep);
+      inst.src = j.fx; inst.t0 = t0; inst.fms = j.fms;
       if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
-      else inst.open = j.tag === "open";
+      else { inst.open = j.tag === "open"; inst.cyc = j.tag === "cyc"; }
       self.insts.push(inst);
     }
   }
   var due = this.pending.filter(function (j) { return j.due <= self.clock; });
   this.pending = this.pending.filter(function (j) { return j.due > self.clock; });
-  due.forEach(function (j) { if (j.fx.enabled && effects.indexOf(j.fx) >= 0) spawnJob(j); });
+  due.forEach(function (j) { if (j.tag === "cyc" || (j.fx.enabled && effects.indexOf(j.fx) >= 0)) spawnJob(j); });
+  // The action restarted (t went back) or an effect left it: its spent
+  // continuous set may start again.
+  if (t < this.lastT) this.spent = [];
+  this.spent = this.spent.filter(function (f) { return effects.indexOf(f) >= 0; });
+  this.lastT = t;
+  // Loop-cycle runs, on their own clock whatever the action is doing.
+  // runCycle fires one cycle's set; false once the run has no cycles left.
+  function runCycle(r) {
+    fireFx(r.fx, r.s, Math.max(1, trunc(r.fx.emit.count)), r.len, "cyc", r);
+    r.k += 1; r.next = self.clock + r.len;
+    if (r.left === 0) return false;
+    if (r.left > 0) r.left -= 1;
+    return true;
+  }
+  this.runs = this.runs.filter(function (r) { return self.clock < r.next || runCycle(r); });
   // A continuous instance ends when its effect is removed, disabled or no
   // longer continuous.
   this.insts.forEach(function (inst) {
@@ -1654,8 +1736,17 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   effects.forEach(function (fx) {
     if (!fx.enabled || (opts && opts.hold)) return;
     var w = self.window(fx, frames, frameMs), s = w[0], e = w[1];
+    if (isCycling(fx)) {   // a new run of cycles each time the action reaches the start frame
+      if (t !== s) return;
+      var mine = self.runs.filter(function (r) { return r.fx === fx; });
+      if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
+      var run = {fx: fx, s: s, len: Math.max(1, fx.life_ticks > 0 ? trunc(fx.life_ticks) : e - s), fms: frameMs, k: 0, next: 0,
+        left: trunc(fx.cycles.count)};
+      if (runCycle(run)) self.runs.push(run);   // the first cycle starts on this tick
+      return;
+    }
     if (isContinuous(fx)) {   // one never-ending instance, started at its start frame
-      if (t < s || self.insts.some(function (q) { return (q.src || q.fx) === fx && q.cont && !q.dead && q.age < q.life; })
+      if (t < s || self.spent.indexOf(fx) >= 0 || self.insts.some(function (q) { return (q.src || q.fx) === fx && q.cont && !q.dead && q.age < q.life; })
         || self.pending.some(function (q) { return q.fx === fx; })) return;
       fireFx(fx, t, Math.max(1, trunc(fx.emit.count)), w[2] - s, "cont");
       return;
@@ -1673,6 +1764,7 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
   this.insts.forEach(function (inst) {
     // Keyframes: this tick's values at the instance's own action time.
     if (inst.src && inst.src.keys && inst.src.keys.length) inst.fx = fxAt(inst.src, (inst.t0 + inst.age) * TICK_MS / inst.fms);
+    if ((inst.mk !== inst.fx.motion.kind || inst.ma !== inst.fx.motion.aim) && motionSwitch(inst, host) && self.spent.indexOf(inst.src) < 0) self.spent.push(inst.src);
     tickInst(inst, host); resolveHits(inst, host, ps);
   });
   this.insts = this.insts.filter(function (i) { return !i.dead; });
@@ -1697,5 +1789,6 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,
+  KEY_CHOICES: KEY_CHOICES, CYCLE_DEFAULTS: CYCLE_DEFAULTS, CYCLE_MAX_RUNS: CYCLE_MAX_RUNS, isCycling: isCycling, LAUNCH_LIFE: LAUNCH_LIFE,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite};
 })(window);

@@ -237,6 +237,17 @@ a default.
   motion) and are not `arc`; for travelling shots and crescents the flag
   does nothing. It is stronger than the action's `fx_continuous`, which only
   carries over effects that already last to the end of the action.
+- `cycles: {enabled, count}` (with `continuous` only, `CYCLE_DEFAULTS`
+  `{enabled: false, count: 0}`): **loop cycles**. Instead of one never-ending
+  set, the effect plays its lifespan (`life_ticks`, or `start_frame` →
+  `end_frame`) as a cycle: each cycle spawns a new set of `emit.count`, its
+  keys replayed from `start_frame`, and the set ends with the cycle (an
+  instance launched by a key lives `life_ticks` from its launch instead).
+  `count` -1 = forever, 0 = the first cycle only, N = N more cycles after the
+  first. A run starts each time the action reaches `start_frame` and then
+  runs on its own clock: it carries on when the action ends or changes, and
+  playing the action again starts another run alongside (at most
+  `CYCLE_MAX_RUNS` 8 per effect; starting a ninth stops the oldest).
 
 ### Motion (`motion.kind`)
 | kind | behaviour | engine source |
@@ -282,7 +293,20 @@ An effect can animate its numbers and custom colours over the action
   along the key's `ease`, and holds after its last key.
 - Keyable: every number and every `#rrggbb` colour in `params`, `motion`,
   `emit`, `color`, `battle` and `intercept`, plus `offset.0`, `offset.1` and
-  `life_ticks`. Choices and toggles aren't keyable.
+  `life_ticks`. Three choices are keyable too (`KEY_CHOICES`): `motion.kind`
+  (`attached`, `static`, `orbit`, `travel`, `homing`, `zigzag`), `motion.aim`
+  and `motion.orbit_dir`. A choice has no in-between: it holds, then switches
+  at its key. Other choices and toggles aren't keyable.
+- **Motion switches** (`motionSwitch` / `motion_switch`): when a keyed
+  `motion.kind` or `motion.aim` changes, every live instance changes from
+  where it is. Into `travel` / `homing` / `zigzag` it launches along its aim
+  (with `aim_offset_deg`) at the keyed `speed`; coming off the fighter (from
+  `attached` / `static` / `orbit`) it is a shot from then on: it lives
+  `life_ticks` from the launch (0 = `LAUNCH_LIFE` 220), and a continuous
+  instance stops being continuous (its effect makes no new set until the
+  action restarts or changes). Into `orbit` it carries on round its anchor at
+  the angle it is at (at the orbit's radius); into `attached` / `static` it
+  stops. Deflected, lodged and weapon instances never switch.
 - `ease` (how the value moves into this key): `linear`, `in`, `out`, `inout`,
   `strong_in`, `strong_out`, `strong_inout` (quartic), `hold` (stays, then
   jumps at the key), `bounce`, `elastic`.
