@@ -863,15 +863,15 @@ function buildEffects() {
     el.innerHTML = '<input type="checkbox"><span class="n"></span><span class="m"></span><span class="ct"></span><span class="x" title="Duplicate">⧉</span><span class="x" title="Delete">✕</span>';
     var cb = el.querySelector("input"); cb.checked = fx.enabled; cb.title = "Enabled";
     cb.onclick = function (ev) { ev.stopPropagation(); fx.enabled = cb.checked; resetSim(S.t); save(); };
-    // Continuous toggle: the effect keeps producing, never resetting.
+    // Always-on toggle: the effect keeps producing, never resetting.
     var ct = el.querySelector(".ct"), can = FXK.canContinue(fx);
-    ct.textContent = "∞"; ct.className = "ct" + (fx.continuous && can ? " on" : "") + (can ? "" : " off");
-    ct.title = can ? (fx.continuous ? "Continuous: ON — keeps producing without resetting (click to turn off)" : "Continuous: off — click so it keeps producing without resetting (e.g. an always-on laser trail)")
-      : "Continuous is for effects that stay on the fighter (attached, static or orbit motion, not arcs)";
+    ct.textContent = "∞"; ct.className = "ct" + (fx.always_on && can ? " on" : "") + (can ? "" : " off");
+    ct.title = can ? (fx.always_on ? "Always on: ON — keeps producing without resetting (click to turn off)" : "Always on: off — click so it keeps producing without resetting (e.g. an always-on laser trail)")
+      : "Always on is for effects that stay on the fighter (attached, static or orbit motion, not arcs)";
     ct.onclick = function (ev) {
       ev.stopPropagation();
-      if (!can) return toast("Continuous needs attached, static or orbit motion (not arcs)");
-      fx.continuous = !fx.continuous; buildEffects(); changed(true);
+      if (!can) return toast("Always on needs attached, static or orbit motion (not arcs)");
+      fx.always_on = !fx.always_on; if (fx.always_on) fx.continuous = false; buildEffects(); changed(true);
     };
     el.querySelector(".n").textContent = fx.name;
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
@@ -1396,21 +1396,22 @@ function buildProps() {
   }
 
   s = sec(d, "Timing (frames of " + S.action + ": 0–" + (frames() - 1) + ")", "timing", "When it plays within the action's frames, how long each copy lives and how often it re-emits.");
-  // Continuous follows the effect's own (start-frame) motion, not a keyed switch at the playhead.
-  var base = KV ? KV.fx : fx, canC = FXK.canContinue(base), isC = canC && fx.continuous, cyc = fx.cycles;
-  if (canC) field(s, "∞ Continuous", inp("chk", fx.continuous, function (v) { fx.continuous = v; buildEffects(); changed(true); })).title =
-    "On: starts at the start frame and never stops or resets while the action plays, loop after loop (an always-on laser trail). End frame, life and re-emit are ignored and it doesn't fade out.";
-  else note(s, "Continuous (∞) is available for effects that stay on the fighter: attached, static or orbit motion, not arcs.");
-  if (isC) {
-    field(s, "⟳ Loop cycles", inp("chk", cyc.enabled, function (v) { cyc.enabled = v; changed(true); })).title =
-      "On: the effect plays its lifespan as a cycle (Life ticks, or start frame to end frame), a new set each cycle, keys replayed from the start frame.";
-    if (cyc.enabled) {
-      field(s, "Loops (-1 = forever)", inp("n", cyc.count, function (v) { cyc.count = Math.max(-1, Math.round(v)); changed(); }, -1, 999, 1)).title =
-        "-1 = forever; 0 = the first cycle only, then done; 1 or more = that many more cycles after the first.";
-      note(s, "⟳ Loop cycles: each cycle lasts the lifespan (Life ticks, or start frame to end frame) and brings a new set; a set that hasn't launched ends with its cycle. " +
-        "Cycles carry on when the action ends or changes, and playing the action again starts another run alongside (up to " + FXK.CYCLE_MAX_RUNS + " at once per effect; the oldest stops).");
-    } else note(s, "∞ Continuous is on: it starts at the start frame and keeps producing without resetting. End frame, life and re-emit below are ignored. If a key launches its set (Motion → travel), no new set comes until the action plays again.");
+  // Always on follows the effect's own (start-frame) motion, not a keyed switch at the playhead.
+  var base = KV ? KV.fx : fx, canA = FXK.canContinue(base), isA = canA && fx.always_on, cyc = fx.cycles;
+  field(s, "⟳ Continuous", inp("chk", fx.continuous, function (v) { fx.continuous = v; if (v) fx.always_on = false; buildEffects(); changed(true); })).title =
+    "On: the whole sequence plays through exactly as set up below (emits, entry points, life, keys), even if the action ends, changes or restarts. Nothing is restricted.";
+  if (fx.continuous) {
+    note(s, "⟳ Continuous: each time the action reaches the start frame, the effect plays its whole sequence on its own clock, exactly as set up below, " +
+      "and finishes it even if the action ends, changes or restarts (playing it again starts another alongside, up to " + FXK.CYCLE_MAX_RUNS + " at once). " +
+      "Keys switching Motion (e.g. orbit → travel) act on every copy made so far.");
+    field(s, "Loop cycles", inp("chk", cyc.enabled, function (v) { cyc.enabled = v; changed(true); })).title =
+      "On: when the sequence is done (start frame to end frame, or Life ticks if longer) it plays again from the start.";
+    if (cyc.enabled) field(s, "Loops (-1 = forever)", inp("n", cyc.count, function (v) { cyc.count = Math.max(-1, Math.round(v)); changed(); }, -1, 999, 1)).title =
+      "-1 = forever; 0 = once, then done; 1 or more = that many more times after the first.";
   }
+  if (canA) field(s, "∞ Always on", inp("chk", fx.always_on, function (v) { fx.always_on = v; if (v) fx.continuous = false; buildEffects(); changed(true); })).title =
+    "On: starts at the start frame and never stops or resets while the action plays, loop after loop (an always-on laser trail). End frame, life and re-emit are ignored and it doesn't fade out.";
+  if (isA) note(s, "∞ Always on: it starts at the start frame and keeps producing without resetting. End frame, life and re-emit below are ignored. If a key launches its set (Motion → travel), no new set comes until the action plays again.");
   field(s, "Start frame", inp("n", fx.start_frame, function (v) { fx.start_frame = Math.max(0, Math.round(v)); changed(); }, 0, frames() - 1, 1));
   field(s, "End frame (-1 = end)", inp("n", fx.end_frame, function (v) { fx.end_frame = Math.round(v); changed(); }, -1, frames() - 1, 1));
   if (fx.prim !== "weapon") {
@@ -2066,12 +2067,12 @@ function buildTimeline() {
     var w = player.window(fx, n, frameMs());
     var b = document.createElement("div"); b.className = "tlbar" + (fx.id === S.sel ? " sel" : "") + (fx.battle.deals_damage ? " dmg" : "");
     // Bar = the emission window; a one-shot with a fixed life shows that life.
-    var cont = FXK.isContinuous(fx);
+    var cont = FXK.isAlwaysOn(fx), seq = FXK.isContinuous(fx);
     if (cont) b.className += " cont";
     var span = cont ? total - w[0] : (fx.life_ticks > 0 && !(fx.emit.every_ticks > 0)) ? fx.life_ticks : w[1] - w[0];
     b.style.left = (w[0] / total * W) + "px"; b.style.width = Math.max(4, span / total * W) + "px";
     b.title = fx.name + " — " + fx.prim + ", starts frame " + fx.start_frame;
-    b.style.top = (18 + row * 15) + "px"; b.style.opacity = fx.enabled ? 1 : 0.4; b.textContent = (cont ? "∞ " : "") + fx.name;
+    b.style.top = (18 + row * 15) + "px"; b.style.opacity = fx.enabled ? 1 : 0.4; b.textContent = (cont ? "∞ " : seq ? "⟳ " : "") + fx.name;
     b.dataset.fx = fx.id;   // selected on release by the timeline's pointer handler
     tl.appendChild(b);
     (fx.keys || []).forEach(function (k, ki) {
@@ -2320,7 +2321,7 @@ function loop(now) {
   var dt = Math.min(100, now - (last || now)); last = now;
   if (S.playing && C && act()) {
     acc += dt * (+$("speed").value || 1);
-    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
+    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length && !player.runs.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
   }
   draw();
   refreshCondPreview();

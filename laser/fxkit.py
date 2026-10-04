@@ -328,7 +328,12 @@ def _fill(dst, default):
 def normalize(fx):
     if fx.get("prim") not in PRIMS:
         fx["prim"] = "glow"
+    # Files from before ∞ Always on was split out (no always_on, no cycles):
+    # their continuous meant always on.
+    if "always_on" not in fx and "cycles" not in fx and fx.get("continuous"):
+        fx["always_on"], fx["continuous"] = True, False
     _fill(fx, dict(name=fx["prim"], tag="", enabled=True, start_frame=0, end_frame=-1, life_ticks=0, continuous=False,
+                   always_on=False,
                    anchor="figure", offset=[0, 0], layer="front", blend="normal"))
     fx["emit"] = _fill(dict(fx.get("emit") or {}), dict(every_ticks=0, count=1, fan_deg=0))
     fx["cycles"] = _fill(dict(fx.get("cycles") or {}), CYCLE_DEFAULTS)
@@ -585,27 +590,34 @@ def action_kind(name):
 
 
 def can_continue(fx):
+    """Whether fx can be ∞ Always on: it stays on the fighter (attached,
+    static, orbit or path motion) and is not an arc."""
     return fx["prim"] != "arc" and fx["motion"]["kind"] in ("attached", "static", "orbit", "path")
 
 
-def is_continuous(fx):
-    return bool(fx.get("continuous")) and can_continue(fx)
+def is_always_on(fx):
+    """fx["always_on"] (∞ Always on): the effect never stops producing while
+    its action plays, loop after loop (an always-on laser trail): one set kept
+    alive with no end; End frame / Life ticks / Emit every are ignored and it
+    does not fade out.  FXK.isAlwaysOn."""
+    return bool(fx.get("always_on")) and can_continue(fx)
 
 
-# fx["cycles"] (Continuous only): instead of one never-ending set, the effect
-# plays its lifespan (Life ticks, or start frame -> end frame) as a cycle: a
-# new set each cycle, its keys replayed from the start frame, every set
-# ending with its lifespan (a launched instance lives Life ticks from its
-# launch instead).  count: -1 = forever, 0 = the first cycle only, N = N more
-# cycles.  Cycles run on their own clock: they carry on when the action ends
-# or changes, and playing the action again starts another run alongside (at
-# most CYCLE_MAX_RUNS per effect; the oldest stops).  FXK.isCycling.
+# fx["continuous"] (⟳ Continuous): the effect plays its whole sequence
+# through, exactly as authored (start / end frame, Emit every, count, fan,
+# entry points, Life ticks, keys, any motion), on its own clock: it carries
+# on to the end when the action ends early, changes or restarts.  Each time
+# the action reaches the start frame a run starts; replaying the action
+# starts another alongside (at most CYCLE_MAX_RUNS per effect; the oldest
+# stops).  A run lasts its sequence: start frame -> end frame, or the first
+# copy's Life ticks if that is longer.  fx["cycles"] {enabled, count} then
+# replays the whole sequence: -1 = forever, 0 = once, N = N more times.
 CYCLE_DEFAULTS = dict(enabled=False, count=0)
 CYCLE_MAX_RUNS = 8
 
 
-def is_cycling(fx):
-    return is_continuous(fx) and bool((fx.get("cycles") or {}).get("enabled"))
+def is_continuous(fx):
+    return bool(fx.get("continuous"))
 
 
 def life_t(inst):
@@ -766,11 +778,11 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "cyc")
+                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run")
 
     def __init__(self):
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
-        self.cyc = False       # spawned by a loop-cycle run
+        self.run = False       # spawned by a Continuous run
         self.lodge = None      # blade stuck in the target it hit (blade_lodge)
         self.chase = False     # intercept: steering at an enemy projectile
         self.bvx = self.bvy = 0.0   # its own velocity from before the chase
@@ -902,8 +914,8 @@ def motion_switch(inst, host):
     along its Aim at the keyed Speed; coming off the fighter (from attached /
     static / orbit) it is a shot from then on, living Life ticks from the
     launch (0 = LAUNCH_LIFE).  Into orbit it carries on round its anchor from
-    its own angle; into attached / static it stops.  Returns True when a
-    continuous instance launched (its set is spent)."""
+    its own angle; into attached / static it stops.  Returns True when an
+    always-on instance launched (its set is spent)."""
     fx = inst.fx
     m = fx["motion"]
     frm, was_cont = inst.mk, bool(inst.cont)
@@ -2079,8 +2091,8 @@ class Player:
         self.insts = []
         self.clock = 0
         self.pending = []
-        self.runs = []      # loop-cycle runs (is_cycling)
-        self.spent = []     # continuous effects whose set launched: none again until the action restarts / changes
+        self.runs = []      # Continuous runs (_step_run)
+        self.spent = []     # always-on effects whose set launched: none again until the action restarts / changes
         self._last_t = -1   # previous tick's t (a smaller t = the action restarted)
 
     @staticmethod
@@ -2104,12 +2116,12 @@ class Player:
                 inst.life = INF
             else:
                 inst.open = j["tag"] == "open"
-                inst.cyc = j["tag"] == "cyc"
+                inst.run = j["tag"] == "run"
             self.insts.append(inst)
 
     def _fire(self, fx, t, n, win, tag, host, run=None):
-        # run (loop cycles): its frame time and cycle number, so each cycle's
-        # keys replay on the action's timing and its randomness differs.
+        # run (Continuous): its frame time and cycle number, so its keys play
+        # on the action's timing and each cycle's randomness differs.
         eset = entry_set_of(fx, host)
         pts = len(eset["points"]) if eset else 1
         for k in range(pts):
@@ -2132,41 +2144,42 @@ class Player:
         due = [j for j in self.pending if j["due"] <= self.clock]
         self.pending = [j for j in self.pending if j["due"] > self.clock]
         for j in due:
-            if j["tag"] == "cyc" or (j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects)):
+            if j["tag"] == "run" or (j["fx"].get("enabled", True) and any(e is j["fx"] for e in effects)):
                 self._spawn_job(j, host)
         # The action restarted (t went back) or an effect left it: its spent
-        # continuous set may start again.
+        # always-on set may start again.
         if t < self._last_t:
             self.spent = []
         self.spent = [f for f in self.spent if any(e is f for e in effects)]
         self._last_t = t
-        # Loop-cycle runs, on their own clock whatever the action is doing.
-        self.runs = [r for r in self.runs if self.clock < r["next"] or self._run_cycle(r, host)]
+        # Continuous runs, on their own clock whatever the action is doing.
+        self.runs = [r for r in self.runs if self._step_run(r, host)]
         for inst in self.insts:
             src = inst.src or inst.fx
-            if inst.cont and (not src.get("enabled", True) or not any(e is src for e in effects) or not is_continuous(src)):
+            if inst.cont and (not src.get("enabled", True) or not any(e is src for e in effects) or not is_always_on(src)):
                 inst.dead = True
         for fx in (() if held else effects):
             if not fx.get("enabled", True):
                 continue
             s, e, total = self.window(fx, frames, frame_ms)
-            if is_cycling(fx):   # a new run of cycles each time the action reaches the start frame
-                if not (t_prev < s <= t):
-                    continue
-                mine = [r for r in self.runs if r["fx"] is fx]
-                if len(mine) >= CYCLE_MAX_RUNS:
-                    self.runs.remove(mine[0])
-                run = {"fx": fx, "s": s, "len": max(1, trunc(fx["life_ticks"]) if fx["life_ticks"] > 0 else e - s),
-                       "fms": self._fms, "k": 0, "next": 0, "left": trunc(fx["cycles"]["count"])}
-                if self._run_cycle(run, host):   # the first cycle starts on this tick
-                    self.runs.append(run)
-                continue
-            if is_continuous(fx):
+            if is_always_on(fx):
                 if t < s or any(f is fx for f in self.spent) \
                         or any((q.src or q.fx) is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
                         or any(q["fx"] is fx for q in self.pending):
                     continue
                 self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host)
+                continue
+            if is_continuous(fx):   # a run of its whole sequence each time the action reaches the start frame
+                if not (t_prev < s <= t):
+                    continue
+                mine = [r for r in self.runs if r["fx"] is fx]
+                if len(mine) >= CYCLE_MAX_RUNS:
+                    self.runs.remove(mine[0])
+                run = {"fx": fx, "s": s, "e": e, "rt": s,
+                       "len": max(1, e - s, trunc(fx["life_ticks"]) if fx["life_ticks"] > 0 else 0),
+                       "fms": self._fms, "k": 0, "loop": bool(fx["cycles"]["enabled"]), "left": trunc(fx["cycles"]["count"])}
+                if self._step_run(run, host):   # its first tick is this one
+                    self.runs.append(run)
                 continue
             every = fx["emit"]["every_ticks"]
             periodic = every > 0 and s < t < e and (t - s) % every == 0
@@ -2195,15 +2208,23 @@ class Player:
             resolve_hits(inst, host, ps)
         self.insts = [i for i in self.insts if not i.dead]
 
-    def _run_cycle(self, r, host):
-        """Fire one cycle's set of run r; False once it has no cycles left."""
-        self._fire(r["fx"], r["s"], max(1, trunc(r["fx"]["emit"]["count"])), r["len"], "cyc", host, r)
-        r["k"] += 1
-        r["next"] = self.clock + r["len"]
-        if r["left"] == 0:
+    def _step_run(self, r, host):
+        """One tick of a Continuous run: the effect's own emissions at run
+        time r["rt"] (exactly as the action would fire them), then the clock
+        moves on.  False once the sequence (and every cycle) is done."""
+        fx, rt, s = r["fx"], r["rt"], r["s"]
+        ev = fx["emit"]["every_ticks"]
+        if rt == s or (ev > 0 and s < rt < r["e"] and (rt - s) % ev == 0):
+            self._fire(fx, rt, max(1, trunc(fx["emit"]["count"])), r["e"] - rt, "run", host, r)
+        r["rt"] = rt + 1
+        if r["rt"] - s < r["len"]:
+            return True
+        if not r["loop"] or r["left"] == 0:
             return False
         if r["left"] > 0:
             r["left"] -= 1
+        r["k"] += 1
+        r["rt"] = s
         return True
 
     def draw(self, p, host, layer, hidden=False):
@@ -2342,7 +2363,7 @@ class CharacterFx:
             sf = max(0, int(c.get("start_frame") or 0))
             c["start_frame"], c["end_frame"] = 0, -1
             c["keys"] = [dict(k, frame=max(0, int(k["frame"]) - sf)) for k in (c.get("keys") or [])]
-            c["continuous"] = can_continue(c)
+            c["always_on"] = can_continue(c)
             out.append(c)
         res = (out, (src[0].get("action") or "idle") if src else None)
         self._retreat_fx[key] = res
