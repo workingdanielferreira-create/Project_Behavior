@@ -1,8 +1,8 @@
-/* FX Kit runtime (pb_fxkit v1) — the reference implementation.
+/* FX Kit runtime (pb_fxkit v2) — the reference implementation.
  *
  * Every FX the Studio authors is an EFFECT: one drawing primitive + where it
  * starts (anchor joint), how it moves (motion), what colour it takes (colour
- * source) and when it plays (frames of the character's action).  The seven
+ * source) and when it plays (frames of the character's action).  The nine
  * primitives are the engine's own drawing routines, lifted out of the
  * hardcoded effect classes so any character can compose them:
  *
@@ -12,6 +12,7 @@
  *   sprite     combat.bullet_sprite / bolt_sprite + Projectile.draw (orbs, bolts)
  *   particles  combat.BurstParticle                 (sparks, dust)
  *   glow       TrailComponent head glow/core        (spheres, flares)
+ *   pulse      radial pulse rings (new)             (shockwaves, auras)
  *   ghost      figure afterimages (silhouette)      (speed ghosts)
  *   weapon     melee hitbox: a capsule between two anchors (e.g. near hand ->
  *              weapon tip) that follows the frames; invisible in-game
@@ -1543,7 +1544,7 @@ function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

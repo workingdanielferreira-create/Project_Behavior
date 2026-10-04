@@ -2054,8 +2054,9 @@ def spawn_deflect_crescent(fig, contact_x, contact_y):
 # UltimateCrescent — swordsman ultimate: a large slow blade launched at 50% HP
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# Petals — hovering defensive FX (see character JSON `petals` fx_layer, and
-# tools/fx/fx_engine.js `fx_semantics.petals`). Works for ANY archetype
+# Petals — hovering defensive FX (see character JSON `petals` fx_layer; the
+# authoring side was `fx_semantics.petals` in the retired FX Creator's
+# tools/fx/fx_engine.js, removed after commit 798d852). Works for ANY archetype
 # (shooter or melee); a no-op for characters that don't define one. Runs every
 # tick for every figure identically in Solo & Battle — in Solo there is
 # simply nothing in world.enemy_projs to intercept, so petals just hover.

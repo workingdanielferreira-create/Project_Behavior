@@ -1,3 +1,9 @@
+/* Rig maths of the retired FX Creator, kept as the reference that
+ * laser/characters.py and v2/pb2/render/rig.py port (`joints()`, the default
+ * pose `Z`, head radius, weapon polylines) for JSON-authored characters.
+ * Nothing loads this file any more: the FX Creator page around it was removed
+ * after commit 798d852.  Rig Forge (rigforge.html) has its own, different rig.
+ */
 const $=id=>document.getElementById(id);const cv=$('cv'),ctx=cv.getContext('2d'),jsonEl=$('json');
 let W,H;function rsz(){W=cv.width=cv.clientWidth;H=cv.height=cv.clientHeight}window.onresize=rsz;
 const D=Math.PI/180,rnd=(a,b)=>a+Math.random()*(b-a),lerp=(a,b,t)=>a+(b-a)*t;

@@ -334,4 +334,42 @@ G.FX_PRESETS = [
    }))}
 
 ];
+// Built-in entry-set and path presets (Paths & entry points panel).  kind
+// "set" items are entry sets, "path" items paths, in the shapes
+// FXK.normalizeEntrySet / FXK.normalizePath read; points are game px, x forward.
+G.GEO_PRESETS = [
+  {kind: "set", desc: "Three points in an arc above the head, firing together.",
+    item: {name: "Halo of 3", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-16, -44], [0, -50], [16, -44]]}},
+  {kind: "set", desc: "Three points behind the back, firing one after another.",
+    item: {name: "Back row of 3", base: "figure", mode: "sequential", interval_ticks: 6, points: [[-22, -36], [-30, -18], [-22, 0]]}},
+  {kind: "set", desc: "One point each side of the body, firing together.",
+    item: {name: "Both sides", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-26, -20], [26, -20]]}},
+  {kind: "set", desc: "Six points in a ring around the fighter, firing in turn.",
+    item: {name: "Ring of 6", base: "figure", mode: "sequential", interval_ticks: 4,
+      points: [0, 1, 2, 3, 4, 5].map(function (i) { var a = i * Math.PI / 3 - Math.PI / 2; return [Math.round(Math.cos(a) * 34), Math.round(Math.sin(a) * 34 - 16)]; })}},
+  {kind: "set", desc: "A column of four points in front of the body, firing top to bottom.",
+    item: {name: "Front column of 4", base: "figure", mode: "sequential", interval_ticks: 5, points: [[16, -42], [18, -28], [18, -14], [16, 0]]}},
+  {kind: "path", desc: "Straight ahead, turned toward the aim, and keeps going.",
+    item: {name: "Straight", points: [[0, 0], [120, 0]], smooth: false, ticks: 20, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Lobs up and over toward the aim, then keeps going.",
+    item: {name: "Arc over", points: [[0, 0], [50, -40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Dips under toward the aim, then keeps going.",
+    item: {name: "Arc under", points: [[0, 0], [50, 40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Weaves once each way on its way to the aim.",
+    item: {name: "S-curve", points: [[0, 0], [30, -25], [60, 0], [90, 25], [120, 0]], smooth: true, ticks: 28, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "A tight wave toward the aim.",
+    item: {name: "Sine wave", points: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return [i * 20, i % 2 ? (i % 4 === 1 ? -14 : 14) : 0]; }), smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "A loop-the-loop, then on toward the aim.",
+    item: {name: "Loop", points: [[0, 0], [40, 0], [62, -20], [40, -42], [18, -20], [40, 0], [110, 0]], smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
+  {kind: "path", desc: "Out and back to the fighter, like a boomerang.",
+    item: {name: "Boomerang", points: [[0, 0], [60, -18], [100, 0], [60, 18], [0, 0]], smooth: true, ticks: 40, orient: "aim", end: "stop", follow: true}},
+  {kind: "path", desc: "Rises straight up above the fighter.",
+    item: {name: "Rise up", points: [[0, 0], [0, -80]], smooth: false, ticks: 30, orient: "facing", end: "stop", follow: false}},
+  {kind: "path", desc: "Spirals outward from where it starts.",
+    item: {name: "Spiral out", points: (function () { var o = []; for (var i = 0; i <= 16; i++) { var a = i * Math.PI / 4, r = 3 + i * 3; o.push([Math.round(Math.cos(a) * r - 3), Math.round(Math.sin(a) * r)]); } o[0] = [0, 0]; return o; })(),
+      smooth: true, ticks: 48, orient: "facing", end: "stop", follow: false}},
+  {kind: "path", desc: "Circles the fighter again and again (use with ∞ Continuous).",
+    item: {name: "Circle around", points: (function () { var o = []; for (var i = 0; i <= 12; i++) { var a = i * Math.PI / 6; o.push([Math.round(30 - Math.cos(a) * 30), Math.round(-Math.sin(a) * 30)]); } o[0] = [0, 0]; return o; })(),
+      smooth: true, ticks: 60, orient: "facing", end: "loop", follow: true}}
+];
 })(window);

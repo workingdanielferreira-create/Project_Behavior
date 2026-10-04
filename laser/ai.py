@@ -16,9 +16,10 @@ from . import blink as _blink
 # ---------------------------------------------------------------------------
 # Activation triggers — evaluates the `activation_triggers` /
 # `retrigger_cooldown_ms` schema authored in the FX Creator for
-# attack_special / ultimate / special_ability (see
-# tools/fx/character_creator.js ACTIVATION_TRIGGER_SEMANTICS for the
-# authoring-side contract this mirrors exactly). Pure logic, identical in
+# attack_special / ultimate / special_ability (the authoring-side contract
+# this mirrors exactly was ACTIVATION_TRIGGER_SEMANTICS in the retired FX
+# Creator's tools/fx/character_creator.js, removed after commit 798d852;
+# read it there with git show 798d852:tools/fx/character_creator.js). Pure logic, identical in
 # Solo & Battle. NOTE: this decides *whether* an action should fire; wiring
 # a fired action into the actual animation/fx_layers playback for custom
 # characters is a separate, not-yet-built pipeline (see ARCHITECTURE notes) —
