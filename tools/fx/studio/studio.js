@@ -1025,8 +1025,19 @@ function buildGeoProps(d) {
     field(s, "Measured from", inp([["figure", "figure (image centre)"]].concat(anchorOptions(false)), it.base, function (v) { it.base = v; changed(true); })).title =
       "The points sit around this spot and move with it (pick an anchor to have them follow a hand, the head…).";
     field(s, "Firing", inp([["simultaneous", "Simultaneous (all at once)"], ["sequential", "Sequential (one after another)"]], it.mode, function (v) { it.mode = v; buildGeo(); changed(true); }));
-    if (it.mode === "sequential") field(s, "Ticks between points", inp("n", it.interval_ticks, function (v) { it.interval_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1)).title =
-      "Point 1 fires when the effect fires, point 2 this many ticks later, and so on (16 ms per tick).";
+    if (it.mode === "sequential") {
+      field(s, "Ticks between points", inp("n", it.interval_ticks, function (v) { it.interval_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1)).title =
+        "The first point fires when the effect fires, the next this many ticks later, and so on (16 ms per tick).";
+      field(s, "Order", inp([["forward", "forward (1 \u2192 n)"], ["reverse", "reverse (n \u2192 1)"], ["pingpong", "ping-pong (1 \u2192 n \u2192 1)"], ["random", "random (new order each time)"]], it.order, function (v) { it.order = v; buildGeo(); changed(true); })).title =
+        "Which point fires first. Random shuffles the order every time the effect fires (the same in the Studio and the game).";
+    }
+    field(s, "Start frame", inp("n", it.start_frame, function (v) { it.start_frame = Math.max(0, Math.round(v)); changed(); }, 0, 999, 1)).title =
+      "The action frame these points start producing particles on (counted in the action that uses them). Before it, nothing comes out.";
+    field(s, "Stop frame (-1 = end)", inp("n", it.stop_frame, function (v) { it.stop_frame = Math.max(-1, Math.round(v)); changed(); }, -1, 999, 1)).title =
+      "The last action frame these points produce particles on. After it they stop producing; particles already out carry on (Continuous ones keep living for the rest of the action).";
+    var n = frames();
+    if (it.stop_frame >= 0 && it.stop_frame < it.start_frame) note(s, "Stop frame is before Start frame, so these points never produce anything.");
+    else note(s, "Produces particles on frames " + it.start_frame + "\u2013" + (it.stop_frame < 0 ? "end" : it.stop_frame) + " of the action using it" + (n ? " (this action has " + n + " frames, 0\u2013" + (n - 1) + ")" : "") + ", inside the effect's own Start / End frames.");
   } else {
     field(s, "Ticks start → end", inp("n", it.ticks, function (v) { it.ticks = Math.max(1, Math.round(v)); buildGeo(); changed(); }, 1, 2000, 1)).title = "How long it takes to travel the whole path (16 ms per tick).";
     field(s, "Smooth curve", inp("chk", it.smooth, function (v) { it.smooth = v; changed(); })).title = "On: a smooth curve through the points. Off: straight lines between them.";
@@ -1040,7 +1051,7 @@ function buildGeoProps(d) {
     "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down.", "geo");
   it.points.forEach(function (p, i) {
     var row = document.createElement("div"); row.className = "f pt";
-    var l = document.createElement("label"); l.textContent = (isSet ? "#" + (i + 1) : "Point " + i) + (isSet && it.mode === "sequential" ? "  +" + i * it.interval_ticks + "t" : ""); row.appendChild(l);
+    var l = document.createElement("label"); l.textContent = (isSet ? "#" + (i + 1) : "Point " + i) + (isSet && it.mode === "sequential" && it.order === "forward" ? "  +" + i * it.interval_ticks + "t" : ""); row.appendChild(l);
     var bx = document.createElement("span"); bx.className = "xy";
     var ix = inp("n", p[0], function (v) { p[0] = v; changed(); }, -2000, 2000, 0.5), iy = inp("n", p[1], function (v) { p[1] = v; changed(); }, -2000, 2000, 0.5);
     ix.title = "X (forward)"; iy.title = "Y (down)";

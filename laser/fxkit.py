@@ -251,11 +251,10 @@ def fx_facing(fx, host):
 #                                  placed; blades aim their tips at the
 #                                  target (blade_pose).
 # Either one turns the effect's own direction (body_deg); both together do
-# both.
-def body_deg(fx, host):
-    if not (fx.get("follow_dir") or fx.get("follow_each")):
-        return 0.0
-    b = host.anchor("figure")
+# both.  With Each particle the turn is measured from the particle's own spot
+# (`at`) to the target, so every particle points at the target from where it
+# is (aims, launches, arcs, beams, particle angles, paths, orbits, tilt).
+def _deg_to_target(fx, host, b):
     dx, dy = host.target[0] - b[0], host.target[1] - b[1]
     if dx * dx + dy * dy < 1e-6:
         return 0.0
@@ -263,24 +262,32 @@ def body_deg(fx, host):
     return (math.fmod(a, 360.0) + 540.0) % 360.0 - 180.0
 
 
+def body_deg(fx, host, at=None):
+    if fx.get("follow_each") and at is not None:
+        return _deg_to_target(fx, host, at)
+    if not (fx.get("follow_dir") or fx.get("follow_each")):
+        return 0.0
+    return _deg_to_target(fx, host, host.anchor("figure"))
+
+
 def place_deg(fx, host):
     """The turn for where the effect sits (offset, entry points): only
     Follow direction swings it round its anchor."""
-    return body_deg(fx, host) if fx.get("follow_dir") else 0.0
+    return _deg_to_target(fx, host, host.anchor("figure")) if fx.get("follow_dir") else 0.0
 
 
 def turn_by(v, deg):
     return rot(v, deg) if deg else v
 
 
-def turn_sign(fx, host, d):
+def turn_sign(fx, host, d, at=None):
     """Sign for the facing-relative turns (fan, aim offset); times inst.flip,
     the arc / zigzag side.  Without Flip: the facing.  With Flip, a target aim
     heading backward counts as forward, so up / down never swaps."""
     f = fx_facing(fx, host)
     if not (fx.get("flip") or {}).get("enabled") or fx["motion"]["aim"] != "target":
         return f
-    u = turn_by(d, -body_deg(fx, host))
+    u = turn_by(d, -body_deg(fx, host, at))
     return -f if u[0] * f < 0 else f
 
 
@@ -328,7 +335,12 @@ AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to
 # ticks HP the fighter is invincible for cooldown_ms (read by ai.py
 # damage_cooldown_ticks straight from the pack).
 DAMAGED_DEFAULTS = dict(cooldown_ms=0)
-ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[])
+# start_frame / stop_frame: the action frames the set produces particles in
+# (stop -1 = to the end); what it already spawned lives on as usual.
+# order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
+ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[],
+                      start_frame=0, stop_frame=-1, order="forward")
+ENTRY_ORDERS = ("forward", "reverse", "pingpong", "random")
 PATH_DEFAULTS = dict(name="path", points=[[0, 0]], smooth=True, ticks=30, orient="facing", end="stop", follow=False)
 
 
@@ -586,6 +598,10 @@ def normalize_action(cfg):
 def normalize_entry_set(e):
     e = _fill(dict(e or {}), ENTRY_DEFAULTS)
     e["points"] = [[float(p[0] or 0), float(p[1] or 0)] for p in (e.get("points") or [])]
+    e["start_frame"] = max(0, jround(float(e.get("start_frame") or 0)))
+    e["stop_frame"] = max(-1, jround(float(e.get("stop_frame") if e.get("stop_frame") is not None else -1)))
+    if e.get("order") not in ENTRY_ORDERS:
+        e["order"] = "forward"
     return e
 
 
@@ -701,7 +717,7 @@ def orbit_pos(inst, host, c):
     """Orbit position around centre c (flip mirrors its side and spin)."""
     m, ps = inst.fx["motion"], host_scale(host)
     o = turn_by([math.cos(inst.orbitA * D) * m["orbit_rx"] * ps * inst.flip, math.sin(inst.orbitA * D) * m["orbit_ry"] * ps],
-                body_deg(inst.fx, host))
+                body_deg(inst.fx, host, c))
     return [c[0] + o[0], c[1] + o[1]]
 
 
@@ -786,7 +802,7 @@ def aim_dir(fx, host, x, y):
         v = [math.sin(host.wang * D) * f, -math.cos(host.wang * D)]
     else:
         v = [float(f), 0.0]
-    return turn_by(v, body_deg(fx, host))
+    return turn_by(v, body_deg(fx, host, (x, y)))
 
 
 class Inst:
@@ -826,7 +842,7 @@ def emit_particles(inst, fx, host, n):
     spread, base = P["spread_deg"] * D, P["angle_deg"] * D
     if inst.facing < 0:
         base = math.pi - base
-    base += body_deg(fx, host) * D   # Follow direction: turns toward the target
+    base += body_deg(fx, host, (inst.x, inst.y)) * D   # Follow direction / Each particle: turns toward the target
     smin = float(P["speed_min"]) * inst.ps
     smax = max(smin, float(P["speed_max"]) * inst.ps)
     s0 = max(0.5, float(P["size_min"]))
@@ -846,7 +862,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     m = fx["motion"]
     p = anchor_pos(fx, host, ep)
     d = aim_dir(fx, host, p[0], p[1])
-    ts = turn_sign(fx, host, d)
+    ts = turn_sign(fx, host, d, p)
     if n > 1 and fx["emit"]["fan_deg"]:
         d = rot(d, (-fx["emit"]["fan_deg"] / 2 + fx["emit"]["fan_deg"] * idx / (n - 1)) * ts)
     if m["aim_offset_deg"]:
@@ -884,7 +900,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         if inst.path:
             inst.pl = path_line(inst.path)
             inst.po = list(p)
-            inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host), ef)
+            inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host, p), ef)
     if m["kind"] in ("travel", "homing", "zigzag"):
         inst.vx, inst.vy = d[0] * spd * ps, d[1] * spd * ps
     if m["kind"] == "zigzag":
@@ -897,7 +913,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     if fx["prim"] == "arc":
         P = fx["params"]
         if P["orient"] == "angle":
-            od = turn_by([math.cos(P["angle_deg"] * D) * ef, math.sin(P["angle_deg"] * D)], body_deg(fx, host))
+            od = turn_by([math.cos(P["angle_deg"] * D) * ef, math.sin(P["angle_deg"] * D)], body_deg(fx, host, p))
         else:
             od = d
         # Which side of its line the crescent sits (see turn_sign).
@@ -943,13 +959,21 @@ def motion_switch(inst, host):
     ps = inst.ps or 1.0
     if m["kind"] in MOVERS:
         d = aim_dir(fx, host, inst.x, inst.y)
+        at = (inst.x, inst.y)
+        if frm not in MOVERS and inst.tgt is not None:
+            # Each particle blade: it launches from where it is drawn, along
+            # where it points (blade_pose).
+            bx, by, ba = blade_pose(inst, host_scale(host))
+            inst.x = inst.px = bx
+            inst.y = inst.py = by
+            d, at = [math.cos(ba), math.sin(ba)], (bx, by)
         if m["aim_offset_deg"]:
-            d = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d))
+            d = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d, at))
         spd = float(m["speed"] or 0)
         inst.dir, inst.spd = d, spd
         inst.vx, inst.vy = d[0] * spd * ps, d[1] * spd * ps
         if m["kind"] == "zigzag":   # as spawn: its side of the new line
-            side = inst.flip * turn_sign(fx, host, d) * inst.facing
+            side = inst.flip * turn_sign(fx, host, d, at) * inst.facing
             pr = (-d[1] * side, d[0] * side) if spd > 0.001 else (0.0, side)
             inst.zx, inst.zy = pr[0] * m["amplitude"] * ps, pr[1] * m["amplitude"] * ps
             inst.phase = 0.0
@@ -962,7 +986,7 @@ def motion_switch(inst, host):
     inst.vx = inst.vy = 0.0
     if m["kind"] == "orbit":
         c, hs = anchor_pos(fx, host, inst.ep), host_scale(host)
-        v = turn_by([inst.x - c[0], inst.y - c[1]], -body_deg(fx, host))
+        v = turn_by([inst.x - c[0], inst.y - c[1]], -body_deg(fx, host, c))
         inst.orbitA = math.atan2(v[1] / max(1e-6, m["orbit_ry"] * hs), v[0] / max(1e-6, m["orbit_rx"] * hs * inst.flip)) / D
     return False
 
@@ -1025,7 +1049,7 @@ def move_inst(inst, host):
             inst.dir = norm(mdx, mdy)
     elif fx["prim"] == "beam":
         d = aim_dir(fx, host, inst.x, inst.y)
-        inst.dir = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d)) if m["aim_offset_deg"] else d
+        inst.dir = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d, (inst.x, inst.y))) if m["aim_offset_deg"] else d
 
 
 # ---------------------------------------------------------------- intercept
@@ -1453,7 +1477,7 @@ def pulse_shape(inst, host):
     P = inst.fx["params"]
     sx = max(PULSE_MIN_STRETCH, float(P.get("stretch_x", 1)))
     sy = max(PULSE_MIN_STRETCH, float(P.get("stretch_y", 1)))
-    tilt = float(P.get("tilt_deg", 0) or 0) * inst.flip + body_deg(inst.fx, host)
+    tilt = float(P.get("tilt_deg", 0) or 0) * inst.flip + body_deg(inst.fx, host, (inst.x, inst.y))
     return sx, sy, tilt
 
 
@@ -1746,8 +1770,8 @@ def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_
     ridge) widest near the tip, a crystal guard at 82 % of the length, a
     fading grip, a tight bloom and a wide halo (glow / glow_size) along it,
     and a four-point glint at the tip (hot: brighter ridge and glint, bigger
-    glint).  Returns (pixmap, tip_x, half_h): draw at (-tip_x, -half_h) after
-    translating to the tip and rotating to blade_angle."""
+    glint).  Returns (pixmap, tip_x, half_h); _blit_blade draws it end for
+    end (the glint at the hilt, the fading grip as the point)."""
     ga = max(0, min(255, _js_round(150 * max(0.0, float(glow_pct)) / 100.0)))
     gs = max(0.0, float(glow_size_pct)) / 100.0
     key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), bool(hot), ga, round(gs, 2))
@@ -1833,6 +1857,16 @@ def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_
     return entry
 
 
+def _blit_blade(p, pm, tip_x, half_h, P):
+    """Draw a blade sprite (already translated to the blade's tip, rotated to
+    its angle and scaled) end for end: the art is mirrored along the blade so
+    the fading end leads and the glint sits at the hilt; the blade covers the
+    same tip-to-pommel line as before (hits and lodging unchanged).
+    fxkit.js blitBlade."""
+    p.scale(-1.0, 1.0)
+    p.drawPixmap(trunc(blade_length(P, 1.0) - tip_x), trunc(-half_h), pm)
+
+
 def blade_angle(inst):
     """Which way a blade's tip points (radians): its impact angle while
     lodged; with blade_orient "angle" the held blade_angle_deg (mirrored by
@@ -1873,8 +1907,8 @@ def blade_pose(inst, ps):
     deflected blades keep their own pose.  fxkit.js bladePose."""
     a = blade_angle(inst)
     T = inst.tgt
-    if T is None or inst.lodge is not None or inst.free:
-        return inst.x, inst.y, a
+    if T is None or inst.lodge is not None or inst.free or inst.vx * inst.vx + inst.vy * inst.vy > 0.0001:
+        return inst.x, inst.y, a   # flying blades point along their flight
     h = blade_length(inst.fx["params"], ps) / 2
     cx, cy = inst.x - math.cos(a) * h, inst.y - math.sin(a) * h
     dx, dy = T[0] - cx, T[1] - cy
@@ -1956,7 +1990,7 @@ def _draw_lodged(p, inst, host, ps):
     p.scale(ps, ps)
     p.setOpacity(p.opacity() * k)
     p.setClipRect(QRectF(-pm.width() - 2, -pm.height(), pm.width() + 2 - cut, pm.height() * 2))
-    p.drawPixmap(trunc(-tip_x), trunc(-half_h), pm)
+    _blit_blade(p, pm, tip_x, half_h, P)
     p.restore()
     er = max(1.0, float(P["radius"])) * 1.4 * ps
     ex, ey = inst.x - math.cos(lg["a"]) * lg["depth"], inst.y - math.sin(lg["a"]) * lg["depth"]
@@ -1997,7 +2031,7 @@ def _draw_sprite(p, inst, host, ps):
                                          P.get("glow", 100), P.get("glow_size", 100))
         p.rotate(math.degrees(ba))
         p.scale(ps, ps)
-        p.drawPixmap(trunc(-tip_x), trunc(-half_h), pm)
+        _blit_blade(p, pm, tip_x, half_h, P)
     elif P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
         pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
                                                      P.get("glow", 100), P.get("glow_size", 100))
@@ -2146,6 +2180,36 @@ class Player:
         self._last_t = -1   # previous tick's t (a smaller t = the action restarted)
 
     @staticmethod
+    def entry_window(fx, host, frames, frame_ms):
+        """An entry-set effect's production window in action ticks: (first
+        tick, stop tick).  Nothing is produced before the set's Start frame or
+        from the tick after its Stop frame on (FXK entryWindow)."""
+        eset = entry_set_of(fx, host)
+        if not eset:
+            return 0, INF
+        s = jround(max(0, eset["start_frame"]) * frame_ms / TICK_MS)
+        st = eset["stop_frame"]
+        return s, (INF if st < 0 else jround((min(frames - 1, st) + 1) * frame_ms / TICK_MS))
+
+    @staticmethod
+    def entry_order(eset, fx, t, salt):
+        """The order a sequential set's points fire in (FXK entryOrder)."""
+        n = len(eset["points"])
+        o = eset.get("order")
+        if eset.get("mode") != "sequential" or o == "forward" or n < 2:
+            return list(range(n))
+        if o == "reverse":
+            return list(range(n - 1, -1, -1))
+        if o == "pingpong":
+            return list(range(n)) + list(range(n - 2, 0, -1))
+        idx = list(range(n))
+        r = Rng(hash32(fx["id"]) ^ imul(t + 1, 0x2C1B3C6D) ^ imul(salt, 0x297A2D39))
+        for i in range(n - 1, 0, -1):
+            j = min(i, int(r() * (i + 1)))
+            idx[i], idx[j] = idx[j], idx[i]
+        return idx
+
+    @staticmethod
     def window(fx, frames, frame_ms):
         total = max(1, jround((frames * frame_ms / TICK_MS)))
         s = jround((max(0, fx["start_frame"]) * frame_ms / TICK_MS))
@@ -2158,6 +2222,8 @@ class Player:
             seed = (hash32(j["fx"]["id"]) ^ imul(j["t"] + 1, 0x9E3779B1) ^ imul(i, 0x85EBCA6B)
                     ^ imul(0 if ep is None else ep + 1, 0xC2B2AE35) ^ imul(j.get("salt", 0), 0x27D4EB2F)) & M32
             t0 = j["t"] + j.get("delay", 0)
+            if t0 >= j.get("stop", INF):   # past its entry set's Stop frame: no more particles
+                return
             inst = spawn(fx_at(j["fx"], t0 * TICK_MS / j["fms"]), host, max(1, j["win"]), seed, i, j["n"], ep)
             inst.src, inst.t0, inst.fms = j["fx"], t0, j["fms"]
             if j["tag"] == "cont":
@@ -2169,16 +2235,18 @@ class Player:
                 inst.run = j["tag"] == "run"
             self.insts.append(inst)
 
-    def _fire(self, fx, t, n, win, tag, host, run=None):
+    def _fire(self, fx, t, n, win, tag, host, run=None, stop=INF):
         # run (Continuous): its frame time and cycle number, so its keys play
         # on the action's timing and each cycle's randomness differs.
+        # stop: the entry set's stop tick (entry_window).
         eset = entry_set_of(fx, host)
-        pts = len(eset["points"]) if eset else 1
-        for k in range(pts):
-            delay = k * max(0, trunc(eset["interval_ticks"])) if eset and eset.get("mode") == "sequential" else 0
-            job = {"fx": fx, "t": t, "n": n, "win": win - delay, "ep": k if eset else None, "tag": tag,
+        salt = run["k"] + 1 if run else 0
+        order = self.entry_order(eset, fx, t, salt) if eset else [None]
+        for pos, k in enumerate(order):
+            delay = pos * max(0, trunc(eset["interval_ticks"])) if eset and eset.get("mode") == "sequential" else 0
+            job = {"fx": fx, "t": t, "n": n, "win": win - delay, "ep": k, "tag": tag,
                    "due": self.clock + delay, "delay": delay, "fms": run["fms"] if run else self._fms,
-                   "salt": run["k"] + 1 if run else 0}
+                   "salt": salt, "stop": run["stop"] if run else stop}
             if delay > 0:
                 self.pending.append(job)
             else:
@@ -2212,12 +2280,17 @@ class Player:
             if not fx.get("enabled", True):
                 continue
             s, e, total = self.window(fx, frames, frame_ms)
+            es, stop = self.entry_window(fx, host, frames, frame_ms)
+            if es > s:   # the entry set starts producing later than the effect
+                s = es
+                if s >= total or (s >= e and not is_always_on(fx)):
+                    continue
             if is_always_on(fx):
                 if t < s or any(f is fx for f in self.spent) \
                         or any((q.src or q.fx) is fx and q.cont and not q.dead and q.age < q.life for q in self.insts) \
                         or any(q["fx"] is fx for q in self.pending):
                     continue
-                self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host)
+                self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host, stop=stop)
                 continue
             if is_continuous(fx):   # a run of its whole sequence each time the action reaches the start frame
                 if not (t_prev < s <= t):
@@ -2227,7 +2300,8 @@ class Player:
                     self.runs.remove(mine[0])
                 run = {"fx": fx, "s": s, "e": e, "rt": s,
                        "len": max(1, e - s, trunc(fx["life_ticks"]) if fx["life_ticks"] > 0 else 0),
-                       "fms": self._fms, "k": 0, "loop": bool(fx["cycles"]["enabled"]), "left": trunc(fx["cycles"]["count"])}
+                       "fms": self._fms, "k": 0, "loop": bool(fx["cycles"]["enabled"]), "left": trunc(fx["cycles"]["count"]),
+                       "stop": stop}
                 if self._step_run(run, host):   # its first tick is this one
                     self.runs.append(run)
                 continue
@@ -2239,7 +2313,7 @@ class Player:
             opn = fx["life_ticks"] <= 0 and e >= total
             if continuous and opn and not periodic and any((q.src or q.fx) is fx and q.open and not q.dead for q in self.insts):
                 continue
-            self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), e - t, "open" if opn else "", host)
+            self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), e - t, "open" if opn else "", host, stop=stop)
         self.clock += 1
         ps = host.pscale or 1.0
         if continuous:
