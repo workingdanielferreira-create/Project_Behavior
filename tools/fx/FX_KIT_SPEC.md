@@ -643,11 +643,16 @@ are kept in the browser, and **Export**/**Import** moves them as a
 `pb_fx_presets` file:
 
 ```json
-{"format": "pb_fx_presets", "version": 1, "presets": [{"name": "…", "desc": "…", "effects": [ … ]}]}
+{"format": "pb_fx_presets", "version": 2, "presets": [{"name": "…", "desc": "…", "effects": [ … ]}],
+ "geo_presets": [{"kind": "set" | "path", "desc": "…", "item": { … an entry set or path … }}]}
 ```
 
-A group preset also has `"group": {"name", "anchor", "offset"}`; adding it
-makes a new group on the current action with its effects laid out as saved.
+A group preset also has `"group": {"name", "anchor", "offset"}` (an object);
+adding it makes a new group on the current action with its effects laid out
+as saved. In the built-in list `group` is a string, the preset's category,
+and never makes a group. `geo_presets` (version 2) carries your entry-set
+and path presets; version 1 files have none and still import. Importing a
+preset whose name you already have replaces yours.
 
 The built-in characters (Swordsman, Runner) keep their original effect code.
 The presets only seed new FX.

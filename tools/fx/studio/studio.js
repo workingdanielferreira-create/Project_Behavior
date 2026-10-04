@@ -96,7 +96,31 @@ function playEffects() {
 }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
 function save() { if (C) { syncKeyView(); persist(); record(); } }
-function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.groups, anchors: S.anchors, labels: S.labels, action: S.action, react: S.react, action_settings: S.actionCfg, entry_sets: S.entries, paths: S.paths, aim: S.aim, damaged: S.damaged, retreat: S.retreat, character_scale: S.charScale, scale: imgScale(), img_head: C.headPx, img_origin: C.origin, saved_at: Date.now()}); }
+// The character's editable data, listed once: [S field, key in saved work and
+// in the FX file, how a stored value is read back].  Browser autosave,
+// undo / redo, opening and Save FX all go through this list, so a new
+// setting added here is saved, undone and exported everywhere.
+var DOC = [
+  ["effects", "effects", function (v) { return (v || []).map(function (e) { return FXK.normalize(clone(e)); }); }],
+  ["groups", "groups", function (v) { return clone(v || []); }],
+  ["anchors", "anchors", function (v) { return clone(v || {}); }],
+  ["labels", "labels", function (v) { return clone(v || {}); }],
+  ["actionCfg", "action_settings", function (v) { return clone(v || {}); }],
+  ["entries", "entry_sets", function (v) { return (v || []).map(function (e) { return FXK.normalizeEntrySet(clone(e)); }); }],
+  ["paths", "paths", function (v) { return (v || []).map(function (p) { return FXK.normalizePath(clone(p)); }); }],
+  ["aim", "aim", function (v) { return FXK.normalizeAim(clone(v || {})); }],
+  ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
+  ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
+  ["charScale", "character_scale", clampCharScale]
+];
+function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
+function docIn(src) { DOC.forEach(function (f) { S[f[0]] = f[2](src[f[1]]); }); }
+function docCopy(key) { var f = DOC.filter(function (d) { return d[1] === key; })[0]; return f[2](S[f[0]]); }
+function persist() {
+  var o = docOut();
+  o.action = S.action; o.react = S.react; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
+  lsSet(LS_PROJECT + C.name, o);
+}
 
 // ------------------------------------------------------------ undo / redo
 // Every edit ends in save(), so history snapshots the editable data there:
@@ -104,7 +128,7 @@ function persist() { lsSet(LS_PROJECT + C.name, {effects: S.effects, groups: S.g
 // (typing in a field, placing anchors quickly) settles into one step after
 // 400 ms.  Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes.
 var HIST = {past: [], future: [], cur: null, timer: 0};
-function snapState() { return JSON.stringify({e: S.effects, g: S.groups, a: S.anchors, l: S.labels, c: S.actionCfg, en: S.entries, pa: S.paths, am: S.aim, dm: S.damaged, rt: S.retreat, cs: S.charScale}); }
+function snapState() { return JSON.stringify(docOut()); }
 function histReset() { HIST.past = []; HIST.future = []; HIST.cur = snapState(); clearTimeout(HIST.timer); HIST.timer = 0; histUI(); }
 function record() {
   clearTimeout(HIST.timer);
@@ -119,13 +143,7 @@ function commitHist() {
   HIST.cur = now; HIST.future = []; histUI();
 }
 function applyState(str) {
-  var o = JSON.parse(str);
-  S.effects = o.e.map(FXK.normalize); S.groups = o.g || []; S.anchors = o.a; S.labels = o.l; S.actionCfg = o.c;
-  S.entries = (o.en || []).map(FXK.normalizeEntrySet); S.paths = (o.pa || []).map(FXK.normalizePath);
-  S.aim = FXK.normalizeAim(o.am);
-  S.damaged = FXK.normalizeDamaged(o.dm);
-  S.retreat = FXK.normalizeRetreat(o.rt);
-  S.charScale = clampCharScale(o.cs);
+  docIn(JSON.parse(str));
   if (S.geo && !geoItem()) { S.geo = null; S.geoPlace = false; }
   if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
   pruneGroups();
@@ -319,18 +337,13 @@ function useCharacter(man, acts, pack, dirHandle, folder, packFile) {
   var oldRule = TARGET_HEAD_PX / Math.max(1, C.headPx);
   function loadFrom(src, isLocal) {
     src = src || {};
+    docIn(src);
+    // The FX file names the labels anchor_labels; either falls back to the package's.
     S.labels = clone(src.labels || src.anchor_labels || (man && man.anchor_labels) || {});
     S.anchors = clone(src.anchors || (man && man.anchors) || {});
     if (!Object.keys(S.labels).length) Object.keys(S.anchors[Object.keys(S.anchors)[0]] || {}).forEach(function (k) { S.labels[k] = k; });
-    S.effects = (src.effects || []).map(function (e) { return FXK.normalize(clone(e)); });
-    S.groups = clone(src.groups || []); pruneGroups();
+    pruneGroups();
     S.repaired = repairPresetGroups();
-    S.actionCfg = clone(src.action_settings || {});
-    S.entries = (src.entry_sets || []).map(FXK.normalizeEntrySet); S.paths = (src.paths || []).map(FXK.normalizePath);
-    S.aim = FXK.normalizeAim(clone(src.aim || {}));
-    S.damaged = FXK.normalizeDamaged(clone(src.damaged || {}));
-    S.retreat = FXK.normalizeRetreat(clone(src.retreat || {}));
-    S.charScale = clampCharScale(src.character_scale);
     // The scale and frames this work was made against (older saves used the
     // head-size rule; another export of the same Rig Forge character can
     // have a different frame size / head px).
@@ -427,7 +440,7 @@ function packData() {
       if (row.some(Boolean)) anchors[a][id] = row;
     });
   });
-  return {format: "pb_fxkit", version: 2, tick_ms: FXK.TICK_MS, character: C.name,
+  var out = {format: "pb_fxkit", version: 2, tick_ms: FXK.TICK_MS, character: C.name,
     space: {coords: "game px, y down, relative to the figure position; x mirrors when facing left",
       anchors: "image px of the character's keyframe PNGs (per action, per frame); game px = (p - image_origin_px) * game_px_per_image_px * position_scale",
       image_origin_px: C.origin, head_px: C.headPx, target_head_px: TARGET_HEAD_PX,
@@ -436,15 +449,13 @@ function packData() {
     palette_lut: {built_from: ["palette.body", "palette.accent"], rule: "palette.build_lut([body, accent])"},
     anchor_labels: S.labels, anchors: anchors,
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
-    entry_sets: S.entries.map(function (e) { return FXK.normalizeEntrySet(clone(e)); }),
-    paths: S.paths.map(function (p) { return FXK.normalizePath(clone(p)); }),
-    aim: FXK.normalizeAim(clone(S.aim)),
-    damaged: FXK.normalizeDamaged(clone(S.damaged)),
-    retreat: FXK.normalizeRetreat(clone(S.retreat)),
-    character_scale: clampCharScale(S.charScale),
-    effects: S.effects.map(function (e) { return FXK.normalize(clone(e)); }),
-    groups: clone(S.groups),
+    entry_sets: docCopy("entry_sets"), paths: docCopy("paths"), aim: docCopy("aim"), damaged: docCopy("damaged"),
+    retreat: docCopy("retreat"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
+  // Anchors, labels (anchor_labels) and action settings are written above in
+  // the file's own shape; any other editable field is never left out.
+  DOC.forEach(function (f) { if (f[1] !== "labels" && !(f[1] in out)) out[f[1]] = docCopy(f[1]); });
+  return out;
 }
 function saveFx() {
   if (!C) return toast("Open a character folder first");
@@ -513,7 +524,24 @@ function repairPresetGroups() {
   pruneGroups();
   return fixed;
 }
-function userPresets() { return lsGet(LS_PRESETS) || []; }
+// Your own presets: two browser lists, FX / group presets (one per name) and
+// entry-set / path presets (one per kind + name).  Saving a name that is
+// already there replaces it.
+function presetStore(key, idOf) {
+  return {
+    list: function () { return lsGet(key) || []; },
+    put: function (p) {
+      var id = idOf(p), mine = this.list().filter(function (q) { return idOf(q) !== id; });
+      mine.push(p);
+      if (lsSet(key, mine)) return true;
+      toast("Browser storage unavailable; use Export to keep presets.", 5000); return false;
+    },
+    removeAt: function (i) { var mine = this.list(); if (i >= 0 && i < mine.length) { mine.splice(i, 1); lsSet(key, mine); } }
+  };
+}
+var FX_STORE = presetStore(LS_PRESETS, function (p) { return p.name; });
+var GEO_STORE = presetStore(LS_GEO, function (p) { return p.kind + ":" + (p.item && p.item.name); });
+function userPresets() { return FX_STORE.list(); }
 function allPresets() { return FX_PRESETS.map(function (p) { return {p: p, builtin: true}; }).concat(userPresets().map(function (p) { return {p: p, builtin: false}; })); }
 function buildPresets() {
   var s = $("presetSel"); s.innerHTML = "";
@@ -552,17 +580,21 @@ function savePreset() {
   var fx = selFx(); if (!fx) return;
   askText("Save this effect as a preset named:", fx.name, function (name) {
   var e = clone(fx); delete e.id; delete e.action; delete e.group;
-  var mine = userPresets().filter(function (p) { return p.name !== name; });
-  mine.push({name: name, desc: "Your preset (" + fx.prim + ")", effects: [e]});
-  if (!lsSet(LS_PRESETS, mine)) toast("Browser storage unavailable; use Export to keep presets.", 5000);
-  buildPresets(); toast("Saved preset " + name);
+  if (FX_STORE.put({name: name, desc: "Your preset (" + fx.prim + ")", effects: [e]})) toast("Saved preset " + name);
+  buildPresets();
   });
 }
+// A pb_fx_presets file: FX / group presets, plus (version 2) path and
+// entry-set presets.  Same names replace yours.
 function ingestPresets(o) {
   if (!o || o.format !== "pb_fx_presets") return toast("Not a presets file (pb_fx_presets)");
-  var mine = userPresets(), n = 0;
-  (o.presets || []).forEach(function (p) { if (p && p.name && p.effects) { mine = mine.filter(function (q) { return q.name !== p.name; }); mine.push(p); n++; } });
-  lsSet(LS_PRESETS, mine); buildPresets(); toast("Imported " + n + " presets");
+  var n = 0, g = 0;
+  (o.presets || []).forEach(function (p) { if (p && p.name && p.effects && FX_STORE.put(p)) n++; });
+  (o.geo_presets || []).forEach(function (p) {
+    if (p && (p.kind === "set" || p.kind === "path") && p.item && p.item.name && Array.isArray(p.item.points) && GEO_STORE.put(p)) g++;
+  });
+  buildPresets(); geoRefreshPresets();
+  toast("Imported " + n + " FX preset" + (n === 1 ? "" : "s") + (g ? " and " + g + " path / entry-set preset" + (g === 1 ? "" : "s") : ""));
 }
 
 // ------------------------------------------------------------ groups
@@ -659,10 +691,9 @@ function groupCentre(gr) {
 function saveGroupPreset(gr) {
   askText("Save this group as a preset named:", gr.name, function (name) {
     var ms = groupMembers(gr).map(function (fx) { var e = clone(fx); delete e.id; delete e.action; delete e.group; return e; });
-    var mine = userPresets().filter(function (p) { return p.name !== name; });
-    mine.push({name: name, desc: "Your group preset (" + ms.length + " effects on one pivot)", group: {name: gr.name, anchor: gr.anchor, offset: gr.offset.slice()}, effects: ms});
-    if (!lsSet(LS_PRESETS, mine)) toast("Browser storage unavailable; use Export to keep presets.", 5000);
-    buildPresets(); toast("Saved group preset " + name);
+    if (FX_STORE.put({name: name, desc: "Your group preset (" + ms.length + " effects on one pivot)", group: {name: gr.name, anchor: gr.anchor, offset: gr.offset.slice()}, effects: ms}))
+      toast("Saved group preset " + name);
+    buildPresets();
   });
 }
 function buildGroupProps(d, gr) {
@@ -831,42 +862,8 @@ function buildEffects() {
 //     of, all at once or one after another (effect Anchor = ⊕ set);
 //   paths: routes an effect travels along (effect Motion = path).
 // Points are game px, x forward.  Placed by clicking the stage.
-var GEO_PRESETS = [
-  {kind: "set", desc: "Three points in an arc above the head, firing together.",
-    item: {name: "Halo of 3", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-16, -44], [0, -50], [16, -44]]}},
-  {kind: "set", desc: "Three points behind the back, firing one after another.",
-    item: {name: "Back row of 3", base: "figure", mode: "sequential", interval_ticks: 6, points: [[-22, -36], [-30, -18], [-22, 0]]}},
-  {kind: "set", desc: "One point each side of the body, firing together.",
-    item: {name: "Both sides", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [[-26, -20], [26, -20]]}},
-  {kind: "set", desc: "Six points in a ring around the fighter, firing in turn.",
-    item: {name: "Ring of 6", base: "figure", mode: "sequential", interval_ticks: 4,
-      points: [0, 1, 2, 3, 4, 5].map(function (i) { var a = i * Math.PI / 3 - Math.PI / 2; return [Math.round(Math.cos(a) * 34), Math.round(Math.sin(a) * 34 - 16)]; })}},
-  {kind: "set", desc: "A column of four points in front of the body, firing top to bottom.",
-    item: {name: "Front column of 4", base: "figure", mode: "sequential", interval_ticks: 5, points: [[16, -42], [18, -28], [18, -14], [16, 0]]}},
-  {kind: "path", desc: "Straight ahead, turned toward the aim, and keeps going.",
-    item: {name: "Straight", points: [[0, 0], [120, 0]], smooth: false, ticks: 20, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "Lobs up and over toward the aim, then keeps going.",
-    item: {name: "Arc over", points: [[0, 0], [50, -40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "Dips under toward the aim, then keeps going.",
-    item: {name: "Arc under", points: [[0, 0], [50, 40], [100, 0]], smooth: true, ticks: 24, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "Weaves once each way on its way to the aim.",
-    item: {name: "S-curve", points: [[0, 0], [30, -25], [60, 0], [90, 25], [120, 0]], smooth: true, ticks: 28, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "A tight wave toward the aim.",
-    item: {name: "Sine wave", points: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return [i * 20, i % 2 ? (i % 4 === 1 ? -14 : 14) : 0]; }), smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "A loop-the-loop, then on toward the aim.",
-    item: {name: "Loop", points: [[0, 0], [40, 0], [62, -20], [40, -42], [18, -20], [40, 0], [110, 0]], smooth: true, ticks: 36, orient: "aim", end: "continue", follow: false}},
-  {kind: "path", desc: "Out and back to the fighter, like a boomerang.",
-    item: {name: "Boomerang", points: [[0, 0], [60, -18], [100, 0], [60, 18], [0, 0]], smooth: true, ticks: 40, orient: "aim", end: "stop", follow: true}},
-  {kind: "path", desc: "Rises straight up above the fighter.",
-    item: {name: "Rise up", points: [[0, 0], [0, -80]], smooth: false, ticks: 30, orient: "facing", end: "stop", follow: false}},
-  {kind: "path", desc: "Spirals outward from where it starts.",
-    item: {name: "Spiral out", points: (function () { var o = []; for (var i = 0; i <= 16; i++) { var a = i * Math.PI / 4, r = 3 + i * 3; o.push([Math.round(Math.cos(a) * r - 3), Math.round(Math.sin(a) * r)]); } o[0] = [0, 0]; return o; })(),
-      smooth: true, ticks: 48, orient: "facing", end: "stop", follow: false}},
-  {kind: "path", desc: "Circles the fighter again and again (use with ∞ Continuous).",
-    item: {name: "Circle around", points: (function () { var o = []; for (var i = 0; i <= 12; i++) { var a = i * Math.PI / 6; o.push([Math.round(30 - Math.cos(a) * 30), Math.round(-Math.sin(a) * 30)]); } o[0] = [0, 0]; return o; })(),
-      smooth: true, ticks: 60, orient: "facing", end: "loop", follow: true}}
-];
-function geoUserPresets() { return lsGet(LS_GEO) || []; }
+// Built-in entry-set and path presets: GEO_PRESETS in presets.js.
+function geoUserPresets() { return GEO_STORE.list(); }
 function geoAllPresets() { return GEO_PRESETS.map(function (p) { return {p: p, builtin: true}; }).concat(geoUserPresets().map(function (p) { return {p: p, builtin: false}; })); }
 function geoItem() {
   if (!S.geo) return null;
@@ -1008,8 +1005,7 @@ function buildGeoProps(d) {
   bs.onclick = function () {
     askText("Preset name", it.name, function (nm) {
       var item = clone(it); delete item.id; item.name = nm;
-      var mine = geoUserPresets(); mine.push({kind: S.geo.kind, desc: "Your " + (isSet ? "entry set" : "path"), item: item});
-      if (!lsSet(LS_GEO, mine)) return toast("Could not save the preset (browser storage unavailable)");
+      if (!GEO_STORE.put({kind: S.geo.kind, desc: "Your " + (isSet ? "entry set" : "path"), item: item})) return;
       geoRefreshPresets(); toast("Saved preset \"" + nm + "\"");
     });
   };
@@ -1559,7 +1555,9 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
   since: {}, everyMs: 0, idleMs: 0, chanceHit: false};
-function prevTags(s) { return String(s || "").split(",").map(function (t) { return t.trim().toLowerCase(); }).filter(Boolean); }
+// "a, b , c" -> ["a", "b", "c"] (after_actions sequences, preview history, tag lists).
+function parseList(s) { return String(s || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean); }
+function prevTags(s) { return parseList(s).map(function (t) { return t.toLowerCase(); }); }
 function prevTagMatch(want, tag) { return !want.length || want.indexOf(String(tag || "").trim().toLowerCase()) >= 0; }
 function condSelect() {
   var e = document.createElement("select");
@@ -1576,34 +1574,40 @@ function knownTags() {
   ["fireball", "slash", "beam", "laser", "bolt", "orb"].forEach(function (k) { t[k] = 1; });
   return Object.keys(t).sort();
 }
-function tagsInput(c, k) {
+// listId: the tag datalist of the editor this field is in (action triggers
+// and the Tactical retreat can both be on one panel, so each has its own).
+function tagsInput(c, k, listId) {
   var e = inp("text", c[k], function (v) { c[k] = v; save(); });
-  e.setAttribute("list", "fxTagList"); e.placeholder = "any";
+  e.setAttribute("list", listId || "fxTagList"); e.placeholder = "any";
   return e;
 }
-// after_actions: one picker per step, stored as the comma separated string.
-function sequenceEditor(c) {
-  var w = document.createElement("div"); w.className = "seq";
-  var seq = String(c.sequence || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-  var acts = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });   // idle / run never "complete"
-  function commit() { c.sequence = seq.join(", "); save(); buildProps(); }
-  seq.forEach(function (a, i) {
+// Actions that can "complete" (idle / run never do).
+function completableActions() { return Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }); }
+// A numbered list of action pickers with x to remove and a picker to add one;
+// onChange(list) after every change.
+function stepListEditor(list, addLabel, onChange) {
+  var w = document.createElement("div"), acts = completableActions(); w.className = "seq";
+  list.forEach(function (a, i) {
     var r = document.createElement("div"); r.className = "row";
-    var sl = inp(acts.indexOf(a) < 0 ? [a].concat(acts) : acts, a, function (v) { seq[i] = v; commit(); });
-    var x = document.createElement("button"); x.textContent = "×"; x.title = "Remove this step"; x.onclick = function () { seq.splice(i, 1); commit(); };
+    var sl = inp(acts.indexOf(a) < 0 ? [a].concat(acts) : acts, a, function (v) { list[i] = v; onChange(list); });
+    var x = document.createElement("button"); x.textContent = "×"; x.title = "Remove this step"; x.onclick = function () { list.splice(i, 1); onChange(list); };
     var n = document.createElement("span"); n.className = "note"; n.textContent = (i + 1) + ".";
     r.appendChild(n); r.appendChild(sl); r.appendChild(x); w.appendChild(r);
   });
   var r2 = document.createElement("div"); r2.className = "row";
-  var add = inp([["", "+ add step…"]].concat(acts), "", function (v) { if (v) { seq.push(v); commit(); } });
-  r2.appendChild(add); w.appendChild(r2);
+  r2.appendChild(inp([["", addLabel]].concat(acts), "", function (v) { if (v) { list.push(v); onChange(list); } }));
+  w.appendChild(r2);
   return w;
 }
-function condField(box, c, k, ownLabel) {
+// after_actions: one picker per step, stored as the comma separated string.
+function sequenceEditor(c) {
+  return stepListEditor(parseList(c.sequence), "+ add step…", function (l) { c.sequence = l.join(", "); save(); buildProps(); });
+}
+function condField(box, c, k, ownLabel, listId) {
   var u = COND_FIELDS[k];
   if (!u) return;
   if (u[1] === "chk") return field(box, u[0], inp("chk", c[k], function (v) { c[k] = v; save(); }));
-  if (u[1] === "tags") return field(box, u[0], tagsInput(c, k));
+  if (u[1] === "tags") return field(box, u[0], tagsInput(c, k, listId));
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
   if (u[1] === "action") return field(box, u[0], inp([["", ownLabel || "— this action —"]].concat(Object.keys(C.actions).filter(function (a) { return ownLabel || a !== S.action; })),
     c[k], function (v) { c[k] = v; save(); }));
@@ -1643,8 +1647,7 @@ function condNow(c) {
     case "projectile_count": v = PREV.proj >= c.count; break;
     case "bullet_deflected": v = PREV.deflected; break;
     case "after_actions":
-      var seq = String(c.sequence || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-      var hist = String(PREV.history || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      var seq = parseList(c.sequence), hist = parseList(PREV.history);
       v = seq.length > 0 && hist.slice(-seq.length).join(",") === seq.join(","); break;
     case "since_action": v = prevSince(c.action || S.action) >= c.ms; break;
     case "every_ms": v = PREV.everyMs >= c.ms; break;
@@ -1691,22 +1694,8 @@ function buildPrevInputs(p, cfg) {
   }
   if (used.proj) num("Enemy projectiles live", "proj", 0, 200, 1);
   if (used.deflected) chk("Just deflected a bullet", "deflected");
-  if (used.history) {
-    var acts = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
-    var hw = document.createElement("div"); hw.className = "seq";
-    var hist = String(PREV.history || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-    var redo = function () { PREV.history = hist.join(", "); buildProps(); };
-    hist.forEach(function (a, i) {
-      var r = document.createElement("div"); r.className = "row";
-      var n = document.createElement("span"); n.className = "note"; n.textContent = (i + 1) + ".";
-      var x = document.createElement("button"); x.textContent = "×"; x.onclick = function () { hist.splice(i, 1); redo(); };
-      r.appendChild(n); r.appendChild(inp(acts, a, function (v) { hist[i] = v; redo(); })); r.appendChild(x); hw.appendChild(r);
-    });
-    var r2 = document.createElement("div"); r2.className = "row";
-    r2.appendChild(inp([["", "+ completed…"]].concat(acts), "", function (v) { if (v) { hist.push(v); redo(); } }));
-    hw.appendChild(r2);
-    field(p, "Last completed (oldest → newest)", hw);
-  }
+  if (used.history)
+    field(p, "Last completed (oldest → newest)", stepListEditor(parseList(PREV.history), "+ completed…", function (l) { PREV.history = l.join(", "); buildProps(); }));
   sinceActs.forEach(function (a) {
     field(p, "ms since " + a + " ended", inp("n", prevSince(a), function (v) { PREV.since[a] = Math.max(0, v); }, 0, 60000, 100)).title =
       "How long ago " + a + " last ended (a large value = it hasn't played).";
@@ -1810,32 +1799,8 @@ function buildRetreatProps(d) {
     "Optional, on top of the FX built on the Tactical retreat reaction (Actions > Triggered reactions): an effect or a whole group (▣) that plays for as long as the dash lasts. FX that stay on the fighter (attached, static, orbit, path) are held; shots keep firing on their action's timing. It still plays on its own action too.";
   field(s, "Trigger when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], rt.logic, function (v) { rt.logic = v; save(); }));
   var helpOf = function (t) { return RETREAT_COND_HELP[t] || COND_HELP[t]; };
-  var dl = document.createElement("datalist"); dl.id = "fxTagListR";
-  knownTags().forEach(function (t) { var o = document.createElement("option"); o.value = t; dl.appendChild(o); });
-  s.appendChild(dl);
-  rt.conditions.forEach(function (c, i) {
-    var box = sec(s, "Condition " + (i + 1) + ": " + (c.not ? "NOT " : "") + COND_LABEL[c.type], "a-rcond", helpOf(c.type), "act");
-    Object.keys(FXK.RETREAT_CONDITIONS[c.type]).forEach(function (k) {
-      var e = condField(box, c, k, "— last retreat —");
-      if (e && e.getAttribute && e.getAttribute("list") === "fxTagList") e.setAttribute("list", "fxTagListR");
-    });
-    field(box, "Not (invert)", inp("chk", c.not, function (v) { c.not = v; ch(); })).title =
-      "On: the condition counts as met when its check is FALSE (e.g. NOT target attacking).";
-    var row = document.createElement("div"); row.className = "row";
-    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up"; up.disabled = i === 0;
-    up.onclick = function () { rt.conditions.splice(i - 1, 0, rt.conditions.splice(i, 1)[0]); ch(); };
-    var dup = document.createElement("button"); dup.textContent = "Duplicate";
-    dup.onclick = function () { rt.conditions.splice(i + 1, 0, clone(c)); ch(); };
-    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { rt.conditions.splice(i, 1); ch(); };
-    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
-  });
-  var row = document.createElement("div"); row.className = "row";
-  var sel = condSelect(), help = document.createElement("div"); help.className = "note";
-  sel.onchange = function () { help.textContent = helpOf(sel.value); };
-  var add = document.createElement("button"); add.textContent = "+ Condition";
-  add.onclick = function () { rt.conditions.push(FXK.normalizeRetreat({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
-  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
-  help.textContent = helpOf(sel.value); s.appendChild(help);
+  conditionList(s, function () { return S.retreat.conditions; }, {key: "a-rcond", listId: "fxTagListR", ownLabel: "— last retreat —", helpOf: helpOf, onChange: ch,
+    make: function (t) { return FXK.normalizeRetreat({conditions: [{type: t}]}).conditions[0]; }});
   note(s, "Same conditions as action triggers. Where one says \"this action\", it means the retreat: attack / hit counts and Every N ms run from the last retreat start.");
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
@@ -1962,6 +1927,41 @@ function buildActionProps(d) {
   }
   buildTriggerProps(d, a, cfg, kind);
 }
+// A condition list editor: one box per condition (its fields, Not, ↑ /
+// Duplicate / Remove) and the + Condition picker.  Action triggers and the
+// Tactical retreat both use it, on one panel, so each passes its own tag
+// datalist id.  listOf() returns the live list: normalizeAction() puts a new
+// conditions array on the action every time it runs (the stage does, every
+// frame), so the list is looked up again on each click, never kept.
+// o: {key (remembered open state), listId, helpOf(type), make(type) -> new
+// condition, onChange, ownLabel (since_action's "" option), preview (the
+// ✓ / ✗ line refreshCondPreview fills)}.
+function conditionList(s, listOf, o) {
+  var dl = document.createElement("datalist"); dl.id = o.listId;
+  knownTags().forEach(function (t) { var op = document.createElement("option"); op.value = t; dl.appendChild(op); });
+  s.appendChild(dl);
+  listOf().forEach(function (c, i) {
+    var box = sec(s, "Condition " + (i + 1) + ": " + (c.not ? "NOT " : "") + COND_LABEL[c.type], o.key, o.helpOf(c.type), "act");
+    Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) { condField(box, c, k, o.ownLabel, o.listId); });
+    field(box, "Not (invert)", inp("chk", c.not, function (v) { c.not = v; o.onChange(); })).title =
+      "On: the condition counts as met when its check is FALSE (e.g. NOT target attacking).";
+    if (o.preview) { var pv = document.createElement("div"); pv.className = "cpv mute"; pv.dataset.i = i; box.appendChild(pv); }
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up"; up.disabled = i === 0;
+    up.onclick = function () { var l = listOf(); l.splice(i - 1, 0, l.splice(i, 1)[0]); o.onChange(); };
+    var dup = document.createElement("button"); dup.textContent = "Duplicate";
+    dup.onclick = function () { listOf().splice(i + 1, 0, clone(c)); o.onChange(); };
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { listOf().splice(i, 1); o.onChange(); };
+    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
+  });
+  var row = document.createElement("div"); row.className = "row";
+  var sel = condSelect(), help = document.createElement("div"); help.className = "note";
+  sel.onchange = function () { help.textContent = o.helpOf(sel.value); };
+  var add = document.createElement("button"); add.textContent = "+ Condition";
+  add.onclick = function () { listOf().push(o.make(sel.value)); o.onChange(); };
+  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
+  help.textContent = o.helpOf(sel.value); s.appendChild(help);
+}
 // Trigger conditions for an attack or triggered action.
 function buildTriggerProps(d, a, cfg, kind) {
   var s = sec(d, "Trigger conditions", "a-trig", kind === "attack"
@@ -1971,30 +1971,9 @@ function buildTriggerProps(d, a, cfg, kind) {
   field(s, "Fire when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], cfg.logic, function (v) { cfg.logic = v; save(); }));
   field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
     "After it starts, how long before it can start again.";
-  var dl = document.createElement("datalist"); dl.id = "fxTagList";
-  knownTags().forEach(function (t) { var o = document.createElement("option"); o.value = t; dl.appendChild(o); });
-  s.appendChild(dl);
-  cfg.conditions.forEach(function (c, i) {
-    var box = sec(s, "Condition " + (i + 1) + ": " + (c.not ? "NOT " : "") + COND_LABEL[c.type], "a-cond", COND_HELP[c.type], "act");
-    Object.keys(FXK.CONDITION_TYPES[c.type]).forEach(function (k) { condField(box, c, k); });
-    field(box, "Not (invert)", inp("chk", c.not, function (v) { c.not = v; ch(); })).title =
-      "On: the condition counts as met when its check is FALSE (e.g. NOT target attacking).";
-    var pv = document.createElement("div"); pv.className = "cpv mute"; pv.dataset.i = i; box.appendChild(pv);
-    var row = document.createElement("div"); row.className = "row";
-    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up"; up.disabled = i === 0;
-    up.onclick = function () { cfg.conditions.splice(i - 1, 0, cfg.conditions.splice(i, 1)[0]); ch(); };
-    var dup = document.createElement("button"); dup.textContent = "Duplicate";
-    dup.onclick = function () { cfg.conditions.splice(i + 1, 0, clone(c)); ch(); };
-    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { cfg.conditions.splice(i, 1); ch(); };
-    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
-  });
-  var row = document.createElement("div"); row.className = "row";
-  var sel = condSelect(), help = document.createElement("div"); help.className = "note";
-  sel.onchange = function () { help.textContent = COND_HELP[sel.value]; };
-  var add = document.createElement("button"); add.textContent = "+ Condition";
-  add.onclick = function () { cfg.conditions.push(FXK.normalizeAction({conditions: [{type: sel.value}]}).conditions[0]); ch(); };
-  row.appendChild(sel); row.appendChild(add); s.appendChild(row);
-  help.textContent = COND_HELP[sel.value]; s.appendChild(help);
+  conditionList(s, function () { return cfgOf(a).conditions; }, {key: "a-cond", listId: "fxTagList", preview: true, onChange: ch,
+    helpOf: function (t) { return COND_HELP[t]; },
+    make: function (t) { return FXK.normalizeAction({conditions: [{type: t}]}).conditions[0]; }});
   if (!cfg.conditions.length) note(s, kind === "attack" ? "No conditions: it attacks whenever the target is in range." : "No conditions yet: this action never fires on its own.");
   // Live preview
   var p = sec(s, "Live preview", "a-cpv", "Test each condition: drag the target on the stage for distance and height, and set the values below for everything else. Each condition shows ✓ / ✗ and the result shows whether the action would fire (preview only, not saved).", "act");
@@ -2446,22 +2425,25 @@ $("bGeoPreset").onclick = function () {
   geoNew(x.p.kind, x.p.item); toast("Added " + (x.p.kind === "set" ? "entry set" : "path") + " \"" + x.p.item.name + "\"");
 };
 $("bGeoPresetDel").onclick = function () {
-  var all = geoAllPresets(), x = all[+$("geoPreset").value]; if (!x || x.builtin) return;
+  var i = +$("geoPreset").value, x = geoAllPresets()[i]; if (!x || x.builtin) return;
   ask("Delete your preset \"" + x.p.item.name + "\"?", {ok: "Delete"}, function (ok) {
     if (!ok) return;
-    var mine = geoUserPresets(), idx = mine.findIndex(function (m) { return JSON.stringify(m) === JSON.stringify(x.p); });
-    if (idx >= 0) { mine.splice(idx, 1); lsSet(LS_GEO, mine); }
+    GEO_STORE.removeAt(i - GEO_PRESETS.length);
     geoRefreshPresets();
   });
 };
 $("bGroup").onclick = makeGroup;
 $("presetSel").onchange = showPresetDesc; $("bPreset").onclick = addPreset;
 $("bPresetDel").onclick = function () {
-  var x = allPresets()[+$("presetSel").value]; if (!x) return;
+  var i = +$("presetSel").value, x = allPresets()[i]; if (!x) return;
   if (x.builtin) return toast("Built-in presets can't be deleted.");
-  lsSet(LS_PRESETS, userPresets().filter(function (p) { return p.name !== x.p.name; })); buildPresets();
+  FX_STORE.removeAt(i - FX_PRESETS.length); buildPresets();
 };
-$("bPresetExport").onclick = function () { var mine = userPresets(); if (!mine.length) return toast("No saved presets yet"); download("fx_presets.json", JSON.stringify({format: "pb_fx_presets", version: 1, presets: mine}, null, 1)); };
+$("bPresetExport").onclick = function () {
+  var mine = userPresets(), geo = geoUserPresets();
+  if (!mine.length && !geo.length) return toast("No saved presets yet");
+  download("fx_presets.json", JSON.stringify({format: "pb_fx_presets", version: 2, presets: mine, geo_presets: geo}, null, 1));
+};
 $("bPresetImport").onclick = function () { $("pfile").click(); };
 $("pfile").onchange = function () { var f = this.files[0]; this.value = ""; if (f) readText(f).then(function (t) { ingestPresets(JSON.parse(t)); }).catch(function (e) { toast("Could not read: " + e.message); }); };
 $("bPlay").onclick = function () { if (!C) return; S.playing = !S.playing; if (S.playing && S.t >= totalTicks()) resetSim(0); this.textContent = S.playing ? "❚❚ Pause" : "▶ Play"; };

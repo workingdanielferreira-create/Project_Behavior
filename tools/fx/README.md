@@ -142,8 +142,9 @@ timing.
   **Energy** (Charged laser). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
-  your own (listed under ★ Your presets), and **Export**/**Import** moves them
-  between machines.
+  your own (listed under ★ Your presets); saving a name you already have
+  replaces it. **Export**/**Import** moves them between machines, together
+  with your path and entry-set presets.
 - **Groups.** Ctrl+click two or more effects in the effect list and press
   **Group**. They now ride one pivot (the first one's joint) as a single
   piece: each keeps its place relative to the others, and they share Flip and
