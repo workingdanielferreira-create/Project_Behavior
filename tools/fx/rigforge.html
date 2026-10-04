@@ -1246,10 +1246,17 @@ if(!S.lib||!Object.keys(S.lib).length)S.lib=clone(DEFLIB);
 if(!S.img)S.img={};
 Object.keys(S.lib).forEach(function(k){normPose(S.lib[k]);});
 Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(normPose);});
-var QWARN=false;
+var QWARN=false,IMGSAVED={},IMGFLIGHT={};
 function save(){try{stashChar();
-  /* imported package frames ("pk:" ids) live in IndexedDB — see pkDb() */
-  var im={};Object.keys(S.img).forEach(function(k){if(k.indexOf("pk:")!==0)im[k]=S.img[k];});
+  /* every image (imported package frames, "pk:" ids, and reference images)
+     lives in IndexedDB — see pkDb(): localStorage is a few MB shared by every
+     file:// page (FX Studio too) and the images filled it.  A reference image
+     stays in this localStorage save until IndexedDB confirms it has it
+     (IMGSAVED), then the next save drops it here; images in an old save move
+     over the same way.  Without IndexedDB (PKDB_OK false) they stay here. */
+  var im={},nw={},n=0;Object.keys(S.img).forEach(function(k){if(k.indexOf("pk:")===0||IMGSAVED[k])return;
+    im[k]=S.img[k];if(PKDB_OK&&!IMGFLIGHT[k]){nw[k]=S.img[k];IMGFLIGHT[k]=1;n++;}});
+  if(n)pkSaveImgs(nw).then(function(ok){Object.keys(nw).forEach(function(k){delete IMGFLIGHT[k];if(ok)IMGSAVED[k]=1;});if(ok)save();});
   localStorage.setItem("pbrigforge.v4",JSON.stringify({ws:WS,lib:S.lib,img:im,anat:ANAT,moves:S.moves,deleted:S.deleted}));}catch(e){if(!QWARN){QWARN=true;
   console.warn("Rig Forge: browser storage is full — reference images are kept for this session only.");}}}
 function stashChar(){var c=WS.chars[WS.ci];if(!c)return;
@@ -3533,13 +3540,13 @@ window.RigForgePkg={build:pkgBuild,preload:pkgPreload,state:function(){return{S:
    Export writes back into the same folder in the same image space (size,
    origin and head px kept; the canvas only grows evenly when a posed frame
    needs room), so the folder's <name>.fxkit.json stays aligned. */
-var PKDB=null,PKDIRS={};
+var PKDB=null,PKDIRS={},PKDB_OK=false,PKLOADED=false;
 function pkDb(){
   if(!PKDB)PKDB=new Promise(function(res,rej){
     if(!window.indexedDB){rej(new Error("IndexedDB unavailable"));return;}
     var r=indexedDB.open("pbrigforge.pkg",1);
     r.onupgradeneeded=function(){r.result.createObjectStore("img");r.result.createObjectStore("dir");};
-    r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};
+    r.onsuccess=function(){PKDB_OK=true;res(r.result);};r.onerror=function(){rej(r.error);};
   });
   return PKDB;
 }
@@ -3549,12 +3556,18 @@ function pkStore(store,mode,fn){
     t.oncomplete=function(){res(o&&"result" in o?o.result:null);};t.onerror=t.onabort=function(){res(null);};});
   }).catch(function(){return null;});
 }
-function pkSaveImgs(map){return pkStore("img","readwrite",function(st){Object.keys(map).forEach(function(k){st.put(map[k],k);});});}
+/* resolves true once IndexedDB has every image in map, false if it failed */
+function pkSaveImgs(map){
+  return pkDb().then(function(db){return new Promise(function(res){
+    var t=db.transaction("img","readwrite"),st=t.objectStore("img");Object.keys(map).forEach(function(k){st.put(map[k],k);});
+    t.oncomplete=function(){res(true);};t.onerror=t.onabort=function(){res(false);};});
+  }).catch(function(){return false;});
+}
 function pkLoadImgs(){
   return pkDb().then(function(db){return new Promise(function(res){
     var n=0,t=db.transaction("img","readonly"),rq=t.objectStore("img").openCursor();
-    rq.onsuccess=function(){var c=rq.result;if(!c)return;if(!S.img[c.key]){S.img[c.key]=c.value;n++;}c.continue();};
-    t.oncomplete=function(){res(n);};t.onerror=function(){res(n);};});
+    rq.onsuccess=function(){var c=rq.result;if(!c)return;IMGSAVED[c.key]=1;if(!S.img[c.key]){S.img[c.key]=c.value;n++;}c.continue();};
+    t.oncomplete=function(){PKLOADED=true;res(n);};t.onerror=function(){res(n);};});
   }).catch(function(){return 0;});
 }
 /* drop stored frames no character tab uses any more */
@@ -3565,7 +3578,10 @@ function pkGC(){
   Object.keys(S.img).forEach(function(k){if(k.indexOf("pk:")===0&&!used[k]){delete S.img[k];delete IMGC[k];}});
   return pkDb().then(function(db){return new Promise(function(res){
     var t=db.transaction("img","readwrite"),rq=t.objectStore("img").openCursor();
-    rq.onsuccess=function(){var c=rq.result;if(!c)return;if(!used[c.key])c.delete();c.continue();};
+    /* package frames no pose uses; reference images only once all stored
+       images are loaded (PKLOADED) and S.img no longer has them */
+    rq.onsuccess=function(){var c=rq.result;if(!c)return;var k=String(c.key);
+      if(k.indexOf("pk:")===0?!used[k]:(PKLOADED&&!S.img[k])){c.delete();delete IMGSAVED[k];}c.continue();};
     t.oncomplete=res;t.onerror=res;});}).catch(function(){});
 }
 /* every art / reference frame of the current character, decoded */
@@ -3836,7 +3852,8 @@ function pkgBuildPkg(){
   return{manifest:man,files:files};
 }
 document.getElementById("pk_col").addEventListener("change",function(){if(S.meta.pkg){S.meta.pkg.colour=this.value;save();}});
-pkLoadImgs().then(function(n){if(n){IMGC={};pkgPreload().then(function(){render();buildFilm();});}});
+pkLoadImgs().then(function(n){save();   /* moves reference images left in localStorage into IndexedDB */
+  if(n){IMGC={};pkgPreload().then(function(){render();buildFilm();buildRefStrip();});}});
 
 document.getElementById("build").onclick=function(){document.getElementById("json").value=JSON.stringify(build(),null,2);};
 document.getElementById("bake").onchange=function(){if(document.getElementById("json").value)document.getElementById("json").value=JSON.stringify(build(),null,2);};

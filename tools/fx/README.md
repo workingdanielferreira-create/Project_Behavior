@@ -176,6 +176,9 @@ timing.
   can't be intercepted. **Lodge ms** 0 = it ends on the hit like any shot.
   Hits only happen where damage is dealt, so lodging shows in Battle (and in
   the Studio preview), not in Solo, where nothing takes damage.
+- **Orbit direction.** An effect with orbit motion has **Orbit direction**:
+  clockwise or anticlockwise as seen on screen (Flip mirrors it, like the rest
+  of the effect). **Orbit speed °/tick** sets how fast.
 - **Orb glow.** Orbs and bolts (sprite) have **Glow %** (brightness of the
   soft outer glow, 0 = none, 100 = as before) and **Glow size %** (how far it
   spreads). Both can be keyframed. *Soft petal orbs* is a dim-glow petal preset.
@@ -183,6 +186,13 @@ timing.
   `orb_glow` / `orb_glow_size` (the layer's old `glow` field is unrelated).
 - **Saving.** **Save FX to folder** writes `<name>.fxkit.json` next to the
   images. Work also autosaves in the browser per character.
+- **Browser storage.** Your presets (FX and path / entry-set) and each
+  character's autosave are kept in the browser's IndexedDB, not its small
+  localStorage, which every page opened from disk shares (Rig Forge too) and
+  which used to fill up ("Browser storage unavailable"). Anything still in
+  localStorage moves over the first time FX Studio opens. Rig Forge keeps its
+  reference images in IndexedDB the same way. **Export** still saves presets
+  to a file to move them to another PC.
 - **Controls.** `space` play/pause, `← →` step a frame, left-drag moves the
   target, right-drag pans, the mouse wheel zooms.
 

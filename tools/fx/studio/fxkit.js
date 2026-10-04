@@ -299,7 +299,9 @@ var PARAM_DEFAULTS = {
   weapon: {to_anchor: "wtip", width: 6}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
-  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, path: ""};
+  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};
+// orbit_dir: which way an orbit spins on screen, clockwise or anticlockwise (Flip mirrors it, like the rest of the effect).
+function orbitStep(m) { return (+m.orbit_deg || 0) * (m.orbit_dir === "anticlockwise" ? -1 : 1); }
 var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offset: 0, flow_speed: 0.008,
   c1: "#ffffff", c2: "#ff2200", start_fraction: 0};
 // Damage settings (fx.battle).  damage is HP per hit, matching
@@ -980,7 +982,7 @@ function moveInst(inst, host) {
     inst.phase += m.freq;
   } else if (m.kind === "orbit") {
     var c = anchorPos(fx, host, inst);
-    inst.orbitA += m.orbit_deg;
+    inst.orbitA += orbitStep(m);
     var op2 = orbitPos(inst, host, c); inst.x = op2[0]; inst.y = op2[1];
   }
   if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") {

@@ -200,7 +200,7 @@ other characters' `hit_by_fx` / `fx_near` conditions match against.
   "emit": {"every_ticks": 0, "count": 1, "fan_deg": 0},
   "anchor": "wtip", "offset": [0, 0],
   "motion": {"kind": "attached", "aim": "target", "angle_deg": 0, "aim_offset_deg": 0, "speed": 8,
-             "turn_deg": 6, "amplitude": 55, "freq": 0.18, "orbit_rx": 46, "orbit_ry": 46, "orbit_deg": 1.12},
+             "turn_deg": 6, "amplitude": 55, "freq": 0.18, "orbit_rx": 46, "orbit_ry": 46, "orbit_deg": 1.12, "orbit_dir": "clockwise"},
   "color": {"mode": "palette", "lut_index": 128, "lut_index2": 128, "lut_offset": 0, "flow_speed": 0.008,
             "c1": "#ffffff", "c2": "#ff2200", "start_fraction": 0},
   "layer": "front", "blend": "normal",
@@ -246,7 +246,7 @@ a default.
 | `travel` | `speed` px/tick along the aim | `Projectile` |
 | `homing` | travel, steering up to `turn_deg`/tick toward the target | `HomingProjectile` |
 | `zigzag` | travel plus a lateral sine weave (`amplitude`, `freq`) | `ZigzagProjectile.update` |
-| `orbit` | circles the anchor (`orbit_rx`, `orbit_ry`, `orbit_deg`/tick) | petals |
+| `orbit` | circles the anchor (`orbit_rx`, `orbit_ry`, `orbit_deg`/tick; `orbit_dir` `clockwise`\|`anticlockwise` as seen on screen, Flip mirrors it; a negative `orbit_deg` still reverses it) | petals |
 | `path` | travels along the path `motion.path` from where it spawns (see 3b) | FX Kit extension |
 
 The aim (`motion.aim`) is one of:
