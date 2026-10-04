@@ -138,8 +138,10 @@ timing.
   Spark volley), **Shadow** (Void orb, Shadow dash, Void collapse),
   **Holy** (Radiant beam, Halo burst), **Ice & wind** (Ice shards, Frost
   nova, Wind blades, Cyclone), **Earth & poison** (Quake, Toxic cloud),
-  **Arcane & cosmic** (Arcane missiles, Rune circle, Meteor, Starfall) and
-  **Energy** (Charged laser). The first groups rebuild the game's
+  **Arcane & cosmic** (Arcane missiles, Rune circle, Meteor, Starfall),
+  **Energy** (Charged laser) and **Ethereal** (Ethereal blades: a whirling
+  ring of blades, a rain of blades on the target, then two light-blade
+  sweeps; built for a 30-frame action). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets); saving a name you already have
@@ -156,6 +158,10 @@ timing.
   stores the whole group as one preset; adding it brings the group back on
   the current action. **Ungroup** (⊟) leaves every effect where it is.
   Weapon hitboxes and ⊕ entry-set effects can't be grouped.
+- **Blade shape.** Orbs and bolts (sprite) also come as **blade**: a long,
+  tapered needle of light. **Radius** is its half-width and **Stretch** its
+  length (2 × Radius × Stretch). It points where it is moving (shots, orbits)
+  and straight down when still, and it hits along its whole length.
 - **Orb glow.** Orbs and bolts (sprite) have **Glow %** (brightness of the
   soft outer glow, 0 = none, 100 = as before) and **Glow size %** (how far it
   spreads). Both can be keyframed. *Soft petal orbs* is a dim-glow petal preset.

@@ -23,7 +23,8 @@ import math
 import re
 
 from PyQt5.QtCore import Qt, QPointF, QRectF
-from PyQt5.QtGui import QBrush, QColor, QLinearGradient, QPen, QPainter, QPainterPath, QRadialGradient
+from PyQt5.QtGui import (QBrush, QColor, QLinearGradient, QPen, QPainter, QPainterPath, QPixmap, QPolygonF,
+                         QRadialGradient)
 
 from . import config
 
@@ -1372,6 +1373,11 @@ def _hit_shape(inst, tx, ty, hr, ps, host):
     if prim == "sprite":
         if inst.age >= inst.life:
             return False
+        if P["shape"] == "blade":   # the whole blade, tip to tail, half-width wide
+            rad = max(0.5, float(P["radius"]))
+            L = 2 * rad * max(1.0, float(P["stretch"])) * ps
+            a = blade_angle(inst)
+            return seg_dist(tx, ty, inst.x, inst.y, inst.x - math.cos(a) * L, inst.y - math.sin(a) * L) <= hr + rad * ps
         dx, dy = inst.x - tx, inst.y - ty
         return dx * dx + dy * dy <= hr * hr
     if prim == "glow":
@@ -1592,6 +1598,84 @@ def _draw_beam(p, inst, host, ps):
         _line(p, q[0], q[1], q[2], q[3])
 
 
+_BLADE_SPRITES = {}
+
+
+def blade_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_pct=100.0):
+    """Ethereal blade (fxkit.js bladeSprite): a long tapered needle of light,
+    tip pointing +x, with a soft halo along its length and a white core.
+    Half-width = radius, length = 2 x radius x stretch; hot brightens the
+    core and the tip flare.  Returns (pixmap, tip_x, half_h): draw at
+    (-tip_x, -half_h) after translating to the tip and rotating to
+    blade_angle."""
+    ga = max(0, min(255, int(round(150 * max(0.0, float(glow_pct)) / 100.0))))
+    gs = max(0.0, float(glow_size_pct)) / 100.0
+    key = (r, g, b, round(float(radius), 2), round(float(stretch), 2), bool(hot), ga, round(gs, 2))
+    entry = _BLADE_SPRITES.get(key)
+    if entry is not None:
+        return entry
+    rad = max(0.5, float(radius))
+    L = 2 * rad * max(1.0, float(stretch))
+    gw = rad * 3 * gs
+    ry, rx = rad + gw, L / 2 + gw
+    fl = rad * 1.2 * (1.6 if hot else 1.0)
+    pad = max(1.0, gw, fl)
+    w = int(math.ceil(L + 2 * pad)) + 2
+    h = int(math.ceil(2 * max(ry, fl))) + 2
+    tip_x, cy = w - pad, h / 2.0
+    tail, sh = tip_x - L, tip_x - L * 0.3
+    pm = QPixmap(w, h)
+    pm.fill(Qt.transparent)
+    qp = QPainter(pm)
+    qp.setRenderHint(QPainter.Antialiasing)
+    qp.setPen(Qt.NoPen)
+    if ga > 0:   # halo: a radial glow stretched along the blade
+        qp.save()
+        qp.translate(tip_x - L / 2, cy)
+        qp.scale(rx / ry, 1.0)
+        grad = QRadialGradient(0, 0, ry)
+        grad.setColorAt(0.0, QColor(r, g, b, ga))
+        grad.setColorAt(1.0, QColor(r, g, b, 0))
+        qp.setBrush(grad)
+        qp.drawEllipse(int(-ry), int(-ry), int(ry * 2), int(ry * 2))
+        qp.restore()
+
+    def poly(hw, back, stops):
+        lg = QLinearGradient(tail, cy, tip_x, cy)
+        for t, qc in stops:
+            lg.setColorAt(t, qc)
+        qp.setBrush(lg)
+        qp.drawPolygon(QPolygonF([QPointF(tip_x, cy), QPointF(sh, cy - hw),
+                                  QPointF(tip_x - L * back, cy), QPointF(sh, cy + hw)]))
+
+    poly(rad, 1.0, [(0.0, QColor(r, g, b, 0)), (0.55, QColor(r, g, b, 150)), (1.0, QColor(r, g, b, 235))])   # body
+    ca = 245 if hot else 170
+    poly(rad * 0.4, 0.85, [(0.0, QColor(255, 255, 255, 0)), (1.0, QColor(255, 255, 255, ca))])   # core
+    fx0 = tip_x - rad * 0.5   # tip flare
+    core = QRadialGradient(fx0, cy, fl)
+    core.setColorAt(0.0, QColor(255, 255, 255, 245))
+    core.setColorAt(0.5, QColor(r, g, b, 200))
+    core.setColorAt(1.0, QColor(r, g, b, 0))
+    qp.setBrush(core)
+    qp.drawEllipse(int(fx0 - fl), int(cy - fl), int(fl * 2), int(fl * 2))
+    qp.end()
+    entry = (pm, tip_x, h / 2.0)
+    _BLADE_SPRITES[key] = entry
+    return entry
+
+
+def blade_angle(inst):
+    """Which way a blade's tip points (radians): along its velocity, else
+    along this tick's movement (orbit, attached), else straight down.
+    fxkit.js bladeAngle."""
+    if inst.vx * inst.vx + inst.vy * inst.vy > 0.0001:
+        return math.atan2(inst.vy, inst.vx)
+    dx, dy = inst.x - inst.px, inst.y - inst.py
+    if dx * dx + dy * dy > 1e-6:
+        return math.atan2(dy, dx)
+    return math.pi / 2
+
+
 def _draw_sprite(p, inst, host, ps):
     from . import combat as _combat
     fx, P = inst.fx, inst.fx["params"]
@@ -1609,7 +1693,13 @@ def _draw_sprite(p, inst, host, ps):
     p.save()
     p.translate(hx, hy)
     p.setOpacity(p.opacity() * fade)
-    if P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
+    if P["shape"] == "blade":
+        pm, tip_x, half_h = blade_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
+                                         P.get("glow", 100), P.get("glow_size", 100))
+        p.rotate(math.degrees(blade_angle(inst)))
+        p.scale(ps, ps)
+        p.drawPixmap(trunc(-tip_x), trunc(-half_h), pm)
+    elif P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
         pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
                                                      P.get("glow", 100), P.get("glow_size", 100))
         p.rotate(math.degrees(math.atan2(inst.vy, inst.vx)))
