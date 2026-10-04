@@ -171,7 +171,16 @@ PARAM_DEFAULTS = {
     "weapon": dict(to_anchor="wtip", width=6),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
-                       freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, path="")
+                       freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
+
+
+def orbit_step(m):
+    """Degrees an orbit turns this tick: orbit_deg, reversed for
+    orbit_dir "anticlockwise" (fxkit.js orbitStep).  Clockwise / anticlockwise
+    as seen on screen; Flip mirrors it like the rest of the effect."""
+    return float(m.get("orbit_deg") or 0) * (-1.0 if m.get("orbit_dir") == "anticlockwise" else 1.0)
+
+
 COLOR_DEFAULTS = dict(mode="palette", lut_index=128, lut_index2=128, lut_offset=0, flow_speed=0.008, c1="#ffffff",
                       c2="#ff2200", start_fraction=0)
 # blockable / deflectable (FXK.BATTLE_DEFAULTS): whether the other fighter's
@@ -901,7 +910,7 @@ def move_inst(inst, host):
         inst.phase += m["freq"]
     elif m["kind"] == "orbit":
         c = anchor_pos(fx, host, inst.ep)
-        inst.orbitA += m["orbit_deg"]
+        inst.orbitA += orbit_step(m)
         inst.x, inst.y = orbit_pos(inst, host, c)
     if m["kind"] in ("travel", "homing", "zigzag"):
         mdx, mdy = inst.x - inst.px, inst.y - inst.py

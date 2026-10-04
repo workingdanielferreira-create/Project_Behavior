@@ -42,8 +42,58 @@ function ask(msg, opts, cb) {
 }
 function askText(msg, value, cb) { ask(msg, {text: true, value: value}, function (ok, v) { if (ok && v.trim()) cb(v.trim()); }); }
 function inFrame() { try { return window.self !== window.top; } catch (e) { return true; } }
-function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+// Browser storage.  The big data (your FX / path presets and each
+// character's autosave) lives in IndexedDB: localStorage is a few MB shared by
+// every file:// page, Rig Forge included, and filled up.  STORE keeps those values
+// as JSON text in memory so reads stay synchronous; every write goes on to
+// IndexedDB.  kvOpen loads them once at start-up and moves any still in
+// localStorage over (then frees them there).  Without IndexedDB everything
+// stays in localStorage as before.  Small UI settings stay in localStorage.
+var STORE = {db: null, cache: {}, ready: null, done: false, warned: false};
+function kvBig(k) { return k === LS_PRESETS || k === LS_GEO || k.indexOf(LS_PROJECT) === 0; }
+function kvOpen() {
+  if (STORE.ready) return STORE.ready;
+  STORE.ready = new Promise(function (res) {
+    var r;
+    try { r = window.indexedDB && indexedDB.open("pbfxstudio", 1); } catch (e) { r = null; }
+    if (!r) { res(); return; }
+    r.onupgradeneeded = function () { r.result.createObjectStore("kv"); };
+    r.onerror = r.onblocked = function () { res(); };
+    r.onsuccess = function () {
+      var db = r.result, t = db.transaction("kv", "readonly"), rq = t.objectStore("kv").openCursor();
+      rq.onsuccess = function () { var c = rq.result; if (c) { STORE.cache[c.key] = c.value; c.continue(); } };
+      t.onerror = t.onabort = function () { res(); };
+      t.oncomplete = function () {
+        STORE.db = db;
+        var move = [];
+        try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (kvBig(k)) move.push(k); } } catch (e) {}
+        if (!move.length) { res(); return; }
+        var w = db.transaction("kv", "readwrite"), st = w.objectStore("kv");
+        move.forEach(function (k) { if (!(k in STORE.cache)) { STORE.cache[k] = localStorage.getItem(k); st.put(STORE.cache[k], k); } });
+        w.oncomplete = function () { move.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} }); res(); };
+        w.onerror = w.onabort = function () { res(); };   // keeps the localStorage copies
+      };
+    };
+  });
+  return STORE.ready;
+}
+function lsGet(k) {
+  try {
+    var v = STORE.db && kvBig(k) ? STORE.cache[k] : localStorage.getItem(k);
+    return v ? JSON.parse(v) : null;
+  } catch (e) { return null; }
+}
+function lsSet(k, v) {
+  try {
+    if (STORE.db && kvBig(k)) {
+      var txt = JSON.stringify(v), t = STORE.db.transaction("kv", "readwrite");
+      STORE.cache[k] = txt; t.objectStore("kv").put(txt, k);
+      t.onerror = t.onabort = function () { if (!STORE.warned) { STORE.warned = true; toast("Couldn't write to browser storage; use Export / Save FX to keep your work.", 6000); } };
+      return true;
+    }
+    localStorage.setItem(k, JSON.stringify(v)); return true;
+  } catch (e) { return false; }
+}
 function act() { return C && S.action ? C.actions[S.action] : null; }
 function frames() { var a = act(); return a ? a.images.length : 0; }
 function frameMs() { var a = act(); return a ? Math.max(1, a.frame_ms) : 16; }
@@ -287,6 +337,7 @@ function loadImage(file) {
 }
 function readText(file) { return file.text ? file.text() : new Promise(function (r) { var fr = new FileReader(); fr.onload = function () { r(fr.result); }; fr.readAsText(file); }); }
 function openFiles(list, dirHandle) {
+  if (!STORE.done) return kvOpen().then(function () { STORE.done = true; return openFiles(list, dirHandle); });   // autosave loaded first
   var byName = {}, rel = (list[0] && list[0].webkitRelativePath) || "";
   var folder = dirHandle ? dirHandle.name : rel.indexOf("/") > 0 ? rel.split("/").slice(-2, -1)[0] : "";
   list.forEach(function (f) { byName[f.name] = f; });
@@ -1105,11 +1156,12 @@ var PARAM_UI = {
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],
-  freq: ["Zigzag freq rad/tick", 0, 2, 0.01], orbit_rx: ["Orbit radius X", 0, 400, 1], orbit_ry: ["Orbit radius Y", 0, 400, 1], orbit_deg: ["Orbit °/tick", -30, 30, 0.02]
+  freq: ["Zigzag freq rad/tick", 0, 2, 0.01], orbit_rx: ["Orbit radius X", 0, 400, 1], orbit_ry: ["Orbit radius Y", 0, 400, 1], orbit_deg: ["Orbit speed °/tick", -30, 30, 0.02],
+  orbit_dir: ["Orbit direction", ["clockwise", "anticlockwise"]]
 };
 var MOTION_KEYS = {attached: [], static: [], path: ["aim", "angle_deg", "aim_offset_deg"], travel: ["aim", "angle_deg", "aim_offset_deg", "speed"],
   homing: ["aim", "angle_deg", "aim_offset_deg", "speed", "turn_deg"], zigzag: ["aim", "angle_deg", "aim_offset_deg", "speed", "amplitude", "freq"],
-  orbit: ["orbit_rx", "orbit_ry", "orbit_deg"]};
+  orbit: ["orbit_rx", "orbit_ry", "orbit_dir", "orbit_deg"]};
 function field(parent, label, input) { var w = document.createElement("div"); w.className = "f"; var l = document.createElement("label"); l.textContent = label; w.appendChild(l); w.appendChild(input); parent.appendChild(w); return input; }
 function inp(kind, val, onch, a, b, st) {
   var e;
@@ -2579,6 +2631,7 @@ Array.prototype.forEach.call(document.querySelectorAll("details.panel"), functio
   if (v === false) d.open = false;
   d.addEventListener("toggle", function () { lsSet(k, d.open); if (d.id === "secEffects" && d.open) buildTimeline(); });
 });
+kvOpen().then(function () { STORE.done = true; buildPresets(); geoRefreshPresets(); });
 buildPresets();
 requestAnimationFrame(loop);
 window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, step: step, player: player, host: host, rebuild: rebuild};

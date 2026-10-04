@@ -360,10 +360,10 @@ G.FX_PRESETS = [
       params: {shape: "blade", radius: 1.8, stretch: 8, hot: true, halo: false, fade: false, trail_len: 0, glow: 100, glow_size: 90,
                lodge_ms: 0, blade_orient: "angle", blade_angle_deg: -90},
       keys: [{frame: 6, ease: "out", set: {"motion.orbit_rx": 26, "motion.orbit_ry": 7}}]}
-   ].concat([[-8, 1.1], [-30, -0.9], [-52, 0.7]].map(function (row, i) {
+   ].concat([[-8, 1.1, "clockwise"], [-30, 0.9, "anticlockwise"], [-52, 0.7, "clockwise"]].map(function (row, i) {
      return {prim: "sprite", name: "Sword ring " + (i + 1), tag: "blade", anchor: "target", offset: [0, row[0]], start_frame: 0, end_frame: 26,
        emit: {count: 14}, blend: "additive",
-       motion: {kind: "orbit", orbit_rx: 120, orbit_ry: 26, orbit_deg: row[1]}, color: {mode: "solid", c1: i === 1 ? "#c9d6ff" : "#9fb6ff"},
+       motion: {kind: "orbit", orbit_rx: 120, orbit_ry: 26, orbit_deg: row[1], orbit_dir: row[2]}, color: {mode: "solid", c1: i === 1 ? "#c9d6ff" : "#9fb6ff"},
        params: {shape: "blade", radius: 1.6, stretch: 8, hot: false, halo: false, fade: false, trail_len: 0, glow: 80, glow_size: 80,
                 lodge_ms: 0, blade_orient: "angle", blade_angle_deg: 90},
        keys: [{frame: 8, ease: "strong_out", set: {"motion.orbit_rx": 64, "motion.orbit_ry": 16}}]};
