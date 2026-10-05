@@ -75,6 +75,15 @@ class InputSystem(System):
         if self._pressed(win.VK_F5):
             world.reload_characters()
 
+        # Ctrl+0: toggle the roster lock.  While locked, every key that
+        # adds, removes or swaps a fighter (1/2/3/4, F7/F8) is ignored, so
+        # whatever is on screen stays put.  Ctrl+1 / Ctrl+2 manual ultimates
+        # still work.  Same behaviour in Solo and Battle.
+        if self._pressed(win.VK_0) and ctrl:
+            world.roster_locked = not world.roster_locked
+            world.ctrl_used = True
+        locked = world.roster_locked
+
         # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
         # registered character; P2 cycles through them and then OFF (side
         # cleared — battle ends), tap again to re-field.
@@ -88,13 +97,13 @@ class InputSystem(System):
             if ctrl:
                 world.request_manual_ultimate(0)
                 world.ctrl_used = True
-            else:
+            elif not locked:
                 world.cycle_side_char(0)
         if self._pressed(win.VK_2):
             if ctrl:
                 world.request_manual_ultimate(1)
                 world.ctrl_used = True
-            else:
+            elif not locked:
                 world.cycle_side_char(1)
 
         # 3 / 4: add and then cycle the SECOND fighter on P1's / P2's team,
@@ -105,14 +114,15 @@ class InputSystem(System):
         # back to one fighter).  Slot 0 stays owned by '1'/'2', so the two
         # slots never fight over the same figure.  See
         # World.cycle_side_extra — same behaviour in Solo and Battle.
-        if self._pressed(win.VK_3):
+        # Edges are always consumed (so a held key doesn't fire on unlock).
+        if self._pressed(win.VK_3) and not locked:
             world.cycle_side_extra(0)
-        if self._pressed(win.VK_4):
+        if self._pressed(win.VK_4) and not locked:
             world.cycle_side_extra(1)
 
-        if self._pressed(win.VK_F7):
+        if self._pressed(win.VK_F7) and not locked:
             world.add_figure()
-        if self._pressed(win.VK_F8):
+        if self._pressed(win.VK_F8) and not locked:
             world.remove_figure()
 
         # Ctrl-combos: track whether Ctrl was used as a modifier this hold, so a

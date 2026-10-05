@@ -21,6 +21,7 @@ VK_F9    = 0x78
 VK_UP    = 0x26
 VK_LEFT  = 0x25
 VK_RIGHT = 0x27
+VK_0     = 0x30            # Ctrl+0: roster lock toggle (World.roster_locked)
 VK_1     = 0x31
 VK_2     = 0x32
 VK_3     = 0x33            # P1 extra-fighter slot (World.cycle_side_extra)

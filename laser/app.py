@@ -165,6 +165,10 @@ class World:
         self._ctrl_prev = False
         self.ctrl_used = False
         self._quit = False
+        # Ctrl+0 roster lock: while True, the add/remove/swap fighter keys
+        # (1/2/3/4, F7/F8) are ignored in Solo and Battle.  Deaths still
+        # follow the normal rules (World.on_figure_death).
+        self.roster_locked = False
 
         self.add_figure()
 
