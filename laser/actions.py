@@ -646,6 +646,27 @@ def force_attack(fig, world):
                     world.global_tick)
 
 
+def force_ultimate(fig, world):
+    """Manual ultimate hotkey (Ctrl+1 / Ctrl+2, see
+    combat.try_fire_manual_ultimate) for an image character: start its
+    `ultimate` action now, skipping its trigger conditions, its cooldown
+    and Attack mode.  It cuts into a normal attack (or idle / run) but
+    waits for another triggered action (defend, special, ...) to end.  True = the request is
+    used up (started, or the character has no ultimate frames); False =
+    keep it queued and try again next tick."""
+    r = runner(fig)
+    if r is None or "ultimate" not in fig.render.bundle.extra:
+        return True
+    if r.playing is not None:
+        if _kind(r.playing) == "triggered":
+            return False
+        r._finish(fig, world.global_tick)
+    p = fig.personality
+    r._start(fig, "ultimate", {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)},
+             world.global_tick)
+    return True
+
+
 def blocks_hit(fig):
     """True while this fighter's `defend` action plays: the hit is blocked."""
     r = getattr(fig, "act", None)

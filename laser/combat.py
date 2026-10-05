@@ -4476,24 +4476,62 @@ def update_loop_fx(fig):
         c.lb_beams = live
 
 
+def fire_json_action(fig, world, key, tx, ty):
+    """Fire a JSON character's attack_special / ultimate action at (tx, ty)
+    into world.projectiles — the activation-trigger path
+    (systems.ProjectileSystem._fire_json_actions) and the Ctrl+1 / Ctrl+2
+    manual ultimate both go through here.  A particle-type can_hit layer
+    means this character has its own authored burst FX (spread/speed/
+    gravity/color) — show that instead of the plain simplified dot.
+    Identical in Solo & Battle."""
+    char = getattr(fig.mode, "character", None)
+    action = ((char or {}).get("actions") or {}).get(key) or {}
+    has_particle_layers = any(
+        l.get("type") == "particles"
+        for l in (action.get("fx_layers") or [])
+        if l.get("can_hit"))
+    new_projs = fire_character_action(
+        fig, key, tx, ty, suppress_visual=has_particle_layers)
+    if has_particle_layers:
+        spawn_character_burst_fx(fig, key)
+    if new_projs:
+        world.projectiles.extend(new_projs)
+        _fr, _fg, _fb = fig.lut[128]
+        world.muzzle_flashes.append([fig.x, fig.y, 0, _fr, _fg, _fb])
+    return bool(new_projs)
+
+
 def try_fire_manual_ultimate(fig, world):
     """Consumes a queued manual-ultimate hotkey request (Ctrl+1 for P1,
     Ctrl+2 for P2 — see systems.InputSystem / World.request_manual_ultimate).
-    Forces this figure's NEXT ultimate tier immediately, bypassing the HP
-    threshold that would normally arm it — style-aware, so it fires
-    whichever pipeline (crescent / blinkstorm / beam / vanish_cut) this
-    figure's ultimate_style() already uses.
+    Forces this figure's ultimate immediately, bypassing the HP threshold
+    that would normally arm it — style-aware, so it fires whichever
+    pipeline (crescent / blinkstorm / beam / vanish_cut / loop_beams) this
+    figure's ultimate_style() already uses, plus the JSON `ultimate`
+    action's own can_hit FX layers when it has any (fire_json_action).
+    Image characters (Rig Forge + FX Studio, ultimate style 'none') play
+    their own `ultimate` action instead (actions.force_ultimate).
+
+    Fires on EVERY press: threshold-based styles use up the next unused
+    threshold (so it replaces one automatic trigger) and, once all are
+    used, fire anyway.  Works whether Attack mode (Alt+Up) is on or off.
 
     Stays queued (retried every tick) while the figure is mid-action
-    (c.busy), mid-blinkstorm, or mid-vanish-cut, so the request fires the
-    instant the figure is free rather than interrupting what it's doing.
-    Identical in Solo & Battle — applies to whichever side's figure(s) the
-    hotkey targeted, and both sides call this every tick.
+    (c.busy), mid-blinkstorm, mid-vanish-cut, or mid-triggered action, so
+    the request fires the instant the figure is free rather than
+    interrupting what it's doing.  Identical in Solo & Battle — applies to
+    whichever side's figure(s) the hotkey targeted, and both sides call
+    this every tick.
     """
     c = fig.combat
     if (c.busy or c.blinkstorm_strikes_left > 0 or c.vc_phase != 0
             or c.sp_phase or c.lb_phase):
         return  # still mid-action — stays queued for a later tick
+    from . import actions
+    if actions.is_image(fig):
+        if actions.force_ultimate(fig, world):
+            c.manual_ult_queued = False
+        return  # else a triggered action is playing — stays queued
     p = fig.personality
     style = ultimate_style(fig)
     if world.battle_mode and world.partner_figures:
@@ -4501,22 +4539,22 @@ def try_fire_manual_ultimate(fig, world):
     else:
         tx, ty = world.cursor
 
-    if style == "crescent":
+    def _use_next_threshold():
         for thresh in ultc_cfg(fig)['thresholds']:
             if thresh not in p.sword_ult_fired_thresholds:
                 p.sword_ult_fired_thresholds.add(thresh)
-                fire_sword_ultimate(fig, tx, ty)
-                break
+                return
+
+    if style == "crescent":
+        _use_next_threshold()
+        fire_sword_ultimate(fig, tx, ty)
         c.manual_ult_queued = False
     elif style == "blinkstorm":
         bl = blink_cfg(fig)
         if bl is not None:
-            for thresh in ultc_cfg(fig)['thresholds']:
-                if thresh not in p.sword_ult_fired_thresholds:
-                    p.sword_ult_fired_thresholds.add(thresh)
-                    c.blinkstorm_strikes_left = bl['storm_strikes']
-                    c.blinkstorm_tick = 0
-                    break
+            _use_next_threshold()
+            c.blinkstorm_strikes_left = bl['storm_strikes']
+            c.blinkstorm_tick = 0
         c.manual_ult_queued = False
     elif style == "beam":
         # Respect the same opt-out that gates the automatic threshold arm
@@ -4528,6 +4566,7 @@ def try_fire_manual_ultimate(fig, world):
             if p.ultimate_ticks <= 0:
                 p.ultimate_ticks = config.ULTIMATE_DURATION_TICKS
                 p.teleport_ticks = 0
+            c.manual_beam = True   # keeps firing with Attack mode off
         c.manual_ult_queued = False
     elif style == "vanish_cut":
         c.ult_charges = 0
@@ -4538,6 +4577,12 @@ def try_fire_manual_ultimate(fig, world):
         c.manual_ult_queued = False
     else:
         c.manual_ult_queued = False  # 'none' style — nothing to force
+    # A JSON character whose `ultimate` action carries its own can_hit FX
+    # layers (mage's crescents, new_fighter's petals, ...) fires that too —
+    # the same shot its activation_triggers would fire.
+    char = getattr(fig.mode, "character", None)
+    if char and _character_action_layers(char, "ultimate"):
+        fire_json_action(fig, world, "ultimate", tx, ty)
 
 
 def advance_combat(fig, slash_target, fallback):
@@ -4688,7 +4733,8 @@ def advance_combat(fig, slash_target, fallback):
     tick_ult_crescents(fig, fallback[0], fallback[1])
 
     # --- Blinkstorm ultimate (blink characters): consumes the figure while
-    #     active — strikes ride the live melee target, fallback = cursor. ---
+    #     active — strikes ride the live melee target, fallback = cursor
+    #     (Solo) / nearest enemy (Battle). ---
     _bs_tx, _bs_ty = slash_target if slash_target is not None else fallback
     if tick_blinkstorm(fig, _bs_tx, _bs_ty):
         _apply_trail_update(fig, t, False, False)
@@ -4696,7 +4742,8 @@ def advance_combat(fig, slash_target, fallback):
         return True
 
     # --- Vanish-cut ultimate (charge characters): consumes the figure while
-    #     active — the blitz rides the live melee target, fallback = cursor. ---
+    #     active — the blitz rides the live melee target, fallback = cursor
+    #     (Solo) / nearest enemy (Battle). ---
     if tick_vanish_cut(fig, _bs_tx, _bs_ty):
         _apply_trail_update(fig, t, False, False)
         fig.render.is_moving = False

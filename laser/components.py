@@ -277,7 +277,7 @@ class Combatant:
                  "sprite_particles", "sprite_emit_acc",
                  "sprite_prev_x", "sprite_prev_y",
                  "dodged_proj_ids",
-                 "manual_ult_queued",
+                 "manual_ult_queued", "manual_beam",
                  "action_anim", "action_idx",
                  "sp_phase", "sp_f", "sp_tick", "sp_charges", "sp_countered",
                  "sp_next_strike", "sp_block_pending",
@@ -412,6 +412,10 @@ class Combatant:
         # combat.try_fire_manual_ultimate). True while a force-trigger
         # request is pending; consumed the instant the figure is free.
         self.manual_ult_queued = False
+        # True while a hotkey-forced beam ultimate is running: it keeps
+        # firing even with Attack mode (Alt+Up) off — see
+        # systems.ProjectileSystem._fire_manual_beams.
+        self.manual_beam = False
         # Generic bundle-extra animation driver (see figure._current_frame):
         # when action_anim names a sprite_files extra set ("special",
         # "ultimate", ...) the figure draws that set's frame action_idx
