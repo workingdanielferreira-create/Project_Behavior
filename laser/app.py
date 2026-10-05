@@ -6,6 +6,7 @@ systems pipeline, and paints.  All per-tick logic lives in systems; all shared
 state and entity creation lives in World.
 """
 
+import math
 import os
 import sys
 import time
@@ -16,11 +17,11 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
-from .palette import lut_for_index, lut_for_mode
+from .palette import lut_for_index, lut_for_mode, LUT_BLUE, LUT_PINK
 
 # crash_log replaced by action_log.crash() — see laser/action_log.py
 
@@ -160,6 +161,10 @@ class World:
         self.impact_rings = []              # [x, y, age, max_radius] shockwaves
         self.muzzle_flashes = []            # [x, y, age, r, g, b] firing flashes
         self.sparks = []                    # [x, y, vx, vy, age, r, g, b]
+        # Clash explosions (laser/clashfx.py): live ClashFX objects, drawn +
+        # aged in _paint.  F6 previews the next variation at the cursor.
+        self.clash_fx = []
+        self.clash_preview_idx = 0
 
         # Input bookkeeping
         self._ctrl_prev = False
@@ -385,6 +390,31 @@ class World:
         Identical in Solo & Battle."""
         for fig in self.sides[side_idx].figures:
             fig.combat.manual_ult_queued = True
+
+    def preview_clash_fx(self):
+        """F6: fire the next clash explosion variation at the cursor.  Side A
+        colour = P1's fighter, side B = P2's (a contrasting palette when P2
+        is not fielded); the clash axis runs P1 -> P2 when both are on
+        screen, else left -> right.  Sustained variations play their preview
+        hold, then detonate; the blowout's winner alternates.  Identical in
+        Solo and Battle."""
+        keys = clashfx.preview_order()
+        i = self.clash_preview_idx % len(keys)
+        self.clash_preview_idx += 1
+        key = keys[i]
+        f0 = self.sides[0].figures[0] if self.sides[0].figures else None
+        f1 = self.sides[1].figures[0] if len(self.sides) > 1 and self.sides[1].figures else None
+        c1 = tuple(f0.lut[128]) if f0 is not None else tuple(LUT_BLUE[128])
+        if f1 is not None:
+            c2 = tuple(f1.lut[128])
+        else:
+            c2 = tuple(LUT_PINK[128]) if c1 != tuple(LUT_PINK[128]) else tuple(LUT_BLUE[128])
+        angle = 0.0
+        if f0 is not None and f1 is not None and (f0.x != f1.x or f0.y != f1.y):
+            angle = math.degrees(math.atan2(f1.y - f0.y, f1.x - f0.x))
+        x, y = self.cursor
+        clashfx.spawn(self, key, x, y, angle=angle, c1=c1, c2=c2, winner=(self.clash_preview_idx // len(keys)) % 2)
+        self.notice = ("Clash FX %d/%d: %s  (F6 next)" % (i + 1, len(keys), clashfx.display_name(key)), 150)
 
     def toggle_shoot_mode(self):
         self.shoot_mode = not self.shoot_mode
@@ -948,6 +978,11 @@ class Overlay(QWidget):
                 if fl[2] < config.MUZZLE_FLASH_LIFETIME:
                     live.append(fl)
             w.muzzle_flashes = live
+
+        # --- Clash explosions (laser/clashfx.py) — above the impact FX ---
+        if w.clash_fx:
+            sw, sh = w.screen_w, w.screen_h
+            clashfx.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
         # --- HP readout — bottom-right, one entry per figure (both sides) ---
         _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
