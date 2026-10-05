@@ -207,6 +207,12 @@ def main():
         j, y = p if isinstance(p, tuple) else (p, p)
         diff(js.get(j), fx.get(y), "fxkit " + j, out)
 
+    # Clash settings (pack.clash) and the clash explosions the Clash panel offers.
+    diff(js.get("CLASH_SLOTS"), [list(r) for r in fx.get("CLASH_SLOTS")], "fxkit CLASH_SLOTS", out)
+    diff(js.get("CLASH_HOLDS"), list(fx.get("CLASH_HOLDS")), "fxkit CLASH_HOLDS", out)
+    same_keys({r[0] for r in js.get("CLASH_FX")}, _clashfx_keys(), "CLASH_FX", out,
+              "FX Studio's clash FX list", "laser/clashfx.py BASES")
+
     # Conditions (laser/actions.py) and Tactical retreat defaults (laser/retreat.py).
     diff(js.get("CONDITION_TYPES"), act.get("CONDITION_TYPES"), "CONDITION_TYPES", out)
     diff(js.get("RETREAT_DEFAULTS"), rt.get("DEFAULTS"), "RETREAT_DEFAULTS", out)
@@ -239,6 +245,16 @@ def main():
         return 1
     print("FX Studio and the game agree on every shared table.")
     return 0
+
+
+def _clashfx_keys():
+    """The keys of laser/clashfx.py BASES (read with ast: it imports PyQt5)."""
+    with open(os.path.join(ROOT, "laser", "clashfx.py"), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "BASES" for t in node.targets):
+            return {k.value for k in node.value.keys}
+    return set()
 
 
 if __name__ == "__main__":

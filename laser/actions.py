@@ -138,7 +138,7 @@ class ActionRunner:
                  "hp_fired", "history", "last_attack_end", "chain_pos", "hit_tags", "next_tag", "deflected",
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
-                 "rng", "ctx", "ctx_tick", "was_attacking")
+                 "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root")
 
     def __init__(self):
         self.playing = None
@@ -170,6 +170,12 @@ class ActionRunner:
         self.landed = 0
         self.cursor_facing_left = None
         self.rng = random.Random()
+        # A forced action (the "clash" action while one of this fighter's
+        # FX clashes, laser/clash.py): loops until forced_until, standing
+        # still when forced_root.
+        self.forced = None
+        self.forced_until = 0
+        self.forced_root = False
         self.ctx = None              # the last observe() result (conditions read it)
         self.ctx_tick = None         # the tick it was taken on
         self.was_attacking = False   # tracker for non-image fighters: dash / slash edge
@@ -449,6 +455,27 @@ class ActionRunner:
         self.hit_tags = []
         self.landed = 0
 
+    def force(self, fig, name, until, root, now):
+        """Play `name` now (cutting into whatever plays) and keep looping it
+        until tick `until`; a later call can only extend it."""
+        if self.forced == name and self.playing == name:
+            self.forced_until = max(self.forced_until, until)
+            self.forced_root = self.forced_root or bool(root)
+            return True
+        n, _fm = self._frames(fig, name)
+        if n <= 0:
+            return False
+        if self.playing is not None:
+            self._finish(fig, now)
+        self.playing = name
+        self.elapsed = 0.0
+        self.loops_left = 10 ** 6
+        self.started = now
+        self.forced, self.forced_until, self.forced_root = name, until, bool(root)
+        fig.combat.action_anim = name
+        fig.combat.action_idx = 0
+        return True
+
     def update(self, fig, world):
         """One tick.  Returns True when the fighter is rooted this tick
         (MotionSystem then leaves it where it is)."""
@@ -456,6 +483,10 @@ class ActionRunner:
         c = fig.combat
         ctx = self.observe(fig, world)
         tx, ty = ctx["target"]
+        if self.forced is not None and (self.playing != self.forced or now >= self.forced_until):
+            if self.playing == self.forced:
+                self._finish(fig, now)
+            self.forced = None
 
         # Attack mode (Alt+Up) gates attacking exactly as it gates the
         # built-in fighters; defend is always allowed.
@@ -464,7 +495,7 @@ class ActionRunner:
         # are met cuts into a normal attack instead of waiting for it to end
         # — the moment (target in range, a hit, an incoming shot) would
         # otherwise be gone.  It never cuts into another triggered action.
-        if self.playing is not None and _kind(self.playing) == "attack":
+        if self.playing is not None and self.forced is None and _kind(self.playing) == "attack":
             names = [k for k in (fig.mode.character.get("actions") or {}) if _kind(k) == "triggered"]
             for name in sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
                                                       2 if k == "attack_special" else 3, k)):
@@ -512,6 +543,8 @@ class ActionRunner:
                 c.action_idx = max(0, min(n - 1, frame))
                 self.elapsed += TICK_MS
                 cfg = _cfg(fig, name)
+                if name == self.forced:
+                    cfg = dict(cfg, movement="stand" if self.forced_root else "move", move_speed_pct=100.0)
                 total = n * fm * max(1, int(round(float(cfg.get("anim_loops") or 1))))
                 done = ((max(1, int(round(float(cfg.get("anim_loops") or 1)))) - self.loops_left) * n * fm
                         + self.elapsed - TICK_MS)   # time into the whole action before this tick
@@ -633,6 +666,16 @@ def update(fig, world):
     """CombatSystem hook for image characters; returns 'rooted this tick'."""
     r = runner(fig)
     return r.update(fig, world) if r is not None else False
+
+
+def force_clash(fig, world, until, root):
+    """laser/clash.py: one of this fighter's FX is clashing — show its
+    "clash" action (a Rig Forge action; none = nothing happens) until tick
+    `until`, standing still when `root`.  True when it plays."""
+    r = runner(fig)
+    if r is None or "clash" not in fig.render.bundle.extra:
+        return False
+    return r.force(fig, "clash", until, root, world.global_tick)
 
 
 def force_attack(fig, world):
