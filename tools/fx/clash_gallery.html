@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Open in any browser: the ten clash baselines of laser/clashfx.py, ported to canvas. Keep in step with clashfx.py. -->
+<!-- Open in any browser: the clash baselines of laser/clashfx.py, ported to canvas. Keep in step with clashfx.py. -->
 <title>Clash Explosion Gallery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
@@ -58,7 +58,7 @@ footer { color: var(--muted); font-size: 12.5px; max-width: 75ch; }
 <div class="wrap">
   <header>
     <h1>Clash Explosion <span>Gallery</span></h1>
-    <p class="lede">The ten clash baselines from <code>laser/clashfx.py</code>, ported to the browser canvas tick for tick (16 ms). Side A’s colour fills the left half of each explosion, side B’s the right, with a white-hot core where they meet. In the game, press <code>F6</code> to fire them at the cursor.</p>
+    <p class="lede">The eleven clash baselines from <code>laser/clashfx.py</code>, ported to the browser canvas tick for tick (16 ms). Side A’s colour fills the left half of each explosion, side B’s the right, with a white-hot core where they meet. In the game, press <code>F6</code> to fire them at the cursor.</p>
   </header>
 
   <section class="controls" aria-label="Preview controls">
@@ -72,7 +72,7 @@ footer { color: var(--muted); font-size: 12.5px; max-width: 75ch; }
 
   <section class="grid" id="grid" aria-label="Explosion baselines"></section>
 
-  <footer>Sustained clashes (beam struggle, blade lock) hold for 150 / 120 ticks and then detonate on their own. In the clash interaction they will hold until the clash is decided. Click a stage to replay it. The overpower blowout alternates its winner on each replay. Canvas drawing differs slightly from QPainter, so judge final timing and colour in game.</footer>
+  <footer>Sustained clashes (beam struggle, blade lock, speed duel) hold for 150 / 120 / 190 ticks and then detonate on their own. In the clash interaction they will hold until the clash is decided. Click a stage to replay it. The overpower blowout alternates its winner on each replay. Canvas drawing differs slightly from QPainter, so judge final timing and colour in game.</footer>
 </div>
 
 <script>
@@ -89,6 +89,7 @@ const BASES = {
   getsuga_cross:     {name: "Getsuga Cross", kind: "burst", life: 44, shards: 12, from: "Two crescent slashes collide", desc: "A cross-shaped flare with crescent shards flying out."},
   implosion_pop:     {name: "Implosion Pop", kind: "burst", life: 58, gather: 22, pause: 5, from: "The energies cancel out", desc: "Particles collapse inward, a held breath, then a sharp pop."},
   storm_fork:        {name: "Storm Fork", kind: "burst", life: 42, forks: 7, from: "A lightning clash", desc: "Branching forks lash out and flicker away."},
+  speed_duel:        {name: "Speed Duel", kind: "sustain", life: 44, hold: 190, area_rx: 150, area_ry: 95, strikes: [3, 6], gap: [4, 8], pause: [16, 28], bind: 0.25, from: "A sword fight too fast to see", desc: "Streaks zip round the area and clash flashes pop where they meet, in bursts of strikes broken by pauses, then one final clash."},
 };
 
 // ---------------------------------------------------------------- helpers
@@ -120,7 +121,7 @@ function drawBolts(g, bolts, c, a, gw = 5, cw = 1.6) { g.lineCap = "round"; g.li
   for (const [pts, d] of bolts) { const k = d >= 1 ? 1 : 0.6;
     for (const [col, al, w] of [[c, a * 0.4 * k, gw * k], [mix(c, HOT, 0.75), a * k, cw * k]]) { g.strokeStyle = rgba(col, al); g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); } } }
 
-const STATIC = new Set(["glint", "ring", "streak"]), UNDER = new Set(["smoke", "kunai"]);
+const STATIC = new Set(["glint", "ring", "streak", "dash"]), UNDER = new Set(["smoke", "kunai"]);
 function P(kind, x, y, vx, vy, life, size, col, o = {}) { return {kind, x, y, vx, vy, life: Math.max(1, life | 0), size, col, col2: o.col2 || col, drag: o.drag ?? 0.94, grav: o.grav || 0, delay: o.delay | 0, rot: o.rot || 0, vr: o.vr || 0, age: 0}; }
 
 // ---------------------------------------------------------------- effect
@@ -173,6 +174,8 @@ class ClashFX {
       case "glint": { const e = easeOut(Math.min(1, q.age / 3)), a = 255 * f; glow(g, q.x, q.y, q.size * 1.6 * e, this.hc(q.col, .4), a * .8); star(g, q.x, q.y, q.size * 2.2 * e, q.size * 1.1 * e, this.hc(q.col, .8), a, 1.3 * S); break; }
       case "ring": { const r = q.size * easeOut(u); splitRing(g, q.x, q.y, r, r, 2.4 * S * f + .4, this.hc(q.col, .3), this.hc(q.col2, .3), 220 * f); break; }
       case "streak": line(g, q.x, q.y, q.x + q.vx, q.y + q.vy, this.hc(q.col, .5), 200 * f * f, 1.4 * S); break;
+      case "dash": { const k = Math.min(1, u * 1.4), tx = q.x + q.vx * k, ty = q.y + q.vy * k, hx = q.x + q.vx, hy = q.y + q.vy;
+        line(g, tx, ty, hx, hy, q.col, 90 * f, q.size * 3.2); line(g, tx, ty, hx, hy, this.hc(q.col, .6), 255 * f, q.size); glow(g, hx, hy, q.size * 3, this.hc(q.col, .4), 160 * f); break; }
     } }
 
   // 1
@@ -303,6 +306,35 @@ class ClashFX {
     glow(g, 0, 0, 42 * S, m, 200 * f * fl); if (t < 3) glow(g, 0, 0, 90 * S, this.hot, 230 * (1 - t / 3));
     if (u < .85) { const a = 255 * (1 - u / .85) * fl; for (const [b, c] of this.st.bolts) drawBolts(g, b, c, a, 5 * S, 1.6 * S); }
     glow(g, 0, 0, 14 * S, this.hot, 255 * f); this.partsAll(g); }
+  // 11
+  init_speed_duel() { const S = this.S, rx = this.spec.area_rx * S, ry = this.spec.area_ry * S; Object.assign(this.st, {rx, ry, a: [-rx * .6, 0], b: [rx * .6, 0], next: 0, left: 0, flash: [], pausing: false}); }
+  duelPoint(k = .8) { const r = this.rng, a = r.uniform(0, TAU), m = Math.sqrt(r()) * k; return [Math.cos(a) * this.st.rx * m, Math.sin(a) * this.st.ry * m]; }
+  duelDash(who, to, delay = 0, life = 9) { const fr = this.st[who], c = who === "a" ? this.c1 : this.c2;
+    this.parts.push(P("dash", fr[0], fr[1], to[0] - fr[0], to[1] - fr[1], life, 1.9 * this.S, c, {delay})); this.st[who] = [to[0], to[1]]; }
+  duelContact(x, y, delay, big) { const r = this.rng, S = this.S, k = big ? 1.6 : 1, c = r() < .5 ? this.c1 : this.c2;
+    this.parts.push(P("glint", x, y, 0, 0, big ? 12 : 9, (big ? 5.5 : 3.6) * S, c, {delay})); this.parts.push(P("ring", x, y, 0, 0, 14, (big ? 26 : 15) * S, this.c1, {col2: this.c2, delay}));
+    this.sparks(9 * k, {x, y, spd: [3, 9 * k], life: [8, 16], size: [1.1, 2], drag: .88, delay}); this.st.flash.push([x, y, -delay, big ? 1 : .6]); }
+  duelStrike() { const r = this.rng, S = this.S, Pt = this.duelPoint(); this.duelDash("a", Pt, 0, 11); this.duelDash("b", Pt, 0, 11);
+    const bind = r() < this.spec.bind; this.duelContact(Pt[0], Pt[1], 2, bind);
+    if (bind) for (const d of [4, 6, 8]) this.sparks(4, {x: Pt[0], y: Pt[1], ang: -Math.PI / 2, spread: 1, spd: [3, 8], life: [10, 18], grav: .35, delay: d});
+    const a = r.uniform(0, TAU), d = r.uniform(14, 26) * S; let ux = Math.cos(a) * d, uy = Math.sin(a) * d; if (ux > 0) { ux = -ux; uy = -uy; }
+    this.duelDash("a", [Pt[0] + ux, Pt[1] + uy], 3, 8); this.duelDash("b", [Pt[0] - ux, Pt[1] - uy], 3, 8); }
+  duelSpot(who) { const r = this.rng, sx = who === "a" ? -1 : 1; return [sx * r.uniform(.3, .95) * this.st.rx, r.uniform(-.8, .8) * this.st.ry]; }
+  tick_speed_duel() { const st = this.st, r = this.rng, sp = this.spec; st.flash = st.flash.map(([x, y, a, k]) => [x, y, a + 1, k]).filter(f => f[2] < 10);
+    if (this.phase !== "hold") return;
+    if (this.t < st.next) { if (st.pausing) for (const w of ["a", "b"]) if (r() < .16) this.duelDash(w, this.duelSpot(w), 0, 10); return; }
+    if (st.left > 0) { st.pausing = false; this.duelStrike(); st.left--; st.next = this.t + r.randint(...sp.gap); }
+    else { this.duelDash("a", this.duelSpot("a"), r.randint(0, 3), 12); this.duelDash("b", this.duelSpot("b"), r.randint(0, 3), 12);
+      st.pausing = this.t > 0; st.left = r.randint(...sp.strikes); st.next = this.t + (this.t > 0 ? r.randint(...sp.pause) : 8); } }
+  finale_speed_duel() { const st = this.st; st.a = [-st.rx * 1.05, 0]; st.b = [st.rx * 1.05, 0]; this.duelDash("a", [0, 0], 0, 12); this.duelDash("b", [0, 0], 0, 12);
+    this.sparks(56, {spd: [4, 14], life: [16, 34], delay: 3}); this.sparks(12, {kind: "dot", spd: [1, 4], life: [20, 34], size: [2, 3.6], drag: .95, delay: 3}); }
+  draw_speed_duel(g) { const st = this.st, S = this.S; g.globalCompositeOperation = "lighter";
+    for (const [x, y, a, k] of st.flash) if (a >= 0) { const v = a / 10; glow(g, x, y, 34 * S * k * (.5 + .5 * v), this.hot, 230 * (1 - v) * k); }
+    if (this.phase !== "hold") { const t = this.ft - 3; if (t >= 0) { const u = Math.min(1, t / this.life), f = 1 - u, m = mix(this.c1, this.c2, .5);
+      glow(g, 0, 0, 95 * S * easeOut(t / 6), this.hc(m, .45), 255 * f ** 1.4); const r = 210 * S * easeOut(u);
+      splitRing(g, 0, 0, r, r, 7 * S * f + .8, this.hc(this.c1, .4), this.hc(this.c2, .4), 230 * f); const L = 240 * S * easeOut(Math.min(1, t / 4));
+      diamond(g, 0, -L, 0, L, 7 * S * f, m, 160 * f); diamond(g, 0, -L, 0, L, 2.2 * S * f + .3, this.hot, 255 * f); } }
+    this.partsAll(g); }
 }
 
 // ---------------------------------------------------------------- page

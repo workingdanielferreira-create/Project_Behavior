@@ -513,6 +513,19 @@ G.FX_PRESETS = [
       keys: [{frame: 2, ease: "strong_out", set: {"params.length": 140}}]},
      {prim: "glow", name: "Fork afterglow", tag: "clash", anchor: "target", life_ticks: 40, motion: {kind: "static"}, blend: "additive",
       color: {mode: "gradient", c1: "#ffffff", c2: "#ff3c5a"}, params: {r_start: 42, r_end: 30, a_center: 220, a_mid: 90, mid: 0.4, core_r: 6, fade: "out", pulse_hz: 14}}]},
+  {name: "Speed Duel", group: "Clash explosions", desc: "Two sword fighters too fast to see: speed streaks zip in from both sides and clash flashes pop where they meet (in game: bursts of strikes with pauses, held until released, then one final clash)",
+   effects: [
+     {prim: "sprite", name: "Fighter A streaks", tag: "clash", anchor: "target", offset: [-120, 0], life_ticks: 12, emit: {every_ticks: 7, count: 1, fan_deg: 0}, blend: "additive",
+      motion: {kind: "zigzag", aim: "angle", angle_deg: 0, speed: 16, amplitude: 60, freq: 0.3}, color: {mode: "gradient", c1: "#ffffff", c2: "#4696ff"},
+      params: {shape: "bolt", radius: 2.5, stretch: 3, hot: true, fade: true, trail_len: 10, glow: 150, glow_size: 120}},
+     {prim: "sprite", name: "Fighter B streaks", tag: "clash", anchor: "target", offset: [120, 0], life_ticks: 12, emit: {every_ticks: 7, count: 1, fan_deg: 0}, blend: "additive",
+      motion: {kind: "zigzag", aim: "angle", angle_deg: 180, speed: 16, amplitude: 60, freq: 0.3}, color: {mode: "gradient", c1: "#ffffff", c2: "#ff3c5a"},
+      params: {shape: "bolt", radius: 2.5, stretch: 3, hot: true, fade: true, trail_len: 10, glow: 150, glow_size: 120}},
+     {prim: "pulse", name: "Clash pops", tag: "clash", anchor: "target", life_ticks: 190, motion: {kind: "static"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#4696ff"}, params: {r_start: 2, r_end: 26, width: 3, width_end: 1, expand_ms: 180, rings: 0, gap_ms: 112, ease: "out", fade: "out", glow: 6}},
+     {prim: "particles", name: "Clash sparks", tag: "clash", anchor: "target", life_ticks: 190, motion: {kind: "static"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#ff3c5a"},
+      params: {mode: "stream", rate_per_s: 90, angle_deg: 0, spread_deg: 360, speed_min: 160, speed_max: 520, gravity: 0, drag: 0.88, size_min: 1.1, size_max: 2, size_over_life: "shrink", life_min_ms: 130, life_max_ms: 260}}]},
 ];
 // Built-in entry-set and path presets (Paths & entry points panel).  kind
 // "set" items are entry sets, "path" items paths, in the shapes

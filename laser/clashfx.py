@@ -23,6 +23,9 @@ attack, with a white-hot core where they meet:
   getsuga_cross      two crescents collide: cross flare, crescent shards
   implosion_pop      energies cancel: particles collapse inward, pause, pop
   storm_fork         branching lightning forks with a flickering afterglow
+  speed_duel         SUSTAINED: two fighters too fast to see — streaks zip round
+                     the area and clash flashes pop where they meet, in bursts
+                     of strikes broken by pauses; ends in one final big clash
 
 Variations: every baseline takes the same tunables (size, density, speed,
 life, hold, hot, plus a few of its own — see BASES).  derive() registers a
@@ -74,6 +77,10 @@ BASES = {
     "getsuga_cross": dict(name="Getsuga Cross", kind="burst", life=44, shards=12),
     "implosion_pop": dict(name="Implosion Pop", kind="burst", life=58, gather=22, pause=5),
     "storm_fork": dict(name="Storm Fork", kind="burst", life=42, forks=7),
+    # strikes = (min, max) per burst, gap = ticks between strikes in a burst,
+    # pause = ticks between bursts, bind = chance a strike locks and grinds.
+    "speed_duel": dict(name="Speed Duel", kind="sustain", life=44, hold=190, area_rx=150, area_ry=95,
+                       strikes=(3, 6), gap=(4, 8), pause=(16, 28), bind=0.25),
 }
 BASE_ORDER = list(BASES)
 
@@ -243,8 +250,9 @@ def _draw_bolts(p, bolts, c, a, glow_w=5.0, core_w=1.6):
 # kinds: spark (velocity streak), dot (soft glow), ember (flickering dot),
 # smoke (dark puff, drawn underneath), kunai (spinning steel blade, drawn
 # underneath), crescent (spinning arc), glint (four-point flare, static),
-# ring (expanding split ring, static), streak (fixed line x,y -> x+vx,y+vy).
-STATIC_KINDS = ("glint", "ring", "streak")
+# ring (expanding split ring, static), streak (fixed line x,y -> x+vx,y+vy),
+# dash (a fighter's glowing speed streak, fixed line like streak).
+STATIC_KINDS = ("glint", "ring", "streak", "dash")
 UNDER_KINDS = ("smoke", "kunai")
 
 
@@ -417,6 +425,13 @@ class ClashFX:
             _split_ring(p, q.x, q.y, r, r, 2.4 * self.S * f + 0.4, self._hotc(q.col, 0.3), self._hotc(q.col2, 0.3), 220 * f)
         elif k == "streak":
             _line(p, q.x, q.y, q.x + q.vx, q.y + q.vy, self._hotc(q.col, 0.5), 200 * f * f, 1.4 * self.S)
+        elif k == "dash":
+            # the tail fades first: the streak shrinks toward the head
+            tx, ty = q.x + q.vx * min(1.0, u * 1.4), q.y + q.vy * min(1.0, u * 1.4)
+            hx, hy = q.x + q.vx, q.y + q.vy
+            _line(p, tx, ty, hx, hy, q.col, 90 * f, q.size * 3.2)
+            _line(p, tx, ty, hx, hy, self._hotc(q.col, 0.6), 255 * f, q.size)
+            _glow(p, hx, hy, q.size * 3.0, self._hotc(q.col, 0.4), 160 * f)
 
     def _draw_kunai(self, p, q, f):
         s = q.size
@@ -935,6 +950,117 @@ class ClashFX:
             for bolts, c in self.state["bolts"]:
                 _draw_bolts(p, bolts, c, a, 5.0 * S, 1.6 * S)
         _glow(p, 0, 0, 14 * S, self.hot, 255 * f)
+        self._draw_parts(p)
+
+
+    # ================================================================ 11
+    def _init_speed_duel(self):
+        S, sp = self.S, self.spec
+        rx, ry = float(sp.get("area_rx", 150)) * S, float(sp.get("area_ry", 95)) * S
+        self.state.update(rx=rx, ry=ry, a=[-rx * 0.6, 0.0], b=[rx * 0.6, 0.0], next=0, left=0, flash=[], pausing=False)
+
+    def _duel_point(self, k=0.8):
+        st, r = self.state, self.rng
+        a = r.uniform(0, TAU)
+        m = math.sqrt(r.random()) * k
+        return [math.cos(a) * st["rx"] * m, math.sin(a) * st["ry"] * m]
+
+    def _duel_dash(self, who, to, delay=0, life=9):
+        st = self.state
+        fr = st[who]
+        c = self.c1 if who == "a" else self.c2
+        self.parts.append(_P("dash", fr[0], fr[1], to[0] - fr[0], to[1] - fr[1], life, 1.9 * self.S, c, delay=delay))
+        st[who] = [to[0], to[1]]
+
+    def _duel_contact(self, x, y, delay, big=False):
+        r, S = self.rng, self.S
+        k = 1.6 if big else 1.0
+        c = self.c1 if r.random() < 0.5 else self.c2
+        self.parts.append(_P("glint", x, y, 0, 0, 12 if big else 9, (5.5 if big else 3.6) * S, c, delay=delay))
+        self.parts.append(_P("ring", x, y, 0, 0, 14, (26 if big else 15) * S, self.c1, col2=self.c2, delay=delay))
+        self._sparks(9 * k, x=x, y=y, spd=(3.0, 9.0 * k), life=(8, 16), size=(1.1, 2.0), drag=0.88, delay=delay)
+        self.state["flash"].append([x, y, -delay, 1.0 if big else 0.6])
+
+    def _duel_strike(self):
+        st, r, S = self.state, self.rng, self.S
+        P = self._duel_point()
+        self._duel_dash("a", P, 0, 11)
+        self._duel_dash("b", P, 0, 11)
+        bind = r.random() < float(self.spec.get("bind", 0.25))
+        self._duel_contact(P[0], P[1], 2, bind)
+        if bind:   # blades lock and grind for a moment
+            for d in (4, 6, 8):
+                self._sparks(4, x=P[0], y=P[1], ang=-math.pi / 2, spread=1.0, spd=(3.0, 8.0), life=(10, 18),
+                             grav=0.35, delay=d)
+        # both recoil away from the contact along a random clash axis
+        a = r.uniform(0, TAU)
+        d = r.uniform(14, 26) * S
+        ux, uy = math.cos(a) * d, math.sin(a) * d
+        if ux > 0:
+            ux, uy = -ux, -uy   # A recoils toward its own (left) side
+        self._duel_dash("a", [P[0] + ux, P[1] + uy], 3, 8)
+        self._duel_dash("b", [P[0] - ux, P[1] - uy], 3, 8)
+
+    def _duel_spot(self, who):
+        """A standby spot on the fighter's own side (A left, B right)."""
+        st, r = self.state, self.rng
+        sx = -1 if who == "a" else 1
+        return [sx * r.uniform(0.3, 0.95) * st["rx"], r.uniform(-0.8, 0.8) * st["ry"]]
+
+    def _duel_reposition(self):
+        r = self.rng
+        self._duel_dash("a", self._duel_spot("a"), r.randint(0, 3), 12)
+        self._duel_dash("b", self._duel_spot("b"), r.randint(0, 3), 12)
+
+    def _tick_speed_duel(self):
+        st, r, sp = self.state, self.rng, self.spec
+        st["flash"] = [[x, y, a + 1, k] for x, y, a, k in st["flash"] if a + 1 < 10]
+        if self.phase != "hold":
+            return
+        if self.t < st["next"]:
+            if st["pausing"]:   # circling between bursts: short flickers on each side
+                for who in ("a", "b"):
+                    if r.random() < 0.16:
+                        self._duel_dash(who, self._duel_spot(who), 0, 10)
+            return
+        if st["left"] > 0:
+            st["pausing"] = False
+            self._duel_strike()
+            st["left"] -= 1
+            st["next"] = self.t + r.randint(*sp.get("gap", (4, 8)))
+        else:
+            self._duel_reposition()
+            st["pausing"] = self.t > 0
+            st["left"] = r.randint(*sp.get("strikes", (3, 6)))
+            st["next"] = self.t + (r.randint(*sp.get("pause", (16, 28))) if self.t > 0 else 8)
+
+    def _finale_speed_duel(self):
+        st, S = self.state, self.S
+        rx = st["rx"]
+        st["a"], st["b"] = [-rx * 1.05, 0.0], [rx * 1.05, 0.0]
+        self._duel_dash("a", [0.0, 0.0], 0, 12)
+        self._duel_dash("b", [0.0, 0.0], 0, 12)
+        self._sparks(56, spd=(4.0, 14.0), life=(16, 34), delay=3)
+        self._sparks(12, kind="dot", spd=(1.0, 4.0), life=(20, 34), size=(2.0, 3.6), drag=0.95, delay=3)
+
+    def _draw_speed_duel(self, p):
+        st, S = self.state, self.S
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        for x, y, a, k in st["flash"]:
+            if a >= 0:
+                v = a / 10.0
+                _glow(p, x, y, 34 * S * k * (0.5 + 0.5 * v), self.hot, 230 * (1 - v) * k)
+        if self.phase != "hold":
+            t = self.ft - 3
+            if t >= 0:
+                u = min(1.0, t / float(self.life))
+                f = 1.0 - u
+                _glow(p, 0, 0, 95 * S * _ease_out(t / 6.0), self._hotc(_mix(self.c1, self.c2, 0.5), 0.45), 255 * f ** 1.4)
+                r = 210 * S * _ease_out(u)
+                _split_ring(p, 0, 0, r, r, 7 * S * f + 0.8, self._hotc(self.c1, 0.4), self._hotc(self.c2, 0.4), 230 * f)
+                L = 240 * S * _ease_out(min(1.0, t / 4.0))
+                _diamond(p, 0, -L, 0, L, 7 * S * f, _mix(self.c1, self.c2, 0.5), 160 * f)
+                _diamond(p, 0, -L, 0, L, 2.2 * S * f + 0.3, self.hot, 255 * f)
         self._draw_parts(p)
 
 
