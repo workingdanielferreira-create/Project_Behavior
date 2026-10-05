@@ -87,9 +87,9 @@ class InputSystem(System):
         # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
         # registered character; P2 cycles through them and then OFF (side
         # cleared — battle ends), tap again to re-field.
-        # Ctrl+1 / Ctrl+2: force that side's fielded character to fire its
-        # next ultimate tier immediately, bypassing the HP threshold
-        # (queued — fires the instant the figure is free; see
+        # Ctrl+1 / Ctrl+2: force that side's fielded character(s) to fire
+        # their ultimate on every press, bypassing the HP threshold and
+        # Attack mode (queued — fires the instant the figure is free; see
         # World.request_manual_ultimate / combat.try_fire_manual_ultimate).
         # ctrl_used is set so releasing Ctrl afterward doesn't also toggle
         # collision (mirrors the Ctrl+Q / Ctrl+R pattern below).
@@ -404,7 +404,14 @@ class CombatSystem(System):
                 fig.combat.acted = False
                 continue
             tgt = world.melee_target(fig)
-            fig.combat.acted = combat.advance_combat(fig, tgt, world.cursor)
+            # Fallback target (ultimates while Attack mode is off, e.g. a
+            # Ctrl+1 / Ctrl+2 forced one): the nearest enemy in Battle,
+            # the cursor in Solo.
+            if world.battle_mode and world.partner_figures:
+                _fb = world._nearest_enemy(fig.x, fig.y)
+            else:
+                _fb = world.cursor
+            fig.combat.acted = combat.advance_combat(fig, tgt, _fb)
 
             # --- Slash FX: drain hit events into world FX lists ---
             c = fig.combat
@@ -483,6 +490,13 @@ class ProjectileSystem(System):
             # (battle_mode True with no partner figures yet = hold fire, as before.)
             if battle or not world.battle_mode:
                 self._fire(world, battle)
+        elif world.figures:
+            # Ctrl+1 / Ctrl+2 manual ultimate: a hotkey-forced beam keeps
+            # firing even with Attack mode (Alt+Up) / F9 off.  Same in Solo
+            # and Battle.
+            battle = bool(world.battle_mode and world.partner_figures)
+            if battle or not world.battle_mode:
+                self._fire_manual_beams(world, battle)
 
         # JSON-character attack_special/ultimate: evaluated every tick against
         # each action's own activation_triggers, independent of the
@@ -648,6 +662,29 @@ class ProjectileSystem(System):
 
 
 
+    def _fire_manual_beams(self, world, battle):
+        """Beam ultimate for figures whose beam was forced by the Ctrl+1 /
+        Ctrl+2 hotkey (combat.try_fire_manual_ultimate), used only while
+        the normal cadence (_fire) is off — Attack mode or F9 off.  Same
+        per-tick bolts as the beam in _fire; target = nearest enemy in
+        Battle, the cursor in Solo."""
+        for fig in world.figures:
+            c = fig.combat
+            if not c.manual_beam:
+                continue
+            p = fig.personality
+            if p.ultimate_ticks <= 0 or not fig.mode.can_shoot():
+                c.manual_beam = False
+                continue
+            p.ultimate_ticks -= 1
+            if p.ultimate_ticks <= 0:
+                c.manual_beam = False
+            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+                      else world.cursor)
+            world.projectiles.extend(combat.make_beam_shot_cfg(fig, tx, ty))
+            rr, gg, bb = fig.lut[128]
+            world.muzzle_flashes.append([fig.x, fig.y, 0, rr, gg, bb])
+
     def _fire(self, world, battle):
         """Unified firing cadence for BOTH Solo and Battle mode.
 
@@ -674,6 +711,8 @@ class ProjectileSystem(System):
                 p = fig.personality
                 if p.ultimate_ticks > 0:
                     p.ultimate_ticks -= 1
+                    if p.ultimate_ticks <= 0:
+                        fig.combat.manual_beam = False
             for fig in world.figures:
                 if not fig.mode.can_shoot() or fig.personality.ultimate_ticks <= 0:
                     continue
@@ -910,22 +949,7 @@ class ProjectileSystem(System):
                     continue
                 if ai.evaluate_activation_triggers(action, fig, dist,
                                                    world.global_tick):
-                    # A particle-type can_hit layer means this character has
-                    # its own authored burst FX (spread/speed/gravity/color)
-                    # — show that instead of the plain simplified dot.
-                    has_particle_layers = any(
-                        l.get("type") == "particles"
-                        for l in (action.get("fx_layers") or [])
-                        if l.get("can_hit"))
-                    new_projs = combat.fire_character_action(
-                        fig, key, tx, ty, suppress_visual=has_particle_layers)
-                    if has_particle_layers:
-                        combat.spawn_character_burst_fx(fig, key)
-                    if new_projs:
-                        world.projectiles.extend(new_projs)
-                        _fr, _fg, _fb = fig.lut[128]
-                        world.muzzle_flashes.append(
-                            [fig.x, fig.y, 0, _fr, _fg, _fb])
+                    combat.fire_json_action(fig, world, key, tx, ty)
 
 
 class CollisionSystem(System):
