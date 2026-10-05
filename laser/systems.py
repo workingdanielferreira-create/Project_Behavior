@@ -75,6 +75,11 @@ class InputSystem(System):
         if self._pressed(win.VK_F5):
             world.reload_characters()
 
+        # F6: preview the next clash explosion variation at the cursor
+        # (laser/clashfx.py).  Same in Solo and Battle.
+        if self._pressed(win.VK_F6):
+            world.preview_clash_fx()
+
         # Ctrl+0: toggle the roster lock.  While locked, every key that
         # adds, removes or swaps a fighter (1/2/3/4, F7/F8) is ignored, so
         # whatever is on screen stays put.  Ctrl+1 / Ctrl+2 manual ultimates

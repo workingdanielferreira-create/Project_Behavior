@@ -425,3 +425,28 @@ more geometry in `draw()` and, for gameplay-relevant effects, hit tests in
 | `figure.py` | Figure-attached drawing: afterimages, crescents, ult crescents |
 | `app.py` | World FX lists, draw order, paint-time aging (hitstop-immune FX) |
 | `ipc.py` | The only cross-process channel; fixed struct layout, 160 bullet slots |
+| `clashfx.py` | Clash explosion library: 10 baselines + `derive()` variations, `world.clash_fx` |
+
+---
+
+## 12. Clash Explosions (`laser/clashfx.py`)
+
+The explosion library for the Clash interaction. Each explosion is a
+self-drawing object (Pattern A) living in `world.clash_fx`, drawn and aged in
+`_paint` like the Pattern B lists, so it keeps animating through hit-stop. It is
+one list for the whole world, so Solo and Battle behave identically.
+
+- **Spawn:** `clashfx.spawn(world, key, x, y, angle=deg, c1=rgb, c2=rgb, winner=0)`.
+  `angle` points from side A (colour `c1`) to side B (`c2`). Each half of the
+  explosion takes its side's colour, with a white-hot core where they meet.
+- **Sustained clashes** (`beam_struggle`, `blade_lock`) hold until
+  `fx.release(winner)` (or their `hold` ticks run out; `hold=-1` = until released).
+- **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`,
+  `kunai_storm`, `ricochet_rain`, `blade_lock`, `reiatsu_eruption`,
+  `getsuga_cross`, `implosion_pop`, `storm_fork`.
+- **New variations:** `clashfx.derive("mega_nova", "collision_nova", name="Mega Nova", size=1.8, density=1.6)`.
+  Shared tunables: `size`, `density`, `speed`, `life`, `hold`, `hot`, plus each
+  baseline's own (see `BASES`).
+- **Preview:** `F6` fires the next variation at the cursor (P1's colour vs P2's).
+  `tools/fx/clash_gallery.html` plays all ten in a browser. FX Studio has
+  approximate versions under the **Clash explosions** preset group.

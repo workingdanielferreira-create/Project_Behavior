@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Open in any browser: the ten clash baselines of laser/clashfx.py, ported to canvas. Keep in step with clashfx.py. -->
+<title>Clash Explosion Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: a dark FX bench — control strip on top, a grid of looping stages below, one per baseline. Single dark look on purpose: the effects are additive light. */
+:root {
+  --bg: #0b0b12;
+  --panel: #13131d;
+  --line: #262636;
+  --fg: #e7e6f2;
+  --muted: #8f8da8;
+  --accent: #ffd36a;
+  --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--body); padding: 24px 16px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 6px; }
+h1 { font: 700 clamp(26px, 4vw, 38px)/1.1 var(--display); letter-spacing: .02em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.lede { color: var(--muted); max-width: 70ch; margin: 0; }
+.lede code { font: 12.5px var(--mono); color: var(--fg); }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.ctl { display: grid; gap: 4px; min-width: 0; }
+.ctl label { font: 500 11px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.ctl output { font: 12px var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; align-items: center; }
+input[type=color] { width: 40px; height: 28px; border: 1px solid var(--line); background: none; padding: 0; border-radius: 4px; }
+input[type=range] { width: 130px; accent-color: var(--accent); }
+button { font: 500 12px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--bg); background: var(--accent); border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer; }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.tile { display: grid; grid-template-rows: auto 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; }
+.tile canvas { display: block; width: 100%; aspect-ratio: 4 / 3; max-width: 100%; background: #07070c; cursor: pointer; }
+.meta { display: grid; gap: 4px; padding: 10px 12px 12px; }
+.meta .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.meta h2 { font: 700 16px var(--display); margin: 0; letter-spacing: .02em; }
+.meta .key { font: 11.5px var(--mono); color: var(--muted); }
+.chip { font: 500 10px var(--display); letter-spacing: .12em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.sus { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.meta p { margin: 0; color: var(--muted); font-size: 13px; }
+.meta .acts { display: flex; gap: 6px; margin-top: 4px; }
+.meta .acts button { padding: 5px 9px; font-size: 11px; }
+footer { color: var(--muted); font-size: 12.5px; max-width: 75ch; }
+@media (max-width: 480px) { input[type=range] { width: 110px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Clash Explosion <span>Gallery</span></h1>
+    <p class="lede">The ten clash baselines from <code>laser/clashfx.py</code>, ported to the browser canvas tick for tick (16 ms). Side A’s colour fills the left half of each explosion, side B’s the right, with a white-hot core where they meet. In the game, press <code>F6</code> to fire them at the cursor.</p>
+  </header>
+
+  <section class="controls" aria-label="Preview controls">
+    <div class="ctl"><label for="cA">Side A</label><div class="row"><input type="color" id="cA" value="#4696ff"><input type="color" id="cB" value="#ff3c5a" aria-label="Side B colour"></div></div>
+    <div class="ctl"><label for="ang">Clash angle</label><div class="row"><input type="range" id="ang" min="-180" max="180" value="0"><output id="angO">0°</output></div></div>
+    <div class="ctl"><label for="size">Size</label><div class="row"><input type="range" id="size" min="0.5" max="1.8" step="0.05" value="0.8"><output id="sizeO">0.80</output></div></div>
+    <div class="ctl"><label for="dens">Density</label><div class="row"><input type="range" id="dens" min="0.3" max="2" step="0.05" value="1"><output id="densO">1.00</output></div></div>
+    <div class="ctl"><label for="spd">Playback</label><div class="row"><input type="range" id="spd" min="0.25" max="1" step="0.25" value="1"><output id="spdO">1×</output></div></div>
+    <div class="row"><button id="all">Replay all</button><button class="ghost" id="relAll">Release holds</button></div>
+  </section>
+
+  <section class="grid" id="grid" aria-label="Explosion baselines"></section>
+
+  <footer>Sustained clashes (beam struggle, blade lock) hold for 150 / 120 ticks and then detonate on their own. In the clash interaction they will hold until the clash is decided. Click a stage to replay it. The overpower blowout alternates its winner on each replay. Canvas drawing differs slightly from QPainter, so judge final timing and colour in game.</footer>
+</div>
+
+<script>
+"use strict";
+const TAU = Math.PI * 2, HOT = [255, 255, 255], STEEL = [198, 208, 224], SMOKE = [70, 66, 72];
+const BASES = {
+  collision_nova:    {name: "Collision Nova", kind: "burst", life: 40, from: "Two energy blasts meet head-on", desc: "Core flash, split shockwave rings, a radial spark burst."},
+  beam_struggle:     {name: "Beam Struggle Node", kind: "sustain", life: 36, hold: 150, stubs: true, stub_len: 150, from: "Gohan vs Cell", desc: "A swelling node with lightning arcs and a tug-of-war wobble that detonates on release."},
+  overpower_blowout: {name: "Overpower Blowout", kind: "burst", life: 56, cone_deg: 34, from: "A beam struggle is won", desc: "A cone blast driven through the loser’s side, with a mushroom of smoke."},
+  kunai_storm:       {name: "Kunai Storm", kind: "burst", life: 62, area_rx: 120, area_ry: 80, clashes: 56, from: "Sasuke vs Itachi", desc: "Dozens of steel-on-steel glints, kunai spinning off in pairs."},
+  ricochet_rain:     {name: "Ricochet Rain", kind: "burst", life: 66, chains: 6, hops: 8, from: "A running kunai exchange", desc: "Chains of spark pops ricocheting outward for about a second."},
+  blade_lock:        {name: "Blade Lock", kind: "sustain", life: 38, hold: 120, blade_len: 78, cross_deg: 35, from: "Bleach sword clash", desc: "Blades crossed in an X, grinding sparks and pressure ripples, ending in a screen-cutting slash."},
+  reiatsu_eruption:  {name: "Reiatsu Eruption", kind: "burst", life: 74, pillar_h: 280, world_up: true, from: "Bleach spiritual pressure", desc: "A two-tone pillar, ground rings and rising embers."},
+  getsuga_cross:     {name: "Getsuga Cross", kind: "burst", life: 44, shards: 12, from: "Two crescent slashes collide", desc: "A cross-shaped flare with crescent shards flying out."},
+  implosion_pop:     {name: "Implosion Pop", kind: "burst", life: 58, gather: 22, pause: 5, from: "The energies cancel out", desc: "Particles collapse inward, a held breath, then a sharp pop."},
+  storm_fork:        {name: "Storm Fork", kind: "burst", life: 42, forks: 7, from: "A lightning clash", desc: "Branching forks lash out and flicker away."},
+};
+
+// ---------------------------------------------------------------- helpers
+function rngOf(seed) { let a = seed >>> 0; const f = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  f.uniform = (lo, hi) => lo + (hi - lo) * f(); f.randint = (lo, hi) => lo + Math.floor(f() * (hi - lo + 1));
+  f.gauss = (m, s) => m + s * Math.sqrt(-2 * Math.log(f() || 1e-9)) * Math.cos(TAU * f()); return f; }
+const cl = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;
+const rgba = (c, a) => `rgba(${cl(c[0])},${cl(c[1])},${cl(c[2])},${Math.max(0, Math.min(255, a)) / 255})`;
+const mix = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+const easeOut = u => { u = u < 0 ? 0 : u > 1 ? 1 : u; return 1 - (1 - u) ** 3; };
+const easeIn = u => { u = u < 0 ? 0 : u > 1 ? 1 : u; return u * u * u; };
+function glow(g, x, y, r, c, a, mid = 0.35) { if (r <= 0.5 || a <= 1) return;
+  const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba(c, a)); gr.addColorStop(mid, rgba(c, a * 0.45)); gr.addColorStop(1, rgba(c, 0));
+  g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+function glowEllipse(g, x, y, rx, ry, c, a, mid = 0.35) { if (rx <= 0.5 || ry <= 0.5 || a <= 1) return; g.save(); g.translate(x, y); g.scale(1, ry / rx); glow(g, 0, 0, rx, c, a, mid); g.restore(); }
+function splitRing(g, cx, cy, rx, ry, w, ca, cb, a) { if (rx <= 0.5 || a <= 1 || w <= 0.05) return; g.lineWidth = w; g.lineCap = "butt";
+  g.strokeStyle = rgba(ca, a); g.beginPath(); g.ellipse(cx, cy, rx, Math.max(0.1, ry), 0, Math.PI / 2, Math.PI * 1.5); g.stroke();
+  g.strokeStyle = rgba(cb, a); g.beginPath(); g.ellipse(cx, cy, rx, Math.max(0.1, ry), 0, -Math.PI / 2, Math.PI / 2); g.stroke(); }
+function line(g, x0, y0, x1, y1, c, a, w) { if (a <= 1 || w <= 0.05) return; g.lineCap = "round"; g.lineWidth = w; g.strokeStyle = rgba(c, a); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+function star(g, x, y, L, s, c, a, w = 1.6) { line(g, x, y - L, x, y + L, c, a, w); line(g, x - s, y, x + s, y, c, a, w); }
+function diamond(g, x0, y0, x1, y1, hw, c, a) { if (a <= 1 || hw <= 0.05) return; const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+  const nx = -dy / L * hw, ny = dx / L * hw, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  g.fillStyle = rgba(c, a); g.beginPath(); g.moveTo(x0, y0); g.lineTo(mx + nx, my + ny); g.lineTo(x1, y1); g.lineTo(mx - nx, my - ny); g.closePath(); g.fill(); }
+function bolt(r, x0, y0, ang, length, segs, jit, depth, out) { const step = length / Math.max(1, segs); let x = x0, y = y0; const pts = [[x, y]];
+  for (let i = 0; i < segs; i++) { const a = ang + r.uniform(-jit, jit); x += Math.cos(a) * step; y += Math.sin(a) * step; pts.push([x, y]);
+    if (depth > 0 && r() < 0.24) { const side = r() < 0.5 ? 1 : -1; bolt(r, x, y, a + side * r.uniform(0.4, 0.95), length * 0.45, Math.max(2, segs >> 1), jit, depth - 1, out); } }
+  out.push([pts, depth]); return out; }
+function drawBolts(g, bolts, c, a, gw = 5, cw = 1.6) { g.lineCap = "round"; g.lineJoin = "round";
+  for (const [pts, d] of bolts) { const k = d >= 1 ? 1 : 0.6;
+    for (const [col, al, w] of [[c, a * 0.4 * k, gw * k], [mix(c, HOT, 0.75), a * k, cw * k]]) { g.strokeStyle = rgba(col, al); g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); } } }
+
+const STATIC = new Set(["glint", "ring", "streak"]), UNDER = new Set(["smoke", "kunai"]);
+function P(kind, x, y, vx, vy, life, size, col, o = {}) { return {kind, x, y, vx, vy, life: Math.max(1, life | 0), size, col, col2: o.col2 || col, drag: o.drag ?? 0.94, grav: o.grav || 0, delay: o.delay | 0, rot: o.rot || 0, vr: o.vr || 0, age: 0}; }
+
+// ---------------------------------------------------------------- effect
+class ClashFX {
+  constructor(key, o) {
+    this.base = key; this.spec = Object.assign({size: 1, density: 1, speed: 1}, BASES[key]); const sp = this.spec;
+    this.angle = o.angle || 0; this.c1 = o.c1; this.c2 = o.c2; this.hot = HOT;
+    this.S = sp.size * (o.scale || 1); this.D = Math.max(0.05, o.density ?? 1); this.V = sp.speed; this.life = sp.life;
+    this.winner = o.winner ? 1 : 0; this.rng = rngOf(o.seed ?? (Math.random() * 1e9)); this.t = 0; this.ft = 0;
+    this.sustain = sp.kind === "sustain"; this.phase = this.sustain ? "hold" : "burst"; this.hold = sp.hold ?? 0;
+    this.parts = []; const a = this.angle * Math.PI / 180; this.down = [Math.sin(a), Math.cos(a)]; this.st = {};
+    this["init_" + key]();
+  }
+  release() { if (this.phase === "hold") { this.phase = "finale"; this.ft = 0; const f = this["finale_" + this.base]; if (f) f.call(this); } }
+  get alive() { if (this.phase === "hold") return true; if (this.ft < this.life) return true; return this.parts.length > 0 && this.ft < this.life + 60; }
+  step() {
+    this.t++; if (this.phase === "hold") { if (this.hold >= 0 && this.t >= this.hold) this.release(); } else this.ft++;
+    const tk = this["tick_" + this.base]; if (tk) tk.call(this);
+    const [gx, gy] = this.down, live = [];
+    for (const q of this.parts) {
+      if (q.delay > 0) { q.delay--; live.push(q); continue; }
+      if (!STATIC.has(q.kind)) { q.x += q.vx; q.y += q.vy; q.vx = q.vx * q.drag + gx * q.grav; q.vy = q.vy * q.drag + gy * q.grav; q.rot += q.vr; }
+      q.age++; if (q.age < q.life) live.push(q);
+    } this.parts = live;
+  }
+  side(lx) { return lx < 0 ? this.c1 : this.c2; }
+  hc(c, k = 0.55) { return mix(c, this.hot, k); }
+  sparks(n, o = {}) { const r = this.rng; const {x = 0, y = 0, ang = null, spread = Math.PI, spd = [3, 9], life = [16, 32], size = [1.6, 3], drag = 0.92, grav = 0, delay = 0, col = null, kind = "spark"} = o;
+    for (let i = 0, N = Math.round(n * this.D); i < N; i++) { const a = ang === null ? r.uniform(0, TAU) : ang + r.uniform(-spread, spread);
+      const v = r.uniform(...spd) * this.V * this.S, vx = Math.cos(a) * v, vy = Math.sin(a) * v;
+      const c = col || this.side(Math.abs(vx) > 1e-6 ? vx : r.uniform(-1, 1));
+      this.parts.push(P(kind, x, y, vx, vy, r.randint(...life), r.uniform(...size) * this.S, c, {drag, grav: grav * this.S, delay: Array.isArray(delay) ? r.randint(...delay) : delay})); } }
+  draw(g) { g.save(); if (!this.spec.world_up) g.rotate(this.angle * Math.PI / 180); this["draw_" + this.base](g); g.restore(); g.globalCompositeOperation = "source-over"; }
+  under(g) { g.globalCompositeOperation = "source-over"; for (const q of this.parts) if (q.delay <= 0 && UNDER.has(q.kind)) this.part(g, q); }
+  over(g) { g.globalCompositeOperation = "lighter"; for (const q of this.parts) if (q.delay <= 0 && !UNDER.has(q.kind)) this.part(g, q); }
+  partsAll(g) { this.under(g); this.over(g); }
+  part(g, q) { const u = q.age / q.life, f = 1 - u, S = this.S;
+    switch (q.kind) {
+      case "spark": line(g, q.x - q.vx * 2.2, q.y - q.vy * 2.2, q.x, q.y, this.hc(q.col, 0.45), 255 * f, q.size * (0.4 + 0.6 * f)); break;
+      case "dot": glow(g, q.x, q.y, q.size * (1 - 0.4 * u) * 2.4, this.hc(q.col, 0.35), 220 * f); break;
+      case "ember": { const fl = 0.55 + 0.45 * Math.sin(q.age * 0.9 + q.size * 7); glow(g, q.x, q.y, q.size * 2, this.hc(q.col, 0.3), 230 * f * fl); break; }
+      case "smoke": { const r = q.size * (1 + 1.6 * u), c = mix(SMOKE, q.col, 0.22), gr = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+        gr.addColorStop(0, rgba(c, 120 * f)); gr.addColorStop(1, rgba(c, 0)); g.fillStyle = gr; g.beginPath(); g.arc(q.x, q.y, r, 0, TAU); g.fill(); break; }
+      case "kunai": { const s = q.size, a = 255 * Math.min(1, f * 1.6); g.save(); g.translate(q.x, q.y); g.rotate(q.rot);
+        g.fillStyle = rgba(STEEL, a); g.beginPath(); g.moveTo(s, 0); g.lineTo(s * .25, -s * .22); g.lineTo(-s * .1, 0); g.lineTo(s * .25, s * .22); g.closePath(); g.fill();
+        line(g, -s * .1, 0, -s * .7, 0, [52, 50, 60], a, Math.max(1, s * .12)); g.lineWidth = Math.max(.8, s * .07); g.strokeStyle = rgba(STEEL, a); g.beginPath(); g.arc(-s * .85, 0, s * .15, 0, TAU); g.stroke(); g.restore();
+        if (q.age < 8) { g.globalCompositeOperation = "lighter"; glow(g, q.x + Math.cos(q.rot) * s, q.y + Math.sin(q.rot) * s, s * .6, this.hc(q.col, .5), 200 * (1 - q.age / 8)); g.globalCompositeOperation = "source-over"; } break; }
+      case "crescent": { const s = q.size; g.save(); g.translate(q.x, q.y); g.rotate(q.rot); g.fillStyle = rgba(this.hc(q.col, .35), 235 * f);
+        g.beginPath(); g.moveTo(0, -s); g.quadraticCurveTo(s * 1.1, 0, 0, s); g.quadraticCurveTo(s * .45, 0, 0, -s); g.fill(); g.restore(); break; }
+      case "glint": { const e = easeOut(Math.min(1, q.age / 3)), a = 255 * f; glow(g, q.x, q.y, q.size * 1.6 * e, this.hc(q.col, .4), a * .8); star(g, q.x, q.y, q.size * 2.2 * e, q.size * 1.1 * e, this.hc(q.col, .8), a, 1.3 * S); break; }
+      case "ring": { const r = q.size * easeOut(u); splitRing(g, q.x, q.y, r, r, 2.4 * S * f + .4, this.hc(q.col, .3), this.hc(q.col2, .3), 220 * f); break; }
+      case "streak": line(g, q.x, q.y, q.x + q.vx, q.y + q.vy, this.hc(q.col, .5), 200 * f * f, 1.4 * S); break;
+    } }
+
+  // 1
+  init_collision_nova() { this.sparks(46, {spd: [3, 10], life: [16, 34]}); this.sparks(12, {kind: "dot", spd: [.8, 3], life: [20, 36], size: [2, 3.5], drag: .95}); }
+  draw_collision_nova(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; g.globalCompositeOperation = "lighter"; const e = easeOut(t / 14);
+    for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) glow(g, sx * 16 * S * (1 - e), 0, 52 * S * (.6 + .8 * e), c, 210 * f ** 1.5);
+    for (const [d, mr, lf, k] of [[0, 175, 24, .55], [5, 128, 22, .25]]) if (t >= d && t < d + lf) { const v = (t - d) / lf, r = mr * S * easeOut(v); splitRing(g, 0, 0, r, r, (6 * (1 - v) + 1) * S, this.hc(this.c1, k), this.hc(this.c2, k), 230 * (1 - v)); }
+    glow(g, 0, 0, 48 * S * Math.min(1, (t + 1) / 3) * Math.sqrt(f), this.hot, 255 * f * f, .5); this.partsAll(g); }
+  // 2
+  init_beam_struggle() { Object.assign(this.st, {arcs: [], ripples: [], cx: 0, core: 0, fx0: 0}); }
+  tick_beam_struggle() { const st = this.st, r = this.rng, S = this.S; if (this.phase !== "hold") return; const t = this.t;
+    st.cx = (10 * Math.sin(t * .09) + 4 * Math.sin(t * .31 + 1.3)) * S; const gg = Math.min(1, t / 90); st.core = (18 + 14 * gg) * S + 3 * S * Math.sin(t * .6);
+    const cx = st.cx, core = st.core;
+    if (t % 3 === 0) { st.arcs = []; for (let i = 0, n = r.randint(3, 5); i < n; i++) { const a = r.uniform(0, TAU), L = r.uniform(40, 110) * S * (.6 + .6 * gg);
+      st.arcs.push([bolt(r, cx + Math.cos(a) * core * .6, Math.sin(a) * core * .6, a, L, 6, .55, 1, []), this.side(Math.cos(a))]); } }
+    if (t % 16 === 0) st.ripples.push(0); st.ripples = st.ripples.map(a => a + 1).filter(a => a < 30);
+    for (let i = 0; i < 2; i++) if (r() < this.D) { const side = r() < .5 ? 1 : -1, a = side * Math.PI / 2 + r.gauss(0, .6), v = r.uniform(3, 7.5) * this.V * S;
+      this.parts.push(P("spark", cx + Math.cos(a) * core, Math.sin(a) * core, Math.cos(a) * v, Math.sin(a) * v, r.randint(12, 24), r.uniform(1.4, 2.6) * S, r() < .5 ? this.c1 : this.c2, {drag: .93})); } }
+  finale_beam_struggle() { const cx = this.st.cx; this.st.fx0 = cx; this.sparks(70, {x: cx, spd: [4, 13], life: [18, 38]}); this.sparks(16, {x: cx, kind: "smoke", spd: [.6, 2.2], life: [30, 50], size: [10, 18], drag: .96}); this.sparks(18, {x: cx, kind: "dot", spd: [1, 4], life: [22, 40], size: [2, 4], drag: .95}); }
+  draw_beam_struggle(g) { const st = this.st, S = this.S; g.globalCompositeOperation = "lighter";
+    if (this.phase === "hold") { const {cx, core} = st, t = this.t;
+      if (this.spec.stubs) { const L = this.spec.stub_len * S; for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) { const xf = cx + sx * L;
+        for (const [w, k, a] of [[core * 1.3, 0, 120], [core * .55, .6, 230]]) { const cc = mix(c, HOT, k), gr = g.createLinearGradient(xf, 0, cx, 0);
+          gr.addColorStop(0, rgba(cc, 0)); gr.addColorStop(.35, rgba(cc, a * .7)); gr.addColorStop(1, rgba(cc, a)); g.fillStyle = gr; const wob = 1 + .08 * Math.sin(t * .8 + sx);
+          g.fillRect(Math.min(xf, cx), -w / 2 * wob, Math.abs(cx - xf), w * wob); } } }
+      glow(g, cx - 10 * S, 0, core * 2.4, this.c1, 200); glow(g, cx + 10 * S, 0, core * 2.4, this.c2, 200);
+      for (const a of st.ripples) { const v = a / 30, r = core + 90 * S * easeOut(v); splitRing(g, cx, 0, r * .45, r, 3 * S * (1 - v) + .5, this.hc(this.c1, .4), this.hc(this.c2, .4), 200 * (1 - v)); }
+      for (const [b, c] of st.arcs) drawBolts(g, b, c, 230, 4 * S, 1.3 * S); glow(g, cx, 0, core * 1.15, this.hot, 255, .55);
+    } else { const t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, cx = st.fx0;
+      glow(g, cx, 0, 120 * S * easeOut(t / 8), this.hc(mix(this.c1, this.c2, .5), .4), 255 * f ** 1.5); const r = 230 * S * easeOut(u);
+      splitRing(g, cx, 0, r, r, 9 * S * f + 1, this.hc(this.c1, .4), this.hc(this.c2, .4), 230 * f); const r2 = 150 * S * easeOut(Math.min(1, t / 20));
+      splitRing(g, cx, 0, r2 * .5, r2, 5 * S * f + .5, this.c1, this.c2, 180 * f); }
+    this.partsAll(g); }
+  // 3
+  wdir() { return this.winner === 0 ? 1 : -1; }
+  init_overpower_blowout() { const d = this.wdir(), [cw, cl2] = this.winner === 0 ? [this.c1, this.c2] : [this.c2, this.c1], base = d > 0 ? 0 : Math.PI, cone = this.spec.cone_deg * Math.PI / 180, r = this.rng;
+    this.sparks(54, {ang: base, spread: cone, spd: [5, 14], life: [18, 36], col: cw}); this.sparks(20, {ang: base, spread: cone * 1.6, spd: [3, 9], life: [16, 30], col: cl2});
+    this.sparks(18, {ang: base, spread: cone, kind: "dot", spd: [2, 6], life: [24, 44], size: [2, 4], col: cw, drag: .95});
+    const ux = -this.down[0], uy = -this.down[1];
+    for (let i = 0, n = Math.floor(16 * this.D); i < n; i++) { const k = r.uniform(.2, 1), v = r.uniform(.6, 1.8) * this.S;
+      this.parts.push(P("smoke", d * k * 110 * this.S, r.uniform(-14, 14) * this.S, d * v * .6 + ux * v, uy * v, r.randint(34, 56), r.uniform(10, 18) * this.S, cw, {drag: .97, delay: r.randint(2, 12)})); } }
+  draw_overpower_blowout(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, d = this.wdir(), cw = this.winner === 0 ? this.c1 : this.c2;
+    this.under(g); g.globalCompositeOperation = "lighter"; const e = easeOut(t / 16);
+    glowEllipse(g, d * 70 * S * e, 0, 105 * S * (.3 + .7 * e), 40 * S * (.3 + .7 * e), cw, 230 * f ** 1.3); glowEllipse(g, d * 40 * S * e, 0, 60 * S * (.3 + .7 * e), 20 * S, this.hot, 240 * f * f);
+    glow(g, 0, 0, 40 * S * Math.min(1, (t + 1) / 3), this.hot, 255 * Math.max(0, 1 - t / 10)); const v = Math.min(1, t / 26), r = 150 * S * easeOut(v);
+    splitRing(g, d * 20 * S, 0, r * .35, r, 5 * S * (1 - v) + .5, this.hc(this.c1, .3), this.hc(this.c2, .3), 220 * (1 - v)); this.over(g); }
+  // 4
+  init_kunai_storm() { const r = this.rng, S = this.S, sp = this.spec, rx = sp.area_rx * S, ry = sp.area_ry * S, n = Math.floor(sp.clashes * this.D), span = Math.max(4, Math.floor(this.life * .55));
+    for (let i = 0; i < n; i++) { const a = r.uniform(0, TAU), k = Math.sqrt(r()), x = Math.cos(a) * rx * k, y = Math.sin(a) * ry * k, dl = r.randint(0, span), c = this.side(x + r.uniform(-30, 30) * S);
+      this.parts.push(P("glint", x, y, 0, 0, r.randint(7, 11), r.uniform(3, 5) * S, c, {delay: dl}));
+      for (let j = 0; j < 2; j++) { const b = r.uniform(0, TAU), v = r.uniform(2.5, 6) * this.V * S; this.parts.push(P("spark", x, y, Math.cos(b) * v, Math.sin(b) * v, r.randint(8, 14), r.uniform(1, 1.8) * S, c, {drag: .9, delay: dl})); }
+      const b = r.uniform(0, TAU); for (const sg of [1, -1]) { const bb = b + (sg > 0 ? 0 : Math.PI) + r.uniform(-.5, .5), v = r.uniform(2, 4.5) * this.V * S;
+        this.parts.push(P("kunai", x, y, Math.cos(bb) * v, Math.sin(bb) * v, r.randint(22, 36), r.uniform(9, 12) * S, sg > 0 ? this.c1 : this.c2, {drag: .95, grav: .22, delay: dl, rot: r.uniform(0, TAU), vr: r.uniform(-.45, .45)})); } } }
+  draw_kunai_storm(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life); g.globalCompositeOperation = "lighter"; const fl = .6 + .4 * Math.sin(t * 1.7), rx = this.spec.area_rx * S, ry = this.spec.area_ry * S;
+    glowEllipse(g, -rx * .3, 0, rx * .9, ry * .9, this.c1, 70 * (1 - u) * fl); glowEllipse(g, rx * .3, 0, rx * .9, ry * .9, this.c2, 70 * (1 - u) * fl); this.partsAll(g); }
+  // 5
+  init_ricochet_rain() { const r = this.rng, S = this.S, chains = Math.max(1, Math.round(this.spec.chains * this.D)), hops = this.spec.hops;
+    for (let ci = 0; ci < chains; ci++) { let a = ci * TAU / chains + r.uniform(-.4, .4), x = 0, y = 0; const off = r.randint(0, 6);
+      for (let h = 0; h < hops; h++) { const step = r.uniform(12, 20) * S * this.V; a += r.gauss(0, .75); const nx = x + Math.cos(a) * step, ny = y + Math.sin(a) * step, dl = off + h * 4;
+        const c = (h + ci) % 2 === 0 ? this.c1 : this.c2, c2 = c === this.c1 ? this.c2 : this.c1;
+        this.parts.push(P("streak", x, y, nx - x, ny - y, 10, 1, c, {delay: dl})); this.parts.push(P("ring", nx, ny, 0, 0, 14, r.uniform(9, 14) * S, c, {col2: c2, delay: dl + 1}));
+        this.parts.push(P("glint", nx, ny, 0, 0, 9, r.uniform(2.6, 4) * S, c, {delay: dl + 1}));
+        for (let j = 0; j < 2; j++) { const b = a + r.uniform(-1.2, 1.2), v = r.uniform(2, 5) * S * this.V; this.parts.push(P("spark", nx, ny, Math.cos(b) * v, Math.sin(b) * v, r.randint(8, 14), r.uniform(1, 1.8) * S, c, {drag: .9, delay: dl + 1})); }
+        x = nx; y = ny; } } }
+  draw_ricochet_rain(g) { g.globalCompositeOperation = "lighter"; glow(g, 0, 0, 30 * this.S, this.hot, 240 * Math.max(0, 1 - this.ft / 8)); this.partsAll(g); }
+  // 6
+  init_blade_lock() { Object.assign(this.st, {ripples: [], shake: [0, 0], split: 0}); }
+  tick_blade_lock() { const st = this.st, r = this.rng, S = this.S; if (this.phase !== "hold") { st.split++; return; } const t = this.t;
+    st.shake = [r.uniform(-2, 2) * S, r.uniform(-2, 2) * S]; if (t % 12 === 0) st.ripples.push(0); st.ripples = st.ripples.map(a => a + 1).filter(a => a < 26);
+    for (let i = 0; i < 3; i++) if (r() < this.D) { const up = r() < .75 ? -1 : 1, a = Math.atan2(up, 0) + r.gauss(0, .65), v = r.uniform(4, 10) * this.V * S;
+      this.parts.push(P("spark", 0, 0, Math.cos(a) * v, Math.sin(a) * v, r.randint(12, 22), r.uniform(1.2, 2.2) * S, Math.cos(a) < 0 ? this.c1 : this.c2, {drag: .93, grav: .38 * S})); } }
+  finale_blade_lock() { this.sparks(54, {spd: [5, 15], life: [14, 30], grav: .2}); this.sparks(10, {kind: "dot", spd: [1, 4], life: [18, 32], size: [2, 3.6], drag: .95}); }
+  bladeEnds(side, push) { const S = this.S, L = this.spec.blade_len * S; let a = this.spec.cross_deg * Math.PI / 180; a += (3 * Math.PI / 180) * Math.sin(this.t * .2 + side) * side;
+    const ca = Math.cos(a), sa = Math.sin(a); return [side * ca * L + side * push, sa * L, -side * ca * L * .38 + side * push, -sa * L * .38]; }
+  drawBlade(g, side, push, al) { const c = side < 0 ? this.c1 : this.c2, [hx, hy, tx, ty] = this.bladeEnds(side, push), S = this.S;
+    line(g, hx, hy, tx, ty, c, 110 * al, 9 * S); diamond(g, hx, hy, tx, ty, 2.6 * S, this.hc(c, .7), 255 * al); line(g, hx, hy, tx, ty, this.hot, 220 * al, 1 * S); }
+  draw_blade_lock(g) { const st = this.st, S = this.S; g.globalCompositeOperation = "lighter";
+    if (this.phase === "hold") { const t = this.t; g.save(); g.translate(...st.shake);
+      for (const a of st.ripples) { const v = a / 26, r = 20 * S + 110 * S * easeOut(v); splitRing(g, 0, 0, r * .35, r, 3.5 * S * (1 - v) + .4, this.hc(this.c1, .3), this.hc(this.c2, .3), 200 * (1 - v)); }
+      glow(g, -14 * S, 0, 46 * S, this.c1, 120); glow(g, 14 * S, 0, 46 * S, this.c2, 120); this.drawBlade(g, -1, 0, 1); this.drawBlade(g, 1, 0, 1);
+      const fl = .75 + .25 * Math.sin(t * 2.3); glow(g, 0, 0, 16 * S * fl, this.hot, 255, .5); star(g, 0, 0, (30 + 10 * Math.sin(t * 1.7)) * S, 14 * S * fl, this.hot, 240, 1.8 * S); g.restore();
+    } else { const t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, k = Math.min(1, st.split / 10);
+      if (k < 1) { this.drawBlade(g, -1, 40 * S * easeOut(k), 1 - k); this.drawBlade(g, 1, 40 * S * easeOut(k), 1 - k); }
+      const L = 300 * S * easeOut(Math.min(1, t / 4)), m = mix(this.c1, this.c2, .5);
+      diamond(g, 0, -L, 0, L, 10 * S * f, m, 150 * f); diamond(g, 0, -L, 0, L, 3 * S * f + .4, this.hot, 255 * f); diamond(g, -90 * S * f, 0, 90 * S * f, 0, 4 * S * f, this.hot, 200 * f); glow(g, 0, 0, 70 * S * f, m, 220 * f * f); }
+    this.partsAll(g); }
+  // 7
+  lr() { return Math.cos(this.angle * Math.PI / 180) >= 0 ? [this.c1, this.c2] : [this.c2, this.c1]; }
+  init_reiatsu_eruption() { const r = this.rng, S = this.S, [cL, cR] = this.lr();
+    for (let i = 0, n = Math.floor(54 * this.D); i < n; i++) { const x = r.uniform(-22, 22) * S; this.parts.push(P("ember", x, r.uniform(-6, 6) * S, r.uniform(-.6, .6) * S, -r.uniform(1.8, 6) * S * this.V, r.randint(28, 58), r.uniform(1.4, 2.8) * S, x < 0 ? cL : cR, {drag: .985, delay: r.randint(0, 40)})); }
+    this.sparks(24, {spd: [3, 8], life: [14, 26]}); for (const q of this.parts) if (q.kind === "spark") { q.vy = -Math.abs(q.vy) * .6; q.col = q.vx < 0 ? cL : cR; } }
+  draw_reiatsu_eruption(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), [cL, cR] = this.lr(); g.globalCompositeOperation = "lighter";
+    const H = this.spec.pillar_h * S * easeOut(t / 14), fade = u < .55 ? 1 : Math.max(0, 1 - (u - .55) / .45), W = 34 * S * (1 + .25 * Math.sin(t * .9)) * (1 - .5 * u);
+    if (H > 1) { glowEllipse(g, -W * .5, -H * .45, W * 1.6, H * .6, cL, 110 * fade, .5); glowEllipse(g, W * .5, -H * .45, W * 1.6, H * .6, cR, 110 * fade, .5);
+      for (const [c, x0, x1] of [[cL, -W, 0], [cR, 0, W]]) { const gr = g.createLinearGradient(0, 0, 0, -H); gr.addColorStop(0, rgba(c, 230 * fade)); gr.addColorStop(.6, rgba(c, 140 * fade)); gr.addColorStop(1, rgba(c, 0)); g.fillStyle = gr; g.fillRect(x0, -H, x1 - x0, H); }
+      const gr = g.createLinearGradient(0, 0, 0, -H); gr.addColorStop(0, rgba(this.hot, 255 * fade)); gr.addColorStop(1, rgba(this.hot, 0)); g.fillStyle = gr; g.fillRect(-W * .18, -H, W * .36, H); }
+    glowEllipse(g, 0, 0, 70 * S, 26 * S, mix(cL, cR, .5), 220 * fade);
+    for (let i = 0; i < 4; i++) { const a = t - i * 6; if (a >= 0 && a < 30) { const v = a / 30, rx = 160 * S * easeOut(v); splitRing(g, 0, 0, rx, rx * .28, 4 * S * (1 - v) + .4, this.hc(cL, .3), this.hc(cR, .3), 220 * (1 - v)); } }
+    this.partsAll(g); }
+  // 8
+  init_getsuga_cross() { const r = this.rng, S = this.S, n = Math.floor(this.spec.shards * this.D);
+    for (let i = 0; i < n; i++) { const a = Math.PI / 4 * (1 + 2 * (i % 4)) + r.uniform(-.3, .3), v = r.uniform(4, 9) * this.V * S, vx = Math.cos(a) * v, vy = Math.sin(a) * v;
+      this.parts.push(P("crescent", 0, 0, vx, vy, r.randint(22, 36), r.uniform(9, 17) * S, this.side(vx), {drag: .95, rot: a, vr: r.uniform(-.25, .25)})); }
+    this.sparks(30, {spd: [3, 11], life: [14, 28]}); }
+  draw_getsuga_cross(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, e = easeOut(t / 4), w = (1 - u) ** 1.5; g.globalCompositeOperation = "lighter";
+    const Ly = 165 * S * e, Lx = 115 * S * e, m = mix(this.c1, this.c2, .5);
+    diamond(g, -Lx, 0, 0, 0, 9 * S * w, this.c1, 220 * f); diamond(g, 0, 0, Lx, 0, 9 * S * w, this.c2, 220 * f); diamond(g, 0, -Ly, 0, Ly, 11 * S * w, m, 200 * f);
+    diamond(g, 0, -Ly * .9, 0, Ly * .9, 3 * S * w + .3, this.hot, 255 * f); diamond(g, -Lx * .9, 0, Lx * .9, 0, 2.4 * S * w + .3, this.hot, 255 * f); glow(g, 0, 0, 50 * S * f, this.hot, 255 * f * f, .45); this.partsAll(g); }
+  // 9
+  init_implosion_pop() { const r = this.rng, S = this.S; this.st.inw = []; for (let i = 0, n = Math.floor(64 * this.D); i < n; i++) this.st.inw.push([r.uniform(0, TAU), r.uniform(115, 170) * S, r.randint(0, 6)]); this.st.popped = false; }
+  tick_implosion_pop() { if (!this.st.popped && this.ft >= this.spec.gather + this.spec.pause) { this.st.popped = true; this.sparks(38, {spd: [4, 12], life: [14, 30]}); this.sparks(10, {kind: "dot", spd: [1, 3.5], life: [18, 30], size: [2, 3.5], drag: .95}); } }
+  draw_implosion_pop(g) { const S = this.S, t = this.ft, gather = this.spec.gather, pop = gather + this.spec.pause, DARK = [8, 4, 14];
+    if (t < gather) { const k = t / gather; g.globalCompositeOperation = "lighter";
+      for (const [a, R0, dl] of this.st.inw) { const kk = Math.max(0, (t - dl) / Math.max(1, gather - dl)), rr = R0 * (1 - easeIn(kk)), L = 8 * S + 20 * S * easeIn(kk), ca = Math.cos(a), sa = Math.sin(a);
+        line(g, ca * (rr + L), sa * (rr + L), ca * rr, sa * rr, this.hc(this.side(ca), .35), 230 * Math.min(1, kk * 3 + .2), 1.6 * S); }
+      g.globalCompositeOperation = "source-over"; const dr = (8 + 20 * k) * S; glow(g, 0, 0, dr * 1.3, DARK, 200 * k, .6);
+      g.globalCompositeOperation = "lighter"; splitRing(g, 0, 0, dr, dr, 1.6 * S, this.hc(this.c1, .5), this.hc(this.c2, .5), 230 * k);
+    } else if (t < pop) { g.globalCompositeOperation = "source-over"; const k = 1 - (t - gather) / Math.max(1, pop - gather); glow(g, 0, 0, 34 * S * k, DARK, 200 * k, .6);
+      g.globalCompositeOperation = "lighter"; glow(g, 0, 0, (3 + 3 * Math.sin(t * 2.5)) * S, this.hot, 255);
+    } else { const v = t - pop, f = Math.max(0, 1 - v / Math.max(1, this.life - pop)); g.globalCompositeOperation = "lighter";
+      glow(g, 0, 0, 62 * S * Math.min(1, (v + 1) / 3) * f ** .6, this.hot, 255 * f * f, .45);
+      for (const [d, mr, lf] of [[0, 155, 16], [4, 100, 18]]) if (v >= d && v < d + lf) { const w = (v - d) / lf, r = mr * S * easeOut(w); splitRing(g, 0, 0, r, r, 3 * S * (1 - w) + .5, this.hc(this.c1, .4), this.hc(this.c2, .4), 240 * (1 - w)); } }
+    this.partsAll(g); }
+  // 10
+  init_storm_fork() { const r = this.rng, n = Math.max(1, Math.round(this.spec.forks * this.D)); this.st.dirs = []; for (let i = 0; i < n; i++) this.st.dirs.push([i * TAU / n + r.uniform(-.35, .35), r.uniform(95, 155) * this.S]); this.st.bolts = []; this.sparks(20, {spd: [3, 9], life: [12, 24]}); }
+  tick_storm_fork() { const t = this.ft; if (t % 2 === 0 && t < this.life * .75) { const gr = easeOut(Math.min(1, (t + 1) / 6)); this.st.bolts = this.st.dirs.map(([a, L]) => [bolt(this.rng, 0, 0, a, L * gr, 8, .5, 2, []), this.side(Math.cos(a))]); } }
+  draw_storm_fork(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; g.globalCompositeOperation = "lighter"; const fl = .6 + .4 * (Math.floor(t / 2) % 2 ? 1 : 0), m = mix(this.c1, this.c2, .5);
+    glow(g, 0, 0, 42 * S, m, 200 * f * fl); if (t < 3) glow(g, 0, 0, 90 * S, this.hot, 230 * (1 - t / 3));
+    if (u < .85) { const a = 255 * (1 - u / .85) * fl; for (const [b, c] of this.st.bolts) drawBolts(g, b, c, a, 5 * S, 1.6 * S); }
+    glow(g, 0, 0, 14 * S, this.hot, 255 * f); this.partsAll(g); }
+}
+
+// ---------------------------------------------------------------- page
+const $ = id => document.getElementById(id);
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const opts = () => ({c1: hex($("cA").value), c2: hex($("cB").value), angle: +$("ang").value, scale: +$("size").value, density: +$("dens").value});
+const tiles = [];
+const grid = $("grid");
+for (const key of Object.keys(BASES)) {
+  const b = BASES[key], el = document.createElement("article"); el.className = "tile";
+  el.innerHTML = `<canvas width="560" height="420" aria-label="${b.name} preview"></canvas><div class="meta"><div class="top"><h2>${b.name}</h2><span class="chip${b.kind === "sustain" ? " sus" : ""}">${b.kind === "sustain" ? "Sustained" : "Burst"}</span></div><span class="key">${key} · ${b.from}</span><p>${b.desc}</p><div class="acts"><button class="ghost" data-a="replay">Replay</button>${b.kind === "sustain" ? '<button class="ghost" data-a="release">Release now</button>' : ""}</div></div>`;
+  grid.appendChild(el);
+  const T = {key, el, cv: el.querySelector("canvas"), fx: null, gap: 0, wins: 0};
+  T.g = T.cv.getContext("2d");
+  T.spawn = () => { T.wins++; T.fx = new ClashFX(key, Object.assign(opts(), {winner: T.wins % 2 ? 0 : 1})); T.gap = 0; };
+  T.cv.addEventListener("click", T.spawn);
+  el.querySelector('[data-a="replay"]').addEventListener("click", T.spawn);
+  const rel = el.querySelector('[data-a="release"]'); if (rel) rel.addEventListener("click", () => T.fx && T.fx.release());
+  T.spawn(); tiles.push(T);
+}
+for (const [id, fmt] of [["ang", v => v + "°"], ["size", v => (+v).toFixed(2)], ["dens", v => (+v).toFixed(2)], ["spd", v => v + "×"]])
+  $(id).addEventListener("input", () => { $(id + "O").textContent = fmt($(id).value); });
+for (const id of ["cA", "cB", "ang", "size", "dens"]) $(id).addEventListener("change", () => tiles.forEach(t => t.spawn()));
+$("all").addEventListener("click", () => tiles.forEach(t => t.spawn()));
+$("relAll").addEventListener("click", () => tiles.forEach(t => t.fx && t.fx.release()));
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let acc = 0, last = performance.now();
+function frame(now) {
+  acc += Math.min(100, now - last) * +$("spd").value; last = now;
+  let steps = 0; while (acc >= 16 && steps < 6) { acc -= 16; steps++;
+    for (const T of tiles) { if (T.fx) { T.fx.step(); if (!T.fx.alive) { T.fx = null; T.gap = 0; } } else if (++T.gap > 14) T.spawn(); } }
+  for (const T of tiles) { const g = T.g, w = T.cv.width, h = T.cv.height; g.globalCompositeOperation = "source-over"; g.fillStyle = "#07070c"; g.fillRect(0, 0, w, h);
+    if (T.fx) { g.save(); g.translate(w / 2, T.fx.spec.world_up ? h * .82 : h / 2); g.scale(1.25, 1.25); T.fx.draw(g); g.restore(); } }
+  if (!reduce) requestAnimationFrame(frame);
+}
+if (reduce) { for (const T of tiles) for (let i = 0; i < 14; i++) T.fx.step(); frame(performance.now()); } else requestAnimationFrame(frame);
+</script>
+
+</html>
