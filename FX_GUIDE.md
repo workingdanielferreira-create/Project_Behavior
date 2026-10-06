@@ -440,7 +440,7 @@ one list for the whole world, so Solo and Battle behave identically.
 - **Spawn:** `clashfx.spawn(world, key, x, y, angle=deg, c1=rgb, c2=rgb, winner=0)`.
   `angle` points from side A (colour `c1`) to side B (`c2`). Each half of the
   explosion takes its side's colour, with a white-hot core where they meet.
-- **Sustained clashes** (`beam_struggle`, `blade_lock`, `speed_duel`) hold until
+- **Sustained clashes** (`beam_struggle`, `blade_lock`, `speed_duel`, `sword_duel`) hold until
   `fx.release(winner)` (or their `hold` ticks run out; `hold=-1` = until released).
 - **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`,
   `kunai_storm`, `ricochet_rain`, `blade_lock`, `reiatsu_eruption`,
@@ -474,11 +474,11 @@ that touch play the rule for their categories (`RULES`):
 
 | Pair | What happens |
 |---|---|
-| beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`, then the winner blows through (`overpower_blowout`) |
+| beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`, then the winner blows through (`overpower_blowout`). The struggle is anchored: it draws each beam from its origin (locked when the clash starts) to the node at its real width, the real beams are hidden meanwhile, and the node is pushed toward the losing side; the blowout fires where the node ends up |
 | beam × orb | the orb is held on the beam head (`beam_orb`) for `BEAM_ORB_TICKS`, then bursts |
 | beam × trail / crescent / sprite | `SPLIT_CHANCE` (50%): the beam splits at the contact into two halves fanning ±30° that run to the beam's end, can hit, and explode there (`split_burst`). Otherwise the beam carries on. A beam is never cancelled by its cutter |
 | orb × orb | `orb_pops` |
-| trail × trail | `sword_slash_clash` |
+| trail × trail | `sword_duel`: the two fighters are moved by the clash. They dash in, their blades meet, they spring apart, and it ends on one big clash back where they started; the knockback rule then settles it. The FX is anchored to their real positions. A pair that just duelled (`DUEL_REARM_TICKS`) gets `sword_slash_clash` instead |
 | crescent × crescent | `crescent_struggle` for `CRESCENT_TICKS`, then the blades shatter |
 | sprite × sprite | `kunai_clash` |
 

@@ -20,7 +20,12 @@ pass through each other.
   beam x beam         both damage over 10: they explode (beam_clash);
                       otherwise they lock in a struggle (beam_struggle) for
                       STRUGGLE_TICKS, then the winner blows through
-                      (overpower_blowout)
+                      (overpower_blowout).  The struggle FX is anchored to
+                      the two real beams: it draws each beam from its origin
+                      (locked when the clash starts) to the node at its real
+                      width, the real beams are hidden meanwhile, and the
+                      node is pushed toward the loser's origin; the blowout
+                      fires where the node ends up
   beam x orb          the orb is held on the beam head (beam_orb), then bursts
   beam x trail / crescent / sprite
                       SPLIT_CHANCE: the beam splits at the contact into two
@@ -30,7 +35,14 @@ pass through each other.
                       cutter is settled by the knockback rule against the beam
                       (a beam is never cancelled by a cutter)
   orb x orb           little blasts popping (orb_pops)
-  trail x trail       a sword-slash clash (sword_slash_clash)
+  trail x trail       a sword duel (sword_duel): the two fighters are moved
+                      by the clash (clashfx.duel_plan, duel_tick) — they
+                      dash in, their blades meet, they spring apart, and it
+                      ends on one big clash, back where they started; the
+                      knockback rule then settles it.  The FX is anchored
+                      to their real positions every tick.  A pair that has
+                      just duelled (DUEL_REARM_TICKS), or a Clash panel FX
+                      other than a sword duel, plays a one-shot burst instead
   crescent x crescent the two blades grind (crescent_struggle), then shatter
   sprite x sprite     a kunai clash (kunai_clash)
 
@@ -70,6 +82,8 @@ TRAIL_HEAD_POINTS = 8        # how much of a trail (from its moving end) can cla
 REARM_TICKS = 20             # a pair can clash again after this long apart
 TIE_RECOIL_KB = 6.0          # trail x trail tie: both owners pushed back this much
 MAX_TIP_WATCH = 32
+DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
+DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
 
 # category pair (sorted) -> rule name
 RULES = {
@@ -378,17 +392,38 @@ def settings_for(fig):
     return cfx.clash if cfx is not None else fxkit.normalize_clash({})
 
 
-def _spawn_fx(world, slot, fig, c, angle, c1, c2, hold=None, winner=0):
+def _slot_fx(fig, slot):
+    """(clash FX key, slot settings) for `slot` from fig's Clash panel; the
+    key is "none" for no FX."""
     cfg = settings_for(fig)["slots"].get(slot) or {}
     key = cfg.get("fx") or ""
+    if key != "none" and key not in clashfx.BASES and key not in clashfx.VARIANTS:
+        key = dict((s[0], s[1]) for s in fxkit.CLASH_SLOTS).get(slot, "collision_nova")
+    return key, cfg
+
+
+def _spawn_fx(world, slot, fig, c, angle, c1, c2, hold=None, winner=0, key=None):
+    key0, cfg = _slot_fx(fig, slot)
+    key = key or key0
     if key == "none":
         return None
-    if key not in clashfx.BASES and key not in clashfx.VARIANTS:
-        key = dict((s[0], s[1]) for s in fxkit.CLASH_SLOTS).get(slot, "collision_nova")
-    # Position scale is applied when it is drawn (clashfx.draw_all).
+    # Position scale is applied when it is drawn (clashfx.draw_all), except
+    # for an anchored FX (its scale is set when it is anchored).
     return clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
                          scale=float(cfg.get("size", 100)) / 100.0, hold=hold, winner=winner,
                          density=float(cfg.get("density", 100)) / 100.0)
+
+
+def _kb_winner(a, b):
+    """Who the knockback rule will favour (no side effects); None = a tie."""
+    if abs(a.kb - b.kb) < 1e-6:
+        return None
+    return a if a.kb > b.kb else b
+
+
+def _pscale(world, x, y):
+    from . import combat
+    return combat.position_scale(x, y, world.screen_w, world.screen_h)
 
 
 def _engage(world, figs, ticks):
@@ -507,18 +542,34 @@ def _tip_alive(kind, obj):
 # ---------------------------------------------------------------- the clash record
 class Clash:
     """A clash that holds for a while (struggles, the orb on the beam head)."""
-    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start")
+    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden")
 
-    def __init__(self, a, b, c, rule, until, fx, start):
+    def __init__(self, a, b, c, rule, until, fx, start, hidden=()):
         self.a, self.b, self.c, self.rule, self.until, self.fx, self.start = a, b, c, rule, until, fx, start
         self.pins = (_pin(a), _pin(b))
+        self.hidden = tuple(hidden)     # ids in clashfx.HIDDEN while it holds
+
+
+class Duel:
+    """A sword duel in progress: fa / fb (side 0 / side 1) are moved along
+    plan, one frame per tick."""
+    __slots__ = ("a", "b", "fa", "fb", "plan", "i", "fx", "owns", "pair")
+
+    def __init__(self, a, b, plan, fx, pair):
+        self.a, self.b, self.fa, self.fb = a, b, a.owner, b.owner
+        self.plan, self.i, self.fx, self.pair = plan, 0, fx, pair
+        # Slash frames are shown through render.frame_override — only for a
+        # fighter that has slash frames and nothing else holding the override.
+        self.owns = tuple(bool(f.render.bundle.slash) and f.render.frame_override is None
+                          for f in (self.fa, self.fb))
 
 
 def _state(world):
     st = getattr(world, "clash_state", None)
     if st is None:
         st = world.clash_state = {"active": [], "busy": set(), "seen": {}, "tips": [],
-                                  "rng": random.Random(), "halves": set()}
+                                  "rng": random.Random(), "halves": set(),
+                                  "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {}}
     return st
 
 
@@ -544,8 +595,20 @@ def _start(world, st, a, b, c, rule, now):
             _engage(world, figs, fx.life if fx else 40)
             return None
         fx = _spawn_fx(world, "beam_struggle", a.owner, c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS)
+        hidden = ()
+        if fx is not None and fx.base == "beam_struggle":
+            # Anchored: the FX draws both beams from their origins (the tail
+            # of each, locked now) to the node, at their real widths, and the
+            # real beams are hidden while it holds.
+            w = _kb_winner(a, b)
+            ws = [bd.hw * 2.0 * (_pscale(world, bd.ref.x, bd.ref.y) if bd.kind == "proj" else 1.0)
+                  for bd in (a, b)]
+            fx.anchor_beams(a.pts[1], ws[0], b.pts[1], ws[1], None if w is None else (1 if w is a else 0),
+                            pscale=_pscale(world, c[0], c[1]))
+            hidden = (id(a.ref), id(b.ref))
+            clashfx.HIDDEN.update(hidden)
         _engage(world, figs, STRUGGLE_TICKS)
-        return Clash(a, b, c, rule, now + STRUGGLE_TICKS, fx, now)
+        return Clash(a, b, c, rule, now + STRUGGLE_TICKS, fx, now, hidden)
     if rule == "beam_orb":
         fx = _spawn_fx(world, "beam_orb", a.owner, c, _deg(*a.dir), a.col, b.col)
         _engage(world, figs, BEAM_ORB_TICKS + 20)
@@ -566,8 +629,15 @@ def _start(world, st, a, b, c, rule, now):
         _engage(world, figs, CRESCENT_TICKS + 20)
         return Clash(a, b, c, rule, now + CRESCENT_TICKS, fx, now)
     slot = {"orb_orb": "orb_orb", "trail_trail": "trail_trail", "sprite_sprite": "sprite_sprite"}[rule]
+    key = None
+    if rule == "trail_trail":
+        fig = (_kb_winner(a, b) or a).owner
+        if clashfx.resolve(_slot_fx(fig, slot)[0])[0] == "sword_duel":
+            if _start_duel(world, st, a, b, c, fig, now):
+                return None
+            key = "sword_slash_clash"   # re-arming pair: a one-shot burst instead
     w = _settle(world, a, b, c)
-    fx = _spawn_fx(world, slot, (w or a).owner, c, ang, a.col, b.col)
+    fx = _spawn_fx(world, slot, (w or a).owner, c, ang, a.col, b.col, key=key)
     _engage(world, figs, fx.life if fx else 30)
     return None
 
@@ -575,6 +645,9 @@ def _start(world, st, a, b, c, rule, now):
 def _finish(world, st, rec):
     """A held clash ends: the knockback rule decides it."""
     a, b, c = rec.a, rec.b, rec.c
+    if rec.fx is not None and rec.fx.anchored:
+        c = rec.fx.node_world()     # the struggle ends where the node was pushed to
+    clashfx.HIDDEN.difference_update(rec.hidden)
     la, lb = _alive(a), _alive(b)
     if la and lb:
         w = _settle(world, a, b, c)
@@ -585,6 +658,105 @@ def _finish(world, st, rec):
         rec.fx.release()
     st["busy"].discard(id(a.ref))
     st["busy"].discard(id(b.ref))
+
+
+# ---------------------------------------------------------------- sword duel
+def _start_duel(world, st, a, b, c, fig, now):
+    """trail x trail: start a sword duel between the two trails' owners.
+    False when it cannot (a re-arming pair, no two distinct fighters)."""
+    fa, fb = a.owner, b.owner
+    if fa is None or fb is None or fa is fb:
+        return False
+    pair = (id(fa), id(fb))
+    if now < st["duel_cd"].get(pair, -1):
+        return False
+    key, cfg = _slot_fx(fig, "trail_trail")
+    fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
+                       scale=float(cfg.get("size", 100)) / 100.0, hold=-1,
+                       density=float(cfg.get("density", 100)) / 100.0)
+    fx.anchor_duel(_pscale(world, c[0], c[1]))
+    bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
+    sp = fx.spec
+    plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
+                             strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)))
+    st["duels"].append(Duel(a, b, plan, fx, pair))
+    st["duel_figs"].update(pair)
+    _engage(world, (fa, fb), len(plan))
+    return True
+
+
+def _duel_fielded(world, d):
+    return d.fa in world.sides[0].figures and d.fb in world.sides[1].figures if len(world.sides) >= 2 else False
+
+
+def _duel_end(world, st, d):
+    """A duel is over (played out, or a fighter fell): give the fighters
+    back, then the knockback rule decides it."""
+    for f, own in zip((d.fa, d.fb), d.owns):
+        if own:
+            f.render.frame_override = None
+    st["duel_figs"].discard(id(d.fa))
+    st["duel_figs"].discard(id(d.fb))
+    st["duel_cd"][d.pair] = world.global_tick + DUEL_REARM_TICKS
+    if d.fx is not None and d.fx.phase == "hold":
+        d.fx.release()
+    if _duel_fielded(world, d):
+        fr = d.plan[min(d.i, len(d.plan)) - 1] if d.i > 0 else None
+        c = ((fr[0] + fr[2]) / 2.0, (fr[1] + fr[3]) / 2.0) if fr else ((d.fa.x + d.fb.x) / 2.0, (d.fa.y + d.fb.y) / 2.0)
+        _settle(world, d.a, d.b, c)
+
+
+def duel_tick(fig, world):
+    """CombatSystem, once per tick per figure: while fig is in a sword duel
+    the duel owns its movement (MotionSystem and the melee FSM skip it).
+    True when it moved the figure this tick."""
+    st = getattr(world, "clash_state", None)
+    if st is None:
+        return False
+    pose = st["duel_pose"].get(id(fig))
+    if pose is None:
+        return False
+    from . import combat
+    x, y, opp, swing, own = pose
+    t = fig.transform
+    ox, oy = t.x, t.y
+    m = DUEL_MARGIN
+    t.x = max(m, min(fig.screen_w - m, x))
+    t.y = max(m, min(fig.screen_h - m, y))
+    fig.face(ox, oy)
+    if fig.aim is None:
+        t.facing_left = opp.x < t.x     # always squared up to the other fighter
+    if (t.x - ox) ** 2 + (t.y - oy) ** 2 > 36.0:
+        combat.spawn_afterimage(fig)
+    combat._apply_trail_update(fig, t, True, False)
+    if own:
+        b = fig.render.bundle
+        fs = b.slash_flipped if t.facing_left else b.slash
+        if swing is not None and fs:
+            fig.render.frame_override = fs[min(len(fs) - 1, int(swing * len(fs)))]
+        else:
+            fig.render.frame_override = None
+    fig.render.advance()
+    return True
+
+
+def _duels(world, st):
+    """Advance every duel one frame: this tick's pose for each fighter
+    (duel_tick applies it) and the anchored FX."""
+    poses = st["duel_pose"] = {}
+    live = []
+    for d in st["duels"]:
+        if d.i >= len(d.plan) or not _duel_fielded(world, d):
+            _duel_end(world, st, d)
+            continue
+        fr = d.plan[d.i]
+        d.i += 1
+        poses[id(d.fa)] = (fr[0], fr[1], d.fb, fr[6], d.owns[0])
+        poses[id(d.fb)] = (fr[2], fr[3], d.fa, fr[6], d.owns[1])
+        if d.fx is not None:
+            d.fx.duel_frame(fr)
+        live.append(d)
+    st["duels"] = live
 
 
 # ---------------------------------------------------------------- per tick
@@ -603,6 +775,8 @@ def step(world):
         _hold(rec.b, rec.pins[1])
         live.append(rec)
     st["active"] = live
+    # 1b. Sword duels: where each dueling fighter is this tick.
+    _duels(world, st)
     # 2. Split halves: each explodes where it ends.
     tips = []
     for t in st["tips"]:
@@ -623,7 +797,10 @@ def step(world):
     A, B = _bodies(world, 0), _bodies(world, 1)
     if not A or not B:
         return
-    busy, seen = st["busy"], st["seen"]
+    busy, seen, dueling = st["busy"], st["seen"], st["duel_figs"]
+    if dueling:     # a fighter mid-duel clashes with nothing else
+        A = [x for x in A if id(x.owner) not in dueling]
+        B = [x for x in B if id(x.owner) not in dueling]
     for a in A:
         if id(a.ref) in busy:
             continue

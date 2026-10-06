@@ -870,6 +870,8 @@ class Overlay(QWidget):
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.
         for proj in w.all_projectiles():
+            if id(proj) in clashfx.HIDDEN:
+                continue    # an anchored clash FX draws it meanwhile (laser/clash.py)
             pscale = combat.position_scale(proj.x, proj.y, w.screen_w, w.screen_h)
             proj.draw(p, pscale)
         # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
