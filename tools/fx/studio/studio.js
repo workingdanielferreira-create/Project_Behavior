@@ -1213,7 +1213,11 @@ function anchorOptions(withSpecial) {
   var o = anchorIds().map(function (j) { return [j, S.labels[j] + (S.labels[j] !== j ? " (" + j + ")" : "")]; });
   if (!withSpecial) return o;
   var sets = S.entries.map(function (e) { return ["set:" + e.id, "⊕ " + e.name + " (" + e.points.length + " pts, " + e.mode + ")"]; });
-  return [["figure", "figure (image centre)"], ["target", "target"]].concat(o, sets);
+  var res = [["figure", "figure (image centre)"], ["target", "target"]].concat(o, sets);
+  if (withSpecial !== "paths") return res;
+  // Paths (Joint dropdown of an effect): picking one puts the effect on it
+  // (Motion "path"); it starts from "Path starts at".
+  return res.concat(S.paths.map(function (p) { return ["path:" + p.id, "〰 " + p.name + " (path, " + p.points.length + " pts)"]; }));
 }
 
 // ------------------------------------------------------------ effect keyframes
@@ -1443,7 +1447,22 @@ function buildProps() {
     eg.onclick = function () { setSel(null, fgr.id); refreshSel(); };
     s.appendChild(eg);
   } else
-  field(s, fx.prim === "weapon" ? "From anchor" : "Joint", inp(anchorOptions(fx.prim !== "weapon"), fx.anchor, function (v) { fx.anchor = v; changed(); }));
+  if (fx.prim === "weapon") field(s, "From anchor", inp(anchorOptions(false), fx.anchor, function (v) { fx.anchor = v; changed(); }));
+  else {
+    // Joint or path: a path shown here is the effect's Motion "path"; a
+    // joint / entry set takes it off the path (back to attached).
+    var onPath = fx.motion.kind === "path" && !!fx.motion.path;
+    field(s, "Joint", inp(anchorOptions("paths"), onPath ? "path:" + fx.motion.path : fx.anchor, function (v) {
+      if (v.indexOf("path:") === 0) { fx.motion.kind = "path"; fx.motion.path = v.slice(5); }
+      else { fx.anchor = v; if (fx.motion.kind === "path") fx.motion.kind = "attached"; }
+      changed(true);
+    }));
+    if (onPath) {
+      field(s, "Path starts at", inp(anchorOptions(true), fx.anchor, function (v) { fx.anchor = v; changed(); })).title =
+        "Where the path begins: a joint or ⊕ entry set, plus the offset below.";
+      if (!S.paths.some(function (p) { return p.id === fx.motion.path; })) note(s, "That path no longer exists; it stays where it appears.");
+    }
+  }
   if (fx.prim !== "weapon" && fx.anchor.indexOf("set:") === 0) {
     var es = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0];
     if (es) note(s, "Comes out of " + es.points.length + " entry points, " + (es.mode === "sequential" ? "one after another every " + es.interval_ticks + " ticks." : "all at once.") + " Count per emit applies at each point.");
