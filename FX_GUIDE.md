@@ -427,6 +427,7 @@ more geometry in `draw()` and, for gameplay-relevant effects, hit tests in
 | `ipc.py` | The only cross-process channel; fixed struct layout, 160 bullet slots |
 | `clashfx.py` | Clash explosion library: 11 baselines + 8 pair clashes + `derive()` variations, `world.clash_fx` |
 | `clash.py` | Clash interaction: categorises both sides' FX, detects contact, plays the pair rule |
+| `swordfx.py` | Sword techniques: the hand-drawn renderer behind the FX Kit `technique` primitive |
 
 ---
 
@@ -452,6 +453,29 @@ one list for the whole world, so Solo and Battle behave identically.
 - **Preview:** `F6` fires the next variation at the cursor (P1's colour vs P2's).
   `tools/fx/clash_gallery.html` plays all of them in a browser. FX Studio has
   approximate versions under the **Clash explosions** preset group.
+
+---
+
+## 12b. Sword Techniques (`laser/swordfx.py`)
+
+Hand-drawn sword FX at the clash-explosion standard, used through the FX Kit
+primitive `technique` (FX Studio presets: **Sword techniques**). `params.style`
+picks one: `rising_slash`, `horizontal_sweep`, `diagonal_slash` (filled
+crescents of light that swing round the anchor), `crescent_wave` (a travelling
+slash beam with a dark core and flames) or `blade_extension` (an energy blade
+that charges, shoots out of the sword tip, holds and retracts).
+
+- **Hooks in fxkit.py:** `spawn` → `swordfx.on_spawn` (fixes the frame and
+  sets the hit window as `inst.life`); `tick_inst` keeps it alive until
+  `swordfx.total_ticks` for the afterglow; `_hit_shape` → `swordfx.hit`;
+  `resolve_hits` → `swordfx.on_hit` (the X flash on the target); `_DRAW` →
+  `swordfx.draw`. `clash.py` treats every technique as a `crescent` body.
+- **Determinism:** everything is a function of age + seed (`rng_for`), so
+  `tools/fx/studio/swordfx.js` draws the same pixels. Change both together;
+  `check_parity.py` covers the shared tables (`TECH_STYLES`,
+  `TECH_STYLE_DEFAULTS`, `PARAM_DEFAULTS.technique`).
+- **Colour:** palette mode uses the LUT's most vivid entry (`vivid`); solid /
+  gradient use colour 1, with colour 2 darkened for the wave's core.
 
 ---
 

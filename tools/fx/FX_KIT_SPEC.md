@@ -421,6 +421,7 @@ routine's `config.py` values.
 | `glow` | `TrailComponent` head glow + core | `r_start, r_end, a_center, a_mid, mid, core_r, fade none\|out\|in\|inout, pulse_hz` |
 | `pulse` | radial pulse rings (new) | `r_start 0, r_end 120, width 6, width_end 2, expand_ms 400, rings 1, gap_ms 200, ease out\|linear\|in, fade out\|none\|in\|inout, glow 8, fill_alpha 0`: ring *k* starts `k × gap_ms` in (only while the effect lasts; `rings 0` = keep starting rings) and grows `r_start → r_end` over `expand_ms`, its line `width → width_end`; `glow` = a soft wider ring, `fill_alpha` = a faint inner fill (both colour 2). Rings already growing finish after the effect's life ends |
 | `ghost` | `Figure.draw` afterimages (`silhouette`) | `interval 2, ghost_life 14, alpha 150, max 12` |
+| `technique` | `laser/swordfx.py` (Studio: `swordfx.js`), hand-drawn sword techniques (new) | `style rising_slash\|horizontal_sweep\|diagonal_slash\|crescent_wave\|blade_extension, radius 40, span 160, thickness 12, length 300, swing_ticks 6, hold_ticks 18, density 1`. Picking a style in the Studio applies `TECH_STYLE_DEFAULTS[style]`. Slashes: a filled crescent of light (white-hot edge, speed lines, head flare, sparks, the cut left hanging + a pressure wave) swinging round the anchor along the style's cut (rising: up, horizontal: back → front, diagonal: bottom-back → top-front), laid out for the facing (Flip mirrors it, Follow direction tilts it). `crescent_wave`: a travelling crescent (bright rim, dark core = colour 2 darkened, flames, embers, shock rings, path gouge, launch flash) that shatters into shards at the end. `blade_extension`: charge (4 ticks) → extend (5) → hold (`hold_ticks`) → retract (7) along the spawn aim, with ripples, edge crackle, a shock cone at full reach and sparkle dust. The technique sets its own life (hit window: slash `swing_ticks + 2`, wave `hold_ticks`, blade charge + extend + hold + retract) and draws its afterglow after it; Life is ignored. Palette colour = the LUT's most vivid entry. Every hit leaves an X slash flash on the target. Everything is a pure function of age + seed, so the Studio and the game draw the same pixels |
 | `weapon` | melee hitbox (new) | `to_anchor wtip, width 6`: a capsule from the effect's `anchor` to `to_anchor`, following the frames; never drawn in-game (the Studio outlines it) |
 
 A few rules are FX Kit's own; the engine's classes don't need them:
@@ -604,6 +605,11 @@ primitive (`HIT.*` in `fxkit.js`):
   last tick's radius, ± half its width) sweeps over the hurt circle, pushing
   outward from the centre. Rings never end on a hit (`pierce` / `rehit_ticks`
   don't apply), and a pulse is never a projectile (no Intercept).
+- `technique`: the drawn blade during its hit window — slashes: the visible
+  crescent's centre line (from 15 % of the way along) within `hurt r + half
+  its width`; wave: its crescent centre line; extension: the anchor → tip
+  segment within `hurt r + 0.9 × thickness`. In a clash every technique is a
+  cutting blade (category `crescent`).
 - `ghost`: never (afterimages are visual only, and the checkbox is disabled).
 - `weapon`: the segment `anchor → to_anchor` passes within `hurt r + width/2`.
   This is how the weapon deals damage: add a `weapon` effect over the frames

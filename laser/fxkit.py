@@ -161,7 +161,7 @@ def seg_seg_dist(a, b):
 
 
 # ---------------------------------------------------------------- schema
-PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"]
+PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon", "technique"]
 PARAM_DEFAULTS = {
     "ribbon": dict(max_points=50, min_dist=2, decay=2, taper=True, w_tail=1, w_head=5, alpha=220, head_glow_r=1, head_dot_r=1),
     "arc": dict(radius=42, span=170, width=6.5, tail=0.95, segs=16, grow=0.85, core_alpha=0.7, core_width=0.3, orient="motion",
@@ -186,6 +186,23 @@ PARAM_DEFAULTS = {
                   fade="out", glow=8, fill_alpha=0, stretch_x=1, stretch_y=1, tilt_deg=0),
     "ghost": dict(interval=2, ghost_life=14, alpha=150, max=12),
     "weapon": dict(to_anchor="wtip", width=6),
+    # Sword technique (laser/swordfx.py draws it by hand).  style picks the
+    # technique; radius / span / thickness shape the slashes and the wave,
+    # length / thickness the extended blade.  swing_ticks = how fast a slash
+    # swings; hold_ticks = the wave's flight / how long the blade stays out.
+    # The technique keeps its own timeline: Life is ignored.
+    "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
+                      density=1.0),
+}
+# Each technique style's own shape (FX Studio applies it when the style is
+# picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
+TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension"]
+TECH_STYLE_DEFAULTS = {
+    "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
+    "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
+    "diagonal_slash": dict(radius=60, span=110, thickness=12, swing_ticks=6),
+    "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
+    "blade_extension": dict(length=300, thickness=6, hold_ticks=18),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
@@ -475,6 +492,7 @@ _SCALE_PARAMS = {
     "pulse": ("r_start", "r_end", "width", "width_end", "glow"),
     "ghost": (),
     "weapon": ("width",),
+    "technique": ("radius", "thickness", "length"),
 }
 _SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry")
 _SCALE_INTERCEPT = ("radius", "contact")
@@ -937,7 +955,8 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt", "cap")
+                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt", "cap",
+                 "tq_f", "tq_m", "tq_o", "tq_hits")
 
     def __init__(self):
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
@@ -1063,6 +1082,8 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
         inst.x2, inst.y2 = e2[0], e2[1]
     inst.px, inst.py = inst.x, inst.y
     inst.mk, inst.ma = m["kind"], m["aim"]   # keyed switches compare against these (motion_switch)
+    if fx["prim"] == "technique":
+        swordfx.on_spawn(inst, host)   # its frame, and its own timeline as life
     return inst
 
 
@@ -1588,6 +1609,10 @@ def tick_inst(inst, host):
         # Rings already expanding finish after the effect's life ends.
         if not active and not pulse_rings(inst, inst.ps):
             inst.dead = True
+    elif prim == "technique":
+        # Its afterglow (sparks, shards, dust) plays out after the hit window.
+        if inst.age >= swordfx.total_ticks(P):
+            inst.dead = True
     elif not active:
         inst.dead = True
     inst.age += 1
@@ -1751,6 +1776,8 @@ def pulse_scale_toward(sx, sy, tilt, dx, dy):
 
 def _hit_shape(inst, tx, ty, hr, ps, host):
     prim, P = inst.fx["prim"], inst.fx["params"]
+    if prim == "technique":
+        return swordfx.hit(inst, tx, ty, hr, ps)
     if prim == "ribbon":
         h, n = inst.hist, len(inst.hist)
         for i in range(1, n):
@@ -1867,6 +1894,8 @@ def resolve_hits(inst, host, ps):
             inst.hits += 1
             inst.last_hit = now
             host.on_hit(inst, b["damage"], inst.dir[0], inst.dir[1], b["knockback"], key)
+            if inst.fx["prim"] == "technique":
+                swordfx.on_hit(inst, hx, hy)   # its slash flash on the target
             if not b["pierce"]:
                 if can_lodge(inst):
                     blade_lodge(inst, hx, hy, hr, ps)
@@ -2405,7 +2434,8 @@ def _draw_ghost(p, inst, host, ps):
 
 
 _DRAW = {"ribbon": _draw_ribbon, "arc": _draw_arc, "beam": _draw_beam, "sprite": _draw_sprite,
-         "particles": _draw_particles, "glow": _draw_glow, "pulse": _draw_pulse, "ghost": _draw_ghost, "weapon": lambda *a: None}
+         "particles": _draw_particles, "glow": _draw_glow, "pulse": _draw_pulse, "ghost": _draw_ghost, "weapon": lambda *a: None,
+         "technique": lambda p, inst, host, ps: swordfx.draw(p, inst, host, ps)}
 
 
 def draw_inst(p, inst, host, ps):
@@ -3127,3 +3157,8 @@ def update_figure(fig, world, hold=None, frozen=False):
     hits = drv.take_hits()
     if hits and world.battle_mode:
         world.queue_fx_hits(hits)
+
+
+# Sword techniques draw / hit through laser/swordfx.py, which uses this
+# module's helpers (imported last: the two modules refer to each other).
+from . import swordfx  # noqa: E402

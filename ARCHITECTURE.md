@@ -93,6 +93,7 @@ laser/
   app.py             World (state + factory) + Overlay (window, loop, paint)
   clash.py           clash interaction: opposing FX that touch play their pair rule
   clashfx.py         clash explosion library (19 effects, derive() variations)
+  swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on

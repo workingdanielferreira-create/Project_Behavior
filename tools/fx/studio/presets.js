@@ -32,26 +32,55 @@ G.FX_PRESETS = [
      motion: {kind: "travel", aim: "target", speed: 10}, color: {mode: "palette", flow_speed: 0.008},
      params: {radius: 42, span: 170, width: 6.5, tail: 0.95, segs: 16, grow: 0.85, core_alpha: 0.7, core_width: 0.3, orient: "motion", placement: "through_target", lead: 26}}]},
   // ---------------------------------------------------------------- sword techniques
-  // Fixed-angle arcs (orient "angle") with Flip on: as authored for a fighter
+  // Hand-drawn (prim "technique", laser/swordfx.py + swordfx.js): the same
+  // renderer in the Studio and the game.  Slashes swing round the fighter
+  // with Flip on, so they mirror toward the target's side.
+  {name: "Rising slash", group: "Sword techniques", desc: "Vertical: a crescent of light rising from below the feet to above the head in front of the fighter — white-hot edge, speed lines, sparks, the cut left hanging in the air and a pressure wave",
+   effects: [{prim: "technique", name: "Rising slash", tag: "slash", anchor: "figure", blend: "additive", flip: {enabled: true, facing: 1},
+     battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 8},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "rising_slash", radius: 40, span: 160, thickness: 12, swing_ticks: 6, density: 1}}]},
+  {name: "Horizontal sweep", group: "Sword techniques", desc: "A wide, flat sweep from behind the fighter to well in front of it",
+   effects: [{prim: "technique", name: "Horizontal sweep", tag: "slash", anchor: "figure", blend: "additive", flip: {enabled: true, facing: 1},
+     battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 10},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "horizontal_sweep", radius: 100, span: 70, thickness: 11, swing_ticks: 7, density: 1}}]},
+  {name: "Diagonal slash", group: "Sword techniques", desc: "A cross-body cut from bottom-back to top-front (bottom-left to top-right facing right)",
+   effects: [{prim: "technique", name: "Diagonal slash", tag: "slash", anchor: "figure", blend: "additive", flip: {enabled: true, facing: 1},
+     battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 8},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "diagonal_slash", radius: 60, span: 110, thickness: 12, swing_ticks: 6, density: 1}}]},
+  {name: "Crescent wave", group: "Sword techniques", desc: "Slash beam (Getsuga-style): a launch flash, then a crescent with a bright rim, dark core and flames streaming off its back flies at the target, shedding embers and shock rings along a glowing gouge; it cuts through everything and shatters when it ends",
+   effects: [{prim: "technique", name: "Crescent wave", tag: "slash", anchor: "figure", blend: "additive", flip: {enabled: true, facing: 1}, follow_dir: true,
+     battle: {deals_damage: true, damage: 4, pierce: true, rehit_ticks: 0, knockback: 14},
+     motion: {kind: "travel", aim: "target", speed: 8}, color: {mode: "palette"},
+     params: {style: "crescent_wave", radius: 40, thickness: 22, hold_ticks: 48, density: 1}}]},
+  {name: "Blade extension", group: "Sword techniques", desc: "Light gathers at the sword tip, then an energy blade shoots out along the aim with a shock cone at full reach; ripples and crackle run up it while it holds, and it retracts in a trail of sparkle dust. Hits along its whole length",
+   effects: [{prim: "technique", name: "Blade extension", tag: "beam", anchor: "wtip", blend: "additive",
+     battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 10, knockback: 8},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "blade_extension", length: 300, thickness: 6, hold_ticks: 18, density: 1}}]},
+  // ---------------------------------------------------------------- sword techniques (lite)
+  // Lightweight versions built from plain FX Kit layers.  Fixed-angle arcs (orient "angle") with Flip on: as authored for a fighter
   // facing right, mirrored when the target is on the left.  Arc sweeps run
   // counter-clockwise on screen, so angle_deg is the cut's direction and the
   // crescent bulges to its right.  Offsets place the chord through the body.
-  {name: "Rising slash", group: "Sword techniques", desc: "Vertical: a crescent cut rising from the feet to above the head, in front of the body",
+  {name: "Rising slash (lite)", group: "Sword techniques (lite)", desc: "Vertical: a crescent cut rising from the feet to above the head, in front of the body",
    effects: [{prim: "arc", battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 6},
      name: "Rising slash", tag: "slash", anchor: "figure", life_ticks: 10, flip: {enabled: true, facing: 1},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette", flow_speed: 0.008},
      params: {radius: 34, span: 160, width: 6, tail: 0.9, segs: 18, grow: 0.7, core_alpha: 0.75, core_width: 0.3, orient: "angle", angle_deg: -90}}]},
-  {name: "Horizontal sweep", group: "Sword techniques", desc: "Horizontal: a wide, flat sweep from behind the body to well in front of it",
+  {name: "Horizontal sweep (lite)", group: "Sword techniques (lite)", desc: "Horizontal: a wide, flat sweep from behind the body to well in front of it",
    effects: [{prim: "arc", battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 8},
      name: "Horizontal sweep", tag: "slash", anchor: "figure", offset: [0, -84], life_ticks: 10, flip: {enabled: true, facing: 1},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette", flow_speed: 0.008},
      params: {radius: 100, span: 70, width: 7, tail: 0.9, segs: 20, grow: 0.7, core_alpha: 0.75, core_width: 0.3, orient: "angle", angle_deg: 0}}]},
-  {name: "Diagonal slash", group: "Sword techniques", desc: "Diagonal: a cross-body cut from bottom-back to top-front (bottom-left to top-right facing right)",
+  {name: "Diagonal slash (lite)", group: "Sword techniques (lite)", desc: "Diagonal: a cross-body cut from bottom-back to top-front (bottom-left to top-right facing right)",
    effects: [{prim: "arc", battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 6},
      name: "Diagonal slash", tag: "slash", anchor: "figure", offset: [-22, -22], life_ticks: 10, flip: {enabled: true, facing: 1},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette", flow_speed: 0.008},
      params: {radius: 56, span: 110, width: 6, tail: 0.9, segs: 18, grow: 0.7, core_alpha: 0.75, core_width: 0.3, orient: "angle", angle_deg: -45}}]},
-  {name: "Crescent wave", group: "Sword techniques", desc: "Slash beam: a large crescent of energy (bright crimson rim, dark core) that flies at the target, cuts through everything and sheds a falling spark trail",
+  {name: "Crescent wave (lite)", group: "Sword techniques (lite)", desc: "Slash beam: a large crescent of energy (bright crimson rim, dark core) that flies at the target, cuts through everything and sheds a falling spark trail",
    effects: [
      {prim: "arc", name: "Wave rim", tag: "slash", anchor: "figure", life_ticks: 50, blend: "additive", flip: {enabled: true, facing: 1}, follow_dir: true,
       battle: {deals_damage: true, damage: 4, pierce: true, rehit_ticks: 0, knockback: 14},
@@ -64,7 +93,7 @@ G.FX_PRESETS = [
       motion: {kind: "travel", aim: "target", speed: 9}, color: {mode: "gradient", c1: "#ff6070", c2: "#2a0008"},
       params: {mode: "stream", rate_per_s: 140, angle_deg: 180, spread_deg: 60, speed_min: 20, speed_max: 90, gravity: 260, drag: 0.95,
                size_min: 1.5, size_max: 4, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 550}}]},
-  {name: "Blade extension", group: "Sword techniques", desc: "An energy blade shoots out of the sword tip along the aim (frame 1), holds (to frame 4), then retracts (by frame 6); hits along its whole length. Keys assume ~100 ms action frames",
+  {name: "Blade extension (lite)", group: "Sword techniques (lite)", desc: "An energy blade shoots out of the sword tip along the aim (frame 1), holds (to frame 4), then retracts (by frame 6); hits along its whole length. Keys assume ~100 ms action frames",
    effects: [
      {prim: "beam", name: "Blade extension", tag: "beam", anchor: "wtip", life_ticks: 72, blend: "additive",
       battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 10, knockback: 8},

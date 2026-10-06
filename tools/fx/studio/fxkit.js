@@ -299,7 +299,7 @@ function bladeFollow(inst, hurts, ps) {
 }
 
 // ---------------------------------------------------------------- schema
-var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon"];
+var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon", "technique"];
 var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit", "path"];
 var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
@@ -322,7 +322,24 @@ var PARAM_DEFAULTS = {
   pulse: {r_start: 0, r_end: 120, width: 6, width_end: 2, expand_ms: 400, rings: 1, gap_ms: 200, ease: "out", fade: "out", glow: 8, fill_alpha: 0,
     stretch_x: 1, stretch_y: 1, tilt_deg: 0},
   ghost: {interval: 2, ghost_life: 14, alpha: 150, max: 12},
-  weapon: {to_anchor: "wtip", width: 6}
+  weapon: {to_anchor: "wtip", width: 6},
+  // Sword technique (swordfx.js / laser/swordfx.py draw it by hand).  style
+  // picks the technique; radius / span / thickness shape the slashes and the
+  // wave, length / thickness the extended blade.  swing_ticks = how fast a
+  // slash swings; hold_ticks = the wave's flight / how long the blade stays
+  // out.  The technique keeps its own timeline: Life is ignored.
+  technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
+    density: 1}
+};
+// Each technique style's own shape (applied when the style is picked);
+// laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
+var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension"];
+var TECH_STYLE_DEFAULTS = {
+  rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
+  horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
+  diagonal_slash: {radius: 60, span: 110, thickness: 12, swing_ticks: 6},
+  crescent_wave: {radius: 40, thickness: 22, hold_ticks: 48},
+  blade_extension: {length: 300, thickness: 6, hold_ticks: 18}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};
@@ -722,7 +739,8 @@ var STAND_HEIGHT_PX = 28;
 var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"], arc: ["radius", "width", "back", "lead"],
   beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius"],
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
-  pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"]};
+  pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"],
+  technique: ["radius", "thickness", "length"]};
 var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry"];
 var SCALE_INTERCEPT = ["radius", "contact"];
 function rescaleEffects(effects, lib, r) {
@@ -1121,6 +1139,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   if (fx.prim === "pulse") inst.ringHits = {};   // "ring" -> true: each ring hits once
   inst.px = inst.x; inst.py = inst.y;
   inst.mk = m.kind; inst.ma = m.aim;   // keyed switches compare against these (motionSwitch)
+  if (fx.prim === "technique") G.SWORDFX.onSpawn(inst, host);   // its frame, and its own timeline as life
   return inst;
 }
 
@@ -1441,6 +1460,8 @@ function tickInst(inst, host) {
     if (!active && !inst.ghosts.length) inst.dead = true;
   } else if (fx.prim === "pulse") {
     if (!active && !pulseRings(inst, inst.ps || 1).length) inst.dead = true;   // expanding rings finish
+  } else if (fx.prim === "technique") {
+    if (inst.age >= G.SWORDFX.totalTicks(P)) inst.dead = true;   // its afterglow plays out after the hit window
   } else if (!active) {
     inst.dead = true;
   }
@@ -1744,6 +1765,7 @@ DRAW.pulse = function (g, inst, host, ps) {
     }
   });
 };
+DRAW.technique = function (g, inst, host, ps) { G.SWORDFX.draw(g, inst, host, ps); };
 DRAW.weapon = function (g, inst, host, ps) {   // invisible in-game; the Studio outlines it
   if (!host.showHitboxes || inst.age >= inst.life) return;
   g.strokeStyle = inst.fx.battle.deals_damage ? "rgba(255,90,90,.85)" : "rgba(150,160,180,.7)";
@@ -1823,6 +1845,7 @@ HIT.glow = function (inst, tx, ty, hr, ps) {
   return Math.sqrt(dx * dx + dy * dy) <= hr + gr;
 };
 HIT.ghost = function () { return false; };
+HIT.technique = function (inst, tx, ty, hr, ps) { return G.SWORDFX.hit(inst, tx, ty, hr, ps); };
 HIT.pulse = function () { return false; };   // resolved per ring in resolveHits
 HIT.weapon = function (inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
@@ -1867,6 +1890,7 @@ function resolveHits(inst, host, ps) {
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
   if (host.onHit) host.onHit(inst, b.damage, inst.dir[0], inst.dir[1], b.knockback);
+  if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y);   // its slash flash on the target
   if (b.pierce) return;
   if (canLodge(inst)) bladeLodge(inst, hurt.x, hurt.y, hurt.r, ps);
   else inst.age = Math.max(inst.age, inst.life);
@@ -2085,6 +2109,7 @@ function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached
 
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
+  TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,

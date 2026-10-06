@@ -202,6 +202,7 @@ def main():
              "ENTRY_DEFAULTS", "PATH_DEFAULTS", "BLINK_DEFAULTS", "BLINK_ANCHORS", "BLINK_DIRECTIONS",
              "TIME_DEFAULTS", "TIME_SCOPES", "TIME_SPEED_MAX",
              "EASES", "KEY_GROUPS", "KEY_CHOICES", "CYCLE_DEFAULTS", "CYCLE_MAX_RUNS", "LAUNCH_LIFE", "DEFLECT_FAN_DEG", "CLASH_KB_MARGIN", "PULSE_MIN_STRETCH", "TICK_MS",
+             "TECH_STYLES", "TECH_STYLE_DEFAULTS",
              ("SCALE_PARAMS", "_SCALE_PARAMS"), ("SCALE_MOTION", "_SCALE_MOTION"), ("SCALE_INTERCEPT", "_SCALE_INTERCEPT")]
     for p in pairs:
         j, y = p if isinstance(p, tuple) else (p, p)
