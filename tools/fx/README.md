@@ -112,6 +112,14 @@ timing.
 - **Attack distance (normal attacks).** Under each `attack_normal*` action:
   **Attack distance px** — the attack starts once the target is this close
   (scales with Character scale). 0 = the character's basic attack radius.
+- **Sword techniques.** Primitive `technique` (presets: *Sword techniques*):
+  hand-drawn sword FX painted by the same renderer in the Studio and the game
+  (`laser/swordfx.py`, `swordfx.js`) — **Rising slash**, **Horizontal
+  sweep**, **Diagonal slash**, **Crescent wave** (a travelling slash beam)
+  and **Blade extension**. Picking a **Technique** sets its shape; Radius,
+  Span, Thickness, Blade length, Swing ticks, Hold ticks and Sparks × tune
+  it. The *Sword techniques (lite)* presets are cheaper versions built from
+  plain layers.
 - **Radial pulse FX.** Primitive `pulse`: rings that expand from **Radius
   start** to **Radius end** over **Expand ms**, **Rings** of them **Gap** ms
   apart (0 = repeat for the whole effect). With Deals damage each ring hits

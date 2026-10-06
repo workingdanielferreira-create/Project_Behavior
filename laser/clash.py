@@ -68,7 +68,7 @@ import copy
 import math
 import random
 
-from . import clashfx, config, fxkit
+from . import clashfx, config, fxkit, swordfx
 
 CONTACT_MARGIN = 4.0         # px of slack on top of both half widths
 STRONG_BEAM_DAMAGE = 10.0    # beam x beam explodes when BOTH deal more than this
@@ -158,6 +158,13 @@ def _inst_body(si, fig, inst, lst):
         hw = max(3.0, float(P.get("w_head") or 5) * ps / 2)
         return Body(si, "trail", "inst", inst, fig, list(h), hw, dmg, kb, col, _norm(h[-1][0] - h[-2][0],
                                                                                        h[-1][1] - h[-2][1]), lst)
+    if prim == "technique":
+        # Every sword technique is a cutting blade: it clashes as a crescent.
+        bd = swordfx.body(inst, ps)
+        if bd is None or len(bd[0]) < 2:
+            return None
+        return Body(si, "crescent", "inst", inst, fig, list(bd[0]), max(2.0, bd[1]), dmg, kb, col,
+                    _norm(inst.vx, inst.vy) if (inst.vx or inst.vy) else tuple(inst.dir), lst)
     if prim == "arc":
         R = float(P["radius"]) * ps
         pts = []
