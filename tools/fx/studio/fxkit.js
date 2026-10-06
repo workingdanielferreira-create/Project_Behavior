@@ -516,7 +516,7 @@ var CLASH_SLOTS = [
   ["split_tip", "split_burst", "End of each split half"],
   ["beam_nosplit", "split_burst", "Beam not split (cutter hit)"],
   ["orb_orb", "orb_pops", "Orb × orb"],
-  ["trail_trail", "sword_slash_clash", "Trail × trail"],
+  ["trail_trail", "sword_duel", "Trail × trail"],
   ["crescent_crescent", "crescent_struggle", "Crescent × crescent"],
   ["sprite_sprite", "kunai_clash", "Sprite × sprite"]
 ];
@@ -529,7 +529,7 @@ var CLASH_FX = [
   ["reiatsu_eruption", "Reiatsu Eruption"], ["getsuga_cross", "Getsuga Cross"], ["implosion_pop", "Implosion Pop"],
   ["storm_fork", "Storm Fork"], ["speed_duel", "Speed Duel"], ["beam_clash", "Beam Clash"], ["beam_orb", "Beam vs Orb"],
   ["beam_split", "Beam Split"], ["split_burst", "Split Burst"], ["orb_pops", "Orb Pops"],
-  ["sword_slash_clash", "Sword Slash Clash"], ["crescent_struggle", "Crescent Struggle"], ["kunai_clash", "Kunai Clash"]
+  ["sword_slash_clash", "Sword Slash Clash"], ["sword_duel", "Sword Duel"], ["crescent_struggle", "Crescent Struggle"], ["kunai_clash", "Kunai Clash"]
 ];
 function clampNum(v, d, lo, hi) { v = +v; if (v !== v || v === null) return d; return Math.max(lo, Math.min(hi, v)); }
 function normalizeClash(c) {

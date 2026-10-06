@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx, clash
 from . import platform_win as win
 from . import action_log
 
@@ -395,6 +395,12 @@ class CombatSystem(System):
             # nearest enemy in Battle, the cursor in Solo. ---
             if _gone:
                 fig.render.advance()   # animation keeps running while hidden
+                fig.combat.acted = True
+                continue
+            # --- Sword duel (laser/clash.py, trail x trail): while it runs
+            # the duel owns the figure's movement.  Battle only in practice
+            # (a clash needs two fielded sides); same code path in Solo. ---
+            if clash.duel_tick(fig, world):
                 fig.combat.acted = True
                 continue
             if retreat.tick(fig, world):

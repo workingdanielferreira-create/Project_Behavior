@@ -13,7 +13,10 @@ attack, with a white-hot core where they meet:
 
   collision_nova     two blasts meet: core flash, split shockwave rings, sparks
   beam_struggle      SUSTAINED: pulsing node between two beams, lightning arcs,
-                     tug-of-war wobble, ripples; detonates on release
+                     tug-of-war wobble, ripples; detonates on release.  In a
+                     clash it is anchored (anchor_beams): it draws both real
+                     beams itself, origin to node at their real widths, and
+                     the node is pushed toward the losing side
   overpower_blowout  a struggle won: cone blast driven toward the loser, smoke
   kunai_storm        dozens of tiny steel-on-steel clashes, kunai spinning off
   ricochet_rain      chains of spark pops ricocheting outward over ~1 s
@@ -39,8 +42,12 @@ from the first effect toward the second):
   split_burst        the small blast at the end of each split half
   orb_pops           orb x orb: little energy blasts hitting each other and
                      popping in rapid succession
-  sword_slash_clash  trail x trail: two slash strokes cross, an X flash and a
-                     fan of sparks along both cuts
+  sword_slash_clash  two slash strokes cross, an X flash and a fan of sparks
+                     along both cuts (trail x trail while a pair is re-arming)
+  sword_duel         SUSTAINED trail x trail, anchored: the two real fighters
+                     dash in and out (duel_plan), each cut drawn from the
+                     fighter's hand through the blade contact, blades crossed
+                     in an X while they bind; ends in one big clash
   crescent_struggle  SUSTAINED crescent x crescent: two crescent blades grind
                      against each other, then shatter into shards
   kunai_clash        sprite x sprite: two kunai meet tip to tip, a glint, and
@@ -77,6 +84,11 @@ HOT = (255, 255, 255)
 STEEL = (198, 208, 224)
 SMOKE = (70, 66, 72)
 TAU = math.pi * 2
+# Real effects (id of an FX Kit Inst / combat Projectile) an anchored clash FX
+# currently draws in their place (laser/clash.py fills it): their own draw is
+# skipped meanwhile (fxkit.Player.draw, Overlay._paint).
+HIDDEN = set()
+BEAM_PUSH = 0.55              # anchored struggle: share of the way the node is pushed toward the loser
 
 # Shared tunables, overridable per variation: size / density / speed scale
 # the geometry, particle counts and particle speeds; life = ticks of the burst
@@ -108,12 +120,16 @@ BASES = {
     "split_burst": dict(name="Split Burst", kind="burst", life=30),
     "orb_pops": dict(name="Orb Pops", kind="burst", life=44, pops=12),
     "sword_slash_clash": dict(name="Sword Slash Clash", kind="burst", life=30),
+    # SUSTAINED, anchored to the two fighters (laser/clash.py moves them):
+    # strikes = (min, max) over the whole duel, bind = chance a strike locks.
+    "sword_duel": dict(name="Sword Duel", kind="sustain", life=40, hold=-1, world_up=True,
+                       strikes=(4, 7), bind=0.3, reach=34),
     "crescent_struggle": dict(name="Crescent Struggle", kind="sustain", life=34, hold=48),
     "kunai_clash": dict(name="Kunai Clash", kind="burst", life=34),
 }
 # The baselines F6 previews and the gallery shows first; PAIR_FX follow.
 PAIR_FX = ("beam_clash", "beam_orb", "beam_split", "split_burst", "orb_pops", "sword_slash_clash",
-           "crescent_struggle", "kunai_clash")
+           "sword_duel", "crescent_struggle", "kunai_clash")
 BASE_ORDER = [k for k in BASES if k not in PAIR_FX] + list(PAIR_FX)
 
 # Derived variations: key -> (base key, overrides).
@@ -330,6 +346,9 @@ class ClashFX:
         # World "down" in the local (rotated) frame.
         self.down = (math.sin(a), math.cos(a))
         self.state = {}
+        # Anchored (laser/clash.py): parts of it are drawn at the fighters'
+        # real positions, so it ignores the position scale when drawn.
+        self.anchored = False
         getattr(self, "_init_" + self.base)()
 
     # ---- lifecycle
@@ -400,12 +419,29 @@ class ClashFX:
                                  drag=drag, grav=grav * self.S, delay=d))
 
     # ---- drawing
+    def _local(self, wx, wy):
+        """World point -> this effect's local (drawing) frame."""
+        dx, dy = wx - self.x, wy - self.y
+        if self.spec.get("world_up"):
+            return dx, dy
+        a = math.radians(self.angle)
+        ca, sa = math.cos(a), math.sin(a)
+        return dx * ca + dy * sa, -dx * sa + dy * ca
+
+    def _world(self, lx, ly):
+        """Local (drawing) frame point -> world."""
+        if self.spec.get("world_up"):
+            return self.x + lx, self.y + ly
+        a = math.radians(self.angle)
+        ca, sa = math.cos(a), math.sin(a)
+        return self.x + lx * ca - ly * sa, self.y + lx * sa + ly * ca
+
     def draw(self, p, pscale=1.0):
         p.save()
         p.translate(self.x, self.y)
         if not self.spec.get("world_up"):
             p.rotate(self.angle)
-        if pscale != 1.0:
+        if pscale != 1.0 and not self.anchored:
             p.scale(pscale, pscale)
         prev = p.compositionMode()
         getattr(self, "_draw_" + self.base)(p)
@@ -528,24 +564,64 @@ class ClashFX:
 
     # ================================================================ 2
     def _init_beam_struggle(self):
-        self.state.update(arcs=[], ripples=[], cx=0.0, core=0.0, fx0=0.0)
+        self.state.update(arcs=[], ripples=[], nx=0.0, ny=0.0, core=0.0, f0=(0.0, 0.0), ax=0.0,
+                          o=None, bw=(0.0, 0.0), loser=None)
+
+    def anchor_beams(self, o1, w1, o2, w2, loser=None, pscale=1.0):
+        """laser/clash.py: tie the struggle to the two real beams.  o1 / o2 =
+        where each side's beam starts (world, locked when the clash starts),
+        w1 / w2 = their real widths (px).  The node starts at the contact and
+        is pushed toward the loser's origin (loser = 0 / 1; None = a tie: it
+        sways about the contact).  Both beams are then drawn here, from each
+        origin to the node, so the real ones can be hidden (HIDDEN)."""
+        self.anchored = True
+        self.S *= pscale
+        l1, l2 = self._local(*o1), self._local(*o2)
+        dx, dy = l2[0] - l1[0], l2[1] - l1[1]
+        self.state.update(o=(l1, l2), bw=(max(2.0, float(w1)), max(2.0, float(w2))), loser=loser,
+                          ax=math.atan2(dy, dx) if math.hypot(dx, dy) > 1e-6 else 0.0)
+
+    def node_world(self):
+        """Where the struggle's node is now (its finale spot once released)."""
+        st = self.state
+        if self.base != "beam_struggle":
+            return self.x, self.y
+        lx, ly = (st["nx"], st["ny"]) if self.phase == "hold" else st["f0"]
+        return self._world(lx, ly)
 
     def _tick_beam_struggle(self):
         st, r, S = self.state, self.rng, self.S
         if self.phase != "hold":
             return
         t = self.t
-        st["cx"] = (10 * math.sin(t * 0.09) + 4 * math.sin(t * 0.31 + 1.3)) * S
         g = min(1.0, t / 90.0)
-        st["core"] = (18 + 14 * g) * S + 3 * S * math.sin(t * 0.6)
-        cx, core = st["cx"], st["core"]
+        sway = (10 * math.sin(t * 0.09) + 4 * math.sin(t * 0.31 + 1.3)) * S
+        ax = st["ax"]
+        ux, uy = math.cos(ax), math.sin(ax)
+        core0 = 0.0
+        if self.anchored:
+            # tug-of-war: sway along the line between the beams, pushed
+            # toward the loser's origin as the struggle goes on
+            nx, ny = ux * sway * 0.6, uy * sway * 0.6
+            lo = st["loser"]
+            if lo is not None:
+                ox, oy = st["o"][lo]
+                span = float(self.hold) if self.hold > 0 else 90.0
+                k = BEAM_PUSH * _ease_in(min(1.0, t / span))
+                nx, ny = nx + ox * k, ny + oy * k
+            core0 = 0.55 * max(st["bw"]) * (1.0 + 0.25 * g)
+        else:
+            nx, ny = sway, 0.0
+        st["nx"], st["ny"] = nx, ny
+        st["core"] = max((18 + 14 * g) * S, core0) + 3 * S * math.sin(t * 0.6)
+        core = st["core"]
         if t % 3 == 0:
             arcs = []
             for _ in range(r.randint(3, 5)):
                 a = r.uniform(0, TAU)
                 L = r.uniform(40, 110) * S * (0.6 + 0.6 * g)
-                arcs.append((_bolt(r, cx + math.cos(a) * core * 0.6, math.sin(a) * core * 0.6, a, L, 6, 0.55, 1, []),
-                             self._side_col(math.cos(a))))
+                arcs.append((_bolt(r, nx + math.cos(a) * core * 0.6, ny + math.sin(a) * core * 0.6, a, L, 6, 0.55, 1, []),
+                             self._side_col(math.cos(a - ax))))
             st["arcs"] = arcs
         if t % 16 == 0:
             st["ripples"].append(0)
@@ -554,29 +630,55 @@ class ClashFX:
         for _ in range(2):
             if r.random() < self.D:
                 side = 1 if r.random() < 0.5 else -1
-                a = side * math.pi / 2 + r.gauss(0, 0.6)
+                a = ax + side * math.pi / 2 + r.gauss(0, 0.6)
                 v = r.uniform(3, 7.5) * self.V * S
-                self.parts.append(_P("spark", cx + math.cos(a) * core, math.sin(a) * core, math.cos(a) * v, math.sin(a) * v,
+                self.parts.append(_P("spark", nx + math.cos(a) * core, ny + math.sin(a) * core,
+                                     math.cos(a) * v, math.sin(a) * v,
                                      r.randint(12, 24), r.uniform(1.4, 2.6) * S,
                                      self.c1 if r.random() < 0.5 else self.c2, drag=0.93))
 
     def _finale_beam_struggle(self):
         st = self.state
-        st["fx0"] = st["cx"]
-        cx = st["cx"]
-        self._sparks(70, x=cx, spd=(4.0, 13.0), life=(18, 38))
-        self._sparks(16, x=cx, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
-        self._sparks(18, x=cx, kind="dot", spd=(1.0, 4.0), life=(22, 40), size=(2.0, 4.0), drag=0.95)
+        st["f0"] = (st["nx"], st["ny"])
+        x, y = st["f0"]
+        self._sparks(70, x=x, y=y, spd=(4.0, 13.0), life=(18, 38))
+        self._sparks(16, x=x, y=y, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
+        self._sparks(18, x=x, y=y, kind="dot", spd=(1.0, 4.0), life=(22, 40), size=(2.0, 4.0), drag=0.95)
+
+    def _draw_struggle_beam(self, p, ox, oy, nx, ny, w, c, wob):
+        """One side's beam, anchored: from its real origin to the node, at
+        its real width (outer glow, body, white-hot core)."""
+        L = math.hypot(nx - ox, ny - oy)
+        if L < 1.0:
+            return
+        ux, uy = (nx - ox) / L, (ny - oy) / L
+        px, py = -uy, ux
+        p.setPen(Qt.NoPen)
+        for k_w, k_hot, a in ((1.7, 0.0, 95), (1.0, 0.3, 205), (0.38, 0.85, 245)):
+            h = w * k_w * wob / 2.0
+            gr = QLinearGradient(ox, oy, nx, ny)
+            cc = _mix(c, HOT, k_hot)
+            gr.setColorAt(0.0, _q(cc, a * 0.8))
+            gr.setColorAt(0.7, _q(cc, a * 0.9))
+            gr.setColorAt(1.0, _q(_mix(cc, HOT, 0.3), a))
+            p.setBrush(QBrush(gr))
+            p.drawPolygon(QPolygonF([QPointF(ox + px * h, oy + py * h), QPointF(nx + px * h, ny + py * h),
+                                     QPointF(nx - px * h, ny - py * h), QPointF(ox - px * h, oy - py * h)]))
+        _glow(p, ox, oy, w * 1.1 * wob, self._hotc(c, 0.4), 200)
 
     def _draw_beam_struggle(self, p):
         st, S = self.state, self.S
         p.setCompositionMode(QPainter.CompositionMode_Plus)
         if self.phase == "hold":
-            cx, core, t = st["cx"], st["core"], self.t
-            if self.spec.get("stubs"):
+            nx, ny, core, t, ax = st["nx"], st["ny"], st["core"], self.t, st["ax"]
+            if self.anchored:
+                for i, c in ((0, self.c1), (1, self.c2)):
+                    ox, oy = st["o"][i]
+                    self._draw_struggle_beam(p, ox, oy, nx, ny, st["bw"][i], c, 1 + 0.08 * math.sin(t * 0.8 + i))
+            elif self.spec.get("stubs"):
                 L = float(self.spec.get("stub_len", 150)) * S
                 for c, sx in ((self.c1, -1), (self.c2, 1)):
-                    x_far, x_near = cx + sx * L, cx
+                    x_far, x_near = nx + sx * L, nx
                     for w, k, a in ((core * 1.3, 0.0, 120), (core * 0.55, 0.6, 230)):
                         gr = QLinearGradient(x_far, 0, x_near, 0)
                         gr.setColorAt(0.0, _q(_mix(c, HOT, k), 0))
@@ -586,26 +688,35 @@ class ClashFX:
                         p.setBrush(QBrush(gr))
                         wob = 1 + 0.08 * math.sin(t * 0.8 + sx)
                         p.drawRect(QRectF(min(x_far, x_near), -w / 2 * wob, abs(x_near - x_far), w * wob))
-            _glow(p, cx - 10 * S, 0, core * 2.4, self.c1, 200)
-            _glow(p, cx + 10 * S, 0, core * 2.4, self.c2, 200)
+            # the node, oriented along the line between the two beams
+            p.save()
+            p.translate(nx, ny)
+            p.rotate(math.degrees(ax))
+            _glow(p, -10 * S, 0, core * 2.4, self.c1, 200)
+            _glow(p, 10 * S, 0, core * 2.4, self.c2, 200)
             for a in st["ripples"]:
                 v = a / 30.0
                 r = (core + 90 * S * _ease_out(v))
-                _split_ring(p, cx, 0, r * 0.45, r, 3 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.4),
+                _split_ring(p, 0, 0, r * 0.45, r, 3 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.4),
                             self._hotc(self.c2, 0.4), 200 * (1 - v))
+            p.restore()
             for bolts, c in st["arcs"]:
                 _draw_bolts(p, bolts, c, 230, 4.0 * S, 1.3 * S)
-            _glow(p, cx, 0, core * 1.15, self.hot, 255, 0.55)
+            _glow(p, nx, ny, core * 1.15, self.hot, 255, 0.55)
         else:
             t = self.ft
             u = min(1.0, t / self.life)
             f = 1.0 - u
-            cx = st["fx0"]
-            _glow(p, cx, 0, 120 * S * _ease_out(t / 8.0), self._hotc(_mix(self.c1, self.c2, 0.5), 0.4), 255 * f ** 1.5)
+            x, y = st["f0"]
+            _glow(p, x, y, 120 * S * _ease_out(t / 8.0), self._hotc(_mix(self.c1, self.c2, 0.5), 0.4), 255 * f ** 1.5)
+            p.save()
+            p.translate(x, y)
+            p.rotate(math.degrees(st["ax"]))
             r = 230 * S * _ease_out(u)
-            _split_ring(p, cx, 0, r, r, 9 * S * f + 1, self._hotc(self.c1, 0.4), self._hotc(self.c2, 0.4), 230 * f)
+            _split_ring(p, 0, 0, r, r, 9 * S * f + 1, self._hotc(self.c1, 0.4), self._hotc(self.c2, 0.4), 230 * f)
             r2 = 150 * S * _ease_out(min(1.0, t / 20.0))
-            _split_ring(p, cx, 0, r2 * 0.5, r2, 5 * S * f + 0.5, self.c1, self.c2, 180 * f)
+            _split_ring(p, 0, 0, r2 * 0.5, r2, 5 * S * f + 0.5, self.c1, self.c2, 180 * f)
+            p.restore()
         self._draw_parts(p)
 
     # ================================================================ 3
@@ -1291,6 +1402,153 @@ class ClashFX:
         _split_ring(p, 0, 0, r, r * 0.6, 3 * S * f + 0.4, self._hotc(self.c1, 0.3), self._hotc(self.c2, 0.3), 200 * f)
         self._draw_parts(p)
 
+    # ================================================================ pair: trail x trail (sword duel)
+    def _init_sword_duel(self):
+        self.state.update(pose=None, contact=None, cuts=[], flash=[], plan=None, i=0, f0=(0.0, 0.0), grind=0)
+
+    def anchor_duel(self, pscale=1.0):
+        """laser/clash.py: the duel is played by the two real fighters; it
+        feeds their positions each tick (duel_frame)."""
+        self.anchored = True
+        self.S *= pscale
+
+    def duel_frame(self, fr):
+        """One tick of a duel_plan() frame, in world coordinates: the two
+        fighters' positions, the blade contact (None = apart) and the event."""
+        ax, ay = self._local(fr[0], fr[1])
+        bx, by = self._local(fr[2], fr[3])
+        con = None if fr[4] is None else self._local(fr[4][0], fr[4][1])
+        self._duel_apply(ax, ay, bx, by, con, fr[5])
+
+    def _duel_apply(self, ax, ay, bx, by, con, ev):
+        st = self.state
+        st["pose"] = (ax, ay, bx, by)
+        st["contact"] = con
+        if con is not None:
+            st["f0"] = con
+        if ev in ("strike", "bind", "big") and con is not None:
+            self._duel_hit(con, ev == "big")
+        elif ev == "grind" and con is not None:
+            st["grind"] += 1
+            if st["grind"] % 2 == 0:   # blades locked: sparks spray up off the bind
+                self._sparks(4, x=con[0], y=con[1], ang=-math.pi / 2, spread=1.0, spd=(3.0, 8.0), life=(10, 18),
+                             grav=0.35)
+        elif ev == "release" and self.phase == "hold":
+            self.release()
+
+    def _duel_hit(self, con, big):
+        """The blades meet at con: a cut from each fighter's hand through the
+        contact, a glint, a ring and sparks."""
+        st, r, S = self.state, self.rng, self.S
+        x, y = con
+        k = 1.7 if big else 1.0
+        ax, ay, bx, by = st["pose"]
+        for fx_, fy_, c in ((ax, ay, self.c1), (bx, by, self.c2)):
+            hx, hy = fx_ + (x - fx_) * 0.35, fy_ + (y - fy_) * 0.35
+            ex, ey = x + (x - hx) * 0.7, y + (y - hy) * 0.7
+            st["cuts"].append([hx, hy, ex, ey, c, 0, k])
+            a = math.atan2(ey - hy, ex - hx)
+            self._sparks(7 * k, x=x, y=y, ang=a, spread=0.45, spd=(3.0, 10.0 * k), life=(8, 18), col=c)
+        self.parts.append(_P("glint", x, y, 0, 0, 12 if big else 9, (5.5 if big else 3.8) * S,
+                             self.c1 if r.random() < 0.5 else self.c2))
+        self.parts.append(_P("ring", x, y, 0, 0, 16 if big else 13, (34 if big else 18) * S, self.c1, col2=self.c2))
+        self._sparks(8 * k, x=x, y=y, spd=(3.0, 9.0 * k), life=(8, 16), size=(1.1, 2.0), drag=0.88)
+        st["flash"].append([x, y, 0, 1.0 if big else 0.6])
+
+    def _tick_sword_duel(self):
+        st, S = self.state, self.S
+        st["flash"] = [[x, y, a + 1, k] for x, y, a, k in st["flash"] if a + 1 < 10]
+        st["cuts"] = [c[:5] + [c[5] + 1, c[6]] for c in st["cuts"] if c[5] + 1 < 9]
+        if self.anchored or self.phase != "hold":
+            return
+        # F6 preview: no fighters, so it plays its own choreography with two
+        # glowing stand-ins.
+        if st["plan"] is None:
+            reach = float(self.spec.get("reach", 34)) * S
+            st["plan"] = duel_plan(self.rng, (-110 * S, 12 * S), (110 * S, -12 * S), (0.0, 0.0), reach,
+                                   strikes=self.spec.get("strikes", (4, 7)), bind=float(self.spec.get("bind", 0.3)))
+        plan, i = st["plan"], st["i"]
+        if i >= len(plan):
+            self.release()
+            return
+        fr = plan[i]
+        st["i"] = i + 1
+        prev = st["pose"]
+        self._duel_apply(fr[0], fr[1], fr[2], fr[3], fr[4], fr[5])
+        if prev is not None:
+            for j, c in ((0, self.c1), (2, self.c2)):
+                dx, dy = fr[j] - prev[j], fr[j + 1] - prev[j + 1]
+                if dx * dx + dy * dy > 36:
+                    self.parts.append(_P("dash", prev[j], prev[j + 1], dx, dy, 8, 1.9 * S, c))
+
+    def _finale_sword_duel(self):
+        x, y = self.state["f0"]
+        self._sparks(56, x=x, y=y, spd=(4.0, 14.0), life=(16, 34), grav=0.15)
+        self._sparks(12, x=x, y=y, kind="dot", spd=(1.0, 4.0), life=(20, 34), size=(2.0, 3.6), drag=0.95)
+
+    def _duel_blade(self, p, fx_, fy_, con, c, sign):
+        """A fighter's blade while the two are bound: from its hand, through
+        the contact, crossing the other blade in an X."""
+        S = self.S
+        x, y = con
+        d = math.hypot(x - fx_, y - fy_)
+        if d < 1.0:
+            return
+        a = math.atan2(y - fy_, x - fx_) + sign * (0.32 + 0.04 * math.sin(self.t * 0.5))
+        ux, uy = math.cos(a), math.sin(a)
+        L = max(30 * S, min(90 * S, d * 1.25))
+        hx, hy = x - ux * L * 0.62, y - uy * L * 0.62
+        tx, ty = x + ux * L * 0.38, y + uy * L * 0.38
+        _line(p, hx, hy, tx, ty, c, 110, 8 * S)
+        _diamond(p, hx, hy, tx, ty, 2.4 * S, self._hotc(c, 0.7), 255)
+        _line(p, hx, hy, tx, ty, self.hot, 220, 1.0 * S)
+
+    def _draw_sword_duel(self, p):
+        st, S = self.state, self.S
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        for x, y, a, k in st["flash"]:
+            v = a / 10.0
+            _glow(p, x, y, 36 * S * k * (0.5 + 0.5 * v), self.hot, 230 * (1 - v) * k)
+        for hx, hy, ex, ey, c, a, k in st["cuts"]:
+            f = 1.0 - a / 9.0
+            sw = _ease_out(min(1.0, (a + 1) / 3.0))
+            tx, ty = hx + (ex - hx) * sw, hy + (ey - hy) * sw
+            _line(p, hx, hy, tx, ty, c, 120 * f, (7 * S * k) * f + 1)
+            _diamond(p, hx, hy, tx, ty, 2.8 * S * k * f, self._hotc(c, 0.6), 245 * f)
+        pose = st["pose"]
+        if self.phase == "hold":
+            if not self.anchored and pose is not None:     # preview stand-ins
+                _glow(p, pose[0], pose[1], 14 * S, self.c1, 230)
+                _glow(p, pose[2], pose[3], 14 * S, self.c2, 230)
+            con = st["contact"]
+            if con is not None and pose is not None:
+                self._duel_blade(p, pose[0], pose[1], con, self.c1, 1)
+                self._duel_blade(p, pose[2], pose[3], con, self.c2, -1)
+                fl = 0.75 + 0.25 * math.sin(self.t * 2.3)
+                _glow(p, con[0], con[1], 14 * S * fl, self.hot, 255, 0.5)
+                _star(p, con[0], con[1], (24 + 8 * math.sin(self.t * 1.7)) * S, 11 * S * fl, self.hot, 230, 1.6 * S)
+        else:
+            t = self.ft
+            u = min(1.0, t / float(self.life))
+            f = 1.0 - u
+            x, y = st["f0"]
+            # the final cut runs across the line between the two fighters
+            ang = 0.0
+            if pose is not None:
+                ang = math.atan2(pose[3] - pose[1], pose[2] - pose[0])
+            p.save()
+            p.translate(x, y)
+            p.rotate(math.degrees(ang))
+            L = 260 * S * _ease_out(min(1.0, t / 4.0))
+            mix = _mix(self.c1, self.c2, 0.5)
+            _diamond(p, 0, -L, 0, L, 9 * S * f, mix, 150 * f)
+            _diamond(p, 0, -L, 0, L, 2.8 * S * f + 0.4, self.hot, 255 * f)
+            r = 180 * S * _ease_out(u)
+            _split_ring(p, 0, 0, r * 0.6, r, 6 * S * f + 0.6, self._hotc(self.c1, 0.4), self._hotc(self.c2, 0.4), 220 * f)
+            p.restore()
+            _glow(p, x, y, 80 * S * _ease_out(t / 6.0) * f + 1, self._hotc(mix, 0.45), 240 * f * f)
+        self._draw_parts(p)
+
     # ================================================================ pair: crescent x crescent
     def _init_crescent_struggle(self):
         self.state.update(ripples=[], shake=(0.0, 0.0), split=0)
@@ -1382,6 +1640,72 @@ class ClashFX:
 
 
 # ---------------------------------------------------------------- world API
+def _smooth(u):
+    return u * u * (3.0 - 2.0 * u)
+
+
+def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3):
+    """Choreography of a sword duel (sword_duel), one frame per tick:
+    (ax, ay, bx, by, contact, event, swing).  a0 / b0 = where the two
+    fighters start, c = where their blades first met, reach = how far each
+    stands from the blade contact.  Each strike both dash in from opposite
+    sides of a point near c, their blades meet there (event "strike", or
+    "bind" then "grind" while they lock), and they spring apart; halfway
+    through they circle to their own sides for a breath; the duel closes on
+    one big clash at c ("big", then "release" = the finale) and both return
+    to where they started.  swing (0..1, None = not swinging) drives the
+    fighters' slash frames.  laser/clash.py uses it to move the real
+    fighters; the F6 preview plays it with two stand-ins."""
+    ux, uy = b0[0] - a0[0], b0[1] - a0[1]
+    d = math.hypot(ux, uy)
+    ux, uy = (ux / d, uy / d) if d > 1e-6 else (1.0, 0.0)
+    vx, vy = -uy, ux
+    R = max(40.0, reach * 1.9)
+    A, B = [float(a0[0]), float(a0[1])], [float(b0[0]), float(b0[1])]
+    out = []
+
+    def move(ta, tb, n, ease=_ease_out, swing=False, ev=None):
+        fa, fb = tuple(A), tuple(B)
+        for i in range(1, n + 1):
+            k = ease(i / float(n))
+            A[0], A[1] = fa[0] + (ta[0] - fa[0]) * k, fa[1] + (ta[1] - fa[1]) * k
+            B[0], B[1] = fb[0] + (tb[0] - fb[0]) * k, fb[1] + (tb[1] - fb[1]) * k
+            out.append((A[0], A[1], B[0], B[1], None, ev if i == 1 else None, (i - 1) / float(n) if swing else None))
+
+    def hold(n, contact, first=None, each=None):
+        for i in range(n):
+            out.append((A[0], A[1], B[0], B[1], contact, first if i == 0 else each, 0.999 if contact else None))
+
+    def strike(P, dx, dy, n, kind):
+        move((P[0] - dx * reach, P[1] - dy * reach), (P[0] + dx * reach, P[1] + dy * reach), n, swing=True)
+        if kind == "strike":
+            hold(2, P, "strike")
+        else:
+            hold(rng.randint(8, 12) if kind == "bind" else 10, P, kind, "grind")
+
+    total = rng.randint(*strikes)
+    first = max(1, total // 2)
+    for burst, n_str in ((0, first), (1, total - first)):
+        for _ in range(n_str):
+            P = (c[0] + ux * rng.uniform(-0.6, 0.6) * R + vx * rng.uniform(-0.6, 0.6) * R,
+                 c[1] + uy * rng.uniform(-0.6, 0.6) * R + vy * rng.uniform(-0.6, 0.6) * R)
+            th = rng.uniform(-1.1, 1.1)
+            dx, dy = ux * math.cos(th) - uy * math.sin(th), ux * math.sin(th) + uy * math.cos(th)
+            strike(P, dx, dy, rng.randint(4, 6), "bind" if rng.random() < bind else "strike")
+            back = reach + rng.uniform(22.0, 40.0)
+            move((P[0] - dx * back, P[1] - dy * back), (P[0] + dx * back, P[1] + dy * back), rng.randint(4, 6))
+            hold(rng.randint(1, 4), None)
+        if burst == 0:
+            # circle back to their own sides for a breath
+            move((c[0] - ux * R + vx * rng.uniform(-0.7, 0.7) * R, c[1] - uy * R + vy * rng.uniform(-0.7, 0.7) * R),
+                 (c[0] + ux * R + vx * rng.uniform(-0.7, 0.7) * R, c[1] + uy * R + vy * rng.uniform(-0.7, 0.7) * R),
+                 10, ease=_smooth)
+            hold(rng.randint(6, 12), None)
+    strike((float(c[0]), float(c[1])), ux, uy, 6, "big")
+    move(tuple(a0), tuple(b0), 12, ease=_smooth, ev="release")
+    return out
+
+
 def spawn(world, key, x, y, angle=0.0, c1=(90, 170, 255), c2=(255, 120, 60), scale=1.0, winner=0, hold=None,
           seed=None, density=1.0):
     """Start a clash explosion at (x, y).  angle = degrees from side A toward

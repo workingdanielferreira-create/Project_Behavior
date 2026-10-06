@@ -26,7 +26,7 @@ from PyQt5.QtCore import Qt, QPointF, QRectF
 from PyQt5.QtGui import (QBrush, QColor, QLinearGradient, QPen, QPainter, QPainterPath, QPixmap, QPolygonF,
                          QRadialGradient)
 
-from . import config
+from . import clashfx, config
 
 TICK_MS = 16
 TICK_S = TICK_MS / 1000.0
@@ -379,7 +379,7 @@ CLASH_SLOTS = (
     ("split_tip", "split_burst", "End of each split half"),
     ("beam_nosplit", "split_burst", "Beam not split (cutter hit)"),
     ("orb_orb", "orb_pops", "Orb × orb"),
-    ("trail_trail", "sword_slash_clash", "Trail × trail"),
+    ("trail_trail", "sword_duel", "Trail × trail"),
     ("crescent_crescent", "crescent_struggle", "Crescent × crescent"),
     ("sprite_sprite", "kunai_clash", "Sprite × sprite"),
 )
@@ -2624,6 +2624,8 @@ class Player:
         for inst in self.insts:
             if inst.dead:   # ended at its source by the other side this tick
                 continue
+            if id(inst) in clashfx.HIDDEN:
+                continue    # an anchored clash FX draws it meanwhile (laser/clash.py)
             if hidden and body_bound(inst):
                 continue    # blinked out: the fighter's own body FX are hidden
             if inst.fx.get("layer", "front") == layer:
