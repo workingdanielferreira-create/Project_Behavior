@@ -91,6 +91,8 @@ laser/
   ai.py              battle targeting / wander / daze / retreat (stage 3)
   systems.py         System base + the pipeline
   app.py             World (state + factory) + Overlay (window, loop, paint)
+  clash.py           clash interaction: opposing FX that touch play their pair rule
+  clashfx.py         clash explosion library (19 effects, derive() variations)
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on

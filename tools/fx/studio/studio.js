@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), clash: FXK.normalizeClash({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -171,6 +171,7 @@ var DOC = [
   ["aim", "aim", function (v) { return FXK.normalizeAim(clone(v || {})); }],
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
+  ["clash", "clash", function (v) { return FXK.normalizeClash(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
 function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
@@ -509,7 +510,7 @@ function packData() {
     anchor_labels: S.labels, anchors: anchors,
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
     entry_sets: docCopy("entry_sets"), paths: docCopy("paths"), aim: docCopy("aim"), damaged: docCopy("damaged"),
-    retreat: docCopy("retreat"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
+    retreat: docCopy("retreat"), clash: docCopy("clash"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
   // Anchors, labels (anchor_labels) and action settings are written above in
   // the file's own shape; any other editable field is never left out.
@@ -2076,7 +2077,8 @@ function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
   banner(d, "act", "Action settings", a, "Applies to the whole action and every effect on it. Select an effect on the left or on the timeline to edit that effect.");
   var s = sec(d, "When it plays", "a-when", "What starts this action in the game, and how long it runs.", "act");
-  note(s, kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
+  note(s, a === CLASH_ACTION ? "Plays while one of this fighter's effects is clashing with an enemy effect (see the Clash panel below). It never starts on its own and needs no conditions."
+    : kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
     : kind === "attack" ? "Attacks when the target is in attack range and its trigger conditions (below, if any) pass. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
   note(s, frames() + " frames × " + Math.round(frameMs() * 10) / 10 + " ms = " + Math.round(frames() * frameMs()) + " ms (timing comes from Rig Forge)");
@@ -2119,7 +2121,37 @@ function buildActionProps(d) {
     field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
     if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
   }
-  buildTriggerProps(d, a, cfg, kind);
+  if (a === CLASH_ACTION) buildClashProps(d, true);
+  else {
+    buildTriggerProps(d, a, cfg, kind);
+    if (!C.actions[CLASH_ACTION]) buildClashProps(d, false);
+  }
+}
+// The Rig Forge action a fighter shows while one of its effects clashes.
+var CLASH_ACTION = "clash";
+// Character-level Clash settings (pack.clash; laser/clash.py plays them):
+// on the "clash" action as its own panel, and under every action while the
+// character has no "clash" action yet.
+function buildClashProps(d, own) {
+  var cl = S.clash, ch = function () { save(); buildProps(); };
+  var s = sec(d, "Clash (whole character)", "a-clash",
+    "When this character's effects touch an enemy's effects, the clash rule for the two kinds plays out (beam, orb / petal, trail, crescent, sprite; ghosts never clash). The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail.", "act");
+  if (!own) note(s, "This character has no \"clash\" action: add one in Rig Forge (Action key: clash) for the animation the fighter shows while clashing. The clash FX below still apply.");
+  var an = sec(s, "Clash animation", "a-clash-anim", "How the fighter shows its \"clash\" action (Rig Forge) while one of its effects is clashing.", "act");
+  field(an, "Show it", inp([["clash", "For the length of the clash"], ["fixed", "For a fixed time"]], cl.anim.hold, function (v) { cl.anim.hold = v; ch(); })).title =
+    "For the length of the clash: as long as the clash FX plays (a struggle holds it until it is decided). For a fixed time: the hold below, whatever the clash.";
+  if (cl.anim.hold === "fixed") field(an, "Hold ms", inp("n", cl.anim.hold_ms, function (v) { cl.anim.hold_ms = Math.max(0, Math.min(10000, v)); save(); }, 0, 10000, 50)).title =
+    "How long the clash action plays each time (it loops while held).";
+  field(an, "Stand still", inp("chk", cl.anim.freeze, function (v) { cl.anim.freeze = v; save(); })).title =
+    "On: the fighter stops where it is while the clash action plays. Off: it keeps moving.";
+  var fxOpts = [["none", "— no FX —"]].concat(FXK.CLASH_FX);
+  FXK.CLASH_SLOTS.forEach(function (row) {
+    var slot = cl.slots[row[0]], b = sec(s, row[2], "a-clash-" + row[0], "The clash FX that plays for this rule (default " + row[1] + "), and its size and density. The winning side's settings are used (the first side's on a tie).", "act");
+    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; save(); }));
+    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); save(); }, 10, 400, 5));
+    field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); save(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
+  });
+  note(s, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Orb × orb, trail × trail, crescent × crescent and sprite × sprite each have their own clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
 }
 // A condition list editor: one box per condition (its fields, Not, ↑ /
 // Duplicate / Remove) and the + Condition picker.  Action triggers and the

@@ -2915,10 +2915,14 @@ document.getElementById("fpsin").onchange=function(){
 document.getElementById("trig").onchange=function(){A().trigger=this.value;save();};
 document.getElementById("cool").onchange=function(){A().retrigger_cooldown_ms=Math.max(0,+this.value||0);save();};
 document.getElementById("addact").onclick=function(){
-  askText("Action key (idle, run, attack_normal, attack_special, ultimate, defend, impact, special_ability):","impact",function(n){
+  askText("Action key (idle, run, attack_normal, attack_special, ultimate, defend, impact, special_ability, clash):","impact",function(n){
     if(!n)return;n=n.trim().toLowerCase().replace(/\s+/g,"_");if(!n)return;
     pushHist();
     if(S.actions[n]){S.cur=n;refresh();return;}
+    // "clash": the pose the fighter holds while one of its effects clashes
+    // (laser/clash.py loops it for as long as the clash lasts).
+    if(n==="clash"){S.actions[n]=mkAction(n,"Guard · mid",500,"on_clash");S.cur=n;S.kf=0;syncAction();refresh();
+      toast("Action \"clash\" added: the fighter loops it while one of its effects clashes");return;}
     S.actions[n]=mkAction(n,[ "Idle","Hit" ].map(function(x){return x;}),300,"on_hit");
     S.cur=n;S.kf=0;syncAction();refresh();toast("Action \""+n+"\" added");
   });

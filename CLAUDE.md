@@ -13,6 +13,8 @@ laser/action_log.py
 laser/ai.py
 laser/app.py
 laser/assets.py
+laser/clash.py
+laser/clashfx.py
 laser/combat.py
 laser/components.py
 laser/config.py

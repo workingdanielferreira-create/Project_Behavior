@@ -425,7 +425,8 @@ more geometry in `draw()` and, for gameplay-relevant effects, hit tests in
 | `figure.py` | Figure-attached drawing: afterimages, crescents, ult crescents |
 | `app.py` | World FX lists, draw order, paint-time aging (hitstop-immune FX) |
 | `ipc.py` | The only cross-process channel; fixed struct layout, 160 bullet slots |
-| `clashfx.py` | Clash explosion library: 11 baselines + `derive()` variations, `world.clash_fx` |
+| `clashfx.py` | Clash explosion library: 11 baselines + 8 pair clashes + `derive()` variations, `world.clash_fx` |
+| `clash.py` | Clash interaction: categorises both sides' FX, detects contact, plays the pair rule |
 
 ---
 
@@ -449,5 +450,56 @@ one list for the whole world, so Solo and Battle behave identically.
   Shared tunables: `size`, `density`, `speed`, `life`, `hold`, `hot`, plus each
   baseline's own (see `BASES`).
 - **Preview:** `F6` fires the next variation at the cursor (P1's colour vs P2's).
-  `tools/fx/clash_gallery.html` plays all eleven in a browser. FX Studio has
+  `tools/fx/clash_gallery.html` plays all of them in a browser. FX Studio has
   approximate versions under the **Clash explosions** preset group.
+
+---
+
+## 13. The Clash Interaction (`laser/clash.py`)
+
+Clashes are automatic, at the level of each effect. Every tick, before
+`World.refresh_battle`, `clash.step(world)` turns both sides' live effects into
+bodies (a point, a line or a polyline with a half width) in five categories:
+
+| Category | FX Kit | Built-in |
+|---|---|---|
+| beam | `beam` prim | `RichBeamProjectile` |
+| orb | `sprite` with shape `orb` | mage petals, round / homing bullets |
+| trail | `ribbon` (its moving end) | the laser trail (its moving end) |
+| crescent | `arc` prim | `CrescentWave`, `UltimateCrescent` |
+| sprite | bolt / blade `sprite` | the runner's bolts and other shots |
+
+Ghost, glow, pulse, particles and weapon never clash. Two opposing bodies
+that touch play the rule for their categories (`RULES`):
+
+| Pair | What happens |
+|---|---|
+| beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`, then the winner blows through (`overpower_blowout`) |
+| beam × orb | the orb is held on the beam head (`beam_orb`) for `BEAM_ORB_TICKS`, then bursts |
+| beam × trail / crescent / sprite | `SPLIT_CHANCE` (50%): the beam splits at the contact into two halves fanning ±30° that run to the beam's end, can hit, and explode there (`split_burst`). Otherwise the beam carries on. A beam is never cancelled by its cutter |
+| orb × orb | `orb_pops` |
+| trail × trail | `sword_slash_clash` |
+| crescent × crescent | `crescent_struggle` for `CRESCENT_TICKS`, then the blades shatter |
+| sprite × sprite | `kunai_clash` |
+
+**Knockback rule:** the higher `battle.knockback` (built-ins: `knockback_px`)
+survives at full power and the other is cancelled at its source. A tie
+cancels both. A trail can't be cancelled, so its owner recoils by the
+knockback difference instead (a tie pushes both back a little). Sustained
+clashes pin both effects where they met until they are decided. The same pair
+can clash again once the two have been apart for `REARM_TICKS`.
+
+**The fighter's clash action:** an image character with a Rig Forge `clash`
+action shows it (looping) while one of its effects clashes
+(`actions.force_clash`). The length comes from the FX Studio Clash panel
+(`pack.clash.anim`: the clash's length or a fixed `hold_ms`, `freeze` = stand
+still). FX built on the `clash` action in FX Studio play with it.
+
+**Clash panel (`pack.clash.slots`):** for each rule slot (`fxkit.CLASH_SLOTS`),
+choose which clash FX plays (or none) and set its size and density. The
+winning side's settings are used (the first side's on a tie). Built-in
+characters use the defaults. `tools/fx/check_parity.py` keeps the Studio's
+`CLASH_SLOTS` / `CLASH_FX` in step with the game.
+
+Solo and Battle share this path. A clash needs two fielded sides, so Solo
+(with only the cursor as an opponent) never finds a pair.

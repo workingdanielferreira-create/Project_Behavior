@@ -17,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -810,6 +810,12 @@ class Overlay(QWidget):
         # up front, so both sides read the same frozen picture of each other
         # regardless of pass order — preserving the independent, reactive
         # feel of two fighters thinking for themselves.
+        # Clash interaction (laser/clash.py): opposing FX that touch play
+        # their clash rule before the sides read each other's snapshots.
+        try:
+            clash.step(w)
+        except Exception as e:
+            action_log.crash("clash", e)
         w.refresh_battle()
         # FX Studio Time control: each figure's body / FX time scale this
         # tick (None = no time effect running anywhere).

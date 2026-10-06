@@ -500,6 +500,50 @@ function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
 // Read by laser/ai.py damage_immune() for every HP source.
 var DAMAGED_DEFAULTS = {cooldown_ms: 0};
 function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
+// Character-level Clash settings (pack.clash), shown on the "clash" action
+// (FX Studio Clash panel) and played by laser/clash.py.  slots: which clash
+// explosion (laser/clashfx.py key, "none" = no FX) plays for each clash rule,
+// at size / density %.  anim: how long the fighter shows its Rig Forge
+// "clash" action — for the length of the clash ("clash") or a fixed hold_ms
+// ("fixed") — and whether it stands still (freeze).  Mirror of
+// laser/fxkit.py CLASH_SLOTS / normalize_clash.
+var CLASH_SLOTS = [
+  ["beam_explode", "beam_clash", "Beam × beam (both damage over 10)"],
+  ["beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"],
+  ["beam_struggle_end", "overpower_blowout", "Beam struggle won"],
+  ["beam_orb", "beam_orb", "Beam × orb / petal"],
+  ["beam_split", "beam_split", "Beam split by a trail / crescent / sprite"],
+  ["split_tip", "split_burst", "End of each split half"],
+  ["beam_nosplit", "split_burst", "Beam not split (cutter hit)"],
+  ["orb_orb", "orb_pops", "Orb × orb"],
+  ["trail_trail", "sword_slash_clash", "Trail × trail"],
+  ["crescent_crescent", "crescent_struggle", "Crescent × crescent"],
+  ["sprite_sprite", "kunai_clash", "Sprite × sprite"]
+];
+var CLASH_HOLDS = ["clash", "fixed"];
+// Every clash explosion the game knows (laser/clashfx.py BASES), for the
+// per-rule FX choice.
+var CLASH_FX = [
+  ["collision_nova", "Collision Nova"], ["beam_struggle", "Beam Struggle Node"], ["overpower_blowout", "Overpower Blowout"],
+  ["kunai_storm", "Kunai Storm"], ["ricochet_rain", "Ricochet Rain"], ["blade_lock", "Blade Lock"],
+  ["reiatsu_eruption", "Reiatsu Eruption"], ["getsuga_cross", "Getsuga Cross"], ["implosion_pop", "Implosion Pop"],
+  ["storm_fork", "Storm Fork"], ["speed_duel", "Speed Duel"], ["beam_clash", "Beam Clash"], ["beam_orb", "Beam vs Orb"],
+  ["beam_split", "Beam Split"], ["split_burst", "Split Burst"], ["orb_pops", "Orb Pops"],
+  ["sword_slash_clash", "Sword Slash Clash"], ["crescent_struggle", "Crescent Struggle"], ["kunai_clash", "Kunai Clash"]
+];
+function clampNum(v, d, lo, hi) { v = +v; if (v !== v || v === null) return d; return Math.max(lo, Math.min(hi, v)); }
+function normalizeClash(c) {
+  c = c || {};
+  var si = c.slots || {}, slots = {};
+  CLASH_SLOTS.forEach(function (row) {
+    var s0 = si[row[0]] || {};
+    slots[row[0]] = {fx: typeof s0.fx === "string" && s0.fx ? s0.fx : row[1],
+      size: s0.size == null ? 100 : clampNum(s0.size, 100, 10, 400), density: s0.density == null ? 100 : clampNum(s0.density, 100, 10, 400)};
+  });
+  var a = c.anim || {};
+  return {slots: slots, anim: {hold: CLASH_HOLDS.indexOf(a.hold) >= 0 ? a.hold : "clash",
+    hold_ms: a.hold_ms == null ? 600 : clampNum(a.hold_ms, 600, 0, 10000), freeze: a.freeze == null ? true : !!a.freeze}};
+}
 // Character-level "Tactical retreat" (pack.retreat), run by laser/retreat.py.
 // When its conditions are met (ANY / ALL) the fighter dashes at speed_pct % of
 // its speed.  angle_deg is measured from the direction to the target: 0 = at
@@ -2046,6 +2090,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
+  CLASH_SLOTS: CLASH_SLOTS, CLASH_HOLDS: CLASH_HOLDS, CLASH_FX: CLASH_FX, normalizeClash: normalizeClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,

@@ -364,6 +364,53 @@ AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to
 # ticks HP the fighter is invincible for cooldown_ms (read by ai.py
 # damage_cooldown_ticks straight from the pack).
 DAMAGED_DEFAULTS = dict(cooldown_ms=0)
+# Character-level Clash settings (pack.clash, FX Studio: the "clash" action's
+# Clash panel; laser/clash.py plays them).  slots: which clash FX plays for
+# each clash rule (laser/clashfx.py key, "none" = no FX) at size / density %.
+# anim: how long the fighter shows its Rig Forge "clash" action — for the
+# length of the clash ("clash") or a fixed hold_ms ("fixed") — and whether
+# it stands still meanwhile (freeze).  FXK.CLASH_SLOTS mirrors CLASH_SLOTS.
+CLASH_SLOTS = (
+    ("beam_explode", "beam_clash", "Beam × beam (both damage over 10)"),
+    ("beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"),
+    ("beam_struggle_end", "overpower_blowout", "Beam struggle won"),
+    ("beam_orb", "beam_orb", "Beam × orb / petal"),
+    ("beam_split", "beam_split", "Beam split by a trail / crescent / sprite"),
+    ("split_tip", "split_burst", "End of each split half"),
+    ("beam_nosplit", "split_burst", "Beam not split (cutter hit)"),
+    ("orb_orb", "orb_pops", "Orb × orb"),
+    ("trail_trail", "sword_slash_clash", "Trail × trail"),
+    ("crescent_crescent", "crescent_struggle", "Crescent × crescent"),
+    ("sprite_sprite", "kunai_clash", "Sprite × sprite"),
+)
+CLASH_HOLDS = ("clash", "fixed")
+
+
+def normalize_clash(c):
+    c = dict(c or {})
+    slots_in = c.get("slots") or {}
+    slots = {}
+    for key, fx_default, _label in CLASH_SLOTS:
+        s0 = dict(slots_in.get(key) or {})
+        fxk = s0.get("fx")
+        slots[key] = {"fx": fxk if isinstance(fxk, str) and fxk else fx_default,
+                      "size": _clamp_num(s0.get("size"), 100.0, 10.0, 400.0),
+                      "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0)}
+    a = dict(c.get("anim") or {})
+    hold = a.get("hold") if a.get("hold") in CLASH_HOLDS else "clash"
+    return {"slots": slots,
+            "anim": {"hold": hold, "hold_ms": _clamp_num(a.get("hold_ms"), 600.0, 0.0, 10000.0),
+                     "freeze": True if a.get("freeze") is None else bool(a.get("freeze"))}}
+
+
+def _clamp_num(v, d, lo, hi):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return d
+    if v != v:
+        return d
+    return max(lo, min(hi, v))
 # start_frame / stop_frame: the action frames the set produces particles in
 # (stop -1 = to the end); what it already spawned lives on as usual.
 # order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
@@ -890,7 +937,7 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt")
+                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt", "cap")
 
     def __init__(self):
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
@@ -915,6 +962,7 @@ class Inst:
         self.spd = 0.0
         self.ps = 1.0          # figure size when fired (host_scale)
         self.ring_hits = None  # pulse: {(ring, target slot)} already hit
+        self.cap = None        # beam: drawn length capped here (a clash split it, laser/clash.py)
 
 
 def emit_particles(inst, fx, host, n):
@@ -1595,6 +1643,12 @@ def beam_reach(inst, ps):
             rd = min(P["length"] * ps, spd * detach)
             post = max(1, inst.life - detach)
             reach = max(0.0, rd * (1 - min(1.0, (inst.age - detach) / post)))
+    cap = getattr(inst, "cap", None)
+    if cap is not None and reach > cap:
+        # Cut short by a clash split: the head stays where the cut is.
+        if m["kind"] in ("attached", "static", "orbit") or spd < 0.0001:
+            hx, hy = inst.x + ux * cap, inst.y + uy * cap
+        reach = max(0.0, cap)
     return hx, hy, ux, uy, reach
 
 
@@ -2641,6 +2695,7 @@ class CharacterFx:
         self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
                            for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
         self.retreat_own = self.by_action.get(RETREAT_KEY) or []
+        self.clash = normalize_clash(fxk.get("clash"))
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None

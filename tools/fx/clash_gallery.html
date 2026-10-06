@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Open in any browser: the clash baselines of laser/clashfx.py, ported to canvas. Keep in step with clashfx.py. -->
+<!-- Open in any browser: the clash explosions of laser/clashfx.py, ported to canvas. Keep in step with clashfx.py. -->
 <title>Clash Explosion Gallery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
@@ -58,7 +58,7 @@ footer { color: var(--muted); font-size: 12.5px; max-width: 75ch; }
 <div class="wrap">
   <header>
     <h1>Clash Explosion <span>Gallery</span></h1>
-    <p class="lede">The eleven clash baselines from <code>laser/clashfx.py</code>, ported to the browser canvas tick for tick (16 ms). Side A’s colour fills the left half of each explosion, side B’s the right, with a white-hot core where they meet. In the game, press <code>F6</code> to fire them at the cursor.</p>
+    <p class="lede">The clash explosions from <code>laser/clashfx.py</code>, ported to the browser canvas tick for tick (16 ms): eleven baselines, then the eight pair clashes the clash interaction plays when two kinds of FX meet (marked “Pair”). Side A’s colour fills the left half of each explosion, side B’s the right, with a white-hot core where they meet. In the game, press <code>F6</code> to fire them at the cursor.</p>
   </header>
 
   <section class="controls" aria-label="Preview controls">
@@ -72,7 +72,7 @@ footer { color: var(--muted); font-size: 12.5px; max-width: 75ch; }
 
   <section class="grid" id="grid" aria-label="Explosion baselines"></section>
 
-  <footer>Sustained clashes (beam struggle, blade lock, speed duel) hold for 150 / 120 / 190 ticks and then detonate on their own. In the clash interaction they will hold until the clash is decided. Click a stage to replay it. The overpower blowout alternates its winner on each replay. Canvas drawing differs slightly from QPainter, so judge final timing and colour in game.</footer>
+  <footer>Sustained clashes (beam struggle, blade lock, speed duel, crescent struggle) hold for 150 / 120 / 190 / 48 ticks and then detonate on their own. In the clash interaction they will hold until the clash is decided. Click a stage to replay it. The overpower blowout alternates its winner on each replay. Canvas drawing differs slightly from QPainter, so judge final timing and colour in game.</footer>
 </div>
 
 <script>
@@ -89,6 +89,14 @@ const BASES = {
   getsuga_cross:     {name: "Getsuga Cross", kind: "burst", life: 44, shards: 12, from: "Two crescent slashes collide", desc: "A cross-shaped flare with crescent shards flying out."},
   implosion_pop:     {name: "Implosion Pop", kind: "burst", life: 58, gather: 22, pause: 5, from: "The energies cancel out", desc: "Particles collapse inward, a held breath, then a sharp pop."},
   storm_fork:        {name: "Storm Fork", kind: "burst", life: 42, forks: 7, from: "A lightning clash", desc: "Branching forks lash out and flicker away."},
+  beam_clash:        {name: "Beam Clash", kind: "burst", life: 56, rays: 9, pair: true, from: "Beam × beam, both strong", desc: "Two beam fronts slam together: a huge two-tone blast with rays squeezing out sideways."},
+  beam_orb:          {name: "Beam vs Orb", kind: "burst", life: 52, press: 18, pair: true, from: "Beam × orb / petal", desc: "The orb is pressed against the beam head, squashes and crackles, then bursts."},
+  beam_split:        {name: "Beam Split", kind: "burst", life: 30, fork_deg: 30, pair: true, from: "Beam cut by a blade / crescent / sprite", desc: "A forked flare where the beam splits into two halves fanning ±30°."},
+  split_burst:       {name: "Split Burst", kind: "burst", life: 30, pair: true, from: "End of each split half", desc: "The small blast where each half of a split beam ends."},
+  orb_pops:          {name: "Orb Pops", kind: "burst", life: 44, pops: 12, pair: true, from: "Orb × orb", desc: "Little energy blasts hitting each other and popping in rapid succession."},
+  sword_slash_clash: {name: "Sword Slash Clash", kind: "burst", life: 30, pair: true, from: "Trail × trail", desc: "Two slash strokes cross: an X flash and a fan of sparks along both cuts."},
+  crescent_struggle: {name: "Crescent Struggle", kind: "sustain", life: 34, hold: 48, pair: true, from: "Crescent × crescent", desc: "Two crescent blades grind against each other, then shatter into shards."},
+  kunai_clash:       {name: "Kunai Clash", kind: "burst", life: 34, pair: true, from: "Sprite × sprite", desc: "Two kunai meet tip to tip, a glint, and both ricochet away spinning."},
   speed_duel:        {name: "Speed Duel", kind: "sustain", life: 44, hold: 190, area_rx: 150, area_ry: 95, strikes: [3, 6], gap: [4, 8], pause: [16, 28], bind: 0.25, from: "A sword fight too fast to see", desc: "Streaks zip round the area and clash flashes pop where they meet, in bursts of strikes broken by pauses, then one final clash."},
 };
 
@@ -335,6 +343,85 @@ class ClashFX {
       splitRing(g, 0, 0, r, r, 7 * S * f + .8, this.hc(this.c1, .4), this.hc(this.c2, .4), 230 * f); const L = 240 * S * easeOut(Math.min(1, t / 4));
       diamond(g, 0, -L, 0, L, 7 * S * f, m, 160 * f); diamond(g, 0, -L, 0, L, 2.2 * S * f + .3, this.hot, 255 * f); } }
     this.partsAll(g); }
+  // ---- pair clashes (laser/clash.py)
+  init_beam_clash() { const r = this.rng, S = this.S, n = Math.max(3, Math.round(this.spec.rays * this.D)); this.st.rays = [];
+    for (let i = 0; i < n; i++) this.st.rays.push([(i % 2 ? 1 : -1) * Math.PI / 2 + r.gauss(0, .45), r.uniform(110, 200) * S, r.uniform(3, 6) * S]);
+    this.sparks(60, {spd: [4, 15], life: [18, 40]}); this.sparks(18, {kind: "smoke", spd: [.5, 2], life: [36, 56], size: [12, 22], drag: .96, delay: [4, 14]});
+    this.sparks(16, {kind: "dot", spd: [1, 5], life: [24, 44], size: [2, 4], drag: .95}); }
+  draw_beam_clash(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; this.under(g); g.globalCompositeOperation = "lighter"; const e = easeOut(t / 10);
+    for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) glowEllipse(g, sx * 22 * S * (1 - e * .5), 0, 46 * S * (.6 + .6 * e), 90 * S * (.4 + .8 * e), c, 230 * f ** 1.2);
+    for (const [a, L, w] of this.st.rays) { const k = easeOut(Math.min(1, t / 7)); diamond(g, 0, 0, Math.cos(a) * L * k, Math.sin(a) * L * k, w * f, this.hc(this.side(Math.cos(a) + 1e-3), .4), 230 * f); }
+    glow(g, 0, 0, 110 * S * easeOut(t / 6), this.hot, 255 * f * f, .45);
+    for (const [d, mr, lf, k] of [[0, 240, 30, .5], [6, 170, 26, .2]]) if (t >= d && t < d + lf) { const v = (t - d) / lf, r = mr * S * easeOut(v); splitRing(g, 0, 0, r * .75, r, (9 * (1 - v) + 1) * S, this.hc(this.c1, k), this.hc(this.c2, k), 230 * (1 - v)); }
+    this.over(g); }
+  init_beam_orb() { this.st.burst = false; this.st.arcs = []; }
+  tick_beam_orb() { const press = this.spec.press, r = this.rng, S = this.S;
+    if (this.ft < press) { if (r() < .8 * this.D) { const side = r() < .5 ? 1 : -1, a = side * Math.PI / 2 + r.gauss(0, .5), v = r.uniform(2.5, 6) * S;
+        this.parts.push(P("spark", 6 * S, 0, Math.cos(a) * v, Math.sin(a) * v, r.randint(8, 14), r.uniform(1, 2) * S, r() < .6 ? this.c2 : this.c1, {drag: .9})); } }
+    else if (!this.st.burst) { this.st.burst = true; this.sparks(34, {x: 14 * S, spd: [3, 11], life: [14, 30]});
+      this.sparks(14, {x: 14 * S, kind: "dot", spd: [1, 4.5], life: [18, 32], size: [2, 3.6], drag: .94, col: this.c2}); this.sparks(10, {x: 14 * S, kind: "smoke", spd: [.4, 1.6], life: [26, 40], size: [8, 14], drag: .96}); } }
+  draw_beam_orb(g) { const S = this.S, t = this.ft, press = this.spec.press; this.under(g); g.globalCompositeOperation = "lighter";
+    if (t < press) { const k = t / press; glowEllipse(g, -14 * S, 0, 40 * S, 26 * S, this.c1, 220); glow(g, -6 * S, 0, 14 * S, this.hc(this.c1, .7), 255, .5);
+      const ox = 16 * S - 4 * S * k, sq = 1 - .35 * k, rr = (12 + 6 * k) * S * (1 + .08 * Math.sin(t * 1.9));
+      glowEllipse(g, ox, 0, rr * 1.9 * sq, rr * 1.9 / sq, this.c2, 210); glowEllipse(g, ox, 0, rr * .8 * sq, rr * .8 / sq, this.hc(this.c2, .6), 255, .6);
+      if (t % 2 === 0) { const b = []; for (let i = 0; i < 2; i++) { const a = this.rng.uniform(-1.2, 1.2) + (this.rng() < .3 ? Math.PI : 0); bolt(this.rng, ox, 0, a, rr * 2.2, 4, .6, 0, b); } this.st.arcs = b; }
+      drawBolts(g, this.st.arcs, this.hc(this.c2, .3), 220, 3 * S, S); }
+    else { const v = t - press, f = Math.max(0, 1 - v / Math.max(1, this.life - press));
+      glow(g, 14 * S, 0, 70 * S * Math.min(1, (v + 1) / 3) * f ** .6, this.hot, 255 * f * f, .45); glow(g, 14 * S, 0, 90 * S * easeOut(v / 10), this.c2, 200 * f);
+      const r = 150 * S * easeOut(Math.min(1, v / 18)); splitRing(g, 14 * S, 0, r, r, 5 * S * f + .5, this.hc(this.c1, .35), this.hc(this.c2, .35), 230 * f); }
+    this.over(g); }
+  init_beam_split() { const fd = this.spec.fork_deg * Math.PI / 180; this.sparks(26, {ang: 0, spread: fd * 1.4, spd: [3, 10], life: [10, 22], col: this.c1}); this.sparks(14, {ang: Math.PI, spread: 1.2, spd: [2, 6], life: [8, 16], col: this.c2}); }
+  draw_beam_split(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, fd = this.spec.fork_deg * Math.PI / 180; g.globalCompositeOperation = "lighter";
+    const L = 70 * S * easeOut(Math.min(1, t / 5));
+    for (const sg of [1, -1]) { const ex = Math.cos(fd * sg) * L, ey = Math.sin(fd * sg) * L; diamond(g, 0, 0, ex, ey, 6 * S * f, this.c1, 200 * f); diamond(g, 0, 0, ex, ey, 2 * S * f + .3, this.hot, 255 * f); }
+    diamond(g, 0, -26 * S, 0, 26 * S, 3.5 * S * f, this.hc(this.c2, .4), 230 * f); glow(g, 0, 0, 34 * S * (.6 + .4 * f), this.hot, 255 * f * f, .5); this.partsAll(g); }
+  init_split_burst() { this.sparks(24, {spd: [2.5, 8], life: [12, 26]}); this.sparks(6, {kind: "smoke", spd: [.4, 1.4], life: [22, 34], size: [6, 10], drag: .96}); }
+  draw_split_burst(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; this.under(g); g.globalCompositeOperation = "lighter";
+    glow(g, 0, 0, 44 * S * Math.min(1, (t + 1) / 3) * Math.sqrt(f), this.hot, 255 * f * f, .45); glow(g, 0, 0, 60 * S * easeOut(t / 8), mix(this.c1, this.c2, .5), 180 * f);
+    const r = 90 * S * easeOut(u); splitRing(g, 0, 0, r, r, 4 * S * f + .5, this.hc(this.c1, .3), this.hc(this.c2, .3), 220 * f); this.over(g); }
+  init_orb_pops() { const r = this.rng, S = this.S, n = Math.max(2, Math.round(this.spec.pops * this.D)), span = Math.max(4, Math.floor(this.life * .6)); this.st.pops = [];
+    for (let i = 0; i < n; i++) { const a = r.uniform(0, TAU), m = Math.sqrt(r()), px = Math.cos(a) * 46 * S * m, py = Math.sin(a) * 34 * S * m, t0 = Math.floor(i * span / n) + r.randint(0, 2);
+      this.st.pops.push([px, py, t0]);
+      for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) { const fx = px + sx * r.uniform(28, 44) * S, fy = py + r.uniform(-14, 14) * S; this.parts.push(P("dash", fx, fy, px - fx, py - fy, 6, 1.4 * S, c, {delay: Math.max(0, t0 - 4)})); }
+      this.parts.push(P("glint", px, py, 0, 0, 8, 3 * S, i % 2 ? this.c1 : this.c2, {delay: t0})); this.parts.push(P("ring", px, py, 0, 0, 11, r.uniform(10, 16) * S, this.c1, {col2: this.c2, delay: t0}));
+      this.sparks(5, {x: px, y: py, spd: [2, 6], life: [7, 13], size: [1, 1.8], drag: .88, delay: t0}); } }
+  draw_orb_pops(g) { const S = this.S, t = this.ft; g.globalCompositeOperation = "lighter";
+    for (const [px, py, t0] of this.st.pops) { const v = t - t0; if (v >= 0 && v < 8) glow(g, px, py, 16 * S * (.5 + .5 * v / 8), this.hot, 240 * (1 - v / 8), .45); }
+    glow(g, 0, 0, 60 * S, mix(this.c1, this.c2, .5), 70 * (1 - Math.min(1, t / this.life))); this.partsAll(g); }
+  init_sword_slash_clash() { const r = this.rng; this.st.cuts = [[this.c1, (-35 + r.uniform(-8, 8)) * Math.PI / 180], [this.c2, (35 + r.uniform(-8, 8)) * Math.PI / 180]];
+    for (const [c, a] of this.st.cuts) { this.sparks(16, {ang: a, spread: .35, spd: [4, 12], life: [10, 22], col: c}); this.sparks(10, {ang: a + Math.PI, spread: .35, spd: [3, 9], life: [8, 18], col: c}); }
+    this.sparks(10, {ang: -Math.PI / 2, spread: .9, spd: [3, 8], life: [10, 20], grav: .3}); }
+  draw_sword_slash_clash(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, sw = easeOut(Math.min(1, t / 5)); g.globalCompositeOperation = "lighter";
+    for (const [c, a] of this.st.cuts) { const L = 95 * S, ca = Math.cos(a), sa = Math.sin(a), hx = ca * L * (2 * sw - 1), hy = sa * L * (2 * sw - 1), tx = -ca * L, ty = -sa * L;
+      line(g, tx, ty, hx, hy, c, 120 * f, 8 * S * f + 1); diamond(g, tx, ty, hx, hy, 3.2 * S * f, this.hc(c, .6), 245 * f); }
+    const fl = t < 3 ? 1 : f; glow(g, 0, 0, 40 * S * fl, this.hot, 255 * fl * fl, .45); star(g, 0, 0, 38 * S * fl, 26 * S * fl, this.hot, 255 * fl, 2 * S);
+    const r = 70 * S * easeOut(Math.min(1, t / 12)); splitRing(g, 0, 0, r, r * .6, 3 * S * f + .4, this.hc(this.c1, .3), this.hc(this.c2, .3), 200 * f); this.partsAll(g); }
+  init_crescent_struggle() { Object.assign(this.st, {ripples: [], shake: [0, 0], split: 0}); }
+  tick_crescent_struggle() { const st = this.st, r = this.rng, S = this.S; if (this.phase !== "hold") { st.split++; return; }
+    st.shake = [r.uniform(-1.6, 1.6) * S, r.uniform(-1.6, 1.6) * S]; if (this.t % 14 === 0) st.ripples.push(0); st.ripples = st.ripples.map(a => a + 1).filter(a => a < 24);
+    for (let i = 0; i < 3; i++) if (r() < this.D) { const y = r.uniform(-30, 30) * S, a = (y < 0 ? -1 : 1) * Math.PI / 2 + r.gauss(0, .5), v = r.uniform(3, 8) * S;
+      this.parts.push(P("spark", 0, y, Math.cos(a) * v, Math.sin(a) * v, r.randint(10, 18), r.uniform(1.1, 2) * S, r() < .5 ? this.c1 : this.c2, {drag: .92})); } }
+  finale_crescent_struggle() { const r = this.rng, S = this.S;
+    for (let i = 0, n = Math.floor(10 * this.D); i < n; i++) { const side = i % 2 ? -1 : 1, a = (side < 0 ? Math.PI : 0) + r.uniform(-1.3, 1.3), v = r.uniform(3, 8) * S;
+      this.parts.push(P("crescent", side * 10 * S, r.uniform(-30, 30) * S, Math.cos(a) * v, Math.sin(a) * v, r.randint(20, 32), r.uniform(7, 13) * S, side < 0 ? this.c1 : this.c2, {drag: .94, rot: a, vr: r.uniform(-.3, .3)})); }
+    this.sparks(40, {spd: [4, 12], life: [12, 26]}); }
+  draw_crescent_struggle(g) { const st = this.st, S = this.S; g.globalCompositeOperation = "lighter";
+    if (this.phase === "hold") { const t = this.t; g.save(); g.translate(...st.shake);
+      for (const a of st.ripples) { const v = a / 24, r = 30 * S + 90 * S * easeOut(v); splitRing(g, 0, 0, r * .3, r, 3 * S * (1 - v) + .4, this.hc(this.c1, .3), this.hc(this.c2, .3), 190 * (1 - v)); }
+      const push = 2 * S * Math.sin(t * .35), R = 46 * S;
+      for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) { const cx = sx * (R + 2 * S) + push * sx;
+        // canvas: the 110° of arc facing the centre (Qt -55..55 / 125..235 -> canvas y-down angles)
+        const a0 = sx < 0 ? -55 : 125, s0 = -(a0 + 110) * Math.PI / 180, s1 = -a0 * Math.PI / 180;
+        for (const [w, k, al] of [[11 * S, 0, 110], [4.5 * S, .6, 245]]) { g.strokeStyle = rgba(this.hc(c, k), al); g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.arc(cx, 0, R, s0, s1); g.stroke(); } }
+      const fl = .7 + .3 * Math.sin(t * 2.1); diamond(g, 0, -34 * S, 0, 34 * S, 4 * S * fl, this.hot, 240); glow(g, 0, 0, 30 * S * fl, this.hot, 220, .5); g.restore();
+    } else { const t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; glow(g, 0, 0, 80 * S * easeOut(t / 6), this.hc(mix(this.c1, this.c2, .5), .4), 255 * f ** 1.5);
+      const r = 160 * S * easeOut(u); splitRing(g, 0, 0, r * .6, r, 6 * S * f + .6, this.hc(this.c1, .4), this.hc(this.c2, .4), 230 * f); }
+    this.partsAll(g); }
+  init_kunai_clash() { const r = this.rng, S = this.S; this.parts.push(P("glint", 0, 0, 0, 0, 12, 6 * S, this.c1)); this.parts.push(P("ring", 0, 0, 0, 0, 14, 22 * S, this.c1, {col2: this.c2}));
+    for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) { const a = (sx < 0 ? Math.PI : 0) + (sx < 0 ? -1 : 1) * r.uniform(.5, 1.1) * (r() < .5 ? 1 : -1), v = r.uniform(3.5, 6) * S;
+      this.parts.push(P("kunai", sx * 6 * S, 0, Math.cos(a) * v, Math.sin(a) * v, r.randint(26, 34), 11 * S, c, {drag: .95, grav: .22, rot: r.uniform(0, TAU), vr: sx * r.uniform(.35, .55)})); }
+    this.sparks(18, {spd: [3, 9], life: [8, 18], size: [1, 2], drag: .9}); }
+  draw_kunai_clash(g) { const S = this.S, t = this.ft; g.globalCompositeOperation = "lighter"; if (t < 6) glow(g, 0, 0, 30 * S * (1 - t / 6), this.hot, 255 * (1 - t / 6), .45); this.partsAll(g); }
 }
 
 // ---------------------------------------------------------------- page
@@ -343,9 +430,10 @@ const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const opts = () => ({c1: hex($("cA").value), c2: hex($("cB").value), angle: +$("ang").value, scale: +$("size").value, density: +$("dens").value});
 const tiles = [];
 const grid = $("grid");
-for (const key of Object.keys(BASES)) {
+const ORDER = Object.keys(BASES).filter(k => !BASES[k].pair).concat(Object.keys(BASES).filter(k => BASES[k].pair));
+for (const key of ORDER) {
   const b = BASES[key], el = document.createElement("article"); el.className = "tile";
-  el.innerHTML = `<canvas width="560" height="420" aria-label="${b.name} preview"></canvas><div class="meta"><div class="top"><h2>${b.name}</h2><span class="chip${b.kind === "sustain" ? " sus" : ""}">${b.kind === "sustain" ? "Sustained" : "Burst"}</span></div><span class="key">${key} · ${b.from}</span><p>${b.desc}</p><div class="acts"><button class="ghost" data-a="replay">Replay</button>${b.kind === "sustain" ? '<button class="ghost" data-a="release">Release now</button>' : ""}</div></div>`;
+  el.innerHTML = `<canvas width="560" height="420" aria-label="${b.name} preview"></canvas><div class="meta"><div class="top"><h2>${b.name}</h2><span class="chip${b.kind === "sustain" ? " sus" : ""}">${b.pair ? "Pair · " : ""}${b.kind === "sustain" ? "Sustained" : "Burst"}</span></div><span class="key">${key} · ${b.from}</span><p>${b.desc}</p><div class="acts"><button class="ghost" data-a="replay">Replay</button>${b.kind === "sustain" ? '<button class="ghost" data-a="release">Release now</button>' : ""}</div></div>`;
   grid.appendChild(el);
   const T = {key, el, cv: el.querySelector("canvas"), fx: null, gap: 0, wins: 0};
   T.g = T.cv.getContext("2d");
