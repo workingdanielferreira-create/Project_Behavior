@@ -56,9 +56,11 @@ fighter involved shows its Rig Forge "clash" action (if it has one) for the
 clash's length or the fixed time set in FX Studio's Clash panel
 (pack.clash.anim, fxkit.normalize_clash), standing still when "freeze" is
 on; the FX built on that action play with it.  Which clash FX plays for each
-rule (and its size / density) comes from the Clash panel of the winning
-side's character (the first side's on a tie); built-in characters use the
-defaults.
+rule (and its size / density) comes from the Clash panel of one of the two
+characters, picked 50/50 per clash (_fx_fig) for beam explode, beam cut,
+orb x orb, trail x trail (sword duel included) and sprite x sprite; the beam
+struggle, beam x orb and crescent x crescent use the first side's, and the
+struggle's end blowout the winner's.  Built-in characters use the defaults.
 
 One code path for Solo and Battle: clashes need two fielded sides, so Solo
 (the cursor is the only opponent) simply never finds a pair.
@@ -421,6 +423,14 @@ def _spawn_fx(world, slot, fig, c, angle, c1, c2, hold=None, winner=0, key=None)
                          density=float(cfg.get("density", 100)) / 100.0)
 
 
+def _fx_fig(rng, a, b):
+    """The character whose Clash panel FX plays: a 50/50 pick between the
+    two bodies' owners (the other one if a side has no owner).  Only picks
+    the FX; the knockback rule still decides the clash."""
+    first, second = (a.owner, b.owner) if rng.random() < 0.5 else (b.owner, a.owner)
+    return first if first is not None else second
+
+
 def _kb_winner(a, b):
     """Who the knockback rule will favour (no side effects); None = a tie."""
     if abs(a.kb - b.kb) < 1e-6:
@@ -597,8 +607,8 @@ def _start(world, st, a, b, c, rule, now):
     figs = (a.owner, b.owner)
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
-            w = _settle(world, a, b, c)
-            fx = _spawn_fx(world, "beam_explode", (w or a).owner, c, _deg(*a.dir), a.col, b.col)
+            _settle(world, a, b, c)
+            fx = _spawn_fx(world, "beam_explode", _fx_fig(rng, a, b), c, _deg(*a.dir), a.col, b.col)
             _engage(world, figs, fx.life if fx else 40)
             return None
         fx = _spawn_fx(world, "beam_struggle", a.owner, c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS)
@@ -621,8 +631,8 @@ def _start(world, st, a, b, c, rule, now):
         _engage(world, figs, BEAM_ORB_TICKS + 20)
         return Clash(a, b, c, rule, now + BEAM_ORB_TICKS, fx, now)
     if rule == "beam_cut":
-        w = _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
-        f_fig = (w or a).owner
+        _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
+        f_fig = _fx_fig(rng, a, b)
         # A split half never splits again (no cascade): it is just cut.
         if id(a.ref) not in st["halves"] and rng.random() < SPLIT_CHANCE:
             _spawn_fx(world, "beam_split", f_fig, c, _deg(*a.dir), a.col, b.col)
@@ -637,14 +647,14 @@ def _start(world, st, a, b, c, rule, now):
         return Clash(a, b, c, rule, now + CRESCENT_TICKS, fx, now)
     slot = {"orb_orb": "orb_orb", "trail_trail": "trail_trail", "sprite_sprite": "sprite_sprite"}[rule]
     key = None
+    fig = _fx_fig(rng, a, b)
     if rule == "trail_trail":
-        fig = (_kb_winner(a, b) or a).owner
         if clashfx.resolve(_slot_fx(fig, slot)[0])[0] == "sword_duel":
             if _start_duel(world, st, a, b, c, fig, now):
                 return None
             key = "sword_slash_clash"   # re-arming pair: a one-shot burst instead
-    w = _settle(world, a, b, c)
-    fx = _spawn_fx(world, slot, (w or a).owner, c, ang, a.col, b.col, key=key)
+    _settle(world, a, b, c)
+    fx = _spawn_fx(world, slot, fig, c, ang, a.col, b.col, key=key)
     _engage(world, figs, fx.life if fx else 30)
     return None
 
