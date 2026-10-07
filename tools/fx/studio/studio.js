@@ -1662,7 +1662,7 @@ var COND_META = {
   hit_by_fx: {group: "Hits & projectiles", label: "hit by FX tagged", prev: ["hitOn", "hitTag"],
     help: "Hit this tick by an enemy FX with one of these tags (empty = any hit)."},
   fx_near: {group: "Hits & projectiles", label: "enemy FX tagged … within px", prev: ["nearOn", "nearTag", "nearPx"],
-    help: "An enemy damaging FX / bullet with one of these tags is within the distance (empty = any)."},
+    help: "Any enemy damaging FX with one of these tags is within the distance (empty = any): FX Studio effects (untagged ones go by their primitive), bullets (beam bullets are also \"beam\"), crescent, ult_crescent, petal, clone."},
   projectile_count: {group: "Hits & projectiles", label: "enemy projectiles on screen", prev: ["proj"],
     help: "At least this many enemy projectiles and damaging FX are live at once."},
   bullet_deflected: {group: "Hits & projectiles", label: "a bullet was deflected", prev: ["deflected"],
@@ -1710,10 +1710,14 @@ function condSelect() {
   });
   return e;
 }
-// Tags the hit_by_fx / fx_near fields can match: every effect's tag, plus "bullet".
+// Tags the hit_by_fx / fx_near fields can match: every effect's tag, every
+// primitive (an untagged effect goes by its primitive), "bullet", and the
+// built-in combat FX types (crescent, ult_crescent, petal, clone).
 function knownTags() {
   var t = {bullet: 1}; S.effects.forEach(function (e) { if (e.tag) t[e.tag] = 1; });
   ["fireball", "slash", "beam", "laser", "bolt", "orb"].forEach(function (k) { t[k] = 1; });
+  FXK.PRIMS.forEach(function (k) { t[k] = 1; });
+  ["crescent", "ult_crescent", "petal", "clone"].forEach(function (k) { t[k] = 1; });
   return Object.keys(t).sort();
 }
 // listId: the tag datalist of the editor this field is in (action triggers

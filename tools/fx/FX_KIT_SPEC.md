@@ -136,7 +136,8 @@ as long as the fighter stands or moves. `FXK.animLoops(name, cfg)` gives the
 count.
 
 Every effect carries a `tag` (its FX type, e.g. `fireball`, `slash`) that
-other characters' `hit_by_fx` / `fx_near` conditions match against.
+other characters' `hit_by_fx` / `fx_near` conditions match against. For
+`fx_near`, an untagged effect goes by its primitive (`beam`, `sprite`, ...).
 
 ## 2. Space and time
 
@@ -857,9 +858,12 @@ The presets only seed new FX.
      - `target_within` / `target_beyond`: distance to the target.
      - `hit_by_fx`: tags of hits taken this tick. An FX hit carries its
        tag; any other hit counts as "".
-     - `fx_near`: the opponent's live damaging FX and bullets (tag
-       "bullet") within px, from `SideState.enemy_fx`, rebuilt each tick by
-       `refresh_battle`.
+     - `fx_near`: the opponent's live damaging FX within px, from
+       `SideState.enemy_fx`, rebuilt each tick by `refresh_battle`. Each
+       entry carries a tuple of tags: an FX Studio effect's own tag (its
+       primitive when untagged), "bullet" for bullets (plus "beam" for
+       beam bullets), and "crescent", "ult_crescent", "petal", "clone" for
+       the built-in combat FX. `projectile_count` skips petals and clones.
      - `bullet_deflected`: a parry just started.
      - `after_actions`: the last completed actions, in order.
      - Target state (`target_facing`, `target_attacking`,
