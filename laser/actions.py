@@ -250,12 +250,13 @@ class ActionRunner:
         if t == "fx_near":
             want, px = _tags(cond.get("tags")), float(cond.get("px", 60))
             px2 = px * px
-            for (x, y, tg) in ctx["enemy_fx"]:
-                if (x - fig.x) ** 2 + (y - fig.y) ** 2 <= px2 and _tag_match(want, tg):
+            for (x, y, tgs, _air) in ctx["enemy_fx"]:
+                if (x - fig.x) ** 2 + (y - fig.y) ** 2 <= px2 and (
+                        not want or any(_tag_match(want, tg) for tg in tgs)):
                     return True
             return False
         if t == "projectile_count":
-            return len(ctx["enemy_fx"]) >= int(cond.get("count", 5))
+            return sum(1 for e in ctx["enemy_fx"] if e[3]) >= int(cond.get("count", 5))
         if t == "bullet_deflected":
             return ctx["deflected"]
         if t == "after_actions":

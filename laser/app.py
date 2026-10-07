@@ -78,7 +78,7 @@ class SideState:
                                     # (see combat.HPTClone / hp_threshold_clones)
         self.hpt_beam_ticks = 0     # shared clock driving the clones'
                                     # synchronized beam volley (combat.tick_hpt_clones)
-        self.enemy_fx = []          # opponent's live damaging FX + bullets: (x, y, tag)
+        self.enemy_fx = []          # opponent's live damaging FX, bullets, crescents, petals, clones: (x, y, tags, airborne)
         self.enemy_shots = []       # opponent's projectiles as fxkit.Shot, for the
                                     # FX Studio auto-projectile tracker (Intercept)
         self.partner_image = []     # per partner_figures entry: is it an image character
@@ -558,20 +558,29 @@ class World:
                                      for f in other.figures if f.transform.init]
                 side.partner_state = [actions.target_state(f, self.global_tick)
                                       for f in other.figures if f.transform.init]
-                # What the opponent has in the air that can hurt: live
-                # damaging FX instances (tagged) and bullets ("bullet") —
-                # read by the fx_near action condition.
+                # Everything the opponent has out that can hurt, read by the
+                # fx_near / projectile_count action conditions:
+                # (x, y, tags, airborne).  tags is a tuple; an FX Studio
+                # effect with no authored tag goes by its primitive, and the
+                # built-in combat FX by their type.  airborne=False marks
+                # bodies that stay with their owner (petals, clones), which
+                # projectile_count leaves out.
                 efx = []
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
-                    if drv is None:
-                        continue
-                    for inst in drv.player.insts:
-                        # A lodged blade is stuck in its target and harmless.
-                        if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
-                            efx.append((inst.x, inst.y, inst.fx.get("tag", "")))
-                efx.extend((pr.x, pr.y, "bullet") for pr in other.projectiles
-                           if pr.alive and pr.hit_r_sq > 0.0)
+                    if drv is not None:
+                        for inst in drv.player.insts:
+                            # A lodged blade is stuck in its target and harmless.
+                            if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
+                                efx.append((inst.x, inst.y, (inst.fx.get("tag") or inst.fx.get("prim") or "",), True))
+                    c = f.combat
+                    efx.extend((cr.x, cr.y, ("crescent",), True) for cr in c.crescents if cr.alive)
+                    efx.extend((uc.x, uc.y, ("ult_crescent",), True) for uc in c.ult_crescents if uc.alive)
+                    efx.extend((pt.x, pt.y, ("petal",), False) for pt in c.petals if pt.state != "cooldown")
+                    efx.extend((cl.x, cl.y, ("clone",), False) for cl in c.clones)
+                efx.extend((cl.x, cl.y, ("clone",), False) for cl in other.clones if cl.alive)
+                efx.extend((pr.x, pr.y, ("bullet", "beam") if pr.style == "beam" else ("bullet",), True)
+                           for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 side.enemy_fx = efx
                 # The same projectiles as fxkit.Shot for the auto-projectile
                 # tracker: travelling damaging FX instances and real bullets.
