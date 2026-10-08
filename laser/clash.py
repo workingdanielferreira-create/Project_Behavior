@@ -66,6 +66,12 @@ plays faster so its whole loop fits (ClashFX.fit); a held clash (struggle,
 the orb on the beam head) holds for the fitted share of its hold, and a
 sword duel that cannot fit plays the one-shot sword_slash_clash instead.
 
+Clash size (_pair_size): base = the larger of the slot's size % (the floor)
+and the two effects' average native width relative to SIZE_REF_HW; that base
+then grows linearly with their TOTAL battle knockback (+KB_SIZE_PER_POINT per
+point), capped at KB_SIZE_CAP times the base.  No knockback on either side =
+the base alone.  The split halves' end bursts reuse their clash's size.
+
 While a sustained clash holds, both effects are pinned where they met.  Each
 fighter involved shows its own Rig Forge "clash" action (if it has one),
 standing still, for exactly the clash's length; the FX built on that action
@@ -98,6 +104,9 @@ MAX_TIP_WATCH = 32
 DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
 DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
 MIN_TICKS = 6                # default shortest clash (~100 ms), however little life the effects have left
+SIZE_REF_HW = 6.0            # native half width (px) of an effect pair whose clash FX plays at 1x
+KB_SIZE_PER_POINT = 0.10     # clash FX grows +10% per point of total knockback (A + B)...
+KB_SIZE_CAP = 3.0            # ...up to this many times its base size
 
 # category pair (sorted) -> rule name.  Every pair has one.
 RULES = {
@@ -500,17 +509,42 @@ def _slot_fx(slot):
     return key, cfg
 
 
-def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None):
+def _native_hw(b):
+    """Half width of body b before the position scale (an FX Kit instance's
+    hw already carries its ps; the clash FX gets the position scale when it
+    is drawn, so it must not be counted twice)."""
+    if b.kind == "inst":
+        return b.hw / max(1e-6, float(getattr(b.ref, "ps", 1.0) or 1.0))
+    return b.hw
+
+
+def _pair_size(a, b, cfg):
+    """Clash FX scale for the pair a, b (see the module notes): the slot's
+    size % is the floor of the base, the base is otherwise the pair's
+    average native width over SIZE_REF_HW, and total knockback grows it
+    linearly up to KB_SIZE_CAP times the base."""
+    floor = float(cfg.get("size", 100)) / 100.0
+    rel = 0.5 * (_native_hw(a) + _native_hw(b)) / SIZE_REF_HW
+    base = max(floor, rel)
+    kb = max(0.0, a.kb) + max(0.0, b.kb)
+    return base * min(KB_SIZE_CAP, 1.0 + KB_SIZE_PER_POINT * kb)
+
+
+def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None, pair=None, scale=None):
     """Spawn the slot's clash FX; with a budget (world ticks) its whole loop
-    is fitted inside it (ClashFX.fit)."""
+    is fitted inside it (ClashFX.fit).  pair = the two clashing bodies (their
+    knockback and width size it, _pair_size); scale = an explicit size (a
+    split half's end burst reuses its clash's); neither = the slot's size %."""
     key0, cfg = _slot_fx(slot)
     key = key or key0
     if key == "none":
         return None
+    if scale is None:
+        scale = _pair_size(pair[0], pair[1], cfg) if pair else float(cfg.get("size", 100)) / 100.0
     # Position scale is applied when it is drawn (clashfx.draw_all), except
     # for an anchored FX (its scale is set when it is anchored).
     fx = clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
-                       scale=float(cfg.get("size", 100)) / 100.0, hold=hold, winner=winner,
+                       scale=scale, hold=hold, winner=winner,
                        density=float(cfg.get("density", 100)) / 100.0)
     if budget is not None:
         fx.fit(budget)
@@ -584,7 +618,7 @@ def _deg(dx, dy):
 
 
 # ---------------------------------------------------------------- beam split
-def _split_beam(world, st, beam, c):
+def _split_beam(world, st, beam, c, size=None):
     """Replace the part of `beam` beyond the contact with two halves fanning
     +-SPLIT_DEG that run on to the beam's end and can hit; each explodes
     where it ends.  Returns the halves."""
@@ -628,7 +662,7 @@ def _split_beam(world, st, beam, c):
     for h in halves:
         st["halves"].add(id(h[1]))
         if len(st["tips"]) < MAX_TIP_WATCH:
-            st["tips"].append([h[0], h[1], h[2], beam.col, (c[0], c[1])])
+            st["tips"].append([h[0], h[1], h[2], beam.col, (c[0], c[1]), size])
     return halves
 
 
@@ -731,10 +765,10 @@ def _start(world, st, a, b, c, rule, now):
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
             _settle(world, a, b, c)
-            fx = _spawn_fx(world, "beam_explode", c, _deg(*a.dir), a.col, b.col, budget=budget)
+            fx = _spawn_fx(world, "beam_explode", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
             _engage(world, figs, _fx_ticks(fx, budget, 40))
             return None
-        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, budget=budget)
+        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, budget=budget, pair=(a, b))
         held = _held_ticks(fx, STRUGGLE_TICKS, budget)
         hidden = ()
         if fx is not None and fx.base == "beam_struggle":
@@ -751,7 +785,7 @@ def _start(world, st, a, b, c, rule, now):
         _engage(world, figs, fx.length() if fx is not None else held)
         return Clash(a, b, c, rule, now + held, fx, now, hidden)
     if rule == "beam_orb":
-        fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget)
+        fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
         held = _held_ticks(fx, BEAM_ORB_TICKS, budget)
         _engage(world, figs, _fx_ticks(fx, budget, held + 20))
         return Clash(a, b, c, rule, now + held, fx, now)
@@ -759,14 +793,14 @@ def _start(world, st, a, b, c, rule, now):
         _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
         # A split half never splits again (no cascade): it is just cut.
         if id(a.ref) not in st["halves"] and rng.random() < SPLIT_CHANCE:
-            fx = _spawn_fx(world, "beam_split", c, _deg(*a.dir), a.col, b.col, budget=budget)
-            _split_beam(world, st, a, c)
+            fx = _spawn_fx(world, "beam_split", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
+            _split_beam(world, st, a, c, size=_pair_size(a, b, _slot_fx("split_tip")[1]))
         else:
-            fx = _spawn_fx(world, "beam_nosplit", c, _deg(*a.dir), a.col, b.col, budget=budget)
+            fx = _spawn_fx(world, "beam_nosplit", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
         _engage(world, figs, _fx_ticks(fx, budget, 30))
         return None
     if rule == "crescent_crescent":
-        fx = _spawn_fx(world, "crescent_crescent", c, ang, a.col, b.col, hold=CRESCENT_TICKS, budget=budget)
+        fx = _spawn_fx(world, "crescent_crescent", c, ang, a.col, b.col, hold=CRESCENT_TICKS, budget=budget, pair=(a, b))
         held = _held_ticks(fx, CRESCENT_TICKS, budget)
         _engage(world, figs, fx.length() if fx is not None else held + 20)
         return Clash(a, b, c, rule, now + held, fx, now)
@@ -778,7 +812,7 @@ def _start(world, st, a, b, c, rule, now):
                 return None
             key = "sword_slash_clash"   # re-arming pair / no room for a duel: a one-shot burst instead
     _settle(world, a, b, c)
-    fx = _spawn_fx(world, slot, c, ang, a.col, b.col, key=key, budget=budget)
+    fx = _spawn_fx(world, slot, c, ang, a.col, b.col, key=key, budget=budget, pair=(a, b))
     _engage(world, figs, _fx_ticks(fx, budget, 30))
     return None
 
@@ -794,7 +828,7 @@ def _finish(world, st, rec):
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
             ang = _deg(*a.dir)
-            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1)
+            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1, pair=(a, b))
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     st["busy"].discard(id(a.ref))
@@ -820,7 +854,7 @@ def _start_duel(world, st, a, b, c, now, budget=None):
     if budget is not None and len(plan) > budget:
         return False
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
-                       scale=float(cfg.get("size", 100)) / 100.0, hold=-1,
+                       scale=_pair_size(a, b, cfg), hold=-1,
                        density=float(cfg.get("density", 100)) / 100.0)
     fx.anchor_duel(_pscale(world, c[0], c[1]))
     st["duels"].append(Duel(a, b, plan, fx, pair))
@@ -924,7 +958,7 @@ def step(world):
     # 2. Split halves: each explodes where it ends.
     tips = []
     for t in st["tips"]:
-        kind, obj, owner, col, _last = t
+        kind, obj, owner, col, _last, size = t
         if _tip_alive(kind, obj):
             t[4] = _tip_pos(kind, obj)
             tips.append(t)
@@ -932,7 +966,7 @@ def step(world):
             st["halves"].discard(id(obj))
             p = t[4]
             ang = _deg(*_norm(p[0] - (owner.x if owner else p[0] - 1), p[1] - (owner.y if owner else p[1])))
-            _spawn_fx(world, "split_tip", p, ang, col, col)
+            _spawn_fx(world, "split_tip", p, ang, col, col, scale=size)
     st["tips"] = tips
     # 3. New contacts (two fielded sides only: Solo never has a pair).
     if len(world.sides) < 2 or not (world.sides[0].figures and world.sides[1].figures):
