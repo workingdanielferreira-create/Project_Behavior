@@ -2172,7 +2172,7 @@ function worldSave() { lsSet(WORLD_KEY, WORLD); }
 function openWorldPage(on) { S.worldPage = on; $("bWorld").classList.toggle("primary", !!on); buildProps(); }
 function buildWorldClashProps(d) {
   banner(d, "act", "World physics", "⚔ World Clash",
-    "Shared by every character, in Solo and Battle. When two opposing effects touch, the rule for their two kinds plays out and the clash FX below plays. The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail.",
+    "Shared by every character, in Solo and Battle. When two opposing effects touch, the rule for their two kinds plays out and the clash FX below plays. The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail. A knockback lead of more than 100 is no clash at all: the weaker effect is destroyed and the stronger flies on untouched. Contacts between the same two fighters within 6 ticks and 60 px of a clash are part of it: one FX, not one per contact.",
     ["Close", function () { openWorldPage(false); }]);
   var s = sec(d, "File", "w-file", "The game reads characters/world_clash.json. Save it here, then drop it into the repo (top level or drop/) and run update_game.bat, or put it in characters/ yourself.", "act");
   var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
@@ -2199,7 +2199,8 @@ function buildWorldClashProps(d) {
   FXK.CLASH_SLOTS.forEach(function (r) {
     var slot = WORLD.slots[r[0]], b = sec(d, r[2], "w-clash-" + r[0], "The clash FX that plays for this rule (default " + r[1] + "), and its size and density.", "act");
     field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); }));
-    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5));
+    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title =
+      "Full size of this clash FX. Each clash picks a random size between 10% and the higher knockback of the two effects (capped at 100) as a % of this: knockback 100 → up to this size, 50 → up to half of it, 0 → 10%.";
     field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
   });
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
