@@ -66,11 +66,22 @@ plays faster so its whole loop fits (ClashFX.fit); a held clash (struggle,
 the orb on the beam head) holds for the fitted share of its hold, and a
 sword duel that cannot fit plays the one-shot sword_slash_clash instead.
 
-Clash size (_pair_size): base = the larger of the slot's size % (the floor)
-and the two effects' average native width relative to SIZE_REF_HW; that base
-then grows linearly with their TOTAL battle knockback (+KB_SIZE_PER_POINT per
-point), capped at KB_SIZE_CAP times the base.  No knockback on either side =
-the base alone.  The split halves' end bursts reuse their clash's size.
+Clash size (_pair_size): random for each clash FX, between SIZE_MIN (10%)
+and the HIGHER battle knockback of the two effects (capped at 100) read as a
+% of the slot's size % (knockback 100 -> up to 100% of it, 50 -> up to 50%).
+No knockback = SIZE_MIN.  The split halves' end bursts reuse their clash's
+size.
+
+One clash, one FX (_quiet): every contact between the same two fighters that
+starts within MERGE_TICKS of a clash FX between them, within MERGE_PX of it,
+is part of that clash: it is still settled by the knockback rule, but plays
+no FX and no clash action of its own (one effect touching several enemy
+effects at once used to stack an FX per contact).
+
+Overpower: when one effect's knockback beats the other's by more than
+OVERPOWER_KB, there is no clash at all: the weaker one is destroyed at its
+source (a trail's owner recoils instead) and the stronger carries on
+untouched, never pinned, split or slowed.
 
 While a sustained clash holds, both effects are pinned where they met.  Each
 fighter involved shows its own Rig Forge "clash" action (if it has one),
@@ -104,9 +115,11 @@ MAX_TIP_WATCH = 32
 DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
 DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
 MIN_TICKS = 6                # default shortest clash (~100 ms), however little life the effects have left
-SIZE_REF_HW = 6.0            # native half width (px) of an effect pair whose clash FX plays at 1x
-KB_SIZE_PER_POINT = 0.10     # clash FX grows +10% per point of total knockback (A + B)...
-KB_SIZE_CAP = 3.0            # ...up to this many times its base size
+SIZE_MIN = 0.10              # smallest random clash FX size (10%)
+SIZE_KB_FULL = 100.0         # knockback for the full slot size (higher counts as this)
+MERGE_TICKS = 6              # contacts of the same two fighters this soon after a clash FX...
+MERGE_PX = 60.0              # ...and this close to it are part of that clash (no FX of their own)
+OVERPOWER_KB = 100.0         # knockback lead that destroys the weaker effect outright, no clash
 
 # category pair (sorted) -> rule name.  Every pair has one.
 RULES = {
@@ -509,25 +522,18 @@ def _slot_fx(slot):
     return key, cfg
 
 
-def _native_hw(b):
-    """Half width of body b before the position scale (an FX Kit instance's
-    hw already carries its ps; the clash FX gets the position scale when it
-    is drawn, so it must not be counted twice)."""
-    if b.kind == "inst":
-        return b.hw / max(1e-6, float(getattr(b.ref, "ps", 1.0) or 1.0))
-    return b.hw
+_SIZE_RNG = random.Random()
 
 
 def _pair_size(a, b, cfg):
-    """Clash FX scale for the pair a, b (see the module notes): the slot's
-    size % is the floor of the base, the base is otherwise the pair's
-    average native width over SIZE_REF_HW, and total knockback grows it
-    linearly up to KB_SIZE_CAP times the base."""
-    floor = float(cfg.get("size", 100)) / 100.0
-    rel = 0.5 * (_native_hw(a) + _native_hw(b)) / SIZE_REF_HW
-    base = max(floor, rel)
-    kb = max(0.0, a.kb) + max(0.0, b.kb)
-    return base * min(KB_SIZE_CAP, 1.0 + KB_SIZE_PER_POINT * kb)
+    """Clash FX scale for the pair a, b (see the module notes): random
+    between SIZE_MIN and the higher knockback (capped at SIZE_KB_FULL) as a
+    share of the slot's size %; SIZE_MIN when that top is no bigger."""
+    kb = min(SIZE_KB_FULL, max(0.0, a.kb, b.kb))
+    top = float(cfg.get("size", 100)) / 100.0 * kb / SIZE_KB_FULL
+    if top <= SIZE_MIN:
+        return SIZE_MIN
+    return _SIZE_RNG.uniform(SIZE_MIN, top)
 
 
 def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None, pair=None, scale=None):
@@ -537,7 +543,7 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     split half's end burst reuses its clash's); neither = the slot's size %."""
     key0, cfg = _slot_fx(slot)
     key = key or key0
-    if key == "none":
+    if key == "none" or _state(world).get("quiet"):
         return None
     if scale is None:
         scale = _pair_size(pair[0], pair[1], cfg) if pair else float(cfg.get("size", 100)) / 100.0
@@ -607,10 +613,34 @@ def _engage(world, figs, ticks):
     """Each fighter shows its own Rig Forge "clash" action, standing still,
     for the clash's length (world rule: ticks)."""
     from . import actions
+    if _state(world).get("quiet"):
+        return      # part of a clash already showing (_quiet)
     now = world.global_tick
     for fig in figs:
         if fig is not None and ticks > 0:
             actions.force_clash(fig, world, now + int(ticks), True)
+
+
+def _quiet(st, a, b, c, now):
+    """True when this contact is part of a clash FX that already started
+    between the same two fighters (MERGE_TICKS / MERGE_PX); otherwise it
+    becomes the new reference for that pair."""
+    k = (id(a.owner), id(b.owner)) if a.side == 0 else (id(b.owner), id(a.owner))
+    r = st["recent"].get(k)
+    if r is not None and now - r[0] <= MERGE_TICKS and math.hypot(c[0] - r[1], c[1] - r[2]) <= MERGE_PX:
+        return True
+    st["recent"][k] = (now, c[0], c[1])
+    return False
+
+
+def _overpower(world, a, b, c):
+    """One effect's knockback leads by more than OVERPOWER_KB: the weaker is
+    destroyed (a trail's owner recoils), the stronger is left untouched.
+    True when it happened (no clash then)."""
+    if abs(a.kb - b.kb) <= OVERPOWER_KB:
+        return False
+    _settle(world, a, b, c)
+    return True
 
 
 def _deg(dx, dy):
@@ -742,7 +772,8 @@ def _state(world):
     if st is None:
         st = world.clash_state = {"active": [], "busy": set(), "seen": {}, "tips": [],
                                   "rng": random.Random(), "halves": set(),
-                                  "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {}}
+                                  "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {},
+                                  "recent": {}, "quiet": False}
     return st
 
 
@@ -806,7 +837,7 @@ def _start(world, st, a, b, c, rule, now):
         return Clash(a, b, c, rule, now + held, fx, now)
     slot = rule     # BURST_RULES: the rule's own slot
     key = None
-    if rule == "trail_trail":
+    if rule == "trail_trail" and not st["quiet"]:     # a merged contact never starts a duel
         if clashfx.resolve(_slot_fx(slot)[0])[0] == "sword_duel":
             if _start_duel(world, st, a, b, c, now, budget):
                 return None
@@ -996,7 +1027,13 @@ def step(world):
             seen[k] = now
             if last is not None and now - last <= REARM_TICKS:
                 continue    # still touching since its last clash
-            rec = _start(world, st, a, b, c, rule, now)
+            if _overpower(world, a, b, c):
+                continue    # the weaker is gone, the stronger flies on
+            st["quiet"] = _quiet(st, a, b, c, now)
+            try:
+                rec = _start(world, st, a, b, c, rule, now)
+            finally:
+                st["quiet"] = False
             if rec is not None:
                 st["active"].append(rec)
                 busy.add(id(a.ref))
@@ -1005,3 +1042,6 @@ def step(world):
     if len(seen) > 256 or now % 60 == 0:
         for k in [k for k, t in seen.items() if now - t > REARM_TICKS * 3]:
             del seen[k]
+        rc = st["recent"]
+        for k in [k for k, r in rc.items() if now - r[0] > MERGE_TICKS]:
+            del rc[k]

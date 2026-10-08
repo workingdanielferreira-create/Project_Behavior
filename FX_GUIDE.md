@@ -531,6 +531,22 @@ its whole loop fits (`ClashFX.fit`); a held clash (struggle, orb on the beam
 head) holds for the fitted share of its hold; a sword duel that cannot fit
 plays the one-shot `sword_slash_clash` instead.
 
+**Clash size (`clash._pair_size`):** random for each clash FX, between 10%
+and the higher knockback of the two effects (capped at 100) as a % of the
+slot's Size % (knockback 100 → up to 100% of it, 50 → up to 50%, 0 → 10%).
+A split half's end burst reuses its clash's size.
+
+**One clash, one FX (`clash._quiet`):** contacts between the same two
+fighters within `MERGE_TICKS` (6) and `MERGE_PX` (60 px) of a clash FX are
+part of that clash: each is still settled by the knockback rule, but only
+the first plays an FX and the clash action (one effect touching several
+enemy effects at once no longer stacks FX).
+
+**Overpower (`clash._overpower`):** a knockback lead of more than
+`OVERPOWER_KB` (100) is no clash at all: the weaker effect is destroyed at
+its source (a trail's owner recoils), and the stronger carries on untouched
+(never pinned, split or slowed, no FX, no clash action).
+
 **The fighter's clash action:** an image character with a Rig Forge `clash`
 action shows its own action (looping), standing still, for exactly the
 clash's length (`actions.force_clash`). FX built on the `clash` action in FX
