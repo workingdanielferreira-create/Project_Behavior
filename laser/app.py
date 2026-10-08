@@ -17,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -666,11 +666,9 @@ class World:
                 if dmg > 0:
                     ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable)
                 if kb > 0:
-                    m = ef.motion
-                    if not (m.bouncing or m.bounce_ending):
-                        spd = kb * (1.0 - config.BOUNCE_FRICTION)
-                        m.bounce_vx, m.bounce_vy = dx * spd, dy * spd
-                        m.bouncing = True
+                    # A new hit restarts the slide for its full distance.
+                    spd = kb * (1.0 - config.BOUNCE_FRICTION)
+                    motion.launch_knockback(ef, dx * spd, dy * spd, self.global_tick)
         # Deliver dash-slash knockback landed last tick to the other side.
         for i, side in enumerate(self.sides):
             other = self.sides[1 - i]
@@ -688,18 +686,15 @@ class World:
                     struck = min(other.figures, default=None,
                                  key=lambda e: (e.x - f.x) ** 2 + (e.y - f.y) ** 2)
                     for ef in other.figures:
-                        m = ef.motion
                         kb_ok = not ai.knockback_immune(ef, self)
                         if (ef is struck and actions.is_image(ef)
                                 and not ef.combat.parrying):
                             ai.apply_hp_damage(ef, self)
-                        if m.bouncing or m.bounce_ending:
-                            continue
                         if not kb_ok:
                             continue   # damage cooldown: invincible
-                        m.bounce_vx = f.combat.hit_vx
-                        m.bounce_vy = f.combat.hit_vy
-                        m.bouncing = True
+                        # A new hit restarts the slide for its full distance.
+                        motion.launch_knockback(ef, f.combat.hit_vx, f.combat.hit_vy,
+                                                self.global_tick)
 
     def cinematic_frozen(self, i):
         """True while a figure on ANOTHER fielded side is mid vanish-cut —

@@ -270,7 +270,9 @@ class MotionSystem(System):
                 # and animates/attacks normally — combat firing is handled
                 # entirely by ProjectileSystem/CombatSystem, unaffected by
                 # this. Identical in Solo & Battle; tx_motion/ty_motion are
-                # computed the same way for every figure above.
+                # computed the same way for every figure above.  A knockback
+                # still slides it the full set distance (no walking).
+                motion.carry_knockback(fig)
                 dx = tx_motion - fig.x
                 if dx < -0.001:
                     fig.transform.facing_left = True
@@ -423,6 +425,11 @@ class CombatSystem(System):
             else:
                 _fb = world.cursor
             fig.combat.acted = combat.advance_combat(fig, tgt, _fb)
+            if fig.combat.acted:
+                # The attack owns movement this tick; a knockback slide
+                # still moves the fighter on top of it (MotionSystem skips
+                # acted figures).
+                motion.carry_knockback(fig)
 
             # --- Slash FX: drain hit events into world FX lists ---
             c = fig.combat
@@ -1261,10 +1268,6 @@ class CollisionSystem(System):
             dash_push_spd = config.DASH_HIT_KNOCKBACK_PX * (1.0 - config.BOUNCE_FRICTION)
             for fig in world.figures:
                 m = fig.motion
-                # bounce_ending is the slide-stop hold phase — don't interrupt it.
-                # bouncing (active travel) CAN be interrupted: new impulse stacks.
-                if m.bounce_ending:
-                    continue
                 # A dash-slashing swordsman is fully immune to figure-to-figure
                 # body collision — both as the attacker and as the target.
                 # The actual hit is handled exclusively by the dash-hit detection
@@ -1278,6 +1281,11 @@ class CollisionSystem(System):
                 _pgone = getattr(world, "partner_gone", None) or []
                 for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):
                     if _pi < len(_pgone) and _pgone[_pi]:
+                        continue
+                    # bounce_ending is the slide-stop hold phase — a plain
+                    # body bump doesn't interrupt it; a dashing enemy's hit
+                    # restarts the slide (motion.launch_knockback).
+                    if m.bounce_ending and not edash:
                         continue
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
@@ -1300,9 +1308,19 @@ class CollisionSystem(System):
                         # collided, reversed and repeated — facing flipping
                         # each tick, and a melee fighter stuck bouncing can
                         # never start an attack.
-                        m.bounce_vx = nvx
-                        m.bounce_vy = nvy
-                        m.bouncing = True
+                        if edash:
+                            motion.launch_knockback(fig, nvx, nvy, world.global_tick)
+                        elif not (m.bouncing
+                                  and m.bounce_vx * ddx + m.bounce_vy * ddy > 0.0
+                                  and m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy
+                                  > nvx * nvx + nvy * nvy):
+                            # A plain bump never cuts short a stronger
+                            # knockback already carrying the fighter away
+                            # from the collider (the two still overlap on
+                            # the ticks right after a hit lands).
+                            m.bounce_vx = nvx
+                            m.bounce_vy = nvy
+                            m.bouncing = True
                         # Dot on every collision, including mid-knockback re-hits
                         if edash or m.bouncing:
                             cx = (fig.x + ex) * 0.5
