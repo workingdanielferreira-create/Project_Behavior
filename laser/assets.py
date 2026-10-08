@@ -179,6 +179,13 @@ class AssetLibrary:
             pass
         from . import characters as _characters
         _characters.load_all(d, self.bundles)
+        # World clash table (characters/world_clash.json, FX Studio's World
+        # Clash page): one for every character, in Solo and Battle alike.
+        from . import clash as _clash
+        try:
+            _clash.load_world(d)
+        except Exception:
+            pass
 
     def bundle(self, mode_key):
         return self.bundles.get(mode_key, self.bundles["runner"])

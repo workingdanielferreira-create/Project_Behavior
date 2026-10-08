@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), clash: FXK.normalizeClash({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -171,7 +171,6 @@ var DOC = [
   ["aim", "aim", function (v) { return FXK.normalizeAim(clone(v || {})); }],
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
-  ["clash", "clash", function (v) { return FXK.normalizeClash(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
 function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
@@ -510,7 +509,7 @@ function packData() {
     anchor_labels: S.labels, anchors: anchors,
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
     entry_sets: docCopy("entry_sets"), paths: docCopy("paths"), aim: docCopy("aim"), damaged: docCopy("damaged"),
-    retreat: docCopy("retreat"), clash: docCopy("clash"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
+    retreat: docCopy("retreat"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
   // Anchors, labels (anchor_labels) and action settings are written above in
   // the file's own shape; any other editable field is never left out.
@@ -527,14 +526,15 @@ function saveFx() {
       .catch(function (e) { toast("Could not write into the folder (" + e.message + "); downloading instead.", 5000); download(name, txt); });
   } else download(name, txt);
 }
-function download(name, txt) {
+function download(name, txt, where) {
   // A published page hands files over through the downloads capability
   // (the viewer confirms each save); opened from disk it is a plain download.
+  where = where || "characters/" + (C ? C.name : "<name>") + "/";
   if (inFrame() && window.claude && typeof window.claude.use === "function") {
     window.claude.use("downloads").then(function (d) {
       if (!d) return openModal("Copy this JSON into " + name, txt, null);
       d.save({filename: name, data: new Blob([txt], {type: "application/json"})}).then(function () {
-        toast("Saved " + name + ": put it in characters/" + (C ? C.name : "<name>") + "/");
+        toast("Saved " + name + ": put it in " + where);
       }, function (e) {
         var c = e && e.code;
         if (c === "declined") return toast("Save cancelled");
@@ -548,7 +548,7 @@ function download(name, txt) {
     var a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([txt], {type: "application/json"}));
     a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    toast("Downloaded " + name + ": put it in characters/" + (C ? C.name : "<name>") + "/");
+    toast("Downloaded " + name + ": put it in " + where);
   } catch (e) { openModal("Copy this JSON (" + name + ")", txt, null); }
 }
 
@@ -1374,6 +1374,7 @@ function refreshKeyAdd() {
 }
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
+  if (S.worldPage) return buildWorldClashProps(d);
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
   if (fx) S.selGroup = null;
@@ -1509,14 +1510,14 @@ function buildProps() {
           "A projectile is caught when its path this tick comes this close to the ribbon's head.";
         field(s, "On contact", inp([["block", "block: enemy's nullified"], ["deflect", "deflect: bounced off the ribbon"], ["destroy", "destroy: enemy's nullified"]],
           FXK.GUARD_MODES.indexOf(G.mode) >= 0 ? G.mode : "block", function (v) { G.mode = v; changed(true); })).title =
-          "Block / destroy: the enemy projectile is nullified. Deflect: it bounces off the ribbon's surface at the head (mirrored, speed kept, always back out the side it came from). Clash projectiles always get through a guard.";
+          "Block / destroy: the enemy projectile is nullified. Deflect: it bounces off the ribbon's surface at the head (mirrored, speed kept, always back out the side it came from).";
         if (G.mode === "deflect")
           field(s, "Deflected shot hurts its owner", inp("chk", G.hurts_owner, function (v) { G.hurts_owner = v; changed(); })).title =
             "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
         note(s, "Tick \"test shots\" under the stage to fire dummy enemy projectiles at the fighter and watch it work.");
       }
     } else if (FXK.canIntercept(fx)) {
-      s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects, destroys or clashes with them.");
+      s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects or destroys them. (Clashing is world physics, not an intercept mode: see ⚔ World Clash.)");
       var I = fx.intercept;
       field(s, "Auto-projectile tracker", inp("chk", I.enabled, function (v) { I.enabled = v; changed(true); })).title =
         "On: when an enemy projectile comes within the tracker radius, this projectile steers at it (like homing). With none in range it carries on with its own motion.";
@@ -1527,13 +1528,9 @@ function buildProps() {
           "How sharply it can turn toward the enemy projectile each tick.";
         field(s, "Contact px", inp("n", I.contact, function (v) { I.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
           "The two projectiles collide when their bodies come this close (a beam counts its whole line and width, anything else its centre).";
-        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"],
-          ["clash", "clash: knockback decides"]], I.mode,
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"]], I.mode,
           function (v) { I.mode = v; changed(true); })).title =
-          "Clash: beats any projectile without clash (it is nullified, this one keeps going). Against another clash projectile the Knockback values (Damage section) decide: more than " +
-          FXK.CLASH_KB_MARGIN + " higher nullifies the lower one; otherwise both freeze where they met until one runs out of life or its owner is hit, then the survivor carries on.";
-        if (I.mode === "clash")
-          note(s, "Clash vs clash compares Knockback: more than " + FXK.CLASH_KB_MARGIN + " apart \u2192 the higher one wins; otherwise they lock together. Test shots have no clash, so here they are simply nullified.");
+          "Block: both projectiles are nullified. Deflect: the enemy projectile (or both) is knocked away. Destroy: the enemy projectile is nullified and this one keeps going.";
         if (I.mode === "deflect") {
           field(s, "Deflect", inp([["enemy", "enemy projectile only"], ["both", "both projectiles"]], I.deflect_who, function (v) { I.deflect_who = v; changed(); })).title =
             "Enemy only: this projectile carries on. Both: this one is knocked away too. They fly off along their combined momentum.";
@@ -2115,7 +2112,7 @@ function buildActionProps(d) {
   var a = S.action, cfg = cfgOf(a), kind = FXK.actionKind(a);
   banner(d, "act", "Action settings", a, "Applies to the whole action and every effect on it. Select an effect on the left or on the timeline to edit that effect.");
   var s = sec(d, "When it plays", "a-when", "What starts this action in the game, and how long it runs.", "act");
-  note(s, a === CLASH_ACTION ? "Plays while one of this fighter's effects is clashing with an enemy effect (see the Clash panel below). It never starts on its own and needs no conditions."
+  note(s, a === CLASH_ACTION ? "Plays while one of this fighter's effects is clashing with an enemy effect, standing still, for exactly the clash's length: the shorter remaining life of the two colliding effects (see ⚔ World Clash). It never starts on its own and needs no conditions."
     : kind === "locomotion" ? (a === "idle" ? "Plays while the fighter stands still." : "Plays while the fighter moves.")
     : kind === "attack" ? "Attacks when the target is in attack range and its trigger conditions (below, if any) pass. The attack plays in full, and only this action's FX with Deals damage (and weapon hitboxes) hurt."
     : "Plays when its conditions are met, then runs in full.");
@@ -2159,37 +2156,53 @@ function buildActionProps(d) {
     field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
     if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
   }
-  if (a === CLASH_ACTION) buildClashProps(d, true);
-  else {
-    buildTriggerProps(d, a, cfg, kind);
-    if (!C.actions[CLASH_ACTION]) buildClashProps(d, false);
-  }
+  if (a !== CLASH_ACTION) buildTriggerProps(d, a, cfg, kind);
 }
 // The Rig Forge action a fighter shows while one of its effects clashes.
 var CLASH_ACTION = "clash";
-// Character-level Clash settings (pack.clash; laser/clash.py plays them):
-// on the "clash" action as its own panel, and under every action while the
-// character has no "clash" action yet.
-function buildClashProps(d, own) {
-  var cl = S.clash, ch = function () { save(); buildProps(); };
-  var s = sec(d, "Clash (whole character)", "a-clash",
-    "When this character's effects touch an enemy's effects, the clash rule for the two kinds plays out (beam, orb / petal, trail, crescent, sprite; ghosts never clash). The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail.", "act");
-  if (!own) note(s, "This character has no \"clash\" action: add one in Rig Forge (Action key: clash) for the animation the fighter shows while clashing. The clash FX below still apply.");
-  var an = sec(s, "Clash animation", "a-clash-anim", "How the fighter shows its \"clash\" action (Rig Forge) while one of its effects is clashing.", "act");
-  field(an, "Show it", inp([["clash", "For the length of the clash"], ["fixed", "For a fixed time"]], cl.anim.hold, function (v) { cl.anim.hold = v; ch(); })).title =
-    "For the length of the clash: as long as the clash FX plays (a struggle holds it until it is decided). For a fixed time: the hold below, whatever the clash.";
-  if (cl.anim.hold === "fixed") field(an, "Hold ms", inp("n", cl.anim.hold_ms, function (v) { cl.anim.hold_ms = Math.max(0, Math.min(10000, v)); save(); }, 0, 10000, 50)).title =
-    "How long the clash action plays each time (it loops while held).";
-  field(an, "Stand still", inp("chk", cl.anim.freeze, function (v) { cl.anim.freeze = v; save(); })).title =
-    "On: the fighter stops where it is while the clash action plays. Off: it keeps moving.";
+
+// ------------------------------------------------------------ World Clash
+// The clash table every character shares (laser/clash.py WORLD_SLOTS): which
+// clash FX plays when two kinds of FX collide.  Not part of any character:
+// kept in browser storage on its own and saved as world_clash.json, which
+// the game reads from characters/world_clash.json (drop it like an FX file).
+var WORLD_KEY = "pbfxstudio.v1.worldclash";
+var WORLD = FXK.normalizeWorldClash(lsGet(WORLD_KEY) || {});
+function worldSave() { lsSet(WORLD_KEY, WORLD); }
+function openWorldPage(on) { S.worldPage = on; $("bWorld").classList.toggle("primary", !!on); buildProps(); }
+function buildWorldClashProps(d) {
+  banner(d, "act", "World physics", "⚔ World Clash",
+    "Shared by every character, in Solo and Battle. When two opposing effects touch, the rule for their two kinds plays out and the clash FX below plays. The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail.",
+    ["Close", function () { openWorldPage(false); }]);
+  var s = sec(d, "File", "w-file", "The game reads characters/world_clash.json. Save it here, then drop it into the repo (top level or drop/) and run update_game.bat, or put it in characters/ yourself.", "act");
+  var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
+  [["Save world_clash.json", function () { download("world_clash.json", JSON.stringify(WORLD, null, 1), "characters/"); }],
+   ["Open…", function () {
+     var f = document.createElement("input"); f.type = "file"; f.accept = ".json,application/json";
+     f.onchange = function () {
+       var file = f.files && f.files[0]; if (!file) return;
+       file.text().then(function (t) {
+         var o = JSON.parse(t);
+         if (!o || o.format !== FXK.WORLD_CLASH_FORMAT) throw new Error("not a World Clash file");
+         WORLD = FXK.normalizeWorldClash(o); worldSave(); buildProps(); toast("Loaded " + file.name);
+       }).catch(function (e) { toast("Could not load it (" + e.message + ")", 5000); });
+     };
+     f.click();
+   }],
+   ["Reset to defaults", function () { WORLD = FXK.normalizeWorldClash({}); worldSave(); buildProps(); toast("World Clash reset to the defaults"); }]
+  ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
+  s = sec(d, "Clash length", "w-time", "A clash lasts no longer than the shorter REMAINING life of the two effects when they touch: a clash FX longer than that plays faster so its whole loop fits, and each fighter shows its own \"clash\" action (Rig Forge), standing still, for that long. An effect with no lifespan (a fighter's own sword trail, a hovering petal) leaves it to the other one; with neither, the clash FX plays at its normal length.", "act");
+  field(s, "Shortest clash (ticks)", inp("n", WORLD.min_ticks, function (v) { WORLD.min_ticks = Math.max(1, Math.min(600, Math.round(v) || 1)); worldSave(); buildProps(); }, 1, 600, 1)).title =
+    "However little life the two effects have left, a clash never lasts less than this (1 tick = " + FXK.TICK_MS + " ms).";
+  note(s, "= " + Math.round(WORLD.min_ticks * FXK.TICK_MS) + " ms");
   var fxOpts = [["none", "— no FX —"]].concat(FXK.CLASH_FX);
-  FXK.CLASH_SLOTS.forEach(function (row) {
-    var slot = cl.slots[row[0]], b = sec(s, row[2], "a-clash-" + row[0], "The clash FX that plays for this rule (default " + row[1] + "), and its size and density. The winning side's settings are used (the first side's on a tie).", "act");
-    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; save(); }));
-    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); save(); }, 10, 400, 5));
-    field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); save(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
+  FXK.CLASH_SLOTS.forEach(function (r) {
+    var slot = WORLD.slots[r[0]], b = sec(d, r[2], "w-clash-" + r[0], "The clash FX that plays for this rule (default " + r[1] + "), and its size and density.", "act");
+    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); }));
+    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5));
+    field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
   });
-  note(s, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Orb × orb, trail × trail, crescent × crescent and sprite × sprite each have their own clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
+  note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
 }
 // A condition list editor: one box per condition (its fields, Not, ↑ /
 // Duplicate / Remove) and the + Condition picker.  Action triggers and the
@@ -2445,7 +2458,7 @@ function drawTestShots(g, z) {
     g.fillStyle = "rgba(" + col + "," + a + ")"; g.beginPath(); g.arc(q.x, q.y, 2.5, 0, 6.2832); g.fill();
   });
   (S.bursts || []).forEach(function (q) {
-    var a = 1 - q.age / 14, col = q.mode === "block" ? "240,194,74" : q.mode === "destroy" ? "255,90,90" : q.mode === "clash" ? "200,130,255" : "125,224,168";
+    var a = 1 - q.age / 14, col = q.mode === "block" ? "240,194,74" : q.mode === "destroy" ? "255,90,90" : "125,224,168";
     g.strokeStyle = "rgba(" + col + "," + a + ")"; g.lineWidth = 1.5 / z;
     g.beginPath(); g.arc(q.x, q.y, 3 + q.age * 0.8, 0, 6.2832); g.stroke();
   });
@@ -2719,6 +2732,7 @@ $("newPrim").innerHTML = FXK.PRIMS.map(function (p) { return "<option>" + p + "<
 $("bOpen").onclick = pickFolder;
 $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.files); this.value = ""; if (l.length) openFiles(l, null); };
 $("bSave").onclick = saveFx;
+$("bWorld").onclick = function () { openWorldPage(!S.worldPage); };
 $("contFx").onchange = function () {
   if (!C) { this.checked = false; return; }
   cfgOf(S.action).fx_continuous = this.checked; save(); buildProps();

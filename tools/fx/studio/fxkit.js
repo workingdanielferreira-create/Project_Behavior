@@ -364,12 +364,12 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 //            off along their combined momentum; hurts_owner makes the
 //            deflected enemy projectile able to damage the fighter who fired it
 //   destroy  the enemy projectile is nullified, this one keeps going
-//   clash    beats every non-clash projectile; against another clash one,
-//            knockback decides (see CLASH_KB_MARGIN / interceptStep)
 // With no enemy projectile in range the shot resumes its own motion.
+// Clashing is not an intercept mode: it is world physics (laser/clash.py),
+// the same for every effect.  An older file's "clash" mode loads as "block".
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
-var INTERCEPT_MODES = ["block", "deflect", "destroy", "clash"];
+var INTERCEPT_MODES = ["block", "deflect", "destroy"];
 // Flip (fx.flip): when enabled the effect is laid out toward the side the
 // target is on (fxFacing), whichever way the fighter itself faces, and it
 // plays as the mirror image (left <-> right only, never up <-> down) when
@@ -517,13 +517,13 @@ function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
 // Read by laser/ai.py damage_immune() for every HP source.
 var DAMAGED_DEFAULTS = {cooldown_ms: 0};
 function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
-// Character-level Clash settings (pack.clash), shown on the "clash" action
-// (FX Studio Clash panel) and played by laser/clash.py.  slots: which clash
-// explosion (laser/clashfx.py key, "none" = no FX) plays for each clash rule,
-// at size / density %.  anim: how long the fighter shows its Rig Forge
-// "clash" action — for the length of the clash ("clash") or a fixed hold_ms
-// ("fixed") — and whether it stands still (freeze).  Mirror of
-// laser/fxkit.py CLASH_SLOTS / normalize_clash.
+// The WORLD clash table (not per character): which clash explosion
+// (laser/clashfx.py key, "none" = no FX) plays for each pair of colliding FX
+// types, at size / density %, plus min_ticks (the shortest a clash lasts,
+// however little life its effects have left).  FX Studio's World Clash page
+// edits it and saves world_clash.json (format pb_world_clash), filed as
+// characters/world_clash.json.  Mirror of laser/clash.py WORLD_SLOTS /
+// normalize_world.  A character file's old pack.clash is ignored.
 var CLASH_SLOTS = [
   ["beam_explode", "beam_clash", "Beam × beam (both damage over 10)"],
   ["beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"],
@@ -535,9 +535,16 @@ var CLASH_SLOTS = [
   ["orb_orb", "orb_pops", "Orb × orb"],
   ["trail_trail", "sword_duel", "Trail × trail"],
   ["crescent_crescent", "crescent_struggle", "Crescent × crescent"],
-  ["sprite_sprite", "kunai_clash", "Sprite × sprite"]
+  ["sprite_sprite", "kunai_clash", "Sprite × sprite"],
+  ["orb_trail", "sword_slash_clash", "Orb × trail"],
+  ["orb_crescent", "getsuga_cross", "Orb × crescent"],
+  ["orb_sprite", "collision_nova", "Orb × sprite"],
+  ["trail_crescent", "sword_slash_clash", "Trail × crescent"],
+  ["trail_sprite", "kunai_clash", "Trail × sprite"],
+  ["crescent_sprite", "getsuga_cross", "Crescent × sprite"]
 ];
-var CLASH_HOLDS = ["clash", "fixed"];
+var MIN_TICKS = 6;
+var WORLD_CLASH_FORMAT = "pb_world_clash";
 // Every clash explosion the game knows (laser/clashfx.py BASES), for the
 // per-rule FX choice.
 var CLASH_FX = [
@@ -549,7 +556,7 @@ var CLASH_FX = [
   ["sword_slash_clash", "Sword Slash Clash"], ["sword_duel", "Sword Duel"], ["crescent_struggle", "Crescent Struggle"], ["kunai_clash", "Kunai Clash"]
 ];
 function clampNum(v, d, lo, hi) { v = +v; if (v !== v || v === null) return d; return Math.max(lo, Math.min(hi, v)); }
-function normalizeClash(c) {
+function normalizeWorldClash(c) {
   c = c || {};
   var si = c.slots || {}, slots = {};
   CLASH_SLOTS.forEach(function (row) {
@@ -557,9 +564,8 @@ function normalizeClash(c) {
     slots[row[0]] = {fx: typeof s0.fx === "string" && s0.fx ? s0.fx : row[1],
       size: s0.size == null ? 100 : clampNum(s0.size, 100, 10, 400), density: s0.density == null ? 100 : clampNum(s0.density, 100, 10, 400)};
   });
-  var a = c.anim || {};
-  return {slots: slots, anim: {hold: CLASH_HOLDS.indexOf(a.hold) >= 0 ? a.hold : "clash",
-    hold_ms: a.hold_ms == null ? 600 : clampNum(a.hold_ms, 600, 0, 10000), freeze: a.freeze == null ? true : !!a.freeze}};
+  return {format: WORLD_CLASH_FORMAT, slots: slots,
+    min_ticks: Math.floor(c.min_ticks == null ? MIN_TICKS : clampNum(c.min_ticks, MIN_TICKS, 1, 600))};
 }
 // Character-level "Tactical retreat" (pack.retreat), run by laser/retreat.py.
 // When its conditions are met (ANY / ALL) the fighter dashes at speed_pct % of
@@ -824,6 +830,7 @@ function normalize(fx) {
   fx.params = fill(fx.params || {}, PARAM_DEFAULTS[fx.prim]);
   fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
   fx.intercept = fill(fx.intercept || {}, INTERCEPT_DEFAULTS);
+  if (INTERCEPT_MODES.indexOf(fx.intercept.mode) < 0) fx.intercept.mode = INTERCEPT_DEFAULTS.mode;
   fx.flip = fill(fx.flip || {}, FLIP_DEFAULTS);
   fx.flip.facing = +fx.flip.facing < 0 ? -1 : 1;
   fx.follow_dir = !!fx.follow_dir;
@@ -1217,34 +1224,22 @@ function emitParticles(inst, fx, host, n) {
 // The auto-projectile tracker (fx.intercept, see INTERCEPT_DEFAULTS).
 // host.shots: the enemy's live projectiles [{x, y, vx, vy, dead, body}],
 // read-only except `dead`, which marks one already taken this tick.  In the
-// game a shot also carries clash / knockback (the enemy effect's intercept
-// mode and battle.knockback; bullets: no clash, knockback 0).
+// game a shot also carries knockback (battle.knockback; bullets: 0).
 // host.onIntercept(inst, shot, mode, enemyVel, hurtsOwner): the host applies
 // the result to the enemy projectile at its source (nullify, or send it off
-// at enemyVel for a deflect; "clash_lock" leaves it).  laser/fxkit.py
-// intercept_step mirrors this.
+// at enemyVel for a deflect).  laser/fxkit.py intercept_step mirrors this.
 //
 // Contact is measured between BODIES, not centre points: a beam is its whole
 // drawn line (head to tail, plus half its width), anything else its centre
 // (shot.body [x0, y0, x1, y1, halfWidth]; none = its centre).  Two beams meet
 // as soon as any part of one touches any part of the other.
 //
-// Clash: an effect WITHOUT clash always loses to one with it — the clash
-// projectile nullifies any non-clash projectile it touches, and a non-clash
-// interceptor touching an enemy clash projectile is the one nullified.  Two
-// clash projectiles compare knockback: more than CLASH_KB_MARGIN apart, the
-// higher one nullifies the lower and keeps going; otherwise both freeze
-// where they met until one's life runs out or its owner is hit, and the
-// survivor then resumes the motion it had before the clash.
-//
 // Guard: a ribbon that stays on the fighter (any motion but travel / homing /
 // zigzag) cannot chase, so it guards instead: every enemy projectile whose
 // path this tick passes within `contact` px of the ribbon's HEAD is caught.
 // block / destroy nullify it, deflect bounces it off the ribbon's surface
-// (guardReflect), and the ribbon carries on either way.  It never takes a
-// clash projectile.
+// (guardReflect), and the ribbon carries on either way.
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
-var CLASH_KB_MARGIN = 10;
 var GUARD_MODES = ["block", "deflect", "destroy"];
 var GUARD_MIN_BOUNCE_DEG = 20;   // a guard-deflected shot leaves the surface at least this steeply
 var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag"];
@@ -1255,7 +1250,6 @@ function canIntercept(fx) {
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
 function guardOn(fx) { return interceptOn(fx) && isGuard(fx); }
-function clashOn(fx) { return interceptOn(fx) && !isGuard(fx) && fx.intercept.mode === "clash"; }
 function fxKnockback(fx) { return +((fx.battle || {}).knockback) || 0; }
 // What an instance collides with: [x0, y0, x1, y1, halfWidth].  A beam is its
 // drawn line, head to tail; anything else its centre point.
@@ -1270,22 +1264,19 @@ function instBody(inst) {
   return [inst.x, inst.y, inst.x, inst.y, 0];
 }
 function shotBody(s) { return s.body || [s.x, s.y, s.x, s.y, 0]; }
-// Whether an intercept in `mode` may take shot s: clash takes anything; the
-// others never go after a clash shot (they would lose to it); deflect needs a
+// Whether an intercept in `mode` may take shot s: deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
 // e.g. built-in bullets, are both).
 function shotTakes(s, mode) {
-  if (mode === "clash") return true;
-  if (s.clash) return false;
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
 function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
 // Nearest shot by centre point within r (the tracker radius).
-function nearestShot(inst, host, r, mode, onlyClash) {
+function nearestShot(inst, host, r, mode) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
   for (var i = 0; i < shots.length; i++) {
     var s = shots[i]; if (s.dead || shotGone(s)) continue;
-    if (onlyClash ? !s.clash : (mode && !shotTakes(s, mode))) continue;
+    if (mode && !shotTakes(s, mode)) continue;
     var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -1293,11 +1284,11 @@ function nearestShot(inst, host, r, mode, onlyClash) {
 }
 // Nearest shot whose body touches this instance's body: the gap between the
 // two (centre lines minus half widths) is at most `contact`.
-function contactShot(inst, host, contact, mode, onlyClash) {
+function contactShot(inst, host, contact, mode) {
   var mine = instBody(inst), best = null, bd = 0, shots = host.shots || [];
   for (var i = 0; i < shots.length; i++) {
     var s = shots[i]; if (s.dead || shotGone(s)) continue;
-    if (onlyClash ? !s.clash : (mode && !shotTakes(s, mode))) continue;
+    if (mode && !shotTakes(s, mode)) continue;
     var sb = shotBody(s), d = segSegDist(mine, sb) - mine[4] - sb[4];
     if (d <= contact && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -1321,45 +1312,17 @@ function straightStep(inst) {
   if (mdx * mdx + mdy * mdy > 1e-6) inst.dir = norm(mdx, mdy);
 }
 function endChase(inst) { if (inst.chase) { inst.chase = false; inst.vx = inst.bvx; inst.vy = inst.bvy; } }
-function clashLock(inst) { endChase(inst); inst.cvx = inst.vx; inst.cvy = inst.vy; inst.px = inst.x; inst.py = inst.y; }
-// While locked: hold still until the partner ends, then resume.  True while held.
-function clashHold(inst) {
-  var q = inst.clashWith;
-  if (!(q.dead || q.age >= q.life || q.clashWith !== inst)) { inst.px = inst.x; inst.py = inst.y; return true; }
-  inst.clashWith = null; inst.vx = inst.cvx; inst.vy = inst.cvy;
-  return false;
-}
-// inst (clash mode) touched shot hit: "lost" (inst nullified), "locked", or null (hit nullified).
-function clashContact(inst, hit, host) {
-  if (hit.clash) {
-    var diff = fxKnockback(inst.fx) - (+hit.knockback || 0);
-    if (diff < -CLASH_KB_MARGIN) { inst.age = Math.max(inst.age, inst.life); return "lost"; }
-    if (diff <= CLASH_KB_MARGIN) {
-      var q = hit.ref; clashLock(inst); clashLock(q); inst.clashWith = q; q.clashWith = inst;
-      if (host.onIntercept) host.onIntercept(inst, hit, "clash_lock", null, false);
-      return "locked";
-    }
-  }
-  if (host.onIntercept) host.onIntercept(inst, hit, "clash", null, false);
-  return null;
-}
 // Runs before the instance moves; true when it moved the instance itself.
 function interceptStep(inst, host) {
-  if (inst.clashWith && clashHold(inst)) return true;
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
   if (!interceptOn(fx) || isGuard(fx)) return false;
   var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips;
-  if (I.mode !== "clash" && contactShot(inst, host, contact, null, true)) {   // loses to a clash projectile
-    inst.age = Math.max(inst.age, inst.life); return true;
-  }
   var hit = contactShot(inst, host, contact, I.mode);
   if (hit) {
     hit.dead = true;
     endChase(inst);
-    if (I.mode === "clash") {
-      if (clashContact(inst, hit, host) !== null) return true;
-    } else if (I.mode === "deflect") {
+    if (I.mode === "deflect") {
       var both = I.deflect_who === "both", v = deflectVels(inst, hit, both);
       if (host.onIntercept) host.onIntercept(inst, hit, "deflect", v.enemy, !!I.hurts_owner);
       if (both) { inst.vx = v.mine[0]; inst.vy = v.mine[1]; inst.free = true; straightStep(inst); return true; }
@@ -2111,11 +2074,11 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, clashOn: clashOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody, CLASH_KB_MARGIN: CLASH_KB_MARGIN,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
-  CLASH_SLOTS: CLASH_SLOTS, CLASH_HOLDS: CLASH_HOLDS, CLASH_FX: CLASH_FX, normalizeClash: normalizeClash,
+  CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,

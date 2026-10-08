@@ -21,7 +21,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FXKIT_JS = os.path.join(ROOT, "tools", "fx", "studio", "fxkit.js")
 STUDIO_JS = os.path.join(ROOT, "tools", "fx", "studio", "studio.js")
-PY = {name: os.path.join(ROOT, "laser", name + ".py") for name in ("fxkit", "actions", "retreat", "config")}
+PY = {name: os.path.join(ROOT, "laser", name + ".py") for name in ("fxkit", "actions", "retreat", "config", "clash")}
 
 
 # ---------------------------------------------------------------- JavaScript
@@ -201,16 +201,20 @@ def main():
              "INTERCEPT_DEFAULTS", "FLIP_DEFAULTS", "ACTION_DEFAULTS", "AIM_DEFAULTS", "DAMAGED_DEFAULTS",
              "ENTRY_DEFAULTS", "PATH_DEFAULTS", "BLINK_DEFAULTS", "BLINK_ANCHORS", "BLINK_DIRECTIONS",
              "TIME_DEFAULTS", "TIME_SCOPES", "TIME_SPEED_MAX",
-             "EASES", "KEY_GROUPS", "KEY_CHOICES", "CYCLE_DEFAULTS", "CYCLE_MAX_RUNS", "LAUNCH_LIFE", "DEFLECT_FAN_DEG", "CLASH_KB_MARGIN", "PULSE_MIN_STRETCH", "TICK_MS",
+             "EASES", "KEY_GROUPS", "KEY_CHOICES", "CYCLE_DEFAULTS", "CYCLE_MAX_RUNS", "LAUNCH_LIFE", "DEFLECT_FAN_DEG", "PULSE_MIN_STRETCH", "TICK_MS",
+             "INTERCEPT_MODES",
              "TECH_STYLES", "TECH_STYLE_DEFAULTS",
              ("SCALE_PARAMS", "_SCALE_PARAMS"), ("SCALE_MOTION", "_SCALE_MOTION"), ("SCALE_INTERCEPT", "_SCALE_INTERCEPT")]
     for p in pairs:
         j, y = p if isinstance(p, tuple) else (p, p)
         diff(js.get(j), fx.get(y), "fxkit " + j, out)
 
-    # Clash settings (pack.clash) and the clash explosions the Clash panel offers.
-    diff(js.get("CLASH_SLOTS"), [list(r) for r in fx.get("CLASH_SLOTS")], "fxkit CLASH_SLOTS", out)
-    diff(js.get("CLASH_HOLDS"), list(fx.get("CLASH_HOLDS")), "fxkit CLASH_HOLDS", out)
+    # The world clash table (laser/clash.py) and the clash explosions the
+    # World Clash page offers.
+    cl = PyTables(PY["clash"], {"config": cfg})
+    diff(js.get("CLASH_SLOTS"), [list(r) for r in cl.get("WORLD_SLOTS")], "clash WORLD_SLOTS", out)
+    diff(js.get("MIN_TICKS"), cl.get("MIN_TICKS"), "clash MIN_TICKS", out)
+    diff(js.get("WORLD_CLASH_FORMAT"), cl.get("WORLD_FORMAT"), "clash WORLD_FORMAT", out)
     same_keys({r[0] for r in js.get("CLASH_FX")}, _clashfx_keys(), "CLASH_FX", out,
               "FX Studio's clash FX list", "laser/clashfx.py BASES")
 

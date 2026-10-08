@@ -91,7 +91,8 @@ laser/
   ai.py              battle targeting / wander / daze / retreat (stage 3)
   systems.py         System base + the pipeline
   app.py             World (state + factory) + Overlay (window, loop, paint)
-  clash.py           clash interaction: opposing FX that touch play their pair rule
+  clash.py           clash interaction (world physics): opposing FX that touch play their pair
+                     rule; world clash table (characters/world_clash.json)
   clashfx.py         clash explosion library (19 effects, derive() variations)
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
 ```

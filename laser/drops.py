@@ -6,6 +6,10 @@ You export a character in two parts:
   * FX Studio -> ``<name>.fxkit.json`` (the character's FX, anchors, entry
     points, paths and action settings).
 
+FX Studio's World Clash page saves ``world_clash.json`` (format
+pb_world_clash): the clash table every character shares.  Dropped the same
+way, it is filed as ``characters/world_clash.json``.
+
 Upload either or both to the repo's main branch: to the top level, or into
 a ``drop/`` folder.  ``update_game.bat`` downloads them, and this module
 then files them where the game reads them:
@@ -59,6 +63,10 @@ def _is_pkg(obj):
 
 def _is_fxkit(obj):
     return isinstance(obj, dict) and obj.get("format") == "pb_fxkit" and obj.get("character")
+
+
+def _is_world_clash(obj):
+    return isinstance(obj, dict) and obj.get("format") == "pb_world_clash"
 
 
 def _install_package(root, man, read_file, log):
@@ -179,6 +187,7 @@ def organize_drops(root):
     except OSError:
         return log
     pkgs, fxs = {}, {}   # name -> [(stamp, label, payload)]
+    worlds = []          # [(stamp, label, raw)] World Clash files
     for d in dirs:
         pkg = _package_in_dir(d)   # an unzipped folder, or loose files at the top level
         if pkg:
@@ -206,6 +215,8 @@ def organize_drops(root):
                     continue
                 if _is_fxkit(obj):
                     fxs.setdefault(_slug(obj["character"]), []).append((os.path.getmtime(p), os.path.relpath(p, root), raw))
+                elif _is_world_clash(obj):
+                    worlds.append((os.path.getmtime(p), os.path.relpath(p, root), raw))
     for name in sorted(pkgs):
         c = sorted(pkgs[name], key=lambda x: (x[0], x[1]))
         if len(c) > 1:
@@ -232,4 +243,16 @@ def organize_drops(root):
         _write(dest_fx, c[-1][2], written)
         if written:
             log.append(f"characters/{name}/: FX file updated ({c[-1][1]})")
+    if worlds:
+        c = sorted(worlds, key=lambda x: (x[0], x[1]))
+        if len(c) > 1:
+            log.append(f"NOTE: {len(c)} World Clash files dropped ({', '.join(x[1] for x in c)}); "
+                       f"using {c[-1][1]}. Delete the others from the repo.")
+        dest_w = os.path.join(root, "characters", "world_clash.json")
+        newer = os.path.exists(dest_w) and os.path.getmtime(dest_w) > os.path.getmtime(os.path.join(root, c[-1][1])) + 1
+        written = []
+        if not newer:
+            _write(dest_w, c[-1][2], written)
+        if written:
+            log.append(f"characters/world_clash.json: World Clash table updated ({c[-1][1]})")
     return log

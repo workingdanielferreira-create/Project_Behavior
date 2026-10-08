@@ -232,10 +232,11 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #            their combined momentum; hurts_owner turns the deflected enemy
 #            projectile against the fighter who fired it
 #   destroy  the enemy projectile is nullified, this one keeps going
-#   clash    beats every non-clash projectile; against another clash one,
-#            knockback decides (see CLASH_KB_MARGIN / intercept_step)
+# Clashing is not an intercept mode: it is world physics (laser/clash.py),
+# the same for every effect.  An older file's "clash" mode loads as "block".
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
                           hurts_owner=False)
+INTERCEPT_MODES = ("block", "deflect", "destroy")
 # Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled the effect is laid out
 # toward the side the target is on (fx_facing), whichever way the fighter
 # itself faces, and it plays as the mirror image (left <-> right only, never
@@ -381,53 +382,9 @@ AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to
 # ticks HP the fighter is invincible for cooldown_ms (read by ai.py
 # damage_cooldown_ticks straight from the pack).
 DAMAGED_DEFAULTS = dict(cooldown_ms=0)
-# Character-level Clash settings (pack.clash, FX Studio: the "clash" action's
-# Clash panel; laser/clash.py plays them).  slots: which clash FX plays for
-# each clash rule (laser/clashfx.py key, "none" = no FX) at size / density %.
-# anim: how long the fighter shows its Rig Forge "clash" action — for the
-# length of the clash ("clash") or a fixed hold_ms ("fixed") — and whether
-# it stands still meanwhile (freeze).  FXK.CLASH_SLOTS mirrors CLASH_SLOTS.
-CLASH_SLOTS = (
-    ("beam_explode", "beam_clash", "Beam × beam (both damage over 10)"),
-    ("beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"),
-    ("beam_struggle_end", "overpower_blowout", "Beam struggle won"),
-    ("beam_orb", "beam_orb", "Beam × orb / petal"),
-    ("beam_split", "beam_split", "Beam split by a trail / crescent / sprite"),
-    ("split_tip", "split_burst", "End of each split half"),
-    ("beam_nosplit", "split_burst", "Beam not split (cutter hit)"),
-    ("orb_orb", "orb_pops", "Orb × orb"),
-    ("trail_trail", "sword_duel", "Trail × trail"),
-    ("crescent_crescent", "crescent_struggle", "Crescent × crescent"),
-    ("sprite_sprite", "kunai_clash", "Sprite × sprite"),
-)
-CLASH_HOLDS = ("clash", "fixed")
-
-
-def normalize_clash(c):
-    c = dict(c or {})
-    slots_in = c.get("slots") or {}
-    slots = {}
-    for key, fx_default, _label in CLASH_SLOTS:
-        s0 = dict(slots_in.get(key) or {})
-        fxk = s0.get("fx")
-        slots[key] = {"fx": fxk if isinstance(fxk, str) and fxk else fx_default,
-                      "size": _clamp_num(s0.get("size"), 100.0, 10.0, 400.0),
-                      "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0)}
-    a = dict(c.get("anim") or {})
-    hold = a.get("hold") if a.get("hold") in CLASH_HOLDS else "clash"
-    return {"slots": slots,
-            "anim": {"hold": hold, "hold_ms": _clamp_num(a.get("hold_ms"), 600.0, 0.0, 10000.0),
-                     "freeze": True if a.get("freeze") is None else bool(a.get("freeze"))}}
-
-
-def _clamp_num(v, d, lo, hi):
-    try:
-        v = float(v)
-    except (TypeError, ValueError):
-        return d
-    if v != v:
-        return d
-    return max(lo, min(hi, v))
+# Clash settings are not per character: which clash FX plays for each pair
+# of colliding FX types is a world table (laser/clash.py WORLD_SLOTS, edited
+# on FX Studio's World Clash page).  An older file's pack.clash is ignored.
 # start_frame / stop_frame: the action frames the set produces particles in
 # (stop -1 = to the end); what it already spawned lives on as usual.
 # order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
@@ -462,6 +419,8 @@ def normalize(fx):
     fx["params"] = _fill(dict(fx.get("params") or {}), PARAM_DEFAULTS[fx["prim"]])
     fx["battle"] = _fill(dict(fx.get("battle") or {}), BATTLE_DEFAULTS)
     fx["intercept"] = _fill(dict(fx.get("intercept") or {}), INTERCEPT_DEFAULTS)
+    if fx["intercept"]["mode"] not in INTERCEPT_MODES:
+        fx["intercept"]["mode"] = INTERCEPT_DEFAULTS["mode"]
     fx["flip"] = _fill(dict(fx.get("flip") or {}), FLIP_DEFAULTS)
     fx["flip"]["facing"] = -1 if float(fx["flip"]["facing"] or 1) < 0 else 1
     fx["follow_dir"] = bool(fx.get("follow_dir"))
@@ -955,7 +914,7 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "clash_with", "cvx", "cvy", "lodge", "mk", "ma", "run", "tgt", "cap",
+                 "lodge", "mk", "ma", "run", "tgt", "cap",
                  "tq_f", "tq_m", "tq_o", "tq_hits")
 
     def __init__(self):
@@ -966,8 +925,6 @@ class Inst:
         self.chase = False     # intercept: steering at an enemy projectile
         self.bvx = self.bvy = 0.0   # its own velocity from before the chase
         self.free = False      # deflected: flies straight on
-        self.clash_with = None  # clash: the enemy instance it is locked with
-        self.cvx = self.cvy = 0.0   # its velocity from before the clash
         self.path = None
         self.cont = False
         self.win = 1
@@ -1214,25 +1171,14 @@ def move_inst(inst, host):
 # the other, instead of sliding through each other until their heads happen
 # to pass within `contact` px.
 #
-# Clash mode (FXK.CLASH_*): an effect WITHOUT clash always loses to one with
-# it — the clash projectile nullifies any non-clash projectile / bullet it
-# touches, and a non-clash interceptor touching an enemy clash projectile is
-# the one nullified.  Two clash projectiles compare battle.knockback (bullets
-# count 0): more than CLASH_KB_MARGIN apart, the higher one nullifies the
-# lower and keeps going; otherwise both freeze where they met, locked to each
-# other, until one's life runs out or its owner is hit (the hit owner's
-# projectile ends, FxDriver.update) — the survivor then resumes the motion it
-# had before the clash.
-#
 # Guard (FXK.guardStep): a ribbon that stays on the fighter (any motion but
 # travel / homing / zigzag) cannot chase, so it guards instead: every enemy
 # projectile whose path this tick passes within `contact` px of the ribbon's
 # HEAD is caught.  block / destroy nullify it, deflect bounces it off the
 # ribbon's surface (mirrored across the head segment, speed kept), and the
-# ribbon itself carries on either way.  It never takes a clash projectile.
+# ribbon itself carries on either way.
 DEFLECT_FAN_DEG = 15   # with deflect "both", the two fly apart this far either side
 INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
-CLASH_KB_MARGIN = 10.0
 GUARD_MODES = ("block", "deflect", "destroy")
 
 
@@ -1253,11 +1199,6 @@ def intercept_on(fx):
 
 def guard_on(fx):
     return intercept_on(fx) and is_guard(fx)
-
-
-def clash_on(fx):
-    """True when this effect intercepts in clash mode (never a guard)."""
-    return intercept_on(fx) and not is_guard(fx) and fx["intercept"].get("mode") == "clash"
 
 
 def fx_knockback(fx):
@@ -1284,47 +1225,38 @@ class Shot:
     """One enemy projectile in a side's snapshot: a built-in bullet
     (kind "bullet", ref = the live combat.Projectile) or an FX Studio
     instance (kind "fx", ref = the live Inst).  blockable / deflectable come
-    from the effect's battle settings (built-in bullets are both); clash /
-    knockback from its intercept mode and battle.knockback (bullets: no
-    clash, knockback 0); body from inst_body (bullets: their centre)."""
-    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "clash", "knockback", "body")
+    from the effect's battle settings (built-in bullets are both);
+    knockback from battle.knockback (bullets: 0); body from inst_body
+    (bullets: their centre)."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "knockback", "body")
 
-    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, clash=False, knockback=0.0, body=None):
+    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, knockback=0.0, body=None):
         self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
         self.dead = False
         self.kind, self.ref = kind, ref
         self.blockable, self.deflectable = bool(blockable), bool(deflectable)
-        self.clash, self.knockback = bool(clash), float(knockback or 0)
+        self.knockback = float(knockback or 0)
         self.body = tuple(body) if body is not None else (self.x, self.y, self.x, self.y, 0.0)
 
 
 def _shot_takes(s, mode):
-    """Whether an intercept in `mode` may take shot s (FXK.shotTakes).  A
-    clash interceptor takes anything; the others never go after an enemy
-    clash projectile (they would lose to it)."""
-    if mode == "clash":
-        return True
-    if s.clash:
-        return False
+    """Whether an intercept in `mode` may take shot s (FXK.shotTakes)."""
     return s.deflectable if mode == "deflect" else s.blockable
 
 
 def _shot_gone(s):
-    """An FX shot whose instance already ended this tick (e.g. nullified by
-    the other side's clash) can no longer touch anything."""
+    """An FX shot whose instance already ended this tick (e.g. cancelled by
+    a clash, laser/clash.py) can no longer touch anything."""
     return s.kind == "fx" and (s.ref.dead or s.ref.age >= s.ref.life)
 
 
-def _nearest_shot(inst, host, r, mode=None, only_clash=False):
+def _nearest_shot(inst, host, r, mode=None):
     """Nearest shot by centre point within r (the tracker radius)."""
     best, bd, r2 = None, 0.0, r * r
     for s in getattr(host, "shots", None) or ():
         if s.dead or _shot_gone(s):
             continue
-        if only_clash:
-            if not s.clash:
-                continue
-        elif mode and not _shot_takes(s, mode):
+        if mode and not _shot_takes(s, mode):
             continue
         dx, dy = s.x - inst.x, s.y - inst.y
         d = dx * dx + dy * dy
@@ -1333,7 +1265,7 @@ def _nearest_shot(inst, host, r, mode=None, only_clash=False):
     return best
 
 
-def _contact_shot(inst, host, contact, mode=None, only_clash=False):
+def _contact_shot(inst, host, contact, mode=None):
     """Nearest shot whose body touches this instance's body: the gap between
     the two (centre lines minus half widths) is at most `contact`."""
     mine = inst_body(inst)
@@ -1341,10 +1273,7 @@ def _contact_shot(inst, host, contact, mode=None, only_clash=False):
     for s in getattr(host, "shots", None) or ():
         if s.dead or _shot_gone(s):
             continue
-        if only_clash:
-            if not s.clash:
-                continue
-        elif mode and not _shot_takes(s, mode):
+        if mode and not _shot_takes(s, mode):
             continue
         d = seg_seg_dist(mine, s.body) - mine[4] - s.body[4]
         if d <= contact and (best is None or d < bd):
@@ -1382,50 +1311,8 @@ def _end_chase(inst):
         inst.vx, inst.vy = inst.bvx, inst.bvy
 
 
-def _clash_lock(inst):
-    """Freeze inst in a clash, remembering the motion it resumes after."""
-    _end_chase(inst)
-    inst.cvx, inst.cvy = inst.vx, inst.vy
-    inst.px, inst.py = inst.x, inst.y
-
-
-def _clash_hold(inst):
-    """While locked: hold still until the partner ends (life out / its owner
-    hit / nullified), then resume.  True while it is still held."""
-    q = inst.clash_with
-    if not (q.dead or q.age >= q.life or q.clash_with is not inst):
-        inst.px, inst.py = inst.x, inst.y
-        return True
-    inst.clash_with = None
-    inst.vx, inst.vy = inst.cvx, inst.cvy
-    return False
-
-
-def _clash_contact(inst, hit, cb):
-    """inst (clash mode) touched shot `hit`.  Returns "lost" when inst is the
-    one nullified, "locked" when the two clash, else None (hit nullified)."""
-    if hit.clash:
-        diff = fx_knockback(inst.fx) - hit.knockback
-        if diff < -CLASH_KB_MARGIN:
-            inst.age = max(inst.age, inst.life)
-            return "lost"
-        if diff <= CLASH_KB_MARGIN:
-            q = hit.ref
-            _clash_lock(inst)
-            _clash_lock(q)
-            inst.clash_with, q.clash_with = q, inst
-            if cb:
-                cb(inst, hit, "clash_lock", None, False)
-            return "locked"
-    if cb:
-        cb(inst, hit, "clash", None, False)
-    return None
-
-
 def intercept_step(inst, host):
     """Runs before the instance moves; True when it moved the instance."""
-    if inst.clash_with is not None and _clash_hold(inst):
-        return True
     if inst.free:
         _straight_step(inst)
         return True
@@ -1436,19 +1323,11 @@ def intercept_step(inst, host):
     mode = ic.get("mode")
     contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
     cb = getattr(host, "on_intercept", None)
-    if mode != "clash" and _contact_shot(inst, host, contact, only_clash=True) is not None:
-        # A non-clash interceptor always loses to a clash projectile.
-        inst.age = max(inst.age, inst.life)
-        return True
     hit = _contact_shot(inst, host, contact, mode)
     if hit is not None:
         hit.dead = True
         _end_chase(inst)
-        if mode == "clash":
-            res = _clash_contact(inst, hit, cb)
-            if res is not None:
-                return True
-        elif mode == "deflect":
+        if mode == "deflect":
             both = ic.get("deflect_who") == "both"
             ev, mv = deflect_vels(inst, hit, both)
             if cb:
@@ -2727,7 +2606,6 @@ class CharacterFx:
         self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
                            for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
         self.retreat_own = self.by_action.get(RETREAT_KEY) or []
-        self.clash = normalize_clash(fxk.get("clash"))
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None
@@ -2928,15 +2806,12 @@ class _Host:
 
     def on_intercept(self, inst, shot, mode, vel, hurts_owner):
         """Apply an interception to the enemy projectile AT ITS SOURCE (the
-        same rule as petals / parries): block, destroy and clash nullify it;
+        same rule as petals / parries): block and destroy nullify it;
         deflect replaces it with a copy flying at `vel` on this side —
-        harmless, or (hurts_owner) able to damage the fighter who fired it;
-        clash_lock leaves it (both instances are already held in place)."""
+        harmless, or (hurts_owner) able to damage the fighter who fired it."""
         from . import combat as _combat
         ref = shot.ref
-        if mode == "clash_lock":   # both held in place; nothing is nullified
-            pass
-        elif shot.kind == "bullet":
+        if shot.kind == "bullet":
             _combat.kill_projectile(ref)
             if mode == "deflect":
                 pr = _combat.Projectile(ref.x, ref.y, vel[0], vel[1], (ref.r, ref.g, ref.b), config.PROJ_TRAIL_LEN)
@@ -2980,7 +2855,6 @@ def _deflected_copy(src, vel, hurts_owner):
     q.parts = [dict(p) for p in src.parts]
     q.vx, q.vy = float(vel[0]), float(vel[1])
     q.free, q.chase, q.dead, q.cont, q.open = True, False, False, False, False
-    q.clash_with = None
     q.lodge = None
     q.mk, q.ma = "travel", fx["motion"]["aim"]
     q.path = None
@@ -3005,7 +2879,6 @@ class FxDriver:
         self.hurts = []
         self.hits_out = []
         self.host = None
-        self.last_hp = None    # owner HP last tick (clash ends when it drops)
         # Tactical retreat FX, each lane on its own player and clock for as
         # long as the dash lasts: the borrowed retreat "fx" (on its action's
         # timing) and the FX built on the reaction ("@retreat", on the run
@@ -3028,7 +2901,6 @@ class FxDriver:
         # laser/timefx.py) holds the action time like "freeze", and its FX
         # still hit.  frozen: Time control stopped this fighter's FX
         # (Player.tick).
-        self._clash_owner_hit(fig)
         action, frame = current_action(fig)
         n, fm = self._time_for(action)
         f0 = jround(frame * fm / TICK_MS)
@@ -3079,19 +2951,6 @@ class FxDriver:
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
-
-    def _clash_owner_hit(self, fig):
-        """Owner hit (HP dropped since last tick): every one of its
-        projectiles locked in a clash ends; the enemy one resumes."""
-        hp = getattr(getattr(fig, "personality", None), "hp", None)
-        hit = hp is not None and self.last_hp is not None and hp < self.last_hp
-        self.last_hp = hp
-        if not hit:
-            return
-        for pl in [self.player] + [ln[0] for ln in self.rlanes]:
-            for inst in pl.insts:
-                if inst.clash_with is not None:
-                    inst.age = max(inst.age, inst.life)
 
     def _retreat_tick(self, fig, host, hold, frozen=False):
         """Tactical retreat FX: the borrowed effect / group and the FX built
