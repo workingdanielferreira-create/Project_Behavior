@@ -78,17 +78,62 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
 
 
 def _bounce(fig, sf=1.0):
+    """One knockback tick.  Every launch is calibrated as v0 = dist * (1 -
+    BOUNCE_FRICTION), so the travel sums to exactly `dist`.  The position
+    speed scale slows the step to v * sf; the decay is slowed to match
+    (friction 1 - (1 - BOUNCE_FRICTION) * sf), so the slide plays out slower
+    but still covers the full set distance:
+    sum(v0 * sf * g^k) = v0 * sf / ((1 - BOUNCE_FRICTION) * sf) = dist.
+    At sf = 1 this is exactly the old per-tick BOUNCE_FRICTION decay."""
     m = fig.motion
     t = fig.transform
     t.x += m.bounce_vx * sf
     t.y += m.bounce_vy * sf
-    m.bounce_vx *= config.BOUNCE_FRICTION
-    m.bounce_vy *= config.BOUNCE_FRICTION
+    decay = 1.0 - (1.0 - config.BOUNCE_FRICTION) * sf
+    m.bounce_vx *= decay
+    m.bounce_vy *= decay
     if m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy < config.BOUNCE_THRESH_SQ:
         m.bouncing = False
         m.bounce_vx = m.bounce_vy = 0.0
         m.bounce_ending = True
         m.bounce_end_ticks = config.BOUNCE_END_HOLD
+
+
+def launch_knockback(fig, vx, vy, tick):
+    """Start a knockback slide at (vx, vy), calibrated by the caller as
+    dist * (1 - BOUNCE_FRICTION) so it travels the full set distance.  A new
+    hit restarts the slide in its own direction even mid-slide or in the
+    slide-stop hold.  The same hit can reach a fighter through two channels
+    one tick apart (dash body contact, then the hit_pending delivery), so a
+    slide launched on this or the previous tick is left alone.  Returns True
+    when the slide was (re)started."""
+    m = fig.motion
+    if m.bouncing and tick - m.knock_tick <= 1:
+        return False
+    m.bounce_vx, m.bounce_vy = vx, vy
+    m.bouncing = True
+    m.bounce_ending = False
+    m.knock_tick = tick
+    return True
+
+
+def carry_knockback(fig):
+    """Advance a knockback slide for a fighter whose movement is owned
+    elsewhere this tick (a melee attack in progress, or a stationary
+    character): the slide is laid on top of that movement so the fighter
+    still travels the full set distance.  An arc in progress is placed
+    absolutely around its centre, so the centre slides with it."""
+    m = fig.motion
+    t = fig.transform
+    if m.bouncing:
+        ox, oy = t.x, t.y
+        _bounce(fig, _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h))
+        c = fig.combat
+        if c.arc_repositioning:
+            c.arc_center_x += t.x - ox
+            c.arc_center_y += t.y - oy
+    elif m.bounce_ending:
+        _bounce_end(fig)
 
 
 def _bounce_end(fig):

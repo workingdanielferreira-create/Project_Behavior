@@ -478,16 +478,14 @@ def _hold(b, pin):
 
 
 def _recoil(world, fig, cx, cy, kb):
-    from . import ai
+    from . import ai, motion
     if fig is None or kb <= 0:
         return
-    m = fig.motion
-    if m.bouncing or m.bounce_ending or ai.knockback_immune(fig, world):
+    if ai.knockback_immune(fig, world):
         return
     dx, dy = _norm(fig.x - cx, fig.y - cy)
     spd = kb * (1.0 - config.BOUNCE_FRICTION)
-    m.bounce_vx, m.bounce_vy = dx * spd, dy * spd
-    m.bouncing = True
+    motion.launch_knockback(fig, dx * spd, dy * spd, world.global_tick)
 
 
 def _settle(world, a, b, c, exempt=None):
