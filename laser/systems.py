@@ -1093,6 +1093,14 @@ class CollisionSystem(System):
         # stun-locked figure never reaches KNOCKBACK_LIMIT and stays bouncing
         # forever.
         #
+        # FX Studio projectiles (sword rain, thrown blades, ...) meet the same
+        # parry as bullets, by their FX settings: Deflectable = parried and
+        # ricocheted away harmless; Blockable only = parried, destroyed and a
+        # clash FX at the contact.  Pierce: the parry still blocks the hit
+        # (World.refresh_battle) but the effect flies on.  Battle only in
+        # practice (Solo has no opposing FX); same code path in both.
+        _parry_fx_shots(world)
+
         # Parry window: if a swordsman is within PARRY_RADIUS and its parry
         # cooldown has expired, the bullet is deflected instead of hitting.
         if world.enemy_projs:
@@ -1384,9 +1392,83 @@ def build_pipeline():
     ]
 
 
+def _parry_fx_shots(world):
+    shots = getattr(world, "enemy_shots", None)
+    if not shots:
+        return
+    reach = config.PARRY_RADIUS
+    for shot in shots:
+        if shot.kind != "fx" or shot.dead:
+            continue
+        inst = shot.ref
+        if inst.dead or inst.age >= inst.life or inst.lodge is not None:
+            continue
+        if not (shot.blockable or shot.deflectable):
+            continue
+        body = _fx_parry_body(inst)
+        for fig in world.figures:
+            if not (fig.mode.uses_melee() or combat.has_defend_deflect(fig)):
+                continue
+            if blink.gone(fig):
+                continue
+            d = fxkit.seg_seg_dist(body, (fig.x, fig.y, fig.x, fig.y, 0.0)) - body[4]
+            if d > reach:
+                continue
+            if not fig.combat.parrying and (timefx.frozen(fig) or not combat.trigger_parry(fig)):
+                break   # this defender can't parry right now
+            shot.dead = True
+            # Contact: the point of the effect's body nearest the defender.
+            cx, cy = _seg_nearest(body, fig.x, fig.y)
+            world.collision_dots.append([cx, cy, 0])
+            combat.spawn_deflect_crescent(fig, cx, cy)
+            if inst.fx["battle"].get("pierce"):
+                break   # blocked, but a piercing effect flies on
+            if shot.deflectable:
+                _ricochet_fx(world, fig, inst, cx, cy)
+            else:
+                rgb = fxkit.hex_rgb((inst.fx.get("color") or {}).get("c1"), (255, 255, 255))
+                clash._spawn_fx(world, "trail_sprite", (cx, cy),
+                                math.degrees(math.atan2(cy - fig.y, cx - fig.x)),
+                                tuple(fig.lut[80][:3]), tuple(rgb))
+            inst.age = max(inst.age, inst.life)   # ends at its source
+            inst.dead = True
+            break
 
 
+def _fx_parry_body(inst):
+    """(x0, y0, x1, y1, half_width) of an FX projectile: a blade sprite is its
+    whole drawn blade, tip to pommel (the same segment its hits use);
+    anything else its collision body (fxkit.inst_body)."""
+    fx = inst.fx
+    if fx["prim"] == "sprite" and fx["params"].get("shape") == "blade":
+        P, ps = fx["params"], inst.ps
+        L = fxkit.blade_length(P, ps)
+        bx, by, a = fxkit.blade_pose(inst, ps)
+        return (bx, by, bx - math.cos(a) * L, by - math.sin(a) * L,
+                max(0.5, float(P["radius"])) * ps)
+    return fxkit.inst_body(inst)
 
 
+def _seg_nearest(body, px, py):
+    x0, y0, x1, y1 = body[0], body[1], body[2], body[3]
+    dx, dy = x1 - x0, y1 - y0
+    L = dx * dx + dy * dy
+    t = 0.0 if L < 1e-9 else max(0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / L))
+    return x0 + dx * t, y0 + dy * t
 
 
+def _ricochet_fx(world, fig, inst, cx, cy):
+    """A deflected FX flies off away from the defender (inside
+    DEFLECT_CONE_DEG, at its own speed) as a harmless copy, like a
+    deflected bullet.  It lives in the player that drew the original."""
+    for side in world.sides:
+        for f in side.figures:
+            drv = getattr(f, "fx", None)
+            if drv is not None and inst in drv.player.insts:
+                spd = max(2.0, math.hypot(inst.x - inst.px, inst.y - inst.py))
+                base = math.atan2(cy - fig.y, cx - fig.x)
+                half = math.radians(config.DEFLECT_CONE_DEG) * 0.5
+                a = base + random.uniform(-half, half)
+                drv.player.insts.append(fxkit._deflected_copy(
+                    inst, (math.cos(a) * spd, math.sin(a) * spd), False))
+                return
