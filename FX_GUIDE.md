@@ -426,7 +426,7 @@ more geometry in `draw()` and, for gameplay-relevant effects, hit tests in
 | `app.py` | World FX lists, draw order, paint-time aging (hitstop-immune FX) |
 | `ipc.py` | The only cross-process channel; fixed struct layout, 160 bullet slots |
 | `clashfx.py` | Clash explosion library: 11 baselines + 8 pair clashes + `derive()` variations, `world.clash_fx` |
-| `clash.py` | Clash interaction: categorises both sides' FX, detects contact, plays the pair rule |
+| `clash.py` | Clash interaction (world physics): categorises both sides' FX, detects contact, plays the pair rule from the world clash table |
 | `swordfx.py` | Sword techniques: the hand-drawn renderer behind the FX Kit `technique` primitive |
 
 ---
@@ -481,7 +481,9 @@ that charges, shoots out of the sword tip, holds and retracts).
 
 ## 13. The Clash Interaction (`laser/clash.py`)
 
-Clashes are automatic, at the level of each effect. Every tick, before
+Clashing is world physics: no character chooses it, and every effect of
+every fighter is bound by the same rules (there is no "clash" intercept mode
+any more; an old file's one loads as `block`). Every tick, before
 `World.refresh_battle`, `clash.step(world)` turns both sides' live effects into
 bodies (a point, a line or a polyline with a half width) in five categories:
 
@@ -494,7 +496,7 @@ bodies (a point, a line or a polyline with a half width) in five categories:
 | sprite | bolt / blade `sprite` | the runner's bolts and other shots |
 
 Ghost, glow, pulse, particles and weapon never clash. Two opposing bodies
-that touch play the rule for their categories (`RULES`):
+that touch play the rule for their categories (`RULES`; every pair has one):
 
 | Pair | What happens |
 |---|---|
@@ -505,6 +507,12 @@ that touch play the rule for their categories (`RULES`):
 | trail × trail | `sword_duel`: the two fighters are moved by the clash. They dash in, their blades meet, they spring apart, and it ends on one big clash back where they started; the knockback rule then settles it. The FX is anchored to their real positions. A pair that just duelled (`DUEL_REARM_TICKS`) gets `sword_slash_clash` instead |
 | crescent × crescent | `crescent_struggle` for `CRESCENT_TICKS`, then the blades shatter |
 | sprite × sprite | `kunai_clash` |
+| orb × trail, trail × crescent | `sword_slash_clash` |
+| orb × crescent, crescent × sprite | `getsuga_cross` |
+| orb × sprite | `collision_nova` |
+| trail × sprite | `kunai_clash` |
+
+The six pairs at the bottom are one-shot bursts settled by the knockback rule.
 
 **Knockback rule:** the higher `battle.knockback` (built-ins: `knockback_px`)
 survives at full power and the other is cancelled at its source. A tie
@@ -513,17 +521,30 @@ knockback difference instead (a tie pushes both back a little). Sustained
 clashes pin both effects where they met until they are decided. The same pair
 can clash again once the two have been apart for `REARM_TICKS`.
 
-**The fighter's clash action:** an image character with a Rig Forge `clash`
-action shows it (looping) while one of its effects clashes
-(`actions.force_clash`). The length comes from the FX Studio Clash panel
-(`pack.clash.anim`: the clash's length or a fixed `hold_ms`, `freeze` = stand
-still). FX built on the `clash` action in FX Studio play with it.
+**Clash length (`clash._budget`):** a clash lasts no longer than the shorter
+*remaining* life of the two effects at contact (e.g. 50 ms and 40 ms left →
+40 ms), and never less than `min_ticks` (default 6 ticks ≈ 100 ms). An
+effect with no lifespan (a fighter's own sword trail, a hovering petal, an FX
+with endless life) leaves it to the other one; with neither, the clash FX
+plays at its normal length. A clash FX longer than its budget plays faster so
+its whole loop fits (`ClashFX.fit`); a held clash (struggle, orb on the beam
+head) holds for the fitted share of its hold; a sword duel that cannot fit
+plays the one-shot `sword_slash_clash` instead.
 
-**Clash panel (`pack.clash.slots`):** for each rule slot (`fxkit.CLASH_SLOTS`),
-choose which clash FX plays (or none) and set its size and density. The
-winning side's settings are used (the first side's on a tie). Built-in
-characters use the defaults. `tools/fx/check_parity.py` keeps the Studio's
-`CLASH_SLOTS` / `CLASH_FX` in step with the game.
+**The fighter's clash action:** an image character with a Rig Forge `clash`
+action shows its own action (looping), standing still, for exactly the
+clash's length (`actions.force_clash`). FX built on the `clash` action in FX
+Studio play with it.
+
+**World Clash table (`clash.WORLD_SLOTS`):** for each rule slot, which clash
+FX plays (or none) and its size and density, plus `min_ticks`. The defaults
+live in `laser/clash.py`; FX Studio's **⚔ World Clash** page edits them and
+saves `world_clash.json` (format `pb_world_clash`). Drop it like an FX file
+(`update_game.bat` files it as `characters/world_clash.json`) or put it there
+yourself; the game reads it at start-up (`clash.load_world`). It is the same
+for every character; an old character file's `pack.clash` is ignored.
+`tools/fx/check_parity.py` keeps the Studio's `CLASH_SLOTS` / `MIN_TICKS` /
+`CLASH_FX` in step with the game.
 
 Solo and Battle share this path. A clash needs two fielded sides, so Solo
 (with only the cursor as an opponent) never finds a pair.

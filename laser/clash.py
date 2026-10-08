@@ -13,9 +13,11 @@ half width — in five categories:
   sprite    FX Kit bolt / blade sprites; the runner's bolts and other shots
   (ghost, glow, pulse, particles and weapon never clash)
 
-When a body of one side touches a body of the other, the rule for their two
-categories plays out (RULES; Daniel's clash table).  Pairs without a rule
-pass through each other.
+Clashing is world physics, not a character choice: every fighter's
+effects are bound by the same rules.  When a body of one side touches a
+body of the other, the rule for their two categories plays out (RULES;
+Daniel's clash table) and the clash FX for that pair plays (WORLD_SLOTS).
+Every pair of categories has a rule.
 
   beam x beam         both damage over 10: they explode (beam_clash);
                       otherwise they lock in a struggle (beam_struggle) for
@@ -45,22 +47,31 @@ pass through each other.
                       other than a sword duel, plays a one-shot burst instead
   crescent x crescent the two blades grind (crescent_struggle), then shatter
   sprite x sprite     a kunai clash (kunai_clash)
+  orb x trail         sword_slash_clash      orb x crescent      getsuga_cross
+  orb x sprite        collision_nova         trail x crescent    sword_slash_clash
+  trail x sprite      kunai_clash            crescent x sprite   getsuga_cross
+                      (one-shot bursts; the knockback rule settles them)
 
 Knockback rule: the effect with the higher battle knockback survives at full
 power and the other is cancelled; a tie cancels both.  A trail cannot be
 cancelled (it is on the fighter): its owner recoils instead, by the
 knockback difference (a tie pushes both owners back a little).
 
+Clash length (_budget): a clash lasts no longer than the shorter REMAINING
+life of the two effects at contact, and never less than min_ticks.  An
+effect with no lifespan (a fighter's own sword trail, a hovering petal, an
+FX with endless life) leaves it to the other one; when neither has one the
+clash FX plays at its normal length.  A clash FX longer than that budget
+plays faster so its whole loop fits (ClashFX.fit); a held clash (struggle,
+the orb on the beam head) holds for the fitted share of its hold, and a
+sword duel that cannot fit plays the one-shot sword_slash_clash instead.
+
 While a sustained clash holds, both effects are pinned where they met.  Each
-fighter involved shows its Rig Forge "clash" action (if it has one) for the
-clash's length or the fixed time set in FX Studio's Clash panel
-(pack.clash.anim, fxkit.normalize_clash), standing still when "freeze" is
-on; the FX built on that action play with it.  Which clash FX plays for each
-rule (and its size / density) comes from the Clash panel of one of the two
-characters, picked 50/50 per clash (_fx_fig) for beam explode, beam cut,
-orb x orb, trail x trail (sword duel included) and sprite x sprite; the beam
-struggle, beam x orb and crescent x crescent use the first side's, and the
-struggle's end blowout the winner's.  Built-in characters use the defaults.
+fighter involved shows its own Rig Forge "clash" action (if it has one),
+standing still, for exactly the clash's length; the FX built on that action
+play with it.  Which clash FX plays for each rule (and its size / density)
+comes from the world table: WORLD_SLOTS defaults, overridden by the shared
+characters/world_clash.json (FX Studio's World Clash page; load_world).
 
 One code path for Solo and Battle: clashes need two fielded sides, so Solo
 (the cursor is the only opponent) simply never finds a pair.
@@ -86,8 +97,9 @@ TIE_RECOIL_KB = 6.0          # trail x trail tie: both owners pushed back this m
 MAX_TIP_WATCH = 32
 DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
 DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
+MIN_TICKS = 6                # default shortest clash (~100 ms), however little life the effects have left
 
-# category pair (sorted) -> rule name
+# category pair (sorted) -> rule name.  Every pair has one.
 RULES = {
     ("beam", "beam"): "beam_beam",
     ("beam", "orb"): "beam_orb",
@@ -98,7 +110,89 @@ RULES = {
     ("trail", "trail"): "trail_trail",
     ("crescent", "crescent"): "crescent_crescent",
     ("sprite", "sprite"): "sprite_sprite",
+    ("orb", "trail"): "orb_trail",
+    ("crescent", "orb"): "orb_crescent",
+    ("orb", "sprite"): "orb_sprite",
+    ("crescent", "trail"): "trail_crescent",
+    ("sprite", "trail"): "trail_sprite",
+    ("crescent", "sprite"): "crescent_sprite",
 }
+# One-shot rules: settled by the knockback rule, their slot's FX plays.
+BURST_RULES = ("orb_orb", "trail_trail", "sprite_sprite", "orb_trail", "orb_crescent", "orb_sprite",
+               "trail_crescent", "trail_sprite", "crescent_sprite")
+
+# The world clash table: which clash FX (laser/clashfx.py key, "none" = no
+# FX) plays for each slot, at size / density %.  Same for every character.
+# FX Studio's World Clash page edits it (FXK.CLASH_SLOTS mirrors this) and
+# saves characters/world_clash.json, which overrides these defaults.
+WORLD_SLOTS = (
+    ("beam_explode", "beam_clash", "Beam × beam (both damage over 10)"),
+    ("beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"),
+    ("beam_struggle_end", "overpower_blowout", "Beam struggle won"),
+    ("beam_orb", "beam_orb", "Beam × orb / petal"),
+    ("beam_split", "beam_split", "Beam split by a trail / crescent / sprite"),
+    ("split_tip", "split_burst", "End of each split half"),
+    ("beam_nosplit", "split_burst", "Beam not split (cutter hit)"),
+    ("orb_orb", "orb_pops", "Orb × orb"),
+    ("trail_trail", "sword_duel", "Trail × trail"),
+    ("crescent_crescent", "crescent_struggle", "Crescent × crescent"),
+    ("sprite_sprite", "kunai_clash", "Sprite × sprite"),
+    ("orb_trail", "sword_slash_clash", "Orb × trail"),
+    ("orb_crescent", "getsuga_cross", "Orb × crescent"),
+    ("orb_sprite", "collision_nova", "Orb × sprite"),
+    ("trail_crescent", "sword_slash_clash", "Trail × crescent"),
+    ("trail_sprite", "kunai_clash", "Trail × sprite"),
+    ("crescent_sprite", "getsuga_cross", "Crescent × sprite"),
+)
+WORLD_FORMAT = "pb_world_clash"
+WORLD_FILE = "world_clash.json"     # in characters/
+
+
+def _clamp_num(v, d, lo, hi):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return d
+    if v != v:
+        return d
+    return max(lo, min(hi, v))
+
+
+def normalize_world(c):
+    """The world clash settings (FXK.normalizeWorldClash): every slot filled
+    in, unknown keys dropped."""
+    c = dict(c or {})
+    slots_in = c.get("slots") or {}
+    slots = {}
+    for key, fx_default, _label in WORLD_SLOTS:
+        s0 = dict(slots_in.get(key) or {})
+        fxk = s0.get("fx")
+        slots[key] = {"fx": fxk if isinstance(fxk, str) and fxk else fx_default,
+                      "size": _clamp_num(s0.get("size"), 100.0, 10.0, 400.0),
+                      "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0)}
+    return {"format": WORLD_FORMAT, "slots": slots,
+            "min_ticks": int(_clamp_num(c.get("min_ticks"), MIN_TICKS, 1, 600))}
+
+
+WORLD = normalize_world({})
+
+
+def load_world(root_dir):
+    """Read characters/world_clash.json (FX Studio's World Clash page) into
+    WORLD; the defaults stay when it is missing or unreadable.  Called once
+    at start-up (assets), so Solo and Battle share it."""
+    import json
+    import os
+    global WORLD
+    path = os.path.join(root_dir, "characters", WORLD_FILE)
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            obj = json.load(f)
+    except (OSError, ValueError):
+        WORLD = normalize_world({})
+        return WORLD
+    WORLD = normalize_world(obj if isinstance(obj, dict) and obj.get("format") == WORLD_FORMAT else {})
+    return WORLD
 
 
 # ---------------------------------------------------------------- bodies
@@ -396,39 +490,71 @@ def _settle(world, a, b, c, exempt=None):
 
 
 # ---------------------------------------------------------------- settings / fx
-def settings_for(fig):
-    cfx = fxkit.character_fx(fig.mode) if fig is not None else None
-    return cfx.clash if cfx is not None else fxkit.normalize_clash({})
-
-
-def _slot_fx(fig, slot):
-    """(clash FX key, slot settings) for `slot` from fig's Clash panel; the
+def _slot_fx(slot):
+    """(clash FX key, slot settings) for `slot` from the world table; the
     key is "none" for no FX."""
-    cfg = settings_for(fig)["slots"].get(slot) or {}
+    cfg = WORLD["slots"].get(slot) or {}
     key = cfg.get("fx") or ""
     if key != "none" and key not in clashfx.BASES and key not in clashfx.VARIANTS:
-        key = dict((s[0], s[1]) for s in fxkit.CLASH_SLOTS).get(slot, "collision_nova")
+        key = dict((s[0], s[1]) for s in WORLD_SLOTS).get(slot, "collision_nova")
     return key, cfg
 
 
-def _spawn_fx(world, slot, fig, c, angle, c1, c2, hold=None, winner=0, key=None):
-    key0, cfg = _slot_fx(fig, slot)
+def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None):
+    """Spawn the slot's clash FX; with a budget (world ticks) its whole loop
+    is fitted inside it (ClashFX.fit)."""
+    key0, cfg = _slot_fx(slot)
     key = key or key0
     if key == "none":
         return None
     # Position scale is applied when it is drawn (clashfx.draw_all), except
     # for an anchored FX (its scale is set when it is anchored).
-    return clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
-                         scale=float(cfg.get("size", 100)) / 100.0, hold=hold, winner=winner,
-                         density=float(cfg.get("density", 100)) / 100.0)
+    fx = clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
+                       scale=float(cfg.get("size", 100)) / 100.0, hold=hold, winner=winner,
+                       density=float(cfg.get("density", 100)) / 100.0)
+    if budget is not None:
+        fx.fit(budget)
+    return fx
 
 
-def _fx_fig(rng, a, b):
-    """The character whose Clash panel FX plays: a 50/50 pick between the
-    two bodies' owners (the other one if a side has no owner).  Only picks
-    the FX; the knockback rule still decides the clash."""
-    first, second = (a.owner, b.owner) if rng.random() < 0.5 else (b.owner, a.owner)
-    return first if first is not None else second
+def _left(b):
+    """Ticks of life body b has left; None = no lifespan (a fighter's own
+    trail, a hovering petal, an FX with endless life)."""
+    r, k = b.ref, b.kind
+    if k == "inst":
+        return None if r.life == fxkit.INF else max(0.0, r.life - r.age)
+    if k == "proj":
+        return max(0.0, r.max_age - r.age)
+    if k == "crescent":
+        return max(0.0, config.CRESCENT_LIFETIME - r.age)
+    if k == "ultc":
+        return max(0.0, r.cfg["lifetime"] - r.age)
+    return None
+
+
+def _budget(a, b):
+    """World ticks the clash of a and b may last: the shorter remaining life
+    of the two (never under min_ticks); None when neither has a lifespan
+    (the clash FX then plays at its normal length)."""
+    ls = [x for x in (_left(a), _left(b)) if x is not None]
+    if not ls:
+        return None
+    return max(int(WORLD["min_ticks"]), int(min(ls)))
+
+
+def _held_ticks(fx, hold, budget):
+    """World ticks a held clash of `hold` clash-FX ticks lasts (fx already
+    fitted to the budget, so its hold ends with it)."""
+    if fx is None:
+        return hold if budget is None else max(1, min(hold, budget))
+    return max(1, min(fx.length(), int(math.ceil(hold / fx.rate - 1e-9))))
+
+
+def _fx_ticks(fx, budget, default):
+    """World ticks a one-shot clash shows for (the fighters' clash action)."""
+    if fx is not None:
+        return fx.length()
+    return default if budget is None else budget
 
 
 def _kb_winner(a, b):
@@ -444,16 +570,13 @@ def _pscale(world, x, y):
 
 
 def _engage(world, figs, ticks):
-    """Each fighter shows its Rig Forge "clash" action (pack.clash.anim)."""
+    """Each fighter shows its own Rig Forge "clash" action, standing still,
+    for the clash's length (world rule: ticks)."""
     from . import actions
     now = world.global_tick
     for fig in figs:
-        if fig is None:
-            continue
-        an = settings_for(fig)["anim"]
-        n = ticks if an["hold"] == "clash" else int(round(an["hold_ms"] / config.TICK_MS))
-        if n > 0:
-            actions.force_clash(fig, world, now + n, an["freeze"])
+        if fig is not None and ticks > 0:
+            actions.force_clash(fig, world, now + int(ticks), True)
 
 
 def _deg(dx, dy):
@@ -526,7 +649,6 @@ def _half_inst(inst, d, c, rem, held):
     q.age = 0
     q.hits, q.last_hit = 0, -1e9
     q.free = q.chase = q.cont = q.open = q.run = False
-    q.clash_with = None
     q.lodge = None
     q.path = None
     q.cap = None
@@ -605,13 +727,15 @@ def _start(world, st, a, b, c, rule, now):
     ang = _deg(*_norm((b.owner.x if b.owner else c[0] + 1) - (a.owner.x if a.owner else c[0]),
                       (b.owner.y if b.owner else c[1]) - (a.owner.y if a.owner else c[1])))
     figs = (a.owner, b.owner)
+    budget = _budget(a, b)
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
             _settle(world, a, b, c)
-            fx = _spawn_fx(world, "beam_explode", _fx_fig(rng, a, b), c, _deg(*a.dir), a.col, b.col)
-            _engage(world, figs, fx.life if fx else 40)
+            fx = _spawn_fx(world, "beam_explode", c, _deg(*a.dir), a.col, b.col, budget=budget)
+            _engage(world, figs, _fx_ticks(fx, budget, 40))
             return None
-        fx = _spawn_fx(world, "beam_struggle", a.owner, c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS)
+        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, budget=budget)
+        held = _held_ticks(fx, STRUGGLE_TICKS, budget)
         hidden = ()
         if fx is not None and fx.base == "beam_struggle":
             # Anchored: the FX draws both beams from their origins (the tail
@@ -624,38 +748,38 @@ def _start(world, st, a, b, c, rule, now):
                             pscale=_pscale(world, c[0], c[1]))
             hidden = (id(a.ref), id(b.ref))
             clashfx.HIDDEN.update(hidden)
-        _engage(world, figs, STRUGGLE_TICKS)
-        return Clash(a, b, c, rule, now + STRUGGLE_TICKS, fx, now, hidden)
+        _engage(world, figs, fx.length() if fx is not None else held)
+        return Clash(a, b, c, rule, now + held, fx, now, hidden)
     if rule == "beam_orb":
-        fx = _spawn_fx(world, "beam_orb", a.owner, c, _deg(*a.dir), a.col, b.col)
-        _engage(world, figs, BEAM_ORB_TICKS + 20)
-        return Clash(a, b, c, rule, now + BEAM_ORB_TICKS, fx, now)
+        fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget)
+        held = _held_ticks(fx, BEAM_ORB_TICKS, budget)
+        _engage(world, figs, _fx_ticks(fx, budget, held + 20))
+        return Clash(a, b, c, rule, now + held, fx, now)
     if rule == "beam_cut":
         _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
-        f_fig = _fx_fig(rng, a, b)
         # A split half never splits again (no cascade): it is just cut.
         if id(a.ref) not in st["halves"] and rng.random() < SPLIT_CHANCE:
-            _spawn_fx(world, "beam_split", f_fig, c, _deg(*a.dir), a.col, b.col)
+            fx = _spawn_fx(world, "beam_split", c, _deg(*a.dir), a.col, b.col, budget=budget)
             _split_beam(world, st, a, c)
         else:
-            _spawn_fx(world, "beam_nosplit", f_fig, c, _deg(*a.dir), a.col, b.col)
-        _engage(world, figs, 30)
+            fx = _spawn_fx(world, "beam_nosplit", c, _deg(*a.dir), a.col, b.col, budget=budget)
+        _engage(world, figs, _fx_ticks(fx, budget, 30))
         return None
     if rule == "crescent_crescent":
-        fx = _spawn_fx(world, "crescent_crescent", a.owner, c, ang, a.col, b.col, hold=CRESCENT_TICKS)
-        _engage(world, figs, CRESCENT_TICKS + 20)
-        return Clash(a, b, c, rule, now + CRESCENT_TICKS, fx, now)
-    slot = {"orb_orb": "orb_orb", "trail_trail": "trail_trail", "sprite_sprite": "sprite_sprite"}[rule]
+        fx = _spawn_fx(world, "crescent_crescent", c, ang, a.col, b.col, hold=CRESCENT_TICKS, budget=budget)
+        held = _held_ticks(fx, CRESCENT_TICKS, budget)
+        _engage(world, figs, fx.length() if fx is not None else held + 20)
+        return Clash(a, b, c, rule, now + held, fx, now)
+    slot = rule     # BURST_RULES: the rule's own slot
     key = None
-    fig = _fx_fig(rng, a, b)
     if rule == "trail_trail":
-        if clashfx.resolve(_slot_fx(fig, slot)[0])[0] == "sword_duel":
-            if _start_duel(world, st, a, b, c, fig, now):
+        if clashfx.resolve(_slot_fx(slot)[0])[0] == "sword_duel":
+            if _start_duel(world, st, a, b, c, now, budget):
                 return None
-            key = "sword_slash_clash"   # re-arming pair: a one-shot burst instead
+            key = "sword_slash_clash"   # re-arming pair / no room for a duel: a one-shot burst instead
     _settle(world, a, b, c)
-    fx = _spawn_fx(world, slot, fig, c, ang, a.col, b.col, key=key)
-    _engage(world, figs, fx.life if fx else 30)
+    fx = _spawn_fx(world, slot, c, ang, a.col, b.col, key=key, budget=budget)
+    _engage(world, figs, _fx_ticks(fx, budget, 30))
     return None
 
 
@@ -670,7 +794,7 @@ def _finish(world, st, rec):
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
             ang = _deg(*a.dir)
-            _spawn_fx(world, "beam_struggle_end", w.owner, c, ang, a.col, b.col, winner=0 if w is a else 1)
+            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1)
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     st["busy"].discard(id(a.ref))
@@ -678,24 +802,27 @@ def _finish(world, st, rec):
 
 
 # ---------------------------------------------------------------- sword duel
-def _start_duel(world, st, a, b, c, fig, now):
+def _start_duel(world, st, a, b, c, now, budget=None):
     """trail x trail: start a sword duel between the two trails' owners.
-    False when it cannot (a re-arming pair, no two distinct fighters)."""
+    False when it cannot (a re-arming pair, no two distinct fighters, or
+    the duel would outlast the clash budget)."""
     fa, fb = a.owner, b.owner
     if fa is None or fb is None or fa is fb:
         return False
     pair = (id(fa), id(fb))
     if now < st["duel_cd"].get(pair, -1):
         return False
-    key, cfg = _slot_fx(fig, "trail_trail")
+    key, cfg = _slot_fx("trail_trail")
+    _base, sp = clashfx.resolve(key)
+    bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
+    plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
+                             strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)))
+    if budget is not None and len(plan) > budget:
+        return False
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
                        scale=float(cfg.get("size", 100)) / 100.0, hold=-1,
                        density=float(cfg.get("density", 100)) / 100.0)
     fx.anchor_duel(_pscale(world, c[0], c[1]))
-    bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
-    sp = fx.spec
-    plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
-                             strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)))
     st["duels"].append(Duel(a, b, plan, fx, pair))
     st["duel_figs"].update(pair)
     _engage(world, (fa, fb), len(plan))
@@ -805,7 +932,7 @@ def step(world):
             st["halves"].discard(id(obj))
             p = t[4]
             ang = _deg(*_norm(p[0] - (owner.x if owner else p[0] - 1), p[1] - (owner.y if owner else p[1])))
-            _spawn_fx(world, "split_tip", owner, p, ang, col, col)
+            _spawn_fx(world, "split_tip", p, ang, col, col)
     st["tips"] = tips
     # 3. New contacts (two fielded sides only: Solo never has a pair).
     if len(world.sides) < 2 or not (world.sides[0].figures and world.sides[1].figures):

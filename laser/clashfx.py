@@ -349,6 +349,11 @@ class ClashFX:
         # Anchored (laser/clash.py): parts of it are drawn at the fighters'
         # real positions, so it ignores the position scale when drawn.
         self.anchored = False
+        # Playback rate (fit): clash-FX ticks per world tick, never under 1.
+        # _wt world ticks played, _done clash-FX ticks run so far.
+        self.rate = 1.0
+        self._fit = None
+        self._wt = self._done = 0
         getattr(self, "_init_" + self.base)()
 
     # ---- lifecycle
@@ -371,7 +376,36 @@ class ClashFX:
             return True
         return bool(self.parts) and self.ft < self.life + FINALE_GRACE
 
+    def fit(self, ticks):
+        """Play the whole loop (hold + burst / finale) within `ticks` world
+        ticks: faster when it is longer, never slower (laser/clash.py fits a
+        clash to the shorter remaining life of the two effects)."""
+        n = (max(0, self.hold) if self.sustain else 0) + self.life
+        if ticks and ticks > 0 and n > ticks:
+            self.rate = n / float(ticks)
+            self._fit = (n, int(ticks))
+        return self
+
+    def length(self):
+        """World ticks its loop takes at its rate (a hold of -1 counts 0)."""
+        if self._fit is not None:
+            return self._fit[1]
+        return max(1, (max(0, self.hold) if self.sustain else 0) + self.life)
+
     def step(self):
+        """One world tick: rate clash-FX ticks (fit), scheduled in whole
+        numbers so the loop ends exactly on its last world tick."""
+        if self._fit is None:
+            self._step1()
+            return
+        n, ticks = self._fit
+        self._wt += 1
+        want = (self._wt * n) // ticks if self._wt < ticks else n + (self._wt - ticks)
+        while self._done < want:
+            self._done += 1
+            self._step1()
+
+    def _step1(self):
         self.t += 1
         if self.phase == "hold":
             if self.hold >= 0 and self.t >= self.hold:
