@@ -599,20 +599,27 @@ class ClashFX:
     # ================================================================ 2
     def _init_beam_struggle(self):
         self.state.update(arcs=[], ripples=[], nx=0.0, ny=0.0, core=0.0, f0=(0.0, 0.0), ax=0.0,
-                          o=None, bw=(0.0, 0.0), loser=None)
+                          o=None, looks=None, bw=(0.0, 0.0), loser=None)
 
-    def anchor_beams(self, o1, w1, o2, w2, loser=None, pscale=1.0):
-        """laser/clash.py: tie the struggle to the two real beams.  o1 / o2 =
-        where each side's beam starts (world, locked when the clash starts),
-        w1 / w2 = their real widths (px).  The node starts at the contact and
-        is pushed toward the loser's origin (loser = 0 / 1; None = a tie: it
-        sways about the contact).  Both beams are then drawn here, from each
-        origin to the node, so the real ones can be hidden (HIDDEN)."""
+    def anchor_beams(self, look1, look2, loser=None):
+        """laser/clash.py: tie the struggle to the two real beams.  look1 /
+        look2 = how each side's beam is drawn right now (clash._beam_look:
+        o = where it starts, world, locked when the clash starts; tail /
+        head width, colours, glow, alpha, blend — screen px).  The node
+        starts at the contact and is pushed toward the loser's origin
+        (loser = 0 / 1; None = a tie: it sways about the contact).  Both
+        beams are then drawn here with their own look, from each origin to
+        the node, so the real ones can be hidden (HIDDEN) without a seam.
+        Its size (S) is already set from the beams' widths, so the position
+        scale is not applied again."""
         self.anchored = True
-        self.S *= pscale
-        l1, l2 = self._local(*o1), self._local(*o2)
+        looks = (dict(look1), dict(look2))
+        for lk in looks:
+            lk["o"] = self._local(*lk["o"])
+        l1, l2 = looks[0]["o"], looks[1]["o"]
         dx, dy = l2[0] - l1[0], l2[1] - l1[1]
-        self.state.update(o=(l1, l2), bw=(max(2.0, float(w1)), max(2.0, float(w2))), loser=loser,
+        self.state.update(o=(l1, l2), looks=looks,
+                          bw=tuple(max(2.0, lk["wh"]) for lk in looks), loser=loser,
                           ax=math.atan2(dy, dx) if math.hypot(dx, dy) > 1e-6 else 0.0)
 
     def node_world(self):
@@ -679,26 +686,52 @@ class ClashFX:
         self._sparks(16, x=x, y=y, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
         self._sparks(18, x=x, y=y, kind="dot", spd=(1.0, 4.0), life=(22, 40), size=(2.0, 4.0), drag=0.95)
 
-    def _draw_struggle_beam(self, p, ox, oy, nx, ny, w, c, wob):
-        """One side's beam, anchored: from its real origin to the node, at
-        its real width (outer glow, body, white-hot core)."""
+    def _draw_struggle_beam(self, p, nx, ny, lk, wob):
+        """One side's beam, anchored: from its real origin to the node, drawn
+        the way the real beam is (fxkit _draw_beam: a tapered capsule, tail
+        width / colour at the origin, head width / colour at the node, its
+        glow pass under the body), so it lines up with the beam it replaces.
+        On top, a white-hot core that builds from the origin into the node,
+        and a pulse (wob) that grows toward the node only."""
+        ox, oy = lk["o"]
         L = math.hypot(nx - ox, ny - oy)
         if L < 1.0:
             return
-        ux, uy = (nx - ox) / L, (ny - oy) / L
-        px, py = -uy, ux
-        p.setPen(Qt.NoPen)
-        for k_w, k_hot, a in ((1.7, 0.0, 95), (1.0, 0.3, 205), (0.38, 0.85, 245)):
-            h = w * k_w * wob / 2.0
+        ah = math.atan2(ny - oy, nx - ox)
+
+        def capsule(wt, wh):
+            path = QPainterPath()
+            for k in range(13):
+                a = ah + math.pi + (k / 12 - 0.5) * math.pi
+                q = QPointF(ox + math.cos(a) * wt / 2, oy + math.sin(a) * wt / 2)
+                if k == 0:
+                    path.moveTo(q)
+                else:
+                    path.lineTo(q)
+            for k in range(13):
+                a = ah + (k / 12 - 0.5) * math.pi
+                path.lineTo(QPointF(nx + math.cos(a) * wh / 2, ny + math.sin(a) * wh / 2))
+            path.closeSubpath()
+            return path
+
+        def fill(path, ct, ch, a, a_tail=None):
             gr = QLinearGradient(ox, oy, nx, ny)
-            cc = _mix(c, HOT, k_hot)
-            gr.setColorAt(0.0, _q(cc, a * 0.8))
-            gr.setColorAt(0.7, _q(cc, a * 0.9))
-            gr.setColorAt(1.0, _q(_mix(cc, HOT, 0.3), a))
+            gr.setColorAt(0.0, _q(ct, a if a_tail is None else a_tail))
+            gr.setColorAt(1.0, _q(ch, a))
             p.setBrush(QBrush(gr))
-            p.drawPolygon(QPolygonF([QPointF(ox + px * h, oy + py * h), QPointF(nx + px * h, ny + py * h),
-                                     QPointF(nx - px * h, ny - py * h), QPointF(ox - px * h, oy - py * h)]))
-        _glow(p, ox, oy, w * 1.1 * wob, self._hotc(c, 0.4), 200)
+            p.drawPath(path)
+
+        am = lk["am"]
+        wt, wh = max(1.0, lk["wt"]), max(1.0, lk["wh"]) * wob
+        p.setPen(Qt.NoPen)
+        p.setCompositionMode(QPainter.CompositionMode_Plus if lk["add"] else QPainter.CompositionMode_SourceOver)
+        if lk["glow"] > 0:
+            g = lk["gcol"]
+            fill(capsule(wt + lk["glow"], wh + lk["glow"]), g or lk["ct"], g or lk["ch"], 70 * am)
+        fill(capsule(wt, wh), lk["ct"], lk["ch"], 235 * am)
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        fill(capsule(wt * 0.4, wh * 0.45), _mix(lk["ct"], HOT, 0.85), _mix(lk["ch"], HOT, 0.85), 230 * am, 0)
+        _glow(p, nx, ny, wh * 0.9, self._hotc(lk["ch"], 0.4), 160 * am)
 
     def _draw_beam_struggle(self, p):
         st, S = self.state, self.S
@@ -706,9 +739,9 @@ class ClashFX:
         if self.phase == "hold":
             nx, ny, core, t, ax = st["nx"], st["ny"], st["core"], self.t, st["ax"]
             if self.anchored:
-                for i, c in ((0, self.c1), (1, self.c2)):
-                    ox, oy = st["o"][i]
-                    self._draw_struggle_beam(p, ox, oy, nx, ny, st["bw"][i], c, 1 + 0.08 * math.sin(t * 0.8 + i))
+                for i in (0, 1):
+                    self._draw_struggle_beam(p, nx, ny, st["looks"][i], 1 + 0.08 * math.sin(t * 0.8 + i))
+                p.setCompositionMode(QPainter.CompositionMode_Plus)
             elif self.spec.get("stubs"):
                 L = float(self.spec.get("stub_len", 150)) * S
                 for c, sx in ((self.c1, -1), (self.c2, 1)):
