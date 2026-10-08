@@ -19,15 +19,21 @@ body of the other, the rule for their two categories plays out (RULES;
 Daniel's clash table) and the clash FX for that pair plays (WORLD_SLOTS).
 Every pair of categories has a rule.
 
-  beam x beam         both damage over 10: they explode (beam_clash);
-                      otherwise they lock in a struggle (beam_struggle) for
-                      STRUGGLE_TICKS, then the winner blows through
-                      (overpower_blowout).  The struggle FX is anchored to
-                      the two real beams: it draws each beam from its origin
-                      (locked when the clash starts) to the node at its real
-                      width, the real beams are hidden meanwhile, and the
-                      node is pushed toward the loser's origin; the blowout
-                      fires where the node ends up
+  beam x beam         both damage over 10: they explode (beam_clash).
+                      Both knockback STRUGGLE_KB or more: they lock in a
+                      struggle (beam_struggle) for a fixed STRUGGLE_TICKS
+                      (never fitted to the beams' remaining life), then the
+                      winner blows through (overpower_blowout).  The struggle
+                      FX is anchored to the two real beams: it draws each
+                      beam from its origin (locked when the clash starts) to
+                      the node with that beam's own look (tail / head width,
+                      colours, glow), the real beams are hidden meanwhile,
+                      and the node is pushed toward the loser's origin; the
+                      blowout fires where the node ends up.  Otherwise the
+                      lesser version: a one-shot spark burst (the struggle's
+                      finale only) at the contact, settled at once by the
+                      knockback rule.  Both are sized from the beams' real
+                      widths (_beam_scale)
   beam x orb          the orb is held on the beam head (beam_orb), then bursts
   beam x trail / crescent / sprite
                       SPLIT_CHANCE: the beam splits at the contact into two
@@ -102,7 +108,10 @@ from . import clashfx, config, fxkit, swordfx
 
 CONTACT_MARGIN = 4.0         # px of slack on top of both half widths
 STRONG_BEAM_DAMAGE = 10.0    # beam x beam explodes when BOTH deal more than this
-STRUGGLE_TICKS = 90          # beam struggle length (~1.4 s)
+STRUGGLE_TICKS = 150         # beam struggle length (~2.4 s), fixed
+STRUGGLE_KB = 100.0          # both beams need this much knockback for a full struggle
+LESSER_SCALE = 0.5           # the lesser (one-shot) beam clash is drawn at this share of the struggle's size
+STRUGGLE_REF_W = 40.0        # beam width (px, glow included) the struggle FX is drawn at its own size for
 BEAM_ORB_TICKS = 18          # how long the orb is held on the beam head
 CRESCENT_TICKS = 48          # crescent struggle length
 SPLIT_CHANCE = 0.5
@@ -555,6 +564,43 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     return fx
 
 
+def _beam_look(world, bd):
+    """How beam body bd is drawn right now (what the anchored struggle copies
+    so its beams line up with the real ones): o = its origin (tail), wt / wh
+    = tail / head width, ct / ch = tail / head colour, glow = extra glow
+    width, gcol = glow colour (None = the beam's own), am = alpha, add =
+    additive blend.  All in screen px."""
+    r = bd.ref
+    if bd.kind == "proj":
+        ps = _pscale(world, r.x, r.y)
+        prog = min(1.0, r.age / max(1, r.max_age))
+        return dict(o=bd.pts[1],
+                    wt=(r.w_start0 + (r.w_start1 - r.w_start0) * prog) * ps,
+                    wh=(r.w_end0 + (r.w_end1 - r.w_end0) * prog) * ps,
+                    ct=tuple(r.c1), ch=tuple(r.c2), glow=r.glow * ps, gcol=r.glow_color,
+                    am=max(0.0, 1.0 - r.age / max(1, r.max_age)), add=bool(r.additive))
+    P, ps = r.fx["params"], r.ps
+    prog = fxkit.life_t(r)
+    try:
+        c1, c2 = fxkit.color_pair(r.fx, bd.owner.lut)
+    except Exception:
+        c1 = c2 = bd.col
+    gc = fxkit.hex_rgb(P["glow_color"], None) if P.get("glow_color") else None
+    return dict(o=bd.pts[1],
+                wt=(P["w_start0"] + (P["w_start1"] - P["w_start0"]) * prog) * ps,
+                wh=(P["w_end0"] + (P["w_end1"] - P["w_end0"]) * prog) * ps,
+                ct=tuple(c1), ch=tuple(c2), glow=float(P.get("glow") or 0) * ps, gcol=gc,
+                am=max(0.0, 1.0 - r.age / r.life) if r.life != fxkit.INF else 1.0, add=False)
+
+
+def _beam_scale(slot, looks):
+    """Struggle FX size from the beams' real widths: the slot's size % at
+    STRUGGLE_REF_W, in proportion to the thicker beam (glow included)."""
+    w = max(max(lk["wt"], lk["wh"]) + lk["glow"] for lk in looks)
+    size = float(_slot_fx(slot)[1].get("size", 100)) / 100.0
+    return max(0.15, min(3.0, size * w / STRUGGLE_REF_W))
+
+
 def _left(b):
     """Ticks of life body b has left; None = no lifespan (a fighter's own
     trail, a hovering petal, an FX with endless life)."""
@@ -797,18 +843,31 @@ def _start(world, st, a, b, c, rule, now):
             fx = _spawn_fx(world, "beam_explode", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
             _engage(world, figs, _fx_ticks(fx, budget, 40))
             return None
-        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, budget=budget, pair=(a, b))
-        held = _held_ticks(fx, STRUGGLE_TICKS, budget)
+        looks = (_beam_look(world, a), _beam_look(world, b))
+        scale = _beam_scale("beam_struggle", looks)
+        if a.kb < STRUGGLE_KB or b.kb < STRUGGLE_KB:
+            # The lesser version: a one-shot spark burst at the contact (the
+            # struggle's finale only), settled at once by the knockback rule.
+            _settle(world, a, b, c)
+            fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=0,
+                           scale=scale * LESSER_SCALE)
+            if fx is not None and fx.sustain:
+                fx.release()
+            _engage(world, figs, fx.length() if fx is not None else 30)
+            return None
+        # The full struggle: a fixed STRUGGLE_TICKS, never fitted to the
+        # beams' remaining life (both are pinned, their age frozen, while it
+        # holds).
+        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, scale=scale)
+        held = STRUGGLE_TICKS
         hidden = ()
         if fx is not None and fx.base == "beam_struggle":
             # Anchored: the FX draws both beams from their origins (the tail
-            # of each, locked now) to the node, at their real widths, and the
-            # real beams are hidden while it holds.
+            # of each, locked now) to the node with each beam's own look, so
+            # the hand-over from the real beams is seamless, and the real
+            # beams are hidden while it holds.
             w = _kb_winner(a, b)
-            ws = [bd.hw * 2.0 * (_pscale(world, bd.ref.x, bd.ref.y) if bd.kind == "proj" else 1.0)
-                  for bd in (a, b)]
-            fx.anchor_beams(a.pts[1], ws[0], b.pts[1], ws[1], None if w is None else (1 if w is a else 0),
-                            pscale=_pscale(world, c[0], c[1]))
+            fx.anchor_beams(looks[0], looks[1], None if w is None else (1 if w is a else 0))
             hidden = (id(a.ref), id(b.ref))
             clashfx.HIDDEN.update(hidden)
         _engage(world, figs, fx.length() if fx is not None else held)
@@ -857,7 +916,8 @@ def _finish(world, st, rec):
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
             ang = _deg(*a.dir)
-            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1, pair=(a, b))
+            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1,
+                      scale=rec.fx.S if rec.fx is not None else None, pair=(a, b))
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     st["busy"].discard(id(a.ref))
