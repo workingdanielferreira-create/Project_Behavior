@@ -994,13 +994,15 @@ class CollisionSystem(System):
             new_mine = []
             consumed_enemy = set()   # indices into world.enemy_projs
             for proj in world.projectiles:
-                if proj.hit_r_sq == 0.0:
-                    # Splinters pass through everything
+                if proj.hit_r_sq == 0.0 or clash.locked(world, proj):
+                    # Splinters pass through everything; a bullet locked in
+                    # a clash (laser/clash.py, e.g. a beam struggle) is left
+                    # for the clash to settle.
                     new_mine.append(proj)
                     continue
                 scattered = False
                 for ei, etup in enumerate(world.enemy_projs):
-                    if ei in consumed_enemy:
+                    if ei in consumed_enemy or clash.locked(world, etup[8]):
                         continue
                     ex, ey = etup[0], etup[1]
                     ddx, ddy = proj.x - ex, proj.y - ey
