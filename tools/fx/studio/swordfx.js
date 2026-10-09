@@ -11,10 +11,26 @@
 var FXK = function () { return G.FXK; };
 var HOT = [255, 255, 255], BLACK = [0, 0, 0], D = Math.PI / 180;
 var CUT_DEG = {rising_slash: -90, horizontal_sweep: 0, diagonal_slash: -45};
+// Every slash-family style is a list of cuts (laser/swordfx.py CUTS — keep in step):
+// [deg, bend, cx, cy, scale, span_k, squash, t0]
+var CUTS = {
+  rising_slash: [[-90, 1, 0, 0, 1, 1, 1, 0]],
+  horizontal_sweep: [[0, 1, 0, 0, 1, 1, 1, 0]],
+  diagonal_slash: [[-45, 1, 0, 0, 1, 1, 1, 0]],
+  forward_sweep: [[90, -1, 0.1, 0, 1, 1, 0.32, 0]],
+  combo_triple: [[40, -1, 0.1, -0.1, 1, 1, 1, 0], [-40, 1, 0.15, 0.05, 1, 1, 1, 1.3], [0, 1, 0.2, -0.1, 1.5, 0.6, 1, 2.6]],
+  combo_cross: [[45, -1, 0.45, 0, 1, 1, 1, 0], [-45, 1, 0.45, 0, 1, 1, 1, 0.9]],
+  combo_flurry: [[30, -1, 0.55, -0.3, 0.7, 1, 1, 0], [-150, -1, 0.75, 0.15, 0.65, 1, 1, 0.6], [90, -1, 0.95, -0.05, 0.7, 0.9, 1, 1.2],
+                 [-20, 1, 0.6, 0.3, 0.75, 1, 1, 1.8], [160, 1, 0.85, -0.35, 0.6, 1, 1, 2.4], [-60, 1, 0.7, 0, 0.9, 1.1, 1, 3]],
+  combo_launcher: [[0, 1, 0.3, 0.35, 0.8, 0.8, 1, 0], [-35, 1, 0.25, 0.05, 1, 1, 1, 1.2], [-90, 1, 0.2, -0.25, 1.25, 1.2, 1, 2.4]],
+  combo_backhand: [[90, -1, 0.05, -0.05, 1, 1.1, 0.32, 0], [-90, 1, 0.05, 0.1, 1, 1.1, 0.32, 1.2], [90, -1, 0.45, 0, 1.1, 0.9, 1, 2.4]]
+};
+var CROSS_LIFE = 18;
 var SLASH_SLICES = 26, SPARK_LIFE = 20, WAVE_EMBER_LIFE = 30, WAVE_SHARD_LIFE = 26;
 var WAVE_ARC_DEG = 95, WAVE_CX = -0.5;
 var EXT_CHARGE = 4, EXT_EXTEND = 5, EXT_RETRACT = 7, EXT_DUST = 16;
 var HIT_MARK_LIFE = 16;
+var STRIKE = function () { return G.STRIKEFX; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -31,34 +47,44 @@ function hyp(x, y) { return Math.sqrt(x * x + y * y); }
 
 // ---------------------------------------------------------------- timeline
 function style(P) { var s = P.style; return FXK().TECH_STYLES.indexOf(s) >= 0 ? s : FXK().TECH_STYLES[0]; }
+function isStrike(st) { return STRIKE() && STRIKE().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
+function cutStarts(P) { var Ts = swing(P); return CUTS[style(P)].map(function (c) { return Math.round(c[7] * Ts); }); }
+function lastStart(P) { var s = cutStarts(P); return s[s.length - 1]; }
 function activeTicks(P) {
   var st = style(P);
   if (st === "crescent_wave") return Math.max(1, Math.trunc(+P.hold_ticks || 48));
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
-  return swing(P) + 2;
+  if (isStrike(st)) return STRIKE().activeTicks(P);
+  return lastStart(P) + swing(P) + 2;
 }
 function totalTicks(P) {
   var st = style(P);
   if (st === "crescent_wave") return activeTicks(P) + WAVE_EMBER_LIFE;
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
-  return swing(P) + fadeT(P) + SPARK_LIFE;
+  if (isStrike(st)) return STRIKE().totalTicks(P);
+  return lastStart(P) + swing(P) + fadeT(P) + SPARK_LIFE;
 }
 
 // ---------------------------------------------------------------- frame
 function onSpawn(inst, host) {
-  var fx = inst.fx, st = style(fx.params), f;
-  if (CUT_DEG[st] !== undefined) f = FXK().turnBy([inst.facing, 0], FXK().bodyDeg(fx, host, [inst.x, inst.y]));
+  var fx = inst.fx, st = style(fx.params), f, slash = CUTS[st] !== undefined;
+  if (slash) f = FXK().turnBy([inst.facing, 0], FXK().bodyDeg(fx, host, [inst.x, inst.y]));
   else f = inst.dir.slice();
   var n = hyp(f[0], f[1]) || 1;
   inst.tq_f = [f[0] / n, f[1] / n];
-  inst.tq_m = CUT_DEG[st] !== undefined ? inst.facing : (inst.tq_f[0] >= 0 ? 1 : -1);
+  inst.tq_m = slash ? inst.facing : (inst.tq_f[0] >= 0 ? 1 : -1);
   inst.tq_o = [inst.x, inst.y];
   inst.tq_hits = [];
+  inst.tq_cut = {};               // combo cuts that already landed
+  inst.tq_path = [[inst.x, inst.y]];   // where the anchor was, per tick
+  inst.tq_ki = {};                // ki shots stopped by a hit: index -> [tick, x, y]
+  inst.tq_imp = [];               // punch impacts: [tick, x, y]
   inst.life = activeTicks(fx.params);
 }
+function onTick(inst) { inst.tq_path.push([inst.x, inst.y]); }   // ki shots launch from where the anchor was
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
 Frame.prototype.w = function (x, y) { return [this.ox + x * this.fx + y * this.vx, this.oy + x * this.fy + y * this.vy]; };
 Frame.prototype.d = function (x, y) { return [x * this.fx + y * this.vx, x * this.fy + y * this.vy]; };
@@ -84,19 +110,28 @@ function colours(inst, host) {
 }
 
 // ---------------------------------------------------------------- slash geometry
-function SlashGeo(inst, ps) {
+function SlashGeo(inst, ps, ci) {
   var P = inst.fx.params;
   this.st = style(P);
-  this.R = +P.radius * ps; this.W = +P.thickness * ps; this.h = +P.span / 2;
-  var a = CUT_DEG[this.st] * D;
+  var cu = CUTS[this.st][ci || 0], bend = cu[1];
+  this.R = +P.radius * ps * cu[4]; this.W = +P.thickness * ps * cu[4]; this.h = +P.span * cu[5] / 2;
+  this.b = bend;
+  var a = cu[0] * D;
   this.d = [Math.cos(a), Math.sin(a)];
-  this.n = [-this.d[1], this.d[0]];
+  this.n = [-this.d[1] * bend, this.d[0] * bend];
   var k = this.R * Math.cos(this.h * D);
   this.O = [-this.n[0] * k, -this.n[1] * k];
+  var R0 = +P.radius * ps;
+  this.C = [cu[2] * R0, cu[3] * R0];
+  this.sq = cu[6];
   this.Ts = swing(P); this.Tf = fadeT(P);
 }
-SlashGeo.prototype.phi = function (s) { return FXK().rot(this.n.slice(), this.h - 2 * this.h * s); };
-SlashGeo.prototype.local = function (s, r) { var p = this.phi(s); return [this.O[0] + p[0] * r, this.O[1] + p[1] * r]; };
+SlashGeo.prototype.phi = function (s) { return FXK().rot(this.n.slice(), this.b * (this.h - 2 * this.h * s)); };
+SlashGeo.prototype.local = function (s, r) {
+  var p = this.phi(s), x = this.O[0] + p[0] * r, y = this.O[1] + p[1] * r;
+  if (this.sq !== 1) { var a = (x * this.d[0] + y * this.d[1]) * (this.sq - 1); x += this.d[0] * a; y += this.d[1] * a; }
+  return [this.C[0] + x, this.C[1] + y];
+};
 SlashGeo.prototype.state = function (t) {
   var Ts = this.Ts, Tf = this.Tf, head = easeOut3(t / Ts);
   if (t <= Ts) return [Math.max(0, head - 0.8), head, 1, 1];
@@ -110,18 +145,38 @@ SlashGeo.prototype.slices = function (t) {
   for (var i = 0; i <= SLASH_SLICES; i++) { var u = i / SLASH_SLICES; out.push([tail + (head - tail) * u, u, this.width(u, wf)]); }
   return out;
 };
-function slashHit(inst, tx, ty, hr, ps) {
-  if (inst.age >= inst.life) return false;
-  var g = new SlashGeo(inst, ps), fr = frame(inst), sl = g.slices(inst.age);
+function cutHit(g, fr, t, tx, ty, hr) {
+  var sl = g.slices(t), hub = null;
+  // A flat (squashed) cut is a swing round the body seen edge-on: it hits
+  // everything between the fighter and the blade, not just the blade line.
+  if (g.sq !== 1) { var lh = g.local(0.5, 0); hub = fr.w(lh[0], lh[1]); }
   for (var i = 1; i < sl.length; i++) {
     var q0 = sl[i - 1], q1 = sl[i];
     if (q1[1] < 0.15) continue;
     var l0 = g.local(q0[0], g.R - 0.2 * q0[2]), l1 = g.local(q1[0], g.R - 0.2 * q1[2]);
     var a = fr.w(l0[0], l0[1]), b = fr.w(l1[0], l1[1]);
     if (FXK().segDist(tx, ty, a[0], a[1], b[0], b[1]) <= hr + Math.max(q0[2], q1[2]) * 0.5) return true;
+    if (hub && FXK().segDist(tx, ty, hub[0], hub[1], b[0], b[1]) <= hr) return true;
   }
   return false;
 }
+// [[cut index, its own tick]] for the cuts inside their hit window
+function liveCuts(inst) {
+  var P = inst.fx.params, win = swing(P) + 2, out = [];
+  cutStarts(P).forEach(function (s, i) { var t = inst.age - s; if (t >= 0 && t < win) out.push([i, t]); });
+  return out;
+}
+function slashHit(inst, tx, ty, hr, ps) {
+  if (inst.age >= inst.life) return false;
+  var fr = frame(inst), combo = CUTS[style(inst.fx.params)].length > 1, live = liveCuts(inst);
+  for (var j = 0; j < live.length; j++) {
+    var ci = live[j][0];
+    if (combo && inst.tq_cut[ci]) continue;   // each combo cut lands once
+    if (cutHit(new SlashGeo(inst, ps, ci), fr, live[j][1], tx, ty, hr)) return true;
+  }
+  return false;
+}
+function slashOnHit(inst) { liveCuts(inst).forEach(function (lc) { inst.tq_cut[lc[0]] = true; }); }
 
 // ---------------------------------------------------------------- wave geometry
 function WaveGeo(inst, ps) { var P = inst.fx.params; this.R = +P.radius * ps; this.W = +P.thickness * ps; this.L = activeTicks(P); }
@@ -178,9 +233,15 @@ function hit(inst, tx, ty, hr, ps) {
   var st = style(inst.fx.params);
   if (st === "crescent_wave") return waveHit(inst, tx, ty, hr, ps);
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
+  if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
-function onHit(inst, x, y) { inst.tq_hits.push([+x, +y, inst.age]); }
+function onHit(inst, x, y, ps) {
+  var st = style(inst.fx.params);
+  if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
+  else if (CUTS[st] !== undefined) slashOnHit(inst);
+  inst.tq_hits.push([+x, +y, inst.age]);
+}
 
 // ================================================================ drawing
 function Pen(g) { this.g = g; }
@@ -236,13 +297,14 @@ function star(pen, x, y, ux, uy, lr, sr, c, a, w) {
   pen.line(x - ux * lr, y - uy * lr, x + ux * lr, y + uy * lr, c, a, w);
   pen.line(x + uy * sr, y - ux * sr, x - uy * sr, y + ux * sr, c, a, w);
 }
-function hitMarks(pen, inst, c, ps, dx, dy) {
+function hitMarks(pen, inst, c, ps, dx, dy, dirf) {
   var t = inst.age;
   inst.tq_hits.forEach(function (h) {
     var x = h[0], y = h[1], k = t - h[2];
     if (k < 0 || k >= HIT_MARK_LIFE) return;
+    var u0 = dirf ? dirf(h[2]) : [dx, dy];
     var f = 1 - k / HIT_MARK_LIFE, e = easeOut3(k / 4), L = (18 + 10 * e) * ps;
-    [[dx, dy], FXK().rot([dx, dy], 70)].forEach(function (u) {
+    [u0, FXK().rot(u0.slice(), 70)].forEach(function (u) {
       pen.diamond(x - u[0] * L, y - u[1] * L, x + u[0] * L, y + u[1] * L, 3.2 * ps * f + 0.3, c, 220 * f);
       pen.diamond(x - u[0] * L * 0.9, y - u[1] * L * 0.9, x + u[0] * L * 0.9, y + u[1] * L * 0.9, 1.1 * ps * f + 0.2, HOT, 255 * f);
     });
@@ -253,12 +315,11 @@ function hitMarks(pen, inst, c, ps, dx, dy) {
 }
 
 // ---------------------------------------------------------------- slash
-function drawSlash(pen, inst, host, ps) {
-  var P = inst.fx.params, t = inst.age, g = new SlashGeo(inst, ps), fr = frame(inst);
-  var cs = colours(inst, host), c = cs[0], bright = cs[1];
+// One cut of a slash-family style at its own tick t.
+function drawCut(pen, inst, ps, g, fr, t, ci, c, bright) {
+  var P = inst.fx.params;
   var st = g.state(t), tail = st[0], head = st[1], ga = st[2];
   var R = g.R, Ts = g.Ts;
-  pen.add(true);
   var sl = g.slices(t);
   var W = function (s, r) { var l = g.local(s, r); return fr.w(l[0], l[1]); };
   var i, j, k;
@@ -309,7 +370,7 @@ function drawSlash(pen, inst, host, ps) {
   }
   var nsp = Math.max(0, Math.round(16 * (+P.density || 1))), drag = 0.88, grav = 0.22 * ps;
   for (i = 0; i < nsp; i++) {
-    var rg = rngFor(inst.seed, i, 7), b = 1 + rg() * (Ts - 1), life = 10 + rg() * 10, kk = t - b;
+    var rg = rngFor(inst.seed, i, 7 + 100 * ci), b = 1 + rg() * (Ts - 1), life = 10 + rg() * 10, kk = t - b;
     if (kk < 0 || kk >= life) continue;
     var sb2 = easeOut3(b / Ts), p0 = W(sb2, R + 0.2 * g.W), p1 = W(Math.min(1, sb2 + 0.02), R + 0.2 * g.W);
     var tx = p1[0] - p0[0], ty = p1[1] - p0[1], nn = hyp(tx, ty) || 1;
@@ -321,8 +382,48 @@ function drawSlash(pen, inst, host, ps) {
     var cvx = vx * dk, cvy = vy * dk + grav * kk, q = kk / life;
     pen.line(x, y, x - cvx * 1.6, y - cvy * 1.6, mix(HOT, c, q), 255 * (1 - q), 1.6 * ps);
   }
-  var dd = fr.d(g.d[0], g.d[1]);
-  hitMarks(pen, inst, c, ps, dd[0], dd[1]);
+}
+// combo_cross: the X flares where the two cuts cross once the second ends.
+function drawCross(pen, inst, ps, fr, c, starts) {
+  var a = inst.age - (starts[1] + swing(inst.fx.params));
+  if (a < 0 || a >= CROSS_LIFE) return;
+  var ga = new SlashGeo(inst, ps, 0), gb = new SlashGeo(inst, ps, 1);
+  var pa = ga.local(0.5, ga.R), pb = gb.local(0.5, gb.R), m = fr.w((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2), x = m[0], y = m[1];
+  var q = a / CROSS_LIFE, e = easeOut3(a / 6), L = (0.9 + 0.5 * e) * ga.R;
+  [ga, gb].forEach(function (gg) {
+    var u = fr.d(gg.d[0], gg.d[1]), ux = u[0], uy = u[1];
+    pen.diamond(x - ux * L, y - uy * L, x + ux * L, y + uy * L, 6 * ps * (1 - q) + 0.3, c, 230 * (1 - q));
+    pen.diamond(x - ux * L * 0.92, y - uy * L * 0.92, x + ux * L * 0.92, y + uy * L * 0.92, 2 * ps * (1 - q) + 0.2, HOT, 255 * (1 - q));
+  });
+  pen.glow(x, y, (20 + 26 * e) * ps * (1 - q), HOT, 240 * (1 - q));
+  pen.glow(x, y, (34 + 30 * e) * ps, c, 150 * (1 - q), 0.4);
+  var rr = 8 * ps + 0.9 * ga.R * easeOut3(q);
+  pen.ring(x, y, rr, rr, 0, c, 200 * (1 - q), 2.6 * ps * (1 - q) + 0.2);
+  for (var i = 0; i < 10; i++) {
+    var r = rngFor(inst.seed, i, 31), life = 10 + 8 * r();
+    if (a >= life) continue;
+    var an = r.uniform(0, Math.PI * 2), sp = r.uniform(3, 8) * ps, fd = dragDist(0.86, a);
+    var sx = x + Math.cos(an) * sp * fd, sy = y + Math.sin(an) * sp * fd, dk = Math.pow(0.86, a), qq = a / life;
+    pen.line(sx, sy, sx - Math.cos(an) * sp * dk * 1.8, sy - Math.sin(an) * sp * dk * 1.8, mix(HOT, c, qq), 255 * (1 - qq), 1.5 * ps);
+  }
+}
+function drawSlash(pen, inst, host, ps) {
+  var P = inst.fx.params, fr = frame(inst), cs = colours(inst, host), c = cs[0], bright = cs[1];
+  pen.add(true);
+  var starts = cutStarts(P), end = swing(P) + fadeT(P) + SPARK_LIFE, geos = [];
+  starts.forEach(function (s, ci) { geos.push(new SlashGeo(inst, ps, ci)); });
+  starts.forEach(function (s, ci) {
+    var t = inst.age - s;
+    if (t >= 0 && t < end) drawCut(pen, inst, ps, geos[ci], fr, t, ci, c, bright);
+  });
+  if (style(P) === "combo_cross") drawCross(pen, inst, ps, fr, c, starts);
+  var dirf = starts.length > 1 ? function (b) {
+    var ci = 0;
+    starts.forEach(function (s, i) { if (s <= b) ci = i; });
+    return fr.d(geos[ci].d[0], geos[ci].d[1]);
+  } : null;
+  var dd = fr.d(geos[0].d[0], geos[0].d[1]);
+  hitMarks(pen, inst, c, ps, dd[0], dd[1], dirf);
 }
 
 // ---------------------------------------------------------------- crescent wave
@@ -541,8 +642,13 @@ function draw(g, inst, host, ps) {
   var pen = new Pen(g), st = style(inst.fx.params);
   if (st === "crescent_wave") drawWave(pen, inst, host, ps);
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
+  else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else drawSlash(pen, inst, host, ps);
 }
 
-G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, activeTicks: activeTicks, totalTicks: totalTicks, vivid: vivid};
+// strikefx.js (ki blasts, punches) builds on these.
+G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+             vivid: vivid, CUTS: CUTS,
+             lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
+                   rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, dragDist: dragDist, hyp: hyp, HOT: HOT, D: D}};
 })(window);

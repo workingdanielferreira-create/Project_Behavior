@@ -95,6 +95,7 @@ laser/
                      rule; world clash table (characters/world_clash.json)
   clashfx.py         clash explosion library (19 effects, derive() variations)
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
+  strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on

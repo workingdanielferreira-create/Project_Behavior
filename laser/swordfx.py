@@ -18,6 +18,18 @@ Styles (params.style, fxkit.TECH_STYLES):
   blade_extension   an energy blade that charges at the sword tip, shoots out
                     along the aim, holds with ripples and crackle running up
                     it, then retracts in a trail of sparkle dust
+  forward_sweep     a flat sweep seen edge-on: from beside the fighter, out
+                    round the front at full reach and back beside it
+  combo_triple      overhead diagonal down, rising diagonal, wide finisher
+  combo_cross       two diagonals crossing in front, an X flare where they meet
+  combo_flurry      six quick cuts from every direction, scattered in front
+  combo_launcher    low sweep at the feet, mid diagonal, high rising launcher
+  combo_backhand    flat forehand round the front, flat backhand, overhead chop
+  ki_barrage        rapid-fire ki blasts (laser/strikefx.py)
+  impact_punch      a punch with a shockwave impact (laser/strikefx.py)
+
+The slash family (CUTS) is one renderer: every cut of a combo is the same
+hand-drawn slash with its own direction, bend, position, size and start.
 
 Every slash swings fast (ease out) with a white-hot cutting edge, speed
 lines, a flare at the blade head, sparks thrown along the swing and a
@@ -46,6 +58,47 @@ BLACK = (0, 0, 0)
 D = math.pi / 180.0
 # Slash cut directions, local degrees (+x = forward, +y = down), facing right.
 CUT_DEG = {"rising_slash": -90.0, "horizontal_sweep": 0.0, "diagonal_slash": -45.0}
+# Every slash-family style is a list of cuts, each one the same hand-drawn
+# slash laid out its own way:
+#   (deg, bend, cx, cy, scale, span_k, squash, t0)
+#   deg     the direction the blade travels (local, see CUT_DEG)
+#   bend    1 = the crescent bulges to the right of that direction, -1 = left
+#   cx, cy  where the cut is centred, in radii (+x forward, +y down)
+#   scale   radius and thickness multiplier
+#   span_k  span multiplier
+#   squash  scale along the travel direction (< 1 flattens the cut into a
+#           sweep seen edge-on, like a horizontal swing round the body)
+#   t0      when the cut starts, in swing lengths (swing_ticks)
+CUTS = {
+    "rising_slash": ((-90.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
+    "horizontal_sweep": ((0.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
+    "diagonal_slash": ((-45.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
+    # beside the fighter, flat round the front at full reach, back beside it
+    "forward_sweep": ((90.0, -1, 0.1, 0.0, 1.0, 1.0, 0.32, 0.0),),
+    # overhead diagonal down, rising diagonal back up, wide flat finisher
+    "combo_triple": ((40.0, -1, 0.1, -0.1, 1.0, 1.0, 1.0, 0.0),
+                     (-40.0, 1, 0.15, 0.05, 1.0, 1.0, 1.0, 1.3),
+                     (0.0, 1, 0.2, -0.1, 1.5, 0.6, 1.0, 2.6)),
+    # two diagonals crossing in front of the fighter, then a burst at the X
+    "combo_cross": ((45.0, -1, 0.45, 0.0, 1.0, 1.0, 1.0, 0.0),
+                    (-45.0, 1, 0.45, 0.0, 1.0, 1.0, 1.0, 0.9)),
+    # six quick cuts from every direction, scattered in front, a bigger last one
+    "combo_flurry": ((30.0, -1, 0.55, -0.3, 0.7, 1.0, 1.0, 0.0),
+                     (-150.0, -1, 0.75, 0.15, 0.65, 1.0, 1.0, 0.6),
+                     (90.0, -1, 0.95, -0.05, 0.7, 0.9, 1.0, 1.2),
+                     (-20.0, 1, 0.6, 0.3, 0.75, 1.0, 1.0, 1.8),
+                     (160.0, 1, 0.85, -0.35, 0.6, 1.0, 1.0, 2.4),
+                     (-60.0, 1, 0.7, 0.0, 0.9, 1.1, 1.0, 3.0)),
+    # low sweep at the feet, mid diagonal, high rising launcher
+    "combo_launcher": ((0.0, 1, 0.3, 0.35, 0.8, 0.8, 1.0, 0.0),
+                       (-35.0, 1, 0.25, 0.05, 1.0, 1.0, 1.0, 1.2),
+                       (-90.0, 1, 0.2, -0.25, 1.25, 1.2, 1.0, 2.4)),
+    # flat forehand round the front, flat backhand back, overhead chop
+    "combo_backhand": ((90.0, -1, 0.05, -0.05, 1.0, 1.1, 0.32, 0.0),
+                       (-90.0, 1, 0.05, 0.1, 1.0, 1.1, 0.32, 1.2),
+                       (90.0, -1, 0.45, 0.0, 1.1, 0.9, 1.0, 2.4)),
+}
+CROSS_LIFE = 18
 SLASH_SLICES = 26
 SPARK_LIFE = 20
 WAVE_EMBER_LIFE = 30
@@ -107,6 +160,12 @@ def _fade(P):
     return max(6, F.jround(1.6 * _swing(P)))
 
 
+def cut_starts(P):
+    """Tick each cut of a slash-family style starts on."""
+    Ts = _swing(P)
+    return [F.jround(c[7] * Ts) for c in CUTS[_style(P)]]
+
+
 def active_ticks(P):
     """Hit window (the instance's life)."""
     st = _style(P)
@@ -114,7 +173,9 @@ def active_ticks(P):
         return max(1, F.trunc(float(P.get("hold_ticks") or 48)))
     if st == "blade_extension":
         return EXT_CHARGE + EXT_EXTEND + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + EXT_RETRACT
-    return _swing(P) + 2
+    if st in strikefx.STYLES:
+        return strikefx.active_ticks(P)
+    return cut_starts(P)[-1] + _swing(P) + 2
 
 
 def total_ticks(P):
@@ -124,7 +185,9 @@ def total_ticks(P):
         return active_ticks(P) + WAVE_EMBER_LIFE
     if st == "blade_extension":
         return active_ticks(P) + EXT_DUST
-    return _swing(P) + _fade(P) + SPARK_LIFE
+    if st in strikefx.STYLES:
+        return strikefx.total_ticks(P)
+    return cut_starts(P)[-1] + _swing(P) + _fade(P) + SPARK_LIFE
 
 
 # ---------------------------------------------------------------- frame
@@ -132,17 +195,26 @@ def on_spawn(inst, host):
     """Fix the technique's frame at spawn: origin, forward, mirror."""
     fx = inst.fx
     st = _style(fx["params"])
-    if st in CUT_DEG:
+    if st in CUTS:
         ef = inst.facing
         f = F.turn_by([float(ef), 0.0], F.body_deg(fx, host, (inst.x, inst.y)))
     else:
         f = list(inst.dir)
     n = math.hypot(f[0], f[1]) or 1.0
     inst.tq_f = (f[0] / n, f[1] / n)
-    inst.tq_m = (inst.facing if st in CUT_DEG else (1 if inst.tq_f[0] >= 0 else -1))
+    inst.tq_m = (inst.facing if st in CUTS else (1 if inst.tq_f[0] >= 0 else -1))
     inst.tq_o = (inst.x, inst.y)
     inst.tq_hits = []
+    inst.tq_cut = set()            # combo cuts that already landed
+    inst.tq_path = [(inst.x, inst.y)]   # where the anchor was, per tick
+    inst.tq_ki = {}                # ki shots stopped by a hit: index -> (tick, x, y)
+    inst.tq_imp = []               # punch impacts: (tick, x, y)
     inst.life = active_ticks(fx["params"])
+
+
+def on_tick(inst):
+    """Each tick: remember where the anchor is (shots launch from there)."""
+    inst.tq_path.append((inst.x, inst.y))
 
 
 class Frame:
@@ -195,25 +267,34 @@ def _colours(inst, host):
 
 # ---------------------------------------------------------------- slash geometry
 class SlashGeo:
-    def __init__(self, inst, ps):
+    def __init__(self, inst, ps, ci=0):
         P = inst.fx["params"]
         self.st = _style(P)
-        self.R = float(P["radius"]) * ps
-        self.W = float(P["thickness"]) * ps
-        self.h = float(P["span"]) / 2.0
-        a = CUT_DEG[self.st] * D
+        deg, bend, cx, cy, sc, sk, sq, _t0 = CUTS[self.st][ci]
+        self.R = float(P["radius"]) * ps * sc
+        self.W = float(P["thickness"]) * ps * sc
+        self.h = float(P["span"]) * sk / 2.0
+        self.b = bend
+        a = deg * D
         self.d = (math.cos(a), math.sin(a))
-        self.n = (-self.d[1], self.d[0])
+        self.n = (-self.d[1] * bend, self.d[0] * bend)
         k = self.R * math.cos(self.h * D)
         self.O = (-self.n[0] * k, -self.n[1] * k)
+        R0 = float(P["radius"]) * ps
+        self.C = (cx * R0, cy * R0)
+        self.sq = sq
         self.Ts, self.Tf = _swing(P), _fade(P)
 
     def phi(self, s):
-        return F.rot(list(self.n), self.h - 2 * self.h * s)
+        return F.rot(list(self.n), self.b * (self.h - 2 * self.h * s))
 
     def local(self, s, r):
         p = self.phi(s)
-        return (self.O[0] + p[0] * r, self.O[1] + p[1] * r)
+        x, y = self.O[0] + p[0] * r, self.O[1] + p[1] * r
+        if self.sq != 1:
+            a = (x * self.d[0] + y * self.d[1]) * (self.sq - 1)
+            x, y = x + self.d[0] * a, y + self.d[1] * a
+        return (self.C[0] + x, self.C[1] + y)
 
     def state(self, t):
         """(tail, head, global alpha, width factor)."""
@@ -239,11 +320,11 @@ class SlashGeo:
         return out
 
 
-def _slash_hit(inst, tx, ty, hr, ps):
-    if inst.age >= inst.life:
-        return False
-    g, fr = SlashGeo(inst, ps), _frame(inst)
-    sl = g.slices(inst.age)
+def _cut_hit(g, fr, t, tx, ty, hr):
+    sl = g.slices(t)
+    # A flat (squashed) cut is a swing round the body seen edge-on: it hits
+    # everything between the fighter and the blade, not just the blade line.
+    hub = fr.w(*g.local(0.5, 0.0)) if g.sq != 1 else None
     for i in range(1, len(sl)):
         s0, u0, w0 = sl[i - 1]
         s1, u1, w1 = sl[i]
@@ -253,12 +334,44 @@ def _slash_hit(inst, tx, ty, hr, ps):
         b = fr.w(*g.local(s1, g.R - 0.2 * w1))
         if F.seg_dist(tx, ty, a[0], a[1], b[0], b[1]) <= hr + max(w0, w1) * 0.5:
             return True
+        if hub is not None and F.seg_dist(tx, ty, hub[0], hub[1], b[0], b[1]) <= hr:
+            return True
     return False
 
 
+def _live_cuts(inst):
+    """[(cut index, its own tick)] for the cuts inside their hit window."""
+    P = inst.fx["params"]
+    win = _swing(P) + 2
+    return [(i, inst.age - s) for i, s in enumerate(cut_starts(P)) if 0 <= inst.age - s < win]
+
+
+def _slash_hit(inst, tx, ty, hr, ps):
+    if inst.age >= inst.life:
+        return False
+    fr = _frame(inst)
+    combo = len(CUTS[_style(inst.fx["params"])]) > 1
+    for (ci, t) in _live_cuts(inst):
+        if combo and ci in inst.tq_cut:
+            continue   # each combo cut lands once
+        if _cut_hit(SlashGeo(inst, ps, ci), fr, t, tx, ty, hr):
+            return True
+    return False
+
+
+def _slash_on_hit(inst):
+    for (ci, _t) in _live_cuts(inst):
+        inst.tq_cut.add(ci)
+
+
 def _slash_body(inst, ps):
-    g, fr = SlashGeo(inst, ps), _frame(inst)
-    sl = g.slices(inst.age)
+    fr = _frame(inst)
+    live = _live_cuts(inst)
+    if not live:
+        return None
+    ci, t = live[-1]
+    g = SlashGeo(inst, ps, ci)
+    sl = g.slices(t)
     if not sl:
         return None
     pts = [fr.w(*g.local(sl[j][0], g.R - 0.2 * sl[j][2])) for j in range(0, len(sl), 4)]
@@ -374,6 +487,8 @@ def hit(inst, tx, ty, hr, ps):
         return _wave_hit(inst, tx, ty, hr, ps)
     if st == "blade_extension":
         return _ext_hit(inst, tx, ty, hr, ps)
+    if st in strikefx.STYLES:
+        return strikefx.hit(inst, tx, ty, hr, ps)
     return _slash_hit(inst, tx, ty, hr, ps)
 
 
@@ -384,12 +499,19 @@ def body(inst, ps):
         return _wave_body(inst, ps)
     if st == "blade_extension":
         return _ext_body(inst, ps)
+    if st in strikefx.STYLES:
+        return strikefx.body(inst, ps)
     if inst.age >= inst.life:
         return None
     return _slash_body(inst, ps)
 
 
-def on_hit(inst, x, y):
+def on_hit(inst, x, y, ps=1.0):
+    st = _style(inst.fx["params"])
+    if st in strikefx.STYLES:
+        strikefx.on_hit(inst, x, y, ps)
+    elif st in CUTS:
+        _slash_on_hit(inst)
     inst.tq_hits.append((float(x), float(y), inst.age))
 
 
@@ -472,12 +594,16 @@ def _star(pen, x, y, ux, uy, long_r, short_r, c, a, w):
     pen.line(x + uy * short_r, y - ux * short_r, x - uy * short_r, y + ux * short_r, c, a, w)
 
 
-def _hit_marks(pen, inst, c, ps, dx, dy):
+def _hit_marks(pen, inst, c, ps, dx, dy, dirf=None):
+    """X slash flash + ring on every hit; dirf(tick) -> (dx, dy) when the cut
+    direction changes over the technique (combos)."""
     t = inst.age
     for (x, y, b) in inst.tq_hits:
         k = t - b
         if k < 0 or k >= HIT_MARK_LIFE:
             continue
+        if dirf is not None:
+            dx, dy = dirf(b)
         f = 1 - k / float(HIT_MARK_LIFE)
         e = ease_out3(k / 4.0)
         L = (18 + 10 * e) * ps
@@ -490,14 +616,11 @@ def _hit_marks(pen, inst, c, ps, dx, dy):
 
 
 # ---------------------------------------------------------------- slash
-def _draw_slash(pen, inst, host, ps):
+def _draw_cut(pen, inst, ps, g, fr, t, ci, c, bright):
+    """One cut of a slash-family style at its own tick t."""
     P = inst.fx["params"]
-    t = inst.age
-    g, fr = SlashGeo(inst, ps), _frame(inst)
-    c, bright, _deep = _colours(inst, host)
     tail, head, ga, wf = g.state(t)
     R, Ts = g.R, g.Ts
-    pen.add(True)
     sl = g.slices(t)
 
     def W(s, r):
@@ -559,7 +682,7 @@ def _draw_slash(pen, inst, host, ps):
     n_sp = max(0, F.jround(16 * float(P.get("density") or 1)))
     drag, grav = 0.88, 0.22 * ps
     for i in range(n_sp):
-        r = rng_for(inst.seed, i, 7)
+        r = rng_for(inst.seed, i, 7 + 100 * ci)
         b = 1 + r() * (Ts - 1)
         life = 10 + r() * 10
         k = t - b
@@ -581,7 +704,67 @@ def _draw_slash(pen, inst, host, ps):
         cvx, cvy = vx * dk, vy * dk + grav * k
         q = k / life
         pen.line(x, y, x - cvx * 1.6, y - cvy * 1.6, mix(HOT, c, q), 255 * (1 - q), 1.6 * ps)
-    _hit_marks(pen, inst, c, ps, *fr.d(*g.d))
+
+
+def _draw_cross(pen, inst, ps, fr, c, starts):
+    """combo_cross: the X flares where the two cuts cross once the second ends."""
+    a = inst.age - (starts[1] + _swing(inst.fx["params"]))
+    if a < 0 or a >= CROSS_LIFE:
+        return
+    ga, gb = SlashGeo(inst, ps, 0), SlashGeo(inst, ps, 1)
+    pa, pb = ga.local(0.5, ga.R), gb.local(0.5, gb.R)
+    x, y = fr.w((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)
+    q = a / float(CROSS_LIFE)
+    e = ease_out3(a / 6.0)
+    L = (0.9 + 0.5 * e) * ga.R
+    for gg in (ga, gb):
+        ux, uy = fr.d(*gg.d)
+        pen.diamond(x - ux * L, y - uy * L, x + ux * L, y + uy * L, 6 * ps * (1 - q) + 0.3, c, 230 * (1 - q))
+        pen.diamond(x - ux * L * 0.92, y - uy * L * 0.92, x + ux * L * 0.92, y + uy * L * 0.92, 2 * ps * (1 - q) + 0.2,
+                    HOT, 255 * (1 - q))
+    pen.glow(x, y, (20 + 26 * e) * ps * (1 - q), HOT, 240 * (1 - q))
+    pen.glow(x, y, (34 + 30 * e) * ps, c, 150 * (1 - q), 0.4)
+    rr = 8 * ps + 0.9 * ga.R * ease_out3(q)
+    pen.ring(x, y, rr, rr, 0.0, c, 200 * (1 - q), 2.6 * ps * (1 - q) + 0.2)
+    for i in range(10):
+        r = rng_for(inst.seed, i, 31)
+        life = 10 + 8 * r()
+        if a >= life:
+            continue
+        an = r.uniform(0, math.pi * 2)
+        sp = r.uniform(3, 8) * ps
+        fd = drag_dist(0.86, a)
+        sx, sy = x + math.cos(an) * sp * fd, y + math.sin(an) * sp * fd
+        dk = 0.86 ** a
+        qq = a / life
+        pen.line(sx, sy, sx - math.cos(an) * sp * dk * 1.8, sy - math.sin(an) * sp * dk * 1.8, mix(HOT, c, qq),
+                 255 * (1 - qq), 1.5 * ps)
+
+
+def _draw_slash(pen, inst, host, ps):
+    P = inst.fx["params"]
+    st = _style(P)
+    fr = _frame(inst)
+    c, bright, _deep = _colours(inst, host)
+    pen.add(True)
+    starts = cut_starts(P)
+    end = _swing(P) + _fade(P) + SPARK_LIFE
+    geos = [SlashGeo(inst, ps, ci) for ci in range(len(starts))]
+    for ci, s in enumerate(starts):
+        t = inst.age - s
+        if 0 <= t < end:
+            _draw_cut(pen, inst, ps, geos[ci], fr, t, ci, c, bright)
+    if st == "combo_cross":
+        _draw_cross(pen, inst, ps, fr, c, starts)
+
+    def dirf(b):
+        ci = 0
+        for i, s in enumerate(starts):
+            if s <= b:
+                ci = i
+        return fr.d(*geos[ci].d)
+
+    _hit_marks(pen, inst, c, ps, *fr.d(*geos[0].d), dirf=dirf if len(starts) > 1 else None)
 
 
 # ---------------------------------------------------------------- crescent wave
@@ -864,5 +1047,12 @@ def draw(p, inst, host, ps):
         _draw_wave(pen, inst, host, ps)
     elif st == "blade_extension":
         _draw_extension(pen, inst, host, ps)
+    elif st in strikefx.STYLES:
+        strikefx.draw(pen, inst, host, ps)
     else:
         _draw_slash(pen, inst, host, ps)
+
+
+# Ki blasts and punches (laser/strikefx.py) share this module's frame, pen and
+# timeline; imported last because it builds on them.
+from . import strikefx  # noqa: E402

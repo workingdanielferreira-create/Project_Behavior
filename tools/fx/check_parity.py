@@ -218,6 +218,20 @@ def main():
     same_keys({r[0] for r in js.get("CLASH_FX")}, _clashfx_keys(), "CLASH_FX", out,
               "FX Studio's clash FX list", "laser/clashfx.py BASES")
 
+    # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py) and
+    # the ki barrage / impact punch constants (laser/strikefx.py).
+    sw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "swordfx.js"))
+    sw_py = PyTables(os.path.join(ROOT, "laser", "swordfx.py"))
+    for name in ("CUTS", "CROSS_LIFE", "SLASH_SLICES", "SPARK_LIFE", "HIT_MARK_LIFE"):
+        diff(sw_js.get(name), sw_py.get(name), "swordfx " + name, out)
+    st_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "strikefx.js"))
+    st_py = PyTables(os.path.join(ROOT, "laser", "strikefx.py"))
+    for name in ("STYLES", "KI_SPEED", "KI_RANGE", "KI_SIDE", "KI_FLASH", "KI_BLAST_LIFE", "KI_SMOKE_LIFE", "SMOKE",
+                 "PUNCH_RETRACT", "PUNCH_IMPACT_LIFE"):
+        diff(st_js.get(name), st_py.get(name), "strikefx " + name, out)
+    tech_ui = [r for r in studio.get("PARAM_UI")["technique"] if r[0] == "style"][0][2]
+    diff(tech_ui, fx.get("TECH_STYLES"), "studio technique style list", out)
+
     # Conditions (laser/actions.py) and Tactical retreat defaults (laser/retreat.py).
     diff(js.get("CONDITION_TYPES"), act.get("CONDITION_TYPES"), "CONDITION_TYPES", out)
     diff(js.get("RETREAT_DEFAULTS"), rt.get("DEFAULTS"), "RETREAT_DEFAULTS", out)

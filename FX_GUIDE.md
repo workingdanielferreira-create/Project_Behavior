@@ -479,6 +479,51 @@ that charges, shoots out of the sword tip, holds and retracts).
 
 ---
 
+## 12c. Slash Combos, Ki Barrage and Impact Punch
+
+More `technique` styles at the same hand-drawn standard (FX Studio presets:
+**Sword techniques**, **Sword combos**, **Ki & strikes**).
+
+- **Slash family = one renderer, a table of cuts.** `swordfx.CUTS` maps every
+  slash style to a list of cuts `(deg, bend, cx, cy, scale, span_k, squash,
+  t0)`: travel direction, which side the crescent bulges, where it is centred
+  (in radii), size, span, a squash along the travel direction (< 1 = a flat
+  swing round the body seen edge-on) and its start (in swing lengths). The
+  three original slashes are one-cut entries and draw exactly as before.
+  - `forward_sweep`: one flat cut from beside the fighter, round the front at
+    full reach and back. Flat cuts hit everything between the fighter and the
+    blade (the area the swing passes through), not just the blade line.
+  - Combos: `combo_triple` (overhead diagonal, rising diagonal, wide
+    finisher), `combo_cross` (two diagonals forming an X + a flare where they
+    cross), `combo_flurry` (six quick cuts from every direction),
+    `combo_launcher` (feet → mid → high rising launcher), `combo_backhand`
+    (flat forehand, flat backhand, overhead chop). Each cut lands once
+    (`inst.tq_cut`), so give a combo Pierce and Re-hit 1. A new combo is a new
+    row in `CUTS` (both `swordfx.py` and `swordfx.js`) plus its
+    `TECH_STYLES` / `TECH_STYLE_DEFAULTS` entry.
+- **Ki barrage (`laser/strikefx.py`).** Rapid-fire ki blasts: one shot every
+  Swing ticks for Hold ticks, from alternating sides of the anchor. Every shot
+  rolls its own speed, spread angle (Span), curve, size (now and then a much
+  bigger one), tint, range (Length) and blast kind from the seed. Shots launch
+  from where the anchor was at their launch tick (`inst.tq_path`, appended by
+  `swordfx.on_tick` from `tick_inst`). A shot that hits stops and detonates
+  there (`inst.tq_ki`); the rest detonate at the end of their range. Blasts:
+  white flash, fireball, shock ring, sparks; smoke (painted normally, under
+  the light) piles up. Ki shots never clash as a blade (`body` → None).
+- **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
+  Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
+  an air ring in front of the fist. Hits along the arm; the impact (flash,
+  spiked star, two shockwave rings across the punch line, radial speed lines,
+  sparks) stays where the fist landed (`inst.tq_imp`). A whiff bursts at 55 %
+  size at full reach. Clashes along the arm.
+- **Parameters reused:** see the `strikefx.py` docstring (e.g. ki: Radius =
+  shot size, Thickness = blast size, Span = spread °, Length = range).
+- **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
+  compares `CUTS` and the strikefx constants. Same code path in Solo and
+  Battle (FX Kit Player).
+
+---
+
 ## 13. The Clash Interaction (`laser/clash.py`)
 
 Clashing is world physics: no character chooses it, and every effect of

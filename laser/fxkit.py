@@ -190,19 +190,30 @@ PARAM_DEFAULTS = {
     # technique; radius / span / thickness shape the slashes and the wave,
     # length / thickness the extended blade.  swing_ticks = how fast a slash
     # swings; hold_ticks = the wave's flight / how long the blade stays out.
-    # The technique keeps its own timeline: Life is ignored.
+    # Ki barrage / impact punch (laser/strikefx.py) reuse the same fields:
+    # see that module.  The technique keeps its own timeline: Life is ignored.
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
-TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension"]
+TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
+               "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
+               "ki_barrage", "impact_punch"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
     "diagonal_slash": dict(radius=60, span=110, thickness=12, swing_ticks=6),
     "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
     "blade_extension": dict(length=300, thickness=6, hold_ticks=18),
+    "forward_sweep": dict(radius=85, span=200, thickness=12, swing_ticks=7),
+    "combo_triple": dict(radius=55, span=120, thickness=11, swing_ticks=5),
+    "combo_cross": dict(radius=55, span=120, thickness=12, swing_ticks=5),
+    "combo_flurry": dict(radius=55, span=110, thickness=10, swing_ticks=4),
+    "combo_launcher": dict(radius=55, span=120, thickness=11, swing_ticks=5),
+    "combo_backhand": dict(radius=70, span=150, thickness=11, swing_ticks=5),
+    "ki_barrage": dict(radius=6, thickness=18, span=18, length=320, swing_ticks=3, hold_ticks=45),
+    "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
@@ -915,7 +926,7 @@ class Inst:
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap",
-                 "tq_f", "tq_m", "tq_o", "tq_hits")
+                 "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp")
 
     def __init__(self):
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
@@ -1489,6 +1500,7 @@ def tick_inst(inst, host):
         if not active and not pulse_rings(inst, inst.ps):
             inst.dead = True
     elif prim == "technique":
+        swordfx.on_tick(inst)   # where the anchor is now (ki shots launch from there)
         # Its afterglow (sparks, shards, dust) plays out after the hit window.
         if inst.age >= swordfx.total_ticks(P):
             inst.dead = True
@@ -1774,7 +1786,7 @@ def resolve_hits(inst, host, ps):
             inst.last_hit = now
             host.on_hit(inst, b["damage"], inst.dir[0], inst.dir[1], b["knockback"], key)
             if inst.fx["prim"] == "technique":
-                swordfx.on_hit(inst, hx, hy)   # its slash flash on the target
+                swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
             if not b["pierce"]:
                 if can_lodge(inst):
                     blade_lodge(inst, hx, hy, hr, ps)

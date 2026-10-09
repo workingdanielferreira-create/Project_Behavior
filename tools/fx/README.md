@@ -120,6 +120,18 @@ timing.
   Span, Thickness, Blade length, Swing ticks, Hold ticks and Sparks × tune
   it. The *Sword techniques (lite)* presets are cheaper versions built from
   plain layers.
+- **Sword combos, ki and punches.** More `technique` styles (presets:
+  *Sword techniques*, *Sword combos*, *Ki & strikes*): **Forward sweep** (a
+  flat swing round the front at full reach), five combos (**triple**, **X
+  cross**, **flurry**, **launcher**, **forehand / backhand**: chains of cuts
+  in different directions, positions and sizes; each cut lands once — Pierce
+  + Re-hit 1), **Ki barrage** (Vegeta-style rapid-fire ki blasts, every shot
+  different; each shot can hit once, then detonates) and **Impact punch**
+  (fist streak, then flash, impact star and shockwave rings where it lands).
+  Ki and punch reuse the technique fields: Radius = shot / fist size,
+  Thickness = blast radius / streak width, Span = ki spread °, Length = ki
+  range / punch reach, Swing ticks = ticks between shots / punch-out time,
+  Hold ticks = firing time / time held out.
 - **Radial pulse FX.** Primitive `pulse`: rings that expand from **Radius
   start** to **Radius end** over **Expand ms**, **Rings** of them **Gap** ms
   apart (0 = repeat for the whole effect). With Deals damage each ring hits
