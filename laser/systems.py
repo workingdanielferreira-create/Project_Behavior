@@ -315,8 +315,11 @@ class CombatSystem(System):
         # FX Studio Time control: figures whose body is stopped (or has no
         # step left in this sub-pass) while their FX still run — the FX
         # move, the action clock holds (laser/timefx.py).
+        # A fighter held by a beam struggle (laser/clash.py) takes the same
+        # path; clash.hold_tick keeps its clash action playing.
         for fig in getattr(world, "time_fx_only", ()):
-            fxkit.update_figure(fig, world, hold="time")
+            if not clash.hold_tick(fig, world):
+                fxkit.update_figure(fig, world, hold="time")
         for fig in world.figures:
             combat.update_petals(fig, world)   # ambient defensive FX — all archetypes, always ticks
             combat.update_character_bursts(fig)  # cosmetic particle-burst FX, all archetypes
