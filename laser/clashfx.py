@@ -91,6 +91,9 @@ HIDDEN = set()
 BEAM_PUSH = 0.55              # anchored struggle: share of the way the node is pushed toward the loser
 RIM = (8, 10, 16)             # dark rim drawn under the beam struggle node's FX (reads on bright desktops)
 SHOCK_TICKS = 26              # beam struggle node: life of each shockwave ring
+SURGE_MAX = 0.45              # tug of war: furthest a surge carries the node toward a side (share of the way)
+SURGE_TICKS = (18, 40)        # ticks between surges
+COMMIT_AT = 0.7               # share of the struggle after which it commits (winner push / overload build-up)
 
 # Shared tunables, overridable per variation: size / density / speed scale
 # the geometry, particle counts and particle speeds; life = ticks of the burst
@@ -620,7 +623,8 @@ class ClashFX:
     # ================================================================ 2
     def _init_beam_struggle(self):
         self.state.update(arcs=[], shocks=[], nx=0.0, ny=0.0, core=0.0, R=0.0, f0=(0.0, 0.0), fR=0.0, ax=0.0,
-                          o=None, looks=None, bw=(0.0, 0.0), loser=None)
+                          o=None, looks=None, bw=(0.0, 0.0), loser=None,
+                          s=0.0, sv=0.0, tgt=0.0, next=0, over=0.0, overload=False)
         self.rim = True
 
     def anchor_beams(self, look1, look2, loser=None):
@@ -628,8 +632,10 @@ class ClashFX:
         look2 = how each side's beam is drawn right now (clash._beam_look:
         o = where it starts, world, locked when the clash starts; tail /
         head width, colours, glow, alpha, blend — screen px).  The node
-        starts at the contact and is pushed toward the loser's origin
-        (loser = 0 / 1; None = a tie: it sways about the contact).  Both
+        starts at the contact and surges back and forth between the two
+        origins (a tug of war), then commits toward the loser's origin
+        (loser = 0 / 1) or, on a tie (None), shakes in place building to an
+        overload.  Both
         beams are then drawn here with their own look, from each origin to
         the node, so the real ones can be hidden (HIDDEN) without a seam.
         Its size (S) is already set from the beams' widths, so the position
@@ -665,16 +671,36 @@ class ClashFX:
         ax = st["ax"]
         ux, uy = math.cos(ax), math.sin(ax)
         core0 = 0.0
+        over = 0.0
         if self.anchored:
-            # tug-of-war: sway along the line between the beams, pushed
-            # toward the loser's origin as the struggle goes on
-            nx, ny = ux * sway * 0.6, uy * sway * 0.6
+            # Tug of war: s = where the node is between the two origins
+            # (-1 = side A's origin, 0 = the contact, +1 = side B's).  It
+            # surges back and forth in irregular pushes, sprung so it
+            # overshoots and recoils; after COMMIT_AT it commits toward the
+            # loser, or (a tie) shakes in place building to an overload.
+            span = float(self.hold) if self.hold > 0 else 90.0
+            u = min(1.0, t / span)
             lo = st["loser"]
-            if lo is not None:
-                ox, oy = st["o"][lo]
-                span = float(self.hold) if self.hold > 0 else 90.0
-                k = BEAM_PUSH * _ease_in(min(1.0, t / span))
-                nx, ny = nx + ox * k, ny + oy * k
+            if t >= st["next"]:
+                side = -1.0 if st["tgt"] > 0 else 1.0
+                st["tgt"] = side * r.uniform(0.15, SURGE_MAX)
+                st["next"] = t + r.randint(*SURGE_TICKS)
+            tgt = st["tgt"]
+            if u > COMMIT_AT:
+                k = _ease_in((u - COMMIT_AT) / (1.0 - COMMIT_AT))
+                if lo is not None:
+                    tgt += ((BEAM_PUSH if lo == 1 else -BEAM_PUSH) - tgt) * min(1.0, 3.0 * k)
+                else:
+                    tgt *= 1.0 - min(1.0, 3.0 * k)
+                    over = (u - COMMIT_AT) / (1.0 - COMMIT_AT)
+            st["sv"] = st["sv"] * 0.86 + (tgt - st["s"]) * 0.035
+            st["s"] = max(-0.9, min(0.9, st["s"] + st["sv"]))
+            sv = st["s"]
+            ox, oy = st["o"][1] if sv >= 0 else st["o"][0]
+            nx, ny = ox * abs(sv), oy * abs(sv)
+            if over > 0:    # the overload build-up shakes the node
+                j = 7.0 * S * over
+                nx, ny = nx + r.uniform(-j, j), ny + r.uniform(-j, j)
             core0 = 0.55 * max(st["bw"]) * (1.0 + 0.25 * g)
         else:
             nx, ny = sway, 0.0
@@ -684,7 +710,10 @@ class ClashFX:
         # The energy sphere: 2-3x the beams' width, swelling as it goes on,
         # pulsing.
         base = 1.25 * max(st["bw"]) if self.anchored else core * 1.4
+        st["over"] = over
         R = max(base, 24 * S) * (1.0 + 0.25 * g) * (1.0 + 0.07 * math.sin(t * 0.5) + 0.04 * math.sin(t * 1.3 + 0.7))
+        if over > 0:    # swelling and throbbing harder before it blows
+            R *= 1.0 + 0.6 * over + 0.12 * over * math.sin(t * 2.1)
         st["R"] = R
         if t % 3 == 0:
             arcs = []
@@ -700,7 +729,7 @@ class ClashFX:
         st["shocks"] = [a + 1 for a in st["shocks"] if a + 1 < SHOCK_TICKS]
         # heavy spark / debris spray off the sphere, mostly sideways to the
         # beams, like grinding metal
-        for _ in range(5):
+        for _ in range(5 + int(6 * over)):
             if r.random() < self.D:
                 side = 1 if r.random() < 0.5 else -1
                 a = ax + side * math.pi / 2 + r.gauss(0, 0.75)
@@ -726,6 +755,20 @@ class ClashFX:
         self._sparks(90, x=x, y=y, spd=(4.0, 14.0), life=(20, 40), size=(2.0, 3.6))
         self._sparks(16, x=x, y=y, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
         self._sparks(24, x=x, y=y, kind="dot", spd=(1.0, 5.0), life=(22, 40), size=(3.0, 5.5), drag=0.95)
+
+    def overload(self):
+        """laser/clash.py: a tied struggle overloads — call after release().
+        A far bigger blast (sparks, debris, smoke) and a larger flash and
+        rings in the finale."""
+        if self.base != "beam_struggle":
+            return
+        st = self.state
+        st["overload"] = True
+        x, y = st["f0"]
+        self._sparks(170, x=x, y=y, spd=(6.0, 22.0), life=(24, 46), size=(2.4, 4.4))
+        self._sparks(30, x=x, y=y, kind="smoke", spd=(1.0, 3.5), life=(36, 60), size=(14, 26), drag=0.96)
+        self._sparks(44, x=x, y=y, kind="dot", spd=(2.0, 9.0), life=(26, 46), size=(3.5, 6.5), drag=0.95,
+                     grav=0.15)
 
     def _draw_sphere(self, p, R, a):
         """The struggle's energy sphere at the origin (already translated to
@@ -862,16 +905,22 @@ class ClashFX:
             f = 1.0 - u
             x, y = st["f0"]
             R0 = st["fR"] or 30 * S
+            big = 2.0 if st["overload"] else 1.0    # an overload blows far bigger
             p.save()
             p.translate(x, y)
             p.rotate(math.degrees(st["ax"]))
             # the sphere flares, then collapses
             e = min(1.0, t / 10.0)
-            self._draw_sphere(p, R0 * (1.0 + 0.6 * _ease_out(e)) * (1.0 - 0.8 * _ease_in(u)), 255 * f ** 1.2)
-            r = max(230 * S, R0 * 3.0) * _ease_out(u)
-            self._draw_shock(p, r, 9 * S * f + 1, 230 * f)
-            r2 = max(150 * S, R0 * 2.0) * _ease_out(min(1.0, t / 20.0))
-            self._draw_shock(p, r2, 5 * S * f + 0.5, 180 * f)
+            self._draw_sphere(p, R0 * (1.0 + 0.6 * big * _ease_out(e)) * (1.0 - 0.8 * _ease_in(u)), 255 * f ** 1.2)
+            r = max(230 * S, R0 * 3.0) * big * _ease_out(u)
+            self._draw_shock(p, r, 9 * S * f * big + 1, 230 * f)
+            r2 = max(150 * S, R0 * 2.0) * big * _ease_out(min(1.0, t / 20.0))
+            self._draw_shock(p, r2, 5 * S * f * big + 0.5, 180 * f)
+            if st["overload"]:
+                r3 = max(110 * S, R0 * 1.5) * big * _ease_out(min(1.0, t / 12.0))
+                self._draw_shock(p, r3, 7 * S * f + 0.5, 220 * f)
+                p.setCompositionMode(QPainter.CompositionMode_Plus)
+                _glow(p, 0, 0, R0 * 4.0 * _ease_out(e), HOT, 255 * f ** 2, 0.4)
             p.restore()
         self._draw_parts(p)
 

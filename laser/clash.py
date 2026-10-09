@@ -28,8 +28,13 @@ Every pair of categories has a rule.
                       beam from its origin (locked when the clash starts) to
                       the node with that beam's own look (tail / head width,
                       colours, glow), the real beams are hidden meanwhile,
-                      and the node is pushed toward the loser's origin; the
-                      blowout fires where the node ends up.  Otherwise the
+                      and the node surges back and forth (a tug of war)
+                      before it commits toward the loser's origin; the
+                      blowout fires where the node ends up.  Equal knockback
+                      (a tie) overloads instead: the node shakes and swells,
+                      then blows up, costing each fighter OVERLOAD_HP_PCT of
+                      its max HP and throwing it OVERLOAD_KB_PX (_overload).
+                      Otherwise the
                       lesser version: a one-shot spark burst (the struggle's
                       finale only) at the contact, settled at once by the
                       knockback rule.  Both are sized from the beams' real
@@ -131,6 +136,8 @@ SIZE_MIN = 0.10              # smallest random clash FX size (10%)
 SIZE_KB_FULL = 100.0         # knockback for the full slot size (higher counts as this)
 MERGE_TICKS = 6              # contacts of the same two fighters this soon after a clash FX...
 MERGE_PX = 60.0              # ...and this close to it are part of that clash (no FX of their own)
+OVERLOAD_HP_PCT = 10.0       # a tied beam struggle overloads: each fighter loses this % of its max HP...
+OVERLOAD_KB_PX = 500.0       # ...and is thrown this far from the blast (ignores knockback immunity)
 OVERPOWER_KB = 100.0         # knockback lead that destroys the weaker effect outright, no clash
 
 # category pair (sorted) -> rule name.  Every pair has one.
@@ -972,13 +979,34 @@ def _start(world, st, a, b, c, rule, now):
     return None
 
 
+def _overload(world, figs, c):
+    """A tied beam struggle overloads: the blast hurts both fighters
+    (OVERLOAD_HP_PCT of each one's max HP, through any damage cooldown) and
+    throws each OVERLOAD_KB_PX straight away from it."""
+    from . import ai, blink, motion
+    spd = OVERLOAD_KB_PX * (1.0 - config.BOUNCE_FRICTION)
+    for f in figs:
+        if f is None or blink.gone(f) or not any(f in s.figures for s in world.sides):
+            continue
+        dx, dy = _norm(f.x - c[0], f.y - c[1])
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            dx = -1.0 if f is figs[0] else 1.0
+        f.motion.knock_tick = -10     # always (re)start: the blast is its own hit
+        motion.launch_knockback(f, dx * spd, dy * spd, world.global_tick)
+        p = f.personality
+        p.dmg_immune_until = 0        # the blast lands whatever hit came before it
+        ai.apply_hp_damage(f, world, max(1, int(round(p.max_hp * OVERLOAD_HP_PCT / 100.0))), unblockable=True)
+
+
 def _finish(world, st, rec):
-    """A held clash ends: the knockback rule decides it."""
+    """A held clash ends: the knockback rule decides it.  A beam struggle
+    with a winner ends in the winner's blowout; a tie overloads (_overload)."""
     a, b, c = rec.a, rec.b, rec.c
     if rec.fx is not None and rec.fx.anchored:
         c = rec.fx.node_world()     # the struggle ends where the node was pushed to
     clashfx.HIDDEN.difference_update(rec.hidden)
     la, lb = _alive(a), _alive(b)
+    over = rec.rule == "beam_beam" and la and lb and _kb_winner(a, b) is None
     if la and lb:
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
@@ -987,7 +1015,13 @@ def _finish(world, st, rec):
                       scale=rec.fx.S if rec.fx is not None else None, pair=(a, b))
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
-    if rec.rule == "beam_beam":
+    if over:
+        if rec.fx is not None:
+            rec.fx.overload()
+        # Released at once so the blast throws them clear.
+        _hold_figs(world, st, (a.owner, b.owner), world.global_tick)
+        _overload(world, (a.owner, b.owner), c)
+    elif rec.rule == "beam_beam":
         # The fighters go free once the struggle's finale has played.
         fin = 0 if rec.fx is None else max(0, int(math.ceil((rec.fx.life - rec.fx.ft) / rec.fx.rate - 1e-9)))
         _hold_figs(world, st, (a.owner, b.owner), world.global_tick + fin)
