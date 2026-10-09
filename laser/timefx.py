@@ -213,8 +213,11 @@ def run_side(world, pipeline):
     """One side's pipeline pass (side already bound) as time sub-passes.
     Returns False when the game is quitting."""
     from .systems import CollisionSystem
+    from . import clash
     full = world.figures
-    nb = {id(f): state(f).body_steps for f in full}
+    # A fighter held by a beam struggle (laser/clash.py) takes no body step:
+    # it stays put and starts nothing new; its FX run on (clash.hold_tick).
+    nb = {id(f): 0 if clash.held(world, f) else state(f).body_steps for f in full}
     nx = {id(f): state(f).fx_steps for f in full}
     lead = full[0] if full else None
     S = max([0] + list(nb.values()) + list(nx.values()))

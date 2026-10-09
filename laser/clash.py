@@ -92,8 +92,11 @@ untouched, never pinned, split or slowed.
 While a sustained clash holds, both effects are pinned where they met.  Each
 fighter involved shows its own Rig Forge "clash" action (if it has one),
 standing still, for exactly the clash's length; the FX built on that action
-play with it.  Which clash FX plays for each rule (and its size / density)
-comes from the world table: WORLD_SLOTS defaults, overridden by the shared
+play with it.  A full beam struggle also holds both fighters in place, doing
+nothing new (no movement, attacks or shots), until its animation (hold +
+finale) has played out (_hold_figs / hold_tick; timefx.run_side stops their
+bodies while their FX run on).  Which clash FX plays for each rule (and
+its size / density) comes from the world table: WORLD_SLOTS defaults, overridden by the shared
 characters/world_clash.json (FX Studio's World Clash page; load_world).
 
 One code path for Solo and Battle: clashes need two fielded sides, so Solo
@@ -817,8 +820,60 @@ def _state(world):
         st = world.clash_state = {"active": [], "busy": set(), "seen": {}, "tips": [],
                                   "rng": random.Random(), "halves": set(),
                                   "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {},
-                                  "recent": {}, "quiet": False}
+                                  "recent": {}, "quiet": False, "held": {}}
     return st
+
+
+# ---------------------------------------------------------------- struggle hold
+def _hold_figs(world, st, figs, until):
+    """The fighters of a beam struggle stay where they are, doing nothing
+    new (no movement, attacks or shots), until tick `until` — the end of the
+    struggle animation (hold + finale).  A later call replaces the time."""
+    for f in figs:
+        if f is not None:
+            st["held"][id(f)] = (f, int(until))
+            r = getattr(f, "act", None)
+            if r is not None and r.forced == "clash":
+                r.forced_until = min(r.forced_until, int(until))
+
+
+def held(world, fig):
+    """True while fig is held in place by a beam struggle."""
+    st = getattr(world, "clash_state", None)
+    e = st["held"].get(id(fig)) if st is not None else None
+    return e is not None and e[0] is fig and world.global_tick < e[1]
+
+
+def holding(world):
+    """True while any fighter is held by a beam struggle (app._tick then runs
+    the sides through timefx.run_side, where a held body takes no step)."""
+    st = getattr(world, "clash_state", None)
+    if st is None or not st["held"]:
+        return False
+    now = world.global_tick
+    return any(now < e[1] for e in st["held"].values())
+
+
+def hold_tick(fig, world):
+    """CombatSystem, for a fighter whose body is stopped this sub-pass
+    (timefx.run_side): when a beam struggle holds it (and Time control does
+    not also stop it), its FX and its "clash" action keep playing while it
+    stays put.  True when it handled the figure."""
+    from . import actions, fxkit, timefx
+    if not held(world, fig) or timefx.state(fig).body_steps <= 0:
+        return False
+    t = fig.transform
+    x, y = t.x, t.y
+    r = getattr(fig, "act", None)
+    if r is not None and r.forced is not None and r.playing == r.forced and world.global_tick < r.forced_until:
+        actions.update(fig, world)      # the forced clash action plays on, rooted
+        fxkit.update_figure(fig, world, frozen=not timefx.fx_on(world, fig))
+    else:
+        fxkit.update_figure(fig, world, hold="time")
+    t.x, t.y = x, y
+    fig.render.is_moving = False
+    fig.render.advance()
+    return True
 
 
 def _key(a, b):
@@ -871,6 +926,9 @@ def _start(world, st, a, b, c, rule, now):
             hidden = (id(a.ref), id(b.ref))
             clashfx.HIDDEN.update(hidden)
         _engage(world, figs, fx.length() if fx is not None else held)
+        # Both fighters stay where they are until the struggle animation
+        # (hold + finale) has played out (_finish trims it when it ends early).
+        _hold_figs(world, st, figs, now + (fx.length() if fx is not None else held))
         return Clash(a, b, c, rule, now + held, fx, now, hidden)
     if rule == "beam_orb":
         fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
@@ -920,6 +978,10 @@ def _finish(world, st, rec):
                       scale=rec.fx.S if rec.fx is not None else None, pair=(a, b))
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
+    if rec.rule == "beam_beam":
+        # The fighters go free once the struggle's finale has played.
+        fin = 0 if rec.fx is None else max(0, int(math.ceil((rec.fx.life - rec.fx.ft) / rec.fx.rate - 1e-9)))
+        _hold_figs(world, st, (a.owner, b.owner), world.global_tick + fin)
     st["busy"].discard(id(a.ref))
     st["busy"].discard(id(b.ref))
 
@@ -1042,6 +1104,8 @@ def step(world):
         _hold(rec.b, rec.pins[1])
         live.append(rec)
     st["active"] = live
+    for k in [k for k, e in st["held"].items() if now >= e[1]]:
+        del st["held"][k]
     # 1b. Sword duels: where each dueling fighter is this tick.
     _duels(world, st)
     # 2. Split halves: each explodes where it ends.

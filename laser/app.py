@@ -830,7 +830,7 @@ class Overlay(QWidget):
             if w.cinematic_frozen(i):
                 continue
             w.bind_side(i)
-            if time_plan is not None:
+            if time_plan is not None or clash.holding(w):
                 # Time sub-passes: slowed / stopped / sped-up figures, FX
                 # and bullets take their own number of steps (timefx.run_side).
                 if not timefx.run_side(w, self.pipeline):
