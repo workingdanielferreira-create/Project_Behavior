@@ -327,19 +327,30 @@ var PARAM_DEFAULTS = {
   // picks the technique; radius / span / thickness shape the slashes and the
   // wave, length / thickness the extended blade.  swing_ticks = how fast a
   // slash swings; hold_ticks = the wave's flight / how long the blade stays
-  // out.  The technique keeps its own timeline: Life is ignored.
+  // out.  Ki barrage / impact punch (strikefx.js) reuse the same fields: see
+  // that file.  The technique keeps its own timeline: Life is ignored.
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
     density: 1}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
-var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension"];
+var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
+  "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
+  "ki_barrage", "impact_punch"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
   diagonal_slash: {radius: 60, span: 110, thickness: 12, swing_ticks: 6},
   crescent_wave: {radius: 40, thickness: 22, hold_ticks: 48},
-  blade_extension: {length: 300, thickness: 6, hold_ticks: 18}
+  blade_extension: {length: 300, thickness: 6, hold_ticks: 18},
+  forward_sweep: {radius: 85, span: 200, thickness: 12, swing_ticks: 7},
+  combo_triple: {radius: 55, span: 120, thickness: 11, swing_ticks: 5},
+  combo_cross: {radius: 55, span: 120, thickness: 12, swing_ticks: 5},
+  combo_flurry: {radius: 55, span: 110, thickness: 10, swing_ticks: 4},
+  combo_launcher: {radius: 55, span: 120, thickness: 11, swing_ticks: 5},
+  combo_backhand: {radius: 70, span: 150, thickness: 11, swing_ticks: 5},
+  ki_barrage: {radius: 6, thickness: 18, span: 18, length: 320, swing_ticks: 3, hold_ticks: 45},
+  impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};
@@ -1424,6 +1435,7 @@ function tickInst(inst, host) {
   } else if (fx.prim === "pulse") {
     if (!active && !pulseRings(inst, inst.ps || 1).length) inst.dead = true;   // expanding rings finish
   } else if (fx.prim === "technique") {
+    G.SWORDFX.onTick(inst);   // where the anchor is now (ki shots launch from there)
     if (inst.age >= G.SWORDFX.totalTicks(P)) inst.dead = true;   // its afterglow plays out after the hit window
   } else if (!active) {
     inst.dead = true;
@@ -1853,7 +1865,7 @@ function resolveHits(inst, host, ps) {
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
   if (host.onHit) host.onHit(inst, b.damage, inst.dir[0], inst.dir[1], b.knockback);
-  if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y);   // its slash flash on the target
+  if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // its slash flash on the target
   if (b.pierce) return;
   if (canLodge(inst)) bladeLodge(inst, hurt.x, hurt.y, hurt.r, ps);
   else inst.age = Math.max(inst.age, inst.life);

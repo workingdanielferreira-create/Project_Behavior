@@ -1165,10 +1165,15 @@ var PARAM_UI = {
     ["stretch_x", "Stretch X", 0.05, 5, 0.05], ["stretch_y", "Stretch Y", 0.05, 5, 0.05], ["tilt_deg", "Tilt °", -180, 180, 1]],
   ghost: [["interval", "Every N ticks", 1, 60, 1], ["ghost_life", "Ghost life ticks", 1, 240, 1], ["alpha", "Start alpha", 0, 255, 1], ["max", "Max ghosts", 1, 60, 1]],
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]],
-  technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension"]], ["radius", "Radius (slash / wave)", 4, 400, 1], ["span", "Slash span °", 20, 300, 1],
-    ["thickness", "Thickness (blade: half-width)", 1, 80, 0.5], ["length", "Blade length (extension)", 20, 2000, 5],
-    ["swing_ticks", "Swing ticks (slash speed)", 2, 60, 1], ["hold_ticks", "Hold ticks (wave flight / blade out)", 0, 600, 1],
-    ["density", "Sparks / embers ×", 0, 4, 0.1]]
+  technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
+    "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch"]],
+    ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
+    ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
+    ["thickness", "Thickness (blade: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
+    ["length", "Length (blade; ki range; punch reach)", 20, 2000, 5],
+    ["swing_ticks", "Swing ticks (slash speed; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
+    ["hold_ticks", "Hold ticks (wave flight / blade out; ki: firing time; punch held out)", 0, 600, 1],
+    ["density", "Sparks / embers / smoke ×", 0, 4, 0.1]]
 };
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
@@ -1401,7 +1406,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique") note(s, "Sword technique: a hand-drawn sword FX (the same renderer as the game, laser/swordfx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Every hit leaves a slash flash on the target. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique") note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
