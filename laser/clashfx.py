@@ -89,6 +89,8 @@ TAU = math.pi * 2
 # skipped meanwhile (fxkit.Player.draw, Overlay._paint).
 HIDDEN = set()
 BEAM_PUSH = 0.55              # anchored struggle: share of the way the node is pushed toward the loser
+RIM = (8, 10, 16)             # dark rim drawn under the beam struggle node's FX (reads on bright desktops)
+SHOCK_TICKS = 26              # beam struggle node: life of each shockwave ring
 
 # Shared tunables, overridable per variation: size / density / speed scale
 # the geometry, particle counts and particle speeds; life = ticks of the burst
@@ -183,6 +185,12 @@ def _q(c, a=255):
 
 def _mix(a, b, k):
     return (a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k)
+
+
+def _vivid(a, b):
+    """The more saturated of two colours (white loses to any real colour)."""
+    sat = lambda c: max(c) - min(c)
+    return tuple(a) if sat(a) >= sat(b) else tuple(b)
 
 
 def _ease_out(u):
@@ -346,6 +354,7 @@ class ClashFX:
         # World "down" in the local (rotated) frame.
         self.down = (math.sin(a), math.cos(a))
         self.state = {}
+        self.rim = False                 # dark rim under the particles (beam struggle node)
         # Anchored (laser/clash.py): parts of it are drawn at the fighters'
         # real positions, so it ignores the position scale when drawn.
         self.anchored = False
@@ -487,10 +496,22 @@ class ClashFX:
         for q in self.parts:
             if q.delay <= 0 and q.kind in UNDER_KINDS:
                 self._draw_part(p, q)
-        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        self._draw_parts_over(p)
+
+    def _draw_rims(self, p):
+        """A soft dark rim under each spark / dot (self.rim), so light FX
+        still read over a bright desktop."""
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
         for q in self.parts:
-            if q.delay <= 0 and q.kind not in UNDER_KINDS:
-                self._draw_part(p, q)
+            if q.delay > 0:
+                continue
+            f = 1.0 - q.age / q.life
+            if q.kind == "spark":
+                L = 2.2
+                _line(p, q.x - q.vx * L, q.y - q.vy * L, q.x, q.y, RIM, 95 * f,
+                      q.size * (0.4 + 0.6 * f) + 1.4 * self.S)
+            elif q.kind == "dot":
+                _glow(p, q.x, q.y, q.size * 2.2, RIM, 80 * f, 0.55)
 
     def _draw_part(self, p, q):
         u = q.age / q.life
@@ -598,8 +619,9 @@ class ClashFX:
 
     # ================================================================ 2
     def _init_beam_struggle(self):
-        self.state.update(arcs=[], ripples=[], nx=0.0, ny=0.0, core=0.0, f0=(0.0, 0.0), ax=0.0,
+        self.state.update(arcs=[], shocks=[], nx=0.0, ny=0.0, core=0.0, R=0.0, f0=(0.0, 0.0), fR=0.0, ax=0.0,
                           o=None, looks=None, bw=(0.0, 0.0), loser=None)
+        self.rim = True
 
     def anchor_beams(self, look1, look2, loser=None):
         """laser/clash.py: tie the struggle to the two real beams.  look1 /
@@ -618,6 +640,9 @@ class ClashFX:
             lk["o"] = self._local(*lk["o"])
         l1, l2 = looks[0]["o"], looks[1]["o"]
         dx, dy = l2[0] - l1[0], l2[1] - l1[1]
+        # The node takes each beam's own colour (the more vivid of its tail /
+        # head colours), not the bullet's base colour.
+        self.c1, self.c2 = (_vivid(lk["ct"], lk["ch"]) for lk in looks)
         self.state.update(o=(l1, l2), looks=looks,
                           bw=tuple(max(2.0, lk["wh"]) for lk in looks), loser=loser,
                           ax=math.atan2(dy, dx) if math.hypot(dx, dy) > 1e-6 else 0.0)
@@ -656,35 +681,95 @@ class ClashFX:
         st["nx"], st["ny"] = nx, ny
         st["core"] = max((18 + 14 * g) * S, core0) + 3 * S * math.sin(t * 0.6)
         core = st["core"]
+        # The energy sphere: 2-3x the beams' width, swelling as it goes on,
+        # pulsing.
+        base = 1.25 * max(st["bw"]) if self.anchored else core * 1.4
+        R = max(base, 24 * S) * (1.0 + 0.25 * g) * (1.0 + 0.07 * math.sin(t * 0.5) + 0.04 * math.sin(t * 1.3 + 0.7))
+        st["R"] = R
         if t % 3 == 0:
             arcs = []
             for _ in range(r.randint(3, 5)):
                 a = r.uniform(0, TAU)
                 L = r.uniform(40, 110) * S * (0.6 + 0.6 * g)
-                arcs.append((_bolt(r, nx + math.cos(a) * core * 0.6, ny + math.sin(a) * core * 0.6, a, L, 6, 0.55, 1, []),
+                arcs.append((_bolt(r, nx + math.cos(a) * R * 0.8, ny + math.sin(a) * R * 0.8, a, L, 6, 0.55, 1, []),
                              self._side_col(math.cos(a - ax))))
             st["arcs"] = arcs
-        if t % 16 == 0:
-            st["ripples"].append(0)
-        st["ripples"] = [a + 1 for a in st["ripples"] if a + 1 < 30]
-        # debris spray, mostly perpendicular to the beams
-        for _ in range(2):
+        # shockwave rings bursting off the sphere
+        if t % 14 == 0:
+            st["shocks"].append(0)
+        st["shocks"] = [a + 1 for a in st["shocks"] if a + 1 < SHOCK_TICKS]
+        # heavy spark / debris spray off the sphere, mostly sideways to the
+        # beams, like grinding metal
+        for _ in range(5):
             if r.random() < self.D:
                 side = 1 if r.random() < 0.5 else -1
-                a = ax + side * math.pi / 2 + r.gauss(0, 0.6)
-                v = r.uniform(3, 7.5) * self.V * S
-                self.parts.append(_P("spark", nx + math.cos(a) * core, ny + math.sin(a) * core,
+                a = ax + side * math.pi / 2 + r.gauss(0, 0.75)
+                v = r.uniform(5.0, 12.0) * self.V * S
+                self.parts.append(_P("spark", nx + math.cos(a) * R * 0.85, ny + math.sin(a) * R * 0.85,
                                      math.cos(a) * v, math.sin(a) * v,
-                                     r.randint(12, 24), r.uniform(1.4, 2.6) * S,
-                                     self.c1 if r.random() < 0.5 else self.c2, drag=0.93))
+                                     r.randint(18, 34), r.uniform(2.2, 4.0) * S,
+                                     self.c1 if r.random() < 0.5 else self.c2, drag=0.94, grav=0.12 * S))
+        if r.random() < 0.6 * self.D:
+            side = 1 if r.random() < 0.5 else -1
+            a = ax + side * math.pi / 2 + r.gauss(0, 0.9)
+            v = r.uniform(2.0, 6.0) * self.V * S
+            self.parts.append(_P("dot", nx + math.cos(a) * R * 0.8, ny + math.sin(a) * R * 0.8,
+                                 math.cos(a) * v, math.sin(a) * v,
+                                 r.randint(24, 40), r.uniform(3.0, 5.5) * S,
+                                 self.c1 if r.random() < 0.5 else self.c2, drag=0.95, grav=0.25 * S))
 
     def _finale_beam_struggle(self):
         st = self.state
         st["f0"] = (st["nx"], st["ny"])
+        st["fR"] = st["R"]
         x, y = st["f0"]
-        self._sparks(70, x=x, y=y, spd=(4.0, 13.0), life=(18, 38))
+        self._sparks(90, x=x, y=y, spd=(4.0, 14.0), life=(20, 40), size=(2.0, 3.6))
         self._sparks(16, x=x, y=y, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
-        self._sparks(18, x=x, y=y, kind="dot", spd=(1.0, 4.0), life=(22, 40), size=(2.0, 4.0), drag=0.95)
+        self._sparks(24, x=x, y=y, kind="dot", spd=(1.0, 5.0), life=(22, 40), size=(3.0, 5.5), drag=0.95)
+
+    def _draw_sphere(self, p, R, a):
+        """The struggle's energy sphere at the origin (already translated to
+        the node): a dark rim, a body mixing both beams' colours with a
+        white-hot core, each side's colour leaning in from its own beam."""
+        if R <= 0.5 or a <= 1:
+            return
+        k = a / 255.0
+        S = self.S
+        mid = _mix(self.c1, self.c2, 0.5)
+        deep = _mix(mid, RIM, 0.25)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        # a thin soft dark halo just outside the sphere
+        g = QRadialGradient(0, 0, R * 1.25)
+        g.setColorAt(0.0, _q(RIM, 0))
+        g.setColorAt(0.7, _q(RIM, 0))
+        g.setColorAt(0.8, _q(RIM, 120 * k))
+        g.setColorAt(1.0, _q(RIM, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(g))
+        p.drawEllipse(QPointF(0, 0), R * 1.25, R * 1.25)
+        g = QRadialGradient(0, 0, R)
+        g.setColorAt(0.0, _q(HOT, 255 * k))
+        g.setColorAt(0.3, _q(_mix(mid, HOT, 0.6), 255 * k))
+        g.setColorAt(0.75, _q(mid, 250 * k))
+        g.setColorAt(1.0, _q(deep, 250 * k))
+        p.setBrush(QBrush(g))
+        p.drawEllipse(QPointF(0, 0), R, R)
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _glow(p, -R * 0.35, 0, R * 0.9, self.c1, 150 * k)
+        _glow(p, R * 0.35, 0, R * 0.9, self.c2, 150 * k)
+        _glow(p, 0, 0, R * 0.6, HOT, 255 * k, 0.5)
+        # a few bright flecks swirling in the sphere
+        for i in range(3):
+            b = self.t * (0.21 + 0.07 * i) + i * 2.1
+            _glow(p, math.cos(b) * R * 0.55, math.sin(b * 1.3) * R * 0.45, 5 * S, HOT, 200 * k)
+
+    def _draw_shock(self, p, r, w, a):
+        """One shockwave ring: a dark rim under a ring in each side's colour."""
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        _split_ring(p, 0, 0, r, r, w + 2.5 * self.S, RIM, RIM, 0.45 * a)
+        _split_ring(p, 0, 0, r, r, w, self.c1, self.c2, a)
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _split_ring(p, 0, 0, r, r, w * 0.4, self._hotc(self.c1, 0.6), self._hotc(self.c2, 0.6), a * 0.8)
 
     def _draw_struggle_beam(self, p, nx, ny, lk, wob):
         """One side's beam, anchored: from its real origin to the node, drawn
@@ -737,13 +822,14 @@ class ClashFX:
         st, S = self.state, self.S
         p.setCompositionMode(QPainter.CompositionMode_Plus)
         if self.phase == "hold":
-            nx, ny, core, t, ax = st["nx"], st["ny"], st["core"], self.t, st["ax"]
+            nx, ny, R, t, ax = st["nx"], st["ny"], st["R"], self.t, st["ax"]
             if self.anchored:
                 for i in (0, 1):
                     self._draw_struggle_beam(p, nx, ny, st["looks"][i], 1 + 0.08 * math.sin(t * 0.8 + i))
                 p.setCompositionMode(QPainter.CompositionMode_Plus)
             elif self.spec.get("stubs"):
                 L = float(self.spec.get("stub_len", 150)) * S
+                core = st["core"]
                 for c, sx in ((self.c1, -1), (self.c2, 1)):
                     x_far, x_near = nx + sx * L, nx
                     for w, k, a in ((core * 1.3, 0.0, 120), (core * 0.55, 0.6, 230)):
@@ -755,34 +841,37 @@ class ClashFX:
                         p.setBrush(QBrush(gr))
                         wob = 1 + 0.08 * math.sin(t * 0.8 + sx)
                         p.drawRect(QRectF(min(x_far, x_near), -w / 2 * wob, abs(x_near - x_far), w * wob))
-            # the node, oriented along the line between the two beams
+            # shockwaves and the sphere, oriented along the line between the beams
             p.save()
             p.translate(nx, ny)
             p.rotate(math.degrees(ax))
-            _glow(p, -10 * S, 0, core * 2.4, self.c1, 200)
-            _glow(p, 10 * S, 0, core * 2.4, self.c2, 200)
-            for a in st["ripples"]:
-                v = a / 30.0
-                r = (core + 90 * S * _ease_out(v))
-                _split_ring(p, 0, 0, r * 0.45, r, 3 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.4),
-                            self._hotc(self.c2, 0.4), 200 * (1 - v))
+            for a in st["shocks"]:
+                v = a / float(SHOCK_TICKS)
+                r = R * (1.0 + 1.8 * _ease_out(v))
+                self._draw_shock(p, r, 5 * S * (1 - v) + 1.0, 235 * (1 - v))
+            self._draw_sphere(p, R, 255)
             p.restore()
             for bolts, c in st["arcs"]:
+                p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+                _draw_bolts(p, bolts, RIM, 90, 5.0 * S, 2.6 * S)
+                p.setCompositionMode(QPainter.CompositionMode_Plus)
                 _draw_bolts(p, bolts, c, 230, 4.0 * S, 1.3 * S)
-            _glow(p, nx, ny, core * 1.15, self.hot, 255, 0.55)
         else:
             t = self.ft
             u = min(1.0, t / self.life)
             f = 1.0 - u
             x, y = st["f0"]
-            _glow(p, x, y, 120 * S * _ease_out(t / 8.0), self._hotc(_mix(self.c1, self.c2, 0.5), 0.4), 255 * f ** 1.5)
+            R0 = st["fR"] or 30 * S
             p.save()
             p.translate(x, y)
             p.rotate(math.degrees(st["ax"]))
-            r = 230 * S * _ease_out(u)
-            _split_ring(p, 0, 0, r, r, 9 * S * f + 1, self._hotc(self.c1, 0.4), self._hotc(self.c2, 0.4), 230 * f)
-            r2 = 150 * S * _ease_out(min(1.0, t / 20.0))
-            _split_ring(p, 0, 0, r2 * 0.5, r2, 5 * S * f + 0.5, self.c1, self.c2, 180 * f)
+            # the sphere flares, then collapses
+            e = min(1.0, t / 10.0)
+            self._draw_sphere(p, R0 * (1.0 + 0.6 * _ease_out(e)) * (1.0 - 0.8 * _ease_in(u)), 255 * f ** 1.2)
+            r = max(230 * S, R0 * 3.0) * _ease_out(u)
+            self._draw_shock(p, r, 9 * S * f + 1, 230 * f)
+            r2 = max(150 * S, R0 * 2.0) * _ease_out(min(1.0, t / 20.0))
+            self._draw_shock(p, r2, 5 * S * f + 0.5, 180 * f)
             p.restore()
         self._draw_parts(p)
 
@@ -834,6 +923,8 @@ class ClashFX:
                 self._draw_part(p, q)
 
     def _draw_parts_over(self, p):
+        if self.rim:
+            self._draw_rims(p)
         p.setCompositionMode(QPainter.CompositionMode_Plus)
         for q in self.parts:
             if q.delay <= 0 and q.kind not in UNDER_KINDS:

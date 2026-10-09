@@ -837,6 +837,15 @@ def _hold_figs(world, st, figs, until):
                 r.forced_until = min(r.forced_until, int(until))
 
 
+def locked(world, obj):
+    """True while effect obj (a projectile, an FX instance, ...) is held in
+    a clash (busy): other systems leave it alone until the clash settles it
+    (CollisionSystem's bullet-vs-bullet scatter would otherwise destroy two
+    struggling beams the tick after they lock)."""
+    st = getattr(world, "clash_state", None)
+    return st is not None and id(obj) in st["busy"]
+
+
 def held(world, fig):
     """True while fig is held in place by a beam struggle."""
     st = getattr(world, "clash_state", None)
