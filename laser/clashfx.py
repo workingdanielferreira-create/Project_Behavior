@@ -94,6 +94,7 @@ SHOCK_TICKS = 26              # beam struggle node: life of each shockwave ring
 SURGE_MAX = 0.45              # tug of war: furthest a surge carries the node toward a side (share of the way)
 SURGE_TICKS = (18, 40)        # ticks between surges
 COMMIT_AT = 0.7               # share of the struggle after which it commits (winner push / overload build-up)
+CAP_KNEE = 0.6                # soft size cap (ClashFX.cap_r): full size up to this share of the cap, then eases in
 
 # Shared tunables, overridable per variation: size / density / speed scale
 # the geometry, particle counts and particle speeds; life = ticks of the burst
@@ -327,6 +328,18 @@ class _P:
 
 
 # ---------------------------------------------------------------- the effect
+def _soft_cap(x, cap):
+    """x eased under cap: x up to CAP_KNEE * cap, then approaching cap
+    smoothly (same slope at the knee) without ever reaching past it."""
+    if cap <= 0:
+        return 0.0
+    knee = CAP_KNEE * cap
+    if x <= knee:
+        return x
+    room = cap - knee
+    return knee + room * (1.0 - math.exp(-(x - knee) / room))
+
+
 class ClashFX:
     """One live clash explosion.  step() advances one tick, draw() paints it
     at its world position (pscale = the position scale at that point)."""
@@ -361,6 +374,12 @@ class ClashFX:
         # Anchored (laser/clash.py): parts of it are drawn at the fighters'
         # real positions, so it ignores the position scale when drawn.
         self.anchored = False
+        # Soft size cap (laser/clash.py sets it for the beam clash FX): the
+        # sphere and shockwave rings reach no further than cap_r screen px
+        # from their centre (2x the shorter fighter's height end to end);
+        # None = uncapped.  _ps = the position scale it was last drawn at.
+        self.cap_r = None
+        self._ps = 1.0
         # Playback rate (fit): clash-FX ticks per world tick, never under 1.
         # _wt world ticks played, _done clash-FX ticks run so far.
         self.rate = 1.0
@@ -487,12 +506,23 @@ class ClashFX:
         p.translate(self.x, self.y)
         if not self.spec.get("world_up"):
             p.rotate(self.angle)
+        self._ps = 1.0 if self.anchored else max(1e-6, float(pscale))
         if pscale != 1.0 and not self.anchored:
             p.scale(pscale, pscale)
         prev = p.compositionMode()
         getattr(self, "_draw_" + self.base)(p)
         p.setCompositionMode(prev)
         p.restore()
+
+    def _capk(self, reach, pad=0.0):
+        """Factor (<= 1) for the radii that brings `reach` (local px from the
+        centre) plus `pad` (half the line width drawn past it, which does not
+        scale) inside the soft cap: unchanged up to CAP_KNEE of the cap, then
+        easing toward the cap without ever passing it.  1 when uncapped."""
+        if self.cap_r is None or reach <= 1e-6:
+            return 1.0
+        c = _soft_cap(reach + pad, self.cap_r / self._ps) - pad
+        return max(0.0, min(1.0, c / reach))
 
     def _draw_parts(self, p):
         p.setCompositionMode(QPainter.CompositionMode_SourceOver)
@@ -714,6 +744,8 @@ class ClashFX:
         R = max(base, 24 * S) * (1.0 + 0.25 * g) * (1.0 + 0.07 * math.sin(t * 0.5) + 0.04 * math.sin(t * 1.3 + 0.7))
         if over > 0:    # swelling and throbbing harder before it blows
             R *= 1.0 + 0.6 * over + 0.12 * over * math.sin(t * 2.1)
+        # Soft cap: the shockwave rings reach 2.8 R (plus half their line and dark rim).
+        R *= self._capk(2.8 * R, 4.0 * S + 1.5)
         st["R"] = R
         if t % 3 == 0:
             arcs = []
@@ -906,21 +938,26 @@ class ClashFX:
             x, y = st["f0"]
             R0 = st["fR"] or 30 * S
             big = 2.0 if st["overload"] else 1.0    # an overload blows far bigger
+            # Soft cap: one factor for the whole finale (its furthest sphere /
+            # ring / flash), so it keeps its shape while it plays.
+            reach = max(1.25 * R0 * (1.0 + 0.6 * big), max(230 * S, R0 * 3.0) * big,
+                        R0 * 4.0 if st["overload"] else 0.0)
+            k = self._capk(reach, 4.5 * S * big + 1.25 * S + 1.5)
             p.save()
             p.translate(x, y)
             p.rotate(math.degrees(st["ax"]))
             # the sphere flares, then collapses
             e = min(1.0, t / 10.0)
-            self._draw_sphere(p, R0 * (1.0 + 0.6 * big * _ease_out(e)) * (1.0 - 0.8 * _ease_in(u)), 255 * f ** 1.2)
-            r = max(230 * S, R0 * 3.0) * big * _ease_out(u)
+            self._draw_sphere(p, k * R0 * (1.0 + 0.6 * big * _ease_out(e)) * (1.0 - 0.8 * _ease_in(u)), 255 * f ** 1.2)
+            r = k * max(230 * S, R0 * 3.0) * big * _ease_out(u)
             self._draw_shock(p, r, 9 * S * f * big + 1, 230 * f)
-            r2 = max(150 * S, R0 * 2.0) * big * _ease_out(min(1.0, t / 20.0))
+            r2 = k * max(150 * S, R0 * 2.0) * big * _ease_out(min(1.0, t / 20.0))
             self._draw_shock(p, r2, 5 * S * f * big + 0.5, 180 * f)
             if st["overload"]:
-                r3 = max(110 * S, R0 * 1.5) * big * _ease_out(min(1.0, t / 12.0))
+                r3 = k * max(110 * S, R0 * 1.5) * big * _ease_out(min(1.0, t / 12.0))
                 self._draw_shock(p, r3, 7 * S * f + 0.5, 220 * f)
                 p.setCompositionMode(QPainter.CompositionMode_Plus)
-                _glow(p, 0, 0, R0 * 4.0 * _ease_out(e), HOT, 255 * f ** 2, 0.4)
+                _glow(p, 0, 0, k * R0 * 4.0 * _ease_out(e), HOT, 255 * f ** 2, 0.4)
             p.restore()
         self._draw_parts(p)
 
@@ -958,10 +995,12 @@ class ClashFX:
         e = _ease_out(t / 16.0)
         _glow_ellipse(p, d * 70 * S * e, 0, 105 * S * (0.3 + 0.7 * e), 40 * S * (0.3 + 0.7 * e), cw, 230 * f ** 1.3)
         _glow_ellipse(p, d * 40 * S * e, 0, 60 * S * (0.3 + 0.7 * e), 20 * S, self.hot, 240 * f ** 2)
-        _glow(p, 0, 0, 40 * S * min(1.0, (t + 1) / 3.0), self.hot, 255 * max(0.0, 1 - t / 10.0))
+        # Soft cap on its flash and ring (the ring reaches 170 S from the centre).
+        k = self._capk(170 * S, 2.5 * S + 1.5)
+        _glow(p, 0, 0, k * 40 * S * min(1.0, (t + 1) / 3.0), self.hot, 255 * max(0.0, 1 - t / 10.0))
         v = min(1.0, t / 26.0)
-        r = 150 * S * _ease_out(v)
-        _split_ring(p, d * 20 * S, 0, r * 0.35, r, 5 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.3),
+        r = k * 150 * S * _ease_out(v)
+        _split_ring(p, k * d * 20 * S, 0, r * 0.35, r, 5 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.3),
                     self._hotc(self.c2, 0.3), 220 * (1 - v))
         self._draw_parts_over(p)
 
