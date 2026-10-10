@@ -1972,41 +1972,59 @@ function buildCharScaleProps(d) {
     "10-200 %. 100 = the normal size. Build FX at any scale: they are stored at 100 % and grow or shrink with the character.";
   note(s, pct === 100 ? "Normal size." : "Shown on the stage at " + pct + " % (times pscale). Effects keep their numbers at 100 %; the game and the stage scale them by " + pct + " %.");
 }
-// Blink (action_settings[action].blink): this action's own teleport.  The
-// fighter vanishes at the start frame and reappears after the end frame.
+// Blink (action_settings[action].blink): this action's own teleports.  "+ Add
+// blink" adds one to the list (adding the first switches Blink on, removing
+// the last switches it off); they run in order as the frames pass them.
+var BLINK_SIDE_LABEL = [["behind", "behind the target"], ["front", "in front of the target"], ["toward", "toward the target"],
+  ["away", "away from the target"], ["above", "above"], ["above_left", "above-left"], ["above_right", "above-right"],
+  ["below", "below"], ["below_left", "below-left"], ["below_right", "below-right"], ["random", "random"], ["angle", "fixed angle"]];
 function buildBlinkProps(d) {
   var a = S.action, bk = cfgOf(a).blink, n = frames();
   var s = sec(d, "Blink (this action)", "a-blink",
-    "A teleport inside this action: the fighter vanishes at the start frame and reappears after the end frame. Each action has its own.", "act");
+    "Teleports inside this action: for each blink the fighter vanishes at its vanish frame and reappears after its reappear frame. Add as many as you like; they run one after another as the frames pass them. Each action has its own.", "act");
   var ch = function () { save(); buildProps(); resetSim(S.t); };
-  field(s, "Blink", inp("chk", bk.enabled, function (v) { bk.enabled = v; ch(); })).title =
-    "On: every time this action plays, the character vanishes at the start frame and reappears after the end frame.";
-  if (!bk.enabled) return;
-  field(s, "Vanish at frame", inp("n", bk.start_frame, function (v) { bk.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); ch(); }, 0, n - 1, 1)).title =
-    "The frame the character disappears on.";
-  field(s, "Reappear after frame (-1 = end)", inp("n", bk.end_frame, function (v) { bk.end_frame = Math.max(-1, Math.min(n - 1, Math.round(v))); ch(); }, -1, n - 1, 1)).title =
-    "The last frame it stays gone for; it reappears on the next frame. -1 = gone until the action ends.";
-  var e = bk.end_frame < 0 ? n - 1 : Math.min(n - 1, bk.end_frame);
-  if (e < bk.start_frame) note(s, "The reappear frame is before the vanish frame, so it never vanishes. Set it to " + bk.start_frame + " or later.");
-  else {
-    var ms = Math.round((e - bk.start_frame + 1) * frameMs());
-    note(s, "Gone for frames " + bk.start_frame + "\u2013" + e + " (about " + ms + " ms)" + (bk.end_frame < 0 || e === n - 1 ? ", then reappears when the action ends." : ", reappears on frame " + (e + 1) + ".")
-      + " The animation keeps running while it's hidden.");
-  }
-  field(s, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"]], bk.anchor, function (v) { bk.anchor = v; ch(); })).title =
-    "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from.";
-  field(s, "Side", inp([["behind", "behind the target"], ["front", "in front of the target"], ["toward", "toward the target"],
-    ["away", "away from the target"], ["random", "random"], ["angle", "fixed angle"]], bk.direction, function (v) { bk.direction = v; ch(); })).title =
-    "Which way from that point it lands. Behind / in front: the far / near side of the target (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Fixed angle: the angle below.";
-  if (bk.direction === "angle") field(s, "Angle \u00b0", inp("n", bk.angle_deg, function (v) { bk.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
-    "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
-  field(s, "Distance px", inp("n", bk.proximity_px, function (v) { bk.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =
-    "How far from that point it lands (game px). 0 = right on it.";
-  field(s, "Flash FX", inp("chk", bk.flash, function (v) { bk.flash = v; save(); })).title =
-    "On: a crackle and an afterimage where it vanishes and where it reappears.";
+  bk.blinks.forEach(function (b, i) {
+    var t = sec(s, "Blink " + (i + 1), "a-blink-" + i, "", "act");
+    var rm = document.createElement("button"); rm.textContent = "× Remove blink " + (i + 1);
+    rm.title = "Remove this blink." + (bk.blinks.length === 1 ? " It is the only one, so Blink switches off for this action." : "");
+    rm.onclick = function () { var j = cfgOf(a).blink.blinks.indexOf(b); if (j >= 0) cfgOf(a).blink.blinks.splice(j, 1); cfgOf(a); ch(); };
+    var rr = document.createElement("div"); rr.className = "row"; rr.appendChild(rm); t.appendChild(rr);
+    field(t, "Vanish at frame", inp("n", b.start_frame, function (v) { b.start_frame = Math.max(0, Math.min(n - 1, Math.round(v))); ch(); }, 0, n - 1, 1)).title =
+      "The frame the character disappears on.";
+    field(t, "Reappear after frame (-1 = end)", inp("n", b.end_frame, function (v) { b.end_frame = Math.max(-1, Math.min(n - 1, Math.round(v))); ch(); }, -1, n - 1, 1)).title =
+      "The last frame it stays gone for; it reappears on the next frame. -1 = gone until the action ends.";
+    var e = FXK.blinkEnd(b, n), prev = i > 0 ? bk.blinks[i - 1] : null;
+    if (e < b.start_frame) note(t, "The reappear frame is before the vanish frame, so this blink never happens. Set it to " + b.start_frame + " or later.");
+    else {
+      var ms = Math.round((e - b.start_frame + 1) * frameMs());
+      note(t, "Gone for frames " + b.start_frame + "–" + e + " (about " + ms + " ms)" + (b.end_frame < 0 || e === n - 1 ? ", then reappears when the action ends." : ", reappears on frame " + (e + 1) + ".")
+        + (prev && FXK.blinkEnd(prev, n) + 1 === b.start_frame ? " Starts right as blink " + i + " reappears: it hops straight on." : ""));
+    }
+    if (prev && b.start_frame <= FXK.blinkEnd(prev, n)) note(t, "Its frames overlap blink " + i + "'s, which takes those frames: set its vanish frame to " + (FXK.blinkEnd(prev, n) + 1) + " or later.");
+    field(t, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"]], b.anchor, function (v) { b.anchor = v; ch(); })).title =
+      "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from (for a later blink, where the one before it landed).";
+    field(t, "Side", inp(BLINK_SIDE_LABEL, b.direction, function (v) { b.direction = v; ch(); })).title =
+      "Which way from that point it lands. Behind / in front: the far / near side of the target (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
+    if (b.direction === "angle") field(t, "Angle °", inp("n", b.angle_deg, function (v) { b.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
+      "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
+    field(t, "Distance px", inp("n", b.proximity_px, function (v) { b.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =
+      "How far from that point it lands (game px). 0 = right on it.";
+    field(t, "Flash FX", inp("chk", b.flash, function (v) { b.flash = v; save(); })).title =
+      "On: a crackle and an afterimage where it vanishes and where it reappears.";
+  });
+  var add = document.createElement("button"); add.textContent = "+ Add blink";
+  add.title = "Add a blink after the last one (the first one switches Blink on for this action).";
+  add.onclick = function () {
+    var L = cfgOf(a).blink.blinks, last = L.length ? L[L.length - 1] : null, at = last ? Math.min(n - 1, FXK.blinkEnd(last, n) + 1) : 0;
+    var nb = last ? clone(last) : {};
+    nb.start_frame = at; nb.end_frame = -1;
+    L.push(FXK.normalizeBlinkStep(nb)); cfgOf(a); ch();
+  };
+  var row = document.createElement("div"); row.className = "row"; row.appendChild(add); s.appendChild(row);
+  if (!bk.blinks.length) { note(s, "No blinks: this action doesn't teleport. “+ Add blink” switches Blink on."); return; }
   field(s, "Blink cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, Math.min(60000, v)); save(); }, 0, 60000, 50)).title =
-    "After it reappears, how long before this action can blink again. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
-  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the green ring where it will land. Drag the target to move the landing spot.");
+    "Shared by all the blinks of this action. After a blink reappears, how long before this action can blink again; the rest of the same pass still blinks. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
+  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the numbered green rings where each blink will land. Drag the target to move the landing spots.");
 }
 // ------------------------------------------------------------ time control
 // Time control (action_settings[action].time; laser/timefx.py): while this
@@ -2107,7 +2125,7 @@ function buildReactionProps(d) {
     "The action whose Blink (and Blink FX) you are editing. (on) = its Blink is switched on; ✦ fx = it already has Blink FX.";
   note(s2, (n ? n + " Blink effect" + (n > 1 ? "s" : "") + " on " + a + "." : "No Blink effects on " + a + " yet: add one under Effects on the left.") +
     " Keyed on " + a + "'s frames like its own FX: set their frames around the vanish / reappear frames below. While the fighter is gone its body FX (attached, orbit) are hidden and nothing new fires." +
-    (on ? "" : " Blink is off for " + a + ", so they won't play in the game until it's switched on below.") +
+    (on ? "" : " Blink is off for " + a + ", so they won't play in the game until you add a blink below.") +
     " The stage plays " + a + "'s own FX too.");
   buildBlinkProps(d);
   buildCharScaleProps(d);
@@ -2390,39 +2408,54 @@ function timeLabel() {
   return "   TIME " + (Math.round(T.speed * 100) / 100) + "x on " + TIME_SCOPE_LABEL[cfgOf(S.action).time.scope].toLowerCase();
 }
 // Blink preview (the action's Blink): vanish when the frame on show enters
-// the blink's frames, reappear at the landing spot once it leaves them (or
-// the action ends).  Run for each new tick, so S.blink always matches S.t.  S.blink = {gone, from, to}; the Studio target has no
-// facing, so behind / in front are the far / near side from the fighter.
+// a blink's frames, reappear at its landing spot once it leaves them (or the
+// action ends), and vanish again at once if the next blink's frames start
+// there.  Run for each new tick, so S.blink always matches S.t.  S.blink =
+// {gone, idx, from, to}; the Studio target has no facing, so behind / in
+// front are the far / near side from the fighter.
 function scaledBlink(b) { var c = clone(b); c.proximity_px = (+b.proximity_px || 0) * charScale(); return c; }   // character scale
 function blinkGone() { return !!(S.blink && S.blink.gone); }
 function blinkStep() {
-  var b = cfgOf(S.action).blink, on = S.t < totalTicks() && FXK.blinkActive(b, frameAt(S.t), frames());
-  if (on && !blinkGone()) S.blink = {gone: true, from: [S.figX, S.figY], to: null};
-  else if (!on && blinkGone()) {
-    var to = blinkLandingFrom(S.blink.from);
+  var b = cfgOf(S.action).blink, i = S.t < totalTicks() ? FXK.blinkIndex(b, frameAt(S.t), frames()) : -1;
+  if (blinkGone() && i !== S.blink.idx) {
+    var to = blinkLandingFrom(S.blink.idx, S.blink.from);
     S.figX = to[0]; S.figY = to[1]; S.blink.gone = false; S.blink.to = to;
   }
+  if (i >= 0 && !blinkGone()) S.blink = {gone: true, idx: i, from: [S.figX, S.figY], to: null};
 }
-// Where the blink would land from here (drawn while it's gone).
-// Where the blink lands from `from`: the same roll for every pass of the
-// action (seeded by the loop count), so the preview and the landing agree.
-function blinkLandingFrom(from) {
-  return FXK.blinkLanding(scaledBlink(cfgOf(S.action).blink), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17).uniform(0, 1));
+// Where blink i lands from `from`: the same roll for every pass of the
+// action (seeded by the loop count and the blink), so the preview and the
+// landing agree.
+function blinkLandingFrom(i, from) {
+  var st = cfgOf(S.action).blink.blinks[i]; if (!st) return from;
+  return FXK.blinkLanding(scaledBlink(st), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17 + i * 104729).uniform(0, 1));
 }
-function blinkPreviewLanding() { return blinkLandingFrom(blinkGone() ? S.blink.from : [S.figX, S.figY]); }
 function drawBlink(g, z, img) {
   var b = cfgOf(S.action).blink; if (!b.enabled) return;
-  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,";
-  var from = blinkGone() ? S.blink.from : S.blink && S.blink.to ? S.blink.from : [S.figX, S.figY];
-  var to = blinkGone() || !(S.blink && S.blink.to) ? blinkPreviewLanding() : S.blink.to;
+  var col = isLight() ? "rgba(20,130,70," : "rgba(125,224,168,", gone = blinkGone();
+  // The chain still to come: from the blink on now (gone) or the next one,
+  // each landing measured from the one before.
+  var i0, from;
+  if (gone) { i0 = S.blink.idx; from = S.blink.from; }
+  else { i0 = S.blink && S.blink.to ? S.blink.idx + 1 : 0; from = [S.figX, S.figY]; }
   g.save();
-  if (blinkGone()) drawFrame(g, img, S.blink.from, facing(), 0.3, null, aimDeg());   // where it vanished
-  g.setLineDash([3 / z, 3 / z]); g.strokeStyle = col + ".7)"; g.lineWidth = 1 / z;
-  g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
-  g.setLineDash([]); g.lineWidth = 1.5 / z; g.strokeStyle = col + ".95)";
-  g.beginPath(); g.arc(to[0], to[1], 5, 0, 6.2832); g.stroke();
-  g.fillStyle = col + ".95)"; g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center";
-  g.fillText(blinkGone() ? "gone \u2014 lands here" : S.blink && S.blink.to ? "blinked here" : "blink lands here", to[0], to[1] - 8);
+  if (gone) drawFrame(g, img, S.blink.from, facing(), 0.3, null, aimDeg());   // where it vanished
+  g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center";
+  if (!gone && S.blink && S.blink.to) {   // the last landing, until the next blink starts
+    g.lineWidth = 1 / z; g.strokeStyle = col + ".45)"; g.setLineDash([3 / z, 3 / z]);
+    g.beginPath(); g.moveTo(S.blink.from[0], S.blink.from[1]); g.lineTo(S.blink.to[0], S.blink.to[1]); g.stroke();
+    g.fillStyle = col + ".7)"; g.fillText("blinked here (" + (S.blink.idx + 1) + ")", S.blink.to[0], S.blink.to[1] - 8);
+  }
+  for (var i = i0; i < b.blinks.length; i++) {
+    var to = blinkLandingFrom(i, from), cur = i === i0, a = cur ? ".95)" : ".55)";
+    g.setLineDash([3 / z, 3 / z]); g.strokeStyle = col + (cur ? ".7)" : ".4)"); g.lineWidth = 1 / z;
+    g.beginPath(); g.moveTo(from[0], from[1]); g.lineTo(to[0], to[1]); g.stroke();
+    g.setLineDash([]); g.lineWidth = 1.5 / z; g.strokeStyle = col + a;
+    g.beginPath(); g.arc(to[0], to[1], 5, 0, 6.2832); g.stroke();
+    g.fillStyle = col + a;
+    g.fillText((b.blinks.length > 1 ? (i + 1) + ": " : "") + (cur && gone ? "gone — lands here" : "blink lands here"), to[0], to[1] - 8);
+    from = to;
+  }
   g.restore();
 }
 // ------------------------------------------------------------ test shots
