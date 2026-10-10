@@ -43,9 +43,9 @@ these characters; it plays the PNGs.
                                     "chain_next": "", "chain_reset_ms": 1000, "fx_continuous": false,
                                     "movement": "stand", "move_speed_pct": 100, "anim_loops": 1, "back_stop_pct": 80,
                                     "attack_px": 0,
-                                    "blink": {"enabled": false, "start_frame": 0, "end_frame": -1, "anchor": "target",
-                                              "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true,
-                                              "cooldown_ms": 0},
+                                    "blink": {"enabled": true, "cooldown_ms": 0,
+                                              "blinks": [{"start_frame": 0, "end_frame": -1, "anchor": "target",
+                                                          "direction": "behind", "angle_deg": 0, "proximity_px": 60, "flash": true}]},
                                     "time": {"enabled": false, "start_frame": 0, "end_frame": -1, "scope": "enemy_fighters",
                                              "speed": 0, "keys": [{"ms": 200, "speed": 3, "ease": "inout"}],
                                              "logic": "any", "conditions": []}}},
@@ -520,21 +520,32 @@ reactions). These never play on an action of their own:
   (`CharacterFx.with_blink`). The Blink rules apply to them as to the
   action's own FX: while gone nothing new fires and body-bound FX are hidden.
 
-**Blink (`action_settings[action].blink`, per action; `laser/blink.py`).** A
-teleport inside one action; each action has its own. While that action plays,
-the fighter vanishes when the frame on show reaches `start_frame` and
-reappears once it passes `end_frame` (`-1` = the last frame), or when the
-action ends, whichever comes first. A looping action blinks again on every
-loop. `cooldown_ms` (0 = none): after the fighter reappears, that action's
-Blink stays off this long; the action still plays when it triggers, without
-vanishing and without its `@blink:` FX. It reappears `proximity_px` from `anchor`:
+**Blink (`action_settings[action].blink`, per action; `laser/blink.py`).**
+Teleports inside one action; each action has its own. `blinks` is a list of
+blinks (FX Studio: "+ Add blink"), run in order as the action's frames pass
+them; `enabled` is derived: on while the list holds any. For each blink, the
+fighter vanishes when the frame on show reaches its `start_frame` and
+reappears once it passes its `end_frame` (`-1` = the last frame), or when the
+action ends, whichever comes first. When the next blink's frames start right
+after, it vanishes again on the same tick (back-to-back hops); when two
+blinks' frames overlap, the earlier one in the list takes them. A looping
+action runs the list again on every loop. `cooldown_ms` (0 = none, shared by
+the whole list): after a blink reappears, that action's Blink stays off this
+long; the later blinks of the same pass still run, but the next pass waits.
+While it is off the action still plays when it triggers, without vanishing
+and without its `@blink:` FX. Files from before the list (one blink's fields
+in the block itself) load as a one-blink list when `enabled`. Each blink
+reappears `proximity_px` from its `anchor`:
 - `anchor`: `target` (the target, where it is when the fighter reappears) or
-  `self` (the spot the fighter vanished from).
+  `self` (the spot the fighter vanished from; for a later blink, where the
+  one before it landed).
 - `direction`: `behind` / `front` (opposite / along the way the target faces;
   Solo and the Studio: the target's far / near side from the fighter),
   `toward` / `away` (along the fighter → target line / the reverse),
-  `random`, or `angle` (`angle_deg` from the fighter → target line: 0 =
-  toward, 180 = away, positive = clockwise).
+  `above` / `below` (straight up / down on screen), `above_left` /
+  `above_right` / `below_left` / `below_right` (45° diagonals, screen left /
+  right, not the facing), `random`, or `angle` (`angle_deg` from the
+  fighter → target line: 0 = toward, 180 = away, positive = clockwise).
 - The landing spot is kept 20 px inside the screen.
 
 While gone the fighter is invisible and untouchable (`ai.damage_immune`: no
@@ -546,7 +557,8 @@ action and animation keep running hidden, so the frames reach `end_frame`.
 during a tactical retreat dash, an ultimate or a special stance, and it
 cancels a knockback in progress. Solo and Battle run the same code. The
 Studio previews it on the stage: the figure disappears over those frames, a
-faint outline marks where it vanished and a ring marks where it lands. (The
+faint outline marks where it vanished and numbered rings mark where each
+blink still to come lands. (The
 older character-wide `pack.blink` block is no longer read.)
 
 **Time control (`action_settings[action].time`, per action; `laser/timefx.py`).**

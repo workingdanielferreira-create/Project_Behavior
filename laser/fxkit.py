@@ -342,15 +342,20 @@ def turn_sign(fx, host, d, at=None):
 # stats.basic_attack_radius (shooters: their shooting range).  laser/actions.py.
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
                        movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80, attack_px=0)
-# The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): the
-# fighter vanishes at start_frame and reappears after end_frame (-1 = the
-# last frame) or when the action ends.  cooldown_ms: after it reappears, the
-# action blinks again only once this long has passed (meanwhile it plays
-# without vanishing).  Run by laser/blink.py.
-BLINK_DEFAULTS = dict(enabled=False, start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
-                      proximity_px=60.0, flash=True, cooldown_ms=0.0)
+# The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): a
+# list of blinks (`blinks`, each BLINK_STEP_DEFAULTS) that run in order as the
+# action's frames pass them; on while the list holds any.  Each blink: the
+# fighter vanishes at its start_frame and reappears after its end_frame (-1 =
+# the last frame) or when the action ends.  cooldown_ms (shared by the whole
+# list): after a blink reappears, the action blinks again only once this long
+# has passed (meanwhile it plays without vanishing); the later blinks of the
+# same pass still run.  Run by laser/blink.py.
+BLINK_DEFAULTS = dict(enabled=False, cooldown_ms=0.0, blinks=[])
+BLINK_STEP_DEFAULTS = dict(start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
+                           proximity_px=60.0, flash=True)
 BLINK_ANCHORS = ("target", "self")
-BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "random", "angle")
+BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
+                    "below_left", "below_right", "random", "angle")
 # The action's Time control (action_settings[action].time, FXK.TIME_DEFAULTS):
 # while the action plays between start_frame and end_frame (-1 = the last
 # frame) and its conditions pass (none = always), time runs at `speed` for
@@ -370,12 +375,12 @@ RETREAT_KEY = "@retreat"
 BLINK_KEY = "@blink:"
 
 
-def normalize_blink(b):
-    b = _fill(dict(b or {}), BLINK_DEFAULTS)
+def normalize_blink_step(b):
+    b = _fill(dict(b or {}), BLINK_STEP_DEFAULTS)
     if b.get("anchor") not in BLINK_ANCHORS:
-        b["anchor"] = BLINK_DEFAULTS["anchor"]
+        b["anchor"] = BLINK_STEP_DEFAULTS["anchor"]
     if b.get("direction") not in BLINK_DIRECTIONS:
-        b["direction"] = BLINK_DEFAULTS["direction"]
+        b["direction"] = BLINK_STEP_DEFAULTS["direction"]
     try:
         b["start_frame"] = max(0, jround(float(b.get("start_frame") or 0)))
     except (TypeError, ValueError):
@@ -384,6 +389,19 @@ def normalize_blink(b):
         b["end_frame"] = max(-1, jround(float(b.get("end_frame"))))
     except (TypeError, ValueError):
         b["end_frame"] = -1
+    return b
+
+
+def normalize_blink(b):
+    b = dict(b or {})
+    if not isinstance(b.get("blinks"), list):
+        # Files from before the blink list: one blink in the block itself.
+        b["blinks"] = [{k: b[k] for k in BLINK_STEP_DEFAULTS if k in b}] if b.get("enabled") else []
+    for k in BLINK_STEP_DEFAULTS:
+        b.pop(k, None)
+    b = _fill(b, BLINK_DEFAULTS)
+    b["blinks"] = [normalize_blink_step(x) for x in b["blinks"] if isinstance(x, dict)]
+    b["enabled"] = bool(b["blinks"])
     return b
 # Character-level aiming (pack.aim): the whole frame turns so the weapon
 # direction of the reference action (from -> to anchors, averaged over its

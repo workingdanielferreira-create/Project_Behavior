@@ -5,23 +5,31 @@ Blink — a teleport inside one action.  Set per action in FX Studio
 built-in swordsman's blink-dodge / blink-warp in combat.py: that is a
 separate JSON block.)
 
-While an action with Blink on plays, the fighter vanishes when the frame on
-show reaches start_frame and reappears once it passes end_frame (-1 = the
-last frame), or when the action ends, whichever comes first.  A looping
-action blinks again on every loop.  cooldown_ms (0 = none): after the
-fighter reappears, that action's Blink stays off for this long — the action
-still plays when its own triggers say so, just without vanishing.  It reappears proximity_px from the
-landing anchor:
+An action's Blink is a list of blinks (`blinks`), run in order as the
+action's frames pass them; Blink is on while the list holds any.  For each
+blink, the fighter vanishes when the frame on show reaches its start_frame
+and reappears once it passes its end_frame (-1 = the last frame), or when
+the action ends, whichever comes first.  When the next blink's frames start
+right after, it vanishes again on the same tick (back-to-back hops).  A
+looping action runs the list again on every loop.  cooldown_ms (0 = none,
+shared by the whole list): after the fighter reappears, that action's Blink
+stays off for this long — the action still plays when its own triggers say
+so, just without vanishing — but the later blinks of the same pass still
+run.  Each blink reappears proximity_px from its landing anchor:
 
   anchor     "target"  measured from the target (nearest enemy in Battle,
                        the cursor in Solo), where it is when the fighter
                        reappears
              "self"    measured from the spot the fighter vanished from
+                       (for a later blink: where the last one landed)
   direction  "behind"  the target's back: opposite the way it faces (Solo:
                        the far side from the fighter)
              "front"   the side the target faces (Solo: the fighter's side)
              "toward"  along the line from the fighter to the target
              "away"    along the line from the target to the fighter
+             "above" / "below"            straight up / down on screen
+             "above_left" / "above_right" / "below_left" / "below_right"
+                       45° diagonals, screen left / right (not the facing)
              "random"  any direction
              "angle"   angle_deg from the fighter -> target line (0 = toward,
                        180 = away, positive = clockwise on screen)
@@ -53,25 +61,31 @@ def config_for(fig, action):
     return b if isinstance(b, dict) and b.get("enabled") else None
 
 
-def _active(fig, cfg, action, frame):
-    """True when `frame` of `action` is inside cfg's blink frames."""
+def _active_index(fig, cfg, action, frame):
+    """The index of the first blink in cfg["blinks"] whose frames hold
+    `frame` of `action`, or -1 when none does."""
     from . import fxkit
     cfx = fxkit.character_fx(fig.mode)
     n = cfx.timing.get(action, (1, 100.0))[0] if cfx is not None else 1
-    e = n - 1 if cfg["end_frame"] < 0 else min(n - 1, cfg["end_frame"])
-    return cfg["start_frame"] <= frame <= e
+    for i, b in enumerate(cfg.get("blinks") or ()):
+        e = n - 1 if b["end_frame"] < 0 else min(n - 1, b["end_frame"])
+        if b["start_frame"] <= frame <= e:
+            return i
+    return -1
 
 
 class BlinkState:
-    __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play")
+    __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play", "idx", "cooldown_ms")
 
     def __init__(self):
         self.gone = False
         self.x0 = self.y0 = 0.0
-        self.cfg = None
+        self.cfg = None       # the blink (one entry of `blinks`) it is gone for
         self.action = None
         self.ready_at = {}    # action -> tick its Blink is off cooldown
         self.play = None      # the play (_play_key) that last blinked
+        self.idx = -1         # the index of the blink that last vanished
+        self.cooldown_ms = 0.0  # its action's Blink cooldown (shared by the list)
 
 
 def _play_key(fig, action):
@@ -109,12 +123,23 @@ def _can_start(fig):
                 or (rt is not None and rt.active))
 
 
-def _vanish(fig, st, cfg, action):
+def _may_vanish(fig, st, action, i, now):
+    """Blink i of `action` may start: the action's Blink is off cooldown, or
+    an earlier blink of this same pass already ran (the rest of the list
+    still plays; a loop back to the start waits for the cooldown)."""
+    if not _cooling(st, action, now):
+        return True
+    return st.play == _play_key(fig, action) and st.action == action and i > st.idx
+
+
+def _vanish(fig, st, cfg, action, i, cooldown_ms):
     from . import combat
     st.gone = True
     st.cfg = cfg
+    st.cooldown_ms = cooldown_ms
     st.action = action
     st.play = _play_key(fig, action)
+    st.idx = i
     st.x0, st.y0 = fig.x, fig.y
     # A blink takes the fighter out of any knockback or melee move.
     m, c = fig.motion, fig.combat
@@ -152,6 +177,8 @@ def _landing(fig, st, cfg, world):
             dx, dy = (1.0, 0.0) if tface else (-1.0, 0.0)   # opposite its facing
         if dmode == "front":
             dx, dy = -dx, -dy
+    elif dmode in _SCREEN_DIRS:
+        dx, dy = _SCREEN_DIRS[dmode]
     elif dmode == "random":
         a = fig.personality.rng.uniform(0.0, 2.0 * math.pi)
         dx, dy = math.cos(a), math.sin(a)
@@ -164,6 +191,12 @@ def _landing(fig, st, cfg, world):
     nx = max(MARGIN_PX, min(fig.screen_w - MARGIN_PX, nx))
     ny = max(MARGIN_PX, min(fig.screen_h - MARGIN_PX, ny))
     return nx, ny, tx
+
+
+_D = math.sqrt(0.5)
+_SCREEN_DIRS = {"above": (0.0, -1.0), "below": (0.0, 1.0),       # screen y grows downward
+                "above_left": (-_D, -_D), "above_right": (_D, -_D),
+                "below_left": (-_D, _D), "below_right": (_D, _D)}
 
 
 def _reappear(fig, st, world):
@@ -179,7 +212,7 @@ def _reappear(fig, st, world):
     st.gone = False
     st.cfg = None
     # Cooldown from the moment it reappears.
-    cd = max(0.0, float(cfg.get("cooldown_ms") or 0))
+    cd = max(0.0, float(st.cooldown_ms or 0))
     if cd > 0 and st.action is not None:
         st.ready_at[st.action] = world.global_tick + int(round(cd / config.TICK_MS))
     if cfg.get("flash", True):
@@ -198,19 +231,20 @@ def tick(fig, world):
         return False
     action, frame = fxkit.current_action(fig)
     cfg = config_for(fig, action)
-    on = cfg is not None and _active(fig, cfg, action, frame)
+    i = _active_index(fig, cfg, action, frame) if cfg is not None else -1
     if st is None:
-        if not on:
+        if i < 0:
             return False
         st = BlinkState()
         fig.blink = st
     if st.gone:
-        if on:
+        if i == st.idx and action == st.action:
             return True
         _reappear(fig, st, world)
-        return False
-    if on and fig.transform.init and _can_start(fig) and not _cooling(st, action, world.global_tick):
-        _vanish(fig, st, cfg, action)
+        # The next blink's frames may start right away: vanish again below.
+    if (i >= 0 and fig.transform.init and _can_start(fig)
+            and _may_vanish(fig, st, action, i, world.global_tick)):
+        _vanish(fig, st, cfg["blinks"][i], action, i, cfg.get("cooldown_ms"))
         return True
     return False
 

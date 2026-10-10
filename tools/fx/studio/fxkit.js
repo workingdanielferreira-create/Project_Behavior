@@ -602,38 +602,63 @@ function normalizeRetreat(a) {
     .map(function (c) { return fill(fill(c, RETREAT_CONDITIONS[c.type]), CONDITION_COMMON); });
   return a;
 }
-// Blink (action_settings[action].blink), run by laser/blink.py: a teleport
-// inside one action, set per action.  While that action plays, the fighter
-// vanishes when it reaches start_frame and reappears once it passes
-// end_frame (-1 = the last frame), or when the action ends, whichever comes
-// first.  It reappears proximity_px from the anchor ("target" = the target
-// where it is at that moment, "self" = the spot the fighter vanished from)
-// in the chosen direction (blinkLanding):
+// Blink (action_settings[action].blink), run by laser/blink.py: teleports
+// inside one action, set per action.  `blinks` is a list of blinks run in
+// order as the action's frames pass them; Blink is on while it holds any.
+// For each blink the fighter vanishes when it reaches the blink's start_frame
+// and reappears once it passes its end_frame (-1 = the last frame), or when
+// the action ends, whichever comes first; when the next blink's frames start
+// right after, it vanishes again at once.  It reappears proximity_px from the
+// anchor ("target" = the target where it is at that moment, "self" = the
+// spot the fighter vanished from) in the chosen direction (blinkLanding):
 //   behind  the target's back (opposite the way it faces; the Solo cursor
 //           and the Studio target have no facing: the far side from the fighter)
 //   front   the side the target faces (no facing: the fighter's side)
 //   toward  along the fighter -> target line
 //   away    along the target -> fighter line
+//   above / below            straight up / down on screen
+//   above_left / above_right / below_left / below_right
+//           45 degree diagonals, screen left / right (not the facing)
 //   random  any direction
 //   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
 //           positive = clockwise)
 // While gone it is invisible and untouchable, stays put and fires no new FX
 // (shots already flying carry on); the action and its animation keep running
 // hidden, so the frames tick on to end_frame.  flash = crackle + afterimage
-// at both ends.  Each loop of a looping action blinks again.  cooldown_ms
-// (0 = none): after it reappears, the action's Blink stays off this long (the
-// action still plays, without vanishing or its Blink FX).
-var BLINK_DEFAULTS = {enabled: false, start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
-  proximity_px: 60, flash: true, cooldown_ms: 0};
+// at both ends.  Each loop of a looping action runs the list again.
+// cooldown_ms (0 = none, shared by the whole list): after a blink reappears,
+// the action's Blink stays off this long (the action still plays, without
+// vanishing or its Blink FX); the later blinks of the same pass still run.
+var BLINK_DEFAULTS = {enabled: false, cooldown_ms: 0, blinks: []};
+var BLINK_STEP_DEFAULTS = {start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
+  proximity_px: 60, flash: true};
 var BLINK_ANCHORS = ["target", "self"];
-var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "random", "angle"];
+var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
+  "below_left", "below_right", "random", "angle"];
+var BLINK_SCREEN_DIRS = {above: [0, -1], below: [0, 1], above_left: [-Math.SQRT1_2, -Math.SQRT1_2],
+  above_right: [Math.SQRT1_2, -Math.SQRT1_2], below_left: [-Math.SQRT1_2, Math.SQRT1_2], below_right: [Math.SQRT1_2, Math.SQRT1_2]};
+// In place (the Studio edits blinks through references).
+function normalizeBlinkStep(b) {
+  b = fill(b || {}, BLINK_STEP_DEFAULTS);
+  if (BLINK_ANCHORS.indexOf(b.anchor) < 0) b.anchor = BLINK_STEP_DEFAULTS.anchor;
+  if (BLINK_DIRECTIONS.indexOf(b.direction) < 0) b.direction = BLINK_STEP_DEFAULTS.direction;
+  b.start_frame = Math.max(0, Math.round(+b.start_frame || 0));
+  b.end_frame = Math.round(+b.end_frame);
+  if (!(b.end_frame >= -1)) b.end_frame = -1;
+  return b;
+}
 function normalizeBlink(a) {
-  a = fill(a || {}, BLINK_DEFAULTS);
-  if (BLINK_ANCHORS.indexOf(a.anchor) < 0) a.anchor = BLINK_DEFAULTS.anchor;
-  if (BLINK_DIRECTIONS.indexOf(a.direction) < 0) a.direction = BLINK_DEFAULTS.direction;
-  a.start_frame = Math.max(0, Math.round(+a.start_frame || 0));
-  a.end_frame = Math.round(+a.end_frame);
-  if (!(a.end_frame >= -1)) a.end_frame = -1;
+  a = a || {};
+  if (!Array.isArray(a.blinks)) {
+    // Files from before the blink list: one blink in the block itself.
+    var one = {};
+    for (var k in BLINK_STEP_DEFAULTS) if (a[k] !== undefined) one[k] = a[k];
+    a.blinks = a.enabled ? [one] : [];
+  }
+  for (var k2 in BLINK_STEP_DEFAULTS) delete a[k2];
+  a = fill(a, BLINK_DEFAULTS);
+  a.blinks = a.blinks.filter(function (b) { return b && typeof b === "object"; }).map(normalizeBlinkStep);
+  a.enabled = a.blinks.length > 0;
   return a;
 }
 // Time control (action_settings[action].time), run by laser/timefx.py: while
@@ -688,13 +713,19 @@ function timeSpeed(tc, ms) {
   }
   return ps;
 }
-// Whether frame `fr` of an action with `frames` frames is inside the blink.
-function blinkActive(b, fr, frames) {
-  if (!b || !b.enabled) return false;
-  var e = b.end_frame < 0 ? frames - 1 : Math.min(frames - 1, b.end_frame);
-  return fr >= b.start_frame && fr <= e;
+// The index of the first blink of Blink `b` whose frames hold frame `fr` of
+// an action with `frames` frames, or -1.  laser/blink.py _active_index.
+function blinkEnd(st, frames) { return st.end_frame < 0 ? frames - 1 : Math.min(frames - 1, st.end_frame); }
+function blinkIndex(b, fr, frames) {
+  if (!b || !b.enabled) return -1;
+  for (var i = 0; i < b.blinks.length; i++) {
+    var st = b.blinks[i];
+    if (fr >= st.start_frame && fr <= blinkEnd(st, frames)) return i;
+  }
+  return -1;
 }
-// Landing spot: from = where the fighter vanished, target = [x, y],
+function blinkActive(b, fr, frames) { return blinkIndex(b, fr, frames) >= 0; }
+// Landing spot of one blink b (an entry of `blinks`): from = where the fighter vanished, target = [x, y],
 // tface = the target's facing (1 / -1) or null (no facing), facing = the
 // fighter's (a fallback when it stands on the target), rnd = 0..1 (random).
 function blinkLanding(b, from, target, tface, facing, rnd) {
@@ -705,7 +736,8 @@ function blinkLanding(b, from, target, tface, facing, rnd) {
   else if (b.direction === "behind" || b.direction === "front") {
     if (tface == null) { dx = ux; dy = uy; } else { dx = tface < 0 ? 1 : -1; dy = 0; }
     if (b.direction === "front") { dx = -dx; dy = -dy; }
-  } else if (b.direction === "random") { var r = rnd * 2 * Math.PI; dx = Math.cos(r); dy = Math.sin(r); }
+  } else if (BLINK_SCREEN_DIRS[b.direction]) { dx = BLINK_SCREEN_DIRS[b.direction][0]; dy = BLINK_SCREEN_DIRS[b.direction][1]; }
+  else if (b.direction === "random") { var r = rnd * 2 * Math.PI; dx = Math.cos(r); dy = Math.sin(r); }
   else { var a = Math.atan2(uy, ux) + (+b.angle_deg || 0) * D; dx = Math.cos(a); dy = Math.sin(a); }
   var an = b.anchor === "target" ? target : from, prox = Math.max(0, +b.proximity_px || 0);
   return [an[0] + dx * prox, an[1] + dy * prox];
@@ -2092,7 +2124,8 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
-  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS, normalizeBlink: normalizeBlink,
+  BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
+  normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
