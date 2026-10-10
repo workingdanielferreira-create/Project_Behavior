@@ -87,7 +87,11 @@ One clash, one FX (_quiet): every contact between the same two fighters that
 starts within MERGE_TICKS of a clash FX between them, within MERGE_PX of it,
 is part of that clash: it is still settled by the knockback rule, but plays
 no FX and no clash action of its own (one effect touching several enemy
-effects at once used to stack an FX per contact).
+effects at once used to stack an FX per contact).  A full beam struggle is
+the exception: an earlier contact never silences it (it always plays its
+own FX), and more beams of the same two fighters (a beam built from several
+beam layers) reaching a struggle already running between them join it —
+pinned, hidden under its FX and settled with it (_struggle_of).
 
 Overpower: when one effect's knockback beats the other's by more than
 OVERPOWER_KB, there is no clash at all: the weaker one is destroyed at its
@@ -799,12 +803,23 @@ def _tip_alive(kind, obj):
 # ---------------------------------------------------------------- the clash record
 class Clash:
     """A clash that holds for a while (struggles, the orb on the beam head)."""
-    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden")
+    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden", "joined")
 
     def __init__(self, a, b, c, rule, until, fx, start, hidden=()):
         self.a, self.b, self.c, self.rule, self.until, self.fx, self.start = a, b, c, rule, until, fx, start
         self.pins = (_pin(a), _pin(b))
         self.hidden = tuple(hidden)     # ids in clashfx.HIDDEN while it holds
+        self.joined = False             # extra beams riding another struggle (no FX / finale of their own)
+
+
+def _struggle_of(st, a, b):
+    """The beam struggle already holding between a's and b's fighters, or
+    None."""
+    for rec in st["active"]:
+        if (rec.rule == "beam_beam" and rec.fx is not None and rec.a.owner is a.owner
+                and rec.b.owner is b.owner):
+            return rec
+    return None
 
 
 class Duel:
@@ -929,6 +944,20 @@ def _start(world, st, a, b, c, rule, now):
         # The full struggle: a fixed STRUGGLE_TICKS, never fitted to the
         # beams' remaining life (both are pinned, their age frozen, while it
         # holds).
+        joined = _struggle_of(st, a, b)
+        if joined is not None:
+            # More beams of the same two fighters (a beam built from several
+            # beam layers) reaching the struggle already running between
+            # them: they join it — pinned, hidden under its FX, and settled
+            # with it — instead of locking in a second struggle with no FX.
+            hidden = (id(a.ref), id(b.ref))
+            clashfx.HIDDEN.update(hidden)
+            rec = Clash(a, b, c, rule, joined.until, None, now, hidden)
+            rec.joined = True
+            return rec
+        # Any other earlier contact of the pair (an orb pop, a bolt) never
+        # silences a struggle: it always plays its own FX.
+        st["quiet"] = False
         fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, scale=scale)
         held = STRUGGLE_TICKS
         hidden = ()
@@ -1005,6 +1034,13 @@ def _finish(world, st, rec):
     if rec.fx is not None and rec.fx.anchored:
         c = rec.fx.node_world()     # the struggle ends where the node was pushed to
     clashfx.HIDDEN.difference_update(rec.hidden)
+    if rec.joined:
+        # Extra beams of a struggle: settled with it, no finale of their own.
+        if _alive(a) and _alive(b):
+            _settle(world, a, b, c)
+        st["busy"].discard(id(a.ref))
+        st["busy"].discard(id(b.ref))
+        return
     la, lb = _alive(a), _alive(b)
     over = rec.rule == "beam_beam" and la and lb and _kb_winner(a, b) is None
     if la and lb:
