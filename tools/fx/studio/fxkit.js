@@ -612,7 +612,8 @@ function normalizeRetreat(a) {
 // anchor ("target" = the target where it is at that moment, "self" = the
 // spot the fighter vanished from) in the chosen direction (blinkLanding):
 //   behind  the target's back (opposite the way it faces; the Solo cursor
-//           and the Studio target have no facing: the far side from the fighter)
+//           and the Studio target have no facing: the far side from the
+//           fighter, left / right only)
 //   front   the side the target faces (no facing: the fighter's side)
 //   toward  along the fighter -> target line
 //   away    along the target -> fighter line
@@ -734,7 +735,9 @@ function blinkLanding(b, from, target, tface, facing, rnd) {
   if (b.direction === "toward") { dx = ux; dy = uy; }
   else if (b.direction === "away") { dx = -ux; dy = -uy; }
   else if (b.direction === "behind" || b.direction === "front") {
-    if (tface == null) { dx = ux; dy = uy; } else { dx = tface < 0 ? 1 : -1; dy = 0; }
+    // No facing: the far side from the fighter, left / right only (straight
+    // above / below it: the way the fighter faces).  laser/blink.py _landing.
+    if (tface == null) { dx = Math.abs(lx) > 0.001 ? (lx > 0 ? 1 : -1) : (facing < 0 ? -1 : 1); dy = 0; } else { dx = tface < 0 ? 1 : -1; dy = 0; }
     if (b.direction === "front") { dx = -dx; dy = -dy; }
   } else if (BLINK_SCREEN_DIRS[b.direction]) { dx = BLINK_SCREEN_DIRS[b.direction][0]; dy = BLINK_SCREEN_DIRS[b.direction][1]; }
   else if (b.direction === "random") { var r = rnd * 2 * Math.PI; dx = Math.cos(r); dy = Math.sin(r); }

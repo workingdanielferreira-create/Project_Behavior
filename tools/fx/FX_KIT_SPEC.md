@@ -540,7 +540,8 @@ reappears `proximity_px` from its `anchor`:
   `self` (the spot the fighter vanished from; for a later blink, where the
   one before it landed).
 - `direction`: `behind` / `front` (opposite / along the way the target faces;
-  Solo and the Studio: the target's far / near side from the fighter),
+  Solo and the Studio: the target's far / near side from the fighter, left /
+  right only; straight above / below it, the fighter's facing decides),
   `toward` / `away` (along the fighter → target line / the reverse),
   `above` / `below` (straight up / down on screen), `above_left` /
   `above_right` / `below_left` / `below_right` (45° diagonals, screen left /

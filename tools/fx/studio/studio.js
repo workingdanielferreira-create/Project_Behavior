@@ -2004,7 +2004,7 @@ function buildBlinkProps(d) {
     field(t, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"]], b.anchor, function (v) { b.anchor = v; ch(); })).title =
       "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from (for a later blink, where the one before it landed).";
     field(t, "Side", inp(BLINK_SIDE_LABEL, b.direction, function (v) { b.direction = v; ch(); })).title =
-      "Which way from that point it lands. Behind / in front: the far / near side of the target (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
+      "Which way from that point it lands. Behind / in front: the far / near side of the target, left / right (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
     if (b.direction === "angle") field(t, "Angle °", inp("n", b.angle_deg, function (v) { b.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
       "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
     field(t, "Distance px", inp("n", b.proximity_px, function (v) { b.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =

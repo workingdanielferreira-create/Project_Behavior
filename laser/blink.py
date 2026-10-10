@@ -23,7 +23,8 @@ run.  Each blink reappears proximity_px from its landing anchor:
              "self"    measured from the spot the fighter vanished from
                        (for a later blink: where the last one landed)
   direction  "behind"  the target's back: opposite the way it faces (Solo:
-                       the far side from the fighter)
+                       the far side from the fighter, left / right only;
+                       straight above / below it, the way it faces)
              "front"   the side the target faces (Solo: the fighter's side)
              "toward"  along the line from the fighter to the target
              "away"    along the line from the target to the fighter
@@ -172,7 +173,14 @@ def _landing(fig, st, cfg, world):
         dx, dy = -ux, -uy
     elif dmode in ("behind", "front"):
         if tface is None:
-            dx, dy = ux, uy                     # far side from the fighter
+            # No facing (Solo cursor): the far side from the fighter,
+            # left / right only; straight above / below it, the way the
+            # fighter faces.
+            if abs(lx) > 0.001:
+                dx = 1.0 if lx > 0 else -1.0
+            else:
+                dx = -1.0 if fig.transform.facing_left else 1.0
+            dy = 0.0
         else:
             dx, dy = (1.0, 0.0) if tface else (-1.0, 0.0)   # opposite its facing
         if dmode == "front":
