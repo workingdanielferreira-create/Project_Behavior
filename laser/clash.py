@@ -38,7 +38,10 @@ Every pair of categories has a rule.
                       lesser version: a one-shot spark burst (the struggle's
                       finale only) at the contact, settled at once by the
                       knockback rule.  Both are sized from the beams' real
-                      widths (_beam_scale)
+                      widths (_beam_scale).  Their sphere and shockwave rings
+                      (and those of the blowout and the overload) are
+                      soft-capped to BEAM_FX_CAP_HEIGHTS x the shorter
+                      fighter's height, end to end (_cap_size)
   beam x orb          the orb is held on the beam head (beam_orb), then bursts
   beam x trail / crescent / sprite
                       SPLIT_CHANCE: the beam splits at the contact into two
@@ -143,6 +146,8 @@ MERGE_PX = 60.0              # ...and this close to it are part of that clash (n
 OVERLOAD_HP_PCT = 10.0       # a tied beam struggle overloads: each fighter loses this % of its max HP...
 OVERLOAD_KB_PX = 500.0       # ...and is thrown this far from the blast (ignores knockback immunity)
 OVERPOWER_KB = 100.0         # knockback lead that destroys the weaker effect outright, no clash
+BEAM_FX_CAP_HEIGHTS = 2.0    # beam clash FX (struggle, its spark, blowout, overload): sphere + rings soft-capped
+                             # to this many times the shorter fighter's height, end to end (_cap_size)
 
 # category pair (sorted) -> rule name.  Every pair has one.
 RULES = {
@@ -615,6 +620,27 @@ def _beam_scale(slot, looks):
     return max(0.15, min(3.0, size * w / STRUGGLE_REF_W))
 
 
+def _stand_px(world, fig):
+    """How tall fig stands on screen right now: the roster's standing height
+    (config.IMAGE_STAND_HEIGHT_PX) times its character scale and the
+    position scale where it is."""
+    try:
+        cs = float(fig.mode.body_scale())
+    except Exception:
+        cs = 1.0
+    return config.IMAGE_STAND_HEIGHT_PX * cs * _pscale(world, fig.x, fig.y)
+
+
+def _cap_size(world, fx, figs):
+    """Soft size cap of a beam clash FX: its sphere and shockwave rings stay
+    within BEAM_FX_CAP_HEIGHTS x the shorter fighter's height, end to end
+    (ClashFX.cap_r is the reach from the centre, half of that)."""
+    hs = [_stand_px(world, f) for f in figs if f is not None]
+    if fx is not None and hs:
+        fx.cap_r = BEAM_FX_CAP_HEIGHTS * min(hs) / 2.0
+    return fx
+
+
 def _left(b):
     """Ticks of life body b has left; None = no lifespan (a fighter's own
     trail, a hovering petal, an FX with endless life)."""
@@ -935,8 +961,8 @@ def _start(world, st, a, b, c, rule, now):
             # The lesser version: a one-shot spark burst at the contact (the
             # struggle's finale only), settled at once by the knockback rule.
             _settle(world, a, b, c)
-            fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=0,
-                           scale=scale * LESSER_SCALE)
+            fx = _cap_size(world, _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=0,
+                                            scale=scale * LESSER_SCALE), figs)
             if fx is not None and fx.sustain:
                 fx.release()
             _engage(world, figs, fx.length() if fx is not None else 30)
@@ -958,7 +984,8 @@ def _start(world, st, a, b, c, rule, now):
         # Any other earlier contact of the pair (an orb pop, a bolt) never
         # silences a struggle: it always plays its own FX.
         st["quiet"] = False
-        fx = _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS, scale=scale)
+        fx = _cap_size(world, _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS,
+                                        scale=scale), figs)
         held = STRUGGLE_TICKS
         hidden = ()
         if fx is not None and fx.base == "beam_struggle":
@@ -1047,8 +1074,9 @@ def _finish(world, st, rec):
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
             ang = _deg(*a.dir)
-            _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1,
-                      scale=rec.fx.S if rec.fx is not None else None, pair=(a, b))
+            _cap_size(world, _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1,
+                                       scale=rec.fx.S if rec.fx is not None else None, pair=(a, b)),
+                      (a.owner, b.owner))
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     if over:
