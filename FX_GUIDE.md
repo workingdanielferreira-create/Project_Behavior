@@ -462,8 +462,12 @@ Hand-drawn sword FX at the clash-explosion standard, used through the FX Kit
 primitive `technique` (FX Studio presets: **Sword techniques**). `params.style`
 picks one: `rising_slash`, `horizontal_sweep`, `diagonal_slash` (filled
 crescents of light that swing round the anchor), `crescent_wave` (a travelling
-slash beam with a dark core and flames) or `blade_extension` (an energy blade
-that charges, shoots out of the sword tip, holds and retracts).
+slash beam with a dark core and flames), `blade_extension` (an energy blade
+that charges, shoots out of the sword tip, holds and retracts),
+`forward_thrust` (a lunge stab: a tapered spear of light drives out along the
+aim, an air-pressure ring at full reach, then it snaps back) or
+`overhead_slash` (a vertical chop from above the head down to the feet,
+bulging forward; a one-cut row of `CUTS`).
 
 - **Hooks in fxkit.py:** `spawn` → `swordfx.on_spawn` (fixes the frame and
   sets the hit window as `inst.life`); `tick_inst` keeps it alive until

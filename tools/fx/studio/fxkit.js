@@ -336,7 +336,7 @@ var PARAM_DEFAULTS = {
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
 var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
   "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
-  "ki_barrage", "impact_punch"];
+  "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
@@ -344,6 +344,8 @@ var TECH_STYLE_DEFAULTS = {
   crescent_wave: {radius: 40, thickness: 22, hold_ticks: 48},
   blade_extension: {length: 300, thickness: 6, hold_ticks: 18},
   forward_sweep: {radius: 85, span: 200, thickness: 12, swing_ticks: 7},
+  forward_thrust: {length: 130, thickness: 7, swing_ticks: 4, hold_ticks: 4},
+  overhead_slash: {radius: 55, span: 150, thickness: 13, swing_ticks: 6},
   combo_triple: {radius: 55, span: 120, thickness: 11, swing_ticks: 5},
   combo_cross: {radius: 55, span: 120, thickness: 12, swing_ticks: 5},
   combo_flurry: {radius: 55, span: 110, thickness: 10, swing_ticks: 4},
@@ -623,9 +625,10 @@ function normalizeRetreat(a) {
 //   random  any direction
 //   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
 //           positive = clockwise)
-// While gone it is invisible and untouchable, stays put and fires no new FX
-// (shots already flying carry on); the action and its animation keep running
-// hidden, so the frames tick on to end_frame.  flash = crackle + afterimage
+// While gone it is invisible and untouchable and stays put; it moves too
+// fast to see, so its FX carry on as normal (they keep firing, body FX stay
+// visible and hit); the action and its animation keep running hidden, so the
+// frames tick on to end_frame.  flash = crackle + afterimage
 // at both ends.  Each loop of a looping action runs the list again.
 // cooldown_ms (0 = none, shared by the whole list): after a blink reappears,
 // the action's Blink stays off this long (the action still plays, without
@@ -1025,13 +1028,22 @@ function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return 
 //   end: "stop" holds at the end, "loop" starts over, "continue" carries on
 //   straight along the last direction at the same speed.  follow: the path
 //   rides along with the fighter instead of staying where it started.
+//   anchors (one per point): "" = the point is measured from where the
+//   effect spawned and turned with the path (as above).  Anything else pins
+//   it, live every tick, to that spot, its x / y an offset from it (x
+//   forward, mirrored with the facing, not turned):
+//     "figure", "target", an anchor id (haR, wtip, ...), or
+//     "blink:<i>:start" / "blink:<i>:end"  where blink i (0 = the first) of
+//     the playing action vanishes / lands: where it did this pass, else
+//     where it would now (host.blinkPoint, laser/blink.py point).
+//   A pin with nothing behind it (no such blink) falls back to "".
 // start_frame / stop_frame: the action frames the set produces particles in
 // (stop -1 = to the end); what it already spawned lives on as usual.
 // order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
 var ENTRY_DEFAULTS = {name: "entry points", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [],
   start_frame: 0, stop_frame: -1, order: "forward"};
 var ENTRY_ORDERS = ["forward", "reverse", "pingpong", "random"];
-var PATH_DEFAULTS = {name: "path", points: [[0, 0]], smooth: true, ticks: 30, orient: "facing", end: "stop", follow: false};
+var PATH_DEFAULTS = {name: "path", points: [[0, 0]], anchors: [""], smooth: true, ticks: 30, orient: "facing", end: "stop", follow: false};
 function normalizeEntrySet(e) {
   e = fill(e || {}, ENTRY_DEFAULTS); e.points = (e.points || []).map(function (p) { return [+p[0] || 0, +p[1] || 0]; });
   e.start_frame = Math.max(0, Math.round(+e.start_frame || 0));
@@ -1044,6 +1056,8 @@ function normalizePath(p) {
   p.points = (p.points || []).map(function (q) { return [+q[0] || 0, +q[1] || 0]; });
   if (!p.points.length) p.points = [[0, 0]];
   p.points[0] = [0, 0];
+  var A = Array.isArray(p.anchors) ? p.anchors : [];
+  p.anchors = p.points.map(function (q, i) { return typeof A[i] === "string" ? A[i] : ""; });   // one per point
   p.ticks = Math.max(1, Math.round(+p.ticks || 1));
   return p;
 }
@@ -1124,10 +1138,40 @@ function pathMatrix(path, host, dir, deg) {
   return [c * f, -s, s * f, c];
 }
 function pathWorld(inst, local) { var M = inst.pm; return [inst.po[0] + M[0] * local[0] + M[1] * local[1], inst.po[1] + M[2] * local[0] + M[3] * local[1]]; }
+// A point's pin (path.anchors[i]) in world px now, or null when unpinned.
+function pathAnchorPos(host, a) {
+  if (!a) return null;
+  var m = /^blink:(\d+):(start|end)$/.exec(a);
+  if (m) return host.blinkPoint ? host.blinkPoint(+m[1], m[2]) : null;
+  return host.anchor(a);
+}
+function pathAnchored(path) { return (path.anchors || []).some(function (a) { return !!a; }); }
+// The path's points in world px now: unpinned ones through the spawn frame
+// (origin po, matrix M), pinned ones off their pin (f = the effect's facing).
+function pathWorldPoints(path, host, po, M, f) {
+  var ps = hostScale(host), A = path.anchors || [];
+  return path.points.map(function (q, i) {
+    var b = pathAnchorPos(host, A[i]);
+    if (b) return [b[0] + q[0] * ps * f, b[1] + q[1] * ps];
+    var x = q[0] * ps, y = q[1] * ps;
+    return [po[0] + M[0] * x + M[1] * y, po[1] + M[2] * x + M[3] * y];
+  });
+}
 function pathStep(inst, host) {
   var path = inst.path, pl = inst.pl, k = inst.age / path.ticks, local, ld;
   if (path.follow) { var o = anchorPos(inst.fx, host, inst); inst.po = o; }
   if (path.end === "loop") k = k - Math.floor(k);
+  if (pathAnchored(path)) {
+    // Pinned points: the route is rebuilt in world px every tick.
+    var wl = pathLine({points: pathWorldPoints(path, host, inst.po, inst.pm, inst.facing), smooth: path.smooth}), wp, wd;
+    if (k > 1 && path.end === "continue" && wl.len > 0) {
+      var we = pathAt(wl, 1); wd = we[1];
+      wp = [we[0][0] + wd[0] * (k - 1) * wl.len, we[0][1] + wd[1] * (k - 1) * wl.len];
+    } else { var wr = pathAt(wl, k); wp = wr[0]; wd = wr[1]; }
+    inst.x = wp[0]; inst.y = wp[1];
+    if (wd[0] || wd[1]) inst.dir = wd;
+    return;
+  }
   if (k > 1 && path.end === "continue" && pl.len > 0) {
     var e = pathAt(pl, 1); ld = e[1];
     local = [e[0][0] + ld[0] * (k - 1) * pl.len, e[0][1] + ld[1] * (k - 1) * pl.len];
@@ -1999,7 +2043,7 @@ Player.prototype.window = function (fx, frames, frameMs) {
 };
 // Advance one tick.  `t` counts ticks since the action started (it wraps
 // when the action loops; instances already alive keep running).
-// opts.hold (Blink, while the fighter is gone): nothing new fires; live
+// opts.hold (sped-up time sub-steps): nothing new fires; live
 // instances keep updating.
 // opts.frozen (Time control stopped these FX this tick, laser/timefx.py):
 // what the action fires now still appears, but nothing moves, ages or hits,
@@ -2123,7 +2167,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,

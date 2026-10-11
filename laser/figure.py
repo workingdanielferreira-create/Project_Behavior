@@ -201,8 +201,8 @@ class Figure:
             c0.afterimages = live
 
         fig_pscale = self._position_scale()
-        # FX Studio blink: while blinked out the fighter, its trail and its
-        # body-bound FX are hidden (shots already in flight still draw).
+        # FX Studio blink: while blinked out the fighter and its trail are
+        # hidden; its FX keep drawing (laser/blink.py: they carry on).
         gone = self.blink is not None and self.blink.gone
         if not gone:
             self.trail.draw(p, pen, self.motion.follow, fig_pscale)
@@ -225,7 +225,7 @@ class Figure:
 
         # --- FX Studio effects (fxkit), "behind" layer ---
         if self.fx is not None:
-            self.fx.draw(p, self, "behind", hidden=gone)
+            self.fx.draw(p, self, "behind")
 
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
@@ -277,7 +277,7 @@ class Figure:
 
         # --- FX Studio effects (fxkit), "front" layer ---
         if self.fx is not None:
-            self.fx.draw(p, self, "front", hidden=gone)
+            self.fx.draw(p, self, "front")
 
         if self.combat.crescents:
             cpen = QPen()

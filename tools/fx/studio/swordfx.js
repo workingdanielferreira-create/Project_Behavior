@@ -4,7 +4,8 @@
  * Studio preview draws what Solo and Battle draw.  Keep the two in step.
  *
  * Styles: rising_slash, horizontal_sweep, diagonal_slash, crescent_wave,
- * blade_extension (see laser/swordfx.py for what each one paints).
+ * blade_extension, forward_thrust, overhead_slash and the combos (see
+ * laser/swordfx.py for what each one paints).
  */
 (function (G) {
 "use strict";
@@ -17,6 +18,7 @@ var CUTS = {
   rising_slash: [[-90, 1, 0, 0, 1, 1, 1, 0]],
   horizontal_sweep: [[0, 1, 0, 0, 1, 1, 1, 0]],
   diagonal_slash: [[-45, 1, 0, 0, 1, 1, 1, 0]],
+  overhead_slash: [[90, -1, 0.3, 0, 1, 1, 1, 0]],
   forward_sweep: [[90, -1, 0.1, 0, 1, 1, 0.32, 0]],
   combo_triple: [[40, -1, 0.1, -0.1, 1, 1, 1, 0], [-40, 1, 0.15, 0.05, 1, 1, 1, 1.3], [0, 1, 0.2, -0.1, 1.5, 0.6, 1, 2.6]],
   combo_cross: [[45, -1, 0.45, 0, 1, 1, 1, 0], [-45, 1, 0.45, 0, 1, 1, 1, 0.9]],
@@ -29,6 +31,7 @@ var CROSS_LIFE = 18;
 var SLASH_SLICES = 26, SPARK_LIFE = 20, WAVE_EMBER_LIFE = 30, WAVE_SHARD_LIFE = 26;
 var WAVE_ARC_DEG = 95, WAVE_CX = -0.5;
 var EXT_CHARGE = 4, EXT_EXTEND = 5, EXT_RETRACT = 7, EXT_DUST = 16;
+var THR_WIND = 3, THR_RETRACT = 5, THR_FADE = 14;   // thrust: wind-up, snap back, afterglow
 var HIT_MARK_LIFE = 16;
 var STRIKE = function () { return G.STRIKEFX; };
 
@@ -57,6 +60,7 @@ function activeTicks(P) {
   var st = style(P);
   if (st === "crescent_wave") return Math.max(1, Math.trunc(+P.hold_ticks || 48));
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
+  if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
   if (isStrike(st)) return STRIKE().activeTicks(P);
   return lastStart(P) + swing(P) + 2;
 }
@@ -64,6 +68,7 @@ function totalTicks(P) {
   var st = style(P);
   if (st === "crescent_wave") return activeTicks(P) + WAVE_EMBER_LIFE;
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
+  if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
   if (isStrike(st)) return STRIKE().totalTicks(P);
   return lastStart(P) + swing(P) + fadeT(P) + SPARK_LIFE;
 }
@@ -229,10 +234,31 @@ function extHit(inst, tx, ty, hr, ps) {
   return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.thickness * ps * 0.9;
 }
 
+// ---------------------------------------------------------------- thrust geometry
+// [out starts, full reach, snap back starts, back] ticks.
+function thrTimes(P) { var t0 = THR_WIND, t1 = t0 + swing(P), t2 = t1 + holdT(P); return [t0, t1, t2, t2 + THR_RETRACT]; }
+function thrLen(P, t, L) {
+  var T = thrTimes(P);
+  if (t < T[0]) return 0;
+  if (t < T[1]) return L * easeOut3((t - T[0]) / (T[1] - T[0]));
+  if (t < T[2]) return L;
+  if (t < T[3]) return L * (1 - easeIn3((t - T[2]) / THR_RETRACT));
+  return 0;
+}
+function thrHw(u, W) { return W * Math.pow(Math.max(0, 1 - u), 0.85); }   // a long taper to the point
+function thrHit(inst, tx, ty, hr, ps) {
+  if (inst.age >= inst.life) return false;
+  var P = inst.fx.params, l = thrLen(P, inst.age, +P.length * ps);
+  if (l <= 2) return false;
+  var b = frame(inst).w(l, 0);
+  return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.thickness * ps * 0.8;
+}
+
 function hit(inst, tx, ty, hr, ps) {
   var st = style(inst.fx.params);
   if (st === "crescent_wave") return waveHit(inst, tx, ty, hr, ps);
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
+  if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
@@ -638,10 +664,89 @@ function drawExtension(pen, inst, host, ps) {
   hitMarks(pen, inst, c, ps, fx_, fy_);
 }
 
+// ---------------------------------------------------------------- forward thrust
+function drawThrust(pen, inst, host, ps) {
+  var P = inst.fx.params, t = inst.age, fr = frame(inst), cc = colours(inst, host), c = cc[0], bright = cc[1];
+  var S = ps, Lmax = +P.length * ps, W = +P.thickness * ps, T = thrTimes(P), t0 = T[0], t1 = T[1], t2 = T[2], t3 = T[3];
+  var l = thrLen(P, t, Lmax), ox = inst.x, oy = inst.y, fx_ = inst.tq_f[0], fy_ = inst.tq_f[1], dens = +P.density || 1;
+  var i, j, r, a, q, fa, tip;
+  pen.add(true);
+  // 1: wind-up — a glint at the hilt, a short streak drawn back behind it
+  if (t < t0 + 1) {
+    var cp = cl(t / t0), b0 = fr.w(-14 * S * cp, 0);
+    fa = t < t0 ? 1 : 0.5;
+    pen.line(ox, oy, b0[0], b0[1], mix(c, HOT, cp), 200 * fa, 2 * S);
+    pen.glow(ox, oy, (5 + 8 * cp) * S, HOT, 220 * fa);
+  }
+  // 2: speed lines along the thrust, fading once it reaches full length
+  if (t >= t0 && t < t1 + 6) {
+    fa = t < t1 ? 1 : 1 - (t - t1) / 6;
+    var reach = t < t1 ? l : Lmax;
+    for (i = 0; i < Math.max(0, Math.round(7 * dens)); i++) {
+      r = rngFor(inst.seed, i, 21);
+      var side = r.uniform(-2.4, 2.4) * W, su0 = r.uniform(0, 0.45), su1 = Math.min(1, su0 + r.uniform(0.3, 0.55));
+      var p0 = fr.w(su0 * reach, side), p1 = fr.w(su1 * reach, side);
+      pen.line(p0[0], p0[1], p1[0], p1[1], mix(c, HOT, 0.4), 150 * fa, 1.1 * S);
+    }
+  }
+  if (l > 1) {
+    var n = 16, us = [];
+    for (j = 0; j <= n; j++) us.push(j / n);
+    var edge = function (m) {
+      var top = us.map(function (u) { return fr.w(u * l, -thrHw(u, W) * m); });
+      var bot = us.map(function (u) { return fr.w(u * l, thrHw(u, W) * m); });
+      return top.concat(rev(bot));
+    };
+    // 3: layered spear — wide glow, mid glow, body, white-hot core
+    pen.poly(edge(2.6), c, 45);
+    pen.poly(edge(1.6), c, 110);
+    for (j = 0; j < n; j++) {
+      var u0 = us[j], u1 = us[j + 1], h0 = thrHw(u0, W), h1 = thrHw(u1, W);
+      pen.poly([fr.w(u0 * l, -h0), fr.w(u1 * l, -h1), fr.w(u1 * l, h1), fr.w(u0 * l, h0)], mix(c, bright, u1), 225);
+    }
+    pen.poly(edge(0.35), HOT, 255);
+    // 4: tip flare
+    tip = fr.w(l, 0);
+    pen.glow(tip[0], tip[1], 16 * S, c, 110);
+    pen.glow(tip[0], tip[1], 7 * S, HOT, 230);
+    star(pen, tip[0], tip[1], fx_, fy_, 14 * S, 5 * S, HOT, 230, 1.2 * S);
+    pen.glow(ox, oy, 7 * S, c, 150);
+  }
+  // 5: air-pressure rings + burst the moment it reaches full length
+  a = t - t1;
+  if (a >= 0 && a < 12) {
+    q = a / 12;
+    var e = easeOut3(q), ang = Math.atan2(fy_, fx_);
+    tip = fr.w(Lmax, 0);
+    pen.ring(tip[0], tip[1], (3 + 6 * e) * S, (5 + 22 * e) * S, ang, c, 220 * (1 - q), 2 * S * (1 - q) + 0.2);
+    var md = fr.w(Lmax * (0.72 - 0.1 * e), 0);
+    pen.ring(md[0], md[1], (2 + 4 * e) * S, (4 + 14 * e) * S, ang, HOT, 160 * (1 - q), 1.4 * S * (1 - q) + 0.2);
+    pen.glow(tip[0], tip[1], 22 * S * (1 - q), HOT, 210 * (1 - q));
+    // 6: sparks thrown forward off the point
+    for (i = 0; i < Math.max(0, Math.round(10 * dens)); i++) {
+      r = rngFor(inst.seed, i, 23);
+      var life = 9 + 7 * r();
+      if (a >= life) continue;
+      var an = ang + r.uniform(-35, 35) * D, sp = r.uniform(3, 8) * S, fd = dragDist(0.86, a);
+      var sx = tip[0] + Math.cos(an) * sp * fd, sy = tip[1] + Math.sin(an) * sp * fd, dk = Math.pow(0.86, a), qq = a / life;
+      pen.line(sx, sy, sx - Math.cos(an) * sp * dk * 1.5, sy - Math.sin(an) * sp * dk * 1.5, mix(HOT, c, qq), 255 * (1 - qq), 1.2 * S);
+    }
+  }
+  // 7: the line it pierced, hanging in the air as it snaps back
+  if (t >= t2 && t < t3 + THR_FADE) {
+    q = (t - t2) / (THR_RETRACT + THR_FADE);
+    var bt = fr.w(Lmax, 0);
+    pen.line(ox, oy, bt[0], bt[1], c, 150 * (1 - q), 2.6 * S * (1 - q) + 0.3);
+    pen.line(ox, oy, bt[0], bt[1], HOT, 220 * (1 - q) * (1 - q), 1 * S);
+  }
+  hitMarks(pen, inst, c, ps, fx_, fy_);
+}
+
 function draw(g, inst, host, ps) {
   var pen = new Pen(g), st = style(inst.fx.params);
   if (st === "crescent_wave") drawWave(pen, inst, host, ps);
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
+  else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else drawSlash(pen, inst, host, ps);
 }

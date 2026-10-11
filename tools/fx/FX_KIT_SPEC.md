@@ -393,6 +393,23 @@ travels along the path from where it spawns:
   boomerangs); otherwise it stays where it spawned.
 - The instance's direction is the path tangent, so bolts, trails and beams
   line up with the route.
+- `anchors` (one per point, `""` by default): a point's **pin**. `""` = the
+  point is measured from where the effect spawned and turned with the path
+  (everything above). Anything else pins it, live every tick, to that spot;
+  its `[x, y]` is then an offset from it (x forward, mirrored with the
+  facing, not turned by `orient`):
+  - `"figure"`, `"target"` or any anchor id (`haR`, `wtip`, ...);
+  - `"blink:<i>:start"` / `"blink:<i>:end"`: where blink `i` (0 = the first)
+    of the playing action's Blink vanishes / lands. Once that blink has
+    happened this pass, its real spots; until then, where it would happen
+    now (a blink starts where the one before it lands, until that one has,
+    else where the fighter is; a `random` direction is rolled once per blink
+    so the prediction holds still). `laser/blink.py` `point`,
+    Studio `blinkPointAt`.
+  A pin with nothing behind it (the action has no blink `i`) counts as `""`.
+  With any pinned point the route is rebuilt in world px every tick
+  (`pathWorldPoints` / `path_world_points`), so an effect can run from a
+  blink's vanish spot to its landing spot, or chase the target.
 
 `fxkit.js` (`entrySetOf`, `entryPoint`, `pathLine`, `pathAt`, `pathMatrix`,
 `pathStep`, `Player.tick`'s `fireFx` / pending queue) is the reference; the
@@ -422,7 +439,7 @@ routine's `config.py` values.
 | `glow` | `TrailComponent` head glow + core | `r_start, r_end, a_center, a_mid, mid, core_r, fade none\|out\|in\|inout, pulse_hz` |
 | `pulse` | radial pulse rings (new) | `r_start 0, r_end 120, width 6, width_end 2, expand_ms 400, rings 1, gap_ms 200, ease out\|linear\|in, fade out\|none\|in\|inout, glow 8, fill_alpha 0`: ring *k* starts `k × gap_ms` in (only while the effect lasts; `rings 0` = keep starting rings) and grows `r_start → r_end` over `expand_ms`, its line `width → width_end`; `glow` = a soft wider ring, `fill_alpha` = a faint inner fill (both colour 2). Rings already growing finish after the effect's life ends |
 | `ghost` | `Figure.draw` afterimages (`silhouette`) | `interval 2, ghost_life 14, alpha 150, max 12` |
-| `technique` | `laser/swordfx.py` (Studio: `swordfx.js`), hand-drawn sword techniques (new) | `style rising_slash\|horizontal_sweep\|diagonal_slash\|crescent_wave\|blade_extension\|forward_sweep\|combo_triple\|combo_cross\|combo_flurry\|combo_launcher\|combo_backhand\|ki_barrage\|impact_punch, radius 40, span 160, thickness 12, length 300, swing_ticks 6, hold_ticks 18, density 1`. Picking a style in the Studio applies `TECH_STYLE_DEFAULTS[style]`. Slashes: a filled crescent of light (white-hot edge, speed lines, head flare, sparks, the cut left hanging + a pressure wave) swinging round the anchor along the style's cut (rising: up, horizontal: back → front, diagonal: bottom-back → top-front), laid out for the facing (Flip mirrors it, Follow direction tilts it). `crescent_wave`: a travelling crescent (bright rim, dark core = colour 2 darkened, flames, embers, shock rings, path gouge, launch flash) that shatters into shards at the end. `blade_extension`: charge (4 ticks) → extend (5) → hold (`hold_ticks`) → retract (7) along the spawn aim, with ripples, edge crackle, a shock cone at full reach and sparkle dust. The technique sets its own life (hit window: slash `swing_ticks + 2`, wave `hold_ticks`, blade charge + extend + hold + retract) and draws its afterglow after it; Life is ignored. Palette colour = the LUT's most vivid entry. Every hit leaves an X slash flash on the target. `forward_sweep` and the combos are rows of `swordfx.CUTS` (direction, bend, centre, size, span, squash, start); a flat (squashed) cut hits everything between the fighter and its blade; each combo cut lands once. `ki_barrage` / `impact_punch` (`laser/strikefx.py`, Studio: `strikefx.js`): rapid-fire ki shots (Radius shot, Thickness blast, Span spread °, Length range, Swing ticks between shots, Hold ticks firing; each shot hits once and detonates) and a punch (Radius fist, Thickness streak, Length reach, Swing ticks out, Hold ticks held; impact at the landing point). Everything is a pure function of age + seed (+ the anchor path for ki), so the Studio and the game draw the same pixels |
+| `technique` | `laser/swordfx.py` (Studio: `swordfx.js`), hand-drawn sword techniques (new) | `style rising_slash\|horizontal_sweep\|diagonal_slash\|crescent_wave\|blade_extension\|forward_thrust\|overhead_slash\|forward_sweep\|combo_triple\|combo_cross\|combo_flurry\|combo_launcher\|combo_backhand\|ki_barrage\|impact_punch, radius 40, span 160, thickness 12, length 300, swing_ticks 6, hold_ticks 18, density 1`. Picking a style in the Studio applies `TECH_STYLE_DEFAULTS[style]`. Slashes: a filled crescent of light (white-hot edge, speed lines, head flare, sparks, the cut left hanging + a pressure wave) swinging round the anchor along the style's cut (rising: up, horizontal: back → front, diagonal: bottom-back → top-front), laid out for the facing (Flip mirrors it, Follow direction tilts it). `crescent_wave`: a travelling crescent (bright rim, dark core = colour 2 darkened, flames, embers, shock rings, path gouge, launch flash) that shatters into shards at the end. `blade_extension`: charge (4 ticks) → extend (5) → hold (`hold_ticks`) → retract (7) along the spawn aim, with ripples, edge crackle, a shock cone at full reach and sparkle dust. `forward_thrust`: wind-up (3 ticks) → thrust out (`swing_ticks`, ease out) to `length` → hold (`hold_ticks`) → snap back (5) along the spawn aim: a tapered spear of light (`thickness` = half-width at the base) with speed lines, a tip flare, air-pressure rings and forward sparks at full reach, and the pierced line fading for 14 ticks after; it hits along its length while out. `overhead_slash`: a one-cut row of `CUTS`, a vertical chop from above the head down to the feet, bulging forward. The technique sets its own life (hit window: slash `swing_ticks + 2`, wave `hold_ticks`, blade charge + extend + hold + retract) and draws its afterglow after it; Life is ignored. Palette colour = the LUT's most vivid entry. Every hit leaves an X slash flash on the target. `forward_sweep` and the combos are rows of `swordfx.CUTS` (direction, bend, centre, size, span, squash, start); a flat (squashed) cut hits everything between the fighter and its blade; each combo cut lands once. `ki_barrage` / `impact_punch` (`laser/strikefx.py`, Studio: `strikefx.js`): rapid-fire ki shots (Radius shot, Thickness blast, Span spread °, Length range, Swing ticks between shots, Hold ticks firing; each shot hits once and detonates) and a punch (Radius fist, Thickness streak, Length reach, Swing ticks out, Hold ticks held; impact at the landing point). Everything is a pure function of age + seed (+ the anchor path for ki), so the Studio and the game draw the same pixels |
 | `weapon` | melee hitbox (new) | `to_anchor wtip, width 6`: a capsule from the effect's `anchor` to `to_anchor`, following the frames; never drawn in-game (the Studio outlines it) |
 
 A few rules are FX Kit's own; the engine's classes don't need them:
@@ -518,7 +535,7 @@ reactions). These never play on an action of their own:
 - `"@blink:<action>"`: built on `<action>`'s frames and played with that
   action's own FX, on the same clock, while its Blink is `enabled`
   (`CharacterFx.with_blink`). The Blink rules apply to them as to the
-  action's own FX: while gone nothing new fires and body-bound FX are hidden.
+  action's own FX: while gone they carry on as normal.
 
 **Blink (`action_settings[action].blink`, per action; `laser/blink.py`).**
 Teleports inside one action; each action has its own. `blinks` is a list of
@@ -550,10 +567,13 @@ reappears `proximity_px` from its `anchor`:
 - The landing spot is kept 20 px inside the screen.
 
 While gone the fighter is invisible and untouchable (`ai.damage_immune`: no
-HP, knockback or body contact; enemy shots and FX pass where it was), doesn't
-move, and fires no new FX. Its body-bound FX (`attached` / `orbit` motion,
-`weapon`) are hidden and land no hits; shots already in flight carry on. Its
-action and animation keep running hidden, so the frames reach `end_frame`.
+HP, knockback or body contact; enemy shots and FX pass where it was) and
+doesn't move. A blink is a speed-of-light move, too fast to see, not a
+switch-off: the fighter's FX carry on as normal — they keep firing on the
+action's frames, and its body-bound FX (`attached` / `orbit` motion,
+`weapon`) stay visible and still hit. Its action and animation keep running
+hidden, so the frames reach `end_frame`. Path points can be pinned to each
+blink's vanish / landing spot (3b) so effects follow the blink's route.
 `flash` adds a crackle and an afterimage at both ends. A blink never starts
 during a tactical retreat dash, an ultimate or a special stance, and it
 cancels a knockback in progress. Solo and Battle run the same code. The

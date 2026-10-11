@@ -329,8 +329,9 @@ class CombatSystem(System):
             _img = actions.is_image(fig)
             # --- Blink (FX Studio, per action: action_settings[action].blink):
             # between its start and end frames the fighter is invisible and
-            # untouchable, stays put, and fires no new FX; its action keeps
-            # running hidden so the frames reach the end frame. ---
+            # untouchable and stays put; its action keeps running hidden so
+            # the frames reach the end frame, and its FX carry on as normal
+            # (too fast to see, not switched off). ---
             _gone = blink.tick(fig, world)
             if _gone:
                 _bx, _by = fig.transform.x, fig.transform.y
@@ -341,7 +342,6 @@ class CombatSystem(System):
             # own time effect (it never slows the caster itself).
             timefx.update_caster(fig, world)
             fxkit.update_figure(fig, world,       # FX Studio effects (image characters), all archetypes
-                                hold="run" if _gone else None,
                                 frozen=not timefx.fx_on(world, fig))
             combat.update_sprite_emitter(fig)  # sprite-line emitter FX (JSON sprite_emitter), all archetypes
             combat.check_hpt_clone_spawns(fig, world)  # HP-threshold stationary clones, all archetypes
