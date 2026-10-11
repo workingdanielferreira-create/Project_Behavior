@@ -33,7 +33,9 @@ run.  Each blink reappears proximity_px from its landing anchor:
                        45° diagonals, screen left / right (not the facing)
              "random"  any direction
              "angle"   angle_deg from the fighter -> target line (0 = toward,
-                       180 = away, positive = clockwise on screen)
+                       180 = away, positive = clockwise on screen); with
+                       mirror on, a fighter on the target's right lands
+                       flipped left / right only (up / down unchanged)
 
 While gone the fighter is invisible and untouchable: it takes no hits,
 knockback or body contact, and it doesn't move.  It moves too fast to see,
@@ -220,8 +222,11 @@ def _landing(fig, st, cfg, world, x0=None, y0=None, i=None):
         a = _roll(fig, st, st.idx if i is None else i)
         dx, dy = math.cos(a), math.sin(a)
     else:   # "angle"
-        a = math.atan2(uy, ux) + math.radians(float(cfg.get("angle_deg") or 0))
-        dx, dy = math.cos(a), math.sin(a)
+        # mirror: the angle is set for a fighter on the target's left; from
+        # its right only the horizontal flips (up / down stay as set).
+        mx = -1.0 if cfg.get("mirror") and lx < -0.001 else 1.0
+        a = math.atan2(uy, ux * mx) + math.radians(float(cfg.get("angle_deg") or 0))
+        dx, dy = math.cos(a) * mx, math.sin(a)
     ax, ay = (tx, ty) if cfg.get("anchor") == "target" else (x0, y0)
     prox = max(0.0, float(cfg.get("proximity_px") or 0)) * fig.mode.body_scale()   # character scale
     nx, ny = ax + dx * prox, ay + dy * prox

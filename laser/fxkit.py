@@ -354,7 +354,7 @@ ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="",
 # same pass still run.  Run by laser/blink.py.
 BLINK_DEFAULTS = dict(enabled=False, cooldown_ms=0.0, blinks=[])
 BLINK_STEP_DEFAULTS = dict(start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
-                           proximity_px=60.0, flash=True)
+                           mirror=False, proximity_px=60.0, flash=True)
 BLINK_ANCHORS = ("target", "self")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
                     "below_left", "below_right", "random", "angle")

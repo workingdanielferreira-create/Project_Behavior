@@ -2086,6 +2086,8 @@ function buildBlinkProps(d) {
       "Which way from that point it lands. Behind / in front: the far / near side of the target, left / right (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
     if (b.direction === "angle") field(t, "Angle °", inp("n", b.angle_deg, function (v) { b.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
       "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
+    if (b.direction === "angle") field(t, "Mirror", inp("chk", b.mirror, function (v) { b.mirror = v; ch(); })).title =
+      "On: the angle is set for the fighter starting on the target's left. When it starts on the target's right, the landing spot flips left / right only; above / below stays as set. Off: the angle turns with the line to the target, so from the right side above and below swap too.";
     field(t, "Distance px", inp("n", b.proximity_px, function (v) { b.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =
       "How far from that point it lands (game px). 0 = right on it.";
     field(t, "Flash FX", inp("chk", b.flash, function (v) { b.flash = v; save(); })).title =
