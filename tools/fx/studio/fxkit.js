@@ -1037,13 +1037,21 @@ function rot(v, deg) { var c = Math.cos(deg * D), s = Math.sin(deg * D); return 
 //     the playing action vanishes / lands: where it did this pass, else
 //     where it would now (host.blinkPoint, laser/blink.py point).
 //   A pin with nothing behind it (no such blink) falls back to "".
+//   leg_ticks / leg_lock (one per point; point 0 has none): the time of the
+//   leg INTO point i.  `ticks` is the whole path's time: locked legs keep
+//   their own leg_ticks, the unlocked legs share what is left, split by
+//   length (an even speed across them).  When the locked legs already take
+//   the whole time or more, the unlocked legs go at the speed the path
+//   would have with no locks.  No locks = constant speed start to end.
+//   A locked leg of length 0 is a pause on its point (pathLegs / pathPos).
 // start_frame / stop_frame: the action frames the set produces particles in
 // (stop -1 = to the end); what it already spawned lives on as usual.
 // order (sequential): forward, reverse, pingpong (1..n..1) or random (seeded).
 var ENTRY_DEFAULTS = {name: "entry points", base: "figure", mode: "simultaneous", interval_ticks: 6, points: [],
   start_frame: 0, stop_frame: -1, order: "forward"};
 var ENTRY_ORDERS = ["forward", "reverse", "pingpong", "random"];
-var PATH_DEFAULTS = {name: "path", points: [[0, 0]], anchors: [""], smooth: true, ticks: 30, orient: "facing", end: "stop", follow: false};
+var PATH_DEFAULTS = {name: "path", points: [[0, 0]], anchors: [""], leg_ticks: [0], leg_lock: [false], smooth: true, ticks: 30,
+  orient: "facing", end: "stop", follow: false};
 function normalizeEntrySet(e) {
   e = fill(e || {}, ENTRY_DEFAULTS); e.points = (e.points || []).map(function (p) { return [+p[0] || 0, +p[1] || 0]; });
   e.start_frame = Math.max(0, Math.round(+e.start_frame || 0));
@@ -1058,6 +1066,9 @@ function normalizePath(p) {
   p.points[0] = [0, 0];
   var A = Array.isArray(p.anchors) ? p.anchors : [];
   p.anchors = p.points.map(function (q, i) { return typeof A[i] === "string" ? A[i] : ""; });   // one per point
+  var LT = Array.isArray(p.leg_ticks) ? p.leg_ticks : [], LK = Array.isArray(p.leg_lock) ? p.leg_lock : [];
+  p.leg_ticks = p.points.map(function (q, i) { return i ? Math.max(0, Math.round(+LT[i] || 0)) : 0; });   // the leg into point i
+  p.leg_lock = p.points.map(function (q, i) { return i > 0 && !!LK[i]; });
   p.ticks = Math.max(1, Math.round(+p.ticks || 1));
   return p;
 }
@@ -1157,25 +1168,62 @@ function pathWorldPoints(path, host, po, M, f) {
     return [po[0] + M[0] * x + M[1] * y, po[1] + M[2] * x + M[3] * y];
   });
 }
+// Each leg's length and time on line pl (pathLine of this path's points, in
+// any space): {lens, times, total}; index i = the leg into point i.
+function pathLegs(path, pl) {
+  var n = path.points.length, st = path.smooth && n >= 3 ? 12 : 1, T = Math.max(1, +path.ticks || 1), last = pl.cum.length - 1;
+  var V = path.leg_ticks || [], K = path.leg_lock || [], lens = [0], times = [0], lockT = 0, freeL = 0, nFree = 0, i;
+  for (i = 1; i < n; i++) {
+    lens.push(pl.cum[Math.min(last, i * st)] - pl.cum[Math.min(last, (i - 1) * st)]);
+    if (K[i]) lockT += Math.max(0, +V[i] || 0); else { freeL += lens[i]; nFree++; }
+  }
+  var R = T - lockT, total = 0;
+  for (i = 1; i < n; i++) {
+    var t;
+    if (K[i]) t = Math.max(0, +V[i] || 0);
+    else if (R > 0) t = freeL > 1e-9 ? R * lens[i] / freeL : R / nFree;
+    else t = pl.len > 1e-9 ? lens[i] * T / pl.len : 0;
+    times.push(t); total += t;
+  }
+  return {lens: lens, times: times, total: total, st: st};
+}
+// Point and unit direction on line pl `age` ticks in, by the leg times, with
+// the path's end rule (stop / loop / continue at the last leg's speed).
+function pathPos(path, pl, age) {
+  var lg = pathLegs(path, pl), D = lg.total, n = lg.times.length, i;
+  if (path.end === "loop" && D > 0) age = age - Math.floor(age / D) * D;
+  if (age >= D) {
+    var e = pathAt(pl, 1);
+    if (path.end === "continue" && pl.len > 0 && age > D) {
+      var sp = D > 0 ? pl.len / D : 0;
+      for (i = n - 1; i >= 1; i--) if (lg.times[i] > 0) { sp = lg.lens[i] / lg.times[i]; break; }
+      return [[e[0][0] + e[1][0] * sp * (age - D), e[0][1] + e[1][1] * sp * (age - D)], e[1]];
+    }
+    return e;
+  }
+  var acc = 0, last = pl.cum.length - 1;
+  for (i = 1; i < n; i++) {
+    var t = lg.times[i];
+    if (age < acc + t) {
+      var d = pl.cum[Math.min(last, (i - 1) * lg.st)] + (age - acc) / t * lg.lens[i];
+      return pathAt(pl, pl.len > 0 ? d / pl.len : 0);
+    }
+    acc += t;
+  }
+  return pathAt(pl, 1);
+}
 function pathStep(inst, host) {
-  var path = inst.path, pl = inst.pl, k = inst.age / path.ticks, local, ld;
+  var path = inst.path, pl = inst.pl, local, ld;
   if (path.follow) { var o = anchorPos(inst.fx, host, inst); inst.po = o; }
-  if (path.end === "loop") k = k - Math.floor(k);
   if (pathAnchored(path)) {
     // Pinned points: the route is rebuilt in world px every tick.
-    var wl = pathLine({points: pathWorldPoints(path, host, inst.po, inst.pm, inst.facing), smooth: path.smooth}), wp, wd;
-    if (k > 1 && path.end === "continue" && wl.len > 0) {
-      var we = pathAt(wl, 1); wd = we[1];
-      wp = [we[0][0] + wd[0] * (k - 1) * wl.len, we[0][1] + wd[1] * (k - 1) * wl.len];
-    } else { var wr = pathAt(wl, k); wp = wr[0]; wd = wr[1]; }
+    var wl = pathLine({points: pathWorldPoints(path, host, inst.po, inst.pm, inst.facing), smooth: path.smooth});
+    var wr = pathPos(path, wl, inst.age), wp = wr[0], wd = wr[1];
     inst.x = wp[0]; inst.y = wp[1];
     if (wd[0] || wd[1]) inst.dir = wd;
     return;
   }
-  if (k > 1 && path.end === "continue" && pl.len > 0) {
-    var e = pathAt(pl, 1); ld = e[1];
-    local = [e[0][0] + ld[0] * (k - 1) * pl.len, e[0][1] + ld[1] * (k - 1) * pl.len];
-  } else { var r = pathAt(pl, k); local = r[0]; ld = r[1]; }
+  var r = pathPos(path, pl, inst.age); local = r[0]; ld = r[1];
   var ps = hostScale(host); local = [local[0] * ps, local[1] * ps];
   var w = pathWorld(inst, local), M = inst.pm;
   inst.x = w[0]; inst.y = w[1];
@@ -2167,7 +2215,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,

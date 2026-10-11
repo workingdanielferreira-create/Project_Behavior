@@ -422,8 +422,8 @@ DAMAGED_DEFAULTS = dict(cooldown_ms=0)
 ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[],
                       start_frame=0, stop_frame=-1, order="forward")
 ENTRY_ORDERS = ("forward", "reverse", "pingpong", "random")
-PATH_DEFAULTS = dict(name="path", points=[[0, 0]], anchors=[""], smooth=True, ticks=30, orient="facing", end="stop",
-                     follow=False)
+PATH_DEFAULTS = dict(name="path", points=[[0, 0]], anchors=[""], leg_ticks=[0], leg_lock=[False], smooth=True, ticks=30,
+                     orient="facing", end="stop", follow=False)
 
 
 def _fill(dst, default):
@@ -747,6 +747,16 @@ def normalize_path(p):
     p["points"][0] = [0.0, 0.0]
     A = p.get("anchors") if isinstance(p.get("anchors"), list) else []
     p["anchors"] = [A[i] if i < len(A) and isinstance(A[i], str) else "" for i in range(len(p["points"]))]   # one per point
+    LT = p.get("leg_ticks") if isinstance(p.get("leg_ticks"), list) else []
+    LK = p.get("leg_lock") if isinstance(p.get("leg_lock"), list) else []
+
+    def _lt(i):
+        try:
+            return max(0, jround(float(LT[i] or 0)))
+        except (IndexError, TypeError, ValueError):
+            return 0
+    p["leg_ticks"] = [_lt(i) if i else 0 for i in range(len(p["points"]))]   # the leg into point i
+    p["leg_lock"] = [bool(i > 0 and i < len(LK) and LK[i]) for i in range(len(p["points"]))]
     p["ticks"] = max(1, jround((float(p.get("ticks") or 1))))
     return p
 
@@ -915,6 +925,13 @@ def path_matrix(path, host, d, deg=0.0, f=None):
 # "figure", "target", an anchor id, or "blink:<i>:start" / "blink:<i>:end"
 # (where blink i of the playing action vanishes / lands: laser/blink.py
 # point).  A pin with nothing behind it (no such blink) falls back to "".
+#
+# Leg timing (path["leg_ticks"] / ["leg_lock"], one per point; point 0 has
+# none; FXK.pathLegs / pathPos): the time of the leg INTO point i.  "ticks"
+# is the whole path's time: locked legs keep their own leg_ticks, the
+# unlocked legs share what is left, split by length.  When the locked legs
+# already take the whole time or more, the unlocked legs go at the speed the
+# path would have with no locks.  No locks = constant speed start to end.
 _BLINK_PIN = re.compile(r"^blink:(\d+):(start|end)$")
 
 
@@ -949,31 +966,79 @@ def path_world_points(path, host, po, M, f):
     return out
 
 
+def path_legs(path, pl):
+    """Each leg's length and time on line pl: (lens, times, total, step);
+    index i = the leg into point i (FXK.pathLegs)."""
+    n = len(path["points"])
+    st = 12 if path.get("smooth") and n >= 3 else 1
+    T = max(1.0, float(path.get("ticks") or 1))
+    cum, last = pl["cum"], len(pl["cum"]) - 1
+    V, K = path.get("leg_ticks") or [], path.get("leg_lock") or []
+    lens, times = [0.0], [0.0]
+    lock_t = free_l = 0.0
+    n_free = 0
+    for i in range(1, n):
+        lens.append(cum[min(last, i * st)] - cum[min(last, (i - 1) * st)])
+        if i < len(K) and K[i]:
+            lock_t += max(0.0, float(V[i] if i < len(V) else 0) or 0)
+        else:
+            free_l += lens[i]
+            n_free += 1
+    R = T - lock_t
+    total = 0.0
+    for i in range(1, n):
+        if i < len(K) and K[i]:
+            t = max(0.0, float(V[i] if i < len(V) else 0) or 0)
+        elif R > 0:
+            t = R * lens[i] / free_l if free_l > 1e-9 else R / n_free
+        else:
+            t = lens[i] * T / pl["len"] if pl["len"] > 1e-9 else 0.0
+        times.append(t)
+        total += t
+    return lens, times, total, st
+
+
+def path_pos(path, pl, age):
+    """Point and unit direction on line pl `age` ticks in, by the leg times,
+    with the path's end rule (FXK.pathPos)."""
+    lens, times, D, st = path_legs(path, pl)
+    n = len(times)
+    if path.get("end") == "loop" and D > 0:
+        age = age - math.floor(age / D) * D
+    if age >= D:
+        e, ed = path_at(pl, 1)
+        if path.get("end") == "continue" and pl["len"] > 0 and age > D:
+            sp = pl["len"] / D if D > 0 else 0.0
+            for i in range(n - 1, 0, -1):
+                if times[i] > 0:
+                    sp = lens[i] / times[i]
+                    break
+            return [e[0] + ed[0] * sp * (age - D), e[1] + ed[1] * sp * (age - D)], ed
+        return e, ed
+    acc, last = 0.0, len(pl["cum"]) - 1
+    for i in range(1, n):
+        t = times[i]
+        if age < acc + t:
+            d = pl["cum"][min(last, (i - 1) * st)] + (age - acc) / t * lens[i]
+            return path_at(pl, d / pl["len"] if pl["len"] > 0 else 0.0)
+        acc += t
+    return path_at(pl, 1)
+
+
 def path_step(inst, host):
     path, pl = inst.path, inst.pl
-    k = inst.age / path["ticks"]
     if path.get("follow"):
         inst.po = anchor_pos(inst.fx, host, inst.ep)
-    if path.get("end") == "loop":
-        k = k - math.floor(k)
     if path_anchored(path):
         # Pinned points: the route is rebuilt in world px every tick.
         wl = path_line({"points": path_world_points(path, host, inst.po, inst.pm, inst.facing),
                         "smooth": path.get("smooth")})
-        if k > 1 and path.get("end") == "continue" and wl["len"] > 0:
-            e, wd = path_at(wl, 1)
-            wp = [e[0] + wd[0] * (k - 1) * wl["len"], e[1] + wd[1] * (k - 1) * wl["len"]]
-        else:
-            wp, wd = path_at(wl, k)
+        wp, wd = path_pos(path, wl, inst.age)
         inst.x, inst.y = wp[0], wp[1]
         if wd[0] or wd[1]:
             inst.dir = wd
         return
-    if k > 1 and path.get("end") == "continue" and pl["len"] > 0:
-        e, ld = path_at(pl, 1)
-        local = [e[0] + ld[0] * (k - 1) * pl["len"], e[1] + ld[1] * (k - 1) * pl["len"]]
-    else:
-        local, ld = path_at(pl, k)
+    local, ld = path_pos(path, pl, inst.age)
     ps = host_scale(host)
     local = [local[0] * ps, local[1] * ps]
     M = inst.pm
