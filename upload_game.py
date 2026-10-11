@@ -35,8 +35,8 @@ Uploading needs a GitHub token with write access to this repo: a
 fine-grained token with "Contents: Read and write" on Project_Behavior, or
 a classic token with the "repo" scope.  Put it in the GITHUB_TOKEN env var
 or in a one-line .gh_token file next to this script (the same place
-update_game.py reads it from).  .gh_token is git-ignored, so it is never
-uploaded.
+update_game.py reads it from).  .gh_token.txt also works, since Notepad
+adds .txt on save.  Token files are never uploaded.
 """
 import base64
 import fnmatch
@@ -64,6 +64,9 @@ EXTRA_EXCLUDES = [
     "*.pyc",
     "*.pyo",
     ".gh_token",
+    ".gh_token.txt",
+    "gh_token",
+    "gh_token.txt",
     ".sync_state.json",
     "Lib/",        # pip-installed packages (PyQt5, numpy) - huge, per-PC
     "Scripts/",    # pip-generated launchers, rewritten on every pip install
@@ -77,20 +80,60 @@ MAX_FILE_MB = 50
 # GitHub API
 # --------------------------------------------------------------------------
 
+# Windows hides extensions, so Notepad's "Save As .gh_token" usually
+# produces .gh_token.txt; accept that and a few other natural spellings.
+TOKEN_FILES = (".gh_token", ".gh_token.txt", "gh_token", "gh_token.txt")
+
+
+def _read_token_file(p):
+    """Token text from p, whatever encoding Notepad saved it in (UTF-8
+    with/without BOM, or "Unicode" = UTF-16).  Only the first non-blank
+    line counts, and surrounding quotes are dropped."""
+    with open(p, "rb") as f:
+        raw = f.read()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        text = raw.decode("utf-16")
+    else:
+        text = raw.decode("utf-8-sig", errors="ignore")
+    for line in text.splitlines():
+        line = line.strip().strip('"\'').strip()
+        if line:
+            return line
+    return ""
+
+
 def _token():
-    """GITHUB_TOKEN env var, or a one-line .gh_token file next to this
-    script (read with utf-8-sig so a Notepad-saved BOM can't corrupt it)."""
+    """GITHUB_TOKEN env var, or a one-line token file (TOKEN_FILES) next to
+    this script."""
     tok = os.environ.get("GITHUB_TOKEN", "").strip()
     if tok:
         return tok
-    p = os.path.join(HERE, ".gh_token")
-    if os.path.exists(p):
-        try:
-            with open(p, "r", encoding="utf-8-sig") as f:
-                return f.read().strip()
-        except OSError:
-            pass
+    for name in TOKEN_FILES:
+        p = os.path.join(HERE, name)
+        if os.path.isfile(p):
+            try:
+                tok = _read_token_file(p)
+            except OSError:
+                continue
+            if tok:
+                return tok
     return ""
+
+
+def _token_hint():
+    """Explain why no token was found: which files were looked for, and any
+    file nearby that looks like a misplaced token file."""
+    lines = [f"Looked in this folder:  {HERE}",
+             "for a file named:       " + ", ".join(TOKEN_FILES)]
+    for name in TOKEN_FILES:
+        p = os.path.join(HERE, name)
+        if os.path.isfile(p):
+            lines.append(f"Found {name}, but it is empty.")
+    near = [n for n in os.listdir(HERE)
+            if "token" in n.lower() and n not in TOKEN_FILES]
+    if near:
+        lines.append("Possibly misnamed token file(s) here: " + ", ".join(near))
+    return "\n".join(lines)
 
 
 def gh(method, path, body=None):
@@ -291,6 +334,7 @@ def main():
 
     if not _token():
         print("No GitHub token found, so nothing can be uploaded.\n\n"
+              + _token_hint() + "\n\n"
               "Create one at https://github.com/settings/tokens with write "
               "access\n('Contents: Read and write' on Project_Behavior) and "
               "paste it as the\nonly line of a file named .gh_token next to "
