@@ -1,7 +1,8 @@
 """
 Project Behavior - whole-folder uploader (the reverse of update_game.py)
 Compares EVERY file in this folder against the GitHub repo and uploads the
-ones GitHub is missing or that you changed here, in ONE commit on main.
+ones GitHub is missing or that you changed here, committed to main in parts
+of up to BATCH_SIZE (500) files.
 Files land at the same relative path they have in this folder, so the repo
 and your PC keep the exact same layout.
 
@@ -74,6 +75,10 @@ EXTRA_EXCLUDES = [
 
 # GitHub refuses files over 100 MB and warns from 50 MB.
 MAX_FILE_MB = 50
+
+# Files per commit.  Each finished commit is saved on GitHub straight away,
+# so a big upload that gets interrupted resumes where it stopped next run.
+BATCH_SIZE = 500
 
 
 # --------------------------------------------------------------------------
@@ -248,7 +253,8 @@ def local_files(patterns):
 
 def plan_uploads(remote):
     """Work out what to upload.  Returns (uploads, stale, too_big, failed)
-    where uploads is [(rel_path, abs_path, content, mode)]."""
+    where uploads is [(rel_path, abs_path, mode)].  File contents are read
+    again at upload time so thousands of files never sit in memory."""
     uploads, stale, too_big, failed = [], [], [], []
     by_lower = {p.lower(): p for p in remote}   # Windows ignores case
     patterns = load_ignore_patterns()
@@ -267,7 +273,7 @@ def plan_uploads(remote):
         remote_path = by_lower.get(rel.lower(), rel)
         entry = remote.get(remote_path)
         if entry is None:
-            uploads.append((remote_path, path, content, "100644"))
+            uploads.append((remote_path, path, "100644"))
             continue
         sha, mode = entry
         if _git_blob_sha(content) == sha:
@@ -280,16 +286,18 @@ def plan_uploads(remote):
         if remote_time is not None and os.path.getmtime(path) < remote_time:
             stale.append(remote_path)
             continue
-        uploads.append((remote_path, path, content, mode))
+        uploads.append((remote_path, path, mode))
     return uploads, stale, too_big, failed
 
 
-def push_commit(base_commit, uploads, message):
+def push_commit(base_commit, batch, message, done, total):
     """Create blobs, a tree on top of base_commit, a commit, and move main
     to it.  Raises urllib.error.HTTPError 422 if main moved meanwhile."""
     tree_items = []
-    for i, (rel, _path, content, mode) in enumerate(uploads, 1):
-        print(f"  [{i}/{len(uploads)}] {rel}")
+    for i, (rel, path, mode) in enumerate(batch, done + 1):
+        print(f"  [{i}/{total}] {rel}")
+        with open(path, "rb") as f:
+            content = f.read()
         blob = gh("POST", "git/blobs", {
             "content": base64.b64encode(content).decode(),
             "encoding": "base64"})
@@ -306,11 +314,13 @@ def push_commit(base_commit, uploads, message):
     return commit["sha"]
 
 
-def commit_message(uploads, remote):
-    new = [u[0] for u in uploads if u[0] not in remote]
-    changed = [u[0] for u in uploads if u[0] in remote]
+def commit_message(batch, remote, part, parts):
+    new = [u[0] for u in batch if u[0] not in remote]
+    changed = [u[0] for u in batch if u[0] in remote]
     title = (f"Upload from local folder: {len(new)} new, "
              f"{len(changed)} changed file(s)")
+    if parts > 1:
+        title += f" (part {part}/{parts})"
     lines = [title, ""]
     lines += [f"+ {p}" for p in new]
     lines += [f"~ {p}" for p in changed]
@@ -383,26 +393,52 @@ def main():
                 print(f"  {'~' if rel in remote else '+'} {rel}")
             return
 
-        print(f"Uploading {len(uploads)} file(s) to {BRANCH}:")
+        batches = [uploads[i:i + BATCH_SIZE]
+                   for i in range(0, len(uploads), BATCH_SIZE)]
+        print(f"Uploading {len(uploads)} file(s) to {BRANCH} in "
+              f"{len(batches)} commit(s) of up to {BATCH_SIZE} files:")
+        commits, done = [], 0
         try:
-            sha = push_commit(base, uploads, commit_message(uploads, remote))
+            for part, batch in enumerate(batches, 1):
+                base = push_commit(base, batch,
+                                   commit_message(batch, remote, part,
+                                                  len(batches)),
+                                   done, len(uploads))
+                done += len(batch)
+                commits.append(base)
+                print(f"  -> committed part {part}/{len(batches)} "
+                      f"({base[:7]})")
         except urllib.error.HTTPError as e:
             if e.code == 422 and attempt == 0:
-                # Someone pushed while we were uploading: start over on top
-                # of the new commit so nothing of theirs is lost.
+                # Someone pushed while we were uploading: rescan on top of
+                # the new commit.  Parts already committed now match GitHub,
+                # so only the rest is uploaded and nothing of theirs is lost.
                 print("\nGitHub changed while uploading - retrying on top "
                       "of the latest version...\n")
                 time.sleep(2)
                 continue
             print("\n" + _explain_http_error(e))
+            _report_partial(commits, done, len(uploads))
             return
         except Exception as e:
-            print(f"\nUpload failed ({e}). Nothing was changed on GitHub.")
+            print(f"\nUpload failed ({e}).")
+            _report_partial(commits, done, len(uploads))
             return
 
-        print(f"\nDone - uploaded as commit {sha[:7]}:")
-        print(f"https://github.com/{REPO}/commit/{sha}")
+        print(f"\nDone - uploaded {done} file(s) in {len(commits)} "
+              "commit(s):")
+        for sha in commits:
+            print(f"https://github.com/{REPO}/commit/{sha}")
         return
+
+
+def _report_partial(commits, done, total):
+    if commits:
+        print(f"{done} of {total} file(s) were already saved to GitHub in "
+              f"{len(commits)} commit(s). Run upload_game.bat again to "
+              "upload the rest - finished parts are skipped automatically.")
+    else:
+        print("Nothing was changed on GitHub.")
 
 
 if __name__ == "__main__":
