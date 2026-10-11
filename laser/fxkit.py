@@ -1633,7 +1633,8 @@ def tick_inst(inst, host):
             inst.dead = True
     elif prim == "ghost":
         if active and inst.age % max(1, trunc(P["interval"])) == 0 and len(inst.ghosts) < P["max"]:
-            inst.ghosts.append({"snap": host.snapshot(), "x": inst.x, "y": inst.y, "facing": host.facing, "age": 0})
+            inst.ghosts.append({"snap": host.snapshot(), "x": inst.x, "y": inst.y, "facing": host.facing, "age": 0,
+                                "ps": getattr(host, "pscale", 1.0), "rot": getattr(host, "rot", 0.0)})
         for gh in inst.ghosts:
             gh["age"] += 1
         inst.ghosts = [gh for gh in inst.ghosts if gh["age"] < P["ghost_life"]]
@@ -2960,9 +2961,17 @@ class _Host:
         if frame is None:
             return
         pm = _combat.silhouette(frame, rgb)
+        # The character's size and tilt when the ghost was taken (Figure.draw
+        # draws the sprite the same way), so the ghost matches it.
+        ps, ang = gh.get("ps", 1.0), gh.get("rot", 0.0)
         p.save()
+        p.translate(gh["x"], gh["y"])
+        if ang:
+            p.rotate(ang)
+        if ps != 1.0:
+            p.scale(ps, ps)
         p.setOpacity(p.opacity() * a)
-        p.drawPixmap(trunc(gh["x"]) - pm.width() // 2, trunc(gh["y"]) - pm.height() // 2, pm)
+        p.drawPixmap(-pm.width() // 2, -pm.height() // 2, pm)
         p.restore()
 
     def on_intercept(self, inst, shot, mode, vel, hurts_owner):
