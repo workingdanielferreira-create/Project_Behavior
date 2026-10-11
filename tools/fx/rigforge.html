@@ -455,6 +455,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       <div class="fld"><label>figure colour</label><input type="text" id="pk_col" value="#000000"></div>
       <label class="tgl"><input type="checkbox" id="pk_travel" checked> keep root travel in the frames (one shared camera)</label>
       <div class="row"><button id="pk_export" class="primary">Export character package…</button></div>
+      <div id="pk_prog" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted)"></div>
       <div class="note"><strong>Import package…</strong> (top right) opens a package folder &mdash; <code>fx_packages/&lt;name&gt;</code> or one of these exports &mdash; as a character tab. Frames that carry every joint point (skeleton characters) are fitted with the rig so you can edit their poses; image-only fighters come in as their art frames, per action. New actions and keyframes are posed with the rig you choose on import, drawn in the art's colour and size. Export then writes back into the same folder in the same image space, so its <code>&lt;name&gt;.fxkit.json</code> stays aligned, and records the rig and keyframes so the next import is exact.</div>
       <div class="note">Writes one folder per character: every action's frames as <code>&lt;action&gt;_NN.png</code> on one shared square canvas sized to fit every move at the chosen head size (in-betweens included, played at the action's ms/frame) plus <code>character.json</code> with the name, archetype, stats, palette, per-action timing and starting anchor points (hands, blade tip, head, feet…). Pick the game's <code>characters</code> folder: a <code>&lt;name&gt;</code> sub-folder is created (or pick that sub-folder itself). Old <code>&lt;action&gt;_NN.png</code> files of the exported actions are replaced. Open the same folder in the FX Studio to build the character's FX. Opened from disk in Chrome or Edge it writes straight into the folder you pick; anywhere else (this published page, Firefox) it saves one <code>&lt;name&gt;.zip</code> holding the <code>&lt;name&gt;/</code> folder &mdash; unzip it into <code>characters/</code>. Frames use the same solid silhouette, layer order and hidden layers as the PNG export above.</div>
     </div>
@@ -3482,12 +3483,25 @@ function pkgBuild(){
   return{manifest:man,files:files};
 }
 function pkgBlob(c){return new Promise(function(res){c.toBlob(res,"image/png");});}
+/* Live export progress: "Exporting… NN%" while it runs, "Completed 100%" when every file is written. */
+var PKGBUSY=false;
+function pkgProg(t){document.getElementById("pk_prog").textContent=t;}
+function pkgPct(n,total){return Math.min(100,Math.floor(100*n/Math.max(1,total)));}
 function pkgExport(){
+  if(PKGBUSY)return;
   commitPreview();
-  if(!pkgReady()){pkgPreload().then(pkgExport);return;}   /* art frames decode on first use */
+  if(!pkgReady()){pkgProg("Exporting… 0%");pkgPreload().then(pkgExport);return;}   /* art frames decode on first use */
+  var btn=document.getElementById("pk_export"),done=0,total=1;
+  PKGBUSY=true;btn.disabled=true;pkgProg("Exporting… 0%");
+  var step=function(){done++;pkgProg("Exporting… "+pkgPct(done,total)+"%");};
+  var fin=function(t){PKGBUSY=false;btn.disabled=false;pkgProg(t);};
+  var fail=function(t){fin("Failed at "+pkgPct(done,total)+"%");toast(t);};
+  /* let the 0% paint before the (synchronous) frame render */
+  requestAnimationFrame(function(){setTimeout(function(){
   var nm=(S.meta.name||"character").replace(/[^A-Za-z0-9_\-]/g,"_");
-  var pkg;try{pkg=pkgBuild();}catch(e){toast("Could not render frames: "+e.message);return;}
+  var pkg;try{pkg=pkgBuild();}catch(e){fail("Could not render frames: "+e.message);return;}
   var json=JSON.stringify(pkg.manifest,null,1);
+  total=pkg.files.length+1;   /* every frame + character.json (or the zip) */
   /* Straight into a folder when the page runs top-level with folder access (opened from disk in
      Chrome/Edge); a published page runs in a sandboxed frame, so it hands over one zip instead. */
   if(window.showDirectoryPicker&&window.self===window.top){
@@ -3506,13 +3520,13 @@ function pkgExport(){
         return list.then(function(){return Promise.all(stale.map(function(f){return dir.removeEntry(f);}));})
         .then(function(){
           var w=function(name,data){return dir.getFileHandle(name,{create:true}).then(function(h){return h.createWritable();})
-            .then(function(wr){return wr.write(data).then(function(){return wr.close();});});};
+            .then(function(wr){return wr.write(data).then(function(){return wr.close();});}).then(step);};
           return pkg.files.reduce(function(pr,f){return pr.then(function(){return pkgBlob(f.canvas).then(function(b){return w(f.name,b);});});},Promise.resolve())
             .then(function(){return w("character.json",new Blob([json],{type:"application/json"}));})
-            .then(function(){toast("Exported "+pkg.files.length+" frames + character.json to "+dir.name+"/");});
+            .then(function(){fin("Completed 100%");toast("Exported "+pkg.files.length+" frames + character.json to "+dir.name+"/");});
         });
       });
-    }).catch(function(e){if(e&&e.name!=="AbortError")toast("Export failed: "+e.message);});
+    }).catch(function(e){if(e&&e.name==="AbortError")fin("Cancelled");else fail("Export failed: "+(e&&e.message));});
     return;
   }
   var enc=new TextEncoder(),files=[{name:nm+"/character.json",data:enc.encode(json)}];
@@ -3521,11 +3535,13 @@ function pkgExport(){
       for(var i=0;i<pkg.files.length;i++){
         var b=await pkgBlob(pkg.files[i].canvas),ab=await b.arrayBuffer();
         files.push({name:nm+"/"+pkg.files[i].name,data:new Uint8Array(ab)});
+        step();
       }
-      saveBlob(nm+".zip",makeZip(files),function(){toast("Saved "+nm+".zip — unzip it into the game's characters folder");},
-        function(msg){toast(msg);});
-    }catch(e){toast("Export failed: "+e.message);}
+      saveBlob(nm+".zip",makeZip(files),function(){step();fin("Completed 100%");toast("Saved "+nm+".zip — unzip it into the game's characters folder");},
+        function(msg){fail(msg);});
+    }catch(e){fail("Export failed: "+e.message);}
   })();
+  },0);});
 }
 document.getElementById("pk_export").onclick=pkgExport;
 window.RigForgePkg={build:pkgBuild,preload:pkgPreload,state:function(){return{S:S,WS:WS};},joints:function(p){return joints(normPose(p),S.rig);},pick:function(files){pkgChoose(pkgFolders(files));}};
