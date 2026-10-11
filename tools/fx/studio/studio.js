@@ -308,6 +308,8 @@ var host = {
   get showHitboxes() { return true; },
   get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
+  // Path pins "blink:<i>:start|end" (laser/blink.py point).
+  blinkPoint: function (i, which) { return blinkPointAt(i, which); },
   snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: [S.figX, S.figY], rot: aimDeg()}; },
   drawGhost: function (gc, gh, rgb, a) {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
@@ -1014,7 +1016,23 @@ function geoPlaceAt(w) {
   var f = facing(), b = S.geo.kind === "set" ? jointAt(it.base, frameAt(S.t)) : pathPreviewOrigin(it);
   var ps = viewScale(), q = [Math.round((w[0] - b[0]) * f / ps * 2) / 2, Math.round((w[1] - b[1]) / ps * 2) / 2];
   it.points.push(q);
+  if (S.geo.kind === "path") it.anchors.push("");   // a clicked point is measured from the spawn
   buildGeo(); buildProps(); resetSim(S.t); save();
+}
+// What a path point can be pinned to (path.anchors[i], FXK.pathAnchorPos):
+// nothing (measured from the spawn), the figure, the target, any anchor, or
+// a blink's vanish / landing spot (as many blinks as the longest list).
+function pathPinOptions() {
+  var nb = Math.max(1, Object.keys(C ? C.actions : {}).reduce(function (m, k) { return Math.max(m, cfgOf(k).blink.blinks.length); }, 0));
+  var o = [["", "· from the spawn (not pinned)"], ["figure", "📌 figure"], ["target", "📌 target"]]
+    .concat(anchorOptions(false).filter(function (q) { return q[0] !== "figure" && q[0] !== "target"; }).map(function (q) { return [q[0], "📌 " + q[1]]; }));
+  for (var i = 0; i < nb; i++) o.push(["blink:" + i + ":start", "⚡ blink " + (i + 1) + " · vanish spot"], ["blink:" + i + ":end", "⚡ blink " + (i + 1) + " · landing spot"]);
+  return o;
+}
+function pathPinLabel(a) {
+  var m = /^blink:(\d+):(start|end)$/.exec(a || "");
+  if (m) return "blink " + (+m[1] + 1) + (m[2] === "start" ? " vanish" : " landing");
+  return a === "figure" || a === "target" ? a : (S.labels[a] || a);
 }
 function buildGeoProps(d) {
   var it = geoItem(), isSet = S.geo.kind === "set", users = geoUsers(S.geo.kind, it.id);
@@ -1050,7 +1068,7 @@ function buildGeoProps(d) {
       "On: the whole path moves with the fighter (orbits, boomerangs). Off: it stays where it started.";
   }
   s = sec(d, "Points", "g-points", isSet ? "Click \"Place entry points\" (left) then click the stage around the figure to add points. X is forward, Y is down, in game px." :
-    "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down.", "geo");
+    "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down. The pin beside each point ties it, live every tick, to the figure, the target, an anchor or a blink's vanish / landing spot; its X / Y is then an offset from that spot.", "geo");
   it.points.forEach(function (p, i) {
     var row = document.createElement("div"); row.className = "f pt";
     var l = document.createElement("label"); l.textContent = (isSet ? "#" + (i + 1) : "Point " + i) + (isSet && it.mode === "sequential" && it.order === "forward" ? "  +" + i * it.interval_ticks + "t" : ""); row.appendChild(l);
@@ -1059,7 +1077,17 @@ function buildGeoProps(d) {
     ix.title = "X (forward)"; iy.title = "Y (down)";
     if (!isSet && i === 0) { ix.disabled = iy.disabled = true; }
     bx.appendChild(ix); bx.appendChild(iy);
-    if (isSet || i > 0) { var del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove this point"; del.onclick = function () { it.points.splice(i, 1); buildGeo(); changed(true); }; bx.appendChild(del); }
+    if (!isSet) {
+      // The point's pin: its X / Y become an offset from it, so pinning
+      // puts the point right on the spot (0, 0) to start from.
+      var pin = inp(pathPinOptions(), it.anchors[i] || "", function (v) { it.anchors[i] = v; if (v && i > 0) { p[0] = 0; p[1] = 0; } changed(true); });
+      pin.className = "pin";
+      pin.title = "Pin this point, live every tick: not pinned = measured from where the effect spawned and turned with the path. " +
+        "Figure / target / an anchor = follows it. Blink N vanish / landing spot = where that blink of the playing action vanishes / lands " +
+        "(where it would land until it has). X / Y are then an offset from the pin (X forward, mirrored with the facing). A blink the action doesn't have = not pinned.";
+      bx.appendChild(pin);
+    }
+    if (isSet || i > 0) { var del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove this point"; del.onclick = function () { it.points.splice(i, 1); if (!isSet) it.anchors.splice(i, 1); buildGeo(); changed(true); }; bx.appendChild(del); }
     row.appendChild(bx); s.appendChild(row);
   });
   if (!it.points.length || (!isSet && it.points.length < 2)) note(s, isSet ? "No points yet: effects using this set play from the figure until you add some." : "Add at least one more point so it has somewhere to go.");
@@ -1067,7 +1095,7 @@ function buildGeoProps(d) {
   var bp = document.createElement("button"); bp.textContent = S.geoPlace ? "Stop placing" : isSet ? "Place entry points" : "Draw path points"; bp.className = S.geoPlace ? "on" : "";
   bp.onclick = function () { S.geoPlace = !S.geoPlace; geoTools(); buildProps(); }; r.appendChild(bp);
   var bc = document.createElement("button"); bc.textContent = "Clear points";
-  bc.onclick = function () { it.points = isSet ? [] : [[0, 0]]; buildGeo(); changed(true); }; r.appendChild(bc);
+  bc.onclick = function () { it.points = isSet ? [] : [[0, 0]]; if (!isSet) it.anchors = [""]; buildGeo(); changed(true); }; r.appendChild(bc);
   var bs = document.createElement("button"); bs.textContent = "Save as preset";
   bs.onclick = function () {
     askText("Preset name", it.name, function (nm) {
@@ -1104,7 +1132,7 @@ function drawGeo(g, z) {
   paths.forEach(function (path) {
     // Turned toward the target the way it plays (aim "target"); while you
     // draw its points it shows unturned so clicks land where you click.
-    var o = pathPreviewOrigin(path), pl = FXK.pathLine(path), M = [f, 0, 0, 1];
+    var o = pathPreviewOrigin(path), M = [f, 0, 0, 1];
     if (path.orient === "aim" && !(S.geoPlace && it === path)) {
       var dx = S.target[0] - o[0], dy = S.target[1] - o[1], dm = Math.hypot(dx, dy) || 1;
       M = FXK.pathMatrix(path, {facing: f}, [dx / dm, dy / dm]);
@@ -1113,19 +1141,26 @@ function drawGeo(g, z) {
         : geoUsers("path", path.id).filter(function (e) { return e.action === fxKey(); })[0];
       if (pfx) { var pf = FXK.fxFacing(pfx, host); M = FXK.pathMatrix(path, {facing: pf}, [pf, 0], FXK.bodyDeg(pfx, host)); }
     }
-    var W = function (p) { var x = p[0] * ps, y = p[1] * ps; return [o[0] + M[0] * x + M[1] * y, o[1] + M[2] * x + M[3] * y]; };
+    // Every point in world px now: pinned ones on their pin (live), the
+    // rest through the spawn frame (FXK.pathWorldPoints, as it plays).
+    var wp = FXK.pathWorldPoints(path, host, o, M, f), wl = FXK.pathLine({points: wp, smooth: path.smooth});
     g.strokeStyle = col + ".85)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]); g.beginPath();
-    pl.pts.forEach(function (p, i) { var q = W(p); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+    wl.pts.forEach(function (q, i) { if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
     g.stroke(); g.setLineDash([]);
-    if (pl.len > 0) {   // arrow at the end
-      var e = FXK.pathAt(pl, 1), ep = W(e[0]), ed = [M[0] * e[1][0] + M[1] * e[1][1], M[2] * e[1][0] + M[3] * e[1][1]], L = 6 / z;
+    if (wl.len > 0) {   // arrow at the end
+      var e = FXK.pathAt(wl, 1), ep = e[0], ed = e[1], L = 6 / z;
       g.fillStyle = col + ".95)"; g.beginPath(); g.moveTo(ep[0] + ed[0] * L, ep[1] + ed[1] * L);
       g.lineTo(ep[0] - ed[1] * L * 0.6, ep[1] + ed[0] * L * 0.6); g.lineTo(ep[0] + ed[1] * L * 0.6, ep[1] - ed[0] * L * 0.6); g.fill();
     }
     path.points.forEach(function (p, i) {
-      var q = W(p);
+      var q = wp[i], pinned = !!FXK.pathAnchorPos(host, path.anchors[i]);
       g.fillStyle = i ? col + ".9)" : (isLight() ? "rgba(0,0,0,.8)" : "rgba(255,255,255,.9)");
       g.beginPath(); g.arc(q[0], q[1], (i ? 2.5 : 3) / z, 0, 6.2832); g.fill();
+      if (pinned) {   // a ring + what it is pinned to
+        g.strokeStyle = col + ".9)"; g.lineWidth = 1 / z;
+        g.beginPath(); g.arc(q[0], q[1], 5 / z, 0, 6.2832); g.stroke();
+        g.fillStyle = col + ".85)"; g.fillText(i + ": " + pathPinLabel(path.anchors[i]), q[0], q[1] - 9 / z);
+      }
     });
   });
   g.restore();
@@ -1166,13 +1201,14 @@ var PARAM_UI = {
   ghost: [["interval", "Every N ticks", 1, 60, 1], ["ghost_life", "Ghost life ticks", 1, 240, 1], ["alpha", "Start alpha", 0, 255, 1], ["max", "Max ghosts", 1, 60, 1]],
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]],
   technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
-    "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch"]],
+    "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch",
+    "forward_thrust", "overhead_slash"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
-    ["thickness", "Thickness (blade: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
-    ["length", "Length (blade; ki range; punch reach)", 20, 2000, 5],
-    ["swing_ticks", "Swing ticks (slash speed; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
-    ["hold_ticks", "Hold ticks (wave flight / blade out; ki: firing time; punch held out)", 0, 600, 1],
+    ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
+    ["length", "Length (blade; thrust reach; ki range; punch reach)", 20, 2000, 5],
+    ["swing_ticks", "Swing ticks (slash speed; thrust-out ticks; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
+    ["hold_ticks", "Hold ticks (wave flight / blade out / thrust held; ki: firing time; punch held out)", 0, 600, 1],
     ["density", "Sparks / embers / smoke ×", 0, 4, 0.1]]
 };
 var MOTION_UI = {
@@ -1406,7 +1442,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique") note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique") note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
@@ -2024,7 +2060,7 @@ function buildBlinkProps(d) {
   if (!bk.blinks.length) { note(s, "No blinks: this action doesn't teleport. “+ Add blink” switches Blink on."); return; }
   field(s, "Blink cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, Math.min(60000, v)); save(); }, 0, 60000, 50)).title =
     "Shared by all the blinks of this action. After a blink reappears, how long before this action can blink again; the rest of the same pass still blinks. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
-  note(s, "While gone: invisible, takes no hits, doesn't move, fires no new FX (shots already flying carry on). On the stage: the dashed outline is where it vanished, the numbered green rings where each blink will land. Drag the target to move the landing spots.");
+  note(s, "While gone: invisible, takes no hits, doesn't move. It moves too fast to see, so its FX carry on as normal: they keep firing on the frames, and body FX (attached, orbit, weapon) stay visible and still hit. Path points can be pinned to each blink's vanish / landing spot (Paths: the pin next to each point). On the stage: the dashed outline is where it vanished, the numbered green rings where each blink will land. Drag the target to move the landing spots.");
 }
 // ------------------------------------------------------------ time control
 // Time control (action_settings[action].time; laser/timefx.py): while this
@@ -2124,7 +2160,7 @@ function buildReactionProps(d) {
     function (v) { S.action = v; S.blinkAct = v; setSel(); rebuild(); resetSim(0); save(); })).title =
     "The action whose Blink (and Blink FX) you are editing. (on) = its Blink is switched on; ✦ fx = it already has Blink FX.";
   note(s2, (n ? n + " Blink effect" + (n > 1 ? "s" : "") + " on " + a + "." : "No Blink effects on " + a + " yet: add one under Effects on the left.") +
-    " Keyed on " + a + "'s frames like its own FX: set their frames around the vanish / reappear frames below. While the fighter is gone its body FX (attached, orbit) are hidden and nothing new fires." +
+    " Keyed on " + a + "'s frames like its own FX: set their frames around the vanish / reappear frames below. While the fighter is gone its FX carry on as normal (it is only too fast to see)." +
     (on ? "" : " Blink is off for " + a + ", so they won't play in the game until you add a blink below.") +
     " The stage plays " + a + "'s own FX too.");
   buildBlinkProps(d);
@@ -2337,7 +2373,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null;
+  player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
   S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
@@ -2358,8 +2394,9 @@ function step(allowWrap) {
   // FX stop (no effects passed) and shots already flying finish.
   var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = dash ? dashOver() : (S.cycle || 0) >= nLoops - 1;
   var effs = dash && dashOver() ? [] : playEffects();
-  var opts = {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous, hold: gone};
-  if (ts.own === 0) player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, hold: gone, frozen: true});
+  // Blinked out: the FX carry on as normal (laser/blink.py).
+  var opts = {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous};
+  if (ts.own === 0) player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, frozen: true});
   else {
     player.tick(effs, host, S.t, frames(), frameMs(), opts);
     // Sped-up FX: extra steps on the same action time (nothing new fires),
@@ -2370,8 +2407,8 @@ function step(allowWrap) {
   if (S.t >= totalTicks() && allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
     // action ends, and "loop" replays the whole action.
-    if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; }
-    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; if (dash) { S.figX = 0; S.figY = 0; dashStart(); } }
+    if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; S.bmarks = {}; }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); } }
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
 }
@@ -2417,11 +2454,31 @@ function scaledBlink(b) { var c = clone(b); c.proximity_px = (+b.proximity_px ||
 function blinkGone() { return !!(S.blink && S.blink.gone); }
 function blinkStep() {
   var b = cfgOf(S.action).blink, i = S.t < totalTicks() ? FXK.blinkIndex(b, frameAt(S.t), frames()) : -1;
+  if (!S.bmarks) S.bmarks = {};
   if (blinkGone() && i !== S.blink.idx) {
     var to = blinkLandingFrom(S.blink.idx, S.blink.from);
     S.figX = to[0]; S.figY = to[1]; S.blink.gone = false; S.blink.to = to;
+    if (S.bmarks[S.blink.idx]) S.bmarks[S.blink.idx].to = to.slice();
   }
-  if (i >= 0 && !blinkGone()) S.blink = {gone: true, idx: i, from: [S.figX, S.figY], to: null};
+  if (i >= 0 && !blinkGone()) {
+    S.blink = {gone: true, idx: i, from: [S.figX, S.figY], to: null};
+    Object.keys(S.bmarks).forEach(function (j) { if (+j >= i) delete S.bmarks[j]; });   // a loop back: these happen anew
+    S.bmarks[i] = {from: [S.figX, S.figY], to: null};
+  }
+}
+// Where blink i of the action on show vanishes ("start") / lands ("end")
+// this pass: where it did, else where it would now (a blink starts where the
+// one before it lands, until that one has; else where the fighter is).
+// laser/blink.py point.  null when the action has no blink i.
+function blinkPointAt(i, which) {
+  var L = cfgOf(S.action).blink.blinks, M = S.bmarks || {};
+  if (!L || !L[i]) return null;
+  var start = function (j) {
+    if (M[j]) return M[j].from;
+    return j > 0 && !(M[j - 1] && M[j - 1].to) ? end(j - 1) : [S.figX, S.figY];
+  };
+  var end = function (j) { return M[j] && M[j].to ? M[j].to : blinkLandingFrom(j, start(j)); };
+  return (which === "start" ? start(i) : end(i)).slice();
 }
 // Where blink i lands from `from`: the same roll for every pass of the
 // action (seeded by the loop count and the blink), so the preview and the
@@ -2672,9 +2729,9 @@ function draw() {
   var ps = viewScale(), fr = frameAt(S.t), img = act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   var gone = blinkGone();
-  player.draw(g, host, "behind", ps, gone);
+  player.draw(g, host, "behind", ps);   // blinked out: the FX still draw (only the fighter is hidden)
   if (!gone) drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
-  player.draw(g, host, "front", ps, gone);
+  player.draw(g, host, "front", ps);
   drawBlink(g, z, img);
   drawDash(g, z);
   drawTestShots(g, z);

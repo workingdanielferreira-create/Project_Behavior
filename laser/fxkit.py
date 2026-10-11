@@ -199,7 +199,7 @@ PARAM_DEFAULTS = {
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
 TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
                "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
-               "ki_barrage", "impact_punch"]
+               "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
@@ -207,6 +207,8 @@ TECH_STYLE_DEFAULTS = {
     "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
     "blade_extension": dict(length=300, thickness=6, hold_ticks=18),
     "forward_sweep": dict(radius=85, span=200, thickness=12, swing_ticks=7),
+    "forward_thrust": dict(length=130, thickness=7, swing_ticks=4, hold_ticks=4),
+    "overhead_slash": dict(radius=55, span=150, thickness=13, swing_ticks=6),
     "combo_triple": dict(radius=55, span=120, thickness=11, swing_ticks=5),
     "combo_cross": dict(radius=55, span=120, thickness=12, swing_ticks=5),
     "combo_flurry": dict(radius=55, span=110, thickness=10, swing_ticks=4),
@@ -420,7 +422,8 @@ DAMAGED_DEFAULTS = dict(cooldown_ms=0)
 ENTRY_DEFAULTS = dict(name="entry points", base="figure", mode="simultaneous", interval_ticks=6, points=[],
                       start_frame=0, stop_frame=-1, order="forward")
 ENTRY_ORDERS = ("forward", "reverse", "pingpong", "random")
-PATH_DEFAULTS = dict(name="path", points=[[0, 0]], smooth=True, ticks=30, orient="facing", end="stop", follow=False)
+PATH_DEFAULTS = dict(name="path", points=[[0, 0]], anchors=[""], smooth=True, ticks=30, orient="facing", end="stop",
+                     follow=False)
 
 
 def _fill(dst, default):
@@ -742,6 +745,8 @@ def normalize_path(p):
     p = _fill(dict(p or {}), PATH_DEFAULTS)
     p["points"] = [[float(q[0] or 0), float(q[1] or 0)] for q in (p.get("points") or [])] or [[0.0, 0.0]]
     p["points"][0] = [0.0, 0.0]
+    A = p.get("anchors") if isinstance(p.get("anchors"), list) else []
+    p["anchors"] = [A[i] if i < len(A) and isinstance(A[i], str) else "" for i in range(len(p["points"]))]   # one per point
     p["ticks"] = max(1, jround((float(p.get("ticks") or 1))))
     return p
 
@@ -903,6 +908,47 @@ def path_matrix(path, host, d, deg=0.0, f=None):
     return [c * f, -s, s * f, c]
 
 
+# Path point pins (path["anchors"][i], one per point; FXK.pathAnchorPos):
+# "" = the point is measured from where the effect spawned and turned with
+# the path.  Anything else pins it, live every tick, to that spot, its x / y
+# an offset from it (x forward, mirrored with the facing, not turned):
+# "figure", "target", an anchor id, or "blink:<i>:start" / "blink:<i>:end"
+# (where blink i of the playing action vanishes / lands: laser/blink.py
+# point).  A pin with nothing behind it (no such blink) falls back to "".
+_BLINK_PIN = re.compile(r"^blink:(\d+):(start|end)$")
+
+
+def path_anchor_pos(host, a):
+    """A point's pin in world px now, or None when unpinned."""
+    if not a:
+        return None
+    m = _BLINK_PIN.match(a)
+    if m:
+        bp = getattr(host, "blink_point", None)
+        return bp(int(m.group(1)), m.group(2)) if bp is not None else None
+    return host.anchor(a)
+
+
+def path_anchored(path):
+    return any(path.get("anchors") or ())
+
+
+def path_world_points(path, host, po, M, f):
+    """The path's points in world px now: unpinned ones through the spawn
+    frame (origin po, matrix M), pinned ones off their pin (f = facing)."""
+    ps = host_scale(host)
+    A = path.get("anchors") or []
+    out = []
+    for i, q in enumerate(path["points"]):
+        b = path_anchor_pos(host, A[i] if i < len(A) else "")
+        if b is not None:
+            out.append([b[0] + q[0] * ps * f, b[1] + q[1] * ps])
+        else:
+            x, y = q[0] * ps, q[1] * ps
+            out.append([po[0] + M[0] * x + M[1] * y, po[1] + M[2] * x + M[3] * y])
+    return out
+
+
 def path_step(inst, host):
     path, pl = inst.path, inst.pl
     k = inst.age / path["ticks"]
@@ -910,6 +956,19 @@ def path_step(inst, host):
         inst.po = anchor_pos(inst.fx, host, inst.ep)
     if path.get("end") == "loop":
         k = k - math.floor(k)
+    if path_anchored(path):
+        # Pinned points: the route is rebuilt in world px every tick.
+        wl = path_line({"points": path_world_points(path, host, inst.po, inst.pm, inst.facing),
+                        "smooth": path.get("smooth")})
+        if k > 1 and path.get("end") == "continue" and wl["len"] > 0:
+            e, wd = path_at(wl, 1)
+            wp = [e[0] + wd[0] * (k - 1) * wl["len"], e[1] + wd[1] * (k - 1) * wl["len"]]
+        else:
+            wp, wd = path_at(wl, k)
+        inst.x, inst.y = wp[0], wp[1]
+        if wd[0] or wd[1]:
+            inst.dir = wd
+        return
     if k > 1 and path.get("end") == "continue" and pl["len"] > 0:
         e, ld = path_at(pl, 1)
         local = [e[0] + ld[0] * (k - 1) * pl["len"], e[1] + ld[1] * (k - 1) * pl["len"]]
@@ -2820,6 +2879,11 @@ class _Host:
             ox, oy = ox * math.cos(a) - oy * math.sin(a), ox * math.sin(a) + oy * math.cos(a)
         return [fig.x + ox, fig.y + oy]
 
+    def blink_point(self, i, which):
+        """Where blink i of the playing action vanishes / lands (path pins)."""
+        from . import blink as _blink
+        return _blink.point(self.fig, self.world, self.drv.action, i, which)
+
     def snapshot(self):
         return self.fig._current_frame()
 
@@ -2924,10 +2988,10 @@ class FxDriver:
         # tick inside the frame's own span (frame_ms), jumps forward when the
         # engine's frames run ahead, holds when a frame is held, and starts
         # a new pass when the frames loop back (idle / run cycles).
-        # hold (an action's Blink, while the fighter is gone): nothing new
-        # fires, live instances keep updating.  "freeze" also stops the
-        # action time; "run" (what laser/blink.py uses) lets it follow the
-        # frames as usual.  "time" (Time control stopped the fighter,
+        # hold: nothing new fires, live instances keep updating.  "freeze"
+        # also stops the action time; "run" lets it follow the frames as
+        # usual (a Blink no longer holds anything: laser/blink.py lets the
+        # FX carry on while the fighter is gone).  "time" (Time control stopped the fighter,
         # laser/timefx.py) holds the action time like "freeze", and its FX
         # still hit.  frozen: Time control stopped this fighter's FX
         # (Player.tick).

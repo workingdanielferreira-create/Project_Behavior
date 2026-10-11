@@ -36,10 +36,17 @@ run.  Each blink reappears proximity_px from its landing anchor:
                        180 = away, positive = clockwise on screen)
 
 While gone the fighter is invisible and untouchable: it takes no hits,
-knockback or body contact, its body-bound FX (attached / orbit / weapon)
-are hidden and deal no hits, and no new FX spawn.  Shots already in flight
-keep flying.  It doesn't move.  Its action and animation keep running
-hidden, so the frames tick on to end_frame.
+knockback or body contact, and it doesn't move.  It moves too fast to see,
+so its FX carry on as normal: they keep firing on the action's frames,
+its body-bound FX (attached / orbit / weapon) stay visible and still hit.
+Its action and animation keep running hidden, so the frames tick on to
+end_frame.
+
+point() gives where each blink of the playing action vanishes / lands
+(FX paths pin their points to these: laser/fxkit.py path_anchor_pos).
+Once a blink of this pass has happened, its real spots; until then, where
+it would happen now (the same rule as the landing, with the random
+direction rolled once per blink so the prediction holds still).
 
 Driven from CombatSystem for every figure, so Solo and Battle run the same
 code.  Solo has no enemy projectiles, and the cursor has no facing.
@@ -76,7 +83,8 @@ def _active_index(fig, cfg, action, frame):
 
 
 class BlinkState:
-    __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play", "idx", "cooldown_ms")
+    __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play", "idx", "cooldown_ms",
+                 "marks", "mplay", "mframe", "rolls")
 
     def __init__(self):
         self.gone = False
@@ -87,6 +95,11 @@ class BlinkState:
         self.play = None      # the play (_play_key) that last blinked
         self.idx = -1         # the index of the blink that last vanished
         self.cooldown_ms = 0.0  # its action's Blink cooldown (shared by the list)
+        # This pass's blinks (point): index -> [(x, y) vanished, (x, y) landed or None]
+        self.marks = {}
+        self.mplay = None     # the play the marks belong to
+        self.mframe = -1      # the frame last seen (a lower one = a new pass)
+        self.rolls = {}       # index -> its random-direction angle (radians), until it lands
 
 
 def _play_key(fig, action):
@@ -142,6 +155,10 @@ def _vanish(fig, st, cfg, action, i, cooldown_ms):
     st.play = _play_key(fig, action)
     st.idx = i
     st.x0, st.y0 = fig.x, fig.y
+    for j in [j for j in st.marks if j >= i]:
+        del st.marks[j]     # a loop back: this blink and the later ones happen anew
+    st.mplay = st.play
+    st.marks[i] = [(fig.x, fig.y), None]
     # A blink takes the fighter out of any knockback or melee move.
     m, c = fig.motion, fig.combat
     m.bouncing = m.bounce_ending = False
@@ -156,11 +173,23 @@ def _vanish(fig, st, cfg, action, i, cooldown_ms):
         c.blink_fx_pending.append((fig.x, fig.y, fig.x, fig.y))
 
 
-def _landing(fig, st, cfg, world):
+def _roll(fig, st, i):
+    """Blink i's random direction (radians), rolled once and kept until it
+    lands, so its predicted landing (point) and the real one agree."""
+    if i not in st.rolls:
+        st.rolls[i] = fig.personality.rng.uniform(0.0, 2.0 * math.pi)
+    return st.rolls[i]
+
+
+def _landing(fig, st, cfg, world, x0=None, y0=None, i=None):
+    """Where a blink measured from (x0, y0) (default: where the fighter
+    vanished) lands now: (x, y, target x).  i = its index (random roll)."""
     from . import retreat
     tx, ty, tface = retreat._target(world, fig)
+    if x0 is None:
+        x0, y0 = st.x0, st.y0
     # The fighter -> target line, from where the fighter vanished.
-    lx, ly = tx - st.x0, ty - st.y0
+    lx, ly = tx - x0, ty - y0
     d = math.hypot(lx, ly)
     if d > 0.001:
         ux, uy = lx / d, ly / d
@@ -188,12 +217,12 @@ def _landing(fig, st, cfg, world):
     elif dmode in _SCREEN_DIRS:
         dx, dy = _SCREEN_DIRS[dmode]
     elif dmode == "random":
-        a = fig.personality.rng.uniform(0.0, 2.0 * math.pi)
+        a = _roll(fig, st, st.idx if i is None else i)
         dx, dy = math.cos(a), math.sin(a)
     else:   # "angle"
         a = math.atan2(uy, ux) + math.radians(float(cfg.get("angle_deg") or 0))
         dx, dy = math.cos(a), math.sin(a)
-    ax, ay = (tx, ty) if cfg.get("anchor") == "target" else (st.x0, st.y0)
+    ax, ay = (tx, ty) if cfg.get("anchor") == "target" else (x0, y0)
     prox = max(0.0, float(cfg.get("proximity_px") or 0)) * fig.mode.body_scale()   # character scale
     nx, ny = ax + dx * prox, ay + dy * prox
     nx = max(MARGIN_PX, min(fig.screen_w - MARGIN_PX, nx))
@@ -219,6 +248,9 @@ def _reappear(fig, st, world):
     fig.trail.clear()           # no streak from the old spot to the new one
     st.gone = False
     st.cfg = None
+    st.rolls.pop(st.idx, None)  # the next pass rolls afresh
+    if st.mplay == st.play:
+        st.marks[st.idx] = [(st.x0, st.y0), (nx, ny)]
     # Cooldown from the moment it reappears.
     cd = max(0.0, float(st.cooldown_ms or 0))
     if cd > 0 and st.action is not None:
@@ -229,8 +261,8 @@ def _reappear(fig, st, world):
 
 def tick(fig, world):
     """One tick, before the fighter's action runner and FX.  True while the
-    fighter is gone this tick (the caller then holds its FX and leaves it
-    out of movement; its action keeps running)."""
+    fighter is gone this tick (the caller leaves it out of movement; its
+    action and FX keep running)."""
     from . import actions, fxkit
     st = fig.blink
     if not actions.is_image(fig) or fxkit.character_fx(fig.mode) is None:
@@ -247,14 +279,61 @@ def tick(fig, world):
         fig.blink = st
     if st.gone:
         if i == st.idx and action == st.action:
+            st.mframe = frame
             return True
         _reappear(fig, st, world)
         # The next blink's frames may start right away: vanish again below.
+    _new_pass(fig, st, action, frame)
     if (i >= 0 and fig.transform.init and _can_start(fig)
             and _may_vanish(fig, st, action, i, world.global_tick)):
         _vanish(fig, st, cfg["blinks"][i], action, i, cfg.get("cooldown_ms"))
         return True
     return False
+
+
+def _new_pass(fig, st, action, frame):
+    """Forget the last pass's blinks (point) when a new play or loop starts."""
+    key = _play_key(fig, action)
+    if key != st.mplay or frame < st.mframe:
+        st.marks = {}
+        st.mplay = key
+    st.mframe = frame
+
+
+def point(fig, world, action, i, which):
+    """Where blink i (0 = the first) of `action` vanishes ("start") or lands
+    ("end") this pass: where it did, else where it would now.  A blink
+    starts where the one before it lands (until that one has), else where
+    the fighter is.  None when `action` has no blink i."""
+    cfg = config_for(fig, action)
+    blinks = (cfg or {}).get("blinks") or ()
+    if not 0 <= i < len(blinks):
+        return None
+    st = fig.blink
+    if st is None:
+        st = BlinkState()
+        fig.blink = st
+    key = _play_key(fig, action)
+    marks = st.marks if st.mplay == key else {}
+
+    def start(j):
+        m = marks.get(j)
+        if m is not None:
+            return m[0]
+        if j > 0 and (marks.get(j - 1) or (None, None))[1] is None:
+            return end(j - 1)
+        return (fig.x, fig.y)
+
+    def end(j):
+        m = marks.get(j)
+        if m is not None and m[1] is not None:
+            return m[1]
+        x0, y0 = start(j)
+        nx, ny, _tx = _landing(fig, st, blinks[j], world, x0, y0, j)
+        return (nx, ny)
+
+    p = start(i) if which == "start" else end(i)
+    return [p[0], p[1]]
 
 
 def reset(fig):

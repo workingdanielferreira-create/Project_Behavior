@@ -54,7 +54,8 @@ details.panel>summary:focus-visible{outline:1px solid var(--acc);outline-offset:
 .sub{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:8px 0 2px}
 #entryList,#pathList{max-height:calc(4 * (1.4em + 10px) + 2px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .list .note.empty{padding:2px 8px;cursor:default}
-.f.pt .xy{display:flex;gap:4px;align-items:center}.f.pt .xy input{width:58px}.f.pt .xy button{padding:2px 6px}
+.f.pt .xy{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.f.pt .xy input{width:58px}.f.pt .xy button{padding:2px 6px}
+.f.pt .xy select.pin{flex:1 1 9em;min-width:0;max-width:100%}
 .sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;padding:2px 0}
 .sec>summary::-webkit-details-marker{display:none}
 .sec>summary::before{content:"▸";color:var(--mute);font-size:10px;transition:transform .12s}

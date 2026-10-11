@@ -18,6 +18,13 @@ Styles (params.style, fxkit.TECH_STYLES):
   blade_extension   an energy blade that charges at the sword tip, shoots out
                     along the aim, holds with ripples and crackle running up
                     it, then retracts in a trail of sparkle dust
+  forward_thrust    a lunge stab: a narrow, tapered spear of light drives out
+                    of the anchor along the aim (fast ease-out) with speed
+                    lines, a white-hot tip flare and an air-pressure ring at
+                    full reach, then snaps back, leaving sparks and a fading
+                    line where it pierced
+  overhead_slash    a vertical chop: a crescent from above the head straight
+                    down to the feet, bulging forward in front of the fighter
   forward_sweep     a flat sweep seen edge-on: from beside the fighter, out
                     round the front at full reach and back beside it
   combo_triple      overhead diagonal down, rising diagonal, wide finisher
@@ -73,6 +80,8 @@ CUTS = {
     "rising_slash": ((-90.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
     "horizontal_sweep": ((0.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
     "diagonal_slash": ((-45.0, 1, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0),),
+    # above the head straight down to the feet, bulging forward
+    "overhead_slash": ((90.0, -1, 0.3, 0.0, 1.0, 1.0, 1.0, 0.0),),
     # beside the fighter, flat round the front at full reach, back beside it
     "forward_sweep": ((90.0, -1, 0.1, 0.0, 1.0, 1.0, 0.32, 0.0),),
     # overhead diagonal down, rising diagonal back up, wide flat finisher
@@ -106,6 +115,7 @@ WAVE_SHARD_LIFE = 26
 WAVE_ARC_DEG = 95.0       # the crescent spans +-this round its centre: the tips curl back
 WAVE_CX = -0.5            # crescent circle centre, x (times radius) behind the instance
 EXT_CHARGE, EXT_EXTEND, EXT_RETRACT, EXT_DUST = 4, 5, 7, 16
+THR_WIND, THR_RETRACT, THR_FADE = 3, 5, 14    # thrust: wind-up, snap back, afterglow
 HIT_MARK_LIFE = 16
 
 
@@ -173,6 +183,8 @@ def active_ticks(P):
         return max(1, F.trunc(float(P.get("hold_ticks") or 48)))
     if st == "blade_extension":
         return EXT_CHARGE + EXT_EXTEND + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + EXT_RETRACT
+    if st == "forward_thrust":
+        return THR_WIND + _swing(P) + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + THR_RETRACT
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + 2
@@ -185,6 +197,8 @@ def total_ticks(P):
         return active_ticks(P) + WAVE_EMBER_LIFE
     if st == "blade_extension":
         return active_ticks(P) + EXT_DUST
+    if st == "forward_thrust":
+        return active_ticks(P) + THR_FADE
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + _fade(P) + SPARK_LIFE
@@ -480,6 +494,52 @@ def _ext_body(inst, ps):
     return [(inst.x, inst.y), fr.w(l, 0)], float(P["thickness"]) * ps
 
 
+# ---------------------------------------------------------------- thrust geometry
+def _thr_times(P):
+    """(out starts, full reach, snap back starts, back) ticks."""
+    t0 = THR_WIND
+    t1 = t0 + _swing(P)
+    t2 = t1 + max(0, F.trunc(float(P.get("hold_ticks") or 0)))
+    return t0, t1, t2, t2 + THR_RETRACT
+
+
+def _thr_len(P, t, L):
+    t0, t1, t2, t3 = _thr_times(P)
+    if t < t0:
+        return 0.0
+    if t < t1:
+        return L * ease_out3((t - t0) / float(t1 - t0))
+    if t < t2:
+        return L
+    if t < t3:
+        return L * (1 - ease_in3((t - t2) / float(THR_RETRACT)))
+    return 0.0
+
+
+def _thr_hw(u, W):
+    """Spear half-width at u (0 = base, 1 = point): a long taper."""
+    return W * max(0.0, 1 - u) ** 0.85
+
+
+def _thr_hit(inst, tx, ty, hr, ps):
+    if inst.age >= inst.life:
+        return False
+    P = inst.fx["params"]
+    l = _thr_len(P, inst.age, float(P["length"]) * ps)
+    if l <= 2:
+        return False
+    b = _frame(inst).w(l, 0)
+    return F.seg_dist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + float(P["thickness"]) * ps * 0.8
+
+
+def _thr_body(inst, ps):
+    P = inst.fx["params"]
+    l = _thr_len(P, inst.age, float(P["length"]) * ps)
+    if l <= 2 or inst.age >= inst.life:
+        return None
+    return [(inst.x, inst.y), _frame(inst).w(l, 0)], float(P["thickness"]) * ps * 0.8
+
+
 # ---------------------------------------------------------------- public: hit / body
 def hit(inst, tx, ty, hr, ps):
     st = _style(inst.fx["params"])
@@ -487,6 +547,8 @@ def hit(inst, tx, ty, hr, ps):
         return _wave_hit(inst, tx, ty, hr, ps)
     if st == "blade_extension":
         return _ext_hit(inst, tx, ty, hr, ps)
+    if st == "forward_thrust":
+        return _thr_hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
     return _slash_hit(inst, tx, ty, hr, ps)
@@ -499,6 +561,8 @@ def body(inst, ps):
         return _wave_body(inst, ps)
     if st == "blade_extension":
         return _ext_body(inst, ps)
+    if st == "forward_thrust":
+        return _thr_body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
     if inst.age >= inst.life:
@@ -1040,6 +1104,97 @@ def _draw_extension(pen, inst, host, ps):
     _hit_marks(pen, inst, c, ps, fx_, fy_)
 
 
+# ---------------------------------------------------------------- forward thrust
+def _draw_thrust(pen, inst, host, ps):
+    P = inst.fx["params"]
+    t = inst.age
+    fr = _frame(inst)
+    c, bright, _deep = _colours(inst, host)
+    S = ps
+    Lmax = float(P["length"]) * ps
+    W = float(P["thickness"]) * ps
+    t0, t1, t2, t3 = _thr_times(P)
+    l = _thr_len(P, t, Lmax)
+    ox, oy = inst.x, inst.y
+    fx_, fy_ = inst.tq_f
+    dens = float(P.get("density") or 1)
+    pen.add(True)
+    # 1: wind-up — a glint at the hilt, a short streak drawn back behind it
+    if t < t0 + 1:
+        cp = _cl(t / float(t0))
+        fa = 1.0 if t < t0 else 0.5
+        b = fr.w(-14 * S * cp, 0)
+        pen.line(ox, oy, b[0], b[1], mix(c, HOT, cp), 200 * fa, 2.0 * S)
+        pen.glow(ox, oy, (5 + 8 * cp) * S, HOT, 220 * fa)
+    # 2: speed lines along the thrust, fading once it reaches full length
+    if t0 <= t < t1 + 6:
+        fa = 1.0 if t < t1 else 1 - (t - t1) / 6.0
+        reach = l if t < t1 else Lmax
+        for i in range(max(0, F.jround(7 * dens))):
+            r = rng_for(inst.seed, i, 21)
+            side = r.uniform(-2.4, 2.4) * W
+            u0 = r.uniform(0.0, 0.45)
+            u1 = min(1.0, u0 + r.uniform(0.3, 0.55))
+            a0, a1 = fr.w(u0 * reach, side), fr.w(u1 * reach, side)
+            pen.line(a0[0], a0[1], a1[0], a1[1], mix(c, HOT, 0.4), 150 * fa, 1.1 * S)
+    if l > 1:
+        n = 16
+        us = [j / float(n) for j in range(n + 1)]
+
+        def edge(m):
+            top = [fr.w(u * l, -_thr_hw(u, W) * m) for u in us]
+            bot = [fr.w(u * l, _thr_hw(u, W) * m) for u in us]
+            return top + bot[::-1]
+
+        # 3: layered spear — wide glow, mid glow, body, white-hot core
+        pen.poly(edge(2.6), c, 45)
+        pen.poly(edge(1.6), c, 110)
+        for j in range(n):
+            u0, u1 = us[j], us[j + 1]
+            h0, h1 = _thr_hw(u0, W), _thr_hw(u1, W)
+            pen.poly([fr.w(u0 * l, -h0), fr.w(u1 * l, -h1), fr.w(u1 * l, h1), fr.w(u0 * l, h0)],
+                     mix(c, bright, u1), 225)
+        pen.poly(edge(0.35), HOT, 255)
+        # 4: tip flare
+        tip = fr.w(l, 0)
+        pen.glow(tip[0], tip[1], 16 * S, c, 110)
+        pen.glow(tip[0], tip[1], 7 * S, HOT, 230)
+        _star(pen, tip[0], tip[1], fx_, fy_, 14 * S, 5 * S, HOT, 230, 1.2 * S)
+        pen.glow(ox, oy, 7 * S, c, 150)
+    # 5: air-pressure rings + burst the moment it reaches full length
+    a = t - t1
+    if 0 <= a < 12:
+        q = a / 12.0
+        e = ease_out3(q)
+        ang = math.atan2(fy_, fx_)
+        tip = fr.w(Lmax, 0)
+        pen.ring(tip[0], tip[1], (3 + 6 * e) * S, (5 + 22 * e) * S, ang, c, 220 * (1 - q), 2.0 * S * (1 - q) + 0.2)
+        mid = fr.w(Lmax * (0.72 - 0.1 * e), 0)
+        pen.ring(mid[0], mid[1], (2 + 4 * e) * S, (4 + 14 * e) * S, ang, HOT, 160 * (1 - q), 1.4 * S * (1 - q) + 0.2)
+        pen.glow(tip[0], tip[1], 22 * S * (1 - q), HOT, 210 * (1 - q))
+        # 6: sparks thrown forward off the point
+        for i in range(max(0, F.jround(10 * dens))):
+            r = rng_for(inst.seed, i, 23)
+            life = 9 + 7 * r()
+            if a >= life:
+                continue
+            an = ang + r.uniform(-35, 35) * D
+            sp = r.uniform(3, 8) * S
+            fd = drag_dist(0.86, a)
+            x, y = tip[0] + math.cos(an) * sp * fd, tip[1] + math.sin(an) * sp * fd
+            dk = 0.86 ** a
+            qq = a / life
+            pen.line(x, y, x - math.cos(an) * sp * dk * 1.5, y - math.sin(an) * sp * dk * 1.5,
+                     mix(HOT, c, qq), 255 * (1 - qq), 1.2 * S)
+    # 7: the line it pierced, hanging in the air as it snaps back
+    if t2 <= t < t3 + THR_FADE:
+        q = (t - t2) / float(THR_RETRACT + THR_FADE)
+        b = fr.w(Lmax, 0)
+        pen.line(ox, oy, b[0], b[1], c, 150 * (1 - q), 2.6 * S * (1 - q) + 0.3)
+        pen.line(ox, oy, b[0], b[1], HOT, 220 * (1 - q) ** 2, 1.0 * S)
+    _hit_marks(pen, inst, c, ps, fx_, fy_)
+
+
 def draw(p, inst, host, ps):
     pen = Pen(p)
     st = _style(inst.fx["params"])
@@ -1047,6 +1202,8 @@ def draw(p, inst, host, ps):
         _draw_wave(pen, inst, host, ps)
     elif st == "blade_extension":
         _draw_extension(pen, inst, host, ps)
+    elif st == "forward_thrust":
+        _draw_thrust(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
     else:
