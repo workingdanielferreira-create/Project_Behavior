@@ -217,6 +217,11 @@ def on_spawn(inst, host):
     n = math.hypot(f[0], f[1]) or 1.0
     inst.tq_f = (f[0] / n, f[1] / n)
     inst.tq_m = (inst.facing if st in CUTS else (1 if inst.tq_f[0] >= 0 else -1))
+    # rotation_deg: the whole technique turned clockwise (0-360), mirrored
+    # with the facing so it looks the same facing either way.
+    rd = float(fx["params"].get("rotation_deg") or 0) % 360.0
+    if rd:
+        inst.tq_f = tuple(F.rot(inst.tq_f, rd * inst.tq_m))
     inst.tq_o = (inst.x, inst.y)
     inst.tq_hits = []
     inst.tq_cut = set()            # combo cuts that already landed

@@ -1252,7 +1252,8 @@ var PARAM_UI = {
     ["length", "Length (blade; thrust reach; ki range; punch reach)", 20, 2000, 5],
     ["swing_ticks", "Swing ticks (slash speed; thrust-out ticks; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
     ["hold_ticks", "Hold ticks (wave flight / blade out / thrust held; ki: firing time; punch held out)", 0, 600, 1],
-    ["density", "Sparks / embers / smoke ×", 0, 4, 0.1]]
+    ["density", "Sparks / embers / smoke ×", 0, 4, 0.1],
+    ["rotation_deg", "Rotation ° (clockwise; mirrors with the facing)", 0, 360, 5]]
 };
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
@@ -2086,6 +2087,8 @@ function buildBlinkProps(d) {
       "Which way from that point it lands. Behind / in front: the far / near side of the target, left / right (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
     if (b.direction === "angle") field(t, "Angle °", inp("n", b.angle_deg, function (v) { b.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
       "Measured from the direction to the target: 0 = toward it, 180 or -180 = away, 90 = sideways (positive turns clockwise on screen).";
+    if (b.direction === "angle") field(t, "Mirror", inp("chk", b.mirror, function (v) { b.mirror = v; ch(); })).title =
+      "On: the angle is set for the fighter starting on the target's left. When it starts on the target's right, the landing spot flips left / right only; above / below stays as set. Off: the angle turns with the line to the target, so from the right side above and below swap too.";
     field(t, "Distance px", inp("n", b.proximity_px, function (v) { b.proximity_px = Math.max(0, Math.min(2000, v)); ch(); }, 0, 2000, 5)).title =
       "How far from that point it lands (game px). 0 = right on it.";
     field(t, "Flash FX", inp("chk", b.flash, function (v) { b.flash = v; save(); })).title =

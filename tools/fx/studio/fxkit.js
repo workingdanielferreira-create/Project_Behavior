@@ -329,8 +329,10 @@ var PARAM_DEFAULTS = {
   // slash swings; hold_ticks = the wave's flight / how long the blade stays
   // out.  Ki barrage / impact punch (strikefx.js) reuse the same fields: see
   // that file.  The technique keeps its own timeline: Life is ignored.
+  // rotation_deg turns the whole technique clockwise (0-360), mirrored with
+  // the facing.
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
-    density: 1}
+    density: 1, rotation_deg: 0}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -624,7 +626,8 @@ function normalizeRetreat(a) {
 //           45 degree diagonals, screen left / right (not the facing)
 //   random  any direction
 //   angle   angle_deg from the fighter -> target line (0 = toward, 180 = away,
-//           positive = clockwise)
+//           positive = clockwise); mirror: set for a fighter on the target's
+//           left, from its right only the horizontal flips (up / down kept)
 // While gone it is invisible and untouchable and stays put; it moves too
 // fast to see, so its FX carry on as normal (they keep firing, body FX stay
 // visible and hit); the action and its animation keep running hidden, so the
@@ -635,7 +638,7 @@ function normalizeRetreat(a) {
 // vanishing or its Blink FX); the later blinks of the same pass still run.
 var BLINK_DEFAULTS = {enabled: false, cooldown_ms: 0, blinks: []};
 var BLINK_STEP_DEFAULTS = {start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
-  proximity_px: 60, flash: true};
+  mirror: false, proximity_px: 60, flash: true};
 var BLINK_ANCHORS = ["target", "self"];
 var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
   "below_left", "below_right", "random", "angle"];
@@ -744,7 +747,10 @@ function blinkLanding(b, from, target, tface, facing, rnd) {
     if (b.direction === "front") { dx = -dx; dy = -dy; }
   } else if (BLINK_SCREEN_DIRS[b.direction]) { dx = BLINK_SCREEN_DIRS[b.direction][0]; dy = BLINK_SCREEN_DIRS[b.direction][1]; }
   else if (b.direction === "random") { var r = rnd * 2 * Math.PI; dx = Math.cos(r); dy = Math.sin(r); }
-  else { var a = Math.atan2(uy, ux) + (+b.angle_deg || 0) * D; dx = Math.cos(a); dy = Math.sin(a); }
+  else {
+    var mx = b.mirror && lx < -0.001 ? -1 : 1;   // laser/blink.py _landing
+    var a = Math.atan2(uy, ux * mx) + (+b.angle_deg || 0) * D; dx = Math.cos(a) * mx; dy = Math.sin(a);
+  }
   var an = b.anchor === "target" ? target : from, prox = Math.max(0, +b.proximity_px || 0);
   return [an[0] + dx * prox, an[1] + dy * prox];
 }
