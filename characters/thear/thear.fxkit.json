@@ -1,0 +1,343 @@
+{
+ "format": "pb_fxkit",
+ "version": 2,
+ "tick_ms": 16,
+ "character": "thear",
+ "space": {
+  "coords": "game px, y down, relative to the figure position; x mirrors when facing left",
+  "anchors": "image px of the character's keyframe PNGs (per action, per frame); game px = (p - image_origin_px) * game_px_per_image_px * position_scale",
+  "image_origin_px": [
+   320,
+   320
+  ],
+  "head_px": 30,
+  "target_head_px": 16,
+  "game_px_per_image_px": 0.162791
+ },
+ "timing": {
+  "idle": {
+   "frame_ms": 75,
+   "frames": 19
+  },
+  "run": {
+   "frame_ms": 30,
+   "frames": 16
+  },
+  "attack_normal": {
+   "frame_ms": 24,
+   "frames": 29
+  },
+  "attack_normal_2": {
+   "frame_ms": 24,
+   "frames": 19
+  },
+  "attack_normal_3": {
+   "frame_ms": 24,
+   "frames": 24
+  },
+  "attack_special": {
+   "frame_ms": 24,
+   "frames": 32
+  },
+  "ultimate": {
+   "frame_ms": 26,
+   "frames": 73
+  },
+  "defend": {
+   "frame_ms": 24,
+   "frames": 23
+  }
+ },
+ "palette_lut": {},
+ "action_settings": {
+  "idle": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "run": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "attack_normal_2",
+   "chain_reset_ms": 1200,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal_2": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "attack_normal_3",
+   "chain_reset_ms": 1200,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal_3": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "move",
+   "move_speed_pct": 260,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_special": {
+   "logic": "all",
+   "cooldown_ms": 6000,
+   "conditions": [
+    {
+     "ms": 6000.0,
+     "type": "every_ms",
+     "not": false
+    },
+    {
+     "px": 260.0,
+     "type": "target_within",
+     "not": false
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "ultimate": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [
+    {
+     "pct": 60.0,
+     "repeat": false,
+     "type": "hp_below",
+     "not": false
+    },
+    {
+     "pct": 30.0,
+     "repeat": false,
+     "type": "hp_below",
+     "not": false
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "defend": {
+   "logic": "all",
+   "cooldown_ms": 2000,
+   "conditions": [
+    {
+     "type": "target_attacking",
+     "not": false
+    },
+    {
+     "px": 220.0,
+     "type": "target_within",
+     "not": false
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "enabled": false,
+    "cooldown_ms": 0,
+    "blinks": []
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  }
+ },
+ "aim": {
+  "enabled": false,
+  "source": "attack_normal",
+  "from_anchor": "haR",
+  "to_anchor": "wtip",
+  "max_deg": 0
+ },
+ "damaged": {
+  "cooldown_ms": 0
+ },
+ "retreat": {
+  "enabled": false,
+  "mode": "avoid",
+  "angle_deg": 180,
+  "curve_deg_s": 0,
+  "speed_pct": 200,
+  "proximity_px": 80,
+  "avoid_duration_ms": 1500,
+  "reengage_duration_ms": 2000,
+  "cooldown_ms": 3000,
+  "logic": "any",
+  "conditions": [],
+  "fx": ""
+ },
+ "character_scale": 1,
+ "effects": [],
+ "groups": [],
+ "entry_sets": [],
+ "paths": [],
+ "spec": "tools/fx/FX_KIT_SPEC.md \u2014 runtime reference tools/fx/studio/fxkit.js",
+ "note": "Trigger-only FX file for Thear (no effects, no damage yet): the combo chain, special, defend and ultimate triggers. Open in FX Studio to add FX and weapon hitboxes."
+}
