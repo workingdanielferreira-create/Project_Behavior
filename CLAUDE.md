@@ -42,6 +42,7 @@ laser/systems.py
 - **Always fetch a fresh SHA immediately before each PUT request** — stale SHAs cause 409 conflicts
 - Push via PUT with fresh SHA, base64-encoded content, and a descriptive commit message
 - **Run `ast.parse()` syntax validation on every file before pushing** — this catches bugs before they reach the repo
+- **Auto-merge after every update** — once an update is pushed and its PR is open (validation passed), merge the PR into `main` straight away; don't wait for Daniel to say "merge"
 
 ### Code Patching Rules
 - **Atomic block replacement only** — identify full start/end markers and rewrite the block completely in one operation
