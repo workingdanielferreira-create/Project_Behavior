@@ -81,6 +81,10 @@ function onSpawn(inst, host) {
   var n = hyp(f[0], f[1]) || 1;
   inst.tq_f = [f[0] / n, f[1] / n];
   inst.tq_m = slash ? inst.facing : (inst.tq_f[0] >= 0 ? 1 : -1);
+  // rotation_deg: the whole technique turned clockwise (0-360), mirrored with
+  // the facing.  laser/swordfx.py on_spawn.
+  var rd = ((+fx.params.rotation_deg || 0) % 360 + 360) % 360;
+  if (rd) inst.tq_f = FXK().rot(inst.tq_f, rd * inst.tq_m);
   inst.tq_o = [inst.x, inst.y];
   inst.tq_hits = [];
   inst.tq_cut = {};               // combo cuts that already landed

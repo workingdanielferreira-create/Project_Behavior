@@ -1252,7 +1252,8 @@ var PARAM_UI = {
     ["length", "Length (blade; thrust reach; ki range; punch reach)", 20, 2000, 5],
     ["swing_ticks", "Swing ticks (slash speed; thrust-out ticks; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
     ["hold_ticks", "Hold ticks (wave flight / blade out / thrust held; ki: firing time; punch held out)", 0, 600, 1],
-    ["density", "Sparks / embers / smoke ×", 0, 4, 0.1]]
+    ["density", "Sparks / embers / smoke ×", 0, 4, 0.1],
+    ["rotation_deg", "Rotation ° (clockwise; mirrors with the facing)", 0, 360, 5]]
 };
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],

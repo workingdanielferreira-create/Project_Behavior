@@ -192,8 +192,10 @@ PARAM_DEFAULTS = {
     # swings; hold_ticks = the wave's flight / how long the blade stays out.
     # Ki barrage / impact punch (laser/strikefx.py) reuse the same fields:
     # see that module.  The technique keeps its own timeline: Life is ignored.
+    # rotation_deg turns the whole technique clockwise (0-360), mirrored with
+    # the facing.
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
-                      density=1.0),
+                      density=1.0, rotation_deg=0),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
