@@ -187,13 +187,21 @@ class Figure:
         if c0.afterimages:
             live = []
             for ghost in c0.afterimages:
-                gx, gy, frame, age = ghost
+                gx, gy, frame, age, gs, ga = ghost
                 alpha = config.AFTERIMAGE_ALPHA * (1.0 - age / config.AFTERIMAGE_LIFETIME)
                 if alpha > 3:
+                    # Same size and tilt the character had when it was left
+                    # behind (drawn like the sprite below).
                     pm = _combat.silhouette(frame, self.render.afterimage_rgb)
+                    p.save()
+                    p.translate(gx, gy)
+                    if ga:
+                        p.rotate(ga)
+                    if gs != 1.0:
+                        p.scale(gs, gs)
                     p.setOpacity(alpha / 255.0)
-                    p.drawPixmap(int(gx) - pm.width() // 2,
-                                 int(gy) - pm.height() // 2, pm)
+                    p.drawPixmap(-pm.width() // 2, -pm.height() // 2, pm)
+                    p.restore()
                 ghost[3] += 1
                 if ghost[3] < config.AFTERIMAGE_LIFETIME:
                     live.append(ghost)

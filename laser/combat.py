@@ -237,7 +237,10 @@ def spawn_afterimage(fig):
     frame = fig._current_frame()
     if frame is None:
         return
-    c.afterimages.append([fig.transform.x, fig.transform.y, frame, 0])
+    # The character's on-screen size and tilt at this moment, so the ghost
+    # matches it (Figure.draw draws the sprite the same way).
+    ang = fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
+    c.afterimages.append([fig.transform.x, fig.transform.y, frame, 0, fig._position_scale(), ang])
     if len(c.afterimages) > config.AFTERIMAGE_MAX:
         c.afterimages.pop(0)
 
