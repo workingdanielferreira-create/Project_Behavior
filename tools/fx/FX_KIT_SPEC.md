@@ -351,7 +351,8 @@ The FX file carries two lists that every action's effects can use:
 "entry_sets": [{"id": "P…", "name": "Halo of 3", "base": "figure", "mode": "simultaneous",
                 "interval_ticks": 6, "order": "forward", "start_frame": 0, "stop_frame": -1,
                 "points": [[-16, -44], [0, -50], [16, -44]]}],
-"paths": [{"id": "T…", "name": "Arc over", "points": [[0, 0], [50, -40], [100, 0]], "smooth": true,
+"paths": [{"id": "T…", "name": "Arc over", "points": [[0, 0], [50, -40], [100, 0]], "anchors": ["", "", ""],
+           "leg_ticks": [0, 0, 10], "leg_lock": [false, false, true], "smooth": true,
            "ticks": 24, "orient": "aim", "end": "continue", "follow": false}]
 ```
 
@@ -382,8 +383,23 @@ plays from the figure.
 travels along the path from where it spawns:
 - `points[0]` is always `[0, 0]`, the spawn point; x forward, y down, game px.
 - With `smooth`, the route is a Catmull-Rom curve through the points (12
-  steps per segment); otherwise straight lines. Movement is at constant
-  speed by distance, start to end in `ticks`.
+  steps per segment); otherwise straight lines. `ticks` is the whole path's
+  time (FX Studio: "Ticks start → end (all points)"); with no locked legs
+  movement is at constant speed by distance, start to end in `ticks`.
+- `leg_ticks` / `leg_lock` (one per point, point 0 has none): the time of the
+  leg INTO point `i`. A locked leg (`leg_lock[i]`) takes its own
+  `leg_ticks[i]` and `ticks` no longer changes it; the unlocked legs share
+  what is left of `ticks`, split by their length (an even speed across
+  them). When the locked legs already take `ticks` or more, the unlocked
+  legs go at the speed the path would have with no locks (`ticks` /
+  length), so the path runs longer; with every leg locked the path takes
+  their sum. A locked leg of length 0 is a pause on its point. `loop`
+  restarts after the legs' total; `continue` carries on at the last
+  moving leg's speed. Pinned paths re-split every tick from the live leg
+  lengths. (`pathLegs` / `pathPos`, `path_legs` / `path_pos`.) FX Studio:
+  each point shows its leg's ticks and ms; unlocked values are the
+  current shares (grey), typing a value locks it, the 🔒 box locks /
+  unlocks.
 - `orient "facing"`: mirrored with the facing. `orient "aim"`: also turned
   so the start→end line points along the effect's aim direction (`motion.aim`,
   `aim_offset_deg`), fixed when it spawns.

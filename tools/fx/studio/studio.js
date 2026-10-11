@@ -1002,6 +1002,11 @@ function pathPreviewOrigin(path) {
   var users = geoUsers("path", path.id).filter(function (e) { return e.action === fxKey(); });
   return users.length ? jointAtFx(users[0]) : [S.figX, S.figY];
 }
+// The path's leg times as previewed on the stage (pins where they are now).
+function pathPreviewLegs(path) {
+  var f = facing(), wp = FXK.pathWorldPoints(path, host, pathPreviewOrigin(path), [f, 0, 0, 1], f);
+  return FXK.pathLegs(path, FXK.pathLine({points: wp, smooth: path.smooth}));
+}
 function jointAtFx(fx) {
   var set = S.entries.filter(function (e) { return "set:" + e.id === fx.anchor; })[0], deg = FXK.placeDeg(fx, host), ef = FXK.fxFacing(fx, host);
   var turn = function (v) { return FXK.turnBy(v, deg); };
@@ -1016,7 +1021,7 @@ function geoPlaceAt(w) {
   var f = facing(), b = S.geo.kind === "set" ? jointAt(it.base, frameAt(S.t)) : pathPreviewOrigin(it);
   var ps = viewScale(), q = [Math.round((w[0] - b[0]) * f / ps * 2) / 2, Math.round((w[1] - b[1]) / ps * 2) / 2];
   it.points.push(q);
-  if (S.geo.kind === "path") it.anchors.push("");   // a clicked point is measured from the spawn
+  if (S.geo.kind === "path") { it.anchors.push(""); it.leg_ticks.push(0); it.leg_lock.push(false); }   // measured from the spawn, timed by the total
   buildGeo(); buildProps(); resetSim(S.t); save();
 }
 // What a path point can be pinned to (path.anchors[i], FXK.pathAnchorPos):
@@ -1059,8 +1064,11 @@ function buildGeoProps(d) {
     if (it.stop_frame >= 0 && it.stop_frame < it.start_frame) note(s, "Stop frame is before Start frame, so these points never produce anything.");
     else note(s, "Produces particles on frames " + it.start_frame + "\u2013" + (it.stop_frame < 0 ? "end" : it.stop_frame) + " of the action using it" + (n ? " (this action has " + n + " frames, 0\u2013" + (n - 1) + ")" : "") + ", inside the effect's own Start / End frames.");
   } else {
-    field(s, "Ticks start → end", inp("n", it.ticks, function (v) { it.ticks = Math.max(1, Math.round(v)); buildGeo(); changed(); }, 1, 2000, 1)).title = "How long it takes to travel the whole path (16 ms per tick).";
-    field(s, "Smooth curve", inp("chk", it.smooth, function (v) { it.smooth = v; changed(); })).title = "On: a smooth curve through the points. Off: straight lines between them.";
+    var tot = field(s, "Ticks start → end (all points)", inp("n", it.ticks, function (v) { it.ticks = Math.max(1, Math.round(v)); buildGeo(); changed(); refreshLegs(); }, 1, 2000, 1));
+    tot.title = "How long it takes to travel the whole path (16 ms per tick). Every point that isn't locked shares this time (by the length of its leg); locked points keep their own time.";
+    var totMs = document.createElement("span"); totMs.className = "ms"; tot.parentNode.appendChild(totMs);
+    var totNote = document.createElement("div"); totNote.className = "note"; s.appendChild(totNote);
+    field(s, "Smooth curve", inp("chk", it.smooth, function (v) { it.smooth = v; changed(); refreshLegs(); })).title = "On: a smooth curve through the points. Off: straight lines between them.";
     field(s, "Turned", inp([["facing", "mirrored with the facing"], ["aim", "toward the aim"]], it.orient, function (v) { it.orient = v; changed(); })).title =
       "Mirrored: drawn to the right, flipped when facing left. Toward the aim: also turned so its start→end line points where the effect aims (set Aim in the effect's Motion).";
     field(s, "At the end", inp([["stop", "stop there"], ["loop", "start over"], ["continue", "carry on straight"]], it.end, function (v) { it.end = v; changed(); }));
@@ -1068,12 +1076,13 @@ function buildGeoProps(d) {
       "On: the whole path moves with the fighter (orbits, boomerangs). Off: it stays where it started.";
   }
   s = sec(d, "Points", "g-points", isSet ? "Click \"Place entry points\" (left) then click the stage around the figure to add points. X is forward, Y is down, in game px." :
-    "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down. The pin beside each point ties it, live every tick, to the figure, the target, an anchor or a blink's vanish / landing spot; its X / Y is then an offset from that spot.", "geo");
+    "Point 0 is where the effect starts. Click \"Draw path points\" (left) then click the stage to add the next points. X is forward, Y is down. Each point's ticks (and ms) are the time of the leg into it: unlocked ones (grey) share the path's total by length, 🔒 locked ones keep their own (typing a value locks it). The pin beside each point ties it, live every tick, to the figure, the target, an anchor or a blink's vanish / landing spot; its X / Y is then an offset from that spot.", "geo");
+  var legUi = [];
   it.points.forEach(function (p, i) {
     var row = document.createElement("div"); row.className = "f pt";
     var l = document.createElement("label"); l.textContent = (isSet ? "#" + (i + 1) : "Point " + i) + (isSet && it.mode === "sequential" && it.order === "forward" ? "  +" + i * it.interval_ticks + "t" : ""); row.appendChild(l);
     var bx = document.createElement("span"); bx.className = "xy";
-    var ix = inp("n", p[0], function (v) { p[0] = v; changed(); }, -2000, 2000, 0.5), iy = inp("n", p[1], function (v) { p[1] = v; changed(); }, -2000, 2000, 0.5);
+    var ix = inp("n", p[0], function (v) { p[0] = v; changed(); refreshLegs(); }, -2000, 2000, 0.5), iy = inp("n", p[1], function (v) { p[1] = v; changed(); refreshLegs(); }, -2000, 2000, 0.5);
     ix.title = "X (forward)"; iy.title = "Y (down)";
     if (!isSet && i === 0) { ix.disabled = iy.disabled = true; }
     bx.appendChild(ix); bx.appendChild(iy);
@@ -1086,16 +1095,50 @@ function buildGeoProps(d) {
         "Figure / target / an anchor = follows it. Blink N vanish / landing spot = where that blink of the playing action vanishes / lands " +
         "(where it would land until it has). X / Y are then an offset from the pin (X forward, mirrored with the facing). A blink the action doesn't have = not pinned.";
       bx.appendChild(pin);
+      if (i > 0) {
+        // The leg into this point: its own ticks (+ ms), locked or shared.
+        var lg = document.createElement("span"); lg.className = "leg";
+        var lt = inp("n", it.leg_ticks[i], function (v) { it.leg_ticks[i] = Math.max(0, Math.round(v)); it.leg_lock[i] = true; lk.checked = true; changed(); refreshLegs(); }, 0, 2000, 1);
+        lt.title = "Ticks from point " + (i - 1) + " to point " + i + ". Not locked: its share of the path's total time (by length), updated when the total changes. Typing a value locks it.";
+        var lms = document.createElement("span"); lms.className = "ms";
+        var lkl = document.createElement("label"); lkl.className = "lock"; lkl.title = "Lock: keep this leg's own time; the total (Ticks start → end) no longer changes it.";
+        var lk = inp("chk", it.leg_lock[i], function (v) {
+          if (v) it.leg_ticks[i] = Math.max(0, Math.round(+lt.value || 0));   // freeze the value on show
+          it.leg_lock[i] = v; changed(); refreshLegs();
+        });
+        lkl.appendChild(lk); lkl.appendChild(document.createTextNode("🔒"));
+        lg.appendChild(lt); lg.appendChild(lms); lg.appendChild(lkl); bx.appendChild(lg);
+        legUi[i] = {t: lt, ms: lms};
+      }
     }
-    if (isSet || i > 0) { var del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove this point"; del.onclick = function () { it.points.splice(i, 1); if (!isSet) it.anchors.splice(i, 1); buildGeo(); changed(true); }; bx.appendChild(del); }
+    if (isSet || i > 0) { var del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove this point"; del.onclick = function () { it.points.splice(i, 1); if (!isSet) { it.anchors.splice(i, 1); it.leg_ticks.splice(i, 1); it.leg_lock.splice(i, 1); } buildGeo(); changed(true); }; bx.appendChild(del); }
     row.appendChild(bx); s.appendChild(row);
   });
+  // Leg times as they play (the unlocked ones are shares of the total).
+  function refreshLegs() {
+    if (isSet) return;
+    var L = pathPreviewLegs(it), fmt = function (t) { return Math.round(t * 10) / 10; };
+    legUi.forEach(function (u, i) {
+      if (!u) return;
+      var t = it.leg_lock[i] ? it.leg_ticks[i] : L.times[i] || 0;
+      if (document.activeElement !== u.t) u.t.value = it.leg_lock[i] ? t : fmt(t);
+      u.t.classList.toggle("derived", !it.leg_lock[i]);
+      u.ms.textContent = "= " + Math.round(t * FXK.TICK_MS) + " ms";
+    });
+    totMs.textContent = "= " + it.ticks * FXK.TICK_MS + " ms";
+    var nLk = it.leg_lock.filter(Boolean).length, all = nLk && nLk === it.points.length - 1, over = Math.abs(L.total - it.ticks) > 0.05;
+    totNote.textContent = !nLk ? "No locked points: the effect moves at one even speed from start to end." :
+      all ? "Every point is locked: the path takes " + fmt(L.total) + " ticks (" + Math.round(L.total * FXK.TICK_MS) + " ms), the sum of its legs; the total above has no effect." :
+      over ? "The locked points already take " + fmt(it.leg_ticks.reduce(function (a, v, j) { return a + (it.leg_lock[j] ? v : 0); }, 0)) + " ticks, more than the total, so the unlocked ones move at the speed they'd have with no locks. The path takes " + fmt(L.total) + " ticks." :
+      nLk + " locked point" + (nLk > 1 ? "s keep their" : " keeps its") + " own time; the unlocked ones share the rest of the " + it.ticks + " ticks by length.";
+  }
+  if (!isSet) refreshLegs();
   if (!it.points.length || (!isSet && it.points.length < 2)) note(s, isSet ? "No points yet: effects using this set play from the figure until you add some." : "Add at least one more point so it has somewhere to go.");
   var r = document.createElement("div"); r.className = "row";
   var bp = document.createElement("button"); bp.textContent = S.geoPlace ? "Stop placing" : isSet ? "Place entry points" : "Draw path points"; bp.className = S.geoPlace ? "on" : "";
   bp.onclick = function () { S.geoPlace = !S.geoPlace; geoTools(); buildProps(); }; r.appendChild(bp);
   var bc = document.createElement("button"); bc.textContent = "Clear points";
-  bc.onclick = function () { it.points = isSet ? [] : [[0, 0]]; if (!isSet) it.anchors = [""]; buildGeo(); changed(true); }; r.appendChild(bc);
+  bc.onclick = function () { it.points = isSet ? [] : [[0, 0]]; if (!isSet) { it.anchors = [""]; it.leg_ticks = [0]; it.leg_lock = [false]; } buildGeo(); changed(true); }; r.appendChild(bc);
   var bs = document.createElement("button"); bs.textContent = "Save as preset";
   bs.onclick = function () {
     askText("Preset name", it.name, function (nm) {
