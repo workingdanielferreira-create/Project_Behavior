@@ -663,9 +663,17 @@ class World:
                              side.figures[0] if len(side.figures) == 1 else None)
                 if owner is not None:
                     actions.note_landed(owner)
+                # Anti-knockback (FX Studio Damaged): at or above the hit's
+                # knockback, the hit still takes HP but neither knocks back
+                # nor counts toward the fighter's `defend` conditions.
+                resisted = ai.resists_knockback(ef, kb)
                 if dmg > 0:
+                    if resisted:
+                        actions.note_resisted(ef)
                     ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable)
-                if kb > 0:
+                    if resisted:
+                        actions.clear_resisted(ef)
+                if kb > 0 and not resisted:
                     # A new hit restarts the slide for its full distance.
                     spd = kb * (1.0 - config.BOUNCE_FRICTION)
                     motion.launch_knockback(ef, dx * spd, dy * spd, self.global_tick)
