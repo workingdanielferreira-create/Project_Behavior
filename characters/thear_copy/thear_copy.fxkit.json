@@ -14397,24 +14397,19 @@
    }
   },
   "attack_special": {
-   "logic": "all",
+   "logic": "any",
    "cooldown_ms": 6000,
    "conditions": [
     {
-     "type": "every_ms",
-     "not": false,
-     "ms": 6000
-    },
-    {
      "type": "target_beyond",
-     "px": 200,
-     "not": false
+     "not": false,
+     "px": 300
     }
    ],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "stand",
+   "movement": "leap",
    "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 80,
@@ -14433,6 +14428,12 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 2,
+    "land_frame": 9,
+    "height_px": 40,
+    "hit_px": null
    }
   },
   "ultimate": {
