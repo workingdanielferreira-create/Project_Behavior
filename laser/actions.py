@@ -18,6 +18,10 @@ was set up there (pack.action_settings):
     it gates the built-in fighters; `defend` always works.
   * Movement "back" retreats straight away from the target at
     move_speed_pct % speed until back_stop_pct % of the whole action.
+  * Movement "leap" jumps onto the target: at leap.start_frame the target's
+    spot is locked and the fighter travels there in a hop arc
+    (leap.height_px high), arriving as leap.land_frame starts, placed so
+    the action's hit point lands on that spot (see _leap_hit_offset).
   * Aim (pack.aim): the fighter always faces the target and its frame turns
     so the normal attack's barrel (from -> to anchor) points at it.
   * everything else (attack_special, ultimate, defend, ...) — plays when its
@@ -139,7 +143,7 @@ class ActionRunner:
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
-                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags")
+                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap")
 
     def __init__(self):
         self.playing = None
@@ -188,6 +192,9 @@ class ActionRunner:
         self.ctx = None              # the last observe() result (conditions read it)
         self.ctx_tick = None         # the tick it was taken on
         self.was_attacking = False   # tracker for non-image fighters: dash / slash edge
+        # Movement "leap": None = not taken off yet this loop; a dict while
+        # in the air / landed (sx, sy, ex, ey, t0, t1, h, left, done).
+        self.leap = None
 
     # ------------------------------------------------------------ events
     def note_damage(self, amount=0.0):
@@ -350,6 +357,7 @@ class ActionRunner:
         self.elapsed = 0.0
         self.loops_left = max(1, int(round(float(cfg.get("anim_loops") or 1)))) if _kind(name) != "locomotion" else 1
         self.started = now
+        self.leap = None
         cd = float(cfg.get("cooldown_ms") or 0)
         self.cooldown_until[name] = now + int(cd / TICK_MS)
         # Counters that belong to this action restart when it fires.
@@ -367,6 +375,7 @@ class ActionRunner:
     def _finish(self, fig, now):
         name = self.playing
         self.playing = None
+        self._leap_settle(fig)
         c = fig.combat
         if c.action_anim == name:
             c.action_anim = None
@@ -511,6 +520,13 @@ class ActionRunner:
         c = fig.combat
         ctx = self.observe(fig, world)
         tx, ty = ctx["target"]
+        if not fig.transform.init:
+            # Not placed yet (MotionSystem places a fighter on its first
+            # un-rooted tick): starting an action now would root it at its
+            # spawn corner, with distances measured from there.
+            self.end_tick()
+            self.acted = False
+            return False
         if self.forced is not None and (self.playing != self.forced or now >= self.forced_until):
             if self.playing == self.forced:
                 self._finish(fig, now)
@@ -600,13 +616,20 @@ class ActionRunner:
                             fig.transform.facing_left = True
                         elif dx > 0.001:
                             fig.transform.facing_left = False
+                elif cfg.get("movement") == "leap" and not (fig.motion.bouncing or fig.motion.bounce_ending):
+                    rooted = True
+                    fig.render.is_moving = False
+                    self._leap_step(fig, name, cfg, n, fm, tx, ty)
                 elif cfg.get("movement") == "move":
                     pct = max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0
                     if self.base_speed is None:
                         self.base_speed = fig.motion.speed
                     fig.motion.speed = self.base_speed * pct
                 elif fig.motion.bouncing or fig.motion.bounce_ending:
-                    pass   # a knockback always moves the fighter, even mid-action
+                    # A knockback always moves the fighter, even mid-action
+                    # (and knocks a leap out of the air: it doesn't resume).
+                    if self.leap is not None:
+                        self.leap["done"] = True
                 else:
                     rooted = True
                     # Face the target while rooted.
@@ -638,6 +661,102 @@ class ActionRunner:
 
     def blocking(self):
         return self.playing == "defend"
+
+    # ------------------------------------------------------------ leap
+    def _leap_step(self, fig, name, cfg, n, fm, tx, ty):
+        """Movement "leap", one tick (the action's frames carry the pose; this
+        carries the body).  Before leap.start_frame: stand facing the target.
+        At it: lock the target's spot.  Until leap.land_frame starts: travel
+        there along a hop arc.  After: stay landed.  Each loop leaps anew."""
+        lp = cfg.get("leap") or {}
+        f0 = max(0, int(lp.get("start_frame") or 0))
+        f1 = int(lp.get("land_frame") if lp.get("land_frame") is not None else -1)
+        if f1 < 0 or f1 > n:
+            f1 = n
+        f1 = max(f0 + 1, f1)
+        t = self.elapsed - TICK_MS          # time into this loop before this tick
+        st = self.leap
+        if st is not None and t < st["t0"]:
+            st = self.leap = None           # a new loop: leap again
+        if st is None:
+            if t < f0 * fm:
+                dx = tx - fig.x
+                if dx < -0.001:
+                    fig.transform.facing_left = True
+                elif dx > 0.001:
+                    fig.transform.facing_left = False
+                return
+            from . import combat as _combat
+            left = (tx < fig.x) if abs(tx - fig.x) > 0.001 else fig.transform.facing_left
+            sw, sh = fig.screen_w, fig.screen_h
+            ps = _combat.position_scale(tx, ty, sw, sh)
+            ox, oy = _leap_hit_offset(fig, name, cfg, f1, -1.0 if left else 1.0, ps)
+            ex = max(0.0, min(float(sw), tx - ox))
+            ey = max(0.0, min(float(sh), ty - oy))
+            h = max(0.0, float(lp.get("height_px") or 0)) * fig._position_scale()
+            st = self.leap = dict(sx=fig.x, sy=fig.y, ex=ex, ey=ey, t0=f0 * fm, t1=f1 * fm,
+                                  h=h, left=left, done=False)
+        fig.transform.facing_left = st["left"]
+        if st["done"]:
+            return
+        u = max(0.0, min(1.0, (t + TICK_MS - st["t0"]) / max(1.0, st["t1"] - st["t0"])))
+        fig.transform.x = st["sx"] + (st["ex"] - st["sx"]) * u
+        fig.transform.y = st["sy"] + (st["ey"] - st["sy"]) * u - st["h"] * 4.0 * u * (1.0 - u)
+        if u >= 1.0:
+            st["done"] = True
+
+    def _leap_settle(self, fig):
+        """The action ended (or was cut) mid-air: drop straight to the ground
+        line under the arc so the fighter isn't left hanging."""
+        st = self.leap
+        self.leap = None
+        if st is None or st["done"] or st["h"] <= 0:
+            return
+        dx = st["ex"] - st["sx"]
+        u = (fig.x - st["sx"]) / dx if abs(dx) > 1e-6 else 0.0
+        u = max(0.0, min(1.0, u))
+        fig.transform.y = st["sy"] + (st["ey"] - st["sy"]) * u
+
+
+def _leap_hit_offset(fig, name, cfg, land, facing, ps):
+    """Where the leap's hit lands relative to the fighter's position (game
+    px, facing +1 right / -1 left, at position scale ps), so the leap can
+    put that point on the target: leap.hit_px [x forward, y] when set; else
+    the action's damaging FX (Deals damage) starting nearest land_frame —
+    its anchor plus offset; else the weapon tip (wtip) on land_frame; else
+    the body itself."""
+    from .fxkit import character_fx
+    hp = (cfg.get("leap") or {}).get("hit_px")
+    if isinstance(hp, (list, tuple)) and len(hp) >= 2:
+        return float(hp[0] or 0) * ps * facing, float(hp[1] or 0) * ps
+    cfx = character_fx(fig.mode)
+    if cfx is None:
+        return 0.0, 0.0
+
+    def anchor_off(ident):
+        if not ident or ident in ("figure", "target") or str(ident).startswith("set:"):
+            return 0.0, 0.0
+        p = cfx.anchor_px(name, ident, land)
+        if p is None:
+            return 0.0, 0.0
+        k = cfx.k * ps
+        return (p[0] - cfx.origin[0]) * k * facing, (p[1] - cfx.origin[1]) * k
+
+    best = None
+    for fx in cfx.effects:
+        if fx.get("action") != name or not (fx.get("battle") or {}).get("deals_damage"):
+            continue
+        d = abs(int(fx.get("start_frame") or 0) - land)
+        if best is None or d < best[0]:
+            best = (d, fx)
+    if best is not None:
+        fx = best[1]
+        if fx.get("anchor") == "target":
+            return 0.0, 0.0
+        ax, ay = anchor_off(fx.get("anchor"))
+        off = fx.get("offset") or [0, 0]
+        return ax + float(off[0] or 0) * ps * facing, ay + float(off[1] or 0) * ps
+    return anchor_off("wtip")
 
 
 # ------------------------------------------------------------ module hooks
