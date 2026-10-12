@@ -346,6 +346,12 @@ def turn_sign(fx, host, d, at=None):
 # stats.basic_attack_radius (shooters: their shooting range).  laser/actions.py.
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
                        movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80, attack_px=0)
+# Movement "leap" (action_settings[action].leap, laser/actions.py): jump onto
+# the target between start_frame and land_frame (-1 = the last frame) in an
+# arc height_px high, landing so the hit point is on the target; hit_px
+# [x forward, y] overrides where that hit point is (None = from the action's
+# damaging FX, else the weapon tip).
+LEAP_DEFAULTS = dict(start_frame=0, land_frame=-1, height_px=40.0, hit_px=None)
 # The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): a
 # list of blinks (`blinks`, each BLINK_STEP_DEFAULTS) that run in order as the
 # action's frames pass them; on while the list holds any.  Each blink: the
@@ -731,6 +737,7 @@ def time_speed(tc, ms):
 
 def normalize_action(cfg):
     cfg = _fill(dict(cfg or {}), ACTION_DEFAULTS)
+    cfg["leap"] = _fill(dict(cfg.get("leap") or {}), LEAP_DEFAULTS)
     cfg["blink"] = normalize_blink(cfg.get("blink"))
     cfg["time"] = normalize_time(cfg.get("time"))
     return cfg

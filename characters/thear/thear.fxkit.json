@@ -191,24 +191,19 @@
    }
   },
   "attack_special": {
-   "logic": "all",
+   "logic": "any",
    "cooldown_ms": 6000,
    "conditions": [
     {
-     "ms": 6000.0,
-     "type": "every_ms",
-     "not": false
-    },
-    {
-     "px": 260.0,
-     "type": "target_within",
-     "not": false
+     "type": "target_beyond",
+     "not": false,
+     "px": 300
     }
    ],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "stand",
+   "movement": "leap",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
@@ -227,6 +222,12 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 13,
+    "land_frame": 20,
+    "height_px": 40,
+    "hit_px": null
    }
   },
   "ultimate": {
@@ -338,6 +339,6 @@
  "groups": [],
  "entry_sets": [],
  "paths": [],
- "spec": "tools/fx/FX_KIT_SPEC.md \u2014 runtime reference tools/fx/studio/fxkit.js",
+ "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
  "note": "Trigger-only FX file for Thear (no effects, no damage yet): the combo chain, special, defend and ultimate triggers. Open in FX Studio to add FX and weapon hitboxes."
 }
