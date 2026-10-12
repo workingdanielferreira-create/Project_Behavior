@@ -508,7 +508,8 @@ var CONDITION_COMMON = {not: false};
 // movement: "stand" = the fighter stays in place while the action plays;
 // "move" = it keeps moving (at move_speed_pct % of its normal speed);
 // "back" = it retreats straight away from the target at move_speed_pct % of
-// its normal speed until back_stop_pct % of the whole action, then holds.  Only
+// its normal speed until back_stop_pct % of the whole action, then holds;
+// "leap" = it jumps onto the target (LEAP_DEFAULTS below).  Only
 // for attack / triggered actions; idle always stands and run always moves.
 // anim_loops: how many times the animation plays before the action ends
 // (attack / triggered actions; idle and run loop for as long as they last).
@@ -519,6 +520,13 @@ var CONDITION_COMMON = {not: false};
 // stats.basic_attack_radius (shooters: their shooting range).
 var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
   movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80, attack_px: 0};
+// leap (movement "leap", laser/actions.py _leap_step): at start_frame the
+// target's spot is locked and the fighter travels there in an arc height_px
+// high (game px at 100 %), arriving as land_frame starts (-1 = the last
+// frame), placed so the hit point lands on that spot.  hit_px [x forward, y]
+// sets the hit point; null = the action's damaging FX starting nearest
+// land_frame (its anchor + offset), else the weapon tip (wtip).
+var LEAP_DEFAULTS = {start_frame: 0, land_frame: -1, height_px: 40, hit_px: null};
 // blink: the action's Blink (BLINK_DEFAULTS below).
 // Character-level aiming (pack.aim): the fighter always faces the target and
 // the whole frame on show turns so its barrel (from -> to anchor of that
@@ -836,6 +844,7 @@ function standHeight(img) {
 }
 function normalizeAction(cfg) {
   cfg = fill(cfg || {}, ACTION_DEFAULTS);
+  cfg.leap = fill(cfg.leap || {}, LEAP_DEFAULTS);
   cfg.blink = normalizeBlink(cfg.blink);
   cfg.time = normalizeTime(cfg.time);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
@@ -2225,7 +2234,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
