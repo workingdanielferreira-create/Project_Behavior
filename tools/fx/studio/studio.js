@@ -105,6 +105,8 @@ function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.
 function facing() {
   if (S.aim.enabled && aimRef()) return targetSideNow();   // aiming: always faces the target
   if (S.react === "retreat" && S.dash && S.dash.face) return S.dash.face;   // the dash faces the way it moves (fig.face)
+  if (S.leap) return S.leap.face;   // a leap faces the target it locked at takeoff
+  if (S.react !== "retreat" && isLeap()) return targetSideNow();   // ... and the target before it
   if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
   return +$("facing").value;
 }
@@ -2242,13 +2244,14 @@ function buildActionProps(d) {
   s = sec(d, "Movement", "a-move", "Whether the fighter stands still while doing this action or can keep moving.", "act");
   if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
   else {
-    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
-      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds.";
+    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"], ["leap", "Leap onto target"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target.";
+    if (cfg.movement === "leap") buildLeapProps(s, cfg);
     if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = Math.max(0, Math.min(100, v)); save(); resetSim(S.t); }, 0, 100, 5)).title =
       "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
     if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
       "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
-    note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
+    if (cfg.movement !== "leap") note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
   buildCharScaleProps(d);
@@ -2429,6 +2432,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
   player.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
+  S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
   S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
@@ -2463,7 +2467,8 @@ function step(allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
     // action ends, and "loop" replays the whole action.
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; S.bmarks = {}; }
-    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); } }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); }
+      else if (isLeap()) { S.figX = 0; S.figY = 0; S.leap = null; } }
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
 }
@@ -2704,6 +2709,7 @@ function simMoveFactor() { return FXK.actionKind(S.action) === "locomotion" ? 1 
 var BACK_BASE_SPEED = 2;   // px/tick "normal speed" for the back-away preview when the sim's move is 0
 function moveFigure() {
   var cfg = cfgOf(S.action);
+  if (isLeap()) { leapStep(cfg); return; }
   if (FXK.actionKind(S.action) !== "locomotion" && cfg.movement === "back") {
     var nL = FXK.animLoops(S.action, cfg), done = ((S.cycle || 0) * totalTicks() + S.t) / (nL * totalTicks());
     if (done >= (+cfg.back_stop_pct || 0) / 100) return;
@@ -2724,7 +2730,95 @@ function moveFigure() {
     else { S[key] = Math.max(-lim, Math.min(lim, S[key])); v[i] = -v[i]; }
   });
 }
+// ------------------------------------------------------------ leap
+// Movement "leap" (FXK.LEAP_DEFAULTS; the game runs laser/actions.py
+// _leap_step, same maths): before Start frame the figure stands facing the
+// target; at it the target's spot is locked and the figure arcs there,
+// arriving as Land frame starts, placed so the hit point is on that spot.
+function isLeap() { return !!(C && S.action && S.react !== "retreat" && FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "leap"); }
+function leapFrames(cfg) {
+  var lp = cfg.leap || {}, n = frames();
+  var f0 = Math.max(0, Math.round(+lp.start_frame || 0)), f1 = Math.round(lp.land_frame == null ? -1 : +lp.land_frame);
+  if (f1 < 0 || f1 > n) f1 = n;
+  return [f0, Math.max(f0 + 1, f1)];
+}
+// Where the hit lands relative to the figure (game px, current facing).
+function leapHitOffset(cfg, land) {
+  var lp = cfg.leap || {}, f = facing(), ps = viewScale();
+  if (Array.isArray(lp.hit_px) && lp.hit_px.length >= 2) return [(+lp.hit_px[0] || 0) * ps * f, (+lp.hit_px[1] || 0) * ps];
+  var rel = function (name) {
+    if (!name || name === "figure" || name === "target" || /^set:/.test(name)) return [0, 0];
+    var p = resolveAnchor(S.action, name, land);
+    if (!p) return [0, 0];
+    var g = imgToGame(p, 0); return [g[0] - S.figX, g[1] - S.figY];
+  };
+  var best = null;
+  S.effects.forEach(function (fx) {
+    if (fx.action !== S.action || !(fx.battle && fx.battle.deals_damage)) return;
+    var d = Math.abs((+fx.start_frame || 0) - land);
+    if (!best || d < best.d) best = {d: d, fx: fx};
+  });
+  if (!best) return rel("wtip");
+  if (best.fx.anchor === "target") return [0, 0];
+  var a = rel(best.fx.anchor), off = best.fx.offset || [0, 0];
+  return [a[0] + (+off[0] || 0) * ps * f, a[1] + (+off[1] || 0) * ps];
+}
+function leapStep(cfg) {
+  var fr = leapFrames(cfg), fm = frameMs(), t = S.t * FXK.TICK_MS;   // time into this pass before this tick
+  if (S.leap && (S.leap.cycle !== (S.cycle || 0) || t < S.leap.t0)) S.leap = null;   // a new pass: leap again
+  if (!S.leap) {
+    if (t < fr[0] * fm) return;
+    var dx = S.target[0] - S.figX;
+    S.leap = {face: Math.abs(dx) > 0.001 ? (dx < 0 ? -1 : 1) : facing(), cycle: S.cycle || 0, sx: S.figX, sy: S.figY,
+              t0: fr[0] * fm, t1: fr[1] * fm, h: Math.max(0, +(cfg.leap || {}).height_px || 0) * viewScale(), done: false};
+    var o = leapHitOffset(cfg, fr[1]);
+    S.leap.ex = S.target[0] - o[0]; S.leap.ey = S.target[1] - o[1];
+  }
+  var L = S.leap;
+  if (L.done) return;
+  var u = Math.max(0, Math.min(1, (t + FXK.TICK_MS - L.t0) / Math.max(1, L.t1 - L.t0)));
+  S.figX = L.sx + (L.ex - L.sx) * u;
+  S.figY = L.sy + (L.ey - L.sy) * u - L.h * 4 * u * (1 - u);
+  if (u >= 1) L.done = true;
+}
+// Stage guide: the arc from where it took off to where it lands.
+function drawLeapGuide(g, z) {
+  var L = S.leap; if (!L) return;
+  g.save();
+  g.strokeStyle = "rgba(240,190,90,.6)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 4 / z]);
+  g.beginPath();
+  for (var i = 0; i <= 24; i++) {
+    var u = i / 24, x = L.sx + (L.ex - L.sx) * u, y = L.sy + (L.ey - L.sy) * u - L.h * 4 * u * (1 - u);
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  }
+  g.stroke(); g.setLineDash([]);
+  g.beginPath(); g.arc(L.ex, L.ey, 4 / z, 0, 6.2832); g.stroke();
+  g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  g.fillText("lands", L.ex, L.ey - 8 / z);
+  g.restore();
+}
+function buildLeapProps(s, cfg) {
+  var lp = cfg.leap, n = frames(), fr = leapFrames(cfg);
+  var redo = function () { save(); buildProps(); resetSim(S.t); };
+  field(s, "Take-off frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.max(0, Math.min(Math.max(0, n - 1), Math.round(v) || 0)); redo(); }, 0, Math.max(0, n - 1), 1)).title =
+    "The frame it leaves the ground: the target's spot is locked here and the jump starts. Before it, it stands facing the target.";
+  field(s, "Land frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+    "It touches down as this frame starts, with its hit point on the locked spot. Put the landing hit FX on this frame (or the next).";
+  field(s, "Arc height px", inp("n", lp.height_px, function (v) { lp.height_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
+    "How high the body arcs at the middle of the jump, game px at 100 % (0 = a flat glide; the frames show their own jump on top).";
+  var custom = Array.isArray(lp.hit_px);
+  field(s, "Hit point", inp([["auto", "Auto (damage FX, else weapon tip)"], ["custom", "Custom offset"]], custom ? "custom" : "auto", function (v) {
+    lp.hit_px = v === "custom" ? (custom ? lp.hit_px : [0, 0]) : null; redo(); })).title =
+    "What lands on the target. Auto: this action's Deals-damage FX starting nearest the land frame (its anchor + offset), else the weapon tip on that frame, else the body. Custom: an offset from the body (x forward).";
+  if (custom) {
+    field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, -500, 500, 1));
+    field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, -500, 500, 1));
+  }
+  note(s, "Leaves the ground on frame " + fr[0] + " and lands as frame " + fr[1] + (fr[1] >= n ? " (the end)" : "") + " starts — " +
+    Math.round((fr[1] - fr[0]) * frameMs()) + " ms in the air. Preview: drag the target; the dashed arc shows the jump. In the game the target is the nearest enemy (Solo: the cursor); a target that moves after take-off can dodge it.");
+}
 function drawMoveGuide(g, z) {
+  if (isLeap()) { drawLeapGuide(g, z); return; }
   var v = S.vel; if (S.react === "retreat" || (!v[0] && !v[1]) || simMoveFactor() <= 0 || cfgOf(S.action).movement === "back") return;
   g.save();
   g.strokeStyle = "rgba(125,224,168,.25)"; g.lineWidth = 1 / z; g.setLineDash([4 / z, 4 / z]);
@@ -2756,6 +2850,7 @@ function zoom() { return Math.max(0.25, +$("zoom").value || 4); }
 // A "Move back from target" action travels further than the stage shows:
 // the camera follows the figure while it plays.
 function camFollow() { return C && S.action && (S.react === "retreat" || (FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back")); }
+// (A leap's camera stays put: the whole jump, start to target, is on stage.)
 function camera(dpr) {
   var z = zoom(), fx = camFollow() ? S.figX * z : 0, fy = camFollow() ? S.figY * z : 0;
   return {x: cv.width / 2 / dpr + S.pan[0] - fx, y: cv.height * 0.55 / dpr + S.pan[1] - fy, z: z};

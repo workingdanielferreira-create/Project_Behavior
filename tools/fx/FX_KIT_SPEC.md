@@ -122,7 +122,15 @@ whole action; `"move"` lets it keep moving while the action plays, at
 `move_speed_pct` % of its normal speed (100 = full); `"back"` retreats straight
 away from the target at `move_speed_pct` % of its normal speed until
 `back_stop_pct` % of the whole action (all loops) has played, then holds
-still for the rest. `idle` always stands and
+still for the rest; `"leap"` jumps onto the target (the `leap` block:
+`{"start_frame": 0, "land_frame": -1, "height_px": 40, "hit_px": null}`).
+Before `start_frame` it stands facing the target; at it the target's spot
+is locked and the fighter arcs there (`height_px` high, game px at 100 %),
+arriving as `land_frame` starts (-1 = the last frame), placed so its hit
+point lands on the spot. `hit_px` `[x forward, y]` sets the hit point;
+`null` = the action's Deals-damage FX starting nearest `land_frame` (its
+anchor + offset), else the weapon tip `wtip` on that frame, else the body.
+A knockback knocks it out of the air. `idle` always stands and
 `run` always moves, so the field is ignored for them. The engine applies it in
 Solo and Battle alike (`FXK.moveFactor(name, cfg)` gives the speed fraction).
 
@@ -893,6 +901,9 @@ The presets only seed new FX.
      action plays.
    - `movement: "back"` moves it straight away from the target at
      `move_speed_pct` % speed until `back_stop_pct` % of the action.
+   - `movement: "leap"` (`ActionRunner._leap_step`) locks the target's spot
+     at `leap.start_frame` and carries the fighter there along the arc,
+     landing as `leap.land_frame` starts with the hit point on the spot.
    - **Aim** (`aim.enabled`): every tick the fighter faces the target and
      its frame on show turns (`Figure.aim`, degrees, after mirroring) so the
      barrel line `from_anchor -> to_anchor` of that frame passes through the
