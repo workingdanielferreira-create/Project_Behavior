@@ -143,7 +143,7 @@ class ActionRunner:
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
-                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap")
+                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg")
 
     def __init__(self):
         self.playing = None
@@ -195,6 +195,8 @@ class ActionRunner:
         # Movement "leap": None = not taken off yet this loop; a dict while
         # in the air / landed (sx, sy, ex, ey, t0, t1, h, left, done).
         self.leap = None
+        # (action, damage) while a "range"-damage leap's FX can hit, else None.
+        self.leap_dmg = None
 
     # ------------------------------------------------------------ events
     def note_damage(self, amount=0.0):
@@ -358,6 +360,8 @@ class ActionRunner:
         self.loops_left = max(1, int(round(float(cfg.get("anim_loops") or 1)))) if _kind(name) != "locomotion" else 1
         self.started = now
         self.leap = None
+        if self.leap_dmg is not None and self.leap_dmg[0] == name:
+            self.leap_dmg = None
         cd = float(cfg.get("cooldown_ms") or 0)
         self.cooldown_until[name] = now + int(cd / TICK_MS)
         # Counters that belong to this action restart when it fires.
@@ -693,7 +697,13 @@ class ActionRunner:
             ox, oy = _leap_hit_offset(fig, name, cfg, f1, -1.0 if left else 1.0, ps)
             ex = max(0.0, min(float(sw), tx - ox))
             ey = max(0.0, min(float(sh), ty - oy))
-            h = max(0.0, float(lp.get("height_px") or 0)) * fig._position_scale()
+            frac = _leap_frac(lp, ((tx - fig.x) ** 2 + (ty - fig.y) ** 2) ** 0.5)
+            h = _leap_height(lp, frac) * fig._position_scale()
+            if lp.get("damage_mode") == "range":
+                d0, d1 = float(lp.get("damage_min") or 0), float(lp.get("damage_max") or 0)
+                self.leap_dmg = (name, round(max(0.0, d0 + (d1 - d0) * frac), 2))
+            else:
+                self.leap_dmg = None
             st = self.leap = dict(sx=fig.x, sy=fig.y, ex=ex, ey=ey, t0=f0 * fm, t1=f1 * fm,
                                   h=h, left=left, done=False)
         fig.transform.facing_left = st["left"]
@@ -716,6 +726,38 @@ class ActionRunner:
         u = (fig.x - st["sx"]) / dx if abs(dx) > 1e-6 else 0.0
         u = max(0.0, min(1.0, u))
         fig.transform.y = st["sy"] + (st["ey"] - st["sy"]) * u
+
+
+def _leap_frac(lp, dist):
+    """Where this leap sits in its range, 0..1: the target at dist_min_px or
+    closer = 0, at dist_max_px or farther = 1, in proportion between.  It
+    picks the arc height (height_px .. height_max_px) and, in "range" damage
+    mode, the damage (damage_min .. damage_max)."""
+    lo = float(lp.get("dist_min_px") or 0)
+    hi = float(lp.get("dist_max_px") or 0)
+    if hi <= lo:
+        return 1.0 if dist >= lo else 0.0
+    return max(0.0, min(1.0, (dist - lo) / (hi - lo)))
+
+
+def _leap_height(lp, frac):
+    """Arc height (game px at 100 %): height_px, or with height_max_px set,
+    height_px .. height_max_px by frac."""
+    h0 = max(0.0, float(lp.get("height_px") or 0))
+    h1 = lp.get("height_max_px")
+    if h1 is None:
+        return h0
+    return h0 + (max(0.0, float(h1 or 0)) - h0) * frac
+
+
+def leap_damage(fig, action):
+    """Damage every Deals-damage FX of `action` deals for this fighter's
+    current leap ("range" damage mode), or None = the FX's own damage."""
+    r = getattr(fig, "act", None)
+    ld = getattr(r, "leap_dmg", None) if r is not None else None
+    if ld is not None and ld[0] == action:
+        return ld[1]
+    return None
 
 
 def _leap_hit_offset(fig, name, cfg, land, facing, ps):

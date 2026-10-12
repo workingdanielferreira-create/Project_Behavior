@@ -326,6 +326,7 @@ var host = {
   },
   // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
   onHit: function (inst, dmg, dx, dy, kb) {
+    if (S.leap && S.leap.dmg != null && inst.fx.action === S.action) dmg = S.leap.dmg;   // "range" leap damage
     S.dealt += dmg;
     S.hits.push({t: S.t, dmg: dmg, kb: kb, name: inst.fx.name});
     if (S.hits.length > 60) S.hits.shift();
@@ -2768,9 +2769,9 @@ function leapStep(cfg) {
   if (S.leap && (S.leap.cycle !== (S.cycle || 0) || t < S.leap.t0)) S.leap = null;   // a new pass: leap again
   if (!S.leap) {
     if (t < fr[0] * fm) return;
-    var dx = S.target[0] - S.figX;
+    var dx = S.target[0] - S.figX, lp = cfg.leap || {}, lf = FXK.leapFrac(lp, Math.hypot(dx, S.target[1] - S.figY));
     S.leap = {face: Math.abs(dx) > 0.001 ? (dx < 0 ? -1 : 1) : facing(), cycle: S.cycle || 0, sx: S.figX, sy: S.figY,
-              t0: fr[0] * fm, t1: fr[1] * fm, h: Math.max(0, +(cfg.leap || {}).height_px || 0) * viewScale(), done: false};
+              t0: fr[0] * fm, t1: fr[1] * fm, h: FXK.leapHeight(lp, lf) * viewScale(), frac: lf, dmg: FXK.leapDamage(lp, lf), done: false};
     var o = leapHitOffset(cfg, fr[1]);
     S.leap.ex = S.target[0] - o[0]; S.leap.ey = S.target[1] - o[1];
   }
@@ -2794,7 +2795,7 @@ function drawLeapGuide(g, z) {
   g.stroke(); g.setLineDash([]);
   g.beginPath(); g.arc(L.ex, L.ey, 4 / z, 0, 6.2832); g.stroke();
   g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
-  g.fillText("lands", L.ex, L.ey - 8 / z);
+  g.fillText("lands" + (L.dmg != null ? " \u2014 " + L.dmg + " dmg" : ""), L.ex, L.ey - 8 / z);
   g.restore();
 }
 function buildLeapProps(s, cfg) {
@@ -2804,8 +2805,31 @@ function buildLeapProps(s, cfg) {
     "The frame it leaves the ground: the target's spot is locked here and the jump starts. Before it, it stands facing the target.";
   field(s, "Land frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
     "It touches down as this frame starts, with its hit point on the locked spot. Put the landing hit FX on this frame (or the next).";
-  field(s, "Arc height px", inp("n", lp.height_px, function (v) { lp.height_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
+  var ranged = lp.height_max_px != null;
+  field(s, "Arc height", inp([["fixed", "Fixed"], ["range", "Range (by jump distance)"]], ranged ? "range" : "fixed", function (v) {
+    lp.height_max_px = v === "range" ? (ranged ? lp.height_max_px : (Math.max(0, +lp.height_px || 0) * 2 || 80)) : null; redo(); })).title =
+    "Fixed: every leap arcs the same height. Range: the farther the target, the higher the arc - Arc height min at Distance for min or closer, Arc height max at Distance for max or farther, in proportion between.";
+  field(s, ranged ? "Arc height min px" : "Arc height px", inp("n", lp.height_px, function (v) { lp.height_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
     "How high the body arcs at the middle of the jump, game px at 100 % (0 = a flat glide; the frames show their own jump on top).";
+  if (ranged) field(s, "Arc height max px", inp("n", lp.height_max_px, function (v) { lp.height_max_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
+    "The arc height for a jump at Distance for max or farther.";
+  var dRange = lp.damage_mode === "range";
+  field(s, "Leap damage", inp([["fixed", "Fixed (each FX's own damage)"], ["range", "Range (by arc height)"]], dRange ? "range" : "fixed", function (v) { lp.damage_mode = v; redo(); })).title =
+    "Fixed: the action's FX deal the damage set on each of them. Range: every Deals-damage FX of this action deals Damage at min arc on the lowest arc up to Damage at max arc on the highest, for that leap.";
+  if (dRange) {
+    field(s, "Damage at min arc", inp("n", lp.damage_min, function (v) { lp.damage_min = Math.max(0, Math.min(9999, v)); redo(); }, 0, 9999, 1));
+    field(s, "Damage at max arc", inp("n", lp.damage_max, function (v) { lp.damage_max = Math.max(0, Math.min(9999, v)); redo(); }, 0, 9999, 1));
+  }
+  if (ranged || dRange) {
+    field(s, "Distance for min px", inp("n", lp.dist_min_px, function (v) { lp.dist_min_px = Math.max(0, Math.min(5000, v)); redo(); }, 0, 5000, 10)).title =
+      "Target this close or closer at take-off: the lowest arc and damage. Usually your trigger distance.";
+    field(s, "Distance for max px", inp("n", lp.dist_max_px, function (v) { lp.dist_max_px = Math.max(0, Math.min(5000, v)); redo(); }, 0, 5000, 10)).title =
+      "Target this far or farther at take-off: the highest arc and damage.";
+    var dNow = Math.hypot(S.target[0] - (S.leap ? S.leap.sx : S.figX), S.target[1] - (S.leap ? S.leap.sy : S.figY)), fNow = FXK.leapFrac(lp, dNow);
+    note(s, (ranged ? "Arc: " + Math.round(lp.height_px) + " px at " + Math.round(lp.dist_min_px) + " px or closer \u2192 " + Math.round(lp.height_max_px) + " px at " + Math.round(lp.dist_max_px) + " px or farther. " : "") +
+      (dRange ? "Damage per hit: " + lp.damage_min + " on the lowest arc \u2192 " + lp.damage_max + " on the highest" + (ranged ? "" : " (the arc is fixed, so the jump distance picks it)") + ". " : "") +
+      "Preview target at " + Math.round(dNow) + " px: arc " + Math.round(FXK.leapHeight(lp, fNow)) + " px" + (dRange ? ", " + FXK.leapDamage(lp, fNow) + " damage" : "") + ".");
+  }
   var custom = Array.isArray(lp.hit_px);
   field(s, "Hit point", inp([["auto", "Auto (damage FX, else weapon tip)"], ["custom", "Custom offset"]], custom ? "custom" : "auto", function (v) {
     lp.hit_px = v === "custom" ? (custom ? lp.hit_px : [0, 0]) : null; redo(); })).title =

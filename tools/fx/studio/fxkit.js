@@ -526,7 +526,30 @@ var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next:
 // frame), placed so the hit point lands on that spot.  hit_px [x forward, y]
 // sets the hit point; null = the action's damaging FX starting nearest
 // land_frame (its anchor + offset), else the weapon tip (wtip).
-var LEAP_DEFAULTS = {start_frame: 0, land_frame: -1, height_px: 40, hit_px: null};
+// Height range: height_max_px set (not null) = the arc grows from height_px
+// with the target at dist_min_px or closer to height_max_px at dist_max_px
+// or farther.  damage_mode "fixed" = every FX deals its own damage; "range"
+// = every Deals-damage FX of the action deals damage_min at the lowest arc
+// up to damage_max at the highest, for that leap.
+var LEAP_DEFAULTS = {start_frame: 0, land_frame: -1, height_px: 40, hit_px: null,
+  height_max_px: null, dist_min_px: 300, dist_max_px: 900, damage_mode: "fixed", damage_min: 5, damage_max: 20};
+// Where a leap at distance `dist` sits in its range, 0..1 (laser/actions.py
+// _leap_frac), its arc height (game px at 100 %) and its damage (null = each
+// FX's own).
+function leapFrac(lp, dist) {
+  var lo = +lp.dist_min_px || 0, hi = +lp.dist_max_px || 0;
+  if (hi <= lo) return dist >= lo ? 1 : 0;
+  return Math.max(0, Math.min(1, (dist - lo) / (hi - lo)));
+}
+function leapHeight(lp, f) {
+  var h0 = Math.max(0, +lp.height_px || 0);
+  return lp.height_max_px == null ? h0 : h0 + (Math.max(0, +lp.height_max_px || 0) - h0) * f;
+}
+function leapDamage(lp, f) {
+  if (lp.damage_mode !== "range") return null;
+  var d0 = +lp.damage_min || 0, d1 = +lp.damage_max || 0;
+  return Math.round(Math.max(0, d0 + (d1 - d0) * f) * 100) / 100;
+}
 // blink: the action's Blink (BLINK_DEFAULTS below).
 // Character-level aiming (pack.aim): the fighter always faces the target and
 // the whole frame on show turns so its barrel (from -> to anchor of that
@@ -2234,7 +2257,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
