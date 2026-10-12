@@ -1,0 +1,7370 @@
+{
+ "format": "pb_fxkit",
+ "version": 2,
+ "tick_ms": 16,
+ "character": "thear_copy",
+ "space": {
+  "coords": "game px, y down, relative to the figure position; x mirrors when facing left",
+  "anchors": "image px of the character's keyframe PNGs (per action, per frame); game px = (p - image_origin_px) * game_px_per_image_px * position_scale",
+  "image_origin_px": [
+   320,
+   535
+  ],
+  "head_px": 30,
+  "target_head_px": 16,
+  "game_px_per_image_px": 0.139303
+ },
+ "timing": {
+  "idle": {
+   "frame_ms": 100,
+   "frames": 6
+  },
+  "run": {
+   "frame_ms": 35.714,
+   "frames": 28
+  },
+  "attack_normal": {
+   "frame_ms": 87,
+   "frames": 8
+  },
+  "attack_normal_2": {
+   "frame_ms": 24,
+   "frames": 19
+  },
+  "attack_normal_3": {
+   "frame_ms": 24,
+   "frames": 24
+  },
+  "attack_special": {
+   "frame_ms": 64,
+   "frames": 12
+  },
+  "ultimate": {
+   "frame_ms": 64,
+   "frames": 53
+  },
+  "defend": {
+   "frame_ms": 24,
+   "frames": 23
+  }
+ },
+ "palette_lut": {
+  "built_from": [
+   "palette.body",
+   "palette.accent"
+  ],
+  "rule": "palette.build_lut([body, accent])"
+ },
+ "anchor_labels": {
+  "hip": "hip centre",
+  "chest": "chest",
+  "neck": "neck",
+  "head": "head",
+  "shB": "shoulder base",
+  "shL": "far shoulder",
+  "shR": "near shoulder",
+  "elL": "far elbow",
+  "elR": "near elbow",
+  "haL": "far hand",
+  "haR": "near hand",
+  "hpL": "far hip",
+  "hpR": "near hip",
+  "knL": "far knee",
+  "knR": "near knee",
+  "ftL": "far foot",
+  "ftR": "near foot",
+  "wtip": "weapon tip",
+  "wtip2": "weapon 2 tip",
+  "root": "above head"
+ },
+ "action_settings": {
+  "idle": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "run": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal": {
+   "chain_next": "attack_normal_2",
+   "chain_reset_ms": 1200,
+   "attack_px": 40,
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal_2": {
+   "chain_next": "attack_normal_3",
+   "chain_reset_ms": 1200,
+   "attack_px": 28,
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_normal_3": {
+   "movement": "move",
+   "move_speed_pct": 260,
+   "attack_px": 60,
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "attack_special": {
+   "logic": "all",
+   "cooldown_ms": 6000,
+   "conditions": [
+    {
+     "type": "every_ms",
+     "not": false,
+     "ms": 6000
+    },
+    {
+     "type": "target_within",
+     "not": false,
+     "px": 90
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "ultimate": {
+   "logic": "any",
+   "conditions": [
+    {
+     "type": "hp_below",
+     "not": false,
+     "pct": 60,
+     "repeat": false
+    },
+    {
+     "type": "hp_below",
+     "not": false,
+     "pct": 30,
+     "repeat": false
+    }
+   ],
+   "cooldown_ms": 0,
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  },
+  "defend": {
+   "logic": "all",
+   "cooldown_ms": 2000,
+   "conditions": [
+    {
+     "type": "target_attacking",
+     "not": false
+    },
+    {
+     "type": "target_within",
+     "not": false,
+     "px": 60
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   }
+  }
+ },
+ "entry_sets": [],
+ "paths": [],
+ "aim": {
+  "enabled": false,
+  "source": "attack_normal",
+  "from_anchor": "haR",
+  "to_anchor": "wtip",
+  "max_deg": 75
+ },
+ "damaged": {
+  "cooldown_ms": 0
+ },
+ "retreat": {
+  "enabled": false,
+  "mode": "avoid",
+  "angle_deg": 180,
+  "curve_deg_s": 0,
+  "speed_pct": 200,
+  "proximity_px": 80,
+  "avoid_duration_ms": 1500,
+  "reengage_duration_ms": 2000,
+  "cooldown_ms": 3000,
+  "logic": "any",
+  "conditions": [],
+  "fx": ""
+ },
+ "character_scale": 1,
+ "effects": [
+  {
+   "id": "Ethear001",
+   "name": "Leaking intent",
+   "action": "idle",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "shB",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffe39a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 1.6,
+    "angle_deg": -90,
+    "spread_deg": 70,
+    "speed_min": 4,
+    "speed_max": 9,
+    "gravity": -4,
+    "drag": 0.98,
+    "size_min": 0.5,
+    "size_max": 0.9,
+    "size_over_life": "shrink",
+    "life_min_ms": 700,
+    "life_max_ms": 1200
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear002",
+   "name": "Dust",
+   "action": "run",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 1,
+   "end_frame": 1,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "ftL",
+   "offset": [
+    0,
+    0.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 7,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 6,
+    "speed_max": 22,
+    "gravity": 10,
+    "drag": 0.9,
+    "size_min": 1.6,
+    "size_max": 3,
+    "size_over_life": "grow",
+    "life_min_ms": 400,
+    "life_max_ms": 700
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear003",
+   "name": "Dust",
+   "action": "run",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 15,
+   "end_frame": 15,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "ftR",
+   "offset": [
+    0,
+    0.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 7,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 6,
+    "speed_max": 22,
+    "gravity": 10,
+    "drag": 0.9,
+    "size_min": 1.6,
+    "size_max": 3,
+    "size_over_life": "grow",
+    "life_min_ms": 400,
+    "life_max_ms": 700
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear004",
+   "name": "Cleaver hitbox",
+   "action": "attack_normal",
+   "prim": "weapon",
+   "enabled": true,
+   "tag": "cleaver",
+   "start_frame": 4,
+   "end_frame": 6,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "to_anchor": "wtip",
+    "width": 4
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 4,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 10,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear005",
+   "name": "Air burst",
+   "action": "attack_normal",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "air",
+   "start_frame": 6,
+   "end_frame": 6,
+   "life_ticks": 30,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e6e1d6",
+    "c2": "#7d776c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 7,
+    "rate_per_s": 60,
+    "angle_deg": 0,
+    "spread_deg": 50,
+    "speed_min": 40,
+    "speed_max": 120,
+    "gravity": 0,
+    "drag": 0.86,
+    "size_min": 1.2,
+    "size_max": 2.6,
+    "size_over_life": "grow",
+    "life_min_ms": 180,
+    "life_max_ms": 360
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear006",
+   "name": "Drag furrow",
+   "action": "attack_normal_2",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 2,
+   "end_frame": 6,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 40,
+    "angle_deg": -120,
+    "spread_deg": 40,
+    "speed_min": 8,
+    "speed_max": 25,
+    "gravity": 30,
+    "drag": 0.9,
+    "size_min": 0.8,
+    "size_max": 1.8,
+    "size_over_life": "grow",
+    "life_min_ms": 300,
+    "life_max_ms": 600
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear007",
+   "name": "Cleaver hitbox",
+   "action": "attack_normal_2",
+   "prim": "weapon",
+   "enabled": true,
+   "tag": "cleaver",
+   "start_frame": 7,
+   "end_frame": 11,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "to_anchor": "wtip",
+    "width": 4
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 4,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 12,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear008",
+   "name": "Dust",
+   "action": "attack_normal_2",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 8,
+   "end_frame": 8,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 12,
+    "rate_per_s": 60,
+    "angle_deg": -60,
+    "spread_deg": 70,
+    "speed_min": 30,
+    "speed_max": 90,
+    "gravity": 120,
+    "drag": 0.9,
+    "size_min": 2.6,
+    "size_max": 5.5,
+    "size_over_life": "grow",
+    "life_min_ms": 400,
+    "life_max_ms": 800
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear009",
+   "name": "Rock chips",
+   "action": "attack_normal_2",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 8,
+   "end_frame": 8,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 7,
+    "rate_per_s": 60,
+    "angle_deg": -70,
+    "spread_deg": 60,
+    "speed_min": 90,
+    "speed_max": 200,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.4,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear010",
+   "name": "Charge afterimages",
+   "action": "attack_normal_3",
+   "prim": "ghost",
+   "enabled": true,
+   "tag": "ghost",
+   "start_frame": 2,
+   "end_frame": 11,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "solid",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#3a332a",
+    "c2": "#3a332a",
+    "start_fraction": 0
+   },
+   "params": {
+    "interval": 2,
+    "ghost_life": 10,
+    "alpha": 90,
+    "max": 6
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear011",
+   "name": "Charge dust",
+   "action": "attack_normal_3",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 3,
+   "end_frame": 10,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    -3,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 45,
+    "angle_deg": -160,
+    "spread_deg": 40,
+    "speed_min": 10,
+    "speed_max": 35,
+    "gravity": 15,
+    "drag": 0.92,
+    "size_min": 1,
+    "size_max": 2.6,
+    "size_over_life": "grow",
+    "life_min_ms": 400,
+    "life_max_ms": 800
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear012",
+   "name": "Cleaver hitbox",
+   "action": "attack_normal_3",
+   "prim": "weapon",
+   "enabled": true,
+   "tag": "cleaver",
+   "start_frame": 2,
+   "end_frame": 13,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "to_anchor": "wtip",
+    "width": 4
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 6,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 30,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear013",
+   "name": "Impact flash",
+   "action": "attack_normal_3",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "flash",
+   "start_frame": 9,
+   "end_frame": 9,
+   "life_ticks": 6,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 9,
+    "a_center": 180,
+    "a_mid": 120,
+    "mid": 0.35,
+    "core_r": 2,
+    "fade": "out",
+    "pulse_hz": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear014",
+   "name": "Air burst",
+   "action": "attack_normal_3",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "air",
+   "start_frame": 9,
+   "end_frame": 9,
+   "life_ticks": 30,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e6e1d6",
+    "c2": "#7d776c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 12,
+    "rate_per_s": 60,
+    "angle_deg": 0,
+    "spread_deg": 50,
+    "speed_min": 40,
+    "speed_max": 150,
+    "gravity": 0,
+    "drag": 0.86,
+    "size_min": 1.2,
+    "size_max": 2.6,
+    "size_over_life": "grow",
+    "life_min_ms": 180,
+    "life_max_ms": 360
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear015",
+   "name": "Block sparks",
+   "action": "defend",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "sparks",
+   "start_frame": 3,
+   "end_frame": 3,
+   "life_ticks": 30,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    3,
+    -8
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#ff9a2e",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 14,
+    "rate_per_s": 60,
+    "angle_deg": -20,
+    "spread_deg": 110,
+    "speed_min": 60,
+    "speed_max": 170,
+    "gravity": 300,
+    "drag": 0.95,
+    "size_min": 0.5,
+    "size_max": 0.9,
+    "size_over_life": "shrink",
+    "life_min_ms": 180,
+    "life_max_ms": 380
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear016",
+   "name": "Impact flash",
+   "action": "defend",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "flash",
+   "start_frame": 3,
+   "end_frame": 3,
+   "life_ticks": 6,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    3,
+    -8
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 8,
+    "a_center": 200,
+    "a_mid": 120,
+    "mid": 0.35,
+    "core_r": 2,
+    "fade": "out",
+    "pulse_hz": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear017",
+   "name": "Dust",
+   "action": "defend",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 3,
+   "end_frame": 3,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "ftR",
+   "offset": [
+    0,
+    0.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 8,
+    "rate_per_s": 60,
+    "angle_deg": -160,
+    "spread_deg": 50,
+    "speed_min": 15,
+    "speed_max": 45,
+    "gravity": 20,
+    "drag": 0.9,
+    "size_min": 1,
+    "size_max": 2.4,
+    "size_over_life": "grow",
+    "life_min_ms": 400,
+    "life_max_ms": 700
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear018",
+   "name": "Shove",
+   "action": "defend",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "air",
+   "start_frame": 17,
+   "end_frame": 17,
+   "life_ticks": 30,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    4,
+    -6
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e6e1d6",
+    "c2": "#7d776c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 10,
+    "rate_per_s": 60,
+    "angle_deg": 0,
+    "spread_deg": 50,
+    "speed_min": 40,
+    "speed_max": 120,
+    "gravity": 0,
+    "drag": 0.86,
+    "size_min": 1.2,
+    "size_max": 2.6,
+    "size_over_life": "grow",
+    "life_min_ms": 180,
+    "life_max_ms": 360
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear019",
+   "name": "Shove hitbox",
+   "action": "defend",
+   "prim": "weapon",
+   "enabled": true,
+   "tag": "cleaver",
+   "start_frame": 16,
+   "end_frame": 18,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "to_anchor": "wtip",
+    "width": 4
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 2,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 26,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear020",
+   "name": "Dust",
+   "action": "attack_special",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 2,
+   "end_frame": 2,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    -2,
+    10
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 16,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 150,
+    "speed_min": 20,
+    "speed_max": 80,
+    "gravity": 40,
+    "drag": 0.9,
+    "size_min": 2.6,
+    "size_max": 5.5,
+    "size_over_life": "grow",
+    "life_min_ms": 500,
+    "life_max_ms": 1100
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear021",
+   "name": "Ground shockwave",
+   "action": "attack_special",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 2,
+   "end_frame": 2,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    -2,
+    10
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 30,
+    "width": 1.2,
+    "width_end": 0.3,
+    "expand_ms": 420,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear022",
+   "name": "Cleaver smear",
+   "action": "attack_special",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "slash",
+   "start_frame": 7,
+   "end_frame": 10,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e9e3d4",
+    "c2": "#5f574b",
+    "start_fraction": 0.15
+   },
+   "params": {
+    "max_points": 18,
+    "min_dist": 1,
+    "decay": 5,
+    "taper": true,
+    "w_tail": 0.5,
+    "w_head": 4.2,
+    "alpha": 140,
+    "head_glow_r": 0,
+    "head_dot_r": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear023",
+   "name": "Apex glint",
+   "action": "attack_special",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 4,
+   "end_frame": 6,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "haR",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffe39a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 3,
+    "r_end": 7,
+    "a_center": 120,
+    "a_mid": 40,
+    "mid": 0.4,
+    "core_r": 0,
+    "fade": "inout",
+    "pulse_hz": 3
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear024",
+   "name": "Impact flash",
+   "action": "attack_special",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "flash",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 8,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    8
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 4,
+    "r_end": 20,
+    "a_center": 230,
+    "a_mid": 120,
+    "mid": 0.35,
+    "core_r": 2,
+    "fade": "out",
+    "pulse_hz": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear025",
+   "name": "Dust shockwave",
+   "action": "attack_special",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    10
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 85,
+    "width": 1.3,
+    "width_end": 0.3,
+    "expand_ms": 420,
+    "rings": 2,
+    "gap_ms": 110,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear026",
+   "name": "Landing wave (hit)",
+   "action": "attack_special",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    10
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 80,
+    "width": 0.01,
+    "width_end": 0.01,
+    "expand_ms": 420,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 10,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 40,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear027",
+   "name": "Dust",
+   "action": "attack_special",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    10
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 26,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 160,
+    "speed_min": 20,
+    "speed_max": 110,
+    "gravity": 40,
+    "drag": 0.9,
+    "size_min": 2.6,
+    "size_max": 5.5,
+    "size_over_life": "grow",
+    "life_min_ms": 500,
+    "life_max_ms": 1300
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear028",
+   "name": "Rock chips",
+   "action": "attack_special",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    10
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 12,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 80,
+    "speed_max": 220,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.4,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear029",
+   "name": "Molten crack",
+   "action": "attack_special",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 45,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    28,
+    10
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": -4,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 10,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear030",
+   "name": "Molten crack",
+   "action": "attack_special",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 45,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    37.97564050259824,
+    9.302435262558747
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 6,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 9,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear031",
+   "name": "Molten crack",
+   "action": "attack_special",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 45,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    46.9263375609127,
+    10.243191431967627
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": -3,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 8,
+    "w_start0": 0.9,
+    "w_start1": 0.5,
+    "w_end0": 0.5,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 6,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear032",
+   "name": "Molten crack",
+   "action": "attack_special",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 45,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    16,
+    10
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 177,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 9,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear033",
+   "name": "Molten crack",
+   "action": "attack_special",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 10,
+   "end_frame": 10,
+   "life_ticks": 45,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    7.012334187208836,
+    10.471023606186494
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 185,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 8,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear034",
+   "name": "Killing intent",
+   "action": "ultimate",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 2,
+   "end_frame": 31,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "chest",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9a04a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 14,
+    "r_end": 18,
+    "a_center": 40,
+    "a_mid": 16,
+    "mid": 0.45,
+    "core_r": 0,
+    "fade": "in",
+    "pulse_hz": 1.2
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [
+    {
+     "frame": 11,
+     "ease": "inout",
+     "set": {
+      "params.a_center": 80,
+      "params.r_end": 22
+     }
+    },
+    {
+     "frame": 20,
+     "ease": "out",
+     "set": {
+      "params.a_center": 70
+     }
+    },
+    {
+     "frame": 30,
+     "ease": "strong_in",
+     "set": {
+      "params.a_center": 150,
+      "params.r_end": 34
+     }
+    }
+   ]
+  },
+  {
+   "id": "Ethear035",
+   "name": "Intent motes",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 2,
+   "end_frame": 30,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "hip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffe39a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 18,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 6,
+    "speed_max": 22,
+    "gravity": -25,
+    "drag": 0.97,
+    "size_min": 0.5,
+    "size_max": 1.1,
+    "size_over_life": "shrink",
+    "life_min_ms": 500,
+    "life_max_ms": 1000
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [
+    {
+     "frame": 11,
+     "ease": "in",
+     "set": {
+      "params.rate_per_s": 40
+     }
+    }
+   ]
+  },
+  {
+   "id": "Ethear036",
+   "name": "Ground stirs",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 2,
+   "end_frame": 14,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 10,
+    "angle_deg": -90,
+    "spread_deg": 178,
+    "speed_min": 6,
+    "speed_max": 18,
+    "gravity": -2,
+    "drag": 0.95,
+    "size_min": 2,
+    "size_max": 4,
+    "size_over_life": "grow",
+    "life_min_ms": 600,
+    "life_max_ms": 1100
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [
+    {
+     "frame": 11,
+     "ease": "in",
+     "set": {
+      "params.rate_per_s": 24,
+      "params.speed_max": 30
+     }
+    }
+   ]
+  },
+  {
+   "id": "Ethear037",
+   "name": "Pebbles lift",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 10,
+   "end_frame": 14,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 26,
+    "angle_deg": -90,
+    "spread_deg": 170,
+    "speed_min": 4,
+    "speed_max": 14,
+    "gravity": -18,
+    "drag": 0.96,
+    "size_min": 0.6,
+    "size_max": 1.2,
+    "size_over_life": "none",
+    "life_min_ms": 400,
+    "life_max_ms": 700
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear038",
+   "name": "Impact flash",
+   "action": "ultimate",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "flash",
+   "start_frame": 15,
+   "end_frame": 15,
+   "life_ticks": 8,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 4,
+    "r_end": 16,
+    "a_center": 170,
+    "a_mid": 120,
+    "mid": 0.35,
+    "core_r": 2,
+    "fade": "out",
+    "pulse_hz": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear039",
+   "name": "Ground shockwave",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 15,
+   "end_frame": 15,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 70,
+    "width": 1.6,
+    "width_end": 0.3,
+    "expand_ms": 420,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 4,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 20,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear040",
+   "name": "Dust",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 15,
+   "end_frame": 15,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 34,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 170,
+    "speed_min": 25,
+    "speed_max": 140,
+    "gravity": 90,
+    "drag": 0.9,
+    "size_min": 2.6,
+    "size_max": 4.2,
+    "size_over_life": "grow",
+    "life_min_ms": 500,
+    "life_max_ms": 1400
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear041",
+   "name": "Rock chips",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 15,
+   "end_frame": 15,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 16,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 120,
+    "speed_max": 300,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.4,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear042",
+   "name": "Wind streaks",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "wind",
+   "start_frame": 15,
+   "end_frame": 19,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "hip",
+   "offset": [
+    0,
+    -4
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#d9d4c8",
+    "c2": "#5d574e",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 70,
+    "angle_deg": 100,
+    "spread_deg": 24,
+    "speed_min": 140,
+    "speed_max": 240,
+    "gravity": 0,
+    "drag": 1,
+    "size_min": 0.4,
+    "size_max": 0.7,
+    "size_over_life": "shrink",
+    "life_min_ms": 90,
+    "life_max_ms": 170
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear043",
+   "name": "Rising afterimages",
+   "action": "ultimate",
+   "prim": "ghost",
+   "enabled": true,
+   "tag": "ghost",
+   "start_frame": 15,
+   "end_frame": 19,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "solid",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a3f2c",
+    "c2": "#4a3f2c",
+    "start_fraction": 0
+   },
+   "params": {
+    "interval": 1,
+    "ghost_life": 8,
+    "alpha": 110,
+    "max": 8
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear044",
+   "name": "Cleaver smear",
+   "action": "ultimate",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "slash",
+   "start_frame": 17,
+   "end_frame": 20,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e9e3d4",
+    "c2": "#5f574b",
+    "start_fraction": 0.15
+   },
+   "params": {
+    "max_points": 18,
+    "min_dist": 1,
+    "decay": 5,
+    "taper": true,
+    "w_tail": 0.5,
+    "w_head": 3.4,
+    "alpha": 140,
+    "head_glow_r": 0,
+    "head_dot_r": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear045",
+   "name": "Gathering rings",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 20,
+   "end_frame": 27,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "chest",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9a04a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 36,
+    "r_end": 4,
+    "width": 0.3,
+    "width_end": 0.9,
+    "expand_ms": 420,
+    "rings": 0,
+    "gap_ms": 260,
+    "ease": "in",
+    "fade": "in",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 1,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear046",
+   "name": "Blade drinks the light",
+   "action": "ultimate",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 22,
+   "end_frame": 31,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 9,
+    "a_center": 120,
+    "a_mid": 50,
+    "mid": 0.4,
+    "core_r": 1,
+    "fade": "in",
+    "pulse_hz": 4
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear047",
+   "name": "Meteor smear",
+   "action": "ultimate",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "slash",
+   "start_frame": 30,
+   "end_frame": 32,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffe39a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0.1
+   },
+   "params": {
+    "max_points": 24,
+    "min_dist": 1,
+    "decay": 2,
+    "taper": true,
+    "w_tail": 0.6,
+    "w_head": 5,
+    "alpha": 220,
+    "head_glow_r": 2,
+    "head_dot_r": 1
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear048",
+   "name": "Meteor afterimages",
+   "action": "ultimate",
+   "prim": "ghost",
+   "enabled": true,
+   "tag": "ghost",
+   "start_frame": 30,
+   "end_frame": 32,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "solid",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9a04a",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "interval": 1,
+    "ghost_life": 7,
+    "alpha": 120,
+    "max": 6
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear049",
+   "name": "Falling streaks",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "wind",
+   "start_frame": 31,
+   "end_frame": 31,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "hip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff0c8",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "stream",
+    "count": 12,
+    "rate_per_s": 120,
+    "angle_deg": -90,
+    "spread_deg": 20,
+    "speed_min": 200,
+    "speed_max": 320,
+    "gravity": 0,
+    "drag": 1,
+    "size_min": 0.4,
+    "size_max": 0.8,
+    "size_over_life": "shrink",
+    "life_min_ms": 90,
+    "life_max_ms": 160
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear050",
+   "name": "Impact flash",
+   "action": "ultimate",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "flash",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 10,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    13.5
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 8,
+    "r_end": 42,
+    "a_center": 255,
+    "a_mid": 120,
+    "mid": 0.35,
+    "core_r": 4,
+    "fade": "out",
+    "pulse_hz": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear051",
+   "name": "Dust shockwave",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 70,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 160,
+    "width": 1.2,
+    "width_end": 0.2,
+    "expand_ms": 700,
+    "rings": 2,
+    "gap_ms": 150,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear052",
+   "name": "Earthfall wave",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffe39a",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 140,
+    "width": 1.6,
+    "width_end": 0.3,
+    "expand_ms": 520,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 3,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 18,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 70,
+    "blockable": true,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear053",
+   "name": "Dome shock",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 24,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff8e6",
+    "c2": "#c9a04a",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 4,
+    "r_end": 40,
+    "width": 1.3,
+    "width_end": 0.2,
+    "expand_ms": 240,
+    "rings": 1,
+    "gap_ms": 200,
+    "ease": "out",
+    "fade": "out",
+    "glow": 2,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.7,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear054",
+   "name": "Dust",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 130,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 46,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 176,
+    "speed_min": 25,
+    "speed_max": 170,
+    "gravity": 70,
+    "drag": 0.9,
+    "size_min": 2,
+    "size_max": 5.5,
+    "size_over_life": "grow",
+    "life_min_ms": 800,
+    "life_max_ms": 1800
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear055",
+   "name": "Dust wall (front)",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 20,
+    "rate_per_s": 60,
+    "angle_deg": 0,
+    "spread_deg": 16,
+    "speed_min": 60,
+    "speed_max": 200,
+    "gravity": 0,
+    "drag": 0.94,
+    "size_min": 2,
+    "size_max": 5,
+    "size_over_life": "grow",
+    "life_min_ms": 700,
+    "life_max_ms": 1300
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear056",
+   "name": "Dust wall (back)",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 20,
+    "rate_per_s": 60,
+    "angle_deg": 180,
+    "spread_deg": 16,
+    "speed_min": 60,
+    "speed_max": 200,
+    "gravity": 0,
+    "drag": 0.94,
+    "size_min": 2,
+    "size_max": 5,
+    "size_over_life": "grow",
+    "life_min_ms": 700,
+    "life_max_ms": 1300
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear057",
+   "name": "Rock chips",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 30,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 130,
+    "speed_min": 140,
+    "speed_max": 360,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.8,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear058",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    28,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": -3,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 16,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear059",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    43.97807255607318,
+    14.662624700112898
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 7,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 14,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear060",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    57.87371867905169,
+    16.368795507784963
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": -4,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 12,
+    "w_start0": 0.9,
+    "w_start1": 0.5,
+    "w_end0": 0.5,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 6,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear061",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    69.84448728216958,
+    15.531717822855459
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 5,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 10,
+    "w_start0": 0.6000000000000001,
+    "w_start1": 0.5,
+    "w_end0": 0.25,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 8,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear062",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    16,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 176,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 15,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear063",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    1.0365392461026364,
+    16.546347106161882
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 186,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 13,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear064",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 110,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    -11.892245393684918,
+    15.187477083682392
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 177,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 11,
+    "w_start0": 0.9,
+    "w_start1": 0.5,
+    "w_end0": 0.5,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 6,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear065",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    24,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 25,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 9,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear066",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    32.156770083329846,
+    19.303564355666296
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": -10,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 7,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear067",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    20,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 152,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 8,
+    "w_start0": 1.5,
+    "w_start1": 0.5,
+    "w_end0": 1,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 2,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear068",
+   "name": "Molten crack",
+   "action": "ultimate",
+   "prim": "beam",
+   "enabled": true,
+   "tag": "crack",
+   "start_frame": 32,
+   "end_frame": 32,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    12.936419257128586,
+    19.25577250228713
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "angle",
+    "angle_deg": 188,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fff1c2",
+    "c2": "#ff8a1e",
+    "start_fraction": 0
+   },
+   "params": {
+    "length": 6,
+    "w_start0": 1.2,
+    "w_start1": 0.5,
+    "w_end0": 0.75,
+    "w_end1": 0.25,
+    "segments": 1,
+    "glow": 1.2,
+    "glow_color": "#6b3e0c",
+    "pulse_hz": 0,
+    "jitter": 0,
+    "detach_ticks": 0,
+    "grow_ticks": 4,
+    "tip_fade": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear069",
+   "name": "Crater glow",
+   "action": "ultimate",
+   "prim": "glow",
+   "enabled": true,
+   "tag": "aura",
+   "start_frame": 32,
+   "end_frame": 45,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "additive",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ff9a2e",
+    "c2": "#6b3e0c",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 18,
+    "r_end": 10,
+    "a_center": 110,
+    "a_mid": 40,
+    "mid": 0.5,
+    "core_r": 0,
+    "fade": "out",
+    "pulse_hz": 2
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear070",
+   "name": "Aftershock",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 36,
+   "end_frame": 36,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 50,
+    "width": 1.4,
+    "width_end": 0.3,
+    "expand_ms": 360,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear071",
+   "name": "Aftershock",
+   "action": "ultimate",
+   "prim": "pulse",
+   "enabled": true,
+   "tag": "shockwave",
+   "start_frame": 39,
+   "end_frame": 39,
+   "life_ticks": 40,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#b8a888",
+    "c2": "#4a4237",
+    "start_fraction": 0
+   },
+   "params": {
+    "r_start": 2,
+    "r_end": 40,
+    "width": 1.1,
+    "width_end": 0.3,
+    "expand_ms": 340,
+    "rings": 1,
+    "gap_ms": 120,
+    "ease": "out",
+    "fade": "out",
+    "glow": 0,
+    "fill_alpha": 0,
+    "stretch_x": 1,
+    "stretch_y": 0.26,
+    "tilt_deg": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear072",
+   "name": "Aftershock chips",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 36,
+   "end_frame": 36,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 6,
+    "rate_per_s": 60,
+    "angle_deg": -90,
+    "spread_deg": 120,
+    "speed_min": 40,
+    "speed_max": 110,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.4,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear073",
+   "name": "Dust",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "dust",
+   "start_frame": 46,
+   "end_frame": 46,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c9b89a",
+    "c2": "#5e5446",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 14,
+    "rate_per_s": 60,
+    "angle_deg": -100,
+    "spread_deg": 80,
+    "speed_min": 30,
+    "speed_max": 100,
+    "gravity": 90,
+    "drag": 0.9,
+    "size_min": 2.6,
+    "size_max": 5.5,
+    "size_over_life": "grow",
+    "life_min_ms": 500,
+    "life_max_ms": 1100
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear074",
+   "name": "Torn-out chips",
+   "action": "ultimate",
+   "prim": "particles",
+   "enabled": true,
+   "tag": "debris",
+   "start_frame": 46,
+   "end_frame": 46,
+   "life_ticks": 90,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "figure",
+   "offset": [
+    22,
+    15.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "static",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#4a4540",
+    "c2": "#1d1b19",
+    "start_fraction": 0
+   },
+   "params": {
+    "mode": "burst",
+    "count": 8,
+    "rate_per_s": 60,
+    "angle_deg": -95,
+    "spread_deg": 50,
+    "speed_min": 60,
+    "speed_max": 160,
+    "gravity": 700,
+    "drag": 1,
+    "size_min": 0.7,
+    "size_max": 1.4,
+    "size_over_life": "none",
+    "life_min_ms": 500,
+    "life_max_ms": 900
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Ethear075",
+   "name": "Cleaver smear",
+   "action": "ultimate",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "slash",
+   "start_frame": 46,
+   "end_frame": 47,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "anchor": "wtip",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#e9e3d4",
+    "c2": "#5f574b",
+    "start_fraction": 0.15
+   },
+   "params": {
+    "max_points": 7,
+    "min_dist": 1,
+    "decay": 5,
+    "taper": true,
+    "w_tail": 0.5,
+    "w_head": 3.6,
+    "alpha": 140,
+    "head_glow_r": 0,
+    "head_dot_r": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  }
+ ],
+ "groups": [],
+ "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "note": "Thear FX, theme 'Weight': earth (dust, rock chips, flattened shockwaves), steel (heavy dull smears) and killing intent (tarnished molten gold that stays buried until he gets serious). Quiet on the one-handed chain, louder on the special, the world breaks on Earthfall."
+}
