@@ -138,7 +138,8 @@ class ActionRunner:
                  "hp_fired", "history", "last_attack_end", "chain_pos", "hit_tags", "next_tag", "deflected",
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
-                 "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root")
+                 "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
+                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags")
 
     def __init__(self):
         self.playing = None
@@ -167,6 +168,14 @@ class ActionRunner:
         self.tgt_track = []
         self.last_hp = None
         self.hp_drops = []
+        # Anti-knockback (ai.resists_knockback): a resisted hit still counts
+        # for every action except `defend`.  next_resisted marks the next
+        # note_damage; resisted_hp is its HP waiting for observe() to log it
+        # in resisted_drops; defend_tags = this tick's hit tags minus them.
+        self.next_resisted = False
+        self.resisted_hp = 0.0
+        self.resisted_drops = []
+        self.defend_tags = []
         self.landed = 0
         self.cursor_facing_left = None
         self.rng = random.Random()
@@ -181,12 +190,20 @@ class ActionRunner:
         self.was_attacking = False   # tracker for non-image fighters: dash / slash edge
 
     # ------------------------------------------------------------ events
-    def note_damage(self):
+    def note_damage(self, amount=0.0):
         tag = self.next_tag if self.next_tag is not None else ""
         self.next_tag = None
+        resisted, self.next_resisted = self.next_resisted, False
         self.hit_tags.append(tag)
+        if resisted:
+            # Anti-knockback: `defend` keeps its count from before this hit.
+            self.since_hits.setdefault("defend", self.since_hits.get("*", 0))
+            self.resisted_hp += max(0.0, float(amount or 0))
+        else:
+            self.defend_tags.append(tag)
         for k in list(self.since_hits.keys()):
-            self.since_hits[k] += 1
+            if not (resisted and k == "defend"):
+                self.since_hits[k] += 1
         self.since_hits.setdefault("*", 0)
         self.since_hits["*"] += 1
 
@@ -212,7 +229,10 @@ class ActionRunner:
             return self.since_hits.get(name, self.since_hits.get("*", 0)) >= int(cond.get("count", 3))
         if t == "damage_taken":
             since = now - int(float(cond.get("ms", 2000)) / TICK_MS)
-            return sum(d for (tk, d) in self.hp_drops if tk > since) >= float(cond.get("hp", 10))
+            lost = sum(d for (tk, d) in self.hp_drops if tk > since)
+            if name == "defend":
+                lost -= sum(d for (tk, d) in self.resisted_drops if tk > since)
+            return lost >= float(cond.get("hp", 10))
         if t == "landed_hit":
             return ctx["landed"] > 0
         if t == "target_within":
@@ -246,7 +266,8 @@ class ActionRunner:
             return ctx["tgt_speed"] <= float(cond.get("px_s", 20))
         if t == "hit_by_fx":
             want = _tags(cond.get("tags"))
-            return any(_tag_match(want, tg) for tg in ctx["hit_tags"])
+            tags = ctx["defend_tags"] if name == "defend" else ctx["hit_tags"]
+            return any(_tag_match(want, tg) for tg in tags)
         if t == "fx_near":
             want, px = _tags(cond.get("tags")), float(cond.get("px", 60))
             px2 = px * px
@@ -418,10 +439,15 @@ class ActionRunner:
         # HP lost (damage_taken), own / target speed (px/s over SPEED_WINDOW ticks).
         if self.last_hp is not None and p.hp < self.last_hp:
             self.hp_drops.append((now, self.last_hp - p.hp))
+            if self.resisted_hp > 0:
+                self.resisted_drops.append((now, min(self.resisted_hp, self.last_hp - p.hp)))
+        self.resisted_hp = 0.0
         self.last_hp = p.hp
         keep = now - int(DAMAGE_WINDOW_MS / TICK_MS)
         while self.hp_drops and self.hp_drops[0][0] <= keep:
             self.hp_drops.pop(0)
+        while self.resisted_drops and self.resisted_drops[0][0] <= keep:
+            self.resisted_drops.pop(0)
         if self.tgt_track and not battle:
             dxc = tx - self.tgt_track[-1][0]
             if dxc < -0.5:
@@ -441,7 +467,7 @@ class ActionRunner:
                 tgt_facing_left = fc[i]
         ctx = {"target": (tx, ty), "dist": dist, "now": now,
                "hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp),
-               "hit_tags": self.hit_tags, "deflected": self.deflected,
+               "hit_tags": self.hit_tags, "defend_tags": self.defend_tags, "deflected": self.deflected,
                "enemy_fx": getattr(world, "enemy_fx", None) or [],
                "own_speed": own_speed, "tgt_speed": tgt_speed, "tgt_state": tgt_state,
                "tgt_facing_left": tgt_facing_left, "landed": self.landed,
@@ -454,6 +480,7 @@ class ActionRunner:
     def end_tick(self):
         """Per-tick events (hits taken, hits landed) are read: clear them."""
         self.hit_tags = []
+        self.defend_tags = []
         self.landed = 0
 
     def force(self, fig, name, until, root, now):
@@ -723,10 +750,25 @@ def note_fx_hit(fig, tag):
         r.next_tag = tag or ""
 
 
-def note_damage(fig):
+def note_damage(fig, amount=0.0):
     r = getattr(fig, "act", None)
     if r is not None:
-        r.note_damage()
+        r.note_damage(amount)
+
+
+def note_resisted(fig):
+    """The next hit this fighter takes was resisted by its anti-knockback
+    (ai.resists_knockback): it won't count toward `defend`'s conditions."""
+    r = getattr(fig, "act", None)
+    if r is not None:
+        r.next_resisted = True
+
+
+def clear_resisted(fig):
+    """Drop an unused note_resisted mark (the hit was blocked or immune)."""
+    r = getattr(fig, "act", None)
+    if r is not None:
+        r.next_resisted = False
 
 
 def note_landed(fig):

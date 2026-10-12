@@ -50,7 +50,7 @@ these characters; it plays the PNGs.
                                              "speed": 0, "keys": [{"ms": 200, "speed": 3, "ease": "inout"}],
                                              "logic": "any", "conditions": []}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
-  "damaged": {"cooldown_ms": 0},
+  "damaged": {"cooldown_ms": 0, "anti_knockback": 0},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
@@ -498,6 +498,12 @@ next hit after that takes HP again. `0` = every hit takes HP. It covers every
 HP source (bullets, FX, dash-slash, contact, petals, clones), in Solo and
 Battle alike (`ai.damage_immune`). A rig-drawn `pb_character` JSON can set the
 same top-level `"damaged": {"cooldown_ms": N}` block.
+`anti_knockback` (px, `0` = off): an FX hit whose battle `knockback` is at or
+below it still takes HP, but doesn't knock the character back and doesn't
+count toward its `defend` action's trigger conditions (hits taken, hit by FX,
+damage taken); other actions still count it. A hit with more knockback than
+it knocks back and can trigger `defend` as normal (`ai.resists_knockback`).
+Compared with FX Studio hits only; built-in bullets and dash-slashes ignore it.
 
 **Tactical retreat (`retreat`, whole character; `laser/retreat.py`).** When
 its conditions are met (`logic` any / all) the fighter dashes at `speed_pct` %

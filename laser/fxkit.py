@@ -413,8 +413,11 @@ def normalize_blink(b):
 AIM_DEFAULTS = dict(enabled=False, source="attack_normal", from_anchor="haR", to_anchor="wtip", max_deg=75)
 # Character-level "Damaged" (pack.damaged, FXK.DAMAGED_DEFAULTS): after a hit
 # ticks HP the fighter is invincible for cooldown_ms (read by ai.py
-# damage_cooldown_ticks straight from the pack).
-DAMAGED_DEFAULTS = dict(cooldown_ms=0)
+# damage_cooldown_ticks straight from the pack).  anti_knockback: an FX hit
+# whose battle knockback is at or below it (and it is above 0) still takes HP
+# but neither knocks the fighter back nor counts toward its `defend` trigger
+# conditions; 0 = off (read by ai.py resists_knockback).
+DAMAGED_DEFAULTS = dict(cooldown_ms=0, anti_knockback=0)
 # Clash settings are not per character: which clash FX plays for each pair
 # of colliding FX types is a world table (laser/clash.py WORLD_SLOTS, edited
 # on FX Studio's World Clash page).  An older file's pack.clash is ignored.

@@ -530,7 +530,11 @@ function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
 // fighter is invincible (no HP loss, no knockback) for cooldown_ms; the next
 // hit after that ticks HP again.  0 = every hit ticks HP (the old behaviour).
 // Read by laser/ai.py damage_immune() for every HP source.
-var DAMAGED_DEFAULTS = {cooldown_ms: 0};
+// anti_knockback: an FX hit whose battle knockback is at or below it (and
+// this is above 0) still takes HP but doesn't knock the fighter back or count
+// toward its `defend` trigger conditions.  0 = off.  Read by laser/ai.py
+// resists_knockback().
+var DAMAGED_DEFAULTS = {cooldown_ms: 0, anti_knockback: 0};
 function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 // The WORLD clash table (not per character): which clash explosion
 // (laser/clashfx.py key, "none" = no FX) plays for each pair of colliding FX

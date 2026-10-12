@@ -1993,6 +1993,15 @@ function buildDamagedProps(d) {
   field(s, "Hit cooldown ms", inp("n", dm.cooldown_ms, function (v) { dm.cooldown_ms = Math.max(0, Math.min(10000, v)); say(); save(); }, 0, 10000, 10)).title =
     "After a hit takes HP, the character is invincible (no HP loss, no knockback) for this long. The next hit after it ends takes HP again. 0 = every hit takes HP.";
   say(); s.appendChild(info);
+  var akInfo = document.createElement("div"); akInfo.className = "note";
+  function sayAk() {
+    var ak = +dm.anti_knockback || 0;
+    akInfo.textContent = ak > 0 ? "An FX hit with Knockback px " + ak + " or less still takes HP, but doesn't knock this character back or trigger its defend. A hit with more knockback than " + ak + " knocks it back and can trigger defend as normal."
+      : "0: off. Every hit knocks back by its own Knockback px and can trigger defend.";
+  }
+  field(s, "Anti-knockback", inp("n", dm.anti_knockback, function (v) { dm.anti_knockback = Math.max(0, Math.min(1000, v)); sayAk(); save(); }, 0, 1000, 0.5)).title =
+    "Compared with the attacking FX's Knockback px. Equal or less: the hit still takes HP, but no knockback and it doesn't count toward this character's defend trigger conditions. More: knocked back and defend can trigger as normal. 0 = off.";
+  sayAk(); s.appendChild(akInfo);
 }
 // Character-level Tactical retreat (pack.retreat), shown under every action's settings.
 // Its conditions are the action trigger conditions; "this action" = the retreat.

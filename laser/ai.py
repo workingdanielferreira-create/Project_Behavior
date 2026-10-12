@@ -183,6 +183,37 @@ def knockback_immune(fig, world):
     return world.global_tick > fig.personality.dmg_hit_tick + 1
 
 
+# ---------------------------------------------------------------------------
+# Anti-knockback ("Anti-knockback" in FX Studio's Damaged section:
+# pack.damaged.anti_knockback; a JSON character can set the same top-level
+# `damaged` block).  An FX hit whose battle knockback is at or below it still
+# takes HP, but doesn't knock the fighter back and doesn't count toward its
+# `defend` trigger conditions (actions.note_resisted).  0 (the default, and
+# every built-in) = off.  Only FX Studio hits are compared with it.
+# ---------------------------------------------------------------------------
+def anti_knockback(fig):
+    mode = fig.mode
+    ak = getattr(mode, "_anti_kb", None)
+    if ak is None:
+        ak = 0.0
+        char = getattr(mode, "character", None)
+        if char:
+            src = ((char.get("_fxkit") or {}).get("damaged")
+                   or char.get("damaged") or {})
+            try:
+                ak = max(0.0, float(src.get("anti_knockback") or 0))
+            except (TypeError, ValueError, AttributeError):
+                ak = 0.0
+        mode._anti_kb = ak
+    return ak
+
+
+def resists_knockback(fig, knockback):
+    """True when fig's anti-knockback is set and at least the hit's knockback."""
+    ak = anti_knockback(fig)
+    return ak > 0 and ak >= float(knockback or 0)
+
+
 def apply_hp_damage(fig, world, amount=1, unblockable=False):
     """Deduct `amount` HP from fig (default 1, the historical flat per-hit
     value every built-in attack still uses) and report the death when HP
@@ -211,7 +242,7 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False):
         # Image characters: a hit landing while `defend` plays is blocked.
         if _actions.blocks_hit(fig):
             return False
-    _actions.note_damage(fig)
+    _actions.note_damage(fig, amount)
     _combat.special_note_hit_taken(fig)
     p = fig.personality
     note_impact_taken(fig)
