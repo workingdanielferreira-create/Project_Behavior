@@ -351,7 +351,15 @@ ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="",
 # arc height_px high, landing so the hit point is on the target; hit_px
 # [x forward, y] overrides where that hit point is (None = from the action's
 # damaging FX, else the weapon tip).
-LEAP_DEFAULTS = dict(start_frame=0, land_frame=-1, height_px=40.0, hit_px=None)
+# Height range: height_max_px set (not None) = the arc grows from height_px
+# with the target at dist_min_px or closer to height_max_px at dist_max_px
+# or farther (in between: in proportion).  damage_mode "fixed" = every FX
+# deals its own damage; "range" = every Deals-damage FX of the action deals
+# damage_min at the lowest arc up to damage_max at the highest (the same
+# proportion), for that leap.
+LEAP_DEFAULTS = dict(start_frame=0, land_frame=-1, height_px=40.0, hit_px=None,
+                     height_max_px=None, dist_min_px=300.0, dist_max_px=900.0,
+                     damage_mode="fixed", damage_min=5.0, damage_max=20.0)
 # The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): a
 # list of blinks (`blinks`, each BLINK_STEP_DEFAULTS) that run in order as the
 # action's frames pass them; on while the list holds any.  Each blink: the
@@ -3014,6 +3022,10 @@ class _Host:
             dots.append([shot.x, shot.y, 0])
 
     def on_hit(self, inst, damage, dx, dy, knockback, key):
+        from .actions import leap_damage
+        ld = leap_damage(self.fig, inst.fx.get("action"))
+        if ld is not None:
+            damage = ld
         self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", ""), inst))
 
 

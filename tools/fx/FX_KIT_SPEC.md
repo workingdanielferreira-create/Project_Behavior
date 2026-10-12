@@ -123,13 +123,21 @@ whole action; `"move"` lets it keep moving while the action plays, at
 away from the target at `move_speed_pct` % of its normal speed until
 `back_stop_pct` % of the whole action (all loops) has played, then holds
 still for the rest; `"leap"` jumps onto the target (the `leap` block:
-`{"start_frame": 0, "land_frame": -1, "height_px": 40, "hit_px": null}`).
+`{"start_frame": 0, "land_frame": -1, "height_px": 40, "hit_px": null,
+"height_max_px": null, "dist_min_px": 300, "dist_max_px": 900,
+"damage_mode": "fixed", "damage_min": 5, "damage_max": 20}`).
 Before `start_frame` it stands facing the target; at it the target's spot
 is locked and the fighter arcs there (`height_px` high, game px at 100 %),
 arriving as `land_frame` starts (-1 = the last frame), placed so its hit
 point lands on the spot. `hit_px` `[x forward, y]` sets the hit point;
 `null` = the action's Deals-damage FX starting nearest `land_frame` (its
 anchor + offset), else the weapon tip `wtip` on that frame, else the body.
+Height range: with `height_max_px` set (not `null`) the arc grows from
+`height_px` (target at `dist_min_px` or closer at take-off) to
+`height_max_px` (at `dist_max_px` or farther), in proportion between.
+`damage_mode` `"fixed"` = each FX deals its own damage; `"range"` = every
+Deals-damage FX of the action deals `damage_min` on the lowest arc up to
+`damage_max` on the highest (the same proportion), for that leap.
 A knockback knocks it out of the air. `idle` always stands and
 `run` always moves, so the field is ignored for them. The engine applies it in
 Solo and Battle alike (`FXK.moveFactor(name, cfg)` gives the speed fraction).
