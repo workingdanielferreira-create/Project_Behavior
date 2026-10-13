@@ -11,6 +11,7 @@ from PyQt5.QtGui import QPen
 
 from . import config
 from . import combat as _combat
+from . import unique as _unique
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
@@ -25,7 +26,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -55,6 +56,7 @@ class Figure:
         self.retreat = None  # retreat.RetreatState (tactical retreat)
         self.blink = None    # blink.BlinkState (FX Studio blink teleport)
         self.time = None     # timefx.TimeState (FX Studio time control: caster + time scales)
+        self.ua = None       # unique.UAState (the character's unique ability)
         self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
 
     # convenience aliases ---------------------------------------------------
@@ -239,6 +241,11 @@ class Figure:
         # Overlay._paint_abs_layer, under / over ALL characters.)
         if self.fx is not None:
             self.fx.draw(p, self, "behind")
+
+        # --- Unique ability overlays (rage aura, riposte stance ring,
+        # phase-shift charges, nullified-hit flash) ---
+        if not gone:
+            _unique.draw(self, p, fig_pscale)
 
         frame = self._current_frame()
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the

@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx, clash
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx, clash, unique
 from . import platform_win as win
 from . import action_log
 
@@ -388,6 +388,9 @@ class CombatSystem(System):
             if fig.combat.vc_shots_pending:
                 world.projectiles.extend(fig.combat.vc_shots_pending)
                 fig.combat.vc_shots_pending = []
+            # --- Unique ability (laser/unique.py): timers, queued counter
+            # shots / bounce splits, Mirror Legion timer trigger. ---
+            unique.tick(fig, world)
             # --- Blink crackle FX: drain warp endpoints into world sparks ---
             combat.drain_blink_fx(fig, world)
             # --- Clone system: tick autonomous ghosts (preset 'clone') ---
@@ -577,6 +580,9 @@ class ProjectileSystem(System):
                 # unaffected (see combat.position_speed_scale).
                 proj.update(combat.position_speed_scale(proj.x, proj.y,
                                                         _sw, _sh))
+                # Unique ability Ricochet: bounce off the screen edges and
+                # enemy shots / FX (before the off-screen cull).
+                unique.proj_step(proj, world)
                 _beam_diag = (proj.style == "beam")
                 if not proj.alive:
                     if _beam_diag:
@@ -657,7 +663,9 @@ class ProjectileSystem(System):
                     ddx, ddy = proj.x - cx, proj.y - cy
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
-                        if not proj.pierce:
+                        # Ricochet: bounces off the cursor instead of dying.
+                        if not proj.pierce and not unique.proj_off_point(
+                                proj, cx, cy, proj.hit_r_sq ** 0.5):
                             if _beam_diag:
                                 action_log.log("BEAM_CULL",
                                     f"cursor-hit age={proj.age} "
@@ -687,7 +695,9 @@ class ProjectileSystem(System):
                             # register the hit visual/burst same as any other
                             # bullet, but the bullet itself survives and keeps
                             # travelling instead of being destroyed on contact.
-                            if not proj.pierce:
+                            # Ricochet: left alive — the struck side bounces
+                            # it off the fighter (CollisionSystem).
+                            if not proj.pierce and not unique.proj_wants_figures(proj):
                                 if _beam_diag:
                                     action_log.log("BEAM_CULL",
                                         f"figure-hit age={proj.age} "
@@ -1191,12 +1201,16 @@ class CollisionSystem(System):
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
+                        # Ricochet (shooter's unique ability): the bullet
+                        # bounces off this fighter instead of dying.
+                        _bounced = unique.proj_off_figure(_src, fig.x, fig.y,
+                                                          proj_hit_sq ** 0.5)
                         # one_hit bullets (e.g. vanish-cut strikes) die at
                         # source after their first landed hit — pierce keeps
                         # them alive through parry/crescent/contact culls,
                         # this is the one sanctioned kill so each deals
                         # exactly one hit.
-                        if getattr(_src, "one_hit", False):
+                        if getattr(_src, "one_hit", False) and not _bounced:
                             combat.kill_projectile(_src)
                         break
 

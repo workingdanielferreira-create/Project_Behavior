@@ -27,6 +27,7 @@ from PyQt5.QtGui import (QBrush, QColor, QLinearGradient, QPen, QPainter, QPaint
                          QRadialGradient)
 
 from . import clashfx, config
+from . import unique as _unique
 
 TICK_MS = 16
 TICK_S = TICK_MS / 1000.0
@@ -1088,9 +1089,15 @@ class Inst:
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap",
-                 "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp")
+                 "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
+                 "ua_rb", "ua_cd", "ua_dm")
 
     def __init__(self):
+        # Unique ability Ricochet (laser/unique.py): bounces left (None = not
+        # read yet), no-rebounce window, damage kept after the bounces so far.
+        self.ua_rb = None
+        self.ua_cd = 0
+        self.ua_dm = 1.0
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
         self.run = False       # spawned by a Continuous run
         self.tgt = None        # Each in place: the target this blade aims at (blade_pose)
@@ -1604,6 +1611,7 @@ def tick_inst(inst, host):
                 inst.trail.pop(0)
         if not intercept_step(inst, host):
             move_inst(inst, host)
+            _unique.inst_step(inst, host)   # Ricochet: walls / enemy shots
     inst.flow = (inst.flow + float(fx["color"].get("flow_speed") or 0)) % 1
     prim = fx["prim"]
     if prim == "ribbon":
@@ -1950,7 +1958,8 @@ def resolve_hits(inst, host, ps):
             host.on_hit(inst, b["damage"], inst.dir[0], inst.dir[1], b["knockback"], key)
             if inst.fx["prim"] == "technique":
                 swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
-            if not b["pierce"]:
+            # Ricochet (unique ability): bounces off the fighter instead.
+            if not b["pierce"] and not _unique.inst_off_figure(inst, host, hx, hy, hr):
                 if can_lodge(inst):
                     blade_lodge(inst, hx, hy, hr, ps)
                 else:
@@ -3026,6 +3035,8 @@ class _Host:
         ld = leap_damage(self.fig, inst.fx.get("action"))
         if ld is not None:
             damage = ld
+        # Unique abilities: Berserker damage bonus, Ricochet damage kept.
+        damage = float(damage) * _unique.out_mult(self.fig) * _unique.inst_dmg_mult(inst)
         self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", ""), inst))
 
 

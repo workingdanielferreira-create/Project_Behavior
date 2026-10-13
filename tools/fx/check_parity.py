@@ -235,6 +235,10 @@ def main():
     # Conditions (laser/actions.py) and Tactical retreat defaults (laser/retreat.py).
     diff(js.get("CONDITION_TYPES"), act.get("CONDITION_TYPES"), "CONDITION_TYPES", out)
     diff(js.get("RETREAT_DEFAULTS"), rt.get("DEFAULTS"), "RETREAT_DEFAULTS", out)
+    # Unique Abilities (laser/unique.py).
+    ua = PyTables(os.path.join(ROOT, "laser", "unique.py"), {"config": cfg})
+    diff(js.get("UNIQUE_TYPES"), list(ua.get("TYPES")), "UNIQUE_TYPES", out)
+    diff(js.get("UNIQUE_DEFAULTS"), ua.get("DEFAULTS"), "UNIQUE_DEFAULTS", out)
 
     # Constants the Studio's previews copy from the game.
     diff(js.get("STAND_HEIGHT_PX"), cfg.get("IMAGE_STAND_HEIGHT_PX"), "STAND_HEIGHT_PX", out)

@@ -17,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion, unique
 from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
@@ -614,9 +614,11 @@ class World:
                 # splinters can never deal damage across the boundary.  The
                 # live Projectile rides along as tuple[8] so an interception
                 # (petal / crescent / parry / scatter) truly destroys it.
+                # Unique ability Berserker: the shooter's damage bonus.
                 side.enemy_projs = [
                     (pr.x, pr.y, pr.vx, pr.vy, pr.r, pr.g, pr.b,
-                     float(getattr(pr, "damage", 1.0)), pr)
+                     float(getattr(pr, "damage", 1.0))
+                     * unique.out_mult(getattr(pr, "owner", None)), pr)
                     for pr in other.projectiles
                     if pr.alive and pr.hit_r_sq > 0.0]
             else:

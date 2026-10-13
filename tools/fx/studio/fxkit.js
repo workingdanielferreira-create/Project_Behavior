@@ -567,6 +567,35 @@ function normalizeAim(a) { return fill(a || {}, AIM_DEFAULTS); }
 // resists_knockback().
 var DAMAGED_DEFAULTS = {cooldown_ms: 0, anti_knockback: 0};
 function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
+// Character-level Unique Ability (pack.unique_ability): ONE core mechanism
+// per character.  `type` names the active one ("none" = off); each ability
+// keeps its own settings block so switching back doesn't lose them.  Read by
+// laser/unique.py (DEFAULTS / TYPES there must match these).
+var UNIQUE_TYPES = ["none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte"];
+var UNIQUE_DEFAULTS = {
+  mirror_legion: {trigger: "hp_below", hp_thresholds: "70,50,30", every_hits: 5, every_ms: 10000,
+    count: 2, duration_ms: 4000, cooldown_ms: 6000, formation: "around",
+    spread_px: 90, damage: 1, speed_pct: 80, opacity_pct: 60},
+  berserker: {start_lost_pct: 0, max_lost_pct: 90, max_bonus_pct: 500, curve: "linear",
+    steps: 5, damage_bonus_pct: 0, damage_taken_pct: 0, speed_fx: true, aura: true, aura_color: "#ff2a2a"},
+  phase_shift: {trigger: "every_hit", min_damage: 5, hp_below_pct: 50, chance_pct: 50,
+    charges: 3, recharge_ms: 8000,
+    destinations: {behind_attacker: true, random: true, far_corner: false, spawn: false, mirror: false, fixed: false},
+    random_min_px: 120, random_max_px: 260, behind_px: 70, fixed_x_pct: 50, fixed_y_pct: 50,
+    invuln_ms: 300, show_charges: true},
+  ricochet: {bounces: 3, walls: true, characters: true, fx: true, fx_contact_px: 18,
+    keep_speed_pct: 100, keep_damage_pct: 100, angle: "reflect", random_deg: 25, split: 0, split_deg: 20, sparks: true},
+  riposte: {mode: "stance", stance_every_ms: 3000, stance_ms: 600, chance_pct: 25,
+    counter_mult_pct: 150, base_damage: 5, counter: "strike", knockback_px: 60,
+    cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a"}
+};
+function normalizeUnique(a) {
+  a = a || {};
+  if (UNIQUE_TYPES.indexOf(a.type) < 0) a.type = "none";
+  UNIQUE_TYPES.slice(1).forEach(function (k) { a[k] = fill(a[k] || {}, UNIQUE_DEFAULTS[k]); });
+  a.phase_shift.destinations = fill(a.phase_shift.destinations || {}, UNIQUE_DEFAULTS.phase_shift.destinations);
+  return a;
+}
 // The WORLD clash table (not per character): which clash explosion
 // (laser/clashfx.py key, "none" = no FX) plays for each pair of colliding FX
 // types, at size / density %, plus min_ticks (the shortest a clash lasts,
@@ -2259,6 +2288,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
+  UNIQUE_TYPES: UNIQUE_TYPES, UNIQUE_DEFAULTS: UNIQUE_DEFAULTS, normalizeUnique: normalizeUnique,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,

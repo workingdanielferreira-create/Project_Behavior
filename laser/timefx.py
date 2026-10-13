@@ -145,13 +145,22 @@ def plan(world):
     """Once per tick, after refresh_battle: each figure's body / FX scale and
     steps from every running time effect.  None when no time effect runs
     (the pipeline then runs exactly as it always has)."""
+    from . import unique
     casters = []
     for si, side in enumerate(world.sides):
         for f in side.figures:
             st = getattr(f, "time", None)
             if st is not None and st.active:
                 casters.append((f, si, st.cfg["scope"], st.speed))
-    if not casters:
+    # Unique ability Berserker: the fighter's own body (and, if set, its own
+    # FX / bullets) run faster the more HP it has lost — every state, so
+    # movement, attacks and recoveries all speed up together.
+    boosts = {}
+    for f in world.all_figures():
+        b, bf = unique.speed_mult(f), unique.fx_speed_mult(f)
+        if b != 1.0 or bf != 1.0:
+            boosts[id(f)] = (b, bf)
+    if not casters and not boosts:
         for f in world.all_figures():
             st = getattr(f, "time", None)
             if st is not None:
@@ -173,6 +182,9 @@ def plan(world):
                     body *= sp
                 if scope in ("all_fx", "everything") or (scope == "enemy_fx" and enemy) or (scope == "own_fx" and f is c):
                     fx *= sp
+            if id(f) in boosts:
+                body *= boosts[id(f)][0]
+                fx *= boosts[id(f)][1]
             st = state(f)
             st.body, st.fx = body, fx
             st.body_steps, st.body_acc = _steps(st.body_acc, body)

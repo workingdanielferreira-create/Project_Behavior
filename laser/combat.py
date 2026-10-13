@@ -287,10 +287,15 @@ def kill_projectile(pr):
 class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
-                 "pierce", "knockback_px", "owner", "one_hit", "no_knockback")
+                 "pierce", "knockback_px", "owner", "one_hit", "no_knockback",
+                 "ua_rb", "ua_cd")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
+        # Unique ability Ricochet (laser/unique.py): bounces left (None =
+        # not read from the owner yet) and the short no-rebounce window.
+        self.ua_rb = None
+        self.ua_cd = 0
         self.vx, self.vy = vx, vy
         self.r, self.g, self.b = color_rgb
         self.age = 0
@@ -3238,9 +3243,10 @@ class CloneEffect:
     behaviour, simply nothing with HP to damage."""
 
     __slots__ = ("x", "y", "ticks_left", "duration", "speed", "damage",
-                 "facing_left", "run_idx", "anim_tick", "attack_cd", "moving")
+                 "facing_left", "run_idx", "anim_tick", "attack_cd", "moving",
+                 "alpha")
 
-    def __init__(self, x, y, duration_ticks, speed, damage):
+    def __init__(self, x, y, duration_ticks, speed, damage, alpha=None):
         self.x, self.y = float(x), float(y)
         self.ticks_left = int(duration_ticks)
         self.duration = max(1, int(duration_ticks))
@@ -3251,6 +3257,9 @@ class CloneEffect:
         self.anim_tick = 0
         self.attack_cd = 0
         self.moving = False
+        # Ghost opacity 0-255 (None = config.CLONE_ALPHA); set by the
+        # Mirror Legion unique ability (laser/unique.py).
+        self.alpha = alpha
 
     def tick(self, tx, ty, sf=1.0):
         """Advance one tick toward (tx, ty).  Returns a list of new
@@ -3311,7 +3320,8 @@ class CloneEffect:
         p.translate(int(self.x), int(self.y))
         if pscale != 1.0:
             p.scale(pscale, pscale)
-        p.setOpacity((config.CLONE_ALPHA / 255.0) * fade)
+        alpha = config.CLONE_ALPHA if self.alpha is None else self.alpha
+        p.setOpacity((alpha / 255.0) * fade)
         p.drawPixmap(-fr.width() // 2, -fr.height() // 2, fr)
         p.restore()
         p.setOpacity(1.0)
@@ -3321,6 +3331,10 @@ def spawn_clone(fig):
     """Spawn a clone at the figure's current position if the character has
     the clone preset and the cooldown is clear.  Called from the dodge-arm
     sites in MotionSystem — the clone is left at the departure point."""
+    # Mirror Legion (unique ability) with the on-dodge trigger takes over.
+    from . import unique
+    if unique.on_dodge(fig):
+        return
     cfg = clone_cfg(fig)
     c = fig.combat
     if cfg is None or c.clone_cd > 0:

@@ -19,6 +19,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
+  unique: FXK.normalizeUnique({}), uaPage: null,
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -153,7 +154,7 @@ function playEffects() {
 // Select one effect (fx id), one group (group id) or neither (the action /
 // reaction settings).  Every other selection is cleared: the Ctrl+click
 // picks, the path / entry set being edited and its point placing.
-function setSel(fxId, groupId) { S.sel = fxId || null; S.selGroup = groupId || null; S.multi = []; S.geo = null; S.geoPlace = false; }
+function setSel(fxId, groupId) { S.sel = fxId || null; S.selGroup = groupId || null; S.multi = []; S.geo = null; S.geoPlace = false; S.uaPage = null; }
 // The panels that show the selection.
 function refreshSel() { buildEffects(); buildGeo(); buildProps(); buildTimeline(); }
 function selFx() { return S.effects.filter(function (e) { return e.id === S.sel; })[0] || null; }
@@ -173,6 +174,7 @@ var DOC = [
   ["aim", "aim", function (v) { return FXK.normalizeAim(clone(v || {})); }],
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
+  ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
 function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
@@ -785,7 +787,7 @@ function buildGroupProps(d, gr) {
 }
 
 // ------------------------------------------------------------ lists
-function rebuild() { buildActions(); buildAnchors(); buildEffects(); buildGeo(); buildProps(); buildTimeline(); syncContinuous(); }
+function rebuild() { buildActions(); buildUnique(); buildAnchors(); buildEffects(); buildGeo(); buildProps(); buildTimeline(); syncContinuous(); }
 function syncContinuous() { var c = $("contFx"); if (c) c.checked = !!(C && S.action && cfgOf(S.action).fx_continuous); }
 function buildActions() {
   var d = $("actions"); d.innerHTML = "";
@@ -1463,6 +1465,7 @@ function refreshKeyAdd() {
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (S.worldPage) return buildWorldClashProps(d);
+  if (C && S.uaPage) return buildUniqueProps(d);
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
   if (fx) S.selGroup = null;
@@ -2057,6 +2060,189 @@ function buildRetreatProps(d) {
 }
 // Character scale (pack character_scale), shown under every action's and
 // reaction's settings.
+// ------------------------------------------------------------ unique abilities
+// Left panel "Unique Abilities": ONE core mechanism per character
+// (pack.unique_ability, laser/unique.py).  Each row opens that ability's own
+// settings page on the right; "Use on this character" makes it the active
+// one (replacing any other).  Every ability keeps its settings when another
+// is picked, so switching back loses nothing.
+var UA_INFO = {
+  mirror_legion: ["Mirror Legion", "Shadow-clone ninja · illusionist",
+    "Splits into ghost copies of itself for a while when its trigger fires. Each copy chases the target and strikes on contact, then dissolves."],
+  berserker: ["Berserker", "Rage warrior · glass cannon",
+    "The more HP it has lost, the faster it moves and attacks: every state (moving, attacking, recovering) speeds up together, up to the set bonus."],
+  phase_shift: ["Phase Shift", "Evasive trickster · blink mage",
+    "When a hit lands, the damage is cancelled and the fighter teleports away to one of the places you tick, while it has charges."],
+  ricochet: ["Ricochet", "Gunslinger · trick-shot",
+    "Its shots and travelling FX bounce off the screen edges, fighters and enemy FX instead of ending, for the set number of bounces."],
+  riposte: ["Riposte", "Duelist · counter-attacker",
+    "A hit taken inside its counter stance (or by chance) is cancelled and answered at once with a counter-strike at the attacker."]
+};
+function uaName(k) { return k === "none" ? "None" : UA_INFO[k][0]; }
+function buildUnique() {
+  var d = $("uniqueList"); if (!d) return; d.innerHTML = "";
+  if (!C) { note(d, "Open a character folder first."); return; }
+  FXK.UNIQUE_TYPES.slice(1).forEach(function (k) {
+    var on = S.unique.type === k, el = document.createElement("div");
+    el.className = (S.uaPage === k ? "sel" : "") + (on ? "" : " off");
+    el.innerHTML = '<span class="n"></span><span class="m"></span>';
+    el.querySelector(".n").textContent = (on ? "★ " : "") + UA_INFO[k][0];
+    el.querySelector(".m").textContent = on ? "active" : UA_INFO[k][1].split(" · ")[0];
+    el.title = UA_INFO[k][2];
+    el.onclick = function () { openUnique(k); };
+    d.appendChild(el);
+  });
+  var n = document.createElement("div"); n.className = "note";
+  n.textContent = S.unique.type === "none" ? "No ability active. Pick one to set it up." : "Active: " + uaName(S.unique.type) + " (one per character).";
+  d.appendChild(n);
+}
+function openUnique(k) { setSel(); S.uaPage = k; buildActions(); buildUnique(); buildEffects(); buildProps(); }
+// Number field bound to obj[key], clamped, with a hover help line.
+function uaNum(s, label, obj, key, lo, hi, step, help, rebuild) {
+  var e = field(s, label, inp("n", obj[key], function (v) { obj[key] = Math.max(lo, Math.min(hi, v)); save(); if (rebuild) buildProps(); }, lo, hi, step));
+  if (help) e.title = help; return e;
+}
+function uaChoice(s, label, obj, key, opts, help) {
+  var e = field(s, label, inp(opts, obj[key], function (v) { obj[key] = v; save(); buildProps(); }));
+  e.style.minWidth = "0"; e.style.width = "100%";   // long choice names stay inside the panel
+  if (help) e.title = help; return e;
+}
+function uaChk(s, label, obj, key, help, rebuild) {
+  var e = field(s, label, inp("chk", obj[key], function (v) { obj[key] = v; save(); if (rebuild) buildProps(); }));
+  if (help) e.title = help; return e;
+}
+function buildUniqueProps(d) {
+  var k = S.uaPage, info = UA_INFO[k], P = S.unique[k], on = S.unique.type === k;
+  banner(d, "act", "Unique ability" + (on ? " · active" : ""), info[0], info[1] + ". " + info[2],
+    ["Back to " + S.action + " settings", function () { S.uaPage = null; buildUnique(); buildProps(); }]);
+  var s = sec(d, "Use on this character", "ua-use", "A character has one unique ability: its core mechanism.", "act");
+  field(s, "Active ability", inp("chk", on, function (v) {
+    S.unique.type = v ? k : "none"; save(); buildUnique(); buildProps();
+  })).title = "On: this is the character's unique ability (any other one is switched off). Off: the character has none.";
+  if (!on && S.unique.type !== "none") note(s, "Turning this on replaces " + uaName(S.unique.type) + ".");
+  note(s, "Plays the same in Solo and Battle (in Solo the enemy is the cursor). Settings save with the FX file; the game reads them on F5.");
+  ({mirror_legion: uaMirrorLegion, berserker: uaBerserker, phase_shift: uaPhaseShift, ricochet: uaRicochet, riposte: uaRiposte})[k](d, P);
+}
+function uaMirrorLegion(d, P) {
+  var s = sec(d, "Trigger", "ua-ml-trig", "When the copies split off.", "act");
+  uaChoice(s, "Split when", P, "trigger", [["hp_below", "HP drops below thresholds"], ["hits_taken", "Every N hits taken"], ["timer", "On a timer"], ["on_dodge", "It dodges (melee dodge)"]],
+    "HP thresholds: each % fires once per life. Hits taken: every N hits that take HP. Timer: every N ms. Dodge: each time its melee dodge / counter-dash starts, copies are left at the departure point.");
+  if (P.trigger === "hp_below") {
+    var th = field(s, "HP thresholds %", inp("text", P.hp_thresholds, function (v) { P.hp_thresholds = v; save(); }));
+    th.style.minWidth = "0"; th.style.width = "100%";
+    th.title = "Comma-separated HP %s, e.g. 70,50,30. Each splits once when HP first drops to or below it.";
+  }
+  if (P.trigger === "hits_taken") uaNum(s, "Every N hits", P, "every_hits", 1, 99, 1, "Splits after this many hits that take HP.");
+  if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 500, 60000, 100, "Splits on this timer (while the cooldown is clear).");
+  if (P.trigger !== "hp_below") uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two splits. (HP thresholds ignore it.)");
+  s = sec(d, "Copies", "ua-ml-copies", "How many ghosts appear and how strong they are.", "act");
+  uaNum(s, "Copies", P, "count", 1, 8, 1, "Ghosts per split (1-8).");
+  uaNum(s, "Last ms", P, "duration_ms", 200, 30000, 100, "How long each ghost lasts before it dissolves (fades over its last quarter).");
+  uaNum(s, "Strike damage", P, "damage", 0, 100, 0.5, "HP each contact strike takes from the enemy (about two strikes a second while in reach).");
+  uaNum(s, "Speed %", P, "speed_pct", 10, 300, 5, "Ghost chase speed as a % of the fighter's own speed.");
+  uaNum(s, "Opacity %", P, "opacity_pct", 5, 100, 5, "How solid the ghosts look.");
+  s = sec(d, "Formation", "ua-ml-form", "Where the copies appear.", "act");
+  uaChoice(s, "Appear", P, "formation", [["around", "In a ring around it"], ["at_self", "On top of it"], ["corners", "In the screen corners"], ["mirror", "Behind the target"]],
+    "Ring: evenly round the fighter at the spread distance. On top: at its position. Corners: one per corner, in turn. Behind the target: on the far side of the enemy, fanned out.");
+  if (P.formation === "around" || P.formation === "mirror") uaNum(s, "Spread px", P, "spread_px", 0, 600, 5, "Ring radius / distance behind the target.");
+  note(s, "A split: " + P.count + " ghost" + (P.count > 1 ? "s" : "") + " for " + (P.duration_ms / 1000).toFixed(1) + " s, " + P.damage + " damage per strike.");
+}
+function uaRage(P, lostPct) {
+  var lo = P.start_lost_pct, hi = Math.max(lo + 0.01, P.max_lost_pct), f = Math.max(0, Math.min(1, (lostPct - lo) / (hi - lo)));
+  if (P.curve === "exponential") f = f * f;
+  else if (P.curve === "steps") { var n = Math.max(1, P.steps); f = Math.floor(f * n + 1e-9) / n; }
+  return f;
+}
+function uaBerserker(d, P) {
+  var s = sec(d, "Rage curve", "ua-bz-curve", "Speed bonus by HP lost. It applies to every state: moving, attacking, recovering, its action timing.", "act");
+  uaNum(s, "Starts at HP lost %", P, "start_lost_pct", 0, 99, 1, "No bonus until this much HP is gone.", true);
+  uaNum(s, "Full at HP lost %", P, "max_lost_pct", 1, 100, 1, "The full bonus is reached at this much HP lost (90 = at 10% HP left).", true);
+  uaNum(s, "Max bonus %", P, "max_bonus_pct", 0, 700, 25, "Speed bonus at full rage: +500% = six times as fast. (The engine caps one fighter at 8x a tick.)", true);
+  uaChoice(s, "Curve", P, "curve", [["linear", "Linear"], ["exponential", "Exponential (late surge)"], ["steps", "Steps"]],
+    "Linear: grows evenly. Exponential: slow at first, surges near the end. Steps: jumps up in equal steps.");
+  if (P.curve === "steps") uaNum(s, "Steps", P, "steps", 1, 20, 1, "How many equal jumps from start to full.", true);
+  var rows = [10, 30, 50, 70, 90].map(function (l) { return "HP lost " + l + "%: +" + Math.round(P.max_bonus_pct * uaRage(P, l)) + "%"; });
+  note(s, rows.join("  ·  "));
+  s = sec(d, "Extras", "ua-bz-extra", "Optional damage scaling and how far the speed reaches.", "act");
+  uaChk(s, "Speed up own FX", P, "speed_fx", "On: its FX and shots run at the same faster speed, so they stay in step with its animation. Off: only the body speeds up.");
+  uaNum(s, "Damage bonus %", P, "damage_bonus_pct", -100, 500, 5, "Extra damage dealt at full rage (scales with the curve). 0 = off.");
+  uaNum(s, "Damage taken %", P, "damage_taken_pct", -100, 500, 5, "Extra damage taken at full rage: the price of rage. 0 = off; negative = tougher.");
+  s = sec(d, "Aura", "ua-bz-aura", "The glow that shows how enraged it is.", "act");
+  uaChk(s, "Show aura", P, "aura", "A glow around the fighter that grows with the rage.", true);
+  if (P.aura) field(s, "Aura colour", inp("color", P.aura_color, function (v) { P.aura_color = v; save(); }));
+}
+var UA_DEST = [["behind_attacker", "Behind the attacker"], ["random", "Random spot nearby"], ["far_corner", "Corner farthest from attacker"],
+  ["spawn", "Where it started"], ["mirror", "Mirrored through the attacker"], ["fixed", "A fixed screen point"]];
+function uaPhaseShift(d, P) {
+  var s = sec(d, "Trigger", "ua-ps-trig", "Which hits it phases out of.", "act");
+  uaChoice(s, "Phase on", P, "trigger", [["every_hit", "Every hit"], ["min_damage", "Hits of at least X damage"], ["hp_below", "Hits while HP is below X%"], ["chance", "A % chance per hit"]],
+    "Hits that don't qualify (or arrive with no charges left) land as normal. Unblockable FX always land.");
+  if (P.trigger === "min_damage") uaNum(s, "Min damage", P, "min_damage", 0, 1000, 1, "Only hits at least this strong are phased.");
+  if (P.trigger === "hp_below") uaNum(s, "HP below %", P, "hp_below_pct", 1, 100, 1, "Only while HP is at or below this %.");
+  if (P.trigger === "chance") uaNum(s, "Chance %", P, "chance_pct", 1, 100, 1, "Chance that a hit is phased.");
+  s = sec(d, "Charges", "ua-ps-charges", "How many times it can happen.", "act");
+  uaNum(s, "Charges", P, "charges", 0, 99, 1, "Phases before it runs dry. 0 = unlimited.", true);
+  if (P.charges > 0) {
+    uaNum(s, "Recharge ms", P, "recharge_ms", 0, 120000, 250, "One charge comes back every this many ms. 0 = never.");
+    uaChk(s, "Show charges", P, "show_charges", "Small dots above the fighter: one per charge left.");
+  }
+  s = sec(d, "Destinations", "ua-ps-dest", "Where it can reappear. One ticked place is picked at random each time.", "act");
+  UA_DEST.forEach(function (o) {
+    field(s, o[1], inp("chk", P.destinations[o[0]], function (v) { P.destinations[o[0]] = v; save(); buildProps(); }));
+  });
+  var any = UA_DEST.some(function (o) { return P.destinations[o[0]]; });
+  if (!any) note(s, "Nothing ticked: it uses a random spot nearby.");
+  if (P.destinations.behind_attacker) uaNum(s, "Behind by px", P, "behind_px", 0, 600, 5, "How far past the attacker it lands.");
+  if (P.destinations.random || !any) {
+    uaNum(s, "Random min px", P, "random_min_px", 0, 2000, 10, "Shortest jump for a random spot.");
+    uaNum(s, "Random max px", P, "random_max_px", 0, 2000, 10, "Longest jump for a random spot.");
+  }
+  if (P.destinations.fixed) {
+    uaNum(s, "Fixed x %", P, "fixed_x_pct", 0, 100, 1, "Across the screen: 0 left, 100 right.");
+    uaNum(s, "Fixed y %", P, "fixed_y_pct", 0, 100, 1, "Down the screen: 0 top, 100 bottom.");
+  }
+  s = sec(d, "After landing", "ua-ps-after", "A short safety window after each phase.", "act");
+  uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after reappearing.");
+}
+function uaRicochet(d, P) {
+  var s = sec(d, "Bounces off", "ua-rc-surf", "What its shots and travelling FX rebound from.", "act");
+  uaChk(s, "Screen edges", P, "walls", "Rebound off the edges of the screen instead of flying off.");
+  uaChk(s, "Fighters", P, "characters", "After hitting a fighter (or the cursor), rebound off it instead of ending. The hit still lands.");
+  uaChk(s, "Enemy FX / shots", P, "fx", "Rebound off enemy shots and FX they touch (the enemy one carries on).", true);
+  if (P.fx) uaNum(s, "FX contact px", P, "fx_contact_px", 2, 120, 1, "How close to an enemy shot counts as touching it.");
+  s = sec(d, "Bounces", "ua-rc-n", "How long the rebounds keep going.", "act");
+  uaNum(s, "Bounces", P, "bounces", 0, 20, 1, "Rebounds per shot. Each rebound gives the shot a fresh flight time.");
+  uaNum(s, "Speed kept %", P, "keep_speed_pct", 10, 200, 5, "Speed after each rebound, as a % of before.");
+  uaNum(s, "Damage kept %", P, "keep_damage_pct", 0, 200, 5, "Damage after each rebound, as a % of before.");
+  s = sec(d, "Angle", "ua-rc-angle", "Which way it goes after a rebound.", "act");
+  uaChoice(s, "Rebound", P, "angle", [["reflect", "Mirror off the surface"], ["seek", "Turn toward the target"], ["random", "Mirror, with a random wobble"]],
+    "Mirror: like a ball off a wall. Turn toward the target: off walls and FX it heads for the nearest enemy (off a fighter it always mirrors). Wobble: mirror plus a random turn.");
+  if (P.angle === "random") uaNum(s, "Wobble °", P, "random_deg", 0, 90, 1, "Largest random turn either way.");
+  s = sec(d, "Split & sparks", "ua-rc-split", "Extras on each rebound.", "act");
+  uaNum(s, "Split into +", P, "split", 0, 4, 1, "Extra copies each bullet throws off at every rebound (bullets only; FX Studio effects don't split).", true);
+  if (P.split > 0) uaNum(s, "Split angle °", P, "split_deg", 1, 90, 1, "Angle between the copies.");
+  uaChk(s, "Sparks", P, "sparks", "A small spark burst where it rebounds.");
+}
+function uaRiposte(d, P) {
+  var s = sec(d, "When it counters", "ua-rp-when", "Which hits it answers.", "act");
+  uaChoice(s, "Counter", P, "mode", [["stance", "Hits inside its counter stance"], ["chance", "A % chance on any hit"], ["both", "Stance, or chance outside it"]],
+    "Stance: it opens a counter stance on a timer (a ring shows it); a hit inside is countered. Chance: any hit may be countered. Unblockable FX always land.");
+  if (P.mode !== "chance") {
+    uaNum(s, "Stance every ms", P, "stance_every_ms", 200, 60000, 100, "How often the stance opens (counted while it is closed and the cooldown is clear).");
+    uaNum(s, "Stance lasts ms", P, "stance_ms", 50, 10000, 50, "How long each stance stays open.");
+  }
+  if (P.mode !== "stance") uaNum(s, "Chance %", P, "chance_pct", 1, 100, 1, "Chance that a hit is countered.");
+  s = sec(d, "Counter-strike", "ua-rp-strike", "What it hits back with.", "act");
+  uaChoice(s, "Strike", P, "counter", [["strike", "Fast bolt from where it stands"], ["blink_strike", "Blink in front of the attacker, then strike"]],
+    "Bolt: a fast shot straight at the attacker. Blink: teleports right in front of the attacker first, so the strike lands point-blank.");
+  uaNum(s, "Damage % of hit", P, "counter_mult_pct", 0, 1000, 10, "The counter deals this % of the cancelled hit's damage...");
+  uaNum(s, "At least damage", P, "base_damage", 0, 1000, 1, "...but never less than this.");
+  uaNum(s, "Knockback px", P, "knockback_px", 0, 600, 5, "How far the counter knocks the attacker back.");
+  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); })).title = "Stance ring, counter flash and bolt colour.";
+  s = sec(d, "Timing", "ua-rp-time", "Recovery around each counter.", "act");
+  uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "No counter (and no new stance) until this long after the last one.");
+  uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after countering.");
+}
 function buildCharScaleProps(d) {
   var s = sec(d, "Character scale (whole character)", "a-cscale",
     "The size of the whole character in the game: sprite, anchors, every FX, its body hit circles, attack range and retreat / blink distances, all in proportion. Movement speed stays the same.", "act");
