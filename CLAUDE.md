@@ -27,6 +27,7 @@ laser/motion.py
 laser/palette.py
 laser/platform_win.py
 laser/systems.py
+laser/unique.py
 ```
 
 ## Mandatory Session Rules

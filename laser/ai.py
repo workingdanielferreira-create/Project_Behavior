@@ -11,6 +11,7 @@ from . import config
 from . import combat as _combat
 from . import actions as _actions
 from . import blink as _blink
+from . import unique as _unique
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +215,7 @@ def resists_knockback(fig, knockback):
     return ak > 0 and ak >= float(knockback or 0)
 
 
-def apply_hp_damage(fig, world, amount=1, unblockable=False):
+def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False):
     """Deduct `amount` HP from fig (default 1, the historical flat per-hit
     value every built-in attack still uses) and report the death when HP
     reaches 0 (solo: run ends; battle: the fallen fighter is removed and the
@@ -227,7 +228,11 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False):
     and the swordsman ultimate when HP first drops to/below 50% of max.
 
     `unblockable` (an FX Studio effect with Blockable off) skips the blocks
-    below: the special stance and the `defend` action don't stop it.
+    below: the special stance and the `defend` action don't stop it, and
+    neither do the Phase Shift / Riposte unique abilities.
+
+    `_ua_checked`: battle_hit already asked the unique ability whether it
+    nullifies this hit (so a chance roll isn't made twice).
     """
     # Damage cooldown: still invincible from the last hit — nothing lands.
     if damage_immune(fig, world):
@@ -242,6 +247,14 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False):
         # Image characters: a hit landing while `defend` plays is blocked.
         if _actions.blocks_hit(fig):
             return False
+        # Unique ability (laser/unique.py): Phase Shift teleports away /
+        # Riposte counters — the hit is nullified.
+        if not _ua_checked and _unique.intercept(fig, world, amount):
+            return False
+    # Berserker weakness: takes more damage the deeper the rage.
+    _tm = _unique.taken_mult(fig)
+    if _tm != 1.0:
+        amount = amount * _tm
     _actions.note_damage(fig, amount)
     _combat.special_note_hit_taken(fig)
     p = fig.personality
@@ -259,6 +272,8 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False):
     # Generic damage-teleport (JSON `damage_teleport`): accumulates this hit
     # toward the next random-direction jump. Identical in Solo & Battle.
     _combat.check_damage_teleport(fig, amount)
+    # Unique ability: Mirror Legion's HP-threshold / hits-taken triggers.
+    _unique.after_damage(fig, world, amount)
     # Trigger runner ultimate and survival teleport on the tick HP crosses
     # the threshold. Gated on `disable_survival_teleport` (JSON opt-out) —
     # both halves of this historical "runner survival mode" bundle (the
@@ -351,6 +366,10 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         return
     if _actions.blocks_hit(fig):   # image character defending
         return
+    # Unique ability (Phase Shift / Riposte): nullified — no knockback, no
+    # damage.  Asked once here; apply_hp_damage below skips asking again.
+    if _unique.intercept(fig, world, amount):
+        return
     p = fig.personality
     m = fig.motion
 
@@ -364,7 +383,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
                 p.immunity_hits = 0
             # HP still decreases even during immunity
             if world is not None:
-                apply_hp_damage(fig, world, amount)
+                apply_hp_damage(fig, world, amount, _ua_checked=True)
             return  # no bounce this hit
         else:
             p.knockback_count += 1  # consume one knockback slot
@@ -372,7 +391,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     # --- Pure poke: damage only, no launch at all ---
     if no_knockback:
         if world is not None:
-            apply_hp_damage(fig, world, amount)
+            apply_hp_damage(fig, world, amount, _ua_checked=True)
         return
 
     # --- Apply knockback ---
@@ -395,7 +414,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         m.bouncing = True
 
     if world is not None:
-        apply_hp_damage(fig, world, amount)
+        apply_hp_damage(fig, world, amount, _ua_checked=True)
 
 
 def battle_target(world, fig):

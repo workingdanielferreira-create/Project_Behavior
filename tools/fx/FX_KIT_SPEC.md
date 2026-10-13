@@ -51,6 +51,8 @@ these characters; it plays the PNGs.
                                              "logic": "any", "conditions": []}}},
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0, "anti_knockback": 0},
+  "unique_ability": {"type": "none", "mirror_legion": {"...": "5b"}, "berserker": {}, "phase_shift": {},
+                     "ricochet": {}, "riposte": {}},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
@@ -520,6 +522,29 @@ count toward its `defend` action's trigger conditions (hits taken, hit by FX,
 damage taken); other actions still count it. A hit with more knockback than
 it knocks back and can trigger `defend` as normal (`ai.resists_knockback`).
 Compared with FX Studio hits only; built-in bullets and dash-slashes ignore it.
+
+**Unique ability (`unique_ability`, whole character; `laser/unique.py`).**
+One core mechanism per character, set in FX Studio's Unique Abilities
+section. `type` names the active one (`none` = off); each ability keeps its
+own settings block (defaults: `UNIQUE_DEFAULTS` in fxkit.js = `DEFAULTS` in
+unique.py, checked by `check_parity.py`) so switching back loses nothing.
+Solo and Battle run the same code (Solo's enemy is the cursor).
+`mirror_legion`: ghost copies (`combat.CloneEffect`) split off on HP
+thresholds, every N hits taken, a timer or the melee dodge, in a ring / on
+top / in the corners / behind the target. `berserker`: body (and optionally
+own FX) time scale `1 + max_bonus_pct/100 * rage` through `timefx.plan`, so
+every state speeds up; rage follows HP lost along a linear / exponential /
+steps curve; optional damage dealt / taken scaling. `phase_shift`: a hit
+(every hit, min damage, HP below, or chance) is nullified and the fighter
+warps to a ticked destination, using charges that recharge.
+`ricochet`: its bullets and travelling FX (travel / homing / zigzag /
+deflected) bounce off screen edges, fighters (the hit still lands) and enemy
+shots, with speed / damage kept per bounce, mirror / seek / wobble angles and
+(bullets only) splits. `riposte`: a hit inside the timed counter stance (or by
+chance) is cancelled and answered with a fast counter bolt, optionally after
+blinking in front of the attacker. Phase Shift and Riposte never stop an
+unblockable (`blockable: false`) hit. A hand-written `pb_character` JSON can
+carry the same top-level `"unique_ability"` block.
 
 **Tactical retreat (`retreat`, whole character; `laser/retreat.py`).** When
 its conditions are met (`logic` any / all) the fighter dashes at `speed_pct` %
