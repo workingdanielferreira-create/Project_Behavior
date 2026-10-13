@@ -661,9 +661,11 @@ def fx_at(fx, tf):
     return v
 
 
-def rescale_effects(effects, lib, r):
-    """Multiply every game-px distance in effects + entry sets + paths by r."""
-    if abs(r - 1.0) < 1e-6:
+def rescale_effects(effects, lib, r, r_hit=None):
+    """Multiply every game-px distance in effects + entry sets + paths by r
+    (r_hit, default r, for the intercept radius / contact)."""
+    r_hit = r if r_hit is None else r_hit
+    if abs(r - 1.0) < 1e-6 and abs(r_hit - 1.0) < 1e-6:
         return
     for fx in effects:
         off = fx.get("offset") or [0, 0]
@@ -679,15 +681,15 @@ def rescale_effects(effects, lib, r):
         ic = fx.get("intercept") or {}
         for k in _SCALE_INTERCEPT:
             if isinstance(ic.get(k), (int, float)) and not isinstance(ic.get(k), bool):
-                ic[k] = ic[k] * r
-        scaled = (["offset.0", "offset.1"] + ["motion." + k for k in _SCALE_MOTION]
-                  + ["params." + k for k in _SCALE_PARAMS.get(fx.get("prim"), ())]
-                  + ["intercept." + k for k in _SCALE_INTERCEPT])
+                ic[k] = ic[k] * r_hit
+        scaled = ([(p, r) for p in ["offset.0", "offset.1"] + ["motion." + k for k in _SCALE_MOTION]
+                   + ["params." + k for k in _SCALE_PARAMS.get(fx.get("prim"), ())]]
+                  + [("intercept." + k, r_hit) for k in _SCALE_INTERCEPT])
         for key in fx.get("keys") or []:
-            for path in scaled:
+            for path, rr in scaled:
                 val = key.get("set", {}).get(path)
                 if isinstance(val, (int, float)) and not isinstance(val, bool):
-                    key["set"][path] = val * r
+                    key["set"][path] = val * rr
     for e in (lib or {}).get("entry_sets") or []:
         e["points"] = [[p[0] * r, p[1] * r] for p in e.get("points") or []]
     for p in (lib or {}).get("paths") or []:
@@ -2815,9 +2817,19 @@ class CharacterFx:
                     "paths": [normalize_path(p) for p in (fxk.get("paths") or [])]}
         # Distances were authored around the figure at its authoring size;
         # keep them in proportion: r = new game px per rig unit / authored.
+        # The FX themselves never draw smaller than built: a Character scale
+        # below 1x shrinks the sprite (and its anchors, self.k) but its FX
+        # size / placement stays at 1x; above 1x they grow with it (up to
+        # characters.CHARACTER_SCALE_MAX).  Intercept radius / contact keep
+        # the real scale (gameplay, not visuals).
+        cs = float(char.get("_char_scale") or 1.0)
+        fx_floor = max(1.0, cs) / cs
         authored = float(space.get("game_px_per_image_px") or 0)
         if authored > 0:
-            rescale_effects(self.effects, self.lib, (self.k / authored) * f)
+            r = (self.k / authored) * f
+            rescale_effects(self.effects, self.lib, r * fx_floor, r)
+        elif fx_floor != 1.0:
+            rescale_effects(self.effects, self.lib, fx_floor, 1.0)
         self.timing = {}
         for name, act in (char.get("actions") or {}).items():
             n = len(act.get("keyframes") or []) or 1
