@@ -529,9 +529,16 @@ section. `type` names the active one (`none` = off); each ability keeps its
 own settings block (defaults: `UNIQUE_DEFAULTS` in fxkit.js = `DEFAULTS` in
 unique.py, checked by `check_parity.py`) so switching back loses nothing.
 Solo and Battle run the same code (Solo's enemy is the cursor).
-`mirror_legion`: ghost copies (`combat.CloneEffect`) split off on HP
+`mirror_legion`: full copies of the fighter (real Figures of the same
+character joined to its side by `unique.world_tick`) split off on HP
 thresholds, every N hits taken, a timer or the melee dodge, in a ring / on
-top / in the corners / behind the target. `berserker`: body (and optionally
+top / in the corners / behind the target. A copy runs the same actions, FX,
+movement and AI, limited to the actions ticked in `actions` (name -> `false`
+= never played; idle / run always play), with its own `clone_hp` (enemies can
+target and kill it; its death is never a loss), `damage_pct` of the
+original's damage, `speed_pct`, ghostly `opacity_pct` body, `max_alive` cap;
+it dissolves after `duration_ms`, or when the original dies, leaves or
+changes character. Copies carry no unique ability of their own. `berserker`: body (and optionally
 own FX) time scale `1 + max_bonus_pct/100 * rage` through `timefx.plan`, so
 every state speeds up; rage follows HP lost along a linear / exponential /
 steps curve; optional damage dealt / taken scaling. `phase_shift`: a hit

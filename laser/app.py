@@ -202,9 +202,12 @@ class World:
         that its team-mate is a different character.
         """
         side = self.sides[side_idx]
-        if len(side.figures) >= config.MAX_FIGURES:
+        # Mirror Legion copies (laser/unique.py) ride at the END of the list
+        # and never take a fighter slot: count and insert around them.
+        real = [f for f in side.figures if not unique.is_clone(f)]
+        if len(real) >= config.MAX_FIGURES:
             return False
-        i = len(side.figures)
+        i = len(real)
         key = mode_key or side.mode_key
         # Side 1 figures take the next offset/palette slot so the two sides
         # spawn apart and read as distinct fighters at a glance.
@@ -214,13 +217,14 @@ class World:
                      self.assets.bundle(key),
                      lut_for_mode(key, slot), slot,
                      self.screen_w, self.screen_h)
-        side.figures.append(fig)
+        side.figures.insert(len(real), fig)
         return True
 
     def remove_figure(self, side_idx=0):
         side = self.sides[side_idx]
-        if side.figures:
-            side.figures.pop()
+        real = [f for f in side.figures if not unique.is_clone(f)]
+        if real:
+            side.figures.remove(real[-1])
             return True
         return False
 
@@ -350,7 +354,7 @@ class World:
                 side.mode_key = order[0]
             self.add_figure(side_idx)
             return
-        if len(side.figures) < 2:
+        if len([f for f in side.figures if not unique.is_clone(f)]) < 2:
             self.add_figure(side_idx, mode_key=order[0],
                             slot=config.EXTRA_FIGURE_SLOT + side_idx)
             return
@@ -373,7 +377,7 @@ class World:
         team-mate's clones with it either.
         """
         side = self.sides[side_idx]
-        if len(side.figures) < 2:
+        if len([f for f in side.figures if not unique.is_clone(f)]) < 2:
             return
         fig = side.figures.pop(1)
         for pr in side.projectiles:
@@ -483,6 +487,10 @@ class World:
         """A figure reached 0 HP.  Solo keeps the historical behaviour (the
         run ends); in battle the fallen fighter is removed and the survivor
         fights on — the winner stays standing."""
+        # A Mirror Legion copy dying is never a loss (Solo or Battle): it
+        # just dissolves (unique.world_tick removes it next tick).
+        if unique.is_clone(fig):
+            return
         if self.battle_mode:
             if fig not in self._dead:
                 self._dead.append(fig)
@@ -835,6 +843,7 @@ class Overlay(QWidget):
             clash.step(w)
         except Exception as e:
             action_log.crash("clash", e)
+        unique.world_tick(w)   # Mirror Legion copies join / dissolve
         w.refresh_battle()
         # FX Studio Time control: each figure's body / FX time scale this
         # tick (None = no time effect running anywhere).
@@ -1082,7 +1091,7 @@ class Overlay(QWidget):
 
         # --- HP readout — bottom-right, one entry per figure (both sides) ---
         _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
-                    for fig in s.figures]
+                    for fig in s.figures if not unique.is_clone(fig)]
         if _hp_rows:
             p.setFont(self._hp_font)
             fm = p.fontMetrics()

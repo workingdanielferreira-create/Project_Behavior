@@ -292,8 +292,13 @@ class Figure:
                 p.rotate(self.transform.angle)
             if pscale != 1.0:
                 p.scale(pscale, pscale)
+            _ga = _unique.body_alpha(self)   # Mirror Legion copy: ghostly body
+            if _ga is not None:
+                p.setOpacity(_ga)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
             p.restore()
+            if _ga is not None:
+                p.setOpacity(1.0)
 
         # --- FX Studio effects (fxkit), "front" layer ---
         if self.fx is not None:
