@@ -14318,7 +14318,7 @@
    "prim": "technique",
    "name": "Overhead slash copy",
    "tag": "slash",
-   "anchor": "figure",
+   "anchor": "target",
    "blend": "additive",
    "flip": {
     "enabled": true,
@@ -14378,8 +14378,8 @@
    "continuous": false,
    "always_on": false,
    "offset": [
-    0,
-    0
+    -245,
+    80
    ],
    "layer": "front",
    "emit": {
