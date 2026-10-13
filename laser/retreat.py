@@ -151,11 +151,19 @@ def _triggered(fig, r, ctx, cfg, world):
     return all(res) if cfg.get("logic") == "all" else any(res)
 
 
+def _in_ultimate(fig):
+    """True while an image character's action runner plays its ultimate."""
+    r = getattr(fig, "act", None)
+    return r is not None and r.playing == "ultimate"
+
+
 def _can_start(fig):
     c = fig.combat
-    # Never cut into an ultimate / stance that owns the figure.
+    # Never cut into an ultimate / stance that owns the figure (an image
+    # character's ultimate action included: its own Blink / movement
+    # decides where it stands, a re-engage dash would undo that).
     return not (c.vc_phase or c.sp_phase or c.lb_phase
-                or c.blinkstorm_strikes_left > 0)
+                or c.blinkstorm_strikes_left > 0 or _in_ultimate(fig))
 
 
 def _start(fig, st, cfg, world, tx, ty, tface, r):
@@ -298,6 +306,11 @@ def tick(fig, world):
         if now < st.cooldown_until or not _can_start(fig) or not _triggered(fig, r, ctx, cfg, world):
             return False
         _start(fig, st, cfg, world, tx, ty, tface, r)
+    elif _in_ultimate(fig):
+        # The ultimate takes over from a dash already in progress (else
+        # the dash would also block the ultimate's Blink, laser/blink.py).
+        _end(fig, st, cfg, now)
+        return False
 
     # Duration (the time runs through knockback too).
     st.elapsed += 1
