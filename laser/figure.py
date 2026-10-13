@@ -235,6 +235,8 @@ class Figure:
                                                    self.screen_w, self.screen_h))
 
         # --- FX Studio effects (fxkit), "behind" layer ---
+        # ("abs_back" / "abs_front" are drawn for every fighter at once by
+        # Overlay._paint_abs_layer, under / over ALL characters.)
         if self.fx is not None:
             self.fx.draw(p, self, "behind")
 
