@@ -101,6 +101,16 @@ OVERPOWER_KB, there is no clash at all: the weaker one is destroyed at its
 source (a trail's owner recoils instead) and the stronger carries on
 untouched, never pinned, split or slowed.
 
+Ultimates (_is_ult: an FX Studio effect fired by an `ultimate` action, or a
+built-in ultimate crescent) still clash by every rule above, but a
+non-ultimate effect can never nullify one: the knockback rule never cancels
+it (whatever it loses on knockback), it is never pinned in a held clash by a
+non-ultimate effect it out-knocks (that clash plays as a one-shot burst and
+the weaker effect is destroyed), an ultimate beam is split only by a cutter
+whose knockback beats its own, and a clash never cuts its fighter's ultimate
+action short (no "clash" action while it plays).  Ultimate against ultimate
+follows the plain rules.
+
 While a sustained clash holds, both effects are pinned where they met.  Each
 fighter involved shows its own Rig Forge "clash" action (if it has one),
 standing still, for exactly the clash's length; the FX built on that action
@@ -167,6 +177,9 @@ RULES = {
     ("sprite", "trail"): "trail_sprite",
     ("crescent", "sprite"): "crescent_sprite",
 }
+# Held rules (both effects pinned while they hold) -> the slot played as a
+# one-shot burst instead when an ultimate out-knocks a non-ultimate effect.
+HELD_SLOTS = {"beam_beam": "beam_struggle", "beam_orb": "beam_orb", "crescent_crescent": "crescent_crescent"}
 # One-shot rules: settled by the knockback rule, their slot's FX plays.
 BURST_RULES = ("orb_orb", "trail_trail", "sprite_sprite", "orb_trail", "orb_crescent", "orb_sprite",
                "trail_crescent", "trail_sprite", "crescent_sprite")
@@ -516,9 +529,32 @@ def _recoil(world, fig, cx, cy, kb):
     motion.launch_knockback(fig, dx * spd, dy * spd, world.global_tick)
 
 
+def _is_ult(b):
+    """True for an ultimate's effect: an FX Studio effect fired by an
+    `ultimate` action (its split halves included) or a built-in ultimate
+    crescent."""
+    if b.kind == "ultc":
+        return True
+    return b.kind == "inst" and (b.ref.fx.get("action") == "ultimate")
+
+
+def _ult_over(a, b):
+    """The ultimate of the pair when exactly one of the two is an ultimate's
+    effect and its knockback beats the other's, else None."""
+    ua, ub = _is_ult(a), _is_ult(b)
+    if ua and not ub and a.kb > b.kb:
+        return a
+    if ub and not ua and b.kb > a.kb:
+        return b
+    return None
+
+
 def _settle(world, a, b, c, exempt=None):
     """Knockback rule.  Returns the winner (None on a tie).  `exempt` is
-    never cancelled (a beam against its cutter)."""
+    never cancelled (a beam against its cutter).  An ultimate's effect is
+    never cancelled by a non-ultimate one, whatever the knockback (it can
+    still lose the clash: a stronger cutter splits it, laser rules below);
+    ultimate against ultimate follows the plain rule."""
     if abs(a.kb - b.kb) < 1e-6:
         losers, winner = [a, b], None
     elif a.kb > b.kb:
@@ -529,6 +565,8 @@ def _settle(world, a, b, c, exempt=None):
         if l is exempt:
             continue
         other = b if l is a else a
+        if _is_ult(l) and not _is_ult(other):
+            continue
         if l.cat == "trail":
             _recoil(world, l.owner, c[0], c[1], max(TIE_RECOIL_KB, other.kb - l.kb) if winner is None
                     else other.kb - l.kb)
@@ -701,8 +739,12 @@ def _engage(world, figs, ticks):
         return      # part of a clash already showing (_quiet)
     now = world.global_tick
     for fig in figs:
-        if fig is not None and ticks > 0:
-            actions.force_clash(fig, world, now + int(ticks), True)
+        if fig is None or ticks <= 0:
+            continue
+        r = getattr(fig, "act", None)
+        if r is not None and r.playing == "ultimate":
+            continue    # a clash never cuts an ultimate's animation short
+        actions.force_clash(fig, world, now + int(ticks), True)
 
 
 def _quiet(st, a, b, c, now):
@@ -949,6 +991,17 @@ def _start(world, st, a, b, c, rule, now):
                       (b.owner.y if b.owner else c[1]) - (a.owner.y if a.owner else c[1])))
     figs = (a.owner, b.owner)
     budget = _budget(a, b)
+    if rule in HELD_SLOTS and _ult_over(a, b) is not None:
+        # An ultimate that out-knocks a non-ultimate effect is never pinned
+        # by it (no struggle / hold): the clash plays as a one-shot burst,
+        # the knockback rule destroys the weaker, and the ultimate blasts on.
+        _settle(world, a, b, c)
+        fx = _spawn_fx(world, HELD_SLOTS[rule], c, _deg(*a.dir) if rule != "crescent_crescent" else ang,
+                       a.col, b.col, hold=0, budget=budget, pair=(a, b))
+        if fx is not None and fx.sustain:
+            fx.release()
+        _engage(world, figs, fx.length() if fx is not None else 30)
+        return None
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
             _settle(world, a, b, c)
@@ -1010,7 +1063,13 @@ def _start(world, st, a, b, c, rule, now):
     if rule == "beam_cut":
         _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
         # A split half never splits again (no cascade): it is just cut.
-        if id(a.ref) not in st["halves"] and rng.random() < SPLIT_CHANCE:
+        # An ultimate's beam is split only by a cutter whose knockback beats
+        # its own (a non-ultimate cutter; ultimate x ultimate rolls as usual).
+        if _is_ult(a) and not _is_ult(b):
+            split = b.kb > a.kb
+        else:
+            split = rng.random() < SPLIT_CHANCE
+        if id(a.ref) not in st["halves"] and split:
             fx = _spawn_fx(world, "beam_split", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
             _split_beam(world, st, a, c, size=_pair_size(a, b, _slot_fx("split_tip")[1]))
         else:

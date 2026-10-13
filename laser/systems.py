@@ -300,11 +300,14 @@ class MotionSystem(System):
                 fig.render.is_moving = False
                 fig.render.advance()
                 continue
+            # Image characters close to within their attack range instead of
+            # stopping at their formation offset (actions.chase_offset).
+            _off = actions.chase_offset(fig, world)
             if battle:
-                motion.update(fig, tx_motion, ty_motion, False, False, False)
+                motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
             else:
                 hit = motion.update(fig, tx_motion, ty_motion, world.collision_on,
-                                    world.path_follow, world.runaway)
+                                    world.path_follow, world.runaway, offset=_off)
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
                     # Solo mode cursor bounce costs 1 HP — unless parrying

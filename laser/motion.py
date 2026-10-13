@@ -11,10 +11,11 @@ from . import config
 from . import combat as _combat
 
 
-def update(fig, tx, ty, collision_on, path_follow, runaway):
+def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
     """Advance one figure's position toward (tx, ty) for this tick.
-    Returns (cx, cy) if a cursor-collision bounce was triggered this tick,
-    otherwise None."""
+    offset: the chase offset to use instead of the figure's formation offset
+    (actions.chase_offset).  Returns (cx, cy) if a cursor-collision bounce
+    was triggered this tick, otherwise None."""
     m = fig.motion
     t = fig.transform
 
@@ -62,7 +63,7 @@ def update(fig, tx, ty, collision_on, path_follow, runaway):
     elif path_follow:
         _follow_path(fig, tx, ty, sf)
     else:
-        _chase(fig, tx, ty, sf)
+        _chase(fig, tx, ty, sf, offset)
 
     fig.face(ox, oy)
     anchor = _combat.sprite_emitter_trail_anchor(fig)
@@ -190,13 +191,14 @@ def _follow_path(fig, cx, cy, sf=1.0):
             budget = 0.0
 
 
-def _chase(fig, cx, cy, sf=1.0):
+def _chase(fig, cx, cy, sf=1.0, offset=None):
     m = fig.motion
     t = fig.transform
     if m.path:
         m.path.clear()
-    dx = cx + m.offset_x - t.x
-    dy = cy + m.offset_y - t.y
+    ox, oy = (m.offset_x, m.offset_y) if offset is None else offset
+    dx = cx + ox - t.x
+    dy = cy + oy - t.y
     d_sq = dx * dx + dy * dy
     step = m.speed * sf
     if d_sq > step * step:
@@ -204,8 +206,8 @@ def _chase(fig, cx, cy, sf=1.0):
         t.x += dx * inv
         t.y += dy * inv
     else:
-        t.x = cx + m.offset_x
-        t.y = cy + m.offset_y
+        t.x = cx + ox
+        t.y = cy + oy
 
 
 def apply_arena_oval(fig, world):
