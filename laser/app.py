@@ -18,6 +18,7 @@ from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
 from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion
+from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -174,6 +175,9 @@ class World:
         # (1/2/3/4, F7/F8) are ignored in Solo and Battle.  Deaths still
         # follow the normal rules (World.on_figure_death).
         self.roster_locked = False
+        # Ctrl+Shift+. pre-battle menu (laser/prebattle.py): while open the
+        # whole game is paused and fighters stand idle (see Overlay._tick).
+        self.prebattle = PreBattleMenu()
 
         self.add_figure()
 
@@ -793,28 +797,30 @@ class Overlay(QWidget):
         pos = QCursor.pos()
         w.cursor = (pos.x(), pos.y())
 
-        # --- HIT-STOP: freeze the world for a few ticks on big hits ---
-        # Input keeps running; combat, motion, collisions, and bullets all
-        # pause — for BOTH sides at once, since they now share one clock.
-        # FX (rings, sparks, ghosts) keep animating in paint for punch.
-        if w.hitstop_ticks > 0:
-            w.hitstop_ticks -= 1
-            try:
-                self.input.update(w)
-            except Exception as e:
-                action_log.crash("InputSystem", e)
-            if w.quitting:
-                self._shutdown()
-                return
-            self.update()
-            return
-
         try:
             self.input.update(w)
         except Exception as e:
             action_log.crash("InputSystem", e)
         if w.quitting:
             self._shutdown()
+            return
+
+        # --- PRE-BATTLE MENU (Ctrl+Shift+.): full pause ---
+        # Nothing simulates and global_tick stands still, so cooldowns,
+        # timers, bullets and HP resume exactly where they were on close.
+        # _paint draws the fighters in their idle pose plus the menu.
+        if w.prebattle.open:
+            w.prebattle.tick += 1
+            self.update()
+            return
+
+        # --- HIT-STOP: freeze the world for a few ticks on big hits ---
+        # Input keeps running; combat, motion, collisions, and bullets all
+        # pause — for BOTH sides at once, since they now share one clock.
+        # FX (rings, sparks, ghosts) keep animating in paint for punch.
+        if w.hitstop_ticks > 0:
+            w.hitstop_ticks -= 1
+            self.update()
             return
 
         # One simulation pass per fielded side.  Snapshots are rebuilt once,
@@ -875,6 +881,13 @@ class Overlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
+        # Pre-battle menu: idle fighters + menu only.  Bullets, clones and
+        # the paint-aged FX (rings, sparks, flashes, clash explosions) are
+        # left untouched — not drawn, not aged — and reappear on close.
+        if w.prebattle.open:
+            w.prebattle.paint(p, w, self._pen)
+            p.end()
+            return
         for fig in w.all_figures():
             fig.draw(p, self._pen)
         # Every bullet on screen is a live Projectile drawn with its own
