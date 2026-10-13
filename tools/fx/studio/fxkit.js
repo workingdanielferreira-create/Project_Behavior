@@ -575,7 +575,9 @@ var UNIQUE_TYPES = ["none", "mirror_legion", "berserker", "phase_shift", "ricoch
 var UNIQUE_DEFAULTS = {
   mirror_legion: {trigger: "hp_below", hp_thresholds: "70,50,30", every_hits: 5, every_ms: 10000,
     count: 2, duration_ms: 4000, cooldown_ms: 6000, formation: "around",
-    spread_px: 90, damage: 1, speed_pct: 80, opacity_pct: 60},
+    spread_px: 90, speed_pct: 100, opacity_pct: 60,
+    clone_hp: 20, damage_pct: 50, max_alive: 6,
+    actions: {}},   // action name -> false = the copies never play it (missing = they do)
   berserker: {start_lost_pct: 0, max_lost_pct: 90, max_bonus_pct: 500, curve: "linear",
     steps: 5, damage_bonus_pct: 0, damage_taken_pct: 0, speed_fx: true, aura: true, aura_color: "#ff2a2a"},
   phase_shift: {trigger: "every_hit", min_damage: 5, hp_below_pct: 50, chance_pct: 50,

@@ -15,7 +15,8 @@ back in the Studio doesn't lose them).  A hand-written pb_character JSON can
 carry the same block at its top level.  Mirror of tools/fx/studio/fxkit.js
 UNIQUE_DEFAULTS / normalizeUnique.
 
-    mirror_legion  split into ghost copies (combat.CloneEffect) on a trigger
+    mirror_legion  split into full copies of the fighter (real Figures on its
+                   side running its ticked actions) on a trigger
     berserker      attack + movement speed (every state) rise as HP falls
     phase_shift    a hit is nullified and the fighter teleports away
     ricochet       its bullets and moving FX bounce off walls / fighters / FX
@@ -52,7 +53,9 @@ DEFAULTS = {
         every_hits=5, every_ms=10000,
         count=2, duration_ms=4000, cooldown_ms=6000,
         formation="around",          # around | at_self | corners | mirror
-        spread_px=90.0, damage=1.0, speed_pct=80.0, opacity_pct=60.0),
+        spread_px=90.0, speed_pct=100.0, opacity_pct=60.0,
+        clone_hp=20.0, damage_pct=50.0, max_alive=6,
+        actions={}),                 # action name -> False = the copies never play it
     "berserker": dict(
         start_lost_pct=0.0, max_lost_pct=90.0, max_bonus_pct=500.0,
         curve="linear",              # linear | exponential | steps
@@ -80,7 +83,7 @@ DEFAULTS = {
 }
 
 _LIMITS = {
-    "count": (1, 8), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
+    "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
     "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
 }
 
@@ -100,6 +103,9 @@ def _norm(kind, raw):
                 v = int(round(float(v)))
             elif isinstance(dv, float):
                 v = float(v)
+            elif isinstance(dv, dict) and not dv:
+                # open table (Mirror Legion `actions`): name -> on/off
+                v = {str(kk): bool(vv) for kk, vv in v.items()} if isinstance(v, dict) else {}
             elif isinstance(dv, dict):
                 v = {kk: bool((v or {}).get(kk, dd)) if isinstance(v, dict) else dd
                      for kk, dd in dv.items()}
@@ -118,8 +124,8 @@ def cfg(fig):
     """(type, settings) of this figure's unique ability, or None.  Cached on
     the mode instance like the other generic *_cfg parsers."""
     mode = getattr(fig, "mode", None)
-    if mode is None:
-        return None
+    if mode is None or is_clone(fig):
+        return None       # a Mirror Legion copy carries no ability of its own
     if hasattr(mode, "_ua_cfg"):
         return mode._ua_cfg
     char = getattr(mode, "character", None) or {}
@@ -154,7 +160,8 @@ def _rgb(hexs, fallback=(255, 255, 255)):
 class UAState:
     __slots__ = ("shots", "sparks", "legion_fired", "legion_cd", "legion_timer", "hits",
                  "charges", "recharge", "spawn", "stance_left", "stance_timer",
-                 "riposte_cd", "flash", "flash_rgb")
+                 "riposte_cd", "flash", "flash_rgb",
+                 "clones", "pending", "clone_of", "clone_left", "clone_P")
 
     def __init__(self, fig):
         self.shots = []          # projectiles queued for this figure's side
@@ -171,6 +178,16 @@ class UAState:
         self.riposte_cd = 0
         self.flash = 0
         self.flash_rgb = (255, 255, 255)
+        self.clones = []         # owner: its live Mirror Legion copies
+        self.pending = []        # owner: copies waiting to join its side (world_tick)
+        self.clone_of = None     # copy: the fighter it copies
+        self.clone_left = 0      # copy: ticks until it dissolves
+        self.clone_P = None      # copy: the owner's mirror_legion settings
+
+
+def is_clone(fig):
+    st = getattr(fig, "ua", None)
+    return st is not None and st.clone_of is not None
 
 
 def state(fig):
@@ -349,11 +366,17 @@ def on_dodge(fig):
 
 # ------------------------------------------------------------ Mirror Legion
 def _spawn_legion(fig, world, P):
-    from . import combat
+    """Queue P["count"] copies of `fig`: real Figures of the same character
+    (its actions, FX, movement and AI), joined to its side by world_tick."""
+    from .figure import Figure
     st = state(fig)
     st.legion_cd = _ticks(P["cooldown_ms"])
+    st.clones = [c for c in st.clones if c.personality.hp > 0 and c.ua.clone_left > 0]
+    room = P["max_alive"] - len(st.clones) - len(st.pending)
+    n = min(P["count"], room)
+    if n <= 0:
+        return
     x, y = fig.transform.x, fig.transform.y
-    n = P["count"]
     rng = fig.personality.rng
     sp = P["spread_px"]
     pts = []
@@ -378,13 +401,80 @@ def _spawn_legion(fig, world, P):
         a0 = rng.uniform(0, 2 * math.pi)
         pts = [(x + math.cos(a0 + 2 * math.pi * i / n) * sp,
                 y + math.sin(a0 + 2 * math.pi * i / n) * sp) for i in range(n)]
-    speed = fig.motion.follow_speed * P["speed_pct"] / 100.0
-    alpha = max(10, min(255, int(255 * P["opacity_pct"] / 100.0)))
-    for (px, py) in pts:
+    k = P["speed_pct"] / 100.0
+    whole = isinstance(fig.personality.max_hp, int)
+    hp = max(1, int(round(P["clone_hp"]))) if whole else max(0.1, float(P["clone_hp"]))
+    for i, (px, py) in enumerate(pts):
         px, py = _clamp_xy(fig, px, py)
-        fig.combat.clones.append(combat.CloneEffect(
-            px, py, _ticks(P["duration_ms"]), speed, P["damage"], alpha=alpha))
+        c = Figure(fig.mode, fig.render.bundle, fig.lut, fig.index + 1 + len(st.clones) + i,
+                   fig.screen_w, fig.screen_h)
+        c.transform.x, c.transform.y = px, py
+        c.transform.facing_left = fig.transform.facing_left
+        c.transform.init = True
+        c.personality.max_hp = c.personality.hp = hp
+        c.motion.speed *= k
+        c.motion.follow_speed *= k
+        cs_ = UAState(c)
+        cs_.clone_of, cs_.clone_left, cs_.clone_P = fig, _ticks(P["duration_ms"]), P
+        c.ua = cs_
+        st.pending.append(c)
         fig.combat.blink_fx_pending.append((x, y, px, py))
+
+
+def world_tick(world):
+    """World level, once per tick before refresh_battle (so the snapshots
+    already show them): copies whose time ran out, that died, or whose
+    original left the fight / changed character dissolve; queued copies
+    join their original's side.  Same in Solo and Battle."""
+    dead = getattr(world, "_dead", ()) or ()
+    for side in world.sides:
+        figs = side.figures
+        keep, changed = [], False
+        for f in figs:
+            st = getattr(f, "ua", None)
+            if st is not None and st.clone_of is not None:
+                o = st.clone_of
+                st.clone_left -= 1
+                if (st.clone_left <= 0 or f.personality.hp <= 0 or o not in figs
+                        or o in dead or o.mode is not f.mode):
+                    _burst(world.sparks, f.transform.x, f.transform.y, tuple(f.lut[200]), n=12)
+                    for pr in side.projectiles:
+                        if pr.owner is f:
+                            pr.age = pr.max_age
+                    if o.ua is not None and f in o.ua.clones:
+                        o.ua.clones.remove(f)
+                    changed = True
+                    continue
+            keep.append(f)
+        for f in list(keep):
+            st = getattr(f, "ua", None)
+            if st is not None and st.pending:
+                if f in dead:
+                    st.pending = []
+                    continue
+                keep.extend(st.pending)
+                st.clones.extend(st.pending)
+                st.pending = []
+                changed = True
+        if changed:
+            figs[:] = keep
+
+
+def clone_allows(fig, name):
+    """actions.py gate: may this fighter start action `name`?  Only a
+    Mirror Legion copy is ever limited (by its owner's ticked actions)."""
+    st = getattr(fig, "ua", None)
+    if st is None or st.clone_of is None:
+        return True
+    return bool((st.clone_P.get("actions") or {}).get(name, True))
+
+
+def body_alpha(fig):
+    """Sprite opacity 0..1 for a Mirror Legion copy, None for anyone else."""
+    st = getattr(fig, "ua", None)
+    if st is None or st.clone_of is None:
+        return None
+    return max(0.05, min(1.0, st.clone_P["opacity_pct"] / 100.0))
 
 
 # ------------------------------------------------------------ Berserker
@@ -421,7 +511,11 @@ def fx_speed_mult(fig):
 
 
 def out_mult(fig):
-    """Outgoing damage multiplier (Berserker damage bonus)."""
+    """Outgoing damage multiplier (Berserker damage bonus; a Mirror Legion
+    copy deals its owner's set % of the damage)."""
+    st = getattr(fig, "ua", None) if fig is not None else None
+    if st is not None and st.clone_of is not None:
+        return max(0.0, st.clone_P["damage_pct"] / 100.0)
     P = _of(fig, "berserker")
     if P is None or P["damage_bonus_pct"] == 0:
         return 1.0

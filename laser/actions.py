@@ -56,6 +56,7 @@ import random
 import re
 
 from . import config
+from . import unique as _unique
 
 TICK_MS = config.TICK_MS
 DEFAULT_ATTACK_GAP_MS = 350     # minimum gap between attacks without a cooldown
@@ -427,6 +428,8 @@ class ActionRunner:
         cfg = _cfg(fig, name)
         if cfg.get("conditions") and not self._conds_pass(fig, name, cfg, ctx):
             return None
+        if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
+            return None
         return name if name in fig.render.bundle.extra else None
 
     def observe(self, fig, world):
@@ -549,6 +552,8 @@ class ActionRunner:
                                                       2 if k == "attack_special" else 3, k)):
                 if not armed and name != "defend":
                     continue
+                if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
+                    continue
                 if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                     self._finish(fig, now)
                     self._start(fig, name, ctx, now)
@@ -560,6 +565,8 @@ class ActionRunner:
                                                  2 if k == "attack_special" else 3, k))
             for name in order:
                 if not armed and name != "defend":
+                    continue
+                if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
                     continue
                 if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                     if self._start(fig, name, ctx, now):
@@ -873,6 +880,8 @@ def force_attack(fig, world):
     r = runner(fig)
     if r is None or r.playing is not None or "attack_normal" not in fig.render.bundle.extra:
         return False
+    if not _unique.clone_allows(fig, "attack_normal"):
+        return False
     p = fig.personality
     return r._start(fig, "attack_normal", {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)},
                     world.global_tick)
@@ -888,6 +897,8 @@ def force_ultimate(fig, world):
     keep it queued and try again next tick."""
     r = runner(fig)
     if r is None or "ultimate" not in fig.render.bundle.extra:
+        return True
+    if not _unique.clone_allows(fig, "ultimate"):   # Mirror Legion copy without it
         return True
     if r.playing is not None:
         if _kind(r.playing) == "triggered":

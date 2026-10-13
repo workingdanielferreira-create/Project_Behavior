@@ -2068,7 +2068,7 @@ function buildRetreatProps(d) {
 // is picked, so switching back loses nothing.
 var UA_INFO = {
   mirror_legion: ["Mirror Legion", "Shadow-clone ninja · illusionist",
-    "Splits into ghost copies of itself for a while when its trigger fires. Each copy chases the target and strikes on contact, then dissolves."],
+    "Splits into copies of itself for a while when its trigger fires. Each copy is a full fighter: it moves, fights and plays the actions you tick below with all their FX, has its own HP and can be targeted, then dissolves."],
   berserker: ["Berserker", "Rage warrior · glass cannon",
     "The more HP it has lost, the faster it moves and attacks: every state (moving, attacking, recovering) speeds up together, up to the set bonus."],
   phase_shift: ["Phase Shift", "Evasive trickster · blink mage",
@@ -2135,17 +2135,41 @@ function uaMirrorLegion(d, P) {
   if (P.trigger === "hits_taken") uaNum(s, "Every N hits", P, "every_hits", 1, 99, 1, "Splits after this many hits that take HP.");
   if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 500, 60000, 100, "Splits on this timer (while the cooldown is clear).");
   if (P.trigger !== "hp_below") uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two splits. (HP thresholds ignore it.)");
-  s = sec(d, "Copies", "ua-ml-copies", "How many ghosts appear and how strong they are.", "act");
-  uaNum(s, "Copies", P, "count", 1, 8, 1, "Ghosts per split (1-8).");
-  uaNum(s, "Last ms", P, "duration_ms", 200, 30000, 100, "How long each ghost lasts before it dissolves (fades over its last quarter).");
-  uaNum(s, "Strike damage", P, "damage", 0, 100, 0.5, "HP each contact strike takes from the enemy (about two strikes a second while in reach).");
-  uaNum(s, "Speed %", P, "speed_pct", 10, 300, 5, "Ghost chase speed as a % of the fighter's own speed.");
-  uaNum(s, "Opacity %", P, "opacity_pct", 5, 100, 5, "How solid the ghosts look.");
+  s = sec(d, "Copies", "ua-ml-copies", "How many copies appear, how tough they are and how hard they hit.", "act");
+  uaNum(s, "Copies", P, "count", 1, 8, 1, "Copies per split (1-8).", true);
+  uaNum(s, "Most at once", P, "max_alive", 1, 16, 1, "Never more than this many copies alive at the same time; a split makes only as many as there is room for.", true);
+  uaNum(s, "Last ms", P, "duration_ms", 200, 60000, 100, "How long each copy lasts before it dissolves.", true);
+  uaNum(s, "Copy HP", P, "clone_hp", 1, 10000, 1, "Each copy's own HP. Enemies see the copies as fighters: they can aim at them and kill them. A copy dying is never a loss.", true);
+  uaNum(s, "Damage %", P, "damage_pct", 0, 300, 5, "Every hit a copy lands deals this % of what the original's same hit would.", true);
+  uaNum(s, "Speed %", P, "speed_pct", 10, 300, 5, "Copy movement speed as a % of the fighter's own speed.");
+  uaNum(s, "Opacity %", P, "opacity_pct", 5, 100, 5, "How solid the copies' bodies look (their FX draw as normal).");
+  uaCloneActions(d, P);
   s = sec(d, "Formation", "ua-ml-form", "Where the copies appear.", "act");
   uaChoice(s, "Appear", P, "formation", [["around", "In a ring around it"], ["at_self", "On top of it"], ["corners", "In the screen corners"], ["mirror", "Behind the target"]],
     "Ring: evenly round the fighter at the spread distance. On top: at its position. Corners: one per corner, in turn. Behind the target: on the far side of the enemy, fanned out.");
   if (P.formation === "around" || P.formation === "mirror") uaNum(s, "Spread px", P, "spread_px", 0, 600, 5, "Ring radius / distance behind the target.");
-  note(s, "A split: " + P.count + " ghost" + (P.count > 1 ? "s" : "") + " for " + (P.duration_ms / 1000).toFixed(1) + " s, " + P.damage + " damage per strike.");
+  note(s, "A split: " + P.count + " cop" + (P.count > 1 ? "ies" : "y") + " for " + (P.duration_ms / 1000).toFixed(1) + " s, " + P.clone_hp + " HP each, hitting at " + P.damage_pct + "% (at most " + P.max_alive + " alive).");
+}
+// The actions a Mirror Legion copy may play: one tick box per action of
+// this character (idle / run always play, they are how it stands and moves).
+function uaCloneActions(d, P) {
+  var s = sec(d, "Actions the copies perform", "ua-ml-acts", "Tick what the copies act out. They use the same triggers, timing and FX as the original; unticked actions are never played by a copy.", "act");
+  var names = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
+  if (!names.length) { note(s, "This character has no actions besides idle / run."); return; }
+  names.forEach(function (k) {
+    var n = S.effects.filter(function (e) { return e.action === k; }).length;
+    field(s, k + (n ? "  (" + n + " fx)" : ""), inp("chk", P.actions[k] !== false, function (v) {
+      if (v) delete P.actions[k]; else P.actions[k] = false; save(); buildProps();
+    })).title = "On: copies play " + k + " whenever its own trigger conditions pass, just like the original. Off: they never do.";
+  });
+  var on = names.filter(function (k) { return P.actions[k] !== false; });
+  var row = document.createElement("div"); row.className = "row";
+  var all = document.createElement("button"); all.textContent = "All";
+  all.onclick = function () { names.forEach(function (k) { delete P.actions[k]; }); save(); buildProps(); };
+  var none = document.createElement("button"); none.textContent = "None";
+  none.onclick = function () { names.forEach(function (k) { P.actions[k] = false; }); save(); buildProps(); };
+  row.appendChild(all); row.appendChild(none); s.appendChild(row);
+  note(s, (on.length ? "Copies act out: " + on.join(", ") : "Copies only move (no actions ticked)") + ". idle / run always play.");
 }
 function uaRage(P, lostPct) {
   var lo = P.start_lost_pct, hi = Math.max(lo + 0.01, P.max_lost_pct), f = Math.max(0, Math.min(1, (lostPct - lo) / (hi - lo)));
