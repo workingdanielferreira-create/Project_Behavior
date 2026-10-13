@@ -11508,7 +11508,7 @@
       "anchor": "target",
       "direction": "front",
       "angle_deg": 0,
-      "proximity_px": 1000,
+      "proximity_px": 2000,
       "flash": true,
       "mirror": false
      }
