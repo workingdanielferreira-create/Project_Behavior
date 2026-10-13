@@ -159,6 +159,12 @@ def _in_ultimate(fig):
 
 def _can_start(fig):
     c = fig.combat
+    # Not before MotionSystem has placed the fighter (its first un-rooted
+    # tick): a dash from the spawn corner owns every tick's movement, so
+    # the fighter would never get placed — and an image character's action
+    # runner does nothing until it is (no attacks, no specials, only dashes).
+    if not fig.transform.init:
+        return False
     # Never cut into an ultimate / stance that owns the figure (an image
     # character's ultimate action included: its own Blink / movement
     # decides where it stands, a re-engage dash would undo that).

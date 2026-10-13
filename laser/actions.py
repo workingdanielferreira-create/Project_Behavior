@@ -829,6 +829,28 @@ def attack_range(fig, name):
     return radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
 
 
+CHASE_REACH = 0.5     # a chasing image character closes to this share of its attack range
+
+
+def chase_offset(fig, world):
+    """MotionSystem: the chase offset for an image character, or None = its
+    formation offset (config.FIGURE_OFFSETS, which spreads fighters round
+    their target).  While Attack mode is on, the offset is shortened to
+    CHASE_REACH of its normal attack's range, so the chase ends where it can
+    attack: P1's 100 px slot used to hold a short-range fighter (Puck: 40 px)
+    just out of reach, attacking only when the enemy walked into it.  Same
+    for Solo (the cursor) and Battle (the nearest enemy)."""
+    if not is_image(fig) or not getattr(world, "shoot_mode", True):
+        return None
+    m = fig.motion
+    d = (m.offset_x * m.offset_x + m.offset_y * m.offset_y) ** 0.5
+    reach = attack_range(fig, "attack_normal") * CHASE_REACH
+    if d <= reach:
+        return None
+    k = reach / d if d > 1e-6 else 0.0
+    return m.offset_x * k, m.offset_y * k
+
+
 def tracker_ctx(fig, world):
     """(runner, ctx) for conditions evaluated outside the action runner
     (the Tactical retreat).  Image characters reuse their ActionRunner and
