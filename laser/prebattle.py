@@ -57,6 +57,12 @@ class PreBattleMenu:
         self.open = False
         self.shown = set()
         self.tick = 0
+        # Frozen FX layer: everything on screen except the fighters' bodies
+        # (bullets, clones, trails, rings, sparks, clash FX ...), captured
+        # once when the menu opens and redrawn unchanged every paused frame
+        # (see Overlay._paint).  frozen_sig = roster_sig at capture time.
+        self.frozen = None
+        self.frozen_sig = None
         self._name_font = QFont("Consolas", 20, QFont.Bold)
         self._tag_font = QFont("Consolas", 11, QFont.Bold)
         self._title_font = QFont("Consolas", 14, QFont.Bold)
@@ -65,6 +71,13 @@ class PreBattleMenu:
         self.open = not self.open
         self.shown.clear()
         self.tick = 0
+        self.frozen = None
+
+    @staticmethod
+    def roster_sig(world):
+        """Changes whenever a fighter is fielded, retired or re-skinned, so
+        the frozen FX layer is re-captured to match the roster on screen."""
+        return tuple((id(f), f.mode.key) for f in world.all_figures())
 
     def reveal(self, slot):
         if self.open:

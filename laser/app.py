@@ -881,15 +881,51 @@ class Overlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        # Pre-battle menu: idle fighters + menu only.  Bullets, clones and
-        # the paint-aged FX (rings, sparks, flashes, clash explosions) are
-        # left untouched — not drawn, not aged — and reappear on close.
-        if w.prebattle.open:
-            w.prebattle.paint(p, w, self._pen)
+        # Pre-battle menu: every FX that was mid-flight (bullets, clones,
+        # trails, rings, sparks, flashes, clash explosions, fighter FX)
+        # stays on screen frozen in place.  It is rendered ONCE into a
+        # pixmap — that one pass ages the paint-aged FX by a single frame,
+        # exactly like a normal frame — and the pixmap is redrawn unchanged
+        # until the menu closes, so nothing ages while paused.  The fighters
+        # are drawn on top in their idle pose, then the menu.  Re-captured
+        # only if the roster changes (1/2/3/4, F7/F8) so a swapped or
+        # retired fighter's FX don't linger.
+        mb = w.prebattle
+        if mb.open:
+            sig = mb.roster_sig(w)
+            if mb.frozen is None or mb.frozen_sig != sig:
+                mb.frozen = self._capture_frozen_layer()
+                mb.frozen_sig = sig
+            p.drawPixmap(0, 0, mb.frozen)
+            mb.paint(p, w, self._pen)
             p.end()
             return
+        self._paint_scene(p)
+        p.end()
+
+    def _capture_frozen_layer(self):
+        """The scene minus fighter bodies and HUD, as a transparent pixmap."""
+        dpr = self.devicePixelRatioF()
+        pm = QPixmap(max(1, int(self.width() * dpr)),
+                     max(1, int(self.height() * dpr)))
+        pm.setDevicePixelRatio(dpr)
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setRenderHint(QPainter.SmoothPixmapTransform)
+        try:
+            self._paint_scene(qp, bodies=False, hud=False)
+        finally:
+            qp.end()
+        return pm
+
+    def _paint_scene(self, p, bodies=True, hud=True):
+        """Everything the game draws in a normal frame.  bodies=False skips
+        the fighters' sprites, hud=False the HP readout and notice — used by
+        the pre-battle menu's frozen FX layer."""
+        w = self.world
         for fig in w.all_figures():
-            fig.draw(p, self._pen)
+            fig.draw(p, self._pen, body=bodies)
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.
@@ -1016,6 +1052,9 @@ class Overlay(QWidget):
             sw, sh = w.screen_w, w.screen_h
             clashfx.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
+        if not hud:
+            return
+
         # --- HP readout — bottom-right, one entry per figure (both sides) ---
         _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
                     for fig in s.figures]
@@ -1059,8 +1098,6 @@ class Overlay(QWidget):
             p.drawText(21, 41, _txt)
             p.setPen(QColor(255, 255, 255, 230))
             p.drawText(20, 40, _txt)
-
-        p.end()
 
     def closeEvent(self, event):
         action_log.close()
