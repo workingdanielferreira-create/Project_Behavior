@@ -80,6 +80,15 @@ class InputSystem(System):
         if self._pressed(win.VK_F6):
             world.preview_clash_fx()
 
+        # Ctrl+Shift+. (Ctrl+'>'): open / close the pre-battle menu
+        # (laser/prebattle.py).  While it is open Overlay._tick pauses the
+        # whole game; this input system keeps running so 1/2/3/4 still
+        # cycle characters and reveal their corner panels.  Same in Solo
+        # and Battle.
+        if self._pressed(win.VK_PERIOD) and ctrl and win.key_down(win.VK_SHIFT):
+            world.prebattle.toggle()
+            world.ctrl_used = True
+
         # Ctrl+0: toggle the roster lock.  While locked, every key that
         # adds, removes or swaps a fighter (1/2/3/4, F7/F8) is ignored, so
         # whatever is on screen stays put.  Ctrl+1 / Ctrl+2 manual ultimates
@@ -98,13 +107,19 @@ class InputSystem(System):
         # World.request_manual_ultimate / combat.try_fire_manual_ultimate).
         # ctrl_used is set so releasing Ctrl afterward doesn't also toggle
         # collision (mirrors the Ctrl+Q / Ctrl+R pattern below).
+        # While the pre-battle menu is open, a plain 1/2/3/4 tap also reveals
+        # that slot's corner panel (lock or not — the panel is read-only).
         if self._pressed(win.VK_1):
+            if not ctrl:
+                world.prebattle.reveal(1)
             if ctrl:
                 world.request_manual_ultimate(0)
                 world.ctrl_used = True
             elif not locked:
                 world.cycle_side_char(0)
         if self._pressed(win.VK_2):
+            if not ctrl:
+                world.prebattle.reveal(2)
             if ctrl:
                 world.request_manual_ultimate(1)
                 world.ctrl_used = True
@@ -120,10 +135,14 @@ class InputSystem(System):
         # slots never fight over the same figure.  See
         # World.cycle_side_extra — same behaviour in Solo and Battle.
         # Edges are always consumed (so a held key doesn't fire on unlock).
-        if self._pressed(win.VK_3) and not locked:
-            world.cycle_side_extra(0)
-        if self._pressed(win.VK_4) and not locked:
-            world.cycle_side_extra(1)
+        if self._pressed(win.VK_3):
+            world.prebattle.reveal(3)
+            if not locked:
+                world.cycle_side_extra(0)
+        if self._pressed(win.VK_4):
+            world.prebattle.reveal(4)
+            if not locked:
+                world.cycle_side_extra(1)
 
         if self._pressed(win.VK_F7) and not locked:
             world.add_figure()

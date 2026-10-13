@@ -183,7 +183,10 @@ class Figure:
             return fs[self.render.run_idx % len(fs)]
         return None
 
-    def draw(self, p, pen):
+    def draw(self, p, pen, body=True):
+        """Paint the figure and everything it owns.  body=False skips only
+        the sprite (and its outline glow) — the pre-battle menu's frozen FX
+        layer uses it, then paints the fighter in its idle pose on top."""
         # --- Dash afterimages: crimson speed-ghosts, drawn behind everything ---
         c0 = self.combat
         if c0.afterimages:
@@ -234,6 +237,8 @@ class Figure:
                                                    self.screen_w, self.screen_h))
 
         # --- FX Studio effects (fxkit), "behind" layer ---
+        # ("abs_back" / "abs_front" are drawn for every fighter at once by
+        # Overlay._paint_abs_layer, under / over ALL characters.)
         if self.fx is not None:
             self.fx.draw(p, self, "behind")
 
@@ -246,7 +251,7 @@ class Figure:
         # Vanish-cut ultimate: the figure is 'gone' during the cut — the
         # sprite (and its glow) skip drawing while vc_hidden; crescent
         # slashes / sparks / impact FX below still render.
-        if frame is not None and not c0.vc_hidden and not gone:
+        if body and frame is not None and not c0.vc_hidden and not gone:
             pscale = fig_pscale
             og = self.render.outline_glow
             if og is not None:

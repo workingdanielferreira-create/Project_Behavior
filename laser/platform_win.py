@@ -10,6 +10,7 @@ import ctypes
 
 # Virtual-key codes ---------------------------------------------------------
 VK_CTRL  = 0x11
+VK_SHIFT = 0x10            # Ctrl+Shift+. (Ctrl+'>'): pre-battle menu (laser/prebattle.py)
 VK_ALT   = 0x12
 VK_ENTER = 0x0D
 VK_Q     = 0x51
@@ -27,6 +28,7 @@ VK_1     = 0x31
 VK_2     = 0x32
 VK_3     = 0x33            # P1 extra-fighter slot (World.cycle_side_extra)
 VK_4     = 0x34            # P2 extra-fighter slot (World.cycle_side_extra)
+VK_PERIOD = 0xBE           # VK_OEM_PERIOD: the '.' / '>' key
 
 _BELOW_NORMAL = 0x00004000
 

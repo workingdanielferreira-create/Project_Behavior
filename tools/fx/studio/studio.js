@@ -1482,7 +1482,8 @@ function buildProps() {
     "What kind of FX this is (e.g. fireball, slash, beam). Other characters' defend / deflect triggers react to these tags.";
   field(s, "Primitive", inp(FXK.PRIMS, fx.prim, function (v) { fx.prim = v; fx.params = {}; FXK.normalize(fx); buildEffects(); changed(true); }));
   if (fx.prim !== "weapon") {
-    field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"]], fx.layer, function (v) { fx.layer = v; changed(); }));
+    field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"],
+      ["abs_front", "absolute front (over every character)"], ["abs_back", "absolute back (under every character)"]], fx.layer, function (v) { fx.layer = v; changed(); }));
     field(s, "Blend", inp(["normal", "additive"], fx.blend, function (v) { fx.blend = v; changed(); }));
   }
   field(s, "Action", inp(fxKeyOptions(), fx.action, function (v) { fx.action = v; selectKey(v); delete fx.group; pruneGroups(); rebuild(); resetSim(0); save(); })).title =
@@ -3089,9 +3090,11 @@ function draw() {
   var ps = viewScale(), fr = frameAt(S.t), img = act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   var gone = blinkGone();
+  player.draw(g, host, "abs_back", ps);   // under every character (laser/app.py _paint_abs_layer)
   player.draw(g, host, "behind", ps);   // blinked out: the FX still draw (only the fighter is hidden)
   if (!gone) drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
   player.draw(g, host, "front", ps);
+  player.draw(g, host, "abs_front", ps);   // over every character
   drawBlink(g, z, img);
   drawDash(g, z);
   drawTestShots(g, z);

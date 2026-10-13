@@ -21611,7 +21611,7 @@
    "end_frame": -1,
    "continuous": false,
    "always_on": false,
-   "layer": "front",
+   "layer": "abs_front",
    "emit": {
     "every_ticks": 0,
     "count": 1,

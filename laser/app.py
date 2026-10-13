@@ -18,6 +18,7 @@ from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
 from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion, unique
+from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -174,6 +175,9 @@ class World:
         # (1/2/3/4, F7/F8) are ignored in Solo and Battle.  Deaths still
         # follow the normal rules (World.on_figure_death).
         self.roster_locked = False
+        # Ctrl+Shift+. pre-battle menu (laser/prebattle.py): while open the
+        # whole game is paused and fighters stand idle (see Overlay._tick).
+        self.prebattle = PreBattleMenu()
 
         self.add_figure()
 
@@ -795,28 +799,30 @@ class Overlay(QWidget):
         pos = QCursor.pos()
         w.cursor = (pos.x(), pos.y())
 
-        # --- HIT-STOP: freeze the world for a few ticks on big hits ---
-        # Input keeps running; combat, motion, collisions, and bullets all
-        # pause — for BOTH sides at once, since they now share one clock.
-        # FX (rings, sparks, ghosts) keep animating in paint for punch.
-        if w.hitstop_ticks > 0:
-            w.hitstop_ticks -= 1
-            try:
-                self.input.update(w)
-            except Exception as e:
-                action_log.crash("InputSystem", e)
-            if w.quitting:
-                self._shutdown()
-                return
-            self.update()
-            return
-
         try:
             self.input.update(w)
         except Exception as e:
             action_log.crash("InputSystem", e)
         if w.quitting:
             self._shutdown()
+            return
+
+        # --- PRE-BATTLE MENU (Ctrl+Shift+.): full pause ---
+        # Nothing simulates and global_tick stands still, so cooldowns,
+        # timers, bullets and HP resume exactly where they were on close.
+        # _paint draws the fighters in their idle pose plus the menu.
+        if w.prebattle.open:
+            w.prebattle.tick += 1
+            self.update()
+            return
+
+        # --- HIT-STOP: freeze the world for a few ticks on big hits ---
+        # Input keeps running; combat, motion, collisions, and bullets all
+        # pause — for BOTH sides at once, since they now share one clock.
+        # FX (rings, sparks, ghosts) keep animating in paint for punch.
+        if w.hitstop_ticks > 0:
+            w.hitstop_ticks -= 1
+            self.update()
             return
 
         # One simulation pass per fielded side.  Snapshots are rebuilt once,
@@ -877,8 +883,71 @@ class Overlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
+        # Pre-battle menu: every FX that was mid-flight (bullets, clones,
+        # trails, rings, sparks, flashes, clash explosions, fighter FX)
+        # stays on screen frozen in place.  It is rendered ONCE into a
+        # pixmap — that one pass ages the paint-aged FX by a single frame,
+        # exactly like a normal frame — and the pixmap is redrawn unchanged
+        # until the menu closes, so nothing ages while paused.  The fighters
+        # are drawn on top in their idle pose, then the menu.  Re-captured
+        # only if the roster changes (1/2/3/4, F7/F8) so a swapped or
+        # retired fighter's FX don't linger.
+        # FX Studio "absolute front" FX go in a second frozen pixmap drawn
+        # over the idle fighters, so they stay above every character.
+        mb = w.prebattle
+        if mb.open:
+            sig = mb.roster_sig(w)
+            if mb.frozen is None or mb.frozen_sig != sig:
+                mb.frozen = self._capture_frozen_layer(
+                    lambda qp: self._paint_scene(qp, bodies=False, hud=False,
+                                                 abs_front=False))
+                mb.frozen_front = self._capture_frozen_layer(
+                    lambda qp: self._paint_abs_layer(qp, "abs_front"))
+                mb.frozen_sig = sig
+            p.drawPixmap(0, 0, mb.frozen)
+            mb.paint_fighters(p, w)
+            p.drawPixmap(0, 0, mb.frozen_front)
+            mb.paint_menu(p, w, self._pen)
+            p.end()
+            return
+        self._paint_scene(p)
+        p.end()
+
+    def _capture_frozen_layer(self, paint_fn):
+        """Whatever paint_fn draws, captured into a transparent pixmap."""
+        dpr = self.devicePixelRatioF()
+        pm = QPixmap(max(1, int(self.width() * dpr)),
+                     max(1, int(self.height() * dpr)))
+        pm.setDevicePixelRatio(dpr)
+        pm.fill(Qt.transparent)
+        qp = QPainter(pm)
+        qp.setRenderHint(QPainter.Antialiasing)
+        qp.setRenderHint(QPainter.SmoothPixmapTransform)
+        try:
+            paint_fn(qp)
+        finally:
+            qp.end()
+        return pm
+
+    def _paint_abs_layer(self, p, layer):
+        """Every fighter's FX Studio effects on an absolute layer:
+        "abs_back" sits under every character, "abs_front" over every
+        character (each fighter's plain "behind"/"front" FX only stack
+        against their own owner — see Figure.draw).  Identical in Solo
+        and Battle."""
+        for fig in self.world.all_figures():
+            if fig.fx is not None:
+                fig.fx.draw(p, fig, layer)
+
+    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True):
+        """Everything the game draws in a normal frame.  bodies=False skips
+        the fighters' sprites, hud=False the HP readout and notice,
+        abs_front=False the absolute-front FX — used by the pre-battle
+        menu's frozen FX layers."""
+        w = self.world
+        self._paint_abs_layer(p, "abs_back")
         for fig in w.all_figures():
-            fig.draw(p, self._pen)
+            fig.draw(p, self._pen, body=bodies)
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.
@@ -891,6 +960,9 @@ class Overlay(QWidget):
         for clone in w.all_clones():
             pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
             clone.draw(p, pscale)
+        # FX Studio "absolute front" FX: above every character and bullet.
+        if abs_front:
+            self._paint_abs_layer(p, "abs_front")
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
@@ -1005,6 +1077,9 @@ class Overlay(QWidget):
             sw, sh = w.screen_w, w.screen_h
             clashfx.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
+        if not hud:
+            return
+
         # --- HP readout — bottom-right, one entry per figure (both sides) ---
         _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
                     for fig in s.figures]
@@ -1048,8 +1123,6 @@ class Overlay(QWidget):
             p.drawText(21, 41, _txt)
             p.setPen(QColor(255, 255, 255, 230))
             p.drawText(20, 40, _txt)
-
-        p.end()
 
     def closeEvent(self, event):
         action_log.close()
