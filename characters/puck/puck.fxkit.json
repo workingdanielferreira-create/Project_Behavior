@@ -11242,6 +11242,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "run": {
@@ -11270,6 +11282,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal": {
@@ -11294,7 +11318,8 @@
       "direction": "front",
       "angle_deg": 0,
       "proximity_px": 190,
-      "flash": true
+      "flash": true,
+      "mirror": false
      }
     ]
    },
@@ -11308,6 +11333,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "defend": {
@@ -11348,6 +11385,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_special": {
@@ -11390,7 +11439,8 @@
       "direction": "away",
       "angle_deg": 0,
       "proximity_px": 705,
-      "flash": true
+      "flash": true,
+      "mirror": false
      }
     ]
    },
@@ -11410,6 +11460,18 @@
     ],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "ultimate": {
@@ -11447,7 +11509,8 @@
       "direction": "front",
       "angle_deg": 0,
       "proximity_px": 1000,
-      "flash": true
+      "flash": true,
+      "mirror": false
      }
     ]
    },
@@ -11475,6 +11538,18 @@
       "not": false
      }
     ]
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "clash": {
@@ -11503,6 +11578,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_special_2": {
@@ -11534,7 +11621,8 @@
       "direction": "behind",
       "angle_deg": 0,
       "proximity_px": 60,
-      "flash": true
+      "flash": true,
+      "mirror": false
      }
     ]
    },
@@ -11547,6 +11635,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   }
  },
@@ -11641,7 +11741,8 @@
   "max_deg": 0
  },
  "damaged": {
-  "cooldown_ms": 0
+  "cooldown_ms": 0,
+  "anti_knockback": 0
  },
  "retreat": {
   "enabled": true,
@@ -14779,7 +14880,8 @@
     "length": 320,
     "swing_ticks": 3,
     "hold_ticks": 44,
-    "density": 1.5
+    "density": 1.5,
+    "rotation_deg": 0
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -14824,7 +14926,7 @@
    "prim": "technique",
    "name": "Impact punch",
    "tag": "energy",
-   "anchor": "figure",
+   "anchor": "target",
    "blend": "additive",
    "battle": {
     "deals_damage": true,
@@ -14868,7 +14970,8 @@
     "swing_ticks": 1,
     "hold_ticks": 0,
     "density": 4,
-    "span": 205
+    "span": 205,
+    "rotation_deg": 0
    },
    "id": "Emv2or14g13",
    "action": "attack_normal",
@@ -14877,13 +14980,13 @@
     "facing": 1
    },
    "enabled": true,
-   "start_frame": 1,
+   "start_frame": 0,
    "end_frame": 11,
    "life_ticks": 0,
    "continuous": false,
    "always_on": false,
    "offset": [
-    0,
+    -100,
     0
    ],
    "layer": "front",
@@ -14945,5 +15048,84 @@
    "collapsed": false
   }
  ],
- "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"
+ "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "unique_ability": {
+  "type": "riposte",
+  "mirror_legion": {
+   "trigger": "hp_below",
+   "hp_thresholds": "70,50,30",
+   "every_hits": 5,
+   "every_ms": 10000,
+   "count": 2,
+   "duration_ms": 4000,
+   "cooldown_ms": 6000,
+   "formation": "around",
+   "spread_px": 90,
+   "damage": 1,
+   "speed_pct": 80,
+   "opacity_pct": 60
+  },
+  "berserker": {
+   "start_lost_pct": 0,
+   "max_lost_pct": 90,
+   "max_bonus_pct": 500,
+   "curve": "linear",
+   "steps": 5,
+   "damage_bonus_pct": 0,
+   "damage_taken_pct": 0,
+   "speed_fx": true,
+   "aura": true,
+   "aura_color": "#ff2a2a"
+  },
+  "phase_shift": {
+   "trigger": "every_hit",
+   "min_damage": 5,
+   "hp_below_pct": 50,
+   "chance_pct": 50,
+   "charges": 3,
+   "recharge_ms": 8000,
+   "destinations": {
+    "behind_attacker": true,
+    "random": true,
+    "far_corner": false,
+    "spawn": false,
+    "mirror": false,
+    "fixed": false
+   },
+   "random_min_px": 120,
+   "random_max_px": 260,
+   "behind_px": 70,
+   "fixed_x_pct": 50,
+   "fixed_y_pct": 50,
+   "invuln_ms": 300,
+   "show_charges": true
+  },
+  "ricochet": {
+   "bounces": 3,
+   "walls": true,
+   "characters": true,
+   "fx": true,
+   "fx_contact_px": 18,
+   "keep_speed_pct": 100,
+   "keep_damage_pct": 100,
+   "angle": "reflect",
+   "random_deg": 25,
+   "split": 0,
+   "split_deg": 20,
+   "sparks": true
+  },
+  "riposte": {
+   "mode": "chance",
+   "stance_every_ms": 3000,
+   "stance_ms": 600,
+   "chance_pct": 25,
+   "counter_mult_pct": 150,
+   "base_damage": 5,
+   "counter": "strike",
+   "knockback_px": 60,
+   "cooldown_ms": 1500,
+   "invuln_ms": 250,
+   "color": "#ffd34a"
+  }
+ }
 }

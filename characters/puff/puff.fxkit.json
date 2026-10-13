@@ -12568,6 +12568,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "run": {
@@ -12596,6 +12608,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal": {
@@ -12641,6 +12665,18 @@
     ],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "defend": {
@@ -12669,6 +12705,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_special": {
@@ -12697,6 +12745,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "ultimate": {
@@ -12823,7 +12883,7 @@
    "time": {
     "enabled": true,
     "start_frame": 0,
-    "end_frame": 41,
+    "end_frame": 34,
     "scope": "enemy_fighters",
     "speed": 0,
     "keys": [
@@ -12835,6 +12895,18 @@
     ],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal_2": {
@@ -12874,6 +12946,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal_3": {
@@ -12913,6 +12997,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal_4": {
@@ -12952,6 +13048,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   }
  },
@@ -13299,7 +13407,8 @@
   "max_deg": 0
  },
  "damaged": {
-  "cooldown_ms": 0
+  "cooldown_ms": 0,
+  "anti_knockback": 0
  },
  "retreat": {
   "enabled": false,
@@ -13422,7 +13531,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -13512,7 +13621,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -13602,7 +13711,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -13913,7 +14022,7 @@
    },
    "battle": {
     "deals_damage": false,
-    "damage": 1,
+    "damage": 5,
     "pierce": false,
     "rehit_ticks": 0,
     "knockback": 0,
@@ -13943,7 +14052,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 12,
@@ -14037,7 +14146,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -14127,7 +14236,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -14173,7 +14282,7 @@
    "id": "Emv3ubwjx3",
    "action": "ultimate",
    "enabled": true,
-   "start_frame": 22,
+   "start_frame": 17,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
@@ -14209,7 +14318,7 @@
    "prim": "technique",
    "name": "Overhead slash copy",
    "tag": "slash",
-   "anchor": "target",
+   "anchor": "figure",
    "blend": "additive",
    "flip": {
     "enabled": true,
@@ -14217,7 +14326,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 30,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -14225,10 +14334,10 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "path",
+    "kind": "static",
     "aim": "target",
     "angle_deg": 0,
-    "aim_offset_deg": 0,
+    "aim_offset_deg": 1,
     "speed": 8,
     "turn_deg": 6,
     "amplitude": 55,
@@ -14251,12 +14360,12 @@
    },
    "params": {
     "style": "overhead_slash",
-    "radius": 365,
-    "span": 100,
-    "thickness": 21,
+    "radius": 244,
+    "span": 159,
+    "thickness": 15.5,
     "swing_ticks": 24,
     "density": 1,
-    "length": 1,
+    "length": 155,
     "hold_ticks": 48,
     "rotation_deg": 10
    },
@@ -14291,8 +14400,8 @@
     "deflect_who": "enemy",
     "hurts_owner": false
    },
-   "follow_dir": true,
-   "follow_each": true,
+   "follow_dir": false,
+   "follow_each": false,
    "keys": []
   },
   {
@@ -14482,7 +14591,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 8,
@@ -14572,7 +14681,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 8,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 10,
@@ -14866,7 +14975,7 @@
     "decay": 3,
     "taper": true,
     "w_tail": 1,
-    "w_head": 1.5,
+    "w_head": 7.5,
     "alpha": 220,
     "head_glow_r": 4,
     "head_dot_r": 2
@@ -14899,9 +15008,9 @@
     "count": 0
    },
    "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
+    "deals_damage": true,
+    "damage": 5,
+    "pierce": true,
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
@@ -14955,9 +15064,9 @@
     "min_dist": 2,
     "decay": 1,
     "taper": true,
-    "w_tail": 1,
-    "w_head": 1.5,
-    "alpha": 220,
+    "w_tail": 1.5,
+    "w_head": 5.5,
+    "alpha": 244,
     "head_glow_r": 4,
     "head_dot_r": 2
    },
@@ -15192,5 +15301,91 @@
   }
  ],
  "groups": [],
- "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"
+ "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "unique_ability": {
+  "type": "mirror_legion",
+  "mirror_legion": {
+   "trigger": "hits_taken",
+   "hp_thresholds": "70,50,30",
+   "every_hits": 5,
+   "every_ms": 10000,
+   "count": 1,
+   "duration_ms": 6000,
+   "cooldown_ms": 6000,
+   "formation": "around",
+   "spread_px": 90,
+   "damage": 5,
+   "speed_pct": 100,
+   "opacity_pct": 75,
+   "clone_hp": 20,
+   "damage_pct": 50,
+   "max_alive": 6,
+   "actions": {
+    "defend": false,
+    "ultimate": false
+   }
+  },
+  "berserker": {
+   "start_lost_pct": 0,
+   "max_lost_pct": 90,
+   "max_bonus_pct": 500,
+   "curve": "linear",
+   "steps": 5,
+   "damage_bonus_pct": 0,
+   "damage_taken_pct": 0,
+   "speed_fx": true,
+   "aura": true,
+   "aura_color": "#ff2a2a"
+  },
+  "phase_shift": {
+   "trigger": "every_hit",
+   "min_damage": 5,
+   "hp_below_pct": 50,
+   "chance_pct": 50,
+   "charges": 3,
+   "recharge_ms": 8000,
+   "destinations": {
+    "behind_attacker": true,
+    "random": true,
+    "far_corner": false,
+    "spawn": false,
+    "mirror": false,
+    "fixed": false
+   },
+   "random_min_px": 120,
+   "random_max_px": 260,
+   "behind_px": 70,
+   "fixed_x_pct": 50,
+   "fixed_y_pct": 50,
+   "invuln_ms": 300,
+   "show_charges": true
+  },
+  "ricochet": {
+   "bounces": 3,
+   "walls": true,
+   "characters": true,
+   "fx": true,
+   "fx_contact_px": 18,
+   "keep_speed_pct": 100,
+   "keep_damage_pct": 100,
+   "angle": "reflect",
+   "random_deg": 25,
+   "split": 0,
+   "split_deg": 20,
+   "sparks": true
+  },
+  "riposte": {
+   "mode": "stance",
+   "stance_every_ms": 3000,
+   "stance_ms": 600,
+   "chance_pct": 25,
+   "counter_mult_pct": 150,
+   "base_damage": 5,
+   "counter": "strike",
+   "knockback_px": 60,
+   "cooldown_ms": 1500,
+   "invuln_ms": 250,
+   "color": "#ffd34a"
+  }
+ }
 }

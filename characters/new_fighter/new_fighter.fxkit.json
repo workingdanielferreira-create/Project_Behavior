@@ -3966,14 +3966,8 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "start_frame": 0,
-    "end_frame": -1,
-    "anchor": "target",
-    "direction": "behind",
-    "angle_deg": 0,
-    "proximity_px": 60,
-    "flash": true,
-    "cooldown_ms": 0
+    "cooldown_ms": 0,
+    "blinks": []
    },
    "time": {
     "enabled": false,
@@ -3984,6 +3978,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "run": {
@@ -4000,14 +4006,8 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "start_frame": 1,
-    "end_frame": -1,
-    "anchor": "target",
-    "direction": "random",
-    "angle_deg": 0,
-    "proximity_px": 300,
-    "flash": true,
-    "cooldown_ms": 1500
+    "cooldown_ms": 1500,
+    "blinks": []
    },
    "time": {
     "enabled": false,
@@ -4018,6 +4018,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "attack_normal": {
@@ -4034,14 +4046,8 @@
    "attack_px": 500,
    "blink": {
     "enabled": false,
-    "start_frame": 0,
-    "end_frame": -1,
-    "anchor": "target",
-    "direction": "behind",
-    "angle_deg": 0,
-    "proximity_px": 60,
-    "flash": true,
-    "cooldown_ms": 0
+    "cooldown_ms": 0,
+    "blinks": []
    },
    "time": {
     "enabled": false,
@@ -4052,6 +4058,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "defend": {
@@ -4074,14 +4092,8 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "start_frame": 0,
-    "end_frame": -1,
-    "anchor": "target",
-    "direction": "behind",
-    "angle_deg": 0,
-    "proximity_px": 60,
-    "flash": true,
-    "cooldown_ms": 0
+    "cooldown_ms": 0,
+    "blinks": []
    },
    "time": {
     "enabled": false,
@@ -4092,6 +4104,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   },
   "ultimate": {
@@ -4121,24 +4145,30 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "start_frame": 0,
-    "end_frame": 1,
-    "anchor": "target",
-    "direction": "behind",
-    "angle_deg": 0,
-    "proximity_px": 60,
-    "flash": false,
-    "cooldown_ms": 0
+    "cooldown_ms": 0,
+    "blinks": []
    },
    "time": {
     "enabled": true,
-    "start_frame": 14,
-    "end_frame": 19,
+    "start_frame": 7,
+    "end_frame": 10,
     "scope": "enemy_fighters",
     "speed": 0,
     "keys": [],
     "logic": "any",
     "conditions": []
+   },
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20
    }
   }
  },
@@ -4409,7 +4439,8 @@
   "max_deg": 75
  },
  "damaged": {
-  "cooldown_ms": 0
+  "cooldown_ms": 0,
+  "anti_knockback": 0
  },
  "retreat": {
   "enabled": true,
