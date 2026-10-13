@@ -62,6 +62,7 @@ class PreBattleMenu:
         # once when the menu opens and redrawn unchanged every paused frame
         # (see Overlay._paint).  frozen_sig = roster_sig at capture time.
         self.frozen = None
+        self.frozen_front = None   # "absolute front" FX, drawn over the fighters
         self.frozen_sig = None
         self._name_font = QFont("Consolas", 20, QFont.Bold)
         self._tag_font = QFont("Consolas", 11, QFont.Bold)
@@ -84,9 +85,11 @@ class PreBattleMenu:
             self.shown.add(slot)
 
     # --- painting -----------------------------------------------------------
-    def paint(self, p, world, pen):
+    def paint_fighters(self, p, world):
         for fig in world.all_figures():
             self._draw_idle(p, fig, world)
+
+    def paint_menu(self, p, world, pen):
         self._draw_title(p, world)
         order = modes.ordered_modes()
         for slot in sorted(self.shown):

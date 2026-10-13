@@ -890,21 +890,29 @@ class Overlay(QWidget):
         # are drawn on top in their idle pose, then the menu.  Re-captured
         # only if the roster changes (1/2/3/4, F7/F8) so a swapped or
         # retired fighter's FX don't linger.
+        # FX Studio "absolute front" FX go in a second frozen pixmap drawn
+        # over the idle fighters, so they stay above every character.
         mb = w.prebattle
         if mb.open:
             sig = mb.roster_sig(w)
             if mb.frozen is None or mb.frozen_sig != sig:
-                mb.frozen = self._capture_frozen_layer()
+                mb.frozen = self._capture_frozen_layer(
+                    lambda qp: self._paint_scene(qp, bodies=False, hud=False,
+                                                 abs_front=False))
+                mb.frozen_front = self._capture_frozen_layer(
+                    lambda qp: self._paint_abs_layer(qp, "abs_front"))
                 mb.frozen_sig = sig
             p.drawPixmap(0, 0, mb.frozen)
-            mb.paint(p, w, self._pen)
+            mb.paint_fighters(p, w)
+            p.drawPixmap(0, 0, mb.frozen_front)
+            mb.paint_menu(p, w, self._pen)
             p.end()
             return
         self._paint_scene(p)
         p.end()
 
-    def _capture_frozen_layer(self):
-        """The scene minus fighter bodies and HUD, as a transparent pixmap."""
+    def _capture_frozen_layer(self, paint_fn):
+        """Whatever paint_fn draws, captured into a transparent pixmap."""
         dpr = self.devicePixelRatioF()
         pm = QPixmap(max(1, int(self.width() * dpr)),
                      max(1, int(self.height() * dpr)))
@@ -914,16 +922,28 @@ class Overlay(QWidget):
         qp.setRenderHint(QPainter.Antialiasing)
         qp.setRenderHint(QPainter.SmoothPixmapTransform)
         try:
-            self._paint_scene(qp, bodies=False, hud=False)
+            paint_fn(qp)
         finally:
             qp.end()
         return pm
 
-    def _paint_scene(self, p, bodies=True, hud=True):
+    def _paint_abs_layer(self, p, layer):
+        """Every fighter's FX Studio effects on an absolute layer:
+        "abs_back" sits under every character, "abs_front" over every
+        character (each fighter's plain "behind"/"front" FX only stack
+        against their own owner — see Figure.draw).  Identical in Solo
+        and Battle."""
+        for fig in self.world.all_figures():
+            if fig.fx is not None:
+                fig.fx.draw(p, fig, layer)
+
+    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True):
         """Everything the game draws in a normal frame.  bodies=False skips
-        the fighters' sprites, hud=False the HP readout and notice — used by
-        the pre-battle menu's frozen FX layer."""
+        the fighters' sprites, hud=False the HP readout and notice,
+        abs_front=False the absolute-front FX — used by the pre-battle
+        menu's frozen FX layers."""
         w = self.world
+        self._paint_abs_layer(p, "abs_back")
         for fig in w.all_figures():
             fig.draw(p, self._pen, body=bodies)
         # Every bullet on screen is a live Projectile drawn with its own
@@ -938,6 +958,9 @@ class Overlay(QWidget):
         for clone in w.all_clones():
             pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
             clone.draw(p, pscale)
+        # FX Studio "absolute front" FX: above every character and bullet.
+        if abs_front:
+            self._paint_abs_layer(p, "abs_front")
 
         # --- Collision impact dots (rainbow radial, fade after hold period) ---
         if w.collision_dots:
