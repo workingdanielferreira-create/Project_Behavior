@@ -609,7 +609,7 @@ class World:
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
                     if drv is not None:
-                        for inst in drv.player.insts:
+                        for inst in drv.player.insts + drv.clane[0].insts:
                             # A lodged blade is stuck in its target and harmless.
                             if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
                                 efx.append((inst.x, inst.y, (inst.fx.get("tag") or inst.fx.get("prim") or "",), True))
@@ -631,7 +631,7 @@ class World:
                     drv = getattr(f, "fx", None)
                     if drv is None:
                         continue
-                    for inst in drv.player.insts:
+                    for inst in drv.player.insts + drv.clane[0].insts:
                         fxd = inst.fx
                         if (fxd["battle"]["deals_damage"]
                                 and not inst.dead and inst.age < inst.life and inst.lodge is None
@@ -701,7 +701,7 @@ class World:
                 # The fighter whose FX connected (landed_hit condition); a
                 # one-fighter side owns it even if the instance has ended.
                 owner = next((af for af in side.figures if getattr(af, "fx", None) is not None
-                              and inst in af.fx.player.insts),
+                              and (inst in af.fx.player.insts or inst in af.fx.clane[0].insts)),
                              side.figures[0] if len(side.figures) == 1 else None)
                 if owner is not None:
                     actions.note_landed(owner)
