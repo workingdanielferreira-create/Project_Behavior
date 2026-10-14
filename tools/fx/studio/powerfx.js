@@ -15,7 +15,7 @@ var STYLES = ["ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze",
 var PULL_STYLES = ["gigantic_meteor", "black_hole"];
 
 var AURA_FADE = 30, AURA_N = 28, AURA_LICK_LIFE = 16, AURA_RATE = 5, AURA_RISE = 1.6, AURA_LAG = 0.9, AURA_STRETCH = 2.2;
-var AURA_FULL = 3.0, AURA_SWING = 0.72, AURA_SWING_N = 12;
+var AURA_FULL = 3.0, AURA_SWING = 0.72, AURA_SWING_N = 12, AURA_DRIFT = 0.6, AURA_FRAG_LIFE = 14, AURA_FRAG_P = 0.7;
 var AURA_SURGE_SLOT = 90, AURA_SURGE_LEN = 20, AURA_CRACKS = 7, AURA_ROCK_EVERY = 3, AURA_ROCK_LIFE = 70;
 var AURA_SLOT = 4, AURA_BOLT_LIFE = 6;
 var AURA_BOLT_FLICKER = [1.0, 0.35, 1.0, 0.7, 0.3, 0.15];
@@ -177,6 +177,14 @@ function auraFlow(inst, ps, react, t) {
   if (d < 1e-6) { a = auraAim(inst, ps, react, t); return [Math.cos(a), Math.sin(a)]; }
   return [sx / d, sy / d];
 }
+// How sharply the fighter turned at tick t (0-1): the bend between its heading
+// now and 4 ticks ago (a reversal = 1), scaled by its speed.  laser/powerfx.py _aura_turn.
+function auraTurn(inst, ps, react, t) {
+  var v1 = auraVel(inst, t), v0 = auraVel(inst, t - 4), s1 = hyp(v1[0], v1[1]), s0 = hyp(v0[0], v0[1]);
+  if (t < 4 || s1 < 0.5 * ps || s0 < 0.5 * ps) return 0;
+  var co = (v1[0] * v0[0] + v1[1] * v0[1]) / (s1 * s0), bend = (1 - co) / 2;
+  return Math.min(1, bend * 2) * Math.min(1, Math.max(s1, s0) / ps * react / AURA_FULL);
+}
 function auraK(P, t) {   // [size, alpha] at tick t
   var Ti = ti(P, "swing_ticks", 1), act = activeTicks(P), L = L_();
   if (t < Ti) { var u = t / Ti; return [L.easeOut3(u) * (1 + 0.25 * Math.sin(PI * u)), 1]; }
@@ -258,28 +266,29 @@ function drawAura(pen, inst, host, ps) {
     });
     pen.poly(pts, lay[1], lay[2] * al * fl);
   });
-  // 4: flame licks born on the body's edge, rising and lagging behind the motion
+  // 4: flame licks, attached: each is born on a point of the body's edge and
+  //    stays with that point, rising along the aura's flow (so they never spill
+  //    out on their own); at speed they stretch back along the flow (capped)
+  var stretch = Math.min(1, sp / ps * react / AURA_FULL);
   for (b = Math.max(0, t - AURA_LICK_LIFE + 1); b <= t; b++) {
     if (b >= act) break;
-    var bk = auraK(P, b)[0], bs = auraSurge(inst, P, b)[0], silb = auraSil(inst, ps, b), bc = centroid(silb);
-    var bv = auraVel(inst, b), bvx = bv[0], bvy = bv[1], bg = auraFlow(inst, ps, react, b), bgx = bg[0], bgy = bg[1];
+    var bk = auraK(P, b)[0], bs = auraSurge(inst, P, b)[0];
     a = t - b;
     for (j = 0; j < Math.max(0, Math.round(AURA_RATE * dens * bs)); j++) {
       r = L.rngFor(inst.seed, b, 271 + j);
-      var ep = silb[Math.min(n - 1, Math.trunc(r() * n))], ex = ep[0], ey = ep[1];
-      var ldx = ex - bc[0], ldy = ey - bc[1], ld = hyp(ldx, ldy) || 1, nx = ldx / ld, ny = ldy / ld;
+      var ep = sil[Math.min(n - 1, Math.trunc(r() * n))], ex = ep[0], ey = ep[1];
+      var ldx = ex - cx, ldy = ey - cy, ld = hyp(ldx, ldy) || 1, nx = ldx / ld, ny = ldy / ld;
       var off = R * r.uniform(0.2, 1.1) * bk, life = AURA_LICK_LIFE * r.uniform(0.6, 1.0), u = a / life;
       if (u >= 1) continue;
-      var rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs, keep = 1 - AURA_LAG * react;
+      var rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs;
       // a little outward, laid out in the aura's frame (wider across the flow than along it)
-      var npp = nx * -bgy + ny * bgx, npl = nx * bgx + ny * bgy;
-      var ox_ = (-bgy * npp * 0.7 + bgx * npl * 0.35) * ps, oy_ = (bgx * npp * 0.7 + bgy * npl * 0.35) * ps;
-      var wx = bgx * rise + ox_ + bvx * keep, wy = bgy * rise + oy_ + bvy * keep;
+      var npp = nx * -gy + ny * gx, npl = nx * gx + ny * gy;
+      var ox_ = (-gy * npp * 0.7 + gx * npl * 0.35) * ps, oy_ = (gx * npp * 0.7 + gy * npl * 0.35) * ps;
+      var rx = gx * rise + ox_, ry = gy * rise + oy_, rl = hyp(rx, ry) || 1, fx_ = rx / rl, fy_ = ry / rl;
       var ph = r.uniform(0, PI * 2), sway = Math.sin(a * 0.45 + ph) * 1.6 * ps * u;
-      var rx = bgx * rise + ox_ - bvx * AURA_LAG * react, ry = bgy * rise + oy_ - bvy * AURA_LAG * react, rl = hyp(rx, ry) || 1;
-      var fx_ = rx / rl, fy_ = ry / rl;
-      var px = ex + nx * off + wx * a - fy_ * sway, py = ey + ny * off + wy * a + fx_ * sway;
-      var ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * Math.sin(PI * Math.min(1, u * 1.15))) * (1 + 0.1 * rl / ps) * bk;
+      var drift = AURA_DRIFT * a * (1 + 1.5 * stretch);
+      var px = ex + nx * off + rx * drift - fy_ * sway, py = ey + ny * off + ry * drift + fx_ * sway;
+      var ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * Math.sin(PI * Math.min(1, u * 1.15))) * bk * (1 + 1.2 * stretch);
       var w = Tw * r.uniform(0.7, 1.2) * Math.pow(1 - u, 0.5) * bk;
       var fade = Math.sin(PI * Math.min(1, 0.15 + u * 0.85)) * al, bend = Math.sin(a * 0.3 + ph) * w * 1.2;
       pen.poly(lick(px, py, fx_, fy_, ln, w, bend), c, 60 * fade);
@@ -287,21 +296,40 @@ function drawAura(pen, inst, host, ps) {
       if (u < 0.45) pen.poly(lick(px, py, fx_, fy_, ln * 0.4, w * 0.22, bend * 0.4), HOT, 55 * fade * (1 - u / 0.45));
     }
   }
-  // 5: sparks of energy rising off it (kept behind as it moves)
+  // 4b: on a sharp turn at speed, a few small fragments of the aura break off
+  //     and fly on the way the fighter was going, fading fast
+  for (b = Math.max(0, t - AURA_FRAG_LIFE + 1); b <= t; b++) {
+    if (b >= act) break;
+    var sharp = auraTurn(inst, ps, react, b);
+    if (sharp <= 0) continue;
+    r = L.rngFor(inst.seed, b, 281);
+    if (r() >= sharp * AURA_FRAG_P) continue;
+    var silb = auraSil(inst, ps, b), bc = centroid(silb), ov = auraVel(inst, b - 4), bg = auraFlow(inst, ps, react, b);
+    a = t - b;
+    var nfrag = 1 + Math.trunc(r() * 2);   // rolled once (laser/powerfx.py range())
+    for (j = 0; j < nfrag; j++) {
+      var fp = silb[Math.min(n - 1, Math.trunc(r() * n))], flife = r.uniform(9, AURA_FRAG_LIFE), sv = r.uniform(0.45, 0.75);
+      if (a >= flife) continue;
+      var fu = a / flife;
+      var fvx = ov[0] * sv + bg[0] * AURA_RISE * ps, fvy = ov[1] * sv + bg[1] * AURA_RISE * ps, fvl = hyp(fvx, fvy) || 1;
+      var fpx = fp[0] + (fp[0] - bc[0]) * 0.3 + fvx * L.dragDist(0.9, a), fpy = fp[1] + (fp[1] - bc[1]) * 0.3 + fvy * L.dragDist(0.9, a);
+      var fln = Lf * 0.45 * (1 - 0.5 * fu) * k, fw = Tw * 0.6 * (1 - fu) * k, ffade = Math.pow(1 - fu, 1.2) * al;
+      pen.poly(lick(fpx, fpy, -fvx / fvl, -fvy / fvl, fln, fw, 0), c, 80 * ffade);
+      pen.poly(lick(fpx, fpy, -fvx / fvl, -fvy / fvl, fln * 0.6, fw * 0.45, 0), bright, 90 * ffade);
+    }
+  }
+  // 5: sparks of energy rising off it, riding with the body along the flow
   for (b = Math.max(0, t - 23); b <= t; b++) {
     if (b >= act) break;
-    var silc = auraSil(inst, ps, b), cv = auraVel(inst, b), cg = auraFlow(inst, ps, react, b);
     a = t - b;
     for (j = 0; j < Math.max(0, Math.round(1 * dens)); j++) {
       r = L.rngFor(inst.seed, b, 291 + j);
-      var sp0 = silc[Math.min(n - 1, Math.trunc(r() * n))], lf = r.uniform(14, 24);
+      var sp0 = sil[Math.min(n - 1, Math.trunc(r() * n))], lf = r.uniform(14, 24);
       if (a >= lf) continue;
       q = a / lf;
-      var rs = AURA_RISE * ps * r.uniform(1.2, 2.0), kp = 1 - AURA_LAG * react;
-      var sx = sp0[0] + (cv[0] * kp + cg[0] * rs) * a + r.uniform(-1, 1) * R * 0.5, sy = sp0[1] + (cv[1] * kp + cg[1] * rs) * a;
-      var tl = 2 * ps + rs * 1.2 + sp * react * 0.8;
-      var lx = cv[0] * AURA_LAG * react - cg[0] * rs, ly = cv[1] * AURA_LAG * react - cg[1] * rs, ll = hyp(lx, ly) || 1;
-      pen.line(sx, sy, sx + lx / ll * tl, sy + ly / ll * tl, L.mix(c, HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps);
+      var rs = AURA_RISE * ps * r.uniform(1.2, 2.0), sside = r.uniform(-1, 1) * R * 0.5;
+      var sx = sp0[0] + gx * rs * a * 0.8 - gy * sside, sy = sp0[1] + gy * rs * a * 0.8 + gx * sside, tl = 2 * ps + rs * 1.2;
+      pen.line(sx, sy, sx - gx * tl, sy - gy * tl, L.mix(c, HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps);
       pen.glow(sx, sy, 2.2 * ps, HOT, 200 * (1 - q) * al, 0.6);
     }
   }
@@ -316,9 +344,9 @@ function drawAura(pen, inst, host, ps) {
   // 7: speed lines streaming off it when it moves fast
   if (sp * react > 2) {
     var g = Math.min(1, (sp * react - 2) / 4);
-    for (j = 0; j < Math.max(0, Math.round(8 * dens)); j++) {
+    for (j = 0; j < Math.max(0, Math.round(4 * dens)); j++) {
       r = L.rngFor(inst.seed, t, 301 + j);
-      var e2 = sil[Math.min(n - 1, Math.trunc(r() * n))], sl = sp * r.uniform(2, 5) * react;
+      var e2 = sil[Math.min(n - 1, Math.trunc(r() * n))], sl = sp * r.uniform(1.5, 3) * react;
       pen.line(e2[0], e2[1], e2[0] - ux * sl, e2[1] - uy * sl, L.mix(c, HOT, 0.5), 170 * g * al, 1.1 * ps);
     }
   }

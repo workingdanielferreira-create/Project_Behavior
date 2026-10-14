@@ -532,11 +532,13 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
     own silhouette, with flame physics. Each tick the technique records the
     body outline (`inst.tq_sil`: `AURA_N` points from `host.outline`, read
     off the sprite on screen with `powerfx.outline_from_alpha`; an ellipse
-    when there is no sprite). Flame licks are born on that edge and rise,
-    keeping only `1 - AURA_LAG × reaction` of the fighter's speed, so they
-    stand straight up at rest and stream behind it on the move; the aura's
-    skin is pushed out along the flow and its outer layer streams back into
-    a comet at speed, with speed lines. The whole aura turns about its
+    when there is no sprite). Flame licks are attached: each stays on the
+    edge point it was born on and rises along the aura's flow, stretching
+    back (capped) as the speed rises, so they never spill out on their own;
+    the aura's skin is pushed out along the flow and its outer layer streams
+    back into a comet at speed, with speed lines. On a sharp turn at speed
+    (`_aura_turn`) a few small fragments break off and fly on the old
+    heading, fading within `AURA_FRAG_LIFE` ticks. The whole aura turns about its
     anchor to point opposite the movement (`_aura_flow`): upright at rest,
     fully back along the motion at `AURA_FULL` px/tick (any direction —
     flying up points it down), swung round smoothly over the last
