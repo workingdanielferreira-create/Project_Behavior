@@ -191,18 +191,21 @@ PARAM_DEFAULTS = {
     # technique; radius / span / thickness shape the slashes and the wave,
     # length / thickness the extended blade.  swing_ticks = how fast a slash
     # swings; hold_ticks = the wave's flight / how long the blade stays out.
-    # Ki barrage / impact punch (laser/strikefx.py) reuse the same fields:
-    # see that module.  The technique keeps its own timeline: Life is ignored.
-    # rotation_deg turns the whole technique clockwise (0-360), mirrored with
-    # the facing.
+    # Ki barrage / impact punch (laser/strikefx.py) and the power techniques
+    # (laser/powerfx.py) reuse the same fields: see those modules.  The
+    # technique keeps its own timeline: Life is ignored.  rotation_deg turns
+    # the whole technique clockwise (0-360), mirrored with the facing.
+    # lightning / lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off,
+    # sparks per second).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
-                      density=1.0, rotation_deg=0),
+                      density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
 TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
                "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
-               "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash"]
+               "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
+               "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
@@ -219,6 +222,12 @@ TECH_STYLE_DEFAULTS = {
     "combo_backhand": dict(radius=70, span=150, thickness=11, swing_ticks=5),
     "ki_barrage": dict(radius=6, thickness=18, span=18, length=320, swing_ticks=3, hold_ticks=45),
     "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3),
+    "ssj_aura": dict(radius=22, thickness=7, length=62, swing_ticks=12, hold_ticks=240, lightning=True, lightning_rate=1.5),
+    "rasen_shuriken": dict(radius=10, span=46, thickness=110, length=420, swing_ticks=40, hold_ticks=50),
+    "gigantic_meteor": dict(radius=8, span=100, thickness=70, length=160, swing_ticks=30, hold_ticks=70),
+    "ghost_kamikaze": dict(radius=9, span=14, thickness=34, length=600, swing_ticks=8, hold_ticks=40),
+    "serious_punch": dict(radius=10, thickness=150, length=900, swing_ticks=30, hold_ticks=22),
+    "black_hole": dict(radius=20, span=160, thickness=24, length=260, swing_ticks=22, hold_ticks=150),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
@@ -1092,6 +1101,7 @@ class Inst:
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
+                 "tq_tp", "tq_det", "tq_gh",
                  "ua_rb", "ua_cd", "ua_dm")
 
     def __init__(self):
@@ -1673,7 +1683,7 @@ def tick_inst(inst, host):
         if not active and not pulse_rings(inst, inst.ps):
             inst.dead = True
     elif prim == "technique":
-        swordfx.on_tick(inst)   # where the anchor is now (ki shots launch from there)
+        swordfx.on_tick(inst, host)   # where the anchor / target are now (shots launch, ghosts chase)
         # Its afterglow (sparks, shards, dust) plays out after the hit window.
         if inst.age >= swordfx.total_ticks(P):
             inst.dead = True
@@ -3093,6 +3103,7 @@ class FxDriver:
         self.target = (0.0, 0.0)
         self.hurts = []
         self.hits_out = []
+        self.pulls_out = []   # this tick's pull fields (laser/powerfx.py pulls)
         self.host = None
         # Tactical retreat FX, each lane on its own player and clock for as
         # long as the dash lasts: the borrowed retreat "fx" (on its action's
@@ -3166,6 +3177,18 @@ class FxDriver:
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
+        self._collect_pulls(frozen)
+
+    def _collect_pulls(self, frozen):
+        """Pull fields (gigantic meteor, black hole) of the live techniques;
+        none while Time control has this fighter's FX stopped."""
+        out = []
+        if not frozen:
+            for pl in [self.player] + [ln[0] for ln in self.rlanes]:
+                for inst in pl.insts:
+                    if inst.fx["prim"] == "technique" and not inst.dead:
+                        out.extend(swordfx.powerfx.pulls(inst, inst.ps))
+        self.pulls_out = out
 
     def _retreat_tick(self, fig, host, hold, frozen=False):
         """Tactical retreat FX: the borrowed effect / group and the FX built
@@ -3213,6 +3236,10 @@ class FxDriver:
         h, self.hits_out = self.hits_out, []
         return h
 
+    def take_pulls(self):
+        h, self.pulls_out = self.pulls_out, []
+        return h
+
 
 def update_figure(fig, world, hold=None, frozen=False):
     """CombatSystem hook: tick this figure's FX (no-op without an FX file).
@@ -3231,6 +3258,9 @@ def update_figure(fig, world, hold=None, frozen=False):
     hits = drv.take_hits()
     if hits and world.battle_mode:
         world.queue_fx_hits(hits)
+    pulls = drv.take_pulls()
+    if pulls and world.battle_mode:
+        world.queue_fx_pulls(pulls)
 
 
 # Sword techniques draw / hit through laser/swordfx.py, which uses this

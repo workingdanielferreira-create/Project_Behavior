@@ -525,6 +525,43 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
 - **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
   compares `CUTS` and the strikefx constants. Same code path in Solo and
   Battle (FX Kit Player).
+- **Power techniques (`laser/powerfx.py`, Studio: `powerfx.js`).** Anime
+  signature moves, each a technique style with its own preset in the Studio's
+  "Power techniques" group:
+  - `ssj_aura` — Super Saiyan aura: a three-layer flame silhouette round the
+    fighter with tongues off the crown, rising streaks, a feet ring and
+    lifting pebbles; ignites with a flash + shock ring, burns Hold ticks.
+    **Lightning** (checkbox) adds SSJ2 sparks: one roll every 4 ticks at
+    **Lightning rate** per second, each bolt re-jagged every tick for 6.
+  - `rasen_shuriken` — charge (Swing ticks), throw at the target (aim and
+    range taken where the target was at launch, `inst.tq_tp`), then a sphere
+    of needle cuts (Thickness = radius) for Hold ticks. A hit in flight sets
+    `inst.tq_det`. Give it Pierce + Re-hit so the sphere keeps hurting.
+  - `gigantic_meteor` — charge over the anchor, a 30-tick lobbed drop onto
+    the target growing Radius → Thickness, a Length-px drag downward for Hold
+    ticks, then a towering blast. Span = grip %.
+  - `ghost_kamikaze` — a ghost every Swing ticks for Hold ticks: puffs out,
+    hovers 16 ticks, then homes on the live target (`inst.tq_tp`) and blows
+    up on contact / at range. Flight is stepped once per tick and cached
+    (`inst.tq_gh`); a hit stops the nearest ghost (`inst.tq_ki`).
+  - `serious_punch` — Swing-tick wind-up, then a shock cone (Length long,
+    Thickness wide) crossing in Hold ticks, vapour rings, the sky split and
+    clouds blown apart. Pierce on + Re-hit 0 = one heavy hit.
+  - `black_hole` — opens where the target was when cast: black horizon,
+    photon ring, a tilted accretion disc split front/back round the core,
+    debris spiralling in; collapses and bursts after Hold ticks.
+  - **Pull** (meteor, black hole): `powerfx.pulls(inst, ps)` returns this
+    tick's fields `(x, y, radius, step, falloff)`; `FxDriver` collects them
+    (none while Time control freezes its FX), `World.queue_fx_pulls` stores
+    them per side and `World.refresh_battle` moves the opposing fighters at
+    the start of the next tick — the same one-tick boundary as FX hits.
+    Black hole: Span px/s inside Length px, weaker toward the edge; meteor:
+    whatever is under it is pinned to its leading edge (Span = grip %).
+    Blinked-out fighters are out of reach. Solo has no opponent, so there
+    the pull has nothing to move (the visuals are identical).
+  - **Parity:** `check_parity.py` compares the powerfx constants;
+    `inst.tq_tp` (the target per tick) is recorded by `swordfx.on_spawn` /
+    `on_tick(inst, host)` in both the game and the Studio.
 
 ---
 

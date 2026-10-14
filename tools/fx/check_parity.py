@@ -229,6 +229,15 @@ def main():
     for name in ("STYLES", "KI_SPEED", "KI_RANGE", "KI_SIDE", "KI_FLASH", "KI_BLAST_LIFE", "KI_SMOKE_LIFE", "SMOKE",
                  "PUNCH_RETRACT", "PUNCH_IMPACT_LIFE"):
         diff(st_js.get(name), st_py.get(name), "strikefx " + name, out)
+    # ... and the power techniques' constants (laser/powerfx.py).
+    pw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "powerfx.js"))
+    pw_py = PyTables(os.path.join(ROOT, "laser", "powerfx.py"))
+    for name in ("STYLES", "PULL_STYLES", "AURA_FADE", "AURA_TONGUES", "AURA_SLOT", "AURA_BOLT_LIFE", "AURA_BOLT_FLICKER", "BOLT",
+                 "RS_SPEED", "RS_SPIN", "RS_GROW", "RS_SHRINK", "RS_FADE", "MET_FALL", "MET_LOB", "MET_GROW_DRAG",
+                 "MET_BLAST_HIT", "MET_BLAST_LIFE", "DUST", "GH_FLOAT", "GH_OUT", "GH_DRAG", "GH_SPEED", "GH_ACCEL", "GH_TURN",
+                 "GH_FAN", "GH_ARRIVE", "GH_BLAST_LIFE", "GH_BODY", "SMOKE", "SP_OUT", "SP_FLASH", "SP_RINGS", "SP_SPLIT_LIFE",
+                 "CLOUD", "BH_COLLAPSE", "BH_BURST_HIT", "BH_BURST_LIFE", "BH_TILT", "BH_SQ", "BH_CLUMPS"):
+        diff(pw_js.get(name), pw_py.get(name), "powerfx " + name, out)
     tech_ui = [r for r in studio.get("PARAM_UI")["technique"] if r[0] == "style"][0][2]
     diff(tech_ui, fx.get("TECH_STYLES"), "studio technique style list", out)
 

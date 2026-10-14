@@ -5,7 +5,10 @@
  *
  * Styles: rising_slash, horizontal_sweep, diagonal_slash, crescent_wave,
  * blade_extension, forward_thrust, overhead_slash and the combos (see
- * laser/swordfx.py for what each one paints).
+ * laser/swordfx.py for what each one paints).  Ki barrage / impact punch
+ * live in strikefx.js, the power techniques (Super Saiyan aura, rasen-
+ * shuriken, gigantic meteor, ghost kamikaze, serious punch, black hole) in
+ * powerfx.js.
  */
 (function (G) {
 "use strict";
@@ -34,6 +37,7 @@ var EXT_CHARGE = 4, EXT_EXTEND = 5, EXT_RETRACT = 7, EXT_DUST = 16;
 var THR_WIND = 3, THR_RETRACT = 5, THR_FADE = 14;   // thrust: wind-up, snap back, afterglow
 var HIT_MARK_LIFE = 16;
 var STRIKE = function () { return G.STRIKEFX; };
+var POWER = function () { return G.POWERFX; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -51,6 +55,7 @@ function hyp(x, y) { return Math.sqrt(x * x + y * y); }
 // ---------------------------------------------------------------- timeline
 function style(P) { var s = P.style; return FXK().TECH_STYLES.indexOf(s) >= 0 ? s : FXK().TECH_STYLES[0]; }
 function isStrike(st) { return STRIKE() && STRIKE().STYLES.indexOf(st) >= 0; }
+function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
@@ -62,6 +67,7 @@ function activeTicks(P) {
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
   if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
   if (isStrike(st)) return STRIKE().activeTicks(P);
+  if (isPower(st)) return POWER().activeTicks(P);
   return lastStart(P) + swing(P) + 2;
 }
 function totalTicks(P) {
@@ -70,6 +76,7 @@ function totalTicks(P) {
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
   if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
   if (isStrike(st)) return STRIKE().totalTicks(P);
+  if (isPower(st)) return POWER().totalTicks(P);
   return lastStart(P) + swing(P) + fadeT(P) + SPARK_LIFE;
 }
 
@@ -91,9 +98,16 @@ function onSpawn(inst, host) {
   inst.tq_path = [[inst.x, inst.y]];   // where the anchor was, per tick
   inst.tq_ki = {};                // ki shots stopped by a hit: index -> [tick, x, y]
   inst.tq_imp = [];               // punch impacts: [tick, x, y]
+  inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
+  if (POWER()) POWER().onSpawn(inst, host);
   inst.life = activeTicks(fx.params);
 }
-function onTick(inst) { inst.tq_path.push([inst.x, inst.y]); }   // ki shots launch from where the anchor was
+// Each tick: where the anchor is (ki shots launch from there) and where the
+// target is (power techniques aim / chase it).  laser/swordfx.py on_tick.
+function onTick(inst, host) {
+  inst.tq_path.push([inst.x, inst.y]);
+  inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
+}
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
 Frame.prototype.w = function (x, y) { return [this.ox + x * this.fx + y * this.vx, this.oy + x * this.fy + y * this.vy]; };
 Frame.prototype.d = function (x, y) { return [x * this.fx + y * this.vx, x * this.fy + y * this.vy]; };
@@ -264,11 +278,13 @@ function hit(inst, tx, ty, hr, ps) {
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
   if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
+  if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
+  else if (isPower(st)) POWER().onHit(inst, x, y, ps || 1);
   else if (CUTS[st] !== undefined) slashOnHit(inst);
   inst.tq_hits.push([+x, +y, inst.age]);
 }
@@ -752,6 +768,7 @@ function draw(g, inst, host, ps) {
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
   else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
+  else if (isPower(st)) POWER().draw(pen, inst, host, ps);
   else drawSlash(pen, inst, host, ps);
 }
 
@@ -759,5 +776,5 @@ function draw(g, inst, host, ps) {
 G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
-                   rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, dragDist: dragDist, hyp: hyp, HOT: HOT, D: D}};
+                   rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, dragDist: dragDist, hyp: hyp, HOT: HOT, BLACK: BLACK, D: D}};
 })(window);

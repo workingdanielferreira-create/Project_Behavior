@@ -327,18 +327,20 @@ var PARAM_DEFAULTS = {
   // picks the technique; radius / span / thickness shape the slashes and the
   // wave, length / thickness the extended blade.  swing_ticks = how fast a
   // slash swings; hold_ticks = the wave's flight / how long the blade stays
-  // out.  Ki barrage / impact punch (strikefx.js) reuse the same fields: see
-  // that file.  The technique keeps its own timeline: Life is ignored.
-  // rotation_deg turns the whole technique clockwise (0-360), mirrored with
-  // the facing.
+  // out.  Ki barrage / impact punch (strikefx.js) and the power techniques
+  // (powerfx.js) reuse the same fields: see those files.  The technique keeps
+  // its own timeline: Life is ignored.  rotation_deg turns the whole
+  // technique clockwise (0-360), mirrored with the facing.  lightning /
+  // lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off, per second).
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
-    density: 1, rotation_deg: 0}
+    density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
 var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
   "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
-  "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash"];
+  "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
+  "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
@@ -354,7 +356,13 @@ var TECH_STYLE_DEFAULTS = {
   combo_launcher: {radius: 55, span: 120, thickness: 11, swing_ticks: 5},
   combo_backhand: {radius: 70, span: 150, thickness: 11, swing_ticks: 5},
   ki_barrage: {radius: 6, thickness: 18, span: 18, length: 320, swing_ticks: 3, hold_ticks: 45},
-  impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3}
+  impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3},
+  ssj_aura: {radius: 22, thickness: 7, length: 62, swing_ticks: 12, hold_ticks: 240, lightning: true, lightning_rate: 1.5},
+  rasen_shuriken: {radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50},
+  gigantic_meteor: {radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70},
+  ghost_kamikaze: {radius: 9, span: 14, thickness: 34, length: 600, swing_ticks: 8, hold_ticks: 40},
+  serious_punch: {radius: 10, thickness: 150, length: 900, swing_ticks: 30, hold_ticks: 22},
+  black_hole: {radius: 20, span: 160, thickness: 24, length: 260, swing_ticks: 22, hold_ticks: 150}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};
@@ -1635,7 +1643,7 @@ function tickInst(inst, host) {
   } else if (fx.prim === "pulse") {
     if (!active && !pulseRings(inst, inst.ps || 1).length) inst.dead = true;   // expanding rings finish
   } else if (fx.prim === "technique") {
-    G.SWORDFX.onTick(inst);   // where the anchor is now (ki shots launch from there)
+    G.SWORDFX.onTick(inst, host);   // where the anchor / target are now (shots launch, ghosts chase)
     if (inst.age >= G.SWORDFX.totalTicks(P)) inst.dead = true;   // its afterglow plays out after the hit window
   } else if (!active) {
     inst.dead = true;

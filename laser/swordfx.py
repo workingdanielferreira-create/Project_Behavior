@@ -34,6 +34,8 @@ Styles (params.style, fxkit.TECH_STYLES):
   combo_backhand    flat forehand round the front, flat backhand, overhead chop
   ki_barrage        rapid-fire ki blasts (laser/strikefx.py)
   impact_punch      a punch with a shockwave impact (laser/strikefx.py)
+  ssj_aura, rasen_shuriken, gigantic_meteor, ghost_kamikaze, serious_punch,
+  black_hole        anime power techniques (laser/powerfx.py)
 
 The slash family (CUTS) is one renderer: every cut of a combo is the same
 hand-drawn slash with its own direction, bend, position, size and start.
@@ -187,6 +189,8 @@ def active_ticks(P):
         return THR_WIND + _swing(P) + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + THR_RETRACT
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
+    if st in powerfx.STYLES:
+        return powerfx.active_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + 2
 
 
@@ -201,6 +205,8 @@ def total_ticks(P):
         return active_ticks(P) + THR_FADE
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
+    if st in powerfx.STYLES:
+        return powerfx.total_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + _fade(P) + SPARK_LIFE
 
 
@@ -228,12 +234,16 @@ def on_spawn(inst, host):
     inst.tq_path = [(inst.x, inst.y)]   # where the anchor was, per tick
     inst.tq_ki = {}                # ki shots stopped by a hit: index -> (tick, x, y)
     inst.tq_imp = []               # punch impacts: (tick, x, y)
+    inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
+    powerfx.on_spawn(inst, host)
     inst.life = active_ticks(fx["params"])
 
 
-def on_tick(inst):
-    """Each tick: remember where the anchor is (shots launch from there)."""
+def on_tick(inst, host=None):
+    """Each tick: remember where the anchor is (shots launch from there) and
+    where the target is (power techniques aim / chase it)."""
     inst.tq_path.append((inst.x, inst.y))
+    inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
 
 
 class Frame:
@@ -556,6 +566,8 @@ def hit(inst, tx, ty, hr, ps):
         return _thr_hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
+    if st in powerfx.STYLES:
+        return powerfx.hit(inst, tx, ty, hr, ps)
     return _slash_hit(inst, tx, ty, hr, ps)
 
 
@@ -570,6 +582,8 @@ def body(inst, ps):
         return _thr_body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
+    if st in powerfx.STYLES:
+        return powerfx.body(inst, ps)
     if inst.age >= inst.life:
         return None
     return _slash_body(inst, ps)
@@ -579,6 +593,8 @@ def on_hit(inst, x, y, ps=1.0):
     st = _style(inst.fx["params"])
     if st in strikefx.STYLES:
         strikefx.on_hit(inst, x, y, ps)
+    elif st in powerfx.STYLES:
+        powerfx.on_hit(inst, x, y, ps)
     elif st in CUTS:
         _slash_on_hit(inst)
     inst.tq_hits.append((float(x), float(y), inst.age))
@@ -1211,10 +1227,14 @@ def draw(p, inst, host, ps):
         _draw_thrust(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
+    elif st in powerfx.STYLES:
+        powerfx.draw(pen, inst, host, ps)
     else:
         _draw_slash(pen, inst, host, ps)
 
 
-# Ki blasts and punches (laser/strikefx.py) share this module's frame, pen and
-# timeline; imported last because it builds on them.
+# Ki blasts and punches (laser/strikefx.py) and the power techniques
+# (laser/powerfx.py) share this module's frame, pen and timeline; imported
+# last because they build on them.
 from . import strikefx  # noqa: E402
+from . import powerfx  # noqa: E402
