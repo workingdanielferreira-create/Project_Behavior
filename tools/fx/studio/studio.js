@@ -662,7 +662,7 @@ function buildPresets() {
   // Grouped: built-in groups in the order they first appear, then your own presets.
   var groups = [], by = {};
   allPresets().forEach(function (x, i) {
-    var g = x.builtin ? (x.p.group || "Other") : "★ Your presets";
+    var g = x.builtin ? ((typeof x.p.group === "string" ? x.p.group : x.p.category) || "Other") : "★ Your presets";
     if (!by[g]) { by[g] = document.createElement("optgroup"); by[g].label = g; groups.push(g); }
     var o = document.createElement("option"); o.value = i; o.textContent = (x.builtin ? "" : "★ ") + x.p.name; by[g].appendChild(o);
   });
@@ -682,7 +682,9 @@ function addPreset() {
     if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
     if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: targetSideNow()};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
-    return FXK.normalize(fx);
+    fx = FXK.normalize(fx);
+    if (fx.action === CHAR_KEY) { fx.always_on = FXK.canContinue(fx); if (fx.always_on) fx.continuous = false; }   // Character FX: held on the fighter when they can be
+    return fx;
   });
   S.effects = S.effects.concat(added); S.multi = [];
   if (gr) { S.groups.push(gr); setSel(null, gr.id); } else setSel(added[0].id);
@@ -1311,7 +1313,8 @@ var PARAM_UI = {
     ["lightning", "Lightning", "chk"],          // power techniques only (POWER_UI)
     ["lightning_rate", "Lightning rate", 0, 20, 0.1],
     ["aura_burst", "Power-up burst", "chk"], ["aura_debris", "Rising rocks", "chk"],
-    ["aura_surges", "Power surges", "chk"], ["aura_cracks", "Ground cracks", "chk"]]
+    ["aura_surges", "Power surges", "chk"], ["aura_cracks", "Ground cracks", "chk"],
+    ["aura_part", "Aura part", ["all", "body", "flames", "motion", "powerup", "ground", "lightning"]]]
 };
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
@@ -1324,6 +1327,9 @@ var POWER_UI = {
       ["thickness", "Flame width", 1, 40, 0.5, "How wide each flame is, px."],
       ["span", "Movement reaction %", 0, 200, 5, "How strongly the aura turns and is swept back when the fighter moves: at full speed it points opposite the movement. 0 = always straight up."],
       ["swing_ticks", "Ignite ticks", 1, 120, 1, "How long it takes to flare up."],
+      ["aura_part", "Part", [["all", "Whole aura"], ["body", "Body (glow, skin, rim)"], ["flames", "Flames (flames, fragments, sparks)"],
+        ["motion", "Motion (speed lines)"], ["powerup", "Power-up (burst, surge rings)"], ["ground", "Ground (cracks, rocks)"], ["lightning", "Lightning"]], 0, 0,
+        "Which part of the aura this effect draws. The Super Saiyan 2 aura preset adds one effect per part in a group."],
       ["hold_ticks", "Duration ticks", 1, 1200, 1, "How long it burns before fading out."],
       ["aura_burst", "Power-up burst", "chk", 0, 0, "A flash, shock rings and a blast of dust as it ignites."],
       ["aura_debris", "Rising rocks", "chk", 0, 0, "Small rocks lift off the ground round the feet while it stands still."],
@@ -1833,6 +1839,7 @@ function powerPanel(d, fx, pw) {
   pw.rows.forEach(function (u) {
     var k = u[0], e;
     if (u[2] === "chk") e = field(s, u[1], inp("chk", fx.params[k], function (v) { fx.params[k] = v; changed(true); }));
+    else if (Array.isArray(u[2])) e = field(s, u[1], inp(u[2], fx.params[k], function (v) { fx.params[k] = v; changed(true); }));
     else e = field(s, u[1], inp("n", fx.params[k], function (v) { fx.params[k] = v; changed(); }, u[2], u[3], u[4]));
     if (k === "lightning_rate" && !fx.params.lightning) e.parentNode.style.display = "none";
     e.title = u[5]; e.parentNode.title = u[5];

@@ -197,10 +197,11 @@ PARAM_DEFAULTS = {
     # the whole technique clockwise (0-360), mirrored with the facing.
     # lightning / lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off,
     # sparks per second); aura_burst / aura_debris / aura_surges /
-    # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks.
+    # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks;
+    # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
-                      aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False),
+                      aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all"),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
