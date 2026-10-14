@@ -3200,12 +3200,35 @@ function fit() { var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.de
 function zoom() { return Math.max(0.25, +$("zoom").value || 4); }
 // A "Move back from target" action travels further than the stage shows:
 // the camera follows the figure while it plays.
-function camFollow() { return C && S.action && (S.react === "retreat" || (FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back")); }
+function camFollow() {
+  if (keepCentered()) return true;   // "keep character centred": the camera always follows
+  return C && S.action && (S.react === "retreat" || (FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "back"));
+}
+function keepCentered() { var e = $("keepCenter"); return !!(e && e.checked); }
+// "Center character": pan so the character sits in the middle of the stage
+// (where it starts), whatever the camera is doing.
+function centerCharacter() {
+  var z = zoom(), follow = camFollow();
+  S.pan = [follow ? 0 : -S.figX * z, follow ? 0 : -S.figY * z];
+}
 // (A leap's camera stays put: the whole jump, start to target, is on stage.)
 function camera(dpr) {
   var z = zoom(), fx = camFollow() ? S.figX * z : 0, fy = camFollow() ? S.figY * z : 0;
   return {x: cv.width / 2 / dpr + S.pan[0] - fx, y: cv.height * 0.55 / dpr + S.pan[1] - fy, z: z};
 }
+(function () {
+  var b = $("bCenter"), k = $("keepCenter");
+  if (b) b.onclick = function () { centerCharacter(); };
+  if (k) {
+    k.checked = lsGet("pbfxstudio.v1.keepCenter") === true;
+    k.onchange = function () { lsSet("pbfxstudio.v1.keepCenter", k.checked); centerCharacter(); };
+  }
+  document.addEventListener("keydown", function (e) {
+    var tg = e.target && e.target.tagName;
+    if (tg === "INPUT" || tg === "TEXTAREA" || tg === "SELECT" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "c" || e.key === "C") centerCharacter();
+  });
+})();
 function toWorld(mx, my) { var dpr = Math.min(2, window.devicePixelRatio || 1), c = camera(dpr); return [(mx - c.x) / c.z, (my - c.y) / c.z]; }
 // ------------------------------------------------------------ light / dark mode
 // Light mode: white page and stage, black text (remembered per browser).
