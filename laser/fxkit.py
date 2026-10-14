@@ -404,6 +404,9 @@ TIME_SPEED_MAX = 8
 # "@blink:<action>" plays over <action> while its Blink is on.
 RETREAT_KEY = "@retreat"
 BLINK_KEY = "@blink:"
+# Character FX (FX Studio: Character FX, whole character): always on the
+# fighter whatever it is doing, on their own lane (FxDriver._character_tick).
+CHARACTER_KEY = "@character"
 
 
 def normalize_blink_step(b):
@@ -2805,6 +2808,7 @@ class CharacterFx:
         self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
                            for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
         self.retreat_own = self.by_action.get(RETREAT_KEY) or []
+        self.character_own = self.by_action.get(CHARACTER_KEY) or []
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None
@@ -3139,6 +3143,8 @@ class FxDriver:
         # timing) and the FX built on the reaction ("@retreat", on the run
         # timing).  Lane = [player, on, t, t_prev].
         self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1]]
+        # Character FX ("@character"): always on, on their own lane and clock.
+        self.clane = [Player(), False, 0, -1]
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -3203,9 +3209,14 @@ class FxDriver:
         self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
                          t_prev=self.t if hold else self.t_prev, frozen=frozen)
         self._retreat_tick(fig, host, hold, frozen)
+        gone = self._character_tick(fig, host, hold, frozen)
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
+        elif gone:
+            # Blinked out: the Character FX on its body land no hits.
+            own = self.clane[0].insts
+            self.hits_out = [h for h in self.hits_out if not (body_bound(h[6]) and any(q is h[6] for q in own))]
         self._collect_pulls(frozen)
 
     def _collect_pulls(self, frozen):
@@ -3213,7 +3224,7 @@ class FxDriver:
         none while Time control has this fighter's FX stopped."""
         out = []
         if not frozen:
-            for pl in [self.player] + [ln[0] for ln in self.rlanes]:
+            for pl in [self.player, self.clane[0]] + [ln[0] for ln in self.rlanes]:
                 for inst in pl.insts:
                     if inst.fx["prim"] == "technique" and not inst.dead:
                         out.extend(swordfx.powerfx.pulls(inst, inst.ps))
@@ -3231,6 +3242,18 @@ class FxDriver:
         own = (self.cfx.retreat_own, self.cfx.retreat_host) if dashing else ([], None)
         for lane, (effs, act) in zip(self.rlanes, (borrowed, own)):
             self._lane_tick(lane, effs, act, host, hold, frozen)
+
+    def _character_tick(self, fig, host, hold, frozen=False):
+        """Character FX ("@character"): always on, whatever the fighter is
+        doing, on their own clock looping on the timing of the action on
+        show (its anchors follow that action's frames, _Host.anchor).  While
+        the fighter is blinked out nothing new fires and its body FX hide
+        (draw) and land no hits (update).  Returns True while blinked out."""
+        from . import blink as _blink
+        gone = _blink.gone(fig)
+        self._lane_tick(self.clane, self.cfx.character_own, self.action, host,
+                        hold or ("run" if gone else None), frozen)
+        return gone
 
     def _lane_tick(self, lane, effs, act, host, hold, frozen=False):
         pl = lane[0]
@@ -3254,12 +3277,16 @@ class FxDriver:
             pl.tick((), host, 0, 1, TICK_MS, t_prev=0, frozen=frozen)
 
     def draw(self, p, fig, layer, hidden=False):
-        if self.host is None or not (self.player.insts or any(ln[0].insts for ln in self.rlanes)):
+        if self.host is None or not (self.player.insts or self.clane[0].insts
+                                     or any(ln[0].insts for ln in self.rlanes)):
             return
         self.host.fig = fig
         self.player.draw(p, self.host, layer, hidden)
         for ln in self.rlanes:
             ln[0].draw(p, self.host, layer, hidden)
+        if self.clane[0].insts:
+            from . import blink as _blink
+            self.clane[0].draw(p, self.host, layer, hidden or _blink.gone(fig))
 
     def take_hits(self):
         h, self.hits_out = self.hits_out, []

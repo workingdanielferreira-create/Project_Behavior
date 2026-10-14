@@ -1505,11 +1505,13 @@ def _ricochet_fx(world, fig, inst, cx, cy):
     for side in world.sides:
         for f in side.figures:
             drv = getattr(f, "fx", None)
-            if drv is not None and inst in drv.player.insts:
+            pl = None if drv is None else next(
+                (q for q in (drv.player, drv.clane[0]) if inst in q.insts), None)
+            if pl is not None:
                 spd = max(2.0, math.hypot(inst.x - inst.px, inst.y - inst.py))
                 base = math.atan2(cy - fig.y, cx - fig.x)
                 half = math.radians(config.DEFLECT_CONE_DEG) * 0.5
                 a = base + random.uniform(-half, half)
-                drv.player.insts.append(fxkit._deflected_copy(
+                pl.insts.append(fxkit._deflected_copy(
                     inst, (math.cos(a) * spd, math.sin(a) * spd), False))
                 return

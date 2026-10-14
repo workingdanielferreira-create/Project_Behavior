@@ -606,6 +606,16 @@ reactions). These never play on an action of their own:
   action's own FX, on the same clock, while its Blink is `enabled`
   (`CharacterFx.with_blink`). The Blink rules apply to them as to the
   action's own FX: while gone they carry on as normal.
+- `"@character"` (FX Studio: Character FX, in the whole-character settings):
+  always on the fighter whatever it is doing, separate from any action's FX
+  (`FxDriver._character_tick`). They play on their own lane and clock, which
+  loops on the timing of the action on show; their anchors follow that
+  action's frames. Always-on FX are held for as long as the fighter lives
+  (the Studio switches ∞ Always on on for new ones that can be), and shots fire
+  at `start_frame` on each pass and on their `emit.every_ticks`. They follow
+  the usual Battle rules (Deals damage, clash, intercept). While the fighter is
+  blinked out nothing new fires, and its body FX (attached, orbit, weapon) are
+  hidden and land no hits. Solo and Battle run the same code.
 
 **Blink (`action_settings[action].blink`, per action; `laser/blink.py`).**
 Teleports inside one action; each action has its own. `blinks` is a list of
