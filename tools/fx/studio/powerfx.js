@@ -1125,9 +1125,18 @@ function onHit(inst, x, y, ps) {
   if (st === "rasen_shuriken") rsOnHit(inst, ps);
   else if (st === "ghost_kamikaze") ghOnHit(inst, x, y, ps);
 }
+// The aura animates at 24 fps (laser/powerfx.py _draw_aura_fps): drawn as it
+// is on the first tick of its 24 fps frame, moved with the fighter.
+var AURA_FPS = 24;
+function auraSnap(t) { var tm = FXK().TICK_MS, q = Math.floor(t * tm * AURA_FPS / 1000); return [q, Math.ceil(q * 1000 / (tm * AURA_FPS))]; }
+function drawAuraFps(pen, inst, host, ps) {
+  var t = inst.age, ts = Math.min(auraSnap(t)[1], t), a = at(inst.tq_path, t), b = at(inst.tq_path, ts), g = pen.g;
+  g.save(); g.translate(a[0] - b[0], a[1] - b[1]); inst.age = ts;
+  try { drawAura(pen, inst, host, ps); } finally { inst.age = t; g.restore(); }
+}
 function draw(pen, inst, host, ps) {
   var st = L_().style(inst.fx.params);
-  if (st === "ssj_aura") drawAura(pen, inst, host, ps);
+  if (st === "ssj_aura") drawAuraFps(pen, inst, host, ps);
   else if (st === "rasen_shuriken") drawRasen(pen, inst, host, ps);
   else if (st === "gigantic_meteor") drawMeteor(pen, inst, host, ps);
   else if (st === "ghost_kamikaze") drawKamikaze(pen, inst, host, ps);

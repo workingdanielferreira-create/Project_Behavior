@@ -1107,7 +1107,7 @@ class Inst:
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
-                 "tq_tp", "tq_det", "tq_gh", "tq_sil",
+                 "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
                  "ua_rb", "ua_cd", "ua_dm")
 
     def __init__(self):
