@@ -119,6 +119,38 @@ G.FX_PRESETS = [
      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 14},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
      params: {style: "impact_punch", radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3, density: 1}}]},
+  // ---------------------------------------------------------------- power techniques
+  // Hand-drawn (prim "technique", laser/powerfx.py + powerfx.js).  The
+  // gigantic meteor and black hole pull the opposing fighter in Battle.
+  {name: "Super Saiyan aura", group: "Power techniques", desc: "A golden flame aura round the fighter: three flame layers, tongues licking off the crown, energy streaks shooting up, a glow ring at the feet and pebbles lifting off the ground. Ignites with a flash and a shock ring. Lightning on = Super Saiyan 2 sparks crackling over it every now and then (Lightning rate per second). Visual only",
+   effects: [{prim: "technique", name: "Super Saiyan aura", tag: "aura", anchor: "figure", layer: "behind", blend: "additive",
+     motion: {kind: "attached"}, color: {mode: "gradient", c1: "#ffe14a", c2: "#ff9d00"},
+     params: {style: "ssj_aura", radius: 22, thickness: 7, length: 62, swing_ticks: 12, hold_ticks: 240, lightning: true, lightning_rate: 1.5, density: 1}}]},
+  {name: "Rasen-shuriken", group: "Power techniques", desc: "An orb of wind charges with four blades spinning up, is thrown at the target and bursts into a huge sphere of countless needle cuts that keeps hitting until it collapses (Pierce + Re-hit 6)",
+   effects: [{prim: "technique", name: "Rasen-shuriken", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 6, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#bff3ff", c2: "#2a7dff"},
+     params: {style: "rasen_shuriken", radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50, density: 1}}]},
+  {name: "Gigantic meteor", group: "Power techniques", desc: "A small, dense orb gathers over the fighter, drops on the target growing as it falls, drags whatever it caught down with it (a real pull in Battle; Span = grip %) while it keeps hitting, then explodes in a towering blast",
+   effects: [{prim: "technique", name: "Gigantic meteor", tag: "energy", anchor: "figure", offset: [0, -30], blend: "additive",
+     battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 8, knockback: 0, blockable: false},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#8dff6a", c2: "#0c8a2a"},
+     params: {style: "gigantic_meteor", radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70, density: 1}}]},
+  {name: "Super ghost kamikaze", group: "Power techniques", desc: "Grinning ghosts puff out one after another, hover a moment, then chase the target and blow up on contact. Each ghost hits once",
+   effects: [{prim: "technique", name: "Super ghost kamikaze", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 2, knockback: 6},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ff8ad8", c2: "#8a2cff"},
+     params: {style: "ghost_kamikaze", radius: 9, span: 14, thickness: 34, length: 600, swing_ticks: 8, hold_ticks: 40, density: 1}}]},
+  {name: "Serious punch", group: "Power techniques", desc: "A long, still wind-up, then one punch: a blinding flash and a colossal shock cone that tears across the screen with vapour rings, splitting the sky along its line and blowing the clouds apart. One heavy hit",
+   effects: [{prim: "technique", name: "Serious punch", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 10, pierce: true, rehit_ticks: 0, knockback: 40, blockable: false},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#fff4d0", c2: "#ffb04a"},
+     params: {style: "serious_punch", radius: 10, thickness: 150, length: 900, swing_ticks: 30, hold_ticks: 22, density: 1}}]},
+  {name: "Black hole gravity", group: "Power techniques", desc: "A black hole opens on the target: event horizon, photon ring, a tilted accretion disc and debris spiralling in. It pulls the opposing fighter toward it (Battle; Span = pull px/s, Length = pull radius) and hurts what it holds, then collapses and bursts",
+   effects: [{prim: "technique", name: "Black hole", tag: "arcane", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 10, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#d9a8ff", c2: "#5a18c8"},
+     params: {style: "black_hole", radius: 20, span: 160, thickness: 24, length: 260, swing_ticks: 22, hold_ticks: 150, density: 1}}]},
   // ---------------------------------------------------------------- sword techniques (lite)
   // Lightweight versions built from plain FX Kit layers.  Fixed-angle arcs (orient "angle") with Flip on: as authored for a fighter
   // facing right, mirrored when the target is on the left.  Arc sweeps run

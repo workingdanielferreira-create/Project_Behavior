@@ -90,6 +90,8 @@ class SideState:
                                     # for FX Studio target_* trigger conditions
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
+        self.fx_pulls = []          # FX Studio pull fields this tick (meteor /
+                                    # black hole, laser/powerfx.py), same delivery
 
 
 class World:
@@ -483,6 +485,32 @@ class World:
         """fxkit hits from the side being simulated (see refresh_battle)."""
         self.sides[self.side_idx].fx_hits.extend(hits)
 
+    def queue_fx_pulls(self, pulls):
+        """fxkit pull fields from the side being simulated (see refresh_battle)."""
+        self.sides[self.side_idx].fx_pulls.extend(pulls)
+
+    @staticmethod
+    def _pull_figure(ef, pulls):
+        """Move a fighter toward the centre of every pull field it is inside
+        ((x, y, radius, step, falloff): up to step px, less toward the edge
+        with falloff), kept on screen.  An arc in progress slides with it."""
+        t = ef.transform
+        ox, oy = t.x, t.y
+        for (px, py, r, step, falloff) in pulls:
+            dx, dy = px - t.x, py - t.y
+            d = math.hypot(dx, dy)
+            if d > r or d < 0.01 or step <= 0:
+                continue
+            s = min(d, step * (1.0 - 0.65 * falloff * d / r))
+            t.x += dx / d * s
+            t.y += dy / d * s
+        t.x = min(max(t.x, 0.0), float(ef.screen_w))
+        t.y = min(max(t.y, 0.0), float(ef.screen_h))
+        c = ef.combat
+        if c.arc_repositioning:
+            c.arc_center_x += t.x - ox
+            c.arc_center_y += t.y - oy
+
     def on_figure_death(self, fig):
         """A figure reached 0 HP.  Solo keeps the historical behaviour (the
         run ends); in battle the fallen fighter is removed and the survivor
@@ -691,6 +719,17 @@ class World:
                     # A new hit restarts the slide for its full distance.
                     spd = kb * (1.0 - config.BOUNCE_FRICTION)
                     motion.launch_knockback(ef, dx * spd, dy * spd, self.global_tick)
+        # Deliver FX Studio pulls (gigantic meteor, black hole) from last
+        # tick: the opposing fighters inside a pull field are drawn toward
+        # it; a blinked-out fighter (or one not placed yet, which the
+        # snapshots leave out too) is out of reach.
+        for i, side in enumerate(self.sides):
+            pulls, side.fx_pulls = side.fx_pulls, []
+            if not pulls or not self.battle_mode:
+                continue
+            for ef in self.sides[1 - i].figures:
+                if ef.transform.init and not blink.gone(ef):
+                    self._pull_figure(ef, pulls)
         # Deliver dash-slash knockback landed last tick to the other side.
         for i, side in enumerate(self.sides):
             other = self.sides[1 - i]

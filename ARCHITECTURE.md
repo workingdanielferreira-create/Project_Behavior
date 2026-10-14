@@ -96,6 +96,8 @@ laser/
   clashfx.py         clash explosion library (19 effects, derive() variations)
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
   strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
+  powerfx.py         SSJ aura, rasen-shuriken, gigantic meteor, ghost kamikaze, serious punch,
+                     black hole: hand-drawn "technique" styles + the meteor / black hole pull
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on
