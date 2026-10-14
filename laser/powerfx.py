@@ -99,6 +99,9 @@ AURA_LAG = 0.9               # share of the fighter's speed the flames fall behi
 AURA_FULL = 3.0              # speed (px/tick, x scale / reaction) at which the aura points fully back
 AURA_SWING = 0.72            # how slowly it swings round: weight kept per tick of history
 AURA_SWING_N = 12            # ticks of history the swing looks at
+AURA_DRIFT = 0.6             # how far a lick drifts along the flow (x its rise per tick)
+AURA_FRAG_LIFE = 14          # fragments that break off on a sharp turn
+AURA_FRAG_P = 0.7            # chance per tick of a full-speed hairpin turn
 AURA_STRETCH = 2.2           # how far the skin streams behind per px/tick of speed
 AURA_SURGE_SLOT = 90         # surges: at most one in each slot of this many ticks
 AURA_SURGE_LEN = 20
@@ -357,6 +360,19 @@ def _aura_flow(inst, ps, react, t):
     return sx / d, sy / d
 
 
+def _aura_turn(inst, ps, react, t):
+    """How sharply the fighter turned at tick t (0-1): the bend between its
+    heading now and 4 ticks ago (a reversal = 1), scaled by its speed."""
+    v1x, v1y = _aura_vel(inst, t)
+    v0x, v0y = _aura_vel(inst, t - 4)
+    s1, s0 = _hyp(v1x, v1y), _hyp(v0x, v0y)
+    if t < 4 or s1 < 0.5 * ps or s0 < 0.5 * ps:
+        return 0.0
+    co = (v1x * v0x + v1y * v0y) / (s1 * s0)
+    bend = (1 - co) / 2.0
+    return min(1.0, bend * 2.0) * min(1.0, max(s1, s0) / ps * react / AURA_FULL)
+
+
 def _aura_k(P, t):
     """(size, alpha) of the aura at tick t."""
     Ti = _ti(P, "swing_ticks", 1)
@@ -480,22 +496,22 @@ def _draw_aura(pen, inst, host, ps):
             tl = tail * k * (0.6 if m == 1.0 else 0.0)   # only the outer skin streams back; the licks make the comet
             pts.append((x + nx * e - ux * tl, y + ny * e - uy * tl))
         pen.poly(pts, col, alpha * al * fl)
-    # 4: flame licks born on the body's edge, rising and lagging behind the motion
+    # 4: flame licks, attached: each is born on a point of the body's edge
+    #    and stays with that point, rising along the aura's flow (so they never
+    #    spill out on their own); the aura's turn makes the trail
     life_max = AURA_LICK_LIFE
+    # at speed the attached flames stretch back along the flow (capped): the comet
+    stretch = min(1.0, sp / ps * react / AURA_FULL)
     for b in range(max(0, t - life_max + 1), t + 1):
         if b >= act:
             break
         bk, _b0 = _aura_k(P, b)
         bs, _s0 = _aura_surge(inst, P, b)
-        silb = _aura_sil(inst, ps, b)
-        bcx, bcy = _centroid(silb)
-        bvx, bvy = _aura_vel(inst, b)
-        bgx, bgy = _aura_flow(inst, ps, react, b)
         a = t - b
         for j in range(max(0, F.jround(AURA_RATE * dens * bs))):
             r = S.rng_for(inst.seed, b, 271 + j)
-            ex, ey = silb[min(n - 1, int(r() * n))]
-            dx, dy = ex - bcx, ey - bcy
+            ex, ey = sil[min(n - 1, int(r() * n))]
+            dx, dy = ex - cx, ey - cy
             d = _hyp(dx, dy) or 1.0
             nx, ny = dx / d, dy / d
             off = R * r.uniform(0.2, 1.1) * bk
@@ -505,22 +521,18 @@ def _draw_aura(pen, inst, host, ps):
                 continue
             rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs
             # a little outward, laid out in the aura's frame (wider across the flow than along it)
-            npp, npl = nx * -bgy + ny * bgx, nx * bgx + ny * bgy
-            ox_ = (-bgy * npp * 0.7 + bgx * npl * 0.35) * ps
-            oy_ = (bgx * npp * 0.7 + bgy * npl * 0.35) * ps
-            # world velocity: along the flow + outward + the share of the fighter's speed it keeps
-            keep = 1.0 - AURA_LAG * react
-            wx = bgx * rise + ox_ + bvx * keep
-            wy = bgy * rise + oy_ + bvy * keep
-            ph = r.uniform(0, math.pi * 2)
-            sway = math.sin(a * 0.45 + ph) * 1.6 * ps * u
-            # direction it streams relative to the body: up, and away from the motion
-            rx, ry = bgx * rise + ox_ - bvx * AURA_LAG * react, bgy * rise + oy_ - bvy * AURA_LAG * react
+            npp, npl = nx * -gy + ny * gx, nx * gx + ny * gy
+            ox_ = (-gy * npp * 0.7 + gx * npl * 0.35) * ps
+            oy_ = (gx * npp * 0.7 + gy * npl * 0.35) * ps
+            rx, ry = gx * rise + ox_, gy * rise + oy_
             rl = _hyp(rx, ry) or 1.0
             fx_, fy_ = rx / rl, ry / rl
-            px = ex + nx * off + wx * a - fy_ * sway
-            py = ey + ny * off + wy * a + fx_ * sway
-            ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * math.sin(math.pi * min(1.0, u * 1.15))) * (1 + 0.1 * rl / ps) * bk
+            ph = r.uniform(0, math.pi * 2)
+            sway = math.sin(a * 0.45 + ph) * 1.6 * ps * u
+            drift = AURA_DRIFT * a * (1 + 1.5 * stretch)
+            px = ex + nx * off + rx * drift - fy_ * sway
+            py = ey + ny * off + ry * drift + fx_ * sway
+            ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * math.sin(math.pi * min(1.0, u * 1.15))) * bk * (1 + 1.2 * stretch)
             w = Tw * r.uniform(0.7, 1.2) * (1 - u) ** 0.5 * bk
             fade = math.sin(math.pi * min(1.0, 0.15 + u * 0.85)) * al
             bend = math.sin(a * 0.3 + ph) * w * 1.2
@@ -528,31 +540,56 @@ def _draw_aura(pen, inst, host, ps):
             pen.poly(_lick(px, py, fx_, fy_, ln * 0.7, w * 0.5, bend * 0.7), S.mix(c, bright, 0.6), 50 * fade)
             if u < 0.45:
                 pen.poly(_lick(px, py, fx_, fy_, ln * 0.4, w * 0.22, bend * 0.4), S.HOT, 55 * fade * (1 - u / 0.45))
-    # 5: sparks of energy rising off it (kept behind as it moves)
+    # 4b: on a sharp turn at speed, a few small fragments of the aura break off
+    #     and fly on the way the fighter was going, fading fast
+    for b in range(max(0, t - AURA_FRAG_LIFE + 1), t + 1):
+        if b >= act:
+            break
+        sharp = _aura_turn(inst, ps, react, b)
+        if sharp <= 0:
+            continue
+        r = S.rng_for(inst.seed, b, 281)
+        if r() >= sharp * AURA_FRAG_P:
+            continue
+        silb = _aura_sil(inst, ps, b)
+        bcx, bcy = _centroid(silb)
+        ovx, ovy = _aura_vel(inst, b - 4)
+        bgx, bgy = _aura_flow(inst, ps, react, b)
+        a = t - b
+        for j in range(1 + int(r() * 2)):
+            ex, ey = silb[min(n - 1, int(r() * n))]
+            life = r.uniform(9, AURA_FRAG_LIFE)
+            sv = r.uniform(0.45, 0.75)
+            if a >= life:
+                continue
+            u = a / life
+            vx_, vy_ = ovx * sv + bgx * AURA_RISE * ps, ovy * sv + bgy * AURA_RISE * ps
+            vl = _hyp(vx_, vy_) or 1.0
+            px = ex + (ex - bcx) * 0.3 + vx_ * S.drag_dist(0.9, a)
+            py = ey + (ey - bcy) * 0.3 + vy_ * S.drag_dist(0.9, a)
+            ln = Lf * 0.45 * (1 - 0.5 * u) * k
+            w = Tw * 0.6 * (1 - u) * k
+            fade = (1 - u) ** 1.2 * al
+            pen.poly(_lick(px, py, -vx_ / vl, -vy_ / vl, ln, w, 0.0), c, 80 * fade)
+            pen.poly(_lick(px, py, -vx_ / vl, -vy_ / vl, ln * 0.6, w * 0.45, 0.0), bright, 90 * fade)
+    # 5: sparks of energy rising off it, riding with the body along the flow
     for b in range(max(0, t - 23), t + 1):
         if b >= act:
             break
-        silb = _aura_sil(inst, ps, b)
-        bcx, bcy = _centroid(silb)
-        bvx, bvy = _aura_vel(inst, b)
-        bgx, bgy = _aura_flow(inst, ps, react, b)
         a = t - b
         for j in range(max(0, F.jround(1 * dens))):
             r = S.rng_for(inst.seed, b, 291 + j)
-            ex, ey = silb[min(n - 1, int(r() * n))]
+            ex, ey = sil[min(n - 1, int(r() * n))]
             life = r.uniform(14, 24)
             if a >= life:
                 continue
             q = a / life
             rise = AURA_RISE * ps * r.uniform(1.2, 2.0)
-            keep = 1.0 - AURA_LAG * react
-            x = ex + (bvx * keep + bgx * rise) * a + r.uniform(-1, 1) * R * 0.5
-            y = ey + (bvy * keep + bgy * rise) * a
-            tl = 2 * ps + rise * 1.2 + sp * react * 0.8
-            # its tail points back along the flow it rides (down, and the way the fighter came from)
-            lx, ly = bvx * AURA_LAG * react - bgx * rise, bvy * AURA_LAG * react - bgy * rise
-            ll = _hyp(lx, ly) or 1.0
-            pen.line(x, y, x + lx / ll * tl, y + ly / ll * tl, S.mix(c, S.HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps)
+            side = r.uniform(-1, 1) * R * 0.5
+            x = ex + gx * rise * a * 0.8 - gy * side
+            y = ey + gy * rise * a * 0.8 + gx * side
+            tl = 2 * ps + rise * 1.2
+            pen.line(x, y, x - gx * tl, y - gy * tl, S.mix(c, S.HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps)
             pen.glow(x, y, 2.2 * ps, S.HOT, 200 * (1 - q) * al, 0.6)
     # 6: a white-hot rim hugging the body
     rim = []
@@ -565,10 +602,10 @@ def _draw_aura(pen, inst, host, ps):
     # 7: speed lines streaming off it when it moves fast
     if sp * react > 2.0:
         g = min(1.0, (sp * react - 2.0) / 4.0)
-        for j in range(max(0, F.jround(8 * dens))):
+        for j in range(max(0, F.jround(4 * dens))):
             r = S.rng_for(inst.seed, t, 301 + j)
             ex, ey = sil[min(n - 1, int(r() * n))]
-            ln = sp * r.uniform(2, 5) * react
+            ln = sp * r.uniform(1.5, 3) * react
             pen.line(ex, ey, ex - ux * ln, ey - uy * ln, S.mix(c, S.HOT, 0.5), 170 * g * al, 1.1 * ps)
     # 8: ignition — a flash and a shock ring (Burst on)
     if P.get("aura_burst"):
