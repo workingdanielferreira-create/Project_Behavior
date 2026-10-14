@@ -955,7 +955,7 @@ function normalize(fx) {
   // Files from before ∞ Always on was split out (no always_on, no cycles):
   // their continuous meant always on.
   if (fx.always_on === undefined && fx.cycles === undefined && fx.continuous) { fx.always_on = true; fx.continuous = false; }
-  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false, always_on: false,
+  fill(fx, {name: fx.prim, tag: "", enabled: true, start_frame: 0, end_frame: -1, life_ticks: 0, continuous: false, always_on: false, char_every_ms: 0,
     anchor: "figure", offset: [0, 0], layer: "front", blend: "normal"});
   fx.emit = fill(fx.emit || {}, {every_ticks: 0, count: 1, fan_deg: 0});
   fx.cycles = fill(fx.cycles || {}, CYCLE_DEFAULTS);
@@ -2182,6 +2182,8 @@ Player.prototype.window = function (fx, frames, frameMs) {
 // what the action fires now still appears, but nothing moves, ages or hits,
 // the player's own clock (pending sequential points, Continuous runs) holds,
 // and a new Continuous run waits to start.  laser/fxkit.py Player.tick.
+// opts.timed / opts.due (Character FX with a frequency): the timed effects
+// start a Continuous run only when they are in due, whatever t is.
 // opts.continuous (the action's fx_continuous while it loops): an "open"
 // instance (life 0 = to the end, window reaching the action's end) is kept
 // alive across the loop, and its effect is not spawned again while it lives.
@@ -2258,7 +2260,9 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
       return;
     }
     if (isContinuous(fx)) {   // a run of its whole sequence each time the action reaches the start frame
-      if (t !== s) return;
+      var timed = (opts && opts.timed) || [];
+      if (timed.indexOf(fx) >= 0) { if (((opts && opts.due) || []).indexOf(fx) < 0) return; }
+      else if (t !== s) return;
       var mine = self.runs.filter(function (r) { return r.fx === fx; });
       if (mine.length >= CYCLE_MAX_RUNS) self.runs.splice(self.runs.indexOf(mine[0]), 1);
       var run = {fx: fx, s: s, e: e, rt: s, len: Math.max(1, e - s, fx.life_ticks > 0 ? trunc(fx.life_ticks) : 0), fms: frameMs, k: 0,

@@ -477,7 +477,7 @@ def normalize(fx):
     if "always_on" not in fx and "cycles" not in fx and fx.get("continuous"):
         fx["always_on"], fx["continuous"] = True, False
     _fill(fx, dict(name=fx["prim"], tag="", enabled=True, start_frame=0, end_frame=-1, life_ticks=0, continuous=False,
-                   always_on=False,
+                   always_on=False, char_every_ms=0,
                    anchor="figure", offset=[0, 0], layer="front", blend="normal"))
     fx["emit"] = _fill(dict(fx.get("emit") or {}), dict(every_ticks=0, count=1, fan_deg=0))
     fx["cycles"] = _fill(dict(fx.get("cycles") or {}), CYCLE_DEFAULTS)
@@ -2620,13 +2620,15 @@ class Player:
             else:
                 self._spawn_job(job, host)
 
-    def tick(self, effects, host, t, frames, frame_ms, continuous=False, t_prev=None, frozen=False):
+    def tick(self, effects, host, t, frames, frame_ms, continuous=False, t_prev=None, frozen=False, timed=(), due_fx=()):
         # t_prev == t: the action is holding a frame (time did not advance),
         # so nothing new fires this tick; live instances still update.
         # frozen (Time control stopped these FX this tick, laser/timefx.py):
         # what the action fires now still appears, but nothing moves, ages
         # or hits, the player's own clock (pending sequential points,
         # Continuous runs) holds, and a new Continuous run waits to start.
+        # timed / due (Character FX with a frequency): the timed effects start
+        # a Continuous run only when they are in due_fx, whatever t is.
         held = t_prev is not None and t_prev == t
         self._fms = max(1e-6, float(frame_ms))
         if t_prev is None or t_prev > t:
@@ -2667,7 +2669,10 @@ class Player:
                 self._fire(fx, t, max(1, trunc(fx["emit"]["count"])), total - s, "cont", host, stop=stop)
                 continue
             if is_continuous(fx):   # a run of its whole sequence each time the action reaches the start frame
-                if not (t_prev < s <= t):
+                if any(f is fx for f in timed):
+                    if not any(f is fx for f in due_fx):
+                        continue
+                elif not (t_prev < s <= t):
                     continue
                 mine = [r for r in self.runs if r["fx"] is fx]
                 if len(mine) >= CYCLE_MAX_RUNS:
@@ -2808,7 +2813,16 @@ class CharacterFx:
         self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
                            for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
         self.retreat_own = self.by_action.get(RETREAT_KEY) or []
-        self.character_own = self.by_action.get(CHARACTER_KEY) or []
+        # Character FX with a frequency (char_every_ms > 0) play their whole
+        # sequence every that many ms (a Continuous run each time) instead
+        # of always on: (copy, every ticks).
+        self.character_own, self.character_timed = [], []
+        for e in self.by_action.get(CHARACTER_KEY) or []:
+            ms = float(e.get("char_every_ms") or 0)
+            if ms > 0:
+                c = dict(e, always_on=False, continuous=True, cycles=dict(CYCLE_DEFAULTS))
+                self.character_timed.append((c, max(1, jround(ms / TICK_MS))))
+            self.character_own.append(c if ms > 0 else e)
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None
@@ -3145,6 +3159,7 @@ class FxDriver:
         self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1]]
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
+        self.cclock = 0   # Character FX frequency timer (ticks since fielded)
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -3251,11 +3266,16 @@ class FxDriver:
         (draw) and land no hits (update).  Returns True while blinked out."""
         from . import blink as _blink
         gone = _blink.gone(fig)
+        timed = self.cfx.character_timed
+        due = () if (gone or hold or frozen) else [c for c, every in timed if self.cclock % every == 0]
         self._lane_tick(self.clane, self.cfx.character_own, self.action, host,
-                        hold or ("run" if gone else None), frozen)
+                        hold or ("run" if gone else None), frozen,
+                        timed=[c for c, _ in timed], due=due)
+        if not frozen:
+            self.cclock += 1
         return gone
 
-    def _lane_tick(self, lane, effs, act, host, hold, frozen=False):
+    def _lane_tick(self, lane, effs, act, host, hold, frozen=False, timed=(), due=()):
         pl = lane[0]
         if effs:
             n, fm = self._time_for(act)
@@ -3263,7 +3283,7 @@ class FxDriver:
             if not lane[1] or lane[2] >= total:
                 lane[1], lane[2], lane[3] = True, 0, -1
             pl.tick(effs, host, lane[2], n, fm, continuous=True,
-                    t_prev=lane[2] if hold else lane[3], frozen=frozen)
+                    t_prev=lane[2] if hold else lane[3], frozen=frozen, timed=timed, due_fx=due)
             if not hold:
                 lane[3], lane[2] = lane[2], lane[2] + 1
             return

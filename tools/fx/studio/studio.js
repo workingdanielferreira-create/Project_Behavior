@@ -148,6 +148,21 @@ function fxKeyOptions() {
     acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }));
 }
 function charEffects() { return S.effects.filter(function (e) { return e.action === CHAR_KEY; }); }
+// Character FX with a frequency (char_every_ms > 0) play their whole sequence
+// every that many ms instead of always on (laser/fxkit.py CharacterFx).
+// Copies kept per effect so a run keeps its effect between ticks.
+var CHAR_TIMED = new WeakMap();
+function charLane() {
+  var effs = [], timed = [];
+  charEffects().forEach(function (e) {
+    var ms = +e.char_every_ms || 0;
+    if (ms <= 0) { effs.push(e); return; }
+    var key = JSON.stringify(e), c = CHAR_TIMED.get(e);
+    if (!c || c.key !== key) { c = {key: key, fx: Object.assign({}, e, {always_on: false, continuous: true, cycles: {enabled: false, count: 0}})}; CHAR_TIMED.set(e, c); }
+    effs.push(c.fx); timed.push([c.fx, Math.max(1, Math.round(ms / FXK.TICK_MS))]);
+  });
+  return {effs: effs, timed: timed};
+}
 // The effects listed and edited: this action's, or the selected reaction's.
 function actionEffects() { var k = fxKey(); return S.effects.filter(function (e) { return e.action === k; }); }
 // The effects the stage plays: an action's own plus its Blink's (as the game
@@ -1590,6 +1605,8 @@ function buildProps() {
       ["abs_front", "absolute front (over every character)"], ["abs_back", "absolute back (under every character)"]], fx.layer, function (v) { fx.layer = v; changed(); }));
     field(s, "Blend", inp(["normal", "additive"], fx.blend, function (v) { fx.blend = v; changed(); }));
   }
+  if (fx.action === CHAR_KEY) field(s, "Frequency ms", inp("n", +fx.char_every_ms || 0, function (v) { fx.char_every_ms = Math.max(0, Math.min(600000, Math.round(v) || 0)); buildEffects(); changed(); }, 0, 600000, 50)).title =
+    "0 = always on. Above 0: the effect plays its whole sequence once every this many ms.";
   field(s, "Action", inp(fxKeyOptions(), fx.action, function (v) { fx.action = v; selectKey(v); delete fx.group; pruneGroups(); rebuild(); resetSim(0); save(); })).title =
     "Where this effect plays: an action, or a triggered reaction (⚡): the Tactical retreat dash (built on the " + retreatHost() + " frames) or an action's Blink (built on that action's frames).";
 
@@ -2395,7 +2412,8 @@ function buildCharFxProps(d) {
   list.forEach(function (fx) {
     var el = document.createElement("div"); el.className = (fx.id === S.sel ? "sel" : "") + (fx.enabled ? "" : " off");
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
-    el.querySelector(".n").textContent = (fx.always_on && FXK.canContinue(fx) ? "∞ " : "") + fx.name;
+    el.querySelector(".n").textContent = (+fx.char_every_ms > 0 ? "⟳ " : fx.always_on && FXK.canContinue(fx) ? "∞ " : "") + fx.name;
+    if (+fx.char_every_ms > 0) el.querySelector(".n").textContent += "  (every " + fx.char_every_ms + " ms)";
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "") + fx.prim;
     el.onclick = function () { S.react = "character"; setSel(fx.id); rebuild(); resetSim(S.t); save(); };
     ls.appendChild(el);
@@ -2797,7 +2815,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); cplayer.reset(); S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
+  player.reset(); cplayer.reset(); S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
   S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
@@ -2823,18 +2841,20 @@ function step(allowWrap) {
   var opts = {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous};
   // Character FX: always on, on their own lane (laser/fxkit.py
   // FxDriver._character_tick); blinked out = nothing new fires.
-  var ceffs = charEffects();
+  var cl = charLane(), ceffs = cl.effs, ctimed = cl.timed.map(function (x) { return x[0]; });
+  var cdue = gone ? [] : cl.timed.filter(function (x) { return (S.cclock || 0) % x[1] === 0; }).map(function (x) { return x[0]; });
   if (ts.own === 0) {
     player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, frozen: true});
-    cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, frozen: true});
+    cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, frozen: true, timed: ctimed});
   } else {
     player.tick(effs, host, S.t, frames(), frameMs(), opts);
-    cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, hold: gone});
+    cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, hold: gone, timed: ctimed, due: cdue});
+    S.cclock = (S.cclock || 0) + 1;
     // Sped-up FX: extra steps on the same action time (nothing new fires),
     // as the game's time sub-passes do (laser/timefx.py).
     for (var k = 1; k < ts.own; k++) {
       player.tick(effs, host, S.t, frames(), frameMs(), {continuous: opts.continuous, hold: true});
-      cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, hold: true});
+      cplayer.tick(ceffs, host, S.t, frames(), frameMs(), {continuous: true, hold: true, timed: ctimed});
     }
   }
   S.t += 1;
@@ -3608,5 +3628,5 @@ Array.prototype.forEach.call(document.querySelectorAll("details.panel"), functio
 kvOpen().then(function () { STORE.done = true; buildPresets(); geoRefreshPresets(); });
 buildPresets();
 requestAnimationFrame(loop);
-window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, step: step, player: player, host: host, rebuild: rebuild};
+window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, step: step, player: player, cplayer: cplayer, host: host, rebuild: rebuild};
 })();
