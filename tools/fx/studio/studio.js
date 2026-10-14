@@ -1251,16 +1251,78 @@ var PARAM_UI = {
   technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
     "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch",
     "forward_thrust", "overhead_slash", "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"]],
-    ["radius", "Radius (slash / wave; ki shot; fist; aura half-width; orb; meteor at launch; ghost size; black hole core)", 1, 400, 1],
-    ["span", "Slash span ° (ki: spread °; rasen: blade reach px; meteor: grip %; ghosts: bob px; black hole: pull px/s)", 0, 600, 1],
-    ["thickness", "Thickness (blade / thrust: half-width; ki / ghost blast radius; punch streak; aura flame tongue; rasen explosion radius; meteor size when it lands; serious punch cone half-width; black hole disc width)", 1, 400, 0.5],
-    ["length", "Length (blade; thrust / punch reach; ki / rasen / ghost range; aura height; meteor drag distance; black hole pull radius)", 20, 2000, 5],
-    ["swing_ticks", "Swing ticks (slash speed; thrust-out; ki / ghosts: ticks between; punch-out; aura ignite; rasen / meteor charge; serious punch wind-up; black hole forming)", 1, 120, 1],
-    ["hold_ticks", "Hold ticks (wave flight / blade out / thrust held; ki firing time; punch held; aura burns; rasen explosion; meteor drag; ghost release; serious punch blast; black hole holds)", 0, 600, 1],
+    ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
+    ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
+    ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
+    ["length", "Length (blade; thrust reach; ki range; punch reach)", 20, 2000, 5],
+    ["swing_ticks", "Swing ticks (slash speed; thrust-out ticks; ki: ticks between shots; punch-out ticks)", 1, 60, 1],
+    ["hold_ticks", "Hold ticks (wave flight / blade out / thrust held; ki: firing time; punch held out)", 0, 600, 1],
     ["density", "Sparks / embers / smoke ×", 0, 4, 0.1],
     ["rotation_deg", "Rotation ° (clockwise; mirrors with the facing)", 0, 360, 5],
-    ["lightning", "Lightning (Super Saiyan aura: SSJ2 sparks)", "chk"],
-    ["lightning_rate", "Lightning rate (aura sparks per second)", 0, 20, 0.1]]
+    ["lightning", "Lightning", "chk"],          // power techniques only (POWER_UI)
+    ["lightning_rate", "Lightning rate", 0, 20, 0.1]]
+};
+// Power techniques (laser/powerfx.py): each style has its own settings panel —
+// only the fields it uses, short labels, the explanation on hover.
+// [key, label, min, max, step, tooltip] ("chk" in place of min for a checkbox).
+var POWER_UI = {
+  ssj_aura: {name: "Super Saiyan aura",
+    tip: "A golden flame aura round the fighter that ignites with a flash and burns for the set time. Best on anchor figure, Motion attached, layer behind, custom gold colours. Visual only unless Deals damage is on.",
+    rows: [["radius", "Width", 4, 200, 1, "Half-width of the aura, px."],
+      ["length", "Height", 10, 400, 1, "Height of the aura, px."],
+      ["thickness", "Flame tongues", 1, 60, 0.5, "Width of the flame tongues licking off the top, px."],
+      ["swing_ticks", "Ignite ticks", 1, 120, 1, "How long it takes to flare up."],
+      ["hold_ticks", "Duration ticks", 1, 600, 1, "How long it burns before fading out."],
+      ["lightning", "SSJ2 lightning", "chk", 0, 0, "Little electric sparks crackle over the body every now and then (Super Saiyan 2)."],
+      ["lightning_rate", "Sparks per second", 0, 20, 0.1, "How often the sparks appear, on average."],
+      ["density", "Streaks & pebbles ×", 0, 4, 0.1, "Amount of rising energy streaks and lifting pebbles."]]},
+  rasen_shuriken: {name: "Rasen-shuriken",
+    tip: "An orb of wind charges with four spinning blades, is thrown at the target and bursts into a huge sphere of needle cuts. Use Motion attached, Aim target. Give it Pierce and a Re-hit (e.g. 6) so the explosion keeps hurting.",
+    rows: [["radius", "Orb size", 2, 100, 1, "Radius of the orb, px."],
+      ["span", "Blade reach", 4, 300, 1, "How far the four wind blades reach from the centre, px."],
+      ["swing_ticks", "Charge ticks", 1, 120, 1, "How long it charges in the hand before the throw."],
+      ["length", "Range", 20, 2000, 5, "Furthest it flies; it goes off at the target if that is closer."],
+      ["thickness", "Explosion size", 10, 400, 1, "Radius of the sphere of needle cuts, px."],
+      ["hold_ticks", "Explosion ticks", 1, 600, 1, "How long the sphere lasts (and keeps hitting)."],
+      ["density", "Cuts & sparks ×", 0, 4, 0.1, "Amount of needle cuts, wind and sparks."],
+      ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the throw when there is no target (clockwise, mirrors with the facing)."]]},
+  gigantic_meteor: {name: "Gigantic meteor",
+    tip: "A dense orb charges over the anchor, drops on the target growing as it falls, drags whatever is under it down while hitting, then explodes. Put the anchor above the head. In Battle it really pulls the opponent down. Pierce + Re-hit keep the drag hurting.",
+    rows: [["radius", "Start size", 2, 100, 1, "Radius of the orb while it charges, px."],
+      ["thickness", "Landing size", 4, 400, 1, "Radius it has grown to when it lands, px."],
+      ["swing_ticks", "Charge ticks", 1, 120, 1, "How long it gathers over the anchor before it drops."],
+      ["length", "Drag distance", 0, 2000, 5, "How far it drags the target down, px."],
+      ["hold_ticks", "Drag ticks", 1, 600, 1, "How long the drag takes before it explodes."],
+      ["span", "Grip %", 0, 100, 1, "How firmly the target is held under it (Battle). 0 = no pull, 100 = carried all the way."],
+      ["density", "Dust & debris ×", 0, 4, 0.1, "Amount of dust, sparks and debris."]]},
+  ghost_kamikaze: {name: "Super ghost kamikaze",
+    tip: "Grinning ghosts puff out one after another, hover a moment, then chase the target and blow up on contact. Use Motion attached, Aim target. Each ghost hits once: give it Pierce and a short Re-hit.",
+    rows: [["radius", "Ghost size", 2, 60, 1, "Size of a ghost, px."],
+      ["swing_ticks", "Ticks between ghosts", 1, 120, 1, "A new ghost every this many ticks."],
+      ["hold_ticks", "Release ticks", 0, 600, 1, "How long ghosts keep coming (the count follows)."],
+      ["span", "Bob", 0, 100, 1, "How much a ghost bobs side to side as it flies, px."],
+      ["length", "Range", 20, 2000, 5, "A ghost that flies this far without reaching the target blows up."],
+      ["thickness", "Blast size", 4, 200, 1, "Radius of each ghost's explosion, px."],
+      ["density", "Smoke & sparks ×", 0, 4, 0.1, "Amount of smoke and sparks."],
+      ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the direction they puff out (clockwise, mirrors with the facing)."]]},
+  serious_punch: {name: "Serious punch",
+    tip: "A long, still wind-up, then one punch: a shock cone tears across the screen and splits the sky. Use Motion attached, Aim target. Pierce on + Re-hit 0 = one heavy hit.",
+    rows: [["radius", "Fist size", 2, 60, 1, "Radius of the fist, px."],
+      ["swing_ticks", "Wind-up ticks", 1, 120, 1, "How long it winds up before the punch."],
+      ["length", "Reach", 20, 2000, 5, "Length of the shock cone, px."],
+      ["thickness", "Cone width", 4, 400, 1, "Half-width of the cone at full reach, px."],
+      ["hold_ticks", "Blast ticks", 1, 600, 1, "How long the blast takes to cross its reach."],
+      ["density", "Speed lines & clouds ×", 0, 4, 0.1, "Amount of speed lines, clouds and sparks."],
+      ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the punch (clockwise, mirrors with the facing)."]]},
+  black_hole: {name: "Black hole",
+    tip: "A black hole opens where the target is, pulls the opponent toward it and hurts what it holds, then collapses and bursts. In Battle it really pulls. Give it Pierce + a Re-hit to keep hurting.",
+    rows: [["radius", "Core size", 2, 120, 1, "Radius of the black core, px."],
+      ["thickness", "Disc width", 0, 200, 1, "Width of the glowing disc round the core, px."],
+      ["length", "Pull radius", 20, 2000, 5, "Opponents inside this distance are pulled in (Battle)."],
+      ["span", "Pull speed", 0, 600, 1, "How fast it pulls, px per second (weaker toward the edge)."],
+      ["swing_ticks", "Forming ticks", 1, 120, 1, "How long it takes to open."],
+      ["hold_ticks", "Duration ticks", 1, 600, 1, "How long it holds before it collapses."],
+      ["density", "Debris ×", 0, 4, 0.1, "Amount of debris spiralling in."]]}
 };
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
@@ -1495,7 +1557,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique") note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py, laser/strikefx.py and laser/powerfx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. Super Saiyan aura: a golden flame aura round the fighter (use anchor figure, Motion attached, layer back; set Colour to custom gold) that ignites with a flash and burns for Hold ticks; Lightning on adds SSJ2 sparks crackling over it every now and then (Lightning rate per second). Rasen-shuriken: an orb of wind charges for Swing ticks with four spinning blades (Span = blade reach), is thrown at the target and bursts into a huge sphere of needle cuts (Thickness = radius) for Hold ticks; give it Pierce and a Re-hit (e.g. 6) so the explosion keeps hurting. Gigantic meteor: a dense orb charges over the anchor (anchor above the head), drops on the target growing from Radius to Thickness, then drags whatever it caught down Length px for Hold ticks (Span = grip %, a real pull in Battle) and explodes; Pierce + Re-hit keep the drag hurting. Ghost kamikaze: grinning ghosts puff out every Swing ticks for Hold ticks, hover, then chase the target and blow up on contact (each hits once; give it Pierce and a short Re-hit). Serious punch: a still wind-up for Swing ticks, then one punch: a shock cone Length px long and Thickness wide crosses the screen in Hold ticks and splits the sky (Pierce on, Re-hit 0 = one heavy hit). Black hole: opens on the target, pulls opposing fighters within Length px toward it at Span px/s (Battle) and hurts what is inside its core (Pierce + Re-hit), then collapses and bursts. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
@@ -1677,9 +1739,13 @@ function buildProps() {
     }
   }
 
-  s = sec(d, fx.prim + " shape", "params", "Size and look settings that belong to the " + fx.prim + " primitive.");
+  var pw = fx.prim === "technique" ? POWER_UI[fx.params.style] : null;
+  s = sec(d, fx.prim + " shape", "params", pw ? "" : "Size and look settings that belong to the " + fx.prim + " primitive.");
   PARAM_UI[fx.prim].forEach(function (u) {
     var k = u[0], kind = u[2];
+    // A power technique shows only the style picker here; its own panel follows.
+    if (pw && k !== "style") return;
+    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate")) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {
@@ -1696,9 +1762,24 @@ function buildProps() {
       : kind === "anchor" ? inp(anchorOptions(false), fx.params[k], function (v) { fx.params[k] = v; changed(); })
       : inp("n", fx.params[k], function (v) { fx.params[k] = v; changed(); }, u[2], u[3], u[4]));
   });
+  if (pw) powerPanel(d, fx, pw);
   var r = document.createElement("div"); r.className = "row";
   var b = document.createElement("button"); b.textContent = "Save as preset…"; b.onclick = savePreset; r.appendChild(b);
   d.appendChild(r);
+}
+
+// A power technique's own settings panel (POWER_UI): its fields only, short
+// labels, the explanation on hover (the section title carries the overview).
+function powerPanel(d, fx, pw) {
+  var s = sec(d, pw.name, "power-" + fx.params.style, "");
+  s.querySelector("summary").title = pw.tip;
+  pw.rows.forEach(function (u) {
+    var k = u[0], e;
+    if (u[2] === "chk") e = field(s, u[1], inp("chk", fx.params[k], function (v) { fx.params[k] = v; changed(true); }));
+    else e = field(s, u[1], inp("n", fx.params[k], function (v) { fx.params[k] = v; changed(); }, u[2], u[3], u[4]));
+    if (k === "lightning_rate" && !fx.params.lightning) e.parentNode.style.display = "none";
+    e.title = u[5]; e.parentNode.title = u[5];
+  });
 }
 
 // Trigger conditions (action_settings[action].conditions): grouped picker,
