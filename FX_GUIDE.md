@@ -536,7 +536,11 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
     keeping only `1 - AURA_LAG × reaction` of the fighter's speed, so they
     stand straight up at rest and stream behind it on the move; the aura's
     skin is pushed out along the flow and its outer layer streams back into
-    a comet at speed, with speed lines. **Movement reaction %** (Span) scales
+    a comet at speed, with speed lines. The whole aura turns about its
+    anchor to point opposite the movement (`_aura_flow`): upright at rest,
+    fully back along the motion at `AURA_FULL` px/tick (any direction —
+    flying up points it down), swung round smoothly over the last
+    `AURA_SWING_N` ticks so turns and stops don't snap. **Movement reaction %** (Span) scales
     all of it. Toggles: power-up burst (flash, shock rings, dust blast),
     rising rocks (only while standing), power surges (a flare-up at most
     every 90 ticks), ground cracks, SSJ2 lightning (crackling over the body,

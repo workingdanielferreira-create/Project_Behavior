@@ -96,6 +96,9 @@ AURA_LICK_LIFE = 16
 AURA_RATE = 5                # flame licks born per tick (x density)
 AURA_RISE = 1.6              # how fast flames rise, px per tick (x scale)
 AURA_LAG = 0.9               # share of the fighter's speed the flames fall behind by (x reaction)
+AURA_FULL = 3.0              # speed (px/tick, x scale / reaction) at which the aura points fully back
+AURA_SWING = 0.72            # how slowly it swings round: weight kept per tick of history
+AURA_SWING_N = 12            # ticks of history the swing looks at
 AURA_STRETCH = 2.2           # how far the skin streams behind per px/tick of speed
 AURA_SURGE_SLOT = 90         # surges: at most one in each slot of this many ticks
 AURA_SURGE_LEN = 20
@@ -323,6 +326,37 @@ def _aura_vel(inst, t):
     return (x1 - x0) / k, (y1 - y0) / k
 
 
+def _aura_aim(inst, ps, react, t):
+    """Angle the aura should point at tick t: straight up at rest, turning
+    toward the opposite of the movement as the speed rises (fully opposite
+    at AURA_FULL)."""
+    vx, vy = _aura_vel(inst, max(0, t))
+    s = min(1.0, _hyp(vx, vy) / ps * react / AURA_FULL)
+    if s <= 0:
+        return -math.pi / 2
+    to = math.atan2(-vy, -vx)
+    d = math.atan2(math.sin(to + math.pi / 2), math.cos(to + math.pi / 2))
+    return -math.pi / 2 + d * s
+
+
+def _aura_flow(inst, ps, react, t):
+    """The way the aura's flames point at tick t (unit vector): its aim,
+    swung round smoothly over the last AURA_SWING_N ticks so turns and stops
+    don't snap.  Everything "up" in the aura follows it, about the anchor."""
+    sx = sy = 0.0
+    w = 1.0
+    for j in range(AURA_SWING_N + 1):
+        a = _aura_aim(inst, ps, react, t - j)
+        sx += w * math.cos(a)
+        sy += w * math.sin(a)
+        w *= AURA_SWING
+    d = _hyp(sx, sy)
+    if d < 1e-6:
+        a = _aura_aim(inst, ps, react, t)
+        return math.cos(a), math.sin(a)
+    return sx / d, sy / d
+
+
 def _aura_k(P, t):
     """(size, alpha) of the aura at tick t."""
     Ti = _ti(P, "swing_ticks", 1)
@@ -421,14 +455,14 @@ def _draw_aura(pen, inst, host, ps):
     if al <= 0:
         return
     # 2: a soft glow over the whole aura
-    pen.glow(cx - ux * sp * 2 * react, cy - 0.15 * (feet_y - cy), (half_w + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5)
+    Gx, Gy = _aura_flow(inst, ps, react, t)
+    hh = 0.15 * (feet_y - cy)
+    pen.glow(cx + Gx * hh, cy + Gy * hh, (half_w + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5)
     # 3: the aura's skin: the silhouette pushed out, taller on top, streaming
     #    behind the fighter when it moves (a comet at speed)
     n = len(sil)
-    # the way the flames flow: up, bent back by the motion
-    gx, gy = -vx * AURA_LAG * react, -AURA_RISE * ps
-    gl = _hyp(gx, gy) or 1.0
-    gx, gy = gx / gl, gy / gl
+    # the way the flames flow: up at rest, turned to point back along the motion
+    gx, gy = Gx, Gy
     for (x, y) in sil:
         pen.glow(x, y, (R * 1.8 + Tw) * k * sk, c, 34 * al * fl, 0.5)
     for (m, col, alpha) in ((1.0, c, 30), (0.6, S.mix(c, bright, 0.5), 30), (0.28, bright, 30)):
@@ -456,6 +490,7 @@ def _draw_aura(pen, inst, host, ps):
         silb = _aura_sil(inst, ps, b)
         bcx, bcy = _centroid(silb)
         bvx, bvy = _aura_vel(inst, b)
+        bgx, bgy = _aura_flow(inst, ps, react, b)
         a = t - b
         for j in range(max(0, F.jround(AURA_RATE * dens * bs))):
             r = S.rng_for(inst.seed, b, 271 + j)
@@ -469,14 +504,18 @@ def _draw_aura(pen, inst, host, ps):
             if u >= 1:
                 continue
             rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs
-            # world velocity: up + a little outward + the share of the fighter's speed it keeps
+            # a little outward, laid out in the aura's frame (wider across the flow than along it)
+            npp, npl = nx * -bgy + ny * bgx, nx * bgx + ny * bgy
+            ox_ = (-bgy * npp * 0.7 + bgx * npl * 0.35) * ps
+            oy_ = (bgx * npp * 0.7 + bgy * npl * 0.35) * ps
+            # world velocity: along the flow + outward + the share of the fighter's speed it keeps
             keep = 1.0 - AURA_LAG * react
-            wx = nx * 0.7 * ps + bvx * keep
-            wy = -rise + ny * 0.35 * ps + bvy * keep
+            wx = bgx * rise + ox_ + bvx * keep
+            wy = bgy * rise + oy_ + bvy * keep
             ph = r.uniform(0, math.pi * 2)
             sway = math.sin(a * 0.45 + ph) * 1.6 * ps * u
             # direction it streams relative to the body: up, and away from the motion
-            rx, ry = nx * 0.7 * ps - bvx * AURA_LAG * react, -rise + ny * 0.35 * ps - bvy * AURA_LAG * react
+            rx, ry = bgx * rise + ox_ - bvx * AURA_LAG * react, bgy * rise + oy_ - bvy * AURA_LAG * react
             rl = _hyp(rx, ry) or 1.0
             fx_, fy_ = rx / rl, ry / rl
             px = ex + nx * off + wx * a - fy_ * sway
@@ -496,6 +535,7 @@ def _draw_aura(pen, inst, host, ps):
         silb = _aura_sil(inst, ps, b)
         bcx, bcy = _centroid(silb)
         bvx, bvy = _aura_vel(inst, b)
+        bgx, bgy = _aura_flow(inst, ps, react, b)
         a = t - b
         for j in range(max(0, F.jround(1 * dens))):
             r = S.rng_for(inst.seed, b, 291 + j)
@@ -506,11 +546,11 @@ def _draw_aura(pen, inst, host, ps):
             q = a / life
             rise = AURA_RISE * ps * r.uniform(1.2, 2.0)
             keep = 1.0 - AURA_LAG * react
-            x = ex + (bvx * keep) * a + r.uniform(-1, 1) * R * 0.5
-            y = ey + (bvy * keep - rise) * a
+            x = ex + (bvx * keep + bgx * rise) * a + r.uniform(-1, 1) * R * 0.5
+            y = ey + (bvy * keep + bgy * rise) * a
             tl = 2 * ps + rise * 1.2 + sp * react * 0.8
             # its tail points back along the flow it rides (down, and the way the fighter came from)
-            lx, ly = bvx * AURA_LAG * react, rise + bvy * AURA_LAG * react
+            lx, ly = bvx * AURA_LAG * react - bgx * rise, bvy * AURA_LAG * react - bgy * rise
             ll = _hyp(lx, ly) or 1.0
             pen.line(x, y, x + lx / ll * tl, y + ly / ll * tl, S.mix(c, S.HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps)
             pen.glow(x, y, 2.2 * ps, S.HOT, 200 * (1 - q) * al, 0.6)
