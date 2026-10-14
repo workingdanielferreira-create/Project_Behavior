@@ -196,9 +196,11 @@ PARAM_DEFAULTS = {
     # technique keeps its own timeline: Life is ignored.  rotation_deg turns
     # the whole technique clockwise (0-360), mirrored with the facing.
     # lightning / lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off,
-    # sparks per second).
+    # sparks per second); aura_burst / aura_debris / aura_surges /
+    # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks.
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
-                      density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5),
+                      density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
+                      aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -222,7 +224,8 @@ TECH_STYLE_DEFAULTS = {
     "combo_backhand": dict(radius=70, span=150, thickness=11, swing_ticks=5),
     "ki_barrage": dict(radius=6, thickness=18, span=18, length=320, swing_ticks=3, hold_ticks=45),
     "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3),
-    "ssj_aura": dict(radius=22, thickness=7, length=62, swing_ticks=12, hold_ticks=240, lightning=True, lightning_rate=1.5),
+    "ssj_aura": dict(radius=6, span=100, thickness=5, length=22, swing_ticks=14, hold_ticks=300, lightning=False,
+                     lightning_rate=1.5, aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=True),
     "rasen_shuriken": dict(radius=10, span=46, thickness=110, length=420, swing_ticks=40, hold_ticks=50),
     "gigantic_meteor": dict(radius=8, span=100, thickness=70, length=160, swing_ticks=30, hold_ticks=70),
     "ghost_kamikaze": dict(radius=9, span=14, thickness=34, length=600, swing_ticks=8, hold_ticks=40),
@@ -1101,7 +1104,7 @@ class Inst:
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
-                 "tq_tp", "tq_det", "tq_gh",
+                 "tq_tp", "tq_det", "tq_gh", "tq_sil",
                  "ua_rb", "ua_cd", "ua_dm")
 
     def __init__(self):
@@ -2957,6 +2960,9 @@ def current_action(fig):
     return "run", r.run_idx % max(1, len(b.run))
 
 
+_OUTLINES = {}   # (id(frame), n) -> the sprite's outline round its draw origin (_Host.outline)
+
+
 class _Host:
     """What the runtime asks the game: anchors, facing, target, hurt circles."""
 
@@ -3003,6 +3009,29 @@ class _Host:
 
     def snapshot(self):
         return self.fig._current_frame()
+
+    def outline(self, n):
+        """The fighter's body outline on screen: n world points round it
+        (laser/powerfx.py outline_from_alpha on the sprite frame, placed the
+        way Figure.draw draws it), or None without a sprite."""
+        frame = self.fig._current_frame()
+        if frame is None:
+            return None
+        loc = _OUTLINES.get((id(frame), n))
+        if loc is None:
+            img = frame.toImage()
+            w, h = img.width(), img.height()
+            pts = swordfx.powerfx.outline_from_alpha(w, h, lambda x, y: (img.pixel(x, y) >> 24) & 0xFF, n)
+            # Figure.draw puts the frame's top-left at (-w // 2, -h // 2).
+            loc = [(x + (-w // 2), y + (-h // 2)) for (x, y) in pts] if pts else []
+            _OUTLINES[(id(frame), n)] = loc
+        if not loc:
+            return None
+        fig = self.fig
+        k = fig._position_scale()
+        a = math.radians(self.rot)
+        ca, sa = math.cos(a), math.sin(a)
+        return [(fig.x + (x * ca - y * sa) * k, fig.y + (x * sa + y * ca) * k) for (x, y) in loc]
 
     def draw_ghost(self, p, gh, rgb, a):
         from . import combat as _combat

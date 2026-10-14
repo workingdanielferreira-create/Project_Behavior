@@ -232,7 +232,9 @@ def main():
     # ... and the power techniques' constants (laser/powerfx.py).
     pw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "powerfx.js"))
     pw_py = PyTables(os.path.join(ROOT, "laser", "powerfx.py"))
-    for name in ("STYLES", "PULL_STYLES", "AURA_FADE", "AURA_TONGUES", "AURA_SLOT", "AURA_BOLT_LIFE", "AURA_BOLT_FLICKER", "BOLT",
+    for name in ("STYLES", "PULL_STYLES", "AURA_FADE", "AURA_N", "AURA_LICK_LIFE", "AURA_RATE", "AURA_RISE", "AURA_LAG",
+                 "AURA_STRETCH", "AURA_SURGE_SLOT", "AURA_SURGE_LEN", "AURA_CRACKS", "AURA_ROCK_EVERY", "AURA_ROCK_LIFE",
+                 "ROCK", "CRACK", "AURA_SLOT", "AURA_BOLT_LIFE", "AURA_BOLT_FLICKER", "BOLT",
                  "RS_SPEED", "RS_SPIN", "RS_GROW", "RS_SHRINK", "RS_FADE", "MET_FALL", "MET_LOB", "MET_GROW_DRAG",
                  "MET_BLAST_HIT", "MET_BLAST_LIFE", "DUST", "GH_FLOAT", "GH_OUT", "GH_DRAG", "GH_SPEED", "GH_ACCEL", "GH_TURN",
                  "GH_FAN", "GH_ARRIVE", "GH_BLAST_LIFE", "GH_BODY", "SMOKE", "SP_OUT", "SP_FLASH", "SP_RINGS", "SP_SPLIT_LIFE",

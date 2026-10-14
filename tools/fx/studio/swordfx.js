@@ -100,13 +100,21 @@ function onSpawn(inst, host) {
   inst.tq_imp = [];               // punch impacts: [tick, x, y]
   inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
   if (POWER()) POWER().onSpawn(inst, host);
+  recordOutline(inst, host);
   inst.life = activeTicks(fx.params);
+}
+// The Super Saiyan aura hugs the body: keep the fighter's outline this tick
+// (host.outline, from the frame on show; null without one).  laser/swordfx.py.
+function recordOutline(inst, host) {
+  if (style(inst.fx.params) !== "ssj_aura") return;
+  inst.tq_sil.push(host && host.outline ? host.outline(POWER().AURA_N) : null);
 }
 // Each tick: where the anchor is (ki shots launch from there) and where the
 // target is (power techniques aim / chase it).  laser/swordfx.py on_tick.
 function onTick(inst, host) {
   inst.tq_path.push([inst.x, inst.y]);
   inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
+  recordOutline(inst, host);
 }
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
 Frame.prototype.w = function (x, y) { return [this.ox + x * this.fx + y * this.vx, this.oy + x * this.fy + y * this.vy]; };

@@ -302,6 +302,19 @@ function drawFrame(gc, img, pos, fac, alpha, tint, rot) {
   gc.drawImage(tint ? tinted(img, tint) : img, -C.origin[0], -C.origin[1]);
   gc.restore();
 }
+var OUTLINES = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+function outlineOf(img, n) {   // the image's outline (image px), cached per image
+  var hit = OUTLINES && OUTLINES.get(img);
+  if (hit && hit.n === n) return hit.pts;
+  var w = img.naturalWidth, h = img.naturalHeight, cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  var g = cv.getContext("2d"); g.drawImage(img, 0, 0);
+  var d = g.getImageData(0, 0, w, h).data;
+  var pts = G_POWER().outlineFromAlpha(w, h, function (x, y) { return d[(y * w + x) * 4 + 3]; }, n);
+  if (OUTLINES) OUTLINES.set(img, {n: n, pts: pts});
+  return pts;
+}
+function G_POWER() { return window.POWERFX; }
 var host = {
   get facing() { return facing(); },
   get target() { return S.target; },
@@ -315,6 +328,19 @@ var host = {
   // Path pins "blink:<i>:start|end" (laser/blink.py point).
   blinkPoint: function (i, which) { return blinkPointAt(i, which); },
   snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: [S.figX, S.figY], rot: aimDeg()}; },
+  // The fighter's body outline on the stage: n world points round the frame
+  // on show (POWERFX.outlineFromAlpha, placed the way drawFrame draws it).
+  outline: function (n) {
+    var img = act().images[frameAt(S.t)];
+    if (!img || !img.naturalWidth) return null;
+    var loc = outlineOf(img, n);
+    if (!loc) return null;
+    var k = imgScale() * viewScale(), fac = facing(), a = aimDeg() * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    return loc.map(function (p) {
+      var x = (p[0] - C.origin[0]) * fac * k, y = (p[1] - C.origin[1]) * k;
+      return [S.figX + x * ca - y * sa, S.figY + x * sa + y * ca];
+    });
+  },
   drawGhost: function (gc, gh, rgb, a) {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
     if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb, gh.snap.rot);
@@ -1260,22 +1286,29 @@ var PARAM_UI = {
     ["density", "Sparks / embers / smoke ×", 0, 4, 0.1],
     ["rotation_deg", "Rotation ° (clockwise; mirrors with the facing)", 0, 360, 5],
     ["lightning", "Lightning", "chk"],          // power techniques only (POWER_UI)
-    ["lightning_rate", "Lightning rate", 0, 20, 0.1]]
+    ["lightning_rate", "Lightning rate", 0, 20, 0.1],
+    ["aura_burst", "Power-up burst", "chk"], ["aura_debris", "Rising rocks", "chk"],
+    ["aura_surges", "Power surges", "chk"], ["aura_cracks", "Ground cracks", "chk"]]
 };
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
 // [key, label, min, max, step, tooltip] ("chk" in place of min for a checkbox).
 var POWER_UI = {
   ssj_aura: {name: "Super Saiyan aura",
-    tip: "A golden flame aura round the fighter that ignites with a flash and burns for the set time. Best on anchor figure, Motion attached, layer behind, custom gold colours. Visual only unless Deals damage is on.",
-    rows: [["radius", "Width", 4, 200, 1, "Half-width of the aura, px."],
-      ["length", "Height", 10, 400, 1, "Height of the aura, px."],
-      ["thickness", "Flame tongues", 1, 60, 0.5, "Width of the flame tongues licking off the top, px."],
+    tip: "A Super Saiyan aura shaped to the fighter's body. Flames rise off its edges and react to movement: straight up at rest, streaming behind when it moves, a comet trail when it flies fast. Best on anchor figure, Motion attached, layer behind, custom gold colours.",
+    rows: [["radius", "Aura size", 0, 60, 0.5, "How far the aura reaches out from the body, px."],
+      ["length", "Flame height", 2, 200, 1, "How tall the flames rise, px."],
+      ["thickness", "Flame width", 1, 40, 0.5, "How wide each flame is, px."],
+      ["span", "Movement reaction %", 0, 200, 5, "How strongly the flames are swept back when the fighter moves. 0 = always straight up."],
       ["swing_ticks", "Ignite ticks", 1, 120, 1, "How long it takes to flare up."],
-      ["hold_ticks", "Duration ticks", 1, 600, 1, "How long it burns before fading out."],
+      ["hold_ticks", "Duration ticks", 1, 1200, 1, "How long it burns before fading out."],
+      ["aura_burst", "Power-up burst", "chk", 0, 0, "A flash, shock rings and a blast of dust as it ignites."],
+      ["aura_debris", "Rising rocks", "chk", 0, 0, "Small rocks lift off the ground round the feet while it stands still."],
+      ["aura_surges", "Power surges", "chk", 0, 0, "Now and then the aura flares bigger for a moment."],
+      ["aura_cracks", "Ground cracks", "chk", 0, 0, "Cracks spread over the ground from the feet as it ignites."],
       ["lightning", "SSJ2 lightning", "chk", 0, 0, "Little electric sparks crackle over the body every now and then (Super Saiyan 2)."],
       ["lightning_rate", "Sparks per second", 0, 20, 0.1, "How often the sparks appear, on average."],
-      ["density", "Streaks & pebbles ×", 0, 4, 0.1, "Amount of rising energy streaks and lifting pebbles."]]},
+      ["density", "Flames & particles ×", 0, 4, 0.1, "How many flames, sparks and rocks."]]},
   rasen_shuriken: {name: "Rasen-shuriken",
     tip: "An orb of wind charges with four spinning blades, is thrown at the target and bursts into a huge sphere of needle cuts. Use Motion attached, Aim target. Give it Pierce and a Re-hit (e.g. 6) so the explosion keeps hurting.",
     rows: [["radius", "Orb size", 2, 100, 1, "Radius of the orb, px."],
@@ -1745,7 +1778,7 @@ function buildProps() {
     var k = u[0], kind = u[2];
     // A power technique shows only the style picker here; its own panel follows.
     if (pw && k !== "style") return;
-    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate")) return;
+    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0)) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {

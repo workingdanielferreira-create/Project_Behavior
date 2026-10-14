@@ -236,6 +236,7 @@ def on_spawn(inst, host):
     inst.tq_imp = []               # punch impacts: (tick, x, y)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
+    _record_outline(inst, host)
     inst.life = active_ticks(fx["params"])
 
 
@@ -244,6 +245,16 @@ def on_tick(inst, host=None):
     where the target is (power techniques aim / chase it)."""
     inst.tq_path.append((inst.x, inst.y))
     inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
+    _record_outline(inst, host)
+
+
+def _record_outline(inst, host):
+    """The Super Saiyan aura hugs the body: keep the fighter's outline this
+    tick (host.outline, from the sprite on screen; None without one)."""
+    if _style(inst.fx["params"]) != "ssj_aura":
+        return
+    fn = getattr(host, "outline", None) if host is not None else None
+    inst.tq_sil.append(fn(powerfx.AURA_N) if fn is not None else None)
 
 
 class Frame:
