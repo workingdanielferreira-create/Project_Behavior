@@ -92,6 +92,7 @@ PULL_STYLES = ("gigantic_meteor", "black_hole")
 
 AURA_FADE = 30
 AURA_N = 28                  # silhouette points round the body
+AURA_FPS = 24                # the aura animates at 24 fps (_draw_aura_fps)
 AURA_LICK_LIFE = 16
 AURA_RATE = 5                # flame licks born per tick (x density)
 AURA_RISE = 1.6              # how fast flames rise, px per tick (x scale)
@@ -262,6 +263,8 @@ def total_ticks(P):
 
 def on_spawn(inst, host):
     inst.tq_sil = []          # aura: the body outline per tick (swordfx.on_tick)
+    inst.tq_lk = {}           # aura: flame-lick random draws per birth tick (_aura_licks)
+    inst.tq_pic = None        # aura: (24 fps frame, its recorded drawing) (_draw_aura_fps)
     inst.tq_det = None        # rasen-shuriken: where it went off when a hit stopped it (tick, x, y)
     inst.tq_gh = {}           # ghosts: index -> flight state (_gh_sim)
 
@@ -412,19 +415,46 @@ def _aura_hit(inst, tx, ty, hr, ps):
     return _hyp(tx - cx, ty - cy) <= hr + (rmax + float(P["radius"]) * ps) * k
 
 
+# The lick's 8 samples along its length: (s, taper, falloff, s - 0.2), worked
+# out once (the same values _lick used to compute for every lick, every frame).
+_LICK_S = tuple((j / 7.0,
+                 math.sin(math.pi * min(1.0, 0.25 + j / 7.0)) if j / 7.0 < 0.75 else 1.0,
+                 (1 - j / 7.0) ** 0.8,
+                 j / 7.0 - 0.2) for j in range(8))
+
+
 def _lick(cx, cy, ux, uy, ln, w, bend):
     """A flame tongue: round at its base (cx, cy), tapering to a tip ln px
     along (ux, uy), curling by bend px."""
     px, py = -uy, ux
     left, right = [], []
-    for j in range(8):
-        s = j / 7.0
-        hw = w * (math.sin(math.pi * min(1.0, 0.25 + s)) if s < 0.75 else 1.0) * (1 - s) ** 0.8
+    for (s, ta, fo, s2) in _LICK_S:
+        hw = w * ta * fo
         cv = bend * s * s
-        bx, by = cx + ux * (s - 0.2) * ln + px * cv, cy + uy * (s - 0.2) * ln + py * cv
+        bx, by = cx + ux * s2 * ln + px * cv, cy + uy * s2 * ln + py * cv
         left.append((bx + px * hw, by + py * hw))
         right.append((bx - px * hw, by - py * hw))
-    return left + right[::-1]
+    right.reverse()
+    return left + right
+
+
+def _aura_licks(inst, P, b, dens):
+    """The flame licks born at tick b: (size k, [7 random draws per lick]).
+    Rolled once when first needed and kept while they can still show
+    (inst.tq_lk), instead of re-rolled every frame of their life."""
+    lk = inst.tq_lk
+    got = lk.get(b)
+    if got is None:
+        bk, _b0 = _aura_k(P, b)
+        bs, _s0 = _aura_surge(inst, P, b)
+        draws = []
+        for j in range(max(0, F.jround(AURA_RATE * dens * bs))):
+            r = S.rng_for(inst.seed, b, 271 + j)
+            draws.append((r(), r(), r(), r(), r(), r(), r()))
+        got = lk[b] = (bk, bs, draws)
+        for old in [k for k in lk if k <= b - AURA_LICK_LIFE]:
+            del lk[old]
+    return got
 
 
 def _draw_aura(pen, inst, host, ps):
@@ -467,6 +497,8 @@ def _draw_aura(pen, inst, host, ps):
                      DUST, 110 * (1 - q) ** 1.5, 0.6)
     if P.get("aura_debris"):
         _aura_rocks(pen, inst, P, ps, c, t, act)
+    if hasattr(pen, "light"):
+        pen.light()           # _draw_aura_fps: the rest goes on the light layer
     pen.add(True)
     if al <= 0:
         return
@@ -502,24 +534,26 @@ def _draw_aura(pen, inst, host, ps):
     life_max = AURA_LICK_LIFE
     # at speed the attached flames stretch back along the flow (capped): the comet
     stretch = min(1.0, sp / ps * react / AURA_FULL)
+    c_mid = S.mix(c, bright, 0.6)
     for b in range(max(0, t - life_max + 1), t + 1):
         if b >= act:
             break
-        bk, _b0 = _aura_k(P, b)
-        bs, _s0 = _aura_surge(inst, P, b)
+        bk, bs, draws = _aura_licks(inst, P, b, dens)
         a = t - b
-        for j in range(max(0, F.jround(AURA_RATE * dens * bs))):
-            r = S.rng_for(inst.seed, b, 271 + j)
-            ex, ey = sil[min(n - 1, int(r() * n))]
-            dx, dy = ex - cx, ey - cy
-            d = _hyp(dx, dy) or 1.0
-            nx, ny = dx / d, dy / d
-            off = R * r.uniform(0.2, 1.1) * bk
-            life = life_max * r.uniform(0.6, 1.0)
+        for (r0, r1, r2, r3, r4, r5, r6) in draws:
+            life = life_max * (0.6 + (1.0 - 0.6) * r2)
             u = a / life
             if u >= 1:
                 continue
-            rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs
+            fade = math.sin(math.pi * min(1.0, 0.15 + u * 0.85)) * al
+            if 60 * fade <= 1:
+                continue      # too faint to draw (Pen.poly would skip all three)
+            ex, ey = sil[min(n - 1, int(r0 * n))]
+            dx, dy = ex - cx, ey - cy
+            d = _hyp(dx, dy) or 1.0
+            nx, ny = dx / d, dy / d
+            off = R * (0.2 + (1.1 - 0.2) * r1) * bk
+            rise = AURA_RISE * ps * (0.8 + (1.35 - 0.8) * r3) * bs
             # a little outward, laid out in the aura's frame (wider across the flow than along it)
             npp, npl = nx * -gy + ny * gx, nx * gx + ny * gy
             ox_ = (-gy * npp * 0.7 + gx * npl * 0.35) * ps
@@ -527,17 +561,16 @@ def _draw_aura(pen, inst, host, ps):
             rx, ry = gx * rise + ox_, gy * rise + oy_
             rl = _hyp(rx, ry) or 1.0
             fx_, fy_ = rx / rl, ry / rl
-            ph = r.uniform(0, math.pi * 2)
+            ph = 0 + (math.pi * 2 - 0) * r4
             sway = math.sin(a * 0.45 + ph) * 1.6 * ps * u
             drift = AURA_DRIFT * a * (1 + 1.5 * stretch)
             px = ex + nx * off + rx * drift - fy_ * sway
             py = ey + ny * off + ry * drift + fx_ * sway
-            ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * math.sin(math.pi * min(1.0, u * 1.15))) * bk * (1 + 1.2 * stretch)
-            w = Tw * r.uniform(0.7, 1.2) * (1 - u) ** 0.5 * bk
-            fade = math.sin(math.pi * min(1.0, 0.15 + u * 0.85)) * al
+            ln = Lf * (0.55 + (1.0 - 0.55) * r5) * (0.45 + 0.8 * math.sin(math.pi * min(1.0, u * 1.15))) * bk * (1 + 1.2 * stretch)
+            w = Tw * (0.7 + (1.2 - 0.7) * r6) * (1 - u) ** 0.5 * bk
             bend = math.sin(a * 0.3 + ph) * w * 1.2
             pen.poly(_lick(px, py, fx_, fy_, ln, w, bend), c, 60 * fade)
-            pen.poly(_lick(px, py, fx_, fy_, ln * 0.7, w * 0.5, bend * 0.7), S.mix(c, bright, 0.6), 50 * fade)
+            pen.poly(_lick(px, py, fx_, fy_, ln * 0.7, w * 0.5, bend * 0.7), c_mid, 50 * fade)
             if u < 0.45:
                 pen.poly(_lick(px, py, fx_, fy_, ln * 0.4, w * 0.22, bend * 0.4), S.HOT, 55 * fade * (1 - u / 0.45))
     # 4b: on a sharp turn at speed, a few small fragments of the aura break off
@@ -652,6 +685,96 @@ def _draw_aura(pen, inst, host, ps):
                 pen.polyline(br, BOLT, 110 * f, 2.2 * ps)
                 pen.polyline(pts, S.HOT, 255 * f, 1.1 * ps)
                 pen.polyline(br, S.HOT, 220 * f, 0.8 * ps)
+
+
+def _aura_snap(t):
+    """(24 fps frame number, the tick it starts on) for tick t (FX Studio:
+    auraSnap)."""
+    q = t * F.TICK_MS * AURA_FPS // 1000
+    return q, -(-q * 1000 // (F.TICK_MS * AURA_FPS))
+
+
+class _LayerPen(S.Pen):
+    """Records the aura in two layers: the ground (cracks, rocks, dust;
+    painted normally) and, from light() on, the light (painted additively)."""
+
+    def __init__(self, hints):
+        from PyQt5.QtGui import QPainter, QPicture
+        self.pics = [QPicture(), QPicture()]
+        self.hints = hints
+        S.Pen.__init__(self, QPainter(self.pics[0]))
+        self.p.setRenderHints(hints)
+
+    def light(self):
+        from PyQt5.QtGui import QPainter
+        self.p.end()
+        S.Pen.__init__(self, QPainter(self.pics[1]))
+        self.p.setRenderHints(self.hints)
+
+    def end(self):
+        if self.p.isActive():
+            self.p.end()
+
+
+def _layer_image(pic, plus):
+    """A recorded layer rendered once into an image of just its size
+    (plus: painted additively): (image, x, y), or None when it drew nothing."""
+    from PyQt5.QtGui import QImage, QPainter
+    r = pic.boundingRect()
+    if r.isEmpty():
+        return None
+    img = QImage(r.width() + 2, r.height() + 2, QImage.Format_ARGB32_Premultiplied)
+    img.fill(0)
+    p = QPainter(img)
+    if plus:
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+    p.translate(1 - r.x(), 1 - r.y())
+    p.drawPicture(0, 0, pic)
+    p.end()
+    return img, r.x() - 1, r.y() - 1
+
+
+def _draw_aura_fps(pen, inst, host, ps):
+    """The aura at 24 fps: drawn as it is on the first tick of its 24 fps
+    frame, once, in two recorded layers (_LayerPen), then put down on every
+    tick of that frame, moved with the fighter so it stays on the body.  The
+    ground (a few cracks / rocks, mixing normal and added paint) is replayed
+    as recorded; the light (the flames: almost all the work) is rendered once
+    into an image and added on whole pixels (a painter that is scaled or
+    turned replays it as recorded instead: no resampled images)."""
+    from PyQt5.QtGui import QPainter, QTransform
+    t = inst.age
+    q, ts = _aura_snap(t)
+    ts = min(ts, t)
+    p = pen.p
+    cache = inst.tq_pic
+    if cache is None or cache[0] != q:
+        lp = _LayerPen(p.renderHints())
+        inst.age = ts
+        try:
+            _draw_aura(lp, inst, host, ps)
+        finally:
+            inst.age = t
+            lp.end()
+        cache = inst.tq_pic = (q, lp.pics, None)
+    ax, ay = _at(inst.tq_path, t)
+    bx, by = _at(inst.tq_path, ts)
+    dx, dy = ax - bx, ay - by
+    p.save()
+    p.translate(dx, dy)
+    p.drawPicture(0, 0, cache[1][0])
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    if p.worldTransform().type() <= QTransform.TxTranslate:
+        if cache[2] is None:
+            cache = inst.tq_pic = (q, cache[1], _layer_image(cache[1][1], True))
+        if cache[2] is not None:
+            img, ix, iy = cache[2]
+            m = p.worldTransform()
+            p.resetTransform()
+            p.drawImage(round(m.dx() + ix), round(m.dy() + iy), img)
+    else:
+        p.drawPicture(0, 0, cache[1][1])
+    p.restore()
 
 
 def _aura_cracks(pen, inst, P, ps, c, t, act):
@@ -1626,7 +1749,7 @@ def on_hit(inst, x, y, ps):
 def draw(pen, inst, host, ps):
     st = S._style(inst.fx["params"])
     if st == "ssj_aura":
-        _draw_aura(pen, inst, host, ps)
+        _draw_aura_fps(pen, inst, host, ps)
     elif st == "rasen_shuriken":
         _draw_rasen(pen, inst, host, ps)
     elif st == "gigantic_meteor":
