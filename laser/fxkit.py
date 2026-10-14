@@ -2848,19 +2848,11 @@ class CharacterFx:
                     "paths": [normalize_path(p) for p in (fxk.get("paths") or [])]}
         # Distances were authored around the figure at its authoring size;
         # keep them in proportion: r = new game px per rig unit / authored.
-        # The FX themselves never draw smaller than built: a Character scale
-        # below 1x shrinks the sprite (and its anchors, self.k) but its FX
-        # size / placement stays at 1x; above 1x they grow with it (up to
-        # characters.CHARACTER_SCALE_MAX).  Intercept radius / contact keep
-        # the real scale (gameplay, not visuals).
-        cs = float(char.get("_char_scale") or 1.0)
-        fx_floor = max(1.0, cs) / cs
+        # They follow the Character scale up and down with the sprite, as
+        # FX Studio previews them (host pscale = pscale x Character scale).
         authored = float(space.get("game_px_per_image_px") or 0)
         if authored > 0:
-            r = (self.k / authored) * f
-            rescale_effects(self.effects, self.lib, r * fx_floor, r)
-        elif fx_floor != 1.0:
-            rescale_effects(self.effects, self.lib, fx_floor, 1.0)
+            rescale_effects(self.effects, self.lib, (self.k / authored) * f)
         self.timing = {}
         for name, act in (char.get("actions") or {}).items():
             n = len(act.get("keyframes") or []) or 1
