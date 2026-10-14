@@ -1317,7 +1317,7 @@ var PARAM_UI = {
 // only the fields it uses, short labels, the explanation on hover.
 // [key, label, min, max, step, tooltip] ("chk" in place of min for a checkbox).
 var POWER_UI = {
-  ssj_aura: {name: "Super Saiyan aura",
+  ssj_aura: {name: "Super Saiyan 2 aura",
     tip: "A Super Saiyan aura shaped to the fighter's body. Flames rise off its edges and react to movement: straight up at rest, streaming behind when it moves, a comet trail when it flies fast. Best on anchor figure, Motion attached, layer behind, custom gold colours.",
     rows: [["radius", "Aura size", 0, 60, 0.5, "How far the aura reaches out from the body, px."],
       ["length", "Flame height", 2, 200, 1, "How tall the flames rise, px."],
