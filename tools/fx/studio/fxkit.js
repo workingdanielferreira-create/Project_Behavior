@@ -336,7 +336,7 @@ var PARAM_DEFAULTS = {
   // rising rocks, flare-ups and ground cracks.
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
-    aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false}
+    aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all"}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.

@@ -110,6 +110,11 @@ function onSpawn(inst, host) {
   inst.tq_sil = [];     // aura: the body outline per tick (swordfx.js onTick)
   inst.tq_det = null;   // rasen-shuriken: where it went off when a hit stopped it [tick, x, y]
   inst.tq_gh = {};      // ghosts: index -> flight state (ghSim)
+  // The parts of one aura (aura_part, in one group) share one seed so their
+  // surges, flames and lightning stay in step (laser/powerfx.py on_spawn).
+  var fx = inst.fx;
+  if (L_().style(fx.params) === "ssj_aura" && (fx.params.aura_part || "all") !== "all" && fx.group)
+    inst.seed = FXK().hash32("aura:" + String(fx.group)) >>> 0;
 }
 
 // ================================================================ ssj aura
@@ -230,10 +235,13 @@ function drawAura(pen, inst, host, ps) {
   var feetY = -Infinity, halfW = 0, n = sil.length;
   sil.forEach(function (p) { feetY = Math.max(feetY, p[1]); halfW = Math.max(halfW, Math.abs(p[0] - cx)); });
   var fl = 0.92 + 0.08 * Math.sin(t * 1.7) + 0.05 * Math.sin(t * 4.3);
+  // aura_part: one component of the aura (a group splits it into its parts), or "all" of it
+  var part = P.aura_part || "all", on = function (k) { return part === "all" || part === k; };
+  var pBody = on("body"), pFlames = on("flames"), pMotion = on("motion"), pPower = on("powerup"), pGround = on("ground"), pLight = on("lightning");
   // 1: ground — cracks at the feet, rocks and dust (painted normally, under the light)
   pen.add(false);
-  if (P.aura_cracks && t >= 1) auraCracks(pen, inst, P, ps, c, t, act);
-  if (P.aura_burst && t < 34) {
+  if (pGround && P.aura_cracks && t >= 1) auraCracks(pen, inst, P, ps, c, t, act);
+  if (pPower && P.aura_burst && t < 34) {
     var s0 = auraSil(inst, ps, 0), x0 = centroid(s0)[0], fy0 = -Infinity;
     s0.forEach(function (p) { fy0 = Math.max(fy0, p[1]); });
     for (j = 0; j < Math.max(0, Math.round(14 * dens)); j++) {
@@ -244,14 +252,15 @@ function drawAura(pen, inst, host, ps) {
                DUST, 110 * Math.pow(1 - q, 1.5), 0.6);
     }
   }
-  if (P.aura_debris) auraRocks(pen, inst, P, ps, c, t, act);
+  if (pGround && P.aura_debris) auraRocks(pen, inst, P, ps, c, t, act);
   pen.add(true);
   if (al <= 0) return;
   // 2: a soft glow over the whole aura
   var G = auraFlow(inst, ps, react, t), Gx = G[0], Gy = G[1], hh = 0.15 * (feetY - cy);
-  pen.glow(cx + Gx * hh, cy + Gy * hh, (halfW + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5);
+  if (pBody) pen.glow(cx + Gx * hh, cy + Gy * hh, (halfW + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5);
   // 3: the aura's skin: the silhouette pushed out, taller along the flow, streaming behind when it moves
   var gx = Gx, gy = Gy;   // up at rest, turned to point back along the motion
+  if (pBody) {
   sil.forEach(function (p) { pen.glow(p[0], p[1], (R * 1.8 + Tw) * k * sk, c, 34 * al * fl, 0.5); });
   [[1.0, c, 30], [0.6, L.mix(c, bright, 0.5), 30], [0.28, bright, 30]].forEach(function (lay) {
     var m = lay[0], pts = [];
@@ -266,9 +275,11 @@ function drawAura(pen, inst, host, ps) {
     });
     pen.poly(pts, lay[1], lay[2] * al * fl);
   });
+  }
   // 4: flame licks, attached: each is born on a point of the body's edge and
   //    stays with that point, rising along the aura's flow (so they never spill
   //    out on their own); at speed they stretch back along the flow (capped)
+  if (pFlames) {
   var stretch = Math.min(1, sp / ps * react / AURA_FULL);
   for (b = Math.max(0, t - AURA_LICK_LIFE + 1); b <= t; b++) {
     if (b >= act) break;
@@ -333,7 +344,9 @@ function drawAura(pen, inst, host, ps) {
       pen.glow(sx, sy, 2.2 * ps, HOT, 200 * (1 - q) * al, 0.6);
     }
   }
+  }
   // 6: a white-hot rim hugging the body
+  if (pBody) {
   var rim = sil.map(function (p) {
     var dx = p[0] - cx, dy = p[1] - cy, dd = hyp(dx, dy) || 1;
     return [p[0] + dx / dd * 1.5 * ps, p[1] + dy / dd * 1.5 * ps];
@@ -341,8 +354,9 @@ function drawAura(pen, inst, host, ps) {
   rim.push(rim[0]);
   pen.polyline(rim, c, 80 * al * k, 3 * ps);
   pen.polyline(rim, HOT, 110 * al * fl * k, 1 * ps);
+  }
   // 7: speed lines streaming off it when it moves fast
-  if (sp * react > 2) {
+  if (pMotion && sp * react > 2) {
     var g = Math.min(1, (sp * react - 2) / 4);
     for (j = 0; j < Math.max(0, Math.round(4 * dens)); j++) {
       r = L.rngFor(inst.seed, t, 301 + j);
@@ -351,7 +365,7 @@ function drawAura(pen, inst, host, ps) {
     }
   }
   // 8: ignition — a flash and a shock ring (Burst on)
-  if (P.aura_burst) {
+  if (pPower && P.aura_burst) {
     if (t < 6) pen.glow(cx, cy, (halfW + R) * (1.6 + 1.5 * t / 6), HOT, 240 * (1 - t / 6));
     a = t - Math.floor(Ti / 3);
     if (a >= 0 && a < 18) {
@@ -362,7 +376,7 @@ function drawAura(pen, inst, host, ps) {
     }
   }
   // 9: a power surge flares a ring off the body as it starts
-  if (sb !== null) {
+  if (pPower && sb !== null) {
     a = t - sb;
     if (a < 12) {
       q = a / 12;
@@ -371,7 +385,7 @@ function drawAura(pen, inst, host, ps) {
     }
   }
   // 10: Super Saiyan 2 lightning, every now and then, crackling over the body
-  if (P.lightning) {
+  if (pLight && P.lightning) {
     var pSlot = Math.min(1, Math.max(0, +P.lightning_rate || 0) * AURA_SLOT * FXK().TICK_MS / 1000), sNow = Math.floor(t / AURA_SLOT);
     for (var s = Math.max(0, sNow - 2); s <= sNow; s++) {
       for (j = 0; j < 2; j++) {
