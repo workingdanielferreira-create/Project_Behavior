@@ -114,7 +114,12 @@ follows the plain rules.
 While a sustained clash holds, both effects are pinned where they met.  Each
 fighter involved shows its own Rig Forge "clash" action (if it has one),
 standing still, for exactly the clash's length; the FX built on that action
-play with it.  A full beam struggle also holds both fighters in place, doing
+play with it — but only a fighter whose body the clash point touches (its
+hit circle + the clashing segment's half width + CONTACT_MARGIN,
+_in_contact): two shots meeting out in the field play their clash and the
+knockback rule, and leave both fighters free.  The full beam struggle and
+the sword duel are fighter-vs-fighter lock-ins and engage both fighters
+wherever they meet.  A full beam struggle also holds both fighters in place, doing
 nothing new (no movement, attacks or shots), until its animation (hold +
 finale) has played out (_hold_figs / hold_tick; timefx.run_side stops their
 bodies while their FX run on).  Which clash FX plays for each rule (and
@@ -731,9 +736,22 @@ def _pscale(world, x, y):
     return combat.position_scale(x, y, world.screen_w, world.screen_h)
 
 
-def _engage(world, figs, ticks):
+def _in_contact(fig, contact):
+    """True when the clash point touches fig's body: its hit circle
+    (PROJ_HIT_RADIUS x character scale, the circle FX hit) plus the half
+    width of the clashing segment there, plus CONTACT_MARGIN — the same
+    slack the clash itself uses to decide two effects touch."""
+    (cx, cy), hw = contact
+    reach = float(config.PROJ_HIT_RADIUS) * fig.mode.body_scale() + hw + CONTACT_MARGIN
+    return (fig.x - cx) ** 2 + (fig.y - cy) ** 2 <= reach * reach
+
+
+def _engage(world, figs, ticks, contact=None):
     """Each fighter shows its own Rig Forge "clash" action, standing still,
-    for the clash's length (world rule: ticks)."""
+    for the clash's length (world rule: ticks).  With contact ((x, y), half
+    width) only a fighter physically touching the clash point is staggered:
+    two shots meeting out in the field leave their fighters alone
+    (_in_contact).  Without it (beam struggle, sword duel) both are."""
     from . import actions
     if _state(world).get("quiet"):
         return      # part of a clash already showing (_quiet)
@@ -741,6 +759,8 @@ def _engage(world, figs, ticks):
     for fig in figs:
         if fig is None or ticks <= 0:
             continue
+        if contact is not None and not _in_contact(fig, contact):
+            continue    # the clash is away from this fighter's body
         r = getattr(fig, "act", None)
         if r is not None and r.playing == "ultimate":
             continue    # a clash never cuts an ultimate's animation short
@@ -990,6 +1010,9 @@ def _start(world, st, a, b, c, rule, now):
     ang = _deg(*_norm((b.owner.x if b.owner else c[0] + 1) - (a.owner.x if a.owner else c[0]),
                       (b.owner.y if b.owner else c[1]) - (a.owner.y if a.owner else c[1])))
     figs = (a.owner, b.owner)
+    # Only a fighter whose body the clash point touches is staggered
+    # (_engage); the full beam struggle below holds both regardless.
+    touch = (c, max(a.hw, b.hw))
     budget = _budget(a, b)
     if rule in HELD_SLOTS and _ult_over(a, b) is not None:
         # An ultimate that out-knocks a non-ultimate effect is never pinned
@@ -1000,13 +1023,13 @@ def _start(world, st, a, b, c, rule, now):
                        a.col, b.col, hold=0, budget=budget, pair=(a, b))
         if fx is not None and fx.sustain:
             fx.release()
-        _engage(world, figs, fx.length() if fx is not None else 30)
+        _engage(world, figs, fx.length() if fx is not None else 30, touch)
         return None
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
             _settle(world, a, b, c)
             fx = _spawn_fx(world, "beam_explode", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
-            _engage(world, figs, _fx_ticks(fx, budget, 40))
+            _engage(world, figs, _fx_ticks(fx, budget, 40), touch)
             return None
         looks = (_beam_look(world, a), _beam_look(world, b))
         scale = _beam_scale("beam_struggle", looks)
@@ -1018,7 +1041,7 @@ def _start(world, st, a, b, c, rule, now):
                                             scale=scale * LESSER_SCALE), figs)
             if fx is not None and fx.sustain:
                 fx.release()
-            _engage(world, figs, fx.length() if fx is not None else 30)
+            _engage(world, figs, fx.length() if fx is not None else 30, touch)
             return None
         # The full struggle: a fixed STRUGGLE_TICKS, never fitted to the
         # beams' remaining life (both are pinned, their age frozen, while it
@@ -1058,7 +1081,7 @@ def _start(world, st, a, b, c, rule, now):
     if rule == "beam_orb":
         fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
         held = _held_ticks(fx, BEAM_ORB_TICKS, budget)
-        _engage(world, figs, _fx_ticks(fx, budget, held + 20))
+        _engage(world, figs, _fx_ticks(fx, budget, held + 20), touch)
         return Clash(a, b, c, rule, now + held, fx, now)
     if rule == "beam_cut":
         _settle(world, a, b, c, exempt=a)   # the beam itself is never cancelled by its cutter
@@ -1074,12 +1097,12 @@ def _start(world, st, a, b, c, rule, now):
             _split_beam(world, st, a, c, size=_pair_size(a, b, _slot_fx("split_tip")[1]))
         else:
             fx = _spawn_fx(world, "beam_nosplit", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
-        _engage(world, figs, _fx_ticks(fx, budget, 30))
+        _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
         return None
     if rule == "crescent_crescent":
         fx = _spawn_fx(world, "crescent_crescent", c, ang, a.col, b.col, hold=CRESCENT_TICKS, budget=budget, pair=(a, b))
         held = _held_ticks(fx, CRESCENT_TICKS, budget)
-        _engage(world, figs, fx.length() if fx is not None else held + 20)
+        _engage(world, figs, fx.length() if fx is not None else held + 20, touch)
         return Clash(a, b, c, rule, now + held, fx, now)
     slot = rule     # BURST_RULES: the rule's own slot
     key = None
@@ -1090,7 +1113,7 @@ def _start(world, st, a, b, c, rule, now):
             key = "sword_slash_clash"   # re-arming pair / no room for a duel: a one-shot burst instead
     _settle(world, a, b, c)
     fx = _spawn_fx(world, slot, c, ang, a.col, b.col, key=key, budget=budget, pair=(a, b))
-    _engage(world, figs, _fx_ticks(fx, budget, 30))
+    _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
     return None
 
 
