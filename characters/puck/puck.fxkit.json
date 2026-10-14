@@ -44,8 +44,8 @@
    "frames": 1
   },
   "attack_special_2": {
-   "frame_ms": 300,
-   "frames": 1
+   "frame_ms": 150,
+   "frames": 2
   }
  },
  "palette_lut": {
@@ -11097,9 +11097,17 @@
     [
      156.99,
      109.19
+    ],
+    [
+     156.99,
+     109.19
     ]
    ],
    "chest": [
+    [
+     157.68,
+     96.32
+    ],
     [
      157.68,
      96.32
@@ -11109,9 +11117,17 @@
     [
      161.2,
      86.39
+    ],
+    [
+     161.2,
+     86.39
     ]
    ],
    "head": [
+    [
+     170.77,
+     74.83
+    ],
     [
      170.77,
      74.83
@@ -11121,9 +11137,17 @@
     [
      161.2,
      87.54
+    ],
+    [
+     161.2,
+     87.54
     ]
    ],
    "shL": [
+    [
+     152.44,
+     84.08
+    ],
     [
      152.44,
      84.08
@@ -11133,9 +11157,17 @@
     [
      172.17,
      83.04
+    ],
+    [
+     172.17,
+     83.04
     ]
    ],
    "elL": [
+    [
+     138.83,
+     89.09
+    ],
     [
      138.83,
      89.09
@@ -11145,9 +11177,17 @@
     [
      188.08,
      83.02
+    ],
+    [
+     188.08,
+     83.02
     ]
    ],
    "haL": [
+    [
+     151.49,
+     92.36
+    ],
     [
      151.49,
      92.36
@@ -11157,9 +11197,17 @@
     [
      204.13,
      83.01
+    ],
+    [
+     204.13,
+     83.01
     ]
    ],
    "hpL": [
+    [
+     154.22,
+     111.73
+    ],
     [
      154.22,
      111.73
@@ -11169,9 +11217,17 @@
     [
      162.87,
      109.3
+    ],
+    [
+     162.87,
+     109.3
     ]
    ],
    "knL": [
+    [
+     176.28,
+     116
+    ],
     [
      176.28,
      116
@@ -11181,9 +11237,17 @@
     [
      182.88,
      99.93
+    ],
+    [
+     182.88,
+     99.93
     ]
    ],
    "ftL": [
+    [
+     200.22,
+     129.35
+    ],
     [
      200.22,
      129.35
@@ -11193,9 +11257,17 @@
     [
      173.76,
      125.02
+    ],
+    [
+     173.76,
+     125.02
     ]
    ],
    "wtip": [
+    [
+     204.13,
+     83.01
+    ],
     [
      204.13,
      83.01
@@ -11205,9 +11277,17 @@
     [
      151.49,
      92.36
+    ],
+    [
+     151.49,
+     92.36
     ]
    ],
    "root": [
+    [
+     170.77,
+     47.14
+    ],
     [
      170.77,
      47.14
@@ -11299,29 +11379,24 @@
   "attack_normal": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [],
+   "conditions": [
+    {
+     "type": "target_within",
+     "px": 80,
+     "not": false
+    }
+   ],
    "chain_next": "",
    "chain_reset_ms": 1000,
-   "fx_continuous": false,
-   "movement": "move",
+   "fx_continuous": true,
+   "movement": "stand",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
    "blink": {
-    "enabled": true,
+    "enabled": false,
     "cooldown_ms": 0,
-    "blinks": [
-     {
-      "start_frame": 1,
-      "end_frame": 1,
-      "anchor": "target",
-      "direction": "front",
-      "angle_deg": 0,
-      "proximity_px": 190,
-      "flash": true,
-      "mirror": false
-     }
-    ]
+    "blinks": []
    },
    "attack_px": 80,
    "time": {
@@ -11404,33 +11479,28 @@
    "cooldown_ms": 0,
    "conditions": [
     {
-     "type": "target_beyond",
-     "px": 200,
-     "not": false
-    },
-    {
      "type": "attacks_made",
-     "count": 10,
+     "count": 3,
      "not": false
     },
     {
      "type": "action_triggered",
      "who": "target",
      "action": "attack_special",
-     "ms": 300,
+     "ms": 0,
      "not": false
     }
    ],
    "chain_next": "",
    "chain_reset_ms": 1000,
-   "fx_continuous": false,
+   "fx_continuous": true,
    "movement": "stand",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 50,
    "blink": {
     "enabled": true,
-    "cooldown_ms": 0,
+    "cooldown_ms": 1000,
     "blinks": [
      {
       "start_frame": 0,
@@ -11446,7 +11516,7 @@
    },
    "attack_px": 0,
    "time": {
-    "enabled": true,
+    "enabled": false,
     "start_frame": 0,
     "end_frame": 34,
     "scope": "enemy_fighters",
@@ -11499,20 +11569,9 @@
    "anim_loops": 1,
    "back_stop_pct": 80,
    "blink": {
-    "enabled": true,
+    "enabled": false,
     "cooldown_ms": 0,
-    "blinks": [
-     {
-      "start_frame": 0,
-      "end_frame": 1,
-      "anchor": "target",
-      "direction": "front",
-      "angle_deg": 0,
-      "proximity_px": 2000,
-      "flash": true,
-      "mirror": false
-     }
-    ]
+    "blinks": []
    },
    "attack_px": 0,
    "time": {
@@ -11600,31 +11659,25 @@
      "type": "hits_taken",
      "count": 7,
      "not": false
+    },
+    {
+     "type": "projectile_count",
+     "count": 10,
+     "not": false
     }
    ],
    "chain_next": "",
    "chain_reset_ms": 1000,
-   "fx_continuous": false,
+   "fx_continuous": true,
    "movement": "back",
    "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 100,
    "attack_px": 0,
    "blink": {
-    "enabled": true,
+    "enabled": false,
     "cooldown_ms": 0,
-    "blinks": [
-     {
-      "start_frame": 0,
-      "end_frame": -1,
-      "anchor": "target",
-      "direction": "behind",
-      "angle_deg": 0,
-      "proximity_px": 60,
-      "flash": true,
-      "mirror": false
-     }
-    ]
+    "blinks": []
    },
    "time": {
     "enabled": false,
@@ -11742,7 +11795,7 @@
  },
  "damaged": {
   "cooldown_ms": 0,
-  "anti_knockback": 0
+  "anti_knockback": 20
  },
  "retreat": {
   "enabled": true,
@@ -11753,7 +11806,7 @@
   "proximity_px": 75,
   "avoid_duration_ms": 1000,
   "reengage_duration_ms": 799,
-  "cooldown_ms": 500,
+  "cooldown_ms": 1500,
   "logic": "any",
   "conditions": [
    {
@@ -11860,7 +11913,7 @@
     "fan_deg": 0
    },
    "battle": {
-    "deals_damage": false,
+    "deals_damage": true,
     "damage": 1,
     "pierce": false,
     "rehit_ticks": 0,
@@ -11884,7 +11937,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "glow",
@@ -11967,7 +12021,7 @@
    "enabled": true,
    "end_frame": -1,
    "life_ticks": 0,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12002,7 +12056,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "particles",
@@ -12084,7 +12139,7 @@
    "enabled": true,
    "end_frame": -1,
    "life_ticks": 0,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12120,7 +12175,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12208,7 +12264,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12244,7 +12300,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12332,7 +12389,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12368,7 +12425,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12456,7 +12514,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12492,7 +12550,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12580,7 +12639,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12616,7 +12675,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12704,7 +12764,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12740,7 +12800,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12828,7 +12889,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12864,7 +12925,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -12952,7 +13014,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -12988,7 +13050,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -13076,7 +13139,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -13112,7 +13175,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -13200,7 +13264,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -13236,7 +13300,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -13324,7 +13389,7 @@
    },
    "enabled": true,
    "end_frame": -1,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     0,
     0
@@ -13360,7 +13425,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "glow",
@@ -13415,7 +13481,7 @@
    },
    "enabled": true,
    "life_ticks": 0,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     16.5,
     1
@@ -13427,13 +13493,13 @@
     "fan_deg": 0
    },
    "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
+    "deals_damage": true,
+    "damage": 0,
+    "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
+    "knockback": 100,
+    "blockable": false,
+    "deflectable": false
    },
    "intercept": {
     "enabled": false,
@@ -13450,7 +13516,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -13461,11 +13528,11 @@
    "life_ticks": 60,
    "blend": "additive",
    "battle": {
-    "deals_damage": false,
-    "damage": 3,
+    "deals_damage": true,
+    "damage": 0,
     "pierce": true,
     "rehit_ticks": 10,
-    "knockback": 31,
+    "knockback": 100,
     "blockable": false,
     "deflectable": false
    },
@@ -13519,7 +13586,7 @@
    },
    "enabled": true,
    "end_frame": 54,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     16.5,
     1
@@ -13531,7 +13598,7 @@
     "fan_deg": 0
    },
    "intercept": {
-    "enabled": true,
+    "enabled": false,
     "radius": 0,
     "turn_deg": 0,
     "contact": 10,
@@ -13545,7 +13612,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "beam",
@@ -13557,9 +13625,9 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 3,
     "pierce": true,
-    "rehit_ticks": 10,
+    "rehit_ticks": 8,
     "knockback": 100,
     "blockable": false,
     "deflectable": false
@@ -13614,7 +13682,7 @@
    },
    "enabled": true,
    "end_frame": 54,
-   "continuous": false,
+   "continuous": true,
    "offset": [
     16.5,
     1
@@ -13626,7 +13694,7 @@
     "fan_deg": 0
    },
    "intercept": {
-    "enabled": true,
+    "enabled": false,
     "radius": 0,
     "turn_deg": 0,
     "contact": 10,
@@ -13640,483 +13708,14 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusapexj4u2",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -94,
-    "aim_offset_deg": 0,
-    "speed": 2,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#fbff00",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 6,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 0,
-    "glow_color": "",
-    "pulse_hz": 6.5,
-    "jitter": 3.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emusayual33",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusalris1lj",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -81,
-    "aim_offset_deg": 0,
-    "speed": 2,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#fbff00",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 6,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 0,
-    "glow_color": "",
-    "pulse_hz": 6.5,
-    "jitter": 3.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emusb206c34",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusapexj4u2",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -94,
-    "aim_offset_deg": 0,
-    "speed": 1,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#fee1e1",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 6,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 0,
-    "glow_color": "",
-    "pulse_hz": 6.5,
-    "jitter": 3.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0.95
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emusb415s35",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy copy copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusalris1lj",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -81,
-    "aim_offset_deg": 0,
-    "speed": 1,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 6,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 0,
-    "glow_color": "",
-    "pulse_hz": 6.5,
-    "jitter": 3.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emusb4wdg36",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusaq6us178",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -87,
-    "aim_offset_deg": 0,
-    "speed": 2.7,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#fbff00",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 6,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 1,
-    "glow_color": "#fa4b00",
-    "pulse_hz": 6.5,
-    "jitter": 16.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emusb6c2l37",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
    "name": "Laser trail",
    "tag": "trail",
-   "anchor": "figure",
+   "anchor": "chest",
    "offset": [
     0,
     0
@@ -14152,7 +13751,7 @@
     "decay": 2,
     "taper": true,
     "w_tail": 1,
-    "w_head": 55,
+    "w_head": 37.5,
     "alpha": 195,
     "head_glow_r": 0.5,
     "head_dot_r": 6
@@ -14200,7 +13799,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "sprite",
@@ -14302,7 +13902,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "glow",
@@ -14379,7 +13980,6 @@
    ],
    "id": "Emuss277v6",
    "action": "ultimate",
-   "group": "Gmuss277v3",
    "flip": {
     "enabled": false,
     "facing": 1
@@ -14422,7 +14022,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "particles",
@@ -14504,7 +14105,6 @@
    ],
    "id": "Emuss277v8",
    "action": "ultimate",
-   "group": "Gmuss277v3",
    "flip": {
     "enabled": false,
     "facing": 1
@@ -14547,7 +14147,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "id": "Emussp5dm40",
@@ -14559,7 +14160,7 @@
    "start_frame": 13,
    "end_frame": 25,
    "life_ticks": 60,
-   "continuous": false,
+   "continuous": true,
    "anchor": "set:Pmus8rsad4yk",
    "offset": [
     31.5,
@@ -14622,7 +14223,7 @@
     "deflectable": false
    },
    "intercept": {
-    "enabled": true,
+    "enabled": false,
     "radius": 0,
     "turn_deg": 0,
     "contact": 10,
@@ -14641,7 +14242,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "id": "Emust3zbs1",
@@ -14650,7 +14252,7 @@
    "prim": "pulse",
    "enabled": true,
    "tag": "",
-   "start_frame": 7,
+   "start_frame": 13,
    "end_frame": 16,
    "life_ticks": 0,
    "continuous": false,
@@ -14693,12 +14295,12 @@
    },
    "params": {
     "r_start": 0,
-    "r_end": 98,
-    "width": 6,
-    "width_end": 2,
-    "expand_ms": 400,
-    "rings": 1,
-    "gap_ms": 200,
+    "r_end": 162,
+    "width": 13,
+    "width_end": 14.5,
+    "expand_ms": 246,
+    "rings": 3,
+    "gap_ms": 123,
     "ease": "out",
     "fade": "out",
     "glow": 8,
@@ -14736,101 +14338,8 @@
     "enabled": false,
     "count": 0
    },
-   "follow_each": false
-  },
-  {
-   "name": "beam copy copy copy",
-   "prim": "beam",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 33,
-   "continuous": false,
-   "anchor": "set:Pmusaq6us178",
-   "offset": [
-    -6,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 18,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "angle",
-    "angle_deg": -87,
-    "aim_offset_deg": 0,
-    "speed": 2.7,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#fbff00",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "length": 19,
-    "w_start0": 4.5,
-    "w_start1": 3,
-    "w_end0": 2,
-    "w_end1": 0.5,
-    "segments": 1,
-    "glow": 1,
-    "glow_color": "#fa4b00",
-    "pulse_hz": 6.5,
-    "jitter": 16.5,
-    "detach_ticks": 0,
-    "grow_ticks": 0,
-    "tip_fade": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "keys": [],
-   "id": "Emux70df457",
-   "action": "idle",
-   "always_on": false,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false
+   "follow_each": false,
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14840,9 +14349,9 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 1,
+    "damage": 2,
     "pierce": true,
-    "rehit_ticks": 2,
+    "rehit_ticks": 7,
     "knockback": 2,
     "blockable": true,
     "deflectable": true
@@ -14876,12 +14385,18 @@
     "style": "ki_barrage",
     "radius": 6,
     "thickness": 18,
-    "span": 18,
+    "span": 40,
     "length": 320,
     "swing_ticks": 3,
     "hold_ticks": 44,
-    "density": 1.5,
-    "rotation_deg": 0
+    "density": 2,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -14893,7 +14408,7 @@
    "start_frame": 0,
    "end_frame": 1,
    "life_ticks": 0,
-   "continuous": false,
+   "continuous": true,
    "always_on": false,
    "offset": [
     12.5,
@@ -14920,7 +14435,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14931,7 +14447,7 @@
    "battle": {
     "deals_damage": true,
     "damage": 3,
-    "pierce": false,
+    "pierce": true,
     "rehit_ticks": 0,
     "knockback": 14,
     "blockable": true,
@@ -14971,7 +14487,13 @@
     "hold_ticks": 0,
     "density": 4,
     "span": 205,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false
    },
    "id": "Emv2or14g13",
    "action": "attack_normal",
@@ -14983,10 +14505,10 @@
    "start_frame": 0,
    "end_frame": 11,
    "life_ticks": 0,
-   "continuous": false,
+   "continuous": true,
    "always_on": false,
    "offset": [
-    -100,
+    -200,
     0
    ],
    "layer": "front",
@@ -15010,6 +14532,686 @@
    },
    "follow_dir": true,
    "follow_each": true,
+   "keys": [],
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 1,
+    "thickness": 5,
+    "length": 47,
+    "swing_ticks": 14,
+    "hold_ticks": 0.5,
+    "lightning": false,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": false,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "id": "Emv8lpevu3",
+   "action": "idle",
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 10,
+    "thickness": 5,
+    "length": 47,
+    "swing_ticks": 14,
+    "hold_ticks": 1,
+    "lightning": false,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": false,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "id": "Emv8lwg1b5",
+   "action": "run",
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 9,
+    "span": 40,
+    "thickness": 5,
+    "length": 47,
+    "swing_ticks": 14,
+    "hold_ticks": 14,
+    "lightning": false,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": false,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "id": "Emv8n5buz2",
+   "action": "attack_special_2",
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 100,
+    "thickness": 5,
+    "length": 22,
+    "swing_ticks": 200,
+    "hold_ticks": 1,
+    "lightning": true,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": true,
+    "aura_surges": false,
+    "aura_cracks": true,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "id": "Emv8nrktl1",
+   "action": "ultimate",
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 100,
+    "thickness": 5,
+    "length": 22,
+    "swing_ticks": 14,
+    "hold_ticks": 50,
+    "lightning": true,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": true,
+    "aura_surges": false,
+    "aura_cracks": true,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "id": "Emv8nuztl2",
+   "action": "attack_special",
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "char_every_ms": 0
+  },
+  {
+   "prim": "technique",
+   "name": "Super Saiyan 2 aura",
+   "tag": "aura",
+   "anchor": "figure",
+   "layer": "behind",
+   "blend": "additive",
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe14a",
+    "c2": "#ff9d00",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 50,
+    "thickness": 5,
+    "length": 22,
+    "swing_ticks": 14,
+    "hold_ticks": 1,
+    "lightning": false,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": true,
+    "density": 1,
+    "rotation_deg": 0
+   },
+   "id": "Emv8oba0z3",
+   "action": "@retreat",
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    0,
+    0
+   ],
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": [],
+   "char_every_ms": 0
+  },
+  {
+   "id": "Emv8pqflf1",
+   "name": "ribbon",
+   "action": "@character",
+   "prim": "technique",
+   "enabled": true,
+   "tag": "",
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": true,
+   "char_every_ms": 350,
+   "anchor": "figure",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "behind",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "ssj_aura",
+    "radius": 6,
+    "span": 100,
+    "thickness": 5,
+    "length": 22,
+    "swing_ticks": 1,
+    "hold_ticks": 1,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 2,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": false
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": -1
+   },
+   "follow_dir": false,
+   "follow_each": false,
    "keys": []
   }
  ],
@@ -15035,22 +15237,11 @@
     1
    ],
    "collapsed": false
-  },
-  {
-   "id": "Gmuss277v3",
-   "name": "Radiant core",
-   "action": "ultimate",
-   "anchor": "haR",
-   "offset": [
-    21,
-    -0.5
-   ],
-   "collapsed": false
   }
  ],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
  "unique_ability": {
-  "type": "riposte",
+  "type": "phase_shift",
   "mirror_legion": {
    "trigger": "hp_below",
    "hp_thresholds": "70,50,30",
@@ -15063,7 +15254,11 @@
    "spread_px": 90,
    "damage": 1,
    "speed_pct": 80,
-   "opacity_pct": 60
+   "opacity_pct": 60,
+   "clone_hp": 20,
+   "damage_pct": 50,
+   "max_alive": 6,
+   "actions": {}
   },
   "berserker": {
    "start_lost_pct": 0,
@@ -15080,13 +15275,13 @@
   "phase_shift": {
    "trigger": "every_hit",
    "min_damage": 5,
-   "hp_below_pct": 50,
+   "hp_below_pct": 10,
    "chance_pct": 50,
    "charges": 3,
-   "recharge_ms": 8000,
+   "recharge_ms": 6000,
    "destinations": {
     "behind_attacker": true,
-    "random": true,
+    "random": false,
     "far_corner": false,
     "spawn": false,
     "mirror": false,
@@ -15097,7 +15292,7 @@
    "behind_px": 70,
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
-   "invuln_ms": 300,
+   "invuln_ms": 0,
    "show_charges": true
   },
   "ricochet": {
