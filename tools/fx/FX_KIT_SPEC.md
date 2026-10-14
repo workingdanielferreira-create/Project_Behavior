@@ -616,6 +616,12 @@ reactions). These never play on an action of their own:
   the usual Battle rules (Deals damage, clash, intercept). While the fighter is
   blinked out nothing new fires, and its body FX (attached, orbit, weapon) are
   hidden and land no hits. Solo and Battle run the same code.
+  Any effect can be a Character FX. `char_every_ms` (FX Studio: Frequency ms,
+  default `0`) sets how often it plays: `0` = always on as above; above `0` =
+  it plays its whole sequence (a Continuous run, its cycles off) when the
+  fighter is fielded and then once every that many ms, on the fighter's own
+  timer (`FxDriver.cclock`), whatever action is on show. No new play starts
+  while it is blinked out or its FX are stopped by Time control.
 
 **Blink (`action_settings[action].blink`, per action; `laser/blink.py`).**
 Teleports inside one action; each action has its own. `blinks` is a list of
