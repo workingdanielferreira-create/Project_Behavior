@@ -1299,7 +1299,7 @@ var POWER_UI = {
     rows: [["radius", "Aura size", 0, 60, 0.5, "How far the aura reaches out from the body, px."],
       ["length", "Flame height", 2, 200, 1, "How tall the flames rise, px."],
       ["thickness", "Flame width", 1, 40, 0.5, "How wide each flame is, px."],
-      ["span", "Movement reaction %", 0, 200, 5, "How strongly the flames are swept back when the fighter moves. 0 = always straight up."],
+      ["span", "Movement reaction %", 0, 200, 5, "How strongly the aura turns and is swept back when the fighter moves: at full speed it points opposite the movement. 0 = always straight up."],
       ["swing_ticks", "Ignite ticks", 1, 120, 1, "How long it takes to flare up."],
       ["hold_ticks", "Duration ticks", 1, 1200, 1, "How long it burns before fading out."],
       ["aura_burst", "Power-up burst", "chk", 0, 0, "A flash, shock rings and a blast of dust as it ignites."],

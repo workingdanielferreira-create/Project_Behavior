@@ -15,6 +15,7 @@ var STYLES = ["ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze",
 var PULL_STYLES = ["gigantic_meteor", "black_hole"];
 
 var AURA_FADE = 30, AURA_N = 28, AURA_LICK_LIFE = 16, AURA_RATE = 5, AURA_RISE = 1.6, AURA_LAG = 0.9, AURA_STRETCH = 2.2;
+var AURA_FULL = 3.0, AURA_SWING = 0.72, AURA_SWING_N = 12;
 var AURA_SURGE_SLOT = 90, AURA_SURGE_LEN = 20, AURA_CRACKS = 7, AURA_ROCK_EVERY = 3, AURA_ROCK_LIFE = 70;
 var AURA_SLOT = 4, AURA_BOLT_LIFE = 6;
 var AURA_BOLT_FLICKER = [1.0, 0.35, 1.0, 0.7, 0.3, 0.15];
@@ -156,6 +157,26 @@ function auraVel(inst, t) {   // px per tick, smoothed over 3 ticks
   var p1 = at(inst.tq_path, t), p0 = at(inst.tq_path, t - 3), k = Math.min(3, Math.max(1, t));
   return [(p1[0] - p0[0]) / k, (p1[1] - p0[1]) / k];
 }
+// Angle the aura points at tick t: up at rest, toward the opposite of the
+// movement as the speed rises (fully at AURA_FULL).  laser/powerfx.py _aura_aim.
+function auraAim(inst, ps, react, t) {
+  var v = auraVel(inst, Math.max(0, t)), s = Math.min(1, hyp(v[0], v[1]) / ps * react / AURA_FULL);
+  if (s <= 0) return -PI / 2;
+  var to = Math.atan2(-v[1], -v[0]), d = Math.atan2(Math.sin(to + PI / 2), Math.cos(to + PI / 2));
+  return -PI / 2 + d * s;
+}
+// The way the flames point at tick t (unit vector), swung round smoothly over
+// the last AURA_SWING_N ticks.  laser/powerfx.py _aura_flow.
+function auraFlow(inst, ps, react, t) {
+  var sx = 0, sy = 0, w = 1, a;
+  for (var j = 0; j <= AURA_SWING_N; j++) {
+    a = auraAim(inst, ps, react, t - j);
+    sx += w * Math.cos(a); sy += w * Math.sin(a); w *= AURA_SWING;
+  }
+  var d = hyp(sx, sy);
+  if (d < 1e-6) { a = auraAim(inst, ps, react, t); return [Math.cos(a), Math.sin(a)]; }
+  return [sx / d, sy / d];
+}
 function auraK(P, t) {   // [size, alpha] at tick t
   var Ti = ti(P, "swing_ticks", 1), act = activeTicks(P), L = L_();
   if (t < Ti) { var u = t / Ti; return [L.easeOut3(u) * (1 + 0.25 * Math.sin(PI * u)), 1]; }
@@ -219,10 +240,10 @@ function drawAura(pen, inst, host, ps) {
   pen.add(true);
   if (al <= 0) return;
   // 2: a soft glow over the whole aura
-  pen.glow(cx - ux * sp * 2 * react, cy - 0.15 * (feetY - cy), (halfW + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5);
+  var G = auraFlow(inst, ps, react, t), Gx = G[0], Gy = G[1], hh = 0.15 * (feetY - cy);
+  pen.glow(cx + Gx * hh, cy + Gy * hh, (halfW + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5);
   // 3: the aura's skin: the silhouette pushed out, taller along the flow, streaming behind when it moves
-  var gx = -vx * AURA_LAG * react, gy = -AURA_RISE * ps, gl = hyp(gx, gy) || 1;
-  gx /= gl; gy /= gl;
+  var gx = Gx, gy = Gy;   // up at rest, turned to point back along the motion
   sil.forEach(function (p) { pen.glow(p[0], p[1], (R * 1.8 + Tw) * k * sk, c, 34 * al * fl, 0.5); });
   [[1.0, c, 30], [0.6, L.mix(c, bright, 0.5), 30], [0.28, bright, 30]].forEach(function (lay) {
     var m = lay[0], pts = [];
@@ -241,7 +262,7 @@ function drawAura(pen, inst, host, ps) {
   for (b = Math.max(0, t - AURA_LICK_LIFE + 1); b <= t; b++) {
     if (b >= act) break;
     var bk = auraK(P, b)[0], bs = auraSurge(inst, P, b)[0], silb = auraSil(inst, ps, b), bc = centroid(silb);
-    var bv = auraVel(inst, b), bvx = bv[0], bvy = bv[1];
+    var bv = auraVel(inst, b), bvx = bv[0], bvy = bv[1], bg = auraFlow(inst, ps, react, b), bgx = bg[0], bgy = bg[1];
     a = t - b;
     for (j = 0; j < Math.max(0, Math.round(AURA_RATE * dens * bs)); j++) {
       r = L.rngFor(inst.seed, b, 271 + j);
@@ -250,9 +271,12 @@ function drawAura(pen, inst, host, ps) {
       var off = R * r.uniform(0.2, 1.1) * bk, life = AURA_LICK_LIFE * r.uniform(0.6, 1.0), u = a / life;
       if (u >= 1) continue;
       var rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs, keep = 1 - AURA_LAG * react;
-      var wx = nx * 0.7 * ps + bvx * keep, wy = -rise + ny * 0.35 * ps + bvy * keep;
+      // a little outward, laid out in the aura's frame (wider across the flow than along it)
+      var npp = nx * -bgy + ny * bgx, npl = nx * bgx + ny * bgy;
+      var ox_ = (-bgy * npp * 0.7 + bgx * npl * 0.35) * ps, oy_ = (bgx * npp * 0.7 + bgy * npl * 0.35) * ps;
+      var wx = bgx * rise + ox_ + bvx * keep, wy = bgy * rise + oy_ + bvy * keep;
       var ph = r.uniform(0, PI * 2), sway = Math.sin(a * 0.45 + ph) * 1.6 * ps * u;
-      var rx = nx * 0.7 * ps - bvx * AURA_LAG * react, ry = -rise + ny * 0.35 * ps - bvy * AURA_LAG * react, rl = hyp(rx, ry) || 1;
+      var rx = bgx * rise + ox_ - bvx * AURA_LAG * react, ry = bgy * rise + oy_ - bvy * AURA_LAG * react, rl = hyp(rx, ry) || 1;
       var fx_ = rx / rl, fy_ = ry / rl;
       var px = ex + nx * off + wx * a - fy_ * sway, py = ey + ny * off + wy * a + fx_ * sway;
       var ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * Math.sin(PI * Math.min(1, u * 1.15))) * (1 + 0.1 * rl / ps) * bk;
@@ -266,7 +290,7 @@ function drawAura(pen, inst, host, ps) {
   // 5: sparks of energy rising off it (kept behind as it moves)
   for (b = Math.max(0, t - 23); b <= t; b++) {
     if (b >= act) break;
-    var silc = auraSil(inst, ps, b), cv = auraVel(inst, b);
+    var silc = auraSil(inst, ps, b), cv = auraVel(inst, b), cg = auraFlow(inst, ps, react, b);
     a = t - b;
     for (j = 0; j < Math.max(0, Math.round(1 * dens)); j++) {
       r = L.rngFor(inst.seed, b, 291 + j);
@@ -274,9 +298,9 @@ function drawAura(pen, inst, host, ps) {
       if (a >= lf) continue;
       q = a / lf;
       var rs = AURA_RISE * ps * r.uniform(1.2, 2.0), kp = 1 - AURA_LAG * react;
-      var sx = sp0[0] + (cv[0] * kp) * a + r.uniform(-1, 1) * R * 0.5, sy = sp0[1] + (cv[1] * kp - rs) * a;
+      var sx = sp0[0] + (cv[0] * kp + cg[0] * rs) * a + r.uniform(-1, 1) * R * 0.5, sy = sp0[1] + (cv[1] * kp + cg[1] * rs) * a;
       var tl = 2 * ps + rs * 1.2 + sp * react * 0.8;
-      var lx = cv[0] * AURA_LAG * react, ly = rs + cv[1] * AURA_LAG * react, ll = hyp(lx, ly) || 1;
+      var lx = cv[0] * AURA_LAG * react - cg[0] * rs, ly = cv[1] * AURA_LAG * react - cg[1] * rs, ll = hyp(lx, ly) || 1;
       pen.line(sx, sy, sx + lx / ll * tl, sy + ly / ll * tl, L.mix(c, HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps);
       pen.glow(sx, sy, 2.2 * ps, HOT, 200 * (1 - q) * al, 0.6);
     }
