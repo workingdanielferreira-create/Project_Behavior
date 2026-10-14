@@ -331,9 +331,12 @@ var PARAM_DEFAULTS = {
   // (powerfx.js) reuse the same fields: see those files.  The technique keeps
   // its own timeline: Life is ignored.  rotation_deg turns the whole
   // technique clockwise (0-360), mirrored with the facing.  lightning /
-  // lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off, per second).
+  // lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off, per second);
+  // aura_burst / aura_debris / aura_surges / aura_cracks: its power-up burst,
+  // rising rocks, flare-ups and ground cracks.
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
-    density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5}
+    density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
+    aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -357,7 +360,8 @@ var TECH_STYLE_DEFAULTS = {
   combo_backhand: {radius: 70, span: 150, thickness: 11, swing_ticks: 5},
   ki_barrage: {radius: 6, thickness: 18, span: 18, length: 320, swing_ticks: 3, hold_ticks: 45},
   impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3},
-  ssj_aura: {radius: 22, thickness: 7, length: 62, swing_ticks: 12, hold_ticks: 240, lightning: true, lightning_rate: 1.5},
+  ssj_aura: {radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: false,
+    lightning_rate: 1.5, aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true},
   rasen_shuriken: {radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50},
   gigantic_meteor: {radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70},
   ghost_kamikaze: {radius: 9, span: 14, thickness: 34, length: 600, swing_ticks: 8, hold_ticks: 40},

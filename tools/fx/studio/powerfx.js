@@ -14,9 +14,11 @@ var L_ = function () { return G.SWORDFX.lib; };
 var STYLES = ["ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"];
 var PULL_STYLES = ["gigantic_meteor", "black_hole"];
 
-var AURA_FADE = 14, AURA_TONGUES = 7, AURA_SLOT = 4, AURA_BOLT_LIFE = 6;
+var AURA_FADE = 30, AURA_N = 28, AURA_LICK_LIFE = 16, AURA_RATE = 5, AURA_RISE = 1.6, AURA_LAG = 0.9, AURA_STRETCH = 2.2;
+var AURA_SURGE_SLOT = 90, AURA_SURGE_LEN = 20, AURA_CRACKS = 7, AURA_ROCK_EVERY = 3, AURA_ROCK_LIFE = 70;
+var AURA_SLOT = 4, AURA_BOLT_LIFE = 6;
 var AURA_BOLT_FLICKER = [1.0, 0.35, 1.0, 0.7, 0.3, 0.15];
-var BOLT = [150, 205, 255];
+var BOLT = [150, 205, 255], ROCK = [78, 66, 54], CRACK = [26, 20, 18];
 var RS_SPEED = 8.0, RS_SPIN = [0.04, 0.55], RS_GROW = 9, RS_SHRINK = 12, RS_FADE = 18;
 var MET_FALL = 30, MET_LOB = 0.22, MET_GROW_DRAG = 0.12, MET_BLAST_HIT = 8, MET_BLAST_LIFE = 44;
 var DUST = [110, 98, 84];
@@ -104,109 +106,232 @@ function totalTicks(P) {
   return ti(P, "swing_ticks", 1) + ti(P, "hold_ticks", 1) + BH_COLLAPSE + BH_BURST_LIFE;
 }
 function onSpawn(inst, host) {
+  inst.tq_sil = [];     // aura: the body outline per tick (swordfx.js onTick)
   inst.tq_det = null;   // rasen-shuriken: where it went off when a hit stopped it [tick, x, y]
   inst.tq_gh = {};      // ghosts: index -> flight state (ghSim)
 }
 
 // ================================================================ ssj aura
-function auraK(P, t) {   // [size, alpha] of the aura at tick t
-  var Ti = ti(P, "swing_ticks", 1), act = activeTicks(P), L = L_();
-  if (t < Ti) { var u = t / Ti; return [L.easeOut3(u) * (1 + 0.15 * Math.sin(PI * u)), 1]; }
-  if (t < act) return [1, 1];
-  var q = cl((t - act) / AURA_FADE);
-  return [1 + 0.1 * q, 1 - q];
-}
-function auraW(v, W, t, side) {
-  var wob = 0.08 * Math.sin(t * 0.45 + v * 7 + side * 1.3) + 0.05 * Math.sin(t * 1.1 - v * 11 + side);
-  return W * Math.pow(Math.sin(PI * (0.12 + 0.88 * v)), 0.6) * (1 + wob);
-}
-function auraBody(cx, yb, W, H, t) {
-  var n = 14, right = [], left = [];
-  for (var j = 0; j <= n; j++) {
-    right.push([cx + auraW(j / n, W, t, 1), yb - j / n * H]);
-    left.push([cx - auraW(j / n, W, t, -1), yb - j / n * H]);
-  }
-  return right.concat(rev(left));
-}
-function auraTongues(inst, cx, yb, W, H, Tw, t) {
-  var L = L_(), out = [];
-  for (var i = 0; i < AURA_TONGUES; i++) {
-    var r = L.rngFor(inst.seed, i, 201);
-    var v = r.uniform(0.45, 0.97), side = i % 2 === 0 ? 1 : -1, spd = r.uniform(0.03, 0.06), ph = r();
-    var h = r.uniform(0.22, 0.45), lean = r.uniform(0.1, 0.4), tw = Tw * r.uniform(0.7, 1.2);
-    var u = frac(t * spd + ph);
-    var bx = cx + side * auraW(v, W, t, side) * 0.8, by = yb - v * H - u * H * 0.18;
-    var hh = H * h * (0.4 + 0.6 * u), tx = bx + side * W * lean * (0.5 + u), ty = by - hh;
-    var sway = Math.sin(t * 0.5 + i * 1.7) * W * 0.12, mx = (bx + tx) / 2 + sway, my = (by + ty) / 2;
-    out.push([[[bx - tw, by], [mx - tw * 0.55, my], [tx, ty], [mx + tw * 0.55, my], [bx + tw, by]], Math.pow(1 - u, 0.5)]);
+// The aura hugs the fighter's real silhouette (inst.tq_sil, from host.outline;
+// an ellipse when there is none) and reacts to movement like a flame in the
+// wind: licks born on the body's edge rise and keep only part of the
+// fighter's speed, so at rest they stand straight up and on the move they
+// stream behind it.  laser/powerfx.py.
+// Radial outline of a sprite: n points (image px) round its alpha centroid,
+// the farthest opaque pixel along each ray (clockwise from the top); null
+// when empty.  laser/powerfx.py outline_from_alpha.
+function outlineFromAlpha(w, h, alpha, n, thr) {
+  n = n || AURA_N; thr = thr == null ? 40 : thr;
+  var step = Math.max(1, Math.floor(Math.min(w, h) / 32)), sx = 0, sy = 0, cnt = 0, x, y;
+  for (y = 0; y < h; y += step) for (x = 0; x < w; x += step) if (alpha(x, y) > thr) { sx += x; sy += y; cnt++; }
+  if (!cnt) return null;
+  var cx = sx / cnt, cy = sy / cnt, far = Math.sqrt(w * w + h * h), dstep = Math.max(0.5, step * 0.5), out = [];
+  for (var i = 0; i < n; i++) {
+    var an = 2 * PI * i / n - PI / 2, ca = Math.cos(an), sa = Math.sin(an), best = 0, d = 0;
+    while (d < far) {
+      x = Math.trunc(cx + ca * d); y = Math.trunc(cy + sa * d);
+      if (x >= 0 && x < w && y >= 0 && y < h && alpha(x, y) > thr) best = d;
+      d += dstep;
+    }
+    out.push([cx + ca * best, cy + sa * best]);
   }
   return out;
 }
+function auraSil(inst, ps, t) {   // the body outline at tick t, or an ellipse round the anchor
+  var s = inst.tq_sil && inst.tq_sil.length ? at(inst.tq_sil, t) : null;
+  if (s) return s;
+  var p = at(inst.tq_path, t), out = [];
+  for (var i = 0; i < AURA_N; i++) {
+    var a = 2 * PI * i / AURA_N - PI / 2;
+    out.push([p[0] + Math.cos(a) * 8 * ps, p[1] + Math.sin(a) * 14 * ps]);
+  }
+  return out;
+}
+function centroid(pts) {
+  var sx = 0, sy = 0;
+  pts.forEach(function (p) { sx += p[0]; sy += p[1]; });
+  return [sx / pts.length, sy / pts.length];
+}
+function auraVel(inst, t) {   // px per tick, smoothed over 3 ticks
+  var p1 = at(inst.tq_path, t), p0 = at(inst.tq_path, t - 3), k = Math.min(3, Math.max(1, t));
+  return [(p1[0] - p0[0]) / k, (p1[1] - p0[1]) / k];
+}
+function auraK(P, t) {   // [size, alpha] at tick t
+  var Ti = ti(P, "swing_ticks", 1), act = activeTicks(P), L = L_();
+  if (t < Ti) { var u = t / Ti; return [L.easeOut3(u) * (1 + 0.25 * Math.sin(PI * u)), 1]; }
+  if (t < act) return [1, 1];
+  var q = cl((t - act) / AURA_FADE);
+  return [1 + 0.1 * q, Math.pow(1 - q, 1.5)];
+}
+function auraSurge(inst, P, t) {   // [intensity 1-1.6, tick the surge began or null]
+  if (!P.aura_surges || t < ti(P, "swing_ticks", 1) || t >= activeTicks(P)) return [1, null];
+  var slot = Math.floor(t / AURA_SURGE_SLOT), r = L_().rngFor(inst.seed, slot, 251);
+  var b = slot * AURA_SURGE_SLOT + Math.trunc(r() * (AURA_SURGE_SLOT - AURA_SURGE_LEN)), a = t - b;
+  if (a < 0 || a >= AURA_SURGE_LEN) return [1, null];
+  return [1 + 0.6 * Math.sin(PI * a / AURA_SURGE_LEN), b];
+}
 function auraHit(inst, tx, ty, hr, ps) {
-  var P = inst.fx.params;
-  if (inst.age >= activeTicks(P)) return false;
-  var k = auraK(P, inst.age)[0], W = +P.radius * ps * k, H = +P.length * ps * k;
-  if (W <= 0.5 || H <= 0.5) return false;
-  var dx = (tx - inst.x) / (W + hr), dy = (ty - (inst.y - 0.08 * H)) / (0.5 * H + hr);
-  return dx * dx + dy * dy <= 1;
+  var P = inst.fx.params, t = inst.age;
+  if (t >= activeTicks(P)) return false;
+  var k = auraK(P, t)[0], sil = auraSil(inst, ps, t), c0 = centroid(sil), rmax = 0;
+  sil.forEach(function (p) { rmax = Math.max(rmax, hyp(p[0] - c0[0], p[1] - c0[1])); });
+  return hyp(tx - c0[0], ty - c0[1]) <= hr + (rmax + +P.radius * ps) * k;
+}
+// A flame tongue: round at its base (cx, cy), tapering to a tip ln px along (ux, uy), curling by bend px.
+function lick(cx, cy, ux, uy, ln, w, bend) {
+  var px = -uy, py = ux, left = [], right = [];
+  for (var j = 0; j < 8; j++) {
+    var s = j / 7, hw = w * (s < 0.75 ? Math.sin(PI * Math.min(1, 0.25 + s)) : 1) * Math.pow(1 - s, 0.8), cv = bend * s * s;
+    var bx = cx + ux * (s - 0.2) * ln + px * cv, by = cy + uy * (s - 0.2) * ln + py * cv;
+    left.push([bx + px * hw, by + py * hw]); right.push([bx - px * hw, by - py * hw]);
+  }
+  return left.concat(rev(right));
 }
 function drawAura(pen, inst, host, ps) {
-  var P = inst.fx.params, t = inst.age, L = L_(), HOT = L.HOT, i, r, u;
+  var P = inst.fx.params, t = inst.age, L = L_(), HOT = L.HOT, i, j, r, a, q, b;
   if (t >= totalTicks(P)) return;
   var cs = L.colours(inst, host), c = cs[0], bright = cs[1];
-  var ka = auraK(P, t), k = ka[0], al = ka[1];
-  var W = +P.radius * ps * k, H = +P.length * ps * k, Tw = +P.thickness * ps * k, dens = +P.density || 1;
-  var cx = inst.x, cy = inst.y, yb = cy + 0.42 * H;
-  var fl = 0.9 + 0.1 * Math.sin(t * 1.9) + 0.05 * Math.sin(t * 4.7);
+  var ka = auraK(P, t), k = ka[0], al = ka[1], act = activeTicks(P), Ti = ti(P, "swing_ticks", 1);
+  var R = +P.radius * ps, Lf = +P.length * ps, Tw = +P.thickness * ps;
+  var react = Math.max(0, P.span != null ? +P.span : 100) / 100, dens = +P.density || 1;
+  var su = auraSurge(inst, P, t), sk = su[0], sb = su[1];
+  var sil = auraSil(inst, ps, t), c0 = centroid(sil), cx = c0[0], cy = c0[1];
+  var v = auraVel(inst, t), vx = v[0], vy = v[1], sp = hyp(vx, vy);
+  var ux = sp > 0.05 ? vx / sp : 0, uy = sp > 0.05 ? vy / sp : 0;
+  var feetY = -Infinity, halfW = 0, n = sil.length;
+  sil.forEach(function (p) { feetY = Math.max(feetY, p[1]); halfW = Math.max(halfW, Math.abs(p[0] - cx)); });
+  var fl = 0.92 + 0.08 * Math.sin(t * 1.7) + 0.05 * Math.sin(t * 4.3);
+  // 1: ground — cracks at the feet, rocks and dust (painted normally, under the light)
+  pen.add(false);
+  if (P.aura_cracks && t >= 1) auraCracks(pen, inst, P, ps, c, t, act);
+  if (P.aura_burst && t < 34) {
+    var s0 = auraSil(inst, ps, 0), x0 = centroid(s0)[0], fy0 = -Infinity;
+    s0.forEach(function (p) { fy0 = Math.max(fy0, p[1]); });
+    for (j = 0; j < Math.max(0, Math.round(14 * dens)); j++) {
+      r = L.rngFor(inst.seed, j, 261);
+      var an = r.uniform(0, PI * 2), v0 = r.uniform(3, 7) * ps, d = v0 * L.dragDist(0.9, t);
+      q = t / 34;
+      pen.glow(x0 + Math.cos(an) * d, fy0 + Math.sin(an) * d * 0.3 - t * 0.2 * ps, (4 + 6 * q) * ps * r.uniform(0.8, 1.3),
+               DUST, 110 * Math.pow(1 - q, 1.5), 0.6);
+    }
+  }
+  if (P.aura_debris) auraRocks(pen, inst, P, ps, c, t, act);
   pen.add(true);
-  // 1: haze round the whole aura
-  pen.glow(cx, cy - 0.08 * H, Math.max(W, 0.6 * H) * 1.3, c, 60 * al * fl, 0.5);
-  // 2: the flame silhouette, three layers, with tongues licking off the crown
-  var tongues = auraTongues(inst, cx, yb, W, H, Tw, t);
-  [[1.0, c, 85], [0.78, bright, 110], [0.55, HOT, 70]].forEach(function (lay) {
-    var sc = lay[0], col = lay[1], alpha = lay[2], Hs = H * sc, Ws = W * sc, ybs = cy + 0.42 * Hs;
-    pen.poly(auraBody(cx, ybs, Ws, Hs, t), col, alpha * al * fl);
-    tongues.forEach(function (tg) {
-      pen.poly(tg[0].map(function (p) { return [cx + (p[0] - cx) * sc, cy + (p[1] - cy) * sc]; }), col, alpha * al * tg[1]);
+  if (al <= 0) return;
+  // 2: a soft glow over the whole aura
+  pen.glow(cx - ux * sp * 2 * react, cy - 0.15 * (feetY - cy), (halfW + R * 2 + Lf * 0.5) * k * sk, c, 55 * al * fl, 0.5);
+  // 3: the aura's skin: the silhouette pushed out, taller along the flow, streaming behind when it moves
+  var gx = -vx * AURA_LAG * react, gy = -AURA_RISE * ps, gl = hyp(gx, gy) || 1;
+  gx /= gl; gy /= gl;
+  sil.forEach(function (p) { pen.glow(p[0], p[1], (R * 1.8 + Tw) * k * sk, c, 34 * al * fl, 0.5); });
+  [[1.0, c, 30], [0.6, L.mix(c, bright, 0.5), 30], [0.28, bright, 30]].forEach(function (lay) {
+    var m = lay[0], pts = [];
+    sil.forEach(function (p, ii) {
+      var dx = p[0] - cx, dy = p[1] - cy, dd = hyp(dx, dy) || 1, nx = dx / dd, ny = dy / dd;
+      var ext = R * (1 + 0.22 * Math.sin(t * 0.55 + ii * 1.7) + 0.14 * Math.sin(t * 1.35 - ii * 0.9));
+      ext += R * 0.6 * Math.abs(nx);
+      ext += Lf * 0.6 * Math.pow(Math.max(0, nx * gx + ny * gy), 1.5) * (1 + 0.25 * Math.sin(t * 0.8 + ii));
+      var back = Math.max(0, -(nx * ux + ny * uy)), tail = Math.pow(back, 1.5) * sp * AURA_STRETCH * react * ps, e = ext * m * k * sk;
+      var tl = tail * k * (m === 1.0 ? 0.6 : 0);   // only the outer skin streams back; the licks make the comet
+      pts.push([p[0] + nx * e - ux * tl, p[1] + ny * e - uy * tl]);
     });
+    pen.poly(pts, lay[1], lay[2] * al * fl);
   });
-  // 3: energy streaks shooting up through it
-  for (i = 0; i < Math.max(0, Math.round(16 * dens)); i++) {
-    r = L.rngFor(inst.seed, i, 211);
-    var x0 = r.uniform(-0.85, 0.85), per = r.uniform(10, 20), ph = r(), ln = r.uniform(0.12, 0.28) * H;
-    u = frac(t / per + ph);
-    var y = yb - u * H * 1.05, x = cx + x0 * auraW(Math.min(1, u), W, t, x0 > 0 ? 1 : -1) * 0.9;
-    pen.line(x, y, x, y - ln, L.mix(c, HOT, 0.55), 200 * Math.sin(PI * u) * al, 1.3 * ps);
+  // 4: flame licks born on the body's edge, rising and lagging behind the motion
+  for (b = Math.max(0, t - AURA_LICK_LIFE + 1); b <= t; b++) {
+    if (b >= act) break;
+    var bk = auraK(P, b)[0], bs = auraSurge(inst, P, b)[0], silb = auraSil(inst, ps, b), bc = centroid(silb);
+    var bv = auraVel(inst, b), bvx = bv[0], bvy = bv[1];
+    a = t - b;
+    for (j = 0; j < Math.max(0, Math.round(AURA_RATE * dens * bs)); j++) {
+      r = L.rngFor(inst.seed, b, 271 + j);
+      var ep = silb[Math.min(n - 1, Math.trunc(r() * n))], ex = ep[0], ey = ep[1];
+      var ldx = ex - bc[0], ldy = ey - bc[1], ld = hyp(ldx, ldy) || 1, nx = ldx / ld, ny = ldy / ld;
+      var off = R * r.uniform(0.2, 1.1) * bk, life = AURA_LICK_LIFE * r.uniform(0.6, 1.0), u = a / life;
+      if (u >= 1) continue;
+      var rise = AURA_RISE * ps * r.uniform(0.8, 1.35) * bs, keep = 1 - AURA_LAG * react;
+      var wx = nx * 0.7 * ps + bvx * keep, wy = -rise + ny * 0.35 * ps + bvy * keep;
+      var ph = r.uniform(0, PI * 2), sway = Math.sin(a * 0.45 + ph) * 1.6 * ps * u;
+      var rx = nx * 0.7 * ps - bvx * AURA_LAG * react, ry = -rise + ny * 0.35 * ps - bvy * AURA_LAG * react, rl = hyp(rx, ry) || 1;
+      var fx_ = rx / rl, fy_ = ry / rl;
+      var px = ex + nx * off + wx * a - fy_ * sway, py = ey + ny * off + wy * a + fx_ * sway;
+      var ln = Lf * r.uniform(0.55, 1.0) * (0.45 + 0.8 * Math.sin(PI * Math.min(1, u * 1.15))) * (1 + 0.1 * rl / ps) * bk;
+      var w = Tw * r.uniform(0.7, 1.2) * Math.pow(1 - u, 0.5) * bk;
+      var fade = Math.sin(PI * Math.min(1, 0.15 + u * 0.85)) * al, bend = Math.sin(a * 0.3 + ph) * w * 1.2;
+      pen.poly(lick(px, py, fx_, fy_, ln, w, bend), c, 60 * fade);
+      pen.poly(lick(px, py, fx_, fy_, ln * 0.7, w * 0.5, bend * 0.7), L.mix(c, bright, 0.6), 50 * fade);
+      if (u < 0.45) pen.poly(lick(px, py, fx_, fy_, ln * 0.4, w * 0.22, bend * 0.4), HOT, 55 * fade * (1 - u / 0.45));
+    }
   }
-  // 4: glow ring at the feet, pebbles lifting off the ground
-  pen.ring(cx, yb, W * 1.5, W * 0.32, 0, c, 120 * al * fl, 2 * ps);
-  pen.ring(cx, yb, W * 0.95, W * 0.2, 0, HOT, 110 * al, 1 * ps);
-  for (i = 0; i < Math.max(0, Math.round(6 * dens)); i++) {
-    r = L.rngFor(inst.seed, i, 221);
-    var per2 = r.uniform(30, 50), ph2 = r(), px = cx + r.uniform(-1.4, 1.4) * W, sz = r.uniform(1.2, 2.2) * ps;
-    u = frac(t / per2 + ph2);
-    pen.glow(px, yb - u * H * 0.7, sz * 2.2, L.mix(c, HOT, 0.3), 150 * Math.sin(PI * u) * al, 0.6);
+  // 5: sparks of energy rising off it (kept behind as it moves)
+  for (b = Math.max(0, t - 23); b <= t; b++) {
+    if (b >= act) break;
+    var silc = auraSil(inst, ps, b), cv = auraVel(inst, b);
+    a = t - b;
+    for (j = 0; j < Math.max(0, Math.round(1 * dens)); j++) {
+      r = L.rngFor(inst.seed, b, 291 + j);
+      var sp0 = silc[Math.min(n - 1, Math.trunc(r() * n))], lf = r.uniform(14, 24);
+      if (a >= lf) continue;
+      q = a / lf;
+      var rs = AURA_RISE * ps * r.uniform(1.2, 2.0), kp = 1 - AURA_LAG * react;
+      var sx = sp0[0] + (cv[0] * kp) * a + r.uniform(-1, 1) * R * 0.5, sy = sp0[1] + (cv[1] * kp - rs) * a;
+      var tl = 2 * ps + rs * 1.2 + sp * react * 0.8;
+      var lx = cv[0] * AURA_LAG * react, ly = rs + cv[1] * AURA_LAG * react, ll = hyp(lx, ly) || 1;
+      pen.line(sx, sy, sx + lx / ll * tl, sy + ly / ll * tl, L.mix(c, HOT, 0.6), 200 * (1 - q) * al, 1.1 * ps);
+      pen.glow(sx, sy, 2.2 * ps, HOT, 200 * (1 - q) * al, 0.6);
+    }
   }
-  // 5: ignition flash and shock ring
-  var Ti = ti(P, "swing_ticks", 1);
-  if (t < 6) pen.glow(cx, cy, (0.6 + 0.8 * t / 6) * Math.max(W, 0.5 * H), HOT, 230 * (1 - t / 6));
-  var a = t - Math.floor(Ti / 2);
-  if (a >= 0 && a < 14) {
-    var q = a / 14, rr = +P.radius * ps * (1 + 2.5 * L.easeOut3(q));
-    pen.ring(cx, cy, rr, rr * 0.8, 0, c, 200 * (1 - q), 3 * ps * (1 - q) + 0.2);
+  // 6: a white-hot rim hugging the body
+  var rim = sil.map(function (p) {
+    var dx = p[0] - cx, dy = p[1] - cy, dd = hyp(dx, dy) || 1;
+    return [p[0] + dx / dd * 1.5 * ps, p[1] + dy / dd * 1.5 * ps];
+  });
+  rim.push(rim[0]);
+  pen.polyline(rim, c, 80 * al * k, 3 * ps);
+  pen.polyline(rim, HOT, 110 * al * fl * k, 1 * ps);
+  // 7: speed lines streaming off it when it moves fast
+  if (sp * react > 2) {
+    var g = Math.min(1, (sp * react - 2) / 4);
+    for (j = 0; j < Math.max(0, Math.round(8 * dens)); j++) {
+      r = L.rngFor(inst.seed, t, 301 + j);
+      var e2 = sil[Math.min(n - 1, Math.trunc(r() * n))], sl = sp * r.uniform(2, 5) * react;
+      pen.line(e2[0], e2[1], e2[0] - ux * sl, e2[1] - uy * sl, L.mix(c, HOT, 0.5), 170 * g * al, 1.1 * ps);
+    }
   }
-  // 6: Super Saiyan 2 lightning, every now and then
-  if (P.lightning && al > 0) {
-    var pSlot = Math.min(1, Math.max(0, +P.lightning_rate || 0) * AURA_SLOT * FXK().TICK_MS / 1000);
-    var act = activeTicks(P), sNow = Math.floor(t / AURA_SLOT);
+  // 8: ignition — a flash and a shock ring (Burst on)
+  if (P.aura_burst) {
+    if (t < 6) pen.glow(cx, cy, (halfW + R) * (1.6 + 1.5 * t / 6), HOT, 240 * (1 - t / 6));
+    a = t - Math.floor(Ti / 3);
+    if (a >= 0 && a < 18) {
+      q = a / 18;
+      var rr = (halfW + R) * (1.2 + 4 * L.easeOut3(q));
+      pen.ring(cx, cy, rr, rr * 0.85, 0, c, 210 * (1 - q), 3.5 * ps * (1 - q) + 0.2);
+      pen.ring(cx, feetY, rr * 1.2, rr * 0.3, 0, HOT, 170 * (1 - q), 2 * ps * (1 - q) + 0.2);
+    }
+  }
+  // 9: a power surge flares a ring off the body as it starts
+  if (sb !== null) {
+    a = t - sb;
+    if (a < 12) {
+      q = a / 12;
+      var sr = (halfW + R) * (1.3 + 2 * L.easeOut3(q));
+      pen.ring(cx, cy, sr, sr * 1.15, 0, bright, 160 * (1 - q), 2.2 * ps * (1 - q) + 0.2);
+    }
+  }
+  // 10: Super Saiyan 2 lightning, every now and then, crackling over the body
+  if (P.lightning) {
+    var pSlot = Math.min(1, Math.max(0, +P.lightning_rate || 0) * AURA_SLOT * FXK().TICK_MS / 1000), sNow = Math.floor(t / AURA_SLOT);
     for (var s = Math.max(0, sNow - 2); s <= sNow; s++) {
-      for (var j = 0; j < 2; j++) {
+      for (j = 0; j < 2; j++) {
         r = L.rngFor(inst.seed, s, 231 + j);
         if (r() >= pSlot * (j === 0 ? 1 : 0.35)) continue;
-        var b = s * AURA_SLOT + Math.trunc(r() * AURA_SLOT), kk = t - b;
+        b = s * AURA_SLOT + Math.trunc(r() * AURA_SLOT);
+        var kk = t - b;
         if (kk < 0 || kk >= AURA_BOLT_LIFE || b >= act) continue;
-        var f = AURA_BOLT_FLICKER[kk] * al;
-        var bx0 = cx + r.uniform(-0.8, 0.8) * W, by0 = cy + r.uniform(-0.45, 0.35) * H;
+        var f = AURA_BOLT_FLICKER[kk] * al, bp0 = sil[Math.min(n - 1, Math.trunc(r() * n))];
+        var bx0 = bp0[0], by0 = bp0[1];
+        bx0 += (cx - bx0) * r.uniform(0, 0.5);
+        by0 += (cy - by0) * r.uniform(0, 0.5);
         var ang = r.uniform(0, PI * 2), len = r.uniform(12, 28) * ps * k;
         var rj = L.rngFor(inst.seed, s * 7 + j, 240 + kk);   // the bolt re-jags every tick
         var pts = bolt(rj, bx0, by0, ang, len, 6, 5 * ps), bp = pts[3];
@@ -218,6 +343,44 @@ function drawAura(pen, inst, host, ps) {
         pen.polyline(br, HOT, 220 * f, 0.8 * ps);
       }
     }
+  }
+}
+function auraCracks(pen, inst, P, ps, c, t, act) {   // cracks spreading from the feet as it ignites
+  var L = L_(), s0 = auraSil(inst, ps, 0), x0 = centroid(s0)[0], y0 = -Infinity, half = 0;
+  s0.forEach(function (p) { y0 = Math.max(y0, p[1]); });
+  s0.forEach(function (p) { half = Math.max(half, Math.abs(p[0] - x0)); });
+  var grow = L.easeOut3(t / 10), fade = t < act ? 1 : Math.max(0, 1 - (t - act) / AURA_FADE), hot = Math.max(0, 1 - t / 45);
+  for (var i = 0; i < AURA_CRACKS; i++) {
+    var r = L.rngFor(inst.seed, i, 311), an = (i + r.uniform(-0.3, 0.3)) * 2 * PI / AURA_CRACKS, ln = half * r.uniform(2, 4) * grow;
+    var pts = [[x0, y0]];
+    for (var m = 1; m < 6; m++) {
+      var u = m / 5, j = r.uniform(-1, 1) * 0.35;
+      pts.push([x0 + Math.cos(an + j) * ln * u, y0 + Math.sin(an + j) * ln * u * 0.3]);
+    }
+    pen.polyline(pts, CRACK, 200 * fade, 1.6 * ps);
+    if (hot > 0) { pen.add(true); pen.polyline(pts, c, 170 * hot * fade, 0.9 * ps); pen.add(false); }
+  }
+}
+function auraRocks(pen, inst, P, ps, c, t, act) {   // rocks lifting off the ground round the feet
+  var L = L_();
+  for (var b = Math.max(0, t - AURA_ROCK_LIFE); b <= Math.min(t, act); b += AURA_ROCK_EVERY) {
+    var bv = auraVel(inst, b);
+    if (hyp(bv[0], bv[1]) > 1.5) continue;   // only off the ground it stands on
+    var a = t - b, silb = auraSil(inst, ps, b), x0 = centroid(silb)[0], y0 = -Infinity, half = 0;
+    silb.forEach(function (p) { y0 = Math.max(y0, p[1]); half = Math.max(half, Math.abs(p[0] - x0)); });
+    var r = L.rngFor(inst.seed, b, 321), life = AURA_ROCK_LIFE * r.uniform(0.6, 1.0);
+    if (a >= life) continue;
+    var q = a / life;
+    var x = x0 + r.uniform(-2.4, 2.4) * half + Math.sin(a * 0.12 + r() * 6) * 2 * ps;
+    var y = y0 + r.uniform(-2, 3) * ps - r.uniform(0.35, 0.9) * ps * a;
+    var sz = r.uniform(1.0, 2.6) * ps, rot = r.uniform(0, PI) + a * r.uniform(-0.08, 0.08);
+    var fa = Math.min(1, a / 6) * Math.pow(1 - q, 0.7), pts = [];
+    for (var m = 0; m < 4; m++) {
+      var ra = rot + m * 1.6 + 0.3 * (m % 2), rk = 0.8 + 0.3 * (m % 2);
+      pts.push([x + Math.cos(ra) * sz * rk, y + Math.sin(ra) * sz * rk]);
+    }
+    pen.poly(pts, ROCK, 230 * fa);
+    pen.add(true); pen.glow(x, y - sz * 0.4, sz * 1.6, c, 90 * fa); pen.add(false);
   }
 }
 
@@ -920,6 +1083,6 @@ function draw(pen, inst, host, ps) {
   else drawBlackhole(pen, inst, host, ps);
 }
 
-G.POWERFX = {STYLES: STYLES, PULL_STYLES: PULL_STYLES, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
+G.POWERFX = {STYLES: STYLES, PULL_STYLES: PULL_STYLES, AURA_N: AURA_N, outlineFromAlpha: outlineFromAlpha, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
              hit: hit, body: body, onHit: onHit, draw: draw};
 })(window);

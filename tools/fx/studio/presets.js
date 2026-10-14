@@ -122,10 +122,16 @@ G.FX_PRESETS = [
   // ---------------------------------------------------------------- power techniques
   // Hand-drawn (prim "technique", laser/powerfx.py + powerfx.js).  The
   // gigantic meteor and black hole pull the opposing fighter in Battle.
-  {name: "Super Saiyan aura", group: "Power techniques", desc: "A golden flame aura round the fighter: three flame layers, tongues licking off the crown, energy streaks shooting up, a glow ring at the feet and pebbles lifting off the ground. Ignites with a flash and a shock ring. Lightning on = Super Saiyan 2 sparks crackling over it every now and then (Lightning rate per second). Visual only",
+  {name: "Super Saiyan 2 aura", group: "Power techniques", desc: "The Super Saiyan aura with SSJ2 lightning crackling over it",
+   effects: [{prim: "technique", name: "Super Saiyan 2 aura", tag: "aura", anchor: "figure", layer: "behind", blend: "additive",
+     motion: {kind: "attached"}, color: {mode: "gradient", c1: "#ffe14a", c2: "#ff9d00"},
+     params: {style: "ssj_aura", radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: true, lightning_rate: 2,
+       aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true, density: 1}}]},
+  {name: "Super Saiyan aura", group: "Power techniques", desc: "A Super Saiyan aura shaped to the fighter's body, with flame physics: straight up at rest, streaming behind when it moves, a comet trail when it flies fast. Power-up burst, rising rocks, power surges, ground cracks and SSJ2 lightning can each be switched on or off. Visual only",
    effects: [{prim: "technique", name: "Super Saiyan aura", tag: "aura", anchor: "figure", layer: "behind", blend: "additive",
      motion: {kind: "attached"}, color: {mode: "gradient", c1: "#ffe14a", c2: "#ff9d00"},
-     params: {style: "ssj_aura", radius: 22, thickness: 7, length: 62, swing_ticks: 12, hold_ticks: 240, lightning: true, lightning_rate: 1.5, density: 1}}]},
+     params: {style: "ssj_aura", radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: false, lightning_rate: 1.5,
+       aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true, density: 1}}]},
   {name: "Rasen-shuriken", group: "Power techniques", desc: "An orb of wind charges with four blades spinning up, is thrown at the target and bursts into a huge sphere of countless needle cuts that keeps hitting until it collapses (Pierce + Re-hit 6)",
    effects: [{prim: "technique", name: "Rasen-shuriken", tag: "energy", anchor: "figure", blend: "additive",
      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 6, knockback: 0},

@@ -528,11 +528,19 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
 - **Power techniques (`laser/powerfx.py`, Studio: `powerfx.js`).** Anime
   signature moves, each a technique style with its own preset in the Studio's
   "Power techniques" group:
-  - `ssj_aura` — Super Saiyan aura: a three-layer flame silhouette round the
-    fighter with tongues off the crown, rising streaks, a feet ring and
-    lifting pebbles; ignites with a flash + shock ring, burns Hold ticks.
-    **Lightning** (checkbox) adds SSJ2 sparks: one roll every 4 ticks at
-    **Lightning rate** per second, each bolt re-jagged every tick for 6.
+  - `ssj_aura` — Super Saiyan aura (modern style) shaped to the fighter's
+    own silhouette, with flame physics. Each tick the technique records the
+    body outline (`inst.tq_sil`: `AURA_N` points from `host.outline`, read
+    off the sprite on screen with `powerfx.outline_from_alpha`; an ellipse
+    when there is no sprite). Flame licks are born on that edge and rise,
+    keeping only `1 - AURA_LAG × reaction` of the fighter's speed, so they
+    stand straight up at rest and stream behind it on the move; the aura's
+    skin is pushed out along the flow and its outer layer streams back into
+    a comet at speed, with speed lines. **Movement reaction %** (Span) scales
+    all of it. Toggles: power-up burst (flash, shock rings, dust blast),
+    rising rocks (only while standing), power surges (a flare-up at most
+    every 90 ticks), ground cracks, SSJ2 lightning (crackling over the body,
+    **Lightning rate** per second).
   - `rasen_shuriken` — charge (Swing ticks), throw at the target (aim and
     range taken where the target was at launch, `inst.tq_tp`), then a sphere
     of needle cuts (Thickness = radius) for Hold ticks. A hit in flight sets
