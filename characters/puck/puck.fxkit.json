@@ -11834,8 +11834,8 @@
   "afterimages": false,
   "during_attacks": true,
   "invulnerable": false,
-  "invuln_ms": 50,
-  "counter_action": "",
+  "invuln_ms": 0,
+  "counter_action": "attack_special",
   "counter_delay_ms": 0,
   "counter_range_px": 0,
   "logic": "any",
@@ -13816,7 +13816,7 @@
     "deflectable": false
    },
    "intercept": {
-    "enabled": true,
+    "enabled": false,
     "radius": 90,
     "turn_deg": 10,
     "contact": 10,
@@ -13827,109 +13827,6 @@
    "follow_dir": true,
    "keys": [],
    "always_on": true,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false,
-   "char_every_ms": 0
-  },
-  {
-   "prim": "sprite",
-   "name": "Halo ring",
-   "tag": "holy",
-   "anchor": "hip",
-   "life_ticks": 0,
-   "emit": {
-    "count": 17,
-    "every_ticks": 1,
-    "fan_deg": 0
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 1,
-    "pierce": true,
-    "rehit_ticks": 1,
-    "knockback": 30,
-    "blockable": false,
-    "deflectable": false
-   },
-   "motion": {
-    "kind": "orbit",
-    "orbit_rx": 0,
-    "orbit_ry": 0,
-    "orbit_deg": 14.84,
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "c1": "#00c8f0",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "shape": "orb",
-    "radius": 1.5,
-    "fade": false,
-    "trail_len": 0,
-    "glow": 0,
-    "glow_size": 105,
-    "stretch": 3,
-    "hot": false,
-    "halo": true,
-    "lodge_ms": 1500,
-    "blade_orient": "motion",
-    "blade_angle_deg": 90
-   },
-   "keys": [
-    {
-     "frame": 6,
-     "ease": "elastic",
-     "set": {
-      "motion.orbit_rx": 80,
-      "motion.orbit_ry": 80
-     }
-    }
-   ],
-   "id": "Emusf4ho01",
-   "action": "defend",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "start_frame": 1,
-   "end_frame": 1,
-   "continuous": false,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "always_on": false,
    "cycles": {
     "enabled": false,
     "count": 0
