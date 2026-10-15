@@ -13,9 +13,11 @@ posture with the chin up, a bouncy push-and-glide rhythm with the hips
 swaying into each push, and arms / guns that lag a beat behind the body
 (follow-through), so nothing moves stiffly at once.
 
-  run                 real skating: just the 4 key poses (push / tuck /
-                      set / down, see SKATE_KEYS), no in-betweens: 4
-                      frames.  Arms swing loose, pistols dangling.
+  run                 the cool cruiser skate (SKATE_CRUISE): 3 key poses per
+                      push, mirrored, one in-between each = 12 frames.
+  skate_chase         the aggressive skate (SKATE_CHASE), same count and
+                      timing; the game shows it instead of run while the
+                      glide is closing in (movement.glide.chase_frames).
   attack_normal       the same legs; both pistols out at the target, the guns
                       kicking alternately (near gun on frames 1, 5, 9, 13, far
                       gun on 3, 7, 11, 15), in step with the shots
@@ -61,40 +63,58 @@ Z_SIDE = 7.0                   # depth of the near (+) / far (-) shoulder and hi
 
 STANCE = 0.66                  # share of the cycle a foot is on the ground
 
-# Real skating (run, attack_normal, twirl), built from key poses rather than
-# a curve per frame.  One leg's cycle has four keys; the far leg runs half a
-# cycle behind, so the body passes through two mirrored halves:
-#   push    the leg driven out behind and to the side, fully straight
-#   tuck    it snaps back in under the hips, blade just off the ice
-#   set     it lands ahead, nearly straight, and starts to glide
-#   down    it glides under the body, knee soft, carrying the weight
-# Each key is (leg phase, x from HIP_X, lift, z out to the side, ease into
-# the NEXT key).  Spacing does the work: the leg snaps out of the push (out),
-# carries through the glide (linear) and accelerates into the next push (in).
-# The legs are solved in 3D (z = toward the viewer) and projected, so a push
-# angled away reads shorter and sits higher, one toward the viewer longer
-# and lower.
-SKATE_KEYS = [
-    (0.00, -66.0, 14.0, 30.0, "out"),    # push: free leg trailing high and straight
-    (0.25, -2.0, 6.0, 6.0, "inout"),     # tuck: swinging through
-    (0.50, 14.0, 0.0, 0.0, "linear"),    # set: lands ahead, knee soft
-    (0.75, 2.0, 0.0, 0.0, "in"),         # down: glides under him
+# Skating is posed, not computed per frame: each style has three hand-set
+# KEY POSES for one push, and the other push is the same three mirrored (the
+# far leg and arm take the near one's place), so a stride is 6 keys.  Every
+# key gets ONE in-between, giving a 12-frame stride.  `spacing` is where that
+# in-between sits on the way to the next key (0.5 = halfway): > 0.5 snaps
+# away from the key, < 0.5 eases out of it and speeds into the next.
+#   extend   the push leg driven out behind, dead straight; the glide leg
+#            soft under the hips; the arms at the ends of their swing
+#   recover  the push leg snaps back under him, knee driving forward
+#   set      it lands ahead and takes the glide; the other leg starts out
+# Per key: hy = hips below HIP_Y, lean (degrees from vertical), head (chin
+# up, degrees), and for the leg/arm that pushes in this half (`lead`) and
+# the other one: foot (x from HIP_X, lift off the ice, out to the side) and
+# arm (upper-arm angle off straight down, elbow bend).  The legs are solved
+# in 3D (out = toward / away from the viewer) and projected, so a push
+# angled away reads shorter and higher, one toward the viewer longer and
+# lower.
+SKATE_CRUISE = [   # cool cruiser: circling the target, showing off
+    dict(hy=8.0, lean=36.0, head=8.0, spacing=0.65,
+         lead=dict(foot=(-66.0, 10.0, 30.0), arm=(-62.0, 6.0)),
+         other=dict(foot=(12.0, 0.0, 0.0), arm=(36.0, 40.0))),
+    dict(hy=9.0, lean=40.0, head=6.0, spacing=0.5,
+         lead=dict(foot=(-8.0, 8.0, 4.0), arm=(-48.0, 8.0)),
+         other=dict(foot=(4.0, 0.0, 0.0), arm=(30.0, 38.0))),
+    dict(hy=6.0, lean=35.0, head=10.0, spacing=0.35,
+         lead=dict(foot=(16.0, 0.0, 0.0), arm=(-6.0, 62.0)),
+         other=dict(foot=(-24.0, 0.0, 14.0), arm=(-26.0, 4.0))),
 ]
-SKATE_HIP_DROP = (4.0, 7.0)    # hips nearly level: he glides, he doesn't bob
-SKATE_LEAN = 34.0              # forward lean from vertical, degrees
-ARM_LAG = 0.1                  # arms swing a beat behind the legs
+SKATE_CHASE = [    # aggressive: closing in, one long diagonal like rapid
+    dict(hy=12.0, lean=48.0, head=14.0, spacing=0.65,
+         lead=dict(foot=(-84.0, 16.0, 20.0), arm=(-84.0, 4.0)),
+         other=dict(foot=(22.0, 0.0, 0.0), arm=(62.0, 34.0))),
+    dict(hy=13.0, lean=52.0, head=12.0, spacing=0.5,
+         lead=dict(foot=(-4.0, 12.0, 4.0), arm=(-66.0, 6.0)),
+         other=dict(foot=(6.0, 0.0, 0.0), arm=(48.0, 34.0))),
+    dict(hy=10.0, lean=47.0, head=16.0, spacing=0.35,
+         lead=dict(foot=(26.0, 0.0, 0.0), arm=(-4.0, 70.0)),
+         other=dict(foot=(-32.0, 0.0, 14.0), arm=(-34.0, 4.0))),
+]
 DEPTH_Y = 0.14                 # screen px down per px toward the viewer
 DEPTH_SCALE = 0.004            # length gain per px toward the viewer
+STRIDE_MS = 640.0              # one full stride (both pushes)
 
 # action: (frames, frame_ms)
 SPECS = {
-    "run": (4, 160.0),               # the 4 keys, nothing between: one stride = 640 ms
+    "run": (12, STRIDE_MS / 12),         # 6 keys + 1 in-between each
+    "skate_chase": (12, STRIDE_MS / 12), # same count / timing: swapped in for run
     "attack_normal": (16, 37.5),
     "skate_back_fire": (16, 37.5),   # matches attack_normal frame for frame
     "attack_normal_2": (16, 40.0),   # the spin: one turn in 640 ms
     "twirl": (16, 40.0),
 }
-
 
 def lerp(a, b, t):
     return a + (b - a) * t
@@ -158,25 +178,10 @@ def P3(p, z):
     return (p[0], p[1], z)
 
 
-def torso(phase, upright=0.0, skate=False):
-    """Hip, chest, neck, head and the shoulder / hip points for the stride:
-    a bouncy double-beat bob, hips swaying into each push, the lean breathing
-    with it, the head riding a beat late with the chin up.  skate=True leans
-    further and rides high on the straight legs of each push, low through
-    the tuck and glide."""
-    if skate:
-        hi, lo = SKATE_HIP_DROP
-        drop = lerp(hi, lo, 0.5 - 0.5 * math.cos(4 * math.pi * phase))
-        hip = (HIP_X, HIP_Y + drop)
-        lean = SKATE_LEAN - upright + 2.0 * math.cos(4 * math.pi * phase)
-    else:
-        bob = 5.5 * abs(math.sin(2 * math.pi * phase))   # bounce on each push
-        sway = 3.0 * wave(phase, 0.1)
-        hip = (HIP_X + sway, HIP_Y + bob)
-        lean = LEAN - upright + 3.0 * wave(phase, 0.05, 2)
+def body(hip, lean, head_tilt):
+    """Chest, neck, head and the shoulder / hip points over `hip`."""
     neck = pol(hip, 180 - lean, TORSO)                   # 180 = straight up
     chest = pol(hip, 180 - lean, TORSO * 0.54)
-    head_tilt = 180 - lean * 0.2 + 4.0 * wave(phase, 0.18, 2)   # chin up, late bob
     head = pol(neck, head_tilt, 19.0)
     return dict(hip=P3(hip, 0), chest=P3(chest, 0), neck=P3(neck, 0), head=P3(head, 0),
                 shB=P3((neck[0], neck[1] + 1.0), 0),
@@ -186,31 +191,25 @@ def torso(phase, upright=0.0, skate=False):
                 hpR=P3((hip[0] - 1.0, hip[1] + 2.4), Z_SIDE))
 
 
+def torso(phase, upright=0.0):
+    """Body for the backward skate and the spin: a bouncy double-beat bob,
+    hips swaying, the lean breathing with it, the head riding a beat late
+    with the chin up."""
+    bob = 5.5 * abs(math.sin(2 * math.pi * phase))       # bounce on each push
+    sway = 3.0 * wave(phase, 0.1)
+    hip = (HIP_X + sway, HIP_Y + bob)
+    lean = LEAN - upright + 3.0 * wave(phase, 0.05, 2)
+    return body(hip, lean, 180 - lean * 0.2 + 4.0 * wave(phase, 0.18, 2))
+
+
 def legs(j, phase, back=False):
-    """Skating legs: near leg at phase, far leg half a cycle later."""
+    """Backward-skating legs: near leg at phase, far leg half a cycle later."""
     for side, ph in (("R", phase), ("L", phase + 0.5)):
         hp = j["hp" + side]
         dx, lift = foot_pos(ph, back)
         kn, ft = ik(hp[:2], (HIP_X + dx, GROUND - lift), THIGH, SHIN, +1)
         j["kn" + side] = P3(kn, hp[2])
         j["ft" + side] = P3(ft, hp[2])
-
-
-EASES = {"linear": lambda t: t, "in": lambda t: t * t,
-         "out": lambda t: 1 - (1 - t) * (1 - t), "inout": ease_inout}
-
-
-def skate_foot(p):
-    """Foot (x offset from HIP_X, lift, z out to the side) for leg phase p,
-    eased between the two SKATE_KEYS either side of it."""
-    p %= 1.0
-    for k, key in enumerate(SKATE_KEYS):
-        nxt = SKATE_KEYS[(k + 1) % len(SKATE_KEYS)]
-        end = nxt[0] if nxt[0] > key[0] else 1.0
-        if key[0] <= p < end:
-            t = EASES[key[4]]((p - key[0]) / (end - key[0]))
-            return tuple(lerp(key[i], nxt[i], t) for i in (1, 2, 3))
-    return SKATE_KEYS[0][1:4]
 
 
 def ik3(a, target, l1, l2):
@@ -241,55 +240,59 @@ def project(p, about):
             about[1] + (p[1] - about[1]) * fy + z * DEPTH_Y, p[2])
 
 
-def skate_legs(j, phase):
-    """Skating legs in 3D: near leg at phase, far leg half a cycle later.
-    The near leg pushes out toward the viewer, the far leg away."""
+def _sided(key, mirrored):
+    """A key's limbs by side: the near (R) side leads the first push."""
+    lead, other = ("L", "R") if mirrored else ("R", "L")
+    return {lead: key["lead"], other: key["other"]}
+
+
+def skate_params(keys, phase):
+    """The pose at `phase` of the stride: which of the 6 keys (3 + their
+    mirror) it falls after, and how far on, spaced by that key's `spacing`."""
+    seg_f = (phase % 1.0) * 6.0
+    seg = int(seg_f) % 6
+    t = seg_f - int(seg_f)
+    k, mirrored = seg % 3, seg >= 3
+    a, b = keys[k], keys[(k + 1) % 3]
+    b_mirrored = (not mirrored) if k == 2 else mirrored
+    p = math.log(a["spacing"]) / math.log(0.5)           # t ** p passes spacing at 0.5
+    e = t ** p
+    sa, sb = _sided(a, mirrored), _sided(b, b_mirrored)
+    out = {n: lerp(a[n], b[n], e) for n in ("hy", "lean", "head")}
+    for side in ("R", "L"):
+        out["foot" + side] = tuple(lerp(u, v, e) for u, v in zip(sa[side]["foot"], sb[side]["foot"]))
+        out["arm" + side] = tuple(lerp(u, v, e) for u, v in zip(sa[side]["arm"], sb[side]["arm"]))
+    return out
+
+
+def skate_body(keys, phase, upright=0.0):
+    """Torso and legs of the skating pose at `phase`; the arm angles ride
+    along under _arm<side> for skate_arms."""
+    q = skate_params(keys, phase)
+    lean = q["lean"] - upright
+    j = body((HIP_X, HIP_Y + q["hy"]), lean, 180 - lean * 0.6 + q["head"] * 0.5)
     hip = j["hip"]
-    for side, ph, out in (("R", phase, 1.0), ("L", phase + 0.5, -1.0)):
+    for side, out in (("R", 1.0), ("L", -1.0)):
         hp = j["hp" + side]
-        dx, lift, z = skate_foot(ph)
-        kn, ft = ik3(hp, (HIP_X + dx, GROUND - lift, hp[2] + out * z), THIGH, SHIN)
+        x, lift, o = q["foot" + side]
+        kn, ft = ik3(hp, (HIP_X + x, GROUND - lift, hp[2] + out * o), THIGH, SHIN)
         j["kn" + side] = project(kn, hip)
         j["ft" + side] = project(ft, hip)
+        j["_arm" + side] = q["arm" + side]
+    return j
 
 
-def arms_swing(j, phase):
-    """Loose balance swing opposite the legs.  The forearm trails the upper
-    arm and the pistol trails the forearm, so the hands whip through."""
-    for side, sign in (("R", 1.0), ("L", -1.0)):
+def skate_arms(j, sides=("R", "L")):
+    """Arms from the key angles; the pistols hang off the fingers, trailing
+    the forearm, so they dangle rather than aim."""
+    for side in sides:
+        a, bend = j["_arm" + side]
         sh = j["sh" + side]
-        s = sign * wave(phase, STANCE - 0.25)
-        s_late = sign * wave(phase, STANCE - 0.25 + 0.08)
-        s_later = sign * wave(phase, STANCE - 0.25 + 0.16)
-        a = 2.0 + 58.0 * s                               # degrees off straight down
-        bend = 14.0 + 30.0 * max(0.0, s_late)            # elbow folds on the way up
         el = pol(sh[:2], a, UPPER)
         ha = pol(el, a + bend, FORE)
         j["el" + side] = P3(el, sh[2])
         j["ha" + side] = P3(ha, sh[2])
-        # guns hang loose off the fingers and swing a beat late
-        j["_gun" + side] = (a + bend - 25.0 + 30.0 * s_later, 1.0)
-
-
-def arms_skate(j, phase):
-    """Skater's arm swing: each arm swings forward as the opposite leg
-    pushes and back as its own leg pushes.  The forearm trails the upper arm
-    and the pistols hang off the fingers, swinging a beat late, so the guns
-    dangle rather than aim."""
-    peak = 0.5 + ARM_LAG                                 # far leg's push key, dragged
-    for side, sign in (("R", 1.0), ("L", -1.0)):
-        sh = j["sh" + side]
-        s = sign * math.cos(2 * math.pi * (phase - peak))
-        s_late = sign * math.cos(2 * math.pi * (phase - peak - 0.08))
-        s_later = sign * math.cos(2 * math.pi * (phase - peak - 0.16))
-        a = 40.0 * s if s > 0 else 66.0 * s              # easy swing forward, big swing back
-        bend = 8.0 + 40.0 * max(0.0, s_late)             # elbow relaxes as it comes forward
-        el = pol(sh[:2], a, UPPER)
-        ha = pol(el, a + bend, FORE)
-        j["el" + side] = P3(el, sh[2])
-        j["ha" + side] = P3(ha, sh[2])
-        j["_gun" + side] = ((a + bend) * 0.45 - 8.0 + 22.0 * s_later, 1.0)
-
+        j["_gun" + side] = ((a + bend) * 0.5 - 10.0, 1.0)
 
 def arms_fire(j, frame):
     """Both pistols out at the target, the near arm locked straight, the far
@@ -311,17 +314,17 @@ def pose(action, i, n):
     phase = i / n
     if action == "attack_normal_2":
         return spin_pose(i, n)
-    upright = 7.0 if action in ("attack_normal", "skate_back_fire") else 0.0
     if action == "skate_back_fire":                     # backward legs: own pass later
-        j = torso(phase, upright)
+        j = torso(phase, 7.0)
         legs(j, phase, back=True)
-    else:
-        j = torso(phase, upright, skate=True)
-        skate_legs(j, phase)
-    if action in ("attack_normal", "skate_back_fire"):
+        arms_fire(j, i)
+        return j
+    keys = SKATE_CHASE if action == "skate_chase" else SKATE_CRUISE
+    j = skate_body(keys, phase, 7.0 if action == "attack_normal" else 0.0)
+    if action == "attack_normal":
         arms_fire(j, i)
     elif action == "twirl":
-        arms_skate(j, phase)
+        skate_arms(j, ("L",))
         # near hand up by the head, pistol spinning twice round the finger
         sh = j["shR"]
         el = pol(sh[:2], 112.0, UPPER)
@@ -330,9 +333,8 @@ def pose(action, i, n):
         j["_gunR"] = (90.0 - 720.0 * phase, 1.0)
         j["_twirl"] = True
     else:
-        arms_skate(j, phase)
+        skate_arms(j)
     return j
-
 
 def spin_pose(i, n):
     """A full turn about the vertical axis on both skates, arms flung wide."""
@@ -466,7 +468,7 @@ def build(action, n):
 
 
 # how each generated action is triggered (the FX file decides the details)
-TRIGGERS = {"run": "moving", "attack_normal": "in_range", "skate_back_fire": "",
+TRIGGERS = {"run": "moving", "skate_chase": "", "attack_normal": "in_range", "skate_back_fire": "",
             "attack_normal_2": "in_range", "twirl": ""}
 
 
