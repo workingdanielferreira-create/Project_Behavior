@@ -163,6 +163,11 @@ class Figure:
         # facing left.  Off (None) for every figure that doesn't use it.
         if c.action_anim:
             ex = b.extra.get(c.action_anim)
+            alt = m.glide_alt
+            if alt is not None and alt[0] == c.action_anim and b.extra.get(alt[1]):
+                # Glide skating backwards (motion.update): the action's
+                # backward-skating frames, same upper body / anchors.
+                ex = b.extra[alt[1]]
             if ex and ex[0]:
                 fs = ex[1] if left else ex[0]
                 return fs[max(0, min(c.action_idx, len(fs) - 1))]

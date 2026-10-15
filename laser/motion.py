@@ -7,6 +7,8 @@ is handled separately by the combat system, which short-circuits before this
 runs when a figure is mid-attack.
 """
 
+import math
+
 from . import config
 from . import combat as _combat
 
@@ -69,15 +71,24 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
 
     fig.face(ox, oy)
     g = glide_cfg(fig)
-    if g is not None and g["face_target_attacking"] and fig.aim is None:
-        # Skate-and-shoot: while an attack plays the glide carries on but
-        # the fighter turns to the target, so both pistols fire forward.
+    m.glide_alt = None
+    if g is not None:
         anim = fig.combat.action_anim or ""
-        if anim.startswith("attack"):
+        if g["face_target_attacking"] and fig.aim is None and anim.startswith("attack"):
+            # Skate-and-shoot: while an attack plays the glide carries on but
+            # the fighter turns to the target, so both pistols fire forward.
             if tx - t.x < -0.001:
                 t.facing_left = True
             elif tx - t.x > 0.001:
                 t.facing_left = False
+        # Skating backwards: speed along the facing below -BACK_ON px/tick
+        # (released above -BACK_OFF, so it doesn't flicker).  An action with
+        # backward_frames then shows those frames instead (Figure).
+        along = m.glide_vx * (-1.0 if t.facing_left else 1.0)
+        m.glide_back = along < (-GLIDE_BACK_OFF if m.glide_back else -GLIDE_BACK_ON)
+        alt = g["backward_frames"].get(anim) if m.glide_back else None
+        if alt:
+            m.glide_alt = (anim, alt)
     anchor = _combat.sprite_emitter_trail_anchor(fig)
     if anchor is not None:
         ax, ay = anchor
@@ -233,13 +244,20 @@ def _chase(fig, cx, cy, sf=1.0, offset=None):
 # its chase point and stopping, the fighter skates.  Its velocity is carried
 # from tick to tick and only steered toward where it wants to go (accel = the
 # share of the gap closed per tick), so it drifts through wide turns; and it
-# never parks — it circles its target at its chase distance (at least
+# never parks — it works round its target at its chase distance (at least
 # orbit_min_px), swapping which way round every swap_ms (random in the
-# range).  face_target_attacking: while an attack plays it faces the target
-# whichever way it is skating.  The target is the same point _chase uses
-# (cursor in Solo, battle target in Battle), so Solo and Battle match.
+# range).  weave_deg / weave_ms carve that line into S-curves (the heading
+# swings weave_deg either side, one full S every weave_ms); range_wobble
+# lets the distance breathe in and out by that share, so it flows into range
+# and back out.  face_target_attacking: while an attack plays it faces the
+# target whichever way it is skating.  backward_frames {action: frame set}:
+# while skating backwards that action shows the set instead.  The target is
+# the same point _chase uses (cursor in Solo, battle target in Battle), so
+# Solo and Battle match.
 GLIDE_DEFAULTS = dict(accel=0.08, orbit_min_px=60.0, swap_ms=[1500.0, 3500.0],
-                      face_target_attacking=True)
+                      face_target_attacking=True, weave_deg=0.0, weave_ms=1600.0,
+                      range_wobble=0.0, backward_frames={})
+GLIDE_BACK_ON, GLIDE_BACK_OFF = 0.8, 0.3     # px/tick against the facing
 
 
 def glide_cfg(fig):
@@ -268,6 +286,15 @@ def glide_cfg(fig):
         except (TypeError, ValueError, IndexError):
             pass
         cfg["face_target_attacking"] = bool(raw.get("face_target_attacking", True))
+        for k, lo, hi in (("weave_deg", 0.0, 89.0), ("weave_ms", 100.0, 60000.0),
+                          ("range_wobble", 0.0, 0.9)):
+            try:
+                cfg[k] = max(lo, min(hi, float(raw.get(k, cfg[k]))))
+            except (TypeError, ValueError):
+                pass
+        bf = raw.get("backward_frames")
+        cfg["backward_frames"] = ({str(a): str(b) for a, b in bf.items() if a and b}
+                                  if isinstance(bf, dict) else {})
     mode._glide_cache = cfg
     return cfg
 
@@ -285,8 +312,13 @@ def _glide(fig, cx, cy, sf=1.0, offset=None):
             m.glide_dir = -m.glide_dir
     else:
         m.glide_swap_ticks -= 1
+    m.glide_t += 1
     ox, oy = (m.offset_x, m.offset_y) if offset is None else offset
     ring = max(g["orbit_min_px"] * fig.mode.body_scale(), (ox * ox + oy * oy) ** 0.5)
+    period = g["weave_ms"] / config.TICK_MS
+    if g["range_wobble"] > 0.0:
+        # the distance breathes on a slower beat than the weave
+        ring *= 1.0 + g["range_wobble"] * math.sin(2 * math.pi * m.glide_t / (period * 2.7))
     dx, dy = t.x - cx, t.y - cy
     d = (dx * dx + dy * dy) ** 0.5
     if d < 1e-3:
@@ -297,6 +329,11 @@ def _glide(fig, cx, cy, sf=1.0, offset=None):
     pull = max(-3.0, min(3.0, (ring - d) / max(1.0, ring * 0.35)))
     vx = -uy * m.glide_dir + ux * pull
     vy = ux * m.glide_dir + uy * pull
+    if g["weave_deg"] > 0.0:
+        # carve: swing the heading either side of the line -> S-curves
+        w = math.radians(g["weave_deg"]) * math.sin(2 * math.pi * m.glide_t / period)
+        cw, sw = math.cos(w), math.sin(w)
+        vx, vy = vx * cw - vy * sw, vx * sw + vy * cw
     vn = (vx * vx + vy * vy) ** 0.5
     step = m.speed * sf
     vx, vy = vx / vn * step, vy / vn * step
