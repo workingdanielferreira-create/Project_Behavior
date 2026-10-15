@@ -13,9 +13,9 @@ posture with the chin up, a bouncy push-and-glide rhythm with the hips
 swaying into each push, and arms / guns that lag a beat behind the body
 (follow-through), so nothing moves stiffly at once.
 
-  run                 real skating from 4 key poses per leg (push / tuck /
-                      set / down, see SKATE_KEYS) with one eased in-between
-                      each: 8 frames.  Arms swing loose, pistols dangling.
+  run                 real skating: just the 4 key poses (push / tuck /
+                      set / down, see SKATE_KEYS), no in-betweens: 4
+                      frames.  Arms swing loose, pistols dangling.
   attack_normal       the same legs; both pistols out at the target, the guns
                       kicking alternately (near gun on frames 1, 5, 9, 13, far
                       gun on 3, 7, 11, 15), in step with the shots
@@ -75,19 +75,20 @@ STANCE = 0.66                  # share of the cycle a foot is on the ground
 # angled away reads shorter and sits higher, one toward the viewer longer
 # and lower.
 SKATE_KEYS = [
-    (0.00, -42.0, 0.0, 36.0, "out"),     # push
-    (0.25, -4.0, 9.0, 10.0, "inout"),    # tuck
-    (0.50, 16.0, 0.0, 0.0, "linear"),    # set
-    (0.75, 3.0, 0.0, 0.0, "in"),         # down
+    (0.00, -66.0, 14.0, 30.0, "out"),    # push: free leg trailing high and straight
+    (0.25, -2.0, 6.0, 6.0, "inout"),     # tuck: swinging through
+    (0.50, 14.0, 0.0, 0.0, "linear"),    # set: lands ahead, knee soft
+    (0.75, 2.0, 0.0, 0.0, "in"),         # down: glides under him
 ]
-SKATE_HIP_DROP = (3.0, 12.0)   # hips at the push / set keys, and at tuck / down
-SKATE_LEAN = 31.0              # forward lean from vertical, degrees
+SKATE_HIP_DROP = (4.0, 7.0)    # hips nearly level: he glides, he doesn't bob
+SKATE_LEAN = 34.0              # forward lean from vertical, degrees
+ARM_LAG = 0.1                  # arms swing a beat behind the legs
 DEPTH_Y = 0.14                 # screen px down per px toward the viewer
 DEPTH_SCALE = 0.004            # length gain per px toward the viewer
 
 # action: (frames, frame_ms)
 SPECS = {
-    "run": (8, 80.0),                # 4 keys + 1 in-between each: one stride = 640 ms
+    "run": (4, 160.0),               # the 4 keys, nothing between: one stride = 640 ms
     "attack_normal": (16, 37.5),
     "skate_back_fire": (16, 37.5),   # matches attack_normal frame for frame
     "attack_normal_2": (16, 40.0),   # the spin: one turn in 640 ms
@@ -275,14 +276,14 @@ def arms_skate(j, phase):
     pushes and back as its own leg pushes.  The forearm trails the upper arm
     and the pistols hang off the fingers, swinging a beat late, so the guns
     dangle rather than aim."""
-    peak = 0.5                                           # far leg's push key
+    peak = 0.5 + ARM_LAG                                 # far leg's push key, dragged
     for side, sign in (("R", 1.0), ("L", -1.0)):
         sh = j["sh" + side]
         s = sign * math.cos(2 * math.pi * (phase - peak))
         s_late = sign * math.cos(2 * math.pi * (phase - peak - 0.08))
         s_later = sign * math.cos(2 * math.pi * (phase - peak - 0.16))
-        a = 8.0 + 52.0 * s                               # degrees off straight down
-        bend = 10.0 + 42.0 * max(0.0, s_late)            # elbow folds on the way up
+        a = 40.0 * s if s > 0 else 66.0 * s              # easy swing forward, big swing back
+        bend = 8.0 + 40.0 * max(0.0, s_late)             # elbow relaxes as it comes forward
         el = pol(sh[:2], a, UPPER)
         ha = pol(el, a + bend, FORE)
         j["el" + side] = P3(el, sh[2])
