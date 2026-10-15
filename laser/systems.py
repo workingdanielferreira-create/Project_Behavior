@@ -109,22 +109,34 @@ class InputSystem(System):
         # collision (mirrors the Ctrl+Q / Ctrl+R pattern below).
         # While the pre-battle menu is open, a plain 1/2/3/4 tap also reveals
         # that slot's corner panel (lock or not — the panel is read-only).
+        # Ctrl+Shift+1..4: force ONE fighter's attack_special — 1 = P1's
+        # main fighter, 2 = P2's main, 3 = P1's extra (key '3'), 4 = P2's
+        # extra (key '4').  Queued like the manual ultimate (see
+        # World.request_manual_special / combat.try_fire_manual_special);
+        # works with the roster lock on and never cycles a slot.
+        special = ctrl and win.key_down(win.VK_SHIFT)
         if self._pressed(win.VK_1):
-            if not ctrl:
-                world.prebattle.reveal(1)
-            if ctrl:
+            if special:
+                world.request_manual_special(0, 0)
+                world.ctrl_used = True
+            elif ctrl:
                 world.request_manual_ultimate(0)
                 world.ctrl_used = True
-            elif not locked:
-                world.cycle_side_char(0)
+            else:
+                world.prebattle.reveal(1)
+                if not locked:
+                    world.cycle_side_char(0)
         if self._pressed(win.VK_2):
-            if not ctrl:
-                world.prebattle.reveal(2)
-            if ctrl:
+            if special:
+                world.request_manual_special(1, 0)
+                world.ctrl_used = True
+            elif ctrl:
                 world.request_manual_ultimate(1)
                 world.ctrl_used = True
-            elif not locked:
-                world.cycle_side_char(1)
+            else:
+                world.prebattle.reveal(2)
+                if not locked:
+                    world.cycle_side_char(1)
 
         # 3 / 4: add and then cycle the SECOND fighter on P1's / P2's team,
         # so one side can field two different characters (runner +
@@ -136,13 +148,21 @@ class InputSystem(System):
         # World.cycle_side_extra — same behaviour in Solo and Battle.
         # Edges are always consumed (so a held key doesn't fire on unlock).
         if self._pressed(win.VK_3):
-            world.prebattle.reveal(3)
-            if not locked:
-                world.cycle_side_extra(0)
+            if special:
+                world.request_manual_special(0, 1)
+                world.ctrl_used = True
+            else:
+                world.prebattle.reveal(3)
+                if not locked:
+                    world.cycle_side_extra(0)
         if self._pressed(win.VK_4):
-            world.prebattle.reveal(4)
-            if not locked:
-                world.cycle_side_extra(1)
+            if special:
+                world.request_manual_special(1, 1)
+                world.ctrl_used = True
+            else:
+                world.prebattle.reveal(4)
+                if not locked:
+                    world.cycle_side_extra(1)
 
         if self._pressed(win.VK_F7) and not locked:
             world.add_figure()
@@ -377,6 +397,10 @@ class CombatSystem(System):
             # unless InputSystem queued a request for this figure's side. ---
             if fig.combat.manual_ult_queued:
                 combat.try_fire_manual_ultimate(fig, world)
+            # --- Manual attack_special hotkey (Ctrl+Shift+1..4): same
+            # queue-until-free pattern, one fighter slot per number. ---
+            if fig.combat.manual_special_queued:
+                combat.try_fire_manual_special(fig, world)
             # --- Generic proximity reaction (JSON `reaction`): counter/dodge
             # roll + charge-based vanish-cut launch. Runs before
             # advance_combat so an armed retaliation dash executes this
