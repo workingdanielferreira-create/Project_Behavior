@@ -2717,7 +2717,9 @@ function buildWorldClashProps(d) {
         "Sword duel: how far the whole fight sequence (where each strike meets, how far they spring apart, the circle back) spreads left and right. 100 = as designed, 200 = twice as wide, 0 = no sideways travel.";
       field(b, "Loop Y %", inp("n", slot.loop_y, function (v) { slot.loop_y = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
         "Sword duel: how far the whole fight sequence spreads up and down. 100 = as designed, 200 = twice as tall, 0 = no vertical travel.";
-      note(b, "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts and ends where it was.");
+      field(b, "Flurry %", inp("n", slot.flurry, function (v) { slot.flurry = Math.max(0, Math.min(100, v)); worldSave(); }, 0, 100, 5)).title =
+        "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
+      note(b, "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts where it was. The duel ends on its final hit: the knockback winner (random on a tie) launches the other 240 px + 0.5 px per point of its trail's knockback (up to 900 px), then finishes — its attack_special at 50% HP or less, its ultimate below 30%.");
     }
   });
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");

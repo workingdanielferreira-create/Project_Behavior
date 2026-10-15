@@ -53,9 +53,16 @@ Every pair of categories has a rule.
   orb x orb           little blasts popping (orb_pops)
   trail x trail       a sword duel (sword_duel): the two fighters are moved
                       by the clash (clashfx.duel_plan, duel_tick) — they
-                      dash in, their blades meet, they spring apart, and it
-                      ends on one big clash, back where they started; the
-                      knockback rule then settles it.  The FX is anchored
+                      dash in, their blades meet (some strikes are flurry
+                      combos: World Clash Flurry %), they spring apart, and
+                      it ends on one big clash.  That final hit decides it
+                      (_final_hit): the knockback winner (a random one on a
+                      tie) launches the other FINAL_KB_BASE_PX +
+                      FINAL_KB_PER_KB x its trail's knockback away, then
+                      finishes (_finisher): its attack_special at 50% HP or
+                      less, its ultimate below 30%.  A duel cut short (a
+                      fighter fell) is settled by the knockback rule as
+                      before.  The FX is anchored
                       to their real positions every tick.  A pair that has
                       just duelled (DUEL_REARM_TICKS), or a Clash panel FX
                       other than a sword duel, plays a one-shot burst instead
@@ -153,6 +160,13 @@ TIE_RECOIL_KB = 6.0          # trail x trail tie: both owners pushed back this m
 MAX_TIP_WATCH = 32
 DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
 DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
+FINAL_KB_BASE_PX = 240.0     # sword duel final hit: the loser is launched this far...
+FINAL_KB_PER_KB = 0.5        # ...plus this many px per point of the winning trail's knockback...
+FINAL_KB_MAX_PX = 900.0      # ...up to this far
+FINISH_SPECIAL_HP_PCT = 50.0  # duel winner at or below this % HP finishes with its attack_special...
+FINISH_ULT_HP_PCT = 30.0     # ...below this % HP with its ultimate
+FINISH_WAIT_TICKS = 90       # a finisher special waits this long for its fighter to be free, then is dropped
+FINAL_HEAVY_TICKS = 60       # the final-hit launch can't be replaced by a weaker knockback for this long
 MIN_TICKS = 6                # default shortest clash (~100 ms), however little life the effects have left
 SIZE_MIN = 0.10              # smallest random clash FX size (10%)
 SIZE_KB_FULL = 100.0         # knockback for the full slot size (higher counts as this)
@@ -239,7 +253,8 @@ def normalize_world(c):
                       "size": _clamp_num(s0.get("size"), 100.0, 10.0, 400.0),
                       "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0),
                       "loop_x": _clamp_num(s0.get("loop_x"), 100.0, 0.0, 400.0),
-                      "loop_y": _clamp_num(s0.get("loop_y"), 100.0, 0.0, 400.0)}
+                      "loop_y": _clamp_num(s0.get("loop_y"), 100.0, 0.0, 400.0),
+                      "flurry": _clamp_num(s0.get("flurry"), 30.0, 0.0, 100.0)}
     return {"format": WORLD_FORMAT, "slots": slots,
             "min_ticks": int(_clamp_num(c.get("min_ticks"), MIN_TICKS, 1, 600))}
 
@@ -253,6 +268,13 @@ def duel_loop():
     designed).  clashfx.duel_plan applies it."""
     cfg = WORLD["slots"].get("trail_trail") or {}
     return (float(cfg.get("loop_x", 100.0)) / 100.0, float(cfg.get("loop_y", 100.0)) / 100.0)
+
+
+def duel_flurry():
+    """Chance (0..1) that a sword duel strike is a flurry combo, from the
+    trail x trail slot's Flurry % (World Clash).  clashfx.duel_plan uses it."""
+    cfg = WORLD["slots"].get("trail_trail") or {}
+    return float(cfg.get("flurry", 30.0)) / 100.0
 
 
 def load_world(root_dir):
@@ -774,6 +796,9 @@ def _engage(world, figs, ticks, contact=None):
         r = getattr(fig, "act", None)
         if r is not None and r.playing == "ultimate":
             continue    # a clash never cuts an ultimate's animation short
+        fs = _state(world)["finishing"].get(id(fig))
+        if r is not None and fs is not None and r.playing == "attack_special" and r.last_start.get("attack_special") == fs:
+            continue    # nor a sword duel's finisher special (_finish_specials)
         actions.force_clash(fig, world, now + int(ticks), True)
 
 
@@ -923,11 +948,12 @@ def _struggle_of(st, a, b):
 class Duel:
     """A sword duel in progress: fa / fb (side 0 / side 1) are moved along
     plan, one frame per tick."""
-    __slots__ = ("a", "b", "fa", "fb", "plan", "i", "fx", "owns", "pair")
+    __slots__ = ("a", "b", "fa", "fb", "plan", "i", "fx", "owns", "pair", "final")
 
     def __init__(self, a, b, plan, fx, pair):
         self.a, self.b, self.fa, self.fb = a, b, a.owner, b.owner
         self.plan, self.i, self.fx, self.pair = plan, 0, fx, pair
+        self.final = False      # True once it reached its final hit (_final_hit settles it)
         # Slash frames are shown through render.frame_override — only for a
         # fighter that has slash frames and nothing else holding the override.
         self.owns = tuple(bool(f.render.bundle.slash) and f.render.frame_override is None
@@ -940,7 +966,7 @@ def _state(world):
         st = world.clash_state = {"active": [], "busy": set(), "seen": {}, "tips": [],
                                   "rng": random.Random(), "halves": set(),
                                   "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {},
-                                  "recent": {}, "quiet": False, "held": {}}
+                                  "recent": {}, "quiet": False, "held": {}, "finish": [], "finishing": {}}
     return st
 
 
@@ -1201,7 +1227,7 @@ def _start_duel(world, st, a, b, c, now, budget=None):
     bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
     plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
                              strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)),
-                             loop=duel_loop())
+                             loop=duel_loop(), flurry=duel_flurry())
     if budget is not None and len(plan) > budget:
         return False
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
@@ -1232,7 +1258,96 @@ def _duel_end(world, st, d):
     if _duel_fielded(world, d):
         fr = d.plan[min(d.i, len(d.plan)) - 1] if d.i > 0 else None
         c = ((fr[0] + fr[2]) / 2.0, (fr[1] + fr[3]) / 2.0) if fr else ((d.fa.x + d.fb.x) / 2.0, (d.fa.y + d.fb.y) / 2.0)
-        _settle(world, d.a, d.b, c)
+        if d.final:
+            _final_hit(world, st, d)
+        else:
+            _settle(world, d.a, d.b, c)
+
+
+def _final_hit(world, st, d):
+    """The duel's final hit: the knockback winner (a random one on a tie)
+    launches the loser straight away from it, FINAL_KB_BASE_PX +
+    FINAL_KB_PER_KB x the winning trail's knockback (capped at
+    FINAL_KB_MAX_PX), whatever damage cooldown it is in, then finishes
+    (_finisher).  Both fighters' "clash" actions end here."""
+    w = _kb_winner(d.a, d.b)
+    if w is None:
+        w = d.a if st["rng"].random() < 0.5 else d.b
+    win, lose = w.owner, (d.b if w is d.a else d.a).owner
+    now = world.global_tick
+    for f in (win, lose):
+        r = getattr(f, "act", None)
+        if r is not None and r.forced == "clash":
+            r.forced_until = min(r.forced_until, now)
+    dist = min(FINAL_KB_MAX_PX, FINAL_KB_BASE_PX + FINAL_KB_PER_KB * max(0.0, w.kb))
+    _launch(world, lose, win.x, win.y, dist, -1.0 if win.transform.facing_left else 1.0)
+    _finisher(world, st, win)
+
+
+def _launch(world, fig, fx, fy, dist, face):
+    """Throw fig dist px straight away from (fx, fy) (along `face` when on
+    top of it), through any damage cooldown — a blinked-out fighter is
+    untouchable."""
+    from . import blink, motion
+    if fig is None or dist <= 0 or blink.gone(fig):
+        return
+    dx, dy = _norm(fig.x - fx, fig.y - fy)
+    if abs(fig.x - fx) < 1e-6 and abs(fig.y - fy) < 1e-6:
+        dx, dy = face, 0.0
+    spd = dist * (1.0 - config.BOUNCE_FRICTION)
+    fig.motion.knock_tick = -10     # always (re)start: the final hit is its own launch
+    fig.motion.heavy_until = -1000
+    # Heavy: a weaker knockback landing while it slides (the two trails
+    # touching again, a stray punch) can't cut the launch short.
+    motion.launch_knockback(fig, dx * spd, dy * spd, world.global_tick, heavy_ticks=FINAL_HEAVY_TICKS)
+
+
+def _finisher(world, st, fig):
+    """The duel winner's finisher, by its HP: below FINISH_ULT_HP_PCT its
+    ultimate (the Ctrl+1 / Ctrl+2 manual-ultimate path, so every fighter's
+    own ultimate, built-ins included), at FINISH_SPECIAL_HP_PCT or less its
+    attack_special (queued in st["finish"], _finish_specials), otherwise
+    none."""
+    from . import action_log
+    p = fig.personality
+    hp = 100.0 * p.hp / max(1e-6, p.max_hp)
+    if hp < FINISH_ULT_HP_PCT:
+        fig.combat.manual_ult_queued = True
+        action_log.log("CLASH", f"duel finisher ultimate mode={fig.mode.key} hp={hp:.0f}%")
+    elif hp <= FINISH_SPECIAL_HP_PCT:
+        st["finish"].append((fig, world.global_tick + FINISH_WAIT_TICKS))
+        action_log.log("CLASH", f"duel finisher attack_special mode={fig.mode.key} hp={hp:.0f}%")
+
+
+def _finish_specials(world, st):
+    """Fire each queued duel-finisher attack_special as soon as its fighter
+    is free: an image character plays its own action (actions.force_special),
+    a JSON character fires its attack_special FX (combat.fire_json_action);
+    a built-in fighter has none.  Dropped after FINISH_WAIT_TICKS, or when
+    its fighter is gone."""
+    from . import actions, combat
+    if not st["finish"]:
+        return
+    now, keep = world.global_tick, []
+    for fig, until in st["finish"]:
+        if now > until or not any(fig in s.figures for s in world.sides):
+            continue
+        if actions.is_image(fig):
+            if not actions.force_special(fig, world):
+                keep.append((fig, until))
+            elif getattr(fig, "act", None) is not None and fig.act.playing == "attack_special":
+                st["finishing"][id(fig)] = now    # _engage leaves this special alone
+            continue
+        char = getattr(fig.mode, "character", None)
+        if char and (char.get("actions") or {}).get("attack_special"):
+            if fig.combat.busy:
+                keep.append((fig, until))
+                continue
+            foes = [f for s in world.sides if fig not in s.figures for f in s.figures]
+            if foes:
+                t = min(foes, key=lambda f: (f.x - fig.x) ** 2 + (f.y - fig.y) ** 2)
+                combat.fire_json_action(fig, world, "attack_special", t.x, t.y)
+    st["finish"] = keep
 
 
 def duel_tick(fig, world):
@@ -1275,7 +1390,11 @@ def _duels(world, st):
     poses = st["duel_pose"] = {}
     live = []
     for d in st["duels"]:
-        if d.i >= len(d.plan) or not _duel_fielded(world, d):
+        if d.i < len(d.plan) and d.plan[d.i][5] == "release":
+            # The big clash has landed: the final hit ends the duel here
+            # (no walk back), launching the loser (_final_hit).
+            d.final = True
+        if d.final or d.i >= len(d.plan) or not _duel_fielded(world, d):
             _duel_end(world, st, d)
             continue
         fr = d.plan[d.i]
@@ -1306,8 +1425,10 @@ def step(world):
     st["active"] = live
     for k in [k for k, e in st["held"].items() if now >= e[1]]:
         del st["held"][k]
-    # 1b. Sword duels: where each dueling fighter is this tick.
+    # 1b. Sword duels: where each dueling fighter is this tick; then any
+    #     duel finisher special waiting for its fighter to be free.
     _duels(world, st)
+    _finish_specials(world, st)
     # 2. Split halves: each explodes where it ends.
     tips = []
     for t in st["tips"]:
