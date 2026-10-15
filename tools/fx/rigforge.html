@@ -243,7 +243,8 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
         <label class="tgl" title="Tint each body part by its depth in the layer stack"><input type="checkbox" id="maskcol"> layer mask</label>
         <button id="solvetog" title="Tab — when on, dragging a hand or foot solves the whole limb">Solve: off</button>
         <label class="tgl"><input type="checkbox" id="playtween" checked> play in-betweens</label>
-        <label class="tgl"><input type="checkbox" id="flip"> face left</label>
+        <label class="tgl" title="Mirror this keyframe only — each keyframe keeps its own facing"><input type="checkbox" id="flip"> face left</label>
+        <button id="flipall" class="mini" title="Give every keyframe of this action the facing of the one you are viewing">facing &rarr; all</button>
       </div>
     </div>
 
@@ -450,7 +451,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
         <button id="pngall" title="Every frame of every action on this character, one folder per action, in one .zip">All actions &rarr; PNG</button>
       </div>
       <div id="pngread" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted)"></div>
-      <div class="note">Each frame renders onto a transparent square: the rig as a solid black silhouette, the weapon drawn exactly as on the stage, with each keyframe's own layer order and hidden layers. No grid, handles, onion skin or reference images. The <strong>bake in-betweens</strong> box above decides the frames &mdash; ticked exports the full playback sequence (keys, in-betweens and holds), unticked only your authored keyframes. One scale is fitted to the largest extent across <em>all</em> of this character's actions, so the figure is the same size in every PNG whichever button you press; each action is centred on its own motion, and every frame of an action shares that origin, so the frames stack as a sprite sequence. <strong>face left</strong> mirrors the export too. Files are named <code>&lt;action&gt;_000.png</code> upward in playback order.</div>
+      <div class="note">Each frame renders onto a transparent square: the rig as a solid black silhouette, the weapon drawn exactly as on the stage, with each keyframe's own layer order and hidden layers. No grid, handles, onion skin or reference images. The <strong>bake in-betweens</strong> box above decides the frames &mdash; ticked exports the full playback sequence (keys, in-betweens and holds), unticked only your authored keyframes. One scale is fitted to the largest extent across <em>all</em> of this character's actions, so the figure is the same size in every PNG whichever button you press; each action is centred on its own motion, and every frame of an action shares that origin, so the frames stack as a sprite sequence. A keyframe set to <strong>face left</strong> is mirrored in the export too (its in-betweens keep that facing until the next key). Files are named <code>&lt;action&gt;_000.png</code> upward in playback order.</div>
       <div class="grp">character package (game + FX Studio)</div>
       <div class="fld"><label>head size px</label><input type="number" id="pk_head" value="58" min="8" max="400" step="1"></div>
       <div class="fld"><label>figure colour</label><input type="text" id="pk_col" value="#000000"></div>
@@ -1325,7 +1326,7 @@ function lerpPose(a,b,t,dir){
     var raw=dir==="linear"||wound(a[k])||wound(b[k]);
     o[k]=raw?(a[k]+(b[k]-a[k])*t):(a[k]+arcDelta(a[k],b[k],dir)*t);
   });
-  o._layers=clone(a._layers);o._tween=clone(a._tween);o._gen=true;return o;
+  o._layers=clone(a._layers);o._tween=clone(a._tween);o._gen=true;if(a._flip)o._flip=true;return o;
 }
 function playlist(act){
   var out=[],n=act.keyframes.length;
@@ -1344,6 +1345,8 @@ function playlist(act){
 function tweenCount(act){return playlist(act).length-act.keyframes.length;}
 
 function CUR(){return S.preview||KF();}
+/* face left is per keyframe (p._flip): the frame is mirrored about the hips' x = 0 */
+function isFlip(p){return!!(p&&p._flip);}
 function frameIndex(){
   var list=playlist(A());
   if(S.preview&&list[S.pIdx]&&list[S.pIdx]._gen)return{list:list,idx:S.pIdx};
@@ -1925,8 +1928,8 @@ function fit(){
 }
 function camX(){return VIEW.w/2+VIEW.ox;}
 function camY(){return VIEW.h*0.62+VIEW.oy;}
-function toStage(p){return{x:camX()+p.x*VIEW.scale*(S.flip?-1:1),y:camY()+p.y*VIEW.scale};}
-function fromStage(p){return{x:(p.x-camX())/VIEW.scale*(S.flip?-1:1),y:(p.y-camY())/VIEW.scale};}
+function toStage(p){return{x:camX()+p.x*VIEW.scale*(isFlip(CUR())?-1:1),y:camY()+p.y*VIEW.scale};}
+function fromStage(p){return{x:(p.x-camX())/VIEW.scale*(isFlip(CUR())?-1:1),y:(p.y-camY())/VIEW.scale};}
 
 var HANDLES=[["haL","lfa","lua","#3fb0ea"],["elL","lua",null,"#3fb0ea"],["haR","rfa","rua","#3fb0ea"],["elR","rua",null,"#3fb0ea"],
              ["ftL","lsh","lth","#3fb0ea"],["knL","lth",null,"#3fb0ea"],["ftR","rsh","rth","#3fb0ea"],["knR","rth",null,"#3fb0ea"],
@@ -1958,13 +1961,15 @@ function render(){
   var ground=camY()+(S.rig.th+S.rig.sh)*VIEW.scale;
   ctx.strokeStyle="rgba(255,255,255,.16)";ctx.beginPath();ctx.moveTo(0,ground);ctx.lineTo(VIEW.w,ground);ctx.stroke();
 
-  ctx.save();ctx.translate(camX(),camY());ctx.scale(VIEW.scale*(S.flip?-1:1),VIEW.scale);
+  var fl=isFlip(p),fe=document.getElementById("flip");if(fe)fe.checked=fl;
+  ctx.save();ctx.translate(camX(),camY());ctx.scale(VIEW.scale*(fl?-1:1),VIEW.scale);
   drawRef(ctx,p,false);
   var onion=document.getElementById("onion").checked,gd=document.getElementById("guides").checked;
   var n=a.keyframes.length,prev=a.keyframes[(S.kf-1+n)%n],next=a.keyframes[(S.kf+1)%n];
   if(onion&&n>1&&!S.preview){
-    drawFigure(ctx,prev,S.rig,{color:"#1e9bd7",alpha:.37,ghost:true});
-    drawFigure(ctx,next,S.rig,{color:"#e8622a",alpha:.37,ghost:true});
+    [[prev,"#1e9bd7"],[next,"#e8622a"]].forEach(function(g){
+      ctx.save();if(isFlip(g[0])!==fl)ctx.scale(-1,1);
+      drawFigure(ctx,g[0],S.rig,{color:g[1],alpha:.37,ghost:true});ctx.restore();});
   }
   drawFigure(ctx,p,S.rig,{color:"#ffffff"});
   drawRef(ctx,p,true);
@@ -1972,8 +1977,9 @@ function render(){
     [[prev,"#1e9bd7"],[next,"#e8622a"]].forEach(function(pair){
       [0,1].forEach(function(wi){
         var L=weaponTip(pair[0],S.rig,wi);if(!L)return;
+        var m=isFlip(pair[0])!==fl?-1:1;
         ctx.globalAlpha=.72;ctx.strokeStyle=pair[1];ctx.lineWidth=2.6;ctx.lineCap="round";
-        ctx.beginPath();ctx.moveTo(L.a.x,L.a.y);ctx.lineTo(L.b.x,L.b.y);ctx.stroke();ctx.globalAlpha=1;
+        ctx.beginPath();ctx.moveTo(L.a.x*m,L.a.y);ctx.lineTo(L.b.x*m,L.b.y);ctx.stroke();ctx.globalAlpha=1;
       });
     });
   }
@@ -2058,7 +2064,7 @@ function render(){
 function thumb(c,p,w,h,sc){
   var x=c.getContext("2d"),dpr=Math.min(2,window.devicePixelRatio||1);
   c.width=w*dpr;c.height=h*dpr;x.setTransform(dpr,0,0,dpr,0,0);
-  x.clearRect(0,0,w,h);x.save();x.translate(w/2,h*0.62);x.scale(sc,sc);
+  x.clearRect(0,0,w,h);x.save();x.translate(w/2,h*0.62);x.scale(sc*(isFlip(p)?-1:1),sc);
   drawFigure(x,p,S.rig,{color:"#ffffff",w:1});x.restore();
 }
 function el(t,c,txt){var e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
@@ -2854,7 +2860,13 @@ document.getElementById("promote").onclick=function(){
 ["onion","guides","joints"].forEach(function(id){document.getElementById(id).onchange=render;});
 document.getElementById("maskcol").onchange=function(){render();buildFilm();buildLayers();};
 document.getElementById("playtween").onchange=function(){durRead();if(S.playing){play(false);play(true);}else render();};
-document.getElementById("flip").onchange=function(){S.flip=this.checked;render();};
+document.getElementById("flip").onchange=function(){
+  commitPreview();var k=KF();if(this.checked)k._flip=true;else delete k._flip;
+  render();buildFilm();save();pushHist();};
+document.getElementById("flipall").onclick=function(){
+  commitPreview();var on=isFlip(KF());
+  A().keyframes.forEach(function(k){if(on)k._flip=true;else delete k._flip;});
+  render();buildFilm();save();pushHist();toast("Every keyframe of \""+S.cur+"\" now faces "+(on?"left":"right"));};
 
 /* keyframe ops */
 document.getElementById("addkf").onclick=function(){A().keyframes.splice(S.kf+1,0,newPose());S.kf++;S.preview=null;refresh();};
@@ -3092,7 +3104,7 @@ cv.addEventListener("wheel",function(e){
   var dy=e.deltaY,dx=e.deltaX;
   if(e.deltaMode===1){dy*=16;dx*=16;}else if(e.deltaMode===2){dy*=VIEW.h;dx*=VIEW.w;}
   if(e.ctrlKey||e.metaKey){
-    var sgn=S.flip?-1:1,px=(mx-camX())/(VIEW.scale*sgn),py=(my-camY())/VIEW.scale;
+    var sgn=isFlip(CUR())?-1:1,px=(mx-camX())/(VIEW.scale*sgn),py=(my-camY())/VIEW.scale;
     var ns=Math.max(0.5,Math.min(9,VIEW.scale*Math.pow(0.9988,dy)));
     VIEW.scale=ns;VIEW.ox=mx-VIEW.w/2-px*ns*sgn;VIEW.oy=my-VIEW.h*0.62-py*ns;
   }else if(e.shiftKey){VIEW.ox-=(dx||dy);}
@@ -3329,6 +3341,7 @@ function actFrames(a){return document.getElementById("bake").checked?playlist(a)
 function actBounds(frames){
   var u=null;
   frames.forEach(function(p){var b=figBounds(p);if(!b)return;
+    if(isFlip(p))b={x0:-b.x1,y0:b.y0,x1:-b.x0,y1:b.y1};
     if(!u)u={x0:b.x0,y0:b.y0,x1:b.x1,y1:b.y1};
     else{u.x0=Math.min(u.x0,b.x0);u.y0=Math.min(u.y0,b.y0);u.x1=Math.max(u.x1,b.x1);u.y1=Math.max(u.y1,b.y1);}});
   return u;
@@ -3369,7 +3382,7 @@ function pngOf(p,N,sc,cx,cy){
   return new Promise(function(res,rej){
     var c=document.createElement("canvas");c.width=N;c.height=N;
     var x=c.getContext("2d");x.clearRect(0,0,N,N);
-    x.save();x.translate(N/2,N/2);x.scale(sc*(S.flip?-1:1),sc);x.translate(-cx,-cy);
+    x.save();x.translate(N/2,N/2);x.scale(sc,sc);x.translate(-cx,-cy);if(isFlip(p))x.scale(-1,1);
     var q=clone(p);normPose(q);
     drawFigure(x,q,S.rig,{color:"#000000",noMask:true,sil:true});
     x.restore();
