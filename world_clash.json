@@ -54,7 +54,7 @@
    "size": 100,
    "density": 100,
    "loop_x": 300,
-   "loop_y": 100,
+   "loop_y": 200,
    "flurry": 50
   },
   "orb_orb": {
@@ -77,8 +77,8 @@
    "fx": "sword_duel",
    "size": 100,
    "density": 100,
-   "loop_x": 100,
-   "loop_y": 300,
+   "loop_x": 195,
+   "loop_y": 320,
    "flurry": 50
   },
   "sprite_sprite": {

@@ -3,89 +3,140 @@
  "slots": {
   "beam_explode": {
    "fx": "beam_struggle",
-   "size": 100,
-   "density": 100
+   "size": 60,
+   "density": 80,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "beam_struggle": {
    "fx": "beam_struggle",
-   "size": 100,
-   "density": 100
+   "size": 40,
+   "density": 80,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "beam_struggle_end": {
    "fx": "beam_struggle",
-   "size": 100,
-   "density": 100
+   "size": 75,
+   "density": 80,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "beam_orb": {
    "fx": "beam_orb",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "beam_split": {
    "fx": "beam_split",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "split_tip": {
-   "fx": "split_burst",
+   "fx": "beam_split",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "beam_nosplit": {
-   "fx": "split_burst",
+   "fx": "sword_duel",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 300,
+   "loop_y": 200,
+   "flurry": 50
   },
   "orb_orb": {
    "fx": "orb_pops",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "trail_trail": {
    "fx": "sword_duel",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "crescent_crescent": {
-   "fx": "crescent_struggle",
+   "fx": "sword_duel",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 195,
+   "loop_y": 320,
+   "flurry": 50
   },
   "sprite_sprite": {
    "fx": "kunai_clash",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "orb_trail": {
-   "fx": "sword_slash_clash",
+   "fx": "sword_duel",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 300,
+   "loop_y": 100,
+   "flurry": 50
   },
   "orb_crescent": {
    "fx": "getsuga_cross",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "orb_sprite": {
    "fx": "collision_nova",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "trail_crescent": {
    "fx": "sword_slash_clash",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "trail_sprite": {
    "fx": "kunai_clash",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   },
   "crescent_sprite": {
-   "fx": "getsuga_cross",
+   "fx": "orb_pops",
    "size": 100,
-   "density": 100
+   "density": 100,
+   "loop_x": 100,
+   "loop_y": 100,
+   "flurry": 30
   }
  },
- "min_ticks": 1
+ "min_ticks": 10
 }
