@@ -1711,8 +1711,10 @@ class ClashFX:
         # glowing stand-ins.
         if st["plan"] is None:
             reach = float(self.spec.get("reach", 34)) * S
+            from . import clash     # lazy: clash imports this module
             st["plan"] = duel_plan(self.rng, (-110 * S, 12 * S), (110 * S, -12 * S), (0.0, 0.0), reach,
-                                   strikes=self.spec.get("strikes", (4, 7)), bind=float(self.spec.get("bind", 0.3)))
+                                   strikes=self.spec.get("strikes", (4, 7)), bind=float(self.spec.get("bind", 0.3)),
+                                   loop=clash.duel_loop())
         plan, i = st["plan"], st["i"]
         if i >= len(plan):
             self.release()
@@ -1890,7 +1892,7 @@ def _smooth(u):
     return u * u * (3.0 - 2.0 * u)
 
 
-def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3):
+def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0)):
     """Choreography of a sword duel (sword_duel), one frame per tick:
     (ax, ay, bx, by, contact, event, swing).  a0 / b0 = where the two
     fighters start, c = where their blades first met, reach = how far each
@@ -1901,14 +1903,25 @@ def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3):
     one big clash at c ("big", then "release" = the finale) and both return
     to where they started.  swing (0..1, None = not swinging) drives the
     fighters' slash frames.  laser/clash.py uses it to move the real
-    fighters; the F6 preview plays it with two stand-ins."""
+    fighters; the F6 preview plays it with two stand-ins.
+
+    loop = (x, y) scale of the whole sequence on the screen's x and y axes
+    around c (World Clash "Loop X / Y %"; 1.0 = as designed, 0 = flat on
+    that axis): where each strike meets, how far they spring apart and the
+    circle back.  The reach the blades meet at is kept, so they still touch,
+    and the start / end positions are the fighters' own."""
     ux, uy = b0[0] - a0[0], b0[1] - a0[1]
     d = math.hypot(ux, uy)
     ux, uy = (ux / d, uy / d) if d > 1e-6 else (1.0, 0.0)
     vx, vy = -uy, ux
     R = max(40.0, reach * 1.9)
+    sx, sy = max(0.0, float(loop[0])), max(0.0, float(loop[1]))
     A, B = [float(a0[0]), float(a0[1])], [float(b0[0]), float(b0[1])]
     out = []
+
+    def at(ox, oy):
+        """The point offset (ox, oy) from c, with the loop scale applied."""
+        return (c[0] + ox * sx, c[1] + oy * sy)
 
     def move(ta, tb, n, ease=_ease_out, swing=False, ev=None):
         fa, fb = tuple(A), tuple(B)
@@ -1933,18 +1946,19 @@ def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3):
     first = max(1, total // 2)
     for burst, n_str in ((0, first), (1, total - first)):
         for _ in range(n_str):
-            P = (c[0] + ux * rng.uniform(-0.6, 0.6) * R + vx * rng.uniform(-0.6, 0.6) * R,
-                 c[1] + uy * rng.uniform(-0.6, 0.6) * R + vy * rng.uniform(-0.6, 0.6) * R)
+            P = at(ux * rng.uniform(-0.6, 0.6) * R + vx * rng.uniform(-0.6, 0.6) * R,
+                   uy * rng.uniform(-0.6, 0.6) * R + vy * rng.uniform(-0.6, 0.6) * R)
             th = rng.uniform(-1.1, 1.1)
             dx, dy = ux * math.cos(th) - uy * math.sin(th), ux * math.sin(th) + uy * math.cos(th)
             strike(P, dx, dy, rng.randint(4, 6), "bind" if rng.random() < bind else "strike")
             back = reach + rng.uniform(22.0, 40.0)
-            move((P[0] - dx * back, P[1] - dy * back), (P[0] + dx * back, P[1] + dy * back), rng.randint(4, 6))
+            move((P[0] - dx * back * sx, P[1] - dy * back * sy), (P[0] + dx * back * sx, P[1] + dy * back * sy),
+                 rng.randint(4, 6))
             hold(rng.randint(1, 4), None)
         if burst == 0:
             # circle back to their own sides for a breath
-            move((c[0] - ux * R + vx * rng.uniform(-0.7, 0.7) * R, c[1] - uy * R + vy * rng.uniform(-0.7, 0.7) * R),
-                 (c[0] + ux * R + vx * rng.uniform(-0.7, 0.7) * R, c[1] + uy * R + vy * rng.uniform(-0.7, 0.7) * R),
+            move(at(-ux * R + vx * rng.uniform(-0.7, 0.7) * R, -uy * R + vy * rng.uniform(-0.7, 0.7) * R),
+                 at(ux * R + vx * rng.uniform(-0.7, 0.7) * R, uy * R + vy * rng.uniform(-0.7, 0.7) * R),
                  10, ease=_smooth)
             hold(rng.randint(6, 12), None)
     strike((float(c[0]), float(c[1])), ux, uy, 6, "big")

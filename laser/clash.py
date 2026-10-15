@@ -237,12 +237,22 @@ def normalize_world(c):
         fxk = s0.get("fx")
         slots[key] = {"fx": fxk if isinstance(fxk, str) and fxk else fx_default,
                       "size": _clamp_num(s0.get("size"), 100.0, 10.0, 400.0),
-                      "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0)}
+                      "density": _clamp_num(s0.get("density"), 100.0, 10.0, 400.0),
+                      "loop_x": _clamp_num(s0.get("loop_x"), 100.0, 0.0, 400.0),
+                      "loop_y": _clamp_num(s0.get("loop_y"), 100.0, 0.0, 400.0)}
     return {"format": WORLD_FORMAT, "slots": slots,
             "min_ticks": int(_clamp_num(c.get("min_ticks"), MIN_TICKS, 1, 600))}
 
 
 WORLD = normalize_world({})
+
+
+def duel_loop():
+    """(x, y) scale of the sword duel's whole sequence on the screen axes,
+    from the trail x trail slot's Loop X / Y % (World Clash; 1.0 = as
+    designed).  clashfx.duel_plan applies it."""
+    cfg = WORLD["slots"].get("trail_trail") or {}
+    return (float(cfg.get("loop_x", 100.0)) / 100.0, float(cfg.get("loop_y", 100.0)) / 100.0)
 
 
 def load_world(root_dir):
@@ -1190,7 +1200,8 @@ def _start_duel(world, st, a, b, c, now, budget=None):
     _base, sp = clashfx.resolve(key)
     bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
     plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
-                             strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)))
+                             strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)),
+                             loop=duel_loop())
     if budget is not None and len(plan) > budget:
         return False
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,

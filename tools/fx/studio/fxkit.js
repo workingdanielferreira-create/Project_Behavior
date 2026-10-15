@@ -655,7 +655,8 @@ function normalizeWorldClash(c) {
   CLASH_SLOTS.forEach(function (row) {
     var s0 = si[row[0]] || {};
     slots[row[0]] = {fx: typeof s0.fx === "string" && s0.fx ? s0.fx : row[1],
-      size: s0.size == null ? 100 : clampNum(s0.size, 100, 10, 400), density: s0.density == null ? 100 : clampNum(s0.density, 100, 10, 400)};
+      size: s0.size == null ? 100 : clampNum(s0.size, 100, 10, 400), density: s0.density == null ? 100 : clampNum(s0.density, 100, 10, 400),
+      loop_x: s0.loop_x == null ? 100 : clampNum(s0.loop_x, 100, 0, 400), loop_y: s0.loop_y == null ? 100 : clampNum(s0.loop_y, 100, 0, 400)};
   });
   return {format: WORLD_CLASH_FORMAT, slots: slots,
     min_ticks: Math.floor(c.min_ticks == null ? MIN_TICKS : clampNum(c.min_ticks, MIN_TICKS, 1, 600))};
