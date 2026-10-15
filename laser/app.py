@@ -183,6 +183,12 @@ class World:
 
         self.add_figure()
 
+        # update_game.py launches with --prebattle: start with the pre-battle
+        # character selector already open (same as pressing Ctrl+Shift+.).
+        # World-level, so Solo and Battle behave identically.
+        if "--prebattle" in sys.argv[1:]:
+            self.prebattle.toggle()
+
         # Action log — init after all state is ready
         _launcher_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         action_log.init(log_dir=_launcher_dir, enabled=config.LOG_ENABLED)

@@ -423,15 +423,17 @@ def organize_exported_characters():
 
 
 def launch_game():
-    """Start the game exactly like run.bat: pythonw.exe laser_cursor.pyw."""
+    """Start the game like run.bat (pythonw.exe laser_cursor.pyw), plus
+    --prebattle so it opens with the pre-battle character selector already
+    up (the Ctrl+Shift+. menu, laser/prebattle.py)."""
     pythonw = os.path.join(HERE, "pythonw.exe")
     game = os.path.join(HERE, "laser_cursor.pyw")
     if os.name == "nt" and os.path.exists(pythonw) and os.path.exists(game):
-        subprocess.Popen([pythonw, game], cwd=HERE)
-        print("\nGame launched.")
+        subprocess.Popen([pythonw, game, "--prebattle"], cwd=HERE)
+        print("\nGame launched (character selector open).")
     elif os.path.exists(game):
-        subprocess.Popen([sys.executable, game], cwd=HERE)
-        print("\nGame launched.")
+        subprocess.Popen([sys.executable, game, "--prebattle"], cwd=HERE)
+        print("\nGame launched (character selector open).")
     else:
         print("\nCould not find laser_cursor.pyw to launch.")
 
