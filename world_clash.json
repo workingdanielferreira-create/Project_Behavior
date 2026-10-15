@@ -66,15 +66,15 @@
    "flurry": 30
   },
   "trail_trail": {
-   "fx": "sword_slash_clash",
+   "fx": "sword_duel",
    "size": 100,
    "density": 100,
    "loop_x": 100,
-   "loop_y": 100,
+   "loop_y": 300,
    "flurry": 30
   },
   "crescent_crescent": {
-   "fx": "speed_duel",
+   "fx": "sword_duel",
    "size": 100,
    "density": 100,
    "loop_x": 195,
@@ -90,7 +90,7 @@
    "flurry": 30
   },
   "orb_trail": {
-   "fx": "orb_pops",
+   "fx": "sword_duel",
    "size": 100,
    "density": 100,
    "loop_x": 300,
@@ -98,7 +98,7 @@
    "flurry": 50
   },
   "orb_crescent": {
-   "fx": "getsuga_cross",
+   "fx": "sword_duel",
    "size": 100,
    "density": 100,
    "loop_x": 100,
@@ -114,11 +114,11 @@
    "flurry": 30
   },
   "trail_crescent": {
-   "fx": "sword_slash_clash",
+   "fx": "sword_duel",
    "size": 100,
    "density": 100,
    "loop_x": 100,
-   "loop_y": 100,
+   "loop_y": 300,
    "flurry": 30
   },
   "trail_sprite": {
