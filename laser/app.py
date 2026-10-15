@@ -17,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, timefx, clashfx, clash, motion, unique
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique
 from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
@@ -245,7 +245,7 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg"):
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg"):
                 if m is not None and hasattr(m, attr):
                     try:
                         delattr(m, attr)
@@ -594,7 +594,9 @@ class World:
                                        for f in other.figures if f.transform.init]
                 side.partner_scale = [f.mode.body_scale()
                                       for f in other.figures if f.transform.init]
-                side.partner_gone = [blink.gone(f)
+                # Blinked out, or dodging with Invulnerable on: shots,
+                # FX and bodies pass where it is.
+                side.partner_gone = [blink.gone(f) or dodge.untouchable(f, self.global_tick)
                                      for f in other.figures if f.transform.init]
                 side.partner_state = [actions.target_state(f, self.global_tick)
                                       for f in other.figures if f.transform.init]

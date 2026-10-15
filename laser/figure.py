@@ -26,7 +26,7 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -54,6 +54,7 @@ class Figure:
         self.fx = None   # fxkit.FxDriver for image characters with an FX file
         self.act = None  # actions.ActionRunner for image characters
         self.retreat = None  # retreat.RetreatState (tactical retreat)
+        self.dodge = None    # dodge.DodgeState (FX Studio dodge)
         self.blink = None    # blink.BlinkState (FX Studio blink teleport)
         self.time = None     # timefx.TimeState (FX Studio time control: caster + time scales)
         self.ua = None       # unique.UAState (the character's unique ability)
@@ -90,6 +91,7 @@ class Figure:
         self.act = None
         self.aim = None
         self.retreat = None
+        self.dodge = None
         self.blink = None
         self.combat.reset()
         self.trail.clear()

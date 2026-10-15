@@ -57,6 +57,11 @@ these characters; it plays the PNGs.
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
                                               {"type": "projectile_count", "count": 5, "not": false}]},
+  "dodge": {"enabled": false, "style": "sidestep", "action": "", "react_to": "all", "trigger_px": 90,
+            "incoming_only": true, "chance_pct": 100, "cooldown_ms": 300, "distance_px": 108, "speed_pct": 100,
+            "side": "open", "angle_deg": 0, "flash": true, "afterimages": true, "during_attacks": true,
+            "invulnerable": false, "invuln_ms": 150, "counter_action": "", "counter_delay_ms": 0,
+            "counter_range_px": 0, "logic": "any", "conditions": [], "fx": ""},
   "effects": [ { "...": "section 3" } ],
   "groups": [{"id": "G…", "name": "Group 1", "action": "attack_normal", "anchor": "haR", "offset": [0, 0]}]
 }
@@ -593,6 +598,33 @@ arcs) are held for the dash; shots fire at the start of each pass and on their
 `emit.every_ticks`. When the dash ends the held FX stop and shots already
 flying finish. The original effect still plays on its own action. A missing id
 plays nothing.
+
+**Dodge (`dodge`, whole character; `laser/dodge.py`).** An enemy projectile
+(`react_to`: `"bullets"` = built-in bullets, `"fx"` = FX Studio projectiles —
+travelling effects with Deals damage —, `"all"`) within `trigger_px` (times
+the character scale), heading at the fighter when `incoming_only`, makes it
+dodge. Each projectile is rolled once (`chance_pct`); `conditions` (ANY / ALL,
+the action trigger conditions, "this action" = the dodge) gate it on top, none
+= the projectile alone. A new dodge can start `cooldown_ms` after the last one
+started. `during_attacks` off: never during a normal attack. It never cuts
+into a triggered action (defend, specials), the ultimate, a clash, a Tactical
+retreat or a knockback.
+`style`: `"sidestep"` (a physical step `distance_px` long at `speed_pct` % of
+the built-in dodge speed, 20 px/tick), `"blink"` (instant teleport to the same
+spot, crackle + afterimages when `flash`), `"action"` (plays `action`, skipping
+its conditions and cooldown; its own Movement and Blink carry the fighter), or
+`"sidestep_action"` / `"blink_action"` (both). Direction: `side` `"open"` (away
+from the projectile's line), `"random"` or `"alternate"`, square to its path,
+then turned `angle_deg` toward the target (negative = away).
+The dodge lasts for the sidestep, the dodge action, plus `invuln_ms` (a blink
+lasts only `invuln_ms`). Meanwhile `fx` (`"fx:<id>"` / `"group:<id>"`, as for
+the retreat) plays, and with `invulnerable` shots, FX and bodies pass through
+it and no damage or knockback lands. `counter_action` plays
+`counter_delay_ms` after the dodge ends, with Attack mode on and the target
+within `counter_range_px` (0 = any), skipping its conditions and cooldown.
+Image characters only; the built-in melee bullet dodge (swordsman, rig-drawn
+melee JSON) is unchanged and no longer applies to image characters. Solo has
+no enemy projectiles, so it only fires in Battle (same code path).
 
 **Triggered-reaction FX (effect `action`).** Besides an action name, an
 effect's `action` can be a reaction key (FX Studio: Actions > Triggered

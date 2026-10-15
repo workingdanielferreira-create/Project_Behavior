@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}),
   unique: FXK.normalizeUnique({}), uaPage: null,
   t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
@@ -196,6 +196,7 @@ var DOC = [
   ["aim", "aim", function (v) { return FXK.normalizeAim(clone(v || {})); }],
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
+  ["dodge", "dodge", function (v) { return FXK.normalizeDodge(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
@@ -564,7 +565,7 @@ function packData() {
     anchor_labels: S.labels, anchors: anchors,
     action_settings: Object.fromEntries(Object.keys(C.actions).map(function (k) { return [k, cfgOf(k)]; })),
     entry_sets: docCopy("entry_sets"), paths: docCopy("paths"), aim: docCopy("aim"), damaged: docCopy("damaged"),
-    retreat: docCopy("retreat"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
+    retreat: docCopy("retreat"), dodge: docCopy("dodge"), character_scale: docCopy("character_scale"), effects: docCopy("effects"), groups: docCopy("groups"),
     spec: "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js"};
   // Anchors, labels (anchor_labels) and action settings are written above in
   // the file's own shape; any other editable field is never left out.
@@ -2205,6 +2206,77 @@ function buildRetreatProps(d) {
   note(s, "Same conditions as action triggers. Where one says \"this action\", it means the retreat: attack / hit counts and Every N ms run from the last retreat start.");
   if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
 }
+// Character-level Dodge (pack.dodge, laser/dodge.py), shown under every action's settings.
+// Its conditions are the action trigger conditions; "this action" = the dodge.
+function buildDodgeProps(d) {
+  var s = sec(d, "Dodge (whole character)", "a-dodge",
+    "React to incoming enemy projectiles (built-in bullets and FX Studio shots) by sidestepping, blinking and / or playing an action.", "act");
+  var dg = S.dodge, ch = function () { save(); buildProps(); };
+  var num = function (label, key, lo, hi, step, help) {
+    field(s, label, inp("n", dg[key], function (v) { dg[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
+  };
+  field(s, "Dodge", inp("chk", dg.enabled, function (v) { dg.enabled = v; ch(); })).title =
+    "On: the character dodges incoming enemy projectiles (Battle; Solo has none). Off: it never dodges.";
+  if (!dg.enabled) return;
+  var acts = [["", "— none —"]].concat(Object.keys(C.actions).map(function (k) { return [k, k]; }));
+  // --- How
+  field(s, "Style", inp([["sidestep", "Sidestep"], ["blink", "Blink (teleport)"], ["action", "Play an action"],
+    ["sidestep_action", "Sidestep + action"], ["blink_action", "Blink + action"]], dg.style, function (v) { dg.style = v; ch(); })).title =
+    "Sidestep: a fast physical step out of the projectile's way. Blink: an instant teleport to the same spot (crackle and afterimages). Play an action: plays the action below; its own Movement and its own Blink (Blink (this action)) carry the fighter. The + styles do both at once.";
+  var withAct = dg.style.indexOf("action") >= 0, moves = dg.style !== "action";
+  if (withAct) {
+    if (dg.action && !C.actions[dg.action]) acts.push([dg.action, dg.action + " (missing)"]);
+    field(s, "Dodge action", inp(acts, dg.action, function (v) { dg.action = v; save(); })).title =
+      "The action played when it dodges (e.g. a Rig Forge \"Dodge · roll\"). It starts at once, skipping its own conditions and cooldown; give it no conditions so it never plays by itself. If it has a Blink (this action), that Blink runs too.";
+  }
+  // --- What it reacts to
+  field(s, "React to", inp([["all", "All projectiles"], ["bullets", "Bullets only"], ["fx", "FX Studio projectiles only"]], dg.react_to,
+    function (v) { dg.react_to = v; save(); })).title =
+    "Which enemy projectiles make it dodge. FX Studio projectiles = any travelling effect with Deals damage (thrown blades, sword rain, homing / zigzag / path shots ...).";
+  num("Trigger distance px", "trigger_px", 0, 2000, 5, "A projectile this close (game px at 100 % character scale) makes it dodge.");
+  field(s, "Incoming only", inp("chk", dg.incoming_only, function (v) { dg.incoming_only = v; save(); })).title =
+    "On: only projectiles heading toward the fighter count. Off: any projectile inside the trigger distance.";
+  num("Chance %", "chance_pct", 0, 100, 5, "Chance it dodges each projectile (rolled once per projectile).");
+  num("Cooldown ms", "cooldown_ms", 0, 60000, 50, "After a dodge starts, how long before the next one can.");
+  field(s, "Dodge during attacks", inp("chk", dg.during_attacks, function (v) { dg.during_attacks = v; save(); })).title =
+    "On: it may dodge in the middle of a normal attack (an action dodge cuts the attack). Off: it only dodges between attacks. It never cuts into defend, specials, the ultimate or a clash.";
+  // --- Where
+  if (moves) {
+    num("Distance px", "distance_px", 0, 2000, 5, "How far the sidestep / blink goes (game px at 100 % character scale).");
+    if (dg.style.indexOf("sidestep") === 0) num("Speed %", "speed_pct", 1, 1000, 5, "Sidestep speed as a % of the built-in dodge speed (20 px per tick).");
+    field(s, "Side", inp([["open", "Open side (away from its line)"], ["random", "Random left / right"], ["alternate", "Alternate left / right"]], dg.side,
+      function (v) { dg.side = v; save(); })).title =
+      "Which way it goes, square to the projectile's path. Open side: away from the line the projectile travels on (the built-in dodge's rule).";
+    num("Angle toward target °", "angle_deg", -180, 180, 5, "Turns the dodge this many degrees toward the target (negative = away from it). 0 = straight sideways.");
+    field(s, "Afterimages / flash", inp("chk", dg.style.indexOf("blink") === 0 ? dg.flash : dg.afterimages, function (v) {
+      if (dg.style.indexOf("blink") === 0) dg.flash = v; else dg.afterimages = v; save(); })).title =
+      "Sidestep: speed afterimages along the way. Blink: the blink crackle and afterimages at both ends.";
+  }
+  // --- Safety
+  field(s, "Invulnerable while dodging", inp("chk", dg.invulnerable, function (v) { dg.invulnerable = v; ch(); })).title =
+    "On: while it dodges (the sidestep, the dodge action, plus the time below) shots and FX pass through it and nothing damages or knocks it back.";
+  num("Extra dodge time ms", "invuln_ms", 0, 5000, 10, "How long the dodge lasts after the movement ends (a blink lasts only this long): invulnerability and the Dodge FX keep going for this long.");
+  // --- Counter
+  field(s, "Counter action", inp(acts, dg.counter_action, function (v) { dg.counter_action = v; ch(); })).title =
+    "Optional: an action played right after the dodge (and its action) ends, e.g. attack_normal or attack_special. It skips its own conditions and cooldown, and needs Attack mode on.";
+  if (dg.counter_action) {
+    num("Counter delay ms", "counter_delay_ms", 0, 10000, 10, "Wait this long after the dodge ends before countering.");
+    num("Counter range px", "counter_range_px", 0, 3000, 5, "Only counter when the target is this close (game px at 100 % character scale). 0 = any distance.");
+  }
+  // --- FX
+  var fxOpts = [["", "— none —"]], known = {"": 1};
+  S.groups.forEach(function (gr) { var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
+  S.effects.forEach(function (e) { fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
+  if (!known[dg.fx]) fxOpts.push([dg.fx, "(missing: deleted effect or group)"]);
+  field(s, "Dodge FX (borrowed)", inp(fxOpts, dg.fx, function (v) { dg.fx = v; save(); })).title =
+    "Optional: an effect or a whole group (▣) that plays for as long as the dodge lasts. It still plays on its own action too.";
+  // --- Conditions
+  field(s, "Conditions logic", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], dg.logic, function (v) { dg.logic = v; save(); })).title =
+    "Optional extra gate on top of the projectile check. No conditions = it dodges on the projectile alone.";
+  conditionList(s, function () { return S.dodge.conditions; }, {key: "a-dcond", listId: "fxTagListD", ownLabel: "— last dodge —",
+    helpOf: function (t) { return COND_HELP[t]; }, onChange: ch,
+    make: function (t) { return FXK.normalizeDodge({conditions: [{type: t}]}).conditions[0]; }});
+}
 // Character scale (pack character_scale), shown under every action's and
 // reaction's settings.
 // ------------------------------------------------------------ unique abilities
@@ -2585,6 +2657,7 @@ function buildReactionProps(d) {
     buildAimProps(d);
     buildDamagedProps(d);
     buildRetreatProps(d);
+    buildDodgeProps(d);
     return;
   }
   if (S.react === "retreat") {
@@ -2595,6 +2668,7 @@ function buildReactionProps(d) {
       (S.retreat.enabled ? "" : " Tactical retreat is off, so they won't play in the game until it's switched on below."));
     note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. Test shots (below the stage) count as projectiles to avoid.");
     buildRetreatProps(d);
+    buildDodgeProps(d);
     buildCharFxProps(d);
     buildCharScaleProps(d);
     return;
@@ -2651,6 +2725,7 @@ function buildActionProps(d) {
   buildAimProps(d);
   buildDamagedProps(d);
   buildRetreatProps(d);
+  buildDodgeProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack distance", "a-range", "How close the target must be for this attack to start.", "act");

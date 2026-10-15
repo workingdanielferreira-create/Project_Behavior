@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, blink, timefx, clash, unique
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique
 from . import platform_win as win
 from . import action_log
 
@@ -431,6 +431,14 @@ class CombatSystem(System):
             # the duel owns the figure's movement.  Battle only in practice
             # (a clash needs two fielded sides); same code path in Solo. ---
             if clash.duel_tick(fig, world):
+                fig.combat.acted = True
+                continue
+            # --- Dodge (FX Studio pack.dodge, laser/dodge.py): reacts to
+            # incoming enemy projectiles (bullets and FX Studio shots);
+            # while its sidestep runs it owns the figure's movement.  Solo
+            # has no enemy projectiles, so it only fires in Battle; same
+            # code path in both. ---
+            if dodge.tick(fig, world):
                 fig.combat.acted = True
                 continue
             if retreat.tick(fig, world):
@@ -1185,8 +1193,8 @@ class CollisionSystem(System):
             world.enemy_projs = surviving_enemy
 
             for fig in world.figures:
-                if blink.gone(fig):
-                    continue   # blinked out: untouchable
+                if blink.gone(fig) or dodge.untouchable(fig, world.global_tick):
+                    continue   # blinked out / invulnerable dodge: untouchable
                 hb = fig.mode.hurtbox_radius()
                 bs = fig.mode.body_scale()
                 proj_hit_sq = hb * hb if hb else config.BATTLE_PROJ_HIT_SQ * bs * bs
@@ -1223,7 +1231,10 @@ class CollisionSystem(System):
             dodge_dist = (config.SLASH_RADIUS * 4.0) * 0.15
             live_proj_ids = {id(p[-1]) for p in world.enemy_projs}
             for fig in world.figures:
-                if not fig.mode.uses_melee():
+                # Image characters never run the melee FSM that carries this
+                # dodge out (the flag would stick and block every later
+                # dodge): they dodge through laser/dodge.py instead.
+                if not fig.mode.uses_melee() or actions.is_image(fig):
                     continue
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.slashing or m.bouncing or m.bounce_ending
@@ -1278,8 +1289,8 @@ class CollisionSystem(System):
         if world.partner_figures:
             csq = config.SLASH_RADIUS * config.SLASH_RADIUS
             for fig in world.figures:
-                if not fig.mode.uses_melee():
-                    continue
+                if not fig.mode.uses_melee() or actions.is_image(fig):
+                    continue   # image characters: no melee FSM (see above)
                 c, m = fig.combat, fig.motion
                 if (c.dodge_dashing or c.dodge_counter
                         or c.slashing or m.bouncing or m.bounce_ending

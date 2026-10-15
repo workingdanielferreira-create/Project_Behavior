@@ -3148,8 +3148,9 @@ class FxDriver:
         # Tactical retreat FX, each lane on its own player and clock for as
         # long as the dash lasts: the borrowed retreat "fx" (on its action's
         # timing) and the FX built on the reaction ("@retreat", on the run
-        # timing).  Lane = [player, on, t, t_prev].
-        self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1]]
+        # timing); the third lane is the Dodge's borrowed "fx" (laser/dodge.py)
+        # for as long as the dodge lasts.  Lane = [player, on, t, t_prev].
+        self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1], [Player(), False, 0, -1]]
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
         self.cclock = 0   # Character FX frequency timer (ticks since fielded)
@@ -3217,6 +3218,7 @@ class FxDriver:
         self.player.tick(effects, host, self.t, n, fm, continuous=bool(cfg.get("fx_continuous")),
                          t_prev=self.t if hold else self.t_prev, frozen=frozen)
         self._retreat_tick(fig, host, hold, frozen)
+        self._dodge_tick(fig, world, host, hold, frozen)
         gone = self._character_tick(fig, host, hold, frozen)
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
@@ -3250,6 +3252,15 @@ class FxDriver:
         own = (self.cfx.retreat_own, self.cfx.retreat_host) if dashing else ([], None)
         for lane, (effs, act) in zip(self.rlanes, (borrowed, own)):
             self._lane_tick(lane, effs, act, host, hold, frozen)
+
+    def _dodge_tick(self, fig, world, host, hold, frozen=False):
+        """Dodge FX (laser/dodge.py "fx"): the borrowed effect / group plays
+        for as long as the dodge lasts, like the Tactical retreat's."""
+        from . import dodge
+        cfg = dodge.config_for(fig)
+        on = bool(cfg and cfg.get("fx") and dodge.active(fig, world.global_tick))
+        effs, act = self.cfx.retreat_effects(cfg.get("fx")) if on else ([], None)
+        self._lane_tick(self.rlanes[2], effs, act, host, hold, frozen)
 
     def _character_tick(self, fig, host, hold, frozen=False):
         """Character FX ("@character"): always on, whatever the fighter is

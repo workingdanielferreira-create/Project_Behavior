@@ -11,6 +11,7 @@ from . import config
 from . import combat as _combat
 from . import actions as _actions
 from . import blink as _blink
+from . import dodge as _dodge
 from . import unique as _unique
 
 
@@ -165,11 +166,14 @@ def damage_cooldown_ticks(fig):
 
 def damage_immune(fig, world):
     """True while fig's damage cooldown from its last HP hit is running, or
-    while it is blinked out (FX Studio blink: untouchable while gone)."""
+    while it is blinked out (FX Studio blink: untouchable while gone), or
+    while an FX Studio dodge with Invulnerable on runs (laser/dodge.py)."""
     if _blink.gone(fig):
         return True
     if world is None:
         return False
+    if _dodge.untouchable(fig, world.global_tick):
+        return True
     return fig.personality.dmg_immune_until > world.global_tick
 
 
@@ -177,7 +181,7 @@ def knockback_immune(fig, world):
     """damage_immune for knockback delivered apart from the HP hit (dash-slash
     launch, dash body push).  Those land up to one tick after the hit that
     started the cooldown, and belong to it, so they still apply then."""
-    if _blink.gone(fig):
+    if _blink.gone(fig) or (world is not None and _dodge.untouchable(fig, world.global_tick)):
         return True
     if not damage_immune(fig, world):
         return False
