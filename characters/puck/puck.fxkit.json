@@ -13606,7 +13606,8 @@
     "jitter": 4.5,
     "grow_ticks": 3,
     "detach_ticks": 0,
-    "tip_fade": 0
+    "tip_fade": 0,
+    "pos_scale": true
    },
    "keys": [],
    "id": "Emus8zuy12",
@@ -13702,7 +13703,8 @@
     "jitter": 0,
     "grow_ticks": 3,
     "detach_ticks": 0,
-    "tip_fade": 0
+    "tip_fade": 0,
+    "pos_scale": true
    },
    "keys": [],
    "id": "Emus9i0f93",

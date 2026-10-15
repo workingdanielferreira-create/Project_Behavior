@@ -168,7 +168,7 @@ PARAM_DEFAULTS = {
     "arc": dict(radius=42, span=170, width=6.5, tail=0.95, segs=16, grow=0.85, core_alpha=0.7, core_width=0.3, orient="motion",
                 angle_deg=0, placement="anchor", back=51, lead=26),
     "beam": dict(length=200, w_start0=6, w_start1=6, w_end0=2, w_end1=2, segments=1, glow=0, glow_color="", pulse_hz=0,
-                 jitter=0, detach_ticks=0, grow_ticks=0, tip_fade=0),
+                 jitter=0, detach_ticks=0, grow_ticks=0, tip_fade=0, pos_scale=False),
     # Blade only: lodge_ms = how long a non-piercing blade stays stuck in the
     # target it hits (0 = it ends on the hit); blade_orient motion = the tip
     # points where it moves, angle = it holds blade_angle_deg (0 = right,
@@ -1106,7 +1106,7 @@ class Inst:
                  "trail", "parts", "ghosts", "acc", "facing", "flip", "orbitA", "phase", "zx", "zy", "hits", "last_hit", "ep",
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
-                 "lodge", "mk", "ma", "run", "tgt", "cap", "bprof", "bs0",
+                 "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
                  "ua_rb", "ua_cd", "ua_dm")
@@ -1138,8 +1138,7 @@ class Inst:
         self.ps = 1.0          # figure size when fired (host_scale)
         self.ring_hits = None  # pulse: {(ring, target slot)} already hit
         self.cap = None        # beam: drawn length capped here (a clash split it, laser/clash.py)
-        self.bprof = None      # travelling beam: width slices locked as the head passes (beam_slice)
-        self.bs0 = 1.0         # travelling beam: screen-position scale where it was fired
+        self.bgrow = None      # pos_scale beam: (start dist, growth per px, lo, hi) (beam_grow_plan)
 
 
 def emit_particles(inst, fx, host, n):
@@ -1628,13 +1627,11 @@ def tick_inst(inst, host):
             inst.trail.append((inst.x, inst.y))
             while len(inst.trail) > max(0, trunc(P.get("trail_len") or 0)):
                 inst.trail.pop(0)
-        if fx["prim"] == "beam" and inst.bprof is None and beam_travels(inst):
-            beam_slice(inst, host, True)   # the hand end, before the head leaves it
         if not intercept_step(inst, host):
             move_inst(inst, host)
             _unique.inst_step(inst, host)   # Ricochet: walls / enemy shots
-        if fx["prim"] == "beam" and inst.bprof is not None and beam_travels(inst):
-            beam_slice(inst, host, False)  # the space the head just moved into
+        if fx["prim"] == "beam" and inst.bgrow is None and P.get("pos_scale"):
+            beam_grow_plan(inst, host)
     inst.flow = (inst.flow + float(fx["color"].get("flow_speed") or 0)) % 1
     prim = fx["prim"]
     if prim == "ribbon":
@@ -1734,84 +1731,76 @@ def arc_segs(inst, ps):
     return out
 
 
-# ---------------------------------------------------------------- beam slices
-# A travelling beam grows with the screen-position scale (combat.position_scale)
-# like a cone: each tick the space its head moves into gets a width slice of
-# the authored head width x the position scale there, relative to where the
-# beam was fired.  A slice is locked once made, so only newly covered space
-# scales and the part already drawn never changes.  The hand end keeps the
-# authored tail width.  The beam is drawn and hit as one straight shape
-# through its slices (beam_profile).  Attached / static beams are unchanged.
-def beam_travels(inst):
-    m = inst.fx["motion"]
-    return m["kind"] in MOVERS and inst.vx * inst.vx + inst.vy * inst.vy >= 1e-8
+# ---------------------------------------------------------------- beam head scaling
+# params.pos_scale (opt-in, travelling beams only): the beam's HEAD widens with
+# the screen-position scale (combat.position_scale) as it travels.  For its
+# first BEAM_GROW_AFTER_PX it plays exactly as authored.  There, once, the
+# growth is planned from where it is and where it is heading: the position
+# scale at that point vs. where its line leaves the screen gives one steady
+# rate per px, which the head then follows (held at the screen-edge value
+# beyond it).  The tail keeps its authored width, so the beam stays a straight
+# tapered shape from the hand to the head, just more like a cone.
+BEAM_GROW_AFTER_PX = 100.0
 
 
-def host_pos_scale(host, x, y):
-    """Screen-position scale at (x, y); 1 for hosts with no figure on screen."""
+def _screen_exit(x, y, ux, uy, w, h):
+    """Distance from (x, y) along (ux, uy) to the screen edge (0 if outside)."""
+    if not (0 <= x <= w and 0 <= y <= h):
+        return 0.0
+    t = 1e18
+    if ux > 1e-9:
+        t = min(t, (w - x) / ux)
+    elif ux < -1e-9:
+        t = min(t, -x / ux)
+    if uy > 1e-9:
+        t = min(t, (h - y) / uy)
+    elif uy < -1e-9:
+        t = min(t, -y / uy)
+    return t if t < 1e17 else 0.0
+
+
+def beam_grow_plan(inst, host):
+    """Once the head has travelled BEAM_GROW_AFTER_PX, fix its growth rate."""
+    if inst.fx["motion"]["kind"] not in MOVERS:
+        return
+    spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+    dist = spd * (inst.age + 1)   # where the head is now (beam_reach after this tick)
+    if spd < 0.0001 or dist < BEAM_GROW_AFTER_PX:
+        return
     fig = getattr(host, "fig", None)
     sw, sh = getattr(fig, "screen_w", 0), getattr(fig, "screen_h", 0)
     if not sw or not sh:
-        return 1.0
-    from . import combat as _combat
-    return max(1e-6, float(_combat.position_scale(x, y, sw, sh)))
-
-
-def beam_slice(inst, host, hand):
-    """Lock one width slice at the beam's head (or its hand end)."""
-    P = inst.fx["params"]
-    prog = life_t(inst)
-    if hand:
-        inst.bs0 = host_pos_scale(host, inst.x, inst.y)
-        inst.bprof = [(inst.x, inst.y, P["w_start0"] + (P["w_start1"] - P["w_start0"]) * prog, 1.0)]
+        inst.bgrow = (dist, 0.0, 1.0, 1.0)   # no screen to scale against (FX previews)
         return
-    r = host_pos_scale(host, inst.x, inst.y) / inst.bs0
-    inst.bprof.append((inst.x, inst.y, P["w_end0"] + (P["w_end1"] - P["w_end0"]) * prog, r))
+    from . import combat as _combat
+    ux, uy = inst.dir
+    # The point exactly BEAM_GROW_AFTER_PX along its line (the head can pass
+    # it mid-tick): growth is measured from there.
+    d0 = BEAM_GROW_AFTER_PX
+    x0, y0 = inst.x - ux * (dist - d0), inst.y - uy * (dist - d0)
+    s0 = max(1e-6, _combat.position_scale(x0, y0, sw, sh))
+    run = _screen_exit(x0, y0, ux, uy, sw, sh)
+    if run < 1.0:
+        inst.bgrow = (d0, 0.0, 1.0, 1.0)
+        return
+    g1 = _combat.position_scale(x0 + ux * run, y0 + uy * run, sw, sh) / s0
+    inst.bgrow = (d0, (g1 - 1.0) / run, min(1.0, g1), max(1.0, g1))
 
 
-def beam_profile(inst, hx, hy, ux, uy, reach):
-    """The locked slices along the drawn beam: [(t from head 0..1, width, scale)]
-    sorted head to tail, with the head and tail ends included; None when the
-    beam has no slices (attached / static beams)."""
-    pr = inst.bprof
-    if not pr or reach <= 0:
-        return None
-    pts = sorted(((hx - x) * ux + (hy - y) * uy, w, r) for x, y, w, r in pr)
-
-    def at(d):
-        if d <= pts[0][0]:
-            return pts[0][1:]
-        for i in range(1, len(pts)):
-            d1 = pts[i][0]
-            if d <= d1:
-                d0, w0, r0 = pts[i - 1]
-                u = (d - d0) / (d1 - d0) if d1 > d0 else 1.0
-                return w0 + (pts[i][1] - w0) * u, r0 + (pts[i][2] - r0) * u
-        return pts[-1][1:]
-
-    out = [(0.0,) + tuple(at(0.0))]
-    out += [(d / reach, w, r) for d, w, r in pts if 0.0 < d < reach]
-    out.append((1.0,) + tuple(at(reach)))
-    return out
-
-
-def profile_at(prof, t):
-    """(width, scale) at t (0 head .. 1 tail) along a beam_profile."""
-    for i in range(1, len(prof)):
-        if t <= prof[i][0]:
-            t0, w0, r0 = prof[i - 1]
-            t1, w1, r1 = prof[i]
-            u = (t - t0) / (t1 - t0) if t1 > t0 else 1.0
-            return w0 + (w1 - w0) * u, r0 + (r1 - r0) * u
-    return prof[-1][1], prof[-1][2]
+def beam_head_scale(inst):
+    """How much wider than authored the head is drawn now (1 = as authored)."""
+    g = inst.bgrow
+    if g is None or not g[1]:
+        return 1.0
+    spd = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+    return max(g[2], min(g[3], 1.0 + g[1] * (spd * inst.age - g[0])))
 
 
 def beam_half_width(inst, ps):
     """Half the widest width the beam is drawn at (collision bodies)."""
     P = inst.fx["params"]
-    w = max(P["w_start0"], P["w_start1"], P["w_end0"], P["w_end1"])
-    if inst.bprof:
-        w = max(w, max(q[2] * q[3] for q in inst.bprof))
+    gh = beam_head_scale(inst)
+    w = max(P["w_start0"], P["w_start1"], P["w_end0"] * gh, P["w_end1"] * gh)
     return max(0.0, w * ps / 2)
 
 
@@ -1853,15 +1842,20 @@ def beam_segs(inst, host, ps):
         return None
     prog = life_t(inst)
     wT = P["w_start0"] + (P["w_start1"] - P["w_start0"]) * prog
-    wH = P["w_end0"] + (P["w_end1"] - P["w_end0"]) * prog
+    gh = beam_head_scale(inst)
+    wH = (P["w_end0"] + (P["w_end1"] - P["w_end0"]) * prog) * gh
     pulse = 1.0
     if P["pulse_hz"] > 0:
         pulse = 0.65 + 0.35 * math.sin(2 * math.pi * P["pulse_hz"] * (inst.age * TICK_MS / 1000.0))
     c1, c2 = color_pair(fx, host.lut)
     segs = max(1, trunc(P["segments"]))
+    # A one-segment beam whose head has grown is split so its hits follow the
+    # tapered shape; it keeps its one colour (single, _draw_beam).
+    single = segs == 1 and gh != 1.0
+    if single:
+        segs = 8
     jr = Rng((inst.seed + trunc(inst.age if inst.age != INF else 0)) & M32)
     tf = max(0.0, min(1.0, float(P.get("tip_fade") or 0)))   # fraction of the length, from the head, that fades out
-    prof = beam_profile(inst, hx, hy, ux, uy, reach) if beam_travels(inst) else None
     out = []
     for i in range(segs):
         t0, t1 = i / segs, (i + 1) / segs
@@ -1873,17 +1867,13 @@ def beam_segs(inst, host, ps):
             y0 += ux * j
             x1 += -uy * j
             y1 += ux * j
-        if prof:
-            pw, pr = profile_at(prof, t0)
-            w = pw * pr * ps
-        else:
-            w = (wH + (wT - wH) * t0) * ps
-        out.append((x0, y0, x1, y1, w,
-                    [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0],
-                    min(1.0, (t0 + t1) / 2 / tf) if tf > 0 else 1.0))
+        tc = 0.0 if single else t0
+        out.append((x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
+                    [c2[0] + (c1[0] - c2[0]) * tc, c2[1] + (c1[1] - c2[1]) * tc, c2[2] + (c1[2] - c2[2]) * tc],
+                    (min(1.0, 0.5 / tf) if single else min(1.0, (t0 + t1) / 2 / tf)) if tf > 0 else 1.0))
     # Smooth-draw info for straight beams: head and tail points, widths, colours, tip fade.
     info = {"hx": hx, "hy": hy, "tx": hx - ux * reach, "ty": hy - uy * reach,
-            "wH": wH * ps, "wT": wT * ps, "c1": c1, "c2": c2, "tf": tf, "prof": prof}
+            "wH": wH * ps, "wT": wT * ps, "c1": c1, "c2": c2, "tf": tf, "single": single}
     return out, fade * pulse, info
 
 
@@ -2157,37 +2147,6 @@ def _beam_capsule(b, w_head, w_tail):
     return pts
 
 
-def _beam_cone(b, ps, extra):
-    """Outline of a travelling beam through its locked width slices (beam_profile):
-    round tail cap, one side head-ward, round head cap, the other side back.
-    extra = glow added to every width before the slice's position scale."""
-    prof = b["prof"]
-    ah = math.atan2(b["hy"] - b["ty"], b["hx"] - b["tx"])
-    dx, dy = b["tx"] - b["hx"], b["ty"] - b["hy"]
-
-    def half(q):
-        return max(1.0, (q[1] + extra) * q[2] * ps) / 2
-
-    def side(q, a):
-        h = half(q)
-        return (b["hx"] + dx * q[0] + math.cos(a) * h, b["hy"] + dy * q[0] + math.sin(a) * h)
-
-    pts = []
-    ht = half(prof[-1])
-    for k in range(13):
-        a = ah + math.pi + (k / 12 - 0.5) * math.pi
-        pts.append((b["tx"] + math.cos(a) * ht, b["ty"] + math.sin(a) * ht))
-    for q in reversed(prof[1:-1]):
-        pts.append(side(q, ah - math.pi / 2))
-    hh = half(prof[0])
-    for k in range(13):
-        a = ah + (k / 12 - 0.5) * math.pi
-        pts.append((b["hx"] + math.cos(a) * hh, b["hy"] + math.sin(a) * hh))
-    for q in prof[1:-1]:
-        pts.append(side(q, ah + math.pi / 2))
-    return pts
-
-
 def _beam_stops(b, col_at, a):
     """[(t from head, rgb, alpha)] (FXK beamStops)."""
     ts = [0.0, 1.0]
@@ -2207,26 +2166,24 @@ def _draw_beam(p, inst, host, ps):
     # with a smooth gradient along its length (colour c2 at the head to c1 at the tail,
     # tip_fade alpha), so it has no joints, seams or width steps.  Jittered and
     # single-segment beams stroke their segments with round caps as before.
-    # A travelling beam (info["prof"]) is drawn as one smooth cone through its
-    # locked width slices; a single-segment one keeps its one colour.
-    prof = info["prof"]
-    if (len(segs) > 1 or prof) and not P["jitter"] > 0:
+    if len(segs) > 1 and not P["jitter"] > 0:
         c1, c2 = info["c1"], info["c2"]
-        if len(segs) > 1:
-            def col_at(t):
-                return [c2[i] + (c1[i] - c2[i]) * t for i in range(3)]
-        else:
+
+        def col_at(t):
+            return [c2[i] + (c1[i] - c2[i]) * t for i in range(3)]
+
+        if info["single"]:   # an authored one-segment beam keeps its one colour
             info = dict(info, tf=0.0)
             am *= segs[0][6]
 
             def col_at(t):
                 return segs[0][5]
 
-        def fill(c_at, a, w_head, w_tail, extra=0.0):
+        def fill(c_at, a, w_head, w_tail):
             grad = QLinearGradient(info["hx"], info["hy"], info["tx"], info["ty"])
             for t, col, al in _beam_stops(info, c_at, a):
                 grad.setColorAt(t, qcolor(col, al))
-            pts = _beam_cone(info, ps, extra) if prof else _beam_capsule(info, w_head, w_tail)
+            pts = _beam_capsule(info, w_head, w_tail)
             path = QPainterPath(QPointF(*pts[0]))
             for q in pts[1:]:
                 path.lineTo(*q)
@@ -2238,7 +2195,7 @@ def _draw_beam(p, inst, host, ps):
 
         if P["glow"] > 0:
             fill((lambda t: gc) if gc else (lambda t: [trunc(v) for v in col_at(t)]), 70 * am,
-                 info["wH"] + P["glow"] * ps, info["wT"] + P["glow"] * ps, P["glow"])
+                 info["wH"] + P["glow"] * ps, info["wT"] + P["glow"] * ps)
         fill(col_at, 235 * am, max(1.0, info["wH"]), max(1.0, info["wT"]))
         return
     for q in segs:
