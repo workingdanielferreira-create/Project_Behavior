@@ -347,6 +347,9 @@ class ClashFX:
     def __init__(self, key, x, y, angle=0.0, c1=(90, 170, 255), c2=(255, 120, 60), scale=1.0, winner=0, hold=None,
                  seed=None, density=1.0):
         self.key = key
+        # The World Clash slot whose Loop X / Y and Flurry % a Sword Duel
+        # uses (clash._spawn_fx sets it; the F6 preview keeps trail x trail).
+        self.duel_slot = "trail_trail"
         self.base, self.spec = resolve(key)
         sp = self.spec
         self.name = sp["name"]
@@ -1707,14 +1710,15 @@ class ClashFX:
         st["cuts"] = [c[:5] + [c[5] + 1, c[6]] for c in st["cuts"] if c[5] + 1 < 9]
         if self.anchored or self.phase != "hold":
             return
-        # F6 preview: no fighters, so it plays its own choreography with two
-        # glowing stand-ins.
+        # F6 preview, or Sword Duel picked on a slot other than trail x trail:
+        # no fighters, so it plays its own choreography with two glowing
+        # stand-ins (Loop X / Y and Flurry % from its own slot).
         if st["plan"] is None:
             reach = float(self.spec.get("reach", 34)) * S
             from . import clash     # lazy: clash imports this module
             st["plan"] = duel_plan(self.rng, (-110 * S, 12 * S), (110 * S, -12 * S), (0.0, 0.0), reach,
                                    strikes=self.spec.get("strikes", (4, 7)), bind=float(self.spec.get("bind", 0.3)),
-                                   loop=clash.duel_loop(), flurry=clash.duel_flurry())
+                                   loop=clash.duel_loop(self.duel_slot), flurry=clash.duel_flurry(self.duel_slot))
         plan, i = st["plan"], st["i"]
         if i >= len(plan):
             self.release()

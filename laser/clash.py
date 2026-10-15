@@ -262,18 +262,19 @@ def normalize_world(c):
 WORLD = normalize_world({})
 
 
-def duel_loop():
+def duel_loop(slot="trail_trail"):
     """(x, y) scale of the sword duel's whole sequence on the screen axes,
-    from the trail x trail slot's Loop X / Y % (World Clash; 1.0 = as
-    designed).  clashfx.duel_plan applies it."""
-    cfg = WORLD["slots"].get("trail_trail") or {}
+    from `slot`'s Loop X / Y % (World Clash: shown on any slot whose clash
+    FX is Sword Duel; 1.0 = as designed).  clashfx.duel_plan applies it."""
+    cfg = WORLD["slots"].get(slot) or {}
     return (float(cfg.get("loop_x", 100.0)) / 100.0, float(cfg.get("loop_y", 100.0)) / 100.0)
 
 
-def duel_flurry():
-    """Chance (0..1) that a sword duel strike is a flurry combo, from the
-    trail x trail slot's Flurry % (World Clash).  clashfx.duel_plan uses it."""
-    cfg = WORLD["slots"].get("trail_trail") or {}
+def duel_flurry(slot="trail_trail"):
+    """Chance (0..1) that a sword duel strike is a flurry combo, from
+    `slot`'s Flurry % (World Clash: shown on any slot whose clash FX is
+    Sword Duel).  clashfx.duel_plan uses it."""
+    cfg = WORLD["slots"].get(slot) or {}
     return float(cfg.get("flurry", 30.0)) / 100.0
 
 
@@ -653,6 +654,7 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     fx = clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
                        scale=scale, hold=hold, winner=winner,
                        density=float(cfg.get("density", 100)) / 100.0)
+    fx.duel_slot = slot     # a Sword Duel FX reads this slot's Loop X / Y and Flurry %
     if budget is not None:
         fx.fit(budget)
     return fx
@@ -1233,6 +1235,7 @@ def _start_duel(world, st, a, b, c, now, budget=None):
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
                        scale=_pair_size(a, b, cfg), hold=-1,
                        density=float(cfg.get("density", 100)) / 100.0)
+    fx.duel_slot = "trail_trail"
     fx.anchor_duel(_pscale(world, c[0], c[1]))
     st["duels"].append(Duel(a, b, plan, fx, pair))
     st["duel_figs"].update(pair)
