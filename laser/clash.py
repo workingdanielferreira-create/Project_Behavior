@@ -66,6 +66,16 @@ Every pair of categories has a rule.
                       to their real positions every tick.  A pair that has
                       just duelled (DUEL_REARM_TICKS), or a Clash panel FX
                       other than a sword duel, plays a one-shot burst instead
+  Sword Duel on any other slot (DUEL_RULES): each side whose effect is
+                      attached to its fighter (_connected: a trail, or Attached
+                      motion) is anchored — that fighter is moved along its
+                      side of the duel like the trail x trail duel, which ends
+                      the same way (final hit, finisher), with no clash budget.
+                      A side whose effect is a projectile is cancelled and the
+                      FX's stand-in plays its side.  No side attached: the
+                      stand-ins play on their own, as before.  Only one sword
+                      duel plays at a time (_duel_busy): any other clash that
+                      would start one plays sword_slash_clash instead
   crescent x crescent the two blades grind (crescent_struggle), then shatter
   sprite x sprite     a kunai clash (kunai_clash)
   orb x trail         sword_slash_clash      orb x crescent      getsuga_cross
@@ -160,6 +170,7 @@ TIE_RECOIL_KB = 6.0          # trail x trail tie: both owners pushed back this m
 MAX_TIP_WATCH = 32
 DUEL_REARM_TICKS = 90        # the same two fighters cannot start another duel this soon after one
 DUEL_MARGIN = 20.0           # a dueling fighter is kept this far inside the screen
+DUEL_ANCHOR_PX = 400.0       # an anchored fighter is at most this far from the clash (x character scale)
 FINAL_KB_BASE_PX = 240.0     # sword duel final hit: the loser is launched this far...
 FINAL_KB_PER_KB = 0.5        # ...plus this many px per point of the winning trail's knockback...
 FINAL_KB_MAX_PX = 900.0      # ...up to this far
@@ -202,6 +213,11 @@ HELD_SLOTS = {"beam_beam": "beam_struggle", "beam_orb": "beam_orb", "crescent_cr
 # One-shot rules: settled by the knockback rule, their slot's FX plays.
 BURST_RULES = ("orb_orb", "trail_trail", "sprite_sprite", "orb_trail", "orb_crescent", "orb_sprite",
                "trail_crescent", "trail_sprite", "crescent_sprite")
+# Rules whose slot can start a real sword duel when it is set to Sword Duel
+# (the slot is the rule's own).  The beam rules pick among several slots
+# (beam_explode / beam_struggle / beam_split / beam_nosplit): Sword Duel
+# there plays its stand-ins only.  Only one sword duel plays at a time.
+DUEL_RULES = BURST_RULES + ("crescent_crescent", "beam_orb")
 
 # The world clash table: which clash FX (laser/clashfx.py key, "none" = no
 # FX) plays for each slot, at size / density %.  Same for every character.
@@ -647,6 +663,8 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     key = key or key0
     if key == "none" or _state(world).get("quiet"):
         return None
+    if clashfx.resolve(key)[0] == "sword_duel" and _duel_busy(world, _state(world)):
+        key = "sword_slash_clash"   # one sword duel at a time, world-wide
     if scale is None:
         scale = _pair_size(pair[0], pair[1], cfg) if pair else float(cfg.get("size", 100)) / 100.0
     # Position scale is applied when it is drawn (clashfx.draw_all), except
@@ -949,17 +967,19 @@ def _struggle_of(st, a, b):
 
 class Duel:
     """A sword duel in progress: fa / fb (side 0 / side 1) are moved along
-    plan, one frame per tick."""
-    __slots__ = ("a", "b", "fa", "fb", "plan", "i", "fx", "owns", "pair", "final")
+    plan, one frame per tick — each only when anchored (its effect was
+    attached to it); an unanchored side is the FX's stand-in."""
+    __slots__ = ("a", "b", "fa", "fb", "plan", "i", "fx", "owns", "pair", "final", "anchor")
 
-    def __init__(self, a, b, plan, fx, pair):
+    def __init__(self, a, b, plan, fx, pair, anchor=(True, True)):
         self.a, self.b, self.fa, self.fb = a, b, a.owner, b.owner
         self.plan, self.i, self.fx, self.pair = plan, 0, fx, pair
+        self.anchor = tuple(anchor)
         self.final = False      # True once it reached its final hit (_final_hit settles it)
-        # Slash frames are shown through render.frame_override — only for a
-        # fighter that has slash frames and nothing else holding the override.
-        self.owns = tuple(bool(f.render.bundle.slash) and f.render.frame_override is None
-                          for f in (self.fa, self.fb))
+        # Slash frames are shown through render.frame_override — only for an
+        # anchored fighter that has slash frames and nothing else holding it.
+        self.owns = tuple(on and bool(f.render.bundle.slash) and f.render.frame_override is None
+                          for f, on in zip((self.fa, self.fb), self.anchor))
 
 
 def _state(world):
@@ -1052,6 +1072,23 @@ def _start(world, st, a, b, c, rule, now):
     # (_engage); the full beam struggle below holds both regardless.
     touch = (c, max(a.hw, b.hw))
     budget = _budget(a, b)
+    if rule in DUEL_RULES and clashfx.resolve(_slot_fx(rule)[0])[0] == "sword_duel":
+        # Sword Duel on this pair's slot: an attached (melee) effect's
+        # fighter is moved along its stand-in's path (_start_duel); with
+        # none attached the stand-ins play on their own (the rule below).
+        anchor = (_connected(a), _connected(b))
+        if any(anchor) or _duel_busy(world, st):
+            # No clash budget: once a fighter is anchored the duel owns it,
+            # however little life its effect has left.
+            if (any(anchor) and not st["quiet"] and not _duel_busy(world, st)
+                    and _start_duel(world, st, a, b, c, now, slot=rule, anchor=anchor)):
+                return None
+            # A duel already running (one at a time), a merged contact, a
+            # re-arming pair or no room for a duel: a one-shot burst instead.
+            _settle(world, a, b, c)
+            fx = _spawn_fx(world, rule, c, ang, a.col, b.col, key="sword_slash_clash", budget=budget, pair=(a, b))
+            _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
+            return None
     if rule in HELD_SLOTS and _ult_over(a, b) is not None:
         # An ultimate that out-knocks a non-ultimate effect is never pinned
         # by it (no struggle / hold): the clash plays as a one-shot burst,
@@ -1143,14 +1180,8 @@ def _start(world, st, a, b, c, rule, now):
         _engage(world, figs, fx.length() if fx is not None else held + 20, touch)
         return Clash(a, b, c, rule, now + held, fx, now)
     slot = rule     # BURST_RULES: the rule's own slot
-    key = None
-    if rule == "trail_trail" and not st["quiet"]:     # a merged contact never starts a duel
-        if clashfx.resolve(_slot_fx(slot)[0])[0] == "sword_duel":
-            if _start_duel(world, st, a, b, c, now, budget):
-                return None
-            key = "sword_slash_clash"   # re-arming pair / no room for a duel: a one-shot burst instead
     _settle(world, a, b, c)
-    fx = _spawn_fx(world, slot, c, ang, a.col, b.col, key=key, budget=budget, pair=(a, b))
+    fx = _spawn_fx(world, slot, c, ang, a.col, b.col, budget=budget, pair=(a, b))
     _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
     return None
 
@@ -1214,32 +1245,74 @@ def _finish(world, st, rec):
 
 
 # ---------------------------------------------------------------- sword duel
-def _start_duel(world, st, a, b, c, now, budget=None):
-    """trail x trail: start a sword duel between the two trails' owners.
-    False when it cannot (a re-arming pair, no two distinct fighters, or
-    the duel would outlast the clash budget)."""
+def _connected(b):
+    """A melee effect still on its fighter: a trail, or an FX Studio effect
+    with Attached motion (not deflected free, not lodged).  Everything that
+    travels (and built-in crescents / bullets) is a projectile."""
+    if b.kind == "trail":
+        return True
+    if b.kind == "inst":
+        r = b.ref
+        return (r.fx["motion"]["kind"] == "attached" and not getattr(r, "free", False)
+                and r.lodge is None)
+    return False
+
+
+def _duel_busy(world, st):
+    """True while a sword duel plays anywhere (an anchored one, or a Sword
+    Duel FX with its stand-ins): only one at a time."""
+    if st["duels"]:
+        return True
+    return any(fx.base == "sword_duel" and fx.alive for fx in (getattr(world, "clash_fx", None) or ()))
+
+
+def _body_pt(b, c):
+    """The point of body b nearest the clash point c (a projectile's
+    stand-in starts its duel there)."""
+    return min(b.pts, key=lambda p: (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2)
+
+
+def _start_duel(world, st, a, b, c, now, budget=None, slot="trail_trail", anchor=(True, True)):
+    """Start a sword duel (`slot`'s Sword Duel FX).  anchor = per side
+    (a, b) whether that effect is attached to its fighter: an anchored
+    fighter is moved along its side of the duel (duel_tick); an effect that
+    is a projectile is cancelled and its stand-in in the FX plays its side
+    from where it was.  False when it cannot (a re-arming pair, no fighter
+    to anchor, both sides one fighter, or the duel would outlast the clash
+    budget)."""
     fa, fb = a.owner, b.owner
-    if fa is None or fb is None or fa is fb:
+    if fa is None or fb is None or fa is fb or not any(anchor):
         return False
+    if not (0.0 <= c[0] <= world.screen_w and 0.0 <= c[1] <= world.screen_h):
+        return False    # an off-screen contact (FX not placed yet on the fight's first tick)
+    for f, on in ((fa, anchor[0]), (fb, anchor[1])):
+        if on and (not f.transform.init
+                   or math.hypot(f.x - c[0], f.y - c[1]) > DUEL_ANCHOR_PX * f.mode.body_scale()):
+            return False    # not placed yet, or nowhere near the clash: nothing to anchor
     pair = (id(fa), id(fb))
     if now < st["duel_cd"].get(pair, -1):
         return False
-    key, cfg = _slot_fx("trail_trail")
+    key, cfg = _slot_fx(slot)
     _base, sp = clashfx.resolve(key)
     bs = 0.5 * (fa.mode.body_scale() + fb.mode.body_scale())
-    plan = clashfx.duel_plan(st["rng"], (fa.x, fa.y), (fb.x, fb.y), c, float(sp.get("reach", 34)) * bs,
+    a0 = (fa.x, fa.y) if anchor[0] else _body_pt(a, c)
+    b0 = (fb.x, fb.y) if anchor[1] else _body_pt(b, c)
+    plan = clashfx.duel_plan(st["rng"], a0, b0, c, float(sp.get("reach", 34)) * bs,
                              strikes=sp.get("strikes", (4, 7)), bind=float(sp.get("bind", 0.3)),
-                             loop=duel_loop(), flurry=duel_flurry())
+                             loop=duel_loop(slot), flurry=duel_flurry(slot))
     if budget is not None and len(plan) > budget:
         return False
     fx = clashfx.spawn(world, key, c[0], c[1], angle=0.0, c1=a.col, c2=b.col,
                        scale=_pair_size(a, b, cfg), hold=-1,
                        density=float(cfg.get("density", 100)) / 100.0)
-    fx.duel_slot = "trail_trail"
-    fx.anchor_duel(_pscale(world, c[0], c[1]))
-    st["duels"].append(Duel(a, b, plan, fx, pair))
-    st["duel_figs"].update(pair)
-    _engage(world, (fa, fb), len(plan))
+    fx.duel_slot = slot
+    fx.anchor_duel(_pscale(world, c[0], c[1]), sides=anchor)
+    for body, on in ((a, anchor[0]), (b, anchor[1])):
+        if not on:
+            _cancel(body)       # its stand-in carries on in the duel
+    st["duels"].append(Duel(a, b, plan, fx, pair, anchor))
+    st["duel_figs"].update(id(f) for f, on in ((fa, anchor[0]), (fb, anchor[1])) if on)
+    _engage(world, tuple(f for f, on in ((fa, anchor[0]), (fb, anchor[1])) if on), len(plan))
     return True
 
 
@@ -1364,7 +1437,7 @@ def duel_tick(fig, world):
     if pose is None:
         return False
     from . import combat
-    x, y, opp, swing, own = pose
+    x, y, opp_x, swing, own = pose
     t = fig.transform
     ox, oy = t.x, t.y
     m = DUEL_MARGIN
@@ -1372,7 +1445,7 @@ def duel_tick(fig, world):
     t.y = max(m, min(fig.screen_h - m, y))
     fig.face(ox, oy)
     if fig.aim is None:
-        t.facing_left = opp.x < t.x     # always squared up to the other fighter
+        t.facing_left = opp_x < t.x     # always squared up to the other side (fighter or stand-in)
     if (t.x - ox) ** 2 + (t.y - oy) ** 2 > 36.0:
         combat.spawn_afterimage(fig)
     combat._apply_trail_update(fig, t, True, False)
@@ -1402,8 +1475,11 @@ def _duels(world, st):
             continue
         fr = d.plan[d.i]
         d.i += 1
-        poses[id(d.fa)] = (fr[0], fr[1], d.fb, fr[6], d.owns[0])
-        poses[id(d.fb)] = (fr[2], fr[3], d.fa, fr[6], d.owns[1])
+        # (x, y, the other side's x in the plan, swing, owns frames)
+        if d.anchor[0]:
+            poses[id(d.fa)] = (fr[0], fr[1], fr[2], fr[6], d.owns[0])
+        if d.anchor[1]:
+            poses[id(d.fb)] = (fr[2], fr[3], fr[0], fr[6], d.owns[1])
         if d.fx is not None:
             d.fx.duel_frame(fr)
         live.append(d)
