@@ -955,6 +955,25 @@ def force_special(fig, world):
     return True
 
 
+def force_action(fig, world, name):
+    """laser/dodge.py: play `name` now (the dodge action, or the counter
+    after it), skipping its trigger conditions and cooldown.  It cuts into
+    idle / run, a normal attack, or `name` itself, but never into another
+    triggered action, the ultimate or a forced clash.  True when it started."""
+    r = runner(fig)
+    if r is None or not name or name not in fig.render.bundle.extra:
+        return False
+    if not _unique.clone_allows(fig, name):
+        return False
+    now = world.global_tick
+    if r.playing is not None:
+        if r.forced is not None or (_kind(r.playing) == "triggered" and r.playing != name):
+            return False
+        r._finish(fig, now)
+    p = fig.personality
+    return r._start(fig, name, {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)}, now)
+
+
 def blocks_hit(fig):
     """True while this fighter's `defend` action plays: the hit is blocked."""
     r = getattr(fig, "act", None)

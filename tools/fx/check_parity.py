@@ -21,7 +21,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FXKIT_JS = os.path.join(ROOT, "tools", "fx", "studio", "fxkit.js")
 STUDIO_JS = os.path.join(ROOT, "tools", "fx", "studio", "studio.js")
-PY = {name: os.path.join(ROOT, "laser", name + ".py") for name in ("fxkit", "actions", "retreat", "config", "clash")}
+PY = {name: os.path.join(ROOT, "laser", name + ".py") for name in ("fxkit", "actions", "retreat", "dodge", "config", "clash")}
 
 
 # ---------------------------------------------------------------- JavaScript
@@ -246,6 +246,11 @@ def main():
     # Conditions (laser/actions.py) and Tactical retreat defaults (laser/retreat.py).
     diff(js.get("CONDITION_TYPES"), act.get("CONDITION_TYPES"), "CONDITION_TYPES", out)
     diff(js.get("RETREAT_DEFAULTS"), rt.get("DEFAULTS"), "RETREAT_DEFAULTS", out)
+    # Dodge (laser/dodge.py).
+    dg = PyTables(PY["dodge"], {"config": cfg})
+    diff(js.get("DODGE_DEFAULTS"), dg.get("DEFAULTS"), "DODGE_DEFAULTS", out)
+    for name in ("STYLES", "SIDES", "REACT_TO"):
+        diff(js.get("DODGE_" + name), list(dg.get(name)), "DODGE_" + name, out)
     # Unique Abilities (laser/unique.py).
     ua = PyTables(os.path.join(ROOT, "laser", "unique.py"), {"config": cfg})
     diff(js.get("UNIQUE_TYPES"), list(ua.get("TYPES")), "UNIQUE_TYPES", out)

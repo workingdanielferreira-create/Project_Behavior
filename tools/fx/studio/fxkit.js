@@ -686,6 +686,36 @@ function normalizeRetreat(a) {
     .map(function (c) { return fill(fill(c, RETREAT_CONDITIONS[c.type]), CONDITION_COMMON); });
   return a;
 }
+// Character-level "Dodge" (pack.dodge), run by laser/dodge.py.  An enemy
+// projectile (react_to: built-in "bullets", FX Studio "fx" shots, or "all")
+// within trigger_px, heading at the fighter when incoming_only, makes it dodge
+// (one chance_pct roll per projectile; optional ANY / ALL conditions on top;
+// cooldown_ms between dodges).  style: sidestep (distance_px at speed_pct % of
+// the built-in dodge speed), blink (instant teleport to the same spot), action
+// (plays `action`; its own Movement / Blink carry it), or sidestep_action /
+// blink_action.  side open / random / alternate, turned angle_deg toward the
+// target (negative = away).  While it lasts (+ invuln_ms) `fx` plays and, with
+// invulnerable, nothing hits it.  counter_action plays counter_delay_ms after
+// it ends when the target is within counter_range_px (0 = any).
+var DODGE_DEFAULTS = {enabled: false, style: "sidestep", action: "", react_to: "all",
+  trigger_px: 90, incoming_only: true, chance_pct: 100, cooldown_ms: 300,
+  distance_px: 108, speed_pct: 100, side: "open", angle_deg: 0,
+  flash: true, afterimages: true, during_attacks: true,
+  invulnerable: false, invuln_ms: 150,
+  counter_action: "", counter_delay_ms: 0, counter_range_px: 0,
+  logic: "any", conditions: [], fx: ""};
+var DODGE_STYLES = ["sidestep", "blink", "action", "sidestep_action", "blink_action"];
+var DODGE_SIDES = ["open", "random", "alternate"];
+var DODGE_REACT_TO = ["all", "bullets", "fx"];
+function normalizeDodge(a) {
+  a = fill(a || {}, DODGE_DEFAULTS);
+  if (DODGE_STYLES.indexOf(a.style) < 0) a.style = DODGE_DEFAULTS.style;
+  if (DODGE_SIDES.indexOf(a.side) < 0) a.side = DODGE_DEFAULTS.side;
+  if (DODGE_REACT_TO.indexOf(a.react_to) < 0) a.react_to = DODGE_DEFAULTS.react_to;
+  a.conditions = (a.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+    .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
+  return a;
+}
 // Blink (action_settings[action].blink), run by laser/blink.py: teleports
 // inside one action, set per action.  `blinks` is a list of blinks run in
 // order as the action's frames pass them; Blink is on while it holds any.
@@ -2311,6 +2341,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   UNIQUE_TYPES: UNIQUE_TYPES, UNIQUE_DEFAULTS: UNIQUE_DEFAULTS, normalizeUnique: normalizeUnique,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
+  DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, normalizeDodge: normalizeDodge,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
   normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
