@@ -20,8 +20,8 @@
    "frames": 12
   },
   "run": {
-   "frame_ms": 80.0,
-   "frames": 8
+   "frame_ms": 160.0,
+   "frames": 4
   },
   "attack_normal": {
    "frame_ms": 37.5,
