@@ -1512,8 +1512,7 @@ function instBody(inst) {
   if (inst.fx.prim === "beam") {
     var ps = inst.ps || 1, b = beamReach(inst, ps);
     if (b.reach > 0) {
-      var P = inst.fx.params, hw = Math.max(P.w_start0, P.w_start1, P.w_end0, P.w_end1) * ps / 2;
-      return [b.hx, b.hy, b.hx - b.ux * b.reach, b.hy - b.uy * b.reach, Math.max(0, hw)];
+      return [b.hx, b.hy, b.hx - b.ux * b.reach, b.hy - b.uy * b.reach, beamHalfWidth(inst, ps)];
     }
   }
   return [inst.x, inst.y, inst.x, inst.y, 0];
@@ -1642,7 +1641,9 @@ function tickInst(inst, host) {
   if (active && inst.lodge) bladeFollow(inst, host.hurt ? [[host.hurt.x, host.hurt.y]] : [], inst.ps || 1);
   else if (active) {
     if (fx.prim === "sprite" || fx.prim === "beam") { inst.trail.push([inst.x, inst.y]); if (inst.trail.length > Math.max(0, trunc(P.trail_len || 0))) inst.trail.shift(); }
+    if (fx.prim === "beam" && !inst.bprof && beamTravels(inst)) beamSlice(inst, host, true);   // the hand end
     if (!interceptStep(inst, host)) moveInst(inst, host);
+    if (fx.prim === "beam" && inst.bprof && beamTravels(inst)) beamSlice(inst, host, false);   // the space the head just moved into
   }
   inst.flow = (inst.flow + (+fx.color.flow_speed || 0)) % 1;
   if (fx.prim === "ribbon") {   // TrailComponent.update (path_follow = False)
@@ -1751,6 +1752,59 @@ DRAW.arc = function (g, inst, host, ps) {   // CrescentWave.draw
 // plus the alpha multiplier; null when nothing is visible.
 // The beam's head point, unit direction and drawn length {hx, hy, ux, uy, reach}
 // (reach <= 0: nothing drawn).  laser/fxkit.py beam_reach.
+// A travelling beam grows with the screen-position scale like a cone: each
+// tick the space its head moves into gets a width slice of the authored head
+// width x the position scale there, relative to where it was fired.  A slice
+// is locked once made, so only newly covered space scales.  The hand end keeps
+// the authored tail width.  The Studio stage has no position scale
+// (host.posScaleAt absent = 1), so it previews the same shape at a flat scale.
+// laser/fxkit.py beam_slice mirrors this.
+function beamTravels(inst) { return !!MOVERS[inst.fx.motion.kind] && inst.vx * inst.vx + inst.vy * inst.vy >= 1e-8; }
+function hostPosScale(host, x, y) { return host && host.posScaleAt ? Math.max(1e-6, +host.posScaleAt(x, y) || 1) : 1; }
+function beamSlice(inst, host, hand) {
+  var P = inst.fx.params, prog = lifeT(inst);
+  if (hand) {
+    inst.bs0 = hostPosScale(host, inst.x, inst.y);
+    inst.bprof = [[inst.x, inst.y, P.w_start0 + (P.w_start1 - P.w_start0) * prog, 1]];
+    return;
+  }
+  inst.bprof.push([inst.x, inst.y, P.w_end0 + (P.w_end1 - P.w_end0) * prog, hostPosScale(host, inst.x, inst.y) / inst.bs0]);
+}
+// The locked slices along the drawn beam: [[t from head 0..1, width, scale]] head to tail.
+function beamProfile(inst, hx, hy, ux, uy, reach) {
+  var pr = inst.bprof;
+  if (!pr || !pr.length || reach <= 0) return null;
+  var pts = pr.map(function (q) { return [(hx - q[0]) * ux + (hy - q[1]) * uy, q[2], q[3]]; });
+  pts.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]; });
+  var at = function (d) {
+    if (d <= pts[0][0]) return [pts[0][1], pts[0][2]];
+    for (var i = 1; i < pts.length; i++) {
+      if (d <= pts[i][0]) {
+        var a = pts[i - 1], u = pts[i][0] > a[0] ? (d - a[0]) / (pts[i][0] - a[0]) : 1;
+        return [a[1] + (pts[i][1] - a[1]) * u, a[2] + (pts[i][2] - a[2]) * u];
+      }
+    }
+    return [pts[pts.length - 1][1], pts[pts.length - 1][2]];
+  };
+  var out = [[0].concat(at(0))];
+  pts.forEach(function (q) { if (q[0] > 0 && q[0] < reach) out.push([q[0] / reach, q[1], q[2]]); });
+  out.push([1].concat(at(reach)));
+  return out;
+}
+function profileAt(prof, t) {   // [width, scale] at t (0 head .. 1 tail)
+  for (var i = 1; i < prof.length; i++) {
+    if (t <= prof[i][0]) {
+      var a = prof[i - 1], b = prof[i], u = b[0] > a[0] ? (t - a[0]) / (b[0] - a[0]) : 1;
+      return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    }
+  }
+  return [prof[prof.length - 1][1], prof[prof.length - 1][2]];
+}
+function beamHalfWidth(inst, ps) {   // half the widest drawn width (collision bodies)
+  var P = inst.fx.params, w = Math.max(P.w_start0, P.w_start1, P.w_end0, P.w_end1);
+  if (inst.bprof) inst.bprof.forEach(function (q) { w = Math.max(w, q[2] * q[3]); });
+  return Math.max(0, w * ps / 2);
+}
 function beamReach(inst, ps) {
   var P = inst.fx.params, m = inst.fx.motion;
   var ux = inst.dir[0], uy = inst.dir[1], reach, hx = inst.x, hy = inst.y;
@@ -1784,17 +1838,19 @@ function beamSegs(inst, host, ps) {   // RichBeamProjectile.draw geometry
   var cp = colorPair(fx, host.lut), c1 = cp[0], c2 = cp[1];
   var segs = Math.max(1, trunc(P.segments)), jr = rng(inst.seed + trunc(inst.age)), out = [];
   var tf = Math.max(0, Math.min(1, +P.tip_fade || 0));   // fraction of the length, from the head, that fades out
+  var prof = beamTravels(inst) ? beamProfile(inst, hx, hy, ux, uy, reach) : null;
   for (var i = 0; i < segs; i++) {
     var t0 = i / segs, t1 = (i + 1) / segs;
     var x0 = hx - ux * reach * t0, y0 = hy - uy * reach * t0, x1 = hx - ux * reach * t1, y1 = hy - uy * reach * t1;
     if (P.jitter > 0) { var j = (jr() * 2 - 1) * P.jitter * ps; x0 += -uy * j; y0 += ux * j; x1 += -uy * j; y1 += ux * j; }
-    out.push([x0, y0, x1, y1, (wH + (wT - wH) * t0) * ps,
+    var pw = prof ? profileAt(prof, t0) : null;
+    out.push([x0, y0, x1, y1, pw ? pw[0] * pw[1] * ps : (wH + (wT - wH) * t0) * ps,
       [c2[0] + (c1[0] - c2[0]) * t0, c2[1] + (c1[1] - c2[1]) * t0, c2[2] + (c1[2] - c2[2]) * t0],
       tf > 0 ? Math.min(1, (t0 + t1) / 2 / tf) : 1]);
   }
   // Smooth-draw info for straight beams: head and tail points, widths, colours, tip fade.
   return {segs: out, am: fade * pulse, hx: hx, hy: hy, tx: hx - ux * reach, ty: hy - uy * reach,
-          wH: wH * ps, wT: wT * ps, c1: c1, c2: c2, tf: tf};
+          wH: wH * ps, wT: wT * ps, c1: c1, c2: c2, tf: tf, prof: prof};
 }
 // A straight multi-segment beam (no jitter) is drawn as one tapered capsule filled
 // with a smooth gradient along its length (colour c2 at the head to c1 at the tail,
@@ -1806,6 +1862,19 @@ function beamCapsule(b, wHead, wTail) {
   for (k = 0; k <= 12; k++) { a = ah + (k / 12 - 0.5) * Math.PI; pts.push([b.hx + Math.cos(a) * wHead / 2, b.hy + Math.sin(a) * wHead / 2]); }
   return pts;
 }
+// A travelling beam's outline through its locked width slices: round tail cap,
+// one side head-ward, round head cap, the other side back (laser/fxkit.py _beam_cone).
+function beamCone(b, ps, extra) {
+  var prof = b.prof, ah = Math.atan2(b.hy - b.ty, b.hx - b.tx), dx = b.tx - b.hx, dy = b.ty - b.hy, pts = [], k, a, i;
+  var half = function (q) { return Math.max(1, (q[1] + extra) * q[2] * ps) / 2; };
+  var side = function (q, a) { var h = half(q); return [b.hx + dx * q[0] + Math.cos(a) * h, b.hy + dy * q[0] + Math.sin(a) * h]; };
+  var ht = half(prof[prof.length - 1]), hh = half(prof[0]);
+  for (k = 0; k <= 12; k++) { a = ah + Math.PI + (k / 12 - 0.5) * Math.PI; pts.push([b.tx + Math.cos(a) * ht, b.ty + Math.sin(a) * ht]); }
+  for (i = prof.length - 2; i >= 1; i--) pts.push(side(prof[i], ah - Math.PI / 2));
+  for (k = 0; k <= 12; k++) { a = ah + (k / 12 - 0.5) * Math.PI; pts.push([b.hx + Math.cos(a) * hh, b.hy + Math.sin(a) * hh]); }
+  for (i = 1; i <= prof.length - 2; i++) pts.push(side(prof[i], ah + Math.PI / 2));
+  return pts;
+}
 function beamStops(b, colAt, a) {   // [t from head, rgb, alpha]
   var ts = [0, 1];
   if (b.tf > 0 && b.tf < 1) ts.splice(1, 0, b.tf);
@@ -1815,17 +1884,24 @@ DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
   var P = inst.fx.params, b = beamSegs(inst, host, ps);
   if (!b) return;
   var gc = P.glow_color ? hexRgb(P.glow_color, null) : null;
-  if (b.segs.length > 1 && !(P.jitter > 0)) {
+  // A travelling beam (b.prof) is drawn as one smooth cone through its locked
+  // width slices; a single-segment one keeps its one colour.
+  if ((b.segs.length > 1 || b.prof) && !(P.jitter > 0)) {
     var colAt = function (t) { return [b.c2[0] + (b.c1[0] - b.c2[0]) * t, b.c2[1] + (b.c1[1] - b.c2[1]) * t, b.c2[2] + (b.c1[2] - b.c2[2]) * t]; };
-    var fill = function (cAt, a, wHead, wTail) {
+    if (b.segs.length === 1) {
+      var q0 = b.segs[0];
+      b = Object.assign({}, b, {tf: 0, am: b.am * q0[6]});
+      colAt = function () { return q0[5]; };
+    }
+    var fill = function (cAt, a, wHead, wTail, extra) {
       var gr = g.createLinearGradient(b.hx, b.hy, b.tx, b.ty);
       beamStops(b, cAt, a).forEach(function (s) { gr.addColorStop(s[0], rgba(s[1], s[2])); });
-      var pts = beamCapsule(b, wHead, wTail);
+      var pts = b.prof ? beamCone(b, ps, extra || 0) : beamCapsule(b, wHead, wTail);
       g.fillStyle = gr; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
       for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
       g.closePath(); g.fill();
     };
-    if (P.glow > 0) fill(gc ? function () { return gc; } : function (t) { return colAt(t).map(trunc); }, 70 * b.am, b.wH + P.glow * ps, b.wT + P.glow * ps);
+    if (P.glow > 0) fill(gc ? function () { return gc; } : function (t) { return colAt(t).map(trunc); }, 70 * b.am, b.wH + P.glow * ps, b.wT + P.glow * ps, P.glow);
     fill(colAt, 235 * b.am, Math.max(1, b.wH), Math.max(1, b.wT));
     return;
   }
