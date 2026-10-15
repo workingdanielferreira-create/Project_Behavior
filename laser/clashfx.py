@@ -1653,21 +1653,39 @@ class ClashFX:
 
     # ================================================================ pair: trail x trail (sword duel)
     def _init_sword_duel(self):
-        self.state.update(pose=None, contact=None, cuts=[], flash=[], plan=None, i=0, f0=(0.0, 0.0), grind=0)
+        self.state.update(pose=None, contact=None, cuts=[], flash=[], plan=None, i=0, f0=(0.0, 0.0), grind=0,
+                          stand=(True, True))
 
-    def anchor_duel(self, pscale=1.0):
-        """laser/clash.py: the duel is played by the two real fighters; it
-        feeds their positions each tick (duel_frame)."""
+    def anchor_duel(self, pscale=1.0, sides=(True, True)):
+        """laser/clash.py: the duel is played by the real fighters; it feeds
+        the positions each tick (duel_frame).  sides = per side (A, B)
+        whether a real fighter plays it; a side that doesn't (its effect was
+        a projectile) keeps its glowing stand-in on the same path."""
         self.anchored = True
         self.S *= pscale
+        self.state["stand"] = (not sides[0], not sides[1])
 
     def duel_frame(self, fr):
         """One tick of a duel_plan() frame, in world coordinates: the two
-        fighters' positions, the blade contact (None = apart) and the event."""
+        sides' positions, the blade contact (None = apart) and the event."""
         ax, ay = self._local(fr[0], fr[1])
         bx, by = self._local(fr[2], fr[3])
         con = None if fr[4] is None else self._local(fr[4][0], fr[4][1])
+        prev = self.state["pose"]
         self._duel_apply(ax, ay, bx, by, con, fr[5])
+        self._stand_dash(prev, (ax, ay, bx, by))
+
+    def _stand_dash(self, prev, pose):
+        """A dash streak behind a stand-in that moved far this tick."""
+        if prev is None:
+            return
+        stand = self.state["stand"]
+        for j, c in ((0, self.c1), (2, self.c2)):
+            if not stand[j // 2]:
+                continue
+            dx, dy = pose[j] - prev[j], pose[j + 1] - prev[j + 1]
+            if dx * dx + dy * dy > 36:
+                self.parts.append(_P("dash", prev[j], prev[j + 1], dx, dy, 8, 1.9 * self.S, c))
 
     def _duel_apply(self, ax, ay, bx, by, con, ev):
         st = self.state
@@ -1727,11 +1745,7 @@ class ClashFX:
         st["i"] = i + 1
         prev = st["pose"]
         self._duel_apply(fr[0], fr[1], fr[2], fr[3], fr[4], fr[5])
-        if prev is not None:
-            for j, c in ((0, self.c1), (2, self.c2)):
-                dx, dy = fr[j] - prev[j], fr[j + 1] - prev[j + 1]
-                if dx * dx + dy * dy > 36:
-                    self.parts.append(_P("dash", prev[j], prev[j + 1], dx, dy, 8, 1.9 * S, c))
+        self._stand_dash(prev, fr[:4])
 
     def _finale_sword_duel(self):
         x, y = self.state["f0"]
@@ -1769,9 +1783,12 @@ class ClashFX:
             _diamond(p, hx, hy, tx, ty, 2.8 * S * k * f, self._hotc(c, 0.6), 245 * f)
         pose = st["pose"]
         if self.phase == "hold":
-            if not self.anchored and pose is not None:     # preview stand-ins
-                _glow(p, pose[0], pose[1], 14 * S, self.c1, 230)
-                _glow(p, pose[2], pose[3], 14 * S, self.c2, 230)
+            if pose is not None:     # stand-ins: every side no real fighter plays
+                stand = st["stand"]
+                if stand[0]:
+                    _glow(p, pose[0], pose[1], 14 * S, self.c1, 230)
+                if stand[1]:
+                    _glow(p, pose[2], pose[3], 14 * S, self.c2, 230)
             con = st["contact"]
             if con is not None and pose is not None:
                 self._duel_blade(p, pose[0], pose[1], con, self.c1, 1)

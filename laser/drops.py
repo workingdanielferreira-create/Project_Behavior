@@ -248,11 +248,12 @@ def organize_drops(root):
         if len(c) > 1:
             log.append(f"NOTE: {len(c)} World Clash files dropped ({', '.join(x[1] for x in c)}); "
                        f"using {c[-1][1]}. Delete the others from the repo.")
+        # By content, not file time: the updater rewrites
+        # characters/world_clash.json with the repo's copy (a fresh file
+        # time), which must never shadow a newer dropped table.
         dest_w = os.path.join(root, "characters", "world_clash.json")
-        newer = os.path.exists(dest_w) and os.path.getmtime(dest_w) > os.path.getmtime(os.path.join(root, c[-1][1])) + 1
         written = []
-        if not newer:
-            _write(dest_w, c[-1][2], written)
+        _write(dest_w, c[-1][2], written)
         if written:
             log.append(f"characters/world_clash.json: World Clash table updated ({c[-1][1]})")
     return log
