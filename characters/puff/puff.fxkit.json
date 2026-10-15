@@ -13424,6 +13424,38 @@
   "conditions": [],
   "fx": ""
  },
+ "dodge": {
+  "enabled": true,
+  "style": "blink",
+  "action": "",
+  "react_to": "all",
+  "trigger_px": 130,
+  "incoming_only": true,
+  "chance_pct": 100,
+  "cooldown_ms": 0,
+  "distance_px": 150,
+  "speed_pct": 100,
+  "side": "open",
+  "angle_deg": 0,
+  "flash": true,
+  "afterimages": true,
+  "during_attacks": true,
+  "invulnerable": false,
+  "invuln_ms": 0,
+  "counter_action": "",
+  "counter_delay_ms": 0,
+  "counter_range_px": 0,
+  "logic": "any",
+  "conditions": [
+   {
+    "type": "fx_near",
+    "tags": "",
+    "px": 90,
+    "not": false
+   }
+  ],
+  "fx": ""
+ },
  "character_scale": 1,
  "effects": [
   {
@@ -13517,7 +13549,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -13572,7 +13605,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv2nb5me6",
    "action": "ultimate",
@@ -13607,7 +13647,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -13662,7 +13703,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv2ncieu7",
    "action": "ultimate",
@@ -13697,7 +13745,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -13752,7 +13801,14 @@
     "density": 1,
     "length": 280,
     "hold_ticks": 20,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv2neydq9",
    "action": "ultimate",
@@ -13787,7 +13843,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ghost",
@@ -13872,7 +13929,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv3r7p0u5",
-   "action": "attack_normal"
+   "action": "attack_normal",
+   "char_every_ms": 0
   },
   {
    "prim": "ghost",
@@ -13957,7 +14015,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv3r84786",
-   "action": "attack_normal_2"
+   "action": "attack_normal_2",
+   "char_every_ms": 0
   },
   {
    "prim": "ghost",
@@ -14042,7 +14101,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv3r8nn19",
-   "action": "ultimate"
+   "action": "ultimate",
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14093,7 +14153,14 @@
     "density": 1,
     "radius": 40,
     "span": 160,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3u1hou1",
    "action": "ultimate",
@@ -14132,7 +14199,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14187,7 +14255,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3u76652",
    "action": "ultimate",
@@ -14222,7 +14297,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14277,7 +14353,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3ubwjx3",
    "action": "ultimate",
@@ -14312,7 +14395,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14367,7 +14451,14 @@
     "density": 1,
     "length": 155,
     "hold_ticks": 48,
-    "rotation_deg": 10
+    "rotation_deg": 10,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3utue44",
    "action": "ultimate",
@@ -14402,7 +14493,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ghost",
@@ -14487,7 +14579,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv3wrpwt3",
-   "action": "attack_normal_4"
+   "action": "attack_normal_4",
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14538,7 +14631,14 @@
     "density": 1,
     "radius": 40,
     "span": 160,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3wyyct4",
    "action": "attack_normal",
@@ -14577,7 +14677,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14632,7 +14733,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 360
+    "rotation_deg": 360,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3x93o77",
    "action": "attack_normal_2",
@@ -14667,7 +14775,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14722,7 +14831,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3xf6al9",
    "action": "attack_normal_3",
@@ -14757,7 +14873,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "technique",
@@ -14812,7 +14929,14 @@
     "density": 1,
     "length": 300,
     "hold_ticks": 18,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
    },
    "id": "Emv3xi39h10",
    "action": "attack_normal_4",
@@ -14847,7 +14971,8 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
@@ -14937,7 +15062,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
@@ -15027,7 +15153,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
@@ -15117,7 +15244,8 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
@@ -15207,7 +15335,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv4aujvq6",
-   "action": "attack_normal_3"
+   "action": "attack_normal_3",
+   "char_every_ms": 0
   },
   {
    "prim": "ribbon",
@@ -15297,7 +15426,8 @@
    "follow_each": false,
    "keys": [],
    "id": "Emv4awvi67",
-   "action": "attack_normal_4"
+   "action": "attack_normal_4",
+   "char_every_ms": 0
   }
  ],
  "groups": [],

@@ -50,7 +50,7 @@
    "flurry": 30
   },
   "beam_nosplit": {
-   "fx": "sword_duel",
+   "fx": "implosion_pop",
    "size": 100,
    "density": 100,
    "loop_x": 300,
@@ -66,7 +66,7 @@
    "flurry": 30
   },
   "trail_trail": {
-   "fx": "sword_duel",
+   "fx": "sword_slash_clash",
    "size": 100,
    "density": 100,
    "loop_x": 100,
@@ -74,7 +74,7 @@
    "flurry": 30
   },
   "crescent_crescent": {
-   "fx": "sword_duel",
+   "fx": "speed_duel",
    "size": 100,
    "density": 100,
    "loop_x": 195,
@@ -90,7 +90,7 @@
    "flurry": 30
   },
   "orb_trail": {
-   "fx": "sword_duel",
+   "fx": "orb_pops",
    "size": 100,
    "density": 100,
    "loop_x": 300,
