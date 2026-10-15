@@ -1280,7 +1280,7 @@ var PARAM_UI = {
     ["w_end0", "Head W begin", 0, 200, 0.5], ["w_end1", "Head W end", 0, 200, 0.5], ["segments", "Segments", 1, 64, 1],
     ["glow", "Glow extra W", 0, 80, 0.5], ["glow_color", "Glow colour", "color"], ["pulse_hz", "Pulse Hz", 0, 30, 0.5],
     ["jitter", "Jitter px", 0, 30, 0.5], ["detach_ticks", "Detach tick (0=never)", 0, 2000, 1], ["grow_ticks", "Grow ticks (held)", 0, 600, 1],
-    ["tip_fade", "Tip fade (fraction)", 0, 1, 0.05]],
+    ["tip_fade", "Tip fade (fraction)", 0, 1, 0.05], ["pos_scale", "Head grows with screen position (travelling)", "chk"]],
   sprite: [["shape", "Shape", ["orb", "bolt", "blade"]], ["radius", "Radius (blade: half-width)", 0.5, 60, 0.5], ["stretch", "Stretch (bolt / blade length)", 1, 30, 0.1],
     ["hot", "White-hot streak", "chk"], ["halo", "Pulsing halo", "chk"], ["fade", "Fade over life", "chk"], ["trail_len", "Trail points", 0, 60, 1],
     ["glow", "Glow %", 0, 200, 5], ["glow_size", "Glow size %", 0, 300, 5], ["lodge_ms", "Lodge ms (blade)", 0, 10000, 50],
