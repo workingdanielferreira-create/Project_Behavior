@@ -608,10 +608,13 @@ shot is seen before the tick it hits. Each projectile is rolled once (`chance_pc
 the action trigger conditions, "this action" = the dodge) gate it on top, none
 = the projectile alone. A new dodge can start `cooldown_ms` after the last one
 started. `during_attacks` off: never during a normal attack. It never cuts
-into a triggered action (defend, specials), the ultimate, a clash or a
-Tactical retreat. It can start mid-knockback and takes the fighter out of
-the slide (as a blink does); a knockback that lands during a sidestep still
-ends it.
+into a triggered action (defend, specials), the ultimate or a clash. It can
+start mid-knockback and takes the fighter out of the slide (as a blink does);
+a knockback that lands during a sidestep still ends it. It keeps dodging
+during a Tactical retreat, every style: a sidestep is layered on the dash
+(the retreat's path, timer and FX carry on), a blink jumps and the retreat
+continues from there, a dodge action plays while the retreat steers. A dodge
+made mid-retreat skips its `counter_action`.
 `style`: `"sidestep"` (a physical step `distance_px` long at `speed_pct` % of
 the built-in dodge speed, 20 px/tick), `"blink"` (instant teleport to the same
 spot, crackle + afterimages when `flash`), `"action"` (plays `action`, skipping
