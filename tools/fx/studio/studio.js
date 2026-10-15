@@ -2706,20 +2706,23 @@ function buildWorldClashProps(d) {
   var fxOpts = [["none", "— no FX —"]].concat(FXK.CLASH_FX);
   FXK.CLASH_SLOTS.forEach(function (r) {
     var slot = WORLD.slots[r[0]], b = sec(d, r[2], "w-clash-" + r[0], "The clash FX that plays for this rule (default " + r[1] + "), and its size and density.", "act");
-    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); }));
+    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); buildProps(); }));
     field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title =
       "Full size of this clash FX. Each clash picks a random size between 10% and the higher knockback of the two effects (capped at 100) as a % of this: knockback 100 → up to this size, 50 → up to half of it, 0 → 10%.";
     field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
-    if (r[0] === "trail_trail") {
+    if (slot.fx === "sword_duel") {
       // The sword duel's choreography (laser/clashfx.py duel_plan), stretched
       // on the screen's x and y axes around where the blades first met.
+      // Shown on any slot whose clash FX is Sword Duel; each slot keeps its own.
       field(b, "Loop X %", inp("n", slot.loop_x, function (v) { slot.loop_x = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
         "Sword duel: how far the whole fight sequence (where each strike meets, how far they spring apart, the circle back) spreads left and right. 100 = as designed, 200 = twice as wide, 0 = no sideways travel.";
       field(b, "Loop Y %", inp("n", slot.loop_y, function (v) { slot.loop_y = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
         "Sword duel: how far the whole fight sequence spreads up and down. 100 = as designed, 200 = twice as tall, 0 = no vertical travel.";
       field(b, "Flurry %", inp("n", slot.flurry, function (v) { slot.flurry = Math.max(0, Math.min(100, v)); worldSave(); }, 0, 100, 5)).title =
         "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
-      note(b, "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts where it was. The duel ends on its final hit: the knockback winner (random on a tie) launches the other 240 px + 0.5 px per point of its trail's knockback (up to 900 px), then finishes — its attack_special at 50% HP or less, its ultimate below 30%.");
+      note(b, r[0] === "trail_trail"
+        ? "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts where it was. The duel ends on its final hit: the knockback winner (random on a tie) launches the other 240 px + 0.5 px per point of its trail's knockback (up to 900 px), then finishes — its attack_special at 50% HP or less, its ultimate below 30%."
+        : "Loop X / Y and Flurry % shape this slot's sword duel FX. Only trail × trail moves the real fighters; here two glowing stand-ins play the duel at the clash point.");
     }
   });
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
