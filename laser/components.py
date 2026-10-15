@@ -41,7 +41,8 @@ class MotionState:
                  "bounce_vx", "bounce_vy", "bouncing",
                  "bounce_ending", "bounce_end_ticks",
                  "path", "follow", "runaway",
-                 "battle_bounce_vx", "battle_bounce_vy", "knock_tick", "heavy_until")
+                 "battle_bounce_vx", "battle_bounce_vy", "knock_tick", "heavy_until",
+                 "glide_vx", "glide_vy", "glide_dir", "glide_swap_ticks")
 
     def __init__(self, speed, follow_speed, offset_x=0, offset_y=0,
                  min_move=0.5, rotate=False):
@@ -62,6 +63,12 @@ class MotionState:
         self.battle_bounce_vy = 0.0
         self.knock_tick = -1000   # world tick of the last knockback launch (motion.launch_knockback)
         self.heavy_until = -1000  # a heavy launch (sword duel final hit) can't be replaced by a weaker one until then
+        # Glide (JSON movement.glide, motion._glide): carried skating
+        # velocity, which way round the target it circles (+1 / -1), and
+        # ticks until that direction next swaps.
+        self.glide_vx = self.glide_vy = 0.0
+        self.glide_dir = 1
+        self.glide_swap_ticks = 0
 
 
 class TrailComponent:

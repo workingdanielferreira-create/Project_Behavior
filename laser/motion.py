@@ -62,10 +62,22 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
         _runaway(fig, tx, ty, sf)
     elif path_follow:
         _follow_path(fig, tx, ty, sf)
+    elif glide_cfg(fig) is not None:
+        _glide(fig, tx, ty, sf, offset)
     else:
         _chase(fig, tx, ty, sf, offset)
 
     fig.face(ox, oy)
+    g = glide_cfg(fig)
+    if g is not None and g["face_target_attacking"] and fig.aim is None:
+        # Skate-and-shoot: while an attack plays the glide carries on but
+        # the fighter turns to the target, so both pistols fire forward.
+        anim = fig.combat.action_anim or ""
+        if anim.startswith("attack"):
+            if tx - t.x < -0.001:
+                t.facing_left = True
+            elif tx - t.x > 0.001:
+                t.facing_left = False
     anchor = _combat.sprite_emitter_trail_anchor(fig)
     if anchor is not None:
         ax, ay = anchor
@@ -117,6 +129,7 @@ def launch_knockback(fig, vx, vy, tick, heavy_ticks=0):
             and vx * vx + vy * vy <= m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy):
         return False
     m.heavy_until = tick + int(heavy_ticks) if heavy_ticks > 0 else -1000
+    m.glide_vx = m.glide_vy = 0.0     # a knockback kills any glide momentum
     m.bounce_vx, m.bounce_vy = vx, vy
     m.bouncing = True
     m.bounce_ending = False
@@ -214,6 +227,97 @@ def _chase(fig, cx, cy, sf=1.0, offset=None):
     else:
         t.x = cx + ox
         t.y = cy + oy
+
+
+# Glide (JSON `movement.glide`, opt-in per character): instead of running to
+# its chase point and stopping, the fighter skates.  Its velocity is carried
+# from tick to tick and only steered toward where it wants to go (accel = the
+# share of the gap closed per tick), so it drifts through wide turns; and it
+# never parks — it circles its target at its chase distance (at least
+# orbit_min_px), swapping which way round every swap_ms (random in the
+# range).  face_target_attacking: while an attack plays it faces the target
+# whichever way it is skating.  The target is the same point _chase uses
+# (cursor in Solo, battle target in Battle), so Solo and Battle match.
+GLIDE_DEFAULTS = dict(accel=0.08, orbit_min_px=60.0, swap_ms=[1500.0, 3500.0],
+                      face_target_attacking=True)
+
+
+def glide_cfg(fig):
+    """Normalised movement.glide block of this figure's character, or None."""
+    mode = fig.mode
+    cached = getattr(mode, "_glide_cache", False)
+    if cached is not False:
+        return cached
+    char = getattr(mode, "character", None) or {}
+    raw = (char.get("movement") or {}).get("glide")
+    cfg = None
+    if isinstance(raw, dict) and raw.get("enabled", True):
+        cfg = dict(GLIDE_DEFAULTS)
+        try:
+            cfg["accel"] = max(0.01, min(1.0, float(raw.get("accel", cfg["accel"]))))
+        except (TypeError, ValueError):
+            pass
+        try:
+            cfg["orbit_min_px"] = max(0.0, float(raw.get("orbit_min_px", cfg["orbit_min_px"])))
+        except (TypeError, ValueError):
+            pass
+        sw = raw.get("swap_ms", cfg["swap_ms"])
+        try:
+            lo, hi = (float(sw[0]), float(sw[1])) if isinstance(sw, (list, tuple)) else (float(sw), float(sw))
+            cfg["swap_ms"] = [max(0.0, min(lo, hi)), max(0.0, lo, hi)]
+        except (TypeError, ValueError, IndexError):
+            pass
+        cfg["face_target_attacking"] = bool(raw.get("face_target_attacking", True))
+    mode._glide_cache = cfg
+    return cfg
+
+
+def _glide(fig, cx, cy, sf=1.0, offset=None):
+    m = fig.motion
+    t = fig.transform
+    g = glide_cfg(fig)
+    if m.path:
+        m.path.clear()
+    if m.glide_swap_ticks <= 0:
+        lo, hi = g["swap_ms"]
+        m.glide_swap_ticks = max(1, int(fig.personality.rng.uniform(lo, hi) / config.TICK_MS))
+        if hi > 0:
+            m.glide_dir = -m.glide_dir
+    else:
+        m.glide_swap_ticks -= 1
+    ox, oy = (m.offset_x, m.offset_y) if offset is None else offset
+    ring = max(g["orbit_min_px"] * fig.mode.body_scale(), (ox * ox + oy * oy) ** 0.5)
+    dx, dy = t.x - cx, t.y - cy
+    d = (dx * dx + dy * dy) ** 0.5
+    if d < 1e-3:
+        dx, dy, d = (-1.0 if t.facing_left else 1.0), 0.0, 1.0
+    ux, uy = dx / d, dy / d                      # outward from the target
+    # Round the ring (tangent), bent in / out by how far off the ring it is:
+    # far away it heads almost straight in, on the ring it skates round.
+    pull = max(-3.0, min(3.0, (ring - d) / max(1.0, ring * 0.35)))
+    vx = -uy * m.glide_dir + ux * pull
+    vy = ux * m.glide_dir + uy * pull
+    vn = (vx * vx + vy * vy) ** 0.5
+    step = m.speed * sf
+    vx, vy = vx / vn * step, vy / vn * step
+    a = g["accel"]
+    m.glide_vx += (vx - m.glide_vx) * a
+    m.glide_vy += (vy - m.glide_vy) * a
+    nx, ny = t.x + m.glide_vx, t.y + m.glide_vy
+    # Skating into a screen edge turns the circle round and drops the speed
+    # into the wall, rather than grinding along it.
+    margin = 10
+    hit = False
+    if not (margin <= nx <= fig.screen_w - margin):
+        m.glide_vx = -m.glide_vx * 0.5
+        hit = True
+    if not (margin <= ny <= fig.screen_h - margin):
+        m.glide_vy = -m.glide_vy * 0.5
+        hit = True
+    if hit:
+        m.glide_dir = -m.glide_dir
+    t.x += m.glide_vx
+    t.y += m.glide_vy
 
 
 def apply_arena_oval(fig, world):
