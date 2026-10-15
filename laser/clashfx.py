@@ -1714,7 +1714,7 @@ class ClashFX:
             from . import clash     # lazy: clash imports this module
             st["plan"] = duel_plan(self.rng, (-110 * S, 12 * S), (110 * S, -12 * S), (0.0, 0.0), reach,
                                    strikes=self.spec.get("strikes", (4, 7)), bind=float(self.spec.get("bind", 0.3)),
-                                   loop=clash.duel_loop())
+                                   loop=clash.duel_loop(), flurry=clash.duel_flurry())
         plan, i = st["plan"], st["i"]
         if i >= len(plan):
             self.release()
@@ -1892,7 +1892,7 @@ def _smooth(u):
     return u * u * (3.0 - 2.0 * u)
 
 
-def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0)):
+def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0), flurry=0.0):
     """Choreography of a sword duel (sword_duel), one frame per tick:
     (ax, ay, bx, by, contact, event, swing).  a0 / b0 = where the two
     fighters start, c = where their blades first met, reach = how far each
@@ -1909,13 +1909,19 @@ def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0)):
     around c (World Clash "Loop X / Y %"; 1.0 = as designed, 0 = flat on
     that axis): where each strike meets, how far they spring apart and the
     circle back.  The reach the blades meet at is kept, so they still touch,
-    and the start / end positions are the fighters' own."""
+    and the start / end positions are the fighters' own.
+
+    flurry = chance (0..1) that a strike becomes a flurry combo (World Clash
+    "Flurry %"): 2-4 quick hits at nearly the same spot, a short hop apart
+    between them, then a bigger spring apart.  0 = the old choreography,
+    exactly (no extra random draws)."""
     ux, uy = b0[0] - a0[0], b0[1] - a0[1]
     d = math.hypot(ux, uy)
     ux, uy = (ux / d, uy / d) if d > 1e-6 else (1.0, 0.0)
     vx, vy = -uy, ux
     R = max(40.0, reach * 1.9)
     sx, sy = max(0.0, float(loop[0])), max(0.0, float(loop[1]))
+    flurry = max(0.0, min(1.0, float(flurry)))
     A, B = [float(a0[0]), float(a0[1])], [float(b0[0]), float(b0[1])]
     out = []
 
@@ -1950,8 +1956,24 @@ def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0)):
                    uy * rng.uniform(-0.6, 0.6) * R + vy * rng.uniform(-0.6, 0.6) * R)
             th = rng.uniform(-1.1, 1.1)
             dx, dy = ux * math.cos(th) - uy * math.sin(th), ux * math.sin(th) + uy * math.cos(th)
-            strike(P, dx, dy, rng.randint(4, 6), "bind" if rng.random() < bind else "strike")
-            back = reach + rng.uniform(22.0, 40.0)
+            if flurry > 0.0 and rng.random() < flurry:
+                # Flurry combo: quick hits at nearly the same spot, each from
+                # a slightly different angle, hopping just clear in between.
+                hits = rng.randint(2, 4)
+                for h in range(hits):
+                    t2 = th + rng.uniform(-0.35, 0.35)
+                    ex, ey = ux * math.cos(t2) - uy * math.sin(t2), ux * math.sin(t2) + uy * math.cos(t2)
+                    Q = (P[0] + rng.uniform(-6.0, 6.0) * sx, P[1] + rng.uniform(-6.0, 6.0) * sy)
+                    strike(Q, ex, ey, rng.randint(4, 6) if h == 0 else rng.randint(2, 3), "strike")
+                    if h < hits - 1:
+                        hop = reach + rng.uniform(6.0, 12.0)
+                        move((Q[0] - ex * hop * sx, Q[1] - ey * hop * sy),
+                             (Q[0] + ex * hop * sx, Q[1] + ey * hop * sy), 2)
+                P, dx, dy = Q, ex, ey
+                back = (reach + rng.uniform(22.0, 40.0)) * 1.6
+            else:
+                strike(P, dx, dy, rng.randint(4, 6), "bind" if rng.random() < bind else "strike")
+                back = reach + rng.uniform(22.0, 40.0)
             move((P[0] - dx * back * sx, P[1] - dy * back * sy), (P[0] + dx * back * sx, P[1] + dy * back * sy),
                  rng.randint(4, 6))
             hold(rng.randint(1, 4), None)

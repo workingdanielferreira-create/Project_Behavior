@@ -659,7 +659,14 @@ stretch the sword duel's whole sequence (where each strike meets, how far
 the fighters spring apart, the mid-duel circle back) on the screen's x and y
 axes around where the blades first met (`clashfx.duel_plan` `loop`,
 `clash.duel_loop`); the blades still meet at arm's length and each fighter
-starts and ends where it was. The defaults
+starts where it was. **Flurry %** (0–100, default 30) is the chance each
+strike is a flurry combo: 2–4 quick hits at nearly the same spot, then a
+bigger spring apart (`clash.duel_flurry`). The duel ends on its final hit
+(`clash._final_hit`): the knockback winner (random on a tie) launches the
+loser `FINAL_KB_BASE_PX` (240) + `FINAL_KB_PER_KB` (0.5) × its trail's
+knockback px away (up to 900), then finishes (`clash._finisher`): its
+`attack_special` at 50% HP or less, its ultimate (the Ctrl+1 / Ctrl+2 path,
+built-ins included) below 30%, nothing above 50%. The defaults
 live in `laser/clash.py`; FX Studio's **⚔ World Clash** page edits them and
 saves `world_clash.json` (format `pb_world_clash`). Drop it like an FX file
 (`update_game.bat` files it as `characters/world_clash.json`) or put it there

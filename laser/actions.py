@@ -932,6 +932,29 @@ def force_ultimate(fig, world):
     return True
 
 
+def force_special(fig, world):
+    """Sword duel finisher (laser/clash.py): start this image character's
+    attack_special now, skipping its trigger conditions, its cooldown and
+    Attack mode.  It cuts into a normal attack, idle / run, or the forced
+    "clash" action, but waits for another triggered action (defend,
+    ultimate, ...) to end.  True = the request is used up (started, or no
+    attack_special frames); False = try again next tick."""
+    r = runner(fig)
+    if r is None or "attack_special" not in fig.render.bundle.extra:
+        return True
+    if not _unique.clone_allows(fig, "attack_special"):
+        return True
+    now = world.global_tick
+    if r.playing is not None:
+        if _kind(r.playing) == "triggered" and r.playing != r.forced:
+            return False
+        r._finish(fig, now)
+        r.forced = None
+    p = fig.personality
+    r._start(fig, "attack_special", {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)}, now)
+    return True
+
+
 def blocks_hit(fig):
     """True while this fighter's `defend` action plays: the hit is blocked."""
     r = getattr(fig, "act", None)

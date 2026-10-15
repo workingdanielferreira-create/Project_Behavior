@@ -100,17 +100,23 @@ def _bounce(fig, sf=1.0):
         m.bounce_end_ticks = config.BOUNCE_END_HOLD
 
 
-def launch_knockback(fig, vx, vy, tick):
+def launch_knockback(fig, vx, vy, tick, heavy_ticks=0):
     """Start a knockback slide at (vx, vy), calibrated by the caller as
     dist * (1 - BOUNCE_FRICTION) so it travels the full set distance.  A new
     hit restarts the slide in its own direction even mid-slide or in the
     slide-stop hold.  The same hit can reach a fighter through two channels
     one tick apart (dash body contact, then the hit_pending delivery), so a
-    slide launched on this or the previous tick is left alone.  Returns True
-    when the slide was (re)started."""
+    slide launched on this or the previous tick is left alone.  A heavy
+    launch (heavy_ticks > 0: the sword duel's final hit) can't be replaced
+    by a weaker knockback for that many ticks while it slides — a stronger
+    one still can.  Returns True when the slide was (re)started."""
     m = fig.motion
     if m.bouncing and tick - m.knock_tick <= 1:
         return False
+    if (m.bouncing and tick < m.heavy_until
+            and vx * vx + vy * vy <= m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy):
+        return False
+    m.heavy_until = tick + int(heavy_ticks) if heavy_ticks > 0 else -1000
     m.bounce_vx, m.bounce_vy = vx, vy
     m.bouncing = True
     m.bounce_ending = False
