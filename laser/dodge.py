@@ -11,10 +11,16 @@ What it reacts to (react_to): enemy projectiles in the side's snapshot
 projectiles (thrown blades, sword rain, homing / zigzag / path shots ...
 anything with Deals damage that travels), "all" = both.  A projectile
 triggers it once it comes within trigger_px (times the character scale),
-heading at the fighter when incoming_only is on.  Each projectile is
+heading at the fighter when incoming_only is on.  The check looks
+LOOKAHEAD_TICKS ahead along the projectile's path: the snapshot it reads
+is one tick old and the shot moves again before its hit lands, so a fast
+shot (more px per tick than trigger_px) would otherwise only be seen on
+the tick it hits.  Each projectile is
 rolled once (chance_pct); the optional trigger conditions (ANY / ALL, the
 action trigger conditions, "this action" = the dodge) gate it on top.
-A new dodge can start cooldown_ms after the last one started.
+A new dodge can start cooldown_ms after the last one started.  It can
+start mid-knockback: like a blink, the dodge takes the fighter out of the
+slide.  A knockback that lands while it sidesteps still ends the sidestep.
 
 style — how it gets out of the way:
   sidestep          a fast physical sidestep, distance_px long at speed_pct %
@@ -63,6 +69,7 @@ DEFAULTS = dict(enabled=False, style="sidestep", action="", react_to="all",
                 logic="any", conditions=[], fx="")
 KEY = "@dodge"            # the dodge's name in the condition tracker
 MARGIN_PX = 20.0          # keep the fighter this far inside the screen
+LOOKAHEAD_TICKS = 2       # stale snapshot + the shot's own move before it hits
 
 
 def normalize(cfg):
@@ -167,10 +174,8 @@ def _in_ultimate(fig):
 
 def _can_start(fig, cfg):
     from . import blink, timefx, actions
-    c, m = fig.combat, fig.motion
+    c = fig.combat
     if not fig.transform.init or blink.gone(fig) or timefx.frozen(fig):
-        return False
-    if m.bouncing or m.bounce_ending:
         return False
     if (c.vc_phase or c.sp_phase or c.lb_phase or c.blinkstorm_strikes_left > 0
             or _in_ultimate(fig)):
@@ -214,7 +219,16 @@ def _threat(fig, world, cfg, st, shots):
         dx, dy = s.x - fig.x, s.y - fig.y
         d2 = dx * dx + dy * dy
         if d2 > r2:
-            continue
+            # Not in reach yet: does its path over the next ticks pass
+            # within reach?  Closest point of that segment to the fighter.
+            mx, my = s.vx * LOOKAHEAD_TICKS, s.vy * LOOKAHEAD_TICKS
+            mm = mx * mx + my * my
+            if mm < 1e-9:
+                continue
+            k = max(0.0, min(1.0, -(dx * mx + dy * my) / mm))
+            cx, cy = dx + mx * k, dy + my * k
+            if cx * cx + cy * cy > r2:
+                continue
         if cfg.get("incoming_only") and (s.vx * dx + s.vy * dy) >= 0:
             continue              # moving away (or not moving)
         if best is None or d2 < best[0]:
@@ -269,6 +283,10 @@ def _stop_melee(fig):
 def _start(fig, world, cfg, st, s, r, ctx, now):
     from . import actions, combat
     style = cfg.get("style")
+    # Every dodge takes the fighter out of a knockback slide (as a blink does).
+    m = fig.motion
+    m.bouncing = m.bounce_ending = False
+    m.bounce_vx = m.bounce_vy = 0.0
     st.cooldown_until = now + _ticks(cfg.get("cooldown_ms"))
     st.counter = bool(cfg.get("counter_action"))
     st.counter_at = None
