@@ -21,6 +21,11 @@ action trigger conditions, "this action" = the dodge) gate it on top.
 A new dodge can start cooldown_ms after the last one started.  It can
 start mid-knockback: like a blink, the dodge takes the fighter out of the
 slide.  A knockback that lands while it sidesteps still ends the sidestep.
+It also dodges during a Tactical retreat (laser/retreat.py), every style:
+a sidestep is layered on the dash (the step shifts the fighter, then the
+retreat moves on from there, its timer still running), a blink jumps and
+the retreat carries on from the new spot, a dodge action plays while the
+retreat steers.  A dodge made mid-retreat skips its counter_action.
 
 style — how it gets out of the way:
   sidestep          a fast physical sidestep, distance_px long at speed_pct %
@@ -180,9 +185,6 @@ def _can_start(fig, cfg):
     if (c.vc_phase or c.sp_phase or c.lb_phase or c.blinkstorm_strikes_left > 0
             or _in_ultimate(fig)):
         return False
-    rt = getattr(fig, "retreat", None)
-    if rt is not None and rt.active:
-        return False
     r = getattr(fig, "act", None)
     if r is not None and r.playing:
         if r.forced is not None:
@@ -288,7 +290,7 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
     m.bouncing = m.bounce_ending = False
     m.bounce_vx = m.bounce_vy = 0.0
     st.cooldown_until = now + _ticks(cfg.get("cooldown_ms"))
-    st.counter = bool(cfg.get("counter_action"))
+    st.counter = bool(cfg.get("counter_action")) and not _retreating(fig)   # no counter mid-retreat
     st.counter_at = None
     r.mark_fired(KEY, cfg, ctx, now)
     if style in ("action", "sidestep_action", "blink_action") and cfg.get("action"):
@@ -321,9 +323,16 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
     action_log.log("COMBAT", f"dodge style={style} shot={s.kind} at=({fig.x:.0f},{fig.y:.0f})")
 
 
+def _retreating(fig):
+    rt = getattr(fig, "retreat", None)
+    return rt is not None and rt.active
+
+
 def _move(fig, world, cfg, st, now):
-    """One sidestep tick.  True while it moves the fighter."""
-    from . import combat
+    """One sidestep tick.  True while it moves the fighter.  Mid-retreat the
+    two are layered: the sidestep shifts the fighter, then the retreat takes
+    its own step from there (path, steering, timer, facing, trail)."""
+    from . import combat, retreat
     m = fig.motion
     if m.bouncing or m.bounce_ending:
         st.moving = False          # a knockback always moves the fighter
@@ -337,9 +346,10 @@ def _move(fig, world, cfg, st, now):
     st.ticks += 1
     if cfg.get("afterimages", True) and st.ticks % 2 == 1:
         combat.spawn_afterimage(fig)
-    combat._apply_trail_update(fig, t, True, False)
-    fig.render.is_moving = True
-    fig.render.advance()
+    if not (_retreating(fig) and retreat.tick(fig, world)):
+        combat._apply_trail_update(fig, t, True, False)
+        fig.render.is_moving = True
+        fig.render.advance()
     if st.budget <= 0:
         st.moving = False
         st.hold_until = now + _ticks(cfg.get("invuln_ms"))

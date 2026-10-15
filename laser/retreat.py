@@ -39,6 +39,9 @@ after_actions / since_action with an action name and idle_for read the
 fighter's real actions.  Fighters without an action runner (rig-drawn JSON
 characters) get a tracker that counts their dashes / slashes as attacks.
 
+The character's Dodge (laser/dodge.py) stays active during the dash: a
+sidestep calls tick() itself so both move the fighter that tick.
+
 Driven from CombatSystem for every figure (target = nearest enemy in Battle,
 the cursor in Solo), so Solo and Battle run the same code.  Solo has no enemy
 projectiles and the cursor has no facing: its back is the far side from the
