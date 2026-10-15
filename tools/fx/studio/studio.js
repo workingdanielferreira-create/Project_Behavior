@@ -2710,6 +2710,15 @@ function buildWorldClashProps(d) {
     field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title =
       "Full size of this clash FX. Each clash picks a random size between 10% and the higher knockback of the two effects (capped at 100) as a % of this: knockback 100 → up to this size, 50 → up to half of it, 0 → 10%.";
     field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
+    if (r[0] === "trail_trail") {
+      // The sword duel's choreography (laser/clashfx.py duel_plan), stretched
+      // on the screen's x and y axes around where the blades first met.
+      field(b, "Loop X %", inp("n", slot.loop_x, function (v) { slot.loop_x = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
+        "Sword duel: how far the whole fight sequence (where each strike meets, how far they spring apart, the circle back) spreads left and right. 100 = as designed, 200 = twice as wide, 0 = no sideways travel.";
+      field(b, "Loop Y %", inp("n", slot.loop_y, function (v) { slot.loop_y = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
+        "Sword duel: how far the whole fight sequence spreads up and down. 100 = as designed, 200 = twice as tall, 0 = no vertical travel.";
+      note(b, "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts and ends where it was.");
+    }
   });
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html.");
 }

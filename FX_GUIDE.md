@@ -653,7 +653,13 @@ clash's length (`actions.force_clash`). FX built on the `clash` action in FX
 Studio play with it.
 
 **World Clash table (`clash.WORLD_SLOTS`):** for each rule slot, which clash
-FX plays (or none) and its size and density, plus `min_ticks`. The defaults
+FX plays (or none) and its size and density, plus `min_ticks`. The trail ×
+trail slot also has **Loop X %** and **Loop Y %** (0–400, default 100): they
+stretch the sword duel's whole sequence (where each strike meets, how far
+the fighters spring apart, the mid-duel circle back) on the screen's x and y
+axes around where the blades first met (`clashfx.duel_plan` `loop`,
+`clash.duel_loop`); the blades still meet at arm's length and each fighter
+starts and ends where it was. The defaults
 live in `laser/clash.py`; FX Studio's **⚔ World Clash** page edits them and
 saves `world_clash.json` (format `pb_world_clash`). Drop it like an FX file
 (`update_game.bat` files it as `characters/world_clash.json`) or put it there
