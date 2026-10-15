@@ -279,7 +279,7 @@ class Combatant:
                  "sprite_particles", "sprite_emit_acc",
                  "sprite_prev_x", "sprite_prev_y",
                  "dodged_proj_ids",
-                 "manual_ult_queued", "manual_beam",
+                 "manual_ult_queued", "manual_beam", "manual_special_queued",
                  "action_anim", "action_idx",
                  "sp_phase", "sp_f", "sp_tick", "sp_charges", "sp_countered",
                  "sp_next_strike", "sp_block_pending",
@@ -414,6 +414,10 @@ class Combatant:
         # combat.try_fire_manual_ultimate). True while a force-trigger
         # request is pending; consumed the instant the figure is free.
         self.manual_ult_queued = False
+        # Manual attack_special hotkey (Ctrl+Shift+1..4, see
+        # systems.InputSystem / combat.try_fire_manual_special). True while
+        # a request is pending; consumed the instant the figure is free.
+        self.manual_special_queued = False
         # True while a hotkey-forced beam ultimate is running: it keeps
         # firing even with Attack mode (Alt+Up) off — see
         # systems.ProjectileSystem._fire_manual_beams.

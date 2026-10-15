@@ -4518,6 +4518,42 @@ def fire_json_action(fig, world, key, tx, ty):
     return bool(new_projs)
 
 
+def try_fire_manual_special(fig, world):
+    """Consumes a queued manual attack_special hotkey request
+    (Ctrl+Shift+1..4 — see systems.InputSystem /
+    World.request_manual_special).  Fires this figure's attack_special
+    now, bypassing its trigger conditions, cooldown and Attack mode:
+    an image character plays its own `attack_special` action
+    (actions.force_special), a JSON character fires its `attack_special`
+    action at the nearest enemy (battle) or the cursor (solo) through
+    fire_json_action.  A built-in fighter has no attack_special — the
+    request is simply dropped.
+
+    Stays queued (retried every tick) while the figure is mid-action, the
+    same as try_fire_manual_ultimate, so it never interrupts an attack in
+    progress.  Identical in Solo & Battle."""
+    c = fig.combat
+    if (c.busy or c.blinkstorm_strikes_left > 0 or c.vc_phase != 0
+            or c.sp_phase or c.lb_phase):
+        return  # still mid-action — stays queued for a later tick
+    from . import actions, action_log
+    if actions.is_image(fig):
+        if actions.force_special(fig, world):
+            c.manual_special_queued = False
+            action_log.log("INPUT", f"manual attack_special mode={fig.mode.key}")
+        return  # else a triggered action is playing — stays queued
+    c.manual_special_queued = False
+    char = getattr(fig.mode, "character", None)
+    if not (char and (char.get("actions") or {}).get("attack_special")):
+        return  # built-in fighter — no attack_special to force
+    if world.battle_mode and world.partner_figures:
+        tx, ty = world._nearest_enemy(fig.x, fig.y)
+    else:
+        tx, ty = world.cursor
+    fire_json_action(fig, world, "attack_special", tx, ty)
+    action_log.log("INPUT", f"manual attack_special mode={fig.mode.key}")
+
+
 def try_fire_manual_ultimate(fig, world):
     """Consumes a queued manual-ultimate hotkey request (Ctrl+1 for P1,
     Ctrl+2 for P2 — see systems.InputSystem / World.request_manual_ultimate).

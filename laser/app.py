@@ -401,6 +401,18 @@ class World:
         for fig in self.sides[side_idx].figures:
             fig.combat.manual_ult_queued = True
 
+    def request_manual_special(self, side_idx, slot):
+        """Ctrl+Shift+1..4: force ONE fielded fighter to fire its
+        attack_special, bypassing its trigger conditions and cooldown.
+        slot 0 = the key-'1'/'2' fighter, slot 1 = the key-'3'/'4' extra
+        fighter (Mirror Legion copies never count as a slot).  Queues on
+        the figure; combat.try_fire_manual_special fires it the instant the
+        figure is free (see systems.py).  No-op if that slot is empty.
+        Identical in Solo & Battle."""
+        real = [f for f in self.sides[side_idx].figures if not unique.is_clone(f)]
+        if slot < len(real):
+            real[slot].combat.manual_special_queued = True
+
     def preview_clash_fx(self):
         """F6: fire the next clash explosion variation at the cursor.  Side A
         colour = P1's fighter, side B = P2's (a contrasting palette when P2
