@@ -385,9 +385,10 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       <div class="row">
         <button id="wpsel0" class="primary" title="Edit the first weapon">Weapon 1</button>
         <button id="wpsel1" title="Edit the second weapon — a separate weapon with its own shape, attach point and pivots">Weapon 2</button>
+        <button id="wpcopy" title="Overwrite the weapon being edited with an exact copy of the other one: shapes, thickness, attach point, and its swing/grip/spin/length and visibility on every keyframe of every action">Copy from Weapon 2</button>
       </div>
       <div class="fld"><label>attach</label><select id="wpattach" title="The pivot point this weapon's grip rides on — for every keyframe of every action"></select></div>
-      <div class="note">Weapon polyline, local space, blade along +x. Click to add points to the selected shape; <strong>+ Shape</strong> starts a separate piece that does not join the others, so a guard, pommel or second blade can be its own outline. The orange dot is the grip pivot &mdash; drag it, or use the <code>wpx</code>/<code>wpy</code> sliders, to choose where the weapon is held. <strong>attach</strong> picks the pivot point the grip rides on (near hand by default for Weapon 1, far hand for Weapon 2) for the whole character; the weapon then follows the bone that ends at that point &mdash; forearm for a hand, upper arm for an elbow, thigh for a knee, shin for a foot, the spine for the chest, neck and shoulders, the head bone for the head, while the hips and hip centre only turn with <code>rot</code>. <strong>Weapon 2</strong> is a separate weapon with its own shape, attach point, <code>w2&hellip;</code> pivots and a pink tip handle on the stage. Ctrl+wheel zooms, wheel pans, Shift+wheel pans across, middle-drag pans freely.</div>
+      <div class="note">Weapon polyline, local space, blade along +x. Click to add points to the selected shape; <strong>+ Shape</strong> starts a separate piece that does not join the others, so a guard, pommel or second blade can be its own outline. The orange dot is the grip pivot &mdash; drag it, or use the <code>wpx</code>/<code>wpy</code> sliders, to choose where the weapon is held. <strong>attach</strong> picks the pivot point the grip rides on (near hand by default for Weapon 1, far hand for Weapon 2) for the whole character; the weapon then follows the bone that ends at that point &mdash; forearm for a hand, upper arm for an elbow, thigh for a knee, shin for a foot, the spine for the chest, neck and shoulders, the head bone for the head, while the hips and hip centre only turn with <code>rot</code>. <strong>Weapon 2</strong> is a separate weapon with its own shape, attach point, <code>w2&hellip;</code> pivots and a pink tip handle on the stage. <strong>Copy from Weapon&nbsp;1/2</strong> overwrites the weapon being edited with the other one &mdash; shapes, thickness, attach point, and its pivots and visibility on every keyframe of every action (Ctrl+Z undoes it). Ctrl+wheel zooms, wheel pans, Shift+wheel pans across, middle-drag pans freely.</div>
       <canvas id="wpcv" width="620" height="300"></canvas>
       <div class="row">
         <select id="wppreset">
@@ -3207,6 +3208,7 @@ function wshapeUI(){
   [0,1].forEach(function(i){var b=document.getElementById("wpsel"+i);if(b)b.className=i===WSELW?"primary":"";
     var sl=document.getElementById(i?"wsliders2":"wsliders");if(sl)sl.style.display=i===WSELW?"":"none";});
   var at=document.getElementById("wpattach");if(at)at.value=wAt(S.rig,WSELW);
+  var cp=document.getElementById("wpcopy");if(cp)cp.textContent="Copy from Weapon "+(WSELW?1:2);
   var el2=document.getElementById("wpshapes");if(!el2)return;
   var shs=wShapes(WSELW);
   el2.innerHTML="";
@@ -3218,12 +3220,33 @@ function wshapeUI(){
 }
 document.getElementById("wpclear").onclick=function(){S[WPN[WSELW].data]=[];WSEL=0;wshapeUI();drawWeapon();refresh();};
 document.getElementById("wpview").onclick=function(){WV.s=2.4;WV.ox=0;WV.oy=0;drawWeapon();};
+/* Duplicate weapon `from` onto weapon `to`: shapes, thickness, attach pivot, and on every
+   keyframe of every action its pivots (wp/wpx/wpy/wspin/wlen -> w2p/...) and layer visibility. */
+function wCopy(from,to){
+  commitPreview();
+  var F=WPN[from],T=WPN[to];
+  S[T.data]=clone(S[F.data]||[]);
+  S.rig[T.at]=wAt(S.rig,from);
+  if(!S.rig.wd)S.rig.wd={};
+  if(S.rig.wd[F.lay])S.rig.wd[T.lay]=clone(S.rig.wd[F.lay]);else delete S.rig.wd[T.lay];
+  Object.keys(S.actions).forEach(function(nm){S.actions[nm].keyframes.forEach(function(p){
+    normPose(p);
+    Object.keys(F.k).forEach(function(r){p[T.k[r]]=p[F.k[r]];});
+    var h=p._layers&&p._layers.hidden;
+    if(h){if(h[F.lay])h[T.lay]=true;else delete h[T.lay];}
+  });});
+  WSEL=0;buildSliders();wshapeUI();drawWeapon();refresh();pushHist();
+  toast("Weapon "+(to+1)+" is now a copy of Weapon "+(from+1));
+}
 /* Weapon 1 / Weapon 2 selector and the attach pivot of the weapon being edited */
 (function(){
   var sel=document.getElementById("wpattach");
   WATTACH.forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
   sel.onchange=function(){S.rig[WPN[WSELW].at]=this.value;refresh();save();};
   [0,1].forEach(function(i){document.getElementById("wpsel"+i).onclick=function(){WSELW=i;WSEL=0;wshapeUI();drawWeapon();};});
+  document.getElementById("wpcopy").onclick=function(){var to=WSELW,from=1-to;
+    if(!confirm("Overwrite Weapon "+(to+1)+" with a copy of Weapon "+(from+1)+"?\n\nShapes, thickness, attach point, and its pivots and visibility on every keyframe of every action."))return;
+    wCopy(from,to);};
 })();
 
 /* character pane */
