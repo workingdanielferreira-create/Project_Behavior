@@ -356,7 +356,7 @@ def _inst_body(si, fig, inst, lst):
         hx, hy, ux, uy, reach = fxkit.beam_reach(inst, ps)
         if reach <= 0.5:
             return None
-        hw = max(P["w_start0"], P["w_start1"], P["w_end0"], P["w_end1"]) * ps / 2
+        hw = fxkit.beam_half_width(inst, ps)
         return Body(si, "beam", "inst", inst, fig, [(hx, hy), (hx - ux * reach, hy - uy * reach)], hw, dmg, kb, col,
                     (ux, uy), lst)
     if prim == "sprite":
