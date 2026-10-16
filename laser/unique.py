@@ -813,7 +813,7 @@ def inst_step(inst, host):
     if P["fx"]:
         cr = P["fx_contact_px"]
         for s in getattr(host, "shots", None) or ():
-            if s.dead:
+            if s.dead or getattr(s, "threat", False):   # gun / ki bullets: threat-only
                 continue
             dx, dy = inst.x - s.x, inst.y - s.y
             d = math.hypot(dx, dy)

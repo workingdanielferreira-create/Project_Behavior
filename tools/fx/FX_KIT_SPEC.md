@@ -601,7 +601,8 @@ plays nothing.
 
 **Dodge (`dodge`, whole character; `laser/dodge.py`).** An enemy projectile
 (`react_to`: `"bullets"` = built-in bullets, `"fx"` = FX Studio projectiles —
-travelling effects with Deals damage —, `"all"`) within `trigger_px` (times
+travelling effects with Deals damage, and each bullet in flight of a gun or
+ki-barrage technique —, `"all"`) within `trigger_px` (times
 the character scale), heading at the fighter when `incoming_only`, makes it
 dodge; the check looks 2 ticks ahead along the projectile's path, so a fast
 shot is seen before the tick it hits. Each projectile is rolled once (`chance_pct`); `conditions` (ANY / ALL,
@@ -1050,6 +1051,14 @@ The presets only seed new FX.
        primitive when untagged), "bullet" for bullets (plus "beam" for
        beam bullets), and "crescent", "ult_crescent", "petal", "clone" for
        the built-in combat FX. `projectile_count` skips petals and clones.
+       A gun / ki-barrage technique (`swordfx.shoots`) counts once per
+       bullet in flight (`swordfx.live_points`, with the technique's tag);
+       the technique itself stays listed for `fx_near` but not as airborne.
+     - Gun / ki bullets also go into `SideState.enemy_shots` as threat-only
+       `Shot`s (`threat` True, ref a `fxkit.RoundRef` kept per bullet across
+       ticks): Tactical retreat steering and Dodge react to them; they are
+       neither blockable nor deflectable, so Intercept and Ricochet ignore
+       them. FX Studio's target dummies mirror this (`SWORDFX.livePoints`).
      - `bullet_deflected`: a parry just started.
      - `after_actions`: the last completed actions, in order.
      - Target state (`target_facing`, `target_attacking`,

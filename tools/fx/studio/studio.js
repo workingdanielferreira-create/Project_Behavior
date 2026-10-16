@@ -2266,7 +2266,7 @@ function buildDodgeProps(d) {
   // --- What it reacts to
   field(s, "React to", inp([["all", "All projectiles"], ["bullets", "Bullets only"], ["fx", "FX Studio projectiles only"]], dg.react_to,
     function (v) { dg.react_to = v; save(); })).title =
-    "Which enemy projectiles make it dodge. FX Studio projectiles = any travelling effect with Deals damage (thrown blades, sword rain, homing / zigzag / path shots ...).";
+    "Which enemy projectiles make it dodge. FX Studio projectiles = any travelling effect with Deals damage (thrown blades, sword rain, homing / zigzag / path shots ...) and every bullet in flight of a gun or ki barrage technique.";
   num("Trigger distance px", "trigger_px", 0, 2000, 5, "A projectile this close (game px at 100 % character scale) makes it dodge.");
   field(s, "Incoming only", inp("chk", dg.incoming_only, function (v) { dg.incoming_only = v; save(); })).title =
     "On: only projectiles heading toward the fighter count. Off: any projectile inside the trigger distance.";
@@ -3118,6 +3118,7 @@ function drawBlink(g, z, img) {
 // from tick 0 like the rest of the sim.  Deflected plain shots fly off as
 // ricochets: red when they now hurt their owner, grey when harmless.
 var TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
+var SHOT_MOTIONS = ["travel", "homing", "zigzag", "path"], SHOT_SKIP = ["weapon", "ghost", "particles", "pulse"];   // laser/app.py enemy_shots
 var DUMMY_GROUPS = ["Gunfire", "Power techniques", "Ki & strikes", "Sword techniques", "Sword combos"];
 var DUMMY_DEFAULTS = {name: "", attack: "none", every_ms: 1000, delay_ms: 0, aim: "fighter", angle_deg: 180, spread_deg: 0,
   hp: 0, respawn: true, respawn_ms: 3000, move: "still", move_px: 80, move_speed: 60, x: 0, y: 0};
@@ -3296,14 +3297,22 @@ function stepDummies(nMove, nFire) {
     for (var n = 1; n < nMove; n++) ds.player.tick(fxs, ds.host, 1, 1, fms, {hold: true});
   });
   pickTarget();
-  // This tick's enemy projectiles for the fighter's intercepts and dodges.
+  // This tick's enemy projectiles, as the game's battle snapshot lists them
+  // (laser/app.py refresh_battle): travelling damaging FX, plus every gun /
+  // ki bullet in flight as a threat-only shot (retreat steering, dodges;
+  // never blockable or deflectable, so intercepts leave them alone).
   var fxShots = [];
   S.dsim.forEach(function (ds) {
     ds.player.insts.forEach(function (inst) {
-      var b = inst.fx.battle || {};
-      if (inst.dead || !b.deals_damage) return;
-      fxShots.push({x: inst.x, y: inst.y, vx: inst.vx, vy: inst.vy, dead: false, kind: "fx", ref: inst,
-        blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: +b.knockback || 0, body: FXK.instBody(inst)});
+      var fx = inst.fx, b = fx.battle || {};
+      if (inst.dead || !b.deals_damage || inst.lodge) return;
+      if (SHOT_MOTIONS.indexOf(fx.motion.kind) >= 0 && inst.age < inst.life && SHOT_SKIP.indexOf(fx.prim) < 0)
+        fxShots.push({x: inst.x, y: inst.y, vx: inst.x - inst.px, vy: inst.y - inst.py, dead: false, kind: "fx", ref: inst,
+          blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: +b.knockback || 0, body: FXK.instBody(inst)});
+      if (SWORDFX.shoots(inst)) SWORDFX.livePoints(inst, inst.ps || 1).forEach(function (r) {
+        fxShots.push({x: r[1], y: r[2], vx: r[3], vy: r[4], dead: false, kind: "fx", ref: inst, round: r[0],
+          blockable: false, deflectable: false, knockback: +b.knockback || 0, threat: true});
+      });
     });
   });
   S.allShots = S.shots.concat(fxShots);

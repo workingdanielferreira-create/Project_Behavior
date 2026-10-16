@@ -298,6 +298,23 @@ def _live(inst, ps):
     return out
 
 
+def live_points(inst, ps):
+    """[(i, x, y, vx, vy)] for the rounds in flight this tick (i = the round's
+    index, stable while it flies): what retreat /
+    dodge / projectile counts see of a gun (gunfx.js livePoints)."""
+    out = []
+    for (s, (x, y)) in _live(inst, ps):
+        k = inst.age - s.b
+        x0, y0 = s.pos(k - 1) if k >= 1 else (x, y)
+        if k < 1:
+            x1, y1 = s.pos(1)
+            vx, vy = x1 - x, y1 - y
+        else:
+            vx, vy = x - x0, y - y0
+        out.append((s.i, x, y, vx, vy))
+    return out
+
+
 def _rail_line(s):
     d = s.fr.d(s.rng, 0.0)
     return s.ox, s.oy, s.ox + d[0], s.oy + d[1]

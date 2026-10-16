@@ -18,6 +18,7 @@ from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
 from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique
+from . import swordfx
 from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
@@ -82,6 +83,8 @@ class SideState:
         self.enemy_fx = []          # opponent's live damaging FX, bullets, crescents, petals, clones: (x, y, tags, airborne)
         self.enemy_shots = []       # opponent's projectiles as fxkit.Shot, for the
                                     # FX Studio auto-projectile tracker (Intercept)
+        self.round_refs = {}        # (id(inst), bullet index) -> fxkit.RoundRef, kept
+                                    # across ticks so each gun / ki bullet keeps its identity
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
         self.partner_gone = []      # per partner_figures entry: blinked out (FX Studio blink)
@@ -626,13 +629,25 @@ class World:
                 # bodies that stay with their owner (petals, clones), which
                 # projectile_count leaves out.
                 efx = []
+                # Bullets of gun / ki techniques in flight: (inst, i, x, y,
+                # vx, vy).  They count as projectiles one by one (and the
+                # technique itself, which stays with its owner, no longer
+                # does), and become threat-only enemy shots below.
+                rounds = []
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
                     if drv is not None:
                         for inst in drv.player.insts + drv.clane[0].insts:
                             # A lodged blade is stuck in its target and harmless.
                             if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
-                                efx.append((inst.x, inst.y, (inst.fx.get("tag") or inst.fx.get("prim") or "",), True))
+                                tg = (inst.fx.get("tag") or inst.fx.get("prim") or "",)
+                                gun = swordfx.shoots(inst)
+                                # A gun / ki technique stays with its owner (not
+                                # airborne); its bullets are the projectiles.
+                                efx.append((inst.x, inst.y, tg, not gun))
+                                for (ri, rx, ry, rvx, rvy) in (swordfx.live_points(inst, inst.ps or 1.0) if gun else ()):
+                                    efx.append((rx, ry, tg, True))
+                                    rounds.append((inst, ri, rx, ry, rvx, rvy))
                     c = f.combat
                     efx.extend((cr.x, cr.y, ("crescent",), True) for cr in c.crescents if cr.alive)
                     efx.extend((uc.x, uc.y, ("ult_crescent",), True) for uc in c.ult_crescents if uc.alive)
@@ -665,6 +680,20 @@ class World:
                                                     body=fxkit.inst_body(inst)))
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
+                # Gun / ki bullets: threat-only shots (retreat steering, Dodge,
+                # projectile counts).  Not blockable / deflectable, so the
+                # intercepts leave them alone; each keeps one RoundRef while
+                # it flies (Dodge rolls once per projectile).
+                refs = {}
+                for (inst, ri, rx, ry, rvx, rvy) in rounds:
+                    key = (id(inst), ri)
+                    ref = side.round_refs.get(key)
+                    if ref is None or ref.inst is not inst:
+                        ref = fxkit.RoundRef(inst, ri)
+                    refs[key] = ref
+                    shots.append(fxkit.Shot(rx, ry, rvx, rvy, "fx", ref, blockable=False, deflectable=False,
+                                            knockback=fxkit.fx_knockback(inst.fx), threat=True))
+                side.round_refs = refs
                 side.enemy_shots = shots
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and
                 # splinters can never deal damage across the boundary.  The
@@ -686,6 +715,7 @@ class World:
                 side.partner_state = []
                 side.enemy_fx = []
                 side.enemy_shots = []
+                side.round_refs = {}
                 side.enemy_projs = []
                 side.intercepted_bullets.clear()
         # Deliver FX Studio hits (fxkit) landed last tick: damage and

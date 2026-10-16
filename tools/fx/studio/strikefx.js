@@ -74,6 +74,17 @@ function live(inst, ps) {   // [[shot, position]] for the shots in flight this t
   }
   return out;
 }
+// [[i, x, y, vx, vy]] for the ki shots in flight this tick (ki barrage
+// only).  laser/strikefx.py live_points.
+function livePoints(inst, ps) {
+  if (L_().style(inst.fx.params) !== "ki_barrage") return [];
+  var fr = new Fr(inst, ps);
+  return live(inst, ps).map(function (e) {
+    var s = e[0], p = e[1], k = inst.age - s.b, q;
+    if (k >= 1) { q = s.pos(fr, k - 1); return [s.i, p[0], p[1], p[0] - q[0], p[1] - q[1]]; }
+    q = s.pos(fr, 1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
+  });
+}
 function kiHit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var r0 = +inst.fx.params.radius * ps, lv = live(inst, ps);
@@ -312,5 +323,5 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks};
+G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints};
 })(window);
