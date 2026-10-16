@@ -17829,10 +17829,10 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "move",
+   "movement": "back",
    "move_speed_pct": 100,
    "anim_loops": 1,
-   "back_stop_pct": 80,
+   "back_stop_pct": 100,
    "attack_px": 0,
    "leap": {
     "start_frame": 0,
@@ -17969,37 +17969,37 @@
   "anti_knockback": 0
  },
  "retreat": {
-  "enabled": false,
+  "enabled": true,
   "mode": "avoid",
   "angle_deg": 180,
   "curve_deg_s": 0,
-  "speed_pct": 200,
-  "proximity_px": 80,
-  "avoid_duration_ms": 1500,
+  "speed_pct": 1000,
+  "proximity_px": 120,
+  "avoid_duration_ms": 1000,
   "reengage_duration_ms": 2000,
-  "cooldown_ms": 3000,
+  "cooldown_ms": 0,
   "logic": "any",
   "conditions": [],
   "fx": ""
  },
  "dodge": {
-  "enabled": false,
+  "enabled": true,
   "style": "sidestep",
   "action": "",
   "react_to": "all",
   "trigger_px": 90,
   "incoming_only": true,
   "chance_pct": 100,
-  "cooldown_ms": 300,
-  "distance_px": 108,
-  "speed_pct": 100,
+  "cooldown_ms": 0,
+  "distance_px": 245,
+  "speed_pct": 750,
   "side": "open",
   "angle_deg": 0,
   "flash": true,
-  "afterimages": true,
+  "afterimages": false,
   "during_attacks": true,
   "invulnerable": false,
-  "invuln_ms": 150,
+  "invuln_ms": 0,
   "counter_action": "",
   "counter_delay_ms": 0,
   "counter_range_px": 0,
@@ -18562,6 +18562,188 @@
     "enabled": false,
     "count": 0
    },
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Emvaqmi171",
+   "name": "ribbon",
+   "action": "@character",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "",
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": true,
+   "char_every_ms": 0,
+   "anchor": "ftR",
+   "offset": [
+    0,
+    0.5
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "max_points": 50,
+    "min_dist": 19.5,
+    "decay": 10,
+    "taper": true,
+    "w_tail": 0.5,
+    "w_head": 0.5,
+    "alpha": 220,
+    "head_glow_r": 0,
+    "head_dot_r": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "id": "Emvaqn2zf2",
+   "name": "ribbon copy",
+   "action": "@character",
+   "prim": "ribbon",
+   "enabled": true,
+   "tag": "",
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": true,
+   "char_every_ms": 0,
+   "anchor": "ftL",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "front",
+   "blend": "normal",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "max_points": 50,
+    "min_dist": 19.5,
+    "decay": 9,
+    "taper": true,
+    "w_tail": 0.5,
+    "w_head": 0.5,
+    "alpha": 220,
+    "head_glow_r": 0,
+    "head_dot_r": 0
+   },
+   "battle": {
+    "deals_damage": false,
+    "damage": 1,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "flip": {
+    "enabled": false,
+    "facing": 1
+   },
+   "follow_dir": false,
    "follow_each": false,
    "keys": []
   }
