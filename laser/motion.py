@@ -11,6 +11,7 @@ import math
 
 from . import config
 from . import combat as _combat
+from . import movestyle as _movestyle
 
 
 def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
@@ -52,8 +53,10 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
     # both fielded fighters, so Solo and Battle match automatically.
     sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
 
+    styled = _movestyle.live(fig)
     if m.bouncing:
         _bounce(fig, sf)
+        _movestyle.reset_velocity(fig)   # a knockback kills any carried style velocity
     elif m.bounce_ending:
         _bounce_end(fig)
     elif not t.init:
@@ -64,13 +67,21 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
         _runaway(fig, tx, ty, sf)
     elif path_follow:
         _follow_path(fig, tx, ty, sf)
+    elif styled:
+        # Movement style (laser/movestyle.py): (tx, ty) is the style's aim
+        # point, already worked out by World.movement_target.
+        if m.path:
+            m.path.clear()
+        _movestyle.step(fig, tx, ty, sf)
     elif glide_cfg(fig) is not None:
         _glide(fig, tx, ty, sf, offset)
     else:
         _chase(fig, tx, ty, sf, offset)
 
     fig.face(ox, oy)
-    g = glide_cfg(fig)
+    if styled:
+        _movestyle.face(fig)
+    g = None if styled else glide_cfg(fig)
     m.glide_alt = None
     if g is not None:
         anim = fig.combat.action_anim or ""

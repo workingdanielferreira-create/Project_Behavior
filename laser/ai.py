@@ -13,6 +13,7 @@ from . import actions as _actions
 from . import blink as _blink
 from . import dodge as _dodge
 from . import unique as _unique
+from . import movestyle as _movestyle
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +60,7 @@ def note_impact_taken(fig):
     entries that actually look like activation-trigger state, or a character
     with both attack_pattern and any activation_triggers crashes the very
     first time it's hit."""
+    _movestyle.note_hit_taken(fig)
     st = _ensure_trigger_state(fig.personality)
     for s in st.values():
         if "impact_count" in s:

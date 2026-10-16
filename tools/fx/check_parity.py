@@ -3,7 +3,8 @@
     python tools/fx/check_parity.py            (from the game folder)
 
 FX Studio's runtime (tools/fx/studio/fxkit.js) is the reference the game's
-laser/fxkit.py, laser/actions.py and laser/retreat.py mirror by hand.  When
+laser/fxkit.py, laser/actions.py and laser/retreat.py mirror by hand (and
+tools/fx/studio/movestyle.js mirrors laser/movestyle.py).  When
 one side gains a default, a condition type or a scaled parameter and the
 other does not, an effect previews one way in the Studio and plays another
 way in Solo and Battle.  This script compares the tables both sides keep and
@@ -264,6 +265,16 @@ def main():
     ua = PyTables(os.path.join(ROOT, "laser", "unique.py"), {"config": cfg})
     diff(js.get("UNIQUE_TYPES"), list(ua.get("TYPES")), "UNIQUE_TYPES", out)
     diff(js.get("UNIQUE_DEFAULTS"), ua.get("DEFAULTS"), "UNIQUE_DEFAULTS", out)
+
+    # Movement style (laser/movestyle.py <-> tools/fx/studio/movestyle.js).
+    mv_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "movestyle.js"))
+    mv_py = PyTables(os.path.join(ROOT, "laser", "movestyle.py"), {"config": cfg})
+    for name in ("PATTERNS", "SELECTS", "FACES", "ATTACKING", "ENUMS", "SIGNED", "PATTERN_DEFAULTS",
+                 "MODIFIER_DEFAULTS", "WHEN_DEFAULTS", "PHASE_DEFAULTS", "DEFAULTS",
+                 "ATTACK_LINGER_MS", "SWAP_DEFAULT_HOLD_MS", "HEADING_MIN_SPEED"):
+        diff(mv_js.get(name), mv_py.get(name), "movestyle " + name, out)
+    for name, py_name in (("TICK_MS", "TICK_MS"), ("WALL_ZONE", "WALL_ZONE"), ("WALL_PUSH", "WALL_PUSH")):
+        diff(mv_js.get(name), cfg.get(py_name), "movestyle " + name + " (config)", out)
 
     # Constants the Studio's previews copy from the game.
     diff(js.get("STAND_HEIGHT_PX"), cfg.get("IMAGE_STAND_HEIGHT_PX"), "STAND_HEIGHT_PX", out)
