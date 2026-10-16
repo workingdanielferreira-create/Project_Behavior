@@ -744,8 +744,8 @@ always keeps normal speed: it controls the time.
   own FX.
 - **Studio preview:** the time effect plays whenever the action reaches the
   start frame (conditions are game-only). Own FX slow / stop on the stage;
-  enemy FX = the test shots; the enemy fighter = the target marker (a stopped
-  target fires no test shots). The timeline shows the window (⏱) and its
+  enemy FX = the target dummies' attacks; the enemy fighters = the target
+  dummies (a stopped dummy neither moves nor fires). The timeline shows the window (⏱) and its
   speed keys, the HUD the current speed.
 
 **Hit rule: what you see is what hits.** An instance hits when the shape it
@@ -823,8 +823,10 @@ FX Studio shows it as the **Intercept** section.
     instance with motion `travel`), harmless or damaging per `hurts_owner`.
 - Solo has no opponent, so there is nothing to intercept. It is the same
   code path in both modes.
-- **Studio preview:** tick **test shots** under the stage. A dummy enemy at
-  the target marker fires a shot at the fighter every 40 ticks. Deflected
+- **Studio preview:** give a target dummy (left panel, **Target dummies**)
+  an attack: *Plain shot* is a dot fired at the fighter on the dummy's timer;
+  the technique presets (Gunfire, Power, Ki & strikes, Sword) count as enemy
+  FX shots too, the way the game's snapshot lists them. Deflected plain
   shots fly off red (they hurt their owner) or grey (harmless), and every
   contact flashes a ring: gold = block, red = destroy, green = deflect.
 - **Parity:** `fxkit.js interceptStep` and `fxkit.py intercept_step` produce
@@ -907,6 +909,30 @@ target, where float rounding picks the turn.
 **Studio stage:** changing the facing dropdown moves a target that's now
 behind the fighter to the mirrored spot in front, as in the game, where the
 fighter faces its target while it acts.
+
+## 5e. Target dummies — Studio only
+
+Stage-only practice opponents, never saved with the character (remembered per
+browser). Dummy 1 is the target marker; **+ Dummy** adds more, each dragged on
+the stage. Per dummy:
+
+- **Attack:** none, *Plain shot* (Intercept test dot), or any single-technique
+  preset from Gunfire, Power techniques, Ki & strikes, Sword techniques and
+  Sword combos, played by its own `FXK.Player` with the dummy as anchor and
+  the fighter as target (palette-coloured presets show in enemy red).
+- **Fire every ms** (shot frequency) and **First shot after ms**.
+- **Aim:** at the fighter, lead the fighter (from its current movement), or a
+  fixed angle (0 right, 90 down), plus a random **Spread °** per attack.
+- **HP:** 0 = indestructible; otherwise the fighter's hits take HP off it
+  while it is the target, and at 0 it goes down (optional **Respawn** after
+  ms).
+- **Movement:** still, patrol left / right across **Range px**, or circle the
+  fighter, at **Speed px/s**.
+
+The fighter targets dummy 1, or while it is down the nearest live dummy; only
+the current target takes the fighter's hits. Dummy hits on the fighter show
+as orange numbers and in the HUD ("taken from dummies"). Time control treats
+the dummies as enemy fighters and their attacks as enemy FX.
 
 ## 6. Presets
 
