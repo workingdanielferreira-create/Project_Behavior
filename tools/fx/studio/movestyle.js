@@ -13,6 +13,7 @@ var PATTERNS = ["chase", "orbit", "kite", "glide", "zigzag", "hit_and_run", "lun
 var SELECTS = ["priority", "weighted", "sequence"];
 var FACES = ["travel", "target"];
 var ATTACKING = ["any", "yes", "no"];
+var ENEMIES = ["any", "melee", "ranged"];
 var ENUMS = {direction: ["cw", "ccw", "alternate"],
   strafe: ["cw", "ccw", "alternate", "none"],
   axis: ["line", "horizontal", "vertical"],
@@ -48,7 +49,7 @@ var MODIFIER_DEFAULTS = {speed_pct: 100, pulse_pct: 0, pulse_ms: 1000, inertia_p
   weave_deg: 0, weave_ms: 1600, jitter_px: 0, jitter_ms: 400,
   pause_every_ms: 0, pause_ms: 300, face: "travel", wall_avoid: true};
 var WHEN_DEFAULTS = {dist_min_px: 0, dist_max_px: 0, hp_min_pct: 0, hp_max_pct: 100,
-  hit_taken_ms: 0, hit_landed_ms: 0, attacking: "any", fight_ms: 0};
+  hit_taken_ms: 0, hit_landed_ms: 0, attacking: "any", fight_ms: 0, enemy: "any"};
 var PHASE_DEFAULTS = {name: "", pattern: "chase", hold_min_ms: 0, hold_max_ms: 0, weight: 1};
 var DEFAULTS = {enabled: false, select: "priority", daze: true, phases: []};
 
@@ -66,7 +67,7 @@ function fill(raw, defaults) {
     var d = defaults[k], v = k in raw ? raw[k] : d;
     if (typeof d === "boolean") out[k] = !!v;
     else if (typeof d === "string") {
-      var allowed = ENUMS[k] || (k === "face" ? FACES : k === "attacking" ? ATTACKING : null);
+      var allowed = ENUMS[k] || (k === "face" ? FACES : k === "attacking" ? ATTACKING : k === "enemy" ? ENEMIES : null);
       out[k] = typeof v === "string" && (!allowed || allowed.indexOf(v) >= 0) ? v : d;
     } else {
       var f = num(v, d);
@@ -108,8 +109,9 @@ function dir(c, mode, lo, hi) {
   if (mode === "none") return 0;
   if (mode === "cw") return 1;
   if (mode === "ccw") return -1;
-  if (!("dir" in ps)) { ps.dir = rng.random() < 0.5 ? 1 : -1; ps.swap = c.st.tick + Math.floor(rng.uniform(lo, hi) / TICK_MS); }
+  if (!("dir" in ps)) { ps.dir = c.st.last_dir || (rng.random() < 0.5 ? 1 : -1); ps.swap = c.st.tick + Math.floor(rng.uniform(lo, hi) / TICK_MS); }
   else if (c.st.tick >= ps.swap) { ps.dir = -ps.dir; ps.swap = c.st.tick + Math.max(1, Math.floor(rng.uniform(lo, hi) / TICK_MS)); }
+  c.st.last_dir = ps.dir;
   return ps.dir;
 }
 function stopOf(c, px) { return px > 0 ? px * c.bs : c.auto_stop; }
@@ -258,15 +260,15 @@ P.mirror = function (c, p) {
   return [wx, wy];
 };
 P.keep_away = function (c, p) {
-  var comfort = p.comfort_px * c.bs;
-  if (c.d < comfort) {
-    var closing = Math.max(0, c.st.tvx * c.ux + c.st.tvy * c.uy), base = Math.max(0.1, c.fig.speed);
-    c.speed = Math.min(3, 1 + p.pressure_pct / 100 * closing / base);
-    return [c.ex + c.ux * comfort * 1.2, c.ey + c.uy * comfort * 1.2];
-  }
+  var comfort = p.comfort_px * c.bs, k = Math.max(0, Math.min(1, (comfort - c.d) / Math.max(1, comfort * 0.25)));
   c.speed = 0.6;
+  if (k > 0) {
+    var closing = Math.max(0, c.st.tvx * c.ux + c.st.tvy * c.uy), base = Math.max(0.1, c.fig.speed);
+    c.speed += (Math.min(3, 1 + p.pressure_pct / 100 * closing / base) - 0.6) * k;
+  }
   var a = Math.sin(2 * Math.PI * c.t / ticks(p.sway_ms)) * p.sway_px * c.bs / Math.max(1, comfort), q = rot(c.ux, c.uy, a);
-  return [c.ex + q[0] * comfort, c.ey + q[1] * comfort];
+  var r = comfort * (1 + 0.2 * k);
+  return [c.ex + q[0] * r, c.ey + q[1] * r];
 };
 P.shadow = function (c, p) {
   var hist = c.st.hist, lag = Math.floor(p.lag_ms / TICK_MS);
@@ -276,13 +278,13 @@ P.shadow = function (c, p) {
 };
 
 // ------------------------------------------------------------ the sim
-// fig: {x, y, speed (px/tick), facing_left, hp, max_hp, attacking, w, h}.
+// fig: {x, y, speed (px/tick), facing_left, hp, max_hp, attacking, enemy_melee, w, h}.
 // One Sim per preview; tick(ex, ey) moves fig one game tick (16 ms).
 function Sim(style, fig) {
   this.style = normalize(style); this.fig = fig;
   this.st = {tick: 0, phase: -1, phase_start: 0, phase_until: 0, ps: {}, vx: 0, vy: 0,
     prev: null, tvx: 0, tvy: 0, hx: 1, hy: 0, hist: [], hit_taken: -1e9, hit_landed: -1e9, attack_tick: -1e9,
-    pause_next: null, pause_until: 0, jitter_next: 0, jx: 0, jy: 0};
+    pause_next: null, pause_until: 0, jitter_next: 0, jx: 0, jy: 0, last_dir: 0};
   this.aim = null; this.live = false; this.face_target = false;
 }
 Sim.prototype.noteHitTaken = function () { this.st.hit_taken = this.st.tick; };
@@ -297,6 +299,7 @@ Sim.prototype.passes = function (w, d, bs) {
   if (w.hit_landed_ms > 0 && st.tick - st.hit_landed > ticks(w.hit_landed_ms)) return false;
   if (w.attacking !== "any") { var on = st.tick - st.attack_tick <= ticks(ATTACK_LINGER_MS); if (on !== (w.attacking === "yes")) return false; }
   if (w.fight_ms > 0 && st.tick < ticks(w.fight_ms)) return false;
+  if (w.enemy !== "any" && (f.enemy_melee !== false) !== (w.enemy === "melee")) return false;
   return true;
 };
 Sim.prototype.choose = function (d, bs) {
@@ -404,7 +407,7 @@ Sim.prototype.tick = function (ex, ey, autoStop) {
   if (this.face_target) f.facing_left = ex < f.x;
 };
 
-G.MOVESTYLE = {PATTERNS: PATTERNS, SELECTS: SELECTS, FACES: FACES, ATTACKING: ATTACKING, ENUMS: ENUMS, SIGNED: SIGNED,
+G.MOVESTYLE = {PATTERNS: PATTERNS, SELECTS: SELECTS, FACES: FACES, ATTACKING: ATTACKING, ENEMIES: ENEMIES, ENUMS: ENUMS, SIGNED: SIGNED,
   PATTERN_DEFAULTS: PATTERN_DEFAULTS, MODIFIER_DEFAULTS: MODIFIER_DEFAULTS, WHEN_DEFAULTS: WHEN_DEFAULTS,
   PHASE_DEFAULTS: PHASE_DEFAULTS, DEFAULTS: DEFAULTS, normalize: normalize, normalizePhase: normalizePhase, Sim: Sim};
 })(window);

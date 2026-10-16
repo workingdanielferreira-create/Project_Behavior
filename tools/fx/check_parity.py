@@ -269,7 +269,7 @@ def main():
     # Movement style (laser/movestyle.py <-> tools/fx/studio/movestyle.js).
     mv_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "movestyle.js"))
     mv_py = PyTables(os.path.join(ROOT, "laser", "movestyle.py"), {"config": cfg})
-    for name in ("PATTERNS", "SELECTS", "FACES", "ATTACKING", "ENUMS", "SIGNED", "PATTERN_DEFAULTS",
+    for name in ("PATTERNS", "SELECTS", "FACES", "ATTACKING", "ENEMIES", "ENUMS", "SIGNED", "PATTERN_DEFAULTS",
                  "MODIFIER_DEFAULTS", "WHEN_DEFAULTS", "PHASE_DEFAULTS", "DEFAULTS",
                  "ATTACK_LINGER_MS", "SWAP_DEFAULT_HOLD_MS", "HEADING_MIN_SPEED"):
         diff(mv_js.get(name), mv_py.get(name), "movestyle " + name, out)

@@ -2376,7 +2376,8 @@ var MS_FIELD = {stop_px: ["Stop px", "How far short of the target it stops (0 = 
   hp_min_pct: ["Own HP ≥ %", ""], hp_max_pct: ["Own HP ≤ %", ""],
   hit_taken_ms: ["Hit taken within ms", "Only within this long after being hit (0 = ignore)."],
   hit_landed_ms: ["Hit landed within ms", "Only within this long after landing a hit (0 = ignore)."],
-  attacking: ["Attacking", "Only while attacking (yes), only while not (no), or either."], fight_ms: ["Fight running ≥ ms", "Only once the fight has run this long."]};
+  attacking: ["Attacking", "Only while attacking (yes), only while not (no), or either."], fight_ms: ["Fight running ≥ ms", "Only once the fight has run this long."],
+  enemy: ["Enemy fights", "Only while the target fights in melee, only while it doesn't (ranged), or either. In Solo the cursor counts as melee."]};
 // Ready-made styles: Add replaces the phase list.
 var MS_PRESETS = {
   duelist: {label: "Duelist (circle, then strike)", select: "priority", phases: [
@@ -2403,10 +2404,10 @@ var MS_PRESETS = {
     {name: "rage", pattern: "chase", when: {hp_max_pct: 40}, params: {overshoot_px: 60}, modifiers: {speed_pct: 160, jitter_px: 10}},
     {name: "charge", pattern: "zigzag", modifiers: {pulse_pct: 30}}]}};
 // Preview state: kept across panel rebuilds so editing doesn't restart it.
-var MSP = {canvas: null, info: null, sim: null, ex: 1000, ey: 450, tmode: "still", hp: 100, attacking: false, trail: [], t: 0, running: false, drag: false, acc: 0, last: 0};
+var MSP = {canvas: null, info: null, sim: null, ex: 1000, ey: 450, tmode: "still", hp: 100, attacking: false, melee: true, trail: [], t: 0, running: false, drag: false, acc: 0, last: 0};
 function msPreviewReset() {
   var spd = C && C.man && C.man.stats ? +C.man.stats.chase_speed || 3 : 3;
-  MSP.sim = new MOVESTYLE.Sim(S.moveStyle, {x: 500, y: 450, speed: spd, facing_left: false, hp: MSP.hp, max_hp: 100, attacking: false, w: 1600, h: 900});
+  MSP.sim = new MOVESTYLE.Sim(S.moveStyle, {x: 500, y: 450, speed: spd, facing_left: false, hp: MSP.hp, max_hp: 100, attacking: false, enemy_melee: MSP.melee, w: 1600, h: 900});
   MSP.trail = []; MSP.t = 0;
 }
 function msPreviewLoop() {
@@ -2415,7 +2416,7 @@ function msPreviewLoop() {
   if (!MSP.sim) msPreviewReset();
   var sim = MSP.sim, f = sim.fig;
   sim.style = MOVESTYLE.normalize(S.moveStyle);
-  f.hp = MSP.hp; f.attacking = MSP.attacking;
+  f.hp = MSP.hp; f.attacking = MSP.attacking; f.enemy_melee = MSP.melee;
   var autoStop = 60 * charScale(), now = performance.now();
   // Game time: one 16 ms tick per 16 ms of real time (at most 4 per frame).
   MSP.acc = Math.min(64, (MSP.acc || 0) + (MSP.last ? now - MSP.last : 16)); MSP.last = now;
@@ -2451,7 +2452,7 @@ function msPreviewLoop() {
 }
 function msField(s, obj, k, onStruct) {
   var d = MS_FIELD[k] || [k, ""], v = obj[k], e;
-  var en = MOVESTYLE.ENUMS[k] || (k === "face" ? MOVESTYLE.FACES : k === "attacking" ? MOVESTYLE.ATTACKING : null);
+  var en = MOVESTYLE.ENUMS[k] || (k === "face" ? MOVESTYLE.FACES : k === "attacking" ? MOVESTYLE.ATTACKING : k === "enemy" ? MOVESTYLE.ENEMIES : null);
   if (en) e = inp(en.map(function (o) { return [o, o.replace("_", " ")]; }), v, function (x) { obj[k] = x; save(); });
   else if (typeof v === "boolean") e = inp("chk", v, function (x) { obj[k] = x; save(); });
   else {
@@ -2492,6 +2493,7 @@ function buildMoveStyleProps(d) {
   field(pv, "Target", tsel);
   field(pv, "Own HP %", inp("n", MSP.hp, function (v) { MSP.hp = Math.max(0, Math.min(100, v)); }, 0, 100, 5)).title = "Preview only: for HP conditions.";
   field(pv, "Attacking", inp("chk", MSP.attacking, function (v) { MSP.attacking = v; })).title = "Preview only: for Attacking conditions.";
+  field(pv, "Target melee", inp("chk", MSP.melee, function (v) { MSP.melee = v; })).title = "Preview only: for Enemy fights conditions (off = a ranged target).";
   var br = document.createElement("div"); br.className = "row";
   [["Hit taken", function () { MSP.sim && MSP.sim.noteHitTaken(); }], ["Hit landed", function () { MSP.sim && MSP.sim.noteHitLanded(); }], ["Restart", msPreviewReset]].forEach(function (b) {
     var e = document.createElement("button"); e.textContent = b[0]; e.onclick = b[1]; br.appendChild(e); });
