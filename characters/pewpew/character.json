@@ -53,7 +53,7 @@
   "px_per_rig_unit": 1,
   "facing": "right",
   "root_travel": true,
-  "figure_colour": "#9FBCFF"
+  "figure_colour": "#000000"
  },
  "actions": {
   "idle": {
