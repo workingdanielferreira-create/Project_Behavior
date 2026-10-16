@@ -104,6 +104,7 @@ main{display:flex;flex-direction:column;min-width:0}
 .kchip button{border:none;background:none;padding:0 4px;cursor:pointer;color:var(--mute)}
 .grpmove{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;padding:2px 6px;border:1px solid var(--line);border-radius:6px}
 .note{color:var(--mute);font-size:12px}.warn{color:var(--warn)}
+#dummyProps .f{grid-template-columns:96px minmax(0,1fr)}#dummyProps input:not([type=checkbox]),#dummyProps select{width:100%;min-width:0;box-sizing:border-box}
 .seq .row{flex-wrap:nowrap;margin:2px 0}.seq select{min-width:0;flex:1}
 .cpv{font-size:12px;margin:4px 0;font-weight:600}.cpv.ok{color:var(--ok)}.cpv.bad{color:var(--bad)}.cpv.mute{color:var(--mute);font-weight:400}
 #lut{height:10px;border-radius:3px;margin:4px 0}
@@ -167,6 +168,11 @@ main{display:flex;flex-direction:column;min-width:0}
   <div class="row"><button id="bPresetDel">Delete preset</button><button id="bPresetExport">Export</button><button id="bPresetImport">Import</button></div>
   <input type="file" id="pfile" accept=".json,application/json" hidden>
   </details>
+  <details class="panel" id="secDummies"><summary><h2>Target dummies</h2></summary>
+  <div id="dummyList" class="list"></div>
+  <div class="row"><button id="bDummyAdd" title="Add a target dummy to the stage (drag it to move it). Dummy 1 is the target marker">+ Dummy</button></div>
+  <div id="dummyProps"></div>
+  </details>
 </aside>
 
 <main>
@@ -191,7 +197,6 @@ main{display:flex;flex-direction:column;min-width:0}
     <button id="bCenter" title="Bring the character back to the middle of the stage (shortcut: C)">⌖ Center character</button>
     <label title="The camera follows the character: it moves around the environment as usual, but always stays in the middle of the stage"><input type="checkbox" id="keepCenter"> keep character centred</label>
     <label title="Target hurt radius: a damaging FX hits when its drawn shape touches this circle (engine PROJ_HIT_RADIUS = 16)">hurt r <input type="number" id="hurtR" value="16" step="1" min="1"></label>
-    <label title="A dummy enemy at the target marker fires projectiles at the fighter, to preview the auto-projectile tracker (Intercept)"><input type="checkbox" id="testShots"> test shots</label>
     <label><input type="checkbox" id="joints"> anchors</label>
     <label title="Light backdrop behind the frame, for dark figures"><input type="checkbox" id="lightbg"> light bg</label>
     <span class="note" id="frameInfo"></span>

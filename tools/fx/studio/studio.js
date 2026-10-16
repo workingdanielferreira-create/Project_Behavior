@@ -12,7 +12,7 @@
 "use strict";
 var $ = function (id) { return document.getElementById(id); };
 var TARGET_HEAD_PX = 16;   // laser/config.py TARGET_HEAD_PX
-var LS_PROJECT = "pbfxstudio.v2.project.", LS_PRESETS = "pbfxstudio.v1.presets", LS_GEO = "pbfxstudio.v1.geopresets";
+var LS_PROJECT = "pbfxstudio.v2.project.", LS_PRESETS = "pbfxstudio.v1.presets", LS_GEO = "pbfxstudio.v1.geopresets", LS_DUMMIES = "pbfxstudio.v1.dummies";
 var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 
 // C = the loaded character package; S = editor state.
@@ -20,7 +20,7 @@ var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}),
   unique: FXK.normalizeUnique({}), uaPage: null,
-  t: 0, playing: false, target: [60, 0], pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
+  t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), cplayer = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
 var cv = $("stage"), g = cv.getContext("2d");
@@ -346,7 +346,8 @@ var host = {
   get pscale() { return viewScale(); },
   get lib() { return {entry_sets: S.entries, paths: S.paths}; },
   get showHitboxes() { return true; },
-  get hurt() { return {x: S.target[0], y: S.target[1], r: Math.max(1, +$("hurtR").value || 16)}; },
+  // The target dummy the fighter is after (none while every dummy is down).
+  get hurt() { return S.tgt < 0 ? null : {x: S.target[0], y: S.target[1], r: hurtR()}; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
   // Path pins "blink:<i>:start|end" (laser/blink.py point).
   blinkPoint: function (i, which) { return blinkPointAt(i, which); },
@@ -368,10 +369,12 @@ var host = {
     var img = C.actions[gh.snap.action].images[gh.snap.frame];
     if (img) drawFrame(gc, img, gh.snap.pos, gh.facing, a, rgb, gh.snap.rot);
   },
-  // Test enemy projectiles (the "test shots" toggle) for the auto-projectile tracker.
-  get shots() { return S.shots || []; },
+  // Enemy projectiles: the target dummies' plain shots and their damaging
+  // FX (kind "fx", as the game's snapshot lists them), for intercepts.
+  get shots() { return S.allShots || []; },
   onIntercept: function (inst, shot, mode, vel, hurtsOwner) {
     shot.dead = true;
+    if (shot.kind === "fx") shot.ref.dead = true;   // combat.kill_projectile: ended at the source
     if (mode === "deflect") S.ricochets.push({x: shot.x, y: shot.y, vx: vel[0], vy: vel[1], age: 0, hurts: hurtsOwner, trail: []});
     S.bursts.push({x: shot.x, y: shot.y, age: 0, mode: mode});
   },
@@ -379,6 +382,7 @@ var host = {
   onHit: function (inst, dmg, dx, dy, kb) {
     if (S.leap && S.leap.dmg != null && inst.fx.action === S.action) dmg = S.leap.dmg;   // "range" leap damage
     S.dealt += dmg;
+    dummyHurt(S.tgt, dmg);
     S.hits.push({t: S.t, dmg: dmg, kb: kb, name: inst.fx.name});
     if (S.hits.length > 60) S.hits.shift();
   }
@@ -1764,7 +1768,7 @@ function buildProps() {
         if (G.mode === "deflect")
           field(s, "Deflected shot hurts its owner", inp("chk", G.hurts_owner, function (v) { G.hurts_owner = v; changed(); })).title =
             "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
-        note(s, "Tick \"test shots\" under the stage to fire dummy enemy projectiles at the fighter and watch it work.");
+        note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
       }
     } else if (FXK.canIntercept(fx)) {
       s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects or destroys them. (Clashing is world physics, not an intercept mode: see ⚔ World Clash.)");
@@ -1787,7 +1791,7 @@ function buildProps() {
           field(s, "Deflected shot hurts its owner", inp("chk", I.hurts_owner, function (v) { I.hurts_owner = v; changed(); })).title =
             "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
         }
-        note(s, "Tick \"test shots\" under the stage to fire dummy enemy projectiles at the fighter and watch it work.");
+        note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
       }
     }
 
@@ -2674,7 +2678,7 @@ function buildTimeProps(d) {
   conditionList(c, function () { return cfgOf(a).time.conditions; }, {key: "a-tcondi", listId: "fxTagListTime", preview: false, onChange: function () { save(); buildProps(); },
     helpOf: function (t) { return COND_HELP[t]; },
     make: function (t) { return FXK.normalizeTime({conditions: [{type: t}]}).conditions[0]; }});
-  note(s, "Preview: the stage plays the time effect whenever the action reaches the start frame (conditions are checked in the game only). Own FX slow / stop on the stage; enemy FX = the test shots (tick \"test shots\" below the stage); the enemy fighter = the target marker (a stopped enemy fires no test shots).");
+  note(s, "Preview: the stage plays the time effect whenever the action reaches the start frame (conditions are checked in the game only). Own FX slow / stop on the stage; enemy FX = the target dummies' attacks; the enemy fighters = the target dummies (a stopped dummy neither moves nor fires).");
 }
 // Right panel for a triggered reaction (Actions > Triggered reactions) when
 // no effect is selected: its settings, and what the FX built on it do.
@@ -2696,7 +2700,7 @@ function buildReactionProps(d) {
     note(s, (n ? n + " effect" + (n > 1 ? "s" : "") + " on the dash." : "No effects yet: add one under Effects on the left.") +
       " They start when the dash starts and replay each loop of the frames; effects that last to the end of the frames keep running across loops (like Continuous FX) for the whole dash. When the dash ends those stop and shots already flying finish." +
       (S.retreat.enabled ? "" : " Tactical retreat is off, so they won't play in the game until it's switched on below."));
-    note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. Test shots (below the stage) count as projectiles to avoid.");
+    note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. The target dummies' shots and FX count as projectiles to avoid.");
     buildRetreatProps(d);
     buildDodgeProps(d);
     buildCharFxProps(d);
@@ -2943,7 +2947,8 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 function resetSim(t) {
   player.reset(); cplayer.reset(); S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.leap = null;
-  S.shots = []; S.ricochets = []; S.bursts = []; S.clock = 0;
+  S.shots = []; S.ricochets = []; S.bursts = [];
+  dummyReset();
   S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
@@ -2955,10 +2960,11 @@ function step(allowWrap) {
   var gone = blinkGone(), dash = S.react === "retreat";
   if (dash) dashStep();
   else if (!gone) moveFigure();
-  // Time control: own FX, the test shots (enemy FX) and the target (the
-  // enemy fighter, who fires them) each take their own steps this tick.
+  // Time control: own FX, the target dummies' FX (enemy FX) and the
+  // dummies themselves (enemy fighters: moving, firing) each take their own
+  // steps this tick.
   var ts = timeStep();
-  stepTestShots(ts.efx, ts.eb);
+  stepDummies(ts.efx, ts.eb);
   // Tactical retreat: the run frames loop until the dash ends; then its held
   // FX stop (no effects passed) and shots already flying finish.
   var nLoops = FXK.animLoops(S.action, cfgOf(S.action)), lastPass = dash ? dashOver() : (S.cycle || 0) >= nLoops - 1;
@@ -2988,7 +2994,7 @@ function step(allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
     // action ends, and "loop" replays the whole action.
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; S.bmarks = {}; }
-    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.taken = 0; S.thits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); }
       else if (isLeap()) { S.figX = 0; S.figY = 0; S.leap = null; } }
   }
   blinkStep();   // for the tick now on show (past the action's end: it reappears)
@@ -2997,7 +3003,7 @@ function step(allowWrap) {
 // effect starts when the frame on show reaches the start frame (conditions
 // are taken as met: they are game-only), runs to the end frame, and once per
 // pass of the action.  Returns this tick's steps for own FX, enemy FX (test
-// shots) and the enemy fighter (the target's firing clock).
+// dummies' FX) and the enemy fighters (the target dummies: moving, firing).
 function timeSteps(key, scale) {
   if (scale === 1) { S.tacc[key] = 0; return 1; }
   var a = S.tacc[key] + scale, n = Math.floor(a + 1e-9);
@@ -3096,33 +3102,263 @@ function drawBlink(g, z, img) {
   }
   g.restore();
 }
-// ------------------------------------------------------------ test shots
-// "test shots": a dummy enemy fires a projectile from the target marker at
-// the fighter every TEST_SHOT_EVERY ticks, so the auto-projectile tracker
-// (Intercept) can be previewed.  Deterministic from tick 0 like the rest of
-// the sim.  Deflected ones fly off as ricochets: red when they now hurt
-// their owner (the dummy), grey when harmless.
-var TEST_SHOT_EVERY = 40, TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
-// nMove: steps the shots in flight take this tick, nFire: steps of the dummy
-// enemy's firing clock (Time control; both 1 normally).
-function stepTestShots(nMove, nFire) {
+// ------------------------------------------------------------ target dummies
+// Stage-only practice opponents (never saved with the character).  Dummy 1
+// IS the target marker: drag it (or click empty stage) to place it.  More
+// dummies can be added in the left panel's Target dummies section.  Each one
+// can fire an attack at the fighter on a timer: a plain shot (the old "test
+// shots": a dot for previewing Intercept) or any Gunfire / Power / Ki &
+// strikes / Sword technique preset, played by its own FXK.Player exactly as
+// the fighter's FX are, with the dummy as anchor and the fighter as target.
+// Settings: how often it fires, aim (at the fighter, leading it, or a fixed
+// angle) with random spread, HP (0 = indestructible) with optional respawn,
+// and movement (still, patrol left / right, or circling the fighter).
+// The fighter's target is dummy 1; while it is down, the nearest other live
+// dummy (only the current target takes the fighter's hits).  Deterministic
+// from tick 0 like the rest of the sim.  Deflected plain shots fly off as
+// ricochets: red when they now hurt their owner, grey when harmless.
+var TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
+var DUMMY_GROUPS = ["Gunfire", "Power techniques", "Ki & strikes", "Sword techniques", "Sword combos"];
+var DUMMY_DEFAULTS = {name: "", attack: "none", every_ms: 1000, delay_ms: 0, aim: "fighter", angle_deg: 180, spread_deg: 0,
+  hp: 0, respawn: true, respawn_ms: 3000, move: "still", move_px: 80, move_speed: 60, x: 0, y: 0};
+var DUMMY_LUT = FXK.buildLut([[255, 236, 228], [255, 74, 60]]);   // enemy red for palette-coloured presets
+function hurtR() { return Math.max(1, +$("hurtR").value || 16); }
+// The technique presets a dummy can fire (one damaging technique each).
+function dummyAttacks() {
+  return FX_PRESETS.filter(function (p) {
+    return DUMMY_GROUPS.indexOf(p.group) >= 0 && p.effects.length === 1 && p.effects[0].prim === "technique" &&
+      p.effects[0].battle && p.effects[0].battle.deals_damage;
+  });
+}
+function dummyPreset(d) {
+  if (d.attack.indexOf("preset:") !== 0) return null;
+  var n = d.attack.slice(7);
+  return dummyAttacks().filter(function (p) { return p.name === n; })[0] || null;
+}
+function normalizeDummy(d, i) {
+  var o = {}; for (var k in DUMMY_DEFAULTS) o[k] = d && d[k] !== undefined ? d[k] : DUMMY_DEFAULTS[k];
+  d = o;
+  if (!d.name) d.name = "Dummy " + (i + 1);
+  if (d.attack !== "none" && d.attack !== "shot" && !dummyPreset(d)) d.attack = "none";
+  ["every_ms", "delay_ms", "angle_deg", "spread_deg", "hp", "respawn_ms", "move_px", "move_speed", "x", "y"].forEach(function (k) { d[k] = +d[k] || 0; });
+  d.every_ms = Math.max(FXK.TICK_MS, d.every_ms); d.hp = Math.max(0, d.hp); d.respawn = !!d.respawn;
+  return d;
+}
+function loadDummies() {
+  var L = lsGet(LS_DUMMIES);
+  S.dummies = (Array.isArray(L) && L.length ? L : [{}]).map(normalizeDummy);
+  S.dsel = 0;
+}
+function saveDummies() { lsSet(LS_DUMMIES, S.dummies); }
+// Where dummy i stands (its home; dummy 1's is the target marker's spot).
+function dummyHome(i) { return i === 0 ? S.home.slice() : [S.dummies[i].x, S.dummies[i].y]; }
+function dummyTicks(ms) { return Math.max(0, Math.round(ms / FXK.TICK_MS)); }
+// Its position after `c` of its own ticks (Movement).
+function dummyPos(i, c) {
+  var d = S.dummies[i], h = dummyHome(i), v = Math.max(0, d.move_speed) * FXK.TICK_MS / 1000, s = v * c;
+  if (d.move === "patrol" && d.move_px > 0 && v > 0) {   // left / right across move_px, centred on home
+    var R = d.move_px, p = s % (2 * R);
+    return [h[0] + (p < R ? p : 2 * R - p) - R / 2, h[1]];
+  }
+  if (d.move === "circle" && v > 0) {   // round the fighter at its home's distance from the start spot
+    var r = Math.max(20, Math.hypot(h[0], h[1])), a = Math.atan2(h[1], h[0]) + s / r;
+    return [S.figX + Math.cos(a) * r, S.figY + Math.sin(a) * r];
+  }
+  return h;
+}
+// The fighter's hurt circle for the dummies' attacks (none while blinked out).
+function fighterHurt() { return blinkGone() ? null : {x: S.figX, y: S.figY, r: hurtR()}; }
+// Shot speed a lead aim plans for (px per tick).
+function dummyShotSpeed(d) {
+  var p = dummyPreset(d), st = p && p.effects[0].params.style, gun = st && window.GUNFX && GUNFX.GUNS[st];
+  if (d.attack === "shot") return TEST_SHOT_SPEED;
+  return gun && gun.speed[1] > 0 ? (gun.speed[0] + gun.speed[1]) / 2 * pscale() : 10;
+}
+// Where dummy i aims this tick: the fighter, where it will be (lead), or a
+// fixed angle (0 right, 90 down), turned by this volley's spread.
+function dummyAim(i) {
+  var d = S.dummies[i], ds = S.dsim[i], o = ds.pos, a;
+  if (d.aim === "angle") { var r = d.angle_deg * Math.PI / 180; a = [o[0] + Math.cos(r) * 400, o[1] + Math.sin(r) * 400]; }
+  else if (d.aim === "lead") {
+    var t = Math.min(60, Math.hypot(S.figX - o[0], S.figY - o[1]) / Math.max(0.5, dummyShotSpeed(d)));
+    a = [S.figX + S.fvel[0] * t, S.figY + S.fvel[1] * t];
+  } else a = [S.figX, S.figY];
+  if (ds.spread) { var v = FXK.rot([a[0] - o[0], a[1] - o[1]], ds.spread); a = [o[0] + v[0], o[1] + v[1]]; }
+  return a;
+}
+// The FX host a dummy's attack plays on: anchored on the dummy, aimed at
+// the fighter, hurting the fighter's circle.
+function dummyHost(i) {
+  var ds = S.dsim[i];
+  return {
+    get facing() { return ds.aim[0] < ds.pos[0] - 0.001 ? -1 : 1; },
+    get target() { return ds.aim; },
+    get wang() { return 90; },
+    get lut() { return DUMMY_LUT; },
+    get pscale() { return pscale(); },
+    get lib() { return {entry_sets: [], paths: []}; },
+    get showHitboxes() { return true; },
+    get hurt() { return fighterHurt(); },
+    get shots() { return []; },
+    anchor: function (n) { return n === "target" ? ds.aim.slice() : ds.pos.slice(); },
+    blinkPoint: function () { return null; },
+    snapshot: function () { return {action: S.action, frame: frameAt(S.t), pos: ds.pos.slice(), rot: 0}; },
+    outline: function () { return null; },
+    drawGhost: function () {},
+    onIntercept: function () {},
+    onHit: function (inst, dmg) { dummyHitsFighter(dmg); }
+  };
+}
+function dummyHitsFighter(dmg) {
+  S.taken = (S.taken || 0) + dmg;
+  S.thits.push({t: S.t, dmg: dmg});
+  if (S.thits.length > 60) S.thits.shift();
+}
+function buildDummyFx(d) {
+  var p = dummyPreset(d); if (!p) return null;
+  var fx = clone(p.effects[0]);
+  fx.id = "dummy_" + p.name; fx.action = "dummy"; fx.enabled = true;
+  fx.start_frame = 0; fx.end_frame = -1; fx.always_on = false; fx.continuous = false; delete fx.keys;
+  fx = FXK.normalize(fx);
+  fx.emit.every_ticks = 0;
+  return fx;
+}
+function dummyReset() {
+  if (!S.dummies.length) loadDummies();
+  S.target = S.home.slice();
+  S.fvel = [0, 0]; S.fprev = [S.figX, S.figY]; S.taken = 0; S.thits = []; S.allShots = [];
+  S.dsim = S.dummies.map(function (d, i) {
+    var ds = {clock: 0, pos: dummyHome(i), aim: [S.figX, S.figY], hp: d.hp, down: false, backAt: 0, volley: 0, spread: 0,
+      flash: -99, player: new FXK.Player(), fx: buildDummyFx(d)};
+    ds.host = null;
+    return ds;
+  });
+  S.dsim.forEach(function (ds, i) { ds.host = dummyHost(i); ds.aim = dummyAim(i); });
+  pickTarget();
+}
+// The fighter's target: dummy 1, else the nearest live dummy, else none
+// (S.tgt -1: the marker stays on dummy 1 and nothing can be hit).
+function pickTarget() {
+  var best = -1, bd = 0;
+  if (S.dsim[0] && !S.dsim[0].down) best = 0;
+  else S.dsim.forEach(function (ds, i) {
+    if (ds.down) return;
+    var d = Math.hypot(ds.pos[0] - S.figX, ds.pos[1] - S.figY);
+    if (best < 0 || d < bd) { best = i; bd = d; }
+  });
+  S.tgt = best;
+  S.target = (best < 0 ? S.dsim[0].pos : S.dsim[best].pos).slice();
+}
+function dummyHurt(i, dmg) {
+  var ds = S.dsim && S.dsim[i], d = S.dummies[i]; if (!ds || ds.down) return;
+  ds.flash = S.t;
+  if (!(d.hp > 0)) return;   // indestructible
+  ds.hp -= dmg;
+  if (ds.hp <= 0) { ds.hp = 0; ds.down = true; ds.backAt = d.respawn ? ds.clock + Math.max(1, dummyTicks(d.respawn_ms)) : Infinity; }
+}
+// nMove: steps the dummies' shots and FX take this tick (enemy FX), nFire:
+// steps of the dummies' own clocks: movement and firing (enemy fighters;
+// Time control; both 1 normally).
+function stepDummies(nMove, nFire) {
   if (nMove == null) nMove = 1;
   if (nFire == null) nFire = 1;
+  S.fvel = [S.figX - S.fprev[0], S.figY - S.fprev[1]]; S.fprev = [S.figX, S.figY];
   S.shots = (S.shots || []).filter(function (q) { return !q.dead && q.age < TEST_SHOT_LIFE; });
-  for (var k = 0; k < nMove; k++) S.shots.forEach(function (q) { q.x += q.vx; q.y += q.vy; q.age += 1; });
-  for (var f = 0; f < nFire; f++) {
-    S.clock = (S.clock || 0) + 1;
-    if ($("testShots").checked && S.clock % TEST_SHOT_EVERY === 1) {
-      var d = [S.figX - S.target[0], S.figY - S.target[1]], m = Math.hypot(d[0], d[1]) || 1;
-      S.shots.push({x: S.target[0], y: S.target[1], vx: d[0] / m * TEST_SHOT_SPEED, vy: d[1] / m * TEST_SHOT_SPEED, age: 0, dead: false});
+  for (var k = 0; k < nMove; k++) S.shots.forEach(function (q) {
+    if (q.dead) return;
+    q.x += q.vx; q.y += q.vy; q.age += 1;
+    var h = fighterHurt();
+    if (h && Math.hypot(q.x - h.x, q.y - h.y) <= h.r) { q.dead = true; dummyHitsFighter(1); }
+  });
+  S.dummies.forEach(function (d, i) {
+    var ds = S.dsim[i], fire = false, period = Math.max(1, dummyTicks(d.every_ms)), delay = dummyTicks(d.delay_ms);
+    for (var f = 0; f < nFire; f++) {
+      ds.clock += 1;
+      if (ds.down && ds.clock >= ds.backAt) { ds.down = false; ds.hp = d.hp; }
+      var c = ds.clock - 1 - delay;
+      if (!ds.down && d.attack !== "none" && c >= 0 && c % period === 0) fire = true;
     }
-  }
+    ds.pos = dummyPos(i, ds.clock);
+    if (fire) {
+      ds.volley += 1;
+      ds.spread = d.spread_deg > 0 ? FXK.rng((i + 1) * 7919 + ds.volley * 104729).uniform(-d.spread_deg / 2, d.spread_deg / 2) : 0;
+    }
+    ds.aim = dummyAim(i);
+    if (fire && d.attack === "shot") {
+      var v = [ds.aim[0] - ds.pos[0], ds.aim[1] - ds.pos[1]], m = Math.hypot(v[0], v[1]) || 1;
+      S.shots.push({x: ds.pos[0], y: ds.pos[1], vx: v[0] / m * TEST_SHOT_SPEED, vy: v[1] / m * TEST_SHOT_SPEED, age: 0, dead: false, owner: i});
+    }
+    if (!ds.fx) return;
+    // One "action" of `period` ticks: the attack fires on its tick 0.
+    var fms = period * FXK.TICK_MS, t = fire ? 0 : 1, fxs = [ds.fx];
+    if (nMove === 0) { ds.player.tick(fxs, ds.host, t, 1, fms, {frozen: true}); return; }
+    ds.player.tick(fxs, ds.host, t, 1, fms, {});
+    for (var n = 1; n < nMove; n++) ds.player.tick(fxs, ds.host, 1, 1, fms, {hold: true});
+  });
+  pickTarget();
+  // This tick's enemy projectiles for the fighter's intercepts and dodges.
+  var fxShots = [];
+  S.dsim.forEach(function (ds) {
+    ds.player.insts.forEach(function (inst) {
+      var b = inst.fx.battle || {};
+      if (inst.dead || !b.deals_damage) return;
+      fxShots.push({x: inst.x, y: inst.y, vx: inst.vx, vy: inst.vy, dead: false, kind: "fx", ref: inst,
+        blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: +b.knockback || 0, body: FXK.instBody(inst)});
+    });
+  });
+  S.allShots = S.shots.concat(fxShots);
   S.ricochets = (S.ricochets || []).filter(function (q) { return q.age < RICOCHET_LIFE; });
   S.ricochets.forEach(function (q) { q.trail.push([q.x, q.y]); if (q.trail.length > 6) q.trail.shift(); q.x += q.vx; q.y += q.vy; q.age += 1; });
   S.bursts = (S.bursts || []).filter(function (q) { return q.age < 14; });
   S.bursts.forEach(function (q) { q.age += 1; });
 }
-function drawTestShots(g, z) {
+function drawDummyFx(g, layers) {
+  var ps = pscale();
+  (S.dsim || []).forEach(function (ds) { layers.forEach(function (l) { ds.player.draw(g, ds.host, l, ps); }); });
+}
+// Index of the dummy (2nd on) under world point w, else -1.
+function dummyAt(w) {
+  var best = -1, bd = 12 / zoom() + 6;
+  (S.dsim || []).forEach(function (ds, i) {
+    if (i === 0) return;
+    var d = Math.hypot(ds.pos[0] - w[0], ds.pos[1] - w[1]);
+    if (d <= bd) { best = i; bd = d; }
+  });
+  return best;
+}
+function drawDummies(g, z) {
+  var light = isLight();
+  (S.dsim || []).forEach(function (ds, i) {
+    var d = S.dummies[i], p = ds.pos, col = i === 0 ? "240,194,74" : "255,110,90", a = ds.down ? .3 : .95;
+    g.save();
+    g.strokeStyle = "rgba(" + col + "," + a + ")"; g.lineWidth = 1.5 / z;
+    if (i > 0) {   // a training post: head, body, arms
+      var hit = S.t - ds.flash < 8 && !ds.down;
+      if (hit) { g.fillStyle = "rgba(255,80,80,.35)"; g.beginPath(); g.arc(p[0], p[1], hurtR(), 0, 6.2832); g.fill(); }
+      g.beginPath(); g.arc(p[0], p[1] - 7, 3.5, 0, 6.2832);
+      g.moveTo(p[0], p[1] - 3.5); g.lineTo(p[0], p[1] + 9); g.moveTo(p[0] - 6, p[1]); g.lineTo(p[0] + 6, p[1]);
+      g.moveTo(p[0] - 4, p[1] + 12); g.lineTo(p[0] + 4, p[1] + 12); g.stroke();
+      if (i === S.tgt) { g.setLineDash([6 / z, 6 / z]); g.lineWidth = 1 / z; g.beginPath(); g.arc(p[0], p[1], hurtR(), 0, 6.2832); g.stroke(); g.setLineDash([]); }
+    }
+    if (i === S.dsel) { g.strokeStyle = light ? "rgba(20,110,200,.8)" : "rgba(110,190,255,.8)"; g.lineWidth = 1 / z; g.beginPath(); g.arc(p[0], p[1], hurtR() + 3, 0, 6.2832); g.stroke(); }
+    g.font = (9 / z * 1.2) + "px sans-serif"; g.textAlign = "center";
+    g.fillStyle = "rgba(" + col + "," + Math.max(.5, a) + ")";
+    var lbl = (i + 1) + (ds.down ? (isFinite(ds.backAt) ? " ✕ back in " + Math.ceil((ds.backAt - ds.clock) * FXK.TICK_MS / 100) / 10 + " s" : " ✕ destroyed") : "");
+    g.fillText(lbl, p[0], p[1] + hurtR() + 10 / z + 4);
+    if (d.hp > 0 && !ds.down) {   // HP bar
+      var w = 24, f = Math.max(0, ds.hp / d.hp), y = p[1] - hurtR() - 7;
+      g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(p[0] - w / 2, y, w, 3);
+      g.fillStyle = f > .5 ? "rgba(125,224,168,.95)" : f > .25 ? "rgba(240,194,74,.95)" : "rgba(255,90,90,.95)";
+      g.fillRect(p[0] - w / 2, y, w * f, 3);
+    }
+    g.restore();
+  });
+  (S.thits || []).forEach(function (h, i) {   // damage the dummies dealt the fighter
+    var age = S.t - h.t; if (age < 0 || age > 40) return;
+    g.fillStyle = "rgba(255,150,60," + (1 - age / 40) + ")"; g.font = (11 / z) + "px sans-serif"; g.textAlign = "center";
+    g.fillText("-" + h.dmg, S.figX + ((i % 3) - 1) * 6, S.figY - hurtR() - 14 - age * 0.4);
+  });
+  g.textAlign = "start";
   (S.shots || []).forEach(function (q) {
     if (q.dead) return;
     g.fillStyle = "rgba(255,70,70,.95)"; g.beginPath(); g.arc(q.x, q.y, 2.5, 0, 6.2832); g.fill();
@@ -3140,6 +3376,68 @@ function drawTestShots(g, z) {
     g.beginPath(); g.arc(q.x, q.y, 3 + q.age * 0.8, 0, 6.2832); g.stroke();
   });
 }
+// The Target dummies panel (left): the list, + Dummy, and the selected
+// dummy's settings.  Every change re-simulates and is remembered per browser.
+function dummyChanged(rebuild) { saveDummies(); if (C) resetSim(S.t); if (rebuild) buildDummies(); }
+function selectDummy(i) { S.dsel = i; buildDummies(); }
+function buildDummies() {
+  if (!S.dummies.length) loadDummies();
+  var L = $("dummyList"); L.innerHTML = "";
+  S.dummies.forEach(function (d, i) {
+    var el = document.createElement("div"); if (i === S.dsel) el.className = "sel";
+    var n = document.createElement("span"); n.className = "n"; n.textContent = (i === 0 ? "🎯 " : "") + d.name; el.appendChild(n);
+    var p = dummyPreset(d), m = document.createElement("span"); m.className = "m"; m.style.maxWidth = "55%";
+    m.textContent = d.attack === "none" ? "no attack" : (d.attack === "shot" ? "plain shot" : p.name) + " · " + Math.round(d.every_ms) + " ms";
+    el.appendChild(m);
+    if (i > 0) {
+      var x = document.createElement("span"); x.className = "x"; x.textContent = "✕"; x.title = "Remove this dummy";
+      x.onclick = function (e) { e.stopPropagation(); S.dummies.splice(i, 1); if (S.dsel >= S.dummies.length) S.dsel = S.dummies.length - 1; dummyChanged(true); };
+      el.appendChild(x);
+    }
+    el.title = m.textContent + ". " + (i === 0 ? "Dummy 1 is the target marker: drag it on the stage (or click empty stage) to move it" : "Drag it on the stage to move it");
+    el.onclick = function () { selectDummy(i); };
+    L.appendChild(el);
+  });
+  var P = $("dummyProps"); P.innerHTML = "";
+  var d = S.dummies[S.dsel]; if (!d) return;
+  field(P, "Name", inp("text", d.name, function (v) { d.name = v; saveDummies(); var r = L.children[S.dsel]; if (r) r.querySelector(".n").textContent = (S.dsel === 0 ? "🎯 " : "") + v; }));
+  var sel = document.createElement("select"), add = function (parent, v, t) { var o = document.createElement("option"); o.value = v; o.textContent = t; parent.appendChild(o); };
+  add(sel, "none", "None (target only)"); add(sel, "shot", "Plain shot (Intercept test)");
+  DUMMY_GROUPS.forEach(function (gname) {
+    var og = document.createElement("optgroup"); og.label = gname;
+    dummyAttacks().filter(function (p) { return p.group === gname; }).forEach(function (p) { add(og, "preset:" + p.name, p.name); });
+    if (og.children.length) sel.appendChild(og);
+  });
+  sel.value = d.attack; sel.onchange = function () { d.attack = sel.value; dummyChanged(true); };
+  field(P, "Attack", sel).title = "What it fires at the fighter. The presets play exactly as on a fighter (damage, knockback, blockable / deflectable from the preset); palette-coloured ones show in enemy red.";
+  if (d.attack !== "none") {
+    field(P, "Fire every ms", inp("num", d.every_ms, function (v) { d.every_ms = Math.max(FXK.TICK_MS, v); dummyChanged(); }, FXK.TICK_MS, 60000, 50)).title =
+      "Shot frequency: a new attack starts this often (1000 ms = once a second). A long technique may still be playing when the next one starts.";
+    field(P, "First shot after ms", inp("num", d.delay_ms, function (v) { d.delay_ms = Math.max(0, v); dummyChanged(); }, 0, 60000, 50)).title =
+      "Delay before its first attack, e.g. to stagger several dummies.";
+    field(P, "Aim", inp([["fighter", "at the fighter"], ["lead", "lead the fighter"], ["angle", "fixed angle"]], d.aim, function (v) { d.aim = v; dummyChanged(true); })).title =
+      "At the fighter: where it is now. Lead: where it will be when the shot arrives (from its current movement). Fixed angle: always the same direction.";
+    if (d.aim === "angle") field(P, "Angle °", inp("num", d.angle_deg, function (v) { d.angle_deg = v; dummyChanged(); }, -360, 360, 15)).title = "0 = right, 90 = down, 180 = left, -90 = up.";
+    field(P, "Spread °", inp("num", d.spread_deg, function (v) { d.spread_deg = Math.max(0, v); dummyChanged(); }, 0, 360, 5)).title =
+      "Each attack is turned by a random angle within ± half of this (0 = dead on).";
+  }
+  field(P, "HP", inp("num", d.hp, function (v) { d.hp = Math.max(0, v); dummyChanged(true); }, 0, 100000, 10)).title =
+    "0 = indestructible. Otherwise the fighter's hits take HP off it while it is the target; at 0 it goes down (stops moving and firing).";
+  if (d.hp > 0) {
+    field(P, "Respawn", inp("chk", d.respawn, function (v) { d.respawn = v; dummyChanged(true); })).title = "On: it comes back with full HP after the delay below. Off: it stays down until the sim restarts.";
+    if (d.respawn) field(P, "Respawn after ms", inp("num", d.respawn_ms, function (v) { d.respawn_ms = Math.max(0, v); dummyChanged(); }, 0, 60000, 250));
+  }
+  field(P, "Movement", inp([["still", "still"], ["patrol", "patrol left / right"], ["circle", "circle the fighter"]], d.move, function (v) { d.move = v; dummyChanged(true); })).title =
+    "Still: stays where you put it. Patrol: walks back and forth across Range, centred on its spot. Circle: orbits the fighter at its spot's distance from the start position.";
+  if (d.move === "patrol") field(P, "Range px", inp("num", d.move_px, function (v) { d.move_px = Math.max(0, v); dummyChanged(); }, 0, 2000, 10));
+  if (d.move !== "still") field(P, "Speed px/s", inp("num", d.move_speed, function (v) { d.move_speed = Math.max(0, v); dummyChanged(); }, 0, 5000, 10));
+}
+$("bDummyAdd").onclick = function () {
+  var n = S.dummies.length, d = normalizeDummy({x: -S.home[0], y: S.home[1] - 40 * (n - 1), attack: "shot"}, n);
+  S.dummies.push(d); S.dsel = n; dummyChanged(true);
+};
+loadDummies();
+buildDummies();
 // ------------------------------------------------------------ direction sim
 // The figure travels at "move" px/tick toward "dir" degrees (0 right, 90
 // down, -90 up) inside a 320 x 200 px area, bouncing off its edges or
@@ -3151,7 +3449,7 @@ var AREA = [160, 100];
 // from the start spot at speed_pct % of the sim's move speed (2 px/tick when
 // it's 0) and runs for its duration (-1 = no limit: previewed for 3 s) while
 // the run frames loop.  Avoid: heads angle_deg off the line to the target,
-// bent by curve_deg_s, pushed off the target and the test shots within
+// bent by curve_deg_s, pushed off the target and the dummies' shots within
 // proximity_px.  Re-engage: heads for the target's far side (the Studio
 // target has no facing, like the Solo cursor), curling round the target and
 // ending on arrival (where the game attacks).
@@ -3168,7 +3466,7 @@ function wrapPi(a) { var m = 2 * Math.PI; return ((a + Math.PI) % m + m) % m - M
 function dashGoal() { var b = S.dash.back, st = BACK_STANDOFF_PX * charScale(); return [S.target[0] + b[0] * st, S.target[1] + b[1] * st]; }
 function dashSteer(prox, withTarget) {   // retreat._steer
   var px = 0, py = 0; if (prox <= 0) return [0, 0];
-  var threats = S.shots.filter(function (sh) { return !sh.dead; }).map(function (sh) { return [sh.x, sh.y]; });
+  var threats = (S.allShots || []).filter(function (sh) { return !sh.dead; }).map(function (sh) { return [sh.x, sh.y]; });
   if (withTarget) threats.push(S.target);
   threats.forEach(function (h) {
     var dx = S.figX - h[0], dy = S.figY - h[1], d = Math.hypot(dx, dy); if (d >= prox) return;
@@ -3451,19 +3749,21 @@ function draw() {
   cplayer.draw(g, host, "abs_back", ps, gone);
   player.draw(g, host, "behind", ps);   // blinked out: the FX still draw (only the fighter is hidden)
   cplayer.draw(g, host, "behind", ps, gone);
+  drawDummyFx(g, ["abs_back", "behind"]);
   if (!gone) drawFrame(g, img, [S.figX, S.figY], facing(), null, null, aimDeg());
   player.draw(g, host, "front", ps);
   cplayer.draw(g, host, "front", ps, gone);
   player.draw(g, host, "abs_front", ps);   // over every character
   cplayer.draw(g, host, "abs_front", ps, gone);
+  drawDummyFx(g, ["front", "abs_front"]);
   drawBlink(g, z, img);
   drawDash(g, z);
-  drawTestShots(g, z);
+  drawDummies(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
   drawGroup(g, z);
   // target + hurt radius (the circle damaging FX must touch)
-  var hr = host.hurt.r, lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
+  var hr = hurtR(), lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
   g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
   g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.fill();
   g.setLineDash([6 / z, 6 / z]); g.strokeStyle = flash ? "rgba(255,90,90,.95)" : "rgba(240,194,74,.45)"; g.lineWidth = 1 / z;
@@ -3502,6 +3802,7 @@ function draw() {
     (ds ? "   dash " + Math.round(Math.min(ds.elapsed, ds.limit) * FXK.TICK_MS) + "/" + Math.round(ds.limit * FXK.TICK_MS) + " ms" + (ds.endless ? " (no limit: 3 s shown)" : "") + (ds.over ? (ds.arrived ? "   ARRIVED" : "   DASH OVER") : "") : "") +
     (!ds && nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + (player.insts.length + cplayer.insts.length) + " live FX   damage this loop " + S.dealt + " HP" +
+    (S.taken ? "   taken from dummies " + S.taken + " HP" : "") + (S.tgt < 0 ? "   ALL DUMMIES DOWN" : "") +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
     (blinkGone() ? "   BLINKED OUT" : "") + timeLabel() +
     (S.geoPlace && geoItem() ? "   PLACING " + (S.geo.kind === "set" ? "entry points" : "path points") + " for \"" + geoItem().name + "\": click the stage" : "") +
@@ -3633,9 +3934,10 @@ $("bNext").onclick = function () { gotoFrame(frameAt(S.t) + 1); };
 // mirrored to the new front.
 $("facing").addEventListener("change", function () {
   var f = +$("facing").value;
-  if (S.target[0] * f < 0) S.target = [-S.target[0], S.target[1]];   // about the start position (x 0)
+  if (S.home[0] * f < 0) S.home = [-S.home[0], S.home[1]];   // about the start position (x 0)
+  S.target = S.home.slice();
 });
-["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR", "testShots"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
+["facing", "walk", "moveDir", "moveMode", "faceMove", "pscale", "hurtR"].forEach(function (id) { $(id).onchange = function () { resetSim(S.t); }; });
 // Timeline scrubbing: press and drag with the left button to move the
 // playhead (the view re-simulates to each tick, so FX show exactly as they
 // play).  A press on an effect's bar selects it on release unless the
@@ -3704,8 +4006,10 @@ cv.addEventListener("pointerdown", function (e) {
   if (gc && (e.shiftKey || Math.hypot(w[0] - gc[0], w[1] - gc[1]) * zoom() <= 9)) {
     drag = {kind: "group", gr: gsel, last: w}; cv.setPointerCapture(e.pointerId); return;
   }
+  var di = e.button === 0 ? dummyAt(w) : -1;
+  if (di > 0) { drag = {kind: "dummy", i: di}; selectDummy(di); cv.setPointerCapture(e.pointerId); return; }
   drag = e.button === 0 ? {kind: "target"} : {kind: "pan", x: e.clientX, y: e.clientY, p: S.pan.slice()};
-  if (drag.kind === "target") { S.target = w; if (!S.playing) resetSim(S.t); }
+  if (drag.kind === "target") { S.home = w; S.target = w.slice(); if (S.dsel !== 0) selectDummy(0); if (!S.playing) resetSim(S.t); }
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener("pointermove", function (e) {
@@ -3716,10 +4020,11 @@ cv.addEventListener("pointermove", function (e) {
     if (lead) moveGroup(drag.gr, worldToLocal(lead, [w[0] - drag.last[0], w[1] - drag.last[1]]));
     drag.last = w; drag.moved = true; if (!S.playing) resetSim(S.t);
   }
-  else if (drag.kind === "target") { S.target = toWorld(e.clientX - r.left, e.clientY - r.top); if (!S.playing) resetSim(S.t); }
+  else if (drag.kind === "target") { S.home = toWorld(e.clientX - r.left, e.clientY - r.top); S.target = S.home.slice(); if (!S.playing) resetSim(S.t); }
+  else if (drag.kind === "dummy") { var dw = toWorld(e.clientX - r.left, e.clientY - r.top), dd = S.dummies[drag.i]; dd.x = dw[0]; dd.y = dw[1]; drag.moved = true; if (!S.playing) resetSim(S.t); }
   else S.pan = [drag.p[0] + e.clientX - drag.x, drag.p[1] + e.clientY - drag.y];
 });
-cv.addEventListener("pointerup", function () { var d = drag; drag = null; if (d && d.kind === "group" && d.moved) { buildProps(); save(); } });
+cv.addEventListener("pointerup", function () { var d = drag; drag = null; if (d && d.kind === "group" && d.moved) { buildProps(); save(); } if (d && d.kind === "dummy" && d.moved) saveDummies(); });
 cv.addEventListener("wheel", function (e) { e.preventDefault(); var z = zoom() * (e.deltaY < 0 ? 1.15 : 1 / 1.15); $("zoom").value = Math.round(Math.max(0.5, Math.min(40, z)) * 100) / 100; }, {passive: false});
 // drag-and-drop: a whole character folder, or its files
 var dropEl = $("drop");
