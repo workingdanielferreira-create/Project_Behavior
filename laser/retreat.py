@@ -21,6 +21,11 @@ second (0 = straight).  The mode runs during the dash, for its own duration
 
 A new retreat can start cooldown_ms after the last one ended.
 
+No conditions: it triggers on incoming harm alone, when an enemy projectile
+(a beam along its whole length) or a damaging enemy FX comes within
+proximity_px (times the character scale).  Solo has no enemy harm, so it
+never triggers there.
+
 fx (optional): "fx:<effect id>" or "group:<group id>" from the FX file; that
 effect / group plays for the whole dash (laser/fxkit.py FxDriver), and still
 plays on its own action too.
@@ -94,7 +99,7 @@ def config_for(fig):
         raw = (char.get("_fxkit") or {}).get("retreat") or char.get("tactical_retreat")
         if isinstance(raw, dict):
             n = normalize(raw)
-            if n.get("enabled") and n["conditions"]:
+            if n.get("enabled"):
                 cfg = n
     mode._retreat_cfg = cfg
     return cfg
@@ -149,7 +154,23 @@ def _cond_met(fig, r, c, ctx, world):
     return (not v) if c.get("not") else v
 
 
+def _harm_near(fig, world, cfg):
+    """True when an enemy shot (a beam along its body) or a damaging enemy
+    FX is within proximity_px: the trigger of a retreat with no conditions."""
+    from . import fxkit
+    reach = float(cfg.get("proximity_px") or 0) * fig.mode.body_scale()
+    if reach <= 0:
+        return False
+    for s in getattr(world, "enemy_shots", None) or ():
+        if not s.dead and fxkit.shot_nearest(s, fig.x, fig.y)[2] <= reach:
+            return True
+    r2 = reach * reach
+    return any((e[0] - fig.x) ** 2 + (e[1] - fig.y) ** 2 <= r2 for e in getattr(world, "enemy_fx", None) or ())
+
+
 def _triggered(fig, r, ctx, cfg, world):
+    if not cfg["conditions"]:
+        return _harm_near(fig, world, cfg)
     res = [_cond_met(fig, r, c, ctx, world) for c in cfg["conditions"]]
     return all(res) if cfg.get("logic") == "all" else any(res)
 
@@ -250,7 +271,9 @@ def _steer(fig, world, proximity, include_target, tx, ty):
     px = py = 0.0
     if proximity <= 0:
         return px, py
-    threats = [(s.x, s.y) for s in (getattr(world, "enemy_shots", None) or [])]
+    from . import fxkit
+    # A beam pushes from the point of its line nearest the fighter.
+    threats = [fxkit.shot_nearest(s, fig.x, fig.y)[:2] for s in (getattr(world, "enemy_shots", None) or [])]
     if include_target:
         threats.append((tx, ty))
     for (hx, hy) in threats:

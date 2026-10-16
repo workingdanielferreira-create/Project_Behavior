@@ -2238,7 +2238,7 @@ function buildRetreatProps(d) {
   conditionList(s, function () { return S.retreat.conditions; }, {key: "a-rcond", listId: "fxTagListR", ownLabel: "— last retreat —", helpOf: helpOf, onChange: ch,
     make: function (t) { return FXK.normalizeRetreat({conditions: [{type: t}]}).conditions[0]; }});
   note(s, "Same conditions as action triggers. Where one says \"this action\", it means the retreat: attack / hit counts and Every N ms run from the last retreat start.");
-  if (!rt.conditions.length) note(s, "No conditions yet: add one, or the retreat never triggers.");
+  if (!rt.conditions.length) note(s, "No conditions: it retreats on incoming harm alone, when an enemy projectile (a beam along its whole length) or damaging FX comes within the proximity.");
 }
 // Character-level Dodge (pack.dodge, laser/dodge.py), shown under every action's settings.
 // Its conditions are the action trigger conditions; "this action" = the dodge.
@@ -2949,6 +2949,7 @@ function resetSim(t) {
   S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = [];
   dummyReset();
+  dodgeReset();
   S.time = {active: false, fired: false, t: 0, end: -1, lastFrame: -1, lastT: -1, speed: 1}; S.tacc = {own: 0, efx: 0, eb: 0};
   S.dash = null; if (S.react === "retreat") dashStart();
   var target = Math.max(0, Math.min(t, totalTicks() - 1));
@@ -2958,8 +2959,11 @@ function resetSim(t) {
 function step(allowWrap) {
   if (!C) return;
   var gone = blinkGone(), dash = S.react === "retreat";
+  // Dodge first (laser/dodge.py runs before the retreat): a sidestep owns
+  // the figure's movement, layered on a retreat dash.
+  var dodged = dodgeStep();
   if (dash) dashStep();
-  else if (!gone) moveFigure();
+  else if (!gone && !dodged) moveFigure();
   // Time control: own FX, the target dummies' FX (enemy FX) and the
   // dummies themselves (enemy fighters: moving, firing) each take their own
   // steps this tick.
@@ -3168,7 +3172,7 @@ function dummyPos(i, c) {
   return h;
 }
 // The fighter's hurt circle for the dummies' attacks (none while blinked out).
-function fighterHurt() { return blinkGone() ? null : {x: S.figX, y: S.figY, r: hurtR()}; }
+function fighterHurt() { return blinkGone() || dodgeUntouchable() ? null : {x: S.figX, y: S.figY, r: hurtR()}; }
 // Shot speed a lead aim plans for (px per tick).
 function dummyShotSpeed(d) {
   var p = dummyPreset(d), st = p && p.effects[0].params.style, gun = st && window.GUNFX && GUNFX.GUNS[st];
@@ -3447,6 +3451,106 @@ $("bDummyAdd").onclick = function () {
 };
 loadDummies();
 buildDummies();
+// ------------------------------------------------------------ dodge preview
+// The character's Dodge (laser/dodge.py) against the target dummies' shots:
+// a projectile within trigger_px (x character scale; a beam along its body),
+// looked LOOKAHEAD ticks ahead, heading at the fighter when incoming_only,
+// rolled once per projectile (chance_pct), cooldown_ms between dodges.
+// Sidestep: distance_px at speed_pct % of 20 px/tick; blink: an instant jump;
+// action styles only mark the moment (the action itself is game-only).
+// Conditions are game-only (taken as met).  With Invulnerable on the dummies'
+// attacks pass through it while it dodges (+ invuln_ms).
+var DODGE_SPEED = 20, DODGE_LOOKAHEAD = 2;   // laser/config.py DODGE_SPEED, dodge.LOOKAHEAD_TICKS
+// The game keeps a dodge on screen (dodge._clamp); the stage stands in a
+// 1920 x 1080 screen with the start spot at its centre, 20 px margin.
+var DODGE_AREA = [940, 520];
+function dodgeClamp() {
+  S.figX = Math.max(-DODGE_AREA[0], Math.min(DODGE_AREA[0], S.figX));
+  S.figY = Math.max(-DODGE_AREA[1], Math.min(DODGE_AREA[1], S.figY));
+}
+function dodgeReset() { S.dg = {clock: 0, moving: false, vx: 0, vy: 0, budget: 0, cdUntil: 0, holdUntil: -1, seen: [], flip: false, n: 0, at: -99}; }
+function dodgeTicks(ms) { return Math.max(0, Math.round((+ms || 0) / FXK.TICK_MS)); }
+function shotId(s) { return [s.ref || s, s.round == null ? -1 : s.round]; }
+function dodgeSeen(s) { var k = shotId(s); return S.dg.seen.some(function (q) { return q[0] === k[0] && q[1] === k[1]; }); }
+function dodgeUntouchable() {
+  var cfg = S.dodge, dg = S.dg;
+  return !!(cfg && cfg.enabled && cfg.invulnerable && dg && (dg.moving || dg.clock <= dg.holdUntil));
+}
+function dodgeThreat(cfg) {   // dodge._threat
+  var want = cfg.react_to, reach = Math.max(0, +cfg.trigger_px || 0) * charScale(), r2 = reach * reach, best = null;
+  (S.allShots || []).forEach(function (s) {
+    if (s.dead || dodgeSeen(s)) return;
+    var bullet = s.kind !== "fx";   // the dummies' plain shots stand in for built-in bullets
+    if ((want === "bullets" && !bullet) || (want === "fx" && bullet)) return;
+    var b = s.body;
+    if (b && (b[0] !== b[2] || b[1] !== b[3])) {   // a beam: its body sweeping across the fighter
+      var gap = FXK.shotNearest(s, S.figX, S.figY)[2];
+      if (gap <= reach) { if (!best || gap * gap < best[0]) best = [gap * gap, s]; return; }
+    }
+    var dx = s.x - S.figX, dy = s.y - S.figY, d2 = dx * dx + dy * dy;
+    if (d2 > r2) {
+      var mx = s.vx * DODGE_LOOKAHEAD, my = s.vy * DODGE_LOOKAHEAD, mm = mx * mx + my * my;
+      if (mm < 1e-9) return;
+      var k = Math.max(0, Math.min(1, -(dx * mx + dy * my) / mm)), cx = dx + mx * k, cy = dy + my * k;
+      if (cx * cx + cy * cy > r2) return;
+    }
+    if (cfg.incoming_only && s.vx * dx + s.vy * dy >= 0) return;
+    if (!best || d2 < best[0]) best = [d2, s];
+  });
+  return best && best[1];
+}
+function dodgeDir(cfg, s) {   // dodge._direction
+  var dg = S.dg, spd = Math.hypot(s.vx, s.vy), ddx = s.x - S.figX, ddy = s.y - S.figY, bux, buy;
+  if (spd > 0.001) { bux = s.vx / spd; buy = s.vy / spd; }
+  else { var d = Math.hypot(ddx, ddy); bux = d > 0.001 ? -ddx / d : 1; buy = d > 0.001 ? -ddy / d : 0; }
+  var left = [-buy, bux], right = [buy, -bux], sd;
+  if (cfg.side === "random") sd = FXK.rng(dg.n * 7919 + 31)() < 0.5 ? left : right;
+  else if (cfg.side === "alternate") { sd = dg.flip ? left : right; dg.flip = !dg.flip; }
+  else sd = bux * ddy - buy * ddx >= 0 ? left : right;
+  var a = Math.max(-180, Math.min(180, +cfg.angle_deg || 0)) * Math.PI / 180;
+  if (Math.abs(a) > 1e-6) {
+    var tdx = S.target[0] - S.figX, tdy = S.target[1] - S.figY, ca = Math.cos(a), sa = Math.sin(a);
+    var p = [sd[0] * ca - sd[1] * sa, sd[0] * sa + sd[1] * ca], q = [sd[0] * ca + sd[1] * sa, -sd[0] * sa + sd[1] * ca];
+    var dp = p[0] * tdx + p[1] * tdy, dq = q[0] * tdx + q[1] * tdy;
+    sd = (dp >= dq) === (a > 0) ? p : q;
+  }
+  return sd;
+}
+function dodgeMove() {
+  var dg = S.dg, st = Math.hypot(dg.vx, dg.vy), k = st > 1e-6 ? Math.min(1, dg.budget / st) : 0;
+  S.figX += dg.vx * k; S.figY += dg.vy * k; dodgeClamp(); dg.budget -= st;
+  if (dg.budget <= 0) { dg.moving = false; dg.holdUntil = dg.clock + dodgeTicks(S.dodge.invuln_ms); }
+  return true;
+}
+// One tick; true while the sidestep moves the figure.
+function dodgeStep() {
+  var cfg = S.dodge, dg = S.dg; if (!cfg || !cfg.enabled || !dg) return false;
+  dg.clock += 1;
+  if (dg.moving) return dodgeMove();
+  if (blinkGone() || dg.clock < dg.cdUntil) return false;
+  var s = dodgeThreat(cfg); if (!s) return false;
+  dg.seen.push(shotId(s)); if (dg.seen.length > 400) dg.seen.shift();
+  var pct = Math.max(0, Math.min(100, +cfg.chance_pct || 0));
+  if (pct < 100 && FXK.rng(dg.clock * 104729 + 7)() * 100 >= pct) return false;
+  dg.cdUntil = dg.clock + dodgeTicks(cfg.cooldown_ms); dg.n += 1; dg.at = S.t;
+  var dist = Math.max(0, +cfg.distance_px || 0) * charScale(), sty = cfg.style;
+  if ((sty === "sidestep" || sty === "sidestep_action") && dist > 0) {
+    var d = dodgeDir(cfg, s), spd = DODGE_SPEED * Math.max(1, +cfg.speed_pct || 0) / 100;
+    dg.moving = true; dg.vx = d[0] * spd; dg.vy = d[1] * spd; dg.budget = dist; dg.holdUntil = -1;
+    return dodgeMove();
+  }
+  if ((sty === "blink" || sty === "blink_action") && dist > 0) { var e = dodgeDir(cfg, s); S.figX += e[0] * dist; S.figY += e[1] * dist; dodgeClamp(); }
+  dg.holdUntil = dg.clock + dodgeTicks(cfg.invuln_ms);
+  return false;
+}
+function drawDodge(g, z) {
+  var dg = S.dg; if (!dg || !S.dodge || !S.dodge.enabled) return;
+  var age = S.t - dg.at; if (age < 0 || age > 12) return;
+  g.save(); g.strokeStyle = "rgba(125,224,168," + (1 - age / 12) + ")"; g.lineWidth = 2 / z;
+  g.beginPath(); g.arc(S.figX, S.figY, hurtR() + 4 + age, 0, 6.2832); g.stroke();
+  g.fillStyle = g.strokeStyle; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  g.fillText("dodge", S.figX, S.figY - hurtR() - 10 - age * 0.5); g.restore();
+}
 // ------------------------------------------------------------ direction sim
 // The figure travels at "move" px/tick toward "dir" degrees (0 right, 90
 // down, -90 up) inside a 320 x 200 px area, bouncing off its edges or
@@ -3468,14 +3572,28 @@ function dashStart() {
   var bx = S.target[0] - S.figX, by = S.target[1] - S.figY, d = Math.hypot(bx, by);
   S.dash = {mode: re ? "reengage" : "avoid", endless: ms < 0, limit: Math.max(1, Math.round((ms < 0 ? DASH_PREVIEW_MS : ms) / FXK.TICK_MS)),
     elapsed: 0, heading: Math.atan2(by, bx) + (+rt.angle_deg || 0) * Math.PI / 180, back: d > 0.001 ? [bx / d, by / d] : [1, 0],
-    start: [S.figX, S.figY], over: false, arrived: false, face: 0};
+    start: [S.figX, S.figY], over: false, arrived: false, face: 0,
+    // No conditions: it waits for incoming harm (laser/retreat.py _harm_near);
+    // with conditions it is previewed from tick 0 (they are game-only).
+    armed: !rt.conditions.length};
+}
+// A retreat with no conditions triggers when an enemy shot (a beam along its
+// body) or a target dummy's damaging FX comes within proximity_px.
+function harmNear() {
+  var reach = (+S.retreat.proximity_px || 0) * charScale();
+  if (reach <= 0) return false;
+  if ((S.allShots || []).some(function (s) { return !s.dead && FXK.shotNearest(s, S.figX, S.figY)[2] <= reach; })) return true;
+  return (S.dsim || []).some(function (ds) {
+    return ds.player.insts.some(function (inst) { return !inst.dead && inst.fx.battle.deals_damage && Math.hypot(inst.x - S.figX, inst.y - S.figY) <= reach; });
+  });
 }
 function dashOver() { return !!(S.dash && S.dash.over); }
 function wrapPi(a) { var m = 2 * Math.PI; return ((a + Math.PI) % m + m) % m - Math.PI; }
 function dashGoal() { var b = S.dash.back, st = BACK_STANDOFF_PX * charScale(); return [S.target[0] + b[0] * st, S.target[1] + b[1] * st]; }
 function dashSteer(prox, withTarget) {   // retreat._steer
   var px = 0, py = 0; if (prox <= 0) return [0, 0];
-  var threats = (S.allShots || []).filter(function (sh) { return !sh.dead; }).map(function (sh) { return [sh.x, sh.y]; });
+  // A beam pushes from the point of its line nearest the fighter.
+  var threats = (S.allShots || []).filter(function (sh) { return !sh.dead; }).map(function (sh) { return FXK.shotNearest(sh, S.figX, S.figY).slice(0, 2); });
   if (withTarget) threats.push(S.target);
   threats.forEach(function (h) {
     var dx = S.figX - h[0], dy = S.figY - h[1], d = Math.hypot(dx, dy); if (d >= prox) return;
@@ -3495,6 +3613,10 @@ function dashAround(gx, gy, stand) {   // retreat._around_target
 }
 function dashStep() {
   var ds = S.dash, rt = S.retreat; if (!ds || ds.over) return;
+  if (ds.armed) {   // waiting for incoming harm; the dash sets off from here
+    if (!harmNear()) return;
+    dashStart(); S.dash.armed = false; ds = S.dash;
+  }
   ds.elapsed += 1;
   if (ds.elapsed > ds.limit) { ds.over = true; return; }
   var dt = FXK.TICK_MS / 1000, curve = (+rt.curve_deg_s || 0) * Math.PI / 180, tx = S.target[0], ty = S.target[1];
@@ -3519,6 +3641,13 @@ function dashStep() {
 function drawDash(g, z) {
   var ds = S.dash; if (S.react !== "retreat" || !ds) return;
   g.save(); g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 4 / z]); g.strokeStyle = "rgba(240,190,90,.8)";
+  if (ds.armed) {   // no conditions: the proximity it waits on
+    var pr = (+S.retreat.proximity_px || 0) * charScale();
+    g.beginPath(); g.arc(S.figX, S.figY, pr, 0, 6.2832); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+    g.fillText("retreats when harm comes this close", S.figX, S.figY - pr - 4);
+    g.restore(); return;
+  }
   g.beginPath(); g.moveTo(ds.start[0], ds.start[1]); g.lineTo(S.figX, S.figY); g.stroke();
   g.beginPath(); g.arc(ds.start[0], ds.start[1], 5, 0, 6.2832); g.stroke();
   if (ds.mode === "reengage") { var gp = dashGoal(); g.beginPath(); g.arc(gp[0], gp[1], ARRIVE_PX * charScale(), 0, 6.2832); g.stroke(); }
@@ -3767,6 +3896,7 @@ function draw() {
   drawDummyFx(g, ["front", "abs_front"]);
   drawBlink(g, z, img);
   drawDash(g, z);
+  drawDodge(g, z);
   drawDummies(g, z);
   drawMoveGuide(g, z);
   drawGeo(g, z);
@@ -3812,6 +3942,7 @@ function draw() {
     (!ds && nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
     "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + (player.insts.length + cplayer.insts.length) + " live FX   damage this loop " + S.dealt + " HP" +
     (S.taken ? "   taken from dummies " + S.taken + " HP" : "") + (S.tgt < 0 ? "   ALL DUMMIES DOWN" : "") +
+    (ds && ds.armed ? "   waiting for incoming harm" : "") + (S.dg && S.dg.n ? "   dodges " + S.dg.n : "") + (S.dg && S.dg.moving ? "   DODGING" : "") +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
     (blinkGone() ? "   BLINKED OUT" : "") + timeLabel() +
     (S.geoPlace && geoItem() ? "   PLACING " + (S.geo.kind === "set" ? "entry points" : "path points") + " for \"" + geoItem().name + "\": click the stage" : "") +
