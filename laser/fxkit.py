@@ -202,7 +202,8 @@ PARAM_DEFAULTS = {
     # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
-                      aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all"),
+                      aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
+                      gap_px=18),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -240,7 +241,7 @@ TECH_STYLE_DEFAULTS = {
     "shotgun": dict(radius=3, thickness=9, span=30, length=230, swing_ticks=34, hold_ticks=34),
     "magnum": dict(radius=5, thickness=26, span=0, length=460, swing_ticks=26, hold_ticks=52),
     "charged_blast": dict(radius=15, thickness=60, span=0, length=420, swing_ticks=42, hold_ticks=8),
-    "dual_pistols": dict(radius=3.5, thickness=12, span=14, length=330, swing_ticks=5, hold_ticks=45),
+    "dual_pistols": dict(radius=3.5, thickness=12, span=14, length=330, swing_ticks=5, hold_ticks=45, gap_px=18),
     "sniper_rail": dict(radius=4, thickness=30, span=0, length=900, swing_ticks=36, hold_ticks=24),
     "gatling": dict(radius=3, thickness=10, span=10, length=380, swing_ticks=30, hold_ticks=80),
     "rocket_barrage": dict(radius=5, thickness=24, span=0, length=420, swing_ticks=6, hold_ticks=30),
