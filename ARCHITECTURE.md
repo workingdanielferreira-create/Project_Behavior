@@ -98,6 +98,9 @@ laser/
   strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
   powerfx.py         SSJ aura, rasen-shuriken, gigantic meteor, ghost kamikaze, serious punch,
                      black hole: hand-drawn "technique" styles + the meteor / black hole pull
+  gunfx.py           anime gun shots (machine gun, shotgun, magnum, charged blast, dual
+                     pistols, sniper rail, gatling, rocket barrage, drill, thunder bullet):
+                     hand-drawn "technique" styles (with swordfx.py)
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on

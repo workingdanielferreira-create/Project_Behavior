@@ -1302,7 +1302,9 @@ var PARAM_UI = {
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]],
   technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
     "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch",
-    "forward_thrust", "overhead_slash", "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"]],
+    "forward_thrust", "overhead_slash", "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
+    "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling", "rocket_barrage", "drill_bullet",
+    "thunder_bullet"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1387,6 +1389,34 @@ var POWER_UI = {
       ["hold_ticks", "Duration ticks", 1, 600, 1, "How long it holds before it collapses."],
       ["density", "Debris ×", 0, 4, 0.1, "Amount of debris spiralling in."]]}
 };
+// Gunfire (laser/gunfx.py): every gun gets its own panel too.  The fields
+// mean the same for every gun (radius = bullet size, thickness = impact size,
+// span = spread, length = range); the two timing fields change meaning.
+(function () {
+  var AIM = " Use anchor figure (or a hand), Motion attached, Aim target: every round aims at where the target is when it fires.";
+  var ONCE = " Each round hits once: give it Pierce and a short Re-hit (2).";
+  function gun(name, tip, swing, hold, extra) {
+    var rows = [["radius", "Bullet size", 1, 60, 0.5, "Radius of a round, px."],
+      ["thickness", "Impact size", 2, 300, 1, "Size of the burst where a round lands, px."],
+      ["span", "Spread °", 0, 180, 1, "How far rounds scatter round the aim, degrees."],
+      ["length", "Range", 20, 2000, 5, "How far a round flies, px."],
+      ["swing_ticks"].concat(swing), ["hold_ticks"].concat(hold),
+      ["density", "Sparks, smoke & casings ×", 0, 4, 0.1, "Amount of sparks, smoke, dust and shell casings."]];
+    return {name: name, tip: tip + (extra || "") + AIM, rows: rows};
+  }
+  var RATE = ["Ticks between shots", 1, 120, 1, "A new shot every this many ticks."];
+  var FIRE = ["Firing ticks", 0, 600, 1, "How long it keeps firing (the number of shots follows)."];
+  POWER_UI.machine_gun = gun("Rapid-fire machine gun", "A stream of tracer rounds, a star flash for each, brass casings flying, sparks and dust where they land.", RATE, FIRE, ONCE);
+  POWER_UI.shotgun = gun("Powerful shotgun", "Volleys of nine pellets in a cone: a fan-shaped flash, a pressure ring, muzzle smoke and a red shell kicked out per volley. Spread = cone width.", ["Ticks between volleys", 1, 120, 1, "A new volley every this many ticks."], FIRE, ONCE);
+  POWER_UI.magnum = gun("Premium magnum", "Heavy hand-cannon slugs: a boom flash with side jets, a thick tracer wrapped in rifling rings, a spiked impact star with shockwave rings.", RATE, FIRE, ONCE);
+  POWER_UI.charged_blast = gun("Charged blast", "Energy gathers (streaks rushing in, rings closing on a growing orb), holds, then one huge orb flies and explodes.", ["Charge ticks", 1, 240, 1, "How long it charges before it is full."], ["Hold ticks", 0, 240, 1, "How long it holds at full charge before it fires."], " Bullet size = orb size, Impact size = explosion size.");
+  POWER_UI.dual_pistols = gun("Gun-kata dual pistols", "Rounds from alternating hands, each flash with a swing arc, casings flying off both sides.", RATE, FIRE, ONCE);
+  POWER_UI.sniper_rail = gun("Sniper rail shot", "A laser sight and a lock-on reticle, then one instant rail shot: a line wrapped in a helix and shock rings. The hit bursts a beat later. Hits along its whole line.", ["Aim ticks", 1, 240, 1, "How long it aims (the reticle locks on) before it fires."], ["Linger ticks", 1, 240, 1, "How long the rail line hangs in the air."]);
+  POWER_UI.gatling = gun("Gatling spin-up", "The barrels spin up, then fire faster and faster; they glow with heat and smoke as they spin down.", ["Spin-up ticks", 1, 240, 1, "How long the barrels spin before the first round."], FIRE, ONCE);
+  POWER_UI.rocket_barrage = gun("Rocket barrage", "Missiles launch on alternating arcs, speed up, leave smoke trails and explode on the target. Spread is not used.", ["Ticks between rockets", 1, 120, 1, "A new rocket every this many ticks."], FIRE, ONCE);
+  POWER_UI.drill_bullet = gun("Piercing drill bullet", "A spinning drill of light in a spiral of wind; it pierces everything in its path and shatters at the end of its range.", RATE, FIRE, " It keeps hitting while it passes through: give it Pierce and a Re-hit (6).");
+  POWER_UI.thunder_bullet = gun("Thunder bullet", "A bullet wrapped in crackling arcs with a lightning trail; where it hits, lightning strikes from the sky.", RATE, FIRE, ONCE);
+})();
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],

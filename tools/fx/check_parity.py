@@ -218,8 +218,9 @@ def main():
     same_keys({r[0] for r in js.get("CLASH_FX")}, _clashfx_keys(), "CLASH_FX", out,
               "FX Studio's clash FX list", "laser/clashfx.py BASES")
 
-    # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py) and
-    # the ki barrage / impact punch constants (laser/strikefx.py).
+    # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py),
+    # the ki barrage / impact punch constants (laser/strikefx.py), the power
+    # techniques (laser/powerfx.py) and the guns (laser/gunfx.py).
     sw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "swordfx.js"))
     sw_py = PyTables(os.path.join(ROOT, "laser", "swordfx.py"))
     for name in ("CUTS", "CROSS_LIFE", "SLASH_SLICES", "SPARK_LIFE", "HIT_MARK_LIFE"):
@@ -240,6 +241,14 @@ def main():
                  "GH_FAN", "GH_ARRIVE", "GH_BLAST_LIFE", "GH_BODY", "SMOKE", "SP_OUT", "SP_FLASH", "SP_RINGS", "SP_SPLIT_LIFE",
                  "CLOUD", "BH_COLLAPSE", "BH_BURST_HIT", "BH_BURST_LIFE", "BH_TILT", "BH_SQ", "BH_CLUMPS"):
         diff(pw_js.get(name), pw_py.get(name), "powerfx " + name, out)
+    # ... and the guns' constants (laser/gunfx.py).
+    gn_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "gunfx.js"))
+    gn_py = PyTables(os.path.join(ROOT, "laser", "gunfx.py"))
+    for name in ("STYLES", "GUNS", "IMPACT_LIFE", "EXPLODES", "TRACER_TAIL", "FADE_TAIL", "CASING_LIFE", "CASING_G",
+                 "SMOKE_LIFE", "GAT_GAP", "GAT_RAMP", "GAT_BARREL", "GAT_SPIN", "GAT_SPIN_DOWN", "RAIL_HIT", "RAIL_DELAY",
+                 "CHARGE_P", "CHARGE_RING", "ROCKET_ARC", "ROCKET_EASE", "ROCKET_MIN", "ROCKET_PUFF", "DRILL_SPIN",
+                 "DRILL_RING", "BOLT_SEG", "BRASS", "HULL", "SMOKE", "STEEL"):
+        diff(gn_js.get(name), gn_py.get(name), "gunfx " + name, out)
     tech_ui = [r for r in studio.get("PARAM_UI")["technique"] if r[0] == "style"][0][2]
     diff(tech_ui, fx.get("TECH_STYLES"), "studio technique style list", out)
 

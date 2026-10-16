@@ -36,6 +36,9 @@ Styles (params.style, fxkit.TECH_STYLES):
   impact_punch      a punch with a shockwave impact (laser/strikefx.py)
   ssj_aura, rasen_shuriken, gigantic_meteor, ghost_kamikaze, serious_punch,
   black_hole        anime power techniques (laser/powerfx.py)
+  machine_gun, shotgun, magnum, charged_blast, dual_pistols, sniper_rail,
+  gatling, rocket_barrage, drill_bullet,
+  thunder_bullet    anime gun shots (laser/gunfx.py)
 
 The slash family (CUTS) is one renderer: every cut of a combo is the same
 hand-drawn slash with its own direction, bend, position, size and start.
@@ -191,6 +194,8 @@ def active_ticks(P):
         return strikefx.active_ticks(P)
     if st in powerfx.STYLES:
         return powerfx.active_ticks(P)
+    if st in gunfx.STYLES:
+        return gunfx.active_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + 2
 
 
@@ -207,6 +212,8 @@ def total_ticks(P):
         return strikefx.total_ticks(P)
     if st in powerfx.STYLES:
         return powerfx.total_ticks(P)
+    if st in gunfx.STYLES:
+        return gunfx.total_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + _fade(P) + SPARK_LIFE
 
 
@@ -579,6 +586,8 @@ def hit(inst, tx, ty, hr, ps):
         return strikefx.hit(inst, tx, ty, hr, ps)
     if st in powerfx.STYLES:
         return powerfx.hit(inst, tx, ty, hr, ps)
+    if st in gunfx.STYLES:
+        return gunfx.hit(inst, tx, ty, hr, ps)
     return _slash_hit(inst, tx, ty, hr, ps)
 
 
@@ -595,6 +604,8 @@ def body(inst, ps):
         return strikefx.body(inst, ps)
     if st in powerfx.STYLES:
         return powerfx.body(inst, ps)
+    if st in gunfx.STYLES:
+        return gunfx.body(inst, ps)
     if inst.age >= inst.life:
         return None
     return _slash_body(inst, ps)
@@ -606,6 +617,8 @@ def on_hit(inst, x, y, ps=1.0):
         strikefx.on_hit(inst, x, y, ps)
     elif st in powerfx.STYLES:
         powerfx.on_hit(inst, x, y, ps)
+    elif st in gunfx.STYLES:
+        gunfx.on_hit(inst, x, y, ps)
     elif st in CUTS:
         _slash_on_hit(inst)
     inst.tq_hits.append((float(x), float(y), inst.age))
@@ -1240,12 +1253,15 @@ def draw(p, inst, host, ps):
         strikefx.draw(pen, inst, host, ps)
     elif st in powerfx.STYLES:
         powerfx.draw(pen, inst, host, ps)
+    elif st in gunfx.STYLES:
+        gunfx.draw(pen, inst, host, ps)
     else:
         _draw_slash(pen, inst, host, ps)
 
 
-# Ki blasts and punches (laser/strikefx.py) and the power techniques
-# (laser/powerfx.py) share this module's frame, pen and timeline; imported
-# last because they build on them.
+# Ki blasts and punches (laser/strikefx.py), the power techniques
+# (laser/powerfx.py) and the guns (laser/gunfx.py) share this module's frame,
+# pen and timeline; imported last because they build on them.
 from . import strikefx  # noqa: E402
 from . import powerfx  # noqa: E402
+from . import gunfx  # noqa: E402
