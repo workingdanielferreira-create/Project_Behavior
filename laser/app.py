@@ -89,6 +89,7 @@ class SideState:
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
         self.partner_gone = []      # per partner_figures entry: blinked out (FX Studio blink)
         self.partner_scale = []     # per partner_figures entry: character scale (body hit circle)
+        self.partner_melee = []     # per partner_figures entry: fights in melee (movement style "enemy")
         self.partner_state = []     # per partner_figures entry: (hp_pct, attacking, defending)
                                     # for FX Studio target_* trigger conditions
         self.fx_hits = []           # FX Studio hits this side landed this tick,
@@ -148,6 +149,7 @@ class World:
         self.partner_facing = []
         self.partner_gone = []
         self.partner_scale = []
+        self.partner_melee = []
         self.partner_state = []
         self.intercepted_bullets = set()
 
@@ -471,13 +473,19 @@ class World:
         if movestyle.cfg(fig) is not None:
             if self.battle_mode and self.partner_figures:
                 ex, ey = self._nearest_enemy(fig.x, fig.y)
+                # The "enemy" condition: does that nearest enemy fight in melee.
+                mel = [m for (px, py, _d, _p), m in zip(self.partner_figures, self.partner_melee)
+                       if (px, py) == (ex, ey)]
+                melee = bool(mel and mel[0])
             else:
+                # Solo: the cursor hits by touching, so it counts as melee.
                 ex, ey = self.cursor
+                melee = True
             off = actions.chase_offset(fig, self)
             if off is None:
                 off = (fig.motion.offset_x, fig.motion.offset_y)
             pt = movestyle.target(fig, ex, ey, auto_stop=(off[0] * off[0] + off[1] * off[1]) ** 0.5,
-                                  wall=ai._wall_repulsion)
+                                  wall=ai._wall_repulsion, enemy_melee=melee)
             if pt is not None:
                 return pt
         if fig.mode.kites():
@@ -580,6 +588,7 @@ class World:
         self.partner_facing = s.partner_facing
         self.partner_gone = s.partner_gone
         self.partner_scale = s.partner_scale
+        self.partner_melee = s.partner_melee
         self.partner_state = s.partner_state
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
@@ -630,6 +639,8 @@ class World:
                 side.partner_facing = [bool(f.transform.facing_left)
                                        for f in other.figures if f.transform.init]
                 side.partner_scale = [f.mode.body_scale()
+                                      for f in other.figures if f.transform.init]
+                side.partner_melee = [bool(f.mode.uses_melee())
                                       for f in other.figures if f.transform.init]
                 # Blinked out, or dodging with Invulnerable on: shots,
                 # FX and bodies pass where it is.
@@ -728,6 +739,7 @@ class World:
                 side.partner_facing = []
                 side.partner_gone = []
                 side.partner_scale = []
+                side.partner_melee = []
                 side.partner_state = []
                 side.enemy_fx = []
                 side.enemy_shots = []

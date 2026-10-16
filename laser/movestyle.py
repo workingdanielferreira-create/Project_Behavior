@@ -75,6 +75,7 @@ PATTERNS = ["chase", "orbit", "kite", "glide", "zigzag", "hit_and_run", "lunge",
 SELECTS = ["priority", "weighted", "sequence"]
 FACES = ["travel", "target"]
 ATTACKING = ["any", "yes", "no"]
+ENEMIES = ["any", "melee", "ranged"]
 # Settings that pick from a list, and the list.
 ENUMS = {"direction": ["cw", "ccw", "alternate"],
          "strafe": ["cw", "ccw", "alternate", "none"],
@@ -121,9 +122,11 @@ MODIFIER_DEFAULTS = dict(speed_pct=100, pulse_pct=0, pulse_ms=1000, inertia_pct=
 # A phase may run only while all of these pass.  dist_max_px 0 = no limit;
 # hit_taken_ms / hit_landed_ms 0 = ignore, otherwise only within that long
 # after being hit / landing a hit; attacking yes / no = only while (not)
-# attacking; fight_ms = only once the fight has run this long.
+# attacking; fight_ms = only once the fight has run this long; enemy melee /
+# ranged = only while the target fights in melee / doesn't (the cursor in
+# Solo counts as melee: it hits by touching).
 WHEN_DEFAULTS = dict(dist_min_px=0, dist_max_px=0, hp_min_pct=0, hp_max_pct=100,
-                     hit_taken_ms=0, hit_landed_ms=0, attacking="any", fight_ms=0)
+                     hit_taken_ms=0, hit_landed_ms=0, attacking="any", fight_ms=0, enemy="any")
 PHASE_DEFAULTS = dict(name="", pattern="chase", hold_min_ms=0, hold_max_ms=0, weight=1)
 # daze: after a knockback settles it wanders dazed for a moment (as the old
 # battle movement does), then the style resumes.
@@ -156,7 +159,8 @@ def _fill(raw, defaults):
         if isinstance(d, bool):
             out[k] = bool(v)
         elif isinstance(d, str):
-            allowed = ENUMS.get(k) or (FACES if k == "face" else ATTACKING if k == "attacking" else None)
+            allowed = ENUMS.get(k) or (FACES if k == "face" else ATTACKING if k == "attacking"
+                                       else ENEMIES if k == "enemy" else None)
             out[k] = v if isinstance(v, str) and (allowed is None or v in allowed) else d
         else:
             f = _num(v, d)
@@ -238,6 +242,8 @@ class StyleState:
         self.pause_until = 0
         self.jitter_next = 0
         self.jx = self.jy = 0.0
+        self.enemy_melee = True        # the target fights in melee (when.enemy)
+        self.last_dir = 0              # last way round (+1 / -1) an alternate pattern went
 
 
 def state(fig):
@@ -301,6 +307,8 @@ def _passes(fig, st, when, d, bs):
         if on != (when["attacking"] == "yes"):
             return False
     if when["fight_ms"] > 0 and st.tick < _ticks(when["fight_ms"]):
+        return False
+    if when["enemy"] != "any" and st.enemy_melee != (when["enemy"] == "melee"):
         return False
     return True
 
@@ -378,7 +386,8 @@ def _ring(c, radius, lead, sign):
 
 def _dir(c, mode, lo, hi):
     """+1 / -1 travel direction for cw / ccw / alternate (swapping every
-    lo..hi ms); 0 for "none"."""
+    lo..hi ms); 0 for "none".  Alternate starts the way the last alternate
+    phase was going, so a phase change doesn't U-turn the fighter."""
     ps = c.ps
     if mode == "none":
         return 0
@@ -387,11 +396,12 @@ def _dir(c, mode, lo, hi):
     if mode == "ccw":
         return -1
     if "dir" not in ps:
-        ps["dir"] = 1 if c.rng.random() < 0.5 else -1
+        ps["dir"] = c.st.last_dir or (1 if c.rng.random() < 0.5 else -1)
         ps["swap"] = c.st.tick + int(c.rng.uniform(lo, hi) / config.TICK_MS)
     elif c.st.tick >= ps["swap"]:
         ps["dir"] = -ps["dir"]
         ps["swap"] = c.st.tick + max(1, int(c.rng.uniform(lo, hi) / config.TICK_MS))
+    c.st.last_dir = ps["dir"]
     return ps["dir"]
 
 
@@ -624,16 +634,20 @@ def _p_mirror(c, p):
 
 
 def _p_keep_away(c, p):
+    # Inside comfort it backs off (faster the harder the target presses);
+    # at a distance it drifts on the comfort ring, swaying.  The two blend
+    # over the last quarter of comfort_px, so it never flips at the edge.
     comfort = p["comfort_px"] * c.bs
-    if c.d < comfort:
+    k = max(0.0, min(1.0, (comfort - c.d) / max(1.0, comfort * 0.25)))
+    c.speed = 0.6
+    if k > 0.0:
         closing = max(0.0, c.st.tvx * c.ux + c.st.tvy * c.uy)
         base = max(0.1, c.fig.motion.speed)
-        c.speed = min(3.0, 1.0 + p["pressure_pct"] / 100.0 * closing / base)
-        return c.ex + c.ux * comfort * 1.2, c.ey + c.uy * comfort * 1.2
-    c.speed = 0.6
+        c.speed += (min(3.0, 1.0 + p["pressure_pct"] / 100.0 * closing / base) - 0.6) * k
     a = math.sin(2 * math.pi * c.t / _ticks(p["sway_ms"])) * p["sway_px"] * c.bs / max(1.0, comfort)
     rx, ry = _rot(c.ux, c.uy, a)
-    return c.ex + rx * comfort, c.ey + ry * comfort
+    r = comfort * (1.0 + 0.2 * k)
+    return c.ex + rx * r, c.ey + ry * r
 
 
 def _p_shadow(c, p):
@@ -685,12 +699,13 @@ def _daze(fig, sty):
     return (t.x + math.cos(p.wander_angle) * 80, t.y + math.sin(p.wander_angle) * 80)
 
 
-def target(fig, ex, ey, auto_stop=0.0, wall=None):
+def target(fig, ex, ey, auto_stop=0.0, wall=None, enemy_melee=True):
     """This tick's movement target for a styled figure, or None (no style, or
     no phase passes) = the old movement runs.  (ex, ey) is the nearest enemy
     in Battle, the cursor in Solo.  auto_stop: px it stops short of the
     target when a pattern's stop_px is 0 (where it can attack).  wall:
-    callable(fig) -> (dx, dy) edge nudge (ai._wall_repulsion)."""
+    callable(fig) -> (dx, dy) edge nudge (ai._wall_repulsion).  enemy_melee:
+    the target fights in melee (the "enemy" condition)."""
     sty = cfg(fig)
     if sty is None:
         st = fig.motion.style
@@ -703,6 +718,7 @@ def target(fig, ex, ey, auto_stop=0.0, wall=None):
     x, y = t.x, t.y
     _track_target(st, x, y, ex, ey)
     st.ex, st.ey = ex, ey
+    st.enemy_melee = bool(enemy_melee)
     if _attacking(fig):
         st.attack_tick = st.tick
     rng = fig.personality.rng

@@ -81,21 +81,26 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
     fig.face(ox, oy)
     if styled:
         _movestyle.face(fig)
-    g = None if styled else glide_cfg(fig)
+    # The glide block's skate-and-shoot facing and backward frames apply under
+    # a movement style too (the style's carried velocity stands in for the
+    # glide's), so a styled skater still fires skating backwards.
+    g = glide_cfg(fig)
     m.glide_alt = None
     if g is not None:
         anim = fig.combat.action_anim or ""
         if g["face_target_attacking"] and fig.aim is None and anim.startswith("attack"):
             # Skate-and-shoot: while an attack plays the glide carries on but
             # the fighter turns to the target, so both pistols fire forward.
-            if tx - t.x < -0.001:
+            ax = m.style.ex if styled else tx
+            if ax - t.x < -0.001:
                 t.facing_left = True
-            elif tx - t.x > 0.001:
+            elif ax - t.x > 0.001:
                 t.facing_left = False
         # Skating backwards: speed along the facing below -BACK_ON px/tick
         # (released above -BACK_OFF, so it doesn't flicker).  An action with
         # backward_frames then shows those frames instead (Figure).
-        along = m.glide_vx * (-1.0 if t.facing_left else 1.0)
+        vx = m.style.vx if styled else m.glide_vx
+        along = vx * (-1.0 if t.facing_left else 1.0)
         m.glide_back = along < (-GLIDE_BACK_OFF if m.glide_back else -GLIDE_BACK_ON)
         alt = g["backward_frames"].get(anim) if m.glide_back else None
         if alt:
