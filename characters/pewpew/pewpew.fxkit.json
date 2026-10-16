@@ -17673,7 +17673,7 @@
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
-   "attack_px": 0,
+   "attack_px": 400,
    "leap": {
     "start_frame": 0,
     "land_frame": -1,
@@ -17830,7 +17830,7 @@
    "chain_reset_ms": 1000,
    "fx_continuous": false,
    "movement": "back",
-   "move_speed_pct": 100,
+   "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 100,
    "attack_px": 0,
@@ -17969,12 +17969,12 @@
   "anti_knockback": 0
  },
  "retreat": {
-  "enabled": true,
+  "enabled": false,
   "mode": "avoid",
   "angle_deg": 180,
   "curve_deg_s": 0,
   "speed_pct": 1000,
-  "proximity_px": 120,
+  "proximity_px": 75,
   "avoid_duration_ms": 1000,
   "reengage_duration_ms": 2000,
   "cooldown_ms": 0,
@@ -17987,396 +17987,33 @@
   "style": "sidestep",
   "action": "",
   "react_to": "all",
-  "trigger_px": 90,
-  "incoming_only": true,
+  "trigger_px": 295,
+  "incoming_only": false,
   "chance_pct": 100,
-  "cooldown_ms": 0,
-  "distance_px": 245,
-  "speed_pct": 750,
+  "cooldown_ms": 50,
+  "distance_px": 60,
+  "speed_pct": 201,
   "side": "open",
   "angle_deg": 0,
   "flash": true,
   "afterimages": false,
   "during_attacks": true,
   "invulnerable": false,
-  "invuln_ms": 0,
+  "invuln_ms": 80,
   "counter_action": "",
   "counter_delay_ms": 0,
   "counter_range_px": 0,
   "logic": "any",
-  "conditions": [],
+  "conditions": [
+   {
+    "type": "bullet_deflected",
+    "not": false
+   }
+  ],
   "fx": ""
  },
  "character_scale": 1,
  "effects": [
-  {
-   "id": "Epewnear01",
-   "name": "near pistol shot",
-   "action": "attack_normal",
-   "prim": "sprite",
-   "enabled": true,
-   "tag": "pistol",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 55,
-   "continuous": false,
-   "anchor": "wtip",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 9,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8.5,
-    "turn_deg": 6,
-    "amplitude": 18,
-    "freq": 0.18,
-    "orbit_rx": 15,
-    "orbit_ry": 15,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#e9f7ff",
-    "c2": "#3fb0ea",
-    "start_fraction": 0
-   },
-   "params": {
-    "shape": "orb",
-    "radius": 0.9,
-    "stretch": 3,
-    "hot": true,
-    "halo": false,
-    "fade": false,
-    "trail_len": 4,
-    "glow": 100,
-    "glow_size": 100,
-    "lodge_ms": 1500,
-    "blade_orient": "motion",
-    "blade_angle_deg": 90
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 30,
-    "turn_deg": 10,
-    "contact": 3,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "id": "Epewfar01",
-   "name": "far pistol shot",
-   "action": "attack_normal",
-   "prim": "sprite",
-   "enabled": true,
-   "tag": "pistol",
-   "start_frame": 2,
-   "end_frame": -1,
-   "life_ticks": 55,
-   "continuous": false,
-   "anchor": "wtip2",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 9,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "travel",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8.5,
-    "turn_deg": 6,
-    "amplitude": 18,
-    "freq": 0.18,
-    "orbit_rx": 15,
-    "orbit_ry": 15,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#e9f7ff",
-    "c2": "#3fb0ea",
-    "start_fraction": 0
-   },
-   "params": {
-    "shape": "orb",
-    "radius": 0.9,
-    "stretch": 3,
-    "hot": true,
-    "halo": false,
-    "fade": false,
-    "trail_len": 4,
-    "glow": 100,
-    "glow_size": 100,
-    "lodge_ms": 1500,
-    "blade_orient": "motion",
-    "blade_angle_deg": 90
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 30,
-    "turn_deg": 10,
-    "contact": 3,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "id": "Epewnearfl",
-   "name": "near muzzle flash",
-   "action": "attack_normal",
-   "prim": "glow",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 4,
-   "continuous": false,
-   "anchor": "wtip",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "additive",
-   "emit": {
-    "every_ticks": 9,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 0,
-    "turn_deg": 6,
-    "amplitude": 18,
-    "freq": 0.18,
-    "orbit_rx": 15,
-    "orbit_ry": 15,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#bfe8ff",
-    "c2": "#3fb0ea",
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 3.2,
-    "r_end": 1,
-    "a_center": 220,
-    "a_mid": 90,
-    "mid": 0.4,
-    "core_r": 0.8,
-    "fade": "out",
-    "pulse_hz": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 30,
-    "turn_deg": 10,
-    "contact": 3,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "id": "Epewfarfl",
-   "name": "far muzzle flash",
-   "action": "attack_normal",
-   "prim": "glow",
-   "enabled": true,
-   "tag": "",
-   "start_frame": 2,
-   "end_frame": -1,
-   "life_ticks": 4,
-   "continuous": false,
-   "anchor": "wtip2",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "additive",
-   "emit": {
-    "every_ticks": 9,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 0,
-    "turn_deg": 6,
-    "amplitude": 18,
-    "freq": 0.18,
-    "orbit_rx": 15,
-    "orbit_ry": 15,
-    "orbit_deg": 1.12,
-    "path": "",
-    "orbit_dir": "clockwise"
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#bfe8ff",
-    "c2": "#3fb0ea",
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 3.2,
-    "r_end": 1,
-    "a_center": 220,
-    "a_mid": 90,
-    "mid": 0.4,
-    "core_r": 0.8,
-    "fade": "out",
-    "pulse_hz": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 30,
-    "turn_deg": 10,
-    "contact": 3,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "follow_each": false,
-   "keys": []
-  },
   {
    "id": "Epewspin01",
    "name": "spin shot near",
@@ -18566,7 +18203,7 @@
    "keys": []
   },
   {
-   "id": "Emvaqmi171",
+   "id": "Emvatxpod4",
    "name": "ribbon",
    "action": "@character",
    "prim": "ribbon",
@@ -18576,12 +18213,12 @@
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
-   "always_on": true,
+   "always_on": false,
    "char_every_ms": 0,
-   "anchor": "ftR",
+   "anchor": "ftL",
    "offset": [
     0,
-    0.5
+    0
    ],
    "layer": "front",
    "blend": "normal",
@@ -18621,14 +18258,14 @@
    },
    "params": {
     "max_points": 50,
-    "min_dist": 19.5,
+    "min_dist": 0,
     "decay": 10,
     "taper": true,
     "w_tail": 0.5,
     "w_head": 0.5,
     "alpha": 220,
-    "head_glow_r": 0,
-    "head_dot_r": 0
+    "head_glow_r": 1,
+    "head_dot_r": 1
    },
    "battle": {
     "deals_damage": false,
@@ -18657,7 +18294,7 @@
    "keys": []
   },
   {
-   "id": "Emvaqn2zf2",
+   "id": "Emvatyn1x5",
    "name": "ribbon copy",
    "action": "@character",
    "prim": "ribbon",
@@ -18667,12 +18304,12 @@
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
-   "always_on": true,
+   "always_on": false,
    "char_every_ms": 0,
-   "anchor": "ftL",
+   "anchor": "ftR",
    "offset": [
     0,
-    1
+    0
    ],
    "layer": "front",
    "blend": "normal",
@@ -18701,25 +18338,25 @@
     "path": ""
    },
    "color": {
-    "mode": "palette",
+    "mode": "gradient",
     "lut_index": 128,
     "lut_index2": 128,
     "lut_offset": 0,
     "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
+    "c1": "#ff0505",
+    "c2": "#fe9595",
     "start_fraction": 0
    },
    "params": {
     "max_points": 50,
-    "min_dist": 19.5,
-    "decay": 9,
+    "min_dist": 0,
+    "decay": 10,
     "taper": true,
     "w_tail": 0.5,
     "w_head": 0.5,
     "alpha": 220,
-    "head_glow_r": 0,
-    "head_dot_r": 0
+    "head_glow_r": 1,
+    "head_dot_r": 1
    },
    "battle": {
     "deals_damage": false,
@@ -18746,12 +18383,404 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Gun-kata dual pistols",
+   "tag": "projectile",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 1,
+    "pierce": true,
+    "rehit_ticks": 2,
+    "knockback": 2,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "magnum",
+    "radius": 2.5,
+    "thickness": 26,
+    "span": 0,
+    "length": 400,
+    "swing_ticks": 41,
+    "hold_ticks": 500,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
+   },
+   "id": "Emvau20m57",
+   "action": "attack_normal",
+   "flip": {
+    "enabled": false,
+    "facing": -1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": true,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Gun-kata dual pistols copy",
+   "tag": "projectile",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 1,
+    "pierce": true,
+    "rehit_ticks": 2,
+    "knockback": 2,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ff0000",
+    "c2": "#dd4822",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "magnum",
+    "radius": 2.5,
+    "thickness": 26,
+    "span": 0,
+    "length": 400,
+    "swing_ticks": 41,
+    "hold_ticks": 500,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
+   },
+   "id": "Emvau3w0w8",
+   "action": "attack_normal",
+   "flip": {
+    "enabled": false,
+    "facing": -1
+   },
+   "enabled": true,
+   "start_frame": 20,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": true,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Gun-kata dual pistols",
+   "tag": "projectile",
+   "anchor": "haR",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 1,
+    "pierce": true,
+    "rehit_ticks": 2,
+    "knockback": 2,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "dual_pistols",
+    "radius": 1,
+    "thickness": 2,
+    "span": 5,
+    "length": 450,
+    "swing_ticks": 5,
+    "hold_ticks": 90,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
+   },
+   "id": "Emvau6czp9",
+   "action": "skate_back_fire",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Gun-kata dual pistols copy",
+   "tag": "projectile",
+   "anchor": "haL",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 1,
+    "pierce": true,
+    "rehit_ticks": 2,
+    "knockback": 2,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ff0000",
+    "c2": "#ac210c",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "dual_pistols",
+    "radius": 1,
+    "thickness": 2,
+    "span": 5,
+    "length": 450,
+    "swing_ticks": 5,
+    "hold_ticks": 90,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all"
+   },
+   "id": "Emvau7rlh10",
+   "action": "skate_back_fire",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 2,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
   }
  ],
  "groups": [],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
  "unique_ability": {
-  "type": "none",
+  "type": "ricochet",
   "mirror_legion": {
    "trigger": "hp_below",
    "hp_thresholds": "70,50,30",
@@ -18812,7 +18841,7 @@
    "fx_contact_px": 18,
    "keep_speed_pct": 100,
    "keep_damage_pct": 100,
-   "angle": "reflect",
+   "angle": "seek",
    "random_deg": 25,
    "split": 0,
    "split_deg": 20,
@@ -18831,5 +18860,127 @@
    "invuln_ms": 250,
    "color": "#ffd34a"
   }
+ },
+ "movement_style": {
+  "enabled": true,
+  "select": "sequence",
+  "daze": false,
+  "phases": [
+   {
+    "name": "stalk",
+    "pattern": "stalk",
+    "hold_min_ms": 1800,
+    "hold_max_ms": 2600,
+    "weight": 1,
+    "params": {
+     "keep_px": 150,
+     "creep_speed_pct": 35,
+     "creep_ms_min": 600,
+     "creep_ms_max": 1400,
+     "freeze_ms_min": 400,
+     "freeze_ms_max": 1200
+    },
+    "modifiers": {
+     "speed_pct": 100,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 0,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "travel",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 0,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0
+    }
+   },
+   {
+    "name": "flank",
+    "pattern": "flank",
+    "hold_min_ms": 1500,
+    "hold_max_ms": 2200,
+    "weight": 1,
+    "params": {
+     "angle_deg": 180,
+     "radius_px": 130,
+     "tolerance_deg": 30,
+     "stop_px": 0
+    },
+    "modifiers": {
+     "speed_pct": 100,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 0,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "travel",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 0,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0
+    }
+   },
+   {
+    "name": "lunge",
+    "pattern": "lunge",
+    "hold_min_ms": 1200,
+    "hold_max_ms": 1500,
+    "weight": 1,
+    "params": {
+     "trigger_px": 260,
+     "approach_speed_pct": 60,
+     "windup_ms": 250,
+     "burst_speed_pct": 320,
+     "burst_ms": 300,
+     "recover_ms": 500
+    },
+    "modifiers": {
+     "speed_pct": 100,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 0,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "travel",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 0,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0
+    }
+   }
+  ]
  }
 }
