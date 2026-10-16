@@ -712,7 +712,7 @@ def proj_step(proj, world):
     if P["fx"]:
         cr = P["fx_contact_px"]
         for s in getattr(world, "enemy_shots", None) or ():
-            if s.dead:
+            if s.dead or s.threat:   # gun / ki bullets: threat-only
                 continue
             dx, dy = proj.x - s.x, proj.y - s.y
             d = math.hypot(dx, dy)

@@ -1474,7 +1474,8 @@ def _parry_fx_shots(world):
         return
     reach = config.PARRY_RADIUS
     for shot in shots:
-        if shot.kind != "fx" or shot.dead:
+        # Gun / ki bullets (threat-only, ref a RoundRef) are never parried.
+        if shot.kind != "fx" or shot.dead or shot.threat:
             continue
         inst = shot.ref
         if inst.dead or inst.age >= inst.life or inst.lodge is not None:
