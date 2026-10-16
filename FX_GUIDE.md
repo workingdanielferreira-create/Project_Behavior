@@ -525,6 +525,27 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
 - **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
   compares `CUTS` and the strikefx constants. Same code path in Solo and
   Battle (FX Kit Player).
+- **Gunfire (`laser/gunfx.py`, Studio: `gunfx.js`).** Ten anime gun shots,
+  each a technique style with a palette preset and a signature-colour preset
+  in the Studio's "Gunfire" group, and its own settings panel:
+  `machine_gun` (tracer stream, brass casings), `shotgun` (nine-pellet
+  volleys, fan flash, red shells), `magnum` (boom flash with side jets,
+  rifling rings, spiked impact), `charged_blast` (charge, hold, one huge orb
+  that explodes), `dual_pistols` (alternating hands with gun-kata swing arcs),
+  `sniper_rail` (laser sight and lock-on reticle, then an instant helix rail
+  line; the hit bursts `RAIL_DELAY` ticks later), `gatling` (barrels spin up,
+  fire faster and faster, glow with heat, smoke on spin-down),
+  `rocket_barrage` (missiles on alternating arcs with smoke trails),
+  `drill_bullet` (pierces through, shatters at the end of its range) and
+  `thunder_bullet` (crackling arcs, lightning trail, lightning strike on hit).
+  Fields: Radius = bullet size, Thickness = impact size, Span = spread °,
+  Length = range; Swing = ticks between shots (charge / aim / spin-up ticks
+  for the charged blast / sniper / gatling), Hold = firing time (held charge /
+  rail linger). With Aim target every round aims at where the target is the
+  tick it fires. A round that hits stops there (`inst.tq_ki`); the drill and
+  the rail record their hits in `inst.tq_imp` and carry on. Per-gun numbers
+  live in the `GUNS` table; `check_parity.py` compares it and every other
+  gunfx constant with `gunfx.js`. Same code path in Solo and Battle.
 - **Power techniques (`laser/powerfx.py`, Studio: `powerfx.js`).** Anime
   signature moves, each a technique style with its own preset in the Studio's
   "Power techniques" group:

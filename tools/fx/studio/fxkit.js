@@ -343,7 +343,9 @@ var PARAM_DEFAULTS = {
 var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
   "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
   "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
-  "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole"];
+  "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
+  "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling",
+  "rocket_barrage", "drill_bullet", "thunder_bullet"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
@@ -366,7 +368,18 @@ var TECH_STYLE_DEFAULTS = {
   gigantic_meteor: {radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70},
   ghost_kamikaze: {radius: 9, span: 14, thickness: 34, length: 600, swing_ticks: 8, hold_ticks: 40},
   serious_punch: {radius: 10, thickness: 150, length: 900, swing_ticks: 30, hold_ticks: 22},
-  black_hole: {radius: 20, span: 160, thickness: 24, length: 260, swing_ticks: 22, hold_ticks: 150}
+  black_hole: {radius: 20, span: 160, thickness: 24, length: 260, swing_ticks: 22, hold_ticks: 150},
+  // Gunfire (gunfx.js)
+  machine_gun: {radius: 3, thickness: 10, span: 7, length: 360, swing_ticks: 2, hold_ticks: 54},
+  shotgun: {radius: 3, thickness: 9, span: 30, length: 230, swing_ticks: 34, hold_ticks: 34},
+  magnum: {radius: 5, thickness: 26, span: 0, length: 460, swing_ticks: 26, hold_ticks: 52},
+  charged_blast: {radius: 15, thickness: 60, span: 0, length: 420, swing_ticks: 42, hold_ticks: 8},
+  dual_pistols: {radius: 3.5, thickness: 12, span: 14, length: 330, swing_ticks: 5, hold_ticks: 45},
+  sniper_rail: {radius: 4, thickness: 30, span: 0, length: 900, swing_ticks: 36, hold_ticks: 24},
+  gatling: {radius: 3, thickness: 10, span: 10, length: 380, swing_ticks: 30, hold_ticks: 80},
+  rocket_barrage: {radius: 5, thickness: 24, span: 0, length: 420, swing_ticks: 6, hold_ticks: 30},
+  drill_bullet: {radius: 8, thickness: 22, span: 0, length: 620, swing_ticks: 24, hold_ticks: 24},
+  thunder_bullet: {radius: 5, thickness: 30, span: 6, length: 420, swing_ticks: 12, hold_ticks: 36}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};

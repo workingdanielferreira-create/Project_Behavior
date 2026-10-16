@@ -38,6 +38,7 @@ var THR_WIND = 3, THR_RETRACT = 5, THR_FADE = 14;   // thrust: wind-up, snap bac
 var HIT_MARK_LIFE = 16;
 var STRIKE = function () { return G.STRIKEFX; };
 var POWER = function () { return G.POWERFX; };
+var GUN = function () { return G.GUNFX; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -56,6 +57,7 @@ function hyp(x, y) { return Math.sqrt(x * x + y * y); }
 function style(P) { var s = P.style; return FXK().TECH_STYLES.indexOf(s) >= 0 ? s : FXK().TECH_STYLES[0]; }
 function isStrike(st) { return STRIKE() && STRIKE().STYLES.indexOf(st) >= 0; }
 function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
+function isGun(st) { return GUN() && GUN().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
@@ -68,6 +70,7 @@ function activeTicks(P) {
   if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
   if (isStrike(st)) return STRIKE().activeTicks(P);
   if (isPower(st)) return POWER().activeTicks(P);
+  if (isGun(st)) return GUN().activeTicks(P);
   return lastStart(P) + swing(P) + 2;
 }
 function totalTicks(P) {
@@ -77,6 +80,7 @@ function totalTicks(P) {
   if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
   if (isStrike(st)) return STRIKE().totalTicks(P);
   if (isPower(st)) return POWER().totalTicks(P);
+  if (isGun(st)) return GUN().totalTicks(P);
   return lastStart(P) + swing(P) + fadeT(P) + SPARK_LIFE;
 }
 
@@ -287,12 +291,14 @@ function hit(inst, tx, ty, hr, ps) {
   if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
+  if (isGun(st)) return GUN().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
   else if (isPower(st)) POWER().onHit(inst, x, y, ps || 1);
+  else if (isGun(st)) GUN().onHit(inst, x, y, ps || 1);
   else if (CUTS[st] !== undefined) slashOnHit(inst);
   inst.tq_hits.push([+x, +y, inst.age]);
 }
@@ -777,6 +783,7 @@ function draw(g, inst, host, ps) {
   else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else if (isPower(st)) POWER().draw(pen, inst, host, ps);
+  else if (isGun(st)) GUN().draw(pen, inst, host, ps);
   else drawSlash(pen, inst, host, ps);
 }
 

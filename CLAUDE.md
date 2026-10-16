@@ -18,6 +18,7 @@ laser/clashfx.py
 laser/swordfx.py
 laser/strikefx.py
 laser/powerfx.py
+laser/gunfx.py
 laser/combat.py
 laser/components.py
 laser/config.py
