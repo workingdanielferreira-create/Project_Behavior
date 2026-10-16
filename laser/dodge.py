@@ -15,7 +15,9 @@ heading at the fighter when incoming_only is on.  The check looks
 LOOKAHEAD_TICKS ahead along the projectile's path: the snapshot it reads
 is one tick old and the shot moves again before its hit lands, so a fast
 shot (more px per tick than trigger_px) would otherwise only be seen on
-the tick it hits.  Each projectile is
+the tick it hits.  A beam counts along its whole drawn line: once its body
+comes within trigger_px it triggers whichever way its head is moving
+(fxkit.shot_nearest).  Each projectile is
 rolled once (chance_pct); the optional trigger conditions (ANY / ALL, the
 action trigger conditions, "this action" = the dodge) gate it on top.
 A new dodge can start cooldown_ms after the last one started.  It can
@@ -207,6 +209,7 @@ def _cond_met(fig, r, c, ctx, world):
 
 def _threat(fig, world, cfg, st, shots):
     """The nearest projectile that should make fig dodge now, or None."""
+    from . import fxkit
     want = cfg.get("react_to")
     reach = max(0.0, float(cfg.get("trigger_px") or 0)) * fig.mode.body_scale()
     r2 = reach * reach
@@ -218,6 +221,15 @@ def _threat(fig, world, cfg, st, shots):
             continue
         if want == "fx" and s.kind != "fx":
             continue
+        b = s.body
+        if b[0] != b[2] or b[1] != b[3]:
+            # A beam: its body sweeping across the fighter is the threat,
+            # whichever way its head (maybe far beyond) is moving.
+            gap = fxkit.shot_nearest(s, fig.x, fig.y)[2]
+            if gap <= reach:
+                if best is None or gap * gap < best[0]:
+                    best = (gap * gap, s)
+                continue
         dx, dy = s.x - fig.x, s.y - fig.y
         d2 = dx * dx + dy * dy
         if d2 > r2:

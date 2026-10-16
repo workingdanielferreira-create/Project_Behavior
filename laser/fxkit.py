@@ -1476,6 +1476,21 @@ class RoundRef:
         return self.inst.life
 
 
+def shot_nearest(s, x, y):
+    """(px, py, gap): the point of shot s nearest (x, y) and the distance
+    from (x, y) to its edge.  A beam counts along its whole drawn line (its
+    body, minus its half width), anything else is its centre point.  Read by
+    Dodge and the Tactical retreat (FXK.shotNearest)."""
+    b = s.body
+    if b[0] == b[2] and b[1] == b[3]:
+        return s.x, s.y, math.hypot(s.x - x, s.y - y)
+    dx, dy = b[2] - b[0], b[3] - b[1]
+    L = dx * dx + dy * dy
+    u = max(0.0, min(1.0, ((x - b[0]) * dx + (y - b[1]) * dy) / L)) if L > 0 else 0.0
+    px, py = b[0] + dx * u, b[1] + dy * u
+    return px, py, max(0.0, math.hypot(px - x, py - y) - b[4])
+
+
 def _shot_takes(s, mode):
     """Whether an intercept in `mode` may take shot s (FXK.shotTakes)."""
     return s.deflectable if mode == "deflect" else s.blockable

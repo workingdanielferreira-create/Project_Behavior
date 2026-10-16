@@ -1532,6 +1532,17 @@ function instBody(inst) {
   return [inst.x, inst.y, inst.x, inst.y, 0];
 }
 function shotBody(s) { return s.body || [s.x, s.y, s.x, s.y, 0]; }
+// [px, py, gap]: the point of shot s nearest (x, y) and the distance from
+// (x, y) to its edge; a beam counts along its whole line.  Dodge and the
+// Tactical retreat read it.  laser/fxkit.py shot_nearest.
+function shotNearest(s, x, y) {
+  var b = shotBody(s);
+  if (b[0] === b[2] && b[1] === b[3]) return [s.x, s.y, Math.hypot(s.x - x, s.y - y)];
+  var dx = b[2] - b[0], dy = b[3] - b[1], L = dx * dx + dy * dy;
+  var u = L > 0 ? Math.max(0, Math.min(1, ((x - b[0]) * dx + (y - b[1]) * dy) / L)) : 0;
+  var px = b[0] + dx * u, py = b[1] + dy * u;
+  return [px, py, Math.max(0, Math.hypot(px - x, py - y) - b[4])];
+}
 // Whether an intercept in `mode` may take shot s: deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
 // e.g. built-in bullets, are both).
@@ -2347,7 +2358,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

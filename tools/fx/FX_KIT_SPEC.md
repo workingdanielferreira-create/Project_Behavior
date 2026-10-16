@@ -579,7 +579,11 @@ read the same way. Where one means "this action" it means the retreat:
 `hp_below` (`pct`, `repeat`: once, or again every cooldown while below),
 `attacks_made` / `hits_taken` count from the last retreat start, `every_ms`
 times from the last retreat start, and `since_action` with `action ""` from
-the last retreat end. `projectile_count` counts enemy projectiles in the air
+the last retreat end. **No conditions** = it triggers on incoming harm alone:
+an enemy shot (a beam along its whole line, `fxkit.shot_nearest`) or a
+damaging enemy FX within `proximity_px` (times the character scale). Avoid
+steering also pushes off a beam from the point of its line nearest the
+fighter. `projectile_count` counts enemy projectiles in the air
 (shots, not stationary damaging FX). A rig-drawn character without an action
 runner gets a condition tracker that counts its dashes / slashes as attacks
 and its melee hits as `landed_hit`. The
@@ -605,7 +609,10 @@ travelling effects with Deals damage, and each bullet in flight of a gun or
 ki-barrage technique —, `"all"`) within `trigger_px` (times
 the character scale), heading at the fighter when `incoming_only`, makes it
 dodge; the check looks 2 ticks ahead along the projectile's path, so a fast
-shot is seen before the tick it hits. Each projectile is rolled once (`chance_pct`); `conditions` (ANY / ALL,
+shot is seen before the tick it hits. A beam counts along its whole drawn
+line: once its body is within `trigger_px` it triggers whichever way its head
+moves. FX Studio previews the Dodge (sidestep / blink, chance, cooldown,
+Invulnerable; conditions taken as met) against the target dummies' shots. Each projectile is rolled once (`chance_pct`); `conditions` (ANY / ALL,
 the action trigger conditions, "this action" = the dodge) gate it on top, none
 = the projectile alone. A new dodge can start `cooldown_ms` after the last one
 started. `during_attacks` off: never during a normal attack. It never cuts
