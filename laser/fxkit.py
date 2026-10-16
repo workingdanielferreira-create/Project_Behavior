@@ -3090,7 +3090,13 @@ class _Host:
             return [fig.x, fig.y]
         if name == "target":
             return list(self.target)
-        p = cfx.anchor_px(drv.action, name, drv.frame)
+        # Skating backwards (motion.glide_alt): the action's backward frames
+        # are on screen, so the FX ride THEIR anchors (the guns drawn).
+        act = drv.action
+        alt = getattr(fig.motion, "glide_alt", None)
+        if alt is not None and alt[0] == act and alt[1] in cfx.anchors:
+            act = alt[1]
+        p = cfx.anchor_px(act, name, drv.frame)
         if p is None:
             return [fig.x, fig.y]
         k = cfx.k * self.pscale
