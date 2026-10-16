@@ -1439,16 +1439,41 @@ class Shot:
     instance (kind "fx", ref = the live Inst).  blockable / deflectable come
     from the effect's battle settings (built-in bullets are both);
     knockback from battle.knockback (bullets: 0); body from inst_body
-    (bullets: their centre)."""
-    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "knockback", "body")
+    (bullets: their centre).  threat: a gun / ki bullet (ref a RoundRef)
+    that only retreat, Dodge and projectile counts react to."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "knockback", "body", "threat")
 
-    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, knockback=0.0, body=None):
+    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, knockback=0.0, body=None, threat=False):
         self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
         self.dead = False
         self.kind, self.ref = kind, ref
         self.blockable, self.deflectable = bool(blockable), bool(deflectable)
         self.knockback = float(knockback or 0)
         self.body = tuple(body) if body is not None else (self.x, self.y, self.x, self.y, 0.0)
+        self.threat = bool(threat)
+
+
+class RoundRef:
+    """Stands in for one bullet of a technique (gun round, ki blast) as a
+    Shot's ref: it ends with its instance, and each bullet keeps its own
+    identity across ticks (Dodge rolls once per projectile).  Such shots are
+    threat-only: neither blockable nor deflectable, so intercepts skip them."""
+    __slots__ = ("inst", "i")
+
+    def __init__(self, inst, i):
+        self.inst, self.i = inst, i
+
+    @property
+    def dead(self):
+        return self.inst.dead
+
+    @property
+    def age(self):
+        return self.inst.age
+
+    @property
+    def life(self):
+        return self.inst.life
 
 
 def _shot_takes(s, mode):

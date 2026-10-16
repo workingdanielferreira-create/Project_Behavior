@@ -294,6 +294,18 @@ function hit(inst, tx, ty, hr, ps) {
   if (isGun(st)) return GUN().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
+// Whether this instance is a technique that fires separate bullets (gun
+// styles, ki barrage), and those bullets: [[i, x, y, vx, vy]].
+// laser/swordfx.py shoots / live_points.
+function shoots(inst) {
+  if (inst.fx.prim !== "technique") return false;
+  var st = style(inst.fx.params);
+  return isGun(st) || st === "ki_barrage";
+}
+function livePoints(inst, ps) {
+  if (!shoots(inst)) return [];
+  return isGun(style(inst.fx.params)) ? GUN().livePoints(inst, ps) : STRIKE().livePoints(inst, ps);
+}
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
@@ -788,7 +800,7 @@ function draw(g, inst, host, ps) {
 }
 
 // strikefx.js (ki blasts, punches) builds on these.
-G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, dragDist: dragDist, hyp: hyp, HOT: HOT, BLACK: BLACK, D: D}};

@@ -591,6 +591,27 @@ def hit(inst, tx, ty, hr, ps):
     return _slash_hit(inst, tx, ty, hr, ps)
 
 
+def shoots(inst):
+    """Whether this instance is a technique that fires separate bullets
+    (gun styles, ki barrage): live_points lists them."""
+    if inst.fx.get("prim") != "technique":
+        return False
+    st = _style(inst.fx["params"])
+    return st in gunfx.STYLES or st == "ki_barrage"
+
+
+def live_points(inst, ps):
+    """[(i, x, y, vx, vy)] for the separate bullets a technique has in flight
+    this tick (gun rounds, ki blasts); [] for every other style.  The battle
+    snapshot lists them as threat-only enemy shots (app.World.refresh_battle)."""
+    st = _style(inst.fx["params"])
+    if st in gunfx.STYLES:
+        return gunfx.live_points(inst, ps)
+    if st == "ki_barrage":
+        return strikefx.live_points(inst, ps)
+    return []
+
+
 def body(inst, ps):
     """(points, half width) a clash treats as a cutting blade, or None."""
     st = _style(inst.fx["params"])

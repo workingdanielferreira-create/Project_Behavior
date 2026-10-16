@@ -155,6 +155,29 @@ def _live(inst, ps):
     return out
 
 
+def live_points(inst, ps):
+    """[(i, x, y, vx, vy)] for the ki shots in flight this tick (i = the
+    shot's index; ki barrage only; strikefx.js livePoints)."""
+    if _style_of(inst) != "ki_barrage":
+        return []
+    out = []
+    fr = _Fr(inst, ps)
+    for (s, (x, y)) in _live(inst, ps):
+        k = inst.age - s.b
+        if k >= 1:
+            x0, y0 = s.pos(fr, k - 1)
+            vx, vy = x - x0, y - y0
+        else:
+            x1, y1 = s.pos(fr, 1)
+            vx, vy = x1 - x, y1 - y
+        out.append((s.i, x, y, vx, vy))
+    return out
+
+
+def _style_of(inst):
+    return S._style(inst.fx["params"])
+
+
 def _ki_hit(inst, tx, ty, hr, ps):
     if inst.age >= inst.life:
         return False

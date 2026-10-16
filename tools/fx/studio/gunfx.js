@@ -182,6 +182,16 @@ function live(inst, ps) {   // [[round, position]] in flight this tick (not the 
   }
   return out;
 }
+// [[i, x, y, vx, vy]] for the rounds in flight this tick (i = the round's
+// index): what retreat / dodge / projectile counts see of a gun.
+// laser/gunfx.py live_points.
+function livePoints(inst, ps) {
+  return live(inst, ps).map(function (e) {
+    var s = e[0], p = e[1], k = inst.age - s.b, q;
+    if (k >= 1) { q = s.pos(k - 1); return [s.i, p[0], p[1], p[0] - q[0], p[1] - q[1]]; }
+    q = s.pos(1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
+  });
+}
 function railLine(s) { var d = s.fr.d(s.rng, 0); return [s.ox, s.oy, s.ox + d[0], s.oy + d[1]]; }
 
 // ---------------------------------------------------------------- public
@@ -744,5 +754,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches};
+           launches: launches, livePoints: livePoints};
 })(window);
