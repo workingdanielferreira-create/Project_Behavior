@@ -17,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
                          QFont, QPixmap)
 
-from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique
+from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique, movestyle
 from . import swordfx
 from .prebattle import PreBattleMenu
 from . import platform_win as win
@@ -464,6 +464,22 @@ class World:
 
     def movement_target(self, fig):
         """Where this figure moves toward this tick."""
+        # Movement style (laser/movestyle.py): the character's own patterns
+        # and phases.  Same target in both modes (nearest enemy in Battle,
+        # the cursor in Solo); None = no style / no phase passes, so the old
+        # movement below runs.
+        if movestyle.cfg(fig) is not None:
+            if self.battle_mode and self.partner_figures:
+                ex, ey = self._nearest_enemy(fig.x, fig.y)
+            else:
+                ex, ey = self.cursor
+            off = actions.chase_offset(fig, self)
+            if off is None:
+                off = (fig.motion.offset_x, fig.motion.offset_y)
+            pt = movestyle.target(fig, ex, ey, auto_stop=(off[0] * off[0] + off[1] * off[1]) ** 0.5,
+                                  wall=ai._wall_repulsion)
+            if pt is not None:
+                return pt
         if fig.mode.kites():
             # Kiting is identical in Solo (target=cursor) and Battle
             # (target=nearest enemy) — ai.kite_target takes a plain point

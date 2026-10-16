@@ -19,7 +19,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}),
-  unique: FXK.normalizeUnique({}), uaPage: null,
+  unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}),
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), cplayer = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -198,6 +198,7 @@ var DOC = [
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
   ["dodge", "dodge", function (v) { return FXK.normalizeDodge(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
+  ["moveStyle", "movement_style", function (v) { return MOVESTYLE.normalize(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
 function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
@@ -2311,6 +2312,220 @@ function buildDodgeProps(d) {
     helpOf: function (t) { return COND_HELP[t]; }, onChange: ch,
     make: function (t) { return FXK.normalizeDodge({conditions: [{type: t}]}).conditions[0]; }});
 }
+// Character-level Movement style (pack.movement_style, laser/movestyle.py;
+// the patterns and preview sim live in movestyle.js), shown under every
+// action's settings.  Phases of movement patterns + modifiers + conditions.
+var MS_PATTERN_LABEL = {chase: "Chase", orbit: "Orbit", kite: "Kite (hold a band)", glide: "Glide (skate)",
+  zigzag: "Zigzag approach", hit_and_run: "Hit and run", lunge: "Lunge (creep, burst)", flank: "Flank (get behind)",
+  erratic: "Erratic darts", stalk: "Stalk (creep, freeze)", pendulum: "Pendulum (side to side)", figure8: "Figure-8",
+  spiral: "Spiral", mirror: "Mirror / copy", keep_away: "Keep away", shadow: "Shadow (follow behind)"};
+var MS_PATTERN_HELP = {chase: "Straight at the target, stopping short (Stop px; 0 = where it can attack), or running through it (Overshoot px).",
+  orbit: "Circles the target at Radius px, clockwise, counter-clockwise or swapping every Swap ms. Lead ° = how far round it aims ahead; Wobble % breathes the radius in and out.",
+  kite: "Holds a distance band: closes in when farther than Max px, backs off when nearer than Min px, strafes round while inside the band (Strafe none = stands).",
+  glide: "Skates round the target with momentum (Drift %), carving S-curves and breathing in and out of range. Never parks.",
+  zigzag: "Closes in on alternating diagonal legs (Leg ms each, Amplitude px out to the side). Smooth = a wavy line instead of sharp corners.",
+  hit_and_run: "Dives in fast, peels out Retreat px at an angle the moment it gets in (or lands a hit), circles for Regroup ms, then dives again.",
+  lunge: "Creeps to Trigger px, winds up standing still facing the target, bursts in a straight line through it, then recovers.",
+  flank: "Works round the target until it is Angle ° from the way the target moves (180 = its back), then closes in. A still target faces the fighter.",
+  erratic: "Darts to random nearby points every Hop ms, pulled back toward the target when it strays past Range px.",
+  stalk: "Creeps toward Keep px from the target slowly, freezes (turned to the target), creeps again.",
+  pendulum: "Swings Swing px side to side across the line to the target, Distance px away, once every Period ms.",
+  figure8: "Traces a figure-8 round the target once every Period ms: along the line to it, or on the screen axes.",
+  spiral: "Circles while the radius sweeps between Outer px and Inner px each Period ms (in and out, in only, or out only).",
+  mirror: "Mirror: moves opposite to the target, reflected through a point Distance/2 out. Copy: keeps the same side and moves exactly as it does.",
+  keep_away: "Backs off when the target comes inside Comfort px — faster the harder it presses (Pressure %) — and sways while at a distance.",
+  shadow: "Follows Lag ms behind the target's path, Offset px at Angle ° from its heading (180 = right behind it)."};
+// [label, help] per setting (pattern settings, modifiers and conditions).
+var MS_FIELD = {stop_px: ["Stop px", "How far short of the target it stops (0 = where it can attack)."],
+  overshoot_px: ["Overshoot px", "Above 0: it aims this far PAST the target, charging through it and back."],
+  radius_px: ["Radius px", "Distance from the target."], direction: ["Direction", "Which way round; alternate swaps every Swap ms."],
+  swap_ms_min: ["Swap ms (min)", "Alternate: shortest time before it swaps direction."], swap_ms_max: ["Swap ms (max)", "Alternate: longest time before it swaps direction."],
+  lead_deg: ["Lead °", "How far round the circle it aims ahead of itself (bigger = cuts corners)."],
+  wobble_pct: ["Wobble %", "The radius breathes in and out by this share."], wobble_ms: ["Wobble ms", "One full breath in and out."],
+  min_px: ["Min px", "Nearer than this it backs off."], max_px: ["Max px", "Farther than this it closes in."], strafe: ["Strafe", "How it moves while inside the band."],
+  drift_pct: ["Drift %", "Momentum: how much of its velocity it carries each tick (higher = wider turns)."],
+  carve_deg: ["Carve °", "S-curves: the heading swings this far either side."], carve_ms: ["Carve ms", "One full S-curve."],
+  breathe_pct: ["Breathe %", "The skating distance flows in and out by this share."],
+  amplitude_px: ["Amplitude px", "How far out to the side each leg goes."], leg_ms: ["Leg ms", "Length of each diagonal leg."], smooth: ["Smooth", "A wavy line instead of sharp corners."],
+  strike_px: ["Strike px", "How close the dive gets before peeling out."], dive_speed_pct: ["Dive speed %", "Speed of the dive."],
+  retreat_px: ["Retreat px", "How far out it peels."], retreat_angle_deg: ["Retreat angle °", "Turns the peel-out to one side (random side each time)."],
+  regroup_ms: ["Regroup ms", "How long it circles before diving again."], dive_timeout_ms: ["Dive timeout ms", "Gives up a dive that hasn't got in after this long."],
+  trigger_px: ["Trigger px", "Distance at which it stops creeping and winds up."], approach_speed_pct: ["Approach speed %", "Creeping speed."],
+  windup_ms: ["Wind-up ms", "Stands still facing the target this long."], burst_speed_pct: ["Burst speed %", "Speed of the lunge."],
+  burst_ms: ["Burst ms", "How long the lunge lasts (straight line)."], recover_ms: ["Recover ms", "Stands still this long after the lunge."],
+  angle_deg: ["Angle °", "Measured from the way the target moves: 180 = behind it, 90 = its side, 0 = in front."],
+  tolerance_deg: ["Tolerance °", "How close to the angle counts as there (then it closes in)."],
+  range_px: ["Range px", "Darts past this distance from the target are pulled back."], hop_min_px: ["Hop px (min)", "Shortest dart."], hop_max_px: ["Hop px (max)", "Longest dart."],
+  hop_ms_min: ["Hop ms (min)", "Shortest time between darts."], hop_ms_max: ["Hop ms (max)", "Longest time between darts."], pull_pct: ["Pull %", "How hard a stray dart is pulled back in range."],
+  keep_px: ["Keep px", "Distance it creeps to."], creep_speed_pct: ["Creep speed %", "Creeping speed."],
+  creep_ms_min: ["Creep ms (min)", ""], creep_ms_max: ["Creep ms (max)", ""], freeze_ms_min: ["Freeze ms (min)", ""], freeze_ms_max: ["Freeze ms (max)", ""],
+  distance_px: ["Distance px", "Distance from the target."], swing_px: ["Swing px", "How far to each side."], period_ms: ["Period ms", "One full cycle."],
+  axis: ["Axis", "Line = along the line to the target (when the phase starts); horizontal / vertical = screen axes."],
+  outer_px: ["Outer px", "Widest radius."], inner_px: ["Inner px", "Tightest radius."], flow: ["Flow", "In and out, in only (then jumps back out), or out only."],
+  mode: ["Mode", "Mirror = moves opposite to the target; copy = moves the same way."],
+  comfort_px: ["Comfort px", "Closer than this it backs off."], pressure_pct: ["Pressure %", "How much faster it backs off the faster the target closes."],
+  sway_px: ["Sway px", "Side to side sway while at a distance."], sway_ms: ["Sway ms", "One full sway."],
+  offset_px: ["Offset px", "Distance from the target's (delayed) position."], lag_ms: ["Lag ms", "How far behind on the target's path it follows."],
+  speed_pct: ["Speed %", "Scales the character's own speed for this phase."], pulse_pct: ["Pulse %", "Speed surges up and down by this share."],
+  pulse_ms: ["Pulse ms", "One full surge."], inertia_pct: ["Inertia %", "Carries velocity: 0 = turns on a dime, 90 = drifts wide."],
+  weave_deg: ["Weave °", "Swings the heading either side, for a snaking path."], weave_ms: ["Weave ms", "One full weave."],
+  jitter_px: ["Jitter px", "Shakes the aim point by up to this much."], jitter_ms: ["Jitter ms", "How often the shake changes."],
+  pause_every_ms: ["Pause every ms", "About this often (±50 %) it stops dead. 0 = never."], pause_ms: ["Pause ms", "How long each stop lasts."],
+  face: ["Face", "Travel = faces where it moves; target = always turned to the target (can move backwards)."], wall_avoid: ["Avoid edges", "Nudged away from the screen edges."],
+  dist_min_px: ["Distance ≥ px", "Only when the target is at least this far."], dist_max_px: ["Distance ≤ px", "Only when the target is within this (0 = any)."],
+  hp_min_pct: ["Own HP ≥ %", ""], hp_max_pct: ["Own HP ≤ %", ""],
+  hit_taken_ms: ["Hit taken within ms", "Only within this long after being hit (0 = ignore)."],
+  hit_landed_ms: ["Hit landed within ms", "Only within this long after landing a hit (0 = ignore)."],
+  attacking: ["Attacking", "Only while attacking (yes), only while not (no), or either."], fight_ms: ["Fight running ≥ ms", "Only once the fight has run this long."]};
+// Ready-made styles: Add replaces the phase list.
+var MS_PRESETS = {
+  duelist: {label: "Duelist (circle, then strike)", select: "priority", phases: [
+    {name: "circle in close", pattern: "orbit", when: {dist_max_px: 200}, hold_min_ms: 900, hold_max_ms: 1600, params: {radius_px: 130, direction: "alternate"}, modifiers: {face: "target"}},
+    {name: "close in", pattern: "chase"}]},
+  skirmisher: {label: "Skirmisher (hit and run)", select: "priority", phases: [
+    {name: "skirmish", pattern: "hit_and_run", modifiers: {weave_deg: 15}}]},
+  predator: {label: "Predator (stalk, flank, lunge)", select: "sequence", phases: [
+    {name: "stalk", pattern: "stalk", hold_min_ms: 1800, hold_max_ms: 2600},
+    {name: "flank", pattern: "flank", hold_min_ms: 1500, hold_max_ms: 2200},
+    {name: "lunge", pattern: "lunge", hold_min_ms: 1200, hold_max_ms: 1500}]},
+  trickster: {label: "Trickster (erratic, mirror)", select: "weighted", phases: [
+    {name: "dart", pattern: "erratic", weight: 2, hold_min_ms: 1200, hold_max_ms: 2400, modifiers: {jitter_px: 12}},
+    {name: "mirror", pattern: "mirror", weight: 1, hold_min_ms: 1500, hold_max_ms: 3000},
+    {name: "figure-8", pattern: "figure8", weight: 1, hold_min_ms: 2000, hold_max_ms: 3200}]},
+  skater: {label: "Skater (glide, spiral)", select: "weighted", phases: [
+    {name: "glide", pattern: "glide", weight: 2, hold_min_ms: 2000, hold_max_ms: 4000},
+    {name: "spiral", pattern: "spiral", weight: 1, hold_min_ms: 2500, hold_max_ms: 4000, modifiers: {inertia_pct: 60}}]},
+  coward: {label: "Coward (keep away, panic when hurt)", select: "priority", phases: [
+    {name: "panic", pattern: "erratic", when: {hp_max_pct: 30}, modifiers: {speed_pct: 140, jitter_px: 20}},
+    {name: "flinch", pattern: "keep_away", when: {hit_taken_ms: 1200}, modifiers: {speed_pct: 130}},
+    {name: "keep away", pattern: "kite", modifiers: {face: "target"}}]},
+  berserker: {label: "Berserker (zigzag charge, faster when hurt)", select: "priority", phases: [
+    {name: "rage", pattern: "chase", when: {hp_max_pct: 40}, params: {overshoot_px: 60}, modifiers: {speed_pct: 160, jitter_px: 10}},
+    {name: "charge", pattern: "zigzag", modifiers: {pulse_pct: 30}}]}};
+// Preview state: kept across panel rebuilds so editing doesn't restart it.
+var MSP = {canvas: null, info: null, sim: null, ex: 1000, ey: 450, tmode: "still", hp: 100, attacking: false, trail: [], t: 0, running: false, drag: false, acc: 0, last: 0};
+function msPreviewReset() {
+  var spd = C && C.man && C.man.stats ? +C.man.stats.chase_speed || 3 : 3;
+  MSP.sim = new MOVESTYLE.Sim(S.moveStyle, {x: 500, y: 450, speed: spd, facing_left: false, hp: MSP.hp, max_hp: 100, attacking: false, w: 1600, h: 900});
+  MSP.trail = []; MSP.t = 0;
+}
+function msPreviewLoop() {
+  var cv = MSP.canvas;
+  if (!cv || !document.body.contains(cv)) { MSP.running = false; MSP.last = 0; return; }
+  if (!MSP.sim) msPreviewReset();
+  var sim = MSP.sim, f = sim.fig;
+  sim.style = MOVESTYLE.normalize(S.moveStyle);
+  f.hp = MSP.hp; f.attacking = MSP.attacking;
+  var autoStop = 60 * charScale(), now = performance.now();
+  // Game time: one 16 ms tick per 16 ms of real time (at most 4 per frame).
+  MSP.acc = Math.min(64, (MSP.acc || 0) + (MSP.last ? now - MSP.last : 16)); MSP.last = now;
+  for (; MSP.acc >= 16; MSP.acc -= 16) {
+    MSP.t++;
+    var a = MSP.t / 62.5;
+    if (MSP.tmode === "wander") { MSP.ex = 800 + 420 * Math.sin(a * 0.45) + 120 * Math.sin(a * 1.3); MSP.ey = 450 + 230 * Math.sin(a * 0.7); }
+    else if (MSP.tmode === "circle") { MSP.ex = 800 + 330 * Math.cos(a * 0.5); MSP.ey = 450 + 230 * Math.sin(a * 0.5); }
+    else if (MSP.tmode === "charge") { var dx = f.x - MSP.ex, dy = f.y - MSP.ey, d = Math.hypot(dx, dy); if (d > 40) { MSP.ex += dx / d * 2.2; MSP.ey += dy / d * 2.2; } }
+    sim.tick(MSP.ex, MSP.ey, autoStop);
+    MSP.trail.push([f.x, f.y]); if (MSP.trail.length > 240) MSP.trail.shift();
+  }
+  var w = cv.clientWidth || 300, h = Math.round(w * 9 / 16);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  var g = cv.getContext("2d"), sc = w / 1600, css = getComputedStyle(document.documentElement);
+  g.fillStyle = css.getPropertyValue("--stage") || "#0b0d11"; g.fillRect(0, 0, w, h);
+  g.strokeStyle = css.getPropertyValue("--line") || "#2a2f3a"; g.strokeRect(0.5, 0.5, w - 1, h - 1);
+  g.lineWidth = 2;
+  for (var i = 1; i < MSP.trail.length; i++) {
+    g.strokeStyle = "rgba(63,176,234," + (i / MSP.trail.length).toFixed(3) + ")";
+    g.beginPath(); g.moveTo(MSP.trail[i - 1][0] * sc, MSP.trail[i - 1][1] * sc); g.lineTo(MSP.trail[i][0] * sc, MSP.trail[i][1] * sc); g.stroke();
+  }
+  if (sim.aim) { g.fillStyle = "rgba(240,194,74,.8)"; g.beginPath(); g.arc(sim.aim[0] * sc, sim.aim[1] * sc, 3, 0, 7); g.fill(); }
+  g.fillStyle = "#ff6b6b"; g.beginPath(); g.arc(MSP.ex * sc, MSP.ey * sc, 7, 0, 7); g.fill();
+  g.fillStyle = "#3fb0ea"; g.beginPath(); g.arc(f.x * sc, f.y * sc, 7, 0, 7); g.fill();
+  g.strokeStyle = "#fff"; g.beginPath(); g.moveTo(f.x * sc, f.y * sc); g.lineTo(f.x * sc + (f.facing_left ? -12 : 12), f.y * sc); g.stroke();
+  if (MSP.info) {
+    var ph = sim.st.phase >= 0 ? sim.style.phases[sim.st.phase] : null;
+    MSP.info.textContent = ph ? "Phase " + (sim.st.phase + 1) + (ph.name ? " · " + ph.name : "") + " · " + MS_PATTERN_LABEL[ph.pattern] + (ph.pattern === "hit_and_run" || ph.pattern === "lunge" ? " (" + (sim.st.ps.stage || "") + ")" : "")
+      : "No phase passes: the character's old movement runs (shown as a plain chase).";
+  }
+  requestAnimationFrame(msPreviewLoop);
+}
+function msField(s, obj, k, onStruct) {
+  var d = MS_FIELD[k] || [k, ""], v = obj[k], e;
+  var en = MOVESTYLE.ENUMS[k] || (k === "face" ? MOVESTYLE.FACES : k === "attacking" ? MOVESTYLE.ATTACKING : null);
+  if (en) e = inp(en.map(function (o) { return [o, o.replace("_", " ")]; }), v, function (x) { obj[k] = x; save(); });
+  else if (typeof v === "boolean") e = inp("chk", v, function (x) { obj[k] = x; save(); });
+  else {
+    var signed = MOVESTYLE.SIGNED.indexOf(k) >= 0, lo = signed ? -360 : 0, hi = signed ? 360 : 60000;
+    e = inp("n", v, function (x) { obj[k] = Math.max(lo, Math.min(hi, x)); save(); if (onStruct) onStruct(); }, lo, hi, /_pct$|_deg$/.test(k) ? 5 : /_ms/.test(k) ? 50 : 5);
+  }
+  field(s, d[0], e).title = d[1];
+}
+function buildMoveStyleProps(d) {
+  var s = sec(d, "Movement style (whole character)", "a-mstyle",
+    "How the character moves round its target: phases of movement patterns, each with modifiers and conditions.", "act");
+  var ms = S.moveStyle, ch = function () { save(); buildProps(); };
+  field(s, "Movement style", inp("chk", ms.enabled, function (v) { ms.enabled = v; if (v && !ms.phases.length) ms.phases.push(MOVESTYLE.normalizePhase({pattern: "orbit"})); ch(); })).title =
+    "On: the phases below decide how the character moves (Solo and Battle alike). Off: its normal movement.";
+  if (!ms.enabled) return;
+  field(s, "Choose phase by", inp([["priority", "Priority (first that passes)"], ["weighted", "Weighted random"], ["sequence", "Sequence (in order)"]], ms.select,
+    function (v) { ms.select = v; ch(); })).title =
+    "Priority: the first phase in the list whose conditions pass runs (checked again once its hold time is up). Weighted: when the hold is up, a random phase among those that pass, by weight. Sequence: when the hold is up, the next one in the list that passes. Weighted / sequence with no hold use 2000 ms. No phase passes: the old movement runs.";
+  field(s, "Dazed after knockback", inp("chk", ms.daze, function (v) { ms.daze = v; save(); })).title =
+    "On: after a knockback settles it wanders dazed for a moment (like the normal battle movement), then the style resumes.";
+  var pr = document.createElement("div"); pr.className = "row";
+  var psel = inp(Object.keys(MS_PRESETS).map(function (k) { return [k, MS_PRESETS[k].label]; }), "duelist", function () {});
+  var pbtn = document.createElement("button"); pbtn.textContent = "Use preset"; pbtn.title = "Replaces the phases (and Choose phase by) with a ready-made style to start from.";
+  pbtn.onclick = function () { var p = MS_PRESETS[psel.value]; ms.select = p.select; ms.phases = p.phases.map(function (x) { return MOVESTYLE.normalizePhase(clone(x)); }); msPreviewReset(); ch(); };
+  pr.appendChild(psel); pr.appendChild(pbtn); s.appendChild(pr);
+  // --- live preview
+  var pv = sec(s, "Live preview", "a-mstyle-pv", "", "act");
+  var cv = document.createElement("canvas"); cv.style.width = "100%"; cv.style.display = "block"; cv.style.cursor = "crosshair";
+  cv.title = "Blue = the fighter (white tick = facing), red = the target, yellow = where it is aiming. Drag to move the target.";
+  var toWorld = function (ev) { var r = cv.getBoundingClientRect(), k = 1600 / r.width; return [(ev.clientX - r.left) * k, (ev.clientY - r.top) * k]; };
+  cv.onmousedown = function (ev) { MSP.drag = true; MSP.tmode = "still"; tsel.value = "still"; var p = toWorld(ev); MSP.ex = p[0]; MSP.ey = p[1]; };
+  cv.onmousemove = function (ev) { if (MSP.drag) { var p = toWorld(ev); MSP.ex = p[0]; MSP.ey = p[1]; } };
+  cv.onmouseup = cv.onmouseleave = function () { MSP.drag = false; };
+  pv.appendChild(cv);
+  var info = document.createElement("div"); info.className = "note"; pv.appendChild(info);
+  MSP.canvas = cv; MSP.info = info;
+  var tsel = inp([["still", "Target still (drag it)"], ["wander", "Target wanders"], ["circle", "Target circles"], ["charge", "Target chases the fighter"]], MSP.tmode, function (v) { MSP.tmode = v; });
+  field(pv, "Target", tsel);
+  field(pv, "Own HP %", inp("n", MSP.hp, function (v) { MSP.hp = Math.max(0, Math.min(100, v)); }, 0, 100, 5)).title = "Preview only: for HP conditions.";
+  field(pv, "Attacking", inp("chk", MSP.attacking, function (v) { MSP.attacking = v; })).title = "Preview only: for Attacking conditions.";
+  var br = document.createElement("div"); br.className = "row";
+  [["Hit taken", function () { MSP.sim && MSP.sim.noteHitTaken(); }], ["Hit landed", function () { MSP.sim && MSP.sim.noteHitLanded(); }], ["Restart", msPreviewReset]].forEach(function (b) {
+    var e = document.createElement("button"); e.textContent = b[0]; e.onclick = b[1]; br.appendChild(e); });
+  pv.appendChild(br);
+  if (!MSP.running) { MSP.running = true; requestAnimationFrame(msPreviewLoop); }
+  // --- phases
+  ms.phases.forEach(function (ph, i) {
+    var box = sec(s, "Phase " + (i + 1) + ": " + (ph.name ? ph.name + " — " : "") + MS_PATTERN_LABEL[ph.pattern], "a-mstyle-ph", "", "act");
+    field(box, "Name", inp("text", ph.name, function (v) { ph.name = v; save(); })).title = "Only for you (shown in the preview).";
+    field(box, "Pattern", inp(MOVESTYLE.PATTERNS.map(function (p) { return [p, MS_PATTERN_LABEL[p]]; }), ph.pattern, function (v) {
+      ph.pattern = v; ph.params = MOVESTYLE.normalizePhase({pattern: v, params: ph.params}).params; ch(); })).title = MS_PATTERN_HELP[ph.pattern];
+    var hn = document.createElement("div"); hn.className = "note"; hn.textContent = MS_PATTERN_HELP[ph.pattern]; box.appendChild(hn);
+    Object.keys(ph.params).forEach(function (k) { msField(box, ph.params, k); });
+    field(box, "Hold ms (min)", inp("n", ph.hold_min_ms, function (v) { ph.hold_min_ms = Math.max(0, v); if (ph.hold_max_ms < ph.hold_min_ms) ph.hold_max_ms = ph.hold_min_ms; save(); }, 0, 60000, 50)).title =
+      "Once it starts, the phase runs at least a random time between min and max before the choice is made again.";
+    field(box, "Hold ms (max)", inp("n", ph.hold_max_ms, function (v) { ph.hold_max_ms = Math.max(ph.hold_min_ms, v); save(); }, 0, 60000, 50));
+    if (ms.select === "weighted") field(box, "Weight", inp("n", ph.weight, function (v) { ph.weight = Math.max(0, v); save(); }, 0, 100, 1)).title = "Bigger = picked more often.";
+    var mb = sec(box, "Modifiers", "a-mstyle-mod", "", "act");
+    Object.keys(ph.modifiers).forEach(function (k) { msField(mb, ph.modifiers, k); });
+    var wb = sec(box, "Runs when", "a-mstyle-when", "", "act");
+    Object.keys(ph.when).forEach(function (k) { msField(wb, ph.when, k); });
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up (earlier = higher priority)"; up.disabled = i === 0;
+    up.onclick = function () { ms.phases.splice(i - 1, 0, ms.phases.splice(i, 1)[0]); ch(); };
+    var dup = document.createElement("button"); dup.textContent = "Duplicate"; dup.onclick = function () { ms.phases.splice(i + 1, 0, clone(ph)); ch(); };
+    var rm = document.createElement("button"); rm.textContent = "Remove"; rm.onclick = function () { ms.phases.splice(i, 1); ch(); };
+    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
+  });
+  var ar = document.createElement("div"); ar.className = "row";
+  var asel = inp(MOVESTYLE.PATTERNS.map(function (p) { return [p, MS_PATTERN_LABEL[p]]; }), "orbit", function () {});
+  var add = document.createElement("button"); add.textContent = "+ Phase";
+  add.onclick = function () { ms.phases.push(MOVESTYLE.normalizePhase({pattern: asel.value})); ch(); };
+  ar.appendChild(asel); ar.appendChild(add); s.appendChild(ar);
+}
 // Character scale (pack character_scale), shown under every action's and
 // reaction's settings.
 // ------------------------------------------------------------ unique abilities
@@ -2692,6 +2907,7 @@ function buildReactionProps(d) {
     buildDamagedProps(d);
     buildRetreatProps(d);
     buildDodgeProps(d);
+    buildMoveStyleProps(d);
     return;
   }
   if (S.react === "retreat") {
@@ -2703,6 +2919,7 @@ function buildReactionProps(d) {
     note(s, "Preview: the figure dashes from its start spot (drag the target to change the heading) for the dash's duration, then the loop replays it. The target dummies' shots and FX count as projectiles to avoid.");
     buildRetreatProps(d);
     buildDodgeProps(d);
+    buildMoveStyleProps(d);
     buildCharFxProps(d);
     buildCharScaleProps(d);
     return;
@@ -2760,6 +2977,7 @@ function buildActionProps(d) {
   buildDamagedProps(d);
   buildRetreatProps(d);
   buildDodgeProps(d);
+  buildMoveStyleProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack distance", "a-range", "How close the target must be for this attack to start.", "act");

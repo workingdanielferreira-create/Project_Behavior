@@ -43,7 +43,7 @@ class MotionState:
                  "path", "follow", "runaway",
                  "battle_bounce_vx", "battle_bounce_vy", "knock_tick", "heavy_until",
                  "glide_vx", "glide_vy", "glide_dir", "glide_swap_ticks",
-                 "glide_t", "glide_back", "glide_alt")
+                 "glide_t", "glide_back", "glide_alt", "style")
 
     def __init__(self, speed, follow_speed, offset_x=0, offset_y=0,
                  min_move=0.5, rotate=False):
@@ -73,6 +73,7 @@ class MotionState:
         self.glide_t = 0          # ticks gliding (drives the S-curve weave)
         self.glide_back = False   # skating away from the way it faces
         self.glide_alt = None     # (action, frame set shown instead) while skating backwards
+        self.style = None         # movestyle.StyleState, made on first use (movement style)
 
 
 class TrailComponent:

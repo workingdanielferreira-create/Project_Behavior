@@ -26,6 +26,7 @@ laser/figure.py
 laser/geometry.py
 laser/modes.py
 laser/motion.py
+laser/movestyle.py
 laser/palette.py
 laser/platform_win.py
 laser/systems.py

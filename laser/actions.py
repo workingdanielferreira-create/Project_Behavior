@@ -57,6 +57,7 @@ import re
 
 from . import config
 from . import unique as _unique
+from . import movestyle as _movestyle
 
 TICK_MS = config.TICK_MS
 DEFAULT_ATTACK_GAP_MS = 350     # minimum gap between attacks without a cooldown
@@ -1009,6 +1010,7 @@ def clear_resisted(fig):
 
 def note_landed(fig):
     """One of this fighter's FX hits connected (landed_hit condition)."""
+    _movestyle.note_hit_landed(fig)
     r = getattr(fig, "act", None)
     if r is not None:
         r.landed += 1

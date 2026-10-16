@@ -62,6 +62,11 @@ these characters; it plays the PNGs.
             "side": "open", "angle_deg": 0, "flash": true, "afterimages": true, "during_attacks": true,
             "invulnerable": false, "invuln_ms": 150, "counter_action": "", "counter_delay_ms": 0,
             "counter_range_px": 0, "logic": "any", "conditions": [], "fx": ""},
+  "movement_style": {"enabled": false, "select": "priority", "daze": true,
+                     "phases": [{"name": "circle", "pattern": "orbit", "hold_min_ms": 0, "hold_max_ms": 0, "weight": 1,
+                                 "params": {"radius_px": 160, "direction": "alternate", "...": "per pattern"},
+                                 "modifiers": {"speed_pct": 100, "inertia_pct": 0, "...": "below"},
+                                 "when": {"dist_max_px": 200, "...": "below"}}]},
   "effects": [ { "...": "section 3" } ],
   "groups": [{"id": "G…", "name": "Group 1", "action": "attack_normal", "anchor": "haR", "offset": [0, 0]}]
 }
@@ -639,6 +644,53 @@ within `counter_range_px` (0 = any), skipping its conditions and cooldown.
 Image characters only; the built-in melee bullet dodge (swordsman, rig-drawn
 melee JSON) is unchanged and no longer applies to image characters. Solo has
 no enemy projectiles, so it only fires in Battle (same code path).
+
+**Movement style (`movement_style`, whole character; `laser/movestyle.py`).**
+How the fighter moves round its target (nearest enemy in Battle, the cursor in
+Solo — same code). Off, or no phases: its normal movement, unchanged. A rig-drawn
+`pb_character` JSON can set the same block as `"movement": {"style": {...}}`.
+`phases` is a list; each names one `pattern` with its `params`, `modifiers`
+layered on top and `when` conditions (all must pass). `select` picks the
+phase: `"priority"` = the first in the list that passes (checked again once
+its hold is up), `"weighted"` = a random one among those that pass, by
+`weight`, `"sequence"` = the next one in the list that passes. Once entered, a
+phase runs a random `hold_min_ms`..`hold_max_ms` before the choice is made
+again (weighted / sequence with no hold: 2000 ms). No phase passes: the
+normal movement runs for that tick. `daze`: after a knockback settles it
+wanders dazed for a moment first.
+Patterns (`PATTERN_DEFAULTS` in `laser/movestyle.py` lists every setting;
+px values are game px at 100 % and grow with the character scale; a
+`stop_px` of 0 = where it can attack): `chase` (`stop_px`, `overshoot_px` to
+run through), `orbit` (`radius_px`, `direction` cw / ccw / alternate swapping
+every `swap_ms_min`..`max`, `lead_deg`, `wobble_pct` / `wobble_ms`), `kite`
+(`min_px`..`max_px` band, `strafe` incl. `"none"`), `glide` (skating orbit:
+`drift_pct` momentum, `carve_deg` / `carve_ms` S-curves, `breathe_pct`),
+`zigzag` (`amplitude_px`, `leg_ms`, `smooth`), `hit_and_run` (`strike_px`,
+`dive_speed_pct`, `retreat_px`, `retreat_angle_deg`, `regroup_ms`,
+`dive_timeout_ms`), `lunge` (`trigger_px`, `approach_speed_pct`, `windup_ms`,
+`burst_speed_pct`, `burst_ms`, `recover_ms`), `flank` (`angle_deg` from the
+target's heading, 180 = its back; `radius_px`, `tolerance_deg`), `erratic`
+(`range_px`, `hop_min_px`..`max`, `hop_ms_min`..`max`, `pull_pct`), `stalk`
+(`keep_px`, `creep_speed_pct`, creep / freeze ms ranges), `pendulum`
+(`distance_px`, `swing_px`, `period_ms`), `figure8` (`radius_px`,
+`period_ms`, `axis` line / horizontal / vertical), `spiral` (`outer_px`,
+`inner_px`, `period_ms`, `direction`, `flow` in_out / in / out), `mirror`
+(`mode` mirror / copy, `distance_px`), `keep_away` (`comfort_px`,
+`pressure_pct`, `sway_px`, `sway_ms`), `shadow` (`offset_px`, `angle_deg`,
+`lag_ms`). The target's heading is the way it moves; until it moves it faces
+the fighter.
+`modifiers`: `speed_pct`, `pulse_pct` / `pulse_ms` (speed surges),
+`inertia_pct` (0 = turns instantly, 90 = drifts wide), `weave_deg` /
+`weave_ms` (snaking heading), `jitter_px` / `jitter_ms` (shaky aim),
+`pause_every_ms` (about, ±50 %; 0 = never) / `pause_ms` (stops dead), `face`
+(`"travel"` / `"target"`), `wall_avoid`.
+`when`: `dist_min_px`, `dist_max_px` (0 = any), `hp_min_pct`, `hp_max_pct`,
+`hit_taken_ms` / `hit_landed_ms` (0 = ignore; else only within that long
+after), `attacking` (`"any"` / `"yes"` / `"no"`), `fight_ms` (only once the
+fight has run that long). Attacks, knockback, dodges, retreats, blinks and an
+action's own Movement still take over as before; the style moves the fighter
+the rest of the time. FX Studio previews it live (`tools/fx/studio/movestyle.js`,
+a port checked by `tools/fx/check_parity.py`).
 
 **Triggered-reaction FX (effect `action`).** Besides an action name, an
 effect's `action` can be a reaction key (FX Studio: Actions > Triggered
