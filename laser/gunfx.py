@@ -34,7 +34,9 @@ Parameters (the technique's own, reused — FX Studio labels them per gun):
   length = range (px), swing_ticks = ticks between shots (charged blast:
   charge ticks; sniper: aim ticks; gatling: spin-up ticks), hold_ticks =
   how long it fires (charged blast: held at full charge; sniper: how long
-  the shot lingers), density = sparks / smoke / casings.
+  the shot lingers), density = sparks / smoke / casings.  dual_pistols only:
+  gap_px = distance between its two alternating firing points (0 = every
+  round from the anchor).
 
 Aim: with Aim target every round aims at where the target is the tick it
 fires (tracking fire); otherwise along the effect's direction.
@@ -214,7 +216,10 @@ class Round:
         ox, oy, f = _aim(inst, b)
         m = (1 if f[0] >= 0 else -1) if _tracks(inst) else inst.tq_m
         self.fr = S.Frame(0.0, 0.0, f, m)
-        sd = float(g["side"]) * ps
+        if st == "dual_pistols":
+            sd = max(0.0, float(P.get("gap_px", 18) or 0)) * 0.5 * ps
+        else:
+            sd = float(g["side"]) * ps
         if st == "gatling":
             lat = sd * math.sin(v * GAT_BARREL)
         else:

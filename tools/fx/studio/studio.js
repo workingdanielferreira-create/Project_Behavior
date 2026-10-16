@@ -1322,7 +1322,8 @@ var PARAM_UI = {
     ["lightning_rate", "Lightning rate", 0, 20, 0.1],
     ["aura_burst", "Power-up burst", "chk"], ["aura_debris", "Rising rocks", "chk"],
     ["aura_surges", "Power surges", "chk"], ["aura_cracks", "Ground cracks", "chk"],
-    ["aura_part", "Aura part", ["all", "body", "flames", "motion", "powerup", "ground", "lightning"]]]
+    ["aura_part", "Aura part", ["all", "body", "flames", "motion", "powerup", "ground", "lightning"]],
+    ["gap_px", "Muzzle gap px (dual pistols)", 0, 200, 1]]   // gun panel only (POWER_UI.dual_pistols)
 };
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
@@ -1416,6 +1417,7 @@ var POWER_UI = {
   POWER_UI.magnum = gun("Premium magnum", "Heavy hand-cannon slugs: a boom flash with side jets, a thick tracer wrapped in rifling rings, a spiked impact star with shockwave rings.", RATE, FIRE, ONCE);
   POWER_UI.charged_blast = gun("Charged blast", "Energy gathers (streaks rushing in, rings closing on a growing orb), holds, then one huge orb flies and explodes.", ["Charge ticks", 1, 240, 1, "How long it charges before it is full."], ["Hold ticks", 0, 240, 1, "How long it holds at full charge before it fires."], " Bullet size = orb size, Impact size = explosion size.");
   POWER_UI.dual_pistols = gun("Gun-kata dual pistols", "Rounds from alternating hands, each flash with a swing arc, casings flying off both sides.", RATE, FIRE, ONCE);
+  POWER_UI.dual_pistols.rows.push(["gap_px", "Muzzle gap px", 0, 200, 1, "Distance between the two alternating firing points (18 = the original look, 0 = every round from the anchor)."]);
   POWER_UI.sniper_rail = gun("Sniper rail shot", "A laser sight and a lock-on reticle, then one instant rail shot: a line wrapped in a helix and shock rings. The hit bursts a beat later. Hits along its whole line.", ["Aim ticks", 1, 240, 1, "How long it aims (the reticle locks on) before it fires."], ["Linger ticks", 1, 240, 1, "How long the rail line hangs in the air."]);
   POWER_UI.gatling = gun("Gatling spin-up", "The barrels spin up, then fire faster and faster; they glow with heat and smoke as they spin down.", ["Spin-up ticks", 1, 240, 1, "How long the barrels spin before the first round."], FIRE, ONCE);
   POWER_UI.rocket_barrage = gun("Rocket barrage", "Missiles launch on alternating arcs, speed up, leave smoke trails and explode on the target. Spread is not used.", ["Ticks between rockets", 1, 120, 1, "A new rocket every this many ticks."], FIRE, ONCE);
@@ -1844,7 +1846,7 @@ function buildProps() {
     var k = u[0], kind = u[2];
     // A power technique shows only the style picker here; its own panel follows.
     if (pw && k !== "style") return;
-    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0)) return;
+    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0 || k === "gap_px")) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {

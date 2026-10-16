@@ -115,7 +115,7 @@ function Round(inst, i, v, j, b, ps) {
   var am = aim(inst, b), ox = am[0], oy = am[1], f = am[2];
   var m = tracks(inst) ? (f[0] >= 0 ? 1 : -1) : inst.tq_m;
   this.fr = new L.Frame(0, 0, f, m);
-  var sd = +g.side * ps, lat;
+  var sd = st === "dual_pistols" ? Math.max(0, +(P.gap_px == null ? 18 : P.gap_px) || 0) * 0.5 * ps : +g.side * ps, lat;
   if (st === "gatling") lat = sd * Math.sin(v * GAT_BARREL);
   else lat = v % 2 === 0 ? sd : -sd;
   var so = this.fr.d(0, lat);
