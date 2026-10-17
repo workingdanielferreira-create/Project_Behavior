@@ -116,7 +116,11 @@ button:disabled:hover{border-color:var(--line);color:var(--ink)}
 .xcard .sl,.xpose .sl{grid-template-columns:70px 1fr 44px}
 .xpanel{display:flex;align-items:flex-start;gap:8px;overflow-x:auto;padding:8px 0 4px}
 .xpanel[hidden]{display:none}
-.xpanel .xcard{flex:0 0 230px;background:var(--panel)}
+.xcard .sl.xm{grid-template-columns:62px 1fr 38px 34px}
+.xallb{display:flex;align-items:center;gap:2px;font-size:10px;color:var(--muted);cursor:pointer}
+.xallb input{margin:0}
+.xfar{justify-content:space-between;align-items:center}
+.xpanel .xcard{flex:0 0 262px;background:var(--panel)}
 .xdd{border:1px solid var(--line);border-radius:4px}
 .xdd>summary{cursor:pointer;padding:6px 8px;font-size:12px}
 .xddlist{display:flex;flex-direction:column;gap:4px;padding:4px 8px 8px;max-height:220px;overflow-y:auto}
@@ -2336,8 +2340,7 @@ function syncSliders(){
     var i=document.getElementById("sl_"+r[0]);if(!i)return;
     i.value=p[r[0]];i.nextSibling.textContent=(+p[r[0]]).toFixed(i.step==1?0:2);
   });});
-  Array.prototype.forEach.call(document.querySelectorAll("input[data-xs]"),function(i){
-    var k=+i.dataset.xk,xv=xlPose(p,i.dataset.xs);i.value=xv[k];i.nextSibling.textContent=(+xv[k]).toFixed(k?2:0);});
+  xRefreshInputs();
 }
 /* ---- Rig tab: added lines + anchors ---- */
 function xNewId(pre){var n=1;while(xDef(pre+n)||BASE_JOINTLBL[pre+n])n++;return pre+n;}
@@ -2356,14 +2359,64 @@ function xRemove(id){
   xChanged();
 }
 function xField(lbl,node){var f=el("div","fld");f.appendChild(el("label",null,lbl));f.appendChild(node);return f;}
-function xSlider(lbl,min,max,step,val,tip,fn,reset){
-  var row=el("div","sl"),lab=el("label",null,lbl);lab.title=tip;
+/* card settings: [line|anchor, get, put].  fa / fs are this keyframe's angle and stretch. */
+var XK={
+  fa:["l",function(d){return xlPose(CUR(),d.id)[0];},function(d,v){var q=KF();if(!q._xl)q._xl={};var w=xlPose(q,d.id).slice();w[0]=v;q._xl[d.id]=w;}],
+  fs:["l",function(d){return xlPose(CUR(),d.id)[1];},function(d,v){var q=KF();if(!q._xl)q._xl={};var w=xlPose(q,d.id).slice();w[1]=v;q._xl[d.id]=w;}],
+  len:["l",function(d){return+d.len||0;},function(d,v){d.len=v;}],
+  ang:["l",function(d){return+d.ang||0;},function(d,v){d.ang=v;}],
+  w:["l",function(d){return isFinite(+d.w)?+d.w:1;},function(d,v){d.w=v;}],
+  wd0:["l",function(d){return wdOf(S.rig,"x:"+d.id)[0];},function(d,v){if(!S.rig.wd)S.rig.wd={};var w=wdOf(S.rig,"x:"+d.id);w[0]=v;S.rig.wd["x:"+d.id]=w;}],
+  wd1:["l",function(d){return wdOf(S.rig,"x:"+d.id)[1];},function(d,v){if(!S.rig.wd)S.rig.wd={};var w=wdOf(S.rig,"x:"+d.id);w[1]=v;S.rig.wd["x:"+d.id]=w;}],
+  far:["l",function(d){return!!d.far;},function(d,v){d.far=!!v;}],
+  t:["a",function(d){return Math.round((isFinite(+d.t)?+d.t:0.5)*100);},function(d,v){d.t=v/100;}]
+};
+/* XALL[key]: in the multi-line panel, that setting is linked — a change on any card sets it on
+   every selected line (or anchor) */
+var XALL={};
+function xIsLine(d){return d&&d.b==null;}
+function xTargets(d,key,multi){
+  if(!multi||!XALL[key])return[d];
+  var want=XK[key][0]==="l";
+  return XSEL.map(xDef).filter(function(o){return o&&xIsLine(o)===want;});
+}
+function xFmt(key,v){return key==="fs"?(+v).toFixed(2):String(Math.round(v*100)/100);}
+/* show the current values in every card input (after a linked change, a frame change …) */
+function xRefreshInputs(){
+  Array.prototype.forEach.call(document.querySelectorAll("[data-xkey]"),function(i){
+    var d=xDef(i.dataset.xid),k=XK[i.dataset.xkey];if(!d||!k)return;var v=k[1](d);
+    if(i.type==="checkbox"){if(!i.classList.contains("xall"))i.checked=!!v;return;}
+    i.value=v;if(i.nextSibling)i.nextSibling.textContent=xFmt(i.dataset.xkey,v);});
+}
+function xAllBox(key){
+  var lab=el("label","xallb"),cb=document.createElement("input");cb.type="checkbox";cb.className="xall";
+  cb.dataset.xkey=key;cb.checked=!!XALL[key];
+  cb.title="Link this setting: changing it on any card sets it on every selected "+(XK[key][0]==="l"?"line":"anchor");
+  cb.onchange=function(){if(cb.checked)XALL[key]=true;else delete XALL[key];
+    Array.prototype.forEach.call(document.querySelectorAll("input.xall[data-xkey='"+key+"']"),function(o){o.checked=cb.checked;});};
+  lab.appendChild(cb);lab.appendChild(document.createTextNode("all"));return lab;
+}
+function xSlider(d,key,lbl,min,max,step,tip,reset,multi){
+  var row=el("div","sl"+(multi?" xm":"")),lab=el("label",null,lbl);lab.title=tip;
+  var val=XK[key][1](d);
   var inp=document.createElement("input");inp.type="range";inp.min=min;inp.max=max;inp.step=step;inp.value=val;
-  var v=el("span","val",String(Math.round(val*100)/100));
-  function set(x){fn(x);inp.value=x;v.textContent=String(Math.round(x*100)/100);xlSync();render();buildFilm();save();}
+  inp.dataset.xid=d.id;inp.dataset.xkey=key;
+  var v=el("span","val",xFmt(key,val));
+  function set(x){if(key==="fa"||key==="fs")commitPreview();
+    xTargets(d,key,multi).forEach(function(o){XK[key][2](o,x);});
+    xlSync();xRefreshInputs();render();buildFilm();save();}
   inp.oninput=function(){set(parseFloat(inp.value));};
   if(reset!=null)inp.ondblclick=function(){set(reset);};
-  row.appendChild(lab);row.appendChild(inp);row.appendChild(v);return row;
+  row.appendChild(lab);row.appendChild(inp);row.appendChild(v);if(multi)row.appendChild(xAllBox(key));return row;
+}
+/* a new line starting at point `at`, added to the current selection */
+function xAddLine(at,only){
+  var ow=null;LAYERS.forEach(function(L){if(L.b===at||L.b2===at)ow=L;});
+  var id=xNewId("xl"),par=xDef(at);
+  S.rig.xl.push({id:id,name:"line "+id.slice(2),at:at,len:30,ang:0,
+    far:par&&xIsLine(par)?!!par.far:!!(ow&&ow.far),w:0.8});
+  if(only)XSEL=[id];else if(XSEL.indexOf(id)<0)XSEL.push(id);
+  xChanged();toast("Added "+id+" from "+(JOINTLBL[at]||at)+" — drag its teal handle to pose it");
 }
 function xSelect(opts,val,fn){
   var sel=document.createElement("select");
@@ -2378,7 +2431,7 @@ function xName(x){
    One picked: its card shows under the dropdown.  Two or more: their cards sit side by side in
    the panel under the stage. */
 var XSEL=[],XDDOPEN=false;
-function xAnchorCard(a){
+function xAnchorCard(a,multi){
   var card=el("div","xcard");card.appendChild(el("div","xhd","anchor · "+a.id));
   card.appendChild(xField("name",xName(a)));
   /* lines this anchor can sit on: not one that hangs off the anchor itself */
@@ -2387,56 +2440,43 @@ function xAnchorCard(a){
   if(cur<0){segs.unshift([a.a,a.b,(JOINTLBL[a.a]||a.a)+" → "+(JOINTLBL[a.b]||a.b)+" (missing)"]);cur=0;}
   card.appendChild(xField("on line",xSelect(segs.map(function(g,i){return[String(i),g[2]];}),String(cur),function(v){
     var g=segs[+v];if(!g)return;a.a=g[0];a.b=g[1];xChanged();})));
-  card.appendChild(xSlider("position",0,100,1,Math.round((isFinite(+a.t)?+a.t:0.5)*100),
-    "% of the way along the line from its first point — 50 is the centre. Double-click to re-centre.",
-    function(v){a.t=v/100;},50));
-  var del=el("button","mini warn","Remove anchor");
+  card.appendChild(xSlider(a,"t","position",0,100,1,
+    "% of the way along the line from its first point — 50 is the centre. Double-click to re-centre.",50,multi));
+  var bar=el("div","row"),add=el("button","mini","+ Line"),del=el("button","mini warn","Remove anchor");
+  add.title="Add a line starting at this anchor";add.onclick=function(){xAddLine(a.id);};
   del.onclick=function(){var n=Object.keys(xDesc(a.id)).length-1;
     if(!n){xRemove(a.id);return;}
     askConfirm("Remove "+(a.name||a.id)+" and the "+n+" line"+(n>1?"s / anchors":"")+" attached to it?",function(ok){if(ok)xRemove(a.id);});};
-  card.appendChild(del);return card;
+  bar.appendChild(add);bar.appendChild(del);card.appendChild(bar);return card;
 }
-function xLineCard(x){
+function xLineCard(x,multi){
   var card=el("div","xcard");card.appendChild(el("div","xhd","line · "+x.id));
   card.appendChild(xField("name",xName(x)));
   /* this keyframe's pose: angle on top of the rest angle, and stretch */
-  var p=CUR(),xv=xlPose(p,x.id);
-  [["angle",0,-360,360,1],["stretch",1,0,6,0.01]].forEach(function(r){
-    var row=el("div","sl"),lab=el("label",null,r[0]);
-    lab.title=r[1]?"Length × for this keyframe. Double-click for 1.":"Degrees added to the rest angle, this keyframe. Double-click for 0.";
-    var inp=document.createElement("input");inp.type="range";inp.min=r[2];inp.max=r[3];inp.step=r[4];inp.value=xv[r[1]];
-    inp.dataset.xs=x.id;inp.dataset.xk=r[1];var v=el("span","val",(+xv[r[1]]).toFixed(r[1]?2:0));
-    function set(val){commitPreview();var q=KF();if(!q._xl)q._xl={};var w=xlPose(q,x.id).slice();
-      w[r[1]]=val;q._xl[x.id]=w;syncSliders();render();buildFilm();save();}
-    inp.oninput=function(){set(parseFloat(inp.value));};
-    inp.ondblclick=function(){set(r[1]?1:0);};
-    row.appendChild(lab);row.appendChild(inp);row.appendChild(v);card.appendChild(row);
-  });
+  card.appendChild(xSlider(x,"fa","angle",-360,360,1,"Degrees added to the rest angle, this keyframe. Double-click for 0.",0,multi));
+  card.appendChild(xSlider(x,"fs","stretch",0,6,0.01,"Length × for this keyframe. Double-click for 1.",1,multi));
   var own=xDesc(x.id),pts=xPoints().filter(function(o){return!own[o[0]];});
   if(!pts.some(function(o){return o[0]===x.at;}))pts.unshift([x.at,x.at+" (missing)"]);
   card.appendChild(xField("starts at",xSelect(pts,x.at,function(v){x.at=v;xChanged();})));
-  card.appendChild(xSlider("length",0,240,1,+x.len||0,"Rig length of the line; each keyframe can stretch it (Ctrl-drag its handle).",
-    function(v){x.len=v;}));
-  card.appendChild(xSlider("rest angle",-180,180,1,+x.ang||0,
-    "Degrees from the bone it starts on (0 = straight on along that bone). Each keyframe adds its own angle on top. Double-click for 0.",
-    function(v){x.ang=v;},0));
-  card.appendChild(xSlider("thickness",0,3,0.05,+x.w||1,"Width as a multiple of a body bone's. Double-click for 1.",
-    function(v){x.w=v;},1));
-  var wd=wdOf(S.rig,"x:"+x.id);
-  [["start %",0],["end %",1]].forEach(function(e){
-    card.appendChild(xSlider(e[0],0,300,1,wd[e[1]],"Width at the "+(e[1]?"end":"start")+" of the line, % — different start and end widths taper it. Double-click for 100.",
-      function(v){if(!S.rig.wd)S.rig.wd={};var w=wdOf(S.rig,"x:"+x.id);w[e[1]]=v;S.rig.wd["x:"+x.id]=w;},100));
-  });
-  var fr=el("label","tgl"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!x.far;
-  cb.onchange=function(){x.far=cb.checked;xChanged();};
-  fr.appendChild(cb);fr.appendChild(document.createTextNode(" far side (drawn dimmer)"));card.appendChild(fr);
-  var del=el("button","mini warn","Remove line");
+  card.appendChild(xSlider(x,"len","length",0,240,1,"Rig length of the line; each keyframe can stretch it (Ctrl-drag its handle).",null,multi));
+  card.appendChild(xSlider(x,"ang","rest angle",-180,180,1,
+    "Degrees from the bone it starts on (0 = straight on along that bone). Each keyframe adds its own angle on top. Double-click for 0.",0,multi));
+  card.appendChild(xSlider(x,"w","thickness",0,3,0.05,"Width as a multiple of a body bone's. Double-click for 1.",1,multi));
+  card.appendChild(xSlider(x,"wd0","start %",0,300,1,"Width at the start of the line, % — different start and end widths taper it. Double-click for 100.",100,multi));
+  card.appendChild(xSlider(x,"wd1","end %",0,300,1,"Width at the end of the line, % — different start and end widths taper it. Double-click for 100.",100,multi));
+  var frow=el("div","row xfar"),fr=el("label","tgl"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!x.far;
+  cb.dataset.xid=x.id;cb.dataset.xkey="far";
+  cb.onchange=function(){var v=cb.checked;xTargets(x,"far",multi).forEach(function(o){o.far=v;});xChanged();};
+  fr.appendChild(cb);fr.appendChild(document.createTextNode(" far side (drawn dimmer)"));frow.appendChild(fr);
+  if(multi)frow.appendChild(xAllBox("far"));card.appendChild(frow);
+  var bar=el("div","row"),add=el("button","mini","+ Line"),del=el("button","mini warn","Remove line");
+  add.title="Add a line starting at the end of this line";add.onclick=function(){xAddLine(x.id);};
   del.onclick=function(){var n=Object.keys(xDesc(x.id)).length-1;
     if(!n){xRemove(x.id);return;}
     askConfirm("Remove "+(x.name||x.id)+" and the "+n+" line"+(n>1?"s / anchors":"")+" attached to it?",function(ok){if(ok)xRemove(x.id);});};
-  card.appendChild(del);return card;
+  bar.appendChild(add);bar.appendChild(del);card.appendChild(bar);return card;
 }
-function xCard(id){var d=xDef(id);if(!d)return null;return d.b!=null?xAnchorCard(d):xLineCard(d);}
+function xCard(id,multi){var d=xDef(id);if(!d)return null;return d.b!=null?xAnchorCard(d,multi):xLineCard(d,multi);}
 /* every line and anchor, in one multi-select dropdown */
 function xDropdown(){
   var items=xaOf(S.rig).map(function(a){return[a.id,"anchor · "+(a.name||a.id)];})
@@ -2471,11 +2511,7 @@ function buildXl(){
     bl.onclick=function(){
       var pts=xPoints();
       askSelect("Start the new line from:",pts,pts.some(function(o){return o[0]==="haR";})?"haR":pts[0][0],function(at){
-        if(!at)return;
-        var ow=null;LAYERS.forEach(function(L){if(L.b===at||L.b2===at)ow=L;});
-        var id=xNewId("xl");
-        S.rig.xl.push({id:id,name:"line "+id.slice(2),at:at,len:30,ang:0,far:!!(ow&&ow.far),w:0.8});
-        XSEL=[id];xChanged();toast("Added "+id+" — drag its teal handle to pose it");
+        if(!at)return;xAddLine(at,true);
       });
     };
     ba.onclick=function(){
@@ -2510,7 +2546,7 @@ function buildXl(){
   }
   var pn=document.getElementById("xlpanel");
   if(pn){pn.innerHTML="";pn.hidden=XSEL.length<2;
-    if(XSEL.length>1)XSEL.forEach(function(k){var c3=xCard(k);if(c3)pn.appendChild(c3);});}
+    if(XSEL.length>1)XSEL.forEach(function(k){var c3=xCard(k,true);if(c3)pn.appendChild(c3);});}
 }
 
 /* ---- layers ---- */
