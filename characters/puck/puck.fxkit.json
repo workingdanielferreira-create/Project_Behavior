@@ -11798,7 +11798,7 @@
   "anti_knockback": 20
  },
  "retreat": {
-  "enabled": true,
+  "enabled": false,
   "mode": "reengage",
   "angle_deg": 90,
   "curve_deg_s": 0,
@@ -12256,7 +12256,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -12381,7 +12382,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -12506,7 +12508,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -12631,7 +12634,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -12756,7 +12760,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -12881,7 +12886,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -13006,7 +13012,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -13131,7 +13138,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -13256,7 +13264,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -13381,7 +13390,8 @@
     "jitter": 0,
     "grow_ticks": 0,
     "tip_fade": 0.25,
-    "detach_ticks": 0
+    "detach_ticks": 0,
+    "pos_scale": false
    },
    "keys": [
     {
@@ -14142,7 +14152,8 @@
     "jitter": 0,
     "detach_ticks": 0,
     "grow_ticks": 0,
-    "tip_fade": 0.4
+    "tip_fade": 0.4,
+    "pos_scale": false
    },
    "battle": {
     "deals_damage": true,
@@ -14328,7 +14339,16 @@
     "aura_debris": true,
     "aura_surges": true,
     "aura_cracks": false,
-    "aura_part": "all"
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -14426,7 +14446,16 @@
     "aura_debris": true,
     "aura_surges": true,
     "aura_cracks": false,
-    "aura_part": "all"
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0
    },
    "id": "Emv2or14g13",
    "action": "attack_normal",
@@ -14516,7 +14545,16 @@
     "aura_surges": false,
     "aura_cracks": false,
     "density": 1,
-    "rotation_deg": 0
+    "rotation_deg": 0,
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0
    },
    "id": "Emv97qyti2",
    "action": "@character",
@@ -14593,7 +14631,7 @@
  ],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
  "unique_ability": {
-  "type": "riposte",
+  "type": "domain_expansion",
   "mirror_legion": {
    "trigger": "hp_below",
    "hp_thresholds": "70,50,30",
@@ -14673,6 +14711,259 @@
    "cooldown_ms": 1500,
    "invuln_ms": 250,
    "color": "#ffd34a"
+  },
+  "dual_form": {
+   "trigger": "gauge",
+   "gauge_hits": 12,
+   "every_ms": 8000,
+   "hp_thresholds": "60,30",
+   "combo_hits": 4,
+   "combo_window_ms": 1500,
+   "cooldown_ms": 2000,
+   "buff_ms": 2000,
+   "buff_speed_pct": 30,
+   "buff_damage_pct": 30,
+   "transition_fx": true,
+   "show_gauge": true,
+   "form_a": {
+    "name": "Form A",
+    "speed_pct": 100,
+    "damage_pct": 100,
+    "taken_pct": 100,
+    "palette": false,
+    "body": "#f2f4f6",
+    "accent": "#3fb0ea",
+    "aura": false,
+    "aura_color": "#3fb0ea"
+   },
+   "form_b": {
+    "name": "Form B",
+    "speed_pct": 120,
+    "damage_pct": 130,
+    "taken_pct": 120,
+    "palette": true,
+    "body": "#ffe0e0",
+    "accent": "#ff3a3a",
+    "aura": true,
+    "aura_color": "#ff3a3a"
+   },
+   "actions": {}
+  },
+  "summoner": {
+   "construct": "turret",
+   "trigger": "timer",
+   "every_ms": 6000,
+   "hp_thresholds": "75,50,25",
+   "every_hits": 6,
+   "count": 1,
+   "max_alive": 3,
+   "life_ms": 12000,
+   "construct_hp": 15,
+   "placement": "around",
+   "spread_px": 80,
+   "fire_ms": 900,
+   "shot_damage": 2,
+   "shot_speed_pct": 100,
+   "range_px": 500,
+   "heal_per_s": 2,
+   "shield_pct": 40,
+   "aura_px": 220,
+   "bite_damage": 3,
+   "bite_ms": 700,
+   "chase_speed_pct": 120,
+   "size_px": 14,
+   "color": "#7cf3ff"
+  },
+  "aegis": {
+   "shield_hp": 30,
+   "regen_delay_ms": 3000,
+   "regen_per_s": 8,
+   "blocks": {
+    "projectiles": true,
+    "fx": true,
+    "melee": true
+   },
+   "wave_px": 180,
+   "wave_damage": 4,
+   "wave_knockback_px": 120,
+   "stun_ms": 900,
+   "show_bar": true,
+   "color": "#6fd0ff"
+  },
+  "terraform": {
+   "structure": "wall",
+   "trigger": "enemy_near",
+   "every_ms": 5000,
+   "near_px": 200,
+   "cooldown_ms": 2000,
+   "max_alive": 3,
+   "life_ms": 10000,
+   "struct_hp": 20,
+   "placement": "between",
+   "distance_px": 110,
+   "size_px": 42,
+   "wall_len_px": 120,
+   "blocks_own": true,
+   "shatter": true,
+   "shrapnel": 6,
+   "shrapnel_damage": 2,
+   "color": "#c9a46a"
+  },
+  "rewind_bullets": {
+   "trigger": "delay",
+   "delay_ms": 700,
+   "recall_every_ms": 2500,
+   "return_speed_pct": 120,
+   "return_damage_pct": 100,
+   "pass_fx": true,
+   "fx_too": true,
+   "tint": true,
+   "color": "#b48cff"
+  },
+  "phantom_swap": {
+   "trigger": "cooldown",
+   "cooldown_ms": 4000,
+   "chance_pct": 30,
+   "uses": 0,
+   "targets": {
+    "enemy": true,
+    "clone": true,
+    "own_shot": false
+   },
+   "reverse_enemy_shots": true,
+   "reverse_px": 160,
+   "reaim_own_shots": true,
+   "invuln_ms": 250,
+   "swap_fx": true,
+   "color": "#e07bff"
+  },
+  "domain_expansion": {
+   "fill": "hp_below",
+   "fill_hits": 15,
+   "fill_damage": 30,
+   "fill_ms": 20000,
+   "hp_below_pct": 20,
+   "duration_ms": 6000,
+   "cooldown_ms": 4000,
+   "rules": {
+    "enemy_shots_off": false,
+    "guaranteed_hits": false,
+    "gravity": false,
+    "huge_fx": false,
+    "slow_enemy": false,
+    "heal_on_damage": false,
+    "blink_no_cd": true
+   },
+   "gravity_mode": "pull",
+   "gravity_to": "owner",
+   "gravity_px": 2.5,
+   "fx_size_pct": 180,
+   "slow_pct": 50,
+   "tint": true,
+   "tint_color": "#e7dda6",
+   "tint_pct": 10,
+   "show_gauge": true
+  },
+  "fusion": {
+   "result": "",
+   "conds": {
+    "hp_below": true,
+    "close": true,
+    "field_time": false,
+    "hits_landed": false
+   },
+   "hp_below_pct": 50,
+   "close_px": 160,
+   "field_ms": 10000,
+   "hits": 10,
+   "ending": "timed",
+   "duration_ms": 15000,
+   "cooldown_ms": 10000,
+   "aura": true,
+   "aura_color": "#ffffff"
   }
+ },
+ "movement_style": {
+  "enabled": true,
+  "select": "priority",
+  "daze": true,
+  "phases": [
+   {
+    "name": "Dive",
+    "pattern": "chase",
+    "hold_min_ms": 900,
+    "hold_max_ms": 1600,
+    "weight": 1,
+    "params": {
+     "stop_px": 375,
+     "overshoot_px": 0
+    },
+    "modifiers": {
+     "speed_pct": 500,
+     "pulse_pct": 20,
+     "pulse_ms": 1000,
+     "inertia_pct": 55,
+     "weave_deg": 5,
+     "weave_ms": 550,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "target",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 400,
+     "dist_max_px": 0,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0,
+     "enemy": "any"
+    }
+   },
+   {
+    "name": "",
+    "pattern": "hit_and_run",
+    "hold_min_ms": 0,
+    "hold_max_ms": 0,
+    "weight": 1,
+    "params": {
+     "strike_px": 60,
+     "dive_speed_pct": 500,
+     "retreat_px": 260,
+     "retreat_angle_deg": 35,
+     "regroup_ms": 700,
+     "dive_timeout_ms": 2500
+    },
+    "modifiers": {
+     "speed_pct": 500,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 45,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "target",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 405,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0,
+     "enemy": "any"
+    }
+   }
+  ]
  }
 }
