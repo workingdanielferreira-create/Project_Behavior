@@ -55,7 +55,7 @@ class TimeState:
     reads."""
     __slots__ = ("active", "action", "t", "fired", "last_action", "last_frame", "end", "cfg", "speed",
                  "body", "fx", "body_acc", "fx_acc", "body_steps", "fx_steps", "frozen",
-                 "act_name", "act_start")
+                 "act_name", "act_start", "left")
 
     def __init__(self):
         self.active = False       # this figure's time effect is running
@@ -76,6 +76,7 @@ class TimeState:
         self.frozen = False       # body takes no step at all this tick
         self.act_name = None      # actions.action_info
         self.act_start = 0
+        self.left = None          # ticks left of a Transformations transition's time effect without an action
 
 
 def state(fig):
@@ -109,22 +110,39 @@ def update_caster(fig, world):
         st.active = False
         st.speed = 1.0
         return
+    from . import unique
     action, frame = current_action(fig)
     new_pass = action != st.last_action or frame < st.last_frame
     st.last_action, st.last_frame = action, frame
     if new_pass:
         st.fired = False
     if st.active:
-        if new_pass or frame > st.end:
+        if st.left is not None:            # a transition's, timed in ms
+            st.left -= 1
+            if st.left <= 0:
+                st.active, st.left = False, None
+            else:
+                st.t += 1
+        elif new_pass or frame > st.end:
             st.active = False
         else:
             st.t += 1
+    # A Transformations transition without an action: its Time control runs
+    # for its own duration from now.
+    tt = unique.take_transition_time(fig)
+    if tt is not None:
+        st.active, st.t, st.cfg, st.action, st.end, st.left = True, 0, tt[0], "@transform", -1, tt[1]
+        action_log.log("TIME", "%s transform: %s x%.2f for %d ticks" % (fig.mode.key, tt[0]["scope"], tt[0]["speed"], tt[1]))
     if not st.active and not st.fired:
-        cfg = (cfx.settings.get(action) or {}).get("time")
+        # Playing as a transition's action: the transition's Time control
+        # replaces the action's own (as its own FX are).
+        cfg = unique.transition_time(fig, action) if unique.in_transition_action(fig, action) \
+            else (cfx.settings.get(action) or {}).get("time")
         if cfg and cfg["enabled"]:
             n, _fm = cfx.timing.get(action, (1, 100.0))
             end = n - 1 if cfg["end_frame"] < 0 else min(n - 1, cfg["end_frame"])
-            if cfg["start_frame"] <= frame <= end and _conds_ok(fig, world, action, cfg):
+            if cfg["start_frame"] <= frame <= end and (unique.in_transition_action(fig, action)
+                                                      or _conds_ok(fig, world, action, cfg)):
                 st.active, st.fired, st.t, st.cfg, st.action, st.end = True, True, 0, cfg, action, end
                 action_log.log("TIME", "%s %s: %s x%.2f frames %d-%d" % (
                     fig.mode.key, action, cfg["scope"], cfg["speed"], cfg["start_frame"], end))
