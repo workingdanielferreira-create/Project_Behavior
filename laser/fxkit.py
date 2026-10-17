@@ -1153,7 +1153,7 @@ class Inst:
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
-                 "ua_rb", "ua_cd", "ua_dm")
+                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t")
 
     def __init__(self):
         # Unique ability Ricochet (laser/unique.py): bounces left (None = not
@@ -1161,6 +1161,10 @@ class Inst:
         self.ua_rb = None
         self.ua_cd = 0
         self.ua_dm = 1.0
+        # Rewind Bullets: None = not read yet, -1 off, 0 flying out, 1
+        # returning; ua_t = ticks flown out.
+        self.ua_rw = None
+        self.ua_t = 0
         self.mk = self.ma = None   # motion kind / aim at the last tick (motion_switch)
         self.run = False       # spawned by a Continuous run
         self.tgt = None        # Each in place: the target this blade aims at (blade_pose)
@@ -1240,7 +1244,8 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     inst.ep = ep
     inst.tgt = aim_target(fx, host)
     spd = float(m["speed"] or 0)
-    ps = host_scale(host)
+    # Domain Expansion 'Huge FX' (laser/unique.py): launched bigger.
+    ps = host_scale(host) * _unique.fx_size_mult(getattr(host, "fig", None))
     inst.ps = ps     # the figure's size when fired: what is launched keeps it
     inst.spd = spd   # keyframed speed: move_inst rescales the velocity when it changes
     if m["kind"] == "path":

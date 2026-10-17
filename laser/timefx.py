@@ -152,12 +152,13 @@ def plan(world):
             st = getattr(f, "time", None)
             if st is not None and st.active:
                 casters.append((f, si, st.cfg["scope"], st.speed))
-    # Unique ability Berserker: the fighter's own body (and, if set, its own
-    # FX / bullets) run faster the more HP it has lost — every state, so
-    # movement, attacks and recoveries all speed up together.
+    # Unique abilities: Berserker / Dual Form speed the fighter's own body
+    # (Berserker: and, if set, its own FX / bullets) in every state; an
+    # enemy domain's slow scales a fighter's body and shots; an Aegis
+    # shockwave stun stops the body (0) while its FX run on.
     boosts = {}
     for f in world.all_figures():
-        b, bf = unique.speed_mult(f), unique.fx_speed_mult(f)
+        b, bf = unique.speed_mult(f, world), unique.fx_speed_mult(f, world)
         if b != 1.0 or bf != 1.0:
             boosts[id(f)] = (b, bf)
     if not casters and not boosts:

@@ -221,7 +221,7 @@ def resists_knockback(fig, knockback):
     return ak > 0 and ak >= float(knockback or 0)
 
 
-def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False):
+def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, kind="melee"):
     """Deduct `amount` HP from fig (default 1, the historical flat per-hit
     value every built-in attack still uses) and report the death when HP
     reaches 0 (solo: run ends; battle: the fallen fighter is removed and the
@@ -239,6 +239,10 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False):
 
     `_ua_checked`: battle_hit already asked the unique ability whether it
     nullifies this hit (so a chance roll isn't made twice).
+
+    `kind` = projectile | fx | melee: where the hit came from, for the Aegis
+    unique ability's "blocks" ticks (bullets pass "projectile", FX Studio
+    hits "fx", everything else is "melee").
     """
     # Damage cooldown: still invincible from the last hit — nothing lands.
     if damage_immune(fig, world):
@@ -257,10 +261,17 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False):
         # Riposte counters — the hit is nullified.
         if not _ua_checked and _unique.intercept(fig, world, amount):
             return False
-    # Berserker weakness: takes more damage the deeper the rage.
+    # Domain Expansion "damage heals": inside its own domain a hit heals.
+    if _unique.heals_instead(fig, amount):
+        return False
+    # Berserker weakness / Dual Form / shield totem: damage taken scale.
     _tm = _unique.taken_mult(fig)
     if _tm != 1.0:
         amount = amount * _tm
+    # Aegis: the shield soaks the hit before HP.
+    amount = _unique.absorb(fig, world, amount, kind)
+    if amount <= 0:
+        return False
     _actions.note_damage(fig, amount)
     _combat.special_note_hit_taken(fig)
     p = fig.personality
@@ -389,7 +400,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
                 p.immunity_hits = 0
             # HP still decreases even during immunity
             if world is not None:
-                apply_hp_damage(fig, world, amount, _ua_checked=True)
+                apply_hp_damage(fig, world, amount, _ua_checked=True, kind="projectile")
             return  # no bounce this hit
         else:
             p.knockback_count += 1  # consume one knockback slot
@@ -397,7 +408,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     # --- Pure poke: damage only, no launch at all ---
     if no_knockback:
         if world is not None:
-            apply_hp_damage(fig, world, amount, _ua_checked=True)
+            apply_hp_damage(fig, world, amount, _ua_checked=True, kind="projectile")
         return
 
     # --- Apply knockback ---
@@ -420,7 +431,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         m.bouncing = True
 
     if world is not None:
-        apply_hp_damage(fig, world, amount, _ua_checked=True)
+        apply_hp_damage(fig, world, amount, _ua_checked=True, kind="projectile")
 
 
 def battle_target(world, fig):

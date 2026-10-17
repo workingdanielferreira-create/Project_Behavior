@@ -213,6 +213,13 @@ class MotionSystem(System):
         for fig in world.figures:
             if fig.combat.acted:
                 continue  # combat system already advanced this figure this tick
+            # Summoner turret / totem (laser/unique.py): never walks; a
+            # knockback still slides it.
+            if unique.holds_still(fig):
+                motion.carry_knockback(fig)
+                fig.render.is_moving = False
+                fig.render.advance()
+                continue
 
             # --- Runner survival teleport (active while HP <= 30% threshold) ---
             # Works in both solo (target = cursor) and battle (target = nearest enemy).
@@ -281,7 +288,9 @@ class MotionSystem(System):
                         combat.blink_warp(fig,
                                           fig.x + dxa * inv * hop,
                                           fig.y + dya * inv * hop)
-                        p.teleport_ticks = bl['approach_cooldown_ticks']
+                        # Domain Expansion '0 ms blink': no cooldown.
+                        p.teleport_ticks = (0 if unique.blink_free(fig)
+                                            else bl['approach_cooldown_ticks'])
                 else:
                     p.teleport_ticks -= 1
 
@@ -337,6 +346,8 @@ class MotionSystem(System):
                         combat.special_blocks_hit(fig)   # special-stance counter
         for fig in world.figures:
             motion.check_walls(fig)
+            # Terraform structures (laser/unique.py): bodies stay out.
+            unique.push_out(fig, world)
         # Battle-only invisible oval arena boundary — confirmed intentional
         # Solo/Battle exception (Solo: no arena wall; Battle: active). See
         # motion.apply_arena_oval docstring for rationale.
@@ -698,6 +709,7 @@ class ProjectileSystem(System):
                     ddx, ddy = proj.x - cx, proj.y - cy
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
+                        unique.note_landed(proj.owner)   # Dual Form / Domain gauges
                         # Ricochet: bounces off the cursor instead of dying.
                         if not proj.pierce and not unique.proj_off_point(
                                 proj, cx, cy, proj.hit_r_sq ** 0.5):
@@ -720,6 +732,7 @@ class ProjectileSystem(System):
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq * _bs * _bs:
                             world.collision_dots.append([proj.x, proj.y, 0])
                             if not eparry:
+                                unique.note_landed(proj.owner)   # Dual Form / Domain gauges
                                 # Partner takes the HP loss on their side --
                                 # HP-reducing impact, so the bullet bursts.
                                 # A parrying partner blocks it: no burst.
@@ -1058,7 +1071,9 @@ class CollisionSystem(System):
             new_mine = []
             consumed_enemy = set()   # indices into world.enemy_projs
             for proj in world.projectiles:
-                if proj.hit_r_sq == 0.0 or clash.locked(world, proj):
+                # A returning Rewind bullet with 'Passes through shots'
+                # (laser/unique.py) neither scatters nor is scattered.
+                if proj.hit_r_sq == 0.0 or clash.locked(world, proj) or unique.proj_ghost(proj):
                     # Splinters pass through everything; a bullet locked in
                     # a clash (laser/clash.py, e.g. a beam struggle) is left
                     # for the clash to settle.
@@ -1066,7 +1081,8 @@ class CollisionSystem(System):
                     continue
                 scattered = False
                 for ei, etup in enumerate(world.enemy_projs):
-                    if ei in consumed_enemy or clash.locked(world, etup[8]):
+                    if (ei in consumed_enemy or clash.locked(world, etup[8])
+                            or unique.proj_ghost(etup[8])):
                         continue
                     ex, ey = etup[0], etup[1]
                     ddx, ddy = proj.x - ex, proj.y - ey

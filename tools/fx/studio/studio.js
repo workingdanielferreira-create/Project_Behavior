@@ -2601,7 +2601,23 @@ var UA_INFO = {
   ricochet: ["Ricochet", "Gunslinger · trick-shot",
     "Its shots and travelling FX bounce off the screen edges, fighters and enemy FX instead of ending, for the set number of bounces."],
   riposte: ["Riposte", "Duelist · counter-attacker",
-    "A hit taken inside its counter stance (or by chance) is cancelled and answered at once with a counter-strike at the attacker."]
+    "A hit taken inside its counter stance (or by chance) is cancelled and answered at once with a counter-strike at the attacker."],
+  dual_form: ["Dual Form", "Two-faced fighter · transformation",
+    "Switches between two forms, each with its own actions, palette and stats, on a gauge, a timer, HP thresholds or after a combo, with a short buff after each switch."],
+  summoner: ["Summoner", "Engineer · necromancer · beast tamer",
+    "Places constructs that are not copies of it: turrets that shoot, totems that heal or shield it, familiars that chase and bite. They stand on its side as fighters the enemy can target and destroy."],
+  aegis: ["Aegis", "Guardian · knight",
+    "A shield soaks damage before HP and regenerates after a delay with no hits. When it breaks, a shockwave damages, knocks back and stuns the enemies around it."],
+  terraform: ["Terraform", "Earth shaper · architect",
+    "Raises walls, pillars or pits on the field. They block shots and bodies, and shots can break them into shrapnel."],
+  rewind_bullets: ["Rewind Bullets", "Time gunner",
+    "Its shots turn round after a set time (or on a recall) and fly back along the path they took, hitting again on the way back."],
+  phantom_swap: ["Phantom Swap", "Trickster · magician",
+    "Swaps places with the enemy, one of its copies / constructs or one of its own shots, and can turn shots in flight around."],
+  domain_expansion: ["Domain Expansion", "Sorcerer · reality warper",
+    "When its gauge fills, a domain covers the screen and rewrites the rules you tick for as long as it lasts."],
+  fusion: ["Fusion", "Tag team · fusion dance",
+    "Two team-mates on the same side (P1 + P3 or P2 + P4), different characters that both have Fusion, fuse into the character you name once both meet their ticked conditions. The fused fighter has their HP and damage added together."]
 };
 function uaName(k) { return k === "none" ? "None" : UA_INFO[k][0]; }
 function buildUnique() {
@@ -2643,7 +2659,9 @@ function buildUniqueProps(d) {
   })).title = "On: this is the character's unique ability (any other one is switched off). Off: the character has none.";
   if (!on && S.unique.type !== "none") note(s, "Turning this on replaces " + uaName(S.unique.type) + ".");
   note(s, "Plays the same in Solo and Battle (in Solo the enemy is the cursor). Settings save with the FX file; the game reads them on F5.");
-  ({mirror_legion: uaMirrorLegion, berserker: uaBerserker, phase_shift: uaPhaseShift, ricochet: uaRicochet, riposte: uaRiposte})[k](d, P);
+  ({mirror_legion: uaMirrorLegion, berserker: uaBerserker, phase_shift: uaPhaseShift, ricochet: uaRicochet, riposte: uaRiposte,
+    dual_form: uaDualForm, summoner: uaSummoner, aegis: uaAegis, terraform: uaTerraform, rewind_bullets: uaRewind,
+    phantom_swap: uaPhantomSwap, domain_expansion: uaDomain, fusion: uaFusion})[k](d, P);
 }
 function uaMirrorLegion(d, P) {
   var s = sec(d, "Trigger", "ua-ml-trig", "When the copies split off.", "act");
@@ -2788,6 +2806,232 @@ function uaRiposte(d, P) {
   s = sec(d, "Timing", "ua-rp-time", "Recovery around each counter.", "act");
   uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "No counter (and no new stance) until this long after the last one.");
   uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after countering.");
+}
+function uaDualForm(d, P) {
+  var s = sec(d, "Switch trigger", "ua-df-trig", "When it changes form.", "act");
+  uaChoice(s, "Switch when", P, "trigger", [["gauge", "A gauge fills (hits landed + taken)"], ["timer", "On a timer"], ["hp_below", "HP drops below thresholds"], ["combo", "After a combo of hits"]],
+    "Gauge: every hit it lands or takes fills it; full = switch. Timer: every N ms. HP thresholds: each % switches once per life. Combo: N hits landed within the combo window.");
+  if (P.trigger === "gauge") { uaNum(s, "Hits to fill", P, "gauge_hits", 1, 999, 1, "Hits landed + hits taken that fill the gauge."); uaChk(s, "Show gauge", P, "show_gauge", "A small bar under the fighter."); }
+  if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 500, 120000, 100, "Switches form on this timer.");
+  if (P.trigger === "hp_below") {
+    var th = field(s, "HP thresholds %", inp("text", P.hp_thresholds, function (v) { P.hp_thresholds = v; save(); }));
+    th.style.minWidth = "0"; th.style.width = "100%"; th.title = "Comma-separated HP %s, e.g. 60,30. Each switches form once when HP first drops to or below it.";
+  }
+  if (P.trigger === "combo") {
+    uaNum(s, "Combo hits", P, "combo_hits", 1, 99, 1, "Hits landed in a row (within the window) that switch form.");
+    uaNum(s, "Combo window ms", P, "combo_window_ms", 100, 10000, 50, "The hits must land within this long of each other.");
+  }
+  uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two switches (gauge / combo).");
+  s = sec(d, "After a switch", "ua-df-buff", "A short buff and the transition flash.", "act");
+  uaNum(s, "Buff ms", P, "buff_ms", 0, 30000, 100, "How long the buff lasts after each switch. 0 = no buff.");
+  uaNum(s, "Buff speed %", P, "buff_speed_pct", 0, 500, 5, "Extra speed (every state) during the buff.");
+  uaNum(s, "Buff damage %", P, "buff_damage_pct", 0, 500, 5, "Extra damage during the buff.");
+  uaChk(s, "Transition FX", P, "transition_fx", "A burst and a flash in the new form's aura colour.");
+  [["form_a", "Form A (starts in)"], ["form_b", "Form B"]].forEach(function (f) {
+    var F = P[f[0]], t = sec(d, f[1], "ua-df-" + f[0], "This form's name, stats and look.", "act");
+    var nm = field(t, "Name", inp("text", F.name, function (v) { F.name = v; save(); })); nm.style.minWidth = "0"; nm.style.width = "100%";
+    uaNum(t, "Speed %", F, "speed_pct", 5, 800, 5, "Speed in this form (every state): 100 = normal.");
+    uaNum(t, "Damage %", F, "damage_pct", 0, 800, 5, "Damage dealt in this form: 100 = normal.");
+    uaNum(t, "Damage taken %", F, "taken_pct", 0, 800, 5, "Damage taken in this form: 100 = normal.");
+    uaChk(t, "Own palette", F, "palette", "On: this form recolours the fighter and its FX palette from the two colours below. Off: the character's own palette.", true);
+    if (F.palette) {
+      field(t, "Body colour", inp("color", F.body, function (v) { F.body = v; save(); }));
+      field(t, "Accent colour", inp("color", F.accent, function (v) { F.accent = v; save(); }));
+    }
+    uaChk(t, "Aura", F, "aura", "A glow around the fighter while in this form.", true);
+    field(t, "Aura colour", inp("color", F.aura_color, function (v) { F.aura_color = v; save(); })).title = "Aura, gauge and transition colour.";
+  });
+  uaFormActions(d, P);
+}
+// Which form plays each action: both (default), Form A only or Form B only.
+function uaFormActions(d, P) {
+  var s = sec(d, "Actions per form", "ua-df-acts", "Pick which form plays each action.", "act");
+  var names = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
+  if (!names.length) { note(s, "This character has no actions besides idle / run."); return; }
+  names.forEach(function (k) {
+    var e = field(s, k, inp([["both", "Both forms"], ["a", P.form_a.name + " only"], ["b", P.form_b.name + " only"]], P.actions[k] || "both", function (v) {
+      if (v === "both") delete P.actions[k]; else P.actions[k] = v; save();
+    }));
+    e.title = "Both: plays in either form. A / B only: it never plays in the other form (its triggers are skipped there).";
+  });
+}
+function uaSummoner(d, P) {
+  var s = sec(d, "Construct", "ua-sm-kind", "What it summons.", "act");
+  uaChoice(s, "Construct", P, "construct", [["turret", "Turret (shoots)"], ["totem_heal", "Totem (heals it)"], ["totem_shield", "Totem (shields it)"], ["familiar", "Familiar (chases and bites)"]],
+    "Turret: stands still and shoots the nearest enemy. Heal totem: heals the summoner while it is inside the aura. Shield totem: the summoner takes less damage inside the aura. Familiar: chases the nearest enemy and bites on contact. All are fighters on its side: enemies can target and destroy them.");
+  if (P.construct === "turret") {
+    uaNum(s, "Fire every ms", P, "fire_ms", 100, 10000, 50, "Time between shots.");
+    uaNum(s, "Shot damage", P, "shot_damage", 0, 1000, 1, "Damage per shot.");
+    uaNum(s, "Shot speed %", P, "shot_speed_pct", 10, 400, 5, "Bullet speed as a % of a normal shot.");
+    uaNum(s, "Range px", P, "range_px", 50, 3000, 10, "It only fires at enemies this close.");
+  } else if (P.construct === "familiar") {
+    uaNum(s, "Bite damage", P, "bite_damage", 0, 1000, 1, "Damage per bite.");
+    uaNum(s, "Bite every ms", P, "bite_ms", 100, 10000, 50, "Time between bites.");
+    uaNum(s, "Chase speed %", P, "chase_speed_pct", 10, 400, 5, "Movement speed as a % of the summoner's.");
+  } else {
+    uaNum(s, "Aura px", P, "aura_px", 20, 2000, 10, "The summoner must be this close to the totem.");
+    if (P.construct === "totem_heal") uaNum(s, "Heal HP / s", P, "heal_per_s", 0, 1000, 0.5, "HP restored per second (never above max HP).");
+    else uaNum(s, "Damage cut %", P, "shield_pct", 0, 100, 5, "Damage the summoner takes is cut by this % while inside the aura.");
+  }
+  uaNum(s, "Construct HP", P, "construct_hp", 1, 10000, 1, "Each construct's HP. Destroying one is never a loss.");
+  uaNum(s, "Size px", P, "size_px", 4, 80, 1, "How big it is drawn.");
+  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); })).title = "Its colour and its shots' colour.";
+  s = sec(d, "Trigger", "ua-sm-trig", "When it summons.", "act");
+  uaChoice(s, "Summon when", P, "trigger", [["timer", "On a timer"], ["hp_below", "HP drops below thresholds"], ["hits_taken", "Every N hits taken"]],
+    "Timer: every N ms. HP thresholds: each % summons once per life. Hits taken: every N hits that take HP.");
+  if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 300, 120000, 100, "Summons on this timer (only while there is room).");
+  if (P.trigger === "hits_taken") uaNum(s, "Every N hits", P, "every_hits", 1, 99, 1, "Summons after this many hits that take HP.");
+  if (P.trigger === "hp_below") {
+    var th = field(s, "HP thresholds %", inp("text", P.hp_thresholds, function (v) { P.hp_thresholds = v; save(); }));
+    th.style.minWidth = "0"; th.style.width = "100%"; th.title = "Comma-separated HP %s, e.g. 75,50,25.";
+  }
+  s = sec(d, "How many & where", "ua-sm-place", "How many, how long, and where they appear.", "act");
+  uaNum(s, "Per summon", P, "count", 1, 8, 1, "Constructs placed each time.");
+  uaNum(s, "Most at once", P, "max_alive", 1, 16, 1, "Never more than this many alive.");
+  uaNum(s, "Last ms", P, "life_ms", 500, 120000, 100, "How long each lasts before it crumbles.");
+  uaChoice(s, "Place", P, "placement", [["around", "Around it"], ["between", "Between it and the enemy"], ["near_enemy", "Near the enemy"], ["random", "Anywhere on screen"]],
+    "Around: in a ring at the spread distance. Between: across the line to the nearest enemy. Near the enemy: spread distance short of the enemy. Anywhere: random spots.");
+  uaNum(s, "Spread px", P, "spread_px", 0, 1000, 5, "Ring radius / distance from the enemy.");
+}
+function uaAegis(d, P) {
+  var s = sec(d, "Shield", "ua-ag-shield", "Soaks damage before HP.", "act");
+  uaNum(s, "Shield HP", P, "shield_hp", 1, 10000, 1, "Damage the shield takes before it breaks.");
+  uaNum(s, "Regen delay ms", P, "regen_delay_ms", 0, 60000, 100, "It starts to regenerate after this long with no hits.");
+  uaNum(s, "Regen HP / s", P, "regen_per_s", 0, 1000, 0.5, "Shield HP restored per second while regenerating.");
+  s = sec(d, "Blocks", "ua-ag-blocks", "Which hits the shield soaks (the others go straight to HP).", "act");
+  [["projectiles", "Bullets / shots"], ["fx", "FX Studio effects"], ["melee", "Melee / contact"]].forEach(function (o) {
+    field(s, o[1], inp("chk", P.blocks[o[0]], function (v) { P.blocks[o[0]] = v; save(); }));
+  });
+  s = sec(d, "Break shockwave", "ua-ag-wave", "When the shield breaks: a shockwave at the fighter.", "act");
+  uaNum(s, "Radius px", P, "wave_px", 0, 2000, 10, "Enemies inside this radius are hit.");
+  uaNum(s, "Damage", P, "wave_damage", 0, 1000, 1, "Damage to each enemy hit.");
+  uaNum(s, "Knockback px", P, "wave_knockback_px", 0, 1000, 5, "How far they are thrown back.");
+  uaNum(s, "Stun ms", P, "stun_ms", 0, 10000, 50, "How long the enemies hit are stunned (they can't move or act; their FX carry on).");
+  s = sec(d, "Look", "ua-ag-look", "The bubble and its bar.", "act");
+  uaChk(s, "Show bar", P, "show_bar", "A shield bar under the fighter.");
+  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+}
+function uaTerraform(d, P) {
+  var s = sec(d, "Structure", "ua-tf-kind", "What it raises.", "act");
+  uaChoice(s, "Structure", P, "structure", [["wall", "Wall"], ["pillar", "Pillar"], ["pit", "Pit"]],
+    "Wall: a long barrier across the line to the enemy, blocks shots and bodies. Pillar: a round block, blocks shots and bodies. Pit: a hole bodies can't cross; shots fly over it.");
+  uaNum(s, "HP", P, "struct_hp", 1, 10000, 1, "Shot damage it takes before it breaks.");
+  uaNum(s, "Size px", P, "size_px", 4, 300, 1, "Pillar / pit radius, wall thickness.");
+  if (P.structure === "wall") uaNum(s, "Wall length px", P, "wall_len_px", 20, 2000, 5, "How long the wall is.");
+  uaChk(s, "Also blocks own", P, "blocks_own", "On: its own shots and body are blocked too. Off: only the enemy's.");
+  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+  s = sec(d, "Shatter", "ua-tf-shatter", "When a wall / pillar breaks.", "act");
+  uaChk(s, "Shatter into shrapnel", P, "shatter", "It bursts into shrapnel that flies out and hits its enemies.", true);
+  if (P.shatter) { uaNum(s, "Shrapnel", P, "shrapnel", 0, 24, 1, "Pieces of shrapnel."); uaNum(s, "Shrapnel damage", P, "shrapnel_damage", 0, 1000, 1, "Damage per piece."); }
+  s = sec(d, "Trigger", "ua-tf-trig", "When it raises one.", "act");
+  uaChoice(s, "Raise when", P, "trigger", [["timer", "On a timer"], ["on_hit", "When it is hit"], ["enemy_near", "An enemy comes close"]],
+    "Timer: every N ms. Hit: when a hit takes HP. Enemy near: an enemy within the set distance.");
+  if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 200, 120000, 100, "Raises one on this timer.");
+  if (P.trigger === "enemy_near") uaNum(s, "Enemy within px", P, "near_px", 10, 2000, 10, "How close the enemy must be.");
+  uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two.");
+  s = sec(d, "How many & where", "ua-tf-place", "How many, how long, and where.", "act");
+  uaNum(s, "Most at once", P, "max_alive", 1, 16, 1, "Never more than this many standing.");
+  uaNum(s, "Last ms", P, "life_ms", 500, 120000, 100, "How long each stands.");
+  uaChoice(s, "Place", P, "placement", [["between", "Halfway to the enemy"], ["front", "In front of it"], ["around", "Around it"], ["near_enemy", "Near the enemy"], ["random", "Anywhere on screen"]],
+    "Halfway: midway to the nearest enemy. In front: the set distance toward the enemy. Around: the set distance in a random direction. Near the enemy: the set distance short of the enemy. Anywhere: a random spot.");
+  uaNum(s, "Distance px", P, "distance_px", 0, 2000, 5, "In front / around / near the enemy distance.");
+}
+function uaRewind(d, P) {
+  var s = sec(d, "When they turn round", "ua-rw-trig", "Its shots fly back along their own path.", "act");
+  uaChoice(s, "Rewind", P, "trigger", [["delay", "Each shot after a set time"], ["recall", "All shots at once, on a timer"]],
+    "Set time: every shot turns round once it has flown this long. Recall: on the timer every shot in flight turns round together.");
+  if (P.trigger === "delay") uaNum(s, "After ms", P, "delay_ms", 50, 10000, 50, "Flight time before a shot turns round.");
+  else uaNum(s, "Recall every ms", P, "recall_every_ms", 200, 60000, 100, "How often it recalls its shots.");
+  s = sec(d, "On the way back", "ua-rw-back", "How the returning shots behave.", "act");
+  uaNum(s, "Return speed %", P, "return_speed_pct", 10, 500, 5, "Speed on the way back, as a % of the way out.");
+  uaNum(s, "Return damage %", P, "return_damage_pct", 0, 500, 5, "Damage on the way back, as a % of the way out.");
+  uaChk(s, "Pass through shots", P, "pass_fx", "On: returning bullets neither scatter enemy bullets nor are scattered by them.");
+  uaChk(s, "Travelling FX too", P, "fx_too", "On: its travelling FX Studio effects turn round as well (they fly straight back).");
+  uaChk(s, "Tint returning shots", P, "tint", "Returning bullets take the colour below.", true);
+  if (P.tint) field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+}
+function uaPhantomSwap(d, P) {
+  var s = sec(d, "Trigger", "ua-sw-trig", "When it swaps.", "act");
+  uaChoice(s, "Swap when", P, "trigger", [["cooldown", "Every time the cooldown ends"], ["on_hit", "When it is hit"], ["chance", "A % chance when hit"]],
+    "Cooldown: swaps again as soon as the cooldown runs out. Hit: when a hit takes HP (the hit still lands). Chance: a roll on each hit.");
+  uaNum(s, "Cooldown ms", P, "cooldown_ms", 100, 60000, 100, "Shortest gap between two swaps.");
+  if (P.trigger === "chance") uaNum(s, "Chance %", P, "chance_pct", 1, 100, 1, "Chance per hit.");
+  uaNum(s, "Uses", P, "uses", 0, 99, 1, "Swaps per match. 0 = unlimited.");
+  s = sec(d, "Swap with", "ua-sw-targets", "One ticked target is picked at random each time (from the ones there are).", "act");
+  [["enemy", "The enemy (Solo: through the cursor)"], ["clone", "One of its copies / constructs"], ["own_shot", "One of its own shots"]].forEach(function (o) {
+    field(s, o[1], inp("chk", P.targets[o[0]], function (v) { P.targets[o[0]] = v; save(); }));
+  });
+  s = sec(d, "Shots in flight", "ua-sw-shots", "What happens to shots when it swaps.", "act");
+  uaChk(s, "Reverse enemy shots", P, "reverse_enemy_shots", "Enemy bullets near either spot turn round and become its own, flying back at their shooter.", true);
+  if (P.reverse_enemy_shots) uaNum(s, "Reverse radius px", P, "reverse_px", 10, 2000, 10, "How close to either spot an enemy bullet must be.");
+  uaChk(s, "Re-aim own shots", P, "reaim_own_shots", "Its own bullets in flight turn toward the enemy's new position.");
+  s = sec(d, "After a swap", "ua-sw-after", "Safety and look.", "act");
+  uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after a swap.");
+  uaChk(s, "Swap FX", P, "swap_fx", "Bursts at both spots and a flash.");
+  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+}
+var UA_RULES = [["enemy_shots_off", "Enemy shots disabled"], ["guaranteed_hits", "Guaranteed hits"], ["gravity", "Gravity (pull / push)"],
+  ["huge_fx", "Huge FX"], ["slow_enemy", "Slowed enemy"], ["heal_on_damage", "Damage heals it"], ["blink_no_cd", "0 ms blink cooldown"]];
+function uaDomain(d, P) {
+  var s = sec(d, "Gauge", "ua-dm-fill", "What fills the gauge that opens the domain.", "act");
+  uaChoice(s, "Fills from", P, "fill", [["hits_landed", "Hits landed"], ["damage_taken", "Damage taken"], ["timer", "Time"], ["hp_below", "HP drops below X%"]],
+    "Hits landed: each hit adds a share. Damage taken: each HP lost adds a share. Time: it fills over the set time. HP below: opens once, when HP first drops to X%.");
+  if (P.fill === "hits_landed") uaNum(s, "Hits to fill", P, "fill_hits", 1, 999, 1, "Hits landed that fill it.");
+  if (P.fill === "damage_taken") uaNum(s, "Damage to fill", P, "fill_damage", 1, 10000, 1, "HP lost that fills it.");
+  if (P.fill === "timer") uaNum(s, "Fill ms", P, "fill_ms", 500, 300000, 500, "Time to fill.");
+  if (P.fill === "hp_below") uaNum(s, "HP below %", P, "hp_below_pct", 1, 100, 1, "Opens when HP first drops to this %.");
+  uaChk(s, "Show gauge", P, "show_gauge", "A bar under the fighter: the gauge, then the time left.");
+  s = sec(d, "Domain", "ua-dm-time", "How long it lasts.", "act");
+  uaNum(s, "Lasts ms", P, "duration_ms", 500, 120000, 100, "How long the domain stays up.");
+  uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 120000, 100, "After it ends, the gauge starts filling again after this long.");
+  s = sec(d, "Rules", "ua-dm-rules", "What the domain rewrites while it is up.", "act");
+  var tips = {enemy_shots_off: "Enemy bullets and travelling FX fizzle out as they appear.",
+    guaranteed_hits: "Its bullets steer onto the nearest enemy, and enemies can't phase out of or counter its hits.",
+    gravity: "Enemy fighters are pulled toward (or pushed away from) a point every tick.",
+    huge_fx: "Its FX Studio effects and bullets are launched bigger (their reach and speed grow with them).",
+    slow_enemy: "Enemy fighters, their FX and their shots run slower.",
+    heal_on_damage: "Hits on it heal it by the damage instead of hurting it.",
+    blink_no_cd: "Its blinks (FX Studio blink and approach blink) have no cooldown."};
+  UA_RULES.forEach(function (o) {
+    field(s, o[1], inp("chk", P.rules[o[0]], function (v) { P.rules[o[0]] = v; save(); buildProps(); })).title = tips[o[0]];
+  });
+  if (P.rules.gravity) {
+    uaChoice(s, "Gravity", P, "gravity_mode", [["pull", "Pull in"], ["push", "Push away (reversed)"]], "Pull: drawn toward the point. Push: driven away from it.");
+    uaChoice(s, "Toward", P, "gravity_to", [["owner", "The fighter"], ["centre", "Screen centre"]], "The point of the gravity.");
+    uaNum(s, "Strength px / tick", P, "gravity_px", 0, 50, 0.5, "How far enemies are moved each tick.");
+  }
+  if (P.rules.huge_fx) uaNum(s, "FX size %", P, "fx_size_pct", 10, 600, 10, "Size of its FX and bullets in the domain.");
+  if (P.rules.slow_enemy) uaNum(s, "Slow %", P, "slow_pct", 0, 95, 5, "How much slower the enemy runs.");
+  s = sec(d, "Screen", "ua-dm-look", "The domain's overlay.", "act");
+  uaChk(s, "Screen tint", P, "tint", "Tints the whole screen while the domain is up.", true);
+  if (P.tint) {
+    field(s, "Tint colour", inp("color", P.tint_color, function (v) { P.tint_color = v; save(); }));
+    uaNum(s, "Tint %", P, "tint_pct", 0, 60, 1, "How strong the tint is.");
+  }
+}
+function uaFusion(d, P) {
+  var s = sec(d, "Fuses into", "ua-fu-result", "The fighter the two become.", "act");
+  var r = field(s, "Character", inp("text", P.result, function (v) { P.result = v.trim(); save(); }));
+  r.style.minWidth = "0"; r.style.width = "100%";
+  r.title = "The character the fused fighter plays as: its folder name in characters/ (or runner / swordsman). Empty, or a name the game doesn't know = this character. The settings of the team-mate in the first slot (P1 / P2) decide the result, ending and duration.";
+  s = sec(d, "Conditions", "ua-fu-conds", "Both team-mates must have Fusion (different characters, same side) and both must meet every ticked condition at once.", "act");
+  [["hp_below", "Its HP below X%"], ["close", "Close to its partner"], ["field_time", "Fielded together for a time"], ["hits_landed", "Hits landed together"]].forEach(function (o) {
+    field(s, o[1], inp("chk", P.conds[o[0]], function (v) { P.conds[o[0]] = v; save(); buildProps(); }));
+  });
+  if (P.conds.hp_below) uaNum(s, "HP below %", P, "hp_below_pct", 1, 100, 1, "Its own HP must be at or below this %.");
+  if (P.conds.close) uaNum(s, "Within px", P, "close_px", 10, 3000, 10, "The two must be this close.");
+  if (P.conds.field_time) uaNum(s, "Together ms", P, "field_ms", 100, 300000, 500, "Both fielded together at least this long.");
+  if (P.conds.hits_landed) uaNum(s, "Hits together", P, "hits", 1, 999, 1, "Hits the two have landed together since they were fielded together.");
+  s = sec(d, "Ending", "ua-fu-end", "Does the fusion end?", "act");
+  uaChoice(s, "Fusion", P, "ending", [["timed", "Lasts a set time, then splits"], ["permanent", "Permanent"]],
+    "Timed: after the time both come back, sharing the fused fighter's HP by their max HP. Permanent: stays fused; if it falls, both are out.");
+  if (P.ending === "timed") {
+    uaNum(s, "Lasts ms", P, "duration_ms", 500, 600000, 500, "How long the fusion lasts.");
+    uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 600000, 500, "After a split, no new fusion for this long.");
+  }
+  s = sec(d, "Look", "ua-fu-look", "The fused fighter's aura.", "act");
+  uaChk(s, "Aura", P, "aura", "A glow around the fused fighter (and a ring of the time left when timed).", true);
+  if (P.aura) field(s, "Aura colour", inp("color", P.aura_color, function (v) { P.aura_color = v; save(); }));
 }
 // Character FX (effects with action "@character"): always on the fighter,
 // whatever it is doing.  Listed with the other whole-character settings.

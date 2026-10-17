@@ -266,7 +266,7 @@ class World:
         names = {p[0] for p in pkgs}
         for side in self.sides:
             for fig in side.figures:
-                if fig.mode.key in names:
+                if fig.mode.key in names and not unique.is_construct(fig):
                     self._reskin_figure(fig, fig.mode.key)
         msg = ("Reloaded " + ", ".join(sorted(names))) if names else "No Rig Forge characters found in characters/"
         missing = sorted(k for k, _r, _m, fx in pkgs if not fx)
@@ -790,7 +790,7 @@ class World:
                 if dmg > 0:
                     if resisted:
                         actions.note_resisted(ef)
-                    ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable)
+                    ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable, kind="fx")
                     if resisted:
                         actions.clear_resisted(ef)
                 if kb > 0 and not resisted:

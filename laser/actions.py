@@ -1011,6 +1011,7 @@ def clear_resisted(fig):
 def note_landed(fig):
     """One of this fighter's FX hits connected (landed_hit condition)."""
     _movestyle.note_hit_landed(fig)
+    _unique.note_landed(fig)   # Dual Form gauge / combo, Domain gauge, Fusion
     r = getattr(fig, "act", None)
     if r is not None:
         r.landed += 1

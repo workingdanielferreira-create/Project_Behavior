@@ -258,6 +258,10 @@ def _reappear(fig, st, world):
         st.marks[st.idx] = [(st.x0, st.y0), (nx, ny)]
     # Cooldown from the moment it reappears.
     cd = max(0.0, float(st.cooldown_ms or 0))
+    # Domain Expansion '0 ms blink' (laser/unique.py): no cooldown.
+    from . import unique
+    if unique.blink_free(fig):
+        cd = 0.0
     if cd > 0 and st.action is not None:
         st.ready_at[st.action] = world.global_tick + int(round(cd / config.TICK_MS))
     if cfg.get("flash", True):
