@@ -110,6 +110,11 @@ button:disabled:hover{border-color:var(--line);color:var(--ink)}
 .fld{display:grid;grid-template-columns:106px 1fr;align-items:center;gap:8px}
 .fld label{font-size:11.5px;color:var(--ink-2)}
 .fld input,.fld select{width:100%;min-width:0}
+.xcard{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:4px;padding:7px 8px}
+.xcard .xhd{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted)}
+.xcard button{align-self:flex-start}
+.xcard .sl,.xpose .sl{grid-template-columns:70px 1fr 44px}
+.xpose .xhd{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted)}
 .note{font-size:11.5px;color:var(--ink-2);background:var(--panel-2);border-left:2px solid var(--accent);
   padding:8px 10px;border-radius:0 4px 4px 0}
 .note.warn{border-left-color:var(--warm)}
@@ -378,6 +383,9 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
       </div>
       <div class="sl"><label>assist</label><input type="range" id="an_as" min="0" max="1" step="0.05"><span class="val" id="an_asv">0.45</span></div>
       <div class="note">Handles behave normally on a plain drag &mdash; each aims its own bone. Press <strong>Tab</strong> (or click the Skeleton button in the transport bar) to switch the mode on. While it is on, dragging a hand or foot solves the whole limb instead of aiming one bone, and dragging the pelvis carries the torso while the legs bend to keep both feet planted where they were: the elbow bends behind the arm and the knee ahead of the leg &mdash; each of the four joints has its own invert checkbox when a pose wants the other solution. Reach past the limb's length and <em>assist</em> decides how much the rest of the body comes with it &mdash; the pelvis carries most of the load and the spine leans the remainder, so the figure answers like a weighted branched linkage instead of a stretched stick.</div>
+      <div class="grp">added lines &amp; anchors</div>
+      <div class="note"><strong>+ Line</strong> adds a bone to this character starting on any joint, an anchor, or the end of another added line, so chains (tails, capes, extra limbs) work. It turns with the bone it starts on, like a forearm follows the upper arm; <em>rest angle</em> sets its angle off that bone and <em>length</em> its size. Each keyframe poses it with its teal handle on the stage &mdash; drag to aim, <strong>Ctrl</strong>-drag to stretch, <strong>Alt</strong> to snap to the neighbouring frames &mdash; or with the sliders under <em>added lines</em> in the Pose tab. <strong>+ Anchor</strong> puts a point (gold diamond) at the centre of any existing line, built-in or added; slide it along with <em>position</em>. Added lines draw, layer (Layers tab), tween and export like every other part of the character, and every anchor and line end is written to the package's per-frame anchors.</div>
+      <div id="xlbox"></div>
       <div id="rigsliders"></div>
       <div class="note">Changing <code>scale</code> or pose extents also moves <code>hurtbox_radius</code>, which the loader derives from the idle-pose joint extent.</div>
     </div>
@@ -536,16 +544,115 @@ LAYERS.forEach(function(L){
 });
 var LAYERMAP={};LAYERS.forEach(function(L){LAYERMAP[L.id]=L;});
 var LAYER_IDS=LAYERS.map(function(l){return l.id;});
+/* ---- added lines + anchors (per character) ----
+   rig.xl = [{id,name,at,len,ang,far,w}]: an extra bone starting on any point (joint, anchor
+   or another added line's end, id = the end point).  Its world angle is the angle of the bone
+   its start point sits on + ang (rig rest angle) + the keyframe's own p._xl[id][0]; its length
+   is len * p._xl[id][1].  rig.xa = [{id,name,a,b,t}]: a point t (0..1) of the way along the
+   line a → b (t = 0.5 is the centre).  Both are part of the character: they draw, layer,
+   export and carry anchors like the built-in bones.  Their layers are "x:<id>". */
+var BASE_LAYERS=LAYERS.slice(),BASE_JOINTLBL=clone(JOINTLBL),XSIG=null;
+var WTIP={wtip:0,wtip2:1};
+function xlOf(rig){return(rig&&rig.xl)||[];}
+function xaOf(rig){return(rig&&rig.xa)||[];}
+function xDef(id){var r=null;xlOf(S.rig).concat(xaOf(S.rig)).forEach(function(x){if(x.id===id)r=x;});return r;}
+function xlSync(){
+  var rig=S.rig;if(!rig)return false;if(!rig.xl)rig.xl=[];if(!rig.xa)rig.xa=[];
+  var sig=JSON.stringify([rig.xl,rig.xa]);if(sig===XSIG)return false;XSIG=sig;
+  var lbl=clone(BASE_JOINTLBL);
+  rig.xa.forEach(function(a){lbl[a.id]=a.name||a.id;});
+  rig.xl.forEach(function(x){lbl[x.id]=(x.name||x.id)+" end";});
+  JOINTLBL=lbl;
+  var lay=BASE_LAYERS.slice();
+  /* an added line is stacked just above the layer its start point belongs to */
+  function owner(pt){
+    var d=xDef(pt);if(d&&d.b)pt=d.b;   /* anchor → the line it sits on */
+    var ix=-1;lay.forEach(function(L,i){if(L.b===pt||L.b2===pt||L.mid===pt)ix=i;});
+    if(ix<0)lay.forEach(function(L,i){if(ix<0&&L.a===pt)ix=i;});
+    return ix;
+  }
+  rig.xl.forEach(function(x){
+    var L={id:"x:"+x.id,a:x.at,b:x.id,w:x.w||1,far:!!x.far,xl:x.id,
+           n:(x.name||x.id)+" ("+(lbl[x.at]||x.at)+" → end)"};
+    var ix=owner(x.at);lay.splice(ix<0?lay.length:ix+1,0,L);
+  });
+  LAYERS=lay;LAYERMAP={};LAYERS.forEach(function(L){LAYERMAP[L.id]=L;});
+  LAYER_IDS=LAYERS.map(function(l){return l.id;});
+  return true;
+}
+/* every line an anchor can sit on: [a, b, label] */
+function xSegs(){
+  var o=[];
+  function push(a,b){o.push([a,b,(JOINTLBL[a]||a)+" → "+(JOINTLBL[b]||b)]);}
+  LAYERS.forEach(function(L){
+    if(L.weapon){if(wCount(L.wi)>2)push(wAt(S.rig,L.wi),L.b);return;}
+    if(L.pair){var hub=L.mid||L.a;if(L.mid)push(L.a,L.mid);push(hub,L.b);push(hub,L.b2);return;}
+    push(L.a,L.b);
+  });
+  return o;
+}
+/* every point a new line can start from: [id, label] */
+function xPoints(){
+  var o=[];Object.keys(BASE_JOINTLBL).forEach(function(k){
+    if(WTIP[k]!=null&&wCount(WTIP[k])<3)return;o.push([k,BASE_JOINTLBL[k]]);});
+  o.push(["root","above head (root)"]);
+  xaOf(S.rig).forEach(function(a){o.push([a.id,"anchor · "+(a.name||a.id)]);});
+  xlOf(S.rig).forEach(function(x){o.push([x.id,"line end · "+(x.name||x.id)]);});
+  return o;
+}
+/* id plus every added line / anchor that hangs off it (directly or down a chain) */
+function xDesc(id){
+  var set={};set[id]=1;var grow=true;
+  while(grow){grow=false;
+    xlOf(S.rig).forEach(function(x){if(!set[x.id]&&set[x.at]){set[x.id]=1;grow=true;}});
+    xaOf(S.rig).forEach(function(a){if(!set[a.id]&&(set[a.a]||set[a.b])){set[a.id]=1;grow=true;}});
+  }
+  return set;
+}
+/* added points for joints(): runs after rot, so every position is already final */
+function xlJoints(out,p,rig,angOut){
+  var xl=xlOf(rig),xa=xaOf(rig);if(!xl.length&&!xa.length)return;
+  var xp=p._xl||{},ang=angOut||{},done={};
+  function pAng(id){
+    if(ang[id]!=null)return ang[id];
+    if(WTIP[id]!=null)return out[WPN[WTIP[id]].ang];
+    return attachAng(id,p)+(p.rot||0);
+  }
+  for(var pass=0;pass<=xl.length+xa.length;pass++){
+    var prog=false;
+    xa.forEach(function(a){
+      if(done[a.id])return;
+      var sa=WTIP[a.b]!=null?wAt(rig,WTIP[a.b]):a.a,A0=out[sa],B0=out[a.b];
+      if(!A0||!B0||(xDefIn(rig,a.b)&&!done[a.b]))return;
+      var t=isFinite(+a.t)?+a.t:0.5,dx=B0.x-A0.x,dy=B0.y-A0.y;
+      out[a.id]={x:A0.x+dx*t,y:A0.y+dy*t};
+      ang[a.id]=(Math.abs(dx)+Math.abs(dy)>1e-6)?angOf(dx,dy):pAng(a.b);
+      done[a.id]=prog=true;
+    });
+    xl.forEach(function(x){
+      if(done[x.id])return;
+      var o=out[x.at];if(!o||(xDefIn(rig,x.at)&&!done[x.at]))return;
+      var v=xp[x.id]||[0,1],w=pAng(x.at)+(+x.ang||0)+(+v[0]||0);
+      ang[x.id]=w;out[x.id]=add(o,sd(w,(+x.len||0)*(isFinite(+v[1])?+v[1]:1)));
+      done[x.id]=prog=true;
+    });
+    if(!prog)break;
+  }
+}
+function xDefIn(rig,id){return xlOf(rig).some(function(x){return x.id===id;})||xaOf(rig).some(function(a){return a.id===id;});}
 function defLayers(){return{order:LAYER_IDS.slice(),hidden:{}};}
 function defTween(){return{on:false,steps:3,ease:"inout",dir:"short",hold:0};}
 function newPose(){var p=clone(PDEF);p._layers=defLayers();p._tween=defTween();return p;}
 function normPose(p){
   PKEYS.forEach(function(k){if(typeof p[k]!=="number")p[k]=PDEF[k];});
-  if(!p._layers||!p._layers.order||p._layers.order.some(function(id){return LAYER_IDS.indexOf(id)<0;}))
+  /* "x:" ids are added lines: an id the current character does not have is kept (it belongs
+     to another character's rig and is simply not drawn here) */
+  function known(id){return LAYER_IDS.indexOf(id)>=0||String(id).indexOf("x:")===0;}
+  if(!p._layers||!p._layers.order||p._layers.order.some(function(id){return!known(id);}))
     p._layers=defLayers();
   else{LAYER_IDS.forEach(function(id,ix){var od=p._layers.order;if(od.indexOf(id)>=0)return;
          od.splice(ix?od.indexOf(LAYER_IDS[ix-1])+1:0,0,id);});
-       p._layers.order=p._layers.order.filter(function(id){return LAYER_IDS.indexOf(id)>=0;});
+       p._layers.order=p._layers.order.filter(known);
        if(!p._layers.hidden)p._layers.hidden={};}
   if(!p._tween)p._tween=defTween();
   if(!p._tween.dir)p._tween.dir="short";
@@ -595,7 +702,7 @@ function attachAng(at,p){
 }
 
 /* ---- forward kinematics ---- */
-function joints(p,rig){
+function joints(p,rig,angOut){
   var hipC={x:p.rx+rig.hipx,y:p.ry+rig.hipy};
   var chest=add(hipC,su(p.sp,rig.torso*0.55*p.torsos));
   var neck=add(chest,su(p.sp+p.sp2,rig.torso*0.45*p.torsos));
@@ -632,6 +739,7 @@ function joints(p,rig){
     });
     out.hip=hipC;out.wang+=p.rot;out.wang2+=p.rot;
   }
+  xlJoints(out,p,rig,angOut);
   return out;
 }
 
@@ -1326,6 +1434,13 @@ function lerpPose(a,b,t,dir){
     var raw=dir==="linear"||wound(a[k])||wound(b[k]);
     o[k]=raw?(a[k]+(b[k]-a[k])*t):(a[k]+arcDelta(a[k],b[k],dir)*t);
   });
+  if(a._xl||b._xl){   /* added lines: [angle, stretch] per line, the angle blended like ANGKEYS */
+    o._xl={};Object.keys(Object.assign({},a._xl,b._xl)).forEach(function(id){
+      var u=(a._xl&&a._xl[id])||[0,1],v=(b._xl&&b._xl[id])||[0,1];
+      var raw=dir==="linear"||wound(u[0])||wound(v[0]);
+      o._xl[id]=[raw?(u[0]+(v[0]-u[0])*t):(u[0]+arcDelta(u[0],v[0],dir)*t),u[1]+(v[1]-u[1])*t];
+    });
+  }
   o._layers=clone(a._layers);o._tween=clone(a._tween);o._gen=true;if(a._flip)o._flip=true;return o;
 }
 function playlist(act){
@@ -1871,7 +1986,8 @@ function drawFigure(c,p,rig,opt){
       seg(c,hub,j[Ldef.b],wa,wb);
       seg(c,hub,j[Ldef.b2],wa,wb);
     }
-    else if(!Ldef.weapon){var bw2=(Ldef.far?Wf:W)*Ldef.w,pw2=out?[100,100]:wdOf(rig,id);
+    else if(!Ldef.weapon){if(!j[Ldef.a]||!j[Ldef.b])return;
+      var bw2=(Ldef.far?Wf:W)*Ldef.w,pw2=out?[100,100]:wdOf(rig,id);
       seg(c,j[Ldef.a],j[Ldef.b],bw2*pw2[0]/100,bw2*pw2[1]/100);}
     else if(Ldef.weapon&&wCount(Ldef.wi)>2){
       var WD=WPN[Ldef.wi],wk=WD.k,wg=j[wAt(rig,Ldef.wi)];
@@ -1938,6 +2054,8 @@ var HANDLES=[["haL","lfa","lua","#3fb0ea"],["elL","lua",null,"#3fb0ea"],["haR","
              ["shL","__piv",["shlx","shly"],"#7de0a8"],["shR","__piv",["shrx","shry"],"#7de0a8"],
              ["hpL","__piv",["hplx","hply"],"#f0c24a"],["hpR","__piv",["hprx","hpry"],"#f0c24a"],
              ["hip","__pelvis",null,"#e8622a"],["root","__rootmove",null,"#ff9f45"]];
+/* every stage handle: the fixed ones plus one per added line (at its end) */
+function allHandles(){return HANDLES.concat(xlOf(S.rig).map(function(x){return[x.id,"__xl",x.id,"#5fd4c4"];}));}
 var drag=null,pan=null,refdrag=null,SOLVE=false,PLANT=null;
 function solveUI(){
   var b=document.getElementById("solvetog");if(!b)return;
@@ -1951,6 +2069,7 @@ var STRETCH={elL:{k:"luas",a:"shL",b:"ua"},haL:{k:"lfas",a:"elL",b:"fa"},
              neck:{k:"torsos",a:"hip",b:"torso"},head:{k:"torsos",a:"hip",b:"torso"}};
 
 function render(){
+  xlSync();
   var a=A(),p=S.preview||KF();
   var dpr=Math.min(2,window.devicePixelRatio||1);ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,VIEW.w,VIEW.h);
@@ -2040,8 +2159,15 @@ function render(){
         ctx.beginPath();ctx.arc(sp2.x,sp2.y,2,0,6.2832);ctx.fillStyle=pr[1];ctx.fill();
       });
     }
-    HANDLES.forEach(function(h){
+    xaOf(S.rig).forEach(function(an){   /* anchors: gold diamonds, placed from the Rig tab */
+      var q=j[an.id];if(!q)return;var sa=toStage(q);
+      ctx.beginPath();ctx.moveTo(sa.x,sa.y-5);ctx.lineTo(sa.x+5,sa.y);ctx.lineTo(sa.x,sa.y+5);ctx.lineTo(sa.x-5,sa.y);ctx.closePath();
+      ctx.fillStyle="#ffd166";ctx.globalAlpha=.9;ctx.fill();
+      ctx.globalAlpha=1;ctx.lineWidth=1.2;ctx.strokeStyle="rgba(0,0,0,.5)";ctx.stroke();
+    });
+    allHandles().forEach(function(h){
       var twi=tipWi(h[0]);if(twi>=0&&wCount(twi)<3)return;
+      if(!j[h[0]])return;
       var s=toStage(j[h[0]]);
       ctx.beginPath();ctx.arc(s.x,s.y,(twi>=0||h[0]==="root"?6:5),0,6.2832);
       ctx.fillStyle=h[3];ctx.globalAlpha=.9;ctx.fill();
@@ -2122,6 +2248,7 @@ function buildFilm(){
   });
 }
 function buildSliders(){
+  xlSync();XUISIG=XSIG;
   var box=document.getElementById("sliders"),wbox=document.getElementById("wsliders"),wbox2=document.getElementById("wsliders2");
   box.innerHTML="";wbox.innerHTML="";wbox2.innerHTML="";
   POSE.forEach(function(g){
@@ -2137,6 +2264,24 @@ function buildSliders(){
       row.appendChild(lab);row.appendChild(inp);row.appendChild(v);host.appendChild(row);
     });
   });
+  /* added lines: this keyframe's angle (relative to the bone it hangs from) and stretch */
+  if(xlOf(S.rig).length)box.appendChild(el("div","grp","added lines"));
+  xlOf(S.rig).forEach(function(x){
+    var xb=el("div","xpose");xb.appendChild(el("div","xhd",x.name||x.id));box.appendChild(xb);
+    [["angle",0,-360,360,1],["stretch",1,0,6,0.01]].forEach(function(r){
+      var row=el("div","sl"),lab=el("label",null,r[0]);
+      lab.title=(x.name||x.id)+" · "+(r[1]?"length × this keyframe":"degrees added to its rig angle, this keyframe")+
+        " — double-click the slider to reset";
+      var inp=document.createElement("input");inp.type="range";inp.min=r[2];inp.max=r[3];inp.step=r[4];
+      inp.id="slx_"+x.id+"_"+r[1];var v=el("span","val");
+      function set(val){commitPreview();var q=KF();if(!q._xl)q._xl={};var xv=(q._xl[x.id]||[0,1]).slice();
+        xv[r[1]]=val;q._xl[x.id]=xv;inp.value=val;v.textContent=(+val).toFixed(r[1]?2:0);render();buildFilm();save();}
+      inp.oninput=function(){set(parseFloat(inp.value));};
+      inp.ondblclick=function(){set(r[1]?1:0);};
+      row.appendChild(lab);row.appendChild(inp);row.appendChild(v);xb.appendChild(row);
+    });
+  });
+  buildXl();
   var rb=document.getElementById("rigsliders");rb.innerHTML="";
   var labels={shx:"shoulder x",shy:"shoulder y",hipx:"hip x",hipy:"hip y",sep:"side separation"};
   RIGSPEC.forEach(function(r){
@@ -2190,6 +2335,115 @@ function syncSliders(){
     var i=document.getElementById("sl_"+r[0]);if(!i)return;
     i.value=p[r[0]];i.nextSibling.textContent=(+p[r[0]]).toFixed(i.step==1?0:2);
   });});
+  xlOf(S.rig).forEach(function(x){var xv=(p._xl&&p._xl[x.id])||[0,1];
+    [0,1].forEach(function(k){var i=document.getElementById("slx_"+x.id+"_"+k);if(!i)return;
+      i.value=xv[k];i.nextSibling.textContent=(+xv[k]).toFixed(k?2:0);});});
+}
+/* ---- Rig tab: added lines + anchors ---- */
+function xNewId(pre){var n=1;while(xDef(pre+n)||BASE_JOINTLBL[pre+n])n++;return pre+n;}
+function xChanged(){xlSync();buildSliders();buildLayers();render();buildFilm();save();pushHist();}
+/* remove an added line / anchor and everything hanging off it, from the rig and every keyframe */
+function xRemove(id){
+  var set=xDesc(id);
+  S.rig.xl=xlOf(S.rig).filter(function(x){return!set[x.id];});
+  S.rig.xa=xaOf(S.rig).filter(function(a){return!set[a.id];});
+  Object.keys(set).forEach(function(k){if(S.rig.wd)delete S.rig.wd["x:"+k];});
+  Object.keys(S.actions).forEach(function(k){S.actions[k].keyframes.forEach(function(p){
+    if(p._xl)Object.keys(set).forEach(function(k2){delete p._xl[k2];});
+    if(p._layers){p._layers.order=p._layers.order.filter(function(lid){return!set[String(lid).slice(2)]||lid.indexOf("x:")!==0;});
+      Object.keys(set).forEach(function(k2){delete p._layers.hidden["x:"+k2];});}
+  });});
+  xChanged();
+}
+function xField(lbl,node){var f=el("div","fld");f.appendChild(el("label",null,lbl));f.appendChild(node);return f;}
+function xSlider(lbl,min,max,step,val,tip,fn,reset){
+  var row=el("div","sl"),lab=el("label",null,lbl);lab.title=tip;
+  var inp=document.createElement("input");inp.type="range";inp.min=min;inp.max=max;inp.step=step;inp.value=val;
+  var v=el("span","val",String(Math.round(val*100)/100));
+  function set(x){fn(x);inp.value=x;v.textContent=String(Math.round(x*100)/100);xlSync();render();buildFilm();save();}
+  inp.oninput=function(){set(parseFloat(inp.value));};
+  if(reset!=null)inp.ondblclick=function(){set(reset);};
+  row.appendChild(lab);row.appendChild(inp);row.appendChild(v);return row;
+}
+function xSelect(opts,val,fn){
+  var sel=document.createElement("select");
+  opts.forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.value=val;sel.onchange=function(){fn(sel.value);};return sel;
+}
+function xName(x){
+  var i=document.createElement("input");i.type="text";i.value=x.name||x.id;
+  i.onchange=function(){x.name=i.value.trim()||x.id;xChanged();};return i;
+}
+function buildXl(){
+  var box=document.getElementById("xlbox");if(!box)return;box.innerHTML="";
+  var bar=el("div","row"),bl=el("button",null,"+ Line"),ba=el("button",null,"+ Anchor");
+  bl.title="Add a line starting on any joint, anchor or added line end";
+  ba.title="Add an anchor at the centre of an existing line (slide it along the line below)";
+  bl.onclick=function(){
+    var pts=xPoints();
+    askSelect("Start the new line from:",pts,pts.some(function(o){return o[0]==="haR";})?"haR":pts[0][0],function(at){
+      if(!at)return;
+      var ow=null;LAYERS.forEach(function(L){if(L.b===at||L.b2===at)ow=L;});
+      var id=xNewId("xl");
+      S.rig.xl.push({id:id,name:"line "+id.slice(2),at:at,len:30,ang:0,far:!!(ow&&ow.far),w:0.8});
+      xChanged();toast("Added "+id+" — drag its teal handle to pose it");
+    });
+  };
+  ba.onclick=function(){
+    var segs=xSegs();
+    askSelect("Put the anchor at the centre of:",segs.map(function(g,i){return[String(i),g[2]];}),"0",function(v){
+      if(v==null)return;var g=segs[+v];if(!g)return;
+      var id=xNewId("xa");
+      S.rig.xa.push({id:id,name:"anchor "+id.slice(2),a:g[0],b:g[1],t:0.5});
+      xChanged();toast("Added "+id+" at the centre of "+g[2]);
+    });
+  };
+  bar.appendChild(bl);bar.appendChild(ba);box.appendChild(bar);
+  xaOf(S.rig).forEach(function(a){
+    var card=el("div","xcard");card.appendChild(el("div","xhd","anchor · "+a.id));
+    card.appendChild(xField("name",xName(a)));
+    /* lines this anchor can sit on: not one that hangs off the anchor itself */
+    var own=xDesc(a.id),segs=xSegs().filter(function(g){return!own[g[0]]&&!own[g[1]];}),cur=-1;
+    segs.forEach(function(g,i){if(g[1]===a.b&&(g[0]===a.a||WTIP[g[1]]!=null))cur=i;});
+    if(cur<0){segs.unshift([a.a,a.b,(JOINTLBL[a.a]||a.a)+" → "+(JOINTLBL[a.b]||a.b)+" (missing)"]);cur=0;}
+    card.appendChild(xField("on line",xSelect(segs.map(function(g,i){return[String(i),g[2]];}),String(cur),function(v){
+      var g=segs[+v];if(!g)return;a.a=g[0];a.b=g[1];xChanged();})));
+    card.appendChild(xSlider("position",0,100,1,Math.round((isFinite(+a.t)?+a.t:0.5)*100),
+      "% of the way along the line from its first point — 50 is the centre. Double-click to re-centre.",
+      function(v){a.t=v/100;},50));
+    var del=el("button","mini warn","Remove anchor");
+    del.onclick=function(){var n=Object.keys(xDesc(a.id)).length-1;
+      if(!n){xRemove(a.id);return;}
+      askConfirm("Remove "+(a.name||a.id)+" and the "+n+" line"+(n>1?"s / anchors":"")+" attached to it?",function(ok){if(ok)xRemove(a.id);});};
+    card.appendChild(del);box.appendChild(card);
+  });
+  xlOf(S.rig).forEach(function(x){
+    var card=el("div","xcard");card.appendChild(el("div","xhd","line · "+x.id));
+    card.appendChild(xField("name",xName(x)));
+    var own=xDesc(x.id),pts=xPoints().filter(function(o){return!own[o[0]];});
+    if(!pts.some(function(o){return o[0]===x.at;}))pts.unshift([x.at,x.at+" (missing)"]);
+    card.appendChild(xField("starts at",xSelect(pts,x.at,function(v){x.at=v;xChanged();})));
+    card.appendChild(xSlider("length",0,240,1,+x.len||0,"Rig length of the line; each keyframe can stretch it (Ctrl-drag its handle).",
+      function(v){x.len=v;}));
+    card.appendChild(xSlider("rest angle",-180,180,1,+x.ang||0,
+      "Degrees from the bone it starts on (0 = straight on along that bone). Each keyframe adds its own angle on top. Double-click for 0.",
+      function(v){x.ang=v;},0));
+    card.appendChild(xSlider("thickness",0,3,0.05,+x.w||1,"Width as a multiple of a body bone's. Double-click for 1.",
+      function(v){x.w=v;},1));
+    var wd=wdOf(S.rig,"x:"+x.id);
+    [["start %",0],["end %",1]].forEach(function(e){
+      card.appendChild(xSlider(e[0],0,300,1,wd[e[1]],"Width at the "+(e[1]?"end":"start")+" of the line, % — different start and end widths taper it. Double-click for 100.",
+        function(v){if(!S.rig.wd)S.rig.wd={};var w=wdOf(S.rig,"x:"+x.id);w[e[1]]=v;S.rig.wd["x:"+x.id]=w;},100));
+    });
+    var fr=el("label","tgl"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!x.far;
+    cb.onchange=function(){x.far=cb.checked;xChanged();};
+    fr.appendChild(cb);fr.appendChild(document.createTextNode(" far side (drawn dimmer, like the far limbs)"));card.appendChild(fr);
+    var del=el("button","mini warn","Remove line");
+    del.onclick=function(){var n=Object.keys(xDesc(x.id)).length-1;
+      if(!n){xRemove(x.id);return;}
+      askConfirm("Remove "+(x.name||x.id)+" and the "+n+" line"+(n>1?"s / anchors":"")+" attached to it?",function(ok){if(ok)xRemove(x.id);});};
+    card.appendChild(del);box.appendChild(card);
+  });
 }
 
 /* ---- layers ---- */
@@ -2363,7 +2617,8 @@ function syncRef(){
     i.value=rf[r[0]];i.nextSibling.textContent=(+rf[r[0]]).toFixed(r[3]<1?2:0);});
   document.getElementById("reffront").checked=!!rf.front;
 }
-function refresh(){buildActions();buildFilm();buildRefStrip();syncSliders();buildLayers();syncTween();syncRef();durRead();render();save();}
+var XUISIG=null;
+function refresh(){xlSync();if(XUISIG!==XSIG)buildSliders();buildActions();buildFilm();buildRefStrip();syncSliders();buildLayers();syncTween();syncRef();durRead();render();save();}
 
 function libPose(n){return clone(S.lib[n]||DEFLIB[n]||newPose());}
 function buildLib(){
@@ -2983,7 +3238,8 @@ cv.addEventListener("pointerdown",function(e){
   }
   var ikMode=ANAT.ik&&SOLVE&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey;
   var m=pos(e),j=joints(KF(),S.rig),best=null,bd=18;
-  HANDLES.forEach(function(h){var twi=tipWi(h[0]);if(twi>=0&&wCount(twi)<3)return;
+  allHandles().forEach(function(h){var twi=tipWi(h[0]);if(twi>=0&&wCount(twi)<3)return;
+    if(!j[h[0]])return;
     var s=toStage(j[h[0]]),d=Math.hypot(s.x-m.x,s.y-m.y);if(d<bd){bd=d;best=h;}});
   if(!best)return;e.preventDefault();try{cv.setPointerCapture(e.pointerId);}catch(_e){}var mod=e.ctrlKey||e.metaKey;
   if(ikMode&&best[0]==="hip"){var j0=joints(KF(),S.rig);
@@ -3019,6 +3275,18 @@ cv.addEventListener("pointermove",function(e){
       var d=Math.hypot(c.x-m.x,c.y-m.y);if(d<bdc){bdc=d;bestC=c;}
     });
     if(bestC)m={x:bestC.x,y:bestC.y};
+  }
+  if(h[1]==="__xl"&&!drag.shift){
+    /* added line end: aims the line about its start point (its angle stays relative to the
+       bone it hangs from); Ctrl stretches it instead */
+    var xd=xDef(h[2]);if(!xd)return;
+    var xang={},jx=joints(p,S.rig,xang),xo=jx[xd.at];if(!xo||xang[xd.id]==null)return;
+    if(!p._xl)p._xl={};var xv=(p._xl[xd.id]||[0,1]).slice();
+    if(drag.ctrl)xv[1]=Math.max(0,Math.round(Math.hypot(m.x-xo.x,m.y-xo.y)/(+xd.len||1)*1000)/1000);
+    else{var xpar=xang[xd.id]-(+xd.ang||0)-xv[0];
+      xv[0]=clampA(Math.atan2(m.x-xo.x,m.y-xo.y)/D-xpar-(+xd.ang||0));}
+    p._xl[xd.id]=xv;
+    syncSliders();render();return;
   }
   if(h[1]==="__wp"){
     /* weapon tip handle: h[2] is the weapon index; the grip rides on that weapon's attach joint */
@@ -3293,7 +3561,10 @@ document.getElementById("pal_body").onchange=function(){S.meta.palette.body=this
 document.getElementById("pal_acc").onchange=function(){S.meta.palette.accent=this.value;save();};
 
 /* export */
-function round(p){var o={};PKEYS.forEach(function(k){o[k]=Math.round(p[k]*100)/100;});return o;}
+function round(p){var o={};PKEYS.forEach(function(k){o[k]=Math.round(p[k]*100)/100;});
+  if(p._xl){o._xl={};Object.keys(p._xl).forEach(function(id){var v=p._xl[id];
+    o._xl[id]=[Math.round(v[0]*100)/100,Math.round(v[1]*1000)/1000];});}
+  return o;}
 function build(){
   var bake=document.getElementById("bake").checked,acts={};
   Object.keys(S.actions).forEach(function(k){
@@ -3309,8 +3580,9 @@ function build(){
     movement:S.meta.movement,stats:S.meta.stats,
     rig:{bones:{ua:S.rig.ua,fa:S.rig.fa,th:S.rig.th,sh:S.rig.sh,torso:S.rig.torso,head:S.rig.head},
          widths:clone(S.rig.wd||{}),
+         lines:clone(xlOf(S.rig)),anchors:clone(xaOf(S.rig)),
          pivots:{shoulder_x:S.rig.shx,shoulder_y:S.rig.shy,hip_x:S.rig.hipx,hip_y:S.rig.hipy,side_separation:S.rig.sep},
-         pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers; weapon.attach / weapon2.attach name the joint each grip rides on, the weapon turning with the bone that ends there (Rig Forge extension); weapon2 is a second, independent weapon posed by w2p/w2px/w2py/w2spin/w2len"},
+         pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length, _xl[id] = [angle, stretch] poses each rig.lines entry (an added line; its angle is relative to the bone it starts on plus its rest angle; rig.anchors are points t of the way along a line) and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers; weapon.attach / weapon2.attach name the joint each grip rides on, the weapon turning with the bone that ends there (Rig Forge extension); weapon2 is a second, independent weapon posed by w2p/w2px/w2py/w2spin/w2len"},
     palette:S.meta.palette,defense:{},weapon:{points:wShapes(0)[0]||[],shapes:wShapes(0),attach:wAt(S.rig,0)},
     weapon2:{points:wShapes(1)[0]||[],shapes:wShapes(1),attach:wAt(S.rig,1)},special_ability:null,actions:acts,
     battle_semantics:"Battle properties live per can_hit FX layer, not per action. Attack props (Explode, Scatter, Pierce, Slash) stack and are visual-only; defence props are mutually exclusive per layer and only \"deflect\" has an engine implementation.",
@@ -3458,6 +3730,16 @@ document.getElementById("pngsize").onkeydown=function(e){e.stopPropagation();};
 
 /* ---- character package export (PNG frames + character.json) ---- */
 var PKG_JOINTS=["hip","chest","neck","head","shB","shL","shR","elL","elR","haL","haR","hpL","hpR","knL","knR","ftL","ftR","wtip","wtip2","root"];
+/* the built-in anchors plus this character's added anchors and line ends */
+function pkgJoints(){return PKG_JOINTS.concat(xaOf(S.rig).map(function(a){return a.id;}),xlOf(S.rig).map(function(x){return x.id;}));}
+function pkgLabels(){
+  var o={hip:"hip centre",chest:"chest",neck:"neck",head:"head",shB:"shoulder base",shL:"far shoulder",shR:"near shoulder",
+    elL:"far elbow",elR:"near elbow",haL:"far hand",haR:"near hand",hpL:"far hip",hpR:"near hip",knL:"far knee",knR:"near knee",
+    ftL:"far foot",ftR:"near foot",wtip:"weapon tip",wtip2:"weapon 2 tip",root:"above head"};
+  xaOf(S.rig).forEach(function(a){o[a.id]=a.name||a.id;});
+  xlOf(S.rig).forEach(function(x){o[x.id]=(x.name||x.id)+" end";});
+  return o;
+}
 function pkgWeaponPts(p,j){return wWorldPts(p,j,0).concat(wWorldPts(p,j,1));}
 function pkgFramePose(p,travel){var q=clone(p);normPose(q);if(!travel){q.rx=0;}return q;}
 function pkgPoints(p){
@@ -3492,7 +3774,7 @@ var PKG_ANCHOR_LABELS={hip:"hip centre",chest:"chest",neck:"neck",head:"head",sh
 function pkgManifest(image,acts,anchors,extra){
   var m=S.meta,man={format:"pb_char_pkg",version:1,name:m.name,display_name:m.display_name,description:m.description,
     archetype:m.archetype,predicates:m.predicates,movement:m.movement,stats:m.stats,palette:m.palette,
-    image:image,actions:acts,anchors:anchors,anchor_labels:PKG_ANCHOR_LABELS};
+    image:image,actions:acts,anchors:anchors,anchor_labels:pkgLabels()};
   for(var k in extra)man[k]=extra[k];
   return man;
 }
@@ -3500,17 +3782,17 @@ function pkgBuild(){
   if(S.meta.pkg)return pkgBuildPkg();   /* imported package: keep its image space */
   var headPx=Math.max(8,Math.min(400,+document.getElementById("pk_head").value||58));
   var col=document.getElementById("pk_col").value||"#000000",travel=document.getElementById("pk_travel").checked;
-  var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={};
+  var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={},PKJ=pkgJoints();
   var toPx=function(v){return[Math.round(((v.x-cam.cx)*cam.ppu+size/2)*100)/100,Math.round(((v.y-cam.cy)*cam.ppu+size/2)*100)/100];};
   Object.keys(S.actions).forEach(function(k){
     var a=S.actions[k],list=playlist(a),names=[];
-    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
+    anchors[k]={};PKJ.forEach(function(jn){anchors[k][jn]=[];});
     list.forEach(function(p0,i){
       var p=pkgFramePose(p0,travel),c=document.createElement("canvas");c.width=size;c.height=size;
       var g=c.getContext("2d");g.translate(size/2,size/2);g.scale(cam.ppu,cam.ppu);g.translate(-cam.cx,-cam.cy);
       drawFigure(g,p,S.rig,{color:col,noMask:true,sil:true});
       var nm=pkgName(k,i,list.length);names.push(nm);files.push({name:nm,canvas:c});
-      var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
+      var j=joints(p,S.rig);PKJ.forEach(function(jn){anchors[k][jn].push(j[jn]?toPx(j[jn]):null);});
     });
     acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
   });
@@ -3879,25 +4161,25 @@ function pkgBuildPkg(){
   /* grow evenly on both sides, so the figure position stays the image centre */
   var W2=Math.min(4096,Math.max(W,2*Math.ceil(nx))),H2=Math.min(4096,Math.max(H,2*Math.ceil(ny))),ox=W2/2,oy=H2/2;
   var toPx=function(v){return[r2((v.x-pk.cx)*ppu+ox),r2((v.y-pk.cy)*ppu+oy)];};
-  var files=[],acts={},anchors={},emb={};
+  var files=[],acts={},anchors={},emb={},PKJ=pkgJoints();
   Object.keys(S.actions).forEach(function(k){
     var a=S.actions[k],list=playlist(a),names=[],fileOf=new Map();
-    anchors[k]={};PKG_JOINTS.forEach(function(jn){anchors[k][jn]=[];});
+    anchors[k]={};PKJ.forEach(function(jn){anchors[k][jn]=[];});
     list.forEach(function(p0,i){
       var c=document.createElement("canvas");c.width=W2;c.height=H2;var g=c.getContext("2d");
       var nm=pkgName(k,i,list.length);
       if(p0._img){
         var im=getImg(p0._img);if(!im)throw new Error("an imported frame of "+k+" is still loading — try again in a moment");
         g.drawImage(im,ox-im.naturalWidth/2,oy-im.naturalHeight/2);
-        PKG_JOINTS.forEach(function(jn){var q=p0._anc&&p0._anc[jn];anchors[k][jn].push(q?[r2(ox+q[0]),r2(oy+q[1])]:null);});
+        PKJ.forEach(function(jn){var q=p0._anc&&p0._anc[jn];anchors[k][jn].push(q?[r2(ox+q[0]),r2(oy+q[1])]:null);});
       }else{
         var p=pkgFramePose(p0,travel);g.translate(ox,oy);g.scale(ppu,ppu);g.translate(-pk.cx,-pk.cy);
         drawFigure(g,p,S.rig,{color:col,noMask:true,sil:true});
-        var j=joints(p,S.rig);PKG_JOINTS.forEach(function(jn){anchors[k][jn].push(toPx(j[jn]));});
+        var j=joints(p,S.rig);PKJ.forEach(function(jn){anchors[k][jn].push(j[jn]?toPx(j[jn]):null);});
       }
       names.push(nm);files.push({name:nm,canvas:c});if(!p0._gen)fileOf.set(p0,nm);
     });
-    PKG_JOINTS.forEach(function(jn){if(!anchors[k][jn].some(Boolean))delete anchors[k][jn];});
+    PKJ.forEach(function(jn){if(!anchors[k][jn].some(Boolean))delete anchors[k][jn];});
     acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
     emb[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
       keyframes:a.keyframes.map(function(p){var q=clone(p);delete q._ref;delete q._gen;delete q._hold;
@@ -3924,6 +4206,8 @@ document.getElementById("loadjson").onclick=function(){
     var o=JSON.parse(t);
     if(o.format!=="pb_character"){toast("Not a pb_character file — the format key must be \"pb_character\".");return;}
     if(o.rig&&o.rig.bones)S.rig=Object.assign(S.rig,o.rig.bones);
+    if(o.rig&&o.rig.widths)S.rig.wd=clone(o.rig.widths);
+    if(o.rig){S.rig.xl=Array.isArray(o.rig.lines)?clone(o.rig.lines):[];S.rig.xa=Array.isArray(o.rig.anchors)?clone(o.rig.anchors):[];}
     if(o.rig&&o.rig.pivots){var pv=o.rig.pivots;
       if(pv.shoulder_x!=null)S.rig.shx=pv.shoulder_x;if(pv.shoulder_y!=null)S.rig.shy=pv.shoulder_y;
       if(pv.hip_x!=null)S.rig.hipx=pv.hip_x;if(pv.hip_y!=null)S.rig.hipy=pv.hip_y;
@@ -3944,7 +4228,8 @@ document.getElementById("loadjson").onclick=function(){
         A2[k]={name:k,duration_ms:a.duration_ms||400,trigger:a.trigger||"",
                retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
                keyframes:(a.keyframes&&a.keyframes.length?a.keyframes:[{}]).map(function(p){
-                 var q=newPose();PKEYS.forEach(function(k2){if(typeof p[k2]==="number")q[k2]=p[k2];});return q;})};
+                 var q=newPose();PKEYS.forEach(function(k2){if(typeof p[k2]==="number")q[k2]=p[k2];});
+                 if(p._xl&&typeof p._xl==="object")q._xl=clone(p._xl);return q;})};
       });
       S.actions=A2;S.cur=Object.keys(A2)[0];S.kf=0;
     }
