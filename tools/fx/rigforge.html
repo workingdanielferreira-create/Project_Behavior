@@ -640,10 +640,20 @@ function xlJoints(out,p,rig,angOut){
   }
 }
 /* a line's pose in keyframe p: its own (p._xl), else the one it borrows from the nearest
-   keyframe of its action that has its own (p._xli, filled by xlInherit), else rest [0, 1] */
+   keyframe of its action that has its own, else from idle / another action (p._xli, filled
+   by xlInherit), else rest [0, 1] */
 function xlPose(p,id){return(p&&p._xl&&p._xl[id])||(p&&p._xli&&p._xli[id])||[0,1];}
+/* character-wide fallback for an action with no pose of its own for a line: the line's pose
+   in idle (its first posed keyframe), else in the first other action that has one */
+function xlCharPose(id){
+  var keys=Object.keys(S.actions),src=null;
+  if(keys.indexOf("idle")>0){keys.splice(keys.indexOf("idle"),1);keys.unshift("idle");}
+  keys.some(function(k){return S.actions[k].keyframes.some(function(q){
+    if(q._xl&&q._xl[id]){src=q._xl[id];return true;}return false;});});
+  return src;
+}
 function xlInherit(act){
-  var kfs=act&&act.keyframes;if(!kfs)return;var ids=xlOf(S.rig).map(function(x){return x.id;});
+  var kfs=act&&act.keyframes;if(!kfs)return;var ids=xlOf(S.rig).map(function(x){return x.id;}),cp={};
   kfs.forEach(function(p,i){
     if(!ids.length){delete p._xli;return;}
     var inh={};
@@ -652,6 +662,7 @@ function xlInherit(act){
       var j,src=null;
       for(j=i-1;j>=0&&!src;j--)if(kfs[j]._xl&&kfs[j]._xl[id])src=kfs[j]._xl[id];
       for(j=i+1;j<kfs.length&&!src;j++)if(kfs[j]._xl&&kfs[j]._xl[id])src=kfs[j]._xl[id];
+      if(!src){if(!(id in cp))cp[id]=xlCharPose(id);src=cp[id];}
       if(src)inh[id]=src.slice();
     });
     if(Object.keys(inh).length)p._xli=inh;else delete p._xli;
