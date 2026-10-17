@@ -2922,7 +2922,11 @@ function uaTransitions(d, P, L) {
 // An FX dropdown: effects / groups borrowed from the actions, plus library
 // presets that copy into the slot `key` (they always play with it).
 function slotFxField(s, obj, key, label, help) {
-  var fxOpts = [["", "— none —"]], known = {"": 1};
+  // "" = nothing borrowed: it reads as the slot's own FX when it has some
+  // (a ＋ Library pick lands there), so the dropdown shows what plays.
+  var ownGr = S.groups.filter(function (gr) { return gr.action === key; }), ownFx = S.effects.filter(function (e) { return e.action === key; });
+  var ownTxt = ownGr.length ? ownGr.map(function (gr) { return gr.name; }).join(", ") : ownFx.map(function (e) { return e.name; }).join(", ");
+  var fxOpts = [["", ownFx.length ? "✦ Own FX slot: " + (ownTxt.length > 40 ? ownTxt.slice(0, 40) + "…" : ownTxt) + " (" + ownFx.length + " fx)" : "— none —"]], known = {"": 1};
   S.groups.forEach(function (gr) { if (gr.action === key) return; var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
   S.effects.forEach(function (e) { if (e.action === key) return; fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
   if (!known[obj.fx]) fxOpts.push([obj.fx, "(missing: deleted effect or group)"]);
@@ -2931,8 +2935,19 @@ function slotFxField(s, obj, key, label, help) {
   lib.forEach(function (x, i) { if (!groupPresetOf(x.p)) fxOpts.push(["lib:" + i, "＋ Library " + (x.builtin ? "" : "★ ") + x.p.name]); });
   var fe = field(s, "FX", inp(fxOpts, obj.fx, function (v) {
     if (v.indexOf("lib:") === 0) {
+      // A Library pick becomes the slot's FX: it replaces what was in the
+      // own slot and stops the borrowed FX (Undo brings them back).
       var x = lib[+v.slice(4)];
-      if (x) { presetInto(x.p, key); toast("Added " + x.p.name + " to " + label + "'s own FX slot"); }
+      if (x) {
+        S.effects = S.effects.filter(function (e) { return e.action !== key; });
+        S.groups = S.groups.filter(function (gr) { return gr.action !== key; });
+        if (S.sel && !S.effects.some(function (e) { return e.id === S.sel; })) S.sel = null;
+        S.multi = (S.multi || []).filter(function (id) { return S.effects.some(function (e) { return e.id === id; }); });
+        pruneGroups();
+        obj.fx = "";
+        presetInto(x.p, key);
+        toast(label + " now plays " + x.p.name);
+      }
       save(); buildActions(); buildEffects(); buildProps(); if (S.react === "transform" && fxKey() === key) { buildTimeline(); resetSim(0); }
       return;
     }
