@@ -449,6 +449,10 @@ TIME_SPEED_MAX = 8
 # "@blink:<action>" plays over <action> while its Blink is on.
 RETREAT_KEY = "@retreat"
 BLINK_KEY = "@blink:"
+# "@transform:<from>><to>" (e.g. "@transform:a>b") plays during that
+# Transformations transition (laser/unique.py transition_fx), on the
+# transition action's timing.
+TRANSFORM_KEY = "@transform:"
 # Character FX (FX Studio: Character FX, whole character): always on the
 # fighter whatever it is doing, on their own lane (FxDriver._character_tick).
 CHARACTER_KEY = "@character"
@@ -2987,7 +2991,9 @@ class CharacterFx:
         # Triggered reactions (FX Studio > Actions > Triggered reactions):
         # "@blink:<action>" FX play over that action alongside its own while
         # its Blink is on; "@retreat" FX play for the whole Tactical retreat
-        # dash (FxDriver._retreat_tick).  Neither plays on its own.
+        # dash (FxDriver._retreat_tick); "@transform:a>b" FX play during that
+        # Transformations transition (FxDriver._transform_tick).  None plays
+        # on its own.
         self.with_blink = {a: (self.by_action.get(a) or []) + self.by_action[BLINK_KEY + a]
                            for a in [k[len(BLINK_KEY):] for k in self.by_action if k.startswith(BLINK_KEY)]}
         self.retreat_own = self.by_action.get(RETREAT_KEY) or []
@@ -3333,10 +3339,11 @@ class FxDriver:
         # timing) and the FX built on the reaction ("@retreat", on the run
         # timing); the third lane is the Dodge's borrowed "fx" (laser/dodge.py)
         # for as long as the dodge lasts; the fourth a Transformations
-        # transition's borrowed "fx" (laser/unique.py transition_fx).
+        # transition's borrowed "fx" and the fifth the FX built on that
+        # transition ("@transform:a>b") (laser/unique.py transition_fx).
         # Lane = [player, on, t, t_prev].
         self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1], [Player(), False, 0, -1],
-                       [Player(), False, 0, -1]]
+                       [Player(), False, 0, -1], [Player(), False, 0, -1]]
         self.tf_seq = 0   # the transition the fourth lane last played
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
@@ -3397,7 +3404,10 @@ class FxDriver:
         self.host = host
         cfg = self.cfx.settings.get(action) or normalize_action({})
         from . import blink as _blink
-        if (cfg["blink"]["enabled"] and action in self.cfx.with_blink
+        from . import unique as _unique
+        if _unique.in_transition_action(fig, action):
+            effects = []   # a transition plays only the action's animation (its own FX: _transform_tick)
+        elif (cfg["blink"]["enabled"] and action in self.cfx.with_blink
                 and _blink.fx_on(fig, action, world.global_tick)):
             effects = self.cfx.with_blink[action]
         else:
@@ -3452,20 +3462,30 @@ class FxDriver:
 
     def _transform_tick(self, fig, host, hold, frozen=False):
         """Transformations transition FX (laser/unique.py transition_fx): the
-        borrowed effect / group plays while the transition action does, or
-        one pass of its own action's timing when the transition has none."""
+        borrowed effect / group and the FX built on the transition
+        ("@transform:a>b") play while the transition action does (its own
+        FX stay off then), or one pass of their timing when the transition
+        has no action."""
         from . import unique
-        key, seq, once = unique.transition_fx(fig)
-        lane = self.rlanes[3]
-        effs, act = self.cfx.retreat_effects(key) if key else ([], None)
-        if effs and seq != self.tf_seq:
+        borrow, pair, act, seq, once = unique.transition_fx(fig)
+        lanes = (self.rlanes[3], self.rlanes[4])
+        own = self.cfx.by_action.get(TRANSFORM_KEY + pair) if pair else None
+        tm = self.cfx.timing
+        host_act = act if act in tm else ("idle" if "idle" in tm else self.action)
+        jobs = (self.cfx.retreat_effects(borrow) if borrow else ([], None),
+                (own, host_act) if own else ([], None))
+        if seq != self.tf_seq:
             self.tf_seq = seq
-            lane[1] = False        # a new transition starts the FX from the top
-        self._lane_tick(lane, effs, act, host, hold, frozen)
-        if once:
-            n, fm = self._time_for(act) if act else (1, TICK_MS)
-            if not effs or lane[2] >= max(1, jround(n * fm / TICK_MS)):
-                unique.transition_fx_done(fig)
+            for lane in lanes:
+                lane[1] = False    # a new transition starts its FX from the top
+        done = True
+        for lane, (effs, a) in zip(lanes, jobs):
+            self._lane_tick(lane, effs, a, host, hold, frozen)
+            if effs and once:
+                n, fm = self._time_for(a)
+                done = done and lane[2] >= max(1, jround(n * fm / TICK_MS))
+        if once and done:
+            unique.transition_fx_done(fig)
 
     def _character_tick(self, fig, host, hold, frozen=False):
         """Character FX ("@character"): always on, whatever the fighter is
