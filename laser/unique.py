@@ -1371,7 +1371,9 @@ def _df_tick(fig, world, st, P):
     if st.df_buff > 0:
         st.df_buff -= 1
     if st.df_pending is not None:
-        st.df_want = False         # one transition at a time
+        # One transition at a time: a trigger that fires meanwhile (an HP
+        # threshold crossed mid-transition) stays queued in df_want and
+        # starts the next transition once this one lands.
         _df_transition_tick(fig, world, st, P)
         return
     if st.df_left > 0:
