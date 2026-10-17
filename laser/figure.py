@@ -93,6 +93,7 @@ class Figure:
         self.retreat = None
         self.dodge = None
         self.blink = None
+        self.motion.style = None    # movement style state belongs to the old character
         self.combat.reset()
         self.trail.clear()
         self.trail.gradient = spd.get("trail_gradient")

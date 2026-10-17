@@ -256,7 +256,8 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg"):
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg",
+                         "_ua_cfg", "_glide_cache"):
                 if m is not None and hasattr(m, attr):
                     try:
                         delattr(m, attr)
@@ -488,6 +489,10 @@ class World:
                                   wall=ai._wall_repulsion, enemy_melee=melee)
             if pt is not None:
                 return pt
+        elif fig.motion.style is not None:
+            # No style (another character, or it was switched off and F5'd):
+            # the old movement runs, not the last styled step.
+            fig.motion.style.live = False
         if fig.mode.kites():
             # Kiting is identical in Solo (target=cursor) and Battle
             # (target=nearest enemy) — ai.kite_target takes a plain point
