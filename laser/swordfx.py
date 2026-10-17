@@ -32,6 +32,8 @@ Styles (params.style, fxkit.TECH_STYLES):
   combo_flurry      six quick cuts from every direction, scattered in front
   combo_launcher    low sweep at the feet, mid diagonal, high rising launcher
   combo_backhand    flat forehand round the front, flat backhand, overhead chop
+  buster_sword ... earth_cleaver
+                    2.5D signature weapons (laser/weaponfx.py)
   ki_barrage        rapid-fire ki blasts (laser/strikefx.py)
   impact_punch      a punch with a shockwave impact (laser/strikefx.py)
   ssj_aura, rasen_shuriken, gigantic_meteor, ghost_kamikaze, serious_punch,
@@ -196,6 +198,8 @@ def active_ticks(P):
         return powerfx.active_ticks(P)
     if st in gunfx.STYLES:
         return gunfx.active_ticks(P)
+    if st in weaponfx.STYLES:
+        return weaponfx.active_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + 2
 
 
@@ -214,6 +218,8 @@ def total_ticks(P):
         return powerfx.total_ticks(P)
     if st in gunfx.STYLES:
         return gunfx.total_ticks(P)
+    if st in weaponfx.STYLES:
+        return weaponfx.total_ticks(P)
     return cut_starts(P)[-1] + _swing(P) + _fade(P) + SPARK_LIFE
 
 
@@ -222,14 +228,17 @@ def on_spawn(inst, host):
     """Fix the technique's frame at spawn: origin, forward, mirror."""
     fx = inst.fx
     st = _style(fx["params"])
-    if st in CUTS:
+    # Slashes and weapons are laid out round the fighter's facing (turned
+    # by Follow direction); the rest along the aim.
+    lay = st in CUTS or st in weaponfx.STYLES
+    if lay:
         ef = inst.facing
         f = F.turn_by([float(ef), 0.0], F.body_deg(fx, host, (inst.x, inst.y)))
     else:
         f = list(inst.dir)
     n = math.hypot(f[0], f[1]) or 1.0
     inst.tq_f = (f[0] / n, f[1] / n)
-    inst.tq_m = (inst.facing if st in CUTS else (1 if inst.tq_f[0] >= 0 else -1))
+    inst.tq_m = (inst.facing if lay else (1 if inst.tq_f[0] >= 0 else -1))
     # rotation_deg: the whole technique turned clockwise (0-360), mirrored
     # with the facing so it looks the same facing either way.
     rd = float(fx["params"].get("rotation_deg") or 0) % 360.0
@@ -588,16 +597,18 @@ def hit(inst, tx, ty, hr, ps):
         return powerfx.hit(inst, tx, ty, hr, ps)
     if st in gunfx.STYLES:
         return gunfx.hit(inst, tx, ty, hr, ps)
+    if st in weaponfx.STYLES:
+        return weaponfx.hit(inst, tx, ty, hr, ps)
     return _slash_hit(inst, tx, ty, hr, ps)
 
 
 def shoots(inst):
     """Whether this instance is a technique that fires separate bullets
-    (gun styles, ki barrage): live_points lists them."""
+    (gun styles, ki barrage, the firearms of weaponfx): live_points lists them."""
     if inst.fx.get("prim") != "technique":
         return False
     st = _style(inst.fx["params"])
-    return st in gunfx.STYLES or st == "ki_barrage"
+    return st in gunfx.STYLES or st == "ki_barrage" or weaponfx.fires(st)
 
 
 def live_points(inst, ps):
@@ -609,6 +620,8 @@ def live_points(inst, ps):
         return gunfx.live_points(inst, ps)
     if st == "ki_barrage":
         return strikefx.live_points(inst, ps)
+    if weaponfx.fires(st):
+        return weaponfx.live_points(inst, ps)
     return []
 
 
@@ -627,6 +640,8 @@ def body(inst, ps):
         return powerfx.body(inst, ps)
     if st in gunfx.STYLES:
         return gunfx.body(inst, ps)
+    if st in weaponfx.STYLES:
+        return weaponfx.body(inst, ps)
     if inst.age >= inst.life:
         return None
     return _slash_body(inst, ps)
@@ -640,6 +655,8 @@ def on_hit(inst, x, y, ps=1.0):
         powerfx.on_hit(inst, x, y, ps)
     elif st in gunfx.STYLES:
         gunfx.on_hit(inst, x, y, ps)
+    elif st in weaponfx.STYLES:
+        weaponfx.on_hit(inst, x, y, ps)
     elif st in CUTS:
         _slash_on_hit(inst)
     inst.tq_hits.append((float(x), float(y), inst.age))
@@ -1276,13 +1293,17 @@ def draw(p, inst, host, ps):
         powerfx.draw(pen, inst, host, ps)
     elif st in gunfx.STYLES:
         gunfx.draw(pen, inst, host, ps)
+    elif st in weaponfx.STYLES:
+        weaponfx.draw(pen, inst, host, ps)
     else:
         _draw_slash(pen, inst, host, ps)
 
 
 # Ki blasts and punches (laser/strikefx.py), the power techniques
-# (laser/powerfx.py) and the guns (laser/gunfx.py) share this module's frame,
+# (laser/powerfx.py), the guns (laser/gunfx.py) and the weapons
+# (laser/weaponfx.py) share this module's frame,
 # pen and timeline; imported last because they build on them.
 from . import strikefx  # noqa: E402
 from . import powerfx  # noqa: E402
 from . import gunfx  # noqa: E402
+from . import weaponfx  # noqa: E402

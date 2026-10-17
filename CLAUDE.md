@@ -31,6 +31,7 @@ laser/palette.py
 laser/platform_win.py
 laser/systems.py
 laser/unique.py
+laser/weaponfx.py
 ```
 
 ## Mandatory Session Rules

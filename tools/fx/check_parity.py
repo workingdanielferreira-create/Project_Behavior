@@ -221,7 +221,8 @@ def main():
 
     # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py),
     # the ki barrage / impact punch constants (laser/strikefx.py), the power
-    # techniques (laser/powerfx.py) and the guns (laser/gunfx.py).
+    # techniques (laser/powerfx.py), the guns (laser/gunfx.py) and the
+    # weapons (laser/weaponfx.py).
     sw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "swordfx.js"))
     sw_py = PyTables(os.path.join(ROOT, "laser", "swordfx.py"))
     for name in ("CUTS", "CROSS_LIFE", "SLASH_SLICES", "SPARK_LIFE", "HIT_MARK_LIFE"):
@@ -250,6 +251,15 @@ def main():
                  "CHARGE_P", "CHARGE_RING", "ROCKET_ARC", "ROCKET_EASE", "ROCKET_MIN", "ROCKET_PUFF", "DRILL_SPIN",
                  "DRILL_RING", "BOLT_SEG", "BRASS", "HULL", "SMOKE", "STEEL"):
         diff(gn_js.get(name), gn_py.get(name), "gunfx " + name, out)
+    # ... and the weapons' tables (laser/weaponfx.py): models, sequences, timings.
+    wp_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "weaponfx.js"))
+    wp_py = PyTables(os.path.join(ROOT, "laser", "weaponfx.py"))
+    for name in ("STYLES", "HU", "SUMMON", "DISMISS", "FOCAL", "THICK_K", "TRAIL_N", "TRAIL_SUB", "TRAIL_BAND", "EVT_HIT",
+                 "BEAM_T", "IMPACT_LIFE", "TAIL", "EVT_LIFE", "EVT_R", "SHOTS", "GLOWS", "MODELS", "WEAPONS"):
+        diff(wp_js.get(name), wp_py.get(name), "weaponfx " + name, out)
+    for st in wp_py.get("STYLES"):
+        if st not in fx.get("TECH_STYLES"):
+            out.append("weaponfx %s: not in laser/fxkit.py TECH_STYLES" % st)
     tech_ui = [r for r in studio.get("PARAM_UI")["technique"] if r[0] == "style"][0][2]
     diff(tech_ui, fx.get("TECH_STYLES"), "studio technique style list", out)
 
