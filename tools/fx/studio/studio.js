@@ -2602,8 +2602,8 @@ var UA_INFO = {
     "Its shots and travelling FX bounce off the screen edges, fighters and enemy FX instead of ending, for the set number of bounces."],
   riposte: ["Riposte", "Duelist · counter-attacker",
     "A hit taken inside its counter stance (or by chance) is cancelled and answered at once with a counter-strike at the attacker."],
-  dual_form: ["Dual Form", "Two-faced fighter · transformation",
-    "Switches between two forms, each with its own actions, palette and stats, on a gauge, a timer, HP thresholds or after a combo, with a short buff after each switch."],
+  dual_form: ["Transformations", "Shapeshifter · multi-form fighter",
+    "Cycles through 2-6 forms in order, each with its own actions, palette and stats, on a gauge, a timer, HP thresholds or after a combo. Every form pair can have its own transition (an action with its own FX) played before the new form takes over, then a short buff."],
   summoner: ["Summoner", "Engineer · necromancer · beast tamer",
     "Places constructs that are not copies of it: turrets that shoot, totems that heal or shield it, familiars that chase and bite. They stand on its side as fighters the enemy can target and destroy."],
   aegis: ["Aegis", "Guardian · knight",
@@ -2807,8 +2807,15 @@ function uaRiposte(d, P) {
   uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "No counter (and no new stance) until this long after the last one.");
   uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after countering.");
 }
+var DF_FORMS = "abcdef";
+function dfLetters(P) { return DF_FORMS.slice(0, Math.max(2, Math.min(6, P.forms || 2))); }
+function dfName(P, l) { return P["form_" + l].name || ("Form " + l.toUpperCase()); }
 function uaDualForm(d, P) {
-  var s = sec(d, "Switch trigger", "ua-df-trig", "When it changes form.", "act");
+  var s = sec(d, "Forms", "ua-df-count", "How many forms it has. It starts in the first and switches to the next one in order each time the trigger fires (after the last, back to the first).", "act");
+  uaNum(s, "Forms", P, "forms", 2, 6, 1, "Number of forms (2-6).", true);
+  var L = dfLetters(P);
+  note(s, "Cycle: " + L.split("").map(function (l) { return dfName(P, l); }).join(" → ") + " → " + dfName(P, "a") + ".");
+  s = sec(d, "Switch trigger", "ua-df-trig", "When it moves on to the next form.", "act");
   uaChoice(s, "Switch when", P, "trigger", [["gauge", "A gauge fills (hits landed + taken)"], ["timer", "On a timer"], ["hp_below", "HP drops below thresholds"], ["combo", "After a combo of hits"]],
     "Gauge: every hit it lands or takes fills it; full = switch. Timer: every N ms. HP thresholds: each % switches once per life. Combo: N hits landed within the combo window.");
   if (P.trigger === "gauge") { uaNum(s, "Hits to fill", P, "gauge_hits", 1, 999, 1, "Hits landed + hits taken that fill the gauge."); uaChk(s, "Show gauge", P, "show_gauge", "A small bar under the fighter."); }
@@ -2822,13 +2829,13 @@ function uaDualForm(d, P) {
     uaNum(s, "Combo window ms", P, "combo_window_ms", 100, 10000, 50, "The hits must land within this long of each other.");
   }
   uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two switches (gauge / combo).");
-  s = sec(d, "After a switch", "ua-df-buff", "A short buff and the transition flash.", "act");
+  s = sec(d, "After a switch", "ua-df-buff", "A short buff and the transition flash once the new form takes over.", "act");
   uaNum(s, "Buff ms", P, "buff_ms", 0, 30000, 100, "How long the buff lasts after each switch. 0 = no buff.");
   uaNum(s, "Buff speed %", P, "buff_speed_pct", 0, 500, 5, "Extra speed (every state) during the buff.");
   uaNum(s, "Buff damage %", P, "buff_damage_pct", 0, 500, 5, "Extra damage during the buff.");
-  uaChk(s, "Transition FX", P, "transition_fx", "A burst and a flash in the new form's aura colour.");
-  [["form_a", "Form A (starts in)"], ["form_b", "Form B"]].forEach(function (f) {
-    var F = P[f[0]], t = sec(d, f[1], "ua-df-" + f[0], "This form's name, stats and look.", "act");
+  uaChk(s, "Transition flash", P, "transition_fx", "A burst and a flash in the new form's aura colour as it takes over.");
+  L.split("").forEach(function (l, i) {
+    var F = P["form_" + l], t = sec(d, "Form " + (i + 1) + (i === 0 ? " (starts in)" : ""), "ua-df-form_" + l, "This form's name, stats and look.", "act");
     var nm = field(t, "Name", inp("text", F.name, function (v) { F.name = v; save(); })); nm.style.minWidth = "0"; nm.style.width = "100%";
     uaNum(t, "Speed %", F, "speed_pct", 5, 800, 5, "Speed in this form (every state): 100 = normal.");
     uaNum(t, "Damage %", F, "damage_pct", 0, 800, 5, "Damage dealt in this form: 100 = normal.");
@@ -2841,18 +2848,55 @@ function uaDualForm(d, P) {
     uaChk(t, "Aura", F, "aura", "A glow around the fighter while in this form.", true);
     field(t, "Aura colour", inp("color", F.aura_color, function (v) { F.aura_color = v; save(); })).title = "Aura, gauge and transition colour.";
   });
-  uaFormActions(d, P);
+  uaTransitions(d, P, L);
+  uaFormActions(d, P, L);
 }
-// Which form plays each action: both (default), Form A only or Form B only.
-function uaFormActions(d, P) {
-  var s = sec(d, "Actions per form", "ua-df-acts", "Pick which form plays each action.", "act");
+// One transition per form pair: the action played on the way out of the old
+// form (the new form takes over when it ends) and the FX played with it.
+function uaTransitions(d, P, L) {
+  var s = sec(d, "Transitions", "ua-df-trans", "Each form pair has its own transition: an action played in the old form (the new form takes over when it ends) and an FX that plays while it does. With no action the form changes at once and the FX plays one pass on its own.", "act");
+  var acts = [["", "— none —"]].concat(Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }).map(function (k) { return [k, k]; }));
+  var fxOpts = [["", "— none —"]], known = {"": 1};
+  S.groups.forEach(function (gr) { var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
+  S.effects.forEach(function (e) { fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
+  // The pairs the in-order cycle plays first, then every other pair.
+  var pairs = [], cyc = {};
+  L.split("").forEach(function (a, i) { var b = L[(i + 1) % L.length]; pairs.push([a, b]); cyc[a + ">" + b] = 1; });
+  L.split("").forEach(function (a) { L.split("").forEach(function (b) { if (a !== b && !cyc[a + ">" + b]) pairs.push([a, b]); }); });
+  if (L.length > 2) note(s, "The in-order cycle plays the first " + L.length + " below; the others are kept for each pair too.");
+  pairs.forEach(function (pr) {
+    var key = pr[0] + ">" + pr[1], T = P.transitions[key] || (P.transitions[key] = {action: "", fx: ""});
+    var lbl = dfName(P, pr[0]) + " → " + dfName(P, pr[1]);
+    var h = document.createElement("div"); h.className = "note"; h.style.fontWeight = "600"; h.style.marginTop = "6px";
+    h.textContent = lbl + (cyc[key] ? "" : "  (not in the cycle)"); s.appendChild(h);
+    var ao = acts.slice(); if (T.action && !acts.some(function (o) { return o[0] === T.action; })) ao.push([T.action, "(missing: " + T.action + ")"]);
+    var ae = field(s, "Action", inp(ao, T.action, function (v) { T.action = v; save(); }));
+    ae.style.minWidth = "0"; ae.style.width = "100%";
+    ae.title = "Played (skipping its own conditions and cooldown) when it leaves " + dfName(P, pr[0]) + " for " + dfName(P, pr[1]) + ". It plays even if it is set to other forms only. The new form takes over when it ends.";
+    var fo = fxOpts.slice(); if (!known[T.fx]) fo.push([T.fx, "(missing: deleted effect or group)"]);
+    var fe = field(s, "FX (borrowed)", inp(fo, T.fx, function (v) { T.fx = v; save(); }));
+    fe.style.minWidth = "0"; fe.style.width = "100%";
+    fe.title = "An effect or a whole group (▣) that plays for as long as this transition's action does (one pass of its own timing with no action). It still plays on its own action too.";
+  });
+}
+// Which forms play each action: every form (default) or the ticked ones.
+function uaFormActions(d, P, L) {
+  var s = sec(d, "Actions per form", "ua-df-acts", "Tick the forms that play each action. An action never plays in an unticked form (its triggers are skipped there).", "act");
   var names = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
   if (!names.length) { note(s, "This character has no actions besides idle / run."); return; }
   names.forEach(function (k) {
-    var e = field(s, k, inp([["both", "Both forms"], ["a", P.form_a.name + " only"], ["b", P.form_b.name + " only"]], P.actions[k] || "both", function (v) {
-      if (v === "both") delete P.actions[k]; else P.actions[k] = v; save();
-    }));
-    e.title = "Both: plays in either form. A / B only: it never plays in the other form (its triggers are skipped there).";
+    var cur = P.actions[k], all = cur === undefined || cur === "both";
+    var h = document.createElement("div"); h.className = "note"; h.style.fontWeight = "600"; h.style.marginTop = "6px";
+    h.textContent = k; s.appendChild(h);
+    L.split("").forEach(function (l) {
+      var on = all || String(cur).indexOf(l) >= 0;
+      field(s, dfName(P, l), inp("chk", on, function (v) {
+        var now = (P.actions[k] === undefined || P.actions[k] === "both") ? L : String(P.actions[k]);
+        now = L.split("").filter(function (x) { return x === l ? v : now.indexOf(x) >= 0; }).join("");
+        if (now === L) delete P.actions[k]; else P.actions[k] = now;
+        save(); buildProps();
+      })).title = "On: " + k + " plays in " + dfName(P, l) + ". Off: never in that form.";
+    });
   });
 }
 function uaSummoner(d, P) {
