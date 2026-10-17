@@ -288,7 +288,7 @@ class Projectile:
     __slots__ = ("x", "y", "vx", "vy", "age", "r", "g", "b",
                  "max_age", "hit_r_sq", "trail", "radius", "style", "damage",
                  "pierce", "knockback_px", "owner", "one_hit", "no_knockback",
-                 "ua_rb", "ua_cd")
+                 "ua_rb", "ua_cd", "ua_rw", "ua_path", "ua_big")
 
     def __init__(self, fx, fy, vx, vy, color_rgb, trail_len):
         self.x, self.y = float(fx), float(fy)
@@ -296,6 +296,12 @@ class Projectile:
         # not read from the owner yet) and the short no-rebounce window.
         self.ua_rb = None
         self.ua_cd = 0
+        # Rewind Bullets: None = not read yet, -1 off, 0 flying out (the
+        # path is recorded in ua_path), 1 returning along it.  ua_big: a
+        # Domain Expansion 'Huge FX' already grew it.
+        self.ua_rw = None
+        self.ua_path = None
+        self.ua_big = False
         self.vx, self.vy = vx, vy
         self.r, self.g, self.b = color_rgb
         self.age = 0

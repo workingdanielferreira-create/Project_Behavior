@@ -52,7 +52,9 @@ these characters; it plays the PNGs.
   "aim": {"enabled": false, "source": "attack_normal", "from_anchor": "haR", "to_anchor": "wtip", "max_deg": 75},
   "damaged": {"cooldown_ms": 0, "anti_knockback": 0},
   "unique_ability": {"type": "none", "mirror_legion": {"...": "5b"}, "berserker": {}, "phase_shift": {},
-                     "ricochet": {}, "riposte": {}},
+                     "ricochet": {}, "riposte": {}, "dual_form": {}, "summoner": {}, "aegis": {},
+                     "terraform": {}, "rewind_bullets": {}, "phantom_swap": {}, "domain_expansion": {},
+                     "fusion": {}},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
@@ -560,8 +562,57 @@ shots, with speed / damage kept per bounce, mirror / seek / wobble angles and
 (bullets only) splits. `riposte`: a hit inside the timed counter stance (or by
 chance) is cancelled and answered with a fast counter bolt, optionally after
 blinking in front of the attacker. Phase Shift and Riposte never stop an
-unblockable (`blockable: false`) hit. A hand-written `pb_character` JSON can
-carry the same top-level `"unique_ability"` block.
+unblockable (`blockable: false`) hit.
+`dual_form`: two forms (`form_a` starts, `form_b`), each with its own
+`speed_pct` / `damage_pct` / `taken_pct`, optional palette (`body` + `accent`
+-> its LUT, body and trail swapped together) and aura; it switches on a gauge
+(hits landed + taken), a timer, HP thresholds or a combo of landed hits, then
+gets a `buff_ms` speed / damage buff. `actions` maps an action name to `"a"` /
+`"b"` (missing = both forms): an action is never started in the other form.
+`summoner`: constructs (`turret` shoots, `totem_heal` heals the summoner in
+its aura, `totem_shield` cuts the summoner's damage taken in its aura,
+`familiar` chases and bites) placed around it / between it and the enemy /
+near the enemy / at random on a timer, HP thresholds or every N hits taken.
+They are real Figures on its side (a construct mode with no character), so
+enemies see, target and destroy them; their death is never a loss, they
+crumble after `life_ms` or when the summoner leaves. `aegis`: a shield of
+`shield_hp` takes hits first (bullets / FX Studio hits / melee, per
+`blocks`) and regenerates `regen_per_s` after `regen_delay_ms` without hits;
+when it breaks a shockwave (`wave_px`) damages, knocks back and stuns
+(`stun_ms`: body stopped, FX run on) every enemy it reaches. `terraform`:
+walls (across the line to the enemy), pillars or pits placed by
+`placement` on a timer / when hit / when an enemy is near; walls and pillars
+stop bullets and travelling FX (each hit chips `struct_hp`; broken ones burst
+into `shrapnel` owned by the builder), all three keep bodies out; they block
+the enemy only unless `blocks_own`. `rewind_bullets`: its bullets record
+their path and, after `delay_ms` (or on the `recall` timer, all at once), fly
+back along it at `return_speed_pct` dealing `return_damage_pct`, ending where
+they were fired; `pass_fx` lets returning bullets pass enemy bullets;
+`fx_too` turns its travelling FX round too. `phantom_swap`: on a cooldown,
+when hit, or by chance, it swaps places with a ticked target (the enemy -
+in Solo it lands mirrored through the cursor -, one of its copies /
+constructs, one of its own bullets); `reverse_enemy_shots` turns nearby
+enemy bullets round and makes them its own, `reaim_own_shots` points its
+bullets at the enemy's new spot; `uses` per match (0 = unlimited).
+`domain_expansion`: a gauge (hits landed / damage taken / time / HP below)
+opens a domain for `duration_ms` with the ticked `rules`: enemy shots
+fizzle, guaranteed hits (its bullets steer onto the enemy; enemies can't
+phase / counter), gravity (pull / push toward it or the screen centre),
+huge FX (`fx_size_pct`), slowed enemy (`slow_pct`, body and shots), damage
+heals it, 0 ms blink cooldown; optional screen tint. Domains are published
+as `world.ua_domains` at the start of each tick. `fusion`: two team-mates on
+the same side (P1 + P3 / P2 + P4), different characters that both carry
+Fusion, fuse when both meet every ticked condition (HP below, within
+`close_px`, fielded together `field_ms`, `hits` landed together). The fused
+fighter plays the `result` character (empty / unknown = the first one's)
+with max HP and HP summed, the faster speed and both damage multipliers
+added; `ending` `timed` splits it back after `duration_ms` (HP shared by max
+HP, `cooldown_ms` before fusing again), `permanent` keeps it until it falls.
+The first-slot team-mate's settings decide result, ending and duration.
+Copies, constructs, fusions, swaps, shockwaves and domains are resolved at
+world level by `unique.world_tick`, before the battle snapshots are built.
+A hand-written `pb_character` JSON can carry the same top-level
+`"unique_ability"` block.
 
 **Tactical retreat (`retreat`, whole character; `laser/retreat.py`).** When
 its conditions are met (`logic` any / all) the fighter dashes at `speed_pct` %

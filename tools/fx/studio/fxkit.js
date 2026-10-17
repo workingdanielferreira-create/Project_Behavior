@@ -621,7 +621,8 @@ function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 // per character.  `type` names the active one ("none" = off); each ability
 // keeps its own settings block so switching back doesn't lose them.  Read by
 // laser/unique.py (DEFAULTS / TYPES there must match these).
-var UNIQUE_TYPES = ["none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte"];
+var UNIQUE_TYPES = ["none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte",
+  "dual_form", "summoner", "aegis", "terraform", "rewind_bullets", "phantom_swap", "domain_expansion", "fusion"];
 var UNIQUE_DEFAULTS = {
   mirror_legion: {trigger: "hp_below", hp_thresholds: "70,50,30", every_hits: 5, every_ms: 10000,
     count: 2, duration_ms: 4000, cooldown_ms: 6000, formation: "around",
@@ -639,13 +640,50 @@ var UNIQUE_DEFAULTS = {
     keep_speed_pct: 100, keep_damage_pct: 100, angle: "reflect", random_deg: 25, split: 0, split_deg: 20, sparks: true},
   riposte: {mode: "stance", stance_every_ms: 3000, stance_ms: 600, chance_pct: 25,
     counter_mult_pct: 150, base_damage: 5, counter: "strike", knockback_px: 60,
-    cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a"}
+    cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a"},
+  dual_form: {trigger: "gauge", gauge_hits: 12, every_ms: 8000, hp_thresholds: "60,30", combo_hits: 4, combo_window_ms: 1500,
+    cooldown_ms: 2000, buff_ms: 2000, buff_speed_pct: 30, buff_damage_pct: 30, transition_fx: true, show_gauge: true,
+    form_a: {name: "Form A", speed_pct: 100, damage_pct: 100, taken_pct: 100,
+      palette: false, body: "#f2f4f6", accent: "#3fb0ea", aura: false, aura_color: "#3fb0ea"},
+    form_b: {name: "Form B", speed_pct: 120, damage_pct: 130, taken_pct: 120,
+      palette: true, body: "#ffe0e0", accent: "#ff3a3a", aura: true, aura_color: "#ff3a3a"},
+    actions: {}},   // action name -> "a" | "b" (missing = both forms)
+  summoner: {construct: "turret", trigger: "timer", every_ms: 6000, hp_thresholds: "75,50,25", every_hits: 6,
+    count: 1, max_alive: 3, life_ms: 12000, construct_hp: 15, placement: "around", spread_px: 80,
+    fire_ms: 900, shot_damage: 2, shot_speed_pct: 100, range_px: 500,
+    heal_per_s: 2, shield_pct: 40, aura_px: 220, bite_damage: 3, bite_ms: 700, chase_speed_pct: 120,
+    size_px: 14, color: "#7cf3ff"},
+  aegis: {shield_hp: 30, regen_delay_ms: 3000, regen_per_s: 8,
+    blocks: {projectiles: true, fx: true, melee: true},
+    wave_px: 180, wave_damage: 4, wave_knockback_px: 120, stun_ms: 900, show_bar: true, color: "#6fd0ff"},
+  terraform: {structure: "pillar", trigger: "timer", every_ms: 5000, near_px: 200, cooldown_ms: 2000,
+    max_alive: 3, life_ms: 10000, struct_hp: 20, placement: "between", distance_px: 110, size_px: 26, wall_len_px: 120,
+    blocks_own: false, shatter: true, shrapnel: 6, shrapnel_damage: 2, color: "#c9a46a"},
+  rewind_bullets: {trigger: "delay", delay_ms: 700, recall_every_ms: 2500, return_speed_pct: 120, return_damage_pct: 100,
+    pass_fx: true, fx_too: true, tint: true, color: "#b48cff"},
+  phantom_swap: {trigger: "cooldown", cooldown_ms: 4000, chance_pct: 30, uses: 0,
+    targets: {enemy: true, clone: true, own_shot: false},
+    reverse_enemy_shots: true, reverse_px: 160, reaim_own_shots: true, invuln_ms: 250, swap_fx: true, color: "#e07bff"},
+  domain_expansion: {fill: "hits_landed", fill_hits: 15, fill_damage: 30, fill_ms: 20000, hp_below_pct: 40,
+    duration_ms: 6000, cooldown_ms: 4000,
+    rules: {enemy_shots_off: true, guaranteed_hits: false, gravity: false, huge_fx: false, slow_enemy: false,
+      heal_on_damage: false, blink_no_cd: false},
+    gravity_mode: "pull", gravity_to: "owner", gravity_px: 2.5, fx_size_pct: 180, slow_pct: 50,
+    tint: true, tint_color: "#5a1aff", tint_pct: 18, show_gauge: true},
+  fusion: {result: "", conds: {hp_below: true, close: true, field_time: false, hits_landed: false},
+    hp_below_pct: 50, close_px: 160, field_ms: 10000, hits: 10, ending: "timed", duration_ms: 15000, cooldown_ms: 10000,
+    aura: true, aura_color: "#ffffff"}
 };
 function normalizeUnique(a) {
   a = a || {};
   if (UNIQUE_TYPES.indexOf(a.type) < 0) a.type = "none";
   UNIQUE_TYPES.slice(1).forEach(function (k) { a[k] = fill(a[k] || {}, UNIQUE_DEFAULTS[k]); });
   a.phase_shift.destinations = fill(a.phase_shift.destinations || {}, UNIQUE_DEFAULTS.phase_shift.destinations);
+  // nested settings blocks are filled key by key too
+  [["dual_form", "form_a"], ["dual_form", "form_b"], ["aegis", "blocks"], ["phantom_swap", "targets"],
+   ["domain_expansion", "rules"], ["fusion", "conds"]].forEach(function (p) {
+    a[p[0]][p[1]] = fill(a[p[0]][p[1]] || {}, UNIQUE_DEFAULTS[p[0]][p[1]]);
+  });
   return a;
 }
 // The WORLD clash table (not per character): which clash explosion

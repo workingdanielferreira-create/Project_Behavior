@@ -194,6 +194,9 @@ class Figure:
         """Paint the figure and everything it owns.  body=False skips only
         the sprite (and its outline glow) — the pre-battle menu's frozen FX
         layer uses it, then paints the fighter in its idle pose on top."""
+        # Summoner construct (laser/unique.py): drawn as itself.
+        if _unique.draw_construct(self, p):
+            return
         # --- Dash afterimages: crimson speed-ghosts, drawn behind everything ---
         c0 = self.combat
         if c0.afterimages:
@@ -250,7 +253,8 @@ class Figure:
             self.fx.draw(p, self, "behind")
 
         # --- Unique ability overlays (rage aura, riposte stance ring,
-        # phase-shift charges, nullified-hit flash) ---
+        # phase-shift charges, form aura, shield, structures, domain tint,
+        # stun, nullified-hit flash) ---
         if not gone:
             _unique.draw(self, p, fig_pscale)
 

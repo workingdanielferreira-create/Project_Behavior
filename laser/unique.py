@@ -6,7 +6,9 @@ around.  FX Studio saves it in <name>.fxkit.json as
 
     "unique_ability": {
         "type": "none" | "mirror_legion" | "berserker" | "phase_shift"
-                | "ricochet" | "riposte",
+                | "ricochet" | "riposte" | "dual_form" | "summoner" | "aegis"
+                | "terraform" | "rewind_bullets" | "phantom_swap"
+                | "domain_expansion" | "fusion",
         "mirror_legion": {...}, "berserker": {...}, ...   # each one's settings
     }
 
@@ -15,36 +17,59 @@ back in the Studio doesn't lose them).  A hand-written pb_character JSON can
 carry the same block at its top level.  Mirror of tools/fx/studio/fxkit.js
 UNIQUE_DEFAULTS / normalizeUnique.
 
-    mirror_legion  split into full copies of the fighter (real Figures on its
-                   side running its ticked actions) on a trigger
-    berserker      attack + movement speed (every state) rise as HP falls
-    phase_shift    a hit is nullified and the fighter teleports away
-    ricochet       its bullets and moving FX bounce off walls / fighters / FX
-    riposte        a hit inside the counter stance (or by chance) is
-                   cancelled and answered with a counter-strike
+    mirror_legion    split into full copies of the fighter (real Figures on its
+                     side running its ticked actions) on a trigger
+    berserker        attack + movement speed (every state) rise as HP falls
+    phase_shift      a hit is nullified and the fighter teleports away
+    ricochet         its bullets and moving FX bounce off walls / fighters / FX
+    riposte          a hit inside the counter stance (or by chance) is
+                     cancelled and answered with a counter-strike
+    dual_form        two forms (actions, palette, stats) switched on a trigger
+    summoner         turrets / totems / familiars: real fighters on its side
+                     (targetable) that are not copies of it
+    aegis            a regenerating shield in front of HP; breaking it sends a
+                     shockwave that damages, knocks back and stuns enemies
+    terraform        walls / pillars / pits that block shots and bodies and
+                     shatter into shrapnel
+    rewind_bullets   its shots fly back along their path after a delay / recall
+    phantom_swap     swaps places with the enemy, a copy / construct or one of
+                     its own shots; can turn shots in flight around
+    domain_expansion a gauge fills, then a domain rewrites the fight's rules
+    fusion           two fielded team-mates (both with Fusion, different
+                     characters) fuse into a chosen character with summed stats
 
 Hooks (all shared by Solo and Battle; Solo's enemy is the cursor):
-    ai.apply_hp_damage / ai.battle_hit   intercept(), after_damage(), taken_mult()
+    ai.apply_hp_damage / ai.battle_hit   intercept(), heals_instead(), absorb(),
+                                         after_damage(), taken_mult()
+    actions.note_landed / ProjectileSystem   note_landed()
+    actions.py action starts             clone_allows()
     systems.CombatSystem                 tick() once per body step
+    systems.MotionSystem                 holds_still(), push_out(), blink_free()
     timefx.plan                          speed_mult() / fx_speed_mult()
     systems.ProjectileSystem             proj_step(), proj_wants_figures(), proj_off_point()
-    systems.CollisionSystem (victim)     proj_off_figure()
-    fxkit.tick_inst / hit                inst_step(), inst_off_figure()
+    systems.CollisionSystem              proj_off_figure(), proj_ghost()
+    fxkit.spawn / tick_inst / hit        fx_size_mult(), inst_step(), inst_off_figure()
     app.refresh_battle / fxkit._Host     out_mult()
+    blink._reappear                      blink_free()
     combat.spawn_clone                   on_dodge()
-    figure.Figure.draw                   draw()
+    figure.Figure.draw                   draw(), draw_construct()
+    app.Overlay._tick                    world_tick() (copies, constructs, fusion,
+                                         swaps, shockwaves, domains, stuns)
 """
 
 import math
 import random
 
-from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QColor, QPen, QBrush, QPainter, QRadialGradient
+from PyQt5.QtCore import Qt, QPointF, QRectF
+from PyQt5.QtGui import QColor, QPen, QBrush, QPainter, QRadialGradient, QPolygonF
 
 from . import config
+from . import modes as _modes
 
 TICK_MS = config.TICK_MS
-TYPES = ("none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte")
+TYPES = ("none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte",
+         "dual_form", "summoner", "aegis", "terraform", "rewind_bullets",
+         "phantom_swap", "domain_expansion", "fusion")
 
 DEFAULTS = {
     "mirror_legion": dict(
@@ -80,39 +105,113 @@ DEFAULTS = {
         counter_mult_pct=150.0, base_damage=5.0,
         counter="strike",            # strike | blink_strike
         knockback_px=60.0, cooldown_ms=1500, invuln_ms=250, color="#ffd34a"),
+    "dual_form": dict(
+        trigger="gauge",             # gauge | timer | hp_below | combo
+        gauge_hits=12,               # gauge: hits landed + taken that fill it
+        every_ms=8000, hp_thresholds="60,30", combo_hits=4, combo_window_ms=1500,
+        cooldown_ms=2000,
+        buff_ms=2000, buff_speed_pct=30.0, buff_damage_pct=30.0,
+        transition_fx=True, show_gauge=True,
+        form_a=dict(name="Form A", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
+                    palette=False, body="#f2f4f6", accent="#3fb0ea", aura=False, aura_color="#3fb0ea"),
+        form_b=dict(name="Form B", speed_pct=120.0, damage_pct=130.0, taken_pct=120.0,
+                    palette=True, body="#ffe0e0", accent="#ff3a3a", aura=True, aura_color="#ff3a3a"),
+        actions={}),                 # action name -> "a" | "b" (missing = both forms)
+    "summoner": dict(
+        construct="turret",          # turret | totem_heal | totem_shield | familiar
+        trigger="timer",             # timer | hp_below | hits_taken
+        every_ms=6000, hp_thresholds="75,50,25", every_hits=6,
+        count=1, max_alive=3, life_ms=12000, construct_hp=15.0,
+        placement="around",          # around | between | near_enemy | random
+        spread_px=80.0,
+        fire_ms=900, shot_damage=2.0, shot_speed_pct=100.0, range_px=500.0,
+        heal_per_s=2.0, shield_pct=40.0, aura_px=220.0,
+        bite_damage=3.0, bite_ms=700, chase_speed_pct=120.0,
+        size_px=14.0, color="#7cf3ff"),
+    "aegis": dict(
+        shield_hp=30.0, regen_delay_ms=3000, regen_per_s=8.0,
+        blocks=dict(projectiles=True, fx=True, melee=True),
+        wave_px=180.0, wave_damage=4.0, wave_knockback_px=120.0, stun_ms=900,
+        show_bar=True, color="#6fd0ff"),
+    "terraform": dict(
+        structure="pillar",          # wall | pillar | pit
+        trigger="timer",             # timer | on_hit | enemy_near
+        every_ms=5000, near_px=200.0, cooldown_ms=2000,
+        max_alive=3, life_ms=10000, struct_hp=20.0,
+        placement="between",         # between | front | around | near_enemy | random
+        distance_px=110.0, size_px=26.0, wall_len_px=120.0,
+        blocks_own=False,
+        shatter=True, shrapnel=6, shrapnel_damage=2.0,
+        color="#c9a46a"),
+    "rewind_bullets": dict(
+        trigger="delay",             # delay | recall
+        delay_ms=700, recall_every_ms=2500,
+        return_speed_pct=120.0, return_damage_pct=100.0,
+        pass_fx=True, fx_too=True, tint=True, color="#b48cff"),
+    "phantom_swap": dict(
+        trigger="cooldown",          # cooldown | on_hit | chance
+        cooldown_ms=4000, chance_pct=30.0, uses=0,
+        targets=dict(enemy=True, clone=True, own_shot=False),
+        reverse_enemy_shots=True, reverse_px=160.0, reaim_own_shots=True,
+        invuln_ms=250, swap_fx=True, color="#e07bff"),
+    "domain_expansion": dict(
+        fill="hits_landed",          # hits_landed | damage_taken | timer | hp_below
+        fill_hits=15, fill_damage=30.0, fill_ms=20000, hp_below_pct=40.0,
+        duration_ms=6000, cooldown_ms=4000,
+        rules=dict(enemy_shots_off=True, guaranteed_hits=False, gravity=False,
+                   huge_fx=False, slow_enemy=False, heal_on_damage=False, blink_no_cd=False),
+        gravity_mode="pull",         # pull | push
+        gravity_to="owner",          # owner | centre
+        gravity_px=2.5, fx_size_pct=180.0, slow_pct=50.0,
+        tint=True, tint_color="#5a1aff", tint_pct=18.0, show_gauge=True),
+    "fusion": dict(
+        result="",                   # character the fused fighter plays as ("" = this one)
+        conds=dict(hp_below=True, close=True, field_time=False, hits_landed=False),
+        hp_below_pct=50.0, close_px=160.0, field_ms=10000, hits=10,
+        ending="timed",              # timed | permanent
+        duration_ms=15000, cooldown_ms=10000,
+        aura=True, aura_color="#ffffff"),
 }
 
 _LIMITS = {
     "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
     "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
+    "gauge_hits": (1, 999), "combo_hits": (1, 99), "shrapnel": (0, 24), "uses": (0, 99),
+    "fill_hits": (1, 999), "hits": (1, 999),
 }
 
 
 # ------------------------------------------------------------ config
+def _coerce(dv, v):
+    """`v` read as the type of its default `dv` (bool / int / float / str /
+    dict).  A dict default is filled key by key; an empty one is an open
+    table (Mirror Legion / Dual Form `actions`) kept as name -> bool / str."""
+    try:
+        if isinstance(dv, bool):
+            return bool(v)
+        if isinstance(dv, int):
+            return int(round(float(v)))
+        if isinstance(dv, float):
+            return float(v)
+        if isinstance(dv, dict) and not dv:
+            if not isinstance(v, dict):
+                return {}
+            return {str(kk): (vv if isinstance(vv, bool) else str(vv)) for kk, vv in v.items()}
+        if isinstance(dv, dict):
+            v = v if isinstance(v, dict) else {}
+            return {kk: _coerce(dd, v.get(kk, dd)) for kk, dd in dv.items()}
+        return str(v)
+    except (TypeError, ValueError):
+        return dv
+
+
 def _norm(kind, raw):
     """Fill one ability's settings from its defaults, keeping each value's
     type (bool / int / float / str / dict)."""
     out = {}
     raw = raw if isinstance(raw, dict) else {}
     for k, dv in DEFAULTS[kind].items():
-        v = raw.get(k, dv)
-        try:
-            if isinstance(dv, bool):
-                v = bool(v)
-            elif isinstance(dv, int):
-                v = int(round(float(v)))
-            elif isinstance(dv, float):
-                v = float(v)
-            elif isinstance(dv, dict) and not dv:
-                # open table (Mirror Legion `actions`): name -> on/off
-                v = {str(kk): bool(vv) for kk, vv in v.items()} if isinstance(v, dict) else {}
-            elif isinstance(dv, dict):
-                v = {kk: bool((v or {}).get(kk, dd)) if isinstance(v, dict) else dd
-                     for kk, dd in dv.items()}
-            else:
-                v = str(v)
-        except (TypeError, ValueError):
-            v = dv
+        v = _coerce(dv, raw.get(k, dv))
         if k in _LIMITS and not isinstance(v, (bool, dict, str)):
             lo, hi = _LIMITS[k]
             v = max(lo, min(hi, v))
@@ -125,7 +224,7 @@ def cfg(fig):
     the mode instance like the other generic *_cfg parsers."""
     mode = getattr(fig, "mode", None)
     if mode is None or is_clone(fig):
-        return None       # a Mirror Legion copy carries no ability of its own
+        return None       # a copy / construct carries no ability of its own
     if hasattr(mode, "_ua_cfg"):
         return mode._ua_cfg
     char = getattr(mode, "character", None) or {}
@@ -156,12 +255,47 @@ def _rgb(hexs, fallback=(255, 255, 255)):
         return fallback
 
 
+def _thresholds(text):
+    out = []
+    for part in str(text).replace(";", ",").split(","):
+        try:
+            out.append(float(part))
+        except ValueError:
+            continue
+    return out
+
+
+def _hp_pct(fig):
+    p = fig.personality
+    return 100.0 * p.hp / p.max_hp if p.max_hp else 100.0
+
+
 # ------------------------------------------------------------ per-figure state
 class UAState:
     __slots__ = ("shots", "sparks", "legion_fired", "legion_cd", "legion_timer", "hits",
                  "charges", "recharge", "spawn", "stance_left", "stance_timer",
                  "riposte_cd", "flash", "flash_rgb",
-                 "clones", "pending", "clone_of", "clone_left", "clone_P")
+                 "clones", "pending", "clone_of", "clone_left", "clone_P",
+                 # every figure
+                 "t", "landed", "stun_left",
+                 # Dual Form
+                 "form", "df_gauge", "df_timer", "df_cd", "df_fired", "df_combo", "df_buff",
+                 "df_lut0", "df_init",
+                 # Summoner (owner) / construct (the summoned figure)
+                 "sm_timer", "sm_fired", "sm_hits", "construct", "con_cd", "con_aim",
+                 # Aegis
+                 "shield", "shield_idle", "waves",
+                 # Terraform
+                 "structs", "tf_timer", "tf_cd",
+                 # Rewind Bullets
+                 "rw_timer",
+                 # Phantom Swap
+                 "sw_cd", "sw_used", "swaps",
+                 # Domain Expansion
+                 "dm_gauge", "dm_left", "dm_cd", "dm_hp_fired",
+                 # Fusion
+                 "fu_cd", "fu_together", "fu_l0", "fu_parents", "fu_left", "fu_P",
+                 "fu_mode", "fu_dmg")
 
     def __init__(self, fig):
         self.shots = []          # projectiles queued for this figure's side
@@ -178,16 +312,63 @@ class UAState:
         self.riposte_cd = 0
         self.flash = 0
         self.flash_rgb = (255, 255, 255)
-        self.clones = []         # owner: its live Mirror Legion copies
+        self.clones = []         # owner: its live Mirror Legion copies / constructs
         self.pending = []        # owner: copies waiting to join its side (world_tick)
-        self.clone_of = None     # copy: the fighter it copies
-        self.clone_left = 0      # copy: ticks until it dissolves
-        self.clone_P = None      # copy: the owner's mirror_legion settings
+        self.clone_of = None     # copy / construct: the fighter it belongs to
+        self.clone_left = 0      # copy / construct: ticks until it dissolves
+        self.clone_P = None      # copy / construct: the owner's settings
+        self.t = 0               # body steps taken (tick())
+        self.landed = 0          # hits landed (note_landed)
+        self.stun_left = 0       # Aegis shockwave stun (world_tick counts it down)
+        self.form = "a"
+        self.df_gauge = 0.0
+        self.df_timer = 0
+        self.df_cd = 0
+        self.df_fired = set()
+        self.df_combo = []       # tick (self.t) of each recent landed hit
+        self.df_buff = 0
+        self.df_lut0 = None      # the palette it had before any form palette
+        self.df_init = False
+        self.sm_timer = 0
+        self.sm_fired = set()
+        self.sm_hits = 0
+        self.construct = None    # construct: "turret" | "totem_heal" | "totem_shield" | "familiar"
+        self.con_cd = 0
+        self.con_aim = 0.0
+        self.shield = None       # Aegis shield HP (None = not set up yet)
+        self.shield_idle = 0     # ticks since the last hit
+        self.waves = []          # Aegis break shockwaves for world_tick to deliver
+        self.structs = []        # Terraform structures it owns
+        self.tf_timer = 0
+        self.tf_cd = 0
+        self.rw_timer = 0
+        self.sw_cd = 0
+        self.sw_used = 0
+        self.swaps = 0           # Phantom Swaps queued for world_tick
+        self.dm_gauge = 0.0
+        self.dm_left = 0
+        self.dm_cd = 0
+        self.dm_hp_fired = False
+        self.fu_cd = 0
+        self.fu_together = 0     # ticks fielded next to a fusion partner
+        self.fu_l0 = 0           # `landed` when that started
+        self.fu_parents = None   # fused fighter: (a, b) it was made from
+        self.fu_left = None      # fused fighter: ticks until it splits (None = permanent)
+        self.fu_P = None
+        self.fu_mode = None
+        self.fu_dmg = 1.0
 
 
 def is_clone(fig):
+    """A Mirror Legion copy or a Summoner construct: never a fighter slot,
+    never a loss when it falls, carries no ability of its own."""
     st = getattr(fig, "ua", None)
     return st is not None and st.clone_of is not None
+
+
+def is_construct(fig):
+    st = getattr(fig, "ua", None)
+    return st is not None and st.construct is not None
 
 
 def state(fig):
@@ -257,6 +438,33 @@ def _protect(fig, world, ms):
     p.dmg_hit_tick = world.global_tick - 2
 
 
+def _side_of(world, fig):
+    for i, s in enumerate(world.sides):
+        if fig in s.figures:
+            return i
+    return None
+
+
+def _set_lut(fig, lut):
+    """Palette swap: the body LUT and the trail LUT together (cycle_mode rule)."""
+    fig.lut = lut
+    fig.trail.lut = lut
+
+
+def _shot(x, y, tx, ty, rgb, damage, owner, speed=None, max_age=None, trail=None):
+    """A plain bullet from (x, y) at (tx, ty) for the bound side."""
+    from . import combat
+    spd = float(speed or config.PROJ_SPEED)
+    dx, dy = tx - x, ty - y
+    d = math.hypot(dx, dy) or 1.0
+    pr = combat.Projectile(x, y, dx / d * spd, dy / d * spd, rgb, trail or config.PROJ_TRAIL_LEN)
+    pr.damage = float(damage)
+    pr.owner = owner
+    if max_age is not None:
+        pr.max_age = max(2, int(max_age))
+    return pr
+
+
 # ------------------------------------------------------------ per tick
 def tick(fig, world):
     """CombatSystem hook, once per body step (world bound to fig's side)."""
@@ -265,6 +473,7 @@ def tick(fig, world):
     if c is None and st is None:
         return
     st = state(fig)
+    st.t += 1
     if st.shots:
         world.projectiles.extend(st.shots)
         st.shots = []
@@ -273,6 +482,9 @@ def tick(fig, world):
         st.sparks = []
     if st.flash > 0:
         st.flash -= 1
+    if st.construct is not None:
+        _construct_tick(fig, world, st)
+        return
     if c is None:
         return
     kind, P = c
@@ -302,6 +514,31 @@ def tick(fig, world):
             if st.stance_timer >= _ticks(P["stance_every_ms"]) and st.riposte_cd <= 0:
                 st.stance_timer = 0
                 st.stance_left = _ticks(P["stance_ms"])
+    elif kind == "dual_form":
+        _df_tick(fig, world, st, P)
+    elif kind == "summoner":
+        if P["trigger"] == "timer":
+            st.sm_timer += 1
+            if st.sm_timer >= _ticks(P["every_ms"]):
+                st.sm_timer = 0
+                _summon(fig, world, P)
+    elif kind == "aegis":
+        _aegis_tick(fig, st, P)
+    elif kind == "terraform":
+        _tf_tick(fig, world, st, P)
+    elif kind == "rewind_bullets":
+        if P["trigger"] == "recall":
+            st.rw_timer += 1
+            if st.rw_timer >= _ticks(P["recall_every_ms"]):
+                st.rw_timer = 0
+                _recall(fig, world, P)
+    elif kind == "phantom_swap":
+        if st.sw_cd > 0:
+            st.sw_cd -= 1
+        elif P["trigger"] == "cooldown":
+            _queue_swap(fig, P)
+    elif kind == "domain_expansion":
+        _dm_tick(fig, world, st, P)
 
 
 # ------------------------------------------------------------ being hit
@@ -311,6 +548,10 @@ def intercept(fig, world, amount):
     c = cfg(fig)
     if c is None:
         return False
+    # Domain Expansion "Guaranteed hits": inside an enemy domain nothing
+    # phases out of or counters a hit.
+    if _enemy_rule(fig, world, "guaranteed_hits"):
+        return False
     kind, P = c
     if kind == "phase_shift":
         return _phase_shift(fig, world, amount, P)
@@ -319,38 +560,148 @@ def intercept(fig, world, amount):
     return False
 
 
+def heals_instead(fig, amount):
+    """Domain Expansion "Damage heals": while its own domain is up, a hit on
+    the owner restores that much HP instead.  True = handled (no damage)."""
+    if not _own_rule(fig, "heal_on_damage"):
+        return False
+    p = fig.personality
+    p.hp = min(p.max_hp, p.hp + amount)
+    st = state(fig)
+    st.flash = 8
+    st.flash_rgb = (90, 255, 140)
+    return True
+
+
+def absorb(fig, world, amount, kind="melee"):
+    """Aegis: the shield takes the hit first.  Returns what is left for HP.
+    `kind` = projectile | fx | melee (the hit's source, per the Blocks
+    ticks)."""
+    P = _of(fig, "aegis")
+    if P is None or amount <= 0:
+        return amount
+    st = state(fig)
+    st.shield_idle = 0
+    if st.shield is None:
+        st.shield = P["shield_hp"]
+    if st.shield <= 0 or not P["blocks"].get(kind, True):
+        return amount
+    take = min(st.shield, amount)
+    st.shield -= take
+    st.flash = 6
+    st.flash_rgb = _rgb(P["color"], (111, 208, 255))
+    if st.shield <= 1e-6:
+        st.shield = 0.0
+        st.waves.append((fig.transform.x, fig.transform.y))
+        _burst(st.sparks, fig.transform.x, fig.transform.y, st.flash_rgb, n=24, spd=(2.0, 7.0),
+               rng=fig.personality.rng)
+        st.flash = 14
+    return amount - take
+
+
 def after_damage(fig, world, amount):
     """Called after a hit took HP (the figure is still alive)."""
-    P = _of(fig, "mirror_legion")
-    if P is None:
+    c = cfg(fig)
+    if c is None:
         return
+    kind, P = c
     st = state(fig)
     st.hits += 1
-    if P["trigger"] == "hp_below":
-        p = fig.personality
-        if not p.max_hp:
-            return
-        hp_pct = 100.0 * p.hp / p.max_hp
-        for part in str(P["hp_thresholds"]).replace(";", ",").split(","):
-            try:
-                th = float(part)
-            except ValueError:
-                continue
-            if th not in st.legion_fired and hp_pct <= th:
-                st.legion_fired.add(th)
+    if kind == "mirror_legion":
+        if P["trigger"] == "hp_below":
+            hp_pct = _hp_pct(fig)
+            for th in _thresholds(P["hp_thresholds"]):
+                if th not in st.legion_fired and hp_pct <= th:
+                    st.legion_fired.add(th)
+                    _spawn_legion(fig, world, P)
+        elif P["trigger"] == "hits_taken":
+            if st.hits >= P["every_hits"] and st.legion_cd <= 0:
+                st.hits = 0
                 _spawn_legion(fig, world, P)
-    elif P["trigger"] == "hits_taken":
-        if st.hits >= P["every_hits"] and st.legion_cd <= 0:
-            st.hits = 0
-            _spawn_legion(fig, world, P)
+    elif kind == "dual_form":
+        if P["trigger"] == "gauge":
+            _df_fill(fig, world, st, P)
+        elif P["trigger"] == "hp_below":
+            hp_pct = _hp_pct(fig)
+            for th in _thresholds(P["hp_thresholds"]):
+                if th not in st.df_fired and hp_pct <= th:
+                    st.df_fired.add(th)
+                    _df_switch(fig, st, P)
+                    break
+    elif kind == "summoner":
+        if P["trigger"] == "hp_below":
+            hp_pct = _hp_pct(fig)
+            for th in _thresholds(P["hp_thresholds"]):
+                if th not in st.sm_fired and hp_pct <= th:
+                    st.sm_fired.add(th)
+                    _summon(fig, world, P)
+        elif P["trigger"] == "hits_taken":
+            st.sm_hits += 1
+            if st.sm_hits >= P["every_hits"]:
+                st.sm_hits = 0
+                _summon(fig, world, P)
+    elif kind == "terraform":
+        if P["trigger"] == "on_hit" and st.tf_cd <= 0:
+            _raise_struct(fig, world, st, P)
+    elif kind == "phantom_swap":
+        if st.sw_cd <= 0:
+            if P["trigger"] == "on_hit" or (
+                    P["trigger"] == "chance"
+                    and fig.personality.rng.uniform(0, 100) < P["chance_pct"]):
+                _queue_swap(fig, P)
+    elif kind == "domain_expansion":
+        if P["fill"] == "damage_taken":
+            _dm_fill(fig, st, P, 100.0 * amount / max(0.01, P["fill_damage"]))
+
+
+def note_landed(fig):
+    """One of this fighter's hits connected (melee, FX Studio hit, bullet)."""
+    if fig is None:
+        return
+    st = getattr(fig, "ua", None)
+    if st is not None and st.construct is not None:
+        return
+    c = cfg(fig)
+    if c is None:
+        return
+    st = state(fig)
+    st.landed += 1
+    kind, P = c
+    if kind == "dual_form":
+        if P["trigger"] == "gauge":
+            _df_fill(fig, None, st, P)
+        elif P["trigger"] == "combo":
+            win = _ticks(P["combo_window_ms"])
+            st.df_combo = [t for t in st.df_combo if st.t - t <= win] + [st.t]
+            if len(st.df_combo) >= P["combo_hits"] and st.df_cd <= 0:
+                st.df_combo = []
+                _df_switch(fig, st, P)
+    elif kind == "domain_expansion" and P["fill"] == "hits_landed":
+        _dm_fill(fig, st, P, 100.0 / max(1, P["fill_hits"]))
 
 
 def taken_mult(fig):
-    """Berserker weakness: incoming damage multiplier while enraged."""
-    P = _of(fig, "berserker")
-    if P is None or P["damage_taken_pct"] == 0:
-        return 1.0
-    return max(0.0, 1.0 + P["damage_taken_pct"] / 100.0 * _rage(fig, P))
+    """Incoming damage multiplier: Berserker weakness, the Dual Form's
+    damage taken, a Summoner's shield totem nearby."""
+    k = 1.0
+    c = cfg(fig)
+    if c is None:
+        return k
+    kind, P = c
+    if kind == "berserker" and P["damage_taken_pct"] != 0:
+        k *= max(0.0, 1.0 + P["damage_taken_pct"] / 100.0 * _rage(fig, P))
+    elif kind == "dual_form":
+        k *= max(0.0, _form(fig, P)["taken_pct"] / 100.0)
+    elif kind == "summoner" and P["construct"] == "totem_shield":
+        st = getattr(fig, "ua", None)
+        if st is not None:
+            r2 = P["aura_px"] ** 2
+            for t in st.clones:
+                if (t.personality.hp > 0 and is_construct(t)
+                        and (t.x - fig.x) ** 2 + (t.y - fig.y) ** 2 <= r2):
+                    k *= max(0.0, 1.0 - P["shield_pct"] / 100.0)
+                    break
+    return k
 
 
 def on_dodge(fig):
@@ -423,9 +774,16 @@ def _spawn_legion(fig, world, P):
 
 def world_tick(world):
     """World level, once per tick before refresh_battle (so the snapshots
-    already show them): copies whose time ran out, that died, or whose
-    original left the fight / changed character dissolve; queued copies
-    join their original's side.  Same in Solo and Battle."""
+    already show the result).  Same in Solo and Battle:
+      * copies / constructs whose time ran out, that died, or whose owner
+        left the fight (a copy: or changed character) dissolve; queued ones
+        join their owner's side
+      * Fusion: team-mates fuse / a timed fusion splits
+      * Phantom Swaps, Aegis shockwaves and stuns are delivered (they move
+        or hurt the other side, so they go here like knockback does)
+      * active domains: published as world.ua_domains, enemy shots fizzle,
+        the gravity rule moves enemy fighters
+      * structures: published as world.ua_structs for every side's pass."""
     dead = getattr(world, "_dead", ()) or ()
     for side in world.sides:
         figs = side.figures
@@ -435,9 +793,12 @@ def world_tick(world):
             if st is not None and st.clone_of is not None:
                 o = st.clone_of
                 st.clone_left -= 1
-                if (st.clone_left <= 0 or f.personality.hp <= 0 or o not in figs
-                        or o in dead or o.mode is not f.mode):
-                    _burst(world.sparks, f.transform.x, f.transform.y, tuple(f.lut[200]), n=12)
+                gone = (st.clone_left <= 0 or f.personality.hp <= 0 or o not in figs or o in dead
+                        or (st.construct is None and o.mode is not f.mode))
+                if gone:
+                    _burst(world.sparks, f.transform.x, f.transform.y,
+                           _rgb(st.clone_P.get("color"), tuple(f.lut[200]))
+                           if st.construct is not None else tuple(f.lut[200]), n=12)
                     for pr in side.projectiles:
                         if pr.owner is f:
                             pr.age = pr.max_age
@@ -458,21 +819,63 @@ def world_tick(world):
                 changed = True
         if changed:
             figs[:] = keep
+    for f in world.all_figures():
+        st = getattr(f, "ua", None)
+        if st is not None and st.stun_left > 0:
+            st.stun_left -= 1
+    _fusion_world(world, dead)
+    for si, side in enumerate(world.sides):
+        for f in list(side.figures):
+            st = getattr(f, "ua", None)
+            if st is None:
+                continue
+            if st.swaps:
+                n, st.swaps = st.swaps, 0
+                if f not in dead:
+                    for _ in range(n):
+                        _do_swap(world, si, f)
+            if st.waves:
+                waves, st.waves = st.waves, []
+                P = _of(f, "aegis")
+                if P is not None:
+                    for (x, y) in waves:
+                        _shockwave(world, si, f, x, y, P)
+    doms = []
+    for si, side in enumerate(world.sides):
+        for f in side.figures:
+            P = _of(f, "domain_expansion")
+            if P is not None and f.ua is not None and f.ua.dm_left > 0 and f not in dead:
+                doms.append((si, f, P))
+    world.ua_domains = doms
+    for (si, f, P) in doms:
+        _domain_world(world, si, f, P)
+    structs = []
+    for si, side in enumerate(world.sides):
+        for f in side.figures:
+            st = getattr(f, "ua", None)
+            if st is not None and st.structs:
+                structs.extend((s, si) for s in st.structs if s.hp > 0)
+    world.ua_structs = structs
 
 
 def clone_allows(fig, name):
-    """actions.py gate: may this fighter start action `name`?  Only a
-    Mirror Legion copy is ever limited (by its owner's ticked actions)."""
+    """actions.py gate: may this fighter start action `name`?  A Mirror
+    Legion copy plays only its owner's ticked actions; a Dual Form fighter
+    plays only the actions of the form it is in."""
     st = getattr(fig, "ua", None)
-    if st is None or st.clone_of is None:
+    if st is not None and st.clone_of is not None:
+        return bool(((st.clone_P or {}).get("actions") or {}).get(name, True))
+    P = _of(fig, "dual_form")
+    if P is None:
         return True
-    return bool((st.clone_P.get("actions") or {}).get(name, True))
+    want = (P.get("actions") or {}).get(name, "both")
+    return want not in ("a", "b") or want == (st.form if st is not None else "a")
 
 
 def body_alpha(fig):
     """Sprite opacity 0..1 for a Mirror Legion copy, None for anyone else."""
     st = getattr(fig, "ua", None)
-    if st is None or st.clone_of is None:
+    if st is None or st.clone_of is None or st.construct is not None:
         return None
     return max(0.05, min(1.0, st.clone_P["opacity_pct"] / 100.0))
 
@@ -494,32 +897,59 @@ def _rage(fig, P):
     return f
 
 
-def speed_mult(fig):
-    """Body time scale (movement + attack speed, every state)."""
-    P = _of(fig, "berserker")
-    if P is None:
-        return 1.0
-    return 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
+def speed_mult(fig, world=None):
+    """Body time scale (movement + attack speed, every state): Berserker
+    rage, the Dual Form's speed (and its switch buff), an enemy domain's
+    slow, and 0 while stunned by an Aegis shockwave (body stopped; its FX
+    run on)."""
+    st = getattr(fig, "ua", None)
+    if st is not None and st.stun_left > 0:
+        return 0.0
+    k = 1.0
+    c = cfg(fig)
+    if c is not None:
+        kind, P = c
+        if kind == "berserker":
+            k *= 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
+        elif kind == "dual_form":
+            k *= max(0.05, _form(fig, P)["speed_pct"] / 100.0)
+            if st is not None and st.df_buff > 0:
+                k *= 1.0 + P["buff_speed_pct"] / 100.0
+    return k * _enemy_slow(fig, world)
 
 
-def fx_speed_mult(fig):
-    """Time scale of the figure's own FX / bullets (Berserker 'speed FX')."""
+def fx_speed_mult(fig, world=None):
+    """Time scale of the figure's own FX / bullets (Berserker 'speed FX';
+    an enemy domain's slow reaches its shots too)."""
+    k = 1.0
     P = _of(fig, "berserker")
-    if P is None or not P["speed_fx"]:
-        return 1.0
-    return speed_mult(fig)
+    if P is not None and P["speed_fx"]:
+        k *= 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
+    return k * _enemy_slow(fig, world)
 
 
 def out_mult(fig):
-    """Outgoing damage multiplier (Berserker damage bonus; a Mirror Legion
-    copy deals its owner's set % of the damage)."""
+    """Outgoing damage multiplier (Berserker damage bonus, the Dual Form's
+    damage and switch buff, a fused fighter's summed damage; a Mirror Legion
+    copy deals its owner's set % of the damage, a construct its own set
+    damage)."""
     st = getattr(fig, "ua", None) if fig is not None else None
     if st is not None and st.clone_of is not None:
+        if st.construct is not None:
+            return 1.0
         return max(0.0, st.clone_P["damage_pct"] / 100.0)
-    P = _of(fig, "berserker")
-    if P is None or P["damage_bonus_pct"] == 0:
-        return 1.0
-    return max(0.0, 1.0 + P["damage_bonus_pct"] / 100.0 * _rage(fig, P))
+    k = st.fu_dmg if st is not None and st.fu_parents is not None else 1.0
+    c = cfg(fig) if fig is not None else None
+    if c is None:
+        return k
+    kind, P = c
+    if kind == "berserker" and P["damage_bonus_pct"] != 0:
+        k *= max(0.0, 1.0 + P["damage_bonus_pct"] / 100.0 * _rage(fig, P))
+    elif kind == "dual_form":
+        k *= max(0.0, _form(fig, P)["damage_pct"] / 100.0)
+        if st is not None and st.df_buff > 0:
+            k *= 1.0 + P["buff_damage_pct"] / 100.0
+    return k
 
 
 # ------------------------------------------------------------ Phase Shift
@@ -683,8 +1113,8 @@ def _bounce_proj(proj, P, nx, ny, targets, rng):
         st.shots.append(cp)
 
 
-def proj_step(proj, world):
-    """ProjectileSystem hook (owner side), after the bullet moved: walls and
+def _rc_proj_step(proj, world):
+    """Ricochet, owner side, after the bullet moved: walls and
     enemy shots.  A bullet fired without an owner (older fire paths) belongs
     to its side's only fighter, the same fallback timefx.proj_steps uses."""
     if getattr(proj, "ua_rb", None) is None and proj.owner is None:
@@ -790,8 +1220,8 @@ def _bounce_inst(inst, host, P, nx, ny, targets):
         _burst(host.world.sparks, inst.x, inst.y, rgb, n=6, spd=(1.0, 3.5), rng=rng)
 
 
-def inst_step(inst, host):
-    """fxkit.tick_inst hook (owner side), after the effect moved."""
+def _rc_inst_step(inst, host):
+    """Ricochet, owner side, after the effect moved."""
     P = _inst_cfg(inst, host)
     if P is None:
         return
@@ -846,27 +1276,1117 @@ def inst_dmg_mult(inst):
     return getattr(inst, "ua_dm", 1.0) or 0.0
 
 
+# ------------------------------------------------------------ Dual Form
+def _form(fig, P):
+    st = getattr(fig, "ua", None)
+    return P["form_b"] if st is not None and st.form == "b" else P["form_a"]
+
+
+def _form_lut(fig, st, F):
+    from .palette import build_lut
+    if F["palette"]:
+        return build_lut([_rgb(F["body"], (242, 244, 246)), _rgb(F["accent"], (63, 176, 234))])
+    return st.df_lut0
+
+
+def _df_tick(fig, world, st, P):
+    if not st.df_init:
+        st.df_init = True
+        st.df_lut0 = fig.lut
+        lut = _form_lut(fig, st, P["form_a"])
+        if lut is not None and lut is not fig.lut:
+            _set_lut(fig, lut)
+    if st.df_cd > 0:
+        st.df_cd -= 1
+    if st.df_buff > 0:
+        st.df_buff -= 1
+    if P["trigger"] == "timer":
+        st.df_timer += 1
+        if st.df_timer >= _ticks(P["every_ms"]):
+            st.df_timer = 0
+            _df_switch(fig, st, P)
+    elif P["trigger"] == "gauge" and st.df_gauge >= 100.0 and st.df_cd <= 0:
+        _df_switch(fig, st, P)
+
+
+def _df_fill(fig, world, st, P):
+    st.df_gauge = min(100.0, st.df_gauge + 100.0 / max(1, P["gauge_hits"]))
+
+
+def _df_switch(fig, st, P):
+    """Into the other form: its palette, stats and actions from now on, a
+    short buff and the transition burst."""
+    if not st.df_init:
+        st.df_init = True
+        st.df_lut0 = fig.lut
+    st.form = "b" if st.form == "a" else "a"
+    st.df_gauge = 0.0
+    st.df_cd = _ticks(P["cooldown_ms"])
+    st.df_buff = _ticks(P["buff_ms"]) if P["buff_ms"] > 0 else 0
+    F = _form(fig, P)
+    lut = _form_lut(fig, st, F)
+    if lut is not None:
+        _set_lut(fig, lut)
+    if P["transition_fx"]:
+        rgb = _rgb(F["aura_color"], tuple(fig.lut[200]))
+        _burst(st.sparks, fig.transform.x, fig.transform.y, rgb, n=26, spd=(1.5, 6.0),
+               rng=fig.personality.rng)
+        st.flash = 14
+        st.flash_rgb = rgb
+
+
+# ------------------------------------------------------------ Summoner
+class _ConstructMode(_modes.FigureMode):
+    """The mode a construct runs on: its owner's tuning (speeds, HP table)
+    but no character, no shooting and no melee FSM, so the shared systems
+    move it (familiar) and let it be hit, and unique.tick drives what it
+    does.  Never registered: constructs are not a character."""
+    character = None
+
+    def __init__(self, base):
+        self.key = base.key
+        self._base = base
+
+    def speeds(self):
+        return self._base.speeds()
+
+    def body_scale(self):
+        return 1.0
+
+    def charges_full(self):
+        return True   # a familiar closes all the way in
+
+
+_CMODES = {}
+
+
+def _cmode(base):
+    m = _CMODES.get(id(base))
+    if m is None or m._base is not base:
+        m = _ConstructMode(base)
+        _CMODES[id(base)] = m
+    return m
+
+
+def _place(fig, world, P, n, key="spread_px"):
+    """n points for new constructs / structures by P["placement"]."""
+    x, y = fig.transform.x, fig.transform.y
+    rng = fig.personality.rng
+    sp = P[key]
+    ex, ey = _nearest(_enemy_points(fig, world), x, y) or (x + 1.0, y)
+    dx, dy = ex - x, ey - y
+    d = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / d, dy / d
+    pl = P["placement"]
+    pts = []
+    for i in range(n):
+        off = (i - (n - 1) / 2.0) * max(30.0, P.get("size_px", 20.0) * 2.5)
+        if pl == "between":
+            cx, cy = (x + ex) / 2.0, (y + ey) / 2.0
+            pts.append((cx - uy * off, cy + ux * off))
+        elif pl == "front":
+            pts.append((x + ux * sp - uy * off, y + uy * sp + ux * off))
+        elif pl == "near_enemy":
+            pts.append((ex - ux * sp - uy * off, ey - uy * sp + ux * off))
+        elif pl == "random":
+            pts.append((rng.uniform(60, fig.screen_w - 60), rng.uniform(60, fig.screen_h - 60)))
+        else:   # around
+            a = rng.uniform(0, 2 * math.pi) if n == 1 else 2 * math.pi * i / n + rng.uniform(-0.3, 0.3)
+            pts.append((x + math.cos(a) * sp, y + math.sin(a) * sp))
+    return pts
+
+
+def _summon(fig, world, P):
+    """Queue P["count"] constructs: real Figures on the owner's side (enemies
+    see and can target them), joined by world_tick."""
+    from .figure import Figure
+    st = state(fig)
+    st.clones = [c for c in st.clones if c.personality.hp > 0 and c.ua.clone_left > 0]
+    n = min(P["count"], P["max_alive"] - len(st.clones) - len(st.pending))
+    if n <= 0:
+        return
+    whole = isinstance(fig.personality.max_hp, int)
+    hp = max(1, int(round(P["construct_hp"]))) if whole else max(0.1, float(P["construct_hp"]))
+    kind = P["construct"]
+    rgb = _rgb(P["color"], (124, 243, 255))
+    for i, (px, py) in enumerate(_place(fig, world, P, n)):
+        px, py = _clamp_xy(fig, px, py)
+        c = Figure(_cmode(fig.mode), fig.render.bundle, fig.lut,
+                   fig.index + 1 + len(st.clones) + len(st.pending), fig.screen_w, fig.screen_h)
+        c.transform.x, c.transform.y = px, py
+        c.transform.facing_left = fig.transform.facing_left
+        c.transform.init = True
+        c.personality.max_hp = c.personality.hp = hp
+        if kind == "familiar":
+            k = P["chase_speed_pct"] / 100.0
+            c.motion.speed = fig.motion.speed * k
+            c.motion.follow_speed = fig.motion.follow_speed * k
+        else:
+            c.motion.speed = c.motion.follow_speed = 0.0
+        cs = UAState(c)
+        cs.clone_of, cs.clone_left, cs.clone_P = fig, _ticks(P["life_ms"]), P
+        cs.construct = kind
+        cs.con_cd = _ticks(P["fire_ms"] if kind == "turret" else P["bite_ms"]) // 2
+        c.ua = cs
+        st.pending.append(c)
+        _burst(st.sparks, px, py, rgb, n=12, spd=(1.0, 4.0), rng=fig.personality.rng)
+
+
+def holds_still(fig):
+    """MotionSystem: turrets and totems never walk (a knockback still
+    slides them)."""
+    st = getattr(fig, "ua", None)
+    return st is not None and st.construct is not None and st.construct != "familiar"
+
+
+def _construct_tick(fig, world, st):
+    P = st.clone_P
+    o = st.clone_of
+    if st.con_cd > 0:
+        st.con_cd -= 1
+    x, y = fig.transform.x, fig.transform.y
+    rgb = _rgb(P["color"], (124, 243, 255))
+    kind = st.construct
+    tgt = _nearest(_enemy_points(fig, world), x, y)
+    if tgt is not None:
+        st.con_aim = math.atan2(tgt[1] - y, tgt[0] - x)
+        fig.transform.facing_left = tgt[0] < x
+    if kind == "turret":
+        if tgt is not None and st.con_cd <= 0 and math.hypot(tgt[0] - x, tgt[1] - y) <= P["range_px"]:
+            st.con_cd = _ticks(P["fire_ms"])
+            spd = config.PROJ_SPEED * P["shot_speed_pct"] / 100.0
+            pr = _shot(x, y, tgt[0], tgt[1], rgb, P["shot_damage"], fig, speed=spd,
+                       max_age=P["range_px"] / max(0.5, spd) + 10)
+            world.projectiles.append(pr)
+            world.muzzle_flashes.append([x, y, 0] + list(rgb))
+    elif kind == "familiar":
+        reach = P["size_px"] + 26.0
+        if tgt is not None and st.con_cd <= 0 and math.hypot(tgt[0] - x, tgt[1] - y) <= reach:
+            st.con_cd = _ticks(P["bite_ms"])
+            pr = _shot(x, y, tgt[0], tgt[1], rgb, P["bite_damage"], fig, speed=config.PROJ_SPEED,
+                       max_age=reach / config.PROJ_SPEED + 4)
+            pr.one_hit = True
+            world.projectiles.append(pr)
+            _burst(world.sparks, x, y, rgb, n=5, spd=(1.0, 3.0))
+    elif kind == "totem_heal" and o is not None and o.personality.hp > 0:
+        if (o.x - x) ** 2 + (o.y - y) ** 2 <= P["aura_px"] ** 2:
+            p = o.personality
+            if p.hp < p.max_hp:
+                p.hp = min(p.max_hp, p.hp + P["heal_per_s"] * TICK_MS / 1000.0)
+                if st.t % 12 == 0:
+                    _burst(world.sparks, o.x, o.y - 10, (110, 255, 150), n=2, spd=(0.5, 1.5))
+
+
+# ------------------------------------------------------------ Aegis
+def _aegis_tick(fig, st, P):
+    if st.shield is None:
+        st.shield = P["shield_hp"]
+    st.shield_idle += 1
+    if st.shield < P["shield_hp"] and st.shield_idle >= _ticks(P["regen_delay_ms"]):
+        st.shield = min(P["shield_hp"], st.shield + P["regen_per_s"] * TICK_MS / 1000.0)
+
+
+def _shockwave(world, si, owner, x, y, P):
+    """Aegis break: every enemy within the radius takes damage, is knocked
+    away from the centre and stunned (Solo: no enemy fighters to reach)."""
+    from . import ai, motion
+    rgb = _rgb(P["color"], (111, 208, 255))
+    world.impact_rings.append([x, y, 0, P["wave_px"]])
+    r2 = P["wave_px"] ** 2
+    for sj, side in enumerate(world.sides):
+        if sj == si:
+            continue
+        for ef in list(side.figures):
+            if not ef.transform.init:
+                continue
+            dx, dy = ef.x - x, ef.y - y
+            if dx * dx + dy * dy > r2:
+                continue
+            d = math.hypot(dx, dy) or 1.0
+            if P["wave_damage"] > 0:
+                ai.apply_hp_damage(ef, world, P["wave_damage"])
+            if P["wave_knockback_px"] > 0:
+                spd = P["wave_knockback_px"] * (1.0 - config.BOUNCE_FRICTION)
+                motion.launch_knockback(ef, dx / d * spd, dy / d * spd, world.global_tick)
+            if P["stun_ms"] > 0:
+                est = state(ef)
+                est.stun_left = max(est.stun_left, _ticks(P["stun_ms"]))
+            _burst(world.sparks, ef.x, ef.y, rgb, n=8, spd=(1.0, 3.5))
+
+
+# ------------------------------------------------------------ Terraform
+class _Struct:
+    __slots__ = ("kind", "x", "y", "r", "ax", "ay", "bx", "by", "hp", "max_hp", "left", "life",
+                 "owner", "P", "hit_flash")
+
+    def __init__(self, owner, P, x, y, ux, uy):
+        self.kind = P["structure"]
+        self.owner, self.P = owner, P
+        self.x, self.y = x, y
+        self.r = P["size_px"] / 2.0 if self.kind == "wall" else P["size_px"]
+        h = P["wall_len_px"] / 2.0
+        # a wall stands across the line owner -> enemy
+        self.ax, self.ay = x - uy * h, y + ux * h
+        self.bx, self.by = x + uy * h, y - ux * h
+        self.hp = self.max_hp = float(P["struct_hp"])
+        self.life = self.left = _ticks(P["life_ms"])
+        self.hit_flash = 0
+
+    def dist(self, px, py):
+        """Distance from (px, py) to the structure's surface line / centre,
+        and the unit normal pointing out toward it."""
+        if self.kind == "wall":
+            vx, vy = self.bx - self.ax, self.by - self.ay
+            L2 = vx * vx + vy * vy or 1.0
+            t = max(0.0, min(1.0, ((px - self.ax) * vx + (py - self.ay) * vy) / L2))
+            cx, cy = self.ax + vx * t, self.ay + vy * t
+        else:
+            cx, cy = self.x, self.y
+        dx, dy = px - cx, py - cy
+        d = math.hypot(dx, dy)
+        if d < 0.01:
+            return 0.0, 1.0, 0.0
+        return d, dx / d, dy / d
+
+    def blocks_shots(self):
+        return self.kind != "pit" and self.hp > 0
+
+
+def _tf_tick(fig, world, st, P):
+    if st.tf_cd > 0:
+        st.tf_cd -= 1
+    live = []
+    for s in st.structs:
+        if s.hit_flash > 0:
+            s.hit_flash -= 1
+        if s.hp <= 0:
+            _shatter(fig, world, s)
+            continue
+        s.left -= 1
+        if s.left <= 0:
+            _burst(world.sparks, s.x, s.y, _rgb(P["color"], (201, 164, 106)), n=8, spd=(0.5, 2.0))
+            continue
+        live.append(s)
+    st.structs = live
+    if st.tf_cd > 0:
+        return
+    if P["trigger"] == "timer":
+        st.tf_timer += 1
+        if st.tf_timer >= _ticks(P["every_ms"]):
+            st.tf_timer = 0
+            _raise_struct(fig, world, st, P)
+    elif P["trigger"] == "enemy_near":
+        x, y = fig.transform.x, fig.transform.y
+        e = _nearest(_enemy_points(fig, world), x, y)
+        if e is not None and math.hypot(e[0] - x, e[1] - y) <= P["near_px"]:
+            _raise_struct(fig, world, st, P)
+
+
+def _raise_struct(fig, world, st, P):
+    st.tf_cd = _ticks(P["cooldown_ms"])
+    if len([s for s in st.structs if s.hp > 0]) >= P["max_alive"]:
+        return
+    x, y = fig.transform.x, fig.transform.y
+    ex, ey = _nearest(_enemy_points(fig, world), x, y) or (x + 1.0, y)
+    d = math.hypot(ex - x, ey - y) or 1.0
+    ux, uy = (ex - x) / d, (ey - y) / d
+    px, py = _place(fig, world, P, 1, key="distance_px")[0]
+    px, py = _clamp_xy(fig, px, py, margin=P["size_px"] + 4)
+    s = _Struct(fig, P, px, py, ux, uy)
+    st.structs.append(s)
+    _burst(st.sparks, px, py, _rgb(P["color"], (201, 164, 106)), n=14, spd=(1.0, 4.0),
+           rng=fig.personality.rng)
+
+
+def _shatter(fig, world, s):
+    P = s.P
+    rgb = _rgb(P["color"], (201, 164, 106))
+    _burst(world.sparks, s.x, s.y, rgb, n=18, spd=(1.5, 5.5))
+    if not (P["shatter"] and P["shrapnel"] > 0 and s.kind != "pit"):
+        return
+    n = P["shrapnel"]
+    a0 = fig.personality.rng.uniform(0, 2 * math.pi)
+    for i in range(n):
+        a = a0 + 2 * math.pi * i / n
+        pr = _shot(s.x, s.y, s.x + math.cos(a), s.y + math.sin(a), rgb, P["shrapnel_damage"], fig,
+                   speed=config.PROJ_SPEED * 1.1, max_age=40)
+        pr.radius = 2.5
+        world.projectiles.append(pr)
+
+
+def _blocking(world, side_idx, for_shots):
+    """Structures that block the side being simulated (an enemy's always,
+    its own only with 'Also blocks own')."""
+    for (s, si) in getattr(world, "ua_structs", ()) or ():
+        if s.hp <= 0:
+            continue
+        if for_shots and not s.blocks_shots():
+            continue
+        if si == side_idx and not s.P["blocks_own"]:
+            continue
+        yield s
+
+
+def _struct_hit(s, x, y, damage, sparks):
+    s.hp -= max(0.0, float(damage))
+    s.hit_flash = 5
+    _burst(sparks, x, y, _rgb(s.P["color"], (201, 164, 106)), n=4, spd=(0.8, 2.5))
+
+
+def _proj_blocked(proj, world):
+    """A bullet entering a blocking structure dies there and chips it."""
+    for s in _blocking(world, getattr(world, "side_idx", 0), True):
+        d, _nx, _ny = s.dist(proj.x, proj.y)
+        if d <= s.r + float(getattr(proj, "radius", 3.0)):
+            _struct_hit(s, proj.x, proj.y, getattr(proj, "damage", 1.0), world.sparks)
+            proj.age = proj.max_age
+            return True
+    return False
+
+
+def push_out(fig, world):
+    """MotionSystem: keep a fighter's body out of blocking structures and
+    pits (a knockback into one stops at its surface)."""
+    structs = getattr(world, "ua_structs", None)
+    if not structs:
+        return
+    body = 16.0 * fig.mode.body_scale()
+    for s in _blocking(world, getattr(world, "side_idx", 0), False):
+        d, nx, ny = s.dist(fig.transform.x, fig.transform.y)
+        lim = s.r + body
+        if d < lim:
+            t = fig.transform
+            t.x += nx * (lim - d)
+            t.y += ny * (lim - d)
+            m = fig.motion
+            if m.bouncing:
+                dot = m.bounce_vx * nx + m.bounce_vy * ny
+                if dot < 0:
+                    m.bounce_vx -= dot * nx
+                    m.bounce_vy -= dot * ny
+
+
+# ------------------------------------------------------------ Rewind Bullets
+def _rw_start(proj, P):
+    """Turn a bullet around: from now on it retraces its own path."""
+    proj.ua_rw = 1
+    k = P["return_speed_pct"] / 100.0
+    proj.vx, proj.vy = proj.vx * k, proj.vy * k
+    if hasattr(proj, "turn_rate"):
+        proj.speed *= k   # homing bullets hold their own speed
+    proj.damage = float(getattr(proj, "damage", 1.0)) * P["return_damage_pct"] / 100.0
+    if P["tint"]:
+        proj.r, proj.g, proj.b = _rgb(P["color"], (180, 140, 255))
+
+
+def _rw_proj(proj, P):
+    """Rewind Bullets, owner side, after the bullet moved: record the path
+    on the way out; on the way back step along it at the return speed
+    until it is back where it was fired, then it ends.  While returning,
+    the last path point is where the bullet is."""
+    path = proj.ua_path
+    if proj.ua_rw == 0:
+        path.append((proj.x, proj.y))
+        if P["trigger"] == "delay" and len(path) >= _ticks(P["delay_ms"]):
+            _rw_start(proj, P)
+        return
+    if len(path) < 2:
+        proj.age = proj.max_age
+        return
+    x0, y0 = path.pop()
+    x, y = x0, y0
+    left = max(0.5, math.hypot(proj.vx, proj.vy))
+    spd = left
+    while path and left > 0:
+        tx, ty = path[-1]
+        d = math.hypot(tx - x, ty - y)
+        if d <= left:
+            x, y = tx, ty
+            left -= d
+            path.pop()
+        else:
+            x += (tx - x) / d * left
+            y += (ty - y) / d * left
+            left = 0.0
+    dx, dy = x - x0, y - y0
+    dd = math.hypot(dx, dy)
+    proj.x, proj.y = x, y
+    if dd > 1e-6:
+        proj.vx, proj.vy = dx / dd * spd, dy / dd * spd
+    if not path:
+        proj.age = proj.max_age       # back where it was fired
+        return
+    path.append((x, y))
+    proj.age = min(proj.age, proj.max_age - 2)   # alive for the whole way back
+
+
+def _recall(fig, world, P):
+    """Rewind Bullets 'recall': every bullet / travelling effect of this
+    fighter in flight turns round now."""
+    for pr in world.projectiles:
+        if getattr(pr, "owner", None) is fig and pr.alive and pr.hit_r_sq > 0.0:
+            if getattr(pr, "ua_rw", None) is None:
+                pr.ua_rw, pr.ua_path = 0, [(pr.x, pr.y)]
+            if pr.ua_rw == 0 and pr.ua_path:
+                _rw_start(pr, P)
+    drv = getattr(fig, "fx", None)
+    if drv is not None and P["fx_too"]:
+        for inst in drv.player.insts + drv.clane[0].insts:
+            if inst.ua_rw == 0:
+                _rw_inst_start(inst, P)
+
+
+def _rw_inst_ok(inst):
+    fx = inst.fx
+    return (fx["battle"]["deals_damage"] and fx["prim"] not in _RC_PRIMS_OFF
+            and (inst.free or fx["motion"]["kind"] in ("travel", "zigzag")))
+
+
+def _rw_inst_start(inst, P):
+    inst.ua_rw = 1
+    k = P["return_speed_pct"] / 100.0
+    inst.vx, inst.vy = -inst.vx * k, -inst.vy * k
+    inst.dir = [-inst.dir[0], -inst.dir[1]]
+    inst.zx, inst.zy = -inst.zx, -inst.zy
+    inst.ua_dm *= P["return_damage_pct"] / 100.0
+    # Long enough to come all the way back.
+    inst.life = max(inst.life, inst.age + int(inst.ua_t / max(0.1, k)) + 2)
+
+
+def _rw_inst(inst, host, P):
+    if inst.ua_rw is None:
+        inst.ua_rw = 0 if (P["fx_too"] and _rw_inst_ok(inst)) else -1
+        inst.ua_t = 0
+    if inst.ua_rw != 0:
+        return
+    inst.ua_t += 1
+    if P["trigger"] == "delay" and inst.ua_t >= _ticks(P["delay_ms"]):
+        _rw_inst_start(inst, P)
+
+
+def proj_ghost(proj):
+    """CollisionSystem: a returning Rewind bullet with 'Passes through
+    shots' on is not scattered by (and doesn't scatter) enemy bullets."""
+    if getattr(proj, "ua_rw", None) not in (1, 2):
+        return False
+    P = _of(getattr(proj, "owner", None), "rewind_bullets")
+    return bool(P and P["pass_fx"])
+
+
+# ------------------------------------------------------------ Phantom Swap
+def _queue_swap(fig, P):
+    st = state(fig)
+    if P["uses"] > 0 and st.sw_used >= P["uses"]:
+        return
+    st.sw_cd = _ticks(P["cooldown_ms"])
+    st.swaps += 1
+
+
+def _do_swap(world, si, fig):
+    """World level: swap places with a ticked target (picked at random from
+    the ones there are), then turn shots in flight round."""
+    from . import blink
+    P = _of(fig, "phantom_swap")
+    if P is None or not fig.transform.init:
+        return
+    st = state(fig)
+    rng = fig.personality.rng
+    side = world.sides[si]
+    T = P["targets"]
+    opts = []
+    if T["enemy"]:
+        foes = [f for j, s in enumerate(world.sides) if j != si for f in s.figures
+                if f.transform.init and not blink.gone(f)]
+        if foes:
+            opts.append(("enemy", min(foes, key=lambda e: (e.x - fig.x) ** 2 + (e.y - fig.y) ** 2)))
+        elif not world.battle_mode:
+            opts.append(("cursor", None))
+    if T["clone"]:
+        mine = [f for f in side.figures if f is not fig and is_clone(f)
+                and getattr(f.ua, "clone_of", None) is fig and f.personality.hp > 0]
+        if mine:
+            opts.append(("clone", rng.choice(mine)))
+    if T["own_shot"]:
+        shots = [pr for pr in side.projectiles
+                 if getattr(pr, "owner", None) is fig and pr.alive and pr.hit_r_sq > 0.0]
+        if shots:
+            opts.append(("shot", rng.choice(shots)))
+    if not opts:
+        return
+    what, other = rng.choice(opts)
+    ox, oy = fig.transform.x, fig.transform.y
+    if what == "cursor":
+        # Solo: the cursor can't be moved, so it lands mirrored through it.
+        cx, cy = world.cursor
+        _warp(fig, 2 * cx - ox, 2 * cy - oy)
+    elif what == "shot":
+        _warp(fig, other.x, other.y)
+        other.x, other.y = ox, oy
+        other.trail.clear()
+    else:
+        nx, ny = other.transform.x, other.transform.y
+        _warp(fig, nx, ny)
+        _warp(other, ox, oy)
+        other.trail.clear()
+    fig.trail.clear()
+    st.sw_used += 1
+    nx, ny = fig.transform.x, fig.transform.y
+    _protect(fig, world, P["invuln_ms"])
+    rgb = _rgb(P["color"], (224, 123, 255))
+    if P["swap_fx"]:
+        _burst(world.sparks, ox, oy, rgb, n=16, spd=(1.0, 5.0), rng=rng)
+        _burst(world.sparks, nx, ny, rgb, n=16, spd=(1.0, 5.0), rng=rng)
+        st.flash = 12
+        st.flash_rgb = rgb
+    if P["reverse_enemy_shots"]:
+        r2 = P["reverse_px"] ** 2
+        for j, s in enumerate(world.sides):
+            if j == si:
+                continue
+            keep = []
+            for pr in s.projectiles:
+                near = ((pr.x - ox) ** 2 + (pr.y - oy) ** 2 <= r2
+                        or (pr.x - nx) ** 2 + (pr.y - ny) ** 2 <= r2)
+                if near and pr.alive and pr.hit_r_sq > 0.0:
+                    # Turned round and now the swapper's: it flies back at
+                    # the side that fired it.
+                    pr.vx, pr.vy = -pr.vx, -pr.vy
+                    pr.owner = fig
+                    pr.ua_rb = None
+                    pr.age = 0
+                    if hasattr(pr, "target"):
+                        pr.target[0], pr.target[1] = pr.x - pr.vx * 50, pr.y - pr.vy * 50
+                    side.projectiles.append(pr)
+                    continue
+                keep.append(pr)
+            s.projectiles[:] = keep
+    if P["reaim_own_shots"]:
+        pts = [(f.x, f.y) for j, s in enumerate(world.sides) if j != si for f in s.figures]
+        if not pts and not world.battle_mode:
+            pts = [tuple(world.cursor)]
+        for pr in side.projectiles:
+            if getattr(pr, "owner", None) is fig and pr.alive and pr.hit_r_sq > 0.0:
+                t = _nearest(pts, pr.x, pr.y)
+                if t is None:
+                    break
+                spd = math.hypot(pr.vx, pr.vy)
+                d = math.hypot(t[0] - pr.x, t[1] - pr.y) or 1.0
+                pr.vx, pr.vy = (t[0] - pr.x) / d * spd, (t[1] - pr.y) / d * spd
+
+
+# ------------------------------------------------------------ Domain Expansion
+def _dm_fill(fig, st, P, amount):
+    if st.dm_left > 0 or st.dm_cd > 0:
+        return
+    st.dm_gauge = min(100.0, st.dm_gauge + amount)
+
+
+def _dm_tick(fig, world, st, P):
+    if st.dm_left > 0:
+        st.dm_left -= 1
+        if st.dm_left <= 0:
+            st.dm_cd = _ticks(P["cooldown_ms"])
+        return
+    if st.dm_cd > 0:
+        st.dm_cd -= 1
+        return
+    if P["fill"] == "timer":
+        st.dm_gauge = min(100.0, st.dm_gauge + 100.0 / _ticks(P["fill_ms"]))
+    elif P["fill"] == "hp_below" and not st.dm_hp_fired and _hp_pct(fig) <= P["hp_below_pct"]:
+        st.dm_hp_fired = True
+        st.dm_gauge = 100.0
+    if st.dm_gauge >= 100.0:
+        st.dm_gauge = 0.0
+        st.dm_left = _ticks(P["duration_ms"])
+        rgb = _rgb(P["tint_color"], (90, 26, 255))
+        world.impact_rings.append([fig.x, fig.y, 0, max(fig.screen_w, fig.screen_h) * 0.6])
+        _burst(world.sparks, fig.x, fig.y, rgb, n=30, spd=(2.0, 8.0))
+        st.flash = 14
+        st.flash_rgb = rgb
+
+
+def _own_rule(fig, rule):
+    st = getattr(fig, "ua", None)
+    if st is None or st.dm_left <= 0:
+        return False
+    P = _of(fig, "domain_expansion")
+    return bool(P and P["rules"].get(rule))
+
+
+def _enemy_domains(fig, world):
+    """(owner, settings) of every domain up on another side than fig's."""
+    for (si, owner, P) in getattr(world, "ua_domains", ()) or ():
+        if owner is fig:
+            continue
+        side = world.sides[si]
+        if fig in side.figures:
+            continue
+        yield owner, P
+
+
+def _enemy_rule(fig, world, rule):
+    if world is None:
+        return False
+    return any(P["rules"].get(rule) for _o, P in _enemy_domains(fig, world))
+
+
+def _enemy_slow(fig, world):
+    if world is None:
+        return 1.0
+    k = 1.0
+    for _o, P in _enemy_domains(fig, world):
+        if P["rules"].get("slow_enemy"):
+            k *= max(0.05, 1.0 - P["slow_pct"] / 100.0)
+    return k
+
+
+def _domain_world(world, si, owner, P):
+    """World level, each tick a domain is up: enemy shots fizzle, gravity
+    drags / pushes enemy fighters."""
+    R = P["rules"]
+    for sj, side in enumerate(world.sides):
+        if sj == si:
+            continue
+        if R["enemy_shots_off"]:
+            for pr in side.projectiles:
+                if pr.alive and pr.hit_r_sq > 0.0:
+                    world.sparks.append([pr.x, pr.y, 0.0, -0.6, 0, pr.r, pr.g, pr.b])
+                    pr.age = pr.max_age
+            for f in side.figures:
+                drv = getattr(f, "fx", None)
+                if drv is None:
+                    continue
+                for inst in drv.player.insts + drv.clane[0].insts:
+                    fxd = inst.fx
+                    if (fxd["battle"]["deals_damage"] and not inst.dead and inst.age < inst.life
+                            and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                            and fxd["prim"] not in _RC_PRIMS_OFF):
+                        inst.age = max(inst.age, inst.life)
+        if R["gravity"] and P["gravity_px"] > 0:
+            if P["gravity_to"] == "centre":
+                gx, gy = owner.screen_w / 2.0, owner.screen_h / 2.0
+            else:
+                gx, gy = owner.x, owner.y
+            sgn = -1.0 if P["gravity_mode"] == "push" else 1.0
+            for ef in side.figures:
+                if not ef.transform.init:
+                    continue
+                t = ef.transform
+                dx, dy = gx - t.x, gy - t.y
+                d = math.hypot(dx, dy)
+                if d < 1.0:
+                    continue
+                step = min(d - 1.0, P["gravity_px"]) if sgn > 0 else P["gravity_px"]
+                t.x = min(max(t.x + dx / d * step * sgn, 0.0), float(ef.screen_w))
+                t.y = min(max(t.y + dy / d * step * sgn, 0.0), float(ef.screen_h))
+
+
+def fx_size_mult(fig):
+    """fxkit.spawn: an effect fired inside its owner's 'Huge FX' domain is
+    launched at this size (its reach and speed scale with it)."""
+    if fig is None or not _own_rule(fig, "huge_fx"):
+        return 1.0
+    return max(0.1, _of(fig, "domain_expansion")["fx_size_pct"] / 100.0)
+
+
+def blink_free(fig):
+    """'0 ms blink' domain rule: blinks come off cooldown at once."""
+    return _own_rule(fig, "blink_no_cd")
+
+
+def _dm_proj(proj, world, fig):
+    """Own bullets inside the owner's domain: 'Huge FX' grows them once,
+    'Guaranteed hits' steers them onto the nearest enemy."""
+    P = _of(fig, "domain_expansion")
+    st = getattr(fig, "ua", None)
+    if P is None or st is None or st.dm_left <= 0:
+        return
+    R = P["rules"]
+    if R["huge_fx"] and not getattr(proj, "ua_big", False) and proj.hit_r_sq > 0.0:
+        k = max(0.1, P["fx_size_pct"] / 100.0)
+        proj.radius *= k
+        proj.hit_r_sq *= k * k
+        proj.ua_big = True
+    if R["guaranteed_hits"] and proj.hit_r_sq > 0.0:
+        t = _nearest(_enemy_points(fig, world), proj.x, proj.y)
+        if t is not None:
+            spd = math.hypot(proj.vx, proj.vy)
+            d = math.hypot(t[0] - proj.x, t[1] - proj.y)
+            if d > 1.0 and spd > 0.01:
+                proj.vx, proj.vy = (t[0] - proj.x) / d * spd, (t[1] - proj.y) / d * spd
+                if hasattr(proj, "target"):
+                    proj.target[0], proj.target[1] = t[0], t[1]
+
+
+# ------------------------------------------------------------ Fusion
+def _fusion_world(world, dead):
+    """Timed fusions count down and split; team-mates that both carry Fusion
+    (different characters) and both meet their ticked conditions fuse."""
+    for si, side in enumerate(world.sides):
+        figs = side.figures
+        for f in list(figs):
+            st = getattr(f, "ua", None)
+            if st is None or st.fu_parents is None or f in dead:
+                continue
+            if f.mode is not st.fu_mode:
+                st.fu_parents = None     # re-skinned by a key: the fusion is over
+                continue
+            if st.fu_left is not None:
+                st.fu_left -= 1
+                if st.fu_left <= 0:
+                    _split(world, side, f, st)
+        real = [f for f in figs if not is_clone(f) and f not in dead and f.transform.init]
+        cands = []
+        for f in real:
+            P = _of(f, "fusion")
+            st = getattr(f, "ua", None)
+            if P is None:
+                continue
+            st = state(f)
+            if st.fu_parents is not None:
+                continue
+            if st.fu_cd > 0:
+                st.fu_cd -= 1
+                st.fu_together = 0
+                continue
+            cands.append((f, P, st))
+        for (f, P, st) in cands:
+            if any(g.mode.key != f.mode.key for (g, _p, _s) in cands if g is not f):
+                if st.fu_together == 0:
+                    st.fu_l0 = st.landed
+                st.fu_together += 1
+            else:
+                st.fu_together = 0
+        pair = None
+        for i in range(len(cands)):
+            for j in range(i + 1, len(cands)):
+                a, Pa, sa = cands[i]
+                b, Pb, sb = cands[j]
+                if (a.mode.key != b.mode.key and _fusion_ok(a, Pa, sa, b, sb)
+                        and _fusion_ok(b, Pb, sb, a, sa)):
+                    pair = (a, b, Pa)
+                    break
+            if pair:
+                break
+        if pair:
+            _fuse(world, side, *pair)
+
+
+def _fusion_ok(f, P, st, g, sg):
+    C = P["conds"]
+    if C["hp_below"] and _hp_pct(f) > P["hp_below_pct"]:
+        return False
+    if C["close"] and math.hypot(f.x - g.x, f.y - g.y) > P["close_px"]:
+        return False
+    if C["field_time"] and st.fu_together < _ticks(P["field_ms"]):
+        return False
+    if C["hits_landed"] and (st.landed - st.fu_l0) + (sg.landed - sg.fu_l0) < P["hits"]:
+        return False
+    return True
+
+
+def _fuse(world, side, a, b, P):
+    from .figure import Figure
+    from .palette import lut_for_mode
+    key = str(P["result"] or "").strip()
+    if key not in _modes.MODE_REGISTRY:
+        key = a.mode.key
+    try:
+        bundle = world.assets.bundle(key)
+    except Exception:
+        key, bundle = a.mode.key, a.render.bundle
+    nf = Figure(_modes.get_mode(key), bundle, lut_for_mode(key, a.index), a.index,
+                a.screen_w, a.screen_h)
+    nf.transform.x, nf.transform.y = (a.x + b.x) / 2.0, (a.y + b.y) / 2.0
+    nf.transform.facing_left = a.transform.facing_left
+    nf.transform.init = True
+    pa, pb, pn = a.personality, b.personality, nf.personality
+    whole = isinstance(pa.max_hp, int) and isinstance(pb.max_hp, int)
+    pn.max_hp = pa.max_hp + pb.max_hp
+    pn.hp = pa.hp + pb.hp
+    if whole:
+        pn.max_hp, pn.hp = int(round(pn.max_hp)), max(1, int(round(pn.hp)))
+    nf.motion.speed = max(a.motion.speed, b.motion.speed)
+    nf.motion.follow_speed = max(a.motion.follow_speed, b.motion.follow_speed)
+    st = state(nf)
+    st.fu_parents = (a, b)
+    st.fu_P = P
+    st.fu_mode = nf.mode
+    st.fu_dmg = out_mult(a) + out_mult(b)
+    st.fu_left = _ticks(P["duration_ms"]) if P["ending"] == "timed" else None
+    figs = side.figures
+    figs[figs.index(a)] = nf
+    figs.remove(b)
+    rgb = _rgb(P["aura_color"], (255, 255, 255))
+    for f in (a, b):
+        _burst(world.sparks, f.x, f.y, tuple(f.lut[200]), n=16, spd=(1.0, 5.0))
+        for pr in side.projectiles:
+            if pr.owner is f:
+                pr.owner = nf
+    world.impact_rings.append([nf.x, nf.y, 0, 140.0])
+    _burst(world.sparks, nf.x, nf.y, rgb, n=34, spd=(2.0, 8.0))
+    st.flash = 16
+    st.flash_rgb = rgb
+    world.notice = ("Fusion: %s + %s -> %s" % (a.mode.key, b.mode.key, key), 150)
+
+
+def _split(world, side, f, st):
+    """A timed fusion ends: both team-mates come back, sharing the fused
+    fighter's HP by their max HP, and can't fuse again for the cooldown."""
+    a, b = st.fu_parents
+    P = st.fu_P
+    st.fu_parents = None
+    hp, tot = f.personality.hp, float(a.personality.max_hp + b.personality.max_hp) or 1.0
+    figs = side.figures
+    i = figs.index(f)
+    for k, (g, dx) in enumerate(((a, -30.0), (b, 30.0))):
+        p = g.personality
+        share = hp * p.max_hp / tot
+        p.hp = max(1, int(round(share))) if isinstance(p.max_hp, int) else max(0.1, share)
+        p.hp = min(p.hp, p.max_hp)
+        p.dmg_immune_until = 0
+        g.transform.x, g.transform.y = _clamp_xy(g, f.x + dx, f.y)
+        g.motion.bouncing = g.motion.bounce_ending = False
+        g.motion.bounce_vx = g.motion.bounce_vy = 0.0
+        g.trail.clear()
+        gs = state(g)
+        gs.fu_cd = _ticks(P["cooldown_ms"])
+        gs.fu_together = 0
+        gs.fu_l0 = gs.landed
+        _burst(world.sparks, g.x, g.y, tuple(g.lut[200]), n=14, spd=(1.0, 4.5))
+    figs[i] = a
+    figs.insert(i + 1, b)
+    for pr in side.projectiles:
+        if pr.owner is f:
+            pr.owner = a
+    world.notice = ("Fusion ended", 90)
+
+
+# ------------------------------------------------------------ bullets / FX each tick
+def proj_step(proj, world):
+    """ProjectileSystem hook (the bullet's own side), after it moved:
+    Terraform structures stop it, Rewind Bullets records / retraces its
+    path, the owner's domain grows / steers it, Ricochet bounces it."""
+    if proj.hit_r_sq > 0.0 and getattr(world, "ua_structs", None) and _proj_blocked(proj, world):
+        return
+    owner = proj.owner
+    if owner is None:
+        figs = world.figures or []
+        if len(figs) == 1 and _of(figs[0], "rewind_bullets") is not None:
+            proj.owner = owner = figs[0]
+    if owner is not None:
+        if getattr(proj, "ua_rw", None) is None:
+            P = _of(owner, "rewind_bullets")
+            if P is None or proj.hit_r_sq <= 0.0:
+                proj.ua_rw = -1
+            else:
+                proj.ua_rw = 0
+                proj.ua_path = [(proj.x - proj.vx, proj.y - proj.vy), (proj.x, proj.y)]
+        if proj.ua_rw >= 0:
+            P = _of(owner, "rewind_bullets")
+            if P is not None:
+                _rw_proj(proj, P)
+                if not proj.alive:
+                    return
+        _dm_proj(proj, world, owner)
+    _rc_proj_step(proj, world)
+
+
+def _inst_blocked(inst, world):
+    fx = inst.fx
+    if (not fx["battle"]["deals_damage"] or fx["prim"] in _RC_PRIMS_OFF
+            or not (inst.free or fx["motion"]["kind"] in ("travel", "homing", "zigzag", "path"))):
+        return False
+    for s in _blocking(world, getattr(world, "side_idx", 0), True):
+        d, _nx, _ny = s.dist(inst.x, inst.y)
+        if d <= s.r + 6.0 * (inst.ps or 1.0):
+            _struct_hit(s, inst.x, inst.y, float(fx["battle"].get("damage") or 1.0), world.sparks)
+            inst.age = max(inst.age, inst.life)
+            return True
+    return False
+
+
+def inst_step(inst, host):
+    """fxkit.tick_inst hook (owner side), after the effect moved:
+    structures, Rewind Bullets, Ricochet."""
+    world = getattr(host, "world", None)
+    if world is not None and getattr(world, "ua_structs", None) and _inst_blocked(inst, world):
+        return
+    P = _of(getattr(host, "fig", None), "rewind_bullets")
+    if P is not None:
+        _rw_inst(inst, host, P)
+    _rc_inst_step(inst, host)
+
+
 # ------------------------------------------------------------ drawing
+def _bar(p, x, y, w, frac, rgb, pscale, h=3.0):
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(0, 0, 0, 120))
+    p.drawRect(QRectF(x - w / 2.0, y, w, h * pscale))
+    r, g, b = rgb
+    p.setBrush(QColor(r, g, b, 220))
+    p.drawRect(QRectF(x - w / 2.0, y, w * max(0.0, min(1.0, frac)), h * pscale))
+
+
+def _glow(p, x, y, rr, rgb, a):
+    r, g, b = rgb
+    grad = QRadialGradient(QPointF(x, y), rr)
+    grad.setColorAt(0.0, QColor(r, g, b, int(max(0, min(255, a)))))
+    grad.setColorAt(1.0, QColor(r, g, b, 0))
+    p.setPen(Qt.NoPen)
+    p.setBrush(QBrush(grad))
+    p.drawEllipse(QPointF(x, y), rr, rr)
+
+
+def _draw_structs(p, st, pscale):
+    for s in st.structs:
+        if s.hp <= 0:
+            continue
+        r, g, b = _rgb(s.P["color"], (201, 164, 106))
+        fade = min(1.0, s.left / 20.0)
+        a = int(230 * fade)
+        hit = s.hit_flash > 0
+        if s.kind == "wall":
+            pen = QPen(QColor(255, 255, 255, a) if hit else QColor(r, g, b, a), s.r * 2.0)
+            pen.setCapStyle(Qt.RoundCap)
+            p.setPen(pen)
+            p.drawLine(QPointF(s.ax, s.ay), QPointF(s.bx, s.by))
+            p.setPen(QPen(QColor(min(255, r + 60), min(255, g + 60), min(255, b + 60), a), 1.5))
+            p.drawLine(QPointF(s.ax, s.ay), QPointF(s.bx, s.by))
+        elif s.kind == "pit":
+            grad = QRadialGradient(QPointF(s.x, s.y), s.r)
+            grad.setColorAt(0.0, QColor(0, 0, 0, int(220 * fade)))
+            grad.setColorAt(0.75, QColor(r // 3, g // 3, b // 3, int(200 * fade)))
+            grad.setColorAt(1.0, QColor(r, g, b, int(160 * fade)))
+            p.setPen(QPen(QColor(r, g, b, a), 1.5))
+            p.setBrush(QBrush(grad))
+            p.drawEllipse(QPointF(s.x, s.y), s.r, s.r)
+            continue
+        else:
+            p.setPen(QPen(QColor(255, 255, 255, a) if hit else QColor(r, g, b, a), 2.0))
+            p.setBrush(QColor(r // 2, g // 2, b // 2, int(200 * fade)))
+            p.drawEllipse(QPointF(s.x, s.y), s.r, s.r)
+            p.setBrush(QColor(r, g, b, int(120 * fade)))
+            p.drawEllipse(QPointF(s.x - s.r * 0.25, s.y - s.r * 0.25), s.r * 0.45, s.r * 0.45)
+        if s.hp < s.max_hp:
+            _bar(p, s.x, s.y - s.r - 8, 30.0 * pscale, s.hp / s.max_hp, (r, g, b), pscale, 2.5)
+
+
+def draw_construct(fig, p):
+    """Figure.draw: a construct is drawn as itself (turret / totem /
+    familiar), not as its owner's sprite.  True when it drew."""
+    st = getattr(fig, "ua", None)
+    if st is None or st.construct is None:
+        return False
+    P = st.clone_P
+    x, y = fig.transform.x, fig.transform.y
+    pscale = fig._position_scale()
+    R = P["size_px"] * pscale
+    rgb = _rgb(P["color"], (124, 243, 255))
+    r, g, b = rgb
+    tk = st.t
+    life = st.clone_left / float(max(1, _ticks(P["life_ms"])))
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing, True)
+    kind = st.construct
+    if kind == "turret":
+        _glow(p, x, y, R * 1.8, rgb, 70)
+        p.setPen(QPen(QColor(r, g, b, 230), 2.0))
+        p.setBrush(QColor(20, 24, 30, 220))
+        p.drawEllipse(QPointF(x, y), R, R)
+        pen = QPen(QColor(r, g, b, 240), max(2.0, R * 0.45))
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.drawLine(QPointF(x, y), QPointF(x + math.cos(st.con_aim) * R * 1.5,
+                                          y + math.sin(st.con_aim) * R * 1.5))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(r, g, b, 255))
+        p.drawEllipse(QPointF(x, y), R * 0.35, R * 0.35)
+    elif kind in ("totem_heal", "totem_shield"):
+        pulse = 0.5 + 0.5 * math.sin(tk * 0.12)
+        ar = P["aura_px"]
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(r, g, b, int(40 + 40 * pulse)), 1.5, Qt.DashLine))
+        p.drawEllipse(QPointF(x, y), ar, ar)
+        _glow(p, x, y, R * 2.2, rgb, 90 + 60 * pulse)
+        poly = QPolygonF([QPointF(x, y - R * 1.6), QPointF(x + R * 0.7, y),
+                          QPointF(x, y + R * 1.2), QPointF(x - R * 0.7, y)])
+        p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
+        p.setBrush(QColor(r, g, b, 210))
+        p.drawPolygon(poly)
+        p.setPen(QPen(QColor(255, 255, 255, 230), 2.0))
+        if kind == "totem_heal":
+            p.drawLine(QPointF(x - R * 0.3, y - R * 0.2), QPointF(x + R * 0.3, y - R * 0.2))
+            p.drawLine(QPointF(x, y - R * 0.5), QPointF(x, y + R * 0.1))
+        else:
+            p.setBrush(Qt.NoBrush)
+            p.drawArc(QRectF(x - R * 0.4, y - R * 0.6, R * 0.8, R * 0.8), 0, 180 * 16)
+    else:   # familiar
+        _glow(p, x, y, R * 1.9, rgb, 110)
+        a = st.con_aim
+        bob = math.sin(tk * 0.3) * 1.5
+        p.setPen(QPen(QColor(255, 255, 255, 160), 1.2))
+        p.setBrush(QColor(r, g, b, 230))
+        p.drawEllipse(QPointF(x, y + bob), R * 0.8, R * 0.8)
+        for s_ in (-1, 1):
+            ex = x + math.cos(a + s_ * 0.45) * R * 0.45
+            ey = y + bob + math.sin(a + s_ * 0.45) * R * 0.45
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 255))
+            p.drawEllipse(QPointF(ex, ey), R * 0.18, R * 0.18)
+    pp = fig.personality
+    if pp.max_hp:
+        _bar(p, x, y + R * 1.7, 26.0 * pscale, pp.hp / float(pp.max_hp), rgb, pscale, 2.5)
+    p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(QColor(r, g, b, 120), 1.2))
+    p.drawArc(QRectF(x - R * 1.3, y - R * 1.3, R * 2.6, R * 2.6), 90 * 16, int(360 * 16 * life))
+    if st.flash > 0:
+        p.setPen(QPen(QColor(255, 255, 255, int(200 * st.flash / 12.0)), 2.0))
+        p.drawEllipse(QPointF(x, y), R * 1.5, R * 1.5)
+    p.restore()
+    return True
+
+
 def draw(fig, p, pscale=1.0):
     """Ability overlays around the figure (drawn behind the sprite)."""
-    c = cfg(fig)
-    if c is None:
-        return
-    kind, P = c
     st = getattr(fig, "ua", None)
+    c = cfg(fig)
+    if c is None and st is None:
+        return
     x, y = fig.transform.x, fig.transform.y
     try:
         bs = float(fig.mode.body_scale())
     except Exception:
         bs = 1.0
     R = 34.0 * bs * pscale
+    tk = getattr(fig.render, "anim_tick", 0)
     p.save()
     p.setRenderHint(QPainter.Antialiasing, True)
+    kind, P = c if c is not None else (None, None)
+    if kind == "domain_expansion" and st is not None and st.dm_left > 0 and P["tint"]:
+        r, g, b = _rgb(P["tint_color"], (90, 26, 255))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(r, g, b, int(255 * max(0.0, min(0.6, P["tint_pct"] / 100.0)))))
+        p.drawRect(QRectF(0, 0, fig.screen_w, fig.screen_h))
+        rr = R * (2.0 + 0.3 * math.sin(tk * 0.4))
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(r, g, b, 200), 2.5 * pscale))
+        p.drawEllipse(QPointF(x, y), rr, rr)
+    if st is not None and st.fu_parents is not None and st.fu_P is not None and st.fu_P["aura"]:
+        rgb = _rgb(st.fu_P["aura_color"], (255, 255, 255))
+        _glow(p, x, y, R * (1.5 + 0.15 * math.sin(tk * 0.5)), rgb, 120)
+        if st.fu_left is not None:
+            frac = st.fu_left / float(max(1, _ticks(st.fu_P["duration_ms"])))
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(*rgb, 170), 2.0 * pscale))
+            p.drawArc(QRectF(x - R * 1.2, y - R * 1.2, R * 2.4, R * 2.4), 90 * 16, int(360 * 16 * frac))
+    if st is not None and st.structs:
+        _draw_structs(p, st, pscale)
     if kind == "berserker" and P["aura"]:
         f = _rage(fig, P)
         if f > 0.01:
             r, g, b = _rgb(P["aura_color"], (255, 42, 42))
-            pulse = 0.85 + 0.15 * math.sin(getattr(fig.render, "anim_tick", 0) * 0.6)
+            pulse = 0.85 + 0.15 * math.sin(tk * 0.6)
             rr = R * (1.1 + 0.6 * f) * pulse
             grad = QRadialGradient(QPointF(x, y), rr)
             grad.setColorAt(0.0, QColor(r, g, b, int(150 * f)))
@@ -889,6 +2409,44 @@ def draw(fig, p, pscale=1.0):
             p.setBrush(QColor(r, g, b, 230 if on else 60))
             px = x + (i - (tot - 1) / 2.0) * 9 * pscale
             p.drawEllipse(QPointF(px, y - R * 1.6), 3 * pscale, 3 * pscale)
+    if kind == "dual_form":
+        F = _form(fig, P)
+        if F["aura"]:
+            k = 1.0 + (0.25 if st is not None and st.df_buff > 0 else 0.0)
+            _glow(p, x, y, R * 1.3 * k * (0.92 + 0.08 * math.sin(tk * 0.5)),
+                  _rgb(F["aura_color"], (255, 58, 58)), 110)
+        if P["show_gauge"] and P["trigger"] == "gauge" and st is not None:
+            _bar(p, x, y + R * 1.25, 34.0 * pscale, st.df_gauge / 100.0,
+                 _rgb(_form(fig, P)["aura_color"], (255, 58, 58)), pscale)
+    if kind == "aegis" and st is not None:
+        sh = st.shield if st.shield is not None else P["shield_hp"]
+        frac = sh / P["shield_hp"] if P["shield_hp"] > 0 else 0.0
+        r, g, b = _rgb(P["color"], (111, 208, 255))
+        if frac > 0:
+            rr = R * 1.25
+            grad = QRadialGradient(QPointF(x, y), rr)
+            grad.setColorAt(0.0, QColor(r, g, b, 0))
+            grad.setColorAt(0.8, QColor(r, g, b, int(40 + 50 * frac)))
+            grad.setColorAt(1.0, QColor(r, g, b, int(90 + 110 * frac)))
+            p.setPen(QPen(QColor(r, g, b, int(120 + 110 * frac)), 1.5 * pscale))
+            p.setBrush(QBrush(grad))
+            p.drawEllipse(QPointF(x, y), rr, rr)
+        if P["show_bar"]:
+            _bar(p, x, y + R * 1.35, 34.0 * pscale, frac, (r, g, b), pscale)
+    if kind == "domain_expansion" and P["show_gauge"] and st is not None:
+        rgb = _rgb(P["tint_color"], (90, 26, 255))
+        if st.dm_left > 0:
+            frac = st.dm_left / float(max(1, _ticks(P["duration_ms"])))
+        else:
+            frac = st.dm_gauge / 100.0 if st.dm_cd <= 0 else 0.0
+        _bar(p, x, y + R * 1.25, 34.0 * pscale, frac, rgb, pscale)
+    if st is not None and st.stun_left > 0:
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 236, 120, 230))
+        for i in range(3):
+            a = tk * 0.25 + 2 * math.pi * i / 3
+            p.drawEllipse(QPointF(x + math.cos(a) * R * 0.6, y - R * 1.1 + math.sin(a) * R * 0.2),
+                          2.5 * pscale, 2.5 * pscale)
     if st is not None and st.flash > 0:
         r, g, b = st.flash_rgb
         a = int(220 * st.flash / 12.0)
