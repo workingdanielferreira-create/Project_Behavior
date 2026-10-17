@@ -15225,7 +15225,7 @@
     "enabled": false,
     "facing": -1
    },
-   "enabled": true,
+   "enabled": false,
    "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
@@ -15479,7 +15479,7 @@
    "follow_each": false,
    "keys": [],
    "id": "Emvcrg9zd20",
-   "action": "idle"
+   "action": "@form:c"
   },
   {
    "prim": "technique",
@@ -15544,7 +15544,7 @@
     "enabled": false,
     "facing": 1
    },
-   "enabled": true,
+   "enabled": false,
    "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
@@ -15758,7 +15758,7 @@
     "enabled": false,
     "facing": 1
    },
-   "enabled": true,
+   "enabled": false,
    "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
@@ -15865,7 +15865,7 @@
     "enabled": false,
     "facing": -1
    },
-   "enabled": true,
+   "enabled": false,
    "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
@@ -16081,7 +16081,7 @@
     "accent": "#000000",
     "aura": false,
     "aura_color": "#3fb0ea",
-    "fx": "group:Gmus8ri2t1",
+    "fx": "",
     "lasts_ms": 0
    },
    "form_b": {
