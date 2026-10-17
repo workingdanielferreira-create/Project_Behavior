@@ -133,19 +133,43 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 // "@character" (Character FX, whole character): always on the fighter on
 // their own lane (cplayer), whatever action is on show; their anchors follow
 // that action's frames.  S.react = "character" edits them over S.action.
-var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character";
+// "@transform:<from>><to>" (e.g. "@transform:a>b"): a Transformations
+// transition's own FX slot, played with that transition (laser/unique.py),
+// built on its action's frames (idle without one).  S.react = "transform",
+// S.trPair = "a>b".
+var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:";
 function retreatHost() { return C.actions.run ? "run" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
-function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.action; }
-function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === CHAR_KEY ? (C.actions[S.action] ? S.action : Object.keys(C.actions)[0]) : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key; }
-function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key; }
-function selectKey(key) { S.react = key === RETREAT_KEY ? "retreat" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : null; S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action; }
+function transHost(pair) {
+  var T = (S.unique.dual_form.transitions || {})[pair] || {};
+  return C.actions[T.action] ? T.action : C.actions.idle ? "idle" : Object.keys(C.actions)[0];
+}
+function transLabel(pair) {
+  var P = S.unique.dual_form, f = function (l) { var F = P["form_" + l]; return (F && F.name) || ("Form " + l.toUpperCase()); };
+  return "Transform " + f(pair[0]) + " → " + f(pair[2]);
+}
+function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? TRANS_KEY + S.trPair : S.action; }
+function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === CHAR_KEY ? (C.actions[S.action] ? S.action : Object.keys(C.actions)[0]) : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
+function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key; }
+function selectKey(key) {
+  S.react = key === RETREAT_KEY ? "retreat" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : key.indexOf(TRANS_KEY) === 0 ? "transform" : null;
+  if (S.react === "transform") S.trPair = key.slice(TRANS_KEY.length);
+  S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action;
+}
+// The transition pairs of the forms in use: the in-order cycle first, then the rest.
+function transPairs() {
+  var L = "abcdef".slice(0, Math.max(2, Math.min(6, S.unique.dual_form.forms || 2))), out = [], cyc = {};
+  L.split("").forEach(function (a, i) { var p = a + ">" + L[(i + 1) % L.length]; out.push(p); cyc[p] = 1; });
+  L.split("").forEach(function (a) { L.split("").forEach(function (b) { var p = a + ">" + b; if (a !== b && !cyc[p]) out.push(p); }); });
+  return out;
+}
 // A reaction that owns the stage (Tactical retreat / Blink): Character FX
 // play over the action on show, which behaves as it normally does.
 function reactOwns() { return !!S.react && S.react !== "character"; }
 function fxKeyOptions() {
   var acts = Object.keys(C.actions);
   return acts.map(function (a) { return [a, a]; }).concat([[CHAR_KEY, "✦ Character FX"], [RETREAT_KEY, "⚡ Tactical retreat"]],
-    acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }));
+    acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }),
+    transPairs().map(function (p) { return [TRANS_KEY + p, "⚡ " + transLabel(p)]; }));
 }
 function charEffects() { return S.effects.filter(function (e) { return e.action === CHAR_KEY; }); }
 // Character FX with a frequency (char_every_ms > 0) play their whole sequence
@@ -169,7 +193,7 @@ function actionEffects() { var k = fxKey(); return S.effects.filter(function (e)
 // does while Blink is on; always while editing the Blink reaction), or the
 // Tactical retreat's.
 function playEffects() {
-  if (S.react === "retreat") return actionEffects();
+  if (S.react === "retreat" || S.react === "transform") return actionEffects();   // a transition shows only the action's animation + its own FX
   var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;   // Character FX: cplayer
   return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
 }
@@ -206,7 +230,7 @@ function docIn(src) { DOC.forEach(function (f) { S[f[0]] = f[2](src[f[1]]); }); 
 function docCopy(key) { var f = DOC.filter(function (d) { return d[1] === key; })[0]; return f[2](S[f[0]]); }
 function persist() {
   var o = docOut();
-  o.action = S.action; o.react = S.react; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
+  o.action = S.action; o.react = S.react; o.tr_pair = S.trPair; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
   lsSet(LS_PROJECT + C.name, o);
 }
 
@@ -530,8 +554,10 @@ function finishOpen(man, acts, pack, name, local) {
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character") ? local.react : null;
+  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform") ? local.react : null;
+  S.trPair = local && typeof local.tr_pair === "string" && transPairs().indexOf(local.tr_pair) >= 0 ? local.tr_pair : transPairs()[0];
   if (S.react === "retreat") S.action = retreatHost();
+  if (S.react === "transform") S.action = transHost(S.trPair);
   S.blinkAct = S.react === "blink" ? S.action : null;
   S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
@@ -679,12 +705,22 @@ function showPresetDesc() { var x = allPresets()[+$("presetSel").value]; $("pres
 function addPreset() {
   if (!C) return toast("Open a character folder first");
   var x = allPresets()[+$("presetSel").value]; if (!x) return;
-  // A group preset comes in as a new group on this action, members still
-  // laid out around its pivot exactly as they were saved.
-  var gp = groupPresetOf(x.p);
-  var gr = gp ? newGroup(x.p.name, gp.anchor, gp.offset) : null;
-  var added = x.p.effects.map(function (e) {
-    var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = fxKey();
+  var r = presetInto(x.p, fxKey()), gr = r.gr, added = r.added;
+  S.multi = [];
+  if (gr) setSel(null, gr.id); else setSel(added[0].id);
+  rebuild(); resetSim(S.t); save();
+  var missing = added.filter(function (fx) { return fx.anchor !== "figure" && fx.anchor !== "target" && !S.labels[fx.anchor]; });
+  if (missing.length) toast("This character has no \"" + missing[0].anchor + "\" anchor: " + (gr ? "pick another Pivot for the group (its effects keep their layout)." : "add it under Anchors, or pick another joint."), 6000);
+}
+// Copy library preset p onto FX key `key` (an action or a reaction): a group
+// preset comes in as a new group, members still laid out around its pivot
+// exactly as they were saved.  Returns {added, gr}.
+function presetInto(p, key) {
+  var gp = groupPresetOf(p);
+  var gr = gp ? newGroup(p.name, gp.anchor, gp.offset) : null;
+  if (gr) gr.action = key;
+  var added = p.effects.map(function (e) {
+    var fx = clone(e); fx.id = FXK.newEffect(fx.prim).id; fx.action = key;
     if (gr) { fx.group = gr.id; fx.anchor = gr.anchor; } else delete fx.group;
     if (!fx.flip || !fx.flip.enabled) fx.flip = {enabled: false, facing: targetSideNow()};   // created with the target on this side
     if (fx.prim === "ghost" && !fx.layer) fx.layer = "behind";
@@ -692,11 +728,9 @@ function addPreset() {
     if (fx.action === CHAR_KEY) { fx.always_on = FXK.canContinue(fx); if (fx.always_on) fx.continuous = false; }   // Character FX: held on the fighter when they can be
     return fx;
   });
-  S.effects = S.effects.concat(added); S.multi = [];
-  if (gr) { S.groups.push(gr); setSel(null, gr.id); } else setSel(added[0].id);
-  rebuild(); resetSim(S.t); save();
-  var missing = added.filter(function (fx) { return fx.anchor !== "figure" && fx.anchor !== "target" && !S.labels[fx.anchor]; });
-  if (missing.length) toast("This character has no \"" + missing[0].anchor + "\" anchor: " + (gr ? "pick another Pivot for the group (its effects keep their layout)." : "add it under Anchors, or pick another joint."), 6000);
+  S.effects = S.effects.concat(added);
+  if (gr) S.groups.push(gr);
+  return {added: added, gr: gr};
 }
 function savePreset() {
   var fx = selFx(); if (!fx) return;
@@ -862,13 +896,16 @@ function buildActions() {
   var nOn = Object.keys(C.actions).filter(function (k) { return cfgOf(k).blink.enabled; }).length;
   var nBk = S.effects.filter(function (e) { return e.action.indexOf(BLINK_KEY) === 0; }).length;
   var nRt = S.effects.filter(function (e) { return e.action === RETREAT_KEY; }).length;
+  var nTr = S.effects.filter(function (e) { return e.action.indexOf(TRANS_KEY) === 0; }).length;
   [["retreat", "⚡ Tactical retreat", S.retreat.enabled, nRt ? nRt + " fx" : ""],
-   ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")]].forEach(function (r) {
+   ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")],
+   ["transform", "⚡ Transformations", S.unique.type === "dual_form", nTr ? nTr + " fx" : ""]].forEach(function (r) {
     var el = document.createElement("div"); el.className = (S.react === r[0] ? "sel" : "") + (r[2] ? "" : " off");
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = r[1];
     el.querySelector(".m").textContent = r[2] ? r[3] : "(off)" + (r[3] ? " · " + r[3] : "");
     el.title = r[0] === "retreat" ? "The Tactical retreat dash: build FX that play for the whole dash (on the " + retreatHost() + " frames) and preview the dash."
+      : r[0] === "transform" ? "Transformations transitions: each form pair has its own FX slot, built on its transition action's frames. In the game the action plays only its animation during the transition; these FX (and the borrowed FX) play with it."
       : "An action's Blink: pick the action at the top of its settings, build FX that play over that action while its Blink is on, and preview the blink.";
     el.onclick = function () { openReaction(r[0]); };
     d.appendChild(el);
@@ -877,7 +914,10 @@ function buildActions() {
 function openReaction(kind) {
   if (!reactOwns()) S.lastAct = S.action;   // Blink opens on the action you were on
   if (kind === "retreat") S.action = retreatHost();
-  else {
+  else if (kind === "transform") {
+    if (transPairs().indexOf(S.trPair) < 0) S.trPair = transPairs()[0];
+    S.action = transHost(S.trPair);
+  } else {
     var acts = Object.keys(C.actions), on = acts.filter(function (k) { return cfgOf(k).blink.enabled; });
     S.action = C.actions[S.blinkAct] ? S.blinkAct : on.length ? on[0] : C.actions[S.lastAct] ? S.lastAct : acts[0];
     S.blinkAct = S.action;
@@ -2852,32 +2892,77 @@ function uaDualForm(d, P) {
   uaFormActions(d, P, L);
 }
 // One transition per form pair: the action played on the way out of the old
-// form (the new form takes over when it ends) and the FX played with it.
+// form (only its animation; the new form takes over when it ends), the FX
+// borrowed from another action, and its own FX slot ("@transform:a>b").
 function uaTransitions(d, P, L) {
-  var s = sec(d, "Transitions", "ua-df-trans", "Each form pair has its own transition: an action played in the old form (the new form takes over when it ends) and an FX that plays while it does. With no action the form changes at once and the FX plays one pass on its own.", "act");
-  var acts = [["", "— none —"]].concat(Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }).map(function (k) { return [k, k]; }));
-  var fxOpts = [["", "— none —"]], known = {"": 1};
-  S.groups.forEach(function (gr) { var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
-  S.effects.forEach(function (e) { fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
-  // The pairs the in-order cycle plays first, then every other pair.
-  var pairs = [], cyc = {};
-  L.split("").forEach(function (a, i) { var b = L[(i + 1) % L.length]; pairs.push([a, b]); cyc[a + ">" + b] = 1; });
-  L.split("").forEach(function (a) { L.split("").forEach(function (b) { if (a !== b && !cyc[a + ">" + b]) pairs.push([a, b]); }); });
-  if (L.length > 2) note(s, "The in-order cycle plays the first " + L.length + " below; the others are kept for each pair too.");
-  pairs.forEach(function (pr) {
-    var key = pr[0] + ">" + pr[1], T = P.transitions[key] || (P.transitions[key] = {action: "", fx: ""});
-    var lbl = dfName(P, pr[0]) + " → " + dfName(P, pr[1]);
+  var s = sec(d, "Transitions", "ua-df-trans", "Each form pair has its own transition: an action played in the old form (only its animation, none of its own FX; the new form takes over when it ends), plus FX: one borrowed from an action and the FX built in its own slot. With no action the form changes at once and the FX play one pass on their own.", "act");
+  var pairs = transPairs(), cyc = L.length;
+  if (L.length > 2) note(s, "The in-order cycle plays the first " + cyc + " below; the others are kept for each pair too.");
+  pairs.forEach(function (pair, i) {
     var h = document.createElement("div"); h.className = "note"; h.style.fontWeight = "600"; h.style.marginTop = "6px";
-    h.textContent = lbl + (cyc[key] ? "" : "  (not in the cycle)"); s.appendChild(h);
-    var ao = acts.slice(); if (T.action && !acts.some(function (o) { return o[0] === T.action; })) ao.push([T.action, "(missing: " + T.action + ")"]);
-    var ae = field(s, "Action", inp(ao, T.action, function (v) { T.action = v; save(); }));
-    ae.style.minWidth = "0"; ae.style.width = "100%";
-    ae.title = "Played (skipping its own conditions and cooldown) when it leaves " + dfName(P, pr[0]) + " for " + dfName(P, pr[1]) + ". It plays even if it is set to other forms only. The new form takes over when it ends.";
-    var fo = fxOpts.slice(); if (!known[T.fx]) fo.push([T.fx, "(missing: deleted effect or group)"]);
-    var fe = field(s, "FX (borrowed)", inp(fo, T.fx, function (v) { T.fx = v; save(); }));
-    fe.style.minWidth = "0"; fe.style.width = "100%";
-    fe.title = "An effect or a whole group (▣) that plays for as long as this transition's action does (one pass of its own timing with no action). It still plays on its own action too.";
+    h.textContent = transLabel(pair).replace(/^Transform /, "") + (i < cyc ? "" : "  (not in the cycle)"); s.appendChild(h);
+    transFields(s, pair);
   });
+}
+// The Action / FX fields of one transition, the button that opens its own FX
+// slot, and library presets that copy into that slot.
+function transFields(s, pair) {
+  var P = S.unique.dual_form, T = P.transitions[pair] || (P.transitions[pair] = {action: "", fx: ""}), key = TRANS_KEY + pair;
+  var acts = [["", "— none —"]].concat(Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }).map(function (k) { return [k, k]; }));
+  if (T.action && !acts.some(function (o) { return o[0] === T.action; })) acts.push([T.action, "(missing: " + T.action + ")"]);
+  var ae = field(s, "Action", inp(acts, T.action, function (v) {
+    T.action = v; if (S.react === "transform" && S.trPair === pair) { S.action = transHost(pair); resetSim(0); }
+    save(); buildProps();
+  }));
+  ae.style.minWidth = "0"; ae.style.width = "100%";
+  ae.title = "Played (skipping its own conditions and cooldown) on the way out of the old form: only its animation shows, none of its own FX (they still play whenever it fires by itself). It plays even if it is set to other forms only. The new form takes over when it ends.";
+  // Borrowed: effects / groups on the actions (not this slot's own: those always play).
+  var fxOpts = [["", "— none —"]], known = {"": 1};
+  S.groups.forEach(function (gr) { if (gr.action === key) return; var n = groupMembers(gr).length; fxOpts.push(["group:" + gr.id, "▣ " + gr.name + " (" + fxKeyLabel(gr.action) + ", " + n + " fx)"]); known["group:" + gr.id] = 1; });
+  S.effects.forEach(function (e) { if (e.action === key) return; fxOpts.push(["fx:" + e.id, e.name + " (" + fxKeyLabel(e.action) + ")"]); known["fx:" + e.id] = 1; });
+  if (!known[T.fx]) fxOpts.push([T.fx, "(missing: deleted effect or group)"]);
+  // Library presets (not on any action yet): picking one copies it into this transition's own slot.
+  var lib = allPresets();
+  lib.forEach(function (x, i) { if (groupPresetOf(x.p)) fxOpts.push(["lib:" + i, "＋ Library ▣ " + (x.builtin ? "" : "★ ") + x.p.name + " (" + x.p.effects.length + " fx)"]); });
+  lib.forEach(function (x, i) { if (!groupPresetOf(x.p)) fxOpts.push(["lib:" + i, "＋ Library " + (x.builtin ? "" : "★ ") + x.p.name]); });
+  var fe = field(s, "FX", inp(fxOpts, T.fx, function (v) {
+    if (v.indexOf("lib:") === 0) {
+      var x = lib[+v.slice(4)];
+      if (x) { presetInto(x.p, key); toast("Added " + x.p.name + " to " + transLabel(pair) + "'s own FX slot"); }
+      save(); buildActions(); buildEffects(); buildProps(); if (S.react === "transform" && S.trPair === pair) { buildTimeline(); resetSim(0); }
+      return;
+    }
+    T.fx = v; save();
+  }));
+  fe.style.minWidth = "0"; fe.style.width = "100%";
+  fe.title = "Borrowed: an effect or a whole group (▣) from an action, played for as long as this transition's action plays (it still plays on its own action too). ＋ Library: copies a group / preset from the library into this transition's own FX slot, where it always plays with the transition and you can edit it.";
+  var own = S.effects.filter(function (e) { return e.action === key; }), grs = S.groups.filter(function (gr) { return gr.action === key; });
+  var row = document.createElement("div"); row.className = "row";
+  var b = document.createElement("button");
+  b.textContent = (S.react === "transform" && S.trPair === pair) ? "Own FX slot: " + own.length + " fx (open)" : "Edit own FX slot (" + own.length + " fx" + (grs.length ? ", " + grs.length + " group" + (grs.length > 1 ? "s" : "") : "") + ")";
+  b.title = "Open this transition under Actions > Triggered reactions: build or add FX on its action's frames. They play with the transition (only), alongside the borrowed FX.";
+  b.onclick = function () { S.trPair = pair; openReaction("transform"); };
+  row.appendChild(b); s.appendChild(row);
+}
+// Right panel for Actions > Triggered reactions > Transformations.
+function buildTransformProps(d, n) {
+  var P = S.unique.dual_form, pair = S.trPair, on = S.unique.type === "dual_form";
+  banner(d, "act", "Triggered reaction", "⚡ " + transLabel(pair),
+    "FX added here play with this transition only, on " + S.action + "'s frames (its action's animation; idle with no action). In the game the action shows only its animation then, none of its own FX. Select an effect on the left or on the timeline to edit it.",
+    ["Transformations settings", function () { S.react = null; S.action = C.actions[S.lastAct] ? S.lastAct : S.action; openUnique("dual_form"); }]);
+  var s = sec(d, "Transition", "r-trans", "Which transition you are working on. Each form pair has its own.", "act");
+  var pairs = transPairs(), cyc = Math.max(2, Math.min(6, P.forms || 2));
+  field(s, "Transition", inp(pairs.map(function (p, i) {
+    var k = S.effects.filter(function (e) { return e.action === TRANS_KEY + p; }).length;
+    return [p, transLabel(p).replace(/^Transform /, "") + (i < cyc ? "" : "  (not in the cycle)") + (k ? "  ✦ " + k + " fx" : "")];
+  }), pair, function (v) { S.trPair = v; S.action = transHost(v); setSel(); rebuild(); resetSim(0); save(); })).title =
+    "The transition whose FX you are editing. ✦ = it already has FX in its own slot.";
+  transFields(s, pair);
+  note(s, (n ? n + " effect" + (n > 1 ? "s" : "") + " in this transition's own slot." : "No effects in this slot yet: add one under Effects on the left, or pick ＋ Library in FX above.") +
+    " The stage plays " + S.action + "'s animation with only these FX (the borrowed FX play too in the game)." +
+    (on ? "" : " Transformations is not this character's unique ability, so they won't play in the game until it is switched on."));
+  buildCharFxProps(d);
+  buildCharScaleProps(d);
 }
 // Which forms play each action: every form (default) or the ticked ones.
 function uaFormActions(d, P, L) {
@@ -3269,6 +3354,7 @@ function buildReactionProps(d) {
     buildCharScaleProps(d);
     return;
   }
+  if (S.react === "transform") { buildTransformProps(d, n); return; }
   var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
   banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
   var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");

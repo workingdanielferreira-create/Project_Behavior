@@ -130,8 +130,10 @@ DEFAULTS = {
                     palette=True, body="#e0f9ff", accent="#3ae0ff", aura=True, aura_color="#3ae0ff"),
         # "a>b" -> the transition played when leaving form a for form b:
         # action = an action of the character ("" = none; the form changes
-        # when it ends), fx = "fx:<effect id>" | "group:<group id>" played
-        # while it lasts (one pass of its own action's timing without one).
+        # when it ends; only its animation shows, its own FX stay off), fx =
+        # "fx:<effect id>" | "group:<group id>" borrowed from an action and
+        # played while it lasts, alongside the FX built on the transition's
+        # own slot "@transform:a>b" (one pass of their timing without one).
         transitions={x + ">" + y: dict(action="", fx="")
                      for x in "abcdef" for y in "abcdef" if x != y},
         actions={}),                 # action name -> forms that play it, e.g. "ac"
@@ -301,7 +303,8 @@ class UAState:
                  # Dual Form
                  "form", "df_gauge", "df_timer", "df_cd", "df_fired", "df_combo", "df_buff",
                  "df_lut0", "df_init", "df_want", "df_pending", "df_tr_act", "df_act",
-                 "df_act_started", "df_wait", "df_fx", "df_fx_once", "df_fx_seq",
+                 "df_act_started", "df_wait", "df_fx", "df_fx_once", "df_fx_seq", "df_pair",
+                 "df_pair_act",
                  # Summoner (owner) / construct (the summoned figure)
                  "sm_timer", "sm_fired", "sm_hits", "construct", "con_cd", "con_aim",
                  # Aegis
@@ -358,7 +361,9 @@ class UAState:
         self.df_wait = 0         # ticks left to get the action started
         self.df_fx = ""          # the transition's borrowed FX (fxkit FxDriver)
         self.df_fx_once = False  # no action: the FX plays one pass on its own
-        self.df_fx_seq = 0       # bumped per transition (restarts the FX lane)
+        self.df_fx_seq = 0       # bumped per transition (restarts the FX lanes)
+        self.df_pair = ""        # the transition playing its FX ("a>b")
+        self.df_pair_act = ""    # its action (the FX's timing)
         self.sm_timer = 0
         self.sm_fired = set()
         self.sm_hits = 0
@@ -1377,6 +1382,8 @@ def _df_begin(fig, world, st, P):
     st.df_pending = nxt
     st.df_tr_act = str(tr.get("action") or "")
     st.df_act = None
+    st.df_pair = cur + ">" + nxt
+    st.df_pair_act = st.df_tr_act
     st.df_fx = str(tr.get("fx") or "")
     st.df_fx_once = False
     st.df_fx_seq += 1
@@ -1384,7 +1391,7 @@ def _df_begin(fig, world, st, P):
     from . import action_log
     action_log.log("COMBAT", f"transform {cur}->{nxt} action={st.df_tr_act or '-'} fx={st.df_fx or '-'}")
     if not st.df_tr_act:
-        st.df_fx_once = bool(st.df_fx)
+        st.df_fx_once = True       # its FX play one pass on their own
         _df_switch(fig, st, P)
         return
     _df_transition_tick(fig, world, st, P)
@@ -1418,7 +1425,7 @@ def _df_transition_tick(fig, world, st, P):
         return
     st.df_wait -= 1
     if res is None or st.df_wait <= 0:
-        st.df_fx_once = bool(st.df_fx)   # the FX still plays its pass
+        st.df_fx_once = True       # the FX still play their pass
         _df_switch(fig, st, P)
 
 
@@ -1453,18 +1460,27 @@ def _df_switch(fig, st, P):
 
 
 def transition_fx(fig):
-    """fxkit.FxDriver hook: (fx key, transition number, once) of the
-    transition FX playing now, or ("", 0, False).  It plays while the
-    transition action does; `once` = no action, one pass of its own timing
-    (the driver calls transition_fx_done after it)."""
+    """fxkit.FxDriver hook: (borrowed fx key, transition "a>b", its action,
+    transition number, once) for the transition FX playing now, or
+    ("", "", "", 0, False).  They play while the transition action does
+    (the borrowed "fx" and the FX built on "@transform:a>b"); `once` = no
+    action (or it never got to play): one pass of their own timing, then
+    the driver calls transition_fx_done."""
     st = getattr(fig, "ua", None)
-    if st is None or not st.df_fx or _of(fig, "dual_form") is None:
-        return "", 0, False
+    if st is None or not st.df_pair or _of(fig, "dual_form") is None:
+        return "", "", "", 0, False
     if st.df_act is not None:
-        return st.df_fx, st.df_fx_seq, False
+        return st.df_fx, st.df_pair, st.df_pair_act, st.df_fx_seq, False
     if st.df_fx_once:
-        return st.df_fx, st.df_fx_seq, True
-    return "", 0, False
+        return st.df_fx, st.df_pair, st.df_pair_act, st.df_fx_seq, True
+    return "", "", "", 0, False
+
+
+def in_transition_action(fig, action):
+    """True while `action` is playing as a transition's action: only its
+    animation shows (its own FX stay for when it plays by itself)."""
+    st = getattr(fig, "ua", None)
+    return st is not None and st.df_act is not None and st.df_act == action
 
 
 def transition_fx_done(fig):
