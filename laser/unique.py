@@ -924,8 +924,14 @@ def clone_allows(fig, name):
     P = _of(fig, "dual_form")
     if P is None:
         return True
-    if st is not None and st.df_tr_act and name == st.df_tr_act and st.df_pending is not None:
-        return True
+    if st is not None and st.df_tr_act and st.df_pending is not None:
+        if name == st.df_tr_act:
+            return True
+        # Waiting for the transition action to get its turn: no other
+        # triggered action (ultimate, special, defend, ...) starts first.
+        from . import actions
+        if st.df_act is None and actions._kind(name) == "triggered":
+            return False
     want = (P.get("actions") or {}).get(name, "both")
     if want == "both":
         return True
@@ -1454,7 +1460,14 @@ def _df_transition_tick(fig, world, st, P):
     res = _df_start_act(fig, world, st)
     if res:
         return
-    st.df_wait -= 1
+    # Blocked by a triggered action (ultimate, special, ...) already
+    # playing: wait for it to end (clone_allows keeps new ones from
+    # starting meanwhile).  Anything else (a forced clash) runs the wait down.
+    from . import actions
+    r = getattr(fig, "act", None)
+    if not (res is False and r is not None and r.playing is not None and r.forced is None
+            and actions._kind(r.playing) == "triggered"):
+        st.df_wait -= 1
     if res is None or st.df_wait <= 0:
         st.df_fx_once = True       # the FX still play their pass
         st.df_time_new = True
