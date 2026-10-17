@@ -337,7 +337,7 @@ var PARAM_DEFAULTS = {
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
-    gap_px: 18}
+    gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -346,7 +346,10 @@ var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "cresce
   "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
   "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
   "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling",
-  "rocket_barrage", "drill_bullet", "thunder_bullet"];
+  "rocket_barrage", "drill_bullet", "thunder_bullet",
+  "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
+  "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis",
+  "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
@@ -380,7 +383,28 @@ var TECH_STYLE_DEFAULTS = {
   gatling: {radius: 3, thickness: 10, span: 10, length: 380, swing_ticks: 30, hold_ticks: 80},
   rocket_barrage: {radius: 5, thickness: 24, span: 0, length: 420, swing_ticks: 6, hold_ticks: 30},
   drill_bullet: {radius: 8, thickness: 22, span: 0, length: 620, swing_ticks: 24, hold_ticks: 24},
-  thunder_bullet: {radius: 5, thickness: 30, span: 6, length: 420, swing_ticks: 12, hold_ticks: 36}
+  thunder_bullet: {radius: 5, thickness: 30, span: 6, length: 420, swing_ticks: 12, hold_ticks: 36},
+  // Weapons (weaponfx.js)
+  buster_sword: {length: 64, thickness: 9, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 10},
+  masamune: {length: 120, thickness: 2.6, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 10},
+  oath_oblivion: {length: 40, thickness: 4, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 10},
+  crescent_scythe: {length: 50, thickness: 2.4, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 10},
+  scissor_blade: {length: 46, thickness: 6, radius: 120, span: 0, swing_ticks: 6, hold_ticks: 10},
+  gungnir: {length: 70, thickness: 4.5, radius: 320, span: 0, swing_ticks: 6, hold_ticks: 8},
+  light_pistols: {length: 26, thickness: 5, radius: 360, span: 4, swing_ticks: 6, hold_ticks: 8},
+  crimson_fang: {length: 46, thickness: 5, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 8},
+  arc_carbine: {length: 34, thickness: 4.5, radius: 380, span: 3, swing_ticks: 6, hold_ticks: 8},
+  void_cannon: {length: 30, thickness: 9, radius: 420, span: 0, swing_ticks: 7, hold_ticks: 6},
+  phase_kunai: {length: 22, thickness: 4, radius: 300, span: 0, swing_ticks: 5, hold_ticks: 8},
+  astral_staff: {length: 56, thickness: 3, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 12},
+  phantom_greatsword: {length: 80, thickness: 10, radius: 0, span: 0, swing_ticks: 7, hold_ticks: 10},
+  neon_uzis: {length: 18, thickness: 4, radius: 300, span: 14, swing_ticks: 4, hold_ticks: 6},
+  halo_chakram: {length: 40, thickness: 4, radius: 280, span: 0, swing_ticks: 6, hold_ticks: 6},
+  wisp_rapier: {length: 44, thickness: 2.4, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 8},
+  pulse_bow: {length: 40, thickness: 3, radius: 400, span: 0, swing_ticks: 6, hold_ticks: 8},
+  rune_reaver: {length: 36, thickness: 5, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 8},
+  nodachi: {length: 70, thickness: 3.4, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 10},
+  earth_cleaver: {length: 58, thickness: 12, radius: 0, span: 0, swing_ticks: 7, hold_ticks: 10}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
   turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};

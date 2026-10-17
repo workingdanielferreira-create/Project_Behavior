@@ -39,6 +39,7 @@ var HIT_MARK_LIFE = 16;
 var STRIKE = function () { return G.STRIKEFX; };
 var POWER = function () { return G.POWERFX; };
 var GUN = function () { return G.GUNFX; };
+var WEAPON = function () { return G.WEAPONFX; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -58,6 +59,7 @@ function style(P) { var s = P.style; return FXK().TECH_STYLES.indexOf(s) >= 0 ? 
 function isStrike(st) { return STRIKE() && STRIKE().STYLES.indexOf(st) >= 0; }
 function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
 function isGun(st) { return GUN() && GUN().STYLES.indexOf(st) >= 0; }
+function isWeapon(st) { return WEAPON() && WEAPON().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
@@ -71,6 +73,7 @@ function activeTicks(P) {
   if (isStrike(st)) return STRIKE().activeTicks(P);
   if (isPower(st)) return POWER().activeTicks(P);
   if (isGun(st)) return GUN().activeTicks(P);
+  if (isWeapon(st)) return WEAPON().activeTicks(P);
   return lastStart(P) + swing(P) + 2;
 }
 function totalTicks(P) {
@@ -81,12 +84,15 @@ function totalTicks(P) {
   if (isStrike(st)) return STRIKE().totalTicks(P);
   if (isPower(st)) return POWER().totalTicks(P);
   if (isGun(st)) return GUN().totalTicks(P);
+  if (isWeapon(st)) return WEAPON().totalTicks(P);
   return lastStart(P) + swing(P) + fadeT(P) + SPARK_LIFE;
 }
 
 // ---------------------------------------------------------------- frame
 function onSpawn(inst, host) {
-  var fx = inst.fx, st = style(fx.params), f, slash = CUTS[st] !== undefined;
+  // Slashes and weapons are laid out round the fighter's facing (turned by
+  // Follow direction); the rest along the aim.
+  var fx = inst.fx, st = style(fx.params), f, slash = CUTS[st] !== undefined || isWeapon(st);
   if (slash) f = FXK().turnBy([inst.facing, 0], FXK().bodyDeg(fx, host, [inst.x, inst.y]));
   else f = inst.dir.slice();
   var n = hyp(f[0], f[1]) || 1;
@@ -292,6 +298,7 @@ function hit(inst, tx, ty, hr, ps) {
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
   if (isGun(st)) return GUN().hit(inst, tx, ty, hr, ps);
+  if (isWeapon(st)) return WEAPON().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
 }
 // Whether this instance is a technique that fires separate bullets (gun
@@ -300,17 +307,21 @@ function hit(inst, tx, ty, hr, ps) {
 function shoots(inst) {
   if (inst.fx.prim !== "technique") return false;
   var st = style(inst.fx.params);
-  return isGun(st) || st === "ki_barrage";
+  return isGun(st) || st === "ki_barrage" || (WEAPON() !== undefined && WEAPON().fires(st));
 }
 function livePoints(inst, ps) {
   if (!shoots(inst)) return [];
-  return isGun(style(inst.fx.params)) ? GUN().livePoints(inst, ps) : STRIKE().livePoints(inst, ps);
+  var st = style(inst.fx.params);
+  if (isGun(st)) return GUN().livePoints(inst, ps);
+  if (isWeapon(st)) return WEAPON().livePoints(inst, ps);
+  return STRIKE().livePoints(inst, ps);
 }
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
   else if (isPower(st)) POWER().onHit(inst, x, y, ps || 1);
   else if (isGun(st)) GUN().onHit(inst, x, y, ps || 1);
+  else if (isWeapon(st)) WEAPON().onHit(inst, x, y, ps || 1);
   else if (CUTS[st] !== undefined) slashOnHit(inst);
   inst.tq_hits.push([+x, +y, inst.age]);
 }
@@ -796,12 +807,14 @@ function draw(g, inst, host, ps) {
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else if (isPower(st)) POWER().draw(pen, inst, host, ps);
   else if (isGun(st)) GUN().draw(pen, inst, host, ps);
+  else if (isWeapon(st)) WEAPON().draw(pen, inst, host, ps);
   else drawSlash(pen, inst, host, ps);
 }
 
-// strikefx.js (ki blasts, punches) builds on these.
+// strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
 G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
-                   rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, dragDist: dragDist, hyp: hyp, HOT: HOT, BLACK: BLACK, D: D}};
+                   rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,
+                   hitMarks: hitMarks, HOT: HOT, BLACK: BLACK, D: D}};
 })(window);

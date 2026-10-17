@@ -1309,7 +1309,9 @@ var PARAM_UI = {
     "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch",
     "forward_thrust", "overhead_slash", "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
     "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling", "rocket_barrage", "drill_bullet",
-    "thunder_bullet"]],
+    "thunder_bullet", "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
+    "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram",
+    "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1323,7 +1325,11 @@ var PARAM_UI = {
     ["aura_burst", "Power-up burst", "chk"], ["aura_debris", "Rising rocks", "chk"],
     ["aura_surges", "Power surges", "chk"], ["aura_cracks", "Ground cracks", "chk"],
     ["aura_part", "Aura part", ["all", "body", "flames", "motion", "powerup", "ground", "lightning"]],
-    ["gap_px", "Muzzle gap px (dual pistols)", 0, 200, 1]]   // gun panel only (POWER_UI.dual_pistols)
+    ["gap_px", "Muzzle gap px (dual pistols)", 0, 200, 1],   // gun panel only (POWER_UI.dual_pistols)
+    // weapon panel only (POWER_UI.<weapon>, laser/weaponfx.py)
+    ["w_mode", "Weapon mode", ["signature", "hold"]], ["w_scale", "Weapon size ×", 0, 6, 0.05],
+    ["w_flip_x", "Flip X", -1, 1, 0.05], ["w_flip_y", "Flip Y", -1, 1, 0.05], ["w_yaw", "3D spin (yaw) °", -720, 720, 1],
+    ["w_pitch", "3D tilt (pitch) °", -180, 180, 1], ["w_spin", "Spin °/tick", -90, 90, 0.5], ["w_depth", "Depth", -0.75, 4, 0.05]]
 };
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
@@ -1423,6 +1429,52 @@ var POWER_UI = {
   POWER_UI.rocket_barrage = gun("Rocket barrage", "Missiles launch on alternating arcs, speed up, leave smoke trails and explode on the target. Spread is not used.", ["Ticks between rockets", 1, 120, 1, "A new rocket every this many ticks."], FIRE, ONCE);
   POWER_UI.drill_bullet = gun("Piercing drill bullet", "A spinning drill of light in a spiral of wind; it pierces everything in its path and shatters at the end of its range.", RATE, FIRE, " It keeps hitting while it passes through: give it Pierce and a Re-hit (6).");
   POWER_UI.thunder_bullet = gun("Thunder bullet", "A bullet wrapped in crackling arcs with a lightning trail; where it hits, lightning strikes from the sky.", RATE, FIRE, ONCE);
+})();
+// Weapons (laser/weaponfx.py): every weapon gets its own panel — its shape and
+// timing, then the 2.5D controls every weapon shares.  Every number here can
+// be keyframed (◆): size, flips, spin, tilt and depth animate like the rest.
+(function () {
+  var MODE = ["w_mode", "Mode", ["signature", "hold"], 0, 0, "Signature: the weapon materialises, plays its own signature sequence, holds its last pose for Hold ticks, then dissolves. Hold: it simply appears in the anchor's hand in its ready pose for Hold ticks — animate it with keyframes."];
+  var COMMON = [["w_scale", "Size ×", 0, 6, 0.05, "Size of the weapon (1 = its own size). Key it to grow or shrink it."],
+    ["w_flip_x", "Flip X", -1, 1, 0.05, "1 = as drawn, -1 = mirrored left / right on screen round the anchor. Key 1 → -1 and it turns over like a card."],
+    ["w_flip_y", "Flip Y", -1, 1, 0.05, "1 = as drawn, -1 = mirrored up / down on screen round the anchor. Key 1 → -1 and it turns over like a card."],
+    ["w_yaw", "3D spin (yaw) °", -720, 720, 1, "Turns the weapon round its own long axis: 90 = edge on (you see its thickness), 180 = its back face. Key it for a 3D spin."],
+    ["w_pitch", "3D tilt (pitch) °", -180, 180, 1, "Tilts the weapon toward (+) or away from (−) the camera, with perspective: the near end grows, the far end shrinks."],
+    ["w_spin", "Spin °/tick", -90, 90, 0.5, "A continuous 3D spin round its long axis, degrees per tick, on top of 3D spin."],
+    ["w_depth", "Depth", -0.75, 4, 0.05, "How far behind (+) or in front of (−) its plane it sits: 1 = twice as far (half size), −0.5 = twice as close."],
+    ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the weapon and its whole sequence (clockwise, mirrors with the facing)."]];
+  var HIT = " Its blade hits while the sequence plays (Hold mode: while held), and every flash, slam or burst hits where it goes off: give it Pierce and a Re-hit of 1–2.";
+  var GUN = " Each shot hits once: give it Pierce and a short Re-hit (2). Use Motion attached, Aim target: shots aim at the target.";
+  function wpn(name, tip, extra) {
+    var rows = [MODE, ["length", "Length px", 6, 400, 1, "Length of the weapon (pommel / grip to tip; bow: height; chakram: diameter)."],
+      ["thickness", "Blade width px", 0.5, 60, 0.5, "Half-width of the blade, px."]].concat(extra || []).concat([
+      ["swing_ticks", "Ticks per beat", 1, 60, 1, "Speed of the signature sequence: it lasts its beats × this many ticks."],
+      ["hold_ticks", "Hold ticks", 0, 600, 1, "How long it stays after its sequence (Hold mode: how long it is held)."],
+      ["density", "Sparks / debris ×", 0, 4, 0.1, "Amount of sparks, rocks, petals and motes."]]).concat(COMMON);
+    return {name: name, tip: tip, rows: rows};
+  }
+  var REACH = [["radius", "Reach px", 0, 2000, 5, "How far it reaches toward the target (it flies there and its tip lands on it when the target is within reach)."]];
+  var RANGE = [["radius", "Range px", 20, 2000, 5, "How far a shot flies."], ["span", "Spread °", 0, 90, 1, "How far shots scatter round the aim."]];
+  POWER_UI.buster_sword = wpn("Buster Sword", "A huge, broad slab of a sword (two slots by the guard, one with a glowing materia): raised overhead and brought down in one slam — ground shock rings, cracks, flying rocks." + HIT);
+  POWER_UI.masamune = wpn("Masamune", "An impossibly long, curved katana: held low, a glint as it turns, then an instant draw — eight flash cuts open on the target and burst together." + HIT);
+  POWER_UI.oath_oblivion = wpn("Oathkeeper & Oblivion", "Two keyblades, one bright, one dark: they spin round in opposite directions, then cross in an X slash with a flash where they meet." + HIT);
+  POWER_UI.crescent_scythe = wpn("Crescent scythe", "A great red-and-black scythe: a full spin round the body, tilted in 3D, shedding rose petals, then a reaping hook forward with a burst." + HIT);
+  POWER_UI.scissor_blade = wpn("Scissor Blade", "A red half-scissor blade: it splits into giant open scissors, reaches for the target and snaps shut — a snip flash where it closes." + HIT, REACH);
+  POWER_UI.gungnir = wpn("Gungnir", "A golden spear with glowing runes: it charges, is drawn back, then hurled — spiralling in 3D — and a pillar of light erupts where it lands." + HIT, REACH);
+  POWER_UI.light_pistols = wpn("Light pistols", "Twin white-and-gold relic pistols firing alternating bolts of light, with a twirl at the end." + GUN, RANGE);
+  POWER_UI.crimson_fang = wpn("Crimson Fang (Swordsman)", "A red longsword with a glowing fuller: a rising slash with a crimson trail and a burst at the top." + HIT);
+  POWER_UI.arc_carbine = wpn("Arc carbine (Runner)", "A compact energy rifle: two three-round bursts of bolts wrapped in crackling arcs." + GUN, RANGE);
+  POWER_UI.void_cannon = wpn("Void cannon", "A heavy arm cannon: a long charge at the muzzle, then a beam that tears to the end of its range and hits along its whole line." + GUN, RANGE);
+  POWER_UI.phase_kunai = wpn("Phase kunai (Jumper)", "Twin kunai thrown spinning at the target; they blink out, reappear behind it and strike back with an X flash." + HIT, REACH);
+  POWER_UI.astral_staff = wpn("Astral staff (Mage)", "A crystal-headed staff: twirled overhead, planted, and a rune circle opens on the target while three star bolts fall into it." + HIT);
+  POWER_UI.phantom_greatsword = wpn("Phantom greatsword (New Fighter)", "A spectral greatsword: it grows as it is raised high, then cleaves down with a ground-shaking slam." + HIT);
+  POWER_UI.neon_uzis = wpn("Neon uzis (pewpew)", "Two neon SMGs spraying alternating rounds, finished with a twirl." + GUN, RANGE);
+  POWER_UI.halo_chakram = wpn("Halo chakram (Puck)", "A golden bladed ring thrown on a tilted, spinning arc: out over the target, a burst as it passes, and back to the hand." + HIT, REACH);
+  POWER_UI.wisp_rapier = wpn("Wisp rapier (Puff)", "An ethereal rapier: a flurry of five stabs with afterimages and a final long lunge with a burst." + HIT);
+  POWER_UI.pulse_bow = wpn("Pulse bow (Rapid)", "An energy bow: the string is drawn back slowly, the nocked arrow brightening, then released." + GUN, RANGE);
+  POWER_UI.rune_reaver = wpn("Rune reaver (Rune)", "A reverse-grip blade etched with glowing runes: a backward spin slash and a ring of rune glyphs bursting outward." + HIT);
+  POWER_UI.nodachi = wpn("Nodachi (Ronin)", "A long blade in a black lacquered scabbard: a still moment, then an instant iaido draw — one long cut opens across the target." + HIT);
+  POWER_UI.earth_cleaver = wpn("Earth cleaver (Thear)", "A massive chipped cleaver taken in both hands and slammed down: the ground cracks and rocks fly." + HIT);
 })();
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
@@ -1846,7 +1898,8 @@ function buildProps() {
     var k = u[0], kind = u[2];
     // A power technique shows only the style picker here; its own panel follows.
     if (pw && k !== "style") return;
-    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0 || k === "gap_px")) return;
+    if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0 || k === "gap_px" ||
+        k.indexOf("w_") === 0)) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {
@@ -3345,7 +3398,7 @@ function drawBlink(g, z, img) {
 // ricochets: red when they now hurt their owner, grey when harmless.
 var TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
 var SHOT_MOTIONS = ["travel", "homing", "zigzag", "path"], SHOT_SKIP = ["weapon", "ghost", "particles", "pulse"];   // laser/app.py enemy_shots
-var DUMMY_GROUPS = ["Gunfire", "Power techniques", "Ki & strikes", "Sword techniques", "Sword combos"];
+var DUMMY_GROUPS = ["Gunfire", "Weapons", "Power techniques", "Ki & strikes", "Sword techniques", "Sword combos"];
 var DUMMY_DEFAULTS = {name: "", attack: "none", every_ms: 1000, delay_ms: 0, aim: "fighter", angle_deg: 180, spread_deg: 0,
   hp: 0, respawn: true, respawn_ms: 3000, move: "still", move_px: 80, move_speed: 60, x: 0, y: 0};
 var DUMMY_LUT = FXK.buildLut([[255, 236, 228], [255, 74, 60]]);   // enemy red for palette-coloured presets

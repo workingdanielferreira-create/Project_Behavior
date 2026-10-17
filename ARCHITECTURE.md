@@ -101,6 +101,8 @@ laser/
   gunfx.py           anime gun shots (machine gun, shotgun, magnum, charged blast, dual
                      pistols, sniper rail, gatling, rocket barrage, drill, thunder bullet):
                      hand-drawn "technique" styles (with swordfx.py)
+  weaponfx.py        2.5D signature weapons (Buster Sword, Masamune, Gungnir ... one per
+                     character): "technique" styles drawn through a 3D camera (with swordfx.py)
 ```
 
 Dependency direction is one-way: `config`/`geometry`/`palette` depend on

@@ -428,6 +428,7 @@ more geometry in `draw()` and, for gameplay-relevant effects, hit tests in
 | `clashfx.py` | Clash explosion library: 11 baselines + 8 pair clashes + `derive()` variations, `world.clash_fx` |
 | `clash.py` | Clash interaction (world physics): categorises both sides' FX, detects contact, plays the pair rule from the world clash table |
 | `swordfx.py` | Sword techniques: the hand-drawn renderer behind the FX Kit `technique` primitive |
+| `weaponfx.py` | 2.5D signature weapons (20): `technique` styles drawn through a small 3D camera |
 
 ---
 
@@ -597,6 +598,72 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   - **Parity:** `check_parity.py` compares the powerfx constants;
     `inst.tq_tp` (the target per tick) is recorded by `swordfx.on_spawn` /
     `on_tick(inst, host)` in both the game and the Studio.
+
+## 12d. Weapons (`laser/weaponfx.py`, Studio: `weaponfx.js`)
+
+Twenty hand-drawn **2.5D weapons**, each a `technique` style with its own
+settings panel and two presets (signature colours, palette colour) in the
+Studio's "Weapons" group. Test dummies can attack with them too.
+
+- **2.5D drawing.** Each weapon is a flat model (`MODELS`: parts with a role
+  — blade, edge, guard, grip, accent, dark, glowing `gem` / `spirit`) lifted
+  into 3D: it spins round its own long axis (yaw), tilts toward / away from
+  the camera with perspective (pitch: the near end grows, the far end
+  shrinks) and can sit nearer or further (depth). The near face is lit by how
+  square-on it is, the far face and the side walls between them show the
+  weapon's thickness when it turns (edge-on at yaw 90), and a glint runs
+  along the cutting edge.
+- **Controls (all numbers, so every one can be keyframed ◆):** `w_scale`
+  (size), `w_flip_x` / `w_flip_y` (1 = as drawn, −1 = mirrored left/right or
+  up/down on screen round the anchor; keying 1 → −1 turns it over like a
+  card), `w_yaw`, `w_pitch`, `w_spin` (yaw per tick), `w_depth`, plus the
+  shared `rotation_deg`. `w_mode`: **signature** (materialise → its own
+  sequence → hold its last pose for Hold ticks → dissolve) or **hold** (just
+  held in its ready pose for Hold ticks — animate it with keyframes).
+- **Signature sequences** (`WEAPONS`): per weapon slot a keyed pose track
+  `(t, x, y, reach, angle, yaw, pitch, scale, ease)` over `beats × Swing
+  ticks`, timed events (`slam`, `cuts`, `xflash`, `snip`, `pillar`, `runes`,
+  `glyph`, `burst`, `charge`, `petals`, `blink`) and, for firearms, a fire
+  list. Swinging blades leave a swept trail (or afterimages).
+- **Fields:** Length = weapon length, Thickness = blade half-width, Radius =
+  reach (thrown / reaching weapons) or range (shots), Span = shot spread,
+  Swing = ticks per beat, Hold = how long it stays, Density = debris /
+  petals / motes.
+- **Hits:** the blade hits along its cutting line while the sequence plays
+  (hold mode: while held); each event hits where it goes off for `EVT_HIT`
+  ticks; each shot hits once and stops (`inst.tq_ki`); the void cannon's beam
+  hits along its line. Give the effect Pierce and a short Re-hit. Shots are
+  listed by `swordfx.live_points` like gun rounds, so Retreat / Dodge /
+  projectile counts see them in Battle. A swinging blade clashes along its
+  cutting line (`body`).
+- **Roster:**
+
+| Style | Weapon | Signature |
+|---|---|---|
+| `buster_sword` | Buster Sword (Cloud Strife) | overhead slam: shock rings, cracks, rocks |
+| `masamune` | Masamune (Sephiroth) | glint, instant draw, eight flash cuts on the target |
+| `oath_oblivion` | Oathkeeper & Oblivion (Roxas) | twin counter-spins into an X slash |
+| `crescent_scythe` | Scythe (RWBY) | 3D-tilted body spin shedding rose petals, reaping hook |
+| `scissor_blade` | Scissor Blade (Kill la Kill) | splits into giant scissors, reaches, snips shut |
+| `gungnir` | Gungnir (Fate) | rune charge, spiralling throw, pillar of light |
+| `light_pistols` | Light pistols (Lucian, LoL) | alternating light bolts, twirl |
+| `crimson_fang` | Swordsman | rising crimson slash |
+| `arc_carbine` | Runner | two three-round arc bursts |
+| `void_cannon` | Runner (heavy) | long charge, line beam |
+| `phase_kunai` | Jumper | thrown kunai blink behind the target and strike back |
+| `astral_staff` | Mage | twirl, rune circle, three falling star bolts |
+| `phantom_greatsword` | New Fighter | spectral blade grows overhead, slam |
+| `neon_uzis` | pewpew | alternating neon spray, twirl |
+| `halo_chakram` | Puck | tilted spinning boomerang arc through the target |
+| `wisp_rapier` | Puff | five-stab flurry with afterimages, final lunge |
+| `pulse_bow` | Rapid | slow draw, released energy arrow |
+| `rune_reaver` | Rune | reverse-grip back-spin, rune glyph ring |
+| `nodachi` | Ronin | still moment, iaido draw from the scabbard, one long cut |
+| `earth_cleaver` | Thear | two-handed ground-breaking slam |
+
+- **Parity:** `weaponfx.js` is a line-for-line port; `check_parity.py`
+  compares `MODELS`, `WEAPONS` and every weaponfx constant. Same code path in
+  Solo and Battle (FX Kit Player).
 
 ---
 

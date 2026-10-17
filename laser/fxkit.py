@@ -200,10 +200,14 @@ PARAM_DEFAULTS = {
     # sparks per second); aura_burst / aura_debris / aura_surges /
     # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks;
     # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
+    # w_*: the weapons (laser/weaponfx.py): w_mode "signature" (its own
+    # sequence) or "hold" (just held); size, flips, 3D yaw / pitch / spin and
+    # depth — numbers, so keyframes can animate every one.
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
-                      gap_px=18),
+                      gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
+                      w_depth=0),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -212,7 +216,11 @@ TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_w
                "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
                "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
                "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling",
-               "rocket_barrage", "drill_bullet", "thunder_bullet"]
+               "rocket_barrage", "drill_bullet", "thunder_bullet",
+               "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir",
+               "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff",
+               "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
+               "nodachi", "earth_cleaver"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
@@ -247,6 +255,27 @@ TECH_STYLE_DEFAULTS = {
     "rocket_barrage": dict(radius=5, thickness=24, span=0, length=420, swing_ticks=6, hold_ticks=30),
     "drill_bullet": dict(radius=8, thickness=22, span=0, length=620, swing_ticks=24, hold_ticks=24),
     "thunder_bullet": dict(radius=5, thickness=30, span=6, length=420, swing_ticks=12, hold_ticks=36),
+    # Weapons (laser/weaponfx.py)
+    "buster_sword": dict(length=64, thickness=9, radius=0, span=0, swing_ticks=6, hold_ticks=10),
+    "masamune": dict(length=120, thickness=2.6, radius=0, span=0, swing_ticks=5, hold_ticks=10),
+    "oath_oblivion": dict(length=40, thickness=4, radius=0, span=0, swing_ticks=5, hold_ticks=10),
+    "crescent_scythe": dict(length=50, thickness=2.4, radius=0, span=0, swing_ticks=6, hold_ticks=10),
+    "scissor_blade": dict(length=46, thickness=6, radius=120, span=0, swing_ticks=6, hold_ticks=10),
+    "gungnir": dict(length=70, thickness=4.5, radius=320, span=0, swing_ticks=6, hold_ticks=8),
+    "light_pistols": dict(length=26, thickness=5, radius=360, span=4, swing_ticks=6, hold_ticks=8),
+    "crimson_fang": dict(length=46, thickness=5, radius=0, span=0, swing_ticks=6, hold_ticks=8),
+    "arc_carbine": dict(length=34, thickness=4.5, radius=380, span=3, swing_ticks=6, hold_ticks=8),
+    "void_cannon": dict(length=30, thickness=9, radius=420, span=0, swing_ticks=7, hold_ticks=6),
+    "phase_kunai": dict(length=22, thickness=4, radius=300, span=0, swing_ticks=5, hold_ticks=8),
+    "astral_staff": dict(length=56, thickness=3, radius=0, span=0, swing_ticks=6, hold_ticks=12),
+    "phantom_greatsword": dict(length=80, thickness=10, radius=0, span=0, swing_ticks=7, hold_ticks=10),
+    "neon_uzis": dict(length=18, thickness=4, radius=300, span=14, swing_ticks=4, hold_ticks=6),
+    "halo_chakram": dict(length=40, thickness=4, radius=280, span=0, swing_ticks=6, hold_ticks=6),
+    "wisp_rapier": dict(length=44, thickness=2.4, radius=0, span=0, swing_ticks=6, hold_ticks=8),
+    "pulse_bow": dict(length=40, thickness=3, radius=400, span=0, swing_ticks=6, hold_ticks=8),
+    "rune_reaver": dict(length=36, thickness=5, radius=0, span=0, swing_ticks=5, hold_ticks=8),
+    "nodachi": dict(length=70, thickness=3.4, radius=0, span=0, swing_ticks=5, hold_ticks=10),
+    "earth_cleaver": dict(length=58, thickness=12, radius=0, span=0, swing_ticks=7, hold_ticks=10),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
