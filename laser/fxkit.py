@@ -3332,8 +3332,12 @@ class FxDriver:
         # long as the dash lasts: the borrowed retreat "fx" (on its action's
         # timing) and the FX built on the reaction ("@retreat", on the run
         # timing); the third lane is the Dodge's borrowed "fx" (laser/dodge.py)
-        # for as long as the dodge lasts.  Lane = [player, on, t, t_prev].
-        self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1], [Player(), False, 0, -1]]
+        # for as long as the dodge lasts; the fourth a Transformations
+        # transition's borrowed "fx" (laser/unique.py transition_fx).
+        # Lane = [player, on, t, t_prev].
+        self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1], [Player(), False, 0, -1],
+                       [Player(), False, 0, -1]]
+        self.tf_seq = 0   # the transition the fourth lane last played
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
         self.cclock = 0   # Character FX frequency timer (ticks since fielded)
@@ -3402,6 +3406,7 @@ class FxDriver:
                          t_prev=self.t if hold else self.t_prev, frozen=frozen)
         self._retreat_tick(fig, host, hold, frozen)
         self._dodge_tick(fig, world, host, hold, frozen)
+        self._transform_tick(fig, host, hold, frozen)
         gone = self._character_tick(fig, host, hold, frozen)
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
@@ -3444,6 +3449,23 @@ class FxDriver:
         on = bool(cfg and cfg.get("fx") and dodge.active(fig, world.global_tick))
         effs, act = self.cfx.retreat_effects(cfg.get("fx")) if on else ([], None)
         self._lane_tick(self.rlanes[2], effs, act, host, hold, frozen)
+
+    def _transform_tick(self, fig, host, hold, frozen=False):
+        """Transformations transition FX (laser/unique.py transition_fx): the
+        borrowed effect / group plays while the transition action does, or
+        one pass of its own action's timing when the transition has none."""
+        from . import unique
+        key, seq, once = unique.transition_fx(fig)
+        lane = self.rlanes[3]
+        effs, act = self.cfx.retreat_effects(key) if key else ([], None)
+        if effs and seq != self.tf_seq:
+            self.tf_seq = seq
+            lane[1] = False        # a new transition starts the FX from the top
+        self._lane_tick(lane, effs, act, host, hold, frozen)
+        if once:
+            n, fm = self._time_for(act) if act else (1, TICK_MS)
+            if not effs or lane[2] >= max(1, jround(n * fm / TICK_MS)):
+                unique.transition_fx_done(fig)
 
     def _character_tick(self, fig, host, hold, frozen=False):
         """Character FX ("@character"): always on, whatever the fighter is

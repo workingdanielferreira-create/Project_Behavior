@@ -641,13 +641,30 @@ var UNIQUE_DEFAULTS = {
   riposte: {mode: "stance", stance_every_ms: 3000, stance_ms: 600, chance_pct: 25,
     counter_mult_pct: 150, base_damage: 5, counter: "strike", knockback_px: 60,
     cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a"},
+  // Shown as "Transformations" (the key stays dual_form so older files load).
   dual_form: {trigger: "gauge", gauge_hits: 12, every_ms: 8000, hp_thresholds: "60,30", combo_hits: 4, combo_window_ms: 1500,
     cooldown_ms: 2000, buff_ms: 2000, buff_speed_pct: 30, buff_damage_pct: 30, transition_fx: true, show_gauge: true,
+    forms: 2,   // how many forms (2-6), cycled a -> b -> ... -> a
     form_a: {name: "Form A", speed_pct: 100, damage_pct: 100, taken_pct: 100,
       palette: false, body: "#f2f4f6", accent: "#3fb0ea", aura: false, aura_color: "#3fb0ea"},
     form_b: {name: "Form B", speed_pct: 120, damage_pct: 130, taken_pct: 120,
       palette: true, body: "#ffe0e0", accent: "#ff3a3a", aura: true, aura_color: "#ff3a3a"},
-    actions: {}},   // action name -> "a" | "b" (missing = both forms)
+    form_c: {name: "Form C", speed_pct: 100, damage_pct: 100, taken_pct: 100,
+      palette: true, body: "#e0ffe6", accent: "#3aff7a", aura: true, aura_color: "#3aff7a"},
+    form_d: {name: "Form D", speed_pct: 100, damage_pct: 100, taken_pct: 100,
+      palette: true, body: "#fff4d6", accent: "#ffc23a", aura: true, aura_color: "#ffc23a"},
+    form_e: {name: "Form E", speed_pct: 100, damage_pct: 100, taken_pct: 100,
+      palette: true, body: "#efe0ff", accent: "#a03aff", aura: true, aura_color: "#a03aff"},
+    form_f: {name: "Form F", speed_pct: 100, damage_pct: 100, taken_pct: 100,
+      palette: true, body: "#e0f9ff", accent: "#3ae0ff", aura: true, aura_color: "#3ae0ff"},
+    // "a>b" -> leaving form a for form b: action ("" = none; the form changes
+    // when it ends) and fx ("fx:<id>" / "group:<id>", played while it lasts).
+    transitions: (function () {
+      var t = {}, L = "abcdef";
+      for (var i = 0; i < 6; i++) for (var j = 0; j < 6; j++) if (i !== j) t[L[i] + ">" + L[j]] = {action: "", fx: ""};
+      return t;
+    })(),
+    actions: {}},   // action name -> forms that play it, e.g. "ac" (missing / "both" = every form, "" = none)
   summoner: {construct: "turret", trigger: "timer", every_ms: 6000, hp_thresholds: "75,50,25", every_hits: 6,
     count: 1, max_alive: 3, life_ms: 12000, construct_hp: 15, placement: "around", spread_px: 80,
     fire_ms: 900, shot_damage: 2, shot_speed_pct: 100, range_px: 500,
@@ -680,10 +697,14 @@ function normalizeUnique(a) {
   UNIQUE_TYPES.slice(1).forEach(function (k) { a[k] = fill(a[k] || {}, UNIQUE_DEFAULTS[k]); });
   a.phase_shift.destinations = fill(a.phase_shift.destinations || {}, UNIQUE_DEFAULTS.phase_shift.destinations);
   // nested settings blocks are filled key by key too
-  [["dual_form", "form_a"], ["dual_form", "form_b"], ["aegis", "blocks"], ["phantom_swap", "targets"],
+  [["dual_form", "form_a"], ["dual_form", "form_b"], ["dual_form", "form_c"], ["dual_form", "form_d"],
+   ["dual_form", "form_e"], ["dual_form", "form_f"], ["aegis", "blocks"], ["phantom_swap", "targets"],
    ["domain_expansion", "rules"], ["fusion", "conds"]].forEach(function (p) {
     a[p[0]][p[1]] = fill(a[p[0]][p[1]] || {}, UNIQUE_DEFAULTS[p[0]][p[1]]);
   });
+  var df = a.dual_form, trd = UNIQUE_DEFAULTS.dual_form.transitions;
+  df.forms = Math.max(2, Math.min(6, Math.round(+df.forms) || 2));
+  Object.keys(trd).forEach(function (k) { df.transitions[k] = fill(df.transitions[k] || {}, trd[k]); });
   return a;
 }
 // The WORLD clash table (not per character): which clash explosion

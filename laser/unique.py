@@ -24,7 +24,10 @@ UNIQUE_DEFAULTS / normalizeUnique.
     ricochet         its bullets and moving FX bounce off walls / fighters / FX
     riposte          a hit inside the counter stance (or by chance) is
                      cancelled and answered with a counter-strike
-    dual_form        two forms (actions, palette, stats) switched on a trigger
+    dual_form        Transformations: 2-6 forms (actions, palette, stats) cycled
+                     in order on a trigger; each form pair has its own
+                     transition (an action + a borrowed FX) played before the
+                     new form takes over
     summoner         turrets / totems / familiars: real fighters on its side
                      (targetable) that are not copies of it
     aegis            a regenerating shield in front of HP; breaking it sends a
@@ -105,18 +108,34 @@ DEFAULTS = {
         counter_mult_pct=150.0, base_damage=5.0,
         counter="strike",            # strike | blink_strike
         knockback_px=60.0, cooldown_ms=1500, invuln_ms=250, color="#ffd34a"),
-    "dual_form": dict(
+    "dual_form": dict(               # shown as "Transformations" (key kept for old files)
         trigger="gauge",             # gauge | timer | hp_below | combo
         gauge_hits=12,               # gauge: hits landed + taken that fill it
         every_ms=8000, hp_thresholds="60,30", combo_hits=4, combo_window_ms=1500,
         cooldown_ms=2000,
         buff_ms=2000, buff_speed_pct=30.0, buff_damage_pct=30.0,
         transition_fx=True, show_gauge=True,
+        forms=2,                     # how many forms (2-6), cycled a -> b -> ... -> a
         form_a=dict(name="Form A", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
                     palette=False, body="#f2f4f6", accent="#3fb0ea", aura=False, aura_color="#3fb0ea"),
         form_b=dict(name="Form B", speed_pct=120.0, damage_pct=130.0, taken_pct=120.0,
                     palette=True, body="#ffe0e0", accent="#ff3a3a", aura=True, aura_color="#ff3a3a"),
-        actions={}),                 # action name -> "a" | "b" (missing = both forms)
+        form_c=dict(name="Form C", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
+                    palette=True, body="#e0ffe6", accent="#3aff7a", aura=True, aura_color="#3aff7a"),
+        form_d=dict(name="Form D", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
+                    palette=True, body="#fff4d6", accent="#ffc23a", aura=True, aura_color="#ffc23a"),
+        form_e=dict(name="Form E", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
+                    palette=True, body="#efe0ff", accent="#a03aff", aura=True, aura_color="#a03aff"),
+        form_f=dict(name="Form F", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
+                    palette=True, body="#e0f9ff", accent="#3ae0ff", aura=True, aura_color="#3ae0ff"),
+        # "a>b" -> the transition played when leaving form a for form b:
+        # action = an action of the character ("" = none; the form changes
+        # when it ends), fx = "fx:<effect id>" | "group:<group id>" played
+        # while it lasts (one pass of its own action's timing without one).
+        transitions={x + ">" + y: dict(action="", fx="")
+                     for x in "abcdef" for y in "abcdef" if x != y},
+        actions={}),                 # action name -> forms that play it, e.g. "ac"
+                                     # (missing / "both" = every form, "" = none)
     "summoner": dict(
         construct="turret",          # turret | totem_heal | totem_shield | familiar
         trigger="timer",             # timer | hp_below | hits_taken
@@ -177,8 +196,9 @@ _LIMITS = {
     "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
     "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
     "gauge_hits": (1, 999), "combo_hits": (1, 99), "shrapnel": (0, 24), "uses": (0, 99),
-    "fill_hits": (1, 999), "hits": (1, 999),
+    "fill_hits": (1, 999), "hits": (1, 999), "forms": (2, 6),
 }
+DF_FORMS = "abcdef"      # Transformations form letters (form_a .. form_f)
 
 
 # ------------------------------------------------------------ config
@@ -280,7 +300,8 @@ class UAState:
                  "t", "landed", "stun_left",
                  # Dual Form
                  "form", "df_gauge", "df_timer", "df_cd", "df_fired", "df_combo", "df_buff",
-                 "df_lut0", "df_init",
+                 "df_lut0", "df_init", "df_want", "df_pending", "df_tr_act", "df_act",
+                 "df_act_started", "df_wait", "df_fx", "df_fx_once", "df_fx_seq",
                  # Summoner (owner) / construct (the summoned figure)
                  "sm_timer", "sm_fired", "sm_hits", "construct", "con_cd", "con_aim",
                  # Aegis
@@ -329,6 +350,15 @@ class UAState:
         self.df_buff = 0
         self.df_lut0 = None      # the palette it had before any form palette
         self.df_init = False
+        self.df_want = False     # a trigger fired: start the next transition (_df_tick)
+        self.df_pending = None   # form letter it is transforming into (None = settled)
+        self.df_tr_act = ""      # the transition's action ("" = none)
+        self.df_act = None       # that action while it plays
+        self.df_act_started = 0
+        self.df_wait = 0         # ticks left to get the action started
+        self.df_fx = ""          # the transition's borrowed FX (fxkit FxDriver)
+        self.df_fx_once = False  # no action: the FX plays one pass on its own
+        self.df_fx_seq = 0       # bumped per transition (restarts the FX lane)
         self.sm_timer = 0
         self.sm_fired = set()
         self.sm_hits = 0
@@ -626,7 +656,7 @@ def after_damage(fig, world, amount):
             for th in _thresholds(P["hp_thresholds"]):
                 if th not in st.df_fired and hp_pct <= th:
                     st.df_fired.add(th)
-                    _df_switch(fig, st, P)
+                    st.df_want = True
                     break
     elif kind == "summoner":
         if P["trigger"] == "hp_below":
@@ -673,9 +703,9 @@ def note_landed(fig):
         elif P["trigger"] == "combo":
             win = _ticks(P["combo_window_ms"])
             st.df_combo = [t for t in st.df_combo if st.t - t <= win] + [st.t]
-            if len(st.df_combo) >= P["combo_hits"] and st.df_cd <= 0:
+            if len(st.df_combo) >= P["combo_hits"] and st.df_cd <= 0 and st.df_pending is None:
                 st.df_combo = []
-                _df_switch(fig, st, P)
+                st.df_want = True
     elif kind == "domain_expansion" and P["fill"] == "hits_landed":
         _dm_fill(fig, st, P, 100.0 / max(1, P["fill_hits"]))
 
@@ -860,16 +890,21 @@ def world_tick(world):
 
 def clone_allows(fig, name):
     """actions.py gate: may this fighter start action `name`?  A Mirror
-    Legion copy plays only its owner's ticked actions; a Dual Form fighter
-    plays only the actions of the form it is in."""
+    Legion copy plays only its owner's ticked actions; a Transformations
+    fighter plays only the actions of the form it is in (and the action of
+    the transition it is going through)."""
     st = getattr(fig, "ua", None)
     if st is not None and st.clone_of is not None:
         return bool(((st.clone_P or {}).get("actions") or {}).get(name, True))
     P = _of(fig, "dual_form")
     if P is None:
         return True
+    if st is not None and st.df_tr_act and name == st.df_tr_act and st.df_pending is not None:
+        return True
     want = (P.get("actions") or {}).get(name, "both")
-    return want not in ("a", "b") or want == (st.form if st is not None else "a")
+    if want == "both":
+        return True
+    return _df_cur(st, P) in want
 
 
 def body_alpha(fig):
@@ -1276,10 +1311,20 @@ def inst_dmg_mult(inst):
     return getattr(inst, "ua_dm", 1.0) or 0.0
 
 
-# ------------------------------------------------------------ Dual Form
+# ------------------------------------------------------------ Transformations (dual_form)
+def _df_letters(P):
+    """The form letters in use, in cycle order ("ab" .. "abcdef")."""
+    return DF_FORMS[:max(2, min(len(DF_FORMS), int(P.get("forms", 2))))]
+
+
+def _df_cur(st, P):
+    """The form it is in (back to the first when the count was lowered)."""
+    f = st.form if st is not None else "a"
+    return f if f in _df_letters(P) else "a"
+
+
 def _form(fig, P):
-    st = getattr(fig, "ua", None)
-    return P["form_b"] if st is not None and st.form == "b" else P["form_a"]
+    return P["form_" + _df_cur(getattr(fig, "ua", None), P)]
 
 
 def _form_lut(fig, st, F):
@@ -1300,26 +1345,98 @@ def _df_tick(fig, world, st, P):
         st.df_cd -= 1
     if st.df_buff > 0:
         st.df_buff -= 1
+    if st.df_pending is not None:
+        st.df_want = False         # one transition at a time
+        _df_transition_tick(fig, world, st, P)
+        return
     if P["trigger"] == "timer":
         st.df_timer += 1
         if st.df_timer >= _ticks(P["every_ms"]):
             st.df_timer = 0
-            _df_switch(fig, st, P)
+            st.df_want = True
     elif P["trigger"] == "gauge" and st.df_gauge >= 100.0 and st.df_cd <= 0:
-        _df_switch(fig, st, P)
+        st.df_want = True
+    if st.df_want:
+        st.df_want = False
+        _df_begin(fig, world, st, P)
 
 
 def _df_fill(fig, world, st, P):
     st.df_gauge = min(100.0, st.df_gauge + 100.0 / max(1, P["gauge_hits"]))
 
 
+def _df_begin(fig, world, st, P):
+    """A trigger fired: start the transition to the next form in the cycle.
+    With a transition action the form changes when that action ends (its
+    borrowed FX plays while it does); without one it changes now (and the
+    FX plays one pass on its own)."""
+    letters = _df_letters(P)
+    cur = _df_cur(st, P)
+    nxt = letters[(letters.index(cur) + 1) % len(letters)]
+    tr = (P.get("transitions") or {}).get(cur + ">" + nxt) or {}
+    st.df_pending = nxt
+    st.df_tr_act = str(tr.get("action") or "")
+    st.df_act = None
+    st.df_fx = str(tr.get("fx") or "")
+    st.df_fx_once = False
+    st.df_fx_seq += 1
+    st.df_wait = _ticks(1000)    # longest wait for the action to get a turn
+    from . import action_log
+    action_log.log("COMBAT", f"transform {cur}->{nxt} action={st.df_tr_act or '-'} fx={st.df_fx or '-'}")
+    if not st.df_tr_act:
+        st.df_fx_once = bool(st.df_fx)
+        _df_switch(fig, st, P)
+        return
+    _df_transition_tick(fig, world, st, P)
+
+
+def _df_start_act(fig, world, st):
+    """Start the transition action.  True = playing, False = blocked this
+    tick (another triggered action plays), None = it can never play here."""
+    from . import actions
+    r = getattr(fig, "act", None)
+    if r is None or world is None or st.df_tr_act not in fig.render.bundle.extra:
+        return None
+    if actions.force_action(fig, world, st.df_tr_act):
+        st.df_act, st.df_act_started = st.df_tr_act, r.started
+        return True
+    return False
+
+
+def _df_transition_tick(fig, world, st, P):
+    """Mid-transition: wait for the action to start, then for it to end; the
+    new form takes over after that (or once the wait runs out)."""
+    if st.df_act is not None:
+        r = getattr(fig, "act", None)
+        if r is not None and r.playing == st.df_act and r.started == st.df_act_started:
+            return
+        st.df_act = None
+        _df_switch(fig, st, P)
+        return
+    res = _df_start_act(fig, world, st)
+    if res:
+        return
+    st.df_wait -= 1
+    if res is None or st.df_wait <= 0:
+        st.df_fx_once = bool(st.df_fx)   # the FX still plays its pass
+        _df_switch(fig, st, P)
+
+
 def _df_switch(fig, st, P):
-    """Into the other form: its palette, stats and actions from now on, a
+    """Into the pending form: its palette, stats and actions from now on, a
     short buff and the transition burst."""
     if not st.df_init:
         st.df_init = True
         st.df_lut0 = fig.lut
-    st.form = "b" if st.form == "a" else "a"
+    letters = _df_letters(P)
+    nxt = st.df_pending
+    if nxt not in letters:
+        cur = _df_cur(st, P)
+        nxt = letters[(letters.index(cur) + 1) % len(letters)]
+    st.form = nxt
+    st.df_pending = None
+    st.df_act = None
+    st.df_tr_act = ""
     st.df_gauge = 0.0
     st.df_cd = _ticks(P["cooldown_ms"])
     st.df_buff = _ticks(P["buff_ms"]) if P["buff_ms"] > 0 else 0
@@ -1333,6 +1450,27 @@ def _df_switch(fig, st, P):
                rng=fig.personality.rng)
         st.flash = 14
         st.flash_rgb = rgb
+
+
+def transition_fx(fig):
+    """fxkit.FxDriver hook: (fx key, transition number, once) of the
+    transition FX playing now, or ("", 0, False).  It plays while the
+    transition action does; `once` = no action, one pass of its own timing
+    (the driver calls transition_fx_done after it)."""
+    st = getattr(fig, "ua", None)
+    if st is None or not st.df_fx or _of(fig, "dual_form") is None:
+        return "", 0, False
+    if st.df_act is not None:
+        return st.df_fx, st.df_fx_seq, False
+    if st.df_fx_once:
+        return st.df_fx, st.df_fx_seq, True
+    return "", 0, False
+
+
+def transition_fx_done(fig):
+    st = getattr(fig, "ua", None)
+    if st is not None:
+        st.df_fx_once = False
 
 
 # ------------------------------------------------------------ Summoner
