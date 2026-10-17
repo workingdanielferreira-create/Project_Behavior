@@ -646,22 +646,35 @@ var UNIQUE_DEFAULTS = {
     cooldown_ms: 2000, buff_ms: 2000, buff_speed_pct: 30, buff_damage_pct: 30, transition_fx: true, show_gauge: true,
     forms: 2,   // how many forms (2-6), cycled a -> b -> ... -> a
     form_a: {name: "Form A", speed_pct: 100, damage_pct: 100, taken_pct: 100,
-      palette: false, body: "#f2f4f6", accent: "#3fb0ea", aura: false, aura_color: "#3fb0ea"},
+      palette: false, body: "#f2f4f6", accent: "#3fb0ea", aura: false, aura_color: "#3fb0ea",
+      fx: "", lasts_ms: 0},
     form_b: {name: "Form B", speed_pct: 120, damage_pct: 130, taken_pct: 120,
-      palette: true, body: "#ffe0e0", accent: "#ff3a3a", aura: true, aura_color: "#ff3a3a"},
+      palette: true, body: "#ffe0e0", accent: "#ff3a3a", aura: true, aura_color: "#ff3a3a",
+      fx: "", lasts_ms: 0},
     form_c: {name: "Form C", speed_pct: 100, damage_pct: 100, taken_pct: 100,
-      palette: true, body: "#e0ffe6", accent: "#3aff7a", aura: true, aura_color: "#3aff7a"},
+      palette: true, body: "#e0ffe6", accent: "#3aff7a", aura: true, aura_color: "#3aff7a",
+      fx: "", lasts_ms: 0},
     form_d: {name: "Form D", speed_pct: 100, damage_pct: 100, taken_pct: 100,
-      palette: true, body: "#fff4d6", accent: "#ffc23a", aura: true, aura_color: "#ffc23a"},
+      palette: true, body: "#fff4d6", accent: "#ffc23a", aura: true, aura_color: "#ffc23a",
+      fx: "", lasts_ms: 0},
     form_e: {name: "Form E", speed_pct: 100, damage_pct: 100, taken_pct: 100,
-      palette: true, body: "#efe0ff", accent: "#a03aff", aura: true, aura_color: "#a03aff"},
+      palette: true, body: "#efe0ff", accent: "#a03aff", aura: true, aura_color: "#a03aff",
+      fx: "", lasts_ms: 0},
     form_f: {name: "Form F", speed_pct: 100, damage_pct: 100, taken_pct: 100,
-      palette: true, body: "#e0f9ff", accent: "#3ae0ff", aura: true, aura_color: "#3ae0ff"},
+      palette: true, body: "#e0f9ff", accent: "#3ae0ff", aura: true, aura_color: "#3ae0ff",
+      fx: "", lasts_ms: 0},
+    // Each form: fx = its Character FX while in it ("fx:<id>" / "group:<id>", plus
+    // the FX built on "@form:<letter>"), in place of the character's own;
+    // lasts_ms > 0 = back to the first form once it has lasted that long.
     // "a>b" -> leaving form a for form b: action ("" = none; the form changes
-    // when it ends) and fx ("fx:<id>" / "group:<id>", played while it lasts).
+    // when it ends; only its animation shows), fx ("fx:<id>" / "group:<id>",
+    // played while it lasts, with the FX built on "@transform:a>b") and time
+    // (Time control while it plays; duration_ms = how long without an action).
     transitions: (function () {
       var t = {}, L = "abcdef";
-      for (var i = 0; i < 6; i++) for (var j = 0; j < 6; j++) if (i !== j) t[L[i] + ">" + L[j]] = {action: "", fx: ""};
+      for (var i = 0; i < 6; i++) for (var j = 0; j < 6; j++) if (i !== j)
+        t[L[i] + ">" + L[j]] = {action: "", fx: "", time: {enabled: false, start_frame: 0, end_frame: -1, scope: "enemy_fighters",
+          speed: 0, keys: [], logic: "any", conditions: [], duration_ms: 1000}};
       return t;
     })(),
     actions: {}},   // action name -> forms that play it, e.g. "ac" (missing / "both" = every form, "" = none)
@@ -704,7 +717,12 @@ function normalizeUnique(a) {
   });
   var df = a.dual_form, trd = UNIQUE_DEFAULTS.dual_form.transitions;
   df.forms = Math.max(2, Math.min(6, Math.round(+df.forms) || 2));
-  Object.keys(trd).forEach(function (k) { df.transitions[k] = fill(df.transitions[k] || {}, trd[k]); });
+  Object.keys(trd).forEach(function (k) {
+    var T = df.transitions[k] = fill(df.transitions[k] || {}, trd[k]);
+    var dur = T.time && T.time.duration_ms;
+    T.time = normalizeTime(T.time);
+    T.time.duration_ms = Math.max(0, Math.min(60000, dur == null || !isFinite(+dur) ? 1000 : +dur));
+  });
   return a;
 }
 // The WORLD clash table (not per character): which clash explosion

@@ -453,6 +453,10 @@ BLINK_KEY = "@blink:"
 # Transformations transition (laser/unique.py transition_fx), on the
 # transition action's timing.
 TRANSFORM_KEY = "@transform:"
+# "@form:<letter>" (e.g. "@form:b"): a Transformations form's own FX, played
+# as the fighter's Character FX (in place of "@character") while it is in
+# that form (FxDriver._character_tick).
+FORM_KEY = "@form:"
 # Character FX (FX Studio: Character FX, whole character): always on the
 # fighter whatever it is doing, on their own lane (FxDriver._character_tick).
 CHARACTER_KEY = "@character"
@@ -3061,6 +3065,8 @@ class CharacterFx:
             src = [e for e in self.effects if e.get("id") == ident][:1]
         elif kind == "group":
             src = [e for e in self.effects if e.get("group") == ident]
+        elif kind == "slot":   # every effect built on a reaction key ("slot:@form:b")
+            src = list(self.by_action.get(ident) or [])
         else:
             src = []
         out = []
@@ -3342,8 +3348,12 @@ class FxDriver:
         # transition's borrowed "fx" and the fifth the FX built on that
         # transition ("@transform:a>b") (laser/unique.py transition_fx).
         # Lane = [player, on, t, t_prev].
+        # The sixth and seventh: a Transformations form's FX (its borrowed
+        # "fx" and "@form:<letter>"), played as its Character FX.
         self.rlanes = [[Player(), False, 0, -1], [Player(), False, 0, -1], [Player(), False, 0, -1],
+                       [Player(), False, 0, -1], [Player(), False, 0, -1],
                        [Player(), False, 0, -1], [Player(), False, 0, -1]]
+        self.form_seq = -1   # the form the form lanes last played
         self.tf_seq = 0   # the transition the fourth lane last played
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
@@ -3492,14 +3502,36 @@ class FxDriver:
         doing, on their own clock looping on the timing of the action on
         show (its anchors follow that action's frames, _Host.anchor).  While
         the fighter is blinked out nothing new fires and its body FX hide
-        (draw) and land no hits (update).  Returns True while blinked out."""
+        (draw) and land no hits (update).  A Transformations form with FX
+        (laser/unique.py form_fx) plays those instead, until it leaves that
+        form.  Returns True while blinked out."""
         from . import blink as _blink
+        from . import unique
         gone = _blink.gone(fig)
-        timed = self.cfx.character_timed
-        due = () if (gone or hold or frozen) else [c for c, every in timed if self.cclock % every == 0]
-        self._lane_tick(self.clane, self.cfx.character_own, self.action, host,
-                        hold or ("run" if gone else None), frozen,
-                        timed=[c for c, _ in timed], due=due)
+        lane_hold = hold or ("run" if gone else None)
+        borrow, letter, seq = unique.form_fx(fig)
+        jobs = (self.cfx.retreat_effects(borrow) if borrow else ([], None),
+                self.cfx.retreat_effects("slot:" + FORM_KEY + letter) if letter else ([], None))
+        flanes = (self.rlanes[5], self.rlanes[6])
+        if seq != self.form_seq:
+            self.form_seq = seq
+            for lane in flanes:          # a new form: the old form's held FX end
+                lane[1] = False
+                for inst in lane[0].insts:
+                    if inst.cont or inst.open:
+                        inst.dead = True
+                lane[0].pending = []
+        form_on = any(effs for effs, _a in jobs)
+        for lane, (effs, a) in zip(flanes, jobs):
+            self._lane_tick(lane, effs, self.action if a is None or a.startswith("@") else a,
+                            host, lane_hold, frozen)
+        if form_on:
+            self._lane_tick(self.clane, (), self.action, host, lane_hold, frozen)
+        else:
+            timed = self.cfx.character_timed
+            due = () if (gone or hold or frozen) else [c for c, every in timed if self.cclock % every == 0]
+            self._lane_tick(self.clane, self.cfx.character_own, self.action, host, lane_hold, frozen,
+                            timed=[c for c, _ in timed], due=due)
         if not frozen:
             self.cclock += 1
         return gone

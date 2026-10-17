@@ -117,25 +117,39 @@ DEFAULTS = {
         transition_fx=True, show_gauge=True,
         forms=2,                     # how many forms (2-6), cycled a -> b -> ... -> a
         form_a=dict(name="Form A", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
-                    palette=False, body="#f2f4f6", accent="#3fb0ea", aura=False, aura_color="#3fb0ea"),
+                    palette=False, body="#f2f4f6", accent="#3fb0ea", aura=False, aura_color="#3fb0ea",
+                    fx="", lasts_ms=0.0),
         form_b=dict(name="Form B", speed_pct=120.0, damage_pct=130.0, taken_pct=120.0,
-                    palette=True, body="#ffe0e0", accent="#ff3a3a", aura=True, aura_color="#ff3a3a"),
+                    palette=True, body="#ffe0e0", accent="#ff3a3a", aura=True, aura_color="#ff3a3a",
+                    fx="", lasts_ms=0.0),
         form_c=dict(name="Form C", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
-                    palette=True, body="#e0ffe6", accent="#3aff7a", aura=True, aura_color="#3aff7a"),
+                    palette=True, body="#e0ffe6", accent="#3aff7a", aura=True, aura_color="#3aff7a",
+                    fx="", lasts_ms=0.0),
         form_d=dict(name="Form D", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
-                    palette=True, body="#fff4d6", accent="#ffc23a", aura=True, aura_color="#ffc23a"),
+                    palette=True, body="#fff4d6", accent="#ffc23a", aura=True, aura_color="#ffc23a",
+                    fx="", lasts_ms=0.0),
         form_e=dict(name="Form E", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
-                    palette=True, body="#efe0ff", accent="#a03aff", aura=True, aura_color="#a03aff"),
+                    palette=True, body="#efe0ff", accent="#a03aff", aura=True, aura_color="#a03aff",
+                    fx="", lasts_ms=0.0),
         form_f=dict(name="Form F", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
-                    palette=True, body="#e0f9ff", accent="#3ae0ff", aura=True, aura_color="#3ae0ff"),
+                    palette=True, body="#e0f9ff", accent="#3ae0ff", aura=True, aura_color="#3ae0ff",
+                    fx="", lasts_ms=0.0),
         # "a>b" -> the transition played when leaving form a for form b:
         # action = an action of the character ("" = none; the form changes
         # when it ends; only its animation shows, its own FX stay off), fx =
         # "fx:<effect id>" | "group:<group id>" borrowed from an action and
         # played while it lasts, alongside the FX built on the transition's
         # own slot "@transform:a>b" (one pass of their timing without one).
-        transitions={x + ">" + y: dict(action="", fx="")
+        # time = Time control while it plays (fxkit.normalize_time fields, on
+        # the action's frames; duration_ms = how long without an action).
+        transitions={x + ">" + y: dict(action="", fx="", time=dict(
+                         enabled=False, start_frame=0, end_frame=-1, scope="enemy_fighters",
+                         speed=0.0, keys=[], logic="any", conditions=[], duration_ms=1000.0))
                      for x in "abcdef" for y in "abcdef" if x != y},
+        # Each form: fx = its Character FX while it is in that form ("fx:<id>"
+        # | "group:<id>", plus the FX built on "@form:<letter>"), replacing the
+        # character's own; lasts_ms > 0 = it goes back to the first form
+        # (through that transition) once the form has lasted that long.
         actions={}),                 # action name -> forms that play it, e.g. "ac"
                                      # (missing / "both" = every form, "" = none)
     "summoner": dict(
@@ -215,6 +229,8 @@ def _coerce(dv, v):
             return int(round(float(v)))
         if isinstance(dv, float):
             return float(v)
+        if isinstance(dv, list):
+            return list(v) if isinstance(v, list) else list(dv)
         if isinstance(dv, dict) and not dv:
             if not isinstance(v, dict):
                 return {}
@@ -304,7 +320,7 @@ class UAState:
                  "form", "df_gauge", "df_timer", "df_cd", "df_fired", "df_combo", "df_buff",
                  "df_lut0", "df_init", "df_want", "df_pending", "df_tr_act", "df_act",
                  "df_act_started", "df_wait", "df_fx", "df_fx_once", "df_fx_seq", "df_pair",
-                 "df_pair_act",
+                 "df_pair_act", "df_left", "df_target", "df_form_seq", "df_time_new",
                  # Summoner (owner) / construct (the summoned figure)
                  "sm_timer", "sm_fired", "sm_hits", "construct", "con_cd", "con_aim",
                  # Aegis
@@ -364,6 +380,10 @@ class UAState:
         self.df_fx_seq = 0       # bumped per transition (restarts the FX lanes)
         self.df_pair = ""        # the transition playing its FX ("a>b")
         self.df_pair_act = ""    # its action (the FX's timing)
+        self.df_left = 0         # ticks the current form has left (0 = no limit)
+        self.df_target = None    # next transition goes here instead of the next form
+        self.df_form_seq = 0     # bumped per form change (restarts the form FX)
+        self.df_time_new = False # a transition without an action: start its Time control (timefx)
         self.sm_timer = 0
         self.sm_fired = set()
         self.sm_hits = 0
@@ -1354,6 +1374,11 @@ def _df_tick(fig, world, st, P):
         st.df_want = False         # one transition at a time
         _df_transition_tick(fig, world, st, P)
         return
+    if st.df_left > 0:
+        st.df_left -= 1
+        if st.df_left <= 0 and _df_cur(st, P) != "a":
+            st.df_target = "a"     # the form ran out: back to the first form
+            st.df_want = True
     if P["trigger"] == "timer":
         st.df_timer += 1
         if st.df_timer >= _ticks(P["every_ms"]):
@@ -1378,6 +1403,9 @@ def _df_begin(fig, world, st, P):
     letters = _df_letters(P)
     cur = _df_cur(st, P)
     nxt = letters[(letters.index(cur) + 1) % len(letters)]
+    if st.df_target and st.df_target in letters and st.df_target != cur:
+        nxt = st.df_target
+    st.df_target = None
     tr = (P.get("transitions") or {}).get(cur + ">" + nxt) or {}
     st.df_pending = nxt
     st.df_tr_act = str(tr.get("action") or "")
@@ -1392,6 +1420,7 @@ def _df_begin(fig, world, st, P):
     action_log.log("COMBAT", f"transform {cur}->{nxt} action={st.df_tr_act or '-'} fx={st.df_fx or '-'}")
     if not st.df_tr_act:
         st.df_fx_once = True       # its FX play one pass on their own
+        st.df_time_new = True      # and its Time control runs for its duration
         _df_switch(fig, st, P)
         return
     _df_transition_tick(fig, world, st, P)
@@ -1426,6 +1455,7 @@ def _df_transition_tick(fig, world, st, P):
     st.df_wait -= 1
     if res is None or st.df_wait <= 0:
         st.df_fx_once = True       # the FX still play their pass
+        st.df_time_new = True
         _df_switch(fig, st, P)
 
 
@@ -1441,6 +1471,9 @@ def _df_switch(fig, st, P):
         cur = _df_cur(st, P)
         nxt = letters[(letters.index(cur) + 1) % len(letters)]
     st.form = nxt
+    st.df_form_seq += 1
+    lasts = P["form_" + nxt].get("lasts_ms", 0.0) if nxt != "a" else 0.0
+    st.df_left = _ticks(lasts) if lasts and lasts > 0 else 0
     st.df_pending = None
     st.df_act = None
     st.df_tr_act = ""
@@ -1474,6 +1507,53 @@ def transition_fx(fig):
     if st.df_fx_once:
         return st.df_fx, st.df_pair, st.df_pair_act, st.df_fx_seq, True
     return "", "", "", 0, False
+
+
+def form_fx(fig):
+    """fxkit.FxDriver hook: (borrowed fx key, form letter, form number) of
+    the form it is in, or ("", "", 0).  The driver plays the borrowed FX and
+    the FX built on "@form:<letter>" as its Character FX (in place of the
+    character's own) while they exist."""
+    P = _of(fig, "dual_form")
+    if P is None:
+        return "", "", 0
+    st = getattr(fig, "ua", None)
+    cur = _df_cur(st, P)
+    return str(P["form_" + cur].get("fx") or ""), cur, (st.df_form_seq if st is not None else 0)
+
+
+def _tr_time(st, P):
+    from .fxkit import normalize_time
+    tr = (P.get("transitions") or {}).get(st.df_pair) or {}
+    tc = tr.get("time")
+    if not isinstance(tc, dict) or not tc.get("enabled"):
+        return None
+    out = normalize_time(tc)
+    out["duration_ms"] = max(0.0, float(tc.get("duration_ms") or 0.0))
+    return out
+
+
+def transition_time(fig, action):
+    """timefx hook: the transition's Time control while `action` plays as
+    that transition's action (in place of the action's own), else None."""
+    if not in_transition_action(fig, action):
+        return None
+    P = _of(fig, "dual_form")
+    return _tr_time(fig.ua, P) if P is not None else None
+
+
+def take_transition_time(fig):
+    """timefx hook: a transition without an action just happened: (its Time
+    control, ticks it lasts) once, or None."""
+    st = getattr(fig, "ua", None)
+    if st is None or not st.df_time_new:
+        return None
+    st.df_time_new = False
+    P = _of(fig, "dual_form")
+    tc = _tr_time(st, P) if P is not None else None
+    if tc is None or tc["duration_ms"] <= 0:
+        return None
+    return tc, _ticks(tc["duration_ms"])
 
 
 def in_transition_action(fig, action):
