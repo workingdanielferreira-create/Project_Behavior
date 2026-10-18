@@ -1159,7 +1159,7 @@ class Inst:
                  "path", "pl", "po", "pm", "centre_deg", "x2", "y2", "cont", "win", "open", "hit_targets",
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
-                 "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_imp",
+                 "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t")
 
@@ -1444,8 +1444,14 @@ def is_guard(fx):
     return fx["prim"] == "ribbon" and fx["motion"]["kind"] not in INTERCEPT_MOTIONS
 
 
+def is_ki_tracker(fx):
+    """A ki barrage: every orb it fires is its own tracker
+    (laser/strikefx.py track_step), so the technique never moves itself."""
+    return fx["prim"] == "technique" and swordfx._style(fx["params"]) == "ki_barrage"
+
+
 def can_intercept(fx):
-    if is_guard(fx):
+    if is_guard(fx) or is_ki_tracker(fx):
         return True
     return fx["prim"] not in ("weapon", "ghost", "pulse") and fx["motion"]["kind"] in INTERCEPT_MOTIONS
 
@@ -1483,10 +1489,14 @@ class Shot:
     from the effect's battle settings (built-in bullets are both);
     knockback from battle.knockback (bullets: 0); body from inst_body
     (bullets: their centre).  threat: a gun / ki bullet (ref a RoundRef)
-    that only retreat, Dodge and projectile counts react to."""
-    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "knockback", "body", "threat")
+    that only retreat, Dodge, projectile counts and ki barrage orbs react
+    to; rblock / rdeflect are its effect's own blockable / deflectable, which
+    only the orbs read (orb_takes)."""
+    __slots__ = ("x", "y", "vx", "vy", "dead", "kind", "ref", "blockable", "deflectable", "knockback", "body", "threat",
+                 "rblock", "rdeflect")
 
-    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, knockback=0.0, body=None, threat=False):
+    def __init__(self, x, y, vx, vy, kind, ref, blockable=True, deflectable=True, knockback=0.0, body=None, threat=False,
+                 rblock=False, rdeflect=False):
         self.x, self.y, self.vx, self.vy = float(x), float(y), float(vx), float(vy)
         self.dead = False
         self.kind, self.ref = kind, ref
@@ -1494,17 +1504,31 @@ class Shot:
         self.knockback = float(knockback or 0)
         self.body = tuple(body) if body is not None else (self.x, self.y, self.x, self.y, 0.0)
         self.threat = bool(threat)
+        self.rblock, self.rdeflect = bool(rblock), bool(rdeflect)
 
 
 class RoundRef:
     """Stands in for one bullet of a technique (gun round, ki blast) as a
     Shot's ref: it ends with its instance, and each bullet keeps its own
     identity across ticks (Dodge rolls once per projectile).  Such shots are
-    threat-only: neither blockable nor deflectable, so intercepts skip them."""
+    threat-only: neither blockable nor deflectable, so intercepts skip them;
+    only ki barrage orbs can take them (orb_takes), which stops that one
+    bullet (stop)."""
     __slots__ = ("inst", "i")
 
     def __init__(self, inst, i):
         self.inst, self.i = inst, i
+
+    @property
+    def stopped(self):
+        """This bullet already stopped (it hit, or an orb took it)."""
+        return self.i in (getattr(self.inst, "tq_ki", None) or {})
+
+    def stop(self, x, y):
+        """The bullet bursts at (x, y) now, as when it hits (tq_ki)."""
+        ki = getattr(self.inst, "tq_ki", None)
+        if ki is not None and self.i not in ki:
+            ki[self.i] = (self.inst.age, float(x), float(y))
 
     @property
     def dead(self):
@@ -1543,6 +1567,44 @@ def _shot_gone(s):
     """An FX shot whose instance already ended this tick (e.g. cancelled by
     a clash, laser/clash.py) can no longer touch anything."""
     return s.kind == "fx" and (s.ref.dead or s.ref.age >= s.ref.life)
+
+
+def orb_takes(s, mode):
+    """Whether a ki barrage orb in `mode` may take shot s: what any
+    intercept may take, plus the enemy's gun / ki bullets, by their effect's
+    own Blockable / Deflectable (FXK.orbTakes)."""
+    if s.threat:
+        if isinstance(s.ref, RoundRef) and s.ref.stopped:
+            return False
+        return s.rdeflect if mode == "deflect" else s.rblock
+    return _shot_takes(s, mode)
+
+
+def orb_contact(x, y, r, host, contact, mode):
+    """Nearest shot touching a ki orb (a point body of radius r at x, y):
+    the gap between the two bodies is at most `contact`."""
+    mine = (x, y, x, y, r)
+    best, bd = None, 0.0
+    for s in getattr(host, "shots", None) or ():
+        if s.dead or _shot_gone(s) or not orb_takes(s, mode):
+            continue
+        d = seg_seg_dist(mine, s.body) - r - s.body[4]
+        if d <= contact and (best is None or d < bd):
+            best, bd = s, d
+    return best
+
+
+def orb_nearest(x, y, host, r, mode):
+    """Nearest shot by centre point within r of a ki orb (the tracker radius)."""
+    best, bd, r2 = None, 0.0, r * r
+    for s in getattr(host, "shots", None) or ():
+        if s.dead or _shot_gone(s) or not orb_takes(s, mode):
+            continue
+        dx, dy = s.x - x, s.y - y
+        d = dx * dx + dy * dy
+        if d <= r2 and (best is None or d < bd):
+            best, bd = s, d
+    return best
 
 
 def _nearest_shot(inst, host, r, mode=None):
@@ -1612,7 +1674,7 @@ def intercept_step(inst, host):
         _straight_step(inst)
         return True
     fx = inst.fx
-    if not intercept_on(fx) or is_guard(fx):
+    if not intercept_on(fx) or is_guard(fx) or is_ki_tracker(fx):
         return False
     ic = fx["intercept"]
     mode = ic.get("mode")
@@ -3265,7 +3327,21 @@ class _Host:
         harmless, or (hurts_owner) able to damage the fighter who fired it."""
         from . import combat as _combat
         ref = shot.ref
-        if shot.kind == "bullet":
+        if isinstance(ref, RoundRef):
+            # A gun / ki bullet (only ki orbs take these): that one bullet
+            # bursts where it was met; a deflected one flies off as a
+            # bullet of this side.
+            ref.stop(shot.x, shot.y)
+            if mode == "deflect":
+                pr = _combat.Projectile(shot.x, shot.y, vel[0], vel[1], swordfx.vivid(self.lut), config.PROJ_TRAIL_LEN)
+                pr.owner = self.fig
+                if hurts_owner:
+                    pr.damage = float((ref.inst.fx.get("battle") or {}).get("damage") or 1.0)
+                else:
+                    pr.hit_r_sq = 0.0
+                    pr.max_age = config.DEFLECT_MAX_AGE
+                self.world.projectiles.append(pr)
+        elif shot.kind == "bullet":
             _combat.kill_projectile(ref)
             if mode == "deflect":
                 pr = _combat.Projectile(ref.x, ref.y, vel[0], vel[1], (ref.r, ref.g, ref.b), config.PROJ_TRAIL_LEN)

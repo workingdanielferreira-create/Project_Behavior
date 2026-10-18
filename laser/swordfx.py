@@ -249,6 +249,7 @@ def on_spawn(inst, host):
     inst.tq_cut = set()            # combo cuts that already landed
     inst.tq_path = [(inst.x, inst.y)]   # where the anchor was, per tick
     inst.tq_ki = {}                # ki shots stopped by a hit: index -> (tick, x, y)
+    inst.tq_kd = {}                # ki shots an intercept pulled off their path (strikefx.track_step)
     inst.tq_imp = []               # punch impacts: (tick, x, y)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
@@ -258,10 +259,12 @@ def on_spawn(inst, host):
 
 def on_tick(inst, host=None):
     """Each tick: remember where the anchor is (shots launch from there) and
-    where the target is (power techniques aim / chase it)."""
+    where the target is (power techniques aim / chase it); ki orbs chase and
+    intercept the enemy's projectiles (Intercept)."""
     inst.tq_path.append((inst.x, inst.y))
     inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
     _record_outline(inst, host)
+    strikefx.track_step(inst, host)
 
 
 def _record_outline(inst, host):

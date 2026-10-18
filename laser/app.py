@@ -714,8 +714,10 @@ class World:
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 # Gun / ki bullets: threat-only shots (retreat steering, Dodge,
                 # projectile counts).  Not blockable / deflectable, so the
-                # intercepts leave them alone; each keeps one RoundRef while
-                # it flies (Dodge rolls once per projectile).
+                # intercepts leave them alone, all but ki barrage orbs, which
+                # go by the effect's own flags (rblock / rdeflect); each
+                # keeps one RoundRef while it flies (Dodge rolls once per
+                # projectile).
                 refs = {}
                 for (inst, ri, rx, ry, rvx, rvy) in rounds:
                     key = (id(inst), ri)
@@ -723,8 +725,10 @@ class World:
                     if ref is None or ref.inst is not inst:
                         ref = fxkit.RoundRef(inst, ri)
                     refs[key] = ref
+                    bt = inst.fx["battle"]
                     shots.append(fxkit.Shot(rx, ry, rvx, rvy, "fx", ref, blockable=False, deflectable=False,
-                                            knockback=fxkit.fx_knockback(inst.fx), threat=True))
+                                            knockback=fxkit.fx_knockback(inst.fx), threat=True,
+                                            rblock=bt.get("blockable", True), rdeflect=bt.get("deflectable", True)))
                 side.round_refs = refs
                 side.enemy_shots = shots
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and

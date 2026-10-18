@@ -35,6 +35,18 @@ so give the effect Pierce and a short Re-hit; the punch hits along the arm
 while it is out.  Everything else is a pure function of the instance (age,
 seed, the anchor's path), so FX Studio's port (tools/fx/studio/strikefx.js)
 draws the same pixels.
+
+Intercept (fx.intercept, ki barrage only): every orb in flight is its own
+auto-projectile tracker (track_step).  An enemy projectile within the
+tracker radius pulls the orb off its path (up to turn_deg per tick, speed
+kept); from then on the orb flies a recorded path (inst.tq_kd) instead of
+its rolled one, straight on once nothing is in range.  Within contact px
+the two meet: block = both gone (the orb detonates there), destroy = the
+enemy projectile is gone and the orb flies on, deflect = the enemy
+projectile is knocked away (deflect "both": the orb too, which then stops
+tracking).  Orbs also take the enemy's gun / ki bullets, which other
+intercepts cannot (fxkit.orb_takes).  Solo has no enemy projectiles, so
+the orbs fly their own paths there.
 """
 
 import math
@@ -88,7 +100,7 @@ def total_ticks(P):
 # ---------------------------------------------------------------- ki shots
 class Shot:
     """One ki blast: everything about it is rolled from the seed."""
-    __slots__ = ("i", "b", "sp", "ang", "curve", "size", "rng", "flight", "side", "tint", "kind", "ox", "oy")
+    __slots__ = ("i", "b", "sp", "ang", "curve", "size", "rng", "flight", "side", "tint", "kind", "ox", "oy", "trk")
 
     def __init__(self, inst, i, ps):
         P = inst.fx["params"]
@@ -110,9 +122,21 @@ class Shot:
         self.kind = min(2, int(r() * 3))
         path = inst.tq_path
         self.ox, self.oy = path[min(self.b, len(path) - 1)]
+        self.trk = inst.tq_kd.get(i)
 
     def pos(self, fr, k):
-        """World position k ticks after launch (k may run past the range)."""
+        """World position k ticks after launch (k may run past the range).
+        From the tick an intercept pulled it off its path: the recorded one."""
+        tr = self.trk
+        if tr is not None and self.b + k >= tr[0]:
+            h = tr[1]
+            j = self.b + k - tr[0]
+            n = int(j)
+            if n >= len(h) - 1:
+                return h[-1]
+            u = j - n
+            (ax, ay), (bx, by) = h[n], h[n + 1]
+            return ax + (bx - ax) * u, ay + (by - ay) * u
         d = self.sp * k
         u = min(1.0, d / self.rng) if self.rng > 0 else 1.0
         lat = self.curve * math.sin(math.pi * u)
@@ -198,6 +222,90 @@ def _ki_on_hit(inst, tx, ty, ps):
     if best is not None:
         s, x, y = best
         inst.tq_ki[s.i] = (inst.age, x, y)
+
+
+# ---------------------------------------------------------------- intercept
+class _Mover:
+    """An orb as fxkit.deflect_vels reads a projectile."""
+    __slots__ = ("x", "y", "vx", "vy")
+
+    def __init__(self, x, y, vx, vy):
+        self.x, self.y, self.vx, self.vy = x, y, vx, vy
+
+
+def _trk_put(tr, t, x, y):
+    """Record where a tracked orb is on tick t + 1 (tr[1][j] = tick tr[0] + j)."""
+    h = tr[1]
+    n = t + 1 - tr[0]
+    while len(h) < n:
+        h.append(h[-1])
+    del h[n:]
+    h.append((x, y))
+
+
+def track_step(inst, host):
+    """Intercept for the ki barrage (fx.intercept): each orb in flight this
+    tick meets, chases or ignores the enemy's projectiles (host.shots), and
+    a tracked orb's next position is recorded (strikefx.js trackStep)."""
+    fx = inst.fx
+    if host is None or S._style(fx["params"]) != "ki_barrage" or inst.age >= inst.life:
+        return
+    ic = fx.get("intercept") or {}
+    on = bool(ic.get("enabled"))
+    if not on and not inst.tq_kd:
+        return
+    ps = inst.ps or 1.0
+    mode = ic.get("mode") if ic.get("mode") in F.INTERCEPT_MODES else "block"
+    contact = max(0.0, float(ic.get("contact") or 0)) * ps
+    radius = max(0.0, float(ic.get("radius") or 0)) * ps
+    lim = max(0.0, float(ic.get("turn_deg") or 0)) * S.D
+    r0 = float(fx["params"]["radius"]) * ps
+    cb = getattr(host, "on_intercept", None)
+    fr = _Fr(inst, ps)
+    t = inst.age
+    for (s, (x, y)) in _live(inst, ps):
+        tr = s.trk
+        if tr is not None:
+            vx, vy = tr[2], tr[3]
+        else:
+            x1, y1 = s.pos(fr, t - s.b + 1)
+            vx, vy = x1 - x, y1 - y
+        if on and not (tr is not None and tr[4]):
+            hit = F.orb_contact(x, y, r0 * s.size, host, contact, mode)
+            if hit is not None:
+                hit.dead = True
+                if mode == "deflect":
+                    both = ic.get("deflect_who") == "both"
+                    ev, mv = F.deflect_vels(_Mover(x, y, vx, vy), hit, both)
+                    if cb:
+                        cb(inst, hit, "deflect", ev, bool(ic.get("hurts_owner")))
+                    if both:   # knocked away too: flies straight on, tracking no more
+                        if tr is None:
+                            tr = inst.tq_kd[s.i] = [t, [(x, y)], vx, vy, False]
+                        tr[2], tr[3], tr[4] = mv[0], mv[1], True
+                else:
+                    if cb:
+                        cb(inst, hit, mode, None, False)
+                    if mode == "block":   # both gone: the orb detonates where they met
+                        inst.tq_ki[s.i] = (t, x, y)
+                        continue
+            if tr is None or not tr[4]:
+                tgt = F.orb_nearest(x, y, host, radius, mode)
+                if tgt is not None:
+                    spd = math.hypot(vx, vy)
+                    cur = math.atan2(vy, vx)
+                    da = math.atan2(tgt.y - y, tgt.x - x) - cur
+                    while da > math.pi:
+                        da -= 2 * math.pi
+                    while da < -math.pi:
+                        da += 2 * math.pi
+                    cur += max(-lim, min(lim, da))
+                    vx, vy = math.cos(cur) * spd, math.sin(cur) * spd
+                    if tr is None:
+                        tr = inst.tq_kd[s.i] = [t, [(x, y)], vx, vy, False]
+                    tr[2], tr[3] = vx, vy
+        if tr is not None:
+            _trk_put(tr, t, x + tr[2], y + tr[3])
 
 
 # ---------------------------------------------------------------- punch
