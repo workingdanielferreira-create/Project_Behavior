@@ -11316,7 +11316,7 @@
   "anti_knockback": 20
  },
  "retreat": {
-  "enabled": false,
+  "enabled": true,
   "mode": "reengage",
   "angle_deg": 90,
   "curve_deg_s": 0,
@@ -11329,7 +11329,7 @@
   "conditions": [
    {
     "type": "target_beyond",
-    "px": 200,
+    "px": 600,
     "not": false
    }
   ],
@@ -13895,10 +13895,10 @@
     "count": 0
    },
    "intercept": {
-    "enabled": false,
-    "radius": 81.00000289285724,
-    "turn_deg": 10,
-    "contact": 9.000000321428583,
+    "enabled": true,
+    "radius": 69,
+    "turn_deg": 44.5,
+    "contact": 5,
     "mode": "block",
     "deflect_who": "enemy",
     "hurts_owner": false
@@ -15164,7 +15164,7 @@
    "name": "SSJ2 aura · Flames",
    "tag": "aura",
    "anchor": "figure",
-   "layer": "behind",
+   "layer": "front",
    "blend": "additive",
    "motion": {
     "kind": "attached",
@@ -15183,8 +15183,8 @@
    },
    "color": {
     "mode": "gradient",
-    "c1": "#ffe14a",
-    "c2": "#ff9d00",
+    "c1": "#e17070",
+    "c2": "#ffffff",
     "lut_index": 128,
     "lut_index2": 128,
     "lut_offset": 0,
@@ -15196,116 +15196,8 @@
     "aura_part": "flames",
     "radius": 6,
     "span": 100,
-    "thickness": 5,
-    "length": 22,
-    "swing_ticks": 1,
-    "hold_ticks": 500,
-    "lightning": true,
-    "lightning_rate": 1,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": true,
-    "density": 1,
-    "rotation_deg": 0,
-    "gap_px": 18,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0
-   },
-   "id": "Emvcr83fe12",
-   "action": "run",
-   "group": "Gmvcr83fd3",
-   "flip": {
-    "enabled": false,
-    "facing": -1
-   },
-   "enabled": false,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": true,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "emit": {
-    "every_ticks": 71,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "SSJ2 aura · Flames",
-   "tag": "aura",
-   "anchor": "figure",
-   "layer": "behind",
-   "blend": "additive",
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "c1": "#ffe14a",
-    "c2": "#ff9d00",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "ssj_aura",
-    "aura_part": "flames",
-    "radius": 2.5,
-    "span": 100,
-    "thickness": 3,
-    "length": 11,
+    "thickness": 5.5,
+    "length": 34,
     "swing_ticks": 1,
     "hold_ticks": 500,
     "lightning": false,
@@ -15327,7 +15219,7 @@
     "w_depth": 0
    },
    "flip": {
-    "enabled": true,
+    "enabled": false,
     "facing": -1
    },
    "enabled": true,
@@ -15371,114 +15263,7 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "id": "Emvcrbtw217",
-   "action": "@form:b"
-  },
-  {
-   "prim": "technique",
-   "name": "SSJ2 aura · Flames",
-   "tag": "aura",
-   "anchor": "figure",
-   "layer": "behind",
-   "blend": "additive",
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "c1": "#ff0000",
-    "c2": "#ffffff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "ssj_aura",
-    "aura_part": "flames",
-    "radius": 6,
-    "span": 100,
-    "thickness": 5,
-    "length": 22,
-    "swing_ticks": 1,
-    "hold_ticks": 500,
-    "lightning": true,
-    "lightning_rate": 1,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": true,
-    "density": 1,
-    "rotation_deg": 0,
-    "gap_px": 18,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": true,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "emit": {
-    "every_ticks": 71,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "id": "Emvcrg9zd20",
+   "id": "Emvd0cpp71",
    "action": "@form:c"
   },
   {
@@ -15487,7 +15272,7 @@
    "tag": "aura",
    "anchor": "figure",
    "layer": "behind",
-   "blend": "additive",
+   "blend": "normal",
    "motion": {
     "kind": "attached",
     "aim": "target",
@@ -15520,15 +15305,15 @@
     "span": 100,
     "thickness": 5,
     "length": 22,
-    "swing_ticks": 1,
+    "swing_ticks": 7,
     "hold_ticks": 500,
-    "lightning": true,
+    "lightning": false,
     "lightning_rate": 1,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": true,
-    "density": 1,
+    "aura_burst": false,
+    "aura_debris": false,
+    "aura_surges": false,
+    "aura_cracks": false,
+    "density": 0,
     "rotation_deg": 0,
     "gap_px": 18,
     "w_mode": "signature",
@@ -15556,7 +15341,7 @@
     0
    ],
    "emit": {
-    "every_ticks": 71,
+    "every_ticks": 0,
     "count": 1,
     "fan_deg": 0
    },
@@ -15585,115 +15370,100 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "id": "Emvczas2y3",
-   "action": "@form:b"
+   "id": "Emvd0ykgz6",
+   "action": "@form:b",
+   "group": "Gmvd0ykgy1"
   },
   {
-   "prim": "technique",
-   "name": "SSJ2 aura · Flames",
-   "tag": "aura",
-   "anchor": "figure",
-   "layer": "behind",
-   "blend": "additive",
+   "prim": "ribbon",
+   "name": "Laser trail",
+   "tag": "trail",
+   "anchor": "chest",
+   "offset": [
+    9.5,
+    0
+   ],
    "motion": {
     "kind": "attached",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 8,
+    "speed": 7.200000257142866,
     "turn_deg": 6,
-    "amplitude": 55,
+    "amplitude": 49.500001767857206,
     "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
+    "orbit_rx": 41.40000147857148,
+    "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "orbit_dir": "clockwise"
    },
    "color": {
     "mode": "gradient",
-    "c1": "#61ebf5",
-    "c2": "#ffffff",
+    "flow_speed": 0.008,
     "lut_index": 128,
     "lut_index2": 128,
     "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
+    "c1": "#ffffcf",
+    "c2": "#e74a23",
+    "start_fraction": 0.48
    },
    "params": {
-    "style": "ssj_aura",
-    "aura_part": "flames",
-    "radius": 6,
-    "span": 100,
-    "thickness": 5,
-    "length": 22,
-    "swing_ticks": 1,
-    "hold_ticks": 500,
-    "lightning": false,
-    "lightning_rate": 1,
-    "aura_burst": false,
-    "aura_debris": false,
-    "aura_surges": false,
-    "aura_cracks": false,
-    "density": 1,
-    "rotation_deg": 0,
-    "gap_px": 18,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0
+    "max_points": 80,
+    "min_dist": 1.8000000642857166,
+    "decay": 4,
+    "taper": true,
+    "w_tail": 0.9000000321428583,
+    "w_head": 24,
+    "alpha": 195,
+    "head_glow_r": 0,
+    "head_dot_r": 0
    },
    "flip": {
-    "enabled": false,
-    "facing": -1
+    "enabled": true,
+    "facing": 1
    },
-   "enabled": false,
+   "enabled": true,
    "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
-   "always_on": true,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
+   "layer": "behind",
+   "blend": "normal",
    "emit": {
-    "every_ticks": 71,
+    "every_ticks": 0,
     "count": 1,
     "fan_deg": 0
    },
+   "battle": {
+    "deals_damage": false,
+    "damage": 0,
+    "pierce": false,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": false,
+    "deflectable": false
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 81.00000289285724,
+    "turn_deg": 10,
+    "contact": 9.000000321428583,
+    "mode": "deflect",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "keys": [],
+   "always_on": true,
    "cycles": {
     "enabled": false,
     "count": 0
    },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
    "follow_each": false,
-   "keys": [],
-   "id": "Emvczemka6",
-   "action": "@character"
+   "char_every_ms": 0,
+   "id": "Emvd1f10j1",
+   "action": "@form:c"
   }
  ],
  "groups": [
@@ -15706,7 +15476,7 @@
     0,
     0
    ],
-   "collapsed": false
+   "collapsed": true
   },
   {
    "id": "Gmus8zuy02",
@@ -15717,7 +15487,7 @@
     14.850000530357162,
     0.9000000321428583
    ],
-   "collapsed": false
+   "collapsed": true
   },
   {
    "id": "Gmvcmil3y1",
@@ -15751,9 +15521,9 @@
    ]
   },
   {
-   "id": "Gmvcr83fd3",
-   "name": "Super Saiyan 2 aura",
-   "action": "run",
+   "id": "Gmvd0ykgy1",
+   "name": "Super Saiyan God aura",
+   "action": "@form:b",
    "anchor": "figure",
    "offset": [
     0,
@@ -15848,11 +15618,11 @@
    "trigger": "hp_below",
    "gauge_hits": 12,
    "every_ms": 8000,
-   "hp_thresholds": "60,30",
+   "hp_thresholds": "60, 30",
    "combo_hits": 4,
    "combo_window_ms": 1500,
-   "cooldown_ms": 2000,
-   "buff_ms": 2000,
+   "cooldown_ms": 0,
+   "buff_ms": 6000,
    "buff_speed_pct": 30,
    "buff_damage_pct": 30,
    "transition_fx": true,
@@ -15872,8 +15642,8 @@
    },
    "form_b": {
     "name": "SSJ",
-    "speed_pct": 120,
-    "damage_pct": 130,
+    "speed_pct": 200,
+    "damage_pct": 200,
     "taken_pct": 80,
     "palette": true,
     "body": "#f0c800",
@@ -15884,14 +15654,15 @@
     "lasts_ms": 0
    },
    "actions": {
-    "transform": ""
+    "transform": "",
+    "ultimate": "c"
    },
    "forms": 3,
    "form_c": {
     "name": "SSJ God",
-    "speed_pct": 180,
-    "damage_pct": 180,
-    "taken_pct": 60,
+    "speed_pct": 300,
+    "damage_pct": 300,
+    "taken_pct": 50,
     "palette": true,
     "body": "#ff0000",
     "accent": "#000000",
@@ -15944,9 +15715,9 @@
      "action": "transform",
      "fx": "group:Gmvcmil3y1",
      "time": {
-      "enabled": false,
-      "start_frame": 0,
-      "end_frame": -1,
+      "enabled": true,
+      "start_frame": 3,
+      "end_frame": 13,
       "scope": "enemy_fighters",
       "speed": 0,
       "keys": [],
@@ -16034,9 +15805,9 @@
      "action": "transform",
      "fx": "group:Gmvcoqssx2",
      "time": {
-      "enabled": false,
-      "start_frame": 0,
-      "end_frame": -1,
+      "enabled": true,
+      "start_frame": 3,
+      "end_frame": 13,
       "scope": "enemy_fighters",
       "speed": 0,
       "keys": [],

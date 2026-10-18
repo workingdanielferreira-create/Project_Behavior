@@ -14435,10 +14435,10 @@
      "sway_ms": 1400
     },
     "modifiers": {
-     "speed_pct": 100,
-     "pulse_pct": 0,
+     "speed_pct": 150,
+     "pulse_pct": 25,
      "pulse_ms": 1000,
-     "inertia_pct": 0,
+     "inertia_pct": 285,
      "weave_deg": 0,
      "weave_ms": 1600,
      "jitter_px": 0,
