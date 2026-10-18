@@ -102,7 +102,9 @@ def draw_all(p, world, scale_at):
         return
     global _FONT
     if _FONT is None:
-        _FONT = QFont("Consolas", config.DMG_NUM_FONT_SIZE, QFont.Bold)
+        _FONT = QFont("Consolas")
+        _FONT.setPointSizeF(config.DMG_NUM_FONT_SIZE)   # fractional pt (QFont() takes whole pt only)
+        _FONT.setBold(True)
     now = world.global_tick
     win = _ticks(config.DMG_NUM_WINDOW_MS)
     fade = _ticks(config.DMG_NUM_FADE_MS)
