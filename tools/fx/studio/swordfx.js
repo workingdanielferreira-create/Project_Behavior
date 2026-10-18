@@ -129,6 +129,7 @@ function onTick(inst, host) {
   inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
   recordOutline(inst, host);
   if (STRIKE()) STRIKE().trackStep(inst, host);
+  if (GUN()) GUN().trackStep(inst, host);
 }
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
 Frame.prototype.w = function (x, y) { return [this.ox + x * this.fx + y * this.vx, this.oy + x * this.fy + y * this.vy]; };
@@ -356,6 +357,18 @@ function shotAt(inst, i, ps) {
 // Shot i is at (x, y) this tick: only the charged blast's orb is ever held.
 function placeShot(inst, i, x, y, ps) {
   if (style(inst.fx.params) === "charged_blast") GUN().place(inst, i, x, y, ps);
+}
+// What the shot of this technique nearest (x, y) has grown by absorbing
+// (FXK hitMult); 1 for a technique without separate shots.
+function hitGrowth(inst, x, y, ps) {
+  if (!inst.tq_grow) return 1;
+  var best = 1, bd = null;
+  shotIds(inst, ps).forEach(function (i) {
+    var at = shotAt(inst, i, ps); if (!at) return;
+    var d = hyp(at[0] - x, at[1] - y);
+    if (bd === null || d < bd) { best = inst.tq_grow[i] || 1; bd = d; }
+  });
+  return best;
 }
 // The colour a technique is painted in (colours).
 function techColour(inst, lut) {
@@ -884,7 +897,7 @@ function draw(g, inst, host, ps) {
 
 // strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
 G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shotIds, shotAt: shotAt, placeShot: placeShot,
-             techColour: techColour, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+             techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,

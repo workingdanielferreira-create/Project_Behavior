@@ -520,6 +520,16 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   the light) piles up. Ki shots never clash as a blade (`body` → None): each
   one in flight is its own `sprite` clash body (`strikefx.shot_at`); a clash
   that cancels one stops just that shot (`inst.tq_ki`).
+- **Intercept on technique orbs.** The Ki Barrage's ki orbs and the Charged
+  Blast's orb are each their own auto-projectile tracker
+  (`strikefx.track_shots`; the charged blast via `gunfx.track_step`): a
+  tracked shot flies its recorded path (`inst.tq_kd`). On contact modes:
+  block, deflect, destroy and **absorb** — an enemy projectile with less
+  knockback is swallowed (no blast) and the shot grows `ABSORB_STEP` (5%)
+  up to `ABSORB_MAX` (200%): drawn size, hit size, blast, damage and
+  knockback (`inst.tq_grow`). Absorb is an On contact mode of every
+  Intercept (FX Kit projectiles grow through `inst.ps`, `inst.ab_g`; guard
+  ribbons too); equal or more knockback is left to World Clash.
 - **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
   Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
   an air ring in front of the fist. Hits along the arm; the impact (flash,
@@ -689,7 +699,11 @@ bodies (a point, a line or a polyline with a half width) in five categories:
 | sprite | bolt / blade `sprite`; Ki Barrage technique (each ki shot in flight) | the runner's bolts and other shots |
 
 Ghost, glow, pulse, particles, weapon, the other guns and the other power
-techniques never clash. A technique's shots clash one by one (`clash.ShotRef`):
+techniques never clash. **Absorb** (`clash._absorb`): an effect whose
+Intercept is on in `absorb` mode swallows any enemy projectile body with
+less knockback that it touches (beams included; never a trail or an effect
+attached to its fighter) instead of clashing, and grows
+(`fxkit.absorb_grow`). A technique's shots clash one by one (`clash.ShotRef`):
 a cancelled shot stops and detonates where it met, the rest fly on. A held
 Charged Blast orb freezes its technique and is moved where the clash puts it
 (`gunfx.place`: riding a struggle node, pushing through when it wins). Split

@@ -194,7 +194,7 @@ def _aim(inst, k):
 class Round:
     """One round: everything about it is rolled from the seed."""
     __slots__ = ("i", "v", "j", "b", "look", "sp", "ang", "size", "tint", "rng", "flight", "arc", "fr", "ox", "oy",
-                 "dx", "dy")
+                 "dx", "dy", "trk")
 
     def __init__(self, inst, i, v, j, b, ps):
         P = inst.fx["params"]
@@ -212,7 +212,7 @@ class Round:
         self.i, self.v, self.j, self.b = i, v, j, b
         self.look = g["look"]
         self.ang = a * S.D
-        self.size = r.uniform(0.85, 1.15)
+        self.size = r.uniform(0.85, 1.15) * inst.tq_grow.get(i, 1.0)   # grown by absorbing
         self.tint = r.uniform(0.0, 0.35)
         ox, oy, f = _aim(inst, b)
         m = (1 if f[0] >= 0 else -1) if _tracks(inst) else inst.tq_m
@@ -233,6 +233,9 @@ class Round:
         # whole flight: inst.tq_off[i] = (dx, dy).
         off = (getattr(inst, "tq_off", None) or {}).get(i)
         self.dx, self.dy = off if off is not None else (0.0, 0.0)
+        # An intercept pulled it off its path (charged blast, track_step):
+        # from then on it flies its recorded path (strikefx.track_shots).
+        self.trk = (getattr(inst, "tq_kd", None) or {}).get(i)
         L = float(P["length"])
         if self.look == "rail":
             self.rng = L * ps
@@ -252,6 +255,16 @@ class Round:
 
     def pos(self, k):
         """World position k ticks after launch."""
+        tr = self.trk
+        if tr is not None and self.b + k >= tr[0]:
+            h = tr[1]
+            j = self.b + k - tr[0]
+            n = int(j)
+            if n >= len(h) - 1:
+                return h[-1]
+            u = j - n
+            (ax, ay), (bx, by) = h[n], h[n + 1]
+            return ax + (bx - ax) * u, ay + (by - ay) * u
         if self.look == "rocket":
             u = max(0.0, min(1.0, k / float(self.flight)))
             e = u ** ROCKET_EASE
@@ -343,6 +356,16 @@ def _round_i(inst, i, ps):
     return Round(inst, i, v, i % n, lb[v], ps)
 
 
+def track_step(inst, host):
+    """Intercept for the charged blast (fx.intercept): its orb is an
+    auto-projectile tracker exactly like a ki barrage orb
+    (strikefx.track_shots; gunfx.js trackStep)."""
+    if host is None or not clashes(inst.fx["params"]) or inst.age >= inst.life:
+        return
+    from . import strikefx
+    strikefx.track_shots(inst, host, _live(inst, inst.ps or 1.0), lambda s, k: s.pos(k))
+
+
 def shot_ids(inst, ps):
     """Indices of the rounds in flight this tick that clash."""
     if not clashes(inst.fx["params"]) or inst.age >= inst.life:
@@ -371,6 +394,11 @@ def place(inst, i, x, y, ps):
     if s is None:
         return
     nx, ny = s.pos(inst.age - s.b)
+    tr = s.trk
+    if tr is not None and inst.age >= tr[0]:
+        # flying its recorded (tracked) path: the path shifts instead
+        tr[1][:] = [(px + x - nx, py + y - ny) for (px, py) in tr[1]]
+        return
     inst.tq_off[i] = (s.dx + x - nx, s.dy + y - ny)
 
 

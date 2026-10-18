@@ -36,7 +36,8 @@ while it is out.  Everything else is a pure function of the instance (age,
 seed, the anchor's path), so FX Studio's port (tools/fx/studio/strikefx.js)
 draws the same pixels.
 
-Intercept (fx.intercept, ki barrage only): every orb in flight is its own
+Intercept (fx.intercept, ki barrage; the charged blast's orb shares it,
+laser/gunfx.py track_step): every orb in flight is its own
 auto-projectile tracker (track_step).  An enemy projectile within the
 tracker radius pulls the orb off its path (up to turn_deg per tick, speed
 kept); from then on the orb flies a recorded path (inst.tq_kd) instead of
@@ -114,6 +115,7 @@ class Shot:
         self.size = r.uniform(0.75, 1.25)
         if r() < 0.18:
             self.size *= 1.55          # now and then a much bigger one
+        self.size *= inst.tq_grow.get(i, 1.0)   # grown by absorbing (fxkit.absorb_grow)
         ru = r.uniform(KI_RANGE[0], KI_RANGE[1])
         self.rng = float(P["length"]) * ru * ps
         self.flight = max(1, int(math.ceil(float(P["length"]) * ru / su)))
@@ -274,6 +276,17 @@ def track_step(inst, host):
     fx = inst.fx
     if host is None or S._style(fx["params"]) != "ki_barrage" or inst.age >= inst.life:
         return
+    ps = inst.ps or 1.0
+    fr = _Fr(inst, ps)
+    track_shots(inst, host, _live(inst, ps), lambda s, k: s.pos(fr, k))
+
+
+def track_shots(inst, host, live, pos):
+    """Intercept for a technique's own shots (ki orbs, the charged blast's
+    orb: gunfx.track_step): live = [(shot, (x, y))] in flight this tick, pos(s,
+    k) = shot s k ticks after launch.  A shot has i, b, size and trk (its
+    recorded path, inst.tq_kd[i])."""
+    fx = inst.fx
     ic = fx.get("intercept") or {}
     on = bool(ic.get("enabled"))
     if not on and not inst.tq_kd:
@@ -285,17 +298,17 @@ def track_step(inst, host):
     lim = max(0.0, float(ic.get("turn_deg") or 0)) * S.D
     r0 = float(fx["params"]["radius"]) * ps
     cb = getattr(host, "on_intercept", None)
-    fr = _Fr(inst, ps)
     t = inst.age
-    for (s, (x, y)) in _live(inst, ps):
+    for (s, (x, y)) in live:
         tr = s.trk
         if tr is not None:
             vx, vy = tr[2], tr[3]
         else:
-            x1, y1 = s.pos(fr, t - s.b + 1)
+            x1, y1 = pos(s, t - s.b + 1)
             vx, vy = x1 - x, y1 - y
+        kb = F.inst_knockback(inst, s.i)
         if on and not (tr is not None and tr[4]):
-            hit = F.orb_contact(x, y, r0 * s.size, host, contact, mode)
+            hit = F.orb_contact(x, y, r0 * s.size, host, contact, mode, kb)
             if hit is not None:
                 hit.dead = True
                 if mode == "deflect":
@@ -313,8 +326,11 @@ def track_step(inst, host):
                     if mode == "block":   # both gone: the orb detonates where they met
                         inst.tq_ki[s.i] = (t, x, y)
                         continue
+                    if mode == "absorb":  # swallowed: this orb grows
+                        F.absorb_grow(inst, s.i)
+                        kb = F.inst_knockback(inst, s.i)
             if tr is None or not tr[4]:
-                tgt = F.orb_nearest(x, y, host, radius, mode)
+                tgt = F.orb_nearest(x, y, host, radius, mode, kb)
                 if tgt is not None:
                     spd = math.hypot(vx, vy)
                     cur = math.atan2(vy, vx)
@@ -389,6 +405,13 @@ def on_hit(inst, x, y, ps):
 
 
 # ================================================================ drawing
+def gone_silent(inst, i):
+    """Shot i vanished without a blast (absorbed by an enemy, or split by a
+    clash: its halves fly on)."""
+    h = inst.tq_ki.get(i)
+    return h is not None and len(h) > 3 and bool(h[3])
+
+
 def _blast_at(inst, s, fr):
     e, stopped = s.end(inst)
     if stopped:
@@ -416,7 +439,7 @@ def _draw_ki(pen, inst, host, ps):
             break
         e, x, y = _blast_at(inst, s, fr)
         a = t - e
-        if a < 0 or a >= KI_SMOKE_LIFE:
+        if a < 0 or a >= KI_SMOKE_LIFE or gone_silent(inst, s.i):
             continue
         q = a / float(KI_SMOKE_LIFE)
         B = B0 * s.size
@@ -466,7 +489,7 @@ def _draw_ki(pen, inst, host, ps):
             continue
         # 5: detonation
         a = t - e
-        if a >= KI_BLAST_LIFE:
+        if a >= KI_BLAST_LIFE or gone_silent(inst, s.i):
             continue
         _e, x, y = _blast_at(inst, s, fr)
         q = a / float(KI_BLAST_LIFE)

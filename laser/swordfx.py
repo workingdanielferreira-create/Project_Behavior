@@ -266,6 +266,7 @@ def on_tick(inst, host=None):
     inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
     _record_outline(inst, host)
     strikefx.track_step(inst, host)
+    gunfx.track_step(inst, host)
 
 
 def _record_outline(inst, host):
@@ -667,6 +668,22 @@ def place_shot(inst, i, x, y, ps):
     held (gunfx.place)."""
     if _style(inst.fx["params"]) == "charged_blast":
         gunfx.place(inst, i, x, y, ps)
+
+
+def hit_growth(inst, x, y, ps):
+    """What the shot of this technique nearest (x, y) has grown by absorbing
+    (fxkit.hit_mult); 1 for a technique without separate shots."""
+    if not inst.tq_grow:
+        return 1.0
+    best, bd = 1.0, None
+    for i in shot_ids(inst, ps):
+        at = shot_at(inst, i, ps)
+        if at is None:
+            continue
+        d = math.hypot(at[0] - x, at[1] - y)
+        if bd is None or d < bd:
+            best, bd = inst.tq_grow.get(i, 1.0), d
+    return best
 
 
 def tech_colour(inst, lut):

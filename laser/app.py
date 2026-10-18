@@ -708,7 +708,7 @@ class World:
                                                     "fx", inst,
                                                     blockable=fxd["battle"].get("blockable", True),
                                                     deflectable=fxd["battle"].get("deflectable", True),
-                                                    knockback=fxkit.fx_knockback(fxd),
+                                                    knockback=fxkit.inst_knockback(inst),
                                                     body=fxkit.inst_body(inst)))
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
@@ -727,7 +727,7 @@ class World:
                     refs[key] = ref
                     bt = inst.fx["battle"]
                     shots.append(fxkit.Shot(rx, ry, rvx, rvy, "fx", ref, blockable=False, deflectable=False,
-                                            knockback=fxkit.fx_knockback(inst.fx), threat=True,
+                                            knockback=fxkit.inst_knockback(inst, ri), threat=True,
                                             rblock=bt.get("blockable", True), rdeflect=bt.get("deflectable", True)))
                 side.round_refs = refs
                 side.enemy_shots = shots
