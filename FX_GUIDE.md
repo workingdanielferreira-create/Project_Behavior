@@ -524,12 +524,12 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   Blast's orb are each their own auto-projectile tracker
   (`strikefx.track_shots`; the charged blast via `gunfx.track_step`): a
   tracked shot flies its recorded path (`inst.tq_kd`). On contact modes:
-  block, deflect, destroy and **absorb** — an enemy projectile with less
-  knockback is swallowed (no blast) and the shot grows `ABSORB_STEP` (5%)
+  block, deflect, destroy and **absorb** — an enemy projectile it out-knocks
+  by more than `ABSORB_LEAD_KB` (300) is swallowed (no blast) and the shot grows `ABSORB_STEP` (5%)
   up to `ABSORB_MAX` (200%): drawn size, hit size, blast, damage and
   knockback (`inst.tq_grow`). Absorb is an On contact mode of every
   Intercept (FX Kit projectiles grow through `inst.ps`, `inst.ab_g`; guard
-  ribbons too); equal or more knockback is left to World Clash.
+  ribbons too); a smaller lead (or none) is left to World Clash.
 - **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
   Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
   an air ring in front of the fist. Hits along the arm; the impact (flash,
@@ -700,8 +700,8 @@ bodies (a point, a line or a polyline with a half width) in five categories:
 
 Ghost, glow, pulse, particles, weapon, the other guns and the other power
 techniques never clash. **Absorb** (`clash._absorb`): an effect whose
-Intercept is on in `absorb` mode swallows any enemy projectile body with
-less knockback that it touches (beams included; never a trail or an effect
+Intercept is on in `absorb` mode swallows any enemy projectile body it
+out-knocks by more than `fxkit.ABSORB_LEAD_KB` (300) that it touches (beams included; never a trail or an effect
 attached to its fighter) instead of clashing, and grows
 (`fxkit.absorb_grow`). A technique's shots clash one by one (`clash.ShotRef`):
 a cancelled shot stops and detonates where it met, the rest fly on. A held

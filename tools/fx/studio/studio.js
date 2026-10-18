@@ -1868,7 +1868,7 @@ function buildProps() {
       if (G.enabled) {
         field(s, "Contact px", inp("n", G.contact, function (v) { G.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
           "A projectile is caught when its path this tick comes this close to the ribbon's head.";
-        field(s, "On contact", inp([["block", "block: enemy's nullified"], ["deflect", "deflect: bounced off the ribbon"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: lesser ones swallowed, grows"]],
+        field(s, "On contact", inp([["block", "block: enemy's nullified"], ["deflect", "deflect: bounced off the ribbon"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: ones it out-knocks by 300+ swallowed, grows"]],
           FXK.GUARD_MODES.indexOf(G.mode) >= 0 ? G.mode : "block", function (v) { G.mode = v; changed(true); })).title =
           "Block / destroy: the enemy projectile is nullified. Deflect: it bounces off the ribbon's surface at the head (mirrored, speed kept, always back out the side it came from). Absorb: an enemy projectile with LESS knockback is swallowed (gone, no blast) and this one grows +5% (size, hit size, blast, damage and knockback) up to 200%; one with as much knockback or more clashes as usual (⚔ World Clash).";
         if (G.mode === "deflect")
@@ -1890,7 +1890,7 @@ function buildProps() {
           "How sharply an orb can turn toward the enemy projectile each tick.";
         field(s, "Contact px", inp("n", KI.contact, function (v) { KI.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
           "An orb and an enemy projectile collide when their edges come this close (the orb counts its radius).";
-        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: lesser ones swallowed, grows"]], KI.mode,
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: ones it out-knocks by 300+ swallowed, grows"]], KI.mode,
           function (v) { KI.mode = v; changed(true); })).title =
           "Block: the enemy projectile is nullified and the orb detonates there. Deflect: the enemy projectile (or both) is knocked away. Destroy: the enemy projectile is nullified and the orb flies on. Absorb: an enemy projectile with LESS knockback is swallowed (gone, no blast) and this one grows +5% (size, hit size, blast, damage and knockback) up to 200%; one with as much knockback or more clashes as usual (⚔ World Clash).";
         if (KI.mode === "deflect") {
@@ -1913,7 +1913,7 @@ function buildProps() {
           "How sharply it can turn toward the enemy projectile each tick.";
         field(s, "Contact px", inp("n", I.contact, function (v) { I.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
           "The two projectiles collide when their bodies come this close (a beam counts its whole line and width, anything else its centre).";
-        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: lesser ones swallowed, grows"]], I.mode,
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"], ["absorb", "absorb: ones it out-knocks by 300+ swallowed, grows"]], I.mode,
           function (v) { I.mode = v; changed(true); })).title =
           "Block: both projectiles are nullified. Deflect: the enemy projectile (or both) is knocked away. Destroy: the enemy projectile is nullified and this one keeps going. Absorb: an enemy projectile with LESS knockback is swallowed (gone, no blast) and this one grows +5% (size, hit size, blast, damage and knockback) up to 200%; one with as much knockback or more clashes as usual (⚔ World Clash).";
         if (I.mode === "deflect") {
@@ -4376,14 +4376,15 @@ function clashCancel(b) {
 }
 function clashIsUlt(b) { return b.inst.fx.action === "ultimate"; }
 // Absorb (Intercept mode): an absorber touching an enemy projectile body
-// with LESS knockback swallows it (no clash, no blast) and grows; never a
+// it out-knocks by more than FXK.ABSORB_LEAD_KB swallows it (no clash, no
+// blast) and grows; never a
 // trail or an effect attached to its fighter.  clash.py _absorb.
 function clashAbsorbs(b) { var fx = b.inst.fx; return FXK.interceptOn(fx) && fx.intercept.mode === "absorb"; }
 function clashAbsorb(a, b) {
   var pairs = [[a, b], [b, a]];
   for (var k = 0; k < 2; k++) {
     var w = pairs[k][0], v = pairs[k][1];
-    if (!clashAbsorbs(w) || v.kb >= w.kb || v.cat === "trail" || (v.shot == null && v.inst.fx.motion.kind === "attached")) continue;
+    if (!clashAbsorbs(w) || !FXK.absorbBeats(w.kb, v.kb) || v.cat === "trail" || (v.shot == null && v.inst.fx.motion.kind === "attached")) continue;
     if (clashIsUlt(v) && !clashIsUlt(w)) continue;
     if (v.shot != null) clashStopShot(v, true); else { v.inst.age = Math.max(v.inst.age, v.inst.life); v.inst.dead = true; }
     FXK.absorbGrow(w.inst, w.shot);
