@@ -54,7 +54,7 @@ these characters; it plays the PNGs.
   "unique_ability": {"type": "none", "mirror_legion": {"...": "5b"}, "berserker": {}, "phase_shift": {},
                      "ricochet": {}, "riposte": {}, "dual_form": {}, "summoner": {}, "aegis": {},
                      "terraform": {}, "rewind_bullets": {}, "phantom_swap": {}, "domain_expansion": {},
-                     "fusion": {}},
+                     "fusion": {}, "basic_stacks": {}},
   "retreat": {"enabled": false, "mode": "avoid", "angle_deg": 180, "curve_deg_s": 0, "speed_pct": 200,
               "proximity_px": 80, "avoid_duration_ms": 1500, "reengage_duration_ms": 2000, "cooldown_ms": 3000,
               "logic": "any", "conditions": [{"type": "hp_below", "pct": 50, "repeat": false, "not": false},
@@ -609,6 +609,14 @@ with max HP and HP summed, the faster speed and both damage multipliers
 added; `ending` `timed` splits it back after `duration_ms` (HP shared by max
 HP, `cooldown_ms` before fusing again), `permanent` keeps it until it falls.
 The first-slot team-mate's settings decide result, ending and duration.
+`basic_stacks` ("Basic Stacks - FX"): every `every_hits` hits landed /
+`every_damage` damage dealt / `every_attacks` normal attacks (`gain`) makes an
+orb (up to `max_orbs`) that orbits the fighter at `orbit_px` and
+`orbit_deg_s`. Each `attack_normal` start fires orbs (`use`: `one` = the
+oldest, used up; `all` = every orb, all used up; `all_keep` = every orb, they
+stay). A fired orb plays the borrowed `fx` (`fx:<id>` / `group:<id>`) and the
+effects built on the `"@stack"` slot once, on the attack_normal timing, with
+every anchor at the orb's spot and aimed at the target.
 Copies, constructs, fusions, swaps, shockwaves and domains are resolved at
 world level by `unique.world_tick`, before the battle snapshots are built.
 A hand-written `pb_character` JSON can carry the same top-level

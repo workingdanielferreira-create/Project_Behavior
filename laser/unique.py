@@ -8,7 +8,7 @@ around.  FX Studio saves it in <name>.fxkit.json as
         "type": "none" | "mirror_legion" | "berserker" | "phase_shift"
                 | "ricochet" | "riposte" | "dual_form" | "summoner" | "aegis"
                 | "terraform" | "rewind_bullets" | "phantom_swap"
-                | "domain_expansion" | "fusion",
+                | "domain_expansion" | "fusion" | "basic_stacks",
         "mirror_legion": {...}, "berserker": {...}, ...   # each one's settings
     }
 
@@ -40,12 +40,17 @@ UNIQUE_DEFAULTS / normalizeUnique.
     domain_expansion a gauge fills, then a domain rewrites the fight's rules
     fusion           two fielded team-mates (both with Fusion, different
                      characters) fuse into a chosen character with summed stats
+    basic_stacks     "Basic Stacks - FX": every N hits landed / damage dealt /
+                     normal attacks makes an orb that orbits the fighter; a
+                     normal attack fires orbs, each playing a set FX (borrowed
+                     + the "@stack" slot) from the orb at the enemy
 
 Hooks (all shared by Solo and Battle; Solo's enemy is the cursor):
     ai.apply_hp_damage / ai.battle_hit   intercept(), heals_instead(), absorb(),
                                          after_damage(), taken_mult()
     actions.note_landed / ProjectileSystem   note_landed()
-    actions.py action starts             clone_allows()
+    actions.py action starts             clone_allows(), on_action_start()
+    fxkit.FxDriver                       take_stack_fires() (Basic Stacks orbs)
     systems.CombatSystem                 tick() once per body step
     systems.MotionSystem                 holds_still(), push_out(), blink_free()
     timefx.plan                          speed_mult() / fx_speed_mult()
@@ -73,7 +78,7 @@ from . import dmgnum as _dmgnum
 TICK_MS = config.TICK_MS
 TYPES = ("none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte",
          "dual_form", "summoner", "aegis", "terraform", "rewind_bullets",
-         "phantom_swap", "domain_expansion", "fusion")
+         "phantom_swap", "domain_expansion", "fusion", "basic_stacks")
 
 DEFAULTS = {
     "mirror_legion": dict(
@@ -207,6 +212,14 @@ DEFAULTS = {
         ending="timed",              # timed | permanent
         duration_ms=15000, cooldown_ms=10000,
         aura=True, aura_color="#ffffff"),
+    "basic_stacks": dict(            # shown as "Basic Stacks - FX"
+        gain="hits_landed",          # hits_landed | damage_dealt | attacks_used
+        every_hits=5, every_damage=20.0, every_attacks=5,
+        max_orbs=3,
+        use="one",                   # one (oldest fires, used up) | all (all fire, used up) | all_keep
+        fx="",                       # borrowed "fx:<id>" / "group:<id>"; "@stack" FX play too
+        orbit_px=55.0, orbit_deg_s=120.0, orb_px=5.0,
+        show_orbs=True, color="#7fd4ff"),
 }
 
 _LIMITS = {
@@ -214,6 +227,7 @@ _LIMITS = {
     "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
     "gauge_hits": (1, 999), "combo_hits": (1, 99), "shrapnel": (0, 24), "uses": (0, 99),
     "fill_hits": (1, 999), "hits": (1, 999), "forms": (2, 6),
+    "every_attacks": (1, 99), "max_orbs": (1, 12),
 }
 DF_FORMS = "abcdef"      # Transformations form letters (form_a .. form_f)
 
@@ -336,7 +350,9 @@ class UAState:
                  "dm_gauge", "dm_left", "dm_cd", "dm_hp_fired",
                  # Fusion
                  "fu_cd", "fu_together", "fu_l0", "fu_parents", "fu_left", "fu_P",
-                 "fu_mode", "fu_dmg")
+                 "fu_mode", "fu_dmg",
+                 # Basic Stacks - FX
+                 "bs_orbs", "bs_gain", "bs_ang", "bs_fires")
 
     def __init__(self, fig):
         self.shots = []          # projectiles queued for this figure's side
@@ -413,6 +429,10 @@ class UAState:
         self.fu_P = None
         self.fu_mode = None
         self.fu_dmg = 1.0
+        self.bs_orbs = []        # Basic Stacks: the tick each orb in orbit was made
+        self.bs_gain = 0.0       # hits / damage / attacks toward the next orb
+        self.bs_ang = 0.0        # orbit angle (radians) of the first orb
+        self.bs_fires = []       # (x, y) orbs fired, for the FX driver (take_stack_fires)
 
 
 def is_clone(fig):
@@ -595,6 +615,8 @@ def tick(fig, world):
             _queue_swap(fig, P)
     elif kind == "domain_expansion":
         _dm_tick(fig, world, st, P)
+    elif kind == "basic_stacks":
+        st.bs_ang = (st.bs_ang + math.radians(P["orbit_deg_s"]) * TICK_MS / 1000.0) % (2 * math.pi)
 
 
 # ------------------------------------------------------------ being hit
@@ -710,8 +732,9 @@ def after_damage(fig, world, amount):
             _dm_fill(fig, st, P, 100.0 * amount / max(0.01, P["fill_damage"]))
 
 
-def note_landed(fig):
-    """One of this fighter's hits connected (melee, FX Studio hit, bullet)."""
+def note_landed(fig, amount=1.0):
+    """One of this fighter's hits connected (melee, FX Studio hit, bullet);
+    amount = the hit's damage (Basic Stacks "damage dealt")."""
     if fig is None:
         return
     st = getattr(fig, "ua", None)
@@ -734,6 +757,33 @@ def note_landed(fig):
                 st.df_want = True
     elif kind == "domain_expansion" and P["fill"] == "hits_landed":
         _dm_fill(fig, st, P, 100.0 / max(1, P["fill_hits"]))
+    elif kind == "basic_stacks":
+        if P["gain"] == "hits_landed":
+            _bs_gain(fig, st, P, 1.0, P["every_hits"])
+        elif P["gain"] == "damage_dealt":
+            _bs_gain(fig, st, P, max(0.0, float(amount or 0.0)), P["every_damage"])
+
+
+def on_action_start(fig, name):
+    """actions.py: an image character's action just started.  Basic Stacks:
+    a normal attack fires orbs (before it counts toward the next one)."""
+    if name != "attack_normal":
+        return
+    P = _of(fig, "basic_stacks")
+    if P is None:
+        return
+    st = state(fig)
+    if st.bs_orbs:
+        pts = _bs_points(fig, st, P)
+        if P["use"] == "one":
+            st.bs_fires.append(pts[0])
+            del st.bs_orbs[0]
+        else:
+            st.bs_fires.extend(pts)
+            if P["use"] == "all":
+                st.bs_orbs = []
+    if P["gain"] == "attacks_used":
+        _bs_gain(fig, st, P, 1.0, P["every_attacks"])
 
 
 def taken_mult(fig):
@@ -2141,6 +2191,59 @@ def _do_swap(world, si, fig):
                 pr.vx, pr.vy = (t[0] - pr.x) / d * spd, (t[1] - pr.y) / d * spd
 
 
+# ------------------------------------------------------------ Basic Stacks - FX
+def _bs_gain(fig, st, P, amount, every):
+    """Count toward the next orb; each full `every` makes one (while there is
+    room in orbit; the count waits at full until one is used)."""
+    every = max(0.01, float(every))
+    if len(st.bs_orbs) >= P["max_orbs"]:
+        st.bs_gain = min(st.bs_gain + amount, every)
+        return
+    st.bs_gain += amount
+    while st.bs_gain >= every and len(st.bs_orbs) < P["max_orbs"]:
+        st.bs_gain -= every
+        st.bs_orbs.append(st.t)
+        x, y = _bs_points(fig, st, P)[-1]
+        _burst(st.sparks, x, y, _rgb(P["color"], (127, 212, 255)), n=8, spd=(0.8, 2.5),
+               rng=fig.personality.rng)
+
+
+def _bs_points(fig, st, P):
+    """Where each orb is now: spread evenly round the fighter on the orbit."""
+    n = len(st.bs_orbs)
+    if not n:
+        return []
+    r = P["orbit_px"] * fig._position_scale()
+    x, y = fig.transform.x, fig.transform.y
+    return [(x + math.cos(st.bs_ang + 2 * math.pi * i / n) * r,
+             y + math.sin(st.bs_ang + 2 * math.pi * i / n) * r) for i in range(n)]
+
+
+def take_stack_fires(fig):
+    """fxkit.FxDriver hook: (borrowed fx key, [(x, y) of each orb fired since
+    the last call]).  Each plays the borrowed FX and the FX built on
+    "@stack" once from that spot, aimed at the target."""
+    P = _of(fig, "basic_stacks")
+    if P is None:
+        return "", []
+    st = getattr(fig, "ua", None)
+    fires = []
+    if st is not None and st.bs_fires:
+        fires, st.bs_fires = st.bs_fires, []
+    return str(P["fx"] or ""), fires
+
+
+def _draw_orbs(fig, p, st, P, pscale):
+    rgb = _rgb(P["color"], (127, 212, 255))
+    rr = P["orb_px"] * pscale
+    for (x, y), born in zip(_bs_points(fig, st, P), st.bs_orbs):
+        k = min(1.0, (st.t - born + 1) / 6.0)       # pops in over a few ticks
+        _glow(p, x, y, rr * 2.6 * k, rgb, 150)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 235))
+        p.drawEllipse(QPointF(x, y), rr * 0.55 * k, rr * 0.55 * k)
+
+
 # ------------------------------------------------------------ Domain Expansion
 def _dm_fill(fig, st, P, amount):
     if st.dm_left > 0 or st.dm_cd > 0:
@@ -2223,7 +2326,7 @@ def _domain_world(world, si, owner, P):
                 drv = getattr(f, "fx", None)
                 if drv is None:
                     continue
-                for inst in drv.player.insts + drv.clane[0].insts:
+                for inst in drv.player.insts + drv.clane[0].insts + drv.stack_insts():
                     fxd = inst.fx
                     if (fxd["battle"]["deals_damage"] and not inst.dead and inst.age < inst.life
                             and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
@@ -2708,6 +2811,8 @@ def draw(fig, p, pscale=1.0):
         else:
             frac = st.dm_gauge / 100.0 if st.dm_cd <= 0 else 0.0
         _bar(p, x, y + R * 1.25, 34.0 * pscale, frac, rgb, pscale)
+    if kind == "basic_stacks" and P["show_orbs"] and st is not None and st.bs_orbs:
+        _draw_orbs(fig, p, st, P, pscale)
     if st is not None and st.stun_left > 0:
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 236, 120, 230))

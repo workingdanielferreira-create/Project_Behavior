@@ -709,7 +709,7 @@ class ProjectileSystem(System):
                     ddx, ddy = proj.x - cx, proj.y - cy
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
-                        unique.note_landed(proj.owner)   # Dual Form / Domain gauges
+                        unique.note_landed(proj.owner, getattr(proj, "damage", 1.0))   # Dual Form / Domain gauges, Basic Stacks
                         # Ricochet: bounces off the cursor instead of dying.
                         if not proj.pierce and not unique.proj_off_point(
                                 proj, cx, cy, proj.hit_r_sq ** 0.5):
@@ -732,7 +732,7 @@ class ProjectileSystem(System):
                         if ddx * ddx + ddy * ddy <= proj.hit_r_sq * _bs * _bs:
                             world.collision_dots.append([proj.x, proj.y, 0])
                             if not eparry:
-                                unique.note_landed(proj.owner)   # Dual Form / Domain gauges
+                                unique.note_landed(proj.owner, getattr(proj, "damage", 1.0))   # Dual Form / Domain gauges, Basic Stacks
                                 # Partner takes the HP loss on their side --
                                 # HP-reducing impact, so the bullet bursts.
                                 # A parrying partner blocks it: no burst.
@@ -1558,7 +1558,7 @@ def _ricochet_fx(world, fig, inst, cx, cy):
         for f in side.figures:
             drv = getattr(f, "fx", None)
             pl = None if drv is None else next(
-                (q for q in (drv.player, drv.clane[0]) if inst in q.insts), None)
+                (q for q in [drv.player, drv.clane[0]] + drv.stack_players() if inst in q.insts), None)
             if pl is not None:
                 spd = max(2.0, math.hypot(inst.x - inst.px, inst.y - inst.py))
                 base = math.atan2(cy - fig.y, cx - fig.x)
