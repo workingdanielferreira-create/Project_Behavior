@@ -11478,7 +11478,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -11597,7 +11601,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -11716,7 +11724,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -11842,7 +11854,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -11968,7 +11984,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12094,7 +12114,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12220,7 +12244,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12346,7 +12374,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12472,7 +12504,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12598,7 +12634,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12724,7 +12764,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12850,7 +12894,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -12976,7 +13024,11 @@
     "contact": 9.555567500014515,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "group": "Gmus8ri2t1",
@@ -13068,7 +13120,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "always_on": false,
@@ -13165,7 +13221,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "always_on": false,
@@ -13262,7 +13322,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "always_on": false,
@@ -13352,7 +13416,11 @@
     "contact": 9.000000321428583,
     "mode": "deflect",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "keys": [],
@@ -13473,7 +13541,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "always_on": false,
@@ -13598,7 +13670,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "always_on": false,
@@ -13689,7 +13765,11 @@
     "contact": 9.000000321428583,
     "mode": "destroy",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "flip": {
     "enabled": true,
@@ -13785,7 +13865,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "flip": {
     "enabled": true,
@@ -13901,7 +13985,11 @@
     "contact": 5,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -14008,7 +14096,11 @@
     "contact": 9.000000321428583,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -14117,7 +14209,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14266,7 +14362,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14398,7 +14498,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14503,7 +14607,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14646,7 +14754,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14777,7 +14889,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -14885,7 +15001,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -15020,7 +15140,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -15150,7 +15274,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -15258,7 +15386,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -15365,7 +15497,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": false,
    "follow_each": false,
@@ -15451,7 +15587,11 @@
     "contact": 9.000000321428583,
     "mode": "deflect",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "keys": [],
@@ -16300,7 +16440,7 @@
  "movement_style": {
   "enabled": true,
   "select": "priority",
-  "daze": true,
+  "daze": false,
   "phases": [
    {
     "name": "Dive",

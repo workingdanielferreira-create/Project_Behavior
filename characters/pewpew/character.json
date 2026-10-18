@@ -30,7 +30,7 @@
   }
  },
  "stats": {
-  "max_hp": 120,
+  "max_hp": 1700,
   "chase_speed": 5,
   "follow_speed": 2.4,
   "scale": 1,
@@ -53,7 +53,7 @@
   "px_per_rig_unit": 1,
   "facing": "right",
   "root_travel": true,
-  "figure_colour": "#9FBCFF"
+  "figure_colour": "#DEB4FE"
  },
  "actions": {
   "idle": {
@@ -12235,7 +12235,9 @@
    "w1at": "haR",
    "w2at": "haL",
    "wd": {},
-   "wdsep": false
+   "wdsep": false,
+   "xl": [],
+   "xa": []
   },
   "weapon": [
    [

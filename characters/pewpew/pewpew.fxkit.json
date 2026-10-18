@@ -12107,7 +12107,7 @@
     }
    ],
    "chain_next": "attack_normal_2",
-   "chain_reset_ms": 100,
+   "chain_reset_ms": 0,
    "fx_continuous": false,
    "movement": "move",
    "move_speed_pct": 300,
@@ -12332,8 +12332,8 @@
    "cooldown_ms": 0,
    "conditions": [
     {
-     "type": "chance",
-     "pct_s": 45,
+     "type": "target_within",
+     "px": 300,
      "not": false
     }
    ],
@@ -12605,7 +12605,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "flip": {
     "enabled": true,
@@ -12696,7 +12700,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "flip": {
     "enabled": false,
@@ -12751,7 +12759,7 @@
     "radius": 5,
     "thickness": 5,
     "span": 0,
-    "length": 600,
+    "length": 1000,
     "swing_ticks": 31,
     "hold_ticks": 1,
     "density": 1,
@@ -12776,7 +12784,7 @@
    "id": "Emvau20m57",
    "action": "attack_normal",
    "flip": {
-    "enabled": false,
+    "enabled": true,
     "facing": -1
    },
    "enabled": true,
@@ -12807,10 +12815,14 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
-   "follow_dir": false,
-   "follow_each": false,
+   "follow_dir": true,
+   "follow_each": true,
    "keys": []
   },
   {
@@ -12858,8 +12870,8 @@
     "radius": 3.5,
     "thickness": 5,
     "span": 0,
-    "length": 600,
-    "swing_ticks": 31,
+    "length": 1000,
+    "swing_ticks": 27,
     "hold_ticks": 1,
     "density": 1,
     "rotation_deg": 0,
@@ -12883,11 +12895,11 @@
    "id": "Emvau3w0w8",
    "action": "attack_normal",
    "flip": {
-    "enabled": false,
+    "enabled": true,
     "facing": -1
    },
    "enabled": true,
-   "start_frame": 20,
+   "start_frame": 9,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
@@ -12914,10 +12926,14 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
-   "follow_dir": false,
-   "follow_each": false,
+   "follow_dir": true,
+   "follow_each": true,
    "keys": []
   },
   {
@@ -13021,7 +13037,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -13128,221 +13148,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": true,
-   "follow_each": true,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Powerful shotgun",
-   "tag": "projectile",
-   "anchor": "head",
-   "blend": "normal",
-   "battle": {
-    "deals_damage": true,
-    "damage": 5,
-    "pierce": false,
-    "rehit_ticks": 2,
-    "knockback": 4,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "static",
-    "aim": "facing",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "c1": "#ffd27a",
-    "c2": "#ff5a1f",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "shotgun",
-    "radius": 3.5,
-    "thickness": 5,
-    "span": 360,
-    "length": 230,
-    "swing_ticks": 19,
-    "hold_ticks": 37,
-    "density": 1,
-    "rotation_deg": 0,
-    "lightning": false,
-    "lightning_rate": 1.5,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": false,
-    "aura_part": "all",
-    "gap_px": 18,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0
-   },
-   "id": "Emvbdgf9245",
-   "action": "attack_normal_2",
-   "flip": {
-    "enabled": true,
-    "facing": -1
-   },
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": true,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 19
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 7
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": true,
-   "follow_each": true,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Powerful shotgun copy",
-   "tag": "projectile",
-   "anchor": "head",
-   "blend": "normal",
-   "battle": {
-    "deals_damage": true,
-    "damage": 5,
-    "pierce": false,
-    "rehit_ticks": 2,
-    "knockback": 4,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "static",
-    "aim": "facing",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "c1": "#f40b0b",
-    "c2": "#fe4848",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "shotgun",
-    "radius": 3.5,
-    "thickness": 5,
-    "span": 360,
-    "length": 230,
-    "swing_ticks": 19,
-    "hold_ticks": 37,
-    "density": 1,
-    "rotation_deg": 0,
-    "lightning": false,
-    "lightning_rate": 1.5,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": false,
-    "aura_part": "all",
-    "gap_px": 18,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0
-   },
-   "id": "Emvbduvpa46",
-   "action": "attack_normal_2",
-   "flip": {
-    "enabled": true,
-    "facing": -1
-   },
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": true,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 19
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 7
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -13449,7 +13259,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -13540,7 +13354,11 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": false,
@@ -13647,7 +13465,233 @@
     "contact": 10,
     "mode": "block",
     "deflect_who": "enemy",
-    "hurts_owner": false
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Powerful shotgun",
+   "tag": "projectile",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 5,
+    "pierce": true,
+    "rehit_ticks": 3,
+    "knockback": 100,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "shotgun",
+    "radius": 2.5,
+    "thickness": 9,
+    "span": 30,
+    "length": 300,
+    "swing_ticks": 34,
+    "hold_ticks": 34,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0
+   },
+   "id": "Emve0tns61",
+   "action": "attack_normal_2",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Powerful shotgun copy",
+   "tag": "projectile",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 5,
+    "pierce": true,
+    "rehit_ticks": 3,
+    "knockback": 100,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ff0000",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "shotgun",
+    "radius": 2.5,
+    "thickness": 9,
+    "span": 30,
+    "length": 300,
+    "swing_ticks": 34,
+    "hold_ticks": 34,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0
+   },
+   "id": "Emve0v6k22",
+   "action": "attack_normal_2",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 5,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
    },
    "follow_dir": true,
    "follow_each": true,
@@ -13657,7 +13701,7 @@
  "groups": [],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
  "unique_ability": {
-  "type": "phase_shift",
+  "type": "rewind_bullets",
   "mirror_legion": {
    "trigger": "hp_below",
    "hp_thresholds": "70,50,30",
@@ -14344,11 +14388,11 @@
    "color": "#c9a46a"
   },
   "rewind_bullets": {
-   "trigger": "delay",
-   "delay_ms": 700,
-   "recall_every_ms": 2500,
-   "return_speed_pct": 120,
-   "return_damage_pct": 100,
+   "trigger": "recall",
+   "delay_ms": 100,
+   "recall_every_ms": 500,
+   "return_speed_pct": 150,
+   "return_damage_pct": 125,
    "pass_fx": true,
    "fx_too": true,
    "tint": true,
@@ -14435,10 +14479,10 @@
      "sway_ms": 1400
     },
     "modifiers": {
-     "speed_pct": 150,
+     "speed_pct": 200,
      "pulse_pct": 25,
      "pulse_ms": 1000,
-     "inertia_pct": 285,
+     "inertia_pct": 40,
      "weave_deg": 0,
      "weave_ms": 1600,
      "jitter_px": 0,
