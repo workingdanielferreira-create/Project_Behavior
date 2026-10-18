@@ -705,7 +705,7 @@ function buildPresets() {
   allPresets().forEach(function (x, i) {
     var g = x.builtin ? ((typeof x.p.group === "string" ? x.p.group : x.p.category) || "Other") : "★ Your presets";
     if (!by[g]) { by[g] = document.createElement("optgroup"); by[g].label = g; groups.push(g); }
-    var o = document.createElement("option"); o.value = i; o.textContent = (x.builtin ? "" : "★ ") + x.p.name; by[g].appendChild(o);
+    var o = document.createElement("option"); o.value = i; o.textContent = (x.builtin ? "" : "★ ") + x.p.name + "  —  " + presetClashLabel(x.p); by[g].appendChild(o);
   });
   groups.forEach(function (g) { s.appendChild(by[g]); });
   showPresetDesc();
@@ -989,6 +989,7 @@ function buildEffects() {
       fx.always_on = !fx.always_on; if (fx.always_on) fx.continuous = false; buildEffects(); changed(true);
     };
     el.querySelector(".n").textContent = fx.name;
+    el.insertBefore(clashChip(fx), el.querySelector(".m"));
     el.querySelector(".m").textContent = (fx.battle.deals_damage ? "⚔ " + fx.battle.damage + " · " : "visual · ") + fx.prim;
     el.title = (fx.battle.deals_damage ? "Deals " + fx.battle.damage + " HP per hit" : "Visual only — never damages") + ". Ctrl+click to pick several for Group.";
     var xs = el.querySelectorAll(".x");
@@ -1738,13 +1739,14 @@ function buildProps() {
   PROPS_FRAME = frameAt(S.t);
   fx = keyViewFor(fx);
   buildKeyProps(d);
-  banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim, "Plays on " + (fx.action === S.action ? "the " + fx.action + " action" : fxKeyLabel(fx.action)) + ". The sections below change this effect only.",
+  banner(d, "fx", KV ? (KV.key.pending ? "Frame " + KV.frame + " (no key yet)" : "Editing keyframe at frame " + KV.key.frame) : (fx.keys && fx.keys.length ? "Editing the start of the animation" : "Editing one effect"), fx.name + "  ·  " + fx.prim + "  ·  " + clashKind(fx).label + (CLASH_TYPES.indexOf(clashKind(fx).type) >= 0 ? " clash" : ""), "Plays on " + (fx.action === S.action ? "the " + fx.action + " action" : fxKeyLabel(fx.action)) + ". The sections below change this effect only.",
     [(S.react === "character" ? "Character settings: " : S.react ? "Reaction settings: " : "Action settings for ") + fxKeyLabel(fx.action), function () { setSel(); refreshSel(); }]);
   var s = sec(d, "Effect", "effect", "What this effect is: its name, FX-type tag, drawing primitive and draw layer.");
   field(s, "Name", inp("text", fx.name, function (v) { fx.name = v; buildEffects(); buildTimeline(); save(); }));
   field(s, "Tag (FX type)", inp("text", fx.tag, function (v) { fx.tag = v.trim().toLowerCase(); save(); })).title =
     "What kind of FX this is (e.g. fireball, slash, beam). Other characters' defend / deflect triggers react to these tags.";
   field(s, "Primitive", inp(FXK.PRIMS, fx.prim, function (v) { fx.prim = v; fx.params = {}; FXK.normalize(fx); buildEffects(); changed(true); }));
+  field(s, "Clash type", clashChip(fx));
   if (fx.prim !== "weapon") {
     field(s, "Layer", inp([["front", "in front of figure"], ["behind", "behind figure"],
       ["abs_front", "absolute front (over every character)"], ["abs_back", "absolute back (under every character)"]], fx.layer, function (v) { fx.layer = v; changed(); }));
@@ -4092,6 +4094,65 @@ function stepDummies(nMove, nFire) {
   S.bursts.forEach(function (q) { q.age += 1; });
 }
 // ------------------------------------------------------------ world clash
+// The clash tag of an effect definition: what kind of body it is to World
+// Clash (the categories of clash.py _inst_body, swordfx body) and, for one
+// that never clashes, why.  {type: "beam" | "orb" | "trail" | "crescent" |
+// "sprite" | "particle" | "none", label, why}.
+var CLASH_TYPES = ["beam", "orb", "trail", "crescent", "sprite"];
+var CLASH_TYPE_LABEL = {beam: "Beam", orb: "Orb", trail: "Trail", crescent: "Crescent", sprite: "Sprite", particle: "Particle", none: "No clash"};
+function clashKind(fx) {
+  var P = fx.params || {}, prim = fx.prim, k = function (type, why) { return {type: type, label: CLASH_TYPE_LABEL[type], why: why || ""}; };
+  if (prim === "beam") return k("beam");
+  if (prim === "sprite") return k(P.shape === "orb" ? "orb" : "sprite");
+  if (prim === "ribbon") return k("trail");
+  if (prim === "arc") return k("crescent");
+  if (prim === "particles") return k("particle", "particles never clash");
+  if (prim === "technique") {
+    var st = P.style;
+    if (window.GUNFX && GUNFX.STYLES.indexOf(st) >= 0) return k("none", "gun bullets never clash");
+    if (st === "ki_barrage") return k("none", "ki shots never clash");
+    if (window.POWERFX && POWERFX.STYLES.indexOf(st) >= 0) return k("none", "power techniques never clash");
+    if (window.WEAPONFX && WEAPONFX.STYLES.indexOf(st) >= 0) {
+      var w = WEAPONFX.WEAPONS[st], m = w && WEAPONFX.MODELS[w.models[0]];
+      return m && m.blade ? k("crescent", "clashes while the blade swings") : k("none", "firearms never clash");
+    }
+    if (window.STRIKEFX && STRIKEFX.STYLES.indexOf(st) >= 0) return k("crescent", "clashes along the arm while the punch is out");
+    return k("crescent", "every sword technique clashes as a blade");
+  }
+  return k("none", prim + " effects never clash");
+}
+// The clash FX name a World Clash slot plays (the World Clash page's choice).
+function clashSlotName(slot) {
+  var key = (WORLD.slots[slot] || {}).fx;
+  if (key === "none") return "no FX";
+  var r = FXK.CLASH_FX.filter(function (x) { return x[0] === key; })[0];
+  return r ? r[1] : key;
+}
+// What a type plays against each other type (hover text of a clash tag).
+function clashTable(kind) {
+  if (CLASH_TYPES.indexOf(kind.type) < 0) return "Clash type: " + kind.label + " (" + kind.why + "). It never clashes with any FX.";
+  var rows = CLASH_TYPES.map(function (o) {
+    var rule = CLASH_RULES[[kind.type, o].sort().join("|")], fx;
+    if (rule === "beam_beam") fx = clashSlotName("beam_explode") + " when both deal over 10 damage, else " + clashSlotName("beam_struggle");
+    else if (rule === "beam_cut") fx = clashSlotName("beam_split") + " (beam splits, half the time) or " + clashSlotName("beam_nosplit");
+    else if (rule === "beam_orb") fx = clashSlotName("beam_orb") + " (the orb is held on the beam)";
+    else fx = clashSlotName(rule);
+    return "vs " + CLASH_TYPE_LABEL[o] + ": " + fx;
+  });
+  return "Clash type: " + kind.label + (kind.why ? " (" + kind.why + ")" : "") + ". Against an enemy effect it plays:\n" + rows.join("\n") +
+    "\nParticles, glows, ghosts, pulses, weapons, guns, ki shots and power techniques never clash. Change the FX on the ⚔ World Clash page.";
+}
+// The clash tag(s) of a preset: each of its effects' types, once.
+function presetClashLabel(p) {
+  var seen = [];
+  (p.effects || []).forEach(function (e) { var l = clashKind(e).label; if (seen.indexOf(l) < 0) seen.push(l); });
+  return seen.join(" + ");
+}
+function clashChip(fx) {
+  var kind = clashKind(fx), c = document.createElement("span");
+  c.className = "cl " + kind.type; c.textContent = kind.label; c.title = clashTable(kind);
+  return c;
+}
 // The game's World Clash (laser/clash.py step) on the stage, between the
 // fighter's FX (side 0) and the target dummies' FX (side 1): every tick the
 // live effects are reduced to bodies (beam, orb, trail, crescent, sprite:
@@ -4484,10 +4545,10 @@ function buildDummies() {
   var d = S.dummies[S.dsel]; if (!d) return;
   field(P, "Name", inp("text", d.name, function (v) { d.name = v; saveDummies(); var r = L.children[S.dsel]; if (r) r.querySelector(".n").textContent = (S.dsel === 0 ? "🎯 " : "") + v; }));
   var sel = document.createElement("select"), add = function (parent, v, t) { var o = document.createElement("option"); o.value = v; o.textContent = t; parent.appendChild(o); };
-  add(sel, "none", "None (target only)"); add(sel, "shot", "Plain shot (Intercept test)");
+  add(sel, "none", "None (target only)"); add(sel, "shot", "Plain shot (Intercept test)  —  No clash");
   DUMMY_GROUPS.forEach(function (gname) {
     var og = document.createElement("optgroup"); og.label = gname;
-    dummyAttacks().filter(function (p) { return p.group === gname; }).forEach(function (p) { add(og, "preset:" + p.name, p.name); });
+    dummyAttacks().filter(function (p) { return p.group === gname; }).forEach(function (p) { add(og, "preset:" + p.name, p.name + "  —  " + presetClashLabel(p)); });
     if (og.children.length) sel.appendChild(og);
   });
   sel.value = d.attack; sel.onchange = function () { d.attack = sel.value; dummyChanged(true); };
