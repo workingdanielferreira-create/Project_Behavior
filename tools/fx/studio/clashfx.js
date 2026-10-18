@@ -21,6 +21,7 @@ const BASES = {
   beam_orb:          {name: "Beam vs Orb", kind: "burst", life: 52, press: 18, pair: true, from: "Beam × orb / petal", desc: "The orb is pressed against the beam head, squashes and crackles, then bursts."},
   beam_split:        {name: "Beam Split", kind: "burst", life: 30, fork_deg: 30, pair: true, from: "Beam cut by a blade / crescent / sprite", desc: "A forked flare where the beam splits into two halves fanning ±30°."},
   split_burst:       {name: "Split Burst", kind: "burst", life: 30, pair: true, from: "End of each split half", desc: "The small blast where each half of a split beam ends."},
+  orb_split:         {name: "Orb Split", kind: "burst", life: 34, fork_deg: 30, pair: true, from: "Orb cut by a blade / crescent / sprite", desc: "A cut line through the orb and two half-orbs flying apart ±30°."},
   orb_pops:          {name: "Orb Pops", kind: "burst", life: 44, pops: 12, pair: true, from: "Orb × orb", desc: "Little energy blasts hitting each other and popping in rapid succession."},
   sword_slash_clash: {name: "Sword Slash Clash", kind: "burst", life: 30, pair: true, from: "Trail × trail", desc: "Two slash strokes cross: an X flash and a fan of sparks along both cuts."},
   crescent_struggle: {name: "Crescent Struggle", kind: "sustain", life: 34, hold: 48, pair: true, from: "Crescent × crescent", desc: "Two crescent blades grind against each other, then shatter into shards."},
@@ -325,6 +326,14 @@ class ClashFX {
   draw_split_burst(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u; this.under(g); g.globalCompositeOperation = "lighter";
     glow(g, 0, 0, 44 * S * Math.min(1, (t + 1) / 3) * Math.sqrt(f), this.hot, 255 * f * f, .45); glow(g, 0, 0, 60 * S * easeOut(t / 8), mix(this.c1, this.c2, .5), 180 * f);
     const r = 90 * S * easeOut(u); splitRing(g, 0, 0, r, r, 4 * S * f + .5, this.hc(this.c1, .3), this.hc(this.c2, .3), 220 * f); this.over(g); }
+  init_orb_split() { const fd = this.spec.fork_deg * Math.PI / 180; for (const sg of [1, -1]) this.sparks(12, {ang: sg * fd, spread: .35, spd: [3, 9], life: [10, 22], col: this.c1});
+    this.sparks(16, {ang: 0, spread: .25, spd: [4, 11], life: [8, 18], col: this.c2}); this.sparks(10, {ang: Math.PI, spread: .25, spd: [3, 8], life: [8, 16], col: this.c2}); }
+  draw_orb_split(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, fd = this.spec.fork_deg * Math.PI / 180; g.globalCompositeOperation = "lighter";
+    const R = 16 * S * (1 - .35 * u), L = 46 * S * easeOut(Math.min(1, t / 10));
+    for (const sg of [1, -1]) { const hx = Math.cos(sg * fd) * L, hy = Math.sin(sg * fd) * L; glow(g, hx, hy, R * 2, this.c1, 170 * f);
+      g.fillStyle = rgba(this.hc(this.c1, .35), 235 * f); g.beginPath(); g.moveTo(hx - R, hy); g.arc(hx, hy, R, Math.PI, 0, sg > 0); g.closePath(); g.fill(); }
+    const cl = 52 * S * easeOut(Math.min(1, t / 4)); diamond(g, -cl, 0, cl, 0, 4.5 * S * f, this.c2, 220 * f); diamond(g, -cl * .85, 0, cl * .85, 0, 1.6 * S * f + .3, this.hot, 255 * f);
+    glow(g, 0, 0, 36 * S * (.6 + .4 * f), this.hot, 255 * f * f, .5); this.partsAll(g); }
   init_orb_pops() { const r = this.rng, S = this.S, n = Math.max(2, Math.round(this.spec.pops * this.D)), span = Math.max(4, Math.floor(this.life * .6)); this.st.pops = [];
     for (let i = 0; i < n; i++) { const a = r.uniform(0, TAU), m = Math.sqrt(r()), px = Math.cos(a) * 46 * S * m, py = Math.sin(a) * 34 * S * m, t0 = Math.floor(i * span / n) + r.randint(0, 2);
       this.st.pops.push([px, py, t0]);

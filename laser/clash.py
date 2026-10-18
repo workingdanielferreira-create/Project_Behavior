@@ -50,7 +50,13 @@ Every pair of categories has a rule.
                       (and those of the blowout and the overload) are
                       soft-capped to BEAM_FX_CAP_HEIGHTS x the shorter
                       fighter's height, end to end (_cap_size)
-  beam x orb          the orb is held on the beam head (beam_orb), then bursts
+  beam x orb          the orb is held on the beam head (beam_orb), then bursts.
+                      Both knockback STRUGGLE_KB or more: a struggle instead,
+                      exactly like the full beam struggle (beam_orb_struggle,
+                      won: beam_orb_struggle_end; tie: overload) — the beam
+                      is drawn by the anchored FX, the real orb rides the
+                      node on its own side (ClashFX.orb_world) and a winning
+                      orb flies on from the loser (_push_through)
   beam x trail / crescent / sprite
                       SPLIT_CHANCE: the beam splits at the contact into two
                       halves fanning +-SPLIT_DEG that run on to the beam's end
@@ -58,7 +64,19 @@ Every pair of categories has a rule.
                       otherwise the beam carries on as normal.  Either way the
                       cutter is settled by the knockback rule against the beam
                       (a beam is never cancelled by a cutter)
-  orb x orb           little blasts popping (orb_pops)
+  orb x orb           little blasts popping (orb_pops).  Both knockback
+                      STRUGGLE_KB or more: an orb struggle (orb_orb_struggle,
+                      won: orb_orb_struggle_end; tie: overload), the two real
+                      orbs pressed together either side of the node
+  orb x trail / crescent / sprite
+                      (orb_cut, a moving orb; a petal plays the one-shot
+                      burst below) like a beam split: SPLIT_CHANCE the orb
+                      is cut in two halves fanning +-SPLIT_DEG (ORB_HALF_SCALE
+                      of its size) that fly on (both can hit) and pop where
+                      they end (orb_split, orb_split_tip); otherwise the
+                      pair's burst plays and the orb carries on.  Either way
+                      the cutter is settled by the knockback rule against
+                      the orb (never cancelled by its cutter)
   trail x trail       a sword duel (sword_duel): the two fighters are moved
                       by the clash (clashfx.duel_plan, duel_tick) — they
                       dash in, their blades meet (some strikes are flurry
@@ -87,7 +105,8 @@ Every pair of categories has a rule.
   crescent x crescent the two blades grind (crescent_struggle), then shatter
   sprite x sprite     a kunai clash (kunai_clash)
   orb x trail         sword_slash_clash      orb x crescent      getsuga_cross
-  orb x sprite        collision_nova         trail x crescent    sword_slash_clash
+  orb x sprite        collision_nova         (no orb split: see orb_cut above)
+  trail x crescent    sword_slash_clash
   trail x sprite      kunai_clash            crescent x sprite   getsuga_cross
                       (one-shot bursts; the knockback rule settles them)
 
@@ -173,6 +192,7 @@ CRESCENT_TICKS = 48          # crescent struggle length
 SPLIT_CHANCE = 0.5
 SPLIT_DEG = 30.0
 SPLIT_HELD_TICKS = 26        # a held beam's split halves grow out and burn this long
+ORB_HALF_SCALE = 0.7         # each half of a split orb is this share of its size
 TRAIL_HEAD_POINTS = 8        # how much of a trail (from its moving end) can clash
 REARM_TICKS = 20             # a pair can clash again after this long apart
 TIE_RECOIL_KB = 6.0          # trail x trail tie: both owners pushed back this much
@@ -219,6 +239,13 @@ RULES = {
 # Held rules (both effects pinned while they hold) -> the slot played as a
 # one-shot burst instead when an ultimate out-knocks a non-ultimate effect.
 HELD_SLOTS = {"beam_beam": "beam_struggle", "beam_orb": "beam_orb", "crescent_crescent": "crescent_crescent"}
+# Struggle rules (both effects STRUGGLE_KB or more) -> (struggle slot, won slot).
+STRUGGLE_SLOTS = {"beam_beam": ("beam_struggle", "beam_struggle_end"),
+                  "beam_orb": ("beam_orb_struggle", "beam_orb_struggle_end"),
+                  "orb_orb": ("orb_orb_struggle", "orb_orb_struggle_end")}
+# Rules where a cutter can split a moving orb (orb_cut); no split plays the
+# rule's own slot.
+ORB_CUT_RULES = ("orb_trail", "orb_crescent", "orb_sprite")
 # One-shot rules: settled by the knockback rule, their slot's FX plays.
 BURST_RULES = ("orb_orb", "trail_trail", "sprite_sprite", "orb_trail", "orb_crescent", "orb_sprite",
                "trail_crescent", "trail_sprite", "crescent_sprite")
@@ -237,10 +264,16 @@ WORLD_SLOTS = (
     ("beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"),
     ("beam_struggle_end", "beam_struggle_won", "Beam struggle won"),
     ("beam_orb", "beam_orb", "Beam × orb / petal"),
+    ("beam_orb_struggle", "beam_struggle", "Beam × orb struggle (both knockback 100+)"),
+    ("beam_orb_struggle_end", "beam_struggle_won", "Beam × orb struggle won"),
     ("beam_split", "beam_split", "Beam split by a trail / crescent / sprite"),
     ("split_tip", "split_burst", "End of each split half"),
     ("beam_nosplit", "split_burst", "Beam not split (cutter hit)"),
     ("orb_orb", "orb_pops", "Orb × orb"),
+    ("orb_orb_struggle", "beam_struggle", "Orb × orb struggle (both knockback 100+)"),
+    ("orb_orb_struggle_end", "beam_struggle_won", "Orb × orb struggle won"),
+    ("orb_split", "orb_split", "Orb split by a trail / crescent / sprite"),
+    ("orb_split_tip", "split_burst", "End of each orb split half"),
     ("trail_trail", "sword_duel", "Trail × trail"),
     ("crescent_crescent", "crescent_struggle", "Crescent × crescent"),
     ("sprite_sprite", "kunai_clash", "Sprite × sprite"),
@@ -716,6 +749,21 @@ def _beam_look(world, bd):
                 am=max(0.0, 1.0 - r.age / r.life) if r.life != fxkit.INF else 1.0, add=False)
 
 
+def _orb_look(bd):
+    """A struggle side for orb body bd (the anchored FX does not draw it:
+    the real orb rides the node, ClashFX.orb_world): o = its fighter, where
+    the push-through drives it back to; r = its radius.  Widths as for a
+    beam (_beam_look) so the FX is sized the same way."""
+    f = bd.owner
+    o = (f.x, f.y) if f is not None else (bd.pts[0][0] - bd.dir[0] * 200.0, bd.pts[0][1] - bd.dir[1] * 200.0)
+    w = 2.0 * bd.hw
+    return dict(o=o, wt=w, wh=w, ct=bd.col, ch=bd.col, glow=0.0, gcol=None, am=1.0, add=False, orb=True, r=bd.hw)
+
+
+def _look(world, bd):
+    return _orb_look(bd) if bd.cat == "orb" else _beam_look(world, bd)
+
+
 def _beam_scale(slot, looks):
     """Struggle FX size from the beams' real widths: the slot's size % at
     STRUGGLE_REF_W, in proportion to the thicker beam (glow included)."""
@@ -941,6 +989,73 @@ def _half_inst(inst, d, c, rem, held):
     return q
 
 
+# ---------------------------------------------------------------- orb split
+def _orb_moving(b):
+    """An orb that travels (a split needs somewhere for the halves to fly)."""
+    r = b.ref
+    if b.kind == "inst":
+        return (r.fx["motion"]["kind"] not in ("attached", "static", "orbit")
+                and math.hypot(r.vx, r.vy) >= 1e-4)
+    return b.kind == "proj" and math.hypot(r.vx, r.vy) >= 1e-4
+
+
+def _half_orb_inst(inst, d, c, spd):
+    """One half of a split FX Kit orb: the orb's own look at ORB_HALF_SCALE
+    of its size, flying on along d from c for the rest of its life."""
+    fx = copy.deepcopy(inst.fx)
+    fx["keys"] = []
+    fx.setdefault("intercept", {})["enabled"] = False
+    P = fx["params"]
+    P["radius"] = float(P.get("radius") or 3) * ORB_HALF_SCALE
+    fx["motion"]["kind"] = "travel"
+    q = copy.copy(inst)
+    q.fx = fx
+    q.src = fx
+    q.r = fxkit.Rng((inst.seed ^ (0x9E3779B9 if d[1] > 0 else 0x7F4A7C15)) & fxkit.M32)
+    q.hist, q.trail, q.parts, q.ghosts = [], [], [], []
+    q.x, q.y, q.px, q.py = c[0], c[1], c[0], c[1]
+    q.dir = [d[0], d[1]]
+    q.hits, q.last_hit = 0, -1e9
+    q.free = q.chase = q.cont = q.open = q.run = False
+    q.lodge = None
+    q.path = None
+    q.cap = None
+    q.ring_hits = None
+    q.vx, q.vy = d[0] * spd, d[1] * spd
+    q.mk, q.ma = fx["motion"]["kind"], fx["motion"]["aim"]
+    return q
+
+
+def _split_orb(world, st, orb, c, size=None):
+    """Cut moving orb `orb` at c into two halves fanning +-SPLIT_DEG that
+    fly on (both can hit); each pops where it ends (orb_split_tip)."""
+    ux, uy = orb.dir
+    r = orb.ref
+    spd = math.hypot(r.vx, r.vy)
+    halves = []
+    for sgn in (1, -1):
+        d = fxkit.rot([ux, uy], SPLIT_DEG * sgn)
+        if orb.kind == "inst":
+            q = _half_orb_inst(r, d, c, spd)
+            halves.append(("orb", q, orb.owner))
+        else:
+            q = copy.copy(r)
+            q.trail = type(r.trail)(maxlen=r.trail.maxlen)
+            q.x, q.y = c[0], c[1]
+            q.vx, q.vy = d[0] * spd, d[1] * spd
+            q.radius = r.radius * ORB_HALF_SCALE
+            if r.ua_path is not None:
+                q.ua_path = list(r.ua_path)     # Rewind Bullets: each half records its own path
+            halves.append(("proj", q, orb.owner))
+        orb.lst.append(q)
+    _cancel(orb)
+    for h in halves:
+        st["halves"].add(id(h[1]))
+        if len(st["tips"]) < MAX_TIP_WATCH:
+            st["tips"].append([h[0], h[1], h[2], orb.col, (c[0], c[1]), size, "orb_split_tip"])
+    return halves
+
+
 def _tip_pos(kind, obj):
     if kind == "inst":
         hx, hy, _ux, _uy, reach = fxkit.beam_reach(obj, obj.ps)
@@ -949,13 +1064,13 @@ def _tip_pos(kind, obj):
 
 
 def _tip_alive(kind, obj):
-    return (not obj.dead and obj.age < obj.life) if kind == "inst" else obj.alive
+    return (not obj.dead and obj.age < obj.life) if kind in ("inst", "orb") else obj.alive
 
 
 # ---------------------------------------------------------------- the clash record
 class Clash:
     """A clash that holds for a while (struggles, the orb on the beam head)."""
-    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden", "joined", "parent")
+    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden", "joined", "parent", "struggle")
 
     def __init__(self, a, b, c, rule, until, fx, start, hidden=()):
         self.a, self.b, self.c, self.rule, self.until, self.fx, self.start = a, b, c, rule, until, fx, start
@@ -963,6 +1078,7 @@ class Clash:
         self.hidden = tuple(hidden)     # ids in clashfx.HIDDEN while it holds
         self.joined = False             # extra beams riding another struggle (no FX / finale of their own)
         self.parent = None              # the struggle they ride (joined only)
+        self.struggle = False           # a full struggle (STRUGGLE_SLOTS): won push-through / tie overload
 
 
 def _struggle_of(st, a, b):
@@ -1075,6 +1191,8 @@ def _start(world, st, a, b, c, rule, now):
         a, b = b, a     # the beam first
     if rule == "beam_orb" and a.cat != "beam":
         a, b = b, a
+    if rule in ORB_CUT_RULES and a.cat != "orb":
+        a, b = b, a     # the orb first
     ang = _deg(*_norm((b.owner.x if b.owner else c[0] + 1) - (a.owner.x if a.owner else c[0]),
                       (b.owner.y if b.owner else c[1]) - (a.owner.y if a.owner else c[1])))
     figs = (a.owner, b.owner)
@@ -1110,6 +1228,10 @@ def _start(world, st, a, b, c, rule, now):
             fx.release()
         _engage(world, figs, fx.length() if fx is not None else 30, touch)
         return None
+    if (rule in ("beam_orb", "orb_orb") and a.kb >= STRUGGLE_KB and b.kb >= STRUGGLE_KB
+            and _ult_over(a, b) is None):
+        # Both 100+ knockback: a struggle, exactly like the full beam struggle.
+        return _struggle(world, st, a, b, c, rule, now, figs)
     if rule == "beam_beam":
         if a.damage > STRONG_BEAM_DAMAGE and b.damage > STRONG_BEAM_DAMAGE:
             _settle(world, a, b, c)
@@ -1143,33 +1265,7 @@ def _start(world, st, a, b, c, rule, now):
             rec.joined = True
             rec.parent = joined
             return rec
-        # Any other earlier contact of the pair (an orb pop, a bolt) never
-        # silences a struggle: it always plays its own FX.
-        st["quiet"] = False
-        fx = _cap_size(world, _spawn_fx(world, "beam_struggle", c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS,
-                                        scale=scale), figs)
-        held = STRUGGLE_TICKS
-        hidden = ()
-        if fx is not None and fx.base == "beam_struggle":
-            # Anchored: the FX draws both beams from their origins (the tail
-            # of each, locked now) to the node with each beam's own look, so
-            # the hand-over from the real beams is seamless, and the real
-            # beams are hidden while it holds.
-            w = _kb_winner(a, b)
-            lo = None if w is None else (b if w is a else a)
-            # A winner pushes through for PUSH_TICKS more — unless it is a
-            # non-ultimate beam against an ultimate (never nullified by it).
-            push = PUSH_TICKS if w is not None and not (_is_ult(lo) and not _is_ult(w)) else 0
-            fx.hold += push
-            held += push
-            fx.anchor_beams(looks[0], looks[1], None if w is None else (1 if w is a else 0), push=push)
-            hidden = (id(a.ref), id(b.ref))
-            clashfx.HIDDEN.update(hidden)
-        _engage(world, figs, fx.length() if fx is not None else held)
-        # Both fighters stay where they are until the struggle animation
-        # (hold + finale) has played out (_finish trims it when it ends early).
-        _hold_figs(world, st, figs, now + (fx.length() if fx is not None else held))
-        return Clash(a, b, c, rule, now + held, fx, now, hidden)
+        return _struggle(world, st, a, b, c, rule, now, figs)
     if rule == "beam_orb":
         fx = _spawn_fx(world, "beam_orb", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
         held = _held_ticks(fx, BEAM_ORB_TICKS, budget)
@@ -1196,9 +1292,69 @@ def _start(world, st, a, b, c, rule, now):
         held = _held_ticks(fx, CRESCENT_TICKS, budget)
         _engage(world, figs, fx.length() if fx is not None else held + 20, touch)
         return Clash(a, b, c, rule, now + held, fx, now)
+    if rule in ORB_CUT_RULES and a.kind != "petal":
+        return _orb_cut(world, st, a, b, c, rule, now, figs, budget, touch)
     slot = rule     # BURST_RULES: the rule's own slot
     _settle(world, a, b, c)
     fx = _spawn_fx(world, slot, c, ang, a.col, b.col, budget=budget, pair=(a, b))
+    _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
+    return None
+
+
+def _struggle(world, st, a, b, c, rule, now, figs):
+    """The full struggle (STRUGGLE_SLOTS: beam x beam, beam x orb, orb x
+    orb, both STRUGGLE_KB or more): a fixed STRUGGLE_TICKS, never fitted to
+    the effects' remaining life (both are pinned, their age frozen, while it
+    holds), plus PUSH_TICKS for a winner's push-through."""
+    slot = STRUGGLE_SLOTS[rule][0]
+    looks = (_look(world, a), _look(world, b))
+    # Any other earlier contact of the pair (an orb pop, a bolt) never
+    # silences a struggle: it always plays its own FX.
+    st["quiet"] = False
+    fx = _cap_size(world, _spawn_fx(world, slot, c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS,
+                                    scale=_beam_scale(slot, looks)), figs)
+    held = STRUGGLE_TICKS
+    hidden = ()
+    if fx is not None and fx.base == "beam_struggle":
+        # Anchored: the FX draws each beam from its origin (its tail, locked
+        # now) to the node with the beam's own look, so the hand-over from
+        # the real beam is seamless, and the real beams are hidden while it
+        # holds.  An orb is not hidden: it rides the node (step).
+        w = _kb_winner(a, b)
+        lo = None if w is None else (b if w is a else a)
+        # A winner pushes through for PUSH_TICKS more — unless it is a
+        # non-ultimate effect against an ultimate (never nullified by it).
+        push = PUSH_TICKS if w is not None and not (_is_ult(lo) and not _is_ult(w)) else 0
+        fx.hold += push
+        held += push
+        fx.anchor_beams(looks[0], looks[1], None if w is None else (1 if w is a else 0), push=push)
+        hidden = tuple(id(x.ref) for x in (a, b) if x.cat == "beam")
+        clashfx.HIDDEN.update(hidden)
+    _engage(world, figs, fx.length() if fx is not None else held)
+    # Both fighters stay where they are until the struggle animation
+    # (hold + finale) has played out (_finish trims it when it ends early).
+    _hold_figs(world, st, figs, now + (fx.length() if fx is not None else held))
+    rec = Clash(a, b, c, rule, now + held, fx, now, hidden)
+    rec.struggle = True
+    return rec
+
+
+def _orb_cut(world, st, a, b, c, rule, now, figs, budget, touch):
+    """orb_cut: orb a cut by trail / crescent / sprite b, like a beam split
+    (a split half never splits again; an ultimate's orb is split only by a
+    cutter whose knockback beats its own)."""
+    _settle(world, a, b, c, exempt=a)   # the orb itself is never cancelled by its cutter
+    if _is_ult(a) and not _is_ult(b):
+        split = b.kb > a.kb
+    else:
+        split = st["rng"].random() < SPLIT_CHANCE
+    if id(a.ref) not in st["halves"] and split and _orb_moving(a):
+        fx = _spawn_fx(world, "orb_split", c, _deg(*a.dir), a.col, b.col, budget=budget, pair=(a, b))
+        _split_orb(world, st, a, c, size=_pair_size(a, b, _slot_fx("orb_split_tip")[1]))
+    else:
+        ang = _deg(*_norm((b.owner.x if b.owner else c[0] + 1) - (a.owner.x if a.owner else c[0]),
+                          (b.owner.y if b.owner else c[1]) - (a.owner.y if a.owner else c[1])))
+        fx = _spawn_fx(world, rule, c, ang, a.col, b.col, budget=budget, pair=(a, b))
     _engage(world, figs, _fx_ticks(fx, budget, 30), touch)
     return None
 
@@ -1222,13 +1378,20 @@ def _overload(world, figs, c):
         ai.apply_hp_damage(f, world, max(1, int(round(p.max_hp * OVERLOAD_HP_PCT / 100.0))), unblockable=True)
 
 
-def _push_through(world, st, w, l):
-    """A won struggle's push-through has reached the loser: the winner's
-    beam hits the loser's fighter (the beam's damage and knockback, along
-    the beam, like any beam hit) and is carried on past it by the struggle
-    FX (its finale), so the real beam ends here."""
+def _push_through(world, st, w, l, c):
+    """A won struggle's push-through has reached the loser (c, the node):
+    the winner hits the loser's fighter (its damage and knockback, along its
+    heading, like any hit).  A winning beam is carried on past it by the
+    struggle FX (its finale), so the real beam ends here; a winning orb
+    flies on from c."""
     from . import ai, blink
-    _cancel(w)
+    if w.cat == "orb":
+        r = w.ref
+        r.x, r.y = c[0], c[1]
+        if w.kind == "inst":
+            r.px, r.py = c[0], c[1]
+    else:
+        _cancel(w)
     fig = l.owner
     if fig is None or blink.gone(fig) or not any(fig in s.figures for s in world.sides):
         return
@@ -1260,21 +1423,21 @@ def _finish(world, st, rec):
         st["busy"].discard(id(b.ref))
         return
     la, lb = _alive(a), _alive(b)
-    over = rec.rule == "beam_beam" and la and lb and _kb_winner(a, b) is None
+    over = rec.struggle and la and lb and _kb_winner(a, b) is None
     thrown = None       # a pushed-through loser: freed to fly, not held for the finale
     if la and lb:
         w = _settle(world, a, b, c)
-        if rec.rule == "beam_beam" and w is not None:
+        if rec.struggle and w is not None:
             pushed = rec.fx is not None and rec.fx.anchored and rec.fx.state.get("push")
             if pushed:
                 rec.fx.win()    # its finale carries the winner's beam on past the loser
             ang = _deg(*a.dir)
-            _cap_size(world, _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1,
+            _cap_size(world, _spawn_fx(world, STRUGGLE_SLOTS[rec.rule][1], c, ang, a.col, b.col, winner=0 if w is a else 1,
                                        scale=rec.fx.S if rec.fx is not None else None, pair=(a, b)),
                       (a.owner, b.owner))
             if pushed:
                 thrown = (b if w is a else a).owner
-                _push_through(world, st, w, b if w is a else a)
+                _push_through(world, st, w, b if w is a else a, c)
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     if over:
@@ -1283,7 +1446,7 @@ def _finish(world, st, rec):
         # Released at once so the blast throws them clear.
         _hold_figs(world, st, (a.owner, b.owner), world.global_tick)
         _overload(world, (a.owner, b.owner), c)
-    elif rec.rule == "beam_beam":
+    elif rec.struggle:
         # The fighters go free once the struggle's finale has played.
         fin = 0 if rec.fx is None else max(0, int(math.ceil((rec.fx.life - rec.fx.ft) / rec.fx.rate - 1e-9)))
         _hold_figs(world, st, tuple(f for f in (a.owner, b.owner) if f is not thrown), world.global_tick + fin)
@@ -1545,6 +1708,11 @@ def step(world):
         if now >= rec.until or not (_alive(rec.a) and _alive(rec.b)):
             _finish(world, st, rec)
             continue
+        if rec.struggle and rec.fx is not None and rec.fx.anchored:
+            # an orb in a struggle rides the node, on its own side
+            for i, x in enumerate((rec.a, rec.b)):
+                if x.cat == "orb" and rec.pins[i] is not None:
+                    rec.pins[i][0], rec.pins[i][1] = rec.fx.orb_world(i)
         _hold(rec.a, rec.pins[0])
         _hold(rec.b, rec.pins[1])
         live.append(rec)
@@ -1558,7 +1726,7 @@ def step(world):
     # 2. Split halves: each explodes where it ends.
     tips = []
     for t in st["tips"]:
-        kind, obj, owner, col, _last, size = t
+        kind, obj, owner, col, _last, size = t[:6]
         if _tip_alive(kind, obj):
             t[4] = _tip_pos(kind, obj)
             tips.append(t)
@@ -1566,7 +1734,7 @@ def step(world):
             st["halves"].discard(id(obj))
             p = t[4]
             ang = _deg(*_norm(p[0] - (owner.x if owner else p[0] - 1), p[1] - (owner.y if owner else p[1])))
-            _spawn_fx(world, "split_tip", p, ang, col, col, scale=size)
+            _spawn_fx(world, t[6] if len(t) > 6 else "split_tip", p, ang, col, col, scale=size)
     st["tips"] = tips
     # 3. New contacts (two fielded sides only: Solo never has a pair).
     if len(world.sides) < 2 or not (world.sides[0].figures and world.sides[1].figures):

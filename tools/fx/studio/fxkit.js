@@ -737,10 +737,16 @@ var CLASH_SLOTS = [
   ["beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"],
   ["beam_struggle_end", "beam_struggle_won", "Beam struggle won"],
   ["beam_orb", "beam_orb", "Beam × orb / petal"],
+  ["beam_orb_struggle", "beam_struggle", "Beam × orb struggle (both knockback 100+)"],
+  ["beam_orb_struggle_end", "beam_struggle_won", "Beam × orb struggle won"],
   ["beam_split", "beam_split", "Beam split by a trail / crescent / sprite"],
   ["split_tip", "split_burst", "End of each split half"],
   ["beam_nosplit", "split_burst", "Beam not split (cutter hit)"],
   ["orb_orb", "orb_pops", "Orb × orb"],
+  ["orb_orb_struggle", "beam_struggle", "Orb × orb struggle (both knockback 100+)"],
+  ["orb_orb_struggle_end", "beam_struggle_won", "Orb × orb struggle won"],
+  ["orb_split", "orb_split", "Orb split by a trail / crescent / sprite"],
+  ["orb_split_tip", "split_burst", "End of each orb split half"],
   ["trail_trail", "sword_duel", "Trail × trail"],
   ["crescent_crescent", "crescent_struggle", "Crescent × crescent"],
   ["sprite_sprite", "kunai_clash", "Sprite × sprite"],
@@ -761,7 +767,7 @@ var CLASH_FX = [
   ["kunai_storm", "Kunai Storm"], ["ricochet_rain", "Ricochet Rain"], ["blade_lock", "Blade Lock"],
   ["reiatsu_eruption", "Reiatsu Eruption"], ["getsuga_cross", "Getsuga Cross"], ["implosion_pop", "Implosion Pop"],
   ["storm_fork", "Storm Fork"], ["speed_duel", "Speed Duel"], ["beam_clash", "Beam Clash"], ["beam_orb", "Beam vs Orb"],
-  ["beam_split", "Beam Split"], ["split_burst", "Split Burst"], ["orb_pops", "Orb Pops"],
+  ["beam_split", "Beam Split"], ["split_burst", "Split Burst"], ["orb_split", "Orb Split"], ["orb_pops", "Orb Pops"],
   ["sword_slash_clash", "Sword Slash Clash"], ["sword_duel", "Sword Duel"], ["crescent_struggle", "Crescent Struggle"], ["kunai_clash", "Kunai Clash"]
 ];
 function clampNum(v, d, lo, hi) { v = +v; if (v !== v || v === null) return d; return Math.max(lo, Math.min(hi, v)); }

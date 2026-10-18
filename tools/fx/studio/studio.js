@@ -4187,7 +4187,9 @@ function clashTable(kind) {
     var rule = CLASH_RULES[[kind.type, o].sort().join("|")], fx;
     if (rule === "beam_beam") fx = clashSlotName("beam_explode") + " when both deal over 10 damage, else " + clashSlotName("beam_struggle");
     else if (rule === "beam_cut") fx = clashSlotName("beam_split") + " (beam splits, half the time) or " + clashSlotName("beam_nosplit");
-    else if (rule === "beam_orb") fx = clashSlotName("beam_orb") + " (the orb is held on the beam)";
+    else if (rule === "beam_orb") fx = clashSlotName("beam_orb") + " (the orb is held on the beam); both knockback 100+: " + clashSlotName("beam_orb_struggle") + ", won: " + clashSlotName("beam_orb_struggle_end");
+    else if (rule === "orb_orb") fx = clashSlotName("orb_orb") + "; both knockback 100+: " + clashSlotName("orb_orb_struggle") + ", won: " + clashSlotName("orb_orb_struggle_end");
+    else if (CLASH_ORB_CUT.indexOf(rule) >= 0) fx = clashSlotName("orb_split") + " (a moving orb splits, half the time) or " + clashSlotName(rule);
     else fx = clashSlotName(rule);
     return "vs " + CLASH_TYPE_LABEL[o] + ": " + fx;
   });
@@ -4215,14 +4217,17 @@ function clashChip(fx) {
 // of more than 100 destroys the weaker with no clash at all; an ultimate is
 // never cancelled by a non-ultimate.  Beam x orb holds the orb on the beam
 // for 18 ticks, then the knockback rule settles it; a cutter splits a beam
-// ±30° half the time (each half bursts where it ends).  The stage plays the
-// beam / crescent struggles and the sword duel as their one-shot bursts (no
+// ±30° half the time (each half bursts where it ends), and a moving orb hit
+// by a trail / crescent / sprite the same way (orb_split).  The stage plays the
+// beam / crescent struggles (and the beam x orb / orb x orb struggles at
+// 100+ knockback) and the sword duel as their one-shot bursts (no
 // fighter is held, moved or put in its "clash" action here), and a trail
 // that loses keeps its trail (the game's owner recoil is not shown).
 // Deterministic from tick 0 like the rest of the sim.
 var CLASH_MARGIN = 4, CLASH_STRONG_BEAM = 10, CLASH_STRUGGLE_KB = 100, CLASH_LESSER = 0.5, CLASH_STRUGGLE_REF_W = 40,
   CLASH_BEAM_ORB_TICKS = 18, CLASH_SPLIT_CHANCE = 0.5, CLASH_SPLIT_DEG = 30, CLASH_SPLIT_HELD = 26, CLASH_TRAIL_HEAD = 8,
-  CLASH_REARM = 20, CLASH_MERGE_TICKS = 6, CLASH_MERGE_PX = 60, CLASH_OVERPOWER_KB = 100, CLASH_SIZE_MIN = 0.1, CLASH_SIZE_KB_FULL = 100;
+  CLASH_REARM = 20, CLASH_MERGE_TICKS = 6, CLASH_MERGE_PX = 60, CLASH_OVERPOWER_KB = 100, CLASH_SIZE_MIN = 0.1, CLASH_SIZE_KB_FULL = 100,
+  CLASH_ORB_HALF = 0.7, CLASH_ORB_CUT = ["orb_trail", "orb_crescent", "orb_sprite"];
 // Category pair (sorted, "a|b") -> rule (clash.py RULES).
 var CLASH_RULES = {"beam|beam": "beam_beam", "beam|orb": "beam_orb", "beam|trail": "beam_cut", "beam|crescent": "beam_cut",
   "beam|sprite": "beam_cut", "orb|orb": "orb_orb", "trail|trail": "trail_trail", "crescent|crescent": "crescent_crescent",
@@ -4406,10 +4411,31 @@ function clashSplit(beam, c, size) {
     inst.life = Math.min(inst.life, inst.age + CLASH_SPLIT_HELD);
   } else clashCancel(beam);
 }
+// Cut a moving orb at c into two halves (CLASH_ORB_HALF of its size) fanning
+// ±30° that fly on (both can hit) and pop where they end (clash.py _split_orb).
+function clashOrbMoving(b) { var m = b.inst.fx.motion.kind; return m !== "attached" && m !== "static" && m !== "orbit" && Math.hypot(b.inst.vx, b.inst.vy) >= 1e-4; }
+function clashSplitOrb(orb, c, size) {
+  var inst = orb.inst, spd = Math.hypot(inst.vx, inst.vy);
+  [1, -1].forEach(function (sgn) {
+    var d = FXK.rot(orb.dir, CLASH_SPLIT_DEG * sgn), fx = clone(inst.fx), P = fx.params, q = Object.assign({}, inst);
+    fx.keys = []; fx.intercept = Object.assign({}, fx.intercept, {enabled: false}); P.radius = (+P.radius || 3) * CLASH_ORB_HALF; fx.motion.kind = "travel";
+    q.fx = fx; q.src = fx; q._cid = 0;
+    q.seed = (inst.seed ^ (d[1] > 0 ? 0x9E3779B9 : 0x7F4A7C15)) >>> 0; q.r = FXK.rng(q.seed);
+    q.hist = []; q.trail = []; q.parts = []; q.ghosts = [];
+    q.x = q.px = c[0]; q.y = q.py = c[1]; q.dir = [d[0], d[1]]; q.hits = 0; q.lastHit = -1e9;
+    q.free = q.chase = q.cont = q.open = q.run = false; q.lodge = null; q.path = null; q.cap = null; q.ringHits = null;
+    q.vx = d[0] * spd; q.vy = d[1] * spd; q.mk = fx.motion.kind; q.ma = fx.motion.aim;
+    orb.lst.push(q);
+    S.clash.halves[clashId(q)] = true;
+    S.clash.tips.push({inst: q, own: orb.own, col: orb.col, last: c.slice(), size: size, orb: true});
+  });
+  clashCancel(orb);
+}
 // a: the fighter's body, b: the dummy's.  Plays the rule; returns a held
 // clash record (both pinned) or null (clash.py _start, one-shot bursts).
 function clashStart(a, b, c, rule) {
   if ((rule === "beam_cut" || rule === "beam_orb") && a.cat !== "beam") { var sw = a; a = b; b = sw; }   // the beam first
+  if (CLASH_ORB_CUT.indexOf(rule) >= 0 && a.cat !== "orb") { var so = a; a = b; b = so; }   // the orb first
   var pa = clashOwnerPos(a.own), pb = clashOwnerPos(b.own), u = clashNorm(pb[0] - pa[0], pb[1] - pa[1]);
   var ang = Math.atan2(u[1], u[0]) * 180 / Math.PI, adeg = Math.atan2(a.dir[1], a.dir[0]) * 180 / Math.PI;
   var held = {beam_beam: "beam_struggle", beam_orb: "beam_orb", crescent_crescent: "crescent_crescent"}[rule];
@@ -4431,6 +4457,12 @@ function clashStart(a, b, c, rule) {
     clashFx("beam_struggle", c, adeg, a.col, b.col, {hold: 0, scale: sc});
     return null;
   }
+  if ((rule === "beam_orb" || rule === "orb_orb") && a.kb >= CLASH_STRUGGLE_KB && b.kb >= CLASH_STRUGGLE_KB && !clashUltOver(a, b)) {
+    // The struggle's one-shot finale (the full struggle is not held on the stage).
+    clashSettle(a, b);
+    clashFx(rule + "_struggle", c, adeg, a.col, b.col, {hold: 0, pair: [a, b]});
+    return null;
+  }
   if (rule === "beam_orb") {
     clashFx("beam_orb", c, adeg, a.col, b.col, {pair: [a, b]});
     return {a: a, b: b, c: c, until: S.clash.now + CLASH_BEAM_ORB_TICKS,
@@ -4443,6 +4475,15 @@ function clashStart(a, b, c, rule) {
       clashFx("beam_split", c, adeg, a.col, b.col, {pair: [a, b]});
       clashSplit(a, c, clashSize(a, b, WORLD.slots.split_tip || {}, r));
     } else clashFx("beam_nosplit", c, adeg, a.col, b.col, {pair: [a, b]});
+    return null;
+  }
+  if (CLASH_ORB_CUT.indexOf(rule) >= 0) {
+    clashSettle(a, b, a);   // the orb itself is never cancelled by its cutter
+    var ro = FXK.rng(clashSeed()), osplit = clashIsUlt(a) && !clashIsUlt(b) ? b.kb > a.kb : ro() < CLASH_SPLIT_CHANCE;
+    if (!S.clash.halves[clashId(a.inst)] && osplit && clashOrbMoving(a)) {   // a split half never splits again
+      clashFx("orb_split", c, adeg, a.col, b.col, {pair: [a, b]});
+      clashSplitOrb(a, c, clashSize(a, b, WORLD.slots.orb_split_tip || {}, ro));
+    } else clashFx(rule, c, ang, a.col, b.col, {pair: [a, b]});
     return null;
   }
   if (rule === "crescent_crescent") {   // the grind's one-shot shatter
@@ -4471,10 +4512,13 @@ function clashStep() {
   // Split halves: each bursts where it ends.
   st.tips = st.tips.filter(function (t) {
     var q = t.inst;
-    if (!q.dead && q.age < q.life) { var br = FXK.beamReach(q, q.ps || 1); t.last = br.reach > 0 ? [br.hx, br.hy] : [q.x, q.y]; return true; }
+    if (!q.dead && q.age < q.life) {
+      if (t.orb) { t.last = [q.x, q.y]; return true; }
+      var br = FXK.beamReach(q, q.ps || 1); t.last = br.reach > 0 ? [br.hx, br.hy] : [q.x, q.y]; return true;
+    }
     delete st.halves[clashId(q)];
     var o = clashOwnerPos(t.own), u = clashNorm(t.last[0] - o[0], t.last[1] - o[1]);
-    clashFx("split_tip", t.last, Math.atan2(u[1], u[0]) * 180 / Math.PI, t.col, t.col, {scale: t.size});
+    clashFx(t.orb ? "orb_split_tip" : "split_tip", t.last, Math.atan2(u[1], u[0]) * 180 / Math.PI, t.col, t.col, {scale: t.size});
     return false;
   });
   // New contacts.

@@ -16,7 +16,9 @@ attack, with a white-hot core where they meet:
                      tug-of-war wobble, ripples; detonates on release.  In a
                      clash it is anchored (anchor_beams): it draws both real
                      beams itself, origin to node at their real widths, and
-                     the node is pushed toward the losing side
+                     the node is pushed toward the losing side.  A side
+                     can also be an orb (look orb=True): it is not drawn
+                     here — the real orb rides the node (orb_world)
   overpower_blowout  a struggle won: cone blast driven toward the loser, smoke
   beam_struggle_won  a struggle won and pushed through: the winner's beam has
                      driven the node into the loser — an engulfing fireball
@@ -48,6 +50,8 @@ from the first effect toward the second):
   beam_split         beam cut by a blade / crescent / sprite: a forked flare
                      where the beam splits into two halves (+x = beam heading)
   split_burst        the small blast at the end of each split half
+  orb_split          orb cut by a blade / crescent / sprite: a cut line through
+                     it and two half-orbs flying apart +-30 deg (+x = orb heading)
   orb_pops           orb x orb: little energy blasts hitting each other and
                      popping in rapid succession
   sword_slash_clash  two slash strokes cross, an X flash and a fan of sparks
@@ -102,6 +106,7 @@ SHOCK_TICKS = 26              # beam struggle node: life of each shockwave ring
 SURGE_MAX = 0.45              # tug of war: furthest a surge carries the node toward a side (share of the way)
 SURGE_TICKS = (18, 40)        # ticks between surges
 COMMIT_AT = 0.7               # share of the struggle after which it commits (winner push / overload build-up)
+ORB_NODE_K = 0.6              # anchored struggle: an orb side counts this share of its radius toward the node's size
 WON_CARRY_TICKS = 50          # won struggle: finale ticks the winner's beam carries on past the loser, fading
 CAP_KNEE = 0.6                # soft size cap (ClashFX.cap_r): full size up to this share of the cap, then eases in
 
@@ -134,6 +139,7 @@ BASES = {
     "beam_orb": dict(name="Beam vs Orb", kind="burst", life=52, press=18),
     "beam_split": dict(name="Beam Split", kind="burst", life=30, fork_deg=30),
     "split_burst": dict(name="Split Burst", kind="burst", life=30),
+    "orb_split": dict(name="Orb Split", kind="burst", life=34, fork_deg=30),
     "orb_pops": dict(name="Orb Pops", kind="burst", life=44, pops=12),
     "sword_slash_clash": dict(name="Sword Slash Clash", kind="burst", life=30),
     # SUSTAINED, anchored to the two fighters (laser/clash.py moves them):
@@ -144,7 +150,7 @@ BASES = {
     "kunai_clash": dict(name="Kunai Clash", kind="burst", life=34),
 }
 # The baselines F6 previews and the gallery shows first; PAIR_FX follow.
-PAIR_FX = ("beam_clash", "beam_orb", "beam_split", "split_burst", "orb_pops", "sword_slash_clash",
+PAIR_FX = ("beam_clash", "beam_orb", "beam_split", "split_burst", "orb_split", "orb_pops", "sword_slash_clash",
            "sword_duel", "crescent_struggle", "kunai_clash")
 BASE_ORDER = [k for k in BASES if k not in PAIR_FX] + list(PAIR_FX)
 
@@ -696,9 +702,27 @@ class ClashFX:
         # head colours), not the bullet's base colour.
         self.c1, self.c2 = (_vivid(lk["ct"], lk["ch"]) for lk in looks)
         self.state.update(o=(l1, l2), looks=looks,
-                          bw=tuple(max(2.0, lk["wh"]) for lk in looks), loser=loser,
+                          bw=tuple(max(2.0, ORB_NODE_K * lk["r"] if lk.get("orb") else lk["wh"]) for lk in looks),
+                          loser=loser,
                           push=max(0, int(push)) if loser is not None else 0,
                           ax=math.atan2(dy, dx) if math.hypot(dx, dy) > 1e-6 else 0.0)
+
+    def orb_world(self, i):
+        """laser/clash.py: where side i's orb sits now (world) — touching
+        the node on its own side, so the real orb rides the struggle."""
+        st = self.state
+        lk = st["looks"][i]
+        nx, ny = (st["nx"], st["ny"]) if self.phase == "hold" else st["f0"]
+        ox, oy = lk["o"]
+        dx, dy = ox - nx, oy - ny
+        d = math.hypot(dx, dy)
+        if d > 1e-6:
+            ux, uy = dx / d, dy / d
+        else:
+            sg = -1.0 if i == 0 else 1.0
+            ux, uy = sg * math.cos(st["ax"]), sg * math.sin(st["ax"])
+        r = float(lk.get("r", 0.0))
+        return self._world(nx + ux * r, ny + uy * r)
 
     def node_world(self):
         """Where the struggle's node is now (its finale spot once released)."""
@@ -859,7 +883,7 @@ class ClashFX:
         ox, oy = lk["o"]
         x, y = st["f0"]
         L0 = math.hypot(x - ox, y - oy)
-        if L0 > 1.0:
+        if L0 > 1.0 and not lk.get("orb"):     # a winning orb flies on for real
             ux, uy = (x - ox) / L0, (y - oy) / L0
             ext = (0.6 * L0 + 160 * S) * _ease_out(t / 16.0)
             lk["am"] = lk["am"] * (1.0 - _ease_in(u))
@@ -989,6 +1013,8 @@ class ClashFX:
             if self.anchored:
                 wk, lo = st["win_k"], st["loser"]
                 for i in (0, 1):
+                    if st["looks"][i].get("orb"):
+                        continue    # the real orb rides the node
                     wob = 1 + 0.08 * math.sin(t * 0.8 + i)
                     if wk > 0:      # the push-through: the winner's beam swells, the loser's gives way
                         wob *= (1.0 - 0.5 * wk) if i == lo else (1.0 + 0.25 * wk)
@@ -1162,6 +1188,38 @@ class ClashFX:
                 p.setCompositionMode(QPainter.CompositionMode_Plus)
                 _split_ring(p, 0, 0, rr, rr, w, self._hotc(cw, 0.25), self._hotc(cw, 0.25), a)
         self._draw_parts_over(p)
+
+    # ================================================================ orb split
+    def _init_orb_split(self):
+        """Orb (c1, heading +x) cut by a cutter (c2): two halves fan out
+        +-fork_deg, sparks spray along the cut."""
+        fd = math.radians(float(self.spec.get("fork_deg", 30)))
+        for sg in (1, -1):
+            self._sparks(12, ang=sg * fd, spread=0.35, spd=(3.0, 9.0), life=(10, 22), col=self.c1)
+        self._sparks(16, ang=0.0, spread=0.25, spd=(4.0, 11.0), life=(8, 18), col=self.c2)
+        self._sparks(10, ang=math.pi, spread=0.25, spd=(3.0, 8.0), life=(8, 16), col=self.c2)
+
+    def _draw_orb_split(self, p):
+        S, t = self.S, self.ft
+        u = min(1.0, t / self.life)
+        f = 1.0 - u
+        fd = math.radians(float(self.spec.get("fork_deg", 30)))
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        # the two halves flying apart, each a half-dome facing out
+        R = 16 * S * (1.0 - 0.35 * u)
+        L = 46 * S * _ease_out(min(1.0, t / 10.0))
+        for sg in (1, -1):
+            hx, hy = math.cos(sg * fd) * L, math.sin(sg * fd) * L
+            _glow(p, hx, hy, R * 2.0, self.c1, 170 * f)
+            p.setPen(Qt.NoPen)
+            p.setBrush(_q(self._hotc(self.c1, 0.35), 235 * f))
+            p.drawPie(QRectF(hx - R, hy - R, 2 * R, 2 * R), (180 if sg > 0 else 0) * 16, 180 * 16)
+        # the cut through it, in the cutter's colour
+        cl = 52 * S * _ease_out(min(1.0, t / 4.0))
+        _diamond(p, -cl, 0, cl, 0, 4.5 * S * f, self.c2, 220 * f)
+        _diamond(p, -cl * 0.85, 0, cl * 0.85, 0, 1.6 * S * f + 0.3, self.hot, 255 * f)
+        _glow(p, 0, 0, 36 * S * (0.6 + 0.4 * f), self.hot, 255 * f * f, 0.5)
+        self._draw_parts(p)
 
     def _draw_parts_under(self, p):
         p.setCompositionMode(QPainter.CompositionMode_SourceOver)

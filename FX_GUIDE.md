@@ -444,7 +444,7 @@ one list for the whole world, so Solo and Battle behave identically.
   explosion takes its side's colour, with a white-hot core where they meet.
 - **Sustained clashes** (`beam_struggle`, `blade_lock`, `speed_duel`, `sword_duel`) hold until
   `fx.release(winner)` (or their `hold` ticks run out; `hold=-1` = until released).
-- **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`, `beam_struggle_won`,
+- **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`, `beam_struggle_won`, `orb_split`,
   `kunai_storm`, `ricochet_rain`, `blade_lock`, `reiatsu_eruption`,
   `getsuga_cross`, `implosion_pop`, `storm_fork`, `speed_duel` (a sword fight too
   fast to see: speed streaks and clash flashes in bursts of strikes).
@@ -689,15 +689,16 @@ that touch play the rule for their categories (`RULES`; every pair has one):
 | Pair | What happens |
 |---|---|
 | beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`. The struggle is anchored: it draws each beam from its origin (locked when the clash starts) to the node at its real width, the real beams are hidden meanwhile, and the node is pushed toward the losing side. A winner then pushes through for `PUSH_TICKS` (~1 s): the node is driven all the way back into the loser's origin, the loser takes the winning beam's hit (its damage and knockback, along the beam), the won blast (`beam_struggle_won`, the "Beam struggle won" slot) goes off on the loser, and the winner's beam carries on past them and fades. A non-ultimate winner never pushes an ultimate loser through. A tie overloads |
-| beam × orb | the orb is held on the beam head (`beam_orb`) for `BEAM_ORB_TICKS`, then bursts |
+| beam × orb | the orb is held on the beam head (`beam_orb`) for `BEAM_ORB_TICKS`, then bursts. Both knockback `STRUGGLE_KB` (100) or more: a struggle exactly like beam × beam (`beam_orb_struggle`; won: push-through, hit, `beam_orb_struggle_end`; tie: overload). The real orb rides the node on its own side; a winning orb flies on from the loser |
 | beam × trail / crescent / sprite | `SPLIT_CHANCE` (50%): the beam splits at the contact into two halves fanning ±30° that run to the beam's end, can hit, and explode there (`split_burst`). Otherwise the beam carries on. A beam is never cancelled by its cutter |
-| orb × orb | `orb_pops` |
+| orb × orb | `orb_pops`. Both knockback 100 or more: an orb struggle (`orb_orb_struggle`; won: push-through, hit, `orb_orb_struggle_end`; tie: overload), the two real orbs pressed together either side of the node |
+| orb × trail / crescent / sprite (a moving orb) | like a beam split: `SPLIT_CHANCE` (50%) the orb is cut into two halves (70% size) fanning ±30° that fly on, can hit, and pop where they end (`orb_split`, `orb_split_tip`); otherwise the pair's burst below plays and the orb carries on. An orb is never cancelled by its cutter; an ultimate orb is split only by a cutter with higher knockback |
 | trail × trail | `sword_duel`: the two fighters are moved by the clash. They dash in, their blades meet, they spring apart, and it ends on one big clash back where they started; the knockback rule then settles it. The FX is anchored to their real positions. A pair that just duelled (`DUEL_REARM_TICKS`) gets `sword_slash_clash` instead |
 | crescent × crescent | `crescent_struggle` for `CRESCENT_TICKS`, then the blades shatter |
 | sprite × sprite | `kunai_clash` |
 | orb × trail, trail × crescent | `sword_slash_clash` |
 | orb × crescent, crescent × sprite | `getsuga_cross` |
-| orb × sprite | `collision_nova` |
+| orb × sprite | `collision_nova` (orb not split) |
 | trail × sprite | `kunai_clash` |
 
 The six pairs at the bottom are one-shot bursts settled by the knockback rule.
