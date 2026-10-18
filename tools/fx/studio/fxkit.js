@@ -735,7 +735,7 @@ function normalizeUnique(a) {
 var CLASH_SLOTS = [
   ["beam_explode", "beam_clash", "Beam × beam (both damage over 10)"],
   ["beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"],
-  ["beam_struggle_end", "overpower_blowout", "Beam struggle won"],
+  ["beam_struggle_end", "beam_struggle_won", "Beam struggle won"],
   ["beam_orb", "beam_orb", "Beam × orb / petal"],
   ["beam_split", "beam_split", "Beam split by a trail / crescent / sprite"],
   ["split_tip", "split_burst", "End of each split half"],
@@ -757,6 +757,7 @@ var WORLD_CLASH_FORMAT = "pb_world_clash";
 // per-rule FX choice.
 var CLASH_FX = [
   ["collision_nova", "Collision Nova"], ["beam_struggle", "Beam Struggle Node"], ["overpower_blowout", "Overpower Blowout"],
+  ["beam_struggle_won", "Beam Struggle Won"],
   ["kunai_storm", "Kunai Storm"], ["ricochet_rain", "Ricochet Rain"], ["blade_lock", "Blade Lock"],
   ["reiatsu_eruption", "Reiatsu Eruption"], ["getsuga_cross", "Getsuga Cross"], ["implosion_pop", "Implosion Pop"],
   ["storm_fork", "Storm Fork"], ["speed_duel", "Speed Duel"], ["beam_clash", "Beam Clash"], ["beam_orb", "Beam vs Orb"],

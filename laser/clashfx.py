@@ -18,6 +18,14 @@ attack, with a white-hot core where they meet:
                      beams itself, origin to node at their real widths, and
                      the node is pushed toward the losing side
   overpower_blowout  a struggle won: cone blast driven toward the loser, smoke
+  beam_struggle_won  a struggle won and pushed through: the winner's beam has
+                     driven the node into the loser — an engulfing fireball
+                     in the winner's colour, rays carried on past the loser,
+                     heavy shockwaves, debris and smoke (the default
+                     "Beam struggle won" FX).  The anchored struggle itself
+                     plays the push-through (push / win()): the node is
+                     driven back into the loser's origin, then the winner's
+                     beam carries on past it and fades
   kunai_storm        dozens of tiny steel-on-steel clashes, kunai spinning off
   ricochet_rain      chains of spark pops ricocheting outward over ~1 s
   blade_lock         SUSTAINED: two blades crossed in an X, grinding sparks,
@@ -94,6 +102,7 @@ SHOCK_TICKS = 26              # beam struggle node: life of each shockwave ring
 SURGE_MAX = 0.45              # tug of war: furthest a surge carries the node toward a side (share of the way)
 SURGE_TICKS = (18, 40)        # ticks between surges
 COMMIT_AT = 0.7               # share of the struggle after which it commits (winner push / overload build-up)
+WON_CARRY_TICKS = 50          # won struggle: finale ticks the winner's beam carries on past the loser, fading
 CAP_KNEE = 0.6                # soft size cap (ClashFX.cap_r): full size up to this share of the cap, then eases in
 
 # Shared tunables, overridable per variation: size / density / speed scale
@@ -107,6 +116,7 @@ BASES = {
     "collision_nova": dict(name="Collision Nova", kind="burst", life=40),
     "beam_struggle": dict(name="Beam Struggle Node", kind="sustain", life=36, hold=150, stubs=True, stub_len=150),
     "overpower_blowout": dict(name="Overpower Blowout", kind="burst", life=56, cone_deg=34),
+    "beam_struggle_won": dict(name="Beam Struggle Won", kind="burst", life=64, cone_deg=26),
     "kunai_storm": dict(name="Kunai Storm", kind="burst", life=62, area_rx=120, area_ry=80, clashes=56),
     "ricochet_rain": dict(name="Ricochet Rain", kind="burst", life=66, chains=6, hops=8),
     "blade_lock": dict(name="Blade Lock", kind="sustain", life=38, hold=120, blade_len=78, cross_deg=35),
@@ -657,10 +667,11 @@ class ClashFX:
     def _init_beam_struggle(self):
         self.state.update(arcs=[], shocks=[], nx=0.0, ny=0.0, core=0.0, R=0.0, f0=(0.0, 0.0), fR=0.0, ax=0.0,
                           o=None, looks=None, bw=(0.0, 0.0), loser=None,
-                          s=0.0, sv=0.0, tgt=0.0, next=0, over=0.0, overload=False)
+                          s=0.0, sv=0.0, tgt=0.0, next=0, over=0.0, overload=False,
+                          push=0, s0=None, win_k=0.0, won=False)
         self.rim = True
 
-    def anchor_beams(self, look1, look2, loser=None):
+    def anchor_beams(self, look1, look2, loser=None, push=0):
         """laser/clash.py: tie the struggle to the two real beams.  look1 /
         look2 = how each side's beam is drawn right now (clash._beam_look:
         o = where it starts, world, locked when the clash starts; tail /
@@ -672,7 +683,9 @@ class ClashFX:
         beams are then drawn here with their own look, from each origin to
         the node, so the real ones can be hidden (HIDDEN) without a seam.
         Its size (S) is already set from the beams' widths, so the position
-        scale is not applied again."""
+        scale is not applied again.  push = the last ticks of the hold
+        (a winner only) that are the push-through: the winner's beam drives
+        the node all the way back into the loser's origin."""
         self.anchored = True
         looks = (dict(look1), dict(look2))
         for lk in looks:
@@ -684,6 +697,7 @@ class ClashFX:
         self.c1, self.c2 = (_vivid(lk["ct"], lk["ch"]) for lk in looks)
         self.state.update(o=(l1, l2), looks=looks,
                           bw=tuple(max(2.0, lk["wh"]) for lk in looks), loser=loser,
+                          push=max(0, int(push)) if loser is not None else 0,
                           ax=math.atan2(dy, dx) if math.hypot(dx, dy) > 1e-6 else 0.0)
 
     def node_world(self):
@@ -711,23 +725,37 @@ class ClashFX:
             # surges back and forth in irregular pushes, sprung so it
             # overshoots and recoils; after COMMIT_AT it commits toward the
             # loser, or (a tie) shakes in place building to an overload.
-            span = float(self.hold) if self.hold > 0 else 90.0
+            push = st["push"]
+            span = float(self.hold - push) if self.hold > push else 90.0
             u = min(1.0, t / span)
             lo = st["loser"]
-            if t >= st["next"]:
-                side = -1.0 if st["tgt"] > 0 else 1.0
-                st["tgt"] = side * r.uniform(0.15, SURGE_MAX)
-                st["next"] = t + r.randint(*SURGE_TICKS)
-            tgt = st["tgt"]
-            if u > COMMIT_AT:
-                k = _ease_in((u - COMMIT_AT) / (1.0 - COMMIT_AT))
-                if lo is not None:
-                    tgt += ((BEAM_PUSH if lo == 1 else -BEAM_PUSH) - tgt) * min(1.0, 3.0 * k)
-                else:
-                    tgt *= 1.0 - min(1.0, 3.0 * k)
-                    over = (u - COMMIT_AT) / (1.0 - COMMIT_AT)
-            st["sv"] = st["sv"] * 0.86 + (tgt - st["s"]) * 0.035
-            st["s"] = max(-0.9, min(0.9, st["s"] + st["sv"]))
+            if push and t > span:
+                # Push-through (a won struggle): the winner's beam drives
+                # the node all the way back into the loser's origin — slow
+                # to break, then rushing in.
+                if st["s0"] is None:
+                    st["s0"] = st["s"]
+                pu = min(1.0, (t - span) / float(max(1, push - 1)))
+                kk = 0.2 * pu + 0.8 * pu ** 3
+                end = 1.0 if lo == 1 else -1.0
+                st["s"] = st["s0"] + (end - st["s0"]) * kk
+                st["sv"] = 0.0
+                st["win_k"] = kk
+            else:
+                if t >= st["next"]:
+                    side = -1.0 if st["tgt"] > 0 else 1.0
+                    st["tgt"] = side * r.uniform(0.15, SURGE_MAX)
+                    st["next"] = t + r.randint(*SURGE_TICKS)
+                tgt = st["tgt"]
+                if u > COMMIT_AT:
+                    k = _ease_in((u - COMMIT_AT) / (1.0 - COMMIT_AT))
+                    if lo is not None:
+                        tgt += ((BEAM_PUSH if lo == 1 else -BEAM_PUSH) - tgt) * min(1.0, 3.0 * k)
+                    else:
+                        tgt *= 1.0 - min(1.0, 3.0 * k)
+                        over = (u - COMMIT_AT) / (1.0 - COMMIT_AT)
+                st["sv"] = st["sv"] * 0.86 + (tgt - st["s"]) * 0.035
+                st["s"] = max(-0.9, min(0.9, st["s"] + st["sv"]))
             sv = st["s"]
             ox, oy = st["o"][1] if sv >= 0 else st["o"][0]
             nx, ny = ox * abs(sv), oy * abs(sv)
@@ -747,6 +775,7 @@ class ClashFX:
         R = max(base, 24 * S) * (1.0 + 0.25 * g) * (1.0 + 0.07 * math.sin(t * 0.5) + 0.04 * math.sin(t * 1.3 + 0.7))
         if over > 0:    # swelling and throbbing harder before it blows
             R *= 1.0 + 0.6 * over + 0.12 * over * math.sin(t * 2.1)
+        R *= 1.0 + 0.5 * st["win_k"]    # the push-through: the winner's energy swells the node
         # Soft cap: the shockwave rings reach 2.8 R (plus half their line and dark rim).
         R *= self._capk(2.8 * R, 4.0 * S + 1.5)
         st["R"] = R
@@ -773,6 +802,20 @@ class ClashFX:
                                      math.cos(a) * v, math.sin(a) * v,
                                      r.randint(18, 34), r.uniform(2.2, 4.0) * S,
                                      self.c1 if r.random() < 0.5 else self.c2, drag=0.94, grav=0.12 * S))
+        wk = st["win_k"]
+        if wk > 0:
+            # the push-through: streaks rushing ahead of the node down the
+            # loser's beam, in the winner's colour
+            lx, ly = st["o"][st["loser"]]
+            pa = math.atan2(ly - ny, lx - nx)
+            cw = self.c1 if st["loser"] == 1 else self.c2
+            for _ in range(3 + int(5 * wk)):
+                if r.random() < self.D:
+                    a = pa + r.gauss(0, 0.35)
+                    v = r.uniform(8.0, 18.0) * self.V * S
+                    self.parts.append(_P("spark", nx + math.cos(a) * R * 0.7, ny + math.sin(a) * R * 0.7,
+                                         math.cos(a) * v, math.sin(a) * v, r.randint(10, 20),
+                                         r.uniform(2.4, 4.2) * S, cw, drag=0.93))
         if r.random() < 0.6 * self.D:
             side = 1 if r.random() < 0.5 else -1
             a = ax + side * math.pi / 2 + r.gauss(0, 0.9)
@@ -786,10 +829,49 @@ class ClashFX:
         st = self.state
         st["f0"] = (st["nx"], st["ny"])
         st["fR"] = st["R"]
+        if st["won"]:
+            return      # the won blast (beam_struggle_end slot) brings its own debris
         x, y = st["f0"]
         self._sparks(90, x=x, y=y, spd=(4.0, 14.0), life=(20, 40), size=(2.0, 3.6))
         self._sparks(16, x=x, y=y, kind="smoke", spd=(0.6, 2.2), life=(30, 50), size=(10, 18), drag=0.96)
         self._sparks(24, x=x, y=y, kind="dot", spd=(1.0, 5.0), life=(22, 40), size=(3.0, 5.5), drag=0.95)
+
+    def win(self):
+        """laser/clash.py: a won struggle whose node was pushed through into
+        the loser — call before release().  The finale carries the winner's
+        beam on past the loser, fading out there (WON_CARRY_TICKS), while
+        the node is swallowed by the won blast (the beam_struggle_end
+        slot's FX)."""
+        st = self.state
+        if self.base != "beam_struggle" or not self.anchored or st.get("loser") is None:
+            return
+        st["won"] = True
+        self.life = max(self.life, WON_CARRY_TICKS)
+
+    def _draw_struggle_won(self, p):
+        """A won struggle's finale: the winner's beam, from its origin
+        through the node (now at the loser), carries on past it and fades;
+        the node collapses into the blast."""
+        st, S = self.state, self.S
+        t = self.ft
+        u = min(1.0, t / self.life)
+        lk = dict(st["looks"][1 - st["loser"]])
+        ox, oy = lk["o"]
+        x, y = st["f0"]
+        L0 = math.hypot(x - ox, y - oy)
+        if L0 > 1.0:
+            ux, uy = (x - ox) / L0, (y - oy) / L0
+            ext = (0.6 * L0 + 160 * S) * _ease_out(t / 16.0)
+            lk["am"] = lk["am"] * (1.0 - _ease_in(u))
+            self._draw_struggle_beam(p, x + ux * ext, y + uy * ext, lk, 1.25 - 0.25 * u)
+        e = min(1.0, t / 14.0)
+        if e < 1.0:
+            p.save()
+            p.translate(x, y)
+            p.rotate(math.degrees(st["ax"]))
+            self._draw_sphere(p, (st["fR"] or 30 * S) * (1.0 - _ease_in(e)), 255 * (1.0 - e))
+            p.restore()
+        self._draw_parts(p)
 
     def overload(self):
         """laser/clash.py: a tied struggle overloads — call after release().
@@ -814,6 +896,9 @@ class ClashFX:
         k = a / 255.0
         S = self.S
         mid = _mix(self.c1, self.c2, 0.5)
+        wk = self.state.get("win_k", 0.0) if self.base == "beam_struggle" else 0.0
+        if wk > 0:      # the push-through: the winner's colour takes the node over
+            mid = _mix(mid, self.c1 if self.state["loser"] == 1 else self.c2, 0.75 * wk)
         deep = _mix(mid, RIM, 0.25)
         p.setCompositionMode(QPainter.CompositionMode_SourceOver)
         # a thin soft dark halo just outside the sphere
@@ -902,8 +987,12 @@ class ClashFX:
         if self.phase == "hold":
             nx, ny, R, t, ax = st["nx"], st["ny"], st["R"], self.t, st["ax"]
             if self.anchored:
+                wk, lo = st["win_k"], st["loser"]
                 for i in (0, 1):
-                    self._draw_struggle_beam(p, nx, ny, st["looks"][i], 1 + 0.08 * math.sin(t * 0.8 + i))
+                    wob = 1 + 0.08 * math.sin(t * 0.8 + i)
+                    if wk > 0:      # the push-through: the winner's beam swells, the loser's gives way
+                        wob *= (1.0 - 0.5 * wk) if i == lo else (1.0 + 0.25 * wk)
+                    self._draw_struggle_beam(p, nx, ny, st["looks"][i], wob)
                 p.setCompositionMode(QPainter.CompositionMode_Plus)
             elif self.spec.get("stubs"):
                 L = float(self.spec.get("stub_len", 150)) * S
@@ -934,6 +1023,9 @@ class ClashFX:
                 _draw_bolts(p, bolts, RIM, 90, 5.0 * S, 2.6 * S)
                 p.setCompositionMode(QPainter.CompositionMode_Plus)
                 _draw_bolts(p, bolts, c, 230, 4.0 * S, 1.3 * S)
+        elif st["won"]:
+            self._draw_struggle_won(p)
+            return
         else:
             t = self.ft
             u = min(1.0, t / self.life)
@@ -1005,6 +1097,70 @@ class ClashFX:
         r = k * 150 * S * _ease_out(v)
         _split_ring(p, k * d * 20 * S, 0, r * 0.35, r, 5 * S * (1 - v) + 0.5, self._hotc(self.c1, 0.3),
                     self._hotc(self.c2, 0.3), 220 * (1 - v))
+        self._draw_parts_over(p)
+
+    # ================================================================ 3b
+    def _init_beam_struggle_won(self):
+        """A struggle won and pushed through: the clash point is the loser,
+        engulfed by the winner's beam, which blasts on past them (toward +x
+        when side A won)."""
+        d = self._wdir()
+        cw, cl = (self.c1, self.c2) if self.winner == 0 else (self.c2, self.c1)
+        base = 0.0 if d > 0 else math.pi
+        cone = math.radians(float(self.spec.get("cone_deg", 26)))
+        r, S = self.rng, self.S
+        self.rim = True
+        self._sparks(120, spd=(5.0, 20.0), life=(22, 44), size=(2.2, 4.2), col=cw)
+        self._sparks(70, ang=base, spread=cone, spd=(10.0, 26.0), life=(18, 34), size=(2.4, 4.4), col=cw, drag=0.95)
+        self._sparks(30, spd=(3.0, 10.0), life=(16, 30), col=cl)
+        self._sparks(40, kind="dot", spd=(2.0, 9.0), life=(26, 48), size=(3.5, 6.5), col=cw, drag=0.95, grav=0.15)
+        ux, uy = -self.down[0], -self.down[1]
+        for _ in range(int(26 * self.D)):
+            a = r.uniform(0, TAU)
+            k = r.uniform(0.2, 1.0)
+            v = r.uniform(0.8, 2.4) * S
+            self.parts.append(_P("smoke", math.cos(a) * k * 70 * S, math.sin(a) * k * 70 * S,
+                                 math.cos(a) * v * 0.7 + ux * v * 0.6, math.sin(a) * v * 0.7 + uy * v * 0.6,
+                                 r.randint(40, 66), r.uniform(14, 26) * S, cw, drag=0.97, delay=r.randint(4, 16)))
+        self.state["rays"] = [(r.uniform(-cone, cone), r.uniform(0.6, 1.0), r.uniform(0, TAU))
+                              for _ in range(int(7 + 4 * self.D))]
+
+    def _draw_beam_struggle_won(self, p):
+        S, t = self.S, self.ft
+        u = min(1.0, t / self.life)
+        f = 1.0 - u
+        d = self._wdir()
+        cw = self.c1 if self.winner == 0 else self.c2
+        base = 0.0 if d > 0 else math.pi
+        # Soft cap: one factor for the whole blast (its widest ring reaches 300 S).
+        k = self._capk(300 * S, 6.5 * S + 1.5)
+        self._draw_parts_under(p)
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        e = _ease_out(t / 12.0)
+        # the engulfing fireball in the winner's colour, leaning on through
+        _glow_ellipse(p, d * 40 * S * e * k, 0, k * 150 * S * (0.35 + 0.65 * e), k * 120 * S * (0.35 + 0.65 * e),
+                      cw, 235 * f ** 1.2)
+        _glow(p, 0, 0, k * 90 * S * (0.5 + 0.5 * e), self._hotc(cw, 0.5), 240 * f ** 1.6, 0.45)
+        # rays carried on past the loser
+        for da, ln, ph in self.state["rays"]:
+            a = base + da
+            L = k * 260 * S * ln * _ease_out(t / 10.0)
+            w = (5 + 3 * math.sin(t * 0.7 + ph)) * S * f
+            _diamond(p, 0, 0, math.cos(a) * L, math.sin(a) * L, w, cw, 200 * f)
+            _diamond(p, 0, 0, math.cos(a) * L * 0.8, math.sin(a) * L * 0.8, w * 0.35 + 0.3, self.hot, 240 * f)
+        # the impact flash
+        _glow(p, 0, 0, k * 110 * S * min(1.0, (t + 1) / 3.0), self.hot, 255 * max(0.0, 1 - t / 12.0), 0.5)
+        # shockwaves, each over a dark rim
+        for delay, maxr, life, w0 in ((0, 300, 34, 9), (6, 210, 30, 6), (12, 130, 24, 4)):
+            if delay <= t < delay + life:
+                v = (t - delay) / float(life)
+                rr = k * maxr * S * _ease_out(v)
+                w = w0 * S * (1 - v) + 0.6
+                a = 230 * (1 - v)
+                p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+                _split_ring(p, 0, 0, rr, rr, w + 2.5 * S, RIM, RIM, 0.45 * a)
+                p.setCompositionMode(QPainter.CompositionMode_Plus)
+                _split_ring(p, 0, 0, rr, rr, w, self._hotc(cw, 0.25), self._hotc(cw, 0.25), a)
         self._draw_parts_over(p)
 
     def _draw_parts_under(self, p):

@@ -444,7 +444,7 @@ one list for the whole world, so Solo and Battle behave identically.
   explosion takes its side's colour, with a white-hot core where they meet.
 - **Sustained clashes** (`beam_struggle`, `blade_lock`, `speed_duel`, `sword_duel`) hold until
   `fx.release(winner)` (or their `hold` ticks run out; `hold=-1` = until released).
-- **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`,
+- **Baselines:** `collision_nova`, `beam_struggle`, `overpower_blowout`, `beam_struggle_won`,
   `kunai_storm`, `ricochet_rain`, `blade_lock`, `reiatsu_eruption`,
   `getsuga_cross`, `implosion_pop`, `storm_fork`, `speed_duel` (a sword fight too
   fast to see: speed streaks and clash flashes in bursts of strikes).
@@ -688,7 +688,7 @@ that touch play the rule for their categories (`RULES`; every pair has one):
 
 | Pair | What happens |
 |---|---|
-| beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`, then the winner blows through (`overpower_blowout`). The struggle is anchored: it draws each beam from its origin (locked when the clash starts) to the node at its real width, the real beams are hidden meanwhile, and the node is pushed toward the losing side; the blowout fires where the node ends up |
+| beam × beam | both damage > 10: `beam_clash` explosion. Otherwise a `beam_struggle` for `STRUGGLE_TICKS`. The struggle is anchored: it draws each beam from its origin (locked when the clash starts) to the node at its real width, the real beams are hidden meanwhile, and the node is pushed toward the losing side. A winner then pushes through for `PUSH_TICKS` (~1 s): the node is driven all the way back into the loser's origin, the loser takes the winning beam's hit (its damage and knockback, along the beam), the won blast (`beam_struggle_won`, the "Beam struggle won" slot) goes off on the loser, and the winner's beam carries on past them and fades. A non-ultimate winner never pushes an ultimate loser through. A tie overloads |
 | beam × orb | the orb is held on the beam head (`beam_orb`) for `BEAM_ORB_TICKS`, then bursts |
 | beam × trail / crescent / sprite | `SPLIT_CHANCE` (50%): the beam splits at the contact into two halves fanning ±30° that run to the beam's end, can hit, and explode there (`split_burst`). Otherwise the beam carries on. A beam is never cancelled by its cutter |
 | orb × orb | `orb_pops` |
