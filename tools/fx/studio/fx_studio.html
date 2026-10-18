@@ -41,6 +41,11 @@ details.panel>summary:focus-visible{outline:1px solid var(--acc);outline-offset:
 .list div.multi{outline:1px dashed var(--acc);outline-offset:-1px}.list div.gm{margin-left:14px}
 .list div.grp{font-weight:600;border-left:3px solid var(--ok)}.list div.grp .tw{color:var(--mute);width:10px}
 .list .ct{color:var(--mute);padding:0 4px;border-radius:4px;font-size:14px;line-height:1}.list .ct:hover{color:var(--text)}
+/* Clash tag: what an effect is to World Clash (hover: the clash FX it plays against each type) */
+.cl{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:99px;border:1px solid currentColor;white-space:nowrap;line-height:1.4;cursor:help;margin-right:6px}
+.list .cl{flex-shrink:0;margin:0;font-size:9px;letter-spacing:0;padding:0 5px}
+.cl.beam{color:#4aa8ff}.cl.orb{color:#c77dff}.cl.trail{color:#3fcf8e}.cl.crescent{color:#f0b429}.cl.sprite{color:#ff7a59}.cl.particle,.cl.none{color:var(--mute)}
+:root[data-theme="light"] .cl.beam{color:#1565c0}:root[data-theme="light"] .cl.orb{color:#7b1fa2}:root[data-theme="light"] .cl.trail{color:#1e7a4a}:root[data-theme="light"] .cl.crescent{color:#8a5a00}:root[data-theme="light"] .cl.sprite{color:#c43e1c}
 .list .ct.on{color:var(--onacc);background:var(--ok)}.list .ct.off{opacity:.3;cursor:not-allowed}
 /* Anchors: four rows visible, the rest scroll (row = 5px + 1.4em line + 5px) */
 #anchors{position:relative;max-height:calc(4 * (1.4em + 10px) + 2px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:6px;scrollbar-width:thin}.list .x:hover{color:var(--bad)}
