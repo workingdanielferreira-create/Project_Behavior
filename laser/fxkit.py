@@ -305,11 +305,12 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #            their combined momentum; hurts_owner turns the deflected enemy
 #            projectile against the fighter who fired it
 #   destroy  the enemy projectile is nullified, this one keeps going
-#   absorb   an enemy projectile with LESS knockback than this one is
-#            swallowed (gone, no blast) and this one grows ABSORB_STEP
-#            (size, hit size, blast, damage and knockback) up to ABSORB_MAX;
-#            one with as much knockback or more is left to World Clash
-#            (absorb_grow; laser/clash.py absorbs lesser bodies it touches too)
+#   absorb   an enemy projectile whose knockback this one's beats by MORE
+#            than ABSORB_LEAD_KB is swallowed (gone, no blast) and this one
+#            grows ABSORB_STEP (size, hit size, blast, damage and knockback)
+#            up to ABSORB_MAX; any closer one is left to World Clash
+#            (absorb_grow, absorb_beats; laser/clash.py absorbs bodies it
+#            touches by the same lead)
 # Clashing is not an intercept mode: it is world physics (laser/clash.py),
 # the same for every effect.  An older file's "clash" mode loads as "block".
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
@@ -317,6 +318,13 @@ INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mod
 INTERCEPT_MODES = ("block", "deflect", "destroy", "absorb")
 ABSORB_STEP = 0.05      # absorb: +5% of the original size per projectile swallowed...
 ABSORB_MAX = 2.0        # ...up to 200%
+ABSORB_LEAD_KB = 300.0  # absorb only swallows a projectile it out-knocks by more than this
+
+
+def absorb_beats(kb, other_kb):
+    """An absorber with knockback kb may swallow a projectile with
+    other_kb: only when it leads by more than ABSORB_LEAD_KB (FXK.absorbBeats)."""
+    return kb is not None and kb - float(other_kb or 0) > ABSORB_LEAD_KB
 # Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled the effect is laid out
 # toward the side the target is on (fx_facing), whichever way the fighter
 # itself faces, and it plays as the mirror image (left <-> right only, never
@@ -1601,9 +1609,10 @@ def shot_nearest(s, x, y):
 
 def _shot_takes(s, mode, kb=None):
     """Whether an intercept in `mode` may take shot s (FXK.shotTakes).
-    absorb: only a shot with less knockback than kb (the absorber's)."""
+    absorb: only a shot kb (the absorber's) out-knocks by more than
+    ABSORB_LEAD_KB (absorb_beats)."""
     if mode == "absorb":
-        return s.blockable and kb is not None and s.knockback < kb
+        return s.blockable and absorb_beats(kb, s.knockback)
     return s.deflectable if mode == "deflect" else s.blockable
 
 
@@ -1621,7 +1630,7 @@ def orb_takes(s, mode, kb=None):
         if isinstance(s.ref, RoundRef) and s.ref.stopped:
             return False
         if mode == "absorb":
-            return s.rblock and kb is not None and s.knockback < kb
+            return s.rblock and absorb_beats(kb, s.knockback)
         return s.rdeflect if mode == "deflect" else s.rblock
     return _shot_takes(s, mode, kb)
 

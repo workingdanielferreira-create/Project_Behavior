@@ -124,10 +124,11 @@ Every pair of categories has a rule.
                       (one-shot bursts; the knockback rule settles them)
 
 Absorb (_absorb): an effect whose Intercept is in absorb mode swallows an
-enemy projectile body with less knockback that it touches (beams included,
-never a trail or an effect attached to its fighter): no clash, the other is
-gone without a blast and the absorber grows (fxkit.absorb_grow: +5% up to
-200% size, damage and knockback).  Equal or more knockback clashes as usual.
+enemy projectile body it touches whose knockback its own beats by more than
+fxkit.ABSORB_LEAD_KB (300; beams included, never a trail or an effect
+attached to its fighter): no clash, the other is gone without a blast and
+the absorber grows (fxkit.absorb_grow: +5% up to 200% size, damage and
+knockback).  A smaller lead (or none) clashes by the rules above.
 
 Knockback rule: the effect with the higher battle knockback survives at full
 power and the other is cancelled; a tie cancels both.  A trail cannot be
@@ -1030,12 +1031,12 @@ def _absorbs(b):
 
 def _absorb(world, a, b):
     """Absorb (Intercept mode): an absorber touching an enemy projectile
-    with LESS knockback swallows it — gone at its source, no blast, no clash
+    it out-knocks by more than fxkit.ABSORB_LEAD_KB swallows it — gone at its source, no blast, no clash
     FX — and grows (fxkit.absorb_grow).  Never what is on a fighter (a trail,
     an attached effect), and a non-ultimate never swallows an ultimate's
     effect.  True when it happened (no clash then)."""
     for w, v in ((a, b), (b, a)):
-        if not _absorbs(w) or v.kb >= w.kb or v.cat == "trail" or _connected(v):
+        if not _absorbs(w) or not fxkit.absorb_beats(w.kb, v.kb) or v.cat == "trail" or _connected(v):
             continue
         if _is_ult(v) and not _is_ult(w):
             continue

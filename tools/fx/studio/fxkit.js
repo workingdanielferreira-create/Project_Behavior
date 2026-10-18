@@ -435,10 +435,14 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
 var INTERCEPT_MODES = ["block", "deflect", "destroy", "absorb"];
-// absorb: an enemy projectile with LESS knockback is swallowed (gone, no
-// blast) and this one grows ABSORB_STEP (size, hit size, blast, damage,
-// knockback) up to ABSORB_MAX.  laser/fxkit.py absorb_grow.
-var ABSORB_STEP = 0.05, ABSORB_MAX = 2;
+// absorb: an enemy projectile this one out-knocks by MORE than
+// ABSORB_LEAD_KB is swallowed (gone, no blast) and this one grows
+// ABSORB_STEP (size, hit size, blast, damage, knockback) up to ABSORB_MAX;
+// any closer one is left to World Clash.  laser/fxkit.py absorb_grow.
+var ABSORB_STEP = 0.05, ABSORB_MAX = 2, ABSORB_LEAD_KB = 300;
+// An absorber with knockback kb may swallow a projectile with otherKb.
+// laser/fxkit.py absorb_beats.
+function absorbBeats(kb, otherKb) { return kb != null && kb - (+otherKb || 0) > ABSORB_LEAD_KB; }
 // Flip (fx.flip): when enabled the effect is laid out toward the side the
 // target is on (fxFacing), whichever way the fighter itself faces, and it
 // plays as the mirror image (left <-> right only, never up <-> down) when
@@ -1675,9 +1679,9 @@ function shotNearest(s, x, y) {
 // Whether an intercept in `mode` may take shot s: deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
 // e.g. built-in bullets, are both).
-// absorb: only a shot with less knockback than kb (the absorber's).
+// absorb: only a shot kb (the absorber's) out-knocks by more than ABSORB_LEAD_KB.
 function shotTakes(s, mode, kb) {
-  if (mode === "absorb") return s.blockable !== false && kb != null && (+s.knockback || 0) < kb;
+  if (mode === "absorb") return s.blockable !== false && absorbBeats(kb, s.knockback);
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
 function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
@@ -1690,7 +1694,7 @@ function roundStopped(s) { return s.round != null && !!(s.ref.tq_ki && s.ref.tq_
 function orbTakes(s, mode, kb) {
   if (s.threat) {
     if (roundStopped(s)) return false;
-    if (mode === "absorb") return !!s.rblock && kb != null && (+s.knockback || 0) < kb;
+    if (mode === "absorb") return !!s.rblock && absorbBeats(kb, s.knockback);
     return mode === "deflect" ? !!s.rdeflect : !!s.rblock;
   }
   return shotTakes(s, mode, kb);
@@ -2532,7 +2536,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, instKnockback: instKnockback, absorbGrow: absorbGrow, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
