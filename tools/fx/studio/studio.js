@@ -3547,6 +3547,52 @@ var CLASH_ACTION = "clash";
 // the game reads from characters/world_clash.json (drop it like an FX file).
 var WORLD_KEY = "pbfxstudio.v1.worldclash";
 var WORLD = FXK.normalizeWorldClash(lsGet(WORLD_KEY) || {});
+var WORLD_SEL_KEY = "pbfxstudio.v1.worldclash.sel";   // the rule the World Clash page shows
+// The World Clash page's animation preview: the selected rule's clash FX
+// (studio/clashfx.js, the same port the stage and clash_gallery.html use),
+// looping at its size / density %, side A blue and side B red.  Sword Duel
+// has no canvas port: its preview is the one-shot Sword Slash Clash it
+// falls back to on the stage.  Returns {replay}.
+function worldPreview(parent, slotKey) {
+  var wrap = document.createElement("div"); wrap.className = "wpv";
+  var cv = document.createElement("canvas"); cv.width = 560; cv.height = 420; wrap.appendChild(cv);
+  var cap = document.createElement("div"); cap.className = "wpvcap"; wrap.appendChild(cap);
+  var row = document.createElement("div"); row.className = "row"; wrap.appendChild(row);
+  var bR = document.createElement("button"); bR.textContent = "↻ Replay"; row.appendChild(bR);
+  var bH = document.createElement("button"); bH.textContent = "Release hold"; bH.title = "A sustained clash (struggle) holds before it detonates: end the hold now."; row.appendChild(bH);
+  parent.appendChild(wrap);
+  var g = cv.getContext("2d"), fx = null, gap = 0, acc = 0, last = performance.now(), wins = 0;
+  function spawn() {
+    var slot = WORLD.slots[slotKey], key = slot.fx;
+    fx = null; gap = 0;
+    if (!window.CLASHFX || key === "none") { cap.textContent = key === "none" ? "This rule plays no clash FX." : ""; bH.disabled = true; return; }
+    var shown = key === "sword_duel" || !CLASHFX.BASES[key] ? "sword_slash_clash" : key;
+    wins++;
+    fx = new CLASHFX.ClashFX(shown, {c1: [70, 150, 255], c2: [255, 60, 90], angle: 0, scale: 0.8 * slot.size / 100,
+      density: slot.density / 100, winner: wins % 2 ? 0 : 1});
+    bH.disabled = !fx.sustain;
+    cap.textContent = CLASHFX.BASES[shown].name + (shown !== key ? " (Sword Duel plays its stand-ins in the game; this is its one-shot burst)" : "") +
+      (fx.sustain ? " — holds " + fx.hold + " ticks, then detonates" : "");
+  }
+  function frame(now) {
+    if (!document.body.contains(cv)) return;   // the page was rebuilt: this preview is gone
+    acc += Math.min(100, now - last); last = now;
+    var n = 0;
+    while (acc >= FXK.TICK_MS && n < 6) {
+      acc -= FXK.TICK_MS; n++;
+      if (fx) { fx.step(); if (!fx.alive) { fx = null; gap = 0; } }
+      else if (++gap > 20 && WORLD.slots[slotKey].fx !== "none") spawn();
+    }
+    g.globalCompositeOperation = "source-over"; g.fillStyle = "#07070c"; g.fillRect(0, 0, cv.width, cv.height);
+    if (fx) { g.save(); g.translate(cv.width / 2, fx.spec.world_up ? cv.height * 0.82 : cv.height / 2); g.scale(1.25, 1.25); fx.draw(g); g.restore(); }
+    requestAnimationFrame(frame);
+  }
+  bR.onclick = spawn;
+  bH.onclick = function () { if (fx) fx.release(); };
+  spawn();
+  requestAnimationFrame(frame);
+  return {replay: spawn};
+}
 function worldSave() { lsSet(WORLD_KEY, WORLD); }
 function openWorldPage(on) { S.worldPage = on; $("bWorld").classList.toggle("primary", !!on); buildProps(); }
 function buildWorldClashProps(d) {
@@ -3574,28 +3620,34 @@ function buildWorldClashProps(d) {
   field(s, "Shortest clash (ticks)", inp("n", WORLD.min_ticks, function (v) { WORLD.min_ticks = Math.max(1, Math.min(600, Math.round(v) || 1)); worldSave(); buildProps(); }, 1, 600, 1)).title =
     "However little life the two effects have left, a clash never lasts less than this (1 tick = " + FXK.TICK_MS + " ms).";
   note(s, "= " + Math.round(WORLD.min_ticks * FXK.TICK_MS) + " ms");
+  // Every clash rule in one section: pick the rule from the dropdown, edit
+  // its clash FX, and watch it play in the preview below.
   var fxOpts = [["none", "— no FX —"]].concat(FXK.CLASH_FX);
-  FXK.CLASH_SLOTS.forEach(function (r) {
-    var slot = WORLD.slots[r[0]], b = sec(d, r[2], "w-clash-" + r[0], "The clash FX that plays for this rule (default " + r[1] + "), and its size and density.", "act");
-    field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); buildProps(); }));
-    field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title =
-      "Full size of this clash FX. Each clash picks a random size between 10% and the higher knockback of the two effects (capped at 100) as a % of this: knockback 100 → up to this size, 50 → up to half of it, 0 → 10%.";
-    field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
-    if (slot.fx === "sword_duel") {
-      // The sword duel's choreography (laser/clashfx.py duel_plan), stretched
-      // on the screen's x and y axes around where the blades first met.
-      // Shown on any slot whose clash FX is Sword Duel; each slot keeps its own.
-      field(b, "Loop X %", inp("n", slot.loop_x, function (v) { slot.loop_x = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
-        "Sword duel: how far the whole fight sequence (where each strike meets, how far they spring apart, the circle back) spreads left and right. 100 = as designed, 200 = twice as wide, 0 = no sideways travel.";
-      field(b, "Loop Y %", inp("n", slot.loop_y, function (v) { slot.loop_y = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
-        "Sword duel: how far the whole fight sequence spreads up and down. 100 = as designed, 200 = twice as tall, 0 = no vertical travel.";
-      field(b, "Flurry %", inp("n", slot.flurry, function (v) { slot.flurry = Math.max(0, Math.min(100, v)); worldSave(); }, 0, 100, 5)).title =
-        "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
-      note(b, r[0] === "trail_trail"
-        ? "Loop X / Y stretch the sword duel's sequence around where the blades first met; the blades still meet at arm's length, and each fighter starts where it was. The duel ends on its final hit: the knockback winner (random on a tie) launches the other 240 px + 0.5 px per point of its trail's knockback (up to 900 px), then finishes — its attack_special at 50% HP or less, its ultimate below 30%."
-        : "Loop X / Y and Flurry % shape this slot's sword duel FX. Only trail × trail moves the real fighters; here two glowing stand-ins play the duel at the clash point.");
-    }
-  });
+  var cur = lsGet(WORLD_SEL_KEY);
+  if (!WORLD.slots[cur]) cur = FXK.CLASH_SLOTS[0][0];
+  var b = sec(d, "Clash rules", "w-rules", "Pick a clash rule, then the clash FX it plays and its size and density.", "act");
+  if (lsGet("pbfxstudio.v2.psec.w-rules") == null) b.open = true;
+  var rs = field(b, "Clash rule", inp(FXK.CLASH_SLOTS.map(function (r) { return [r[0], r[2]]; }), cur, function (v) { lsSet(WORLD_SEL_KEY, v); buildProps(); }));
+  rs.title = "Which pair of colliding FX kinds (or which moment of a beam clash) to edit.";
+  var r = FXK.CLASH_SLOTS.filter(function (x) { return x[0] === cur; })[0], slot = WORLD.slots[cur];
+  var pv = worldPreview(b, cur);
+  var fs = field(b, "Clash FX", inp(fxOpts, slot.fx, function (v) { slot.fx = v; worldSave(); buildProps(); }));
+  fs.title = "The clash FX this rule plays (default " + r[1] + ").";
+  [rs, fs].forEach(function (e) { e.style.minWidth = "0"; e.style.width = "100%"; });   // long names stay inside the panel
+  field(b, "Size %", inp("n", slot.size, function (v) { slot.size = Math.max(10, Math.min(400, v)); worldSave(); pv.replay(); }, 10, 400, 5)).title =
+    "Full size of this clash FX. Each clash picks a random size between 10% and the higher knockback of the two effects (capped at 100) as a % of this: knockback 100 → up to this size, 50 → up to half of it, 0 → 10%. The preview plays it at full size.";
+  field(b, "Density %", inp("n", slot.density, function (v) { slot.density = Math.max(10, Math.min(400, v)); worldSave(); pv.replay(); }, 10, 400, 5)).title = "How many particles / pops / sparks (100 = as designed).";
+  if (slot.fx === "sword_duel") {
+    // The sword duel's choreography (laser/clashfx.py duel_plan), stretched
+    // on the screen's x and y axes around where the blades first met.
+    // Shown on any slot whose clash FX is Sword Duel; each slot keeps its own.
+    field(b, "Loop X %", inp("n", slot.loop_x, function (v) { slot.loop_x = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
+      "Sword duel: how far the whole fight sequence (where each strike meets, how far they spring apart, the circle back) spreads left and right. 100 = as designed, 200 = twice as wide, 0 = no sideways travel.";
+    field(b, "Loop Y %", inp("n", slot.loop_y, function (v) { slot.loop_y = Math.max(0, Math.min(400, v)); worldSave(); }, 0, 400, 5)).title =
+      "Sword duel: how far the whole fight sequence spreads up and down. 100 = as designed, 200 = twice as tall, 0 = no vertical travel.";
+    field(b, "Flurry %", inp("n", slot.flurry, function (v) { slot.flurry = Math.max(0, Math.min(100, v)); worldSave(); }, 0, 100, 5)).title =
+      "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
+  }
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html. On the stage, the fighter's FX clash with the target dummies' FX by these rules (struggles and sword duels play as their one-shot bursts).");
 }
 // A condition list editor: one box per condition (its fields, Not, ↑ /
