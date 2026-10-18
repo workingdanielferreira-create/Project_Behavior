@@ -709,7 +709,7 @@ class World:
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
                     if drv is not None:
-                        for inst in drv.player.insts + drv.clane[0].insts:
+                        for inst in drv.player.insts + drv.clane[0].insts + drv.stack_insts():
                             # A lodged blade is stuck in its target and harmless.
                             if inst.fx["battle"]["deals_damage"] and not inst.dead and inst.lodge is None:
                                 tg = (inst.fx.get("tag") or inst.fx.get("prim") or "",)
@@ -738,7 +738,7 @@ class World:
                     drv = getattr(f, "fx", None)
                     if drv is None:
                         continue
-                    for inst in drv.player.insts + drv.clane[0].insts:
+                    for inst in drv.player.insts + drv.clane[0].insts + drv.stack_insts():
                         fxd = inst.fx
                         if (fxd["battle"]["deals_damage"]
                                 and not inst.dead and inst.age < inst.life and inst.lodge is None
@@ -828,10 +828,11 @@ class World:
                 # The fighter whose FX connected (landed_hit condition); a
                 # one-fighter side owns it even if the instance has ended.
                 owner = next((af for af in side.figures if getattr(af, "fx", None) is not None
-                              and (inst in af.fx.player.insts or inst in af.fx.clane[0].insts)),
+                              and (inst in af.fx.player.insts or inst in af.fx.clane[0].insts
+                                   or af.fx.owns_stack(inst))),
                              side.figures[0] if len(side.figures) == 1 else None)
                 if owner is not None:
-                    actions.note_landed(owner)
+                    actions.note_landed(owner, dmg)
                 # Anti-knockback (FX Studio Damaged): at or above the hit's
                 # knockback, the hit still takes HP but neither knocks back
                 # nor counts toward the fighter's `defend` conditions.

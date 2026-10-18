@@ -485,6 +485,10 @@ FORM_KEY = "@form:"
 # Character FX (FX Studio: Character FX, whole character): always on the
 # fighter whatever it is doing, on their own lane (FxDriver._character_tick).
 CHARACTER_KEY = "@character"
+# "@stack": the Basic Stacks - FX orb's own FX, played once from each orb a
+# normal attack fires (laser/unique.py take_stack_fires), on the
+# attack_normal timing (FxDriver._stack_tick).
+STACK_KEY = "@stack"
 
 
 def normalize_blink_step(b):
@@ -3568,6 +3572,27 @@ class _Host:
         self.drv.hits_out.append((key, float(damage), dx, dy, float(knockback or 0), inst.fx.get("tag", ""), inst))
 
 
+class _OrbHost(_Host):
+    """A Basic Stacks orb firing (FxDriver._stack_tick): every anchor is the
+    spot the orb was in when the normal attack fired it, facing the target,
+    unturned.  Hits, drags and interceptions go through the fighter's driver
+    like its own FX."""
+
+    def __init__(self, drv, fig, world, x, y):
+        super().__init__(drv, fig, world)
+        self.ox, self.oy = x, y
+        self.facing = 1 if self.target[0] >= x else -1
+
+    @property
+    def rot(self):
+        return 0.0
+
+    def anchor(self, name):
+        if name == "target":
+            return list(self.target)
+        return [self.ox, self.oy]
+
+
 def _deflected_copy(src, vel, hurts_owner):
     """An enemy FX projectile knocked away by a deflect, now owned by the
     deflecting side: it flies straight at vel, damaging (hurts_owner) or
@@ -3630,6 +3655,10 @@ class FxDriver:
         # Character FX ("@character"): always on, on their own lane and clock.
         self.clane = [Player(), False, 0, -1]
         self.cclock = 0   # Character FX frequency timer (ticks since fielded)
+        # Basic Stacks - FX: one entry per orb fired, [lanes (borrowed fx,
+        # "@stack"), its _OrbHost (x, y)], until its FX have played once
+        # and finished (_stack_tick).
+        self.slanes = []
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -3700,6 +3729,7 @@ class FxDriver:
         self._dodge_tick(fig, world, host, hold, frozen)
         self._transform_tick(fig, host, hold, frozen)
         gone = self._character_tick(fig, host, hold, frozen)
+        self._stack_tick(fig, world, hold, frozen)
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
@@ -3716,7 +3746,7 @@ class FxDriver:
         none while Time control has this fighter's FX stopped."""
         out = []
         if not frozen:
-            for pl in [self.player, self.clane[0]] + [ln[0] for ln in self.rlanes]:
+            for pl in [self.player, self.clane[0]] + [ln[0] for ln in self.rlanes] + self.stack_players():
                 for inst in pl.insts:
                     if inst.fx["prim"] == "technique" and not inst.dead:
                         out.extend(swordfx.powerfx.pulls(inst, inst.ps))
@@ -3810,6 +3840,50 @@ class FxDriver:
             self.cclock += 1
         return gone
 
+    def _stack_tick(self, fig, world, hold, frozen=False):
+        """Basic Stacks - FX (laser/unique.py take_stack_fires): each orb a
+        normal attack fires plays the borrowed effect / group and the FX
+        built on "@stack" (on the attack_normal timing) once, launched from
+        where the orb was and aimed at the target; held FX end after that
+        pass and shots already flying finish."""
+        from . import unique
+        borrow, fires = unique.take_stack_fires(fig)
+        for (x, y) in fires:
+            self.slanes.append([[[Player(), False, 0, -1], [Player(), False, 0, -1]], (x, y), None])
+        if not self.slanes:
+            return
+        host_act = "attack_normal" if "attack_normal" in self.cfx.timing else self.action
+        jobs = (self.cfx.retreat_effects(borrow) if borrow else ([], None),
+                (self.cfx.retreat_effects("slot:" + STACK_KEY)[0], host_act))
+        keep = []
+        for entry in self.slanes:
+            lanes, (x, y), _h = entry
+            host = _OrbHost(self, fig, world, x, y)
+            entry[2] = host
+            live = False
+            for lane, (effs, a) in zip(lanes, jobs):
+                n, fm = self._time_for(a)
+                if effs and lane[2] < max(1, jround(n * fm / TICK_MS)) and (lane[1] or lane[2] == 0):
+                    self._lane_tick(lane, effs, a, host, hold, frozen)
+                else:
+                    lane[2] = max(lane[2], 1)    # its one pass is over
+                    self._lane_tick(lane, (), a, host, hold, frozen)
+                live = live or lane[1] or bool(lane[0].insts) or bool(lane[0].pending)
+            if live:
+                keep.append(entry)
+        self.slanes = keep
+
+    def stack_players(self):
+        return [ln[0] for entry in self.slanes for ln in entry[0]]
+
+    def stack_insts(self):
+        """The live Basic Stacks orb FX (enemy snapshots, clashes, domains)."""
+        return [inst for pl in self.stack_players() for inst in pl.insts]
+
+    def owns_stack(self, inst):
+        """True when inst is one of the Basic Stacks orb FX (laser/app.py)."""
+        return any(inst in pl.insts for pl in self.stack_players())
+
     def _lane_tick(self, lane, effs, act, host, hold, frozen=False, timed=(), due=()):
         pl = lane[0]
         if effs:
@@ -3833,12 +3907,17 @@ class FxDriver:
 
     def draw(self, p, fig, layer, hidden=False):
         if self.host is None or not (self.player.insts or self.clane[0].insts
-                                     or any(ln[0].insts for ln in self.rlanes)):
+                                     or any(ln[0].insts for ln in self.rlanes) or self.slanes):
             return
         self.host.fig = fig
         self.player.draw(p, self.host, layer, hidden)
         for ln in self.rlanes:
             ln[0].draw(p, self.host, layer, hidden)
+        for lanes, _xy, sh in self.slanes:
+            if sh is not None:
+                sh.fig = fig
+                for ln in lanes:
+                    ln[0].draw(p, sh, layer, hidden)
         if self.clane[0].insts:
             from . import blink as _blink
             self.clane[0].draw(p, self.host, layer, hidden or _blink.gone(fig))

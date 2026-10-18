@@ -534,7 +534,7 @@ def _bodies(world, si):
     for fig in side.figures:
         drv = getattr(fig, "fx", None)
         if drv is not None:
-            for pl in [drv.player, drv.clane[0]] + [ln[0] for ln in drv.rlanes]:
+            for pl in [drv.player, drv.clane[0]] + [ln[0] for ln in drv.rlanes] + drv.stack_players():
                 for inst in pl.insts:
                     b = _inst_body(si, fig, inst, pl.insts)
                     if b is not None:

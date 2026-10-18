@@ -139,8 +139,12 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 // S.trPair = "a>b".
 // "@form:<letter>": a Transformations form's own FX, its Character FX while
 // it is in that form (S.trPair = the letter).
-var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:", FORM_KEY = "@form:";
+// "@stack": the Basic Stacks - FX orb's own FX, played once from each orb a
+// normal attack fires (laser/unique.py), built on the attack_normal frames.
+// S.react = "stack".
+var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:", FORM_KEY = "@form:", STACK_KEY = "@stack";
 function retreatHost() { return C.actions.run ? "run" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
+function stackHost() { return C.actions.attack_normal ? "attack_normal" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
 function transHost(pair) {
   var T = (S.unique.dual_form.transitions || {})[pair] || {};
   return C.actions[T.action] ? T.action : C.actions.idle ? "idle" : Object.keys(C.actions)[0];
@@ -150,12 +154,12 @@ function formName(l) { var F = S.unique.dual_form["form_" + l]; return (F && F.n
 function transLabel(pair) { return pair.length === 1 ? "Form FX · " + formName(pair) : "Transform " + formName(pair[0]) + " → " + formName(pair[2]); }
 function charHost() { return C.actions[S.action] ? S.action : Object.keys(C.actions)[0]; }
 function trKey(pair) { return (pair.length === 1 ? FORM_KEY : TRANS_KEY) + pair; }
-function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.action; }
-function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
-function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
+function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.react === "stack" ? STACK_KEY : S.action; }
+function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === STACK_KEY ? stackHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
+function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === STACK_KEY ? "Basic Stacks orb" : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
 function selectKey(key) {
   var tr = key.indexOf(TRANS_KEY) === 0 || key.indexOf(FORM_KEY) === 0;
-  S.react = key === RETREAT_KEY ? "retreat" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
+  S.react = key === RETREAT_KEY ? "retreat" : key === STACK_KEY ? "stack" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
   if (tr) S.trPair = key.slice(key.indexOf(TRANS_KEY) === 0 ? TRANS_KEY.length : FORM_KEY.length);
   S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action;
 }
@@ -176,7 +180,7 @@ function fxKeyOptions() {
   var acts = Object.keys(C.actions);
   return acts.map(function (a) { return [a, a]; }).concat([[CHAR_KEY, "✦ Character FX"], [RETREAT_KEY, "⚡ Tactical retreat"]],
     acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }),
-    transSlots().map(function (p) { return [trKey(p), "⚡ " + transLabel(p)]; }));
+    transSlots().map(function (p) { return [trKey(p), "⚡ " + transLabel(p)]; }), [[STACK_KEY, "⚡ Basic Stacks orb"]]);
 }
 function charEffects() { return S.effects.filter(function (e) { return e.action === CHAR_KEY; }); }
 // Character FX with a frequency (char_every_ms > 0) play their whole sequence
@@ -200,7 +204,7 @@ function actionEffects() { var k = fxKey(); return S.effects.filter(function (e)
 // does while Blink is on; always while editing the Blink reaction), or the
 // Tactical retreat's.
 function playEffects() {
-  if (S.react === "retreat" || S.react === "transform") return actionEffects();   // a transition shows only the action's animation + its own FX
+  if (S.react === "retreat" || S.react === "transform" || S.react === "stack") return actionEffects();   // a transition / orb shows only the action's animation + its own FX
   var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;   // Character FX: cplayer
   return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
 }
@@ -570,10 +574,11 @@ function finishOpen(man, acts, pack, name, local) {
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform") ? local.react : null;
+  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform" || local.react === "stack") ? local.react : null;
   S.trPair = local && typeof local.tr_pair === "string" && transSlots().indexOf(local.tr_pair) >= 0 ? local.tr_pair : transPairs()[0];
   if (S.react === "retreat") S.action = retreatHost();
   if (S.react === "transform") S.action = slotHost(S.trPair);
+  if (S.react === "stack") S.action = stackHost();
   S.blinkAct = S.react === "blink" ? S.action : null;
   S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
@@ -913,14 +918,17 @@ function buildActions() {
   var nBk = S.effects.filter(function (e) { return e.action.indexOf(BLINK_KEY) === 0; }).length;
   var nRt = S.effects.filter(function (e) { return e.action === RETREAT_KEY; }).length;
   var nTr = S.effects.filter(function (e) { return e.action.indexOf(TRANS_KEY) === 0 || e.action.indexOf(FORM_KEY) === 0; }).length;
+  var nSt = S.effects.filter(function (e) { return e.action === STACK_KEY; }).length;
   [["retreat", "⚡ Tactical retreat", S.retreat.enabled, nRt ? nRt + " fx" : ""],
    ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")],
-   ["transform", "⚡ Transformations", S.unique.type === "dual_form", nTr ? nTr + " fx" : ""]].forEach(function (r) {
+   ["transform", "⚡ Transformations", S.unique.type === "dual_form", nTr ? nTr + " fx" : ""],
+   ["stack", "⚡ Basic Stacks - FX", S.unique.type === "basic_stacks", nSt ? nSt + " fx" : ""]].forEach(function (r) {
     var el = document.createElement("div"); el.className = (S.react === r[0] ? "sel" : "") + (r[2] ? "" : " off");
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = r[1];
     el.querySelector(".m").textContent = r[2] ? r[3] : "(off)" + (r[3] ? " · " + r[3] : "");
     el.title = r[0] === "retreat" ? "The Tactical retreat dash: build FX that play for the whole dash (on the " + retreatHost() + " frames) and preview the dash."
+      : r[0] === "stack" ? "Basic Stacks - FX: the orb's own FX slot, built on the " + stackHost() + " frames. In the game each orb a normal attack fires plays these FX (and the borrowed FX) once, launched from the orb at the enemy."
       : r[0] === "transform" ? "Transformations: each form has its own FX slot (its Character FX while in that form) and each form pair a transition FX slot, built on its transition action's frames. In the game the action plays only its animation during the transition; these FX (and the borrowed FX) play with it."
       : "An action's Blink: pick the action at the top of its settings, build FX that play over that action while its Blink is on, and preview the blink.";
     el.onclick = function () { openReaction(r[0]); };
@@ -930,6 +938,7 @@ function buildActions() {
 function openReaction(kind) {
   if (!reactOwns()) S.lastAct = S.action;   // Blink opens on the action you were on
   if (kind === "retreat") S.action = retreatHost();
+  else if (kind === "stack") S.action = stackHost();
   else if (kind === "transform") {
     if (transSlots().indexOf(S.trPair) < 0) S.trPair = transPairs()[0];
     S.action = slotHost(S.trPair);
@@ -2724,7 +2733,9 @@ var UA_INFO = {
   domain_expansion: ["Domain Expansion", "Sorcerer · reality warper",
     "When its gauge fills, a domain covers the screen and rewrites the rules you tick for as long as it lasts."],
   fusion: ["Fusion", "Tag team · fusion dance",
-    "Two team-mates on the same side (P1 + P3 or P2 + P4), different characters that both have Fusion, fuse into the character you name once both meet their ticked conditions. The fused fighter has their HP and damage added together."]
+    "Two team-mates on the same side (P1 + P3 or P2 + P4), different characters that both have Fusion, fuse into the character you name once both meet their ticked conditions. The fused fighter has their HP and damage added together."],
+  basic_stacks: ["Basic Stacks - FX", "Orb caster · stack builder",
+    "Every N hits landed, damage dealt or normal attacks makes an orb that slowly orbits the fighter. Its normal attacks fire the orbs: each one plays the FX you set (borrowed + its own slot) once, launched from the orb at the enemy."]
 };
 function uaName(k) { return k === "none" ? "None" : UA_INFO[k][0]; }
 function buildUnique() {
@@ -2768,7 +2779,7 @@ function buildUniqueProps(d) {
   note(s, "Plays the same in Solo and Battle (in Solo the enemy is the cursor). Settings save with the FX file; the game reads them on F5.");
   ({mirror_legion: uaMirrorLegion, berserker: uaBerserker, phase_shift: uaPhaseShift, ricochet: uaRicochet, riposte: uaRiposte,
     dual_form: uaDualForm, summoner: uaSummoner, aegis: uaAegis, terraform: uaTerraform, rewind_bullets: uaRewind,
-    phantom_swap: uaPhantomSwap, domain_expansion: uaDomain, fusion: uaFusion})[k](d, P);
+    phantom_swap: uaPhantomSwap, domain_expansion: uaDomain, fusion: uaFusion, basic_stacks: uaBasicStacks})[k](d, P);
 }
 function uaMirrorLegion(d, P) {
   var s = sec(d, "Trigger", "ua-ml-trig", "When the copies split off.", "act");
@@ -3008,19 +3019,20 @@ function slotFxField(s, obj, key, label, help) {
         presetInto(x.p, key);
         toast(label + " now plays " + x.p.name);
       }
-      save(); buildActions(); buildEffects(); buildProps(); if (S.react === "transform" && fxKey() === key) { buildTimeline(); resetSim(0); }
+      save(); buildActions(); buildEffects(); buildProps(); if (S.react && fxKey() === key) { buildTimeline(); resetSim(0); }
       return;
     }
     obj.fx = v; save();
   }));
   fe.style.minWidth = "0"; fe.style.width = "100%"; fe.title = help;
-  var pair = key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
+  var stack = key === STACK_KEY, pair = stack ? "" : key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
   var own = S.effects.filter(function (e) { return e.action === key; }), grs = S.groups.filter(function (gr) { return gr.action === key; });
   var row = document.createElement("div"); row.className = "row";
   var b = document.createElement("button");
-  b.textContent = (S.react === "transform" && fxKey() === key) ? "Own FX slot: " + own.length + " fx (open)" : "Edit own FX slot (" + own.length + " fx" + (grs.length ? ", " + grs.length + " group" + (grs.length > 1 ? "s" : "") : "") + ")";
-  b.title = "Open it under Actions > Triggered reactions > Transformations: build or add FX there. They always play with it, alongside the borrowed FX.";
-  b.onclick = function () { if (S.react !== "transform") S.lastAct = S.action; S.trPair = pair; openReaction("transform"); };
+  b.textContent = (S.react && fxKey() === key) ? "Own FX slot: " + own.length + " fx (open)" : "Edit own FX slot (" + own.length + " fx" + (grs.length ? ", " + grs.length + " group" + (grs.length > 1 ? "s" : "") : "") + ")";
+  b.title = "Open it under Actions > Triggered reactions > " + (stack ? "Basic Stacks - FX" : "Transformations") + ": build or add FX there. They always play with it, alongside the borrowed FX.";
+  b.onclick = stack ? function () { openReaction("stack"); }
+    : function () { if (S.react !== "transform") S.lastAct = S.action; S.trPair = pair; openReaction("transform"); };
   row.appendChild(b); s.appendChild(row);
 }
 // A form's Character FX and how long it lasts.
@@ -3243,6 +3255,41 @@ function uaPhantomSwap(d, P) {
   uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after a swap.");
   uaChk(s, "Swap FX", P, "swap_fx", "Bursts at both spots and a flash.");
   field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+}
+function uaBasicStacks(d, P) {
+  var s = sec(d, "Orbs", "ua-bs-gain", "What builds an orb, and how many can orbit at once.", "act");
+  uaChoice(s, "Orb every", P, "gain", [["hits_landed", "N hits landed"], ["damage_dealt", "N damage dealt"], ["attacks_used", "N normal attacks used"]],
+    "Hits landed: every hit that connects (melee, FX, bullets, the orbs' own FX too). Damage dealt: the damage of those hits added up. Normal attacks: each attack_normal it starts, hit or miss (counted after it fires the orbs).");
+  if (P.gain === "hits_landed") uaNum(s, "Hits per orb", P, "every_hits", 1, 99, 1, "One orb per this many hits landed.");
+  if (P.gain === "damage_dealt") uaNum(s, "Damage per orb", P, "every_damage", 0.1, 100000, 1, "One orb per this much damage dealt.");
+  if (P.gain === "attacks_used") uaNum(s, "Attacks per orb", P, "every_attacks", 1, 99, 1, "One orb per this many normal attacks.");
+  uaNum(s, "Most orbs", P, "max_orbs", 1, 12, 1, "Never more than this many in orbit; the count waits at full until one is used.");
+  s = sec(d, "Firing", "ua-bs-use", "Each normal attack (attack_normal) fires the orbs in orbit.", "act");
+  uaChoice(s, "Normal attack fires", P, "use", [["one", "One orb (the oldest), used up"], ["all", "Every orb, all used up"], ["all_keep", "Every orb, they stay in orbit"]],
+    "One: the oldest orb fires and is gone; the next attack fires the next. All: every orb fires at once and they are all used up. Stay: every orb fires on every normal attack and keeps orbiting.");
+  slotFxField(s, P, STACK_KEY, "Basic Stacks orb",
+    "The FX each fired orb plays once, launched from the orb and aimed at the enemy (the cursor in Solo). Borrowed: an effect or a whole group (▣) from an action. ＋ Library: copies a group / preset into the orb's own FX slot, where you can edit it. The own slot's FX always play too.");
+  s = sec(d, "Orbit", "ua-bs-orbit", "How the orbs circle the fighter.", "act");
+  uaNum(s, "Orbit radius px", P, "orbit_px", 10, 400, 5, "Distance from the fighter (scales with the character).");
+  uaNum(s, "Orbit speed °/s", P, "orbit_deg_s", -720, 720, 10, "Degrees per second round the fighter (negative = the other way).");
+  uaNum(s, "Orb size px", P, "orb_px", 1, 40, 1, "Size of each orb.");
+  uaChk(s, "Show orbs", P, "show_orbs", "Off: the orbs are invisible (they still fire).", true);
+  if (P.show_orbs) field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
+}
+// Right panel for the Basic Stacks orb's own FX slot (Triggered reactions).
+function buildStackProps(d, n) {
+  var on = S.unique.type === "basic_stacks";
+  banner(d, "act", "Triggered reaction", "⚡ Basic Stacks orb",
+    "FX added here play once from each orb a normal attack fires, on " + S.action + "'s frames. In the game every anchor is the orb (they launch from it) and they aim at the enemy.",
+    ["Basic Stacks settings", function () { S.react = null; S.action = C.actions[S.lastAct] ? S.lastAct : S.action; openUnique("basic_stacks"); }]);
+  var s = sec(d, "Orb FX", "r-stack", "What each fired orb plays.", "act");
+  slotFxField(s, S.unique.basic_stacks, STACK_KEY, "Basic Stacks orb",
+    "Borrowed: an effect or a whole group (▣) from an action, played with this slot's own FX. ＋ Library: copies a group / preset into this slot.");
+  note(s, (n ? n + " effect" + (n > 1 ? "s" : "") + " in this slot." : "No effects in this slot yet: add one under Effects on the left, or pick ＋ Library in FX above.") +
+    " The stage previews them on the fighter over " + S.action + "'s animation; in the game they start at the orb." +
+    (on ? "" : " Basic Stacks - FX is not this character's unique ability, so they won't play in the game until it is switched on."));
+  buildCharFxProps(d);
+  buildCharScaleProps(d);
 }
 var UA_RULES = [["enemy_shots_off", "Enemy shots disabled"], ["guaranteed_hits", "Guaranteed hits"], ["gravity", "Gravity (pull / push)"],
   ["huge_fx", "Huge FX"], ["slow_enemy", "Slowed enemy"], ["heal_on_damage", "Damage heals it"], ["blink_no_cd", "0 ms blink cooldown"]];
@@ -3500,6 +3547,7 @@ function buildReactionProps(d) {
     return;
   }
   if (S.react === "transform") { buildTransformProps(d, n); return; }
+  if (S.react === "stack") { buildStackProps(d, n); return; }
   var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
   banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
   var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");

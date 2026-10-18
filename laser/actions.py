@@ -376,6 +376,7 @@ class ActionRunner:
         c = fig.combat
         c.action_anim = name
         c.action_idx = 0
+        _unique.on_action_start(fig, name)   # Basic Stacks: a normal attack fires orbs
         return True
 
     def _finish(self, fig, now):
@@ -1008,10 +1009,11 @@ def clear_resisted(fig):
         r.next_resisted = False
 
 
-def note_landed(fig):
-    """One of this fighter's FX hits connected (landed_hit condition)."""
+def note_landed(fig, amount=1.0):
+    """One of this fighter's FX hits connected (landed_hit condition);
+    amount = its damage."""
     _movestyle.note_hit_landed(fig)
-    _unique.note_landed(fig)   # Dual Form gauge / combo, Domain gauge, Fusion
+    _unique.note_landed(fig, amount)   # Dual Form gauge / combo, Domain gauge, Fusion, Basic Stacks
     r = getattr(fig, "act", None)
     if r is not None:
         r.landed += 1

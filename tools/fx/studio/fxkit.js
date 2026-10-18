@@ -641,7 +641,7 @@ function normalizeDamaged(a) { return fill(a || {}, DAMAGED_DEFAULTS); }
 // keeps its own settings block so switching back doesn't lose them.  Read by
 // laser/unique.py (DEFAULTS / TYPES there must match these).
 var UNIQUE_TYPES = ["none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte",
-  "dual_form", "summoner", "aegis", "terraform", "rewind_bullets", "phantom_swap", "domain_expansion", "fusion"];
+  "dual_form", "summoner", "aegis", "terraform", "rewind_bullets", "phantom_swap", "domain_expansion", "fusion", "basic_stacks"];
 var UNIQUE_DEFAULTS = {
   mirror_legion: {trigger: "hp_below", hp_thresholds: "70,50,30", every_hits: 5, every_ms: 10000,
     count: 2, duration_ms: 4000, cooldown_ms: 6000, formation: "around",
@@ -721,7 +721,11 @@ var UNIQUE_DEFAULTS = {
     tint: true, tint_color: "#5a1aff", tint_pct: 18, show_gauge: true},
   fusion: {result: "", conds: {hp_below: true, close: true, field_time: false, hits_landed: false},
     hp_below_pct: 50, close_px: 160, field_ms: 10000, hits: 10, ending: "timed", duration_ms: 15000, cooldown_ms: 10000,
-    aura: true, aura_color: "#ffffff"}
+    aura: true, aura_color: "#ffffff"},
+  // "Basic Stacks - FX": gain = hits_landed | damage_dealt | attacks_used; use = one | all | all_keep;
+  // fx = borrowed "fx:<id>" / "group:<id>" (the FX built on "@stack" play too)
+  basic_stacks: {gain: "hits_landed", every_hits: 5, every_damage: 20, every_attacks: 5, max_orbs: 3,
+    use: "one", fx: "", orbit_px: 55, orbit_deg_s: 120, orb_px: 5, show_orbs: true, color: "#7fd4ff"}
 };
 function normalizeUnique(a) {
   a = a || {};
