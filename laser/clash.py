@@ -797,7 +797,8 @@ def _pair_size(a, b, cfg):
     return _SIZE_RNG.uniform(SIZE_MIN, top)
 
 
-def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None, pair=None, scale=None):
+def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budget=None, pair=None, scale=None,
+              orbs=None):
     """Spawn the slot's clash FX; with a budget (world ticks) its whole loop
     is fitted inside it (ClashFX.fit).  pair = the two clashing bodies (their
     knockback and width size it, _pair_size); scale = an explicit size (a
@@ -814,7 +815,7 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     # for an anchored FX (its scale is set when it is anchored).
     fx = clashfx.spawn(world, key, c[0], c[1], angle=angle, c1=c1, c2=c2,
                        scale=scale, hold=hold, winner=winner,
-                       density=float(cfg.get("density", 100)) / 100.0)
+                       density=float(cfg.get("density", 100)) / 100.0, orbs=orbs)
     fx.duel_slot = slot     # a Sword Duel FX reads this slot's Loop X / Y and Flurry %
     if budget is not None:
         fx.fit(budget)
@@ -1493,7 +1494,7 @@ def _struggle(world, st, a, b, c, rule, now, figs):
     # silences a struggle: it always plays its own FX.
     st["quiet"] = False
     fx = _cap_size(world, _spawn_fx(world, slot, c, _deg(*a.dir), a.col, b.col, hold=STRUGGLE_TICKS,
-                                    scale=_beam_scale(slot, looks)), figs)
+                                    scale=_beam_scale(slot, looks), orbs=(a.cat == "orb", b.cat == "orb")), figs)
     held = STRUGGLE_TICKS
     hidden = ()
     if fx is not None and fx.base == "beam_struggle":

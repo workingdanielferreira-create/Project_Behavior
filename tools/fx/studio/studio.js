@@ -3553,6 +3553,8 @@ var WORLD_SEL_KEY = "pbfxstudio.v1.worldclash.sel";   // the rule the World Clas
 // looping at its size / density %, side A blue and side B red.  Sword Duel
 // has no canvas port: its preview is the one-shot Sword Slash Clash it
 // falls back to on the stage.  Returns {replay}.
+// Which sides of a struggle slot are orbs (beam × orb: side B; orb × orb: both).
+function clashSlotOrbs(slot) { return slot === "beam_orb_struggle" ? [false, true] : slot === "orb_orb_struggle" ? [true, true] : [false, false]; }
 function worldPreview(parent, slotKey) {
   var wrap = document.createElement("div"); wrap.className = "wpv";
   var cv = document.createElement("canvas"); cv.width = 560; cv.height = 420; wrap.appendChild(cv);
@@ -3569,7 +3571,7 @@ function worldPreview(parent, slotKey) {
     var shown = key === "sword_duel" || !CLASHFX.BASES[key] ? "sword_slash_clash" : key;
     wins++;
     fx = new CLASHFX.ClashFX(shown, {c1: [70, 150, 255], c2: [255, 60, 90], angle: 0, scale: 0.8 * slot.size / 100,
-      density: slot.density / 100, winner: wins % 2 ? 0 : 1});
+      density: slot.density / 100, winner: wins % 2 ? 0 : 1, orbs: clashSlotOrbs(slotKey)});
     bH.disabled = !fx.sustain;
     cap.textContent = CLASHFX.BASES[shown].name + (shown !== key ? " (Sword Duel plays its stand-ins in the game; this is its one-shot burst)" : "") +
       (fx.sustain ? " — holds " + fx.hold + " ticks, then detonates" : "");
@@ -4401,7 +4403,8 @@ function clashFx(slot, c, angle, c1, c2, o) {
   if (!CLASHFX.BASES[key]) key = (FXK.CLASH_SLOTS.filter(function (s) { return s[0] === slot; })[0] || [0, "collision_nova"])[1];
   if (!CLASHFX.BASES[key]) key = "collision_nova";
   var scale = o.scale != null ? o.scale : o.pair ? clashSize(o.pair[0], o.pair[1], cfg, FXK.rng(seed ^ 0x5BD1E995)) : (+cfg.size || 100) / 100;
-  var fx = new CLASHFX.ClashFX(key, {angle: angle, c1: c1, c2: c2, scale: scale, density: (+cfg.density || 100) / 100, winner: o.winner || 0, seed: seed});
+  var fx = new CLASHFX.ClashFX(key, {angle: angle, c1: c1, c2: c2, scale: scale, density: (+cfg.density || 100) / 100, winner: o.winner || 0, seed: seed,
+    orbs: clashSlotOrbs(slot)});
   if (o.hold === 0 && fx.sustain) fx.release();
   S.clash.fx.push({fx: fx, x: c[0], y: c[1]});
   return fx;
