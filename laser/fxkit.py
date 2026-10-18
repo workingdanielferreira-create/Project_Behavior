@@ -1184,7 +1184,7 @@ class Inst:
                  "chase", "bvx", "bvy", "free", "src", "t0", "fms", "spd", "ps", "ring_hits",
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
-                 "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
+                 "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb")
 
     def __init__(self):
@@ -2035,7 +2035,7 @@ def tick_inst(inst, host):
     elif prim == "technique":
         swordfx.on_tick(inst, host)   # where the anchor / target are now (shots launch, ghosts chase)
         # Its afterglow (sparks, shards, dust) plays out after the hit window.
-        if inst.age >= swordfx.total_ticks(P):
+        if inst.age >= max(swordfx.total_ticks(P), inst.tq_rw_end):
             inst.dead = True
     elif not active:
         inst.dead = True
@@ -2402,7 +2402,8 @@ def resolve_hits(inst, host, ps):
             inst.hits += 1
             inst.last_hit = now
             g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
-            host.on_hit(inst, b["damage"] * g, inst.dir[0], inst.dir[1], b["knockback"] * g, key)
+            rw = swordfx.gunfx.rewind_mult(inst, hx, hy, ps) if inst.fx["prim"] == "technique" else 1.0
+            host.on_hit(inst, b["damage"] * g * rw, inst.dir[0], inst.dir[1], b["knockback"] * g, key)
             if inst.fx["prim"] == "technique":
                 swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
             # Ricochet (unique ability): bounces off the fighter instead.

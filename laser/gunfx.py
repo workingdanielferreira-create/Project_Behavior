@@ -194,7 +194,7 @@ def _aim(inst, k):
 class Round:
     """One round: everything about it is rolled from the seed."""
     __slots__ = ("i", "v", "j", "b", "look", "sp", "ang", "size", "tint", "rng", "flight", "arc", "fr", "ox", "oy",
-                 "dx", "dy", "trk")
+                 "dx", "dy", "trk", "rw")
 
     def __init__(self, inst, i, v, j, b, ps):
         P = inst.fx["params"]
@@ -236,6 +236,8 @@ class Round:
         # An intercept pulled it off its path (charged blast, track_step):
         # from then on it flies its recorded path (strikefx.track_shots).
         self.trk = (getattr(inst, "tq_kd", None) or {}).get(i)
+        # Rewind Bullets turned it round (rewind): (turn tick, speed, damage, rgb).
+        self.rw = (getattr(inst, "tq_rw", None) or {}).get(i)
         L = float(P["length"])
         if self.look == "rail":
             self.rng = L * ps
@@ -253,8 +255,20 @@ class Round:
             self.rng = L * ru * ps
             self.flight = max(1, int(math.ceil(L * ru / su)))
 
+    def back(self, k):
+        """True k ticks after launch when it is flying back (rewind)."""
+        return self.rw is not None and k > self.rw[0]
+
+    def _k(self, k):
+        """Rewind: flight tick k mapped back along its own path once it turned."""
+        if not self.back(k):
+            return k
+        k0, spd = self.rw[0], self.rw[1]
+        return max(0.0, k0 - (k - k0) * spd)
+
     def pos(self, k):
         """World position k ticks after launch."""
+        k = self._k(k)
         tr = self.trk
         if tr is not None and self.b + k >= tr[0]:
             h = tr[1]
@@ -285,13 +299,16 @@ class Round:
             if d > 1e-6:
                 return (x1 - x0) / d, (y1 - y0) / d
             return self.fr.d(1.0, 0.0)
-        return self.fr.d(math.cos(self.ang), math.sin(self.ang))
+        ux, uy = self.fr.d(math.cos(self.ang), math.sin(self.ang))
+        return (-ux, -uy) if self.back(k) else (ux, uy)
 
     def end(self, inst):
         """(tick it stops, stopped by a hit?)."""
         h = inst.tq_ki.get(self.i)
         if h is not None:
             return h[0], True
+        if self.rw is not None:   # back where it was fired
+            return self.b + self.rw[0] + int(math.ceil(self.rw[0] / self.rw[1])), False
         return self.b + self.flight, False
 
 
@@ -402,6 +419,53 @@ def place(inst, i, x, y, ps):
     inst.tq_off[i] = (s.dx + x - nx, s.dy + y - ny)
 
 
+# ---------------------------------------------------------------- rewind
+# Rewind Bullets (laser/unique.py): a round turned round at flight tick k0
+# flies its own path back to where it was fired, `spd` times as fast, then
+# ends there.  inst.tq_rw[i] = (k0, spd, damage mult, rgb or None).
+def is_gun(inst):
+    return inst.fx["prim"] == "technique" and S._style(inst.fx["params"]) in STYLES
+
+
+def rewind(inst, ps, spd, dmg, rgb, min_k=0):
+    """Turn round every round in flight that has flown at least `min_k`
+    ticks and isn't returning already (never the rail).  The returning
+    rounds get one more hit; the effect lives until they are back."""
+    if inst.age >= inst.life:
+        return 0
+    spd = max(0.1, spd)
+    rw = inst.tq_rw
+    n, end = 0, 0
+    for (s, _p) in _live(inst, ps):
+        k0 = inst.age - s.b
+        if s.i in rw or k0 < max(1, min_k):
+            continue
+        rw[s.i] = (k0, spd, dmg, rgb)
+        end = max(end, s.b + k0 + int(math.ceil(k0 / spd)))
+        n += 1
+    if n:
+        inst.hits = 0
+        P = inst.fx["params"]
+        inst.life = max(inst.life, end + 1)
+        inst.tq_rw_end = max(inst.tq_rw_end, inst.life + total_ticks(P) - active_ticks(P))
+    return n
+
+
+def rewind_mult(inst, x, y, ps):
+    """Damage mult of a hit at (x, y): the return damage when the round
+    nearest it is flying back, else 1."""
+    if not getattr(inst, "tq_rw", None):
+        return 1.0
+    best, bd = None, None
+    for (s, (sx, sy)) in _live(inst, ps):
+        d = math.hypot(sx - x, sy - y)
+        if bd is None or d < bd:
+            best, bd = s, d
+    if best is None or not best.back(inst.age - best.b):
+        return 1.0
+    return best.rw[2]
+
+
 # ---------------------------------------------------------------- drag
 # A charged blast's orb drags (fx.intercept.drag, fxkit drag_step): the orb
 # touching the target carries it along its own flight, and goes off where
@@ -498,6 +562,8 @@ def _blast_at(inst, s):
         if len(h) > 3 and h[3]:
             return None     # gone without a blast (a clash split it: its halves fly on)
         return e, h[1], h[2], True
+    if s.rw is not None:
+        return None         # rewound: back where it was fired, it just ends
     if s.look in EXPLODES:
         x, y = s.pos(s.flight)
         return e, x, y, False
@@ -746,7 +812,7 @@ def _muzzle(pen, inst, g, s, k, c, ps, P):
 
 
 def _fade(s, k, stopped):
-    if stopped:
+    if stopped or s.rw is not None:
         return 1.0
     return max(0.0, min(1.0, (s.flight - k) / max(1.0, s.flight * FADE_TAIL)))
 
@@ -1108,7 +1174,8 @@ def draw(pen, inst, host, ps):
             continue
         e, stopped = s.end(inst)
         if t < e:
-            _round(pen, inst, s, k, t, c, S.mix(c, S.HOT, 0.25 + s.tint), ps, P, stopped)
+            cr = s.rw[3] if s.back(k) and s.rw[3] else c   # Rewind Bullets tint on the way back
+            _round(pen, inst, s, k, t, cr, S.mix(cr, S.HOT, 0.25 + s.tint), ps, P, stopped)
             continue
         bl = _blast_at(inst, s)
         if bl is not None:
