@@ -220,7 +220,7 @@ TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_w
                "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir",
                "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff",
                "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
-               "nodachi", "earth_cleaver"]
+               "nodachi", "earth_cleaver", "void_sniper"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
@@ -276,6 +276,7 @@ TECH_STYLE_DEFAULTS = {
     "rune_reaver": dict(length=36, thickness=5, radius=0, span=0, swing_ticks=5, hold_ticks=8),
     "nodachi": dict(length=70, thickness=3.4, radius=0, span=0, swing_ticks=5, hold_ticks=10),
     "earth_cleaver": dict(length=58, thickness=12, radius=0, span=0, swing_ticks=7, hold_ticks=10),
+    "void_sniper": dict(length=70, thickness=3.5, radius=520, span=0, swing_ticks=8, hold_ticks=8),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
                        freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")

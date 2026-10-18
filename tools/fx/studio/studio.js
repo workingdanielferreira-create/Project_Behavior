@@ -1368,7 +1368,8 @@ var PARAM_UI = {
     "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling", "rocket_barrage", "drill_bullet",
     "thunder_bullet", "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
     "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram",
-    "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver"]],
+    "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
+    "void_sniper"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1531,6 +1532,7 @@ var POWER_UI = {
   POWER_UI.pulse_bow = wpn("Pulse bow (Rapid)", "An energy bow: the string is drawn back slowly, the nocked arrow brightening, then released." + GUN, RANGE);
   POWER_UI.rune_reaver = wpn("Rune reaver (Rune)", "A reverse-grip blade etched with glowing runes: a backward spin slash and a ring of rune glyphs bursting outward." + HIT);
   POWER_UI.nodachi = wpn("Nodachi (Ronin)", "A long blade in a black lacquered scabbard: a still moment, then an instant iaido draw — one long cut opens across the target." + HIT);
+  POWER_UI.void_sniper = wpn("Void sniper rifle", "A long black-and-violet sniper rifle: void energy gathers at the muzzle, then one thin rail line fires to the end of its range and hits along its whole line, and the void implodes on the target and pops." + GUN, RANGE);
   POWER_UI.earth_cleaver = wpn("Earth cleaver (Thear)", "A massive chipped cleaver taken in both hands and slammed down: the ground cracks and rocks fly." + HIT);
 })();
 var MOTION_UI = {

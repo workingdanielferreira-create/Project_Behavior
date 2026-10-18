@@ -61,7 +61,7 @@ from . import swordfx as S
 STYLES = ("buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir",
           "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff",
           "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
-          "nodachi", "earth_cleaver")
+          "nodachi", "earth_cleaver", "void_sniper")
 
 HU = 10.0            # pose unit (px at size 1): where the hand holds the weapon
 SUMMON = 8           # ticks the weapon takes to materialise
@@ -73,13 +73,19 @@ TRAIL_SUB = 5        # trail samples per tick
 TRAIL_BAND = 0.62    # the trail runs from here to the tip (fraction of the blade)
 EVT_HIT = 4          # ticks an event keeps hitting after it goes off
 BEAM_T = 14          # ticks a beam shot lasts
+RAIL_T = 10          # ticks a void rail line lasts
+LINE_T = dict(beam=BEAM_T, rail=RAIL_T)   # shots that are an instant line to the end of their range
+LINE_HW = dict(beam=7.0, rail=5.0)        # their hit half-width (px, times the shot size)
+IMPLODE_IN = 10      # ticks a void implosion takes to collapse before it pops
+VOID = (10, 4, 18)   # the void's black core (drawn over, not added)
 IMPACT_LIFE = 16
 TAIL = 48            # afterglow ticks after the weapon is gone (events, shots)
 EVT_LIFE = dict(slam=28, cuts=18, xflash=16, snip=16, pillar=30, runes=36, glyph=22, burst=16, charge=0, petals=30,
-                blink=12)
-EVT_R = dict(slam=46, cuts=26, xflash=20, snip=22, pillar=26, runes=18, glyph=24, burst=20, charge=0, petals=0, blink=0)
+                blink=12, implode=26)
+EVT_R = dict(slam=46, cuts=26, xflash=20, snip=22, pillar=26, runes=18, glyph=24, burst=20, charge=0, petals=0, blink=0,
+             implode=0)
 SHOTS = dict(light=dict(speed=15, size=1.1), spark=dict(speed=18, size=0.9), neon=dict(speed=17, size=0.75),
-             arrow=dict(speed=14, size=1.0), beam=dict(speed=0, size=1.6))
+             arrow=dict(speed=14, size=1.0), beam=dict(speed=0, size=1.6), rail=dict(speed=0, size=0.7))
 GLOWS = ("gem", "spirit")
 
 # ---------------------------------------------------------------- models
@@ -204,6 +210,24 @@ MODELS = {
                                ("accent", ((0.55, -0.98), (0.62, -0.98), (0.62, 0.98), (0.55, 0.98))),
                                ("dark", ((0.82, -0.45), (1.0, -0.45), (1.0, 0.45), (0.82, 0.45))),
                                ("gem", ((0.86, -0.3), (1.0, -0.3), (1.0, 0.3), (0.86, 0.3))))),
+    "void_sniper": dict(vs="w", blade=False, hit=(0.0, 0.0, 1.0, 0.0, 0.6), muzzle=(1.0, 0.0),
+                        mat=dict(blade=(34, 24, 46), edge=(150, 110, 200), guard=(22, 16, 30), grip=(18, 12, 24),
+                                 dark=(8, 6, 12), accent=(120, 60, 180), gem=(190, 100, 255)),
+                        parts=(("grip", ((-0.5, -0.7), (-0.12, -0.8), (-0.12, 0.6), (-0.3, 0.6), (-0.42, 1.5),
+                                         (-0.52, 1.4))),
+                               ("blade", ((-0.12, -0.9), (0.38, -0.9), (0.42, 0.7), (-0.12, 0.7))),
+                               ("grip", ((-0.02, 0.7), (0.08, 0.7), (0.03, 2.0), (-0.07, 1.9))),
+                               ("guard", ((0.13, 0.7), (0.22, 0.7), (0.22, 1.5), (0.13, 1.5))),
+                               ("guard", ((0.06, -1.1), (0.1, -1.1), (0.1, -0.9), (0.06, -0.9))),
+                               ("guard", ((0.22, -1.1), (0.26, -1.1), (0.26, -0.9), (0.22, -0.9))),
+                               ("dark", ((0.0, -2.0), (0.32, -2.0), (0.32, -1.1), (0.0, -1.1))),
+                               ("gem", ((0.27, -1.9), (0.32, -1.9), (0.32, -1.2), (0.27, -1.2))),
+                               ("blade", ((0.38, -0.45), (1.0, -0.35), (1.0, 0.35), (0.38, 0.45))),
+                               ("accent", ((0.5, -0.62), (0.55, -0.62), (0.55, 0.62), (0.5, 0.62))),
+                               ("accent", ((0.64, -0.58), (0.69, -0.58), (0.69, 0.58), (0.64, 0.58))),
+                               ("accent", ((0.78, -0.54), (0.83, -0.54), (0.83, 0.54), (0.78, 0.54))),
+                               ("gem", ((0.42, -0.14), (0.93, -0.1), (0.93, 0.1), (0.42, 0.14))),
+                               ("dark", ((0.93, -0.55), (1.0, -0.55), (1.0, 0.55), (0.93, 0.55))))),
     "kunai": dict(vs="w", blade=True, hit=(0.0, 0.0, 1.0, 0.0, 0.7), muzzle=(1.0, 0.0),
                   mat=dict(blade=(84, 90, 104), edge=(220, 228, 240), guard=(60, 64, 76), grip=(140, 40, 50),
                            dark=(20, 22, 28), accent=(140, 40, 50), gem=(140, 255, 220)),
@@ -436,6 +460,11 @@ WEAPONS = {
                           tracks=(((0.0, 0.0, -0.3, 0, -120, 0, 0, 1.0, 3), (0.4, -0.3, -1.2, 0, -110, 0, 0, 1.05, 3),
                                    (0.62, 0.6, 0.3, 0, 85, 0, 0, 1.1, 2), (1.0, 0.55, 0.3, 0, 88, 0, 0, 1.05, 3)),),
                           events=((0.62, "slam", "tip0", 1.7, 0),), fire=()),
+    "void_sniper": dict(models=("void_sniper",), beats=6, aim=True, trail="", shot="rail",
+                        tracks=(((0.0, 0.2, -0.2, 0, 0, 0, 0, 1.0, 3), (0.58, 0.2, -0.2, 0, 0, 0, 0, 1.0, 3),
+                                 (0.76, 0.0, -0.3, 0, -16, 0, 0, 1.0, 1), (1.0, 0.2, -0.2, 0, -4, 0, 0, 1.0, 3)),),
+                        events=((0.05, "charge", "tip0", 1.0, 0.53), (0.58, "implode", "target", 1.0, 0)),
+                        fire=((0.58, 0),)),
 }
 
 
@@ -465,8 +494,8 @@ def _shot_flight(P):
     w = _w(P)
     if not w["shot"]:
         return 0
-    if w["shot"] == "beam":
-        return BEAM_T
+    if w["shot"] in LINE_T:
+        return LINE_T[w["shot"]]
     return int(math.ceil(max(20.0, float(P.get("radius") or 0)) / SHOTS[w["shot"]]["speed"]))
 
 
@@ -671,7 +700,7 @@ class Shot:
         R = max(20.0, float(P.get("radius") or 0))
         self.rng = R * ps
         self.sp = g["speed"] * ps
-        self.flight = BEAM_T if self.kind == "beam" else int(math.ceil(R / g["speed"]))
+        self.flight = LINE_T[self.kind] if self.kind in LINE_T else int(math.ceil(R / g["speed"]))
 
     def pos(self, k):
         d = self.sp * k
@@ -699,7 +728,7 @@ def _shots(inst, ps):
 def _live(inst, ps):
     out = []
     for s in _shots(inst, ps):
-        if s.kind == "beam":
+        if s.kind in LINE_T:
             continue
         e, _st = s.end(inst)
         if inst.age < e:
@@ -708,7 +737,7 @@ def _live(inst, ps):
 
 
 def fires(style):
-    return style in WEAPONS and WEAPONS[style]["shot"] not in ("", "beam")
+    return style in WEAPONS and WEAPONS[style]["shot"] != "" and WEAPONS[style]["shot"] not in LINE_T
 
 
 def live_points(inst, ps):
@@ -759,10 +788,10 @@ def hit(inst, tx, ty, hr, ps):
         if math.hypot(x - tx, y - ty) <= hr + 4.0 * ps * s.size:
             return True
     for s in _shots(inst, ps):
-        if s.kind == "beam" and s.b <= t < s.end(inst)[0]:
+        if s.kind in LINE_T and s.b <= t < s.end(inst)[0]:
             x1, y1 = s.pos(0)
             x2, y2 = s.ox + s.dx * s.rng, s.oy + s.dy * s.rng
-            if F.seg_dist(tx, ty, x1, y1, x2, y2) <= hr + 7.0 * ps * s.size:
+            if F.seg_dist(tx, ty, x1, y1, x2, y2) <= hr + LINE_HW[s.kind] * ps * s.size:
                 return True
     return False
 
@@ -1172,6 +1201,48 @@ def _ev_blink(pen, inst, c, ps, x, y, a, k):
     pen.glow(x, y, 12 * ps * k * (1 - q), c, 170 * (1 - q))
 
 
+def _ev_implode(pen, inst, c, ps, x, y, a, k, salt):
+    """Void implosion: rings, streaks and a dark sphere collapse to a point,
+    then it pops in a flash and a ring."""
+    R = 34 * ps * k
+    if a < IMPLODE_IN:
+        q = a / float(IMPLODE_IN)
+        e = S.ease_in3(q)
+        pen.glow(x, y, R * (1.0 - 0.6 * e), c, 120 + 80 * q)
+        for j in range(3):
+            rr = R * (1 - e) * (1 - 0.25 * j) + 1.5 * ps
+            pen.ring(x, y, rr, rr, 0.0, S.mix(c, S.HOT, 0.3 * j), 200 * (0.4 + 0.6 * q), 1.6 * ps)
+        for j in range(10):
+            r = S.rng_for(inst.seed, j, 93 + salt)
+            an = r.uniform(0, math.pi * 2)
+            d0 = R * 1.3 * (1 - e) * r.uniform(0.7, 1.1) + 2 * ps
+            d1 = d0 + 9 * ps * k * (1 - q)
+            ca, sa = math.cos(an), math.sin(an)
+            pen.line(x + ca * d1, y + sa * d1, x + ca * d0, y + sa * d0, S.mix(c, S.HOT, 0.4), 210 * q, 1.2 * ps)
+        pen.add(False)
+        pen.glow(x, y, (4 + 0.55 * R / ps * (1 - e)) * ps, VOID, 235, 0.7)
+        pen.add(True)
+        return
+    b = a - IMPLODE_IN
+    q = b / float(EVT_LIFE["implode"] - IMPLODE_IN)
+    if b < 4:
+        pen.glow(x, y, (10 + 18 * S.ease_out3(b / 4.0)) * ps * k, S.HOT, 255 * (1 - b / 4.0))
+    pen.glow(x, y, (14 + 26 * S.ease_out3(q)) * ps * k, c, 190 * (1 - q), 0.4)
+    for j in range(8):
+        r = S.rng_for(inst.seed, j, 95 + salt)
+        an = r.uniform(0, math.pi * 2)
+        r1 = (4 + 34 * S.ease_out3(q)) * ps * k
+        ln = r.uniform(8, 16) * ps * k * (1 - q)
+        ca, sa = math.cos(an), math.sin(an)
+        pen.line(x + ca * r1, y + sa * r1, x + ca * (r1 + ln), y + sa * (r1 + ln), S.mix(S.HOT, c, q), 230 * (1 - q),
+                 1.3 * ps)
+    rr = (4 + 40 * S.ease_out3(q)) * ps * k
+    pen.ring(x, y, rr, rr, 0.0, c, 220 * (1 - q), 2.2 * ps * (1 - q) + 0.2)
+    pen.add(False)
+    pen.glow(x, y, 6 * ps * k * (1 - q), VOID, 220 * (1 - q), 0.7)
+    pen.add(True)
+
+
 def _draw_events(pen, inst, ps, c, t):
     P = inst.fx["params"]
     if not _sig(P):
@@ -1212,6 +1283,8 @@ def _draw_events(pen, inst, ps, c, t):
             _ev_burst(pen, inst, c, ps, x, y, a, k, n * 13)
         elif kind == "blink":
             _ev_blink(pen, inst, c, ps, x, y, a, k)
+        elif kind == "implode":
+            _ev_implode(pen, inst, c, ps, x, y, a, k, n * 13)
 
 
 # ---------------------------------------------------------------- shots drawing
@@ -1240,6 +1313,28 @@ def _draw_shots(pen, inst, ps, c, t):
                     rx, ry = s.ox + s.dx * L * u, s.oy + s.dy * L * u
                     pen.ring(rx, ry, 3 * sz, wd * 1.3, math.atan2(s.dy, s.dx), S.HOT, 160 * (1 - q), 1.0 * ps)
                 pen.glow(x2, y2, wd * 2.4, c, 200 * (1 - q))
+            continue
+        if s.kind == "rail":
+            if t < e:
+                # an instant thin line with a black void core, a violet rim
+                # and two strands of light twisting round it
+                q = k / float(RAIL_T)
+                x2, y2 = s.ox + s.dx * s.rng, s.oy + s.dy * s.rng
+                wd = 3.0 * sz * (1 - q * q)
+                pen.line(s.ox, s.oy, x2, y2, c, 150, wd * 3.2)
+                pen.line(s.ox, s.oy, x2, y2, bright, 230, wd * 1.5)
+                n = 32
+                for sg in (1, -1):
+                    pts = []
+                    for j in range(n + 1):
+                        u = j / float(n)
+                        o = sg * math.sin(u * 30 - k * 1.3) * wd * 2.2
+                        pts.append((s.ox + s.dx * s.rng * u - s.dy * o, s.oy + s.dy * s.rng * u + s.dx * o))
+                    pen.polyline(pts, S.mix(c, S.HOT, 0.3), 200 * (1 - q), 0.9 * ps)
+                pen.glow(x2, y2, wd * 3.0, c, 160 * (1 - q))
+                pen.add(False)
+                pen.line(s.ox, s.oy, x2, y2, VOID, 240, wd * 0.7)
+                pen.add(True)
             continue
         if t < e:
             x, y = s.pos(k)

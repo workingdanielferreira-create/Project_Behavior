@@ -32,7 +32,7 @@ Styles (params.style, fxkit.TECH_STYLES):
   combo_flurry      six quick cuts from every direction, scattered in front
   combo_launcher    low sweep at the feet, mid diagonal, high rising launcher
   combo_backhand    flat forehand round the front, flat backhand, overhead chop
-  buster_sword ... earth_cleaver
+  buster_sword ... void_sniper
                     2.5D signature weapons (laser/weaponfx.py)
   ki_barrage        rapid-fire ki blasts (laser/strikefx.py)
   impact_punch      a punch with a shockwave impact (laser/strikefx.py)
