@@ -9325,9 +9325,20 @@
     "damage_max": 20
    },
    "blink": {
-    "blinks": [],
-    "enabled": false,
-    "cooldown_ms": 0
+    "blinks": [
+     {
+      "start_frame": 2,
+      "end_frame": 2,
+      "anchor": "target",
+      "direction": "angle",
+      "angle_deg": 0,
+      "mirror": false,
+      "proximity_px": 225,
+      "flash": true
+     }
+    ],
+    "enabled": true,
+    "cooldown_ms": 100
    },
    "time": {
     "enabled": false,
@@ -9618,7 +9629,7 @@
     "damage": 5,
     "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 90,
+    "knockback": 200,
     "blockable": true,
     "deflectable": true
    },
@@ -11625,7 +11636,7 @@
    "hp_thresholds": "60,30",
    "combo_hits": 4,
    "combo_window_ms": 1500,
-   "cooldown_ms": 2000,
+   "cooldown_ms": 0,
    "buff_ms": 2000,
    "buff_speed_pct": 30,
    "buff_damage_pct": 30,
@@ -11647,9 +11658,9 @@
    },
    "form_b": {
     "name": "Form B",
-    "speed_pct": 120,
-    "damage_pct": 130,
-    "taken_pct": 120,
+    "speed_pct": 200,
+    "damage_pct": 200,
+    "taken_pct": 80,
     "palette": true,
     "body": "#27ec73",
     "accent": "#ff3a3a",
@@ -11660,9 +11671,9 @@
    },
    "form_c": {
     "name": "Form C",
-    "speed_pct": 100,
-    "damage_pct": 100,
-    "taken_pct": 100,
+    "speed_pct": 300,
+    "damage_pct": 300,
+    "taken_pct": 50,
     "palette": true,
     "body": "#1ff0ff",
     "accent": "#3aff7a",
@@ -12312,8 +12323,8 @@
     "hold_max_ms": 1600,
     "weight": 1,
     "params": {
-     "radius_px": 300,
-     "direction": "alternate",
+     "radius_px": 400,
+     "direction": "ccw",
      "swap_ms_min": 1500,
      "swap_ms_max": 3500,
      "lead_deg": 30,
@@ -12321,7 +12332,7 @@
      "wobble_ms": 2400
     },
     "modifiers": {
-     "speed_pct": 100,
+     "speed_pct": 150,
      "pulse_pct": 0,
      "pulse_ms": 1000,
      "inertia_pct": 0,
@@ -12353,14 +12364,14 @@
     "hold_max_ms": 0,
     "weight": 1,
     "params": {
-     "min_px": 220,
-     "max_px": 380,
+     "min_px": 350,
+     "max_px": 500,
      "strafe": "alternate",
      "swap_ms_min": 1500,
      "swap_ms_max": 3500
     },
     "modifiers": {
-     "speed_pct": 300,
+     "speed_pct": 200,
      "pulse_pct": 0,
      "pulse_ms": 1000,
      "inertia_pct": 0,

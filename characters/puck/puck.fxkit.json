@@ -13088,11 +13088,11 @@
    "life_ticks": 60,
    "blend": "additive",
    "battle": {
-    "deals_damage": true,
+    "deals_damage": false,
     "damage": 0,
     "pierce": true,
     "rehit_ticks": 10,
-    "knockback": 100,
+    "knockback": 500,
     "blockable": false,
     "deflectable": false
    },
@@ -13189,7 +13189,7 @@
     "damage": 3,
     "pierce": true,
     "rehit_ticks": 8,
-    "knockback": 100,
+    "knockback": 500,
     "blockable": false,
     "deflectable": false
    },
@@ -13231,7 +13231,7 @@
     "jitter": 0,
     "grow_ticks": 3,
     "detach_ticks": 0,
-    "tip_fade": 0,
+    "tip_fade": 0.05,
     "pos_scale": true
    },
    "keys": [],
@@ -13812,7 +13812,7 @@
     "damage": 2,
     "pierce": true,
     "rehit_ticks": 7,
-    "knockback": 2,
+    "knockback": 10,
     "blockable": true,
     "deflectable": true
    },
@@ -13919,7 +13919,7 @@
     "damage": 3,
     "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 14,
+    "knockback": 200,
     "blockable": true,
     "deflectable": true
    },
@@ -15487,7 +15487,7 @@
     14.850000530357162,
     0.9000000321428583
    ],
-   "collapsed": true
+   "collapsed": false
   },
   {
    "id": "Gmvcmil3y1",
