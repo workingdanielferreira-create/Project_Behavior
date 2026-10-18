@@ -15,7 +15,7 @@
   "wander_strength": 0.25
  },
  "stats": {
-  "max_hp": 200,
+  "max_hp": 2000,
   "chase_speed": 5,
   "follow_speed": 5,
   "scale": 1,

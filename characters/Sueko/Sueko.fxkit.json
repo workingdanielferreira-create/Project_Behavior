@@ -6850,15 +6850,8 @@
    "cooldown_ms": 0,
    "conditions": [
     {
-     "type": "hp_below",
-     "pct": 50,
-     "repeat": false,
-     "not": false
-    },
-    {
-     "type": "hp_below",
-     "pct": 30,
-     "repeat": false,
+     "type": "every_ms",
+     "ms": 8750,
      "not": false
     }
    ],
@@ -6889,9 +6882,9 @@
    },
    "time": {
     "enabled": true,
-    "start_frame": 0,
-    "end_frame": 20,
-    "scope": "everything",
+    "start_frame": 2,
+    "end_frame": 10,
+    "scope": "enemy_fighters",
     "speed": 0,
     "keys": [],
     "logic": "any",
@@ -7297,384 +7290,6 @@
    ]
   },
   {
-   "prim": "glow",
-   "name": "Core charge",
-   "tag": "energy",
-   "anchor": "haL",
-   "start_frame": 19,
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "blend": "additive",
-   "color": {
-    "mode": "gradient",
-    "c1": "#004cff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c2": "#00eeff",
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 0,
-    "r_end": 0,
-    "a_center": 150,
-    "a_mid": 60,
-    "mid": 0.45,
-    "core_r": 0,
-    "fade": "none",
-    "pulse_hz": 6
-   },
-   "keys": [
-    {
-     "frame": 20,
-     "ease": "inout",
-     "set": {
-      "params.r_start": 16,
-      "params.r_end": 16,
-      "params.core_r": 5,
-      "params.a_center": 255,
-      "params.a_mid": 120
-     }
-    },
-    {
-     "frame": 24,
-     "ease": "linear",
-     "set": {
-      "params.r_start": 16,
-      "params.r_end": 16,
-      "params.core_r": 5
-     }
-    },
-    {
-     "frame": 30,
-     "ease": "strong_in",
-     "set": {
-      "params.r_start": 19,
-      "params.r_end": 19,
-      "params.core_r": 7
-     }
-    }
-   ],
-   "id": "Emvdno9zf5",
-   "action": "ultimate",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "end_frame": 32,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    11,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "group": "Gmvdnr0h71"
-  },
-  {
-   "prim": "glow",
-   "name": "Light halo",
-   "tag": "energy",
-   "anchor": "haL",
-   "start_frame": 19,
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "layer": "behind",
-   "blend": "additive",
-   "color": {
-    "mode": "gradient",
-    "c1": "#000000",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 8,
-    "r_end": 8,
-    "a_center": 200,
-    "a_mid": 70,
-    "mid": 0.3,
-    "core_r": 0,
-    "fade": "none",
-    "pulse_hz": 0
-   },
-   "keys": [
-    {
-     "frame": 18,
-     "ease": "out",
-     "set": {
-      "color.c1": "#1aa8d8",
-      "params.r_start": 44,
-      "params.r_end": 44
-     }
-    },
-    {
-     "frame": 24,
-     "ease": "linear",
-     "set": {
-      "color.c1": "#1aa8d8",
-      "params.r_start": 44,
-      "params.r_end": 44
-     }
-    },
-    {
-     "frame": 30,
-     "ease": "strong_in",
-     "set": {
-      "color.c1": "#0a4a60",
-      "params.r_start": 14,
-      "params.r_end": 14
-     }
-    }
-   ],
-   "id": "Emvdno9zg6",
-   "action": "ultimate",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "end_frame": 32,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    11,
-    0
-   ],
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "group": "Gmvdnr0h71"
-  },
-  {
-   "prim": "particles",
-   "name": "Core sparkles",
-   "tag": "energy",
-   "anchor": "haL",
-   "start_frame": 19,
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "blend": "additive",
-   "color": {
-    "mode": "gradient",
-    "c1": "#ffffff",
-    "c2": "#3fd8ff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "mode": "stream",
-    "rate_per_s": 0,
-    "angle_deg": 0,
-    "spread_deg": 360,
-    "speed_min": 20,
-    "speed_max": 90,
-    "gravity": 0,
-    "drag": 0.93,
-    "size_min": 1.5,
-    "size_max": 3.5,
-    "size_over_life": "pulse",
-    "life_min_ms": 250,
-    "life_max_ms": 650,
-    "count": 12
-   },
-   "keys": [
-    {
-     "frame": 20,
-     "ease": "in",
-     "set": {
-      "params.rate_per_s": 160
-     }
-    },
-    {
-     "frame": 24,
-     "ease": "linear",
-     "set": {
-      "params.rate_per_s": 160
-     }
-    },
-    {
-     "frame": 30,
-     "ease": "strong_in",
-     "set": {
-      "params.rate_per_s": 0
-     }
-    },
-    {
-     "frame": 32,
-     "ease": "inout",
-     "set": {
-      "color.c1": "#0040ff"
-     }
-    }
-   ],
-   "id": "Emvdno9zg7",
-   "action": "ultimate",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "end_frame": 32,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    11,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "group": "Gmvdnr0h71"
-  },
-  {
    "prim": "technique",
    "name": "Serious punch",
    "tag": "energy",
@@ -7684,7 +7299,7 @@
     "deals_damage": true,
     "damage": 10,
     "pierce": true,
-    "rehit_ticks": 2,
+    "rehit_ticks": 92,
     "knockback": 1000,
     "blockable": false,
     "deflectable": false
@@ -7716,10 +7331,10 @@
    },
    "params": {
     "style": "serious_punch",
-    "radius": 4,
-    "thickness": 150,
+    "radius": 2,
+    "thickness": 207,
     "length": 3265,
-    "swing_ticks": 47,
+    "swing_ticks": 55,
     "hold_ticks": 22,
     "density": 1,
     "span": 160,
@@ -7748,11 +7363,11 @@
     "facing": 1
    },
    "enabled": true,
-   "start_frame": 19,
+   "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
-   "continuous": false,
-   "always_on": true,
+   "continuous": true,
+   "always_on": false,
    "char_every_ms": 0,
    "offset": [
     10,
@@ -9002,16 +8617,6 @@
  ],
  "groups": [
   {
-   "id": "Gmvdnr0h71",
-   "name": "Group 1",
-   "action": "ultimate",
-   "anchor": "haL",
-   "offset": [
-    11,
-    0
-   ]
-  },
-  {
    "id": "Gmvdqxwye1",
    "name": "Super Saiyan 1 aura",
    "action": "@transform:a>b",
@@ -9659,7 +9264,8 @@
     }
    },
    "actions": {
-    "transform": ""
+    "transform": "",
+    "ultimate": "c"
    }
   },
   "summoner": {
