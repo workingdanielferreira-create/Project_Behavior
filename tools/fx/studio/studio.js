@@ -3648,7 +3648,7 @@ function buildWorldClashProps(d) {
     field(b, "Flurry %", inp("n", slot.flurry, function (v) { slot.flurry = Math.max(0, Math.min(100, v)); worldSave(); }, 0, 100, 5)).title =
       "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
   }
-  note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html. On the stage, the fighter's FX clash with the target dummies' FX by these rules (struggles and sword duels play as their one-shot bursts).");
+  note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash; among the techniques, Ki Barrage shots clash as sprites, the Charged Blast orb as an orb and the Serious Punch as a beam, while the other guns and power techniques never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html. On the stage, the fighter's FX clash with the target dummies' FX by these rules (struggles and sword duels play as their one-shot bursts).");
 }
 // A condition list editor: one box per condition (its fields, Not, ↑ /
 // Duplicate / Remove) and the + Condition picker.  Action triggers and the
@@ -4161,8 +4161,10 @@ function clashKind(fx) {
   if (prim === "particles") return k("particle", "particles never clash");
   if (prim === "technique") {
     var st = P.style;
+    if (st === "ki_barrage") return k("sprite", "each ki shot clashes on its own");
+    if (st === "charged_blast") return k("orb", "the orb clashes once it flies");
+    if (st === "serious_punch") return k("beam", "the shock cone clashes as a beam");
     if (window.GUNFX && GUNFX.STYLES.indexOf(st) >= 0) return k("none", "gun bullets never clash");
-    if (st === "ki_barrage") return k("none", "ki shots never clash");
     if (window.POWERFX && POWERFX.STYLES.indexOf(st) >= 0) return k("none", "power techniques never clash");
     if (window.WEAPONFX && WEAPONFX.STYLES.indexOf(st) >= 0) {
       var w = WEAPONFX.WEAPONS[st], m = w && WEAPONFX.MODELS[w.models[0]];
@@ -4194,7 +4196,7 @@ function clashTable(kind) {
     return "vs " + CLASH_TYPE_LABEL[o] + ": " + fx;
   });
   return "Clash type: " + kind.label + (kind.why ? " (" + kind.why + ")" : "") + ". Against an enemy effect it plays:\n" + rows.join("\n") +
-    "\nParticles, glows, ghosts, pulses, weapons, guns, ki shots and power techniques never clash. Change the FX on the ⚔ World Clash page.";
+    "\nParticles, glows, ghosts, pulses, weapons, the other guns and the other power techniques never clash. Change the FX on the ⚔ World Clash page.";
 }
 // The clash tag(s) of a preset: each of its effects' types, once.
 function presetClashLabel(p) {
@@ -4210,8 +4212,9 @@ function clashChip(fx) {
 // The game's World Clash (laser/clash.py step) on the stage, between the
 // fighter's FX (side 0) and the target dummies' FX (side 1): every tick the
 // live effects are reduced to bodies (beam, orb, trail, crescent, sprite:
-// the same categories as the game; ghosts, glows, pulses, particles,
-// weapons, guns, ki shots and the power techniques never clash) and each
+// the same categories as the game, Ki Barrage shots as sprites, the Charged
+// Blast orb as an orb, the Serious Punch as a beam; ghosts, glows, pulses,
+// particles, weapons, the other guns and power techniques never clash) and each
 // touching pair plays its rule with the World Clash page's clash FX for it.
 // Knockback rule: the higher knockback survives, a tie cancels both, a lead
 // of more than 100 destroys the weaker with no clash at all; an ultimate is
@@ -4237,6 +4240,9 @@ function clashReset() {
   S.clash = {now: 0, n: 0, k: 0, seen: {}, recent: {}, busy: {}, active: [], halves: {}, tips: [], fx: [], quiet: false};
 }
 function clashId(inst) { return inst._cid || (inst._cid = ++S.clash.n); }
+// The clash identity of a body: its instance, or one shot of a technique
+// (a ki shot, a charged blast's orb: shot = its index).
+function clashKey(b) { return b.shot != null ? clashId(b.inst) + "/" + b.shot : clashId(b.inst); }
 // A fresh seed for this clash's FX / size / split roll (same every re-sim).
 function clashSeed() { return (Math.imul(S.clash.now + 1, 0x9E3779B1) ^ Math.imul(++S.clash.k, 0x85EBCA6B)) >>> 0; }
 function clashNorm(x, y) { var d = Math.hypot(x, y); return d > 1e-6 ? [x / d, y / d] : [1, 0]; }
@@ -4259,21 +4265,52 @@ function clashBody(side, own, inst, lst, lt) {
     if (h.length < 2) return null;
     cat = "trail"; pts = h; hw = Math.max(3, (+P.w_head || 5) * ps / 2);
     dir = clashNorm(h[h.length - 1][0] - h[h.length - 2][0], h[h.length - 1][1] - h[h.length - 2][1]);
-  } else if (prim === "technique") {   // every sword technique is a cutting blade: it clashes as a crescent
-    var bd = SWORDFX.body(inst, ps);
-    if (!bd || bd[0].length < 2) return null;
-    cat = "crescent"; pts = bd[0]; hw = Math.max(2, bd[1]);
-    dir = inst.vx || inst.vy ? clashNorm(inst.vx, inst.vy) : inst.dir;
+  } else if (prim === "technique") {
+    var tc = SWORDFX.clashCat(P);
+    if (tc === "beam") {   // the serious punch: its shock cone, fist (tail) to front (head)
+      var bm = POWERFX.beam(inst, ps);
+      if (!bm) return null;
+      cat = "beam"; pts = [bm[0], bm[1]]; hw = 0.5 * (bm[2] + bm[3]); dir = clashNorm(bm[0][0] - bm[1][0], bm[0][1] - bm[1][1]);
+    } else if (tc !== "crescent") return null;   // its shots clash one by one (clashShotBodies)
+    else {   // every sword technique is a cutting blade: it clashes as a crescent
+      var bd = SWORDFX.body(inst, ps);
+      if (!bd || bd[0].length < 2) return null;
+      cat = "crescent"; pts = bd[0]; hw = Math.max(2, bd[1]);
+      dir = inst.vx || inst.vy ? clashNorm(inst.vx, inst.vy) : inst.dir;
+    }
   } else if (prim === "arc") {
     var R = +P.radius * ps;
     pts = FXK.arcSegs(inst, ps).map(function (q) { var a = (q[0] + q[1] / 2) * Math.PI / 180; return [inst.x + R * Math.cos(a), inst.y - R * Math.sin(a)]; });
     if (pts.length < 2) return null;
     cat = "crescent"; hw = +P.width * ps / 2; dir = clashNorm(inst.vx, inst.vy);
   } else return null;
-  var xs = pts.map(function (q) { return q[0]; }), ys = pts.map(function (q) { return q[1]; }), m = hw + CLASH_MARGIN;
-  return {side: side, own: own, cat: cat, inst: inst, lst: lst, pts: pts, hw: Math.max(0, hw), dir: dir,
-    dmg: +((fx.battle || {}).damage) || 0, kb: FXK.fxKnockback(fx), col: FXK.colorPair(fx, lt)[0],
+  return clashMake(side, own, cat, inst, lst, pts, hw, dir, prim === "technique" && cat === "beam" ? SWORDFX.techColour(inst, lt) : FXK.colorPair(fx, lt)[0]);
+}
+function clashMake(side, own, cat, inst, lst, pts, hw, dir, col, shot) {
+  var fx = inst.fx, xs = pts.map(function (q) { return q[0]; }), ys = pts.map(function (q) { return q[1]; }), m = hw + CLASH_MARGIN;
+  return {side: side, own: own, cat: cat, inst: inst, shot: shot, lst: lst, pts: pts, hw: Math.max(0, hw), dir: dir,
+    dmg: +((fx.battle || {}).damage) || 0, kb: FXK.fxKnockback(fx), col: col,
     box: [Math.min.apply(null, xs) - m, Math.min.apply(null, ys) - m, Math.max.apply(null, xs) + m, Math.max.apply(null, ys) + m]};
+}
+// A technique's shots in flight (ki shots: sprites, the charged blast's orb:
+// an orb), one body each (clash.py _shot_bodies).
+function clashShotBodies(side, own, inst, lst, lt) {
+  if (inst.dead || inst.fx.prim !== "technique") return [];
+  var cat = SWORDFX.clashCat(inst.fx.params), ps = inst.ps || 1;
+  if (cat !== "orb" && cat !== "sprite") return [];
+  var col = SWORDFX.techColour(inst, lt), out = [];
+  SWORDFX.shotIds(inst, ps).forEach(function (i) {
+    var at = SWORDFX.shotAt(inst, i, ps);
+    if (at) out.push(clashMake(side, own, cat, inst, lst, [[at[0], at[1]]], Math.max(4, at[4]), clashNorm(at[2], at[3]), col, i));
+  });
+  return out;
+}
+function clashShotAt(b) { return b.inst.dead || b.inst.age >= b.inst.life ? null : SWORDFX.shotAt(b.inst, b.shot, b.inst.ps || 1); }
+// Shot b stops here and detonates, as when it hits (tq_ki); silent = it just
+// vanishes (a split orb, whose halves fly on).
+function clashStopShot(b, silent) {
+  var at = clashShotAt(b), ki = b.inst.tq_ki;
+  if (at && !ki[b.shot]) ki[b.shot] = silent ? [b.inst.age, at[0], at[1], true] : [b.inst.age, at[0], at[1]];
 }
 function clashBodies() {
   var A = [], B = [], gone = blinkGone();
@@ -4281,10 +4318,14 @@ function clashBodies() {
     pl.insts.forEach(function (inst) {
       if (gone && FXK.bodyBound(inst)) return;   // blinked out: its body FX are harmless
       var b = clashBody(0, -1, inst, pl.insts, lut); if (b) A.push(b);
+      A.push.apply(A, clashShotBodies(0, -1, inst, pl.insts, lut));
     });
   });
   (S.dsim || []).forEach(function (ds, i) {
-    ds.player.insts.forEach(function (inst) { var b = clashBody(1, i, inst, ds.player.insts, DUMMY_LUT); if (b) B.push(b); });
+    ds.player.insts.forEach(function (inst) {
+      var b = clashBody(1, i, inst, ds.player.insts, DUMMY_LUT); if (b) B.push(b);
+      B.push.apply(B, clashShotBodies(1, i, inst, ds.player.insts, DUMMY_LUT));
+    });
   });
   return [A, B];
 }
@@ -4324,8 +4365,11 @@ function clashContact(a, b) {
   });
   return best ? best[1] : null;
 }
-function clashAlive(b) { return !b.inst.dead && b.inst.age < b.inst.life; }
-function clashCancel(b) { b.inst.age = Math.max(b.inst.age, b.inst.life); b.inst.dead = true; }
+function clashAlive(b) { return b.shot != null ? !!clashShotAt(b) : !b.inst.dead && b.inst.age < b.inst.life; }
+function clashCancel(b) {
+  if (b.shot != null) { clashStopShot(b); return; }   // just that shot
+  b.inst.age = Math.max(b.inst.age, b.inst.life); b.inst.dead = true;
+}
 function clashIsUlt(b) { return b.inst.fx.action === "ultimate"; }
 function clashUltOver(a, b) {
   var ua = clashIsUlt(a), ub = clashIsUlt(b);
@@ -4372,13 +4416,19 @@ function clashQuiet(own, c) {
 }
 // The struggle FX size from the beams' widths (glow included), _beam_scale.
 function clashBeamScale(slot, a, b) {
-  var w = Math.max.apply(null, [a, b].map(function (x) { var P = x.inst.fx.params, ps = x.inst.ps || 1; return (Math.max(P.w_start0, P.w_start1, P.w_end0, P.w_end1) + (+P.glow || 0)) * ps; }));
+  var w = Math.max.apply(null, [a, b].map(function (x) {
+    var P = x.inst.fx.params, ps = x.inst.ps || 1;
+    if (x.inst.fx.prim === "technique") { var bm = POWERFX.beam(x.inst, ps); return bm ? 2 * Math.max(bm[2], bm[3]) : 2 * x.hw; }
+    return (Math.max(P.w_start0, P.w_start1, P.w_end0, P.w_end1) + (+P.glow || 0)) * ps;
+  }));
   return Math.max(0.15, Math.min(3, (+(WORLD.slots[slot] || {}).size || 100) / 100 * w / CLASH_STRUGGLE_REF_W));
 }
 // Split a beam at c into two halves fanning ±30° that run on to its end
 // (both can hit) and burst where they end (clash.py _split_beam).
-function clashHalf(inst, d, c, rem, held) {
-  var fx = clone(inst.fx), P = fx.params, q = Object.assign({}, inst);
+// fx = the effect the half plays instead (clashTechBeamFx), else a copy of the beam.
+function clashHalf(inst, d, c, rem, held, fx) {
+  fx = fx || clone(inst.fx);
+  var P = fx.params, q = Object.assign({}, inst);
   fx.keys = []; fx.intercept = Object.assign({}, fx.intercept, {enabled: false});
   P.length = rem / Math.max(1e-6, inst.ps || 1); P.detach_ticks = 0;
   q.fx = fx; q.src = fx; q._cid = 0;
@@ -4395,12 +4445,30 @@ function clashHalf(inst, d, c, rem, held) {
   q.mk = fx.motion.kind; q.ma = fx.motion.aim;
   return q;
 }
+// A split serious punch's half: a plain FX Kit beam in its colour, as wide
+// as half the cone where it was cut, opening to half its front (clash.py
+// _tech_beam_fx).
+function clashHex(c) { return "#" + c.map(function (v) { return ("0" + Math.round(Math.max(0, Math.min(255, v))).toString(16)).slice(-2); }).join(""); }
+function clashTechBeamFx(beam, c) {
+  var inst = beam.inst, ps = inst.ps || 1, bm = POWERFX.beam(inst, ps), tail = beam.pts[1], w0, w1;
+  if (bm) {
+    var Lb = Math.max(1e-6, Math.hypot(bm[0][0] - tail[0], bm[0][1] - tail[1]));
+    var u = Math.max(0, Math.min(1, Math.hypot(c[0] - tail[0], c[1] - tail[1]) / Lb));
+    w0 = (bm[2] + (bm[3] - bm[2]) * u) / ps; w1 = bm[3] / ps;
+  } else w0 = w1 = beam.hw / ps;
+  var hot = SWORDFX.lib.mix(beam.col, SWORDFX.lib.HOT, 0.45);
+  return FXK.normalize({prim: "beam", name: (inst.fx.name || "serious punch") + " half", action: inst.fx.action,
+    layer: inst.fx.layer || "front", blend: "additive",
+    params: {w_start0: w0, w_start1: w0, w_end0: w1, w_end1: w1, glow: w0 * 0.5, glow_color: clashHex(beam.col)},
+    motion: {kind: "static", aim: inst.fx.motion.aim || "target"},
+    color: {mode: "gradient", c1: clashHex(hot), c2: clashHex(beam.col)}, battle: clone(inst.fx.battle)});
+}
 function clashSplit(beam, c, size) {
-  var inst = beam.inst, ps = inst.ps || 1, head = beam.pts[0], m = inst.fx.motion;
-  var held = m.kind === "attached" || m.kind === "static" || m.kind === "orbit" || Math.hypot(inst.vx, inst.vy) < 1e-4;
+  var inst = beam.inst, ps = inst.ps || 1, head = beam.pts[0], m = inst.fx.motion, tech = inst.fx.prim === "technique";
+  var held = tech || m.kind === "attached" || m.kind === "static" || m.kind === "orbit" || Math.hypot(inst.vx, inst.vy) < 1e-4;
   var rem = Math.max(Math.hypot(head[0] - c[0], head[1] - c[1]), 40 * ps);
   [1, -1].forEach(function (sgn) {
-    var q = clashHalf(inst, FXK.rot(beam.dir, CLASH_SPLIT_DEG * sgn), c, rem, held);
+    var q = clashHalf(inst, FXK.rot(beam.dir, CLASH_SPLIT_DEG * sgn), c, rem, held, tech ? clashTechBeamFx(beam, c) : null);
     beam.lst.push(q);
     S.clash.halves[clashId(q)] = true;
     S.clash.tips.push({inst: q, own: beam.own, col: beam.col, last: c.slice(), size: size});
@@ -4413,23 +4481,37 @@ function clashSplit(beam, c, size) {
 }
 // Cut a moving orb at c into two halves (CLASH_ORB_HALF of its size) fanning
 // ±30° that fly on (both can hit) and pop where they end (clash.py _split_orb).
-function clashOrbMoving(b) { var m = b.inst.fx.motion.kind; return m !== "attached" && m !== "static" && m !== "orbit" && Math.hypot(b.inst.vx, b.inst.vy) >= 1e-4; }
+function clashOrbMoving(b) { if (b.shot != null) return true; var m = b.inst.fx.motion.kind; return m !== "attached" && m !== "static" && m !== "orbit" && Math.hypot(b.inst.vx, b.inst.vy) >= 1e-4; }
+// A split technique orb (the charged blast's): its halves are plain FX Kit
+// orbs in its colour (clash.py _half_shot_orb).
+function clashShotOrbFx(orb, spd) {
+  var inst = orb.inst, ps = inst.ps || 1;
+  return FXK.normalize({prim: "sprite", name: (inst.fx.name || "orb") + " half", action: inst.fx.action,
+    layer: inst.fx.layer || "front", blend: inst.fx.blend || "normal",
+    params: {shape: "orb", radius: orb.hw * CLASH_ORB_HALF / ps, hot: true, halo: true, fade: false, trail_len: 6},
+    motion: {kind: "travel", aim: inst.fx.motion.aim || "target", speed: spd / ps},
+    color: {mode: "solid", c1: clashHex(orb.col)}, battle: clone(inst.fx.battle)});
+}
 function clashSplitOrb(orb, c, size) {
-  var inst = orb.inst, spd = Math.hypot(inst.vx, inst.vy);
+  var inst = orb.inst, shot = orb.shot != null ? clashShotAt(orb) : null, spd = orb.shot != null ? (shot ? Math.hypot(shot[2], shot[3]) : 0) : Math.hypot(inst.vx, inst.vy);
   [1, -1].forEach(function (sgn) {
-    var d = FXK.rot(orb.dir, CLASH_SPLIT_DEG * sgn), fx = clone(inst.fx), P = fx.params, q = Object.assign({}, inst);
-    fx.keys = []; fx.intercept = Object.assign({}, fx.intercept, {enabled: false}); P.radius = (+P.radius || 3) * CLASH_ORB_HALF; fx.motion.kind = "travel";
+    var d = FXK.rot(orb.dir, CLASH_SPLIT_DEG * sgn), fx, P, q = Object.assign({}, inst);
+    if (orb.shot != null) fx = clashShotOrbFx(orb, spd);
+    else { fx = clone(inst.fx); P = fx.params; P.radius = (+P.radius || 3) * CLASH_ORB_HALF; }
+    fx.keys = []; fx.intercept = Object.assign({}, fx.intercept, {enabled: false}); fx.motion.kind = "travel";
     q.fx = fx; q.src = fx; q._cid = 0;
     q.seed = (inst.seed ^ (d[1] > 0 ? 0x9E3779B9 : 0x7F4A7C15)) >>> 0; q.r = FXK.rng(q.seed);
     q.hist = []; q.trail = []; q.parts = []; q.ghosts = [];
     q.x = q.px = c[0]; q.y = q.py = c[1]; q.dir = [d[0], d[1]]; q.hits = 0; q.lastHit = -1e9;
     q.free = q.chase = q.cont = q.open = q.run = false; q.lodge = null; q.path = null; q.cap = null; q.ringHits = null;
     q.vx = d[0] * spd; q.vy = d[1] * spd; q.mk = fx.motion.kind; q.ma = fx.motion.aim;
+    if (orb.shot != null) { q.age = 0; q.life = Math.max(8, Math.floor(shot ? shot[5] : 20) + 8); q.spd = fx.motion.speed; }
     orb.lst.push(q);
     S.clash.halves[clashId(q)] = true;
     S.clash.tips.push({inst: q, own: orb.own, col: orb.col, last: c.slice(), size: size, orb: true});
   });
-  clashCancel(orb);
+  if (orb.shot != null) clashStopShot(orb, true);   // it goes on as its halves
+  else clashCancel(orb);
 }
 // a: the fighter's body, b: the dummy's.  Plays the rule; returns a held
 // clash record (both pinned) or null (clash.py _start, one-shot bursts).
@@ -4471,7 +4553,7 @@ function clashStart(a, b, c, rule) {
   if (rule === "beam_cut") {
     clashSettle(a, b, a);   // the beam itself is never cancelled by its cutter
     var r = FXK.rng(clashSeed()), split = clashIsUlt(a) && !clashIsUlt(b) ? b.kb > a.kb : r() < CLASH_SPLIT_CHANCE;
-    if (!S.clash.halves[clashId(a.inst)] && split) {   // a split half never splits again
+    if (!S.clash.halves[clashKey(a)] && split) {   // a split half never splits again
       clashFx("beam_split", c, adeg, a.col, b.col, {pair: [a, b]});
       clashSplit(a, c, clashSize(a, b, WORLD.slots.split_tip || {}, r));
     } else clashFx("beam_nosplit", c, adeg, a.col, b.col, {pair: [a, b]});
@@ -4480,7 +4562,7 @@ function clashStart(a, b, c, rule) {
   if (CLASH_ORB_CUT.indexOf(rule) >= 0) {
     clashSettle(a, b, a);   // the orb itself is never cancelled by its cutter
     var ro = FXK.rng(clashSeed()), osplit = clashIsUlt(a) && !clashIsUlt(b) ? b.kb > a.kb : ro() < CLASH_SPLIT_CHANCE;
-    if (!S.clash.halves[clashId(a.inst)] && osplit && clashOrbMoving(a)) {   // a split half never splits again
+    if (!S.clash.halves[clashKey(a)] && osplit && clashOrbMoving(a)) {   // a split half never splits again
       clashFx("orb_split", c, adeg, a.col, b.col, {pair: [a, b]});
       clashSplitOrb(a, c, clashSize(a, b, WORLD.slots.orb_split_tip || {}, ro));
     } else clashFx(rule, c, ang, a.col, b.col, {pair: [a, b]});
@@ -4503,9 +4585,10 @@ function clashStep() {
   st.active = st.active.filter(function (rec) {
     if (now >= rec.until || !clashAlive(rec.a) || !clashAlive(rec.b)) {
       if (clashAlive(rec.a) && clashAlive(rec.b)) clashSettle(rec.a, rec.b);
-      delete st.busy[clashId(rec.a.inst)]; delete st.busy[clashId(rec.b.inst)];
+      delete st.busy[clashKey(rec.a)]; delete st.busy[clashKey(rec.b)];
       return false;
     }
+    // (a held technique orb: its whole technique is frozen, the orb with it)
     [rec.a, rec.b].forEach(function (x, i) { var p = rec.pins[i], q = x.inst; q.x = q.px = p[0]; q.y = q.py = p[1]; q.age = p[2]; });
     return true;
   });
@@ -4525,19 +4608,19 @@ function clashStep() {
   var AB = clashBodies(), A = AB[0], B = AB[1];
   A.forEach(function (a) {
     B.forEach(function (b) {
-      if (st.busy[clashId(a.inst)] || st.busy[clashId(b.inst)] || !clashAlive(a) || !clashAlive(b)) return;
+      if (st.busy[clashKey(a)] || st.busy[clashKey(b)] || !clashAlive(a) || !clashAlive(b)) return;
       var rule = CLASH_RULES[[a.cat, b.cat].sort().join("|")];
       if (!rule) return;
       var c = clashContact(a, b);
       if (!c) return;
-      var k = clashId(a.inst) + ":" + clashId(b.inst), last = st.seen[k];
+      var k = clashKey(a) + ":" + clashKey(b), last = st.seen[k];
       st.seen[k] = now;
       if (last != null && now - last <= CLASH_REARM) return;   // still touching since its last clash
       if (Math.abs(a.kb - b.kb) > CLASH_OVERPOWER_KB) { clashSettle(a, b); return; }   // overpowered: no clash at all
       st.quiet = clashQuiet(b.own, c);
       var rec = clashStart(a, b, c, rule);
       st.quiet = false;
-      if (rec) { st.active.push(rec); st.busy[clashId(a.inst)] = true; st.busy[clashId(b.inst)] = true; }
+      if (rec) { st.active.push(rec); st.busy[clashKey(a)] = true; st.busy[clashKey(b)] = true; }
     });
   });
   if (now % 60 === 0) for (var k in st.seen) if (now - st.seen[k] > CLASH_REARM * 3) delete st.seen[k];

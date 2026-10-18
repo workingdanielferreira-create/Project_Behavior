@@ -250,6 +250,7 @@ def on_spawn(inst, host):
     inst.tq_path = [(inst.x, inst.y)]   # where the anchor was, per tick
     inst.tq_ki = {}                # ki shots stopped by a hit: index -> (tick, x, y)
     inst.tq_kd = {}                # ki shots an intercept pulled off their path (strikefx.track_step)
+    inst.tq_off = {}               # gun rounds a clash moved: index -> (dx, dy) (gunfx.place)
     inst.tq_imp = []               # punch impacts: (tick, x, y)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
@@ -626,6 +627,53 @@ def live_points(inst, ps):
     if weaponfx.fires(st):
         return weaponfx.live_points(inst, ps)
     return []
+
+
+def clash_cat(P):
+    """What a technique is to World Clash (laser/clash.py): the ki barrage's
+    shots are sprites, the charged blast's orb an orb, the serious punch a
+    beam; every other one that clashes is a cutting blade (crescent, body)."""
+    st = _style(P)
+    if st == "ki_barrage":
+        return "sprite"
+    if st == "charged_blast":
+        return "orb"
+    if st == "serious_punch":
+        return "beam"
+    return "crescent"
+
+
+def shot_ids(inst, ps):
+    """Indices of the shots of a technique in flight this tick that clash
+    one by one (ki barrage, charged blast); [] for every other style."""
+    st = _style(inst.fx["params"])
+    if st == "ki_barrage":
+        return strikefx.shot_ids(inst, ps)
+    if st == "charged_blast":
+        return gunfx.shot_ids(inst, ps)
+    return []
+
+
+def shot_at(inst, i, ps):
+    """(x, y, vx, vy, radius, ticks left) of shot i while it flies, else None."""
+    if _style(inst.fx["params"]) == "ki_barrage":
+        return strikefx.shot_at(inst, i, ps)
+    return gunfx.shot_at(inst, i, ps)
+
+
+def place_shot(inst, i, x, y, ps):
+    """Shot i is at (x, y) this tick (a clash pins it, carries it on a
+    struggle node or sends it on): only the charged blast's orb is ever
+    held (gunfx.place)."""
+    if _style(inst.fx["params"]) == "charged_blast":
+        gunfx.place(inst, i, x, y, ps)
+
+
+def tech_colour(inst, lut):
+    """The colour a technique is painted in (_colours)."""
+    if inst.fx["color"]["mode"] == "palette":
+        return vivid(lut)
+    return tuple(F.color_pair(inst.fx, lut)[0])
 
 
 def body(inst, ps):

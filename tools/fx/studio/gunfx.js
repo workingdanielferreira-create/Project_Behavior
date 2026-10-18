@@ -122,6 +122,10 @@ function Round(inst, i, v, j, b, ps) {
   this.ox = ox + so[0]; this.oy = oy + so[1];
   this.sp = su * ps;
   this.arc = 0;
+  // A clash holding / carrying this round (laser/clash.py) shifts its whole
+  // flight: inst.tq_off[i] = [dx, dy].
+  var off = (inst.tq_off || {})[i];
+  this.dx = off ? off[0] : 0; this.dy = off ? off[1] : 0;
   var Lp = +P.length;
   if (this.look === "rail") {
     this.rng = Lp * ps;
@@ -151,7 +155,7 @@ Round.prototype.pos = function (k) {   // world position k ticks after launch
     var d0 = this.sp * k;
     d = this.fr.d(Math.cos(this.ang) * d0, Math.sin(this.ang) * d0);
   }
-  return [this.ox + d[0], this.oy + d[1]];
+  return [this.ox + d[0] + this.dx, this.oy + d[1] + this.dy];
 };
 Round.prototype.head = function (k) {   // unit direction of travel k ticks after launch
   if (this.look === "rocket") {
@@ -191,6 +195,36 @@ function livePoints(inst, ps) {
     if (k >= 1) { q = s.pos(k - 1); return [s.i, p[0], p[1], p[0] - q[0], p[1] - q[1]]; }
     q = s.pos(1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
   });
+}
+// ---------------------------------------------------------------- clash
+// A charged blast's orb clashes on its own (an orb body per round in
+// flight); every other gun never clashes.  laser/gunfx.py clashes.
+function clashes(P) { return L_().style(P) === "charged_blast"; }
+function roundI(inst, i, ps) {   // round i, once it has fired (else null)
+  var P = inst.fx.params, n = g_(P).pellets, lb = launches(P), v = Math.floor(i / n);
+  if (i < 0 || v >= lb.length || lb[v] > inst.age) return null;
+  return new Round(inst, i, v, i % n, lb[v], ps);
+}
+function shotIds(inst, ps) {   // indices of the rounds in flight this tick that clash
+  if (!clashes(inst.fx.params) || inst.age >= inst.life) return [];
+  return live(inst, ps).map(function (e) { return e[0].i; });
+}
+// [x, y, vx, vy, radius, ticks left] of round i while it flies, else null.
+function shotAt(inst, i, ps) {
+  var s = roundI(inst, i, ps);
+  if (!s || s.look === "rail") return null;
+  var e = s.end(inst)[0];
+  if (inst.age >= e) return null;
+  var k = inst.age - s.b, p = s.pos(k), q = s.pos(k + 1);
+  return [p[0], p[1], q[0] - p[0], q[1] - p[1], +inst.fx.params.radius * ps * s.size, e - inst.age];
+}
+// Round i is at (x, y) this tick: its whole flight shifts there.
+function place(inst, i, x, y, ps) {
+  var s = roundI(inst, i, ps);
+  if (!s) return;
+  var p = s.pos(inst.age - s.b);
+  if (!inst.tq_off) inst.tq_off = {};
+  inst.tq_off[i] = [s.dx + x - p[0], s.dy + y - p[1]];
 }
 function railLine(s) { var d = s.fr.d(s.rng, 0); return [s.ox, s.oy, s.ox + d[0], s.oy + d[1]]; }
 
@@ -244,7 +278,11 @@ function onHit(inst, x, y, ps) {
 // [tick, x, y, stopped] where the round ends, or null when it just fades out.
 function blastAt(inst, s) {
   var en = s.end(inst);
-  if (en[1]) { var h = inst.tq_ki[s.i]; return [en[0], h[1], h[2], true]; }
+  if (en[1]) {
+    var h = inst.tq_ki[s.i];
+    if (h[3]) return null;   // gone without a blast (a clash split it: its halves fly on)
+    return [en[0], h[1], h[2], true];
+  }
   if (EXPLODES.indexOf(s.look) >= 0) { var p = s.pos(s.flight); return [en[0], p[0], p[1], false]; }
   return null;
 }
@@ -754,5 +792,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches, livePoints: livePoints};
+           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place};
 })(window);

@@ -5,13 +5,26 @@ Every tick (Overlay._tick, before World.refresh_battle) the live effects of
 the two sides are reduced to bodies — a point, a line or a polyline with a
 half width — in five categories:
 
-  beam      FX Kit beam prim; built-in rich beams (RichBeamProjectile)
-  orb       FX Kit orb sprites; mage petals; round / homing bullets
+  beam      FX Kit beam prim; built-in rich beams (RichBeamProjectile); the
+            Serious Punch technique (its shock cone, fist to front)
+  orb       FX Kit orb sprites; mage petals; round / homing bullets; the
+            Charged Blast technique's orb (each round in flight)
   trail     FX Kit ribbons (blade / laser trails); the built-in laser trail
             (its head part only: the end that is moving)
-  crescent  FX Kit arc prim; swordsman crescents and ultimate crescents
-  sprite    FX Kit bolt / blade sprites; the runner's bolts and other shots
-  (ghost, glow, pulse, particles and weapon never clash)
+  crescent  FX Kit arc prim; swordsman crescents and ultimate crescents;
+            sword techniques, punches and bladed weapons
+  sprite    FX Kit bolt / blade sprites; the runner's bolts and other shots;
+            the Ki Barrage technique's ki shots (each one in flight)
+  (ghost, glow, pulse, particles, weapon, the other power techniques, guns
+  and firearms never clash)
+
+A technique's shots (ki shots, the charged blast's orb) clash one by one
+(ShotRef): cancelling one stops just that shot, which detonates where it
+met; a held orb's whole technique is frozen while it is pinned, and the orb
+is moved where the clash puts it (gunfx.place).  A split Charged Blast
+orb's halves and a split Serious Punch's halves are plain FX Kit orbs /
+beams in the technique's colour; the punch's cone is cut short at the
+contact (inst.cap).
 
 Clashing is world physics, not a character choice: every fighter's
 effects are bound by the same rules.  When a body of one side touches a
@@ -178,7 +191,7 @@ import copy
 import math
 import random
 
-from . import clashfx, config, fxkit, swordfx
+from . import clashfx, config, fxkit, powerfx, swordfx
 
 CONTACT_MARGIN = 4.0         # px of slack on top of both half widths
 STRONG_BEAM_DAMAGE = 10.0    # beam x beam explodes when BOTH deal more than this
@@ -370,6 +383,38 @@ class Body:
         self.box = (min(xs) - h, min(ys) - h, max(xs) + h, max(ys) + h)
 
 
+class ShotRef:
+    """One shot of a technique (a ki shot, a charged blast's orb) as a clash
+    body's ref.  One per shot for as long as it flies (_shot_ref), so the
+    clash bookkeeping (busy, seen, halves) keeps track of it across ticks;
+    x / y are where it was this tick."""
+    __slots__ = ("inst", "i", "x", "y")
+
+    def __init__(self, inst, i):
+        self.inst, self.i = inst, i
+        self.x = self.y = 0.0
+
+    @property
+    def age(self):
+        return self.inst.age
+
+    def at(self):
+        """(x, y, vx, vy, radius, ticks left) while it flies, else None."""
+        inst = self.inst
+        if inst.dead or inst.age >= inst.life:
+            return None
+        return swordfx.shot_at(inst, self.i, inst.ps)
+
+
+def _shot_ref(world, inst, i):
+    shots = _state(world)["shots"]
+    k = (id(inst), i)
+    r = shots.get(k)
+    if r is None or r.inst is not inst:
+        r = shots[k] = ShotRef(inst, i)
+    return r
+
+
 def _lut_col(fig):
     try:
         return tuple(fig.lut[128])
@@ -414,6 +459,17 @@ def _inst_body(si, fig, inst, lst):
         return Body(si, "trail", "inst", inst, fig, list(h), hw, dmg, kb, col, _norm(h[-1][0] - h[-2][0],
                                                                                        h[-1][1] - h[-2][1]), lst)
     if prim == "technique":
+        cat = swordfx.clash_cat(P)
+        if cat == "beam":
+            bm = powerfx.beam(inst, ps)
+            if bm is None:
+                return None
+            (hx, hy), (tx, ty), hwt, hwh = bm
+            ux, uy = _norm(hx - tx, hy - ty)
+            return Body(si, "beam", "inst", inst, fig, [(hx, hy), (tx, ty)], 0.5 * (hwt + hwh), dmg, kb,
+                        swordfx.tech_colour(inst, fig.lut), (ux, uy), lst)
+        if cat != "crescent":
+            return None     # its shots clash one by one (_shot_bodies)
         # Every sword technique is a cutting blade: it clashes as a crescent.
         bd = swordfx.body(inst, ps)
         if bd is None or len(bd[0]) < 2:
@@ -431,6 +487,30 @@ def _inst_body(si, fig, inst, lst):
         return Body(si, "crescent", "inst", inst, fig, pts, float(P["width"]) * ps / 2, dmg, kb, col,
                     _norm(inst.vx, inst.vy), lst)
     return None
+
+
+def _shot_bodies(world, si, fig, inst, lst):
+    """A technique's shots in flight (ki shots: sprites, the charged blast's
+    orb: an orb), one body each."""
+    if inst.dead or inst.fx["prim"] != "technique":
+        return []
+    cat = swordfx.clash_cat(inst.fx["params"])
+    if cat not in ("orb", "sprite"):
+        return []
+    out = []
+    ps = inst.ps
+    b = inst.fx["battle"]
+    dmg, kb = float(b.get("damage") or 0), fxkit.fx_knockback(inst.fx)
+    col = swordfx.tech_colour(inst, fig.lut)
+    for i in swordfx.shot_ids(inst, ps):
+        r = _shot_ref(world, inst, i)
+        at = r.at()
+        if at is None:
+            continue
+        r.x, r.y = at[0], at[1]
+        out.append(Body(si, cat, "shot", r, fig, [(at[0], at[1])], max(4.0, at[4]), dmg, kb, col,
+                        _norm(at[2], at[3]), lst))
+    return out
 
 
 def _arc_pts(cx, cy, R, centre_deg, span, n=7):
@@ -453,6 +533,7 @@ def _bodies(world, si):
                     b = _inst_body(si, fig, inst, pl.insts)
                     if b is not None:
                         out.append(b)
+                    out.extend(_shot_bodies(world, si, fig, inst, pl.insts))
         c = fig.combat
         lc = _lut_col(fig)
         for cw in c.crescents:
@@ -569,6 +650,8 @@ def _alive(b):
     r, k = b.ref, b.kind
     if k == "inst":
         return not r.dead and r.age < r.life
+    if k == "shot":
+        return r.at() is not None
     if k == "petal":
         return r.state != "cooldown"
     if k == "trail":
@@ -582,6 +665,8 @@ def _cancel(b):
     if k == "inst":
         r.age = max(r.age, r.life)
         r.dead = True
+    elif k == "shot":
+        _stop_shot(r)
     elif k == "proj":
         combat.kill_projectile(r)
     elif k == "crescent":
@@ -591,6 +676,15 @@ def _cancel(b):
     elif k == "petal":
         r.state = "cooldown"
         r.cooldown_ticks = max(1, int(float((r.cfg or {}).get("cooldown_ms", 2500)) / config.TICK_MS))
+
+
+def _stop_shot(r, silent=False):
+    """Shot r stops here and detonates, as when it hits (tq_ki); silent = it
+    just vanishes (a split orb, whose halves fly on)."""
+    at = r.at()
+    ki = r.inst.tq_ki
+    if at is not None and r.i not in ki:
+        ki[r.i] = (r.inst.age, at[0], at[1], True) if silent else (r.inst.age, at[0], at[1])
 
 
 def _pin(b):
@@ -610,6 +704,11 @@ def _hold(b, pin):
     if b.kind == "inst":
         r.px, r.py = pin[0], pin[1]
         r.age = pin[2]
+    elif b.kind == "shot":
+        # The whole technique is frozen (one orb: the charged blast) and the
+        # orb put where the clash holds it.
+        r.inst.age = pin[2]
+        swordfx.place_shot(r.inst, r.i, pin[0], pin[1], r.inst.ps)
     elif b.kind in ("proj", "crescent", "ultc"):
         r.age = pin[2]
 
@@ -631,6 +730,8 @@ def _is_ult(b):
     crescent."""
     if b.kind == "ultc":
         return True
+    if b.kind == "shot":
+        return b.ref.inst.fx.get("action") == "ultimate"
     return b.kind == "inst" and (b.ref.fx.get("action") == "ultimate")
 
 
@@ -735,6 +836,13 @@ def _beam_look(world, bd):
                     wh=(r.w_end0 + (r.w_end1 - r.w_end0) * prog) * ps,
                     ct=tuple(r.c1), ch=tuple(r.c2), glow=r.glow * ps, gcol=r.glow_color,
                     am=max(0.0, 1.0 - r.age / max(1, r.max_age)), add=bool(r.additive))
+    if r.fx["prim"] == "technique":
+        # The serious punch: its cone, fist (tail) to shock front (head),
+        # painted additively in the technique's colour.
+        bm = powerfx.beam(r, r.ps)
+        wt, wh = (2.0 * bm[2], 2.0 * bm[3]) if bm is not None else (2.0 * bd.hw, 2.0 * bd.hw)
+        return dict(o=bd.pts[1], wt=wt, wh=wh, ct=bd.col, ch=swordfx.mix(bd.col, swordfx.HOT, 0.45), glow=0.0,
+                    gcol=None, am=1.0, add=True)
     P, ps = r.fx["params"], r.ps
     prog = fxkit.life_t(r)
     try:
@@ -799,6 +907,9 @@ def _left(b):
     r, k = b.ref, b.kind
     if k == "inst":
         return None if r.life == fxkit.INF else max(0.0, r.life - r.age)
+    if k == "shot":
+        at = r.at()
+        return 0.0 if at is None else max(0.0, float(at[5]))
     if k == "proj":
         return max(0.0, r.max_age - r.age)
     if k == "crescent":
@@ -917,11 +1028,12 @@ def _split_beam(world, st, beam, c, size=None):
     if beam.kind == "inst":
         inst = beam.ref
         m = inst.fx["motion"]
-        held = m["kind"] in ("attached", "static", "orbit") or math.hypot(inst.vx, inst.vy) < 1e-4
+        tech = inst.fx["prim"] == "technique"     # the serious punch: always held on its fist
+        held = tech or m["kind"] in ("attached", "static", "orbit") or math.hypot(inst.vx, inst.vy) < 1e-4
         rem = max(rem, 40.0 * inst.ps)
         for sgn in (1, -1):
             d = fxkit.rot([ux, uy], SPLIT_DEG * sgn)
-            q = _half_inst(inst, d, c, rem, held)
+            q = _half_inst(inst, d, c, rem, held, _tech_beam_fx(beam, c) if tech else None)
             beam.lst.append(q)
             halves.append(("inst", q, beam.owner))
         if held:
@@ -954,8 +1066,37 @@ def _split_beam(world, st, beam, c, size=None):
     return halves
 
 
-def _half_inst(inst, d, c, rem, held):
-    fx = copy.deepcopy(inst.fx)
+def _tech_beam_fx(beam, c):
+    """A split serious punch's half: a plain FX Kit beam in its colour, as
+    wide as half the cone where it was cut, opening to half its front."""
+    inst = beam.ref
+    ps = inst.ps or 1.0
+    bm = powerfx.beam(inst, ps)
+    tail = beam.pts[1]
+    if bm is not None:
+        L = max(1e-6, math.hypot(bm[0][0] - tail[0], bm[0][1] - tail[1]))
+        u = max(0.0, min(1.0, math.hypot(c[0] - tail[0], c[1] - tail[1]) / L))
+        w0 = (bm[2] + (bm[3] - bm[2]) * u) / ps
+        w1 = bm[3] / ps
+    else:
+        w0 = w1 = beam.hw / ps
+    hot = swordfx.mix(beam.col, swordfx.HOT, 0.45)
+    return fxkit.normalize({
+        "prim": "beam", "name": (inst.fx.get("name") or "serious punch") + " half", "action": inst.fx.get("action"),
+        "layer": inst.fx.get("layer", "front"), "blend": "additive",
+        "params": {"w_start0": w0, "w_start1": w0, "w_end0": w1, "w_end1": w1, "glow": w0 * 0.5,
+                   "glow_color": "#%02x%02x%02x" % beam.col},
+        "motion": {"kind": "static", "aim": inst.fx["motion"].get("aim", "target")},
+        "color": {"mode": "gradient", "c1": "#%02x%02x%02x" % tuple(int(v) for v in hot),
+                  "c2": "#%02x%02x%02x" % beam.col},
+        "battle": copy.deepcopy(inst.fx["battle"]),
+    })
+
+
+def _half_inst(inst, d, c, rem, held, fx=None):
+    """One half of a split beam: a copy of the beam (fx = the effect it
+    plays instead, e.g. _tech_beam_fx), from c along d for rem px."""
+    fx = copy.deepcopy(inst.fx) if fx is None else fx
     fx["keys"] = []
     fx.setdefault("intercept", {})["enabled"] = False
     P = fx["params"]
@@ -993,20 +1134,24 @@ def _half_inst(inst, d, c, rem, held):
 def _orb_moving(b):
     """An orb that travels (a split needs somewhere for the halves to fly)."""
     r = b.ref
+    if b.kind == "shot":
+        return True     # a shot in flight
     if b.kind == "inst":
         return (r.fx["motion"]["kind"] not in ("attached", "static", "orbit")
                 and math.hypot(r.vx, r.vy) >= 1e-4)
     return b.kind == "proj" and math.hypot(r.vx, r.vy) >= 1e-4
 
 
-def _half_orb_inst(inst, d, c, spd):
+def _half_orb_inst(inst, d, c, spd, fx=None):
     """One half of a split FX Kit orb: the orb's own look at ORB_HALF_SCALE
-    of its size, flying on along d from c for the rest of its life."""
-    fx = copy.deepcopy(inst.fx)
+    of its size, flying on along d from c for the rest of its life (fx =
+    the half's own effect instead, already sized: _half_shot_orb)."""
+    if fx is None:
+        fx = copy.deepcopy(inst.fx)
+        P = fx["params"]
+        P["radius"] = float(P.get("radius") or 3) * ORB_HALF_SCALE
     fx["keys"] = []
     fx.setdefault("intercept", {})["enabled"] = False
-    P = fx["params"]
-    P["radius"] = float(P.get("radius") or 3) * ORB_HALF_SCALE
     fx["motion"]["kind"] = "travel"
     q = copy.copy(inst)
     q.fx = fx
@@ -1026,16 +1171,48 @@ def _half_orb_inst(inst, d, c, spd):
     return q
 
 
+def _half_shot_orb(orb, d, c, spd):
+    """One half of a split technique orb (the charged blast's): a plain FX
+    Kit orb in its colour at ORB_HALF_SCALE of its size, flying on along d
+    from c for the rest of the orb's flight."""
+    r = orb.ref
+    inst = r.inst
+    ps = inst.ps or 1.0
+    at = r.at()
+    left = at[5] if at is not None else 20
+    fx = fxkit.normalize({
+        "prim": "sprite", "name": (inst.fx.get("name") or "orb") + " half", "action": inst.fx.get("action"),
+        "layer": inst.fx.get("layer", "front"), "blend": inst.fx.get("blend", "normal"),
+        "params": {"shape": "orb", "radius": orb.hw * ORB_HALF_SCALE / ps, "hot": True, "halo": True, "fade": False,
+                   "trail_len": 6},
+        "motion": {"kind": "travel", "aim": inst.fx["motion"].get("aim", "target"), "speed": spd / ps},
+        "color": {"mode": "solid", "c1": "#%02x%02x%02x" % orb.col},
+        "battle": copy.deepcopy(inst.fx["battle"]),
+    })
+    q = _half_orb_inst(inst, d, c, spd, fx)
+    q.age = 0
+    q.life = max(8, int(left) + 8)
+    q.spd = fx["motion"]["speed"]
+    return q
+
+
 def _split_orb(world, st, orb, c, size=None):
     """Cut moving orb `orb` at c into two halves fanning +-SPLIT_DEG that
     fly on (both can hit); each pops where it ends (orb_split_tip)."""
     ux, uy = orb.dir
     r = orb.ref
-    spd = math.hypot(r.vx, r.vy)
+    if orb.kind == "shot":
+        at = r.at()
+        spd = math.hypot(at[2], at[3]) if at is not None else 0.0
+    else:
+        spd = math.hypot(r.vx, r.vy)
     halves = []
     for sgn in (1, -1):
         d = fxkit.rot([ux, uy], SPLIT_DEG * sgn)
-        if orb.kind == "inst":
+        if orb.kind == "shot":
+            q = _half_shot_orb(orb, d, c, spd)
+            halves.append(("orb", q, orb.owner))
+        elif orb.kind == "inst":
             q = _half_orb_inst(r, d, c, spd)
             halves.append(("orb", q, orb.owner))
         else:
@@ -1048,7 +1225,10 @@ def _split_orb(world, st, orb, c, size=None):
                 q.ua_path = list(r.ua_path)     # Rewind Bullets: each half records its own path
             halves.append(("proj", q, orb.owner))
         orb.lst.append(q)
-    _cancel(orb)
+    if orb.kind == "shot":
+        _stop_shot(r, silent=True)      # it goes on as its halves
+    else:
+        _cancel(orb)
     for h in halves:
         st["halves"].add(id(h[1]))
         if len(st["tips"]) < MAX_TIP_WATCH:
@@ -1114,7 +1294,8 @@ def _state(world):
         st = world.clash_state = {"active": [], "busy": set(), "seen": {}, "tips": [],
                                   "rng": random.Random(), "halves": set(),
                                   "duels": [], "duel_pose": {}, "duel_figs": set(), "duel_cd": {},
-                                  "recent": {}, "quiet": False, "held": {}, "finish": [], "finishing": {}}
+                                  "recent": {}, "quiet": False, "held": {}, "finish": [], "finishing": {},
+                                  "shots": {}}
     return st
 
 
@@ -1390,6 +1571,8 @@ def _push_through(world, st, w, l, c):
         r.x, r.y = c[0], c[1]
         if w.kind == "inst":
             r.px, r.py = c[0], c[1]
+        elif w.kind == "shot":
+            swordfx.place_shot(r.inst, r.i, c[0], c[1], r.inst.ps)
     else:
         _cancel(w)
     fig = l.owner
@@ -1782,3 +1965,6 @@ def step(world):
         rc = st["recent"]
         for k in [k for k, r in rc.items() if now - r[0] > MERGE_TICKS]:
             del rc[k]
+        sh = st["shots"]
+        for k in [k for k, r in sh.items() if r.inst.dead and id(r) not in busy]:
+            del sh[k]

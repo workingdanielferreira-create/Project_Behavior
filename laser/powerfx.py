@@ -1443,6 +1443,11 @@ def _sp_hw(P, ps, lx):
     return float(P["radius"]) * ps * 2 + float(P["thickness"]) * ps * (S._cl(lx / L) ** 0.75)
 
 
+def _sp_cap(inst, df):
+    """A clash split cuts the cone short at the contact (inst.cap, laser/clash.py)."""
+    return df if inst.cap is None else min(df, inst.cap)
+
+
 def _sp_hit(inst, tx, ty, hr, ps):
     P = inst.fx["params"]
     t = inst.age
@@ -1453,7 +1458,7 @@ def _sp_hit(inst, tx, ty, hr, ps):
     dx, dy = tx - fr.ox, ty - fr.oy
     lx = dx * fr.fx + dy * fr.fy
     ly = dx * fr.vx + dy * fr.vy
-    df = _sp_front(P, ps, t - Tw)
+    df = _sp_cap(inst, _sp_front(P, ps, t - Tw))
     if lx < -hr or lx > df + hr:
         return False
     return abs(ly) <= _sp_hw(P, ps, max(0.0, min(lx, df))) + hr
@@ -1495,7 +1500,7 @@ def _draw_serious(pen, inst, host, ps):
     k = t - Tw
     fr = _sp_frame(inst)
     ang = math.atan2(inst.tq_f[1], inst.tq_f[0])
-    df = _sp_front(P, ps, k)
+    df = _sp_cap(inst, _sp_front(P, ps, k))
     a_c = 1.0 if k < SP_OUT + Th else max(0.0, 1 - (k - SP_OUT - Th) / 14.0)
     a_s = S._cl(k / (Th * 0.6 + 1)) * (1.0 if k < SP_OUT + Th else max(0.0, 1 - (k - SP_OUT - Th) / float(SP_SPLIT_LIFE)))
     # 2: clouds blown apart either side of the line (painted normally)
@@ -1755,6 +1760,24 @@ def hit(inst, tx, ty, hr, ps):
 def body(inst, ps):
     """None of these clash as a blade."""
     return None
+
+
+def beam(inst, ps):
+    """The serious punch clashes as a beam (laser/clash.py) while its shock
+    cone is out: (head, tail, tail half width, head half width), else None.
+    The tail is the fist, the head the shock front."""
+    P = inst.fx["params"]
+    if S._style(P) != "serious_punch":
+        return None
+    t = inst.age
+    Tw = _ti(P, "swing_ticks", 1)
+    if t < Tw or t >= inst.life:
+        return None
+    fr = _sp_frame(inst)
+    df = _sp_cap(inst, _sp_front(P, ps, t - Tw))
+    if df <= 0.5:
+        return None
+    return fr.w(df, 0), (fr.ox, fr.oy), _sp_hw(P, ps, 0.0), _sp_hw(P, ps, df)
 
 
 def on_hit(inst, x, y, ps):
