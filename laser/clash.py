@@ -23,14 +23,22 @@ Every pair of categories has a rule.
                       Both knockback STRUGGLE_KB or more: they lock in a
                       struggle (beam_struggle) for a fixed STRUGGLE_TICKS
                       (never fitted to the beams' remaining life), then the
-                      winner blows through (overpower_blowout).  The struggle
+                      winner pushes through (beam_struggle_won): for
+                      PUSH_TICKS more the winner's beam drives the node all
+                      the way back into the loser's origin, the loser takes
+                      the winning beam's hit (its damage and knockback, along
+                      the beam: _push_through), and the winner's beam carries
+                      on past the loser and fades (the struggle FX draws it;
+                      the real beam ends there).  The struggle
                       FX is anchored to the two real beams: it draws each
                       beam from its origin (locked when the clash starts) to
                       the node with that beam's own look (tail / head width,
                       colours, glow), the real beams are hidden meanwhile,
                       and the node surges back and forth (a tug of war)
                       before it commits toward the loser's origin; the
-                      blowout fires where the node ends up.  Equal knockback
+                      won blast fires where the node ends up (on the loser).
+                      A non-ultimate winner never pushes an ultimate loser
+                      through (the node stops short, as before).  Equal knockback
                       (a tie) overloads instead: the node shakes and swells,
                       then blows up, costing each fighter OVERLOAD_HP_PCT of
                       its max HP and throwing it OVERLOAD_KB_PX (_overload).
@@ -156,6 +164,7 @@ from . import clashfx, config, fxkit, swordfx
 CONTACT_MARGIN = 4.0         # px of slack on top of both half widths
 STRONG_BEAM_DAMAGE = 10.0    # beam x beam explodes when BOTH deal more than this
 STRUGGLE_TICKS = 150         # beam struggle length (~2.4 s), fixed
+PUSH_TICKS = 60              # a won struggle's push-through (~1 s) on top of STRUGGLE_TICKS
 STRUGGLE_KB = 100.0          # both beams need this much knockback for a full struggle
 LESSER_SCALE = 0.5           # the lesser (one-shot) beam clash is drawn at this share of the struggle's size
 STRUGGLE_REF_W = 40.0        # beam width (px, glow included) the struggle FX is drawn at its own size for
@@ -226,7 +235,7 @@ DUEL_RULES = BURST_RULES + ("crescent_crescent", "beam_orb")
 WORLD_SLOTS = (
     ("beam_explode", "beam_clash", "Beam × beam (both damage over 10)"),
     ("beam_struggle", "beam_struggle", "Beam × beam struggle (a damage of 10 or less)"),
-    ("beam_struggle_end", "overpower_blowout", "Beam struggle won"),
+    ("beam_struggle_end", "beam_struggle_won", "Beam struggle won"),
     ("beam_orb", "beam_orb", "Beam × orb / petal"),
     ("beam_split", "beam_split", "Beam split by a trail / crescent / sprite"),
     ("split_tip", "split_burst", "End of each split half"),
@@ -946,13 +955,14 @@ def _tip_alive(kind, obj):
 # ---------------------------------------------------------------- the clash record
 class Clash:
     """A clash that holds for a while (struggles, the orb on the beam head)."""
-    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden", "joined")
+    __slots__ = ("a", "b", "c", "rule", "until", "pins", "fx", "start", "hidden", "joined", "parent")
 
     def __init__(self, a, b, c, rule, until, fx, start, hidden=()):
         self.a, self.b, self.c, self.rule, self.until, self.fx, self.start = a, b, c, rule, until, fx, start
         self.pins = (_pin(a), _pin(b))
         self.hidden = tuple(hidden)     # ids in clashfx.HIDDEN while it holds
         self.joined = False             # extra beams riding another struggle (no FX / finale of their own)
+        self.parent = None              # the struggle they ride (joined only)
 
 
 def _struggle_of(st, a, b):
@@ -1131,6 +1141,7 @@ def _start(world, st, a, b, c, rule, now):
             clashfx.HIDDEN.update(hidden)
             rec = Clash(a, b, c, rule, joined.until, None, now, hidden)
             rec.joined = True
+            rec.parent = joined
             return rec
         # Any other earlier contact of the pair (an orb pop, a bolt) never
         # silences a struggle: it always plays its own FX.
@@ -1145,7 +1156,13 @@ def _start(world, st, a, b, c, rule, now):
             # the hand-over from the real beams is seamless, and the real
             # beams are hidden while it holds.
             w = _kb_winner(a, b)
-            fx.anchor_beams(looks[0], looks[1], None if w is None else (1 if w is a else 0))
+            lo = None if w is None else (b if w is a else a)
+            # A winner pushes through for PUSH_TICKS more — unless it is a
+            # non-ultimate beam against an ultimate (never nullified by it).
+            push = PUSH_TICKS if w is not None and not (_is_ult(lo) and not _is_ult(w)) else 0
+            fx.hold += push
+            held += push
+            fx.anchor_beams(looks[0], looks[1], None if w is None else (1 if w is a else 0), push=push)
             hidden = (id(a.ref), id(b.ref))
             clashfx.HIDDEN.update(hidden)
         _engage(world, figs, fx.length() if fx is not None else held)
@@ -1205,29 +1222,59 @@ def _overload(world, figs, c):
         ai.apply_hp_damage(f, world, max(1, int(round(p.max_hp * OVERLOAD_HP_PCT / 100.0))), unblockable=True)
 
 
+def _push_through(world, st, w, l):
+    """A won struggle's push-through has reached the loser: the winner's
+    beam hits the loser's fighter (the beam's damage and knockback, along
+    the beam, like any beam hit) and is carried on past it by the struggle
+    FX (its finale), so the real beam ends here."""
+    from . import ai, blink
+    _cancel(w)
+    fig = l.owner
+    if fig is None or blink.gone(fig) or not any(fig in s.figures for s in world.sides):
+        return
+    _hold_figs(world, st, (fig,), world.global_tick)     # released so the hit can throw it
+    ux, uy = w.dir
+    ai.battle_hit(fig, ux, uy, world, amount=max(1, int(round(w.damage))),
+                  knockback_px=w.kb if w.kb > 0 else None)
+
+
 def _finish(world, st, rec):
     """A held clash ends: the knockback rule decides it.  A beam struggle
-    with a winner ends in the winner's blowout; a tie overloads (_overload)."""
+    with a winner ends in the winner's push-through and won blast
+    (_push_through); a tie overloads (_overload)."""
     a, b, c = rec.a, rec.b, rec.c
     if rec.fx is not None and rec.fx.anchored:
         c = rec.fx.node_world()     # the struggle ends where the node was pushed to
     clashfx.HIDDEN.difference_update(rec.hidden)
     if rec.joined:
         # Extra beams of a struggle: settled with it, no finale of their own.
+        # A pushed-through struggle's FX carries the winner on, so its
+        # layers end with it.
         if _alive(a) and _alive(b):
             _settle(world, a, b, c)
+            pfx = rec.parent.fx if rec.parent is not None else None
+            if pfx is not None and pfx.state.get("won"):
+                _cancel(a)
+                _cancel(b)
         st["busy"].discard(id(a.ref))
         st["busy"].discard(id(b.ref))
         return
     la, lb = _alive(a), _alive(b)
     over = rec.rule == "beam_beam" and la and lb and _kb_winner(a, b) is None
+    thrown = None       # a pushed-through loser: freed to fly, not held for the finale
     if la and lb:
         w = _settle(world, a, b, c)
         if rec.rule == "beam_beam" and w is not None:
+            pushed = rec.fx is not None and rec.fx.anchored and rec.fx.state.get("push")
+            if pushed:
+                rec.fx.win()    # its finale carries the winner's beam on past the loser
             ang = _deg(*a.dir)
             _cap_size(world, _spawn_fx(world, "beam_struggle_end", c, ang, a.col, b.col, winner=0 if w is a else 1,
                                        scale=rec.fx.S if rec.fx is not None else None, pair=(a, b)),
                       (a.owner, b.owner))
+            if pushed:
+                thrown = (b if w is a else a).owner
+                _push_through(world, st, w, b if w is a else a)
     if rec.fx is not None and rec.fx.phase == "hold":
         rec.fx.release()
     if over:
@@ -1239,7 +1286,7 @@ def _finish(world, st, rec):
     elif rec.rule == "beam_beam":
         # The fighters go free once the struggle's finale has played.
         fin = 0 if rec.fx is None else max(0, int(math.ceil((rec.fx.life - rec.fx.ft) / rec.fx.rate - 1e-9)))
-        _hold_figs(world, st, (a.owner, b.owner), world.global_tick + fin)
+        _hold_figs(world, st, tuple(f for f in (a.owner, b.owner) if f is not thrown), world.global_tick + fin)
     st["busy"].discard(id(a.ref))
     st["busy"].discard(id(b.ref))
 

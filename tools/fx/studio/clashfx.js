@@ -9,6 +9,7 @@ const BASES = {
   collision_nova:    {name: "Collision Nova", kind: "burst", life: 40, from: "Two energy blasts meet head-on", desc: "Core flash, split shockwave rings, a radial spark burst."},
   beam_struggle:     {name: "Beam Struggle Node", kind: "sustain", life: 36, hold: 150, stubs: true, stub_len: 150, from: "Gohan vs Cell", desc: "A swelling node with lightning arcs and a tug-of-war wobble that detonates on release."},
   overpower_blowout: {name: "Overpower Blowout", kind: "burst", life: 56, cone_deg: 34, from: "A beam struggle is won", desc: "A cone blast driven through the loser’s side, with a mushroom of smoke."},
+  beam_struggle_won: {name: "Beam Struggle Won", kind: "burst", life: 64, cone_deg: 26, from: "Gohan vs Cell, Goku vs Vegeta", desc: "The winner’s beam has pushed the struggle into the loser: an engulfing fireball in the winner’s colour, rays carried on past them, heavy shockwaves, debris and smoke."},
   kunai_storm:       {name: "Kunai Storm", kind: "burst", life: 62, area_rx: 120, area_ry: 80, clashes: 56, from: "Sasuke vs Itachi", desc: "Dozens of steel-on-steel glints, kunai spinning off in pairs."},
   ricochet_rain:     {name: "Ricochet Rain", kind: "burst", life: 66, chains: 6, hops: 8, from: "A running kunai exchange", desc: "Chains of spark pops ricocheting outward for about a second."},
   blade_lock:        {name: "Blade Lock", kind: "sustain", life: 38, hold: 120, blade_len: 78, cross_deg: 35, from: "Bleach sword clash", desc: "Blades crossed in an X, grinding sparks and pressure ripples, ending in a screen-cutting slash."},
@@ -157,6 +158,24 @@ class ClashFX {
     glowEllipse(g, d * 70 * S * e, 0, 105 * S * (.3 + .7 * e), 40 * S * (.3 + .7 * e), cw, 230 * f ** 1.3); glowEllipse(g, d * 40 * S * e, 0, 60 * S * (.3 + .7 * e), 20 * S, this.hot, 240 * f * f);
     glow(g, 0, 0, 40 * S * Math.min(1, (t + 1) / 3), this.hot, 255 * Math.max(0, 1 - t / 10)); const v = Math.min(1, t / 26), r = 150 * S * easeOut(v);
     splitRing(g, d * 20 * S, 0, r * .35, r, 5 * S * (1 - v) + .5, this.hc(this.c1, .3), this.hc(this.c2, .3), 220 * (1 - v)); this.over(g); }
+  // 3b
+  init_beam_struggle_won() { const d = this.wdir(), [cw, cl2] = this.winner === 0 ? [this.c1, this.c2] : [this.c2, this.c1], base = d > 0 ? 0 : Math.PI, cone = this.spec.cone_deg * Math.PI / 180, r = this.rng, S = this.S;
+    this.sparks(120, {spd: [5, 20], life: [22, 44], size: [2.2, 4.2], col: cw}); this.sparks(70, {ang: base, spread: cone, spd: [10, 26], life: [18, 34], size: [2.4, 4.4], col: cw, drag: .95});
+    this.sparks(30, {spd: [3, 10], life: [16, 30], col: cl2}); this.sparks(40, {kind: "dot", spd: [2, 9], life: [26, 48], size: [3.5, 6.5], col: cw, drag: .95, grav: .15});
+    const ux = -this.down[0], uy = -this.down[1];
+    for (let i = 0, n = Math.floor(26 * this.D); i < n; i++) { const a = r.uniform(0, TAU), k = r.uniform(.2, 1), v = r.uniform(.8, 2.4) * S;
+      this.parts.push(P("smoke", Math.cos(a) * k * 70 * S, Math.sin(a) * k * 70 * S, Math.cos(a) * v * .7 + ux * v * .6, Math.sin(a) * v * .7 + uy * v * .6, r.randint(40, 66), r.uniform(14, 26) * S, cw, {drag: .97, delay: r.randint(4, 16)})); }
+    this.st.rays = []; for (let i = 0, n = Math.floor(7 + 4 * this.D); i < n; i++) this.st.rays.push([r.uniform(-cone, cone), r.uniform(.6, 1), r.uniform(0, TAU)]); }
+  draw_beam_struggle_won(g) { const S = this.S, t = this.ft, u = Math.min(1, t / this.life), f = 1 - u, d = this.wdir(), cw = this.winner === 0 ? this.c1 : this.c2, base = d > 0 ? 0 : Math.PI;
+    this.under(g); g.globalCompositeOperation = "lighter"; const e = easeOut(t / 12);
+    glowEllipse(g, d * 40 * S * e, 0, 150 * S * (.35 + .65 * e), 120 * S * (.35 + .65 * e), cw, 235 * f ** 1.2); glow(g, 0, 0, 90 * S * (.5 + .5 * e), this.hc(cw, .5), 240 * f ** 1.6, .45);
+    for (const [da, ln, ph] of this.st.rays) { const a = base + da, L = 260 * S * ln * easeOut(t / 10), w = (5 + 3 * Math.sin(t * .7 + ph)) * S * f;
+      diamond(g, 0, 0, Math.cos(a) * L, Math.sin(a) * L, w, cw, 200 * f); diamond(g, 0, 0, Math.cos(a) * L * .8, Math.sin(a) * L * .8, w * .35 + .3, this.hot, 240 * f); }
+    glow(g, 0, 0, 110 * S * Math.min(1, (t + 1) / 3), this.hot, 255 * Math.max(0, 1 - t / 12), .5);
+    for (const [dl, mr, lf, w0] of [[0, 300, 34, 9], [6, 210, 30, 6], [12, 130, 24, 4]]) if (t >= dl && t < dl + lf) { const v = (t - dl) / lf, rr = mr * S * easeOut(v), w = w0 * S * (1 - v) + .6, a = 230 * (1 - v);
+      g.globalCompositeOperation = "source-over"; splitRing(g, 0, 0, rr, rr, w + 2.5 * S, [8, 10, 16], [8, 10, 16], .45 * a);
+      g.globalCompositeOperation = "lighter"; splitRing(g, 0, 0, rr, rr, w, this.hc(cw, .25), this.hc(cw, .25), a); }
+    this.over(g); }
   // 4
   init_kunai_storm() { const r = this.rng, S = this.S, sp = this.spec, rx = sp.area_rx * S, ry = sp.area_ry * S, n = Math.floor(sp.clashes * this.D), span = Math.max(4, Math.floor(this.life * .55));
     for (let i = 0; i < n; i++) { const a = r.uniform(0, TAU), k = Math.sqrt(r()), x = Math.cos(a) * rx * k, y = Math.sin(a) * ry * k, dl = r.randint(0, span), c = this.side(x + r.uniform(-30, 30) * S);

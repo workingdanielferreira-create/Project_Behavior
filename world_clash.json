@@ -18,7 +18,7 @@
    "flurry": 30
   },
   "beam_struggle_end": {
-   "fx": "beam_struggle",
+   "fx": "beam_struggle_won",
    "size": 75,
    "density": 80,
    "loop_x": 100,
