@@ -1983,10 +1983,24 @@ def _recall(fig, world, P):
             if pr.ua_rw == 0 and pr.ua_path:
                 _rw_start(pr, P)
     drv = getattr(fig, "fx", None)
-    if drv is not None and P["fx_too"]:
+    if drv is not None:
         for inst in drv.player.insts + drv.clane[0].insts:
-            if inst.ua_rw == 0:
+            if _rw_gun(inst, P):          # gun rounds are its bullets
+                continue
+            if P["fx_too"] and inst.ua_rw == 0:
                 _rw_inst_start(inst, P)
+
+
+def _rw_gun(inst, P, min_k=0):
+    """A gun effect (laser/gunfx.py): its rounds in flight turn round.
+    False = not a gun."""
+    from . import gunfx
+    if not gunfx.is_gun(inst):
+        return False
+    rgb = _rgb(P["color"], (180, 140, 255)) if P["tint"] else None
+    gunfx.rewind(inst, inst.ps or 1.0, P["return_speed_pct"] / 100.0,
+                 P["return_damage_pct"] / 100.0, rgb, min_k)
+    return True
 
 
 def _rw_inst_ok(inst):
@@ -2467,7 +2481,8 @@ def inst_step(inst, host):
         return
     P = _of(getattr(host, "fig", None), "rewind_bullets")
     if P is not None:
-        _rw_inst(inst, host, P)
+        if P["trigger"] != "delay" or not _rw_gun(inst, P, _ticks(P["delay_ms"])):
+            _rw_inst(inst, host, P)
     _rc_inst_step(inst, host)
 
 

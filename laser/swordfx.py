@@ -251,6 +251,8 @@ def on_spawn(inst, host):
     inst.tq_ki = {}                # ki shots stopped by a hit: index -> (tick, x, y)
     inst.tq_kd = {}                # ki shots an intercept pulled off their path (strikefx.track_step)
     inst.tq_off = {}               # gun rounds a clash moved: index -> (dx, dy) (gunfx.place)
+    inst.tq_rw = {}                # gun rounds Rewind Bullets turned round (gunfx.rewind)
+    inst.tq_rw_end = 0             # ...and the tick their effect may end (0 = as usual)
     inst.tq_imp = []               # punch impacts: (tick, x, y)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
