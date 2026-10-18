@@ -9,7 +9,7 @@ of three choke points, and each reports here:
   * structures       unique._struct_hit (Terraform walls / towers)
 
 Consolidation: the first hit on a target opens a fixed window of
-config.DMG_NUM_WINDOW_MS (5 s).  Every further hit inside it adds to the same
+config.DMG_NUM_WINDOW_MS (2 s).  Every further hit inside it adds to the same
 number (which pops on each add).  The window does NOT extend on new hits —
 once it closes the number drifts up and fades, and the next hit opens a new
 one.  While open the number follows the target, floating above its head.

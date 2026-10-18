@@ -298,7 +298,7 @@ HP_DISPLAY_MARGIN_R   = 18       # px from right edge per figure slot
 HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 
 # Damage numbers (laser/dmgnum.py) — one combined value per target per window.
-DMG_NUM_WINDOW_MS     = 5000     # hits within 5 s of the first are summed
+DMG_NUM_WINDOW_MS     = 2000     # hits within 2 s of the first are summed
 DMG_NUM_FADE_MS       = 600      # drift-up + fade after the window closes
 DMG_NUM_FADE_RISE_PX  = 28.0     # px the number rises while fading
 DMG_NUM_POP_MS        = 180      # scale "pop" on every added hit
