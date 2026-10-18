@@ -1279,7 +1279,7 @@ class Overlay(QWidget):
             sw, sh = w.screen_w, w.screen_h
             clashfx.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
-        # --- Damage numbers (laser/dmgnum.py) — combined 5 s totals ---
+        # --- Damage numbers (laser/dmgnum.py) — combined 2 s totals ---
         if w.damage_numbers:
             sw, sh = w.screen_w, w.screen_h
             dmgnum.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
