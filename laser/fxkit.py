@@ -1185,7 +1185,7 @@ class Inst:
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
-                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag")
+                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb")
 
     def __init__(self):
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
@@ -1222,6 +1222,7 @@ class Inst:
         self.cap = None        # beam: drawn length capped here (a clash split it, laser/clash.py)
         self.bgrow = None      # pos_scale beam: (start dist, growth per px, lo, hi) (beam_grow_plan)
         self.drag = None       # Drag: target slots it is dragging now (drag_step)
+        self.drag_orb = None   # Drag: round index of the charged blast orb dragging (drag_step)
 
 
 def emit_particles(inst, fx, host, n):
@@ -1729,23 +1730,38 @@ def _straight_step(inst):
         inst.dir = norm(mdx, mdy)
 
 
+def is_charged_blast(fx):
+    """A charged blast: its orb, once it flies, can Drag (gunfx.drag_touch)."""
+    return fx["prim"] == "technique" and swordfx._style(fx["params"]) == "charged_blast"
+
+
 def drag_on(fx):
     """Drag is on and the effect can drag: a single moving body (Intercept's
-    projectiles, not a guard, a ki tracker or particles)."""
-    return (bool((fx.get("intercept") or {}).get("drag")) and can_intercept(fx) and not is_guard(fx)
-            and not is_ki_tracker(fx) and fx["prim"] != "particles")
+    projectiles, not a guard, a ki barrage or particles) or a charged
+    blast's orb."""
+    if not (fx.get("intercept") or {}).get("drag"):
+        return False
+    if is_charged_blast(fx):
+        return True
+    return can_intercept(fx) and not is_guard(fx) and not is_ki_tracker(fx) and fx["prim"] != "particles"
 
 
-def drag_front(inst, tx, ty):
+def drag_front(inst, tx, ty, at=None):
     """The target at (tx, ty) is on the effect's drag surface: its centre lies
-    within drag_deg either side of the travel direction (FXK.dragFront)."""
+    within drag_deg either side of the travel direction (FXK.dragFront).
+    at = (x, y, vx, vy) of the body dragging (a charged blast's orb); the
+    instance itself without it."""
     deg = min(90.0, max(0.0, float(inst.fx["intercept"].get("drag_deg") or 0)))
-    vx, vy = inst.x - inst.px, inst.y - inst.py
-    if vx * vx + vy * vy < 1e-9:
-        vx, vy = inst.vx, inst.vy
-    if vx * vx + vy * vy < 1e-9:
-        vx, vy = inst.dir[0], inst.dir[1]
-    dx, dy = tx - inst.x, ty - inst.y
+    if at is not None:
+        ox, oy, vx, vy = at
+    else:
+        ox, oy = inst.x, inst.y
+        vx, vy = inst.x - inst.px, inst.y - inst.py
+        if vx * vx + vy * vy < 1e-9:
+            vx, vy = inst.vx, inst.vy
+        if vx * vx + vy * vy < 1e-9:
+            vx, vy = inst.dir[0], inst.dir[1]
+    dx, dy = tx - ox, ty - oy
     vl, dl = math.hypot(vx, vy), math.hypot(dx, dy)
     if vl < 1e-9 or dl < 1e-9:
         return True   # standing on its centre: dead ahead
@@ -1753,13 +1769,25 @@ def drag_front(inst, tx, ty):
     return math.degrees(math.acos(c)) <= deg + 1e-9
 
 
+def _drag_touch(inst, hx, hy, hr, ps, host):
+    """(orb, x, y, vx, vy) of the body touching a target at (hx, hy) this
+    tick and its movement: a charged blast's orb (orb = its round index),
+    else the instance (orb None); None when nothing touches it."""
+    if is_charged_blast(inst.fx):
+        return swordfx.gunfx.drag_touch(inst, hx, hy, hr, ps)
+    if not _hit_shape(inst, hx, hy, hr, ps, host):
+        return None
+    return None, inst.x, inst.y, inst.x - inst.px, inst.y - inst.py
+
+
 def drag_step(inst, host, ps):
     """Drag (fx.intercept.drag), from resolve_hits: True when the instance is
     dragging a target this tick (it then neither ends on the hit nor knocks
     back).  host.on_drag(inst, dx, dy, target_key) moves the target by
-    drag_pct % of this tick's movement; the hits come every Re-hit ticks
-    (drag_every with Re-hit 0) for as long as the two touch.  A target first
-    touched off the drag surface takes an ordinary hit instead."""
+    drag_pct % of this tick's movement (a charged blast: its orb's); the hits
+    come every Re-hit ticks (drag_every with Re-hit 0) for as long as the
+    two touch.  A target first touched off the drag surface takes an
+    ordinary hit instead."""
     ic, b = inst.fx["intercept"], inst.fx["battle"]
     if inst.drag is None:
         inst.drag = set()
@@ -1767,25 +1795,48 @@ def drag_step(inst, host, ps):
     every = b["rehit_ticks"] if b["rehit_ticks"] > 0 else max(1, trunc(float(ic.get("drag_every") or 1)))
     now = inst.age
     for i, (hx, hy, hr, key) in enumerate(host.hurts):
-        if not _hit_shape(inst, hx, hy, hr, ps, host):
+        at = _drag_touch(inst, hx, hy, hr, ps, host)
+        if at is None:
             inst.drag.discard(i)   # passed through it (or it got away): let go
             continue
+        orb, mvx, mvy = at[0], at[3], at[4]
         if i not in inst.drag:
-            if not drag_front(inst, hx, hy):
+            if not drag_front(inst, hx, hy, at[1:] if orb is not None else None):
                 continue
             inst.drag.add(i)
+        inst.drag_orb = orb
         cb = getattr(host, "on_drag", None)
         if cb and k > 0:
-            cb(inst, (inst.x - inst.px) * k, (inst.y - inst.py) * k, key)
+            cb(inst, mvx * k, mvy * k, key)
         if inst.hits == 0 or now - inst.last_hit >= every:
             inst.hits += 1
             inst.last_hit = now
             g = hit_mult(inst, hx, hy, ps)
-            host.on_hit(inst, b["damage"] * g, inst.dir[0], inst.dir[1], 0.0, key)
-            if inst.fx["prim"] == "technique":
-                swordfx.on_hit(inst, hx, hy, ps)
+            d = norm(mvx, mvy) if orb is not None else inst.dir
+            host.on_hit(inst, b["damage"] * g, d[0], d[1], 0.0, key)
+            if inst.fx["prim"] == "technique" and orb is None:
+                swordfx.on_hit(inst, hx, hy, ps)   # (a charged blast's orb would stop there)
         return True
     return False
+
+
+def drag_live(inst):
+    """The instance can still drag (World.refresh_battle): not ended, and a
+    charged blast's dragging orb still in flight."""
+    if inst.dead or inst.age >= inst.life:
+        return False
+    if inst.drag_orb is not None:
+        return swordfx.gunfx.flying(inst, inst.drag_orb, inst.ps or 1.0)
+    return True
+
+
+def drag_wall(inst):
+    """A dragged target met an invisible wall (World.refresh_battle): the
+    effect ends at once; a charged blast's orb goes off where it is."""
+    if inst.drag_orb is not None:
+        swordfx.gunfx.stop(inst, inst.drag_orb, inst.ps or 1.0)
+    else:
+        inst.age = max(inst.age, inst.life)
 
 
 def _end_chase(inst):

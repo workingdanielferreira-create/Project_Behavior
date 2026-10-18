@@ -245,6 +245,23 @@ function place(inst, i, x, y, ps) {
   if (!inst.tq_off) inst.tq_off = {};
   inst.tq_off[i] = [s.dx + x - p[0], s.dy + y - p[1]];
 }
+// ---------------------------------------------------------------- drag
+// A charged blast's orb drags (fx.intercept.drag, FXK dragStep): the orb
+// touching the target carries it along its own flight.  laser/gunfx.py drag_touch.
+// [i, x, y, vx, vy] of the round in flight touching a hurt circle at (tx,
+// ty), vx / vy its movement this tick, else null.
+function dragTouch(inst, tx, ty, hr, ps) {
+  if (inst.age >= inst.life) return null;
+  var r0 = +inst.fx.params.radius * ps, lv = live(inst, ps);
+  for (var i = 0; i < lv.length; i++) {
+    var s = lv[i][0], p = lv[i][1];
+    if (L_().hyp(p[0] - tx, p[1] - ty) > hr + r0 * s.size) continue;
+    var k = inst.age - s.b, q;
+    if (k >= 1) { q = s.pos(k - 1); return [s.i, p[0], p[1], p[0] - q[0], p[1] - q[1]]; }
+    q = s.pos(1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
+  }
+  return null;
+}
 function railLine(s) { var d = s.fr.d(s.rng, 0); return [s.ox, s.oy, s.ox + d[0], s.oy + d[1]]; }
 
 // ---------------------------------------------------------------- public
@@ -811,5 +828,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep};
+           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep, dragTouch: dragTouch};
 })(window);

@@ -402,6 +402,39 @@ def place(inst, i, x, y, ps):
     inst.tq_off[i] = (s.dx + x - nx, s.dy + y - ny)
 
 
+# ---------------------------------------------------------------- drag
+# A charged blast's orb drags (fx.intercept.drag, fxkit drag_step): the orb
+# touching the target carries it along its own flight, and goes off where
+# its flight ends as usual (or at once if the target meets a wall).
+def drag_touch(inst, tx, ty, hr, ps):
+    """(i, x, y, vx, vy) of the round in flight touching a hurt circle at
+    (tx, ty), vx / vy its movement this tick, else None (gunfx.js dragTouch)."""
+    if inst.age >= inst.life:
+        return None
+    r0 = float(inst.fx["params"]["radius"]) * ps
+    for (s, (x, y)) in _live(inst, ps):
+        if math.hypot(x - tx, y - ty) <= hr + r0 * s.size:
+            k = inst.age - s.b
+            if k >= 1:
+                x0, y0 = s.pos(k - 1)
+                return s.i, x, y, x - x0, y - y0
+            x1, y1 = s.pos(1)
+            return s.i, x, y, x1 - x, y1 - y
+    return None
+
+
+def flying(inst, i, ps):
+    """Round i is still in flight."""
+    return shot_at(inst, i, ps) is not None
+
+
+def stop(inst, i, ps):
+    """Round i stops where it is now and goes off there."""
+    at = shot_at(inst, i, ps)
+    if at is not None:
+        inst.tq_ki[i] = (inst.age, at[0], at[1])
+
+
 def _rail_line(s):
     d = s.fr.d(s.rng, 0.0)
     return s.ox, s.oy, s.ox + d[0], s.oy + d[1]

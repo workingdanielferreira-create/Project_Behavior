@@ -857,8 +857,9 @@ class World:
                     self._pull_figure(ef, pulls)
         # Deliver FX Studio Drag pushes (fxkit drag_step) from last tick: the
         # opposing fighter nearest each push moves with the effect dragging
-        # it; one that hits an invisible wall ends that effect at once.  An
-        # effect already ended (its hit blocked) drags nothing, and neither
+        # it; one that hits an invisible wall ends that effect at once (a
+        # charged blast's orb goes off there).  An effect already ended (its
+        # hit blocked, or the dragging orb gone off) drags nothing, and neither
         # does one on a fighter blinked out or mid invulnerable dodge (a
         # damage cooldown only stops the HP, the fighter is still carried).
         for i, side in enumerate(self.sides):
@@ -867,7 +868,7 @@ class World:
                 continue
             other = self.sides[1 - i]
             for (pos, dx, dy, inst) in drags:
-                if inst.dead or inst.age >= inst.life:
+                if not fxkit.drag_live(inst):
                     continue
                 best = None
                 for ef in other.figures:
@@ -880,7 +881,7 @@ class World:
                 if not ef.transform.init or blink.gone(ef) or dodge.untouchable(ef, self.global_tick):
                     continue
                 if self._drag_figure(ef, dx, dy):
-                    inst.age = max(inst.age, inst.life)
+                    fxkit.drag_wall(inst)
         # Deliver dash-slash knockback landed last tick to the other side.
         for i, side in enumerate(self.sides):
             other = self.sides[1 - i]

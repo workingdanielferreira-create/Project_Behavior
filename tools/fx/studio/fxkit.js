@@ -1648,43 +1648,65 @@ function canIntercept(fx) {
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
 function guardOn(fx) { return interceptOn(fx) && isGuard(fx); }
+// A charged blast: its orb, once it flies, can Drag (GUNFX.dragTouch).
+// laser/fxkit.py is_charged_blast.
+function isChargedBlast(fx) { return fx.prim === "technique" && !!G.SWORDFX && G.SWORDFX.lib.style(fx.params) === "charged_blast"; }
 // Drag is on and the effect can drag: a single moving body (not a guard, a
-// ki tracker or particles).  laser/fxkit.py drag_on.
+// ki barrage or particles) or a charged blast's orb.  laser/fxkit.py drag_on.
 function dragOn(fx) {
-  return !!(fx.intercept && fx.intercept.drag) && canIntercept(fx) && !isGuard(fx) && !isKiTracker(fx) && fx.prim !== "particles";
+  if (!(fx.intercept && fx.intercept.drag)) return false;
+  if (isChargedBlast(fx)) return true;
+  return canIntercept(fx) && !isGuard(fx) && !isKiTracker(fx) && fx.prim !== "particles";
 }
 // The target at (tx, ty) is on the drag surface: its centre within drag_deg
-// either side of the travel direction.  laser/fxkit.py drag_front.
-function dragFront(inst, tx, ty) {
-  var deg = Math.min(90, Math.max(0, +inst.fx.intercept.drag_deg || 0));
-  var vx = inst.x - inst.px, vy = inst.y - inst.py;
-  if (vx * vx + vy * vy < 1e-9) { vx = inst.vx || 0; vy = inst.vy || 0; }
-  if (vx * vx + vy * vy < 1e-9) { vx = inst.dir[0]; vy = inst.dir[1]; }
-  var dx = tx - inst.x, dy = ty - inst.y, vl = Math.sqrt(vx * vx + vy * vy), dl = Math.sqrt(dx * dx + dy * dy);
+// either side of the travel direction.  at = [x, y, vx, vy] of the body
+// dragging (a charged blast's orb); the instance itself without it.
+// laser/fxkit.py drag_front.
+function dragFront(inst, tx, ty, at) {
+  var deg = Math.min(90, Math.max(0, +inst.fx.intercept.drag_deg || 0)), ox, oy, vx, vy;
+  if (at) { ox = at[0]; oy = at[1]; vx = at[2]; vy = at[3]; }
+  else {
+    ox = inst.x; oy = inst.y; vx = inst.x - inst.px; vy = inst.y - inst.py;
+    if (vx * vx + vy * vy < 1e-9) { vx = inst.vx || 0; vy = inst.vy || 0; }
+    if (vx * vx + vy * vy < 1e-9) { vx = inst.dir[0]; vy = inst.dir[1]; }
+  }
+  var dx = tx - ox, dy = ty - oy, vl = Math.sqrt(vx * vx + vy * vy), dl = Math.sqrt(dx * dx + dy * dy);
   if (vl < 1e-9 || dl < 1e-9) return true;   // standing on its centre: dead ahead
   var c = Math.max(-1, Math.min(1, (vx * dx + vy * dy) / (vl * dl)));
   return Math.acos(c) * 180 / Math.PI <= deg + 1e-9;
 }
+// [orb, x, y, vx, vy] of the body touching the target this tick and its
+// movement: a charged blast's orb (orb = its round index), else the instance
+// (orb null); null when nothing touches it.  laser/fxkit.py _drag_touch.
+function dragTouch(inst, hurt, ps, host) {
+  if (isChargedBlast(inst.fx)) return G.GUNFX.dragTouch(inst, hurt.x, hurt.y, hurt.r, ps);
+  if (!HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return null;
+  return [null, inst.x, inst.y, inst.x - inst.px, inst.y - inst.py];
+}
 // Drag, from resolveHits: true when the instance drags the target this tick
 // (it then neither ends on the hit nor knocks back).  host.onDrag(inst, dx,
-// dy) moves the target by drag_pct % of this tick's movement; hits come every
-// Re-hit ticks (drag_every with Re-hit 0) while the two touch.  A target
-// first touched off the drag surface takes an ordinary hit.  laser/fxkit.py drag_step.
+// dy) moves the target by drag_pct % of this tick's movement (a charged
+// blast: its orb's); hits come every Re-hit ticks (drag_every with Re-hit 0)
+// while the two touch.  A target first touched off the drag surface takes
+// an ordinary hit.  laser/fxkit.py drag_step.
 function dragStep(inst, host, ps) {
   var I = inst.fx.intercept, b = inst.fx.battle, hurt = host.hurt;
   var k = Math.min(100, Math.max(0, +I.drag_pct || 0)) / 100;
   var every = b.rehit_ticks > 0 ? b.rehit_ticks : Math.max(1, trunc(+I.drag_every || 1));
-  if (!HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) { inst.drag = false; return false; }   // passed through it: let go
+  var at = dragTouch(inst, hurt, ps, host);
+  if (!at) { inst.drag = false; return false; }   // passed through it: let go
+  var orb = at[0], mvx = at[3], mvy = at[4];
   if (!inst.drag) {
-    if (!dragFront(inst, hurt.x, hurt.y)) return false;
+    if (!dragFront(inst, hurt.x, hurt.y, orb != null ? at.slice(1) : null)) return false;
     inst.drag = true;
   }
-  if (host.onDrag && k > 0) host.onDrag(inst, (inst.x - inst.px) * k, (inst.y - inst.py) * k);
+  inst.drag_orb = orb;
+  if (host.onDrag && k > 0) host.onDrag(inst, mvx * k, mvy * k);
   if (inst.hits === 0 || inst.age - inst.lastHit >= every) {
     inst.hits += 1; inst.lastHit = inst.age;
-    var gm = hitMult(inst, hurt.x, hurt.y, ps);
-    if (host.onHit) host.onHit(inst, b.damage * gm, inst.dir[0], inst.dir[1], 0);
-    if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);
+    var gm = hitMult(inst, hurt.x, hurt.y, ps), d = orb != null ? norm(mvx, mvy) : inst.dir;
+    if (host.onHit) host.onHit(inst, b.damage * gm, d[0], d[1], 0);
+    if (inst.fx.prim === "technique" && orb == null) G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // (a charged blast's orb would stop there)
   }
   return true;
 }
@@ -2586,7 +2608,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

@@ -1734,6 +1734,26 @@ function refreshKeyAdd() {
   // Once animated, the panel follows the playhead: rebuild when it lands on another frame.
   if (!S.playing && fx.keys && fx.keys.length && f !== PROPS_FRAME && document.activeElement && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) buildProps();
 }
+// Intercept's Drag fields (FXK dragOn): a moving projectile's, or a charged
+// blast's orb's.
+function dragFields(s, fx, I) {
+  field(s, "Drag", inp("chk", I.drag, function (v) { I.drag = v; changed(true); })).title = FXK.isChargedBlast(fx)
+    ? "On: a target hit by the orb's front surface is pushed along with it (and keeps taking damage) until the orb's flight ends, where it explodes as usual. If the dragged target hits an invisible wall (screen edge, or the Battle arena) the orb explodes there at once. Works with the tracker on or off."
+    : "On: a target hit by this effect's front surface is pushed along with it (and keeps taking damage) until the effect ends. If the dragged target hits an invisible wall (screen edge, or the Battle arena) the effect ends at once. Works with the tracker on or off.";
+  if (I.drag) {
+    field(s, "Drag %", inp("n", I.drag_pct, function (v) { I.drag_pct = Math.min(100, Math.max(0, v)); changed(); }, 0, 100, 1)).title =
+      "How much of the effect's own movement the target is pushed by each tick while they touch. 100 = carried all the way on the front edge. Lower = pushed back a little while the effect pushes through it, hurting it the whole time they overlap.";
+    field(s, "Drag surface ° (each side)", inp("n", I.drag_deg, function (v) { I.drag_deg = Math.min(90, Math.max(0, v)); changed(); }, 0, 90, 1)).title =
+      "How far either side of the travel direction (0° = dead ahead) counts as the front surface. 90 = the whole front half. A target first hit outside it takes an ordinary hit instead.";
+    if (!(fx.battle.rehit_ticks > 0))
+      field(s, "Drag damage every N ticks", inp("n", I.drag_every, function (v) { I.drag_every = Math.max(1, Math.round(v)); changed(); }, 1, 600, 1)).title =
+        "How often a dragged target takes this effect's damage while Re-hit ticks (Battle section) is 0. With a Re-hit set, that is used instead.";
+    else note(s, "A dragged target takes damage every " + fx.battle.rehit_ticks + " ticks (Re-hit ticks, Battle section).");
+    if (!fx.battle.deals_damage) note(s, "Drag only works while Deals damage (Battle section) is on.");
+    note(s, "Preview: the target dummy is dragged on the stage. Walls (screen edge, Battle arena) only end the effect in the game.");
+  }
+}
+
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (S.worldPage) return buildWorldClashProps(d);
@@ -1908,6 +1928,7 @@ function buildProps() {
         }
         note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
       }
+      if (FXK.isChargedBlast(fx)) dragFields(s, fx, KI);
     } else if (FXK.canIntercept(fx)) {
       s = sec(d, "Intercept", "intercept", "Auto-projectile tracker: this projectile goes after the enemy's projectiles when they come close, then blocks, deflects or destroys them. (Clashing is world physics, not an intercept mode: see ⚔ World Clash.)");
       var I = fx.intercept;
@@ -1931,22 +1952,7 @@ function buildProps() {
         }
         note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
       }
-      if (fx.prim !== "particles") {
-        field(s, "Drag", inp("chk", I.drag, function (v) { I.drag = v; changed(true); })).title =
-          "On: a target hit by this effect's front surface is pushed along with it (and keeps taking damage) until the effect ends. If the dragged target hits an invisible wall (screen edge, or the Battle arena) the effect ends at once. Works with the tracker on or off.";
-        if (I.drag) {
-          field(s, "Drag %", inp("n", I.drag_pct, function (v) { I.drag_pct = Math.min(100, Math.max(0, v)); changed(); }, 0, 100, 1)).title =
-            "How much of the effect's own movement the target is pushed by each tick while they touch. 100 = carried all the way on the front edge. Lower = pushed back a little while the effect pushes through it, hurting it the whole time they overlap.";
-          field(s, "Drag surface ° (each side)", inp("n", I.drag_deg, function (v) { I.drag_deg = Math.min(90, Math.max(0, v)); changed(); }, 0, 90, 1)).title =
-            "How far either side of the travel direction (0° = dead ahead) counts as the front surface. 90 = the whole front half. A target first hit outside it takes an ordinary hit instead.";
-          if (!(fx.battle.rehit_ticks > 0))
-            field(s, "Drag damage every N ticks", inp("n", I.drag_every, function (v) { I.drag_every = Math.max(1, Math.round(v)); changed(); }, 1, 600, 1)).title =
-              "How often a dragged target takes this effect's damage while Re-hit ticks (Battle section) is 0. With a Re-hit set, that is used instead.";
-          else note(s, "A dragged target takes damage every " + fx.battle.rehit_ticks + " ticks (Re-hit ticks, Battle section).");
-          if (!fx.battle.deals_damage) note(s, "Drag only works while Deals damage (Battle section) is on.");
-          note(s, "Preview: the target dummy is dragged on the stage. Walls (screen edge, Battle arena) only end the effect in the game.");
-        }
-      }
+      if (fx.prim !== "particles") dragFields(s, fx, I);
     }
 
     s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right to whichever side the target is on. Follow direction: turn toward the target at any angle.");
