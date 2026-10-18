@@ -406,7 +406,9 @@ var host = {
   get shots() { return S.allShots || []; },
   onIntercept: function (inst, shot, mode, vel, hurtsOwner) {
     shot.dead = true;
-    if (shot.kind === "fx") shot.ref.dead = true;   // combat.kill_projectile: ended at the source
+    if (shot.round != null) {   // a gun / ki bullet (ki orbs only): that one bullet bursts where it was met
+      if (!shot.ref.tq_ki[shot.round]) shot.ref.tq_ki[shot.round] = [shot.ref.age, shot.x, shot.y];
+    } else if (shot.kind === "fx") shot.ref.dead = true;   // combat.kill_projectile: ended at the source
     if (mode === "deflect") S.ricochets.push({x: shot.x, y: shot.y, vx: vel[0], vy: vel[1], age: 0, hurts: hurtsOwner, trail: []});
     S.bursts.push({x: shot.x, y: shot.y, age: 0, mode: mode});
   },
@@ -1870,6 +1872,30 @@ function buildProps() {
         if (G.mode === "deflect")
           field(s, "Deflected shot hurts its owner", inp("chk", G.hurts_owner, function (v) { G.hurts_owner = v; changed(); })).title =
             "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
+        note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
+      }
+    } else if (FXK.canIntercept(fx) && FXK.isKiTracker(fx)) {
+      // The ki barrage: each orb in flight is its own tracker.
+      s = sec(d, "Intercept", "intercept", "Ki orb tracker: every ki orb in flight goes after the enemy's projectiles (gun and ki bullets too) when they come close, then blocks, deflects or destroys them.");
+      var KI = fx.intercept;
+      field(s, "Orbs track enemy FX", inp("chk", KI.enabled, function (v) { KI.enabled = v; changed(true); })).title =
+        "On: when an enemy projectile comes within the tracker radius of an orb, that orb bends toward it. Orbs with nothing in range fly their own path; an orb that lost its target flies straight on.";
+      if (KI.enabled) {
+        field(s, "Tracker radius px", inp("n", KI.radius, function (v) { KI.radius = Math.max(0, v); changed(); }, 0, 1000, 1)).title =
+          "Enemy projectiles closer than this to an orb are chased by it.";
+        field(s, "Turn rate °/tick", inp("n", KI.turn_deg, function (v) { KI.turn_deg = Math.max(0, v); changed(); }, 0, 180, 0.5)).title =
+          "How sharply an orb can turn toward the enemy projectile each tick.";
+        field(s, "Contact px", inp("n", KI.contact, function (v) { KI.contact = Math.max(0, v); changed(); }, 0, 200, 0.5)).title =
+          "An orb and an enemy projectile collide when their edges come this close (the orb counts its radius).";
+        field(s, "On contact", inp([["block", "block: both nullified"], ["deflect", "deflect: knocked away"], ["destroy", "destroy: enemy's nullified"]], KI.mode,
+          function (v) { KI.mode = v; changed(true); })).title =
+          "Block: the enemy projectile is nullified and the orb detonates there. Deflect: the enemy projectile (or both) is knocked away. Destroy: the enemy projectile is nullified and the orb flies on.";
+        if (KI.mode === "deflect") {
+          field(s, "Deflect", inp([["enemy", "enemy projectile only"], ["both", "both projectiles"]], KI.deflect_who, function (v) { KI.deflect_who = v; changed(); })).title =
+            "Enemy only: the orb carries on (and can chase the next one). Both: the orb is knocked away too and stops tracking.";
+          field(s, "Deflected shot hurts its owner", inp("chk", KI.hurts_owner, function (v) { KI.hurts_owner = v; changed(); })).title =
+            "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
+        }
         note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
       }
     } else if (FXK.canIntercept(fx)) {
@@ -4038,7 +4064,8 @@ function stepDummies(nMove, nFire) {
   // This tick's enemy projectiles, as the game's battle snapshot lists them
   // (laser/app.py refresh_battle): travelling damaging FX, plus every gun /
   // ki bullet in flight as a threat-only shot (retreat steering, dodges;
-  // never blockable or deflectable, so intercepts leave them alone).
+  // never blockable or deflectable, so intercepts leave them alone, all but
+  // ki barrage orbs, which go by the effect's own flags: rblock / rdeflect).
   var fxShots = [];
   S.dsim.forEach(function (ds) {
     ds.player.insts.forEach(function (inst) {
@@ -4049,7 +4076,8 @@ function stepDummies(nMove, nFire) {
           blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: +b.knockback || 0, body: FXK.instBody(inst)});
       if (SWORDFX.shoots(inst)) SWORDFX.livePoints(inst, inst.ps || 1).forEach(function (r) {
         fxShots.push({x: r[1], y: r[2], vx: r[3], vy: r[4], dead: false, kind: "fx", ref: inst, round: r[0],
-          blockable: false, deflectable: false, knockback: +b.knockback || 0, threat: true});
+          blockable: false, deflectable: false, knockback: +b.knockback || 0, threat: true,
+          rblock: b.blockable !== false, rdeflect: b.deflectable !== false});
       });
     });
   });

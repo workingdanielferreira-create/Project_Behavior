@@ -48,8 +48,18 @@ function Shot(inst, i, ps) {
   this.kind = Math.min(2, Math.trunc(r() * 3));
   var path = inst.tq_path, o = path[Math.min(this.b, path.length - 1)];
   this.ox = o[0]; this.oy = o[1];
+  this.trk = (inst.tq_kd || {})[i] || null;
 }
+// World position k ticks after launch; from the tick an intercept pulled it
+// off its path, the recorded one.
 Shot.prototype.pos = function (fr, k) {
+  var tr = this.trk;
+  if (tr && this.b + k >= tr[0]) {
+    var h = tr[1], j = this.b + k - tr[0], n = Math.floor(j);
+    if (n >= h.length - 1) return h[h.length - 1].slice();
+    var u = j - n, a = h[n], b = h[n + 1];
+    return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+  }
   var d = this.sp * k, u = this.rng > 0 ? Math.min(1, d / this.rng) : 1;
   var lat = this.curve * Math.sin(Math.PI * u), ca = Math.cos(this.ang), sa = Math.sin(this.ang);
   var w = fr.f.d(ca * d - sa * lat, sa * d + ca * lat + this.side * KI_SIDE * fr.s);
@@ -101,6 +111,62 @@ function kiOnHit(inst, tx, ty, ps) {   // the shot nearest the target stops ther
     if (bd === null || d < bd) { best = lv[i]; bd = d; }
   }
   if (best) inst.tq_ki[best[0].i] = [inst.age, best[1][0], best[1][1]];
+}
+
+// ---------------------------------------------------------------- intercept
+// Every orb in flight is its own auto-projectile tracker (fx.intercept):
+// pulled off its path by an enemy projectile in range (up to turn_deg a
+// tick), it flies a recorded path (inst.tq_kd: [from tick, positions, vx,
+// vy, free]) from then on.  laser/strikefx.py track_step.
+function trkPut(tr, t, x, y) {   // where a tracked orb is on tick t + 1
+  var h = tr[1], n = t + 1 - tr[0];
+  while (h.length < n) h.push(h[h.length - 1]);
+  h.length = n;
+  h.push([x, y]);
+}
+function trackStep(inst, host) {
+  var fx = inst.fx, K = FXK(), L = L_();
+  if (!host || L.style(fx.params) !== "ki_barrage" || inst.age >= inst.life) return;
+  var ic = fx.intercept || {}, on = !!ic.enabled;
+  if (!on && !Object.keys(inst.tq_kd).length) return;
+  var ps = inst.ps || 1, mode = K.INTERCEPT_MODES.indexOf(ic.mode) >= 0 ? ic.mode : "block";
+  var contact = Math.max(0, +ic.contact || 0) * ps, radius = Math.max(0, +ic.radius || 0) * ps;
+  var lim = Math.max(0, +ic.turn_deg || 0) * L.D, r0 = +fx.params.radius * ps;
+  var cb = host.onIntercept, fr = new Fr(inst, ps), t = inst.age, lv = live(inst, ps);
+  for (var n = 0; n < lv.length; n++) {
+    var s = lv[n][0], x = lv[n][1][0], y = lv[n][1][1], tr = s.trk, vx, vy;
+    if (tr) { vx = tr[2]; vy = tr[3]; } else { var p1 = s.pos(fr, t - s.b + 1); vx = p1[0] - x; vy = p1[1] - y; }
+    if (on && !(tr && tr[4])) {
+      var hit = K.orbContact(x, y, r0 * s.size, host, contact, mode);
+      if (hit) {
+        hit.dead = true;
+        if (mode === "deflect") {
+          var both = ic.deflect_who === "both", dv = K.deflectVels({x: x, y: y, vx: vx, vy: vy}, hit, both);
+          if (cb) cb.call(host, inst, hit, "deflect", dv.enemy, !!ic.hurts_owner);
+          if (both) {   // knocked away too: flies straight on, tracking no more
+            if (!tr) tr = inst.tq_kd[s.i] = [t, [[x, y]], vx, vy, false];
+            tr[2] = dv.mine[0]; tr[3] = dv.mine[1]; tr[4] = true;
+          }
+        } else {
+          if (cb) cb.call(host, inst, hit, mode, null, false);
+          if (mode === "block") { inst.tq_ki[s.i] = [t, x, y]; continue; }   // both gone: the orb detonates there
+        }
+      }
+      if (!tr || !tr[4]) {
+        var tg = K.orbNearest(x, y, host, radius, mode);
+        if (tg) {
+          var spd = Math.hypot(vx, vy), cur = Math.atan2(vy, vx), da = Math.atan2(tg.y - y, tg.x - x) - cur;
+          while (da > Math.PI) da -= 2 * Math.PI;
+          while (da < -Math.PI) da += 2 * Math.PI;
+          cur += Math.max(-lim, Math.min(lim, da));
+          vx = Math.cos(cur) * spd; vy = Math.sin(cur) * spd;
+          if (!tr) tr = inst.tq_kd[s.i] = [t, [[x, y]], vx, vy, false];
+          tr[2] = vx; tr[3] = vy;
+        }
+      }
+    }
+    if (tr) trkPut(tr, t, x + tr[2], y + tr[3]);
+  }
 }
 
 // ---------------------------------------------------------------- punch
@@ -323,5 +389,5 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints};
+G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep};
 })(window);

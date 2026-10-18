@@ -1614,8 +1614,11 @@ var GUARD_MODES = ["block", "deflect", "destroy"];
 var GUARD_MIN_BOUNCE_DEG = 20;   // a guard-deflected shot leaves the surface at least this steeply
 var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag"];
 function isGuard(fx) { return fx.prim === "ribbon" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) < 0; }
+// A ki barrage: every orb it fires is its own tracker (STRIKEFX.trackStep),
+// so the technique never moves itself.  laser/fxkit.py is_ki_tracker.
+function isKiTracker(fx) { return fx.prim === "technique" && !!G.SWORDFX && G.SWORDFX.lib.style(fx.params) === "ki_barrage"; }
 function canIntercept(fx) {
-  if (isGuard(fx)) return true;
+  if (isGuard(fx) || isKiTracker(fx)) return true;
   return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) >= 0;
 }
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
@@ -1652,6 +1655,36 @@ function shotTakes(s, mode) {
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
 function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
+// A gun / ki bullet (shot.round = its index) already stopped: it hit, or an
+// orb took it.
+function roundStopped(s) { return s.round != null && !!(s.ref.tq_ki && s.ref.tq_ki[s.round]); }
+// Whether a ki barrage orb in `mode` may take shot s: what any intercept may
+// take, plus the enemy's gun / ki bullets, by their effect's own Blockable /
+// Deflectable.  laser/fxkit.py orb_takes.
+function orbTakes(s, mode) {
+  if (s.threat) return !roundStopped(s) && (mode === "deflect" ? !!s.rdeflect : !!s.rblock);
+  return shotTakes(s, mode);
+}
+// Nearest shot touching a ki orb (a point body of radius r at x, y).
+function orbContact(x, y, r, host, contact, mode) {
+  var mine = [x, y, x, y, r], best = null, bd = 0, shots = host.shots || [];
+  for (var i = 0; i < shots.length; i++) {
+    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode)) continue;
+    var sb = shotBody(s), d = segSegDist(mine, sb) - r - sb[4];
+    if (d <= contact && (best === null || d < bd)) { best = s; bd = d; }
+  }
+  return best;
+}
+// Nearest shot by centre point within r of a ki orb (the tracker radius).
+function orbNearest(x, y, host, r, mode) {
+  var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
+  for (var i = 0; i < shots.length; i++) {
+    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode)) continue;
+    var dx = s.x - x, dy = s.y - y, d = dx * dx + dy * dy;
+    if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
+  }
+  return best;
+}
 // Nearest shot by centre point within r (the tracker radius).
 function nearestShot(inst, host, r, mode) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
@@ -1697,7 +1730,7 @@ function endChase(inst) { if (inst.chase) { inst.chase = false; inst.vx = inst.b
 function interceptStep(inst, host) {
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
-  if (!interceptOn(fx) || isGuard(fx)) return false;
+  if (!interceptOn(fx) || isGuard(fx) || isKiTracker(fx)) return false;
   var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips;
   var hit = contactShot(inst, host, contact, I.mode);
   if (hit) {
@@ -2460,7 +2493,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
