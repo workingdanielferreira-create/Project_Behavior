@@ -9150,8 +9150,14 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9178,8 +9184,14 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9206,8 +9218,14 @@
    "attack_px": 80,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9247,18 +9265,14 @@
    "attack_px": 0,
    "blink": {
     "enabled": true,
-    "cooldown_ms": 0,
-    "blinks": [
-     {
-      "start_frame": 15,
-      "end_frame": 16,
-      "anchor": "target",
-      "direction": "behind",
-      "angle_deg": 0,
-      "proximity_px": 205,
-      "flash": true
-     }
-    ]
+    "start_frame": 15,
+    "end_frame": 16,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 205,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": true,
@@ -9283,16 +9297,22 @@
    "conditions": [],
    "chain_next": "",
    "chain_reset_ms": 0,
-   "fx_continuous": false,
+   "fx_continuous": true,
    "movement": "stand",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
-   "attack_px": 200,
+   "attack_px": 80,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9326,8 +9346,14 @@
    "attack_px": 0,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9360,8 +9386,14 @@
    "attack_px": 80,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9388,8 +9420,14 @@
    "attack_px": 8,
    "blink": {
     "enabled": false,
-    "cooldown_ms": 0,
-    "blinks": []
+    "start_frame": 0,
+    "end_frame": -1,
+    "anchor": "target",
+    "direction": "behind",
+    "angle_deg": 0,
+    "proximity_px": 60,
+    "flash": true,
+    "cooldown_ms": 0
    },
    "time": {
     "enabled": false,
@@ -9418,37 +9456,6 @@
    "ticks": 30,
    "orient": "facing",
    "end": "stop",
-   "follow": false,
-   "anchors": [
-    ""
-   ]
-  },
-  {
-   "name": "Path 2",
-   "id": "Tmv3qao8c24a",
-   "points": [
-    [
-     0,
-     0
-    ],
-    [
-     0,
-     0
-    ],
-    [
-     0,
-     -6.5
-    ]
-   ],
-   "anchors": [
-    "blink:0:start",
-    "target",
-    "blink:0:end"
-   ],
-   "smooth": true,
-   "ticks": 6,
-   "orient": "facing",
-   "end": "stop",
    "follow": false
   }
  ],
@@ -9475,6 +9482,70 @@
   "logic": "any",
   "conditions": [],
   "fx": ""
+ },
+ "clash": {
+  "slots": {
+   "beam_explode": {
+    "fx": "beam_clash",
+    "size": 100,
+    "density": 100
+   },
+   "beam_struggle": {
+    "fx": "beam_struggle",
+    "size": 100,
+    "density": 100
+   },
+   "beam_struggle_end": {
+    "fx": "overpower_blowout",
+    "size": 100,
+    "density": 100
+   },
+   "beam_orb": {
+    "fx": "beam_orb",
+    "size": 100,
+    "density": 100
+   },
+   "beam_split": {
+    "fx": "beam_split",
+    "size": 100,
+    "density": 100
+   },
+   "split_tip": {
+    "fx": "split_burst",
+    "size": 50,
+    "density": 100
+   },
+   "beam_nosplit": {
+    "fx": "split_burst",
+    "size": 100,
+    "density": 100
+   },
+   "orb_orb": {
+    "fx": "orb_pops",
+    "size": 100,
+    "density": 100
+   },
+   "trail_trail": {
+    "fx": "speed_duel",
+    "size": 100,
+    "density": 100
+   },
+   "crescent_crescent": {
+    "fx": "sword_slash_clash",
+    "size": 50,
+    "density": 100
+   },
+   "sprite_sprite": {
+    "fx": "kunai_clash",
+    "size": 100,
+    "density": 100
+   }
+  },
+  "anim": {
+   "hold": "clash",
+   "hold_ms": 600,
+   "freeze": true
+  }
  },
  "character_scale": 1,
  "effects": [
@@ -9569,6 +9640,95 @@
   },
   {
    "prim": "technique",
+   "name": "Horizontal sweep",
+   "tag": "slash",
+   "anchor": "figure",
+   "blend": "additive",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 2,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 10,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "horizontal_sweep",
+    "radius": 107,
+    "span": 77,
+    "thickness": 11,
+    "swing_ticks": 7,
+    "density": 1,
+    "length": 300,
+    "hold_ticks": 18
+   },
+   "id": "Emuxc6ode6",
+   "action": "attack_normal_basic",
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    43.5,
+    0.5
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
    "name": "Crescent wave",
    "tag": "slash",
    "anchor": "figure",
@@ -9618,7 +9778,7 @@
     "thickness": 22,
     "hold_ticks": 48,
     "density": 1,
-    "span": 105,
+    "span": 63,
     "length": 300,
     "swing_ticks": 6
    },
@@ -9631,7 +9791,7 @@
    "continuous": false,
    "always_on": false,
    "offset": [
-    -100,
+    0,
     0
    ],
    "layer": "front",
@@ -9654,6 +9814,95 @@
     "hurts_owner": false
    },
    "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Horizontal sweep",
+   "tag": "slash",
+   "anchor": "figure",
+   "blend": "additive",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 2,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 10,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "travel",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "Tmuxs4w62768"
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#fe7676",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "diagonal_slash",
+    "radius": 60,
+    "span": 110,
+    "thickness": 12,
+    "swing_ticks": 6,
+    "density": 1,
+    "length": 315,
+    "hold_ticks": 7
+   },
+   "id": "Emuxcm0wq10",
+   "action": "attack_normal",
+   "enabled": true,
+   "start_frame": 1,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    27.5,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": true,
+    "radius": 106,
+    "turn_deg": 30,
+    "contact": 24,
+    "mode": "deflect",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": true,
    "keys": []
   },
   {
@@ -9704,7 +9953,7 @@
     "style": "rising_slash",
     "radius": 1500,
     "span": 160,
-    "thickness": 69.5,
+    "thickness": 12,
     "swing_ticks": 6,
     "density": 1,
     "length": 300,
@@ -9793,7 +10042,7 @@
     "style": "diagonal_slash",
     "radius": 1500,
     "span": 110,
-    "thickness": 69.5,
+    "thickness": 12,
     "swing_ticks": 6,
     "density": 1,
     "length": 300,
@@ -9869,6 +10118,184 @@
     "path": ""
    },
    "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "horizontal_sweep",
+    "radius": 1500,
+    "span": 70,
+    "thickness": 11,
+    "swing_ticks": 7,
+    "density": 1,
+    "length": 300,
+    "hold_ticks": 48
+   },
+   "id": "Emuyofuz94",
+   "action": "ultimate",
+   "enabled": true,
+   "start_frame": 7,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    -400,
+    -210
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Diagonal slash copy copy",
+   "tag": "slash",
+   "anchor": "target",
+   "blend": "additive",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 11.5,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 8,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
+    "mode": "solid",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#c61515",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "horizontal_sweep",
+    "radius": 1500,
+    "span": 70,
+    "thickness": 11,
+    "swing_ticks": 7,
+    "density": 1,
+    "length": 300,
+    "hold_ticks": 48
+   },
+   "id": "Emuyotolw36",
+   "action": "ultimate",
+   "enabled": true,
+   "start_frame": 28,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "offset": [
+    -400,
+    -210
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false
+   },
+   "follow_dir": true,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Diagonal slash copy",
+   "tag": "slash",
+   "anchor": "target",
+   "blend": "additive",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 11.5,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 8,
+    "blockable": true,
+    "deflectable": true
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": ""
+   },
+   "color": {
     "mode": "solid",
     "lut_index": 128,
     "lut_index2": 128,
@@ -9882,7 +10309,7 @@
     "style": "diagonal_slash",
     "radius": 1500,
     "span": 110,
-    "thickness": 69.5,
+    "thickness": 12,
     "swing_ticks": 6,
     "density": 1,
     "length": 300,
@@ -9971,7 +10398,7 @@
     "style": "rising_slash",
     "radius": 1500,
     "span": 160,
-    "thickness": 69.5,
+    "thickness": 12,
     "swing_ticks": 6,
     "density": 1,
     "length": 300,
@@ -9998,452 +10425,6 @@
    "cycles": {
     "enabled": false,
     "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": true,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Combo: forehand / backhand",
-   "tag": "slash",
-   "anchor": "figure",
-   "blend": "additive",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 5,
-    "pierce": true,
-    "rehit_ticks": 1,
-    "knockback": 8,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "combo_backhand",
-    "radius": 70,
-    "span": 150,
-    "thickness": 11,
-    "swing_ticks": 5,
-    "density": 1,
-    "length": 300,
-    "hold_ticks": 18
-   },
-   "id": "Emv1nyz178",
-   "action": "attack_normal_basic",
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Forward sweep",
-   "tag": "slash",
-   "anchor": "figure",
-   "blend": "additive",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 5,
-    "pierce": true,
-    "rehit_ticks": 0,
-    "knockback": 10,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "forward_sweep",
-    "radius": 85,
-    "span": 200,
-    "thickness": 12,
-    "swing_ticks": 7,
-    "density": 1,
-    "length": 300,
-    "hold_ticks": 18
-   },
-   "id": "Emv3ljfbf14",
-   "action": "attack_normal",
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Forward sweep",
-   "tag": "slash",
-   "anchor": "target",
-   "blend": "additive",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 10,
-    "pierce": true,
-    "rehit_ticks": 0,
-    "knockback": 10,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "forward_sweep",
-    "radius": 1500,
-    "span": 200,
-    "thickness": 69.5,
-    "swing_ticks": 7,
-    "density": 1,
-    "length": 20,
-    "hold_ticks": 18
-   },
-   "id": "Emv3lmt6315",
-   "action": "ultimate",
-   "enabled": true,
-   "start_frame": 8,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "offset": [
-    -1910,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Forward sweep copy",
-   "tag": "slash",
-   "anchor": "target",
-   "blend": "additive",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 10,
-    "pierce": true,
-    "rehit_ticks": 0,
-    "knockback": 10,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "solid",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ff0000",
-    "c2": "#ffffff",
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "forward_sweep",
-    "radius": 1500,
-    "span": 200,
-    "thickness": 69.5,
-    "swing_ticks": 7,
-    "density": 1,
-    "length": 20,
-    "hold_ticks": 18
-   },
-   "id": "Emv3miasf17",
-   "action": "ultimate",
-   "enabled": true,
-   "start_frame": 28,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "offset": [
-    -1910,
-    -34.5
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
-   "prim": "ribbon",
-   "name": "Blade trail",
-   "tag": "trail",
-   "anchor": "wtip",
-   "motion": {
-    "kind": "path",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": "Tmv3qao8c24a"
-   },
-   "color": {
-    "mode": "gradient",
-    "flow_speed": 0.097,
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 1,
-    "c1": "#ffffff",
-    "c2": "#001c56",
-    "start_fraction": 0
-   },
-   "params": {
-    "max_points": 50,
-    "min_dist": 0.5,
-    "decay": 0,
-    "taper": true,
-    "w_tail": 1,
-    "w_head": 6,
-    "alpha": 1000,
-    "head_glow_r": 3,
-    "head_dot_r": 2
-   },
-   "id": "Emv3p5wxp1",
-   "action": "ultimate",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "enabled": true,
-   "start_frame": 20,
-   "end_frame": 25,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
    },
    "intercept": {
     "enabled": false,
