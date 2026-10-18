@@ -675,6 +675,7 @@ Studio's "Weapons" group. Test dummies can attack with them too.
 | `rune_reaver` | Rune | reverse-grip back-spin, rune glyph ring |
 | `nodachi` | Ronin | still moment, iaido draw from the scabbard, one long cut |
 | `earth_cleaver` | Thear | two-handed ground-breaking slam |
+| `void_sniper` | Void sniper rifle | muzzle charge, one void rail line, implosion on the target |
 
 - **Parity:** `weaponfx.js` is a line-for-line port; `check_parity.py`
   compares `MODELS`, `WEAPONS` and every weaponfx constant. Same code path in

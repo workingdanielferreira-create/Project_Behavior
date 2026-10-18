@@ -255,7 +255,7 @@ def main():
     wp_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "weaponfx.js"))
     wp_py = PyTables(os.path.join(ROOT, "laser", "weaponfx.py"))
     for name in ("STYLES", "HU", "SUMMON", "DISMISS", "FOCAL", "THICK_K", "TRAIL_N", "TRAIL_SUB", "TRAIL_BAND", "EVT_HIT",
-                 "BEAM_T", "IMPACT_LIFE", "TAIL", "EVT_LIFE", "EVT_R", "SHOTS", "GLOWS", "MODELS", "WEAPONS"):
+                 "BEAM_T", "RAIL_T", "LINE_T", "LINE_HW", "IMPLODE_IN", "VOID", "IMPACT_LIFE", "TAIL", "EVT_LIFE", "EVT_R", "SHOTS", "GLOWS", "MODELS", "WEAPONS"):
         diff(wp_js.get(name), wp_py.get(name), "weaponfx " + name, out)
     for st in wp_py.get("STYLES"):
         if st not in fx.get("TECH_STYLES"):

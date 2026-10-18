@@ -11,7 +11,7 @@
 "use strict";
 var FXK = function () { return G.FXK; };
 var L_ = function () { return G.SWORDFX.lib; };
-var STYLES = ["buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver"];
+var STYLES = ["buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver", "void_sniper"];
 var HU = 10;
 var SUMMON = 8;
 var DISMISS = 12;
@@ -22,11 +22,16 @@ var TRAIL_SUB = 5;
 var TRAIL_BAND = 0.62;
 var EVT_HIT = 4;
 var BEAM_T = 14;
+var RAIL_T = 10;
+var LINE_T = {beam: BEAM_T, rail: RAIL_T};   // shots that are an instant line to the end of their range
+var LINE_HW = {beam: 7, rail: 5};          // their hit half-width (px, times the shot size)
+var IMPLODE_IN = 10;   // ticks a void implosion takes to collapse before it pops
+var VOID = [10, 4, 18];   // the void's black core (drawn over, not added)
 var IMPACT_LIFE = 16;
 var TAIL = 48;
-var EVT_LIFE = {slam: 28, cuts: 18, xflash: 16, snip: 16, pillar: 30, runes: 36, glyph: 22, burst: 16, charge: 0, petals: 30, blink: 12};
-var EVT_R = {slam: 46, cuts: 26, xflash: 20, snip: 22, pillar: 26, runes: 18, glyph: 24, burst: 20, charge: 0, petals: 0, blink: 0};
-var SHOTS = {light: {speed: 15, size: 1.1}, spark: {speed: 18, size: 0.9}, neon: {speed: 17, size: 0.75}, arrow: {speed: 14, size: 1}, beam: {speed: 0, size: 1.6}};
+var EVT_LIFE = {slam: 28, cuts: 18, xflash: 16, snip: 16, pillar: 30, runes: 36, glyph: 22, burst: 16, charge: 0, petals: 30, blink: 12, implode: 26};
+var EVT_R = {slam: 46, cuts: 26, xflash: 20, snip: 22, pillar: 26, runes: 18, glyph: 24, burst: 20, charge: 0, petals: 0, blink: 0, implode: 0};
+var SHOTS = {light: {speed: 15, size: 1.1}, spark: {speed: 18, size: 0.9}, neon: {speed: 17, size: 0.75}, arrow: {speed: 14, size: 1}, beam: {speed: 0, size: 1.6}, rail: {speed: 0, size: 0.7}};
 var GLOWS = ["gem", "spirit"];
 // Models and weapons: laser/weaponfx.py MODELS / WEAPONS (see there for the layout).
 var MODELS = {
@@ -42,6 +47,7 @@ var MODELS = {
   crimson_fang: {vs: "w", blade: true, hit: [0.05, 0, 1, 0, 0.6], muzzle: [1, 0], mat: {blade: [176, 168, 172], edge: [255, 236, 236], guard: [110, 20, 28], grip: [50, 20, 24], dark: [30, 10, 14], accent: [140, 24, 32], gem: [255, 40, 50]}, parts: [["grip", [[-0.22, -0.2], [0, -0.2], [0, 0.2], [-0.22, 0.2]]], ["guard", [[-0.28, -0.34], [-0.22, -0.34], [-0.22, 0.34], [-0.28, 0.34]]], ["guard", [[0, -1.4], [0.05, -1.2], [0.05, 1.2], [0, 1.4]]], ["blade", [[0.05, -0.6], [0.9, -0.55], [1, 0], [0.9, 0.55], [0.05, 0.6]]], ["edge", [[0.05, 0.42], [0.9, 0.4], [1, 0], [0.9, 0.55], [0.05, 0.6]]], ["gem", [[0.08, -0.15], [0.8, -0.12], [0.8, 0.12], [0.08, 0.15]]]]},
   arc_carbine: {vs: "w", blade: false, hit: [0, 0, 1, 0, 0.5], muzzle: [1, -0.15], mat: {blade: [70, 86, 104], edge: [200, 220, 236], guard: [44, 50, 60], grip: [36, 40, 48], dark: [20, 22, 28], accent: [90, 200, 255], gem: [120, 230, 255]}, parts: [["grip", [[-0.45, -0.3], [-0.15, -0.35], [-0.15, 0.35], [-0.45, 0.7]]], ["blade", [[-0.15, -0.45], [0.55, -0.45], [0.6, 0.35], [-0.15, 0.35]]], ["grip", [[0, 0.35], [0.12, 0.35], [0.06, 1.2], [-0.06, 1.15]]], ["guard", [[0.22, 0.35], [0.34, 0.35], [0.38, 1.1], [0.26, 1.15]]], ["guard", [[0.55, -0.3], [1, -0.3], [1, 0], [0.55, 0]]], ["gem", [[0.1, -0.3], [0.5, -0.3], [0.5, -0.1], [0.1, -0.1]]]]},
   void_cannon: {vs: "w", blade: false, hit: [0, 0, 1, 0, 0.8], muzzle: [1, 0], mat: {blade: [58, 30, 82], edge: [170, 120, 220], guard: [30, 18, 44], grip: [24, 16, 34], dark: [12, 8, 18], accent: [110, 60, 160], gem: [200, 110, 255]}, parts: [["blade", [[-0.3, -0.8], [0.7, -0.9], [1, -0.6], [1, 0.6], [0.7, 0.9], [-0.3, 0.8]]], ["accent", [[0.3, -0.96], [0.38, -0.96], [0.38, 0.96], [0.3, 0.96]]], ["accent", [[0.55, -0.98], [0.62, -0.98], [0.62, 0.98], [0.55, 0.98]]], ["dark", [[0.82, -0.45], [1, -0.45], [1, 0.45], [0.82, 0.45]]], ["gem", [[0.86, -0.3], [1, -0.3], [1, 0.3], [0.86, 0.3]]]]},
+  void_sniper: {vs: "w", blade: false, hit: [0, 0, 1, 0, 0.6], muzzle: [1, 0], mat: {blade: [34, 24, 46], edge: [150, 110, 200], guard: [22, 16, 30], grip: [18, 12, 24], dark: [8, 6, 12], accent: [120, 60, 180], gem: [190, 100, 255]}, parts: [["grip", [[-0.5, -0.7], [-0.12, -0.8], [-0.12, 0.6], [-0.3, 0.6], [-0.42, 1.5], [-0.52, 1.4]]], ["blade", [[-0.12, -0.9], [0.38, -0.9], [0.42, 0.7], [-0.12, 0.7]]], ["grip", [[-0.02, 0.7], [0.08, 0.7], [0.03, 2], [-0.07, 1.9]]], ["guard", [[0.13, 0.7], [0.22, 0.7], [0.22, 1.5], [0.13, 1.5]]], ["guard", [[0.06, -1.1], [0.1, -1.1], [0.1, -0.9], [0.06, -0.9]]], ["guard", [[0.22, -1.1], [0.26, -1.1], [0.26, -0.9], [0.22, -0.9]]], ["dark", [[0, -2], [0.32, -2], [0.32, -1.1], [0, -1.1]]], ["gem", [[0.27, -1.9], [0.32, -1.9], [0.32, -1.2], [0.27, -1.2]]], ["blade", [[0.38, -0.45], [1, -0.35], [1, 0.35], [0.38, 0.45]]], ["accent", [[0.5, -0.62], [0.55, -0.62], [0.55, 0.62], [0.5, 0.62]]], ["accent", [[0.64, -0.58], [0.69, -0.58], [0.69, 0.58], [0.64, 0.58]]], ["accent", [[0.78, -0.54], [0.83, -0.54], [0.83, 0.54], [0.78, 0.54]]], ["gem", [[0.42, -0.14], [0.93, -0.1], [0.93, 0.1], [0.42, 0.14]]], ["dark", [[0.93, -0.55], [1, -0.55], [1, 0.55], [0.93, 0.55]]]]},
   kunai: {vs: "w", blade: true, hit: [0, 0, 1, 0, 0.7], muzzle: [1, 0], mat: {blade: [84, 90, 104], edge: [220, 228, 240], guard: [60, 64, 76], grip: [140, 40, 50], dark: [20, 22, 28], accent: [140, 40, 50], gem: [140, 255, 220]}, parts: [["grip", [[-0.3, -0.15], [0, -0.15], [0, 0.15], [-0.3, 0.15]]], ["guard", [[-0.44, -0.3], [-0.3, -0.3], [-0.3, 0.3], [-0.44, 0.3]]], ["blade", [[0, -0.3], [0.35, -0.75], [1, 0], [0.35, 0.75], [0, 0.3]]], ["edge", [[0.05, -0.08], [1, 0], [0.05, 0.08]]], ["gem", [[-0.4, -0.12], [-0.34, -0.12], [-0.34, 0.12], [-0.4, 0.12]]]]},
   astral_staff: {vs: "w", blade: true, hit: [0.6, 0, 1, 0, 1.4], muzzle: [1, 0], mat: {blade: [120, 92, 70], edge: [240, 230, 210], guard: [214, 190, 120], grip: [96, 70, 52], dark: [40, 30, 24], accent: [214, 190, 120], gem: [160, 200, 255]}, parts: [["grip", [[-0.6, -0.18], [0.78, -0.15], [0.78, 0.15], [-0.6, 0.18]]], ["accent", [[0.2, -0.24], [0.26, -0.24], [0.26, 0.24], [0.2, 0.24]]], ["accent", [[-0.35, -0.24], [-0.29, -0.24], [-0.29, 0.24], [-0.35, 0.24]]], ["guard", [[0.72, -0.25], [0.78, -1.4], [0.9, -1.65], [0.84, -0.9], [0.8, -0.25]]], ["guard", [[0.72, 0.25], [0.78, 1.4], [0.9, 1.65], [0.84, 0.9], [0.8, 0.25]]], ["gem", [[0.8, 0], [0.9, -0.7], [1, 0], [0.9, 0.7]]]]},
   phantom_greatsword: {vs: "w", blade: true, hit: [0.08, 0, 1, 0, 0.8], muzzle: [1, 0], mat: {blade: [90, 70, 130], edge: [255, 255, 255], guard: [60, 40, 90], grip: [36, 26, 52], dark: [20, 14, 30], accent: [120, 90, 170], gem: [220, 190, 255]}, parts: [["grip", [[-0.2, -0.2], [0, -0.2], [0, 0.2], [-0.2, 0.2]]], ["guard", [[0, -1.2], [0.04, -1.55], [0.08, -0.9], [0.08, 0.9], [0.04, 1.55], [0, 1.2]]], ["spirit", [[0.08, -0.8], [0.85, -0.7], [1, 0], [0.85, 0.7], [0.08, 0.8]]], ["gem", [[0.1, -0.2], [0.9, -0.1], [0.97, 0], [0.9, 0.1], [0.1, 0.2]]]]},
@@ -74,7 +80,8 @@ var WEAPONS = {
   pulse_bow: {models: ["pulse_bow"], beats: 5, aim: true, trail: "", shot: "arrow", tracks: [[[0, 0.5, -0.2, 0, 0, 0, 0, 1, 3], [1, 0.5, -0.2, 0, 0, 0, 0, 1, 3]]], events: [], fire: [[0.6, 0]]},
   rune_reaver: {models: ["rune_reaver"], beats: 4, aim: false, trail: "swept", shot: "", tracks: [[[0, 0.3, -0.2, 0, 120, 0, 0, 1, 3], [0.2, 0.1, -0.1, 0, 130, 0, 0, 1, 3], [0.65, 0.5, -0.4, 0, -410, 180, 0, 1.05, 1], [1, 0.4, -0.3, 0, -400, 180, 0, 1, 3]]], events: [[0.66, "glyph", "tip0", 1, 0]], fire: []},
   nodachi: {models: ["nodachi", "saya"], beats: 5, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.2, 0.3, 0, 195, 0, 0, 1, 3], [0.45, -0.2, 0.3, 0, 195, 0, 0, 1, 3], [0.52, 0.6, 0, 0, 360, 0, 0, 1, 1], [1, 0.5, 0, 0, 365, 0, 0, 1, 3]], [[0, -0.2, 0.35, 0, 195, 0, 0, 1, 3], [1, -0.25, 0.4, 0, 200, 0, 0, 1, 3]]], events: [[0.53, "cuts", "target", 1, 0]], fire: []},
-  earth_cleaver: {models: ["earth_cleaver"], beats: 4, aim: false, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -120, 0, 0, 1, 3], [0.4, -0.3, -1.2, 0, -110, 0, 0, 1.05, 3], [0.62, 0.6, 0.3, 0, 85, 0, 0, 1.1, 2], [1, 0.55, 0.3, 0, 88, 0, 0, 1.05, 3]]], events: [[0.62, "slam", "tip0", 1.7, 0]], fire: []}
+  earth_cleaver: {models: ["earth_cleaver"], beats: 4, aim: false, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -120, 0, 0, 1, 3], [0.4, -0.3, -1.2, 0, -110, 0, 0, 1.05, 3], [0.62, 0.6, 0.3, 0, 85, 0, 0, 1.1, 2], [1, 0.55, 0.3, 0, 88, 0, 0, 1.05, 3]]], events: [[0.62, "slam", "tip0", 1.7, 0]], fire: []},
+  void_sniper: {models: ["void_sniper"], beats: 6, aim: true, trail: "", shot: "rail", tracks: [[[0, 0.2, -0.2, 0, 0, 0, 0, 1, 3], [0.58, 0.2, -0.2, 0, 0, 0, 0, 1, 3], [0.76, 0, -0.3, 0, -16, 0, 0, 1, 1], [1, 0.2, -0.2, 0, -4, 0, 0, 1, 3]]], events: [[0.05, "charge", "tip0", 1, 0.53], [0.58, "implode", "target", 1, 0]], fire: [[0.58, 0]]}
 };
 
 // ---------------------------------------------------------------- timeline
@@ -86,7 +93,7 @@ function tickOf(P, t) { return SUMMON + Math.round(t * moveT(P)); }
 function shotFlight(P) {
   var w = W_(P);
   if (!w.shot) return 0;
-  if (w.shot === "beam") return BEAM_T;
+  if (LINE_T[w.shot] !== undefined) return LINE_T[w.shot];
   return Math.ceil(Math.max(20, +P.radius || 0) / SHOTS[w.shot].speed);
 }
 // The weapon's life: the hit window (and how long it stays).
@@ -248,7 +255,7 @@ function Shot(inst, ps, i, f) {
   var R = Math.max(20, +P.radius || 0);
   this.rng = R * ps;
   this.sp = g.speed * ps;
-  this.flight = this.kind === "beam" ? BEAM_T : Math.ceil(R / g.speed);
+  this.flight = LINE_T[this.kind] !== undefined ? LINE_T[this.kind] : Math.ceil(R / g.speed);
 }
 Shot.prototype.pos = function (k) { var d = this.sp * k; return [this.ox + this.dx * d, this.oy + this.dy * d]; };
 Shot.prototype.end = function (inst) {   // [tick it stops, stopped by a hit?]
@@ -269,12 +276,12 @@ function live(inst, ps) {
   var out = [], all = shots(inst, ps);
   for (var i = 0; i < all.length; i++) {
     var s = all[i];
-    if (s.kind === "beam") continue;
+    if (LINE_T[s.kind] !== undefined) continue;
     if (inst.age < s.end(inst)[0]) out.push([s, s.pos(inst.age - s.b)]);
   }
   return out;
 }
-function fires(style) { return WEAPONS[style] !== undefined && WEAPONS[style].shot !== "" && WEAPONS[style].shot !== "beam"; }
+function fires(style) { return WEAPONS[style] !== undefined && WEAPONS[style].shot !== "" && LINE_T[WEAPONS[style].shot] === undefined; }
 // [[i, x, y, vx, vy]] for the shots in flight this tick.  laser/weaponfx.py live_points.
 function livePoints(inst, ps) {
   return live(inst, ps).map(function (q) { var s = q[0]; return [s.i, q[1][0], q[1][1], s.dx * s.sp, s.dy * s.sp]; });
@@ -324,9 +331,9 @@ function hit(inst, tx, ty, hr, ps) {
   var all = shots(inst, ps);
   for (i = 0; i < all.length; i++) {
     s = all[i];
-    if (s.kind === "beam" && s.b <= t && t < s.end(inst)[0]) {
+    if (LINE_T[s.kind] !== undefined && s.b <= t && t < s.end(inst)[0]) {
       var a0 = s.pos(0);
-      if (segDist(tx, ty, a0[0], a0[1], s.ox + s.dx * s.rng, s.oy + s.dy * s.rng) <= hr + 7 * ps * s.size) return true;
+      if (segDist(tx, ty, a0[0], a0[1], s.ox + s.dx * s.rng, s.oy + s.dy * s.rng) <= hr + LINE_HW[s.kind] * ps * s.size) return true;
     }
   }
   return false;
@@ -639,6 +646,43 @@ function evBlink(pen, inst, c, ps, x, y, a, k) {
   if (a < 4) pen.glow(x, y, 16 * ps * k, L.HOT, 255 * (1 - a / 4));
   pen.glow(x, y, 12 * ps * k * (1 - q), c, 170 * (1 - q));
 }
+// Void implosion: rings, streaks and a dark sphere collapse to a point, then it pops in a flash and a ring.
+function evImplode(pen, inst, c, ps, x, y, a, k, salt) {
+  var L = L_(), R = 34 * ps * k, q, e, j, r, an, ca, sa, rr;
+  if (a < IMPLODE_IN) {
+    q = a / IMPLODE_IN; e = L.easeIn3(q);
+    pen.glow(x, y, R * (1 - 0.6 * e), c, 120 + 80 * q);
+    for (j = 0; j < 3; j++) {
+      rr = R * (1 - e) * (1 - 0.25 * j) + 1.5 * ps;
+      pen.ring(x, y, rr, rr, 0, L.mix(c, L.HOT, 0.3 * j), 200 * (0.4 + 0.6 * q), 1.6 * ps);
+    }
+    for (j = 0; j < 10; j++) {
+      r = L.rngFor(inst.seed, j, 93 + salt); an = r.uniform(0, Math.PI * 2);
+      var d0 = R * 1.3 * (1 - e) * r.uniform(0.7, 1.1) + 2 * ps, d1 = d0 + 9 * ps * k * (1 - q);
+      ca = Math.cos(an); sa = Math.sin(an);
+      pen.line(x + ca * d1, y + sa * d1, x + ca * d0, y + sa * d0, L.mix(c, L.HOT, 0.4), 210 * q, 1.2 * ps);
+    }
+    pen.add(false);
+    pen.glow(x, y, (4 + 0.55 * R / ps * (1 - e)) * ps, VOID, 235, 0.7);
+    pen.add(true);
+    return;
+  }
+  var b = a - IMPLODE_IN;
+  q = b / (EVT_LIFE.implode - IMPLODE_IN);
+  if (b < 4) pen.glow(x, y, (10 + 18 * L.easeOut3(b / 4)) * ps * k, L.HOT, 255 * (1 - b / 4));
+  pen.glow(x, y, (14 + 26 * L.easeOut3(q)) * ps * k, c, 190 * (1 - q), 0.4);
+  for (j = 0; j < 8; j++) {
+    r = L.rngFor(inst.seed, j, 95 + salt); an = r.uniform(0, Math.PI * 2);
+    var r1 = (4 + 34 * L.easeOut3(q)) * ps * k, ln = r.uniform(8, 16) * ps * k * (1 - q);
+    ca = Math.cos(an); sa = Math.sin(an);
+    pen.line(x + ca * r1, y + sa * r1, x + ca * (r1 + ln), y + sa * (r1 + ln), L.mix(L.HOT, c, q), 230 * (1 - q), 1.3 * ps);
+  }
+  rr = (4 + 40 * L.easeOut3(q)) * ps * k;
+  pen.ring(x, y, rr, rr, 0, c, 220 * (1 - q), 2.2 * ps * (1 - q) + 0.2);
+  pen.add(false);
+  pen.glow(x, y, 6 * ps * k * (1 - q), VOID, 220 * (1 - q), 0.7);
+  pen.add(true);
+}
 function drawEvents(pen, inst, ps, c, t) {
   var P = inst.fx.params;
   if (!sig(P)) return;
@@ -662,6 +706,7 @@ function drawEvents(pen, inst, ps, c, t) {
     else if (kind === "glyph") evGlyph(pen, inst, c, ps, x, y, a, k, n * 13);
     else if (kind === "burst") evBurst(pen, inst, c, ps, x, y, a, k, n * 13);
     else if (kind === "blink") evBlink(pen, inst, c, ps, x, y, a, k);
+    else if (kind === "implode") evImplode(pen, inst, c, ps, x, y, a, k, n * 13);
   });
 }
 
@@ -689,6 +734,28 @@ function drawShots(pen, inst, ps, c, t) {
           pen.ring(s.ox + s.dx * Lb * u, s.oy + s.dy * Lb * u, 3 * sz, wd * 1.3, Math.atan2(s.dy, s.dx), L.HOT, 160 * (1 - q), 1.0 * ps);
         }
         pen.glow(x2, y2, wd * 2.4, c, 200 * (1 - q));
+      }
+      return;
+    }
+    if (s.kind === "rail") {
+      if (t < e) {
+        // an instant thin line with a black void core, a violet rim and two strands of light twisting round it
+        q = k / RAIL_T;
+        var xr = s.ox + s.dx * s.rng, yr = s.oy + s.dy * s.rng, wr = 3.0 * sz * (1 - q * q), n = 32;
+        pen.line(s.ox, s.oy, xr, yr, c, 150, wr * 3.2);
+        pen.line(s.ox, s.oy, xr, yr, bright, 230, wr * 1.5);
+        [1, -1].forEach(function (sg) {
+          var pts = [];
+          for (var jj = 0; jj <= n; jj++) {
+            var u = jj / n, o = sg * Math.sin(u * 30 - k * 1.3) * wr * 2.2;
+            pts.push([s.ox + s.dx * s.rng * u - s.dy * o, s.oy + s.dy * s.rng * u + s.dx * o]);
+          }
+          pen.polyline(pts, L.mix(c, L.HOT, 0.3), 200 * (1 - q), 0.9 * ps);
+        });
+        pen.glow(xr, yr, wr * 3.0, c, 160 * (1 - q));
+        pen.add(false);
+        pen.line(s.ox, s.oy, xr, yr, VOID, 240, wr * 0.7);
+        pen.add(true);
       }
       return;
     }

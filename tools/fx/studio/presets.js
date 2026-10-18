@@ -428,6 +428,16 @@ G.FX_PRESETS = [
      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 1, knockback: 16},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
      params: {style: "earth_cleaver", length: 58, thickness: 12, radius: 0, span: 0, swing_ticks: 7, hold_ticks: 10, density: 1, w_mode: "signature"}}]},
+  {name: "Void sniper rifle", group: "Weapons", desc: "Void energy gathers at the muzzle, then one thin rail line hits along its whole length and the void implodes on the target. Signature colours",
+   effects: [{prim: "technique", name: "Void sniper rifle", tag: "projectile", anchor: "figure", blend: "normal", flip: {enabled: true, facing: 1},
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 2, knockback: 8},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#b46bff", c2: "#3c0a78"},
+     params: {style: "void_sniper", length: 70, thickness: 3.5, radius: 520, span: 0, swing_ticks: 8, hold_ticks: 8, density: 1, w_mode: "signature"}}]},
+  {name: "Void sniper rifle (palette)", group: "Weapons", desc: "The same weapon in the character's palette colour",
+   effects: [{prim: "technique", name: "Void sniper rifle", tag: "projectile", anchor: "figure", blend: "normal", flip: {enabled: true, facing: 1},
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 2, knockback: 8},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "void_sniper", length: 70, thickness: 3.5, radius: 520, span: 0, swing_ticks: 8, hold_ticks: 8, density: 1, w_mode: "signature"}}]},
   // ---------------------------------------------------------------- power techniques
   // Hand-drawn (prim "technique", laser/powerfx.py + powerfx.js).  The
   // gigantic meteor and black hole pull the opposing fighter in Battle.
