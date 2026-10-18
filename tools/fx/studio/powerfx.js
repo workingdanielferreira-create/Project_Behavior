@@ -904,11 +904,13 @@ function spFrame(inst) {
 }
 function spFront(P, ps, k) { return +P.length * ps * L_().easeOut3(Math.min(1, k / ti(P, "hold_ticks", 1))); }
 function spHw(P, ps, lx) { return +P.radius * ps * 2 + +P.thickness * ps * Math.pow(cl(lx / (+P.length * ps)), 0.75); }
+// A clash split cuts the cone short at the contact (inst.cap, laser/clash.py).
+function spCap(inst, df) { return inst.cap == null ? df : Math.min(df, inst.cap); }
 function spHit(inst, tx, ty, hr, ps) {
   var P = inst.fx.params, t = inst.age, Tw = ti(P, "swing_ticks", 1);
   if (t < Tw || t >= inst.life) return false;
   var fr = spFrame(inst), dx = tx - fr.ox, dy = ty - fr.oy, lx = dx * fr.fx + dy * fr.fy, ly = dx * fr.vx + dy * fr.vy;
-  var df = spFront(P, ps, t - Tw);
+  var df = spCap(inst, spFront(P, ps, t - Tw));
   if (lx < -hr || lx > df + hr) return false;
   return Math.abs(ly) <= spHw(P, ps, Math.max(0, Math.min(lx, df))) + hr;
 }
@@ -950,7 +952,7 @@ function drawSerious(pen, inst, host, ps) {
     }
     return;
   }
-  var k = t - Tw, fr = spFrame(inst), ang = Math.atan2(inst.tq_f[1], inst.tq_f[0]), df = spFront(P, ps, k);
+  var k = t - Tw, fr = spFrame(inst), ang = Math.atan2(inst.tq_f[1], inst.tq_f[0]), df = spCap(inst, spFront(P, ps, k));
   var aC = k < SP_OUT + Th ? 1 : Math.max(0, 1 - (k - SP_OUT - Th) / 14);
   var aS = cl(k / (Th * 0.6 + 1)) * (k < SP_OUT + Th ? 1 : Math.max(0, 1 - (k - SP_OUT - Th) / SP_SPLIT_LIFE));
   // 2: clouds blown apart either side of the line (painted normally)
@@ -1134,6 +1136,16 @@ function hit(inst, tx, ty, hr, ps) {
   return bhHit(inst, tx, ty, hr, ps);
 }
 function body() { return null; }   // none of these clash as a blade
+// The serious punch clashes as a beam while its shock cone is out: [head,
+// tail, tail half width, head half width], else null (tail = the fist,
+// head = the shock front).  laser/powerfx.py beam.
+function beam(inst, ps) {
+  var P = inst.fx.params, t = inst.age, Tw = ti(P, "swing_ticks", 1);
+  if (L_().style(P) !== "serious_punch" || t < Tw || t >= inst.life) return null;
+  var fr = spFrame(inst), df = spCap(inst, spFront(P, ps, t - Tw));
+  if (df <= 0.5) return null;
+  return [fr.w(df, 0), [fr.ox, fr.oy], spHw(P, ps, 0), spHw(P, ps, df)];
+}
 function onHit(inst, x, y, ps) {
   var st = L_().style(inst.fx.params);
   if (st === "rasen_shuriken") rsOnHit(inst, ps);
@@ -1159,5 +1171,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.POWERFX = {STYLES: STYLES, PULL_STYLES: PULL_STYLES, AURA_N: AURA_N, outlineFromAlpha: outlineFromAlpha, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
-             hit: hit, body: body, onHit: onHit, draw: draw};
+             hit: hit, body: body, beam: beam, onHit: onHit, draw: draw};
 })(window);

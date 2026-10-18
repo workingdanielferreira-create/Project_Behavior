@@ -95,6 +95,21 @@ function livePoints(inst, ps) {
     q = s.pos(fr, 1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
   });
 }
+// Indices of the ki shots in flight this tick: each clashes on its own as a
+// sprite.  laser/strikefx.py shot_ids.
+function shotIds(inst, ps) {
+  if (L_().style(inst.fx.params) !== "ki_barrage" || inst.age >= inst.life) return [];
+  return live(inst, ps).map(function (e) { return e[0].i; });
+}
+// [x, y, vx, vy, radius, ticks left] of ki shot i while it flies, else null.
+function shotAt(inst, i, ps) {
+  var P = inst.fx.params;
+  if (i < 0 || i >= kiCount(P)) return null;
+  var s = new Shot(inst, i, ps), e = s.end(inst)[0];
+  if (inst.age < s.b || inst.age >= e) return null;
+  var fr = new Fr(inst, ps), k = inst.age - s.b, p = s.pos(fr, k), q = s.pos(fr, k + 1);
+  return [p[0], p[1], q[0] - p[0], q[1] - p[1], +P.radius * ps * s.size, e - inst.age];
+}
 function kiHit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var r0 = +inst.fx.params.radius * ps, lv = live(inst, ps);
@@ -396,5 +411,6 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep};
+G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
+                shotIds: shotIds, shotAt: shotAt};
 })(window);

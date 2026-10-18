@@ -474,7 +474,10 @@ bulging forward; a one-cut row of `CUTS`).
   sets the hit window as `inst.life`); `tick_inst` keeps it alive until
   `swordfx.total_ticks` for the afterglow; `_hit_shape` → `swordfx.hit`;
   `resolve_hits` → `swordfx.on_hit` (the X flash on the target); `_DRAW` →
-  `swordfx.draw`. `clash.py` treats every technique as a `crescent` body.
+  `swordfx.draw`. `clash.py` treats a technique as a `crescent` body
+  (`swordfx.clash_cat`), except the Ki Barrage (each ki shot a `sprite`), the
+  Charged Blast (its orb an `orb`) and the Serious Punch (a `beam`); the other
+  guns and power techniques never clash.
 - **Determinism:** everything is a function of age + seed (`rng_for`), so
   `tools/fx/studio/swordfx.js` draws the same pixels. Change both together;
   `check_parity.py` covers the shared tables (`TECH_STYLES`,
@@ -514,7 +517,9 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   `swordfx.on_tick` from `tick_inst`). A shot that hits stops and detonates
   there (`inst.tq_ki`); the rest detonate at the end of their range. Blasts:
   white flash, fireball, shock ring, sparks; smoke (painted normally, under
-  the light) piles up. Ki shots never clash as a blade (`body` → None).
+  the light) piles up. Ki shots never clash as a blade (`body` → None): each
+  one in flight is its own `sprite` clash body (`strikefx.shot_at`); a clash
+  that cancels one stops just that shot (`inst.tq_ki`).
 - **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
   Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
   an air ring in front of the fist. Hits along the arm; the impact (flash,
@@ -677,13 +682,20 @@ bodies (a point, a line or a polyline with a half width) in five categories:
 
 | Category | FX Kit | Built-in |
 |---|---|---|
-| beam | `beam` prim | `RichBeamProjectile` |
-| orb | `sprite` with shape `orb` | mage petals, round / homing bullets |
+| beam | `beam` prim; Serious Punch technique (its shock cone, fist to front) | `RichBeamProjectile` |
+| orb | `sprite` with shape `orb`; Charged Blast technique (each orb in flight) | mage petals, round / homing bullets |
 | trail | `ribbon` (its moving end) | the laser trail (its moving end) |
-| crescent | `arc` prim | `CrescentWave`, `UltimateCrescent` |
-| sprite | bolt / blade `sprite` | the runner's bolts and other shots |
+| crescent | `arc` prim; sword techniques, punches, bladed weapons | `CrescentWave`, `UltimateCrescent` |
+| sprite | bolt / blade `sprite`; Ki Barrage technique (each ki shot in flight) | the runner's bolts and other shots |
 
-Ghost, glow, pulse, particles and weapon never clash. Two opposing bodies
+Ghost, glow, pulse, particles, weapon, the other guns and the other power
+techniques never clash. A technique's shots clash one by one (`clash.ShotRef`):
+a cancelled shot stops and detonates where it met, the rest fly on. A held
+Charged Blast orb freezes its technique and is moved where the clash puts it
+(`gunfx.place`: riding a struggle node, pushing through when it wins). Split
+halves of a Charged Blast orb are plain FX Kit orbs, and of a Serious Punch
+plain FX Kit beams, in the technique's colour; the punch's cone is cut short
+at the contact (`inst.cap`). Two opposing bodies
 that touch play the rule for their categories (`RULES`; every pair has one):
 
 | Pair | What happens |

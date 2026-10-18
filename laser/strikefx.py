@@ -198,6 +198,30 @@ def live_points(inst, ps):
     return out
 
 
+def shot_ids(inst, ps):
+    """Indices of the ki shots in flight this tick: each clashes on its own
+    as a sprite (laser/clash.py)."""
+    if _style_of(inst) != "ki_barrage" or inst.age >= inst.life:
+        return []
+    return [s.i for (s, _p) in _live(inst, ps)]
+
+
+def shot_at(inst, i, ps):
+    """(x, y, vx, vy, radius, ticks left) of ki shot i while it flies, else None."""
+    P = inst.fx["params"]
+    if not 0 <= i < ki_count(P):
+        return None
+    s = Shot(inst, i, ps)
+    e = s.end(inst)[0]
+    if not s.b <= inst.age < e:
+        return None
+    fr = _Fr(inst, ps)
+    k = inst.age - s.b
+    x, y = s.pos(fr, k)
+    x1, y1 = s.pos(fr, k + 1)
+    return x, y, x1 - x, y1 - y, float(P["radius"]) * ps * s.size, e - inst.age
+
+
 def _style_of(inst):
     return S._style(inst.fx["params"])
 

@@ -108,6 +108,7 @@ function onSpawn(inst, host) {
   inst.tq_path = [[inst.x, inst.y]];   // where the anchor was, per tick
   inst.tq_ki = {};                // ki shots stopped by a hit: index -> [tick, x, y]
   inst.tq_kd = {};                // ki shots an intercept pulled off their path (STRIKEFX.trackStep)
+  inst.tq_off = {};               // gun rounds a clash moved: index -> [dx, dy] (GUNFX.place)
   inst.tq_imp = [];               // punch impacts: [tick, x, y]
   inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
   if (POWER()) POWER().onSpawn(inst, host);
@@ -333,6 +334,33 @@ function hit(inst, tx, ty, hr, ps) {
 // [points, half width] a clash treats as a cutting blade, or null: every
 // sword technique, a punch's arm, a weapon's blade; never guns, ki shots or
 // the power techniques.  laser/swordfx.py body.
+// What a technique is to World Clash: the ki barrage's shots are sprites,
+// the charged blast's orb an orb, the serious punch a beam; every other one
+// that clashes is a cutting blade (crescent, body).  laser/swordfx.py clash_cat.
+function clashCat(P) {
+  var st = style(P);
+  return st === "ki_barrage" ? "sprite" : st === "charged_blast" ? "orb" : st === "serious_punch" ? "beam" : "crescent";
+}
+// Indices of a technique's shots in flight this tick that clash one by one
+// (ki barrage, charged blast); [] for every other style.
+function shotIds(inst, ps) {
+  var st = style(inst.fx.params);
+  if (st === "ki_barrage") return STRIKE().shotIds(inst, ps);
+  if (st === "charged_blast") return GUN().shotIds(inst, ps);
+  return [];
+}
+// [x, y, vx, vy, radius, ticks left] of shot i while it flies, else null.
+function shotAt(inst, i, ps) {
+  return style(inst.fx.params) === "ki_barrage" ? STRIKE().shotAt(inst, i, ps) : GUN().shotAt(inst, i, ps);
+}
+// Shot i is at (x, y) this tick: only the charged blast's orb is ever held.
+function placeShot(inst, i, x, y, ps) {
+  if (style(inst.fx.params) === "charged_blast") GUN().place(inst, i, x, y, ps);
+}
+// The colour a technique is painted in (colours).
+function techColour(inst, lut) {
+  return inst.fx.color.mode === "palette" ? vivid(lut) : FXK().colorPair(inst.fx, lut)[0];
+}
 function body(inst, ps) {
   var st = style(inst.fx.params);
   if (st === "crescent_wave") return waveBody(inst, ps);
@@ -855,7 +883,8 @@ function draw(g, inst, host, ps) {
 }
 
 // strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
-G.SWORDFX = {draw: draw, hit: hit, body: body, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shotIds, shotAt: shotAt, placeShot: placeShot,
+             techColour: techColour, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,

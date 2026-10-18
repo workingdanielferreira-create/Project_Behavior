@@ -193,7 +193,8 @@ def _aim(inst, k):
 # ---------------------------------------------------------------- rounds
 class Round:
     """One round: everything about it is rolled from the seed."""
-    __slots__ = ("i", "v", "j", "b", "look", "sp", "ang", "size", "tint", "rng", "flight", "arc", "fr", "ox", "oy")
+    __slots__ = ("i", "v", "j", "b", "look", "sp", "ang", "size", "tint", "rng", "flight", "arc", "fr", "ox", "oy",
+                 "dx", "dy")
 
     def __init__(self, inst, i, v, j, b, ps):
         P = inst.fx["params"]
@@ -228,6 +229,10 @@ class Round:
         self.ox, self.oy = ox + so[0], oy + so[1]
         self.sp = su * ps
         self.arc = 0.0
+        # A clash holding / carrying this round (laser/clash.py) shifts its
+        # whole flight: inst.tq_off[i] = (dx, dy).
+        off = (getattr(inst, "tq_off", None) or {}).get(i)
+        self.dx, self.dy = off if off is not None else (0.0, 0.0)
         L = float(P["length"])
         if self.look == "rail":
             self.rng = L * ps
@@ -256,7 +261,7 @@ class Round:
         else:
             d0 = self.sp * k
             d = self.fr.d(math.cos(self.ang) * d0, math.sin(self.ang) * d0)
-        return self.ox + d[0], self.oy + d[1]
+        return self.ox + d[0] + self.dx, self.oy + d[1] + self.dy
 
     def head(self, k):
         """Unit direction of travel k ticks after launch."""
@@ -320,6 +325,55 @@ def live_points(inst, ps):
     return out
 
 
+# ---------------------------------------------------------------- clash
+# A charged blast's orb clashes on its own (laser/clash.py: an orb body per
+# round in flight); every other gun never clashes.
+def clashes(P):
+    return S._style(P) == "charged_blast"
+
+
+def _round_i(inst, i, ps):
+    """Round i, once it has fired (else None)."""
+    P = inst.fx["params"]
+    n = _g(P)["pellets"]
+    lb = launches(P)
+    v = i // n
+    if i < 0 or v >= len(lb) or lb[v] > inst.age:
+        return None
+    return Round(inst, i, v, i % n, lb[v], ps)
+
+
+def shot_ids(inst, ps):
+    """Indices of the rounds in flight this tick that clash."""
+    if not clashes(inst.fx["params"]) or inst.age >= inst.life:
+        return []
+    return [s.i for (s, _p) in _live(inst, ps)]
+
+
+def shot_at(inst, i, ps):
+    """(x, y, vx, vy, radius, ticks left) of round i while it flies, else None."""
+    s = _round_i(inst, i, ps)
+    if s is None or s.look == "rail":
+        return None
+    e = s.end(inst)[0]
+    if inst.age >= e:
+        return None
+    k = inst.age - s.b
+    x, y = s.pos(k)
+    x1, y1 = s.pos(k + 1)
+    return x, y, x1 - x, y1 - y, float(inst.fx["params"]["radius"]) * ps * s.size, e - inst.age
+
+
+def place(inst, i, x, y, ps):
+    """Round i is at (x, y) this tick: its whole flight shifts there (a
+    clash pins it, carries it on a struggle node or sends it on)."""
+    s = _round_i(inst, i, ps)
+    if s is None:
+        return
+    nx, ny = s.pos(inst.age - s.b)
+    inst.tq_off[i] = (s.dx + x - nx, s.dy + y - ny)
+
+
 def _rail_line(s):
     d = s.fr.d(s.rng, 0.0)
     return s.ox, s.oy, s.ox + d[0], s.oy + d[1]
@@ -380,6 +434,8 @@ def _blast_at(inst, s):
     e, stopped = s.end(inst)
     if stopped:
         h = inst.tq_ki[s.i]
+        if len(h) > 3 and h[3]:
+            return None     # gone without a blast (a clash split it: its halves fly on)
         return e, h[1], h[2], True
     if s.look in EXPLODES:
         x, y = s.pos(s.flight)
