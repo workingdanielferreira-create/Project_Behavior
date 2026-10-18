@@ -14,6 +14,7 @@ from . import blink as _blink
 from . import dodge as _dodge
 from . import unique as _unique
 from . import movestyle as _movestyle
+from . import dmgnum as _dmgnum
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +279,8 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
     p.hp -= amount
+    # Floating combined damage number (laser/dmgnum.py), Solo & Battle.
+    _dmgnum.note(world, fig, amount, _dmgnum.fig_rgb(fig))
     cd = damage_cooldown_ticks(fig)
     if cd > 0 and world is not None:
         p.dmg_immune_until = world.global_tick + cd

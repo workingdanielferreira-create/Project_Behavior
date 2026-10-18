@@ -16,6 +16,7 @@ from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
                          QPixmap, QPainter, QImage)
 
 from . import config, modes
+from . import dmgnum as _dmgnum
 from .geometry import angle_deg_qt, angle_diff, bilinear
 from .palette import LUT_MASK
 
@@ -2693,6 +2694,7 @@ def tick_hpt_clones(world):
             if ddx * ddx + ddy * ddy <= hurt_rsq:
                 world.collision_dots.append([clone.x, clone.y, 0])
                 clone.hp -= float(tup[7])
+                _dmgnum.note(world, clone, float(tup[7]), clone.rgb)
                 if not getattr(tup[8], "pierce", False):
                     kill_projectile(tup[8])
                     surviving_projs.remove(tup)
