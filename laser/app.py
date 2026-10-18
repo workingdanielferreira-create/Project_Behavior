@@ -19,6 +19,7 @@ from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
 
 from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique, movestyle
 from . import swordfx
+from . import dmgnum
 from .prebattle import PreBattleMenu
 from . import platform_win as win
 from .assets import AssetLibrary
@@ -174,6 +175,7 @@ class World:
         # Clash explosions (laser/clashfx.py): live ClashFX objects, drawn +
         # aged in _paint.  F6 previews the next variation at the cursor.
         self.clash_fx = []
+        self.damage_numbers = []            # dmgnum.DamageNumber — combined hit totals
         self.clash_preview_idx = 0
 
         # Input bookkeeping
@@ -1276,6 +1278,11 @@ class Overlay(QWidget):
         if w.clash_fx:
             sw, sh = w.screen_w, w.screen_h
             clashfx.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
+
+        # --- Damage numbers (laser/dmgnum.py) — combined 5 s totals ---
+        if w.damage_numbers:
+            sw, sh = w.screen_w, w.screen_h
+            dmgnum.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
         if not hud:
             return

@@ -297,6 +297,16 @@ HP_DISPLAY_FONT_SIZE  = 14       # pt — neon HP readout bottom-right
 HP_DISPLAY_MARGIN_R   = 18       # px from right edge per figure slot
 HP_DISPLAY_MARGIN_B   = 48       # px above the taskbar
 
+# Damage numbers (laser/dmgnum.py) — one combined value per target per window.
+DMG_NUM_WINDOW_MS     = 5000     # hits within 5 s of the first are summed
+DMG_NUM_FADE_MS       = 600      # drift-up + fade after the window closes
+DMG_NUM_FADE_RISE_PX  = 28.0     # px the number rises while fading
+DMG_NUM_POP_MS        = 180      # scale "pop" on every added hit
+DMG_NUM_POP_SCALE     = 0.35     # +35% size at the instant of a hit
+DMG_NUM_FONT_SIZE     = 13       # pt
+DMG_NUM_LIFT_PX       = 40.0     # px above a fighter's centre
+DMG_NUM_LIFT_SMALL_PX = 16.0     # min px above a clone / structure
+
 # ---------------------------------------------------------------------------
 # Runner Ultimate Attack
 # ---------------------------------------------------------------------------

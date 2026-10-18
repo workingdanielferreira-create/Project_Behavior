@@ -68,6 +68,7 @@ from PyQt5.QtGui import QColor, QPen, QBrush, QPainter, QRadialGradient, QPolygo
 
 from . import config
 from . import modes as _modes
+from . import dmgnum as _dmgnum
 
 TICK_MS = config.TICK_MS
 TYPES = ("none", "mirror_legion", "berserker", "phase_shift", "ricochet", "riposte",
@@ -1876,10 +1877,13 @@ def _blocking(world, side_idx, for_shots):
         yield s
 
 
-def _struct_hit(s, x, y, damage, sparks):
-    s.hp -= max(0.0, float(damage))
+def _struct_hit(s, x, y, damage, world):
+    dmg = max(0.0, float(damage))
+    s.hp -= dmg
     s.hit_flash = 5
-    _burst(sparks, x, y, _rgb(s.P["color"], (201, 164, 106)), n=4, spd=(0.8, 2.5))
+    rgb = _rgb(s.P["color"], (201, 164, 106))
+    _burst(world.sparks, x, y, rgb, n=4, spd=(0.8, 2.5))
+    _dmgnum.note(world, s, dmg, rgb)
 
 
 def _proj_blocked(proj, world):
@@ -1887,7 +1891,7 @@ def _proj_blocked(proj, world):
     for s in _blocking(world, getattr(world, "side_idx", 0), True):
         d, _nx, _ny = s.dist(proj.x, proj.y)
         if d <= s.r + float(getattr(proj, "radius", 3.0)):
-            _struct_hit(s, proj.x, proj.y, getattr(proj, "damage", 1.0), world.sparks)
+            _struct_hit(s, proj.x, proj.y, getattr(proj, "damage", 1.0), world)
             proj.age = proj.max_age
             return True
     return False
@@ -2449,7 +2453,7 @@ def _inst_blocked(inst, world):
     for s in _blocking(world, getattr(world, "side_idx", 0), True):
         d, _nx, _ny = s.dist(inst.x, inst.y)
         if d <= s.r + 6.0 * (inst.ps or 1.0):
-            _struct_hit(s, inst.x, inst.y, float(fx["battle"].get("damage") or 1.0), world.sparks)
+            _struct_hit(s, inst.x, inst.y, float(fx["battle"].get("damage") or 1.0), world)
             inst.age = max(inst.age, inst.life)
             return True
     return False
