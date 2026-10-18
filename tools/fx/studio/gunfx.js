@@ -110,7 +110,7 @@ function Round(inst, i, v, j, b, ps) {
   this.i = i; this.v = v; this.j = j; this.b = b;
   this.look = g.look;
   this.ang = a * L.D;
-  this.size = r.uniform(0.85, 1.15);
+  this.size = r.uniform(0.85, 1.15) * ((inst.tq_grow || {})[i] || 1);   // grown by absorbing
   this.tint = r.uniform(0, 0.35);
   var am = aim(inst, b), ox = am[0], oy = am[1], f = am[2];
   var m = tracks(inst) ? (f[0] >= 0 ? 1 : -1) : inst.tq_m;
@@ -126,6 +126,9 @@ function Round(inst, i, v, j, b, ps) {
   // flight: inst.tq_off[i] = [dx, dy].
   var off = (inst.tq_off || {})[i];
   this.dx = off ? off[0] : 0; this.dy = off ? off[1] : 0;
+  // An intercept pulled it off its path (charged blast, trackStep): from then
+  // on it flies its recorded path (STRIKEFX.trackShots).
+  this.trk = (inst.tq_kd || {})[i] || null;
   var Lp = +P.length;
   if (this.look === "rail") {
     this.rng = Lp * ps;
@@ -146,7 +149,13 @@ function Round(inst, i, v, j, b, ps) {
   }
 }
 Round.prototype.pos = function (k) {   // world position k ticks after launch
-  var d;
+  var d, tr = this.trk;
+  if (tr && this.b + k >= tr[0]) {
+    var h = tr[1], j = this.b + k - tr[0], n = Math.floor(j);
+    if (n >= h.length - 1) return h[h.length - 1].slice();
+    var u = j - n, a = h[n], b2 = h[n + 1];
+    return [a[0] + (b2[0] - a[0]) * u, a[1] + (b2[1] - a[1]) * u];
+  }
   if (this.look === "rocket") {
     var u = minmax(k / this.flight, 0, 1), e = Math.pow(u, ROCKET_EASE);
     var lx = 2 * (1 - e) * e * this.rng * 0.4 + e * e * this.rng, ly = 2 * (1 - e) * e * this.arc;
@@ -205,6 +214,12 @@ function roundI(inst, i, ps) {   // round i, once it has fired (else null)
   if (i < 0 || v >= lb.length || lb[v] > inst.age) return null;
   return new Round(inst, i, v, i % n, lb[v], ps);
 }
+// Intercept for the charged blast: its orb is an auto-projectile tracker
+// exactly like a ki barrage orb.  laser/gunfx.py track_step.
+function trackStep(inst, host) {
+  if (!host || !clashes(inst.fx.params) || inst.age >= inst.life || !G.STRIKEFX) return;
+  G.STRIKEFX.trackShots(inst, host, live(inst, inst.ps || 1), function (s, k) { return s.pos(k); });
+}
 function shotIds(inst, ps) {   // indices of the rounds in flight this tick that clash
   if (!clashes(inst.fx.params) || inst.age >= inst.life) return [];
   return live(inst, ps).map(function (e) { return e[0].i; });
@@ -222,7 +237,11 @@ function shotAt(inst, i, ps) {
 function place(inst, i, x, y, ps) {
   var s = roundI(inst, i, ps);
   if (!s) return;
-  var p = s.pos(inst.age - s.b);
+  var p = s.pos(inst.age - s.b), tr = s.trk;
+  if (tr && inst.age >= tr[0]) {   // flying its recorded (tracked) path: the path shifts instead
+    tr[1] = tr[1].map(function (q) { return [q[0] + x - p[0], q[1] + y - p[1]]; });
+    return;
+  }
   if (!inst.tq_off) inst.tq_off = {};
   inst.tq_off[i] = [s.dx + x - p[0], s.dy + y - p[1]];
 }
@@ -792,5 +811,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place};
+           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep};
 })(window);

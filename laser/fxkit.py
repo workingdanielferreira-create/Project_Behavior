@@ -305,11 +305,18 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #            their combined momentum; hurts_owner turns the deflected enemy
 #            projectile against the fighter who fired it
 #   destroy  the enemy projectile is nullified, this one keeps going
+#   absorb   an enemy projectile with LESS knockback than this one is
+#            swallowed (gone, no blast) and this one grows ABSORB_STEP
+#            (size, hit size, blast, damage and knockback) up to ABSORB_MAX;
+#            one with as much knockback or more is left to World Clash
+#            (absorb_grow; laser/clash.py absorbs lesser bodies it touches too)
 # Clashing is not an intercept mode: it is world physics (laser/clash.py),
 # the same for every effect.  An older file's "clash" mode loads as "block".
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
                           hurts_owner=False)
-INTERCEPT_MODES = ("block", "deflect", "destroy")
+INTERCEPT_MODES = ("block", "deflect", "destroy", "absorb")
+ABSORB_STEP = 0.05      # absorb: +5% of the original size per projectile swallowed...
+ABSORB_MAX = 2.0        # ...up to 200%
 # Flip (fx.flip, FXK.FLIP_DEFAULTS): when enabled the effect is laid out
 # toward the side the target is on (fx_facing), whichever way the fighter
 # itself faces, and it plays as the mirror image (left <-> right only, never
@@ -1161,9 +1168,11 @@ class Inst:
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
-                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t")
+                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow")
 
     def __init__(self):
+        self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
+        self.tq_grow = {}      # a technique's shots grown by absorbing: index -> growth
         # Unique ability Ricochet (laser/unique.py): bounces left (None = not
         # read yet), no-rebounce window, damage kept after the bounces so far.
         self.ua_rb = None
@@ -1436,7 +1445,7 @@ def move_inst(inst, host):
 # ribbon itself carries on either way.
 DEFLECT_FAN_DEG = 15   # with deflect "both", the two fly apart this far either side
 INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
-GUARD_MODES = ("block", "deflect", "destroy")
+GUARD_MODES = ("block", "deflect", "destroy", "absorb")
 
 
 def is_guard(fx):
@@ -1445,9 +1454,10 @@ def is_guard(fx):
 
 
 def is_ki_tracker(fx):
-    """A ki barrage: every orb it fires is its own tracker
-    (laser/strikefx.py track_step), so the technique never moves itself."""
-    return fx["prim"] == "technique" and swordfx._style(fx["params"]) == "ki_barrage"
+    """A ki barrage or a charged blast: every orb it fires is its own tracker
+    (laser/strikefx.py / gunfx.py track_step), so the technique never moves
+    itself."""
+    return fx["prim"] == "technique" and swordfx._style(fx["params"]) in ("ki_barrage", "charged_blast")
 
 
 def can_intercept(fx):
@@ -1469,6 +1479,36 @@ def fx_knockback(fx):
         return float((fx.get("battle") or {}).get("knockback") or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def inst_knockback(inst, i=None):
+    """This instance's knockback now (shot i of a technique: that shot's):
+    its effect's, times what it has grown by absorbing."""
+    return fx_knockback(inst.fx) * (inst.tq_grow.get(i, 1.0) if i is not None else inst.ab_g)
+
+
+def absorb_grow(inst, i=None):
+    """An absorb swallowed a projectile: the instance (or shot i of a
+    technique) grows ABSORB_STEP of its original size, up to ABSORB_MAX.
+    An instance grows through its scale (inst.ps: drawn size, hit size,
+    reach); a shot through its size (strikefx / gunfx).  Damage and
+    knockback grow with it (hit_mult, inst_knockback)."""
+    if i is not None:
+        inst.tq_grow[i] = round(min(ABSORB_MAX, inst.tq_grow.get(i, 1.0) + ABSORB_STEP), 4)
+        return
+    g0 = inst.ab_g
+    g1 = round(min(ABSORB_MAX, g0 + ABSORB_STEP), 4)
+    if g1 > g0:
+        inst.ps *= g1 / g0
+        inst.ab_g = g1
+
+
+def hit_mult(inst, x, y, ps):
+    """Damage / knockback multiplier of a hit at (x, y): what the instance
+    (a technique: its shot nearest the hit) has grown by absorbing."""
+    if inst.fx["prim"] == "technique":
+        return swordfx.hit_growth(inst, x, y, ps)
+    return inst.ab_g
 
 
 def inst_body(inst):
@@ -1524,11 +1564,12 @@ class RoundRef:
         """This bullet already stopped (it hit, or an orb took it)."""
         return self.i in (getattr(self.inst, "tq_ki", None) or {})
 
-    def stop(self, x, y):
-        """The bullet bursts at (x, y) now, as when it hits (tq_ki)."""
+    def stop(self, x, y, silent=False):
+        """The bullet bursts at (x, y) now, as when it hits (tq_ki); silent =
+        it just vanishes (absorbed)."""
         ki = getattr(self.inst, "tq_ki", None)
         if ki is not None and self.i not in ki:
-            ki[self.i] = (self.inst.age, float(x), float(y))
+            ki[self.i] = (self.inst.age, float(x), float(y), True) if silent else (self.inst.age, float(x), float(y))
 
     @property
     def dead(self):
@@ -1558,8 +1599,11 @@ def shot_nearest(s, x, y):
     return px, py, max(0.0, math.hypot(px - x, py - y) - b[4])
 
 
-def _shot_takes(s, mode):
-    """Whether an intercept in `mode` may take shot s (FXK.shotTakes)."""
+def _shot_takes(s, mode, kb=None):
+    """Whether an intercept in `mode` may take shot s (FXK.shotTakes).
+    absorb: only a shot with less knockback than kb (the absorber's)."""
+    if mode == "absorb":
+        return s.blockable and kb is not None and s.knockback < kb
     return s.deflectable if mode == "deflect" else s.blockable
 
 
@@ -1569,24 +1613,26 @@ def _shot_gone(s):
     return s.kind == "fx" and (s.ref.dead or s.ref.age >= s.ref.life)
 
 
-def orb_takes(s, mode):
-    """Whether a ki barrage orb in `mode` may take shot s: what any
-    intercept may take, plus the enemy's gun / ki bullets, by their effect's
-    own Blockable / Deflectable (FXK.orbTakes)."""
+def orb_takes(s, mode, kb=None):
+    """Whether a ki barrage / charged blast orb in `mode` may take shot s:
+    what any intercept may take, plus the enemy's gun / ki bullets, by their
+    effect's own Blockable / Deflectable (FXK.orbTakes)."""
     if s.threat:
         if isinstance(s.ref, RoundRef) and s.ref.stopped:
             return False
+        if mode == "absorb":
+            return s.rblock and kb is not None and s.knockback < kb
         return s.rdeflect if mode == "deflect" else s.rblock
-    return _shot_takes(s, mode)
+    return _shot_takes(s, mode, kb)
 
 
-def orb_contact(x, y, r, host, contact, mode):
+def orb_contact(x, y, r, host, contact, mode, kb=None):
     """Nearest shot touching a ki orb (a point body of radius r at x, y):
     the gap between the two bodies is at most `contact`."""
     mine = (x, y, x, y, r)
     best, bd = None, 0.0
     for s in getattr(host, "shots", None) or ():
-        if s.dead or _shot_gone(s) or not orb_takes(s, mode):
+        if s.dead or _shot_gone(s) or not orb_takes(s, mode, kb):
             continue
         d = seg_seg_dist(mine, s.body) - r - s.body[4]
         if d <= contact and (best is None or d < bd):
@@ -1594,11 +1640,11 @@ def orb_contact(x, y, r, host, contact, mode):
     return best
 
 
-def orb_nearest(x, y, host, r, mode):
+def orb_nearest(x, y, host, r, mode, kb=None):
     """Nearest shot by centre point within r of a ki orb (the tracker radius)."""
     best, bd, r2 = None, 0.0, r * r
     for s in getattr(host, "shots", None) or ():
-        if s.dead or _shot_gone(s) or not orb_takes(s, mode):
+        if s.dead or _shot_gone(s) or not orb_takes(s, mode, kb):
             continue
         dx, dy = s.x - x, s.y - y
         d = dx * dx + dy * dy
@@ -1610,10 +1656,11 @@ def orb_nearest(x, y, host, r, mode):
 def _nearest_shot(inst, host, r, mode=None):
     """Nearest shot by centre point within r (the tracker radius)."""
     best, bd, r2 = None, 0.0, r * r
+    kb = inst_knockback(inst)
     for s in getattr(host, "shots", None) or ():
         if s.dead or _shot_gone(s):
             continue
-        if mode and not _shot_takes(s, mode):
+        if mode and not _shot_takes(s, mode, kb):
             continue
         dx, dy = s.x - inst.x, s.y - inst.y
         d = dx * dx + dy * dy
@@ -1627,10 +1674,11 @@ def _contact_shot(inst, host, contact, mode=None):
     the two (centre lines minus half widths) is at most `contact`."""
     mine = inst_body(inst)
     best, bd = None, 0.0
+    kb = inst_knockback(inst)
     for s in getattr(host, "shots", None) or ():
         if s.dead or _shot_gone(s):
             continue
-        if mode and not _shot_takes(s, mode):
+        if mode and not _shot_takes(s, mode, kb):
             continue
         d = seg_seg_dist(mine, s.body) - mine[4] - s.body[4]
         if d <= contact and (best is None or d < bd):
@@ -1700,6 +1748,8 @@ def intercept_step(inst, host):
             if mode == "block":
                 inst.age = max(inst.age, inst.life)
                 return True
+            if mode == "absorb":
+                absorb_grow(inst)
     tgt = _nearest_shot(inst, host, max(0.0, float(ic.get("radius") or 0)) * inst.ps, mode)
     if tgt is None:
         _end_chase(inst)   # back to its own motion
@@ -1759,8 +1809,9 @@ def guard_step(inst, host):
     contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
     head = (inst.px, inst.py, inst.x, inst.y)
     cb = getattr(host, "on_intercept", None)
+    kb = inst_knockback(inst)
     for s in getattr(host, "shots", None) or ():
-        if s.dead or _shot_gone(s) or not _shot_takes(s, mode):
+        if s.dead or _shot_gone(s) or not _shot_takes(s, mode, kb):
             continue
         path = (s.x, s.y, s.x + s.vx, s.y + s.vy)
         if s.body[0] != s.body[2] or s.body[1] != s.body[3]:
@@ -1768,6 +1819,9 @@ def guard_step(inst, host):
         if seg_seg_dist(head, path) - s.body[4] > contact:
             continue
         s.dead = True
+        if mode == "absorb":
+            absorb_grow(inst)
+            kb = inst_knockback(inst)
         if not cb:
             continue
         if mode == "deflect":
@@ -2186,7 +2240,8 @@ def resolve_hits(inst, host, ps):
                     inst.hits += 1
                     inst.last_hit = now
                     ux, uy = (dx / d, dy / d) if d > 0.001 else (inst.dir[0], inst.dir[1])
-                    host.on_hit(inst, b["damage"], ux, uy, b["knockback"], key)
+                    g = inst.ab_g
+                    host.on_hit(inst, b["damage"] * g, ux, uy, b["knockback"] * g, key)
         return
     if inst.fx["prim"] == "particles":
         keep = []
@@ -2203,7 +2258,8 @@ def resolve_hits(inst, host, ps):
             q["hits"] += 1
             q["last_hit"] = now
             d = norm(q["vx"], q["vy"])
-            host.on_hit(inst, b["damage"], d[0], d[1], b["knockback"], hit_key)
+            g = inst.ab_g
+            host.on_hit(inst, b["damage"] * g, d[0], d[1], b["knockback"] * g, hit_key)
             if b["pierce"]:
                 keep.append(q)
         inst.parts = keep
@@ -2214,7 +2270,8 @@ def resolve_hits(inst, host, ps):
         if _hit_shape(inst, hx, hy, hr, ps, host):
             inst.hits += 1
             inst.last_hit = now
-            host.on_hit(inst, b["damage"], inst.dir[0], inst.dir[1], b["knockback"], key)
+            g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
+            host.on_hit(inst, b["damage"] * g, inst.dir[0], inst.dir[1], b["knockback"] * g, key)
             if inst.fx["prim"] == "technique":
                 swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
             # Ricochet (unique ability): bounces off the fighter instead.
@@ -3331,7 +3388,7 @@ class _Host:
             # A gun / ki bullet (only ki orbs take these): that one bullet
             # bursts where it was met; a deflected one flies off as a
             # bullet of this side.
-            ref.stop(shot.x, shot.y)
+            ref.stop(shot.x, shot.y, silent=mode == "absorb")   # absorbed: no blast
             if mode == "deflect":
                 pr = _combat.Projectile(shot.x, shot.y, vel[0], vel[1], swordfx.vivid(self.lut), config.PROJ_TRAIL_LEN)
                 pr.owner = self.fig

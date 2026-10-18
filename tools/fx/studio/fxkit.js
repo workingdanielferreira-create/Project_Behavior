@@ -434,7 +434,11 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 // the same for every effect.  An older file's "clash" mode loads as "block".
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false};
-var INTERCEPT_MODES = ["block", "deflect", "destroy"];
+var INTERCEPT_MODES = ["block", "deflect", "destroy", "absorb"];
+// absorb: an enemy projectile with LESS knockback is swallowed (gone, no
+// blast) and this one grows ABSORB_STEP (size, hit size, blast, damage,
+// knockback) up to ABSORB_MAX.  laser/fxkit.py absorb_grow.
+var ABSORB_STEP = 0.05, ABSORB_MAX = 2;
 // Flip (fx.flip): when enabled the effect is laid out toward the side the
 // target is on (fxFacing), whichever way the fighter itself faces, and it
 // plays as the mirror image (left <-> right only, never up <-> down) when
@@ -1617,13 +1621,14 @@ function emitParticles(inst, fx, host, n) {
 // block / destroy nullify it, deflect bounces it off the ribbon's surface
 // (guardReflect), and the ribbon carries on either way.
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
-var GUARD_MODES = ["block", "deflect", "destroy"];
+var GUARD_MODES = ["block", "deflect", "destroy", "absorb"];
 var GUARD_MIN_BOUNCE_DEG = 20;   // a guard-deflected shot leaves the surface at least this steeply
 var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag"];
 function isGuard(fx) { return fx.prim === "ribbon" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) < 0; }
 // A ki barrage: every orb it fires is its own tracker (STRIKEFX.trackStep),
 // so the technique never moves itself.  laser/fxkit.py is_ki_tracker.
-function isKiTracker(fx) { return fx.prim === "technique" && !!G.SWORDFX && G.SWORDFX.lib.style(fx.params) === "ki_barrage"; }
+// A ki barrage or a charged blast: every orb it fires is its own tracker.
+function isKiTracker(fx) { if (fx.prim !== "technique" || !G.SWORDFX) return false; var st = G.SWORDFX.lib.style(fx.params); return st === "ki_barrage" || st === "charged_blast"; }
 function canIntercept(fx) {
   if (isGuard(fx) || isKiTracker(fx)) return true;
   return fx.prim !== "weapon" && fx.prim !== "ghost" && fx.prim !== "pulse" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) >= 0;
@@ -1631,6 +1636,18 @@ function canIntercept(fx) {
 function interceptOn(fx) { return !!(fx.intercept && fx.intercept.enabled) && canIntercept(fx); }
 function guardOn(fx) { return interceptOn(fx) && isGuard(fx); }
 function fxKnockback(fx) { return +((fx.battle || {}).knockback) || 0; }
+// This instance's knockback now (shot i of a technique: that shot's): its
+// effect's, times what it has grown by absorbing.  laser/fxkit.py inst_knockback.
+function instKnockback(inst, i) { return fxKnockback(inst.fx) * (i != null ? ((inst.tq_grow || {})[i] || 1) : (inst.ab_g || 1)); }
+// An absorb swallowed a projectile: the instance (its scale, inst.ps) or
+// shot i of a technique (its size) grows.  laser/fxkit.py absorb_grow.
+function absorbGrow(inst, i) {
+  if (i != null) { if (!inst.tq_grow) inst.tq_grow = {}; inst.tq_grow[i] = Math.round(Math.min(ABSORB_MAX, (inst.tq_grow[i] || 1) + ABSORB_STEP) * 1e4) / 1e4; return; }
+  var g0 = inst.ab_g || 1, g1 = Math.round(Math.min(ABSORB_MAX, g0 + ABSORB_STEP) * 1e4) / 1e4;
+  if (g1 > g0) { inst.ps = (inst.ps || 1) * g1 / g0; inst.ab_g = g1; }
+}
+// Damage / knockback multiplier of a hit at (x, y) (laser/fxkit.py hit_mult).
+function hitMult(inst, x, y, ps) { return inst.fx.prim === "technique" ? G.SWORDFX.hitGrowth(inst, x, y, ps) : (inst.ab_g || 1); }
 // What an instance collides with: [x0, y0, x1, y1, halfWidth].  A beam is its
 // drawn line, head to tail; anything else its centre point.
 function instBody(inst) {
@@ -1658,7 +1675,9 @@ function shotNearest(s, x, y) {
 // Whether an intercept in `mode` may take shot s: deflect needs a
 // deflectable shot, block / destroy a blockable one (shots without the flags,
 // e.g. built-in bullets, are both).
-function shotTakes(s, mode) {
+// absorb: only a shot with less knockback than kb (the absorber's).
+function shotTakes(s, mode, kb) {
+  if (mode === "absorb") return s.blockable !== false && kb != null && (+s.knockback || 0) < kb;
   return mode === "deflect" ? s.deflectable !== false : s.blockable !== false;
 }
 function shotGone(s) { return s.kind === "fx" && s.ref && (s.ref.dead || s.ref.age >= s.ref.life); }
@@ -1668,25 +1687,29 @@ function roundStopped(s) { return s.round != null && !!(s.ref.tq_ki && s.ref.tq_
 // Whether a ki barrage orb in `mode` may take shot s: what any intercept may
 // take, plus the enemy's gun / ki bullets, by their effect's own Blockable /
 // Deflectable.  laser/fxkit.py orb_takes.
-function orbTakes(s, mode) {
-  if (s.threat) return !roundStopped(s) && (mode === "deflect" ? !!s.rdeflect : !!s.rblock);
-  return shotTakes(s, mode);
+function orbTakes(s, mode, kb) {
+  if (s.threat) {
+    if (roundStopped(s)) return false;
+    if (mode === "absorb") return !!s.rblock && kb != null && (+s.knockback || 0) < kb;
+    return mode === "deflect" ? !!s.rdeflect : !!s.rblock;
+  }
+  return shotTakes(s, mode, kb);
 }
 // Nearest shot touching a ki orb (a point body of radius r at x, y).
-function orbContact(x, y, r, host, contact, mode) {
+function orbContact(x, y, r, host, contact, mode, kb) {
   var mine = [x, y, x, y, r], best = null, bd = 0, shots = host.shots || [];
   for (var i = 0; i < shots.length; i++) {
-    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode)) continue;
+    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode, kb)) continue;
     var sb = shotBody(s), d = segSegDist(mine, sb) - r - sb[4];
     if (d <= contact && (best === null || d < bd)) { best = s; bd = d; }
   }
   return best;
 }
 // Nearest shot by centre point within r of a ki orb (the tracker radius).
-function orbNearest(x, y, host, r, mode) {
+function orbNearest(x, y, host, r, mode, kb) {
   var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
   for (var i = 0; i < shots.length; i++) {
-    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode)) continue;
+    var s = shots[i]; if (s.dead || shotGone(s) || !orbTakes(s, mode, kb)) continue;
     var dx = s.x - x, dy = s.y - y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -1694,10 +1717,10 @@ function orbNearest(x, y, host, r, mode) {
 }
 // Nearest shot by centre point within r (the tracker radius).
 function nearestShot(inst, host, r, mode) {
-  var best = null, bd = 0, shots = host.shots || [], r2 = r * r;
+  var best = null, bd = 0, shots = host.shots || [], r2 = r * r, kb = instKnockback(inst);
   for (var i = 0; i < shots.length; i++) {
     var s = shots[i]; if (s.dead || shotGone(s)) continue;
-    if (mode && !shotTakes(s, mode)) continue;
+    if (mode && !shotTakes(s, mode, kb)) continue;
     var dx = s.x - inst.x, dy = s.y - inst.y, d = dx * dx + dy * dy;
     if (d <= r2 && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -1706,10 +1729,10 @@ function nearestShot(inst, host, r, mode) {
 // Nearest shot whose body touches this instance's body: the gap between the
 // two (centre lines minus half widths) is at most `contact`.
 function contactShot(inst, host, contact, mode) {
-  var mine = instBody(inst), best = null, bd = 0, shots = host.shots || [];
+  var mine = instBody(inst), best = null, bd = 0, shots = host.shots || [], kb = instKnockback(inst);
   for (var i = 0; i < shots.length; i++) {
     var s = shots[i]; if (s.dead || shotGone(s)) continue;
-    if (mode && !shotTakes(s, mode)) continue;
+    if (mode && !shotTakes(s, mode, kb)) continue;
     var sb = shotBody(s), d = segSegDist(mine, sb) - mine[4] - sb[4];
     if (d <= contact && (best === null || d < bd)) { best = s; bd = d; }
   }
@@ -1750,6 +1773,7 @@ function interceptStep(inst, host) {
     } else {
       if (host.onIntercept) host.onIntercept(inst, hit, I.mode, null, false);
       if (I.mode === "block") { inst.age = Math.max(inst.age, inst.life); return true; }
+      if (I.mode === "absorb") absorbGrow(inst);
     }
   }
   var tgt = nearestShot(inst, host, Math.max(0, +I.radius || 0) * ips, I.mode);
@@ -1789,13 +1813,14 @@ function guardReflect(inst, s) {
 function guardStep(inst, host) {
   var I = inst.fx.intercept, mode = GUARD_MODES.indexOf(I.mode) >= 0 ? I.mode : "block";
   var contact = Math.max(0, +I.contact || 0) * (inst.ps || 1), head = [inst.px, inst.py, inst.x, inst.y];
-  var shots = host.shots || [];
+  var shots = host.shots || [], kb = instKnockback(inst);
   for (var i = 0; i < shots.length; i++) {
-    var s = shots[i]; if (s.dead || shotGone(s) || !shotTakes(s, mode)) continue;
+    var s = shots[i]; if (s.dead || shotGone(s) || !shotTakes(s, mode, kb)) continue;
     var sb = shotBody(s), path = [s.x, s.y, s.x + s.vx, s.y + s.vy];
     if (sb[0] !== sb[2] || sb[1] !== sb[3]) path = sb.slice(0, 4);   // a beam: its whole line
     if (segSegDist(head, path) - sb[4] > contact) continue;
     s.dead = true;
+    if (mode === "absorb") { absorbGrow(inst); kb = instKnockback(inst); }
     if (!host.onIntercept) continue;
     if (mode === "deflect") host.onIntercept(inst, s, "deflect", guardReflect(inst, s), !!I.hurts_owner);
     else host.onIntercept(inst, s, mode, null, false);
@@ -2262,7 +2287,8 @@ function resolveHits(inst, host, ps) {
       var rp = prev[q.k] == null ? q.r : prev[q.k], lo = Math.min(q.r, rp) * f - q.w / 2, hi = Math.max(q.r, rp) * f + q.w / 2;
       if (d < lo - hurt.r || d > hi + hurt.r) return;
       inst.ringHits[q.k] = true; inst.hits += 1; inst.lastHit = now;
-      if (host.onHit) host.onHit(inst, b.damage, d > 0.001 ? dx / d : inst.dir[0], d > 0.001 ? dy / d : inst.dir[1], b.knockback);
+      var gp = inst.ab_g || 1;
+      if (host.onHit) host.onHit(inst, b.damage * gp, d > 0.001 ? dx / d : inst.dir[0], d > 0.001 ? dy / d : inst.dir[1], b.knockback * gp);
     });
     return;
   }
@@ -2271,15 +2297,16 @@ function resolveHits(inst, host, ps) {
       var size = Math.max(0.5, q.s0), dx = q.x - hurt.x, dy = q.y - hurt.y;
       if (Math.sqrt(dx * dx + dy * dy) > hurt.r + size / 2 || !canHit(b, q, now)) return true;
       q.hits += 1; q.lastHit = now;
-      var d = norm(q.vx, q.vy);
-      if (host.onHit) host.onHit(inst, b.damage, d[0], d[1], b.knockback);
+      var d = norm(q.vx, q.vy), gq = inst.ab_g || 1;
+      if (host.onHit) host.onHit(inst, b.damage * gq, d[0], d[1], b.knockback * gq);
       return !!b.pierce;
     });
     return;
   }
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
-  if (host.onHit) host.onHit(inst, b.damage, inst.dir[0], inst.dir[1], b.knockback);
+  var gm = hitMult(inst, hurt.x, hurt.y, ps);   // grown by absorbing
+  if (host.onHit) host.onHit(inst, b.damage * gm, inst.dir[0], inst.dir[1], b.knockback * gm);
   if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // its slash flash on the target
   if (b.pierce) return;
   if (canLodge(inst)) bladeLodge(inst, hurt.x, hurt.y, hurt.r, ps);
@@ -2505,7 +2532,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, instKnockback: instKnockback, absorbGrow: absorbGrow, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

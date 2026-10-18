@@ -40,6 +40,7 @@ function Shot(inst, i, ps) {
   this.curve = r.uniform(-22, 22) * ps;
   this.size = r.uniform(0.75, 1.25);
   if (r() < 0.18) this.size *= 1.55;   // now and then a much bigger one
+  this.size *= (inst.tq_grow || {})[i] || 1;   // grown by absorbing (FXK.absorbGrow)
   var ru = r.uniform(KI_RANGE[0], KI_RANGE[1]);
   this.rng = +P.length * ru * ps;
   this.flight = Math.max(1, Math.ceil(+P.length * ru / su));
@@ -140,19 +141,26 @@ function trkPut(tr, t, x, y) {   // where a tracked orb is on tick t + 1
   h.push([x, y]);
 }
 function trackStep(inst, host) {
+  if (!host || L_().style(inst.fx.params) !== "ki_barrage" || inst.age >= inst.life) return;
+  var fr = new Fr(inst, inst.ps || 1);
+  trackShots(inst, host, live(inst, inst.ps || 1), function (s, k) { return s.pos(fr, k); });
+}
+// Intercept for a technique's own shots (ki orbs, the charged blast's orb:
+// GUNFX.trackStep): lv = [[shot, [x, y]]] in flight, pos(s, k) = shot s k
+// ticks after launch.  laser/strikefx.py track_shots.
+function trackShots(inst, host, lv, pos) {
   var fx = inst.fx, K = FXK(), L = L_();
-  if (!host || L.style(fx.params) !== "ki_barrage" || inst.age >= inst.life) return;
   var ic = fx.intercept || {}, on = !!ic.enabled;
   if (!on && !Object.keys(inst.tq_kd).length) return;
   var ps = inst.ps || 1, mode = K.INTERCEPT_MODES.indexOf(ic.mode) >= 0 ? ic.mode : "block";
   var contact = Math.max(0, +ic.contact || 0) * ps, radius = Math.max(0, +ic.radius || 0) * ps;
   var lim = Math.max(0, +ic.turn_deg || 0) * L.D, r0 = +fx.params.radius * ps;
-  var cb = host.onIntercept, fr = new Fr(inst, ps), t = inst.age, lv = live(inst, ps);
+  var cb = host.onIntercept, t = inst.age;
   for (var n = 0; n < lv.length; n++) {
-    var s = lv[n][0], x = lv[n][1][0], y = lv[n][1][1], tr = s.trk, vx, vy;
-    if (tr) { vx = tr[2]; vy = tr[3]; } else { var p1 = s.pos(fr, t - s.b + 1); vx = p1[0] - x; vy = p1[1] - y; }
+    var s = lv[n][0], x = lv[n][1][0], y = lv[n][1][1], tr = s.trk, vx, vy, kb = K.instKnockback(inst, s.i);
+    if (tr) { vx = tr[2]; vy = tr[3]; } else { var p1 = pos(s, t - s.b + 1); vx = p1[0] - x; vy = p1[1] - y; }
     if (on && !(tr && tr[4])) {
-      var hit = K.orbContact(x, y, r0 * s.size, host, contact, mode);
+      var hit = K.orbContact(x, y, r0 * s.size, host, contact, mode, kb);
       if (hit) {
         hit.dead = true;
         if (mode === "deflect") {
@@ -165,10 +173,11 @@ function trackStep(inst, host) {
         } else {
           if (cb) cb.call(host, inst, hit, mode, null, false);
           if (mode === "block") { inst.tq_ki[s.i] = [t, x, y]; continue; }   // both gone: the orb detonates there
+          if (mode === "absorb") { K.absorbGrow(inst, s.i); kb = K.instKnockback(inst, s.i); }   // swallowed: this orb grows
         }
       }
       if (!tr || !tr[4]) {
-        var tg = K.orbNearest(x, y, host, radius, mode);
+        var tg = K.orbNearest(x, y, host, radius, mode, kb);
         if (tg) {
           var spd = Math.hypot(vx, vy), cur = Math.atan2(vy, vx), da = Math.atan2(tg.y - y, tg.x - x) - cur;
           while (da > Math.PI) da -= 2 * Math.PI;
@@ -220,6 +229,8 @@ function onHit(inst, x, y, ps) {
 }
 
 // ================================================================ drawing
+// Shot i vanished without a blast (absorbed, or split by a clash).
+function goneSilent(inst, i) { var h = inst.tq_ki[i]; return !!(h && h[3]); }
 function blastAt(inst, s, fr) {
   var e = s.end(inst);
   if (e[1]) { var h = inst.tq_ki[s.i]; return [e[0], h[1], h[2]]; }
@@ -238,7 +249,7 @@ function drawKi(pen, inst, host, ps) {
     s = all[i];
     if (s.b > t) break;
     var bl = blastAt(inst, s, fr), a = t - bl[0];
-    if (a < 0 || a >= KI_SMOKE_LIFE) continue;
+    if (a < 0 || a >= KI_SMOKE_LIFE || goneSilent(inst, s.i)) continue;
     var q = a / KI_SMOKE_LIFE, B = B0 * s.size;
     for (j = 0; j < nPuff; j++) {
       var r = L.rngFor(inst.seed, s.i, 60 + j), an = r.uniform(0, Math.PI * 2);
@@ -283,7 +294,7 @@ function drawKi(pen, inst, host, ps) {
     }
     // 5: detonation
     var ad = t - e;
-    if (ad >= KI_BLAST_LIFE) continue;
+    if (ad >= KI_BLAST_LIFE || goneSilent(inst, s.i)) continue;
     var bp = blastAt(inst, s, fr), x = bp[1], y = bp[2];
     var qd = ad / KI_BLAST_LIFE, ee = L.easeOut3(ad / 8), Bd = B0 * s.size * (stopped ? 1 : 0.85);
     if (ad < 5) pen.glow(x, y, Bd * (0.7 + 0.9 * L.easeOut3(ad / 5)), HOT, 255 * (1 - ad / 5));
@@ -412,5 +423,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
-                shotIds: shotIds, shotAt: shotAt};
+                shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);

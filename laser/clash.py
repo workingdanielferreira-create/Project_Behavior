@@ -123,6 +123,12 @@ Every pair of categories has a rule.
   trail x sprite      kunai_clash            crescent x sprite   getsuga_cross
                       (one-shot bursts; the knockback rule settles them)
 
+Absorb (_absorb): an effect whose Intercept is in absorb mode swallows an
+enemy projectile body with less knockback that it touches (beams included,
+never a trail or an effect attached to its fighter): no clash, the other is
+gone without a blast and the absorber grows (fxkit.absorb_grow: +5% up to
+200% size, damage and knockback).  Equal or more knockback clashes as usual.
+
 Knockback rule: the effect with the higher battle knockback survives at full
 power and the other is cancelled; a tie cancels both.  A trail cannot be
 cancelled (it is on the fighter): its owner recoils instead, by the
@@ -433,7 +439,7 @@ def _inst_body(si, fig, inst, lst):
     fx, P = inst.fx, inst.fx["params"]
     prim = fx["prim"]
     b = fx["battle"]
-    dmg, kb = float(b.get("damage") or 0), fxkit.fx_knockback(fx)
+    dmg, kb = float(b.get("damage") or 0) * inst.ab_g, fxkit.inst_knockback(inst)
     try:
         col = fxkit.color_pair(fx, fig.lut)[0]
     except Exception:
@@ -499,8 +505,7 @@ def _shot_bodies(world, si, fig, inst, lst):
         return []
     out = []
     ps = inst.ps
-    b = inst.fx["battle"]
-    dmg, kb = float(b.get("damage") or 0), fxkit.fx_knockback(inst.fx)
+    dmg = float(inst.fx["battle"].get("damage") or 0)
     col = swordfx.tech_colour(inst, fig.lut)
     for i in swordfx.shot_ids(inst, ps):
         r = _shot_ref(world, inst, i)
@@ -508,8 +513,8 @@ def _shot_bodies(world, si, fig, inst, lst):
         if at is None:
             continue
         r.x, r.y = at[0], at[1]
-        out.append(Body(si, cat, "shot", r, fig, [(at[0], at[1])], max(4.0, at[4]), dmg, kb, col,
-                        _norm(at[2], at[3]), lst))
+        out.append(Body(si, cat, "shot", r, fig, [(at[0], at[1])], max(4.0, at[4]), dmg * inst.tq_grow.get(i, 1.0),
+                        fxkit.inst_knockback(inst, i), col, _norm(at[2], at[3]), lst))
     return out
 
 
@@ -1011,6 +1016,39 @@ def _overpower(world, a, b, c):
         return False
     _settle(world, a, b, c)
     return True
+
+
+def _absorbs(b):
+    """Body b is an absorber: an effect whose Intercept is on in absorb mode
+    (fxkit: the effect grows by what it swallows)."""
+    if b.kind not in ("inst", "shot"):
+        return False
+    inst = b.ref.inst if b.kind == "shot" else b.ref
+    fx = inst.fx
+    return fxkit.intercept_on(fx) and fx["intercept"].get("mode") == "absorb"
+
+
+def _absorb(world, a, b):
+    """Absorb (Intercept mode): an absorber touching an enemy projectile
+    with LESS knockback swallows it — gone at its source, no blast, no clash
+    FX — and grows (fxkit.absorb_grow).  Never what is on a fighter (a trail,
+    an attached effect), and a non-ultimate never swallows an ultimate's
+    effect.  True when it happened (no clash then)."""
+    for w, v in ((a, b), (b, a)):
+        if not _absorbs(w) or v.kb >= w.kb or v.cat == "trail" or _connected(v):
+            continue
+        if _is_ult(v) and not _is_ult(w):
+            continue
+        if v.kind == "shot":
+            _stop_shot(v.ref, silent=True)
+        else:
+            _cancel(v)
+        if w.kind == "shot":
+            fxkit.absorb_grow(w.ref.inst, w.ref.i)
+        else:
+            fxkit.absorb_grow(w.ref)
+        return True
+    return False
 
 
 def _deg(dx, dy):
@@ -1948,6 +1986,8 @@ def step(world):
             seen[k] = now
             if last is not None and now - last <= REARM_TICKS:
                 continue    # still touching since its last clash
+            if _absorb(world, a, b):
+                continue    # swallowed by an absorbing intercept
             if _overpower(world, a, b, c):
                 continue    # the weaker is gone, the stronger flies on
             st["quiet"] = _quiet(st, a, b, c, now)
