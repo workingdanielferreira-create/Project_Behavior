@@ -313,8 +313,17 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 #            touches by the same lead)
 # Clashing is not an intercept mode: it is world physics (laser/clash.py),
 # the same for every effect.  An older file's "clash" mode loads as "block".
+# Drag (drag, its own toggle, works with the tracker on or off): a target
+# the effect's FRONT surface hits (its centre within drag_deg either side of
+# the travel direction) is pushed along with it at drag_pct % of the
+# effect's own movement each tick for as long as the two touch, and damaged
+# every Re-hit ticks (drag_every when Re-hit is 0) instead of the hit ending
+# the effect.  100 % carries it all the way on the front edge; less lets the
+# effect push through it.  A dragged target that reaches an invisible wall
+# (screen edge, Battle arena oval) ends the effect at once; otherwise it
+# ends when its duration does (drag_step, World.refresh_battle).
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
-                          hurts_owner=False)
+                          hurts_owner=False, drag=False, drag_pct=100, drag_deg=90, drag_every=10)
 INTERCEPT_MODES = ("block", "deflect", "destroy", "absorb")
 ABSORB_STEP = 0.05      # absorb: +5% of the original size per projectile swallowed...
 ABSORB_MAX = 2.0        # ...up to 200%
@@ -1176,7 +1185,7 @@ class Inst:
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic",
-                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow")
+                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag")
 
     def __init__(self):
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
@@ -1212,6 +1221,7 @@ class Inst:
         self.ring_hits = None  # pulse: {(ring, target slot)} already hit
         self.cap = None        # beam: drawn length capped here (a clash split it, laser/clash.py)
         self.bgrow = None      # pos_scale beam: (start dist, growth per px, lo, hi) (beam_grow_plan)
+        self.drag = None       # Drag: target slots it is dragging now (drag_step)
 
 
 def emit_particles(inst, fx, host, n):
@@ -1717,6 +1727,65 @@ def _straight_step(inst):
     mdx, mdy = inst.x - inst.px, inst.y - inst.py
     if mdx * mdx + mdy * mdy > 1e-6:
         inst.dir = norm(mdx, mdy)
+
+
+def drag_on(fx):
+    """Drag is on and the effect can drag: a single moving body (Intercept's
+    projectiles, not a guard, a ki tracker or particles)."""
+    return (bool((fx.get("intercept") or {}).get("drag")) and can_intercept(fx) and not is_guard(fx)
+            and not is_ki_tracker(fx) and fx["prim"] != "particles")
+
+
+def drag_front(inst, tx, ty):
+    """The target at (tx, ty) is on the effect's drag surface: its centre lies
+    within drag_deg either side of the travel direction (FXK.dragFront)."""
+    deg = min(90.0, max(0.0, float(inst.fx["intercept"].get("drag_deg") or 0)))
+    vx, vy = inst.x - inst.px, inst.y - inst.py
+    if vx * vx + vy * vy < 1e-9:
+        vx, vy = inst.vx, inst.vy
+    if vx * vx + vy * vy < 1e-9:
+        vx, vy = inst.dir[0], inst.dir[1]
+    dx, dy = tx - inst.x, ty - inst.y
+    vl, dl = math.hypot(vx, vy), math.hypot(dx, dy)
+    if vl < 1e-9 or dl < 1e-9:
+        return True   # standing on its centre: dead ahead
+    c = max(-1.0, min(1.0, (vx * dx + vy * dy) / (vl * dl)))
+    return math.degrees(math.acos(c)) <= deg + 1e-9
+
+
+def drag_step(inst, host, ps):
+    """Drag (fx.intercept.drag), from resolve_hits: True when the instance is
+    dragging a target this tick (it then neither ends on the hit nor knocks
+    back).  host.on_drag(inst, dx, dy, target_key) moves the target by
+    drag_pct % of this tick's movement; the hits come every Re-hit ticks
+    (drag_every with Re-hit 0) for as long as the two touch.  A target first
+    touched off the drag surface takes an ordinary hit instead."""
+    ic, b = inst.fx["intercept"], inst.fx["battle"]
+    if inst.drag is None:
+        inst.drag = set()
+    k = min(100.0, max(0.0, float(ic.get("drag_pct") or 0))) / 100.0
+    every = b["rehit_ticks"] if b["rehit_ticks"] > 0 else max(1, trunc(float(ic.get("drag_every") or 1)))
+    now = inst.age
+    for i, (hx, hy, hr, key) in enumerate(host.hurts):
+        if not _hit_shape(inst, hx, hy, hr, ps, host):
+            inst.drag.discard(i)   # passed through it (or it got away): let go
+            continue
+        if i not in inst.drag:
+            if not drag_front(inst, hx, hy):
+                continue
+            inst.drag.add(i)
+        cb = getattr(host, "on_drag", None)
+        if cb and k > 0:
+            cb(inst, (inst.x - inst.px) * k, (inst.y - inst.py) * k, key)
+        if inst.hits == 0 or now - inst.last_hit >= every:
+            inst.hits += 1
+            inst.last_hit = now
+            g = hit_mult(inst, hx, hy, ps)
+            host.on_hit(inst, b["damage"] * g, inst.dir[0], inst.dir[1], 0.0, key)
+            if inst.fx["prim"] == "technique":
+                swordfx.on_hit(inst, hx, hy, ps)
+        return True
+    return False
 
 
 def _end_chase(inst):
@@ -2272,6 +2341,8 @@ def resolve_hits(inst, host, ps):
             if b["pierce"]:
                 keep.append(q)
         inst.parts = keep
+        return
+    if drag_on(inst.fx) and drag_step(inst, host, ps):
         return
     if not _can_hit(b, inst.hits, inst.last_hit, now):
         return
@@ -3429,6 +3500,11 @@ class _Host:
         if dots is not None:
             dots.append([shot.x, shot.y, 0])
 
+    def on_drag(self, inst, dx, dy, key):
+        """Drag: move the target by (dx, dy), delivered with the hits by
+        World.refresh_battle (which ends inst when the target meets a wall)."""
+        self.drv.drags_out.append((key, float(dx), float(dy), inst))
+
     def on_hit(self, inst, damage, dx, dy, knockback, key):
         from .actions import leap_damage
         ld = leap_damage(self.fig, inst.fx.get("action"))
@@ -3481,6 +3557,7 @@ class FxDriver:
         self.hurts = []
         self.hits_out = []
         self.pulls_out = []   # this tick's pull fields (laser/powerfx.py pulls)
+        self.drags_out = []   # this tick's Drag pushes (target key, dx, dy, inst): drag_step
         self.host = None
         # Tactical retreat FX, each lane on its own player and clock for as
         # long as the dash lasts: the borrowed retreat "fx" (on its action's
@@ -3573,10 +3650,12 @@ class FxDriver:
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
             self.hits_out = [h for h in self.hits_out if not body_bound(h[6])]
+            self.drags_out = [h for h in self.drags_out if not body_bound(h[3])]
         elif gone:
             # Blinked out: the Character FX on its body land no hits.
             own = self.clane[0].insts
             self.hits_out = [h for h in self.hits_out if not (body_bound(h[6]) and any(q is h[6] for q in own))]
+            self.drags_out = [h for h in self.drags_out if not (body_bound(h[3]) and any(q is h[3] for q in own))]
         self._collect_pulls(frozen)
 
     def _collect_pulls(self, frozen):
@@ -3719,6 +3798,10 @@ class FxDriver:
         h, self.pulls_out = self.pulls_out, []
         return h
 
+    def take_drags(self):
+        h, self.drags_out = self.drags_out, []
+        return h
+
 
 def update_figure(fig, world, hold=None, frozen=False):
     """CombatSystem hook: tick this figure's FX (no-op without an FX file).
@@ -3740,6 +3823,9 @@ def update_figure(fig, world, hold=None, frozen=False):
     pulls = drv.take_pulls()
     if pulls and world.battle_mode:
         world.queue_fx_pulls(pulls)
+    drags = drv.take_drags()
+    if drags and world.battle_mode:
+        world.queue_fx_drags(drags)
 
 
 # Sword techniques draw / hit through laser/swordfx.py, which uses this

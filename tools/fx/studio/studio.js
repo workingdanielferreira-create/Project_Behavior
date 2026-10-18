@@ -412,6 +412,13 @@ var host = {
     if (mode === "deflect") S.ricochets.push({x: shot.x, y: shot.y, vx: vel[0], vy: vel[1], age: 0, hurts: hurtsOwner, trail: []});
     S.bursts.push({x: shot.x, y: shot.y, age: 0, mode: mode});
   },
+  // Drag (FXK dragStep): the target dummy is pushed along with the effect.
+  onDrag: function (inst, dx, dy) {
+    var ds = S.tgt < 0 ? null : S.dsim[S.tgt]; if (!ds) return;
+    ds.drag = [(ds.drag ? ds.drag[0] : 0) + dx, (ds.drag ? ds.drag[1] : 0) + dy];
+    ds.pos = [ds.pos[0] + dx, ds.pos[1] + dy];
+    S.target = ds.pos.slice();
+  },
   // Preview of what the engine does on a hit (ai.apply_hp_damage + knockback).
   onHit: function (inst, dmg, dx, dy, kb) {
     if (S.leap && S.leap.dmg != null && inst.fx.action === S.action) dmg = S.leap.dmg;   // "range" leap damage
@@ -1923,6 +1930,22 @@ function buildProps() {
             "On: the deflected enemy projectile turns against the fighter who fired it. Off: it flies off harmlessly.";
         }
         note(s, "Give a target dummy (left panel, Target dummies) an attack to fire enemy projectiles at the fighter and watch it work.");
+      }
+      if (fx.prim !== "particles") {
+        field(s, "Drag", inp("chk", I.drag, function (v) { I.drag = v; changed(true); })).title =
+          "On: a target hit by this effect's front surface is pushed along with it (and keeps taking damage) until the effect ends. If the dragged target hits an invisible wall (screen edge, or the Battle arena) the effect ends at once. Works with the tracker on or off.";
+        if (I.drag) {
+          field(s, "Drag %", inp("n", I.drag_pct, function (v) { I.drag_pct = Math.min(100, Math.max(0, v)); changed(); }, 0, 100, 1)).title =
+            "How much of the effect's own movement the target is pushed by each tick while they touch. 100 = carried all the way on the front edge. Lower = pushed back a little while the effect pushes through it, hurting it the whole time they overlap.";
+          field(s, "Drag surface ° (each side)", inp("n", I.drag_deg, function (v) { I.drag_deg = Math.min(90, Math.max(0, v)); changed(); }, 0, 90, 1)).title =
+            "How far either side of the travel direction (0° = dead ahead) counts as the front surface. 90 = the whole front half. A target first hit outside it takes an ordinary hit instead.";
+          if (!(fx.battle.rehit_ticks > 0))
+            field(s, "Drag damage every N ticks", inp("n", I.drag_every, function (v) { I.drag_every = Math.max(1, Math.round(v)); changed(); }, 1, 600, 1)).title =
+              "How often a dragged target takes this effect's damage while Re-hit ticks (Battle section) is 0. With a Re-hit set, that is used instead.";
+          else note(s, "A dragged target takes damage every " + fx.battle.rehit_ticks + " ticks (Re-hit ticks, Battle section).");
+          if (!fx.battle.deals_damage) note(s, "Drag only works while Deals damage (Battle section) is on.");
+          note(s, "Preview: the target dummy is dragged on the stage. Walls (screen edge, Battle arena) only end the effect in the game.");
+        }
       }
     }
 
@@ -4100,11 +4123,12 @@ function stepDummies(nMove, nFire) {
     var ds = S.dsim[i], fire = false, period = Math.max(1, dummyTicks(d.every_ms)), delay = dummyTicks(d.delay_ms);
     for (var f = 0; f < nFire; f++) {
       ds.clock += 1;
-      if (ds.down && ds.clock >= ds.backAt) { ds.down = false; ds.hp = d.hp; }
+      if (ds.down && ds.clock >= ds.backAt) { ds.down = false; ds.hp = d.hp; ds.drag = null; }
       var c = ds.clock - 1 - delay;
       if (!ds.down && d.attack !== "none" && c >= 0 && c % period === 0) fire = true;
     }
     ds.pos = dummyPos(i, ds.clock);
+    if (ds.drag) ds.pos = [ds.pos[0] + ds.drag[0], ds.pos[1] + ds.drag[1]];   // where Drag pushed it
     if (fire) {
       ds.volley += 1;
       ds.spread = d.spread_deg > 0 ? FXK.rng((i + 1) * 7919 + ds.volley * 104729).uniform(-d.spread_deg / 2, d.spread_deg / 2) : 0;

@@ -96,6 +96,8 @@ class SideState:
                                     # delivered to the opponent by refresh_battle
         self.fx_pulls = []          # FX Studio pull fields this tick (meteor /
                                     # black hole, laser/powerfx.py), same delivery
+        self.fx_drags = []          # FX Studio Drag pushes this tick (fxkit
+                                    # drag_step), same delivery
 
 
 class World:
@@ -539,6 +541,42 @@ class World:
         """fxkit pull fields from the side being simulated (see refresh_battle)."""
         self.sides[self.side_idx].fx_pulls.extend(pulls)
 
+    def queue_fx_drags(self, drags):
+        """fxkit Drag pushes from the side being simulated (see refresh_battle)."""
+        self.sides[self.side_idx].fx_drags.extend(drags)
+
+    @staticmethod
+    def _drag_figure(ef, dx, dy):
+        """Drag (fxkit drag_step): move a fighter by (dx, dy).  True when that
+        ran it into an invisible wall — the screen edge (motion.check_walls'
+        margin) or the Battle arena oval (motion.apply_arena_oval) — where it
+        is stopped on the wall.  An arc in progress slides with it."""
+        t = ef.transform
+        ox, oy = t.x, t.y
+        t.x += dx
+        t.y += dy
+        wall = False
+        m = 10.0
+        if t.x < m or t.x > ef.screen_w - m or t.y < m or t.y > ef.screen_h - m:
+            t.x = min(max(t.x, m), float(ef.screen_w) - m)
+            t.y = min(max(t.y, m), float(ef.screen_h) - m)
+            wall = True
+        cx = ef.screen_w * config.ARENA_OVAL_CENTER_X_FRAC
+        cy = ef.screen_h * config.ARENA_OVAL_CENTER_Y_FRAC
+        rx = ef.screen_w * config.ARENA_OVAL_RADIUS_X_FRAC
+        ry = ef.screen_h * config.ARENA_OVAL_RADIUS_Y_FRAC
+        if rx > 0.0 and ry > 0.0:
+            ex, ey = t.x - cx, t.y - cy
+            d = math.hypot(ex / rx, ey / ry)
+            if d >= 1.0:
+                t.x, t.y = cx + ex / d, cy + ey / d
+                wall = True
+        c = ef.combat
+        if c.arc_repositioning:
+            c.arc_center_x += t.x - ox
+            c.arc_center_y += t.y - oy
+        return wall
+
     @staticmethod
     def _pull_figure(ef, pulls):
         """Move a fighter toward the centre of every pull field it is inside
@@ -817,6 +855,32 @@ class World:
             for ef in self.sides[1 - i].figures:
                 if ef.transform.init and not blink.gone(ef):
                     self._pull_figure(ef, pulls)
+        # Deliver FX Studio Drag pushes (fxkit drag_step) from last tick: the
+        # opposing fighter nearest each push moves with the effect dragging
+        # it; one that hits an invisible wall ends that effect at once.  An
+        # effect already ended (its hit blocked) drags nothing, and neither
+        # does one on a fighter blinked out or mid invulnerable dodge (a
+        # damage cooldown only stops the HP, the fighter is still carried).
+        for i, side in enumerate(self.sides):
+            drags, side.fx_drags = side.fx_drags, []
+            if not drags or not self.battle_mode:
+                continue
+            other = self.sides[1 - i]
+            for (pos, dx, dy, inst) in drags:
+                if inst.dead or inst.age >= inst.life:
+                    continue
+                best = None
+                for ef in other.figures:
+                    d = (ef.x - pos[0]) ** 2 + (ef.y - pos[1]) ** 2
+                    if best is None or d < best[0]:
+                        best = (d, ef)
+                if best is None or best[0] > 80.0 ** 2:
+                    continue
+                ef = best[1]
+                if not ef.transform.init or blink.gone(ef) or dodge.untouchable(ef, self.global_tick):
+                    continue
+                if self._drag_figure(ef, dx, dy):
+                    inst.age = max(inst.age, inst.life)
         # Deliver dash-slash knockback landed last tick to the other side.
         for i, side in enumerate(self.sides):
             other = self.sides[1 - i]
