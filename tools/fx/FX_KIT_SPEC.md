@@ -902,7 +902,8 @@ FX Studio shows it as the **Intercept** section.
 
 ```json
 "intercept": {"enabled": false, "radius": 90, "turn_deg": 10, "contact": 10,
-              "mode": "block", "deflect_who": "enemy", "hurts_owner": false}
+              "mode": "block", "deflect_who": "enemy", "hurts_owner": false,
+              "drag": false, "drag_pct": 100, "drag_deg": 90, "drag_every": 10}
 ```
 
 | field | meaning |
@@ -914,6 +915,18 @@ FX Studio shows it as the **Intercept** section.
 | `mode` | `block`: both are nullified. `deflect`: see below. `destroy`: the enemy projectile is nullified and this one keeps going. |
 | `deflect_who` | `enemy`: only the enemy projectile is knocked away and this one carries on. `both`: this one is knocked away too, and then flies straight. |
 | `hurts_owner` | deflect only. `true`: the deflected enemy projectile changes sides and can damage the fighter who fired it. `false`: it flies off harmlessly. |
+| `drag` | **Drag** on/off, its own toggle (works with the tracker on or off; not for particles). A target the effect's front surface hits is pushed along with it instead of the hit ending the effect. Needs `battle.deals_damage`. |
+| `drag_pct` | 0–100. The target moves by this % of the effect's own movement each tick while the two touch. 100: carried on the front edge until the effect ends. Lower: pushed back a little while the effect pushes through it; it lets go once they no longer touch. |
+| `drag_deg` | 0–90. The drag surface: a target whose centre is within this many degrees either side of the travel direction (0 = dead ahead) when first touched is dragged; outside it the hit is an ordinary one. |
+| `drag_every` | ticks. How often a dragged target takes the effect's damage when `battle.rehit_ticks` is 0 (otherwise Re-hit is used). Drag hits carry no knockback. |
+
+- **Drag and walls:** a dragged fighter that reaches an invisible wall
+  (the screen edge, or the Battle arena oval) is stopped on it and the
+  effect ends at once; otherwise the effect ends when its duration does.
+  A blocked hit (parry / defend, Blockable on) ends the effect as usual and
+  drags nothing. The push rides `SideState.fx_drags`, delivered by
+  `World.refresh_battle` the tick after (like knockback). Solo has no FX
+  targets, so nothing is dragged there; same code path in both modes.
 
 - **Deflect direction** is the combined momentum (the two velocities added).
   Each projectile keeps its own speed. If they meet head-on at similar
