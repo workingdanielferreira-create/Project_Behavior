@@ -184,11 +184,18 @@ function punchHit(inst, tx, ty, hr, ps) {
   var b = L_().frame(inst).w(l, 0);
   return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.radius * ps * 1.2;
 }
+function punchBody(inst, ps) {
+  var P = inst.fx.params, l = reach(P, inst.age, +P.length * ps);
+  if (l <= 2 || inst.age >= inst.life) return null;
+  return [[[inst.x, inst.y], L_().frame(inst).w(l, 0)], +P.radius * ps];
+}
 
 // ---------------------------------------------------------------- public
 function hit(inst, tx, ty, hr, ps) {
   return L_().style(inst.fx.params) === "ki_barrage" ? kiHit(inst, tx, ty, hr, ps) : punchHit(inst, tx, ty, hr, ps);
 }
+// A punch clashes along the arm; ki shots never clash as a blade.
+function body(inst, ps) { return L_().style(inst.fx.params) === "ki_barrage" ? null : punchBody(inst, ps); }
 function onHit(inst, x, y, ps) {
   var P = inst.fx.params;
   if (L_().style(P) === "ki_barrage") { kiOnHit(inst, x, y, ps); return; }
@@ -389,5 +396,5 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep};
+G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep};
 })(window);

@@ -220,6 +220,17 @@ function slashHit(inst, tx, ty, hr, ps) {
   }
   return false;
 }
+// [points, half width] a clash treats as a cutting blade (laser/swordfx.py
+// _slash_body), or null.
+function slashBody(inst, ps) {
+  var fr = frame(inst), live = liveCuts(inst);
+  if (!live.length) return null;
+  var lc = live[live.length - 1], g = new SlashGeo(inst, ps, lc[0]), sl = g.slices(lc[1]);
+  if (!sl.length) return null;
+  var pts = [];
+  for (var j = 0; j < sl.length; j += 4) { var l = g.local(sl[j][0], g.R - 0.2 * sl[j][2]); pts.push(fr.w(l[0], l[1])); }
+  return [pts, g.W * 0.5];
+}
 function slashOnHit(inst) { liveCuts(inst).forEach(function (lc) { inst.tq_cut[lc[0]] = true; }); }
 
 // ---------------------------------------------------------------- wave geometry
@@ -250,6 +261,11 @@ function waveHit(inst, tx, ty, hr, ps) {
   }
   return false;
 }
+function waveBody(inst, ps) {
+  if (inst.age >= inst.life) return null;
+  var g = new WaveGeo(inst, ps), fr = frame(inst), k = g.grow(inst.age);
+  return [g.pts(inst.age, k, 6).map(function (q) { var o = q[1], dr = q[2], w = q[3]; return fr.w(o[0] - dr[0] * w * 0.5, o[1] - dr[1] * w * 0.5); }), g.W * k * 0.5];
+}
 
 // ---------------------------------------------------------------- extension geometry
 function extLen(P, t, L) {
@@ -272,6 +288,11 @@ function extHit(inst, tx, ty, hr, ps) {
   var b = frame(inst).w(l, 0);
   return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.thickness * ps * 0.9;
 }
+function extBody(inst, ps) {
+  var P = inst.fx.params, l = extLen(P, inst.age, +P.length * ps);
+  if (l <= 2 || inst.age >= inst.life) return null;
+  return [[[inst.x, inst.y], frame(inst).w(l, 0)], +P.thickness * ps];
+}
 
 // ---------------------------------------------------------------- thrust geometry
 // [out starts, full reach, snap back starts, back] ticks.
@@ -292,6 +313,11 @@ function thrHit(inst, tx, ty, hr, ps) {
   var b = frame(inst).w(l, 0);
   return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.thickness * ps * 0.8;
 }
+function thrBody(inst, ps) {
+  var P = inst.fx.params, l = thrLen(P, inst.age, +P.length * ps);
+  if (l <= 2 || inst.age >= inst.life) return null;
+  return [[[inst.x, inst.y], frame(inst).w(l, 0)], +P.thickness * ps * 0.8];
+}
 
 function hit(inst, tx, ty, hr, ps) {
   var st = style(inst.fx.params);
@@ -303,6 +329,20 @@ function hit(inst, tx, ty, hr, ps) {
   if (isGun(st)) return GUN().hit(inst, tx, ty, hr, ps);
   if (isWeapon(st)) return WEAPON().hit(inst, tx, ty, hr, ps);
   return slashHit(inst, tx, ty, hr, ps);
+}
+// [points, half width] a clash treats as a cutting blade, or null: every
+// sword technique, a punch's arm, a weapon's blade; never guns, ki shots or
+// the power techniques.  laser/swordfx.py body.
+function body(inst, ps) {
+  var st = style(inst.fx.params);
+  if (st === "crescent_wave") return waveBody(inst, ps);
+  if (st === "blade_extension") return extBody(inst, ps);
+  if (st === "forward_thrust") return thrBody(inst, ps);
+  if (isStrike(st)) return STRIKE().body(inst, ps);
+  if (isPower(st) || isGun(st)) return null;
+  if (isWeapon(st)) return WEAPON().body(inst, ps);
+  if (inst.age >= inst.life) return null;
+  return slashBody(inst, ps);
 }
 // Whether this instance is a technique that fires separate bullets (gun
 // styles, ki barrage), and those bullets: [[i, x, y, vx, vy]].
@@ -815,7 +855,7 @@ function draw(g, inst, host, ps) {
 }
 
 // strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
-G.SWORDFX = {draw: draw, hit: hit, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+G.SWORDFX = {draw: draw, hit: hit, body: body, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,

@@ -1045,6 +1045,16 @@ the current target takes the fighter's hits. Dummy hits on the fighter show
 as orange numbers and in the HUD ("taken from dummies"). Time control treats
 the dummies as enemy fighters and their attacks as enemy FX.
 
+**World Clash on the stage:** the fighter's FX and the dummies' FX clash by
+the game's rules (`laser/clash.py`, the ⚔ World Clash table), with each
+slot's clash FX (`studio/clashfx.js`, shared with `clash_gallery.html`):
+the knockback rule (overpower above a 100 lead, ultimates never cancelled by
+a non-ultimate), beam × orb held 18 ticks, beam splits ±30° with end bursts.
+Beam and crescent struggles and the sword duel play as their one-shot
+bursts; no fighter is held, moved or put in its "clash" action, and a losing
+trail's owner does not recoil. Guns, ki shots and the power techniques never
+clash, as in the game.
+
 ## 6. Presets
 
 Built-in presets (`studio/presets.js`) rebuild the game's hardcoded effects from
