@@ -361,8 +361,11 @@ class ClashFX:
     at its world position (pscale = the position scale at that point)."""
 
     def __init__(self, key, x, y, angle=0.0, c1=(90, 170, 255), c2=(255, 120, 60), scale=1.0, winner=0, hold=None,
-                 seed=None, density=1.0):
+                 seed=None, density=1.0, orbs=None):
         self.key = key
+        # Struggle sides that are orbs (beam x orb: side B, orb x orb: both):
+        # no beam is drawn there, the orb is pressed on the node instead.
+        self.orbs = (bool(orbs and orbs[0]), bool(orbs and orbs[1]))
         # The World Clash slot whose Loop X / Y and Flurry % a Sword Duel
         # uses (clash._spawn_fx sets it; the F6 preview keeps trail x trail).
         self.duel_slot = "trail_trail"
@@ -1023,7 +1026,10 @@ class ClashFX:
             elif self.spec.get("stubs"):
                 L = float(self.spec.get("stub_len", 150)) * S
                 core = st["core"]
-                for c, sx in ((self.c1, -1), (self.c2, 1)):
+                for i, (c, sx) in enumerate(((self.c1, -1), (self.c2, 1))):
+                    if self.orbs[i]:
+                        self._struggle_orb(p, nx, sx, core, c, t)   # an orb side: no beam
+                        continue
                     x_far, x_near = nx + sx * L, nx
                     for w, k, a in ((core * 1.3, 0.0, 120), (core * 0.55, 0.6, 230)):
                         gr = QLinearGradient(x_far, 0, x_near, 0)
@@ -1081,6 +1087,27 @@ class ClashFX:
                 _glow(p, 0, 0, k * R0 * 4.0 * _ease_out(e), HOT, 255 * f ** 2, 0.4)
             p.restore()
         self._draw_parts(p)
+
+    def _struggle_orb(self, p, cx, sx, core, c, t):
+        """An orb pressed against the struggle node on side sx (beam x orb,
+        orb x orb): a glowing ball squashed a little against the node,
+        pulsing as it pushes."""
+        R = core * 1.7
+        sq = 1 - 0.07 * (1 + math.sin(t * 0.8 + sx)) / 2
+        x = cx + sx * (core * 0.45 + R * sq)
+        _glow(p, x, 0, R * 2.2, c, 110)     # halo
+        p.save()
+        p.translate(x, 0)
+        p.scale(sq, 1 / math.sqrt(sq))     # squashed against the node
+        g = QRadialGradient(QPointF(0, 0), R, QPointF(-sx * R * 0.2, -R * 0.25))
+        g.setColorAt(0.0, _q(_mix(c, HOT, 0.85), 255))
+        g.setColorAt(0.45, _q(_mix(c, HOT, 0.35), 245))
+        g.setColorAt(0.85, _q(c, 230))
+        g.setColorAt(1.0, _q(_mix(c, (0, 0, 0), 0.35), 200))
+        p.setPen(QPen(_q(_mix(c, HOT, 0.5), 220), max(1.0, 1.6 * self.S)))
+        p.setBrush(QBrush(g))
+        p.drawEllipse(QPointF(0, 0), R, R)
+        p.restore()
 
     # ================================================================ 3
     def _wdir(self):
@@ -2224,13 +2251,13 @@ def duel_plan(rng, a0, b0, c, reach, strikes=(4, 7), bind=0.3, loop=(1.0, 1.0), 
 
 
 def spawn(world, key, x, y, angle=0.0, c1=(90, 170, 255), c2=(255, 120, 60), scale=1.0, winner=0, hold=None,
-          seed=None, density=1.0):
+          seed=None, density=1.0, orbs=None):
     """Start a clash explosion at (x, y).  angle = degrees from side A toward
     side B (screen coordinates, y down).  Returns the live ClashFX."""
     lst = getattr(world, "clash_fx", None)
     if lst is None:
         lst = world.clash_fx = []
-    fx = ClashFX(key, x, y, angle, c1, c2, scale, winner, hold, seed, density)
+    fx = ClashFX(key, x, y, angle, c1, c2, scale, winner, hold, seed, density, orbs)
     lst.append(fx)
     if len(lst) > MAX_LIVE:
         del lst[0:len(lst) - MAX_LIVE]

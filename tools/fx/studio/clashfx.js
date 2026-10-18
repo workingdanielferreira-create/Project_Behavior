@@ -67,6 +67,7 @@ class ClashFX {
     this.base = key; this.spec = Object.assign({size: 1, density: 1, speed: 1}, BASES[key]); const sp = this.spec;
     this.angle = o.angle || 0; this.c1 = o.c1; this.c2 = o.c2; this.hot = HOT;
     this.S = sp.size * (o.scale || 1); this.D = Math.max(0.05, o.density ?? 1); this.V = sp.speed; this.life = sp.life;
+    this.orbs = [!!(o.orbs && o.orbs[0]), !!(o.orbs && o.orbs[1])];   // struggle sides that are orbs (no beam drawn there)
     this.winner = o.winner ? 1 : 0; this.rng = rngOf(o.seed ?? (Math.random() * 1e9)); this.t = 0; this.ft = 0;
     this.sustain = sp.kind === "sustain"; this.phase = this.sustain ? "hold" : "burst"; this.hold = sp.hold ?? 0;
     this.parts = []; const a = this.angle * Math.PI / 180; this.down = [Math.sin(a), Math.cos(a)]; this.st = {};
@@ -134,7 +135,8 @@ class ClashFX {
   finale_beam_struggle() { const cx = this.st.cx; this.st.fx0 = cx; this.sparks(70, {x: cx, spd: [4, 13], life: [18, 38]}); this.sparks(16, {x: cx, kind: "smoke", spd: [.6, 2.2], life: [30, 50], size: [10, 18], drag: .96}); this.sparks(18, {x: cx, kind: "dot", spd: [1, 4], life: [22, 40], size: [2, 4], drag: .95}); }
   draw_beam_struggle(g) { const st = this.st, S = this.S; g.globalCompositeOperation = "lighter";
     if (this.phase === "hold") { const {cx, core} = st, t = this.t;
-      if (this.spec.stubs) { const L = this.spec.stub_len * S; for (const [c, sx] of [[this.c1, -1], [this.c2, 1]]) { const xf = cx + sx * L;
+      if (this.spec.stubs) { const L = this.spec.stub_len * S; for (const [c, sx, i] of [[this.c1, -1, 0], [this.c2, 1, 1]]) { const xf = cx + sx * L;
+        if (this.orbs[i]) { this.struggleOrb(g, cx, sx, core, c, t); continue; }   // an orb side: the orb pressed on the node, no beam
         for (const [w, k, a] of [[core * 1.3, 0, 120], [core * .55, .6, 230]]) { const cc = mix(c, HOT, k), gr = g.createLinearGradient(xf, 0, cx, 0);
           gr.addColorStop(0, rgba(cc, 0)); gr.addColorStop(.35, rgba(cc, a * .7)); gr.addColorStop(1, rgba(cc, a)); g.fillStyle = gr; const wob = 1 + .08 * Math.sin(t * .8 + sx);
           g.fillRect(Math.min(xf, cx), -w / 2 * wob, Math.abs(cx - xf), w * wob); } } }
@@ -146,6 +148,16 @@ class ClashFX {
       splitRing(g, cx, 0, r, r, 9 * S * f + 1, this.hc(this.c1, .4), this.hc(this.c2, .4), 230 * f); const r2 = 150 * S * easeOut(Math.min(1, t / 20));
       splitRing(g, cx, 0, r2 * .5, r2, 5 * S * f + .5, this.c1, this.c2, 180 * f); }
     this.partsAll(g); }
+  // An orb pressed against the struggle node on side sx (beam × orb, orb × orb):
+  // a glowing ball squashed a little against the node, pulsing as it pushes.
+  struggleOrb(g, cx, sx, core, c, t) { const R = core * 1.7, sq = 1 - .07 * (1 + Math.sin(t * .8 + sx)) / 2, x = cx + sx * (core * .45 + R * sq);
+    glow(g, x, 0, R * 2.2, c, 110);   // halo
+    g.save(); g.translate(x, 0); g.scale(sq, 1 / Math.sqrt(sq));   // squashed against the node
+    const bd = g.createRadialGradient(-sx * R * .2, -R * .25, R * .1, 0, 0, R);   // the ball: hot centre, its colour to a dark rim
+    bd.addColorStop(0, rgba(mix(c, HOT, .85), 255)); bd.addColorStop(.45, rgba(mix(c, HOT, .35), 245)); bd.addColorStop(.85, rgba(c, 230)); bd.addColorStop(1, rgba(mix(c, [0, 0, 0], .35), 200));
+    g.fillStyle = bd; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+    g.strokeStyle = rgba(mix(c, HOT, .5), 220); g.lineWidth = Math.max(1, 1.6 * this.S); g.beginPath(); g.arc(0, 0, R, 0, TAU); g.stroke();
+    g.restore(); }
   // 3
   wdir() { return this.winner === 0 ? 1 : -1; }
   init_overpower_blowout() { const d = this.wdir(), [cw, cl2] = this.winner === 0 ? [this.c1, this.c2] : [this.c2, this.c1], base = d > 0 ? 0 : Math.PI, cone = this.spec.cone_deg * Math.PI / 180, r = this.rng;
