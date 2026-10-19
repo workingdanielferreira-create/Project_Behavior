@@ -374,54 +374,90 @@ def _glide(fig, cx, cy, sf=1.0, offset=None):
 
 
 def apply_arena_oval(fig, world):
-    """Battle-mode-only invisible oval arena boundary.
-
-    Confirmed as a deliberate Solo/Battle exception: Solo has no arena wall
-    (only the rectangular check_walls() screen clamp below applies), Battle
-    additionally confines both fighters to an oval so the fight stays inside
-    a bounded ring. Center/radii are fractions of the figure's own
+    """Invisible oval arena boundary with a rebound arc — Solo AND Battle,
+    every fighter (confirmed with Daniel 2026-10-19; it used to be
+    Battle-only).  Center/radii are fractions of the figure's own
     screen_w/screen_h, so the oval scales with window size and is identical
-    for both fielded fighters (same world, same screen dims).
+    for every fighter (same world, same screen dims).
 
-    Behaviour: a gentle gradient push-back starts at
-    config.ARENA_OVAL_GRADIENT_START (normalized ellipse distance, 0..1) and
-    grows stronger approaching the edge; a hard clamp exactly onto the
-    boundary guarantees the fighter can never actually cross it, however
-    fast it was moving. Fully invisible — no rendering, pure position math.
+    The wall has inertia.  This tick's movement (position now minus where
+    the last pass left the fighter) is split against the oval's outward
+    normal: the along-the-wall part is left alone, so the fighter keeps its
+    momentum, and inside config.ARENA_OVAL_REBOUND_START the into-the-wall
+    part is turned into an inward rebound velocity, eased in toward the
+    edge.  The rebound is carried from tick to tick (decaying by
+    ARENA_OVAL_REBOUND_CARRY), so the fighter swings off the wall in a
+    curve rather than being held against it.  A hard clamp exactly onto
+    the boundary still guarantees nobody ever crosses it.  Fully invisible
+    — no rendering, pure position math.
     """
     t = fig.transform
+    m = fig.motion
     cx = fig.screen_w * config.ARENA_OVAL_CENTER_X_FRAC
     cy = fig.screen_h * config.ARENA_OVAL_CENTER_Y_FRAC
     rx = fig.screen_w * config.ARENA_OVAL_RADIUS_X_FRAC
     ry = fig.screen_h * config.ARENA_OVAL_RADIUS_Y_FRAC
-    if rx <= 0.0 or ry <= 0.0:
+    if rx <= 0.0 or ry <= 0.0 or not t.init:
         return
+
+    # This tick's own movement.  A one-tick jump (blink, teleport, a fresh
+    # spawn) carries no momentum into the wall.
+    vx = vy = 0.0
+    if m.oval_px is not None:
+        vx, vy = t.x - m.oval_px, t.y - m.oval_py
+        if vx * vx + vy * vy > config.ARENA_OVAL_TELEPORT_PX ** 2:
+            vx = vy = 0.0
+            m.oval_rbx = m.oval_rby = 0.0
+    rbx, rby = m.oval_rbx, m.oval_rby
 
     dx = t.x - cx
     dy = t.y - cy
-    nx = dx / rx
-    ny = dy / ry
-    d = (nx * nx + ny * ny) ** 0.5
-    if d <= config.ARENA_OVAL_GRADIENT_START:
-        return
+    d = math.hypot(dx / rx, dy / ry)
+    start = config.ARENA_OVAL_REBOUND_START
+    if d > start:
+        # Outward unit normal of the ellipse at this point.
+        gx, gy = dx / (rx * rx), dy / (ry * ry)
+        g = math.hypot(gx, gy)
+        if g > 1e-12:
+            nx, ny = gx / g, gy / g
+            vn = vx * nx + vy * ny
+            if vn > 0.0:
+                # Bend the into-the-wall part of this step back out, harder
+                # the closer to the edge (square ease from START).
+                w = min(1.0, (d - start) / max(1e-6, 1.0 - start))
+                k = vn * config.ARENA_OVAL_REBOUND_GAIN * w * w
+                rbx -= nx * k
+                rby -= ny * k
+    sp = math.hypot(rbx, rby)
+    if sp > config.ARENA_OVAL_REBOUND_MAX:
+        rbx *= config.ARENA_OVAL_REBOUND_MAX / sp
+        rby *= config.ARENA_OVAL_REBOUND_MAX / sp
+    t.x += rbx
+    t.y += rby
 
+    # Hard clamp onto the boundary along the radial direction from center.
+    dx = t.x - cx
+    dy = t.y - cy
+    d = math.hypot(dx / rx, dy / ry)
     if d >= 1.0:
-        # Past the boundary (or landed exactly on it) — clamp back onto the
-        # ellipse edge along the same radial direction from center.
-        scale = 1.0 / d
-        t.x = cx + dx * scale
-        t.y = cy + dy * scale
-        return
+        t.x = cx + dx / d
+        t.y = cy + dy / d
+        # Rebound pointing out through the wall is spent.
+        gx, gy = dx / (rx * rx), dy / (ry * ry)
+        g = math.hypot(gx, gy)
+        if g > 1e-12:
+            nx, ny = gx / g, gy / g
+            out = rbx * nx + rby * ny
+            if out > 0.0:
+                rbx -= nx * out
+                rby -= ny * out
 
-    # Gentle gradient zone: push strength ramps from 0 (at GRADIENT_START)
-    # to full strength (at the edge, d == 1.0), eased with a square curve so
-    # it's soft at first and firm right at the edge.
-    span = 1.0 - config.ARENA_OVAL_GRADIENT_START
-    push_t = (d - config.ARENA_OVAL_GRADIENT_START) / span
-    strength = push_t * push_t * config.ARENA_OVAL_PUSHBACK_STRENGTH
-    inv = strength / (d * max(rx, ry))
-    t.x -= dx * inv
-    t.y -= dy * inv
+    carry = config.ARENA_OVAL_REBOUND_CARRY
+    m.oval_rbx = rbx * carry
+    m.oval_rby = rby * carry
+    if m.oval_rbx * m.oval_rbx + m.oval_rby * m.oval_rby < 0.0025:
+        m.oval_rbx = m.oval_rby = 0.0
+    m.oval_px, m.oval_py = t.x, t.y
 
 
 def check_walls(fig, margin=10):
