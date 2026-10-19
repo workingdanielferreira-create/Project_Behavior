@@ -68,20 +68,32 @@ TRAIL_BACK      = 8.0          # px the trail anchor sits behind the figure
 TRAIL_DOWN      = 6.0          # px the trail anchor sits below the figure
 
 # ---------------------------------------------------------------------------
-# Battle arena bounds (oval) — Battle mode ONLY, intentional Solo/Battle
-# exception (confirmed with Daniel).  Solo keeps the old rectangular
-# screen-edge clamp from check_walls(); Battle additionally confines both
-# fighters to an invisible oval so the fight stays in a bounded ring.
-# Center/radii are fractions of the live screen_w/screen_h (recomputed each
-# tick in motion.apply_arena_oval), so the arena scales with window size.
+# Arena bounds (oval) — Solo AND Battle, every fighter (confirmed with
+# Daniel 2026-10-19; it used to be Battle-only).  Every fighter is confined
+# to an invisible oval on top of the rectangular screen clamp from
+# check_walls().  Center/radii are fractions of the live screen_w/screen_h
+# (recomputed each tick in motion.apply_arena_oval), so the arena scales
+# with window size.
+#
+# Rebound arc: the wall has inertia.  A fighter moving into it keeps its
+# along-the-wall momentum while the into-the-wall part of its movement is
+# bent smoothly back out, so it swings off the wall in a curve instead of
+# being held against it (a kiter can no longer slide along the edge
+# forever, out of reach).
 # ---------------------------------------------------------------------------
 ARENA_OVAL_CENTER_X_FRAC   = 0.5     # oval center, fraction of screen_w
 ARENA_OVAL_CENTER_Y_FRAC   = 0.52    # oval center, fraction of screen_h
 ARENA_OVAL_RADIUS_X_FRAC   = 0.40    # oval horizontal radius, fraction of screen_w
 ARENA_OVAL_RADIUS_Y_FRAC   = 0.40    # oval vertical radius, fraction of screen_h
-ARENA_OVAL_GRADIENT_START  = 0.80    # normalized ellipse distance where the
-                                      # gentle inward push begins (0..1, 1 = edge)
-ARENA_OVAL_PUSHBACK_STRENGTH = 9.0   # max px/tick nudged inward, reached at the edge
+ARENA_OVAL_REBOUND_START   = 0.85    # normalized ellipse distance where the
+                                      # wall starts bending movement (0..1, 1 = edge)
+ARENA_OVAL_REBOUND_GAIN    = 1.6     # outward speed turned into inward rebound per
+                                      # tick, at the edge (eased in from START)
+ARENA_OVAL_REBOUND_CARRY   = 0.90    # share of the rebound velocity kept each tick
+                                      # (the inertia: higher = wider, longer curve)
+ARENA_OVAL_REBOUND_MAX     = 9.0     # rebound speed cap, px/tick
+ARENA_OVAL_TELEPORT_PX     = 40.0    # a jump larger than this in one tick (blink,
+                                      # teleport, respawn) carries no momentum
 
 # ---------------------------------------------------------------------------
 # Position-based sprite scaling — global, always-on visual effect (confirmed

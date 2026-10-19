@@ -348,12 +348,10 @@ class MotionSystem(System):
             motion.check_walls(fig)
             # Terraform structures (laser/unique.py): bodies stay out.
             unique.push_out(fig, world)
-        # Battle-only invisible oval arena boundary — confirmed intentional
-        # Solo/Battle exception (Solo: no arena wall; Battle: active). See
-        # motion.apply_arena_oval docstring for rationale.
-        if battle:
-            for fig in world.figures:
-                motion.apply_arena_oval(fig, world)
+        # Invisible oval arena boundary with its rebound arc — Solo and
+        # Battle alike, every fighter (motion.apply_arena_oval).
+        for fig in world.figures:
+            motion.apply_arena_oval(fig, world)
 
 
 # ---------------------------------------------------------------------------
