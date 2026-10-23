@@ -118,6 +118,38 @@ def solve(k):
     return p, j, toes, err
 
 
+GRIP_REL = (-115.0, -10.0)
+
+
+def grip_fault(j):
+    """Both fists close on the handle with the blade leaving on the thumb
+    side: measured from each forearm (elbow -> hand), the blade must turn
+    10..115 degrees toward the thumb (counter-clockwise on screen, facing
+    right).  A positive angle means the blade comes out under the little
+    finger, which no grip allows."""
+    blade = j["wang"] - 90
+    for side in ("R", "L"):
+        el, ha = j["el" + side], j["ha" + side]
+        fore = math.atan2(ha[1] - el[1], ha[0] - el[0]) / D
+        rel = (blade - fore + 180) % 360 - 180
+        if not GRIP_REL[0] <= rel <= GRIP_REL[1]:
+            return "blade leaves the %s fist at %+.0f deg (allowed %+.0f..%+.0f)" % (
+                "near" if side == "R" else "far", rel, GRIP_REL[0], GRIP_REL[1])
+    return ""
+
+
+def elbow_fault(j):
+    """Elbows only hinge one way: the forearm folds toward the front of the
+    upper arm (clockwise on screen, facing right).  Folding the other way is
+    a chicken wing / hyperextension."""
+    for side in ("R", "L"):
+        sh, el, ha = j["sh" + side], j["el" + side], j["ha" + side]
+        u = (el[0] - sh[0], el[1] - sh[1]); f = (ha[0] - el[0], ha[1] - el[1])
+        if u[0] * f[1] - u[1] * f[0] > 0.05 * math.hypot(*u) * math.hypot(*f):
+            return "%s elbow bends backwards" % ("near" if side == "R" else "far")
+    return ""
+
+
 def tf(q, s=1.0):
     return ((ORIGIN[0] + q[0] * PPU) * s, (GROUND_Y + q[1] * PPU) * s)
 
@@ -197,17 +229,18 @@ K = {
     # ANTICIPATION: everything loaded backwards.  Weight sunk on the back
     # leg, back arched, chest turned away, sword dropped behind the back;
     # the head stays level on the target.
-    "windup":  dict(hip=(-20, -62), sp=-18, sp2=-28, hd=30, grip=(-62, -150), blade=150, open=-7,
+    "windup":  dict(hip=(-20, -62), sp=-18, sp2=-28, hd=30, grip=(-26, -153), blade=165, open=-7,
                     back_lift=8, elbow="fwd"),
-    # STRIKE (contact): front foot stepped in, back leg driven straight, one
-    # line of action from the back heel through hip and spine into long
-    # arms; chest opened to the viewer, blade biting forward-down.
-    "strike":  dict(hip=(6, -46), sp=55, sp2=4, hd=-45, grip=(120, -60), blade=405, open=3,
-                    front=(40, 0), back=(-64, 0), back_lift=55, elbow="down"),
-    # FOLLOW-THROUGH: the cut carries on to point straight down, the back
-    # folds over it, hips stay low, arms stay long.
-    "follow":  dict(hip=(10, -44), sp=60, sp2=14, hd=-36, grip=(124, -70), blade=448, open=3,
-                    front=(40, 0), back=(-64, 0), back_lift=60, elbow="down"),
+    # STRIKE (contact): front foot stepped in, back leg driven straight, the
+    # back rounds over the cut (upper spine curls 36 deg past the lower),
+    # head follows the curve with the eyes down on the blade, long arms
+    # reaching forward-down; the blade runs on from the forearms.
+    "strike":  dict(hip=(0, -58), sp=34, sp2=36, hd=-14, grip=(95.1, -38.0), blade=374, open=3,
+                    front=(36, 0), back=(-68, 0), back_lift=55, elbow="down"),
+    # FOLLOW-THROUGH: the cut is drawn through to the front hip on long arms,
+    # upper back still curled over it, blade angled forward-down.
+    "follow":  dict(hip=(-4, -60), sp=20, sp2=30, hd=-14, grip=(55.2, -35.8), blade=389, open=3,
+                    front=(36, 0), back=(-68, 0), back_lift=60, elbow="down"),
     # RECOVERY: rises and draws the front foot back, blade up into guard.
     "recover": dict(hip=(-8, -70), sp=16, sp2=-6, hd=-4, grip=(30, -110), blade=300, open=1,
                     back_lift=26, elbow="down"),
@@ -248,7 +281,7 @@ ACTIONS = {
         ("strike", "strike", 0.0),
         ("follow", "follow", 0.0),
         ("recover", "recover", 0.0),
-    ], smear={1: (0, 0.45, 125), 2: (1, 0.0, 70)}),
+    ], smear={1: (0, 0.65, 125), 2: (1, 0.0, 70)}),
 }
 
 
@@ -267,6 +300,10 @@ def build(action):
     worst = max(s[3] for s in solved)
     if worst > 0.5:
         raise SystemExit("IK target out of reach (%.2f units)" % worst)
+    for n, (_p, j, _t, _e) in enumerate(solved):
+        bad = grip_fault(j) or elbow_fault(j)
+        if bad:
+            raise SystemExit("frame %d: %s" % (n + 1, bad))
     frames, anchors = [], {}
     for i, (p, j, toes, _e) in enumerate(solved):
         smear = None
