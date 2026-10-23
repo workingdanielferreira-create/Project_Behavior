@@ -1,0 +1,1067 @@
+{
+  "format": "pb_character",
+  "version": 2,
+  "name": "swordsman_rig",
+  "display_name": "Swordsman (Rig)",
+  "description": "Rig-drawn swordsman: a resilient, grounded two-handed melee brawler. idle/run/attack_normal are traced from the built-in swordsman's sprite art.",
+  "archetype": "New",
+  "predicates": {
+    "can_shoot": false,
+    "uses_melee": true,
+    "retreats": false,
+    "charges_full": true
+  },
+  "movement": {
+    "wander_strength": 0.15
+  },
+  "stats": {
+    "max_hp": 100,
+    "chase_speed": 4.5,
+    "follow_speed": 6.0,
+    "scale": 1.0,
+    "basic_attack_radius": 180
+  },
+  "rig": "humanoid_v2",
+  "modes": [
+    "solo",
+    "battle"
+  ],
+  "bones": {
+    "ua": 22,
+    "fa": 20,
+    "th": 26,
+    "sh": 24,
+    "torso": 36
+  },
+  "palette": {
+    "body": "#e8231a",
+    "accent": "#ff7a5c"
+  },
+  "defense": "block",
+  "weapon": {
+    "points": [
+      [
+        -5,
+        0
+      ],
+      [
+        38,
+        0
+      ]
+    ],
+    "thickness": 3,
+    "color": "#d8dee9",
+    "anchors": [
+      "weapon_mid",
+      "weapon_tip"
+    ]
+  },
+  "ultimate_playback": {
+    "style": "crescent"
+  },
+  "actions": {
+    "idle": {
+      "trigger": "ambient",
+      "duration_ms": 256,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": 6.756,
+            "ry": 5.527,
+            "sp": 16.821,
+            "sp2": 6.07,
+            "hd": 66.368,
+            "lsht": -67.179,
+            "rsht": 163.348,
+            "lpvt": -73.179,
+            "rpvt": 106.821,
+            "lua": 6.068,
+            "lfa": 32.844,
+            "rua": 49.7,
+            "rfa": -33.243,
+            "lth": 61.282,
+            "lsh": -1.538,
+            "rth": -92.392,
+            "rsh": 80.083,
+            "wp": 69.516,
+            "luas": 0.868,
+            "lfas": 0.651,
+            "ruas": 0.529,
+            "rfas": 1.324,
+            "lths": 0.796,
+            "lshs": 1.422,
+            "rths": 1.397,
+            "rshs": 1.362
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": 6.96,
+            "ry": 5.527,
+            "sp": 13.092,
+            "sp2": 11.089,
+            "hd": 63.181,
+            "lsht": -69.063,
+            "rsht": 157.262,
+            "lpvt": -76.908,
+            "rpvt": 103.092,
+            "lua": 2.881,
+            "lfa": 36.363,
+            "rua": 51.628,
+            "rfa": -37.143,
+            "lth": 62.259,
+            "lsh": -0.56,
+            "rth": -91.331,
+            "rsh": 78.717,
+            "wp": 71.89,
+            "luas": 0.856,
+            "lfas": 0.641,
+            "ruas": 0.501,
+            "rfas": 1.311,
+            "lths": 0.811,
+            "lshs": 1.511,
+            "rths": 1.377,
+            "rshs": 1.329
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "run": {
+      "trigger": "ambient",
+      "duration_ms": 384,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": -2.049,
+            "ry": 5.121,
+            "sp": 24.775,
+            "sp2": 0.0,
+            "hd": 60.289,
+            "lsht": -64.377,
+            "rsht": 99.601,
+            "lpvt": -65.225,
+            "rpvt": 114.775,
+            "lua": 139.865,
+            "lfa": 88.281,
+            "rua": 68.143,
+            "rfa": -10.682,
+            "lth": 69.751,
+            "lsh": 6.62,
+            "rth": -74.712,
+            "rsh": 101.27,
+            "wp": 9.808,
+            "luas": 0.5,
+            "lfas": 0.5,
+            "ruas": 0.87,
+            "rfas": 1.137,
+            "lths": 0.786,
+            "lshs": 1.45,
+            "rths": 1.032,
+            "rshs": 1.336
+          }
+        },
+        {
+          "t": 0.2,
+          "p": {
+            "rx": -11.267,
+            "ry": 7.682,
+            "sp": 40.236,
+            "sp2": 0.0,
+            "hd": 36.365,
+            "lsht": -101.008,
+            "rsht": -82.27,
+            "lpvt": -49.764,
+            "rpvt": 130.236,
+            "lua": -126.225,
+            "lfa": 64.468,
+            "rua": 38.659,
+            "rfa": 8.904,
+            "lth": 75.633,
+            "lsh": -0.659,
+            "rth": 13.792,
+            "rsh": 31.494,
+            "wp": 2.2,
+            "luas": 0.5,
+            "lfas": 0.534,
+            "ruas": 1.456,
+            "rfas": 1.332,
+            "lths": 0.5,
+            "lshs": 1.134,
+            "rths": 0.5,
+            "rshs": 1.317
+          }
+        },
+        {
+          "t": 0.4,
+          "p": {
+            "rx": -7.682,
+            "ry": 6.658,
+            "sp": 50.599,
+            "sp2": 0.0,
+            "hd": 23.777,
+            "lsht": 168.223,
+            "rsht": 167.466,
+            "lpvt": -39.401,
+            "rpvt": 140.599,
+            "lua": -117.716,
+            "lfa": 3.906,
+            "rua": 23.396,
+            "rfa": 16.009,
+            "lth": 65.261,
+            "lsh": -13.131,
+            "rth": -75.899,
+            "rsh": 152.77,
+            "wp": -0.004,
+            "luas": 0.5,
+            "lfas": 1.295,
+            "ruas": 0.664,
+            "rfas": 1.024,
+            "lths": 1.039,
+            "lshs": 1.46,
+            "rths": 1.139,
+            "rshs": 1.315
+          }
+        },
+        {
+          "t": 0.6,
+          "p": {
+            "rx": -6.658,
+            "ry": 1.536,
+            "sp": 39.806,
+            "sp2": 0.0,
+            "hd": 57.554,
+            "lsht": -156.367,
+            "rsht": 127.659,
+            "lpvt": -50.194,
+            "rpvt": 129.806,
+            "lua": -104.581,
+            "lfa": -18.518,
+            "rua": 65.684,
+            "rfa": -23.634,
+            "lth": 85.915,
+            "lsh": 10.201,
+            "rth": -62.701,
+            "rsh": 14.684,
+            "wp": 21.471,
+            "luas": 0.808,
+            "lfas": 0.876,
+            "ruas": 0.581,
+            "rfas": 0.724,
+            "lths": 0.553,
+            "lshs": 1.202,
+            "rths": 1.374,
+            "rshs": 1.149
+          }
+        },
+        {
+          "t": 0.8,
+          "p": {
+            "rx": -9.731,
+            "ry": 4.609,
+            "sp": 48.24,
+            "sp2": 0.0,
+            "hd": 31.835,
+            "lsht": 147.895,
+            "rsht": -143.037,
+            "lpvt": -41.76,
+            "rpvt": 138.24,
+            "lua": -108.178,
+            "lfa": -63.765,
+            "rua": 32.615,
+            "rfa": -10.144,
+            "lth": 83.656,
+            "lsh": -6.531,
+            "rth": -76.73,
+            "rsh": 53.243,
+            "wp": 32.194,
+            "luas": 1.155,
+            "lfas": 1.108,
+            "ruas": 0.911,
+            "rfas": 1.085,
+            "lths": 0.641,
+            "lshs": 1.532,
+            "rths": 1.167,
+            "rshs": 1.07
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": -9.731,
+            "ry": 1.536,
+            "sp": 36.254,
+            "sp2": 0.0,
+            "hd": 58.146,
+            "lsht": -119.201,
+            "rsht": -107.872,
+            "lpvt": -53.746,
+            "rpvt": 126.254,
+            "lua": -80.686,
+            "lfa": 16.131,
+            "rua": 38.248,
+            "rfa": 9.593,
+            "lth": 66.171,
+            "lsh": 20.464,
+            "rth": -65.372,
+            "rsh": 79.019,
+            "wp": 19.944,
+            "luas": 0.501,
+            "lfas": 0.756,
+            "ruas": 1.313,
+            "rfas": 1.493,
+            "lths": 0.5,
+            "lshs": 1.145,
+            "rths": 0.634,
+            "rshs": 1.449
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "attack_normal": {
+      "trigger": "on_hit",
+      "duration_ms": 240,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": 0.6,
+            "ry": 4.797,
+            "sp": 32.735,
+            "sp2": 8.304,
+            "hd": 33.022,
+            "lsht": 83.887,
+            "rsht": 141.109,
+            "lpvt": -57.265,
+            "rpvt": 122.735,
+            "lua": 47.735,
+            "lfa": -46.615,
+            "rua": -9.994,
+            "rfa": 8.24,
+            "lth": 14.748,
+            "lsh": -14.752,
+            "rth": -100.181,
+            "rsh": 133.27,
+            "wp": 31.247,
+            "luas": 1.184,
+            "lfas": 0.849,
+            "ruas": 1.036,
+            "rfas": 0.853,
+            "lths": 0.615,
+            "lshs": 0.874,
+            "rths": 0.942,
+            "rshs": 0.686
+          }
+        },
+        {
+          "t": 0.25,
+          "p": {
+            "rx": -13.493,
+            "ry": -2.998,
+            "sp": 41.009,
+            "sp2": 6.614,
+            "hd": 29.707,
+            "lsht": 17.947,
+            "rsht": -24.126,
+            "lpvt": -48.991,
+            "rpvt": 131.009,
+            "lua": 34.768,
+            "lfa": 3.034,
+            "rua": -98.227,
+            "rfa": 50.633,
+            "lth": 63.624,
+            "lsh": -69.135,
+            "rth": -71.155,
+            "rsh": 71.138,
+            "wp": 50.931,
+            "luas": 1.355,
+            "lfas": 1.504,
+            "ruas": 1.528,
+            "rfas": 0.749,
+            "lths": 1.191,
+            "lshs": 1.305,
+            "rths": 1.066,
+            "rshs": 1.0
+          }
+        },
+        {
+          "t": 0.5,
+          "p": {
+            "rx": -12.893,
+            "ry": 16.791,
+            "sp": 19.654,
+            "sp2": 20.333,
+            "hd": 59.802,
+            "lsht": 33.707,
+            "rsht": -79.432,
+            "lpvt": -70.346,
+            "rpvt": 109.654,
+            "lua": 39.366,
+            "lfa": 23.773,
+            "rua": 168.357,
+            "rfa": 24.013,
+            "lth": 97.456,
+            "lsh": -119.262,
+            "rth": -83.747,
+            "rsh": 57.164,
+            "wp": -5.959,
+            "luas": 0.866,
+            "lfas": 0.924,
+            "ruas": 0.715,
+            "rfas": 1.325,
+            "lths": 0.989,
+            "lshs": 1.346,
+            "rths": 0.939,
+            "rshs": 1.118
+          }
+        },
+        {
+          "t": 0.75,
+          "p": {
+            "rx": -9.295,
+            "ry": 13.193,
+            "sp": 30.964,
+            "sp2": 2.028,
+            "hd": 102.534,
+            "lsht": -39.697,
+            "rsht": 133.42,
+            "lpvt": -59.036,
+            "rpvt": 120.964,
+            "lua": 92.801,
+            "lfa": -11.014,
+            "rua": 171.805,
+            "rfa": -30.521,
+            "lth": 83.181,
+            "lsh": -99.649,
+            "rth": -84.975,
+            "rsh": 75.523,
+            "wp": 5.726,
+            "luas": 0.523,
+            "lfas": 0.859,
+            "ruas": 0.913,
+            "rfas": 0.904,
+            "lths": 0.886,
+            "lshs": 1.146,
+            "rths": 1.201,
+            "rshs": 1.064
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": -0.3,
+            "ry": 2.998,
+            "sp": 12.265,
+            "sp2": 0.757,
+            "hd": 32.616,
+            "lsht": -59.518,
+            "rsht": -164.499,
+            "lpvt": -77.735,
+            "rpvt": 102.265,
+            "lua": 85.788,
+            "lfa": -8.813,
+            "rua": 65.841,
+            "rfa": 15.377,
+            "lth": 64.416,
+            "lsh": -33.457,
+            "rth": -62.181,
+            "rsh": 75.594,
+            "wp": 1.707,
+            "luas": 0.842,
+            "lfas": 0.959,
+            "ruas": 0.612,
+            "rfas": 0.812,
+            "lths": 0.746,
+            "lshs": 1.457,
+            "rths": 0.987,
+            "rshs": 1.079
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "attack_special": {
+      "trigger": "on_hit",
+      "duration_ms": 480,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": -4,
+            "ry": 12,
+            "sp": -16.858,
+            "sp2": 0.0,
+            "hd": 58.337,
+            "lsht": -118.06,
+            "rsht": 86.143,
+            "lpvt": -106.858,
+            "rpvt": 73.142,
+            "lua": 31.65,
+            "lfa": 65.441,
+            "rua": 32.934,
+            "rfa": 59.375,
+            "lth": 69.503,
+            "lsh": -30.829,
+            "rth": -78.67,
+            "rsh": 56.031,
+            "wp": -28.16,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.916,
+            "lshs": 1.068,
+            "rths": 0.85,
+            "rshs": 1.084
+          }
+        },
+        {
+          "t": 0.333,
+          "p": {
+            "rx": 6,
+            "ry": 4,
+            "sp": 16.39,
+            "sp2": 0.0,
+            "hd": 52.073,
+            "lsht": -73.931,
+            "rsht": 99.047,
+            "lpvt": -73.61,
+            "rpvt": 106.39,
+            "lua": -90.032,
+            "lfa": -70.142,
+            "rua": -100.617,
+            "rfa": -60.858,
+            "lth": 54.036,
+            "lsh": -14.744,
+            "rth": -64.855,
+            "rsh": 31.175,
+            "wp": -3.485,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.938,
+            "lshs": 1.185,
+            "rths": 1.116,
+            "rshs": 1.201
+          }
+        },
+        {
+          "t": 0.667,
+          "p": {
+            "rx": 8,
+            "ry": 2,
+            "sp": 9.728,
+            "sp2": 0.0,
+            "hd": 33.59,
+            "lsht": -63.053,
+            "rsht": 105.194,
+            "lpvt": -80.272,
+            "rpvt": 99.728,
+            "lua": -157.986,
+            "lfa": -65.849,
+            "rua": -163.793,
+            "rfa": -46.634,
+            "lth": 55.644,
+            "lsh": -15.838,
+            "rth": -62.579,
+            "rsh": 34.284,
+            "wp": -42.736,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.962,
+            "lshs": 1.302,
+            "rths": 1.012,
+            "rshs": 1.23
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": 14,
+            "ry": 14,
+            "sp": 36.254,
+            "sp2": 0.0,
+            "hd": 35.081,
+            "lsht": -79.819,
+            "rsht": 101.089,
+            "lpvt": -53.746,
+            "rpvt": 126.254,
+            "lua": -56.632,
+            "lfa": -77.987,
+            "rua": -65.668,
+            "rfa": -59.403,
+            "lth": 61.499,
+            "lsh": 0.429,
+            "rth": -76.199,
+            "rsh": 41.203,
+            "wp": 29.283,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.931,
+            "lshs": 1.417,
+            "rths": 1.217,
+            "rshs": 1.017
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "defend": {
+      "trigger": "on_parry",
+      "duration_ms": 400,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": -2,
+            "ry": 10,
+            "sp": 6.34,
+            "sp2": 0.0,
+            "hd": 38.106,
+            "lsht": -77.47,
+            "rsht": 83.289,
+            "lpvt": -83.66,
+            "rpvt": 96.34,
+            "lua": -42.38,
+            "lfa": -81.273,
+            "rua": -53.841,
+            "rfa": -85.59,
+            "lth": 56.385,
+            "lsh": -25.418,
+            "rth": -68.009,
+            "rsh": 46.2,
+            "wp": -44.307,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.698,
+            "lshs": 0.972,
+            "rths": 1.032,
+            "rshs": 0.898
+          }
+        },
+        {
+          "t": 0.5,
+          "p": {
+            "rx": -6,
+            "ry": 12,
+            "sp": 0.0,
+            "sp2": 0.0,
+            "hd": 36.027,
+            "lsht": -80.538,
+            "rsht": 75.964,
+            "lpvt": -90.0,
+            "rpvt": 90.0,
+            "lua": -50.393,
+            "lfa": -79.728,
+            "rua": -62.518,
+            "rfa": -84.748,
+            "lth": 60.945,
+            "lsh": -27.256,
+            "rth": -65.556,
+            "rsh": 41.57,
+            "wp": 1.647,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.792,
+            "lshs": 0.901,
+            "rths": 0.929,
+            "rshs": 0.821
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": 0,
+            "ry": 10,
+            "sp": 12.875,
+            "sp2": 0.0,
+            "hd": 43.702,
+            "lsht": -69.456,
+            "rsht": 103.401,
+            "lpvt": -77.125,
+            "rpvt": 102.875,
+            "lua": -34.513,
+            "lfa": -80.884,
+            "rua": -46.018,
+            "rfa": -80.153,
+            "lth": 57.829,
+            "lsh": -26.869,
+            "rth": -68.413,
+            "rsh": 46.59,
+            "wp": -4.601,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.737,
+            "lshs": 0.972,
+            "rths": 1.066,
+            "rshs": 0.898
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "ultimate": {
+      "trigger": "on_ult",
+      "duration_ms": 900,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": -4,
+            "ry": 14,
+            "sp": -9.728,
+            "sp2": 0.0,
+            "hd": 47.27,
+            "lsht": -98.084,
+            "rsht": 98.671,
+            "lpvt": -99.728,
+            "rpvt": 80.272,
+            "lua": 140.764,
+            "lfa": 61.081,
+            "rua": 147.302,
+            "rfa": 49.567,
+            "lth": 76.439,
+            "lsh": -41.446,
+            "rth": -73.063,
+            "rsh": 39.356,
+            "wp": -71.94,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 1.003,
+            "lshs": 1.017,
+            "rths": 1.071,
+            "rshs": 0.902
+          }
+        },
+        {
+          "t": 0.2,
+          "p": {
+            "rx": 10,
+            "ry": 10,
+            "sp": 26.565,
+            "sp2": 0.0,
+            "hd": 40.784,
+            "lsht": -77.124,
+            "rsht": 99.867,
+            "lpvt": -63.435,
+            "rpvt": 116.565,
+            "lua": -45.479,
+            "lfa": -80.025,
+            "rua": -55.182,
+            "rfa": -55.539,
+            "lth": 57.832,
+            "lsh": -4.702,
+            "rth": -73.352,
+            "rsh": 40.867,
+            "wp": 42.969,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.928,
+            "lshs": 1.25,
+            "rths": 1.187,
+            "rshs": 1.087
+          }
+        },
+        {
+          "t": 0.4,
+          "p": {
+            "rx": 6,
+            "ry": 12,
+            "sp": 6.34,
+            "sp2": 0.0,
+            "hd": 49.302,
+            "lsht": -61.819,
+            "rsht": 111.254,
+            "lpvt": -83.66,
+            "rpvt": 96.34,
+            "lua": -16.803,
+            "lfa": 96.47,
+            "rua": -3.772,
+            "rfa": 81.539,
+            "lth": 64.551,
+            "lsh": -16.531,
+            "rth": -72.075,
+            "rsh": 37.088,
+            "wp": -19.125,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.899,
+            "lshs": 1.122,
+            "rths": 1.006,
+            "rshs": 1.017
+          }
+        },
+        {
+          "t": 0.6,
+          "p": {
+            "rx": 12,
+            "ry": 6,
+            "sp": 22.38,
+            "sp2": 0.0,
+            "hd": 36.258,
+            "lsht": -77.351,
+            "rsht": 95.053,
+            "lpvt": -67.62,
+            "rpvt": 112.38,
+            "lua": -124.61,
+            "lfa": -60.03,
+            "rua": -134.552,
+            "rfa": -45.015,
+            "lth": 55.128,
+            "lsh": -4.932,
+            "rth": -68.594,
+            "rsh": 38.327,
+            "wp": 14.593,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.982,
+            "lshs": 1.302,
+            "rths": 1.117,
+            "rshs": 1.158
+          }
+        },
+        {
+          "t": 0.8,
+          "p": {
+            "rx": 8,
+            "ry": 8,
+            "sp": 9.728,
+            "sp2": 0.0,
+            "hd": 33.59,
+            "lsht": -67.524,
+            "rsht": 105.194,
+            "lpvt": -80.272,
+            "rpvt": 99.728,
+            "lua": 2.088,
+            "lfa": 87.854,
+            "rua": -67.75,
+            "rfa": -69.366,
+            "lth": 70.553,
+            "lsh": -38.099,
+            "rth": -66.58,
+            "rsh": 37.977,
+            "wp": 37.388,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 1.169,
+            "lshs": 1.086,
+            "rths": 0.979,
+            "rshs": 1.044
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": 6.756,
+            "ry": 5.527,
+            "sp": 16.821,
+            "sp2": 6.07,
+            "hd": 66.368,
+            "lsht": -67.179,
+            "rsht": 163.348,
+            "lpvt": -73.179,
+            "rpvt": 106.821,
+            "lua": 6.068,
+            "lfa": 32.844,
+            "rua": 49.7,
+            "rfa": -33.243,
+            "lth": 61.282,
+            "lsh": -1.538,
+            "rth": -92.392,
+            "rsh": 80.083,
+            "wp": 69.516,
+            "luas": 0.868,
+            "lfas": 0.651,
+            "ruas": 0.529,
+            "rfas": 1.324,
+            "lths": 0.796,
+            "lshs": 1.422,
+            "rths": 1.397,
+            "rshs": 1.362
+          }
+        }
+      ],
+      "activation_triggers": [
+        {
+          "type": "hp_threshold",
+          "pct": 70,
+          "repeatable": false,
+          "cooldown_ms": 0
+        },
+        {
+          "type": "hp_threshold",
+          "pct": 50,
+          "repeatable": false,
+          "cooldown_ms": 0
+        },
+        {
+          "type": "hp_threshold",
+          "pct": 30,
+          "repeatable": false,
+          "cooldown_ms": 0
+        }
+      ],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    },
+    "impact": {
+      "trigger": "on_hit",
+      "duration_ms": 300,
+      "keyframes": [
+        {
+          "t": 0.0,
+          "p": {
+            "rx": -4,
+            "ry": 10,
+            "sp": -16.858,
+            "sp2": 0.0,
+            "hd": 19.499,
+            "lsht": -108.392,
+            "rsht": 92.063,
+            "lpvt": -106.858,
+            "rpvt": 73.142,
+            "lua": -8.635,
+            "lfa": -102.301,
+            "rua": 28.454,
+            "rfa": 90.251,
+            "lth": 63.022,
+            "lsh": -36.458,
+            "rth": -56.588,
+            "rsh": 30.007,
+            "wp": 46.546,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.877,
+            "lshs": 0.932,
+            "rths": 0.722,
+            "rshs": 0.932
+          }
+        },
+        {
+          "t": 1.0,
+          "p": {
+            "rx": 0,
+            "ry": 10,
+            "sp": 15.945,
+            "sp2": 0.0,
+            "hd": 53.165,
+            "lsht": -71.231,
+            "rsht": 101.657,
+            "lpvt": -74.055,
+            "rpvt": 105.945,
+            "lua": -11.767,
+            "lfa": -87.243,
+            "rua": 10.803,
+            "rfa": -100.375,
+            "lth": 56.884,
+            "lsh": -25.93,
+            "rth": -65.092,
+            "rsh": 43.275,
+            "wp": 19.164,
+            "luas": 1.0,
+            "lfas": 1.0,
+            "ruas": 1.0,
+            "rfas": 1.0,
+            "lths": 0.726,
+            "lshs": 0.971,
+            "rths": 0.941,
+            "rshs": 0.898
+          }
+        }
+      ],
+      "activation_triggers": [],
+      "retrigger_cooldown_ms": 0,
+      "fx_layers": [
+        {
+          "type": "figure"
+        },
+        {
+          "type": "weapon"
+        }
+      ]
+    }
+  },
+  "implementation_notes": {
+    "rig_keyframes": "idle/run/attack_normal: one keyframe per frame of swordstanding*/swordrun*/slash*, traced joint-by-joint over the original art (root = sprite centre, per-set scale fitting the 36-unit torso). attack_special (arcslash), defend (parry), ultimate (twin crescent) and impact are authored in a heavy, planted style.",
+    "behaviour": "No combo block: the generic combo defaults are the built-in swordsman's own. ultimate_playback 'crescent' uses the built-in HP thresholds (70/50/30 %). Identical in Solo and Battle."
+  }
+}
