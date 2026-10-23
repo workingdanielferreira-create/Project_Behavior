@@ -464,7 +464,9 @@ primitive `technique` (FX Studio presets: **Sword techniques**). `params.style`
 picks one: `rising_slash`, `horizontal_sweep`, `diagonal_slash` (filled
 crescents of light that swing round the anchor), `crescent_wave` (a travelling
 slash beam with a dark core and flames), `blade_extension` (an energy blade
-that charges, shoots out of the sword tip, holds and retracts),
+that charges, shoots out of the sword tip, holds and retracts; Blade pivot /
+spin / sweep turn it round a point on its centre line and Blade slide moves it
+along an axis while it is out),
 `forward_thrust` (a lunge stab: a tapered spear of light drives out along the
 aim, an air-pressure ring at full reach, then it snaps back) or
 `overhead_slash` (a vertical chop from above the head down to the feet,
