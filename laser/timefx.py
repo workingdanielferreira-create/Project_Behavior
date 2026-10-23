@@ -95,7 +95,7 @@ def _conds_ok(fig, world, action, cfg):
     r, ctx = actions.tracker_ctx(fig, world)
     key = "@time:" + action
     if r._conds_pass(fig, key, cfg, ctx):
-        r.mark_fired(key, cfg, ctx, world.global_tick)
+        r.mark_fired(fig, key, cfg, ctx, world.global_tick)
         return True
     return False
 

@@ -145,7 +145,8 @@ class ActionRunner:
                  "was_parrying", "base_speed", "acted", "attack_count", "born", "last_start", "last_end",
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
-                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg")
+                 "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg", "gap_until",
+                 "cd_born", "cd_start", "cd_end", "cd_idle")
 
     def __init__(self):
         self.playing = None
@@ -158,6 +159,7 @@ class ActionRunner:
         self.hp_fired = {}
         self.history = []
         self.last_attack_end = -10 ** 9
+        self.gap_until = -10 ** 9     # attack gap end, on the cooldown clock (unique.cd_now)
         self.chain_pos = None
         self.hit_tags = []
         self.next_tag = None
@@ -170,6 +172,13 @@ class ActionRunner:
         self.last_start = {}
         self.last_end = {}
         self.idle_since = None
+        # The same moments on the fighter's cooldown clock (unique.cd_now):
+        # timer conditions (every_ms, since_action, idle_for) read these, so
+        # Berserker rage speeds them up as it does cooldowns.
+        self.cd_born = None
+        self.cd_start = {}
+        self.cd_end = {}
+        self.cd_idle = None
         self.own_track = []
         self.tgt_track = []
         self.last_hp = None
@@ -296,13 +305,13 @@ class ActionRunner:
             return bool(seq) and self.history[-len(seq):] == seq
         if t == "since_action":
             other = str(cond.get("action") or "") or name
-            ref = self.last_end.get(other, self.born)
-            return other != self.playing and now - ref >= int(float(cond.get("ms", 2000)) / TICK_MS)
+            ref = self.cd_end.get(other, self.cd_born)
+            return other != self.playing and _unique.cd_now(fig, now) - ref >= int(float(cond.get("ms", 2000)) / TICK_MS)
         if t == "every_ms":
-            ref = self.last_start.get(name, self.born)
-            return now - ref >= int(float(cond.get("ms", 3000)) / TICK_MS)
+            ref = self.cd_start.get(name, self.cd_born)
+            return _unique.cd_now(fig, now) - ref >= int(float(cond.get("ms", 3000)) / TICK_MS)
         if t == "idle_for":
-            return self.playing is None and now - self.idle_since >= int(float(cond.get("ms", 1000)) / TICK_MS)
+            return self.playing is None and _unique.cd_now(fig, now) - self.cd_idle >= int(float(cond.get("ms", 1000)) / TICK_MS)
         if t == "chance":
             p = max(0.0, min(100.0, float(cond.get("pct_s", 30)))) / 100.0
             return self.rng.random() < 1.0 - (1.0 - p) ** (TICK_MS / 1000.0)
@@ -329,7 +338,7 @@ class ActionRunner:
 
     def _triggered(self, fig, name, ctx, now):
         cfg = _cfg(fig, name)
-        if not cfg.get("conditions") or now < self.cooldown_until.get(name, 0):
+        if not cfg.get("conditions") or _unique.cd_now(fig, now) < self.cooldown_until.get(name, 0):
             return False
         return self._conds_pass(fig, name, cfg, ctx)
 
@@ -342,10 +351,25 @@ class ActionRunner:
         fm = float(act.get("frame_ms") or 0) or (float(act.get("duration_ms") or 100 * max(1, n)) / max(1, n))
         return n, max(1.0, fm)
 
-    def mark_fired(self, name, cfg, ctx, now):
+    def stamp_start(self, fig, name, now):
+        """`name` started at world tick `now` (and on the cooldown clock)."""
+        self.last_start[name] = now
+        self.cd_start[name] = _unique.cd_now(fig, now)
+
+    def stamp_end(self, fig, name, now):
+        """`name` ended at world tick `now` (and on the cooldown clock)."""
+        self.last_end[name] = now
+        self.cd_end[name] = _unique.cd_now(fig, now)
+
+    def stamp_idle(self, fig, now):
+        """Idle since world tick `now` (and on the cooldown clock)."""
+        self.idle_since = now
+        self.cd_idle = _unique.cd_now(fig, now)
+
+    def mark_fired(self, fig, name, cfg, ctx, now):
         """`name` fired now: the counters that belong to it restart (an
         action, or a Time control keyed "@time:<action>")."""
-        self.last_start[name] = now
+        self.stamp_start(fig, name, now)
         self.since_attacks[name] = 0
         self.since_hits[name] = 0
         for c in cfg.get("conditions") or []:
@@ -364,10 +388,12 @@ class ActionRunner:
         self.leap = None
         if self.leap_dmg is not None and self.leap_dmg[0] == name:
             self.leap_dmg = None
+        # Cooldowns run on the fighter's cooldown clock (Berserker rage
+        # speeds it up, laser/unique.py).
         cd = float(cfg.get("cooldown_ms") or 0)
-        self.cooldown_until[name] = now + int(cd / TICK_MS)
+        self.cooldown_until[name] = _unique.cd_now(fig, now) + int(cd / TICK_MS)
         # Counters that belong to this action restart when it fires.
-        self.mark_fired(name, cfg, ctx, now)
+        self.mark_fired(fig, name, cfg, ctx, now)
         if _kind(name) == "attack":
             self.attack_count += 1
             for k in list(self.since_attacks.keys()):
@@ -389,10 +415,11 @@ class ActionRunner:
             c.action_idx = 0
         self.history.append(name)
         del self.history[:-HISTORY]
-        self.last_end[name] = now
-        self.idle_since = now
+        self.stamp_end(fig, name, now)
+        self.stamp_idle(fig, now)
         if _kind(name) == "attack":
             self.last_attack_end = now
+            self.gap_until = _unique.cd_now(fig, now) + int(DEFAULT_ATTACK_GAP_MS / TICK_MS)
             self.chain_pos = name
         self._restore_speed(fig)
 
@@ -409,7 +436,7 @@ class ActionRunner:
         """Next attack to play, or None (archetype decides when)."""
         if ctx["target"] is None:
             return None
-        if now < self.last_attack_end + int(DEFAULT_ATTACK_GAP_MS / TICK_MS):
+        if _unique.cd_now(fig, now) < self.gap_until:
             return None
         name = "attack_normal"
         if self.chain_pos:
@@ -420,7 +447,7 @@ class ActionRunner:
                 name = nxt
             else:
                 self.chain_pos = None
-        if now < self.cooldown_until.get(name, 0):
+        if _unique.cd_now(fig, now) < self.cooldown_until.get(name, 0):
             return None
         if ctx["dist"] > attack_range(fig, name):
             return None
@@ -453,7 +480,8 @@ class ActionRunner:
         self.was_parrying = parrying
         if self.born is None:
             self.born = now
-            self.idle_since = now
+            self.cd_born = _unique.cd_now(fig, now)
+            self.stamp_idle(fig, now)
         # HP lost (damage_taken), own / target speed (px/s over SPEED_WINDOW ticks).
         if self.last_hp is not None and p.hp < self.last_hp:
             self.hp_drops.append((now, self.last_hp - p.hp))
@@ -875,7 +903,7 @@ def tracker_ctx(fig, world):
                 r.since_attacks[k] += 1
         r.was_attacking = attacking
         if attacking:
-            r.idle_since = now
+            r.stamp_idle(fig, now)
     ctx = r.observe(fig, world)
     if not is_image(fig):
         r.end_tick()

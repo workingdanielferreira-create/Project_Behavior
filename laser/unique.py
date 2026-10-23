@@ -19,7 +19,8 @@ UNIQUE_DEFAULTS / normalizeUnique.
 
     mirror_legion    split into full copies of the fighter (real Figures on its
                      side running its ticked actions) on a trigger
-    berserker        attack + movement speed (every state) rise as HP falls
+    berserker        attack + movement speed (every state) and skill
+                     cooldown speed rise as HP falls
     phase_shift      a hit is nullified and the fighter teleports away
     ricochet         its bullets and moving FX bounce off walls / fighters / FX
     riposte          a hit inside the counter stance (or by chance) is
@@ -54,6 +55,7 @@ Hooks (all shared by Solo and Battle; Solo's enemy is the cursor):
     systems.CombatSystem                 tick() once per body step
     systems.MotionSystem                 holds_still(), push_out(), blink_free()
     timefx.plan                          speed_mult() / fx_speed_mult()
+    actions / blink / dodge / retreat / ai cooldowns   cd_now()
     systems.ProjectileSystem             proj_step(), proj_wants_figures(), proj_off_point()
     systems.CollisionSystem              proj_off_figure(), proj_ghost()
     fxkit.spawn / tick_inst / hit        fx_size_mult(), inst_step(), inst_off_figure()
@@ -330,7 +332,7 @@ class UAState:
                  "riposte_cd", "flash", "flash_rgb",
                  "clones", "pending", "clone_of", "clone_left", "clone_P",
                  # every figure
-                 "t", "landed", "stun_left",
+                 "t", "landed", "stun_left", "cd_ahead",
                  # Dual Form
                  "form", "df_gauge", "df_timer", "df_cd", "df_fired", "df_combo", "df_buff",
                  "df_lut0", "df_init", "df_want", "df_pending", "df_tr_act", "df_act",
@@ -377,6 +379,7 @@ class UAState:
         self.t = 0               # body steps taken (tick())
         self.landed = 0          # hits landed (note_landed)
         self.stun_left = 0       # Aegis shockwave stun (world_tick counts it down)
+        self.cd_ahead = 0.0      # Berserker: ticks its cooldown clock runs ahead (world_tick)
         self.form = "a"
         self.df_gauge = 0.0
         self.df_timer = 0
@@ -891,6 +894,16 @@ def world_tick(world):
         the gravity rule moves enemy fighters
       * structures: published as world.ua_structs for every side's pass."""
     dead = getattr(world, "_dead", ()) or ()
+    # Berserker: its cooldown clock (cd_now) gains the rage bonus this tick
+    # (not while a cinematic freeze holds its side).
+    frozen = getattr(world, "cinematic_frozen", None)
+    for i, side in enumerate(world.sides):
+        if frozen is not None and frozen(i):
+            continue
+        for f in side.figures:
+            k = cooldown_mult(f)
+            if k != 1.0:
+                state(f).cd_ahead += k - 1.0
     for side in world.sides:
         figs = side.figures
         keep, changed = [], False
@@ -1012,6 +1025,25 @@ def _rage(fig, P):
         n = max(1, P["steps"])
         f = math.floor(f * n + 1e-9) / n
     return f
+
+
+def cooldown_mult(fig):
+    """Berserker: how fast the fighter's skill cooldowns run, the same rage
+    multiplier as its speed (+500% = six times as fast)."""
+    P = _of(fig, "berserker")
+    if P is None:
+        return 1.0
+    return max(0.0, 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P))
+
+
+def cd_now(fig, now):
+    """The fighter's cooldown clock at world tick `now`: every skill
+    cooldown (actions, Blink, Dodge, Retreat, activation triggers) is set
+    and checked on it.  It runs ahead of the world clock by what
+    cooldown_mult added each tick, so a cooldown already running also
+    finishes sooner as the rage grows."""
+    st = getattr(fig, "ua", None)
+    return now + st.cd_ahead if st is not None else now
 
 
 def speed_mult(fig, world=None):

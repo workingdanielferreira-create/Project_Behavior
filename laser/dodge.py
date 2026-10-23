@@ -63,6 +63,7 @@ import math
 from . import config
 
 from .actions import CONDITION_TYPES as CONDITIONS
+from . import unique as _unique
 
 STYLES = ("sidestep", "blink", "action", "sidestep_action", "blink_action")
 SIDES = ("open", "random", "alternate")
@@ -301,10 +302,10 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
     m = fig.motion
     m.bouncing = m.bounce_ending = False
     m.bounce_vx = m.bounce_vy = 0.0
-    st.cooldown_until = now + _ticks(cfg.get("cooldown_ms"))
+    st.cooldown_until = _unique.cd_now(fig, now) + _ticks(cfg.get("cooldown_ms"))   # cooldown clock (Berserker)
     st.counter = bool(cfg.get("counter_action")) and not _retreating(fig)   # no counter mid-retreat
     st.counter_at = None
-    r.mark_fired(KEY, cfg, ctx, now)
+    r.mark_fired(fig, KEY, cfg, ctx, now)
     if style in ("action", "sidestep_action", "blink_action") and cfg.get("action"):
         if actions.force_action(fig, world, cfg["action"]):
             st.act, st.act_started = cfg["action"], now
@@ -400,7 +401,7 @@ def tick(fig, world):
     if st.counter and not _act_playing(fig, st):
         if st.counter_at is None:
             st.counter_at = now + _ticks(cfg.get("counter_delay_ms"))
-            r.last_end[KEY] = now
+            r.stamp_end(fig, KEY, now)
         if now >= st.counter_at:
             st.counter = False
             st.counter_at = None
@@ -408,7 +409,7 @@ def tick(fig, world):
     shots = getattr(world, "enemy_shots", None) or []
     if st.seen:
         st.seen &= {id(s.ref) for s in shots}   # forget projectiles that are gone
-    if not shots or now < st.cooldown_until or not _can_start(fig, cfg):
+    if not shots or _unique.cd_now(fig, now) < st.cooldown_until or not _can_start(fig, cfg):
         return False
     s = _threat(fig, world, cfg, st, shots)
     if s is None:

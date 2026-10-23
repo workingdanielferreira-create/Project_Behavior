@@ -110,15 +110,16 @@ def _play_key(fig, action):
     return (action, r.started if r is not None and r.playing == action else None)
 
 
-def _cooling(st, action, now):
-    return st is not None and now < st.ready_at.get(action, -1)
+def _cooling(fig, st, action, now):
+    from . import unique
+    return st is not None and unique.cd_now(fig, now) < st.ready_at.get(action, -1)
 
 
 def fx_on(fig, action, now):
     """Whether the FX built on `action`'s Blink play now (its Blink is on):
     not while the Blink is on cooldown, unless this play already blinked."""
     st = getattr(fig, "blink", None)
-    if st is None or st.gone or not _cooling(st, action, now):
+    if st is None or st.gone or not _cooling(fig, st, action, now):
         return True
     return st.play == _play_key(fig, action)
 
@@ -143,7 +144,7 @@ def _may_vanish(fig, st, action, i, now):
     """Blink i of `action` may start: the action's Blink is off cooldown, or
     an earlier blink of this same pass already ran (the rest of the list
     still plays; a loop back to the start waits for the cooldown)."""
-    if not _cooling(st, action, now):
+    if not _cooling(fig, st, action, now):
         return True
     return st.play == _play_key(fig, action) and st.action == action and i > st.idx
 
@@ -263,7 +264,7 @@ def _reappear(fig, st, world):
     if unique.blink_free(fig):
         cd = 0.0
     if cd > 0 and st.action is not None:
-        st.ready_at[st.action] = world.global_tick + int(round(cd / config.TICK_MS))
+        st.ready_at[st.action] = unique.cd_now(fig, world.global_tick) + int(round(cd / config.TICK_MS))
     if cfg.get("flash", True):
         fig.combat.blink_fx_pending.append((nx, ny, nx, ny))
 
