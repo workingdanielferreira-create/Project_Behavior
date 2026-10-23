@@ -192,41 +192,25 @@ def draw(p, j, toes, smear=None):
 # Units: rig units, y up is negative, ground at 0, x=0 is the figure origin.
 # blade: screen angle of the blade (0 = forward, 90 = down, 270 = straight up);
 # kept continuous so in-betweens sweep the right way round.
-FRONT, BACK = (44.0, 0.0), (-36.0, 0.0)
+FRONT, BACK = (30.0, 0.0), (-50.0, 0.0)
 K = {
-    # guard: knees soft, chest over the hips, blade up-forward
-    "ready":   dict(hip=(-4, -73), sp=10, sp2=6, hd=-6, grip=(34, -112), blade=303, open=1,
-                    back_lift=28, elbow="down"),
-    # anticipation 1: sink and coil, back rounds forward, hands pulled in
-    "coil":    dict(hip=(-8, -66), sp=20, sp2=16, hd=-22, grip=(26, -100), blade=292, open=-1,
-                    back_lift=24, elbow="down"),
-    # anticipation 2: weight onto the back leg, back arches, sword cocked behind the head
-    "windup":  dict(hip=(-11, -71), sp=-12, sp2=-22, hd=14, grip=(-26, -171), blade=166, open=-3,
-                    back_lift=14, front_lift=0, elbow="fwd"),
-    # held wind-up keeps drifting a touch further (moving hold)
-    "windup2": dict(hip=(-12, -72), sp=-14, sp2=-25, hd=16, grip=(-29, -173), blade=172, open=-4,
-                    back_lift=12, front_lift=0, elbow="fwd"),
-    # release: hips drive forward first, spine unwinds, blade swings up over the head
-    "release": dict(hip=(0, -72), sp=6, sp2=-4, hd=4, grip=(10, -178), blade=250, open=1,
-                    back_lift=28, elbow="fwd"),
-    # fast frame: chest whips forward, arms extend, blade past vertical
-    "whip":    dict(hip=(12, -66), sp=22, sp2=10, hd=-12, grip=(74, -146), blade=318, open=5,
-                    back_lift=38, elbow="down"),
-    # contact: arms extended, back curled into the cut, front knee loaded
-    "hit":     dict(hip=(16, -62), sp=30, sp2=16, hd=-24, grip=(108, -100), blade=379, open=7,
-                    back_lift=44, elbow="down"),
-    # impact squash held: hips sink, shoulders drop into the blow
-    "hit2":    dict(hip=(17, -59), sp=33, sp2=17, hd=-26, grip=(109, -94), blade=383, open=7,
-                    back_lift=46, elbow="down"),
-    # follow-through: blade carries down past the target, body overshoots
-    "follow":  dict(hip=(19, -60), sp=37, sp2=18, hd=-28, grip=(104, -72), blade=412, open=6,
-                    back_lift=46, elbow="down"),
-    # recoil: body rebounds up, blade lifts back toward guard
-    "recoil":  dict(hip=(12, -66), sp=24, sp2=8, hd=-16, grip=(86, -98), blade=384, open=4,
-                    back_lift=38, elbow="down"),
-    # settle back into guard (ease out)
-    "settle":  dict(hip=(2, -71), sp=14, sp2=6, hd=-8, grip=(50, -110), blade=334, open=2,
-                    back_lift=30, elbow="down"),
+    # ANTICIPATION: everything loaded backwards.  Weight sunk on the back
+    # leg, back arched, chest turned away, sword dropped behind the back;
+    # the head stays level on the target.
+    "windup":  dict(hip=(-20, -62), sp=-18, sp2=-28, hd=30, grip=(-62, -150), blade=150, open=-7,
+                    back_lift=8, elbow="fwd"),
+    # STRIKE (contact): front foot stepped in, back leg driven straight, one
+    # line of action from the back heel through hip and spine into long
+    # arms; chest opened to the viewer, blade biting forward-down.
+    "strike":  dict(hip=(6, -46), sp=55, sp2=4, hd=-45, grip=(120, -60), blade=405, open=3,
+                    front=(40, 0), back=(-64, 0), back_lift=55, elbow="down"),
+    # FOLLOW-THROUGH: the cut carries on to point straight down, the back
+    # folds over it, hips stay low, arms stay long.
+    "follow":  dict(hip=(10, -44), sp=60, sp2=14, hd=-36, grip=(124, -70), blade=448, open=3,
+                    front=(40, 0), back=(-64, 0), back_lift=60, elbow="down"),
+    # RECOVERY: rises and draws the front foot back, blade up into guard.
+    "recover": dict(hip=(-8, -70), sp=16, sp2=-6, hd=-4, grip=(30, -110), blade=300, open=1,
+                    back_lift=26, elbow="down"),
 }
 for _k in K.values():
     _k.setdefault("front", FRONT); _k.setdefault("back", BACK)
@@ -256,27 +240,15 @@ def blend(a, b, t):
     return out
 
 
-# Uneven spacing: slow in/out around the anticipation, wide steps through
-# the swing, held contact; each hold drifts a little so it stays alive.
+# Key poses only, one drawing each.  smear: frame -> (earlier frame, how
+# much of the sweep to skip, alpha) for the swoosh behind the blade.
 ACTIONS = {
-    "attack_normal": dict(frame_ms=28, frames=[
-        ("ready", "ready", 0.0),
-        ("ready", "coil", 0.6),
-        ("coil", "coil", 0.0),
-        ("coil", "windup", 0.55),
+    "attack_normal": dict(frame_ms=80, frames=[
         ("windup", "windup", 0.0),
-        ("windup", "windup2", 0.6),
-        ("windup2", "windup2", 0.0),     # anticipation peak, held ~3 frames
-        ("release", "release", 0.0),
-        ("whip", "whip", 0.0),           # fast frame, smeared
-        ("hit", "hit", 0.0),             # contact
-        ("hit", "hit2", 1.0),            # impact squash, held
-        ("hit2", "hit2", 0.0),
-        ("follow", "follow", 0.0),       # follow-through past the target
-        ("recoil", "recoil", 0.0),
-        ("settle", "settle", 0.0),
-        ("settle", "ready", 0.7),
-    ], smear={8: 7, 9: 8}),             # frame index -> sweep from that earlier frame
+        ("strike", "strike", 0.0),
+        ("follow", "follow", 0.0),
+        ("recover", "recover", 0.0),
+    ], smear={1: (0, 0.45, 125), 2: (1, 0.0, 70)}),
 }
 
 
@@ -299,16 +271,17 @@ def build(action):
     for i, (p, j, toes, _e) in enumerate(solved):
         smear = None
         if i in spec.get("smear", {}):
-            pj = solved[spec["smear"][i]][1]
+            src, skip, alpha = spec["smear"][i]
+            pj = solved[src][1]
             tips, mids = [], []
             for n in range(9):
-                t = n / 8.0
+                t = skip + (1.0 - skip) * n / 8.0
                 # sweep the blade between the earlier frame and this one
                 ph = lerp(pj["wang"], j["wang"], t)
                 hx, hy = lerp(pj["haR"][0], j["haR"][0], t), lerp(pj["haR"][1], j["haR"][1], t)
                 c, s = math.cos((ph - 90) * D), math.sin((ph - 90) * D)
                 tips.append((hx + 70 * c, hy + 70 * s)); mids.append((hx + 28 * c, hy + 28 * s))
-            smear = dict(tips=tips, mids=mids, alpha=120 if i == 8 else 70)
+            smear = dict(tips=tips, mids=mids, alpha=alpha)
         frames.append(draw(p, j, toes, smear))
         for name in rb.JOINT_NAMES:
             if name == "wtip2":
