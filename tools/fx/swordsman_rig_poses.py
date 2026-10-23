@@ -1,165 +1,248 @@
 #!/usr/bin/env python3
-"""Pose generator for fx_packages/swordsman_rig (filled Rig Forge style).
+"""3D pose generator for fx_packages/swordsman_rig (filled style).
 
-Poses are authored as body targets, not raw bone angles: hip position, a
-two-part spine (lower `sp` + upper `sp2`, so the back can curl and arch),
-head tilt, the near hand's grip point, the blade angle and the two toe
-positions.  Two-bone IK then places elbows and knees with fixed bone
-lengths, knees always bending forward, both feet planted and both hands
-on the hilt.  Frames are drawn with tools/fx/rigforge_bake.py's joints()
-and weapon_poly(), plus fists, feet and darker far-side limbs for depth.
+The fighter lives in a 3D world seen from the side, so key poses are built
+as a real 3D body and then drawn flat:
+
+  world: x forward (the way he faces), y up, z toward the camera; his right
+  side (sword hand, near side) is +z.  Ground is y = 0.
+
+Each key pose gives the pelvis position and turn, a two-part spine (lean,
+curl, chest twist against the hips), head pitch, the sword grip point and
+blade direction in 3D, and each foot's toe position and heel lift.  Two-bone
+IK with pole points places elbows and knees at fixed bone lengths.  The
+camera looks from the near side, turned a little toward his front (3/4) and
+tilted down, so twist, foreshortening and ground depth all show.
+
+Drawing: body groups (far arm, far leg, torso + head, near leg, near arm)
+and the blade's pieces are depth-sorted and drawn far to near; each bone's
+thickness and tone follow its depth.
+
+Every frame is checked before anything is written: IK reach, joint range
+of motion (elbow, knee, wrist, chest twist), knees bending forward, elbows
+not winging up, the thumb-side sword grip, and feet above the ground.
 
 usage: swordsman_rig_poses.py <action> [--preview out.png]
 Rewrites fx_packages/swordsman_rig/<action>_NN.png, the action's entry in
 character.json (frames, frame_ms, duration_ms, anchors) and the action's
-timing and anchors in swordsman_rig.fxkit.json.  Only attack_normal is
-authored so far.
+timing and anchors in swordsman_rig.fxkit.json.
 """
 import json, math, os, sys
 
 from PIL import Image, ImageDraw
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import rigforge_bake as rb
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PKG = os.path.join(ROOT, "fx_packages", "swordsman_rig")
 
 # Canvas: same size and origin as the rest of the package.
 W, H = 608, 596
-ORIGIN = (304.0, 298.0)
-GROUND_Y = 458.0          # feet line shared with idle/run/defend/impact
-PPU = 1.7                 # image px per rig unit
+ORIGIN_X, GROUND_Y = 304.0, 458.0
+PPU = 1.7                 # image px per body unit
 SS = 4                    # supersampling
 
-# About 6.6 heads tall: thigh a little longer than shin, arm reaching
-# mid-thigh, shoulders set 8 units under the neck so a neck shows.
-CH = {
-    "rig": {"bones": {"ua": 34, "fa": 36, "th": 44, "sh": 41, "torso": 58, "head": 13},
-            "pivots": {"shoulder_x": 0, "shoulder_y": 8, "hip_x": 0, "hip_y": 0,
-                       "side_separation": 3}},
-    # Two-handed sword: grip at x=0 (near hand), pommel -14, guard +3, tip +70.
-    "weapon": {"shapes": [
-        [[-14, -1.6], [2, -1.6], [2, -5], [4, -5], [4, -2], [62, -2], [70, 0],
-         [62, 2], [4, 2], [4, 5], [2, 5], [2, 1.6], [-14, 1.6]]]},
-}
-RIG = rb.rig_of(CH)
-SHAPES = rb.weapon_shapes(CH)
-BODY = (0xE8, 0x23, 0x1A)                       # palette.body
-FAR = tuple(int(c * 0.62) for c in BODY)        # far-side limbs: darker, opaque
-EDGE = (12, 14, 18)
-SMEAR = (0xFF, 0x7A, 0x5C)                      # palette.accent
-FOOT = 10.0                                     # ankle -> toe
-ANKLE_H = 3.0
-FAR_HAND = 9.0                                  # far hand sits this far down the grip
+# Camera: side view from the near (+z) side, turned toward his front and
+# tilted down.
+YAW, PITCH = 20.0, 10.0
 
+# Body (units).  About 6.6 heads tall; thigh a little longer than shin.
+UA, FA, TH, SH = 34.0, 36.0, 44.0, 41.0
+LOW_SPINE, UP_SPINE = 32.0, 26.0
+HEAD_R = 13.0
+SHOULDER_DROP, SHOULDER_HALF, HIP_HALF = 8.0, 17.0, 8.0
+FOOT, ANKLE_H = 10.0, 3.0
+FIST_GAP = 9.0                      # far hand sits one fist down the handle
+GRIP_BACK, BLADE_LEN, BLADE_W = 14.0, 70.0, 2.4
+
+BODY = (0xE8, 0x23, 0x1A)                       # palette.body
+SMEAR = (0xFF, 0x7A, 0x5C)                      # palette.accent
+EDGE = (12, 14, 18)
 D = math.pi / 180.0
 
-
-def lerp(a, b, t):
-    return a + (b - a) * t
-
-
-def ik(root, target, l1, l2, pick):
-    """Two-bone IK -> (mid joint, end joint).  `pick` scores the two mid
-    solutions; the higher score wins."""
-    dx, dy = target[0] - root[0], target[1] - root[1]
-    d = max(abs(l1 - l2) + 1e-3, min(l1 + l2 - 1e-3, math.hypot(dx, dy)))
-    base = math.atan2(dy, dx)
-    b = math.acos(max(-1.0, min(1.0, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d))))
-    cands = [(root[0] + l1 * math.cos(base + s * b), root[1] + l1 * math.sin(base + s * b)) for s in (1, -1)]
-    mid = max(cands, key=pick)
-    ux, uy = target[0] - mid[0], target[1] - mid[1]
-    n = math.hypot(ux, uy) or 1.0
-    return mid, (mid[0] + ux / n * l2, mid[1] + uy / n * l2)
+# Range-of-motion limits (degrees) — overlap of published tables.
+ELBOW_MAX, KNEE_MAX, TWIST_MAX = 145.0, 140.0, 35.0
+GRIP_MIN, GRIP_MAX = 15.0, 125.0    # forearm -> blade angle, thumb side
+BLADE_MIN_SCREEN = 0.6              # blade keeps >= 60 % of its length on screen
 
 
-def ang(a, b):
-    """Rig Forge bone angle (0 = down, + toward +x) of the segment a -> b."""
-    return math.atan2(b[0] - a[0], b[1] - a[1]) / D
+# ------------------------------------------------------------- vectors
+def add(*v): return tuple(sum(c) for c in zip(*v))
+def sub(a, b): return tuple(x - y for x, y in zip(a, b))
+def mul(a, s): return tuple(x * s for x in a)
+def dot(a, b): return sum(x * y for x, y in zip(a, b))
+def norm(a): return math.sqrt(dot(a, a))
+def unit(a):
+    n = norm(a) or 1.0
+    return mul(a, 1.0 / n)
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+def angle(a, b):
+    return math.acos(max(-1.0, min(1.0, dot(unit(a), unit(b))))) / D
 
 
-def ankle_of(toe, lift):
-    return (toe[0] - FOOT * math.cos(lift * D), toe[1] - FOOT * math.sin(lift * D) - ANKLE_H)
+UP = (0.0, 1.0, 0.0)
 
 
+def facing(yaw):
+    """Forward and right vectors for a body part turned `yaw` degrees
+    (positive = its front turns toward the camera)."""
+    f = (math.cos(yaw * D), 0.0, math.sin(yaw * D))
+    r = (-math.sin(yaw * D), 0.0, math.cos(yaw * D))
+    return f, r
+
+
+def lean(f, a):
+    """Up vector leaned `a` degrees toward f (negative arches back)."""
+    return add(mul(UP, math.cos(a * D)), mul(f, math.sin(a * D)))
+
+
+def ik(root, target, l1, l2, pole):
+    """Two-bone IK in 3D.  The middle joint bends toward the pole point."""
+    d_vec = sub(target, root)
+    d = max(abs(l1 - l2) + 1e-3, min(l1 + l2 - 1e-3, norm(d_vec)))
+    n = unit(d_vec)
+    a = (l1 * l1 + d * d - l2 * l2) / (2 * d)
+    h = math.sqrt(max(0.0, l1 * l1 - a * a))
+    v = sub(pole, root)
+    v = unit(sub(v, mul(n, dot(v, n))))
+    mid = add(root, mul(n, a), mul(v, h))
+    end = add(mid, mul(unit(sub(target, mid)), l2))
+    return mid, end
+
+
+def seg_dist(p, a, b):
+    """2D distance from point p to segment a-b."""
+    ax, ay = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * ax + (p[1] - a[1]) * ay) / ((ax * ax + ay * ay) or 1.0)))
+    return math.hypot(p[0] - a[0] - t * ax, p[1] - a[1] - t * ay)
+
+
+# ------------------------------------------------------------- body
 def solve(k):
-    """Pose targets -> Rig Forge keyframe params (+ extras for drawing)."""
-    p = dict(rb.PDEF)
-    so = k.get("open", 0.0)
-    p.update(rx=k["hip"][0], ry=k["hip"][1], sp=k["sp"], sp2=k["sp2"], hd=k["hd"],
-             shrx=so, shlx=-so, hprx=so * 0.5, hplx=-so * 0.5, wpx=0, wpy=0)
-    j = rb.joints(p, RIG, SHAPES)
-    phi = k["blade"]
-    grip = k["grip"]
-    fhand = (grip[0] - FAR_HAND * math.cos(phi * D), grip[1] - FAR_HAND * math.sin(phi * D))
-    elbow_pick = {"down": lambda q: q[1], "fwd": lambda q: q[0] - q[1] * 0.25,
-                  "out": lambda q: -q[1]}[k.get("elbow", "down")]
-    for side, tgt in (("R", grip), ("L", fhand)):
-        s = j["sh" + side]
-        el, ha = ik(s, tgt, RIG["ua"], RIG["fa"], elbow_pick)
-        up = ang(s, el)
-        p[("r" if side == "R" else "l") + "ua"] = up
-        p[("r" if side == "R" else "l") + "fa"] = ang(el, ha) - up
-    toes = {"R": k["front"], "L": k["back"]}
-    lifts = {"R": k.get("front_lift", 0.0), "L": k.get("back_lift", 30.0)}
-    for side in ("R", "L"):
-        h = j["hp" + side]
-        an = ankle_of(toes[side], lifts[side])
-        kn, ft = ik(h, an, RIG["th"], RIG["sh"], lambda q: q[0])   # knees point forward
-        up = ang(h, kn)
-        p[("r" if side == "R" else "l") + "th"] = up
-        p[("r" if side == "R" else "l") + "sh"] = ang(kn, ft) - up
-    p["wp"] = phi + 90 - (p["rua"] + p["rfa"])
-    j = rb.joints(p, RIG, SHAPES)
-    err = max(math.dist(j["haR"], grip), math.dist(j["haL"], fhand),
-              math.dist(j["ftR"], ankle_of(toes["R"], lifts["R"])),
-              math.dist(j["ftL"], ankle_of(toes["L"], lifts["L"])))
-    return p, j, toes, err
+    """Key pose -> 3D joints."""
+    j = {}
+    P = k["pelvis"]
+    fp, rp = facing(k["hip_yaw"])
+    fc, rc = facing(k["hip_yaw"] + k["twist"])
+    j["hip"] = P
+    j["hpR"], j["hpL"] = add(P, mul(rp, HIP_HALF)), add(P, mul(rp, -HIP_HALF))
+    u1 = lean(fp, k["lean"])
+    j["chest"] = add(P, mul(u1, LOW_SPINE))
+    u2 = lean(fc, k["lean"] + k["curl"])
+    j["neck"] = add(j["chest"], mul(u2, UP_SPINE))
+    j["shB"] = add(j["neck"], mul(u2, -SHOULDER_DROP))
+    j["shR"], j["shL"] = add(j["shB"], mul(rc, SHOULDER_HALF)), add(j["shB"], mul(rc, -SHOULDER_HALF))
+    u3 = lean(fc, k["lean"] + k["curl"] + k["head"])
+    j["head"] = add(j["neck"], mul(u3, HEAD_R * 1.3))
+    j["root"] = add(j["head"], mul(UP, HEAD_R * 2.4))
+
+    g = unit(k["blade"])
+    j["haR"] = tuple(k["grip"])
+    j["haL"] = sub(j["haR"], mul(g, FIST_GAP))
+    j["wtip"] = add(j["haR"], mul(g, BLADE_LEN))
+    j["pommel"] = sub(j["haR"], mul(g, GRIP_BACK))
+    for s, side in (("R", 1.0), ("L", -1.0)):
+        # elbows point down and out to their own side (plus any per-pose nudge)
+        pole = add(j["sh" + s], mul(UP, -40.0), mul(rc, side * 25.0), mul(fc, k.get("elbow_fwd", 0.0)))
+        j["el" + s], end = ik(j["sh" + s], j["ha" + s], UA, FA, pole)
+        j["_ha" + s] = end
+    for s, key in (("R", "front"), ("L", "back")):
+        toe, lift = k[key]["toe"], k[key].get("lift", 0.0)
+        ff, _r = facing(k[key].get("yaw", k["hip_yaw"]))
+        ankle = add(toe, mul(ff, -FOOT * math.cos(lift * D)), mul(UP, FOOT * math.sin(lift * D) + ANKLE_H))
+        side = 1.0 if s == "R" else -1.0
+        pole = add(j["hp" + s], mul(ff, 60.0), mul(rp, side * 8.0), mul(UP, -20.0))
+        j["kn" + s], end = ik(j["hp" + s], ankle, TH, SH, pole)
+        j["ft" + s], j["_an" + s], j["toe" + s] = end, ankle, toe
+    return j
 
 
-GRIP_REL = (-115.0, -10.0)
+def faults(j, k):
+    """Every anatomy / grip rule the frame breaks (empty list = good)."""
+    out = []
+    g = unit(sub(j["wtip"], j["haR"]))
+    for s, name in (("R", "near"), ("L", "far")):
+        if norm(sub(j["_ha" + s], j["ha" + s])) > 0.5:
+            out.append("%s hand can't reach the grip" % name)
+        up, fo = sub(j["el" + s], j["sh" + s]), sub(j["ha" + s], j["el" + s])
+        if angle(up, fo) > ELBOW_MAX:
+            out.append("%s elbow bends %.0f > %.0f" % (name, angle(up, fo), ELBOW_MAX))
+        a = angle(fo, g)
+        if not GRIP_MIN <= a <= GRIP_MAX:
+            out.append("%s grip: blade %.0f deg off the forearm (allowed %.0f..%.0f)" % (name, a, GRIP_MIN, GRIP_MAX))
+        mid = mul(add(j["sh" + s], j["ha" + s]), 0.5)
+        if j["el" + s][1] > max(j["sh" + s][1], j["ha" + s][1]) + 2 and j["el" + s][1] > mid[1] + 6 \
+                and j["ha" + s][1] < j["sh" + s][1]:
+            out.append("%s elbow winging up (chicken wing)" % name)
+        if norm(sub(j["ft" + s], j["_an" + s])) > 0.5:
+            out.append("%s leg can't reach its foot" % name)
+        th, sh = sub(j["kn" + s], j["hp" + s]), sub(j["ft" + s], j["kn" + s])
+        if angle(th, sh) > KNEE_MAX:
+            out.append("%s knee bends %.0f > %.0f" % (name, angle(th, sh), KNEE_MAX))
+        fp, _r = facing(k["hip_yaw"])
+        line = sub(j["ft" + s], j["hp" + s])
+        off = sub(sub(j["kn" + s], j["hp" + s]), mul(unit(line), dot(sub(j["kn" + s], j["hp" + s]), unit(line))))
+        if norm(off) > 2 and dot(off, fp) < 0:
+            out.append("%s knee points backward" % name)
+        if min(j["ft" + s][1], j["toe" + s][1]) < -0.5:
+            out.append("%s foot below ground" % name)
+    # readability: the blade keeps most of its length on screen, and the
+    # near arm never crosses in front of the face
+    pa, pb = img(j["haR"]), img(j["wtip"])
+    if math.hypot(pb[0] - pa[0], pb[1] - pa[1]) < BLADE_MIN_SCREEN * BLADE_LEN * PPU:
+        out.append("blade foreshortened past readability")
+    hc = img(j["head"]); hz = cam(j["head"])[2]
+    for a_, b_ in (("shR", "elR"), ("elR", "haR")):
+        if depth(j[a_], j[b_]) > hz and seg_dist(hc, img(j[a_]), img(j[b_])) < (HEAD_R + 4) * PPU:
+            out.append("near arm crosses the face")
+            break
+    if abs(k["twist"]) > TWIST_MAX:
+        out.append("chest twist %.0f > %.0f" % (abs(k["twist"]), TWIST_MAX))
+    if j["wtip"][1] < 0:
+        out.append("blade tip in the ground")
+    return out
 
 
-def grip_fault(j):
-    """Both fists close on the handle with the blade leaving on the thumb
-    side: measured from each forearm (elbow -> hand), the blade must turn
-    10..115 degrees toward the thumb (counter-clockwise on screen, facing
-    right).  A positive angle means the blade comes out under the little
-    finger, which no grip allows."""
-    blade = j["wang"] - 90
-    for side in ("R", "L"):
-        el, ha = j["el" + side], j["ha" + side]
-        fore = math.atan2(ha[1] - el[1], ha[0] - el[0]) / D
-        rel = (blade - fore + 180) % 360 - 180
-        if not GRIP_REL[0] <= rel <= GRIP_REL[1]:
-            return "blade leaves the %s fist at %+.0f deg (allowed %+.0f..%+.0f)" % (
-                "near" if side == "R" else "far", rel, GRIP_REL[0], GRIP_REL[1])
-    return ""
+# ------------------------------------------------------------- camera
+def cam(p):
+    """3D point -> (screen x, screen y up, depth toward camera)."""
+    x, y, z = p
+    cy, sy = math.cos(YAW * D), math.sin(YAW * D)
+    sx = x * cy - z * sy
+    d0 = x * sy + z * cy
+    cp, sp = math.cos(PITCH * D), math.sin(PITCH * D)
+    return sx, y * cp - d0 * sp, d0 * cp + y * sp
 
 
-def elbow_fault(j):
-    """Elbows only hinge one way: the forearm folds toward the front of the
-    upper arm (clockwise on screen, facing right).  Folding the other way is
-    a chicken wing / hyperextension."""
-    for side in ("R", "L"):
-        sh, el, ha = j["sh" + side], j["el" + side], j["ha" + side]
-        u = (el[0] - sh[0], el[1] - sh[1]); f = (ha[0] - el[0], ha[1] - el[1])
-        if u[0] * f[1] - u[1] * f[0] > 0.05 * math.hypot(*u) * math.hypot(*f):
-            return "%s elbow bends backwards" % ("near" if side == "R" else "far")
-    return ""
+def img(p, s=1.0):
+    sx, sy, _d = cam(p)
+    return ((ORIGIN_X + sx * PPU) * s, (GROUND_Y - sy * PPU) * s)
 
 
-def tf(q, s=1.0):
-    return ((ORIGIN[0] + q[0] * PPU) * s, (GROUND_Y + q[1] * PPU) * s)
+def depth(*ps):
+    return sum(cam(p)[2] for p in ps) / len(ps)
 
 
-def draw(p, j, toes, smear=None):
+def tone(dz):
+    t = max(0.0, min(1.0, (dz + 22.0) / 44.0))
+    k = 0.6 + 0.4 * t
+    return tuple(int(c * k) for c in BODY) + (255,)
+
+
+def thick(dz):
+    return 1.0 + max(-0.12, min(0.12, dz * 0.006))
+
+
+# ------------------------------------------------------------- drawing
+def draw(j, smear=None):
     S = SS
-    img = Image.new("RGBA", (W * S, H * S), (0, 0, 0, 0))
+    ref = cam(j["hip"])[2]      # tone/thickness are relative to his own body
+
+    def rel(*ps):
+        return depth(*ps) - ref
+    im = Image.new("RGBA", (W * S, H * S), (0, 0, 0, 0))
 
     def stroke(d, a, b, w, col):
-        a, b = tf(a, S), tf(b, S)
+        a, b = img(a, S), img(b, S)
         wpx = max(1.0, w * PPU * S)
         d.line([a, b], fill=col, width=int(round(wpx)))
         r = wpx / 2.0
@@ -167,159 +250,155 @@ def draw(p, j, toes, smear=None):
             d.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
 
     def disc(d, c, r, col):
-        q = tf(c, S); r *= PPU * S
+        q = img(c, S); r *= PPU * S
         d.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
 
-    def group(parts):
-        """One body part group: outline under the whole group, then fill, so
-        joints inside a limb stay seamless while overlapping limbs separate."""
-        nonlocal img
-        edge = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        fill = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        de, df = ImageDraw.Draw(edge), ImageDraw.Draw(fill)
-        for kind, a, b, w, far in parts:
-            col = (FAR if far else BODY) + (255,)
-            if kind == "disc":
-                disc(de, a, b + 1.1, EDGE + (255,)); disc(df, a, b, col)
-            else:
-                wl = (9.4 if far else 10.0) * w
-                stroke(de, a, b, wl + 2.2, EDGE + (255,)); stroke(df, a, b, wl, col)
-        img = Image.alpha_composite(Image.alpha_composite(img, edge), fill)
-
-    def toe(side, far):
-        wl = (9.4 if far else 10.0) * 0.72
-        t = toes[side]
-        return ("bone", j["ft" + side], (t[0], t[1] - wl / 2.0 - 0.6), 0.72, far)
-
-    def limb(a, b, c, w1, w2, far, end):
-        return [("bone", j[a], j[b], w1, far), ("bone", j[b], j[c], w2, far), end]
-
-    def weapon():
-        d = ImageDraw.Draw(img)
-        for pts in rb.weapon_poly(j, p, SHAPES, 0):
-            t = [tf(q, S) for q in pts]
-            d.polygon(t, fill=(27, 29, 32, 255))
-            d.line(t + [t[0]], fill=(225, 232, 240, 230), width=max(1, int(round(1.5 * PPU * S))), joint="curve")
+    # body groups: bones (a, b, base width), discs (centre, radius)
+    groups = {
+        "far_arm": [("b", "shL", "elL", 9.0), ("b", "elL", "haL", 8.0), ("d", "haL", 4.4)],
+        "near_arm": [("b", "shR", "elR", 9.6), ("b", "elR", "haR", 8.6), ("d", "haR", 4.6)],
+        "far_leg": [("b", "hpL", "knL", 10.0), ("b", "knL", "ftL", 9.0), ("f", "L")],
+        "near_leg": [("b", "hpR", "knR", 10.6), ("b", "knR", "ftR", 9.6), ("f", "R")],
+        "torso": [("b", "hpL", "hpR", 10.0), ("b", "hip", "chest", 12.4), ("b", "chest", "neck", 11.2),
+                  ("b", "shL", "shR", 8.6), ("d", "head", HEAD_R)],
+    }
+    items = []
+    for name, parts in groups.items():
+        pts = [j[p[1]] for p in parts if p[0] in "bd"]
+        dz = depth(*pts)
+        if name == "torso":
+            dz = depth(j["hip"], j["chest"], j["neck"])
+        items.append((dz, "group", name, parts))
+    # blade in pieces so it can pass behind or in front of the body
+    n = 6
+    for i in range(n):
+        a = add(j["pommel"], mul(sub(j["wtip"], j["pommel"]), i / float(n)))
+        b = add(j["pommel"], mul(sub(j["wtip"], j["pommel"]), (i + 1) / float(n)))
+        items.append((depth(a, b), "blade", i, (a, b)))
+    items.sort(key=lambda t: t[0])
 
     if smear:
-        band = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        outer = [tf(q, S) for q in smear["tips"]]
-        inner = [tf(q, S) for q in reversed(smear["mids"])]
-        ImageDraw.Draw(band).polygon(outer + inner, fill=SMEAR + (smear.get("alpha", 110),))
-        img = Image.alpha_composite(img, band)
-    group(limb("shL", "elL", "haL", 0.94, 0.83, True, ("disc", j["haL"], 4.5, 0, True)))
-    group(limb("hpL", "knL", "ftL", 1.00, 0.88, True, toe("L", True)))
-    group([("bone", j["hip"], j["hpL"], 0.98, False), ("bone", j["hip"], j["hpR"], 0.98, False),
-           ("bone", j["hip"], j["chest"], 1.24, False), ("bone", j["chest"], j["neck"], 1.12, False),
-           ("bone", j["neck"], j["shB"], 0.86, False), ("bone", j["shB"], j["shL"], 0.86, False),
-           ("bone", j["shB"], j["shR"], 0.86, False), ("disc", j["head"], RIG["head"], 0, False)])
-    group(limb("hpR", "knR", "ftR", 1.10, 0.96, False, toe("R", False)))
-    group(limb("shR", "elR", "haR", 1.00, 0.90, False, ("bone", j["haR"], j["haR"], 0.0, False)))
-    weapon()
-    group([("disc", j["haR"], 4.5, 0, False)])
-    return img.resize((W, H), Image.LANCZOS)
+        band = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        outer = [img(q, S) for q in smear["tips"]]
+        inner = [img(q, S) for q in reversed(smear["mids"])]
+        ImageDraw.Draw(band).polygon(outer + inner, fill=SMEAR + (smear["alpha"],))
+        im = Image.alpha_composite(im, band)
+
+    for dz, kind, name, parts in items:
+        if kind == "blade":
+            a, b = parts
+            d = ImageDraw.Draw(im)
+            pa, pb = img(a, S), img(b, S)
+            vx, vy = pb[0] - pa[0], pb[1] - pa[1]
+            L = math.hypot(vx, vy) or 1.0
+            nx, ny = -vy / L * BLADE_W * PPU * S, vx / L * BLADE_W * PPU * S
+            tip = name == n - 1
+            hilt = (name + 1) / float(n) * (GRIP_BACK + BLADE_LEN) <= GRIP_BACK + 0.5
+            w2 = 0.0 if tip else 1.0
+            poly = [(pa[0] + nx, pa[1] + ny), (pb[0] + nx * w2, pb[1] + ny * w2),
+                    (pb[0] - nx * w2, pb[1] - ny * w2), (pa[0] - nx, pa[1] - ny)]
+            d.polygon(poly, fill=(27, 29, 32, 255) if not hilt else (60, 40, 30, 255))
+            lw = max(1, int(round(1.3 * PPU * S)))
+            d.line([poly[0], poly[1]], fill=(225, 232, 240, 230), width=lw)
+            d.line([poly[3], poly[2]], fill=(225, 232, 240, 230), width=lw)
+            continue
+        edge = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        fill = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        de, df = ImageDraw.Draw(edge), ImageDraw.Draw(fill)
+        for p in parts:
+            if p[0] == "b":
+                a, b = j[p[1]], j[p[2]]
+                z = rel(a, b); w = p[3] * thick(z)
+                stroke(de, a, b, w + 2.2, EDGE + (255,)); stroke(df, a, b, w, tone(z))
+            elif p[0] == "d":
+                c = j[p[1]]; z = rel(c); r = p[2] * (thick(z) if p[1] != "head" else 1.0)
+                disc(de, c, r + 1.1, EDGE + (255,)); disc(df, c, r, tone(z))
+            else:
+                s = p[1]; a, t = j["ft" + s], j["toe" + s]
+                t = (t[0], t[1] + 3.4, t[2])
+                z = rel(a, t); w = 7.0 * thick(z)
+                stroke(de, a, t, w + 2.2, EDGE + (255,)); stroke(df, a, t, w, tone(z))
+        im = Image.alpha_composite(Image.alpha_composite(im, edge), fill)
+    return im.resize((W, H), Image.LANCZOS)
 
 
-# ------------------------------------------------------------------ poses
-# Units: rig units, y up is negative, ground at 0, x=0 is the figure origin.
-# blade: screen angle of the blade (0 = forward, 90 = down, 270 = straight up);
-# kept continuous so in-betweens sweep the right way round.
-FRONT, BACK = (30.0, 0.0), (-60.0, 0.0)
+# ------------------------------------------------------------- poses
+# Units: body units, ground y = 0, x = 0 is the figure origin.
+#   pelvis: (x, y, z); hip_yaw: hips turned toward the camera (deg);
+#   twist: chest turn against the hips; lean: lower spine forward (neg = arch);
+#   curl: upper spine on top of that; head: head pitch on top of that;
+#   grip: near (right) hand on the handle at the guard; blade: direction;
+#   front/back: toe position, heel lift, foot yaw.
 K = {
-    # WIND-UP: weight sunk onto the back leg, front knee lifted to step,
-    # back arched and chest turned away, hands high above the head with the
-    # blade cocked up and back; head level on the target.
-    "windup":  dict(hip=(-56, -74), sp=-16, sp2=-24, hd=50, grip=(-68.4, -165.5), blade=-135.6, open=-7,
-                    front=(-20, -22), front_lift=50, back=(-60, 0), back_lift=0, elbow="down"),
-    # STRIKE: the step lands in a long lunge, back leg driven long behind,
-    # front knee loaded over the foot; back curls over the cut, eyes on the
-    # blade, long arms reaching forward-down.
-    "strike":  dict(hip=(14.5, -47), sp=34, sp2=34, hd=-14, grip=(98.8, -30.8), blade=0.9, open=3,
-                    front=(50, 0), back=(-60, 0), back_lift=55, elbow="down"),
-    # FOLLOW-THROUGH: momentum keeps going, weight rolls over the front foot
-    # and the back leg pushes off long on its toes to come through; the cut
-    # carries on down.
-    "follow":  dict(hip=(34, -62), sp=30, sp2=30, hd=-14, grip=(79.0, -36.9), blade=27.0, open=3,
-                    front=(50, 0), back=(-36, 0), back_lift=75, elbow="down"),
+    # WIND-UP: weight sunk onto the back leg, front knee lifted to step.
+    # Chest twisted open toward the viewer (sword shoulder pulled back) with
+    # the hips lagging, spine arched; hands high above the head, blade
+    # cocked back behind the head, angled away from the viewer.  Head level on
+    # the target.
+    "windup": dict(
+        pelvis=(-50, 72, 0), hip_yaw=8, twist=30, lean=-16, curl=-22, head=46,
+        grip=(-100.8, 177.5, -15.8), blade=(-0.95, 0.10, -0.25),
+        front=dict(toe=(-14, 24, 8), lift=55), back=dict(toe=(-60, 0, -8), lift=0, yaw=-20)),
+    # STRIKE: the back foot kicks, the front foot lands a long lunge.  Hips
+    # snap round first, then the chest drives the sword shoulder forward,
+    # back curls over the cut, eyes down on the blade.  Diagonal cut from
+    # over the far shoulder down across the body toward the camera; arms long.
+    "strike": dict(
+        pelvis=(4, 54, 2), hip_yaw=-14, twist=-22, lean=34, curl=28, head=-8,
+        grip=(94.2, 55.0, -29.7), blade=(0.80, -0.55, 0.20),
+        front=dict(toe=(42, 0, 10), lift=0), back=dict(toe=(-60, 0, -8), lift=55, yaw=-10)),
+    # FOLLOW-THROUGH: the back foot snaps up under him, weight carried over
+    # the front foot, shoulders over-rotated; the cut pulled on down with
+    # both fists in front of the leading knee, tip running on past it.
+    "follow": dict(
+        pelvis=(26, 66, 2), hip_yaw=-24, twist=-26, lean=30, curl=26, head=-6,
+        grip=(102.2, 61.8, -15.9), blade=(0.55, -0.78, 0.20),
+        front=dict(toe=(42, 0, 10), lift=0), back=dict(toe=(24, 0, -8), lift=45)),
 }
-for _k in K.values():
-    _k.setdefault("front", FRONT); _k.setdefault("back", BACK)
 
-NUM = ("hip", "sp", "sp2", "hd", "blade", "open", "back_lift", "front_lift", "front", "back")
-
-
-def blend(a, b, t):
-    """In-between of two poses.  The grip moves on an arc around the
-    shoulder (polar lerp), not on a straight line."""
-    a, b = K[a], K[b]
-    out = {}
-    for n in NUM:
-        va, vb = a.get(n, 0.0), b.get(n, 0.0)
-        out[n] = tuple(lerp(x, y, t) for x, y in zip(va, vb)) if isinstance(va, tuple) else lerp(va, vb, t)
-    sa, sb = solve(a)[1]["shR"], solve(b)[1]["shR"]
-    ra = (a["grip"][0] - sa[0], a["grip"][1] - sa[1]); rb_ = (b["grip"][0] - sb[0], b["grip"][1] - sb[1])
-    la, lb = math.hypot(*ra), math.hypot(*rb_)
-    aa, ab = math.atan2(ra[1], ra[0]), math.atan2(rb_[1], rb_[0])
-    if ab - aa > math.pi: ab -= 2 * math.pi
-    if aa - ab > math.pi: ab += 2 * math.pi
-    mid = dict(a); mid.update(out)
-    s = solve(mid)[1]["shR"]
-    r, th = lerp(la, lb, t), lerp(aa, ab, t)
-    out["grip"] = (s[0] + r * math.cos(th), s[1] + r * math.sin(th))
-    out["elbow"] = (a if t < 0.5 else b).get("elbow", "down")
-    return out
-
-
-# Key poses only, one drawing each.  smear: frame -> (earlier frame, how
-# much of the sweep to skip, alpha) for the swoosh behind the blade.
 ACTIONS = {
-    "attack_normal": dict(frame_ms=90, frames=[
-        ("windup", "windup", 0.0),
-        ("strike", "strike", 0.0),
-        ("follow", "follow", 0.0),
-    ], smear={1: (0, 0.6, 125), 2: (1, 0.0, 70)}),
+    "attack_normal": dict(frame_ms=90, keys=["windup", "strike", "follow"],
+                          smear={1: (0, 0.55, 125), 2: (1, 0.0, 70)}),
 }
 
 
-def blade_line(pose_j, a, b):
-    """Blade point at local x = a..b (grip at 0) in world units."""
-    phi = pose_j["wang"] - 90
-    c, s = math.cos(phi * D), math.sin(phi * D)
-    h = pose_j["haR"]
-    return (h[0] + a * c, h[1] + a * s), (h[0] + b * c, h[1] + b * s)
+def slerp(a, b, t):
+    a, b = unit(a), unit(b)
+    om = math.acos(max(-1.0, min(1.0, dot(a, b))))
+    if om < 1e-4:
+        return a
+    return unit(add(mul(a, math.sin((1 - t) * om) / math.sin(om)), mul(b, math.sin(t * om) / math.sin(om))))
+
+
+ANCHORS = ("hip", "chest", "neck", "head", "shB", "shL", "shR", "elL", "elR",
+           "haL", "haR", "hpL", "hpR", "knL", "knR", "ftL", "ftR", "wtip", "root")
 
 
 def build(action):
     spec = ACTIONS[action]
-    poses = [blend(a, b, t) for a, b, t in spec["frames"]]
-    solved = [solve(p) for p in poses]
-    worst = max(s[3] for s in solved)
-    if worst > 0.5:
-        raise SystemExit("IK target out of reach (%.2f units)" % worst)
-    for n, (_p, j, _t, _e) in enumerate(solved):
-        bad = grip_fault(j) or elbow_fault(j)
-        if bad:
-            raise SystemExit("frame %d: %s" % (n + 1, bad))
+    keys = [K[n] for n in spec["keys"]]
+    joints = [solve(k) for k in keys]
+    bad = []
+    for n, (k, j) in enumerate(zip(keys, joints)):
+        bad += ["frame %d (%s): %s" % (n + 1, spec["keys"][n], f) for f in faults(j, k)]
+    if bad:
+        raise SystemExit("\n".join(bad))
     frames, anchors = [], {}
-    for i, (p, j, toes, _e) in enumerate(solved):
+    for i, j in enumerate(joints):
         smear = None
         if i in spec.get("smear", {}):
             src, skip, alpha = spec["smear"][i]
-            pj = solved[src][1]
+            a, b = keys[src], keys[i]
             tips, mids = [], []
-            for n in range(9):
-                t = skip + (1.0 - skip) * n / 8.0
-                # sweep the blade between the earlier frame and this one
-                ph = lerp(pj["wang"], j["wang"], t)
-                hx, hy = lerp(pj["haR"][0], j["haR"][0], t), lerp(pj["haR"][1], j["haR"][1], t)
-                c, s = math.cos((ph - 90) * D), math.sin((ph - 90) * D)
-                tips.append((hx + 70 * c, hy + 70 * s)); mids.append((hx + 28 * c, hy + 28 * s))
+            for s in range(13):
+                t = skip + (1.0 - skip) * s / 12.0
+                g = slerp(a["blade"], b["blade"], t)
+                h = add(mul(a["grip"], 1 - t), mul(b["grip"], t))
+                tips.append(add(h, mul(g, BLADE_LEN))); mids.append(add(h, mul(g, 26.0)))
             smear = dict(tips=tips, mids=mids, alpha=alpha)
-        frames.append(draw(p, j, toes, smear))
-        for name in rb.JOINT_NAMES:
-            if name == "wtip2":
-                continue
-            x, y = tf(j[name])
+        frames.append(draw(j, smear))
+        for name in ANCHORS:
+            x, y = img(j[name])
             anchors.setdefault(name, []).append([round(x, 2), round(y, 2)])
     return spec, frames, anchors
 
@@ -336,8 +415,7 @@ def write(action):
     n, fm = len(names), float(spec["frame_ms"])
     cpath = os.path.join(PKG, "character.json")
     ch = json.load(open(cpath))
-    act = ch["actions"][action]
-    act.update(frames=names, frame_ms=fm, duration_ms=fm * n)
+    ch["actions"][action].update(frames=names, frame_ms=fm, duration_ms=fm * n)
     ch["anchors"][action] = anchors
     json.dump(ch, open(cpath, "w"), indent=1)
     kpath = os.path.join(PKG, "swordsman_rig.fxkit.json")
@@ -352,24 +430,15 @@ def write(action):
 
 def preview(action, out):
     spec, frames, _a = build(action)
-    cols = 8; tw, th = W // 2, H // 2
-    rows = (len(frames) + cols - 1) // cols
-    sheet = Image.new("RGB", (cols * tw, rows * (th + 14)), (36, 38, 46))
+    tw, th = W, H
+    sheet = Image.new("RGB", (len(frames) * tw, th + 18), (36, 38, 46))
     d = ImageDraw.Draw(sheet)
     for i, im in enumerate(frames):
-        x, y = (i % cols) * tw, (i // cols) * (th + 14)
         bg = Image.new("RGBA", (W, H), (36, 38, 46, 255)); bg.alpha_composite(im)
-        sheet.paste(bg.convert("RGB").resize((tw, th), Image.LANCZOS), (x, y + 14))
-        d.line([(x, y + 14 + GROUND_Y / 2), (x + tw, y + 14 + GROUND_Y / 2)], fill=(70, 72, 84))
-        d.text((x + 4, y + 1), "%s_%02d" % (action, i + 1), fill=(230, 230, 230))
+        sheet.paste(bg.convert("RGB"), (i * tw, 18))
+        d.line([(i * tw, 18 + GROUND_Y), ((i + 1) * tw, 18 + GROUND_Y)], fill=(70, 72, 84))
+        d.text((i * tw + 6, 3), "%s_%02d  %s" % (action, i + 1, spec["keys"][i]), fill=(230, 230, 230))
     sheet.save(out)
-    gif = []
-    for im in frames:
-        bg = Image.new("RGBA", (W, H), (36, 38, 46, 255)); bg.alpha_composite(im)
-        gif.append(bg.convert("RGB").resize((tw, th), Image.LANCZOS))
-    hold = [Image.new("RGB", (tw, th), (36, 38, 46))]
-    gif[0].save(out[:-4] + ".gif", save_all=True, append_images=gif[1:] + hold,
-                duration=[int(spec["frame_ms"]) * 4] * len(gif) + [400], loop=0)
 
 
 if __name__ == "__main__":
