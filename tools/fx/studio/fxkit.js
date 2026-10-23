@@ -337,7 +337,8 @@ var PARAM_DEFAULTS = {
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
-    gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0}
+    gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0,
+    ext_pivot: 0, ext_spin: 0, ext_sweep: 0, ext_spin_dir: "clockwise", ext_slide: 0, ext_slide_deg: 0}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.

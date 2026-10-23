@@ -17,7 +17,9 @@ Styles (params.style, fxkit.TECH_STYLES):
                     shatters into shards when it ends
   blade_extension   an energy blade that charges at the sword tip, shoots out
                     along the aim, holds with ripples and crackle running up
-                    it, then retracts in a trail of sparkle dust
+                    it, then retracts in a trail of sparkle dust; it can spin
+                    round a pivot on its centre line and slide along an axis
+                    while it is out (ext_* params, _ext_frame)
   forward_thrust    a lunge stab: a narrow, tapered spear of light drives out
                     of the anchor along the aim (fast ease-out) with speed
                     lines, a white-hot tip flare and an air-pressure ring at
@@ -522,6 +524,44 @@ def _ext_hw(u, W):
     return max(0.0, hw)
 
 
+def _ext_motion(P, t):
+    """(turn deg, slide 0-1) of the blade at tick t.  Spin (ext_spin deg/tick)
+    runs from the moment it shoots out, capped at ext_sweep when that is set;
+    with no spin, ext_sweep is turned over the extend + hold, eased.  The
+    slide eases over the extend + hold and stays put while it retracts."""
+    t0 = EXT_CHARGE
+    t2 = t0 + EXT_EXTEND + max(0, F.trunc(float(P.get("hold_ticks") or 0)))
+    k = _cl((t - t0) / float(t2 - t0))
+    spin = abs(float(P.get("ext_spin") or 0))
+    sweep = abs(float(P.get("ext_sweep") or 0))
+    if spin:
+        a = spin * max(0.0, t - t0)
+        if sweep:
+            a = min(a, sweep)
+    else:
+        a = sweep * ease_inout3(k)
+    if P.get("ext_spin_dir") == "anticlockwise":
+        a = -a
+    return a, ease_inout3(k)
+
+
+def _ext_frame(inst, t, ps):
+    """The blade's frame at tick t: origin = its base, +x = toward the tip.
+    It turns round the pivot (ext_pivot: 0 = base, 0.5 = middle, 1 = tip of
+    the full-length blade, on its centre line) and slides ext_slide px along
+    the axis ext_slide_deg from the blade's spawn direction (0 = along the
+    blade, 90 = sideways); both mirror with the facing.  The anchor still
+    carries the whole blade (Motion)."""
+    P = inst.fx["params"]
+    f0, m = inst.tq_f, inst.tq_m
+    a, k = _ext_motion(P, t)
+    f = F.rot(f0, a * m) if a else f0
+    pv = _cl(float(P.get("ext_pivot") or 0)) * float(P["length"]) * ps
+    sd = float(P.get("ext_slide") or 0) * ps * k
+    ax = F.rot(f0, float(P.get("ext_slide_deg") or 0) * m)
+    return Frame(inst.x + (f0[0] - f[0]) * pv + ax[0] * sd, inst.y + (f0[1] - f[1]) * pv + ax[1] * sd, f, m)
+
+
 def _ext_hit(inst, tx, ty, hr, ps):
     if inst.age >= inst.life:
         return False
@@ -529,9 +569,9 @@ def _ext_hit(inst, tx, ty, hr, ps):
     l = _ext_len(P, inst.age, float(P["length"]) * ps)
     if l <= 2:
         return False
-    fr = _frame(inst)
+    fr = _ext_frame(inst, inst.age, ps)
     b = fr.w(l, 0)
-    return F.seg_dist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + float(P["thickness"]) * ps * 0.9
+    return F.seg_dist(tx, ty, fr.ox, fr.oy, b[0], b[1]) <= hr + float(P["thickness"]) * ps * 0.9
 
 
 def _ext_body(inst, ps):
@@ -539,8 +579,8 @@ def _ext_body(inst, ps):
     l = _ext_len(P, inst.age, float(P["length"]) * ps)
     if l <= 2 or inst.age >= inst.life:
         return None
-    fr = _frame(inst)
-    return [(inst.x, inst.y), fr.w(l, 0)], float(P["thickness"]) * ps
+    fr = _ext_frame(inst, inst.age, ps)
+    return [(fr.ox, fr.oy), fr.w(l, 0)], float(P["thickness"]) * ps
 
 
 # ---------------------------------------------------------------- thrust geometry
@@ -1146,15 +1186,15 @@ def _draw_wave(pen, inst, host, ps):
 def _draw_extension(pen, inst, host, ps):
     P = inst.fx["params"]
     t = inst.age
-    fr = _frame(inst)
+    fr = _ext_frame(inst, t, ps)
     c, bright, _deep = _colours(inst, host)
     S = ps
     Lmax = float(P["length"]) * ps
     W = float(P["thickness"]) * ps
     Th = max(0, F.trunc(float(P.get("hold_ticks") or 0)))
     l = _ext_len(P, t, Lmax)
-    ox, oy = inst.x, inst.y
-    fx_, fy_ = inst.tq_f
+    ox, oy = fr.ox, fr.oy
+    fx_, fy_ = fr.fx, fr.fy
     pen.add(True)
     # 1: charge — light converging on the sword tip
     if t < EXT_CHARGE + 2:
@@ -1251,7 +1291,7 @@ def _draw_extension(pen, inst, host, ps):
                 continue
             q = aa / float(EXT_DUST)
             drift = r.uniform(-0.5, 0.5) * S * aa
-            px, py = fr.w(u * Lmax, drift)
+            px, py = _ext_frame(inst, b, ps).w(u * Lmax, drift)   # where it was when this bit fell off
             py -= 0.15 * S * aa
             pen.glow(px, py, 3.2 * S * (1 - q) + 0.6, mix(c, HOT, 0.5), 230 * (1 - q), 0.5)
     _hit_marks(pen, inst, c, ps, fx_, fy_)

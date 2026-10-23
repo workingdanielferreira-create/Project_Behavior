@@ -203,11 +203,18 @@ PARAM_DEFAULTS = {
     # w_*: the weapons (laser/weaponfx.py): w_mode "signature" (its own
     # sequence) or "hold" (just held); size, flips, 3D yaw / pitch / spin and
     # depth — numbers, so keyframes can animate every one.
+    # ext_*: the blade extension's movement while it is out (swordfx._ext_frame):
+    # ext_pivot = where on its centre line it turns (0 = base, 0.5 = middle,
+    # 1 = tip); ext_spin = degrees per tick, ext_sweep = total degrees (with
+    # spin: a cap, 0 = none; without: turned over the extend + hold);
+    # ext_spin_dir clockwise / anticlockwise; ext_slide = px it slides along
+    # the axis ext_slide_deg from the blade (0 = along it, 90 = sideways).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
                       gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
-                      w_depth=0),
+                      w_depth=0, ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
+                      ext_slide_deg=0),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.

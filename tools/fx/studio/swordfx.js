@@ -283,17 +283,36 @@ function extHw(u, W) {
   if (u < 0.05) hw *= 1 + 0.6 * (1 - u / 0.05);
   return Math.max(0, hw);
 }
+// [turn °, slide 0-1] of the blade at tick t (laser/swordfx.py _ext_motion).
+function extMotion(P, t) {
+  var t0 = EXT_CHARGE, t2 = t0 + EXT_EXTEND + holdT(P), k = cl((t - t0) / (t2 - t0));
+  var spin = Math.abs(+P.ext_spin || 0), sweep = Math.abs(+P.ext_sweep || 0), a;
+  if (spin) { a = spin * Math.max(0, t - t0); if (sweep) a = Math.min(a, sweep); }
+  else a = sweep * easeInOut3(k);
+  if (P.ext_spin_dir === "anticlockwise") a = -a;
+  return [a, easeInOut3(k)];
+}
+// The blade's frame at tick t: turned round the pivot on its centre line,
+// slid along its axis (laser/swordfx.py _ext_frame).
+function extFrame(inst, t, ps) {
+  var P = inst.fx.params, f0 = inst.tq_f, m = inst.tq_m, mo = extMotion(P, t);
+  var f = mo[0] ? FXK().rot(f0, mo[0] * m) : f0;
+  var pv = cl(+P.ext_pivot || 0) * +P.length * ps, sd = (+P.ext_slide || 0) * ps * mo[1];
+  var ax = FXK().rot(f0, (+P.ext_slide_deg || 0) * m);
+  return new Frame(inst.x + (f0[0] - f[0]) * pv + ax[0] * sd, inst.y + (f0[1] - f[1]) * pv + ax[1] * sd, f, m);
+}
 function extHit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var P = inst.fx.params, l = extLen(P, inst.age, +P.length * ps);
   if (l <= 2) return false;
-  var b = frame(inst).w(l, 0);
-  return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.thickness * ps * 0.9;
+  var fr = extFrame(inst, inst.age, ps), b = fr.w(l, 0);
+  return FXK().segDist(tx, ty, fr.ox, fr.oy, b[0], b[1]) <= hr + +P.thickness * ps * 0.9;
 }
 function extBody(inst, ps) {
   var P = inst.fx.params, l = extLen(P, inst.age, +P.length * ps);
   if (l <= 2 || inst.age >= inst.life) return null;
-  return [[[inst.x, inst.y], frame(inst).w(l, 0)], +P.thickness * ps];
+  var fr = extFrame(inst, inst.age, ps);
+  return [[[fr.ox, fr.oy], fr.w(l, 0)], +P.thickness * ps];
 }
 
 // ---------------------------------------------------------------- thrust geometry
@@ -722,10 +741,10 @@ function drawWave(pen, inst, host, ps) {
 
 // ---------------------------------------------------------------- blade extension
 function drawExtension(pen, inst, host, ps) {
-  var P = inst.fx.params, t = inst.age, fr = frame(inst);
+  var P = inst.fx.params, t = inst.age, fr = extFrame(inst, t, ps);
   var cs = colours(inst, host), c = cs[0], bright = cs[1];
   var S = ps, Lmax = +P.length * ps, W = +P.thickness * ps, Th = holdT(P), l = extLen(P, t, Lmax);
-  var ox = inst.x, oy = inst.y, fx_ = inst.tq_f[0], fy_ = inst.tq_f[1], i, j, r, a, q;
+  var ox = fr.ox, oy = fr.oy, fx_ = fr.fx, fy_ = fr.fy, i, j, r, a, q;
   pen.add(true);
   if (t < EXT_CHARGE + 2) {
     var cp = cl(t / EXT_CHARGE), fa = t < EXT_CHARGE ? 1 : 1 - (t - EXT_CHARGE) / 2;
@@ -798,7 +817,7 @@ function drawExtension(pen, inst, host, ps) {
       r = rngFor(inst.seed, i, 13);
       var uu = r.uniform(0.05, 1), b = t2 + EXT_RETRACT * Math.pow(1 - uu, 1 / 3), aa = t - b;
       if (aa < 0 || aa >= EXT_DUST) continue;
-      var q2 = aa / EXT_DUST, drift = r.uniform(-0.5, 0.5) * S * aa, p = fr.w(uu * Lmax, drift);
+      var q2 = aa / EXT_DUST, drift = r.uniform(-0.5, 0.5) * S * aa, p = extFrame(inst, b, ps).w(uu * Lmax, drift);
       pen.glow(p[0], p[1] - 0.15 * S * aa, 3.2 * S * (1 - q2) + 0.6, mix(c, HOT, 0.5), 230 * (1 - q2), 0.5);
     }
   }
