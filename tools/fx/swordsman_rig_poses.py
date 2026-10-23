@@ -201,6 +201,12 @@ def draw(p, j, toes, smear=None):
             d.polygon(t, fill=(27, 29, 32, 255))
             d.line(t + [t[0]], fill=(225, 232, 240, 230), width=max(1, int(round(1.5 * PPU * S))), joint="curve")
 
+    if smear:
+        band = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        outer = [tf(q, S) for q in smear["tips"]]
+        inner = [tf(q, S) for q in reversed(smear["mids"])]
+        ImageDraw.Draw(band).polygon(outer + inner, fill=SMEAR + (smear.get("alpha", 110),))
+        img = Image.alpha_composite(img, band)
     group(limb("shL", "elL", "haL", 0.94, 0.83, True, ("disc", j["haL"], 4.5, 0, True)))
     group(limb("hpL", "knL", "ftL", 1.00, 0.88, True, toe("L", True)))
     group([("bone", j["hip"], j["hpL"], 0.98, False), ("bone", j["hip"], j["hpR"], 0.98, False),
@@ -209,12 +215,6 @@ def draw(p, j, toes, smear=None):
            ("bone", j["shB"], j["shR"], 0.86, False), ("disc", j["head"], RIG["head"], 0, False)])
     group(limb("hpR", "knR", "ftR", 1.10, 0.96, False, toe("R", False)))
     group(limb("shR", "elR", "haR", 1.00, 0.90, False, ("bone", j["haR"], j["haR"], 0.0, False)))
-    if smear:
-        band = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        outer = [tf(q, S) for q in smear["tips"]]
-        inner = [tf(q, S) for q in reversed(smear["mids"])]
-        ImageDraw.Draw(band).polygon(outer + inner, fill=SMEAR + (smear.get("alpha", 110),))
-        img = Image.alpha_composite(img, band)
     weapon()
     group([("disc", j["haR"], 4.5, 0, False)])
     return img.resize((W, H), Image.LANCZOS)
@@ -224,26 +224,23 @@ def draw(p, j, toes, smear=None):
 # Units: rig units, y up is negative, ground at 0, x=0 is the figure origin.
 # blade: screen angle of the blade (0 = forward, 90 = down, 270 = straight up);
 # kept continuous so in-betweens sweep the right way round.
-FRONT, BACK = (30.0, 0.0), (-50.0, 0.0)
+FRONT, BACK = (30.0, 0.0), (-60.0, 0.0)
 K = {
-    # ANTICIPATION: everything loaded backwards.  Weight sunk on the back
-    # leg, back arched, chest turned away, sword dropped behind the back;
-    # the head stays level on the target.
-    "windup":  dict(hip=(-20, -62), sp=-18, sp2=-28, hd=30, grip=(-26, -153), blade=165, open=-7,
-                    back_lift=8, elbow="fwd"),
-    # STRIKE (contact): front foot stepped in, back leg driven straight, the
-    # back rounds over the cut (upper spine curls 36 deg past the lower),
-    # head follows the curve with the eyes down on the blade, long arms
-    # reaching forward-down; the blade runs on from the forearms.
-    "strike":  dict(hip=(0, -58), sp=34, sp2=36, hd=-14, grip=(95.1, -38.0), blade=374, open=3,
-                    front=(36, 0), back=(-68, 0), back_lift=55, elbow="down"),
-    # FOLLOW-THROUGH: the cut is drawn through to the front hip on long arms,
-    # upper back still curled over it, blade angled forward-down.
-    "follow":  dict(hip=(-4, -60), sp=20, sp2=30, hd=-14, grip=(55.2, -35.8), blade=389, open=3,
-                    front=(36, 0), back=(-68, 0), back_lift=60, elbow="down"),
-    # RECOVERY: rises and draws the front foot back, blade up into guard.
-    "recover": dict(hip=(-8, -70), sp=16, sp2=-6, hd=-4, grip=(30, -110), blade=300, open=1,
-                    back_lift=26, elbow="down"),
+    # WIND-UP: weight sunk onto the back leg, front knee lifted to step,
+    # back arched and chest turned away, hands high above the head with the
+    # blade cocked up and back; head level on the target.
+    "windup":  dict(hip=(-56, -74), sp=-16, sp2=-24, hd=50, grip=(-68.4, -165.5), blade=-135.6, open=-7,
+                    front=(-20, -22), front_lift=50, back=(-60, 0), back_lift=0, elbow="down"),
+    # STRIKE: the step lands in a long lunge, back leg driven long behind,
+    # front knee loaded over the foot; back curls over the cut, eyes on the
+    # blade, long arms reaching forward-down.
+    "strike":  dict(hip=(14.5, -47), sp=34, sp2=34, hd=-14, grip=(98.8, -30.8), blade=0.9, open=3,
+                    front=(50, 0), back=(-60, 0), back_lift=55, elbow="down"),
+    # FOLLOW-THROUGH: momentum keeps going, weight rolls over the front foot
+    # and the back leg pushes off long on its toes to come through; the cut
+    # carries on down.
+    "follow":  dict(hip=(34, -62), sp=30, sp2=30, hd=-14, grip=(79.0, -36.9), blade=27.0, open=3,
+                    front=(50, 0), back=(-36, 0), back_lift=75, elbow="down"),
 }
 for _k in K.values():
     _k.setdefault("front", FRONT); _k.setdefault("back", BACK)
@@ -276,12 +273,11 @@ def blend(a, b, t):
 # Key poses only, one drawing each.  smear: frame -> (earlier frame, how
 # much of the sweep to skip, alpha) for the swoosh behind the blade.
 ACTIONS = {
-    "attack_normal": dict(frame_ms=80, frames=[
+    "attack_normal": dict(frame_ms=90, frames=[
         ("windup", "windup", 0.0),
         ("strike", "strike", 0.0),
         ("follow", "follow", 0.0),
-        ("recover", "recover", 0.0),
-    ], smear={1: (0, 0.65, 125), 2: (1, 0.0, 70)}),
+    ], smear={1: (0, 0.6, 125), 2: (1, 0.0, 70)}),
 }
 
 
