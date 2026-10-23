@@ -59,6 +59,7 @@ import math
 from . import config
 
 from .actions import CONDITION_TYPES as CONDITIONS
+from . import unique as _unique
 
 DEFAULTS = dict(enabled=False, mode="avoid", angle_deg=180.0, curve_deg_s=0.0,
                 speed_pct=200.0, proximity_px=80.0,
@@ -214,7 +215,7 @@ def _start(fig, st, cfg, world, tx, ty, tface, r):
         st.back = (1.0, 0.0) if tface else (-1.0, 0.0)
     # The tracker's "this action" counters restart with each retreat.
     now = world.global_tick
-    r.last_start[KEY] = now
+    r.stamp_start(fig, KEY, now)
     r.since_attacks[KEY] = 0
     r.since_hits[KEY] = 0
     for c in cfg["conditions"]:
@@ -233,9 +234,10 @@ def _start(fig, st, cfg, world, tx, ty, tface, r):
 def _end(fig, st, cfg, now):
     r = getattr(fig, "act", None)
     if r is not None:
-        r.last_end[KEY] = now
+        r.stamp_end(fig, KEY, now)
     st.active = False
-    st.cooldown_until = now + int(max(0.0, float(cfg.get("cooldown_ms") or 0)) / config.TICK_MS)
+    # On the cooldown clock (Berserker rage speeds it up, laser/unique.py).
+    st.cooldown_until = _unique.cd_now(fig, now) + int(max(0.0, float(cfg.get("cooldown_ms") or 0)) / config.TICK_MS)
 
 
 def _attack_radius(fig):
@@ -335,7 +337,7 @@ def tick(fig, world):
     from . import actions
     r, ctx = actions.tracker_ctx(fig, world)
     if not st.active:
-        if now < st.cooldown_until or not _can_start(fig) or not _triggered(fig, r, ctx, cfg, world):
+        if _unique.cd_now(fig, now) < st.cooldown_until or not _can_start(fig) or not _triggered(fig, r, ctx, cfg, world):
             return False
         _start(fig, st, cfg, world, tx, ty, tface, r)
     elif _in_ultimate(fig):

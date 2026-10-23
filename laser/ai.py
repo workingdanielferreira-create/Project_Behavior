@@ -94,6 +94,9 @@ def evaluate_activation_triggers(action, fig, dist_to_enemy, now_tick):
     triggers = action.get("activation_triggers") or []
     if not triggers:
         return False
+    # Cooldowns run on the fighter's cooldown clock (Berserker rage speeds
+    # it up, laser/unique.py).
+    now_tick = _unique.cd_now(fig, now_tick)
     action_key = action.get("_key", id(action))
     state = _trigger_action_state(fig.personality, action_key)
     if now_tick < state.get("next_ok_tick", 0):

@@ -552,7 +552,10 @@ original's damage, `speed_pct`, ghostly `opacity_pct` body, `max_alive` cap;
 it dissolves after `duration_ms`, or when the original dies, leaves or
 changes character. Copies carry no unique ability of their own. `berserker`: body (and optionally
 own FX) time scale `1 + max_bonus_pct/100 * rage` through `timefx.plan`, so
-every state speeds up; rage follows HP lost along a linear / exponential /
+every state speeds up; every skill cooldown (actions, Blink, Dodge,
+Retreat, activation triggers, the attack gap) and timer condition
+(`every_ms`, `since_action`, `idle_for`) runs on the fighter's cooldown
+clock (`unique.cd_now`), which gains the same multiplier; rage follows HP lost along a linear / exponential /
 steps curve; optional damage dealt / taken scaling. `phase_shift`: a hit
 (every hit, min damage, HP below, or chance) is nullified and the fighter
 warps to a ticked destination, using charges that recharge.

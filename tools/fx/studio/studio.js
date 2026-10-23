@@ -2718,7 +2718,7 @@ var UA_INFO = {
   mirror_legion: ["Mirror Legion", "Shadow-clone ninja · illusionist",
     "Splits into copies of itself for a while when its trigger fires. Each copy is a full fighter: it moves, fights and plays the actions you tick below with all their FX, has its own HP and can be targeted, then dissolves."],
   berserker: ["Berserker", "Rage warrior · glass cannon",
-    "The more HP it has lost, the faster it moves and attacks: every state (moving, attacking, recovering) speeds up together, up to the set bonus."],
+    "The more HP it has lost, the faster it moves and attacks: every state (moving, attacking, recovering) speeds up together, up to the set bonus. Its skill cooldowns and timer triggers run faster by the same amount."],
   phase_shift: ["Phase Shift", "Evasive trickster · blink mage",
     "When a hit lands, the damage is cancelled and the fighter teleports away to one of the places you tick, while it has charges."],
   ricochet: ["Ricochet", "Gunslinger · trick-shot",
@@ -2843,10 +2843,10 @@ function uaRage(P, lostPct) {
   return f;
 }
 function uaBerserker(d, P) {
-  var s = sec(d, "Rage curve", "ua-bz-curve", "Speed bonus by HP lost. It applies to every state: moving, attacking, recovering, its action timing.", "act");
+  var s = sec(d, "Rage curve", "ua-bz-curve", "Speed bonus by HP lost. It applies to every state: moving, attacking, recovering, its action timing, and to every skill cooldown and timer trigger (every X ms, idle for, since action).", "act");
   uaNum(s, "Starts at HP lost %", P, "start_lost_pct", 0, 99, 1, "No bonus until this much HP is gone.", true);
   uaNum(s, "Full at HP lost %", P, "max_lost_pct", 1, 100, 1, "The full bonus is reached at this much HP lost (90 = at 10% HP left).", true);
-  uaNum(s, "Max bonus %", P, "max_bonus_pct", 0, 700, 25, "Speed bonus at full rage: +500% = six times as fast. (The engine caps one fighter at 8x a tick.)", true);
+  uaNum(s, "Max bonus %", P, "max_bonus_pct", 0, 700, 25, "Speed bonus at full rage: +500% = six times as fast, and cooldowns recover six times as fast. (The engine caps one fighter's body at 8x a tick.)", true);
   uaChoice(s, "Curve", P, "curve", [["linear", "Linear"], ["exponential", "Exponential (late surge)"], ["steps", "Steps"]],
     "Linear: grows evenly. Exponential: slow at first, surges near the end. Steps: jumps up in equal steps.");
   if (P.curve === "steps") uaNum(s, "Steps", P, "steps", 1, 20, 1, "How many equal jumps from start to full.", true);
