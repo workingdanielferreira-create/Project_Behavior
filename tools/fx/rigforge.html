@@ -4123,9 +4123,12 @@ function pkgPick(){
     window.showDirectoryPicker({mode:"readwrite"}).then(function(root){
       return (async function(){
         var out=[];
+        /* Packages sit two levels below the game folder (fx_packages/<name>, characters/<name>,
+           drop/<name>), so look 3 levels down; skip folders that never hold one. */
+        var SKIP=/^(\.|__pycache__$|_baked$|node_modules$|Lib$|Scripts$|DLLs$|site-packages$)/;
         async function scan(h,path,depth){
           var files={},subs=[];
-          for await(var e of h.values()){if(e.kind==="file")files[e.name]=e;else if(depth<1)subs.push(e);}
+          for await(var e of h.values()){if(e.kind==="file")files[e.name]=e;else if(depth<3&&!SKIP.test(e.name))subs.push(e);}
           if(files["character.json"]){var fs={};for(var k in files)fs[k]=await files[k].getFile();out.push({dir:path||h.name,files:fs,handle:h});}
           for(var i=0;i<subs.length;i++)await scan(subs[i],(path?path+"/":"")+subs[i].name,depth+1);
         }
@@ -4137,7 +4140,7 @@ function pkgPick(){
 document.getElementById("pkgin").onchange=function(){var l=Array.prototype.slice.call(this.files||[]);this.value="";pkgChoose(pkgFolders(l));};
 document.getElementById("chimport").onclick=pkgPick;
 function pkgChoose(found){
-  if(!found||!found.length){toast("No character.json in that folder — pick a character package folder (e.g. fx_packages/runner).");return;}
+  if(!found||!found.length){toast("No character.json in that folder or the 3 levels below it — pick the game folder, fx_packages, or a package folder (e.g. fx_packages/swordsman).");return;}
   if(found.length===1){pkgRead(found[0]);return;}
   askSelect("That folder holds "+found.length+" character packages. Which one?",found.map(function(f,i){return[String(i),f.dir];}),"0",
     function(v){if(v!=null)pkgRead(found[+v]);});
