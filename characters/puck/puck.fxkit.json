@@ -13323,8 +13323,8 @@
     "mode": "block",
     "deflect_who": "enemy",
     "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
+    "drag": true,
+    "drag_pct": 80,
     "drag_deg": 90,
     "drag_every": 10
    },
@@ -16435,6 +16435,20 @@
    "cooldown_ms": 10000,
    "aura": true,
    "aura_color": "#ffffff"
+  },
+  "basic_stacks": {
+   "gain": "hits_landed",
+   "every_hits": 5,
+   "every_damage": 20,
+   "every_attacks": 5,
+   "max_orbs": 3,
+   "use": "one",
+   "fx": "",
+   "orbit_px": 55,
+   "orbit_deg_s": 120,
+   "orb_px": 5,
+   "show_orbs": true,
+   "color": "#7fd4ff"
   }
  },
  "movement_style": {

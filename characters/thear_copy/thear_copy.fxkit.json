@@ -13777,14 +13777,14 @@
    "leap": {
     "start_frame": 0,
     "land_frame": -1,
-    "height_px": 40,
+    "height_px": 145,
     "hit_px": null,
-    "height_max_px": 280,
+    "height_max_px": 400,
     "dist_min_px": 0,
     "dist_max_px": 2000,
     "damage_mode": "range",
     "damage_min": 5,
-    "damage_max": 100
+    "damage_max": 200
    }
   },
   "ultimate": {
@@ -21415,7 +21415,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 75,
+    "damage": 375,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 500,

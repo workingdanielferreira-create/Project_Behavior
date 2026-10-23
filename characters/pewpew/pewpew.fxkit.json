@@ -12082,7 +12082,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 15,
+    "damage": 30,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 2,
@@ -12193,7 +12193,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 15,
+    "damage": 30,
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 2,
@@ -12304,7 +12304,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 30,
     "pierce": false,
     "rehit_ticks": 0,
     "knockback": 2,
@@ -12337,13 +12337,13 @@
     "start_fraction": 0
    },
    "params": {
-    "style": "dual_pistols",
-    "radius": 3,
-    "thickness": 2,
-    "span": 18,
-    "length": 200,
-    "swing_ticks": 30,
-    "hold_ticks": 90,
+    "style": "magnum",
+    "radius": 5,
+    "thickness": 26,
+    "span": 0,
+    "length": 600,
+    "swing_ticks": 54,
+    "hold_ticks": 52,
     "density": 1,
     "rotation_deg": 0,
     "lightning": false,
@@ -12377,8 +12377,8 @@
    "always_on": false,
    "char_every_ms": 0,
    "offset": [
-    14.5,
-    -2
+    0,
+    -9
    ],
    "layer": "front",
    "emit": {
@@ -12403,7 +12403,7 @@
     "drag_deg": 90,
     "drag_every": 10
    },
-   "follow_dir": true,
+   "follow_dir": false,
    "follow_each": true,
    "keys": []
   },
@@ -12415,7 +12415,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 5,
     "pierce": false,
     "rehit_ticks": 0,
     "knockback": 2,
@@ -12423,12 +12423,12 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "attached",
+    "kind": "homing",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
+    "speed": 10,
+    "turn_deg": 26.5,
     "amplitude": 55,
     "freq": 0.18,
     "orbit_rx": 46,
@@ -12448,13 +12448,13 @@
     "start_fraction": 0
    },
    "params": {
-    "style": "dual_pistols",
-    "radius": 3,
-    "thickness": 2,
-    "span": 10,
-    "length": 200,
-    "swing_ticks": 30,
-    "hold_ticks": 90,
+    "style": "drill_bullet",
+    "radius": 1.5,
+    "thickness": 12,
+    "span": 0,
+    "length": 815,
+    "swing_ticks": 24,
+    "hold_ticks": 24,
     "density": 1,
     "rotation_deg": 0,
     "lightning": false,
@@ -12526,7 +12526,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 10,
+    "damage": 20,
     "pierce": true,
     "rehit_ticks": 1,
     "knockback": 6,
@@ -12732,7 +12732,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 10,
+    "damage": 30,
     "pierce": true,
     "rehit_ticks": 1,
     "knockback": 6,
