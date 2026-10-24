@@ -167,8 +167,9 @@ def faults(j, k):
         if angle(up, fo) > ELBOW_MAX:
             out.append("%s elbow bends %.0f > %.0f" % (name, angle(up, fo), ELBOW_MAX))
         a = angle(fo, g)
-        if not GRIP_MIN <= a <= GRIP_MAX:
-            out.append("%s grip: blade %.0f deg off the forearm (allowed %.0f..%.0f)" % (name, a, GRIP_MIN, GRIP_MAX))
+        gmax = k.get("grip_max", GRIP_MAX)      # a pose may cock the wrists further
+        if not GRIP_MIN <= a <= gmax:
+            out.append("%s grip: blade %.0f deg off the forearm (allowed %.0f..%.0f)" % (name, a, GRIP_MIN, gmax))
         mid = mul(add(j["sh" + s], j["ha" + s]), 0.5)
         if j["el" + s][1] > max(j["sh" + s][1], j["ha" + s][1]) + 2 and j["el" + s][1] > mid[1] + 6 \
                 and j["ha" + s][1] < j["sh" + s][1]:
@@ -340,10 +341,12 @@ K = {
         grip=(34, 64, 6), blade=(0.50, 0.86, -0.05),
         front=dict(toe=(44, 0, 8), lift=0), back=dict(toe=(-50, 0, -8), lift=30, yaw=-15)),
     # WINDUP - Ep 31, Ichigo vs Renji: stood up tall, both arms straight up,
-    # fists above the head, blade hanging back behind him.
+    # fists above and just behind the head, blade hanging almost straight down
+    # behind his back.  The wrists cock further than the default grip limit
+    # allows, as in the shot.
     "windup": dict(
         pelvis=(-10, 74, 0), hip_yaw=14, twist=20, lean=-4, curl=-4, head=8,
-        grip=(-14, 178, 6), blade=(-0.90, -0.45, -0.10),
+        grip=(-30, 176, 4), blade=(-0.25, -0.96, 0.00), grip_max=150,
         front=dict(toe=(30, 0, 8), lift=0), back=dict(toe=(-44, 0, -8), lift=25, yaw=-15)),
     # DASH - Ep 121, Ichigo vs Grimmjow: thrown forward through the air, front
     # knee driven up, back leg trailing, sword low at the hip, blade trailing
