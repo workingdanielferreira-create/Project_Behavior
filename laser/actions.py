@@ -505,6 +505,10 @@ class ActionRunner:
         tgt_state, tgt_facing_left = None, (None if battle else self.cursor_facing_left)
         if battle:
             i = _nearest_index(world.partner_figures, fig.x, fig.y)
+            # A Black Ox Effigy taunting it (laser/summoner.py): read the effigy.
+            _taunt = _unique.taunt_point(world, fig.x, fig.y)
+            if _taunt is not None:
+                i = _nearest_index(world.partner_figures, _taunt[0], _taunt[1])
             st = getattr(world, "partner_state", None) or []
             fc = getattr(world, "partner_facing", None) or []
             if 0 <= i < len(st):

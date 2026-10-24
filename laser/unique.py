@@ -29,8 +29,10 @@ UNIQUE_DEFAULTS / normalizeUnique.
                      in order on a trigger; each form pair has its own
                      transition (an action + a borrowed FX) played before the
                      new form takes over
-    summoner         turrets / totems / familiars: real fighters on its side
-                     (targetable) that are not copies of it
+    summoner         up to 8 summons, each its own construct (19 kinds: turrets,
+                     totems, familiars, imps, Bahamut, ...), trigger, lite
+                     movement and FX: real fighters on its side (targetable)
+                     that are not copies of it (laser/summoner.py)
     aegis            a regenerating shield in front of HP; breaking it sends a
                      shockwave that damages, knocks back and stuns enemies
     terraform        walls / pillars / pits that block shots and bodies and
@@ -161,16 +163,11 @@ DEFAULTS = {
         actions={}),                 # action name -> forms that play it, e.g. "ac"
                                      # (missing / "both" = every form, "" = none)
     "summoner": dict(
-        construct="turret",          # turret | totem_heal | totem_shield | familiar
-        trigger="timer",             # timer | hp_below | hits_taken
-        every_ms=6000, hp_thresholds="75,50,25", every_hits=6,
-        count=1, max_alive=3, life_ms=12000, construct_hp=15.0,
-        placement="around",          # around | between | near_enemy | random
-        spread_px=80.0,
-        fire_ms=900, shot_damage=2.0, shot_speed_pct=100.0, range_px=500.0,
-        heal_per_s=2.0, shield_pct=40.0, aura_px=220.0,
-        bite_damage=3.0, bite_ms=700, chase_speed_pct=120.0,
-        size_px=14.0, color="#7cf3ff"),
+        # Each entry is one independent summon (its own construct, trigger,
+        # numbers, movement and FX): FX Studio's "Add summon" adds one.
+        # Empty / missing = one SUMMON_DEFAULTS entry; an old single-construct
+        # block (flat keys, no "summons") becomes that one entry.
+        summons=[]),
     "aegis": dict(
         shield_hp=30.0, regen_delay_ms=3000, regen_per_s=8.0,
         blocks=dict(projectiles=True, fx=True, melee=True),
@@ -224,6 +221,63 @@ DEFAULTS = {
         show_orbs=True, color="#7fd4ff"),
 }
 
+# Summoner: what a construct can be (laser/summoner.py runs and draws them).
+SUMMON_CONSTRUCTS = (
+    "turret", "totem_heal", "totem_shield", "familiar",
+    # supportive
+    "spirit_link", "liturgy_bell", "earthly_star",
+    # defensive
+    "grounding", "black_ox", "soul_link", "commander",
+    # weakens the enemy
+    "capacitor", "earthbind", "hex_ward", "siphon",
+    # offensive
+    "imp_swarm", "automaton_queen", "demi_bahamut", "trance_eidolon")
+# One summon (DEFAULTS["summoner"]["summons"] entry).  Only the settings its
+# construct uses matter; the rest are kept so switching back loses nothing.
+SUMMON_DEFAULTS = dict(
+    id="s1", name="",
+    construct="turret",
+    trigger="timer",             # timer | hp_below | hits_taken
+    every_ms=6000, hp_thresholds="75,50,25", every_hits=6,
+    count=1, max_alive=3, life_ms=12000, construct_hp=15.0,
+    placement="around",          # around | between | near_enemy | random
+    spread_px=80.0,
+    # shots: turret, imp swarm, automaton queen
+    fire_ms=900, shot_damage=2.0, shot_speed_pct=100.0, range_px=500.0,
+    # auras (every totem / ward / obelisk, finisher radius)
+    heal_per_s=2.0, shield_pct=40.0, aura_px=220.0,
+    # contact strikes: familiar, trance eidolon
+    bite_damage=3.0, bite_ms=700,
+    link_ms=1000,                # spirit link / siphon pulse
+    charges=4, charge_heal=4.0,  # liturgy bell
+    mature_ms=5000, star_heal=8.0, star_damage=6.0, mature_pct=200.0,
+    detonate_hp_pct=0.0,         # earthly star: detonates early below this HP % (0 = off)
+    rearm_ms=3000,               # grounding totem
+    taunt_px=400.0,              # black ox effigy
+    link_pct=40.0,               # soul-linked familiar
+    extend_ms=4000, buff_pct=30.0,                   # commander
+    charge_ms=2000, stun_ms=1200, zap_damage=4.0,    # capacitor totem
+    slow_pct=40.0,               # earthbind obelisk
+    weaken_pct=25.0, expose_pct=25.0,                # hex ward
+    drain_per_s=2.0,             # siphon totem
+    implode_at=5, implode_damage=4.0,                # imp swarm
+    per_hit_pct=10.0, max_power_pct=300.0, finisher_damage=10.0,   # automaton queen / demi-bahamut
+    echo_damage=2.0,             # demi-bahamut
+    echo_ms=5000, reappear_ms=900,                   # trance eidolon
+    # Lite movement style: ONE pattern (laser/movestyle.py PATTERNS), or
+    # "auto" (the construct's own way of moving) / "none" (stands still).
+    # target = what the pattern moves around: the enemy or the summoner.
+    movement=dict(pattern="auto", target="enemy", speed_pct=100.0, params={}),
+    fx="",                       # borrowed "fx:<id>" / "group:<id>"; "@summon:<id>" FX play too
+    fx_every_ms=1500,            # constructs that never attack play their FX this often
+    size_px=14.0, color="#7cf3ff")
+SUMMON_LIMITS = {
+    "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "charges": (1, 20),
+    "implode_at": (1, 16),
+}
+SUMMON_MAX = 8           # summons per Summoner ("Add summon")
+SUMMON_MOVE_TARGETS = ("enemy", "owner")
+
 _LIMITS = {
     "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
     "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
@@ -260,9 +314,62 @@ def _coerce(dv, v):
         return dv
 
 
+def _norm_summon(raw, i, used):
+    """One Summoner entry filled from SUMMON_DEFAULTS (an old flat summoner
+    block reads as its first entry).  ids stay unique: they name the
+    entry's FX slot "@summon:<id>"."""
+    from . import movestyle
+    raw = raw if isinstance(raw, dict) else {}
+    out = {}
+    for k, dv in SUMMON_DEFAULTS.items():
+        if k == "movement":
+            continue
+        v = _coerce(dv, raw.get(k, dv))
+        if k in SUMMON_LIMITS and not isinstance(v, (bool, dict, str)):
+            lo, hi = SUMMON_LIMITS[k]
+            v = max(lo, min(hi, v))
+        out[k] = v
+    if out["construct"] not in SUMMON_CONSTRUCTS:
+        out["construct"] = "turret"
+    sid = str(out["id"] or "")
+    if not sid or sid in used:
+        n = i + 1
+        while "s%d" % n in used:
+            n += 1
+        sid = "s%d" % n
+    used.add(sid)
+    out["id"] = sid
+    m = raw.get("movement") if isinstance(raw.get("movement"), dict) else {}
+    pat = m.get("pattern", "auto")
+    if pat not in ("auto", "none") and pat not in movestyle.PATTERNS:
+        pat = "auto"
+    tgt = m.get("target", "enemy")
+    spd = m.get("speed_pct", raw.get("chase_speed_pct", 100.0))   # old familiar chase speed
+    try:
+        spd = max(0.0, float(spd))
+    except (TypeError, ValueError):
+        spd = 100.0
+    out["movement"] = dict(
+        pattern=pat, target=tgt if tgt in SUMMON_MOVE_TARGETS else "enemy", speed_pct=spd,
+        params=movestyle._fill(m.get("params"), movestyle.PATTERN_DEFAULTS[pat])
+        if pat in movestyle.PATTERNS else {})
+    return out
+
+
+def _norm_summoner(raw):
+    raw = raw if isinstance(raw, dict) else {}
+    lst = raw.get("summons")
+    if not isinstance(lst, list) or not lst:
+        lst = [raw]   # an old single-construct block / nothing set yet
+    used = set()
+    return dict(summons=[_norm_summon(e, i, used) for i, e in enumerate(lst[:SUMMON_MAX])])
+
+
 def _norm(kind, raw):
     """Fill one ability's settings from its defaults, keeping each value's
     type (bool / int / float / str / dict)."""
+    if kind == "summoner":
+        return _norm_summoner(raw)
     out = {}
     raw = raw if isinstance(raw, dict) else {}
     for k, dv in DEFAULTS[kind].items():
@@ -340,6 +447,11 @@ class UAState:
                  "df_pair_act", "df_left", "df_target", "df_form_seq", "df_time_new",
                  # Summoner (owner) / construct (the summoned figure)
                  "sm_timer", "sm_fired", "sm_hits", "construct", "con_cd", "con_aim",
+                 "sm_entries", "sm_fires", "sm_blasts", "sm_echoes", "sm_flashes",
+                 "con_power", "con_charges", "con_queue", "con_dive", "con_armed", "con_style",
+                 "con_owner_anchor", "con_buff", "con_fx_cd", "con_links", "con_det", "con_cycle",
+                 # every figure: enemy construct auras on it (laser/summoner.py world_tick)
+                 "ca_slow", "ca_out", "ca_in",
                  # Aegis
                  "shield", "shield_idle", "waves",
                  # Terraform
@@ -407,9 +519,29 @@ class UAState:
         self.sm_timer = 0
         self.sm_fired = set()
         self.sm_hits = 0
-        self.construct = None    # construct: "turret" | "totem_heal" | "totem_shield" | "familiar"
+        self.construct = None    # construct: one of SUMMON_CONSTRUCTS
         self.con_cd = 0
         self.con_aim = 0.0
+        self.sm_entries = {}     # owner: summon id -> its trigger bookkeeping (laser/summoner.py)
+        self.sm_fires = []       # owner: construct FX to play (summon id, borrowed fx, x, y)
+        self.sm_blasts = []      # owner: construct hits on the other sides (world_tick delivers)
+        self.sm_echoes = []      # owner: Trance Eidolons still flashing back in
+        self.sm_flashes = []     # owner: their strikes on screen
+        self.con_power = 1.0     # construct: Automaton Queen power
+        self.con_charges = 0     # construct: Liturgy Bell charges left
+        self.con_queue = 0       # construct: Demi-Bahamut echoes waiting
+        self.con_dive = 0        # construct: Imp Swarm implosion dive (ticks, 0 = not diving)
+        self.con_armed = 0       # construct: Grounding ticks until armed (0 = armed)
+        self.con_style = None    # construct: its lite movement style (laser/movestyle.py)
+        self.con_owner_anchor = False   # construct: that style moves round the summoner
+        self.con_buff = 1.0      # construct: a Commander's damage buff
+        self.con_fx_cd = 0       # construct: ticks to its next passive FX play
+        self.con_links = []      # construct: points it is linked to this tick (drawing)
+        self.con_det = False     # construct: Earthly Star detonating early
+        self.con_cycle = 0       # construct: ticks into its own cycle (capacitor charge, pulses)
+        self.ca_slow = 1.0
+        self.ca_out = 1.0
+        self.ca_in = 1.0
         self.shield = None       # Aegis shield HP (None = not set up yet)
         self.shield_idle = 0     # ticks since the last hit
         self.waves = []          # Aegis break shockwaves for world_tick to deliver
@@ -562,7 +694,7 @@ def tick(fig, world):
     if st.flash > 0:
         st.flash -= 1
     if st.construct is not None:
-        _construct_tick(fig, world, st)
+        _sm().construct_tick(fig, world, st)
         return
     if c is None:
         return
@@ -596,11 +728,7 @@ def tick(fig, world):
     elif kind == "dual_form":
         _df_tick(fig, world, st, P)
     elif kind == "summoner":
-        if P["trigger"] == "timer":
-            st.sm_timer += 1
-            if st.sm_timer >= _ticks(P["every_ms"]):
-                st.sm_timer = 0
-                _summon(fig, world, P)
+        _sm().owner_tick(fig, world, st, P)
     elif kind == "aegis":
         _aegis_tick(fig, st, P)
     elif kind == "terraform":
@@ -657,7 +785,10 @@ def heals_instead(fig, amount):
 def absorb(fig, world, amount, kind="melee"):
     """Aegis: the shield takes the hit first.  Returns what is left for HP.
     `kind` = projectile | fx | melee (the hit's source, per the Blocks
-    ticks)."""
+    ticks).  A Summoner's Grounding Totem / Soul-Linked Familiar take
+    their share first."""
+    if amount > 0 and _of(fig, "summoner") is not None:
+        amount = _sm().absorb(fig, world, amount, kind)
     P = _of(fig, "aegis")
     if P is None or amount <= 0:
         return amount
@@ -710,17 +841,7 @@ def after_damage(fig, world, amount):
                     st.df_want = True
                     break
     elif kind == "summoner":
-        if P["trigger"] == "hp_below":
-            hp_pct = _hp_pct(fig)
-            for th in _thresholds(P["hp_thresholds"]):
-                if th not in st.sm_fired and hp_pct <= th:
-                    st.sm_fired.add(th)
-                    _summon(fig, world, P)
-        elif P["trigger"] == "hits_taken":
-            st.sm_hits += 1
-            if st.sm_hits >= P["every_hits"]:
-                st.sm_hits = 0
-                _summon(fig, world, P)
+        _sm().on_hurt(fig, world, st, P, amount)
     elif kind == "terraform":
         if P["trigger"] == "on_hit" and st.tf_cd <= 0:
             _raise_struct(fig, world, st, P)
@@ -760,6 +881,8 @@ def note_landed(fig, amount=1.0):
                 st.df_want = True
     elif kind == "domain_expansion" and P["fill"] == "hits_landed":
         _dm_fill(fig, st, P, 100.0 / max(1, P["fill_hits"]))
+    elif kind == "summoner":
+        _sm().on_landed(fig, st, P)
     elif kind == "basic_stacks":
         if P["gain"] == "hits_landed":
             _bs_gain(fig, st, P, 1.0, P["every_hits"])
@@ -791,8 +914,9 @@ def on_action_start(fig, name):
 
 def taken_mult(fig):
     """Incoming damage multiplier: Berserker weakness, the Dual Form's
-    damage taken, a Summoner's shield totem nearby."""
-    k = 1.0
+    damage taken, a Summoner's shield totem nearby, an enemy Hex Ward."""
+    st = getattr(fig, "ua", None)
+    k = st.ca_in if st is not None else 1.0
     c = cfg(fig)
     if c is None:
         return k
@@ -801,15 +925,8 @@ def taken_mult(fig):
         k *= max(0.0, 1.0 + P["damage_taken_pct"] / 100.0 * _rage(fig, P))
     elif kind == "dual_form":
         k *= max(0.0, _form(fig, P)["taken_pct"] / 100.0)
-    elif kind == "summoner" and P["construct"] == "totem_shield":
-        st = getattr(fig, "ua", None)
-        if st is not None:
-            r2 = P["aura_px"] ** 2
-            for t in st.clones:
-                if (t.personality.hp > 0 and is_construct(t)
-                        and (t.x - fig.x) ** 2 + (t.y - fig.y) ** 2 <= r2):
-                    k *= max(0.0, 1.0 - P["shield_pct"] / 100.0)
-                    break
+    elif kind == "summoner":
+        k *= _sm().shield_mult(fig)
     return k
 
 
@@ -915,6 +1032,9 @@ def world_tick(world):
                 gone = (st.clone_left <= 0 or f.personality.hp <= 0 or o not in figs or o in dead
                         or (st.construct is None and o.mode is not f.mode))
                 if gone:
+                    if st.construct is not None:
+                        _sm().on_gone(f, o, world, st.clone_left <= 0 and f.personality.hp > 0
+                                      and o in figs and o not in dead)
                     _burst(world.sparks, f.transform.x, f.transform.y,
                            _rgb(st.clone_P.get("color"), tuple(f.lut[200]))
                            if st.construct is not None else tuple(f.lut[200]), n=12)
@@ -975,6 +1095,7 @@ def world_tick(world):
             if st is not None and st.structs:
                 structs.extend((s, si) for s in st.structs if s.hp > 0)
     world.ua_structs = structs
+    _sm().world_tick(world, dead)
 
 
 def clone_allows(fig, name):
@@ -1064,6 +1185,8 @@ def speed_mult(fig, world=None):
             k *= max(0.05, _form(fig, P)["speed_pct"] / 100.0)
             if st is not None and st.df_buff > 0:
                 k *= 1.0 + P["buff_speed_pct"] / 100.0
+    if st is not None:
+        k *= st.ca_slow   # an enemy Earthbind Obelisk
     return k * _enemy_slow(fig, world)
 
 
@@ -1085,9 +1208,11 @@ def out_mult(fig):
     st = getattr(fig, "ua", None) if fig is not None else None
     if st is not None and st.clone_of is not None:
         if st.construct is not None:
-            return 1.0
-        return max(0.0, st.clone_P["damage_pct"] / 100.0)
+            return st.con_buff * st.ca_out   # a Commander's buff, an enemy Hex Ward
+        return max(0.0, st.clone_P["damage_pct"] / 100.0) * st.ca_out
     k = st.fu_dmg if st is not None and st.fu_parents is not None else 1.0
+    if st is not None:
+        k *= st.ca_out   # an enemy Hex Ward weakens it
     c = cfg(fig) if fig is not None else None
     if c is None:
         return k
@@ -1728,85 +1853,52 @@ def _place(fig, world, P, n, key="spread_px"):
     return pts
 
 
-def _summon(fig, world, P):
-    """Queue P["count"] constructs: real Figures on the owner's side (enemies
-    see and can target them), joined by world_tick."""
-    from .figure import Figure
-    st = state(fig)
-    st.clones = [c for c in st.clones if c.personality.hp > 0 and c.ua.clone_left > 0]
-    n = min(P["count"], P["max_alive"] - len(st.clones) - len(st.pending))
-    if n <= 0:
-        return
-    whole = isinstance(fig.personality.max_hp, int)
-    hp = max(1, int(round(P["construct_hp"]))) if whole else max(0.1, float(P["construct_hp"]))
-    kind = P["construct"]
-    rgb = _rgb(P["color"], (124, 243, 255))
-    for i, (px, py) in enumerate(_place(fig, world, P, n)):
-        px, py = _clamp_xy(fig, px, py)
-        c = Figure(_cmode(fig.mode), fig.render.bundle, fig.lut,
-                   fig.index + 1 + len(st.clones) + len(st.pending), fig.screen_w, fig.screen_h)
-        c.transform.x, c.transform.y = px, py
-        c.transform.facing_left = fig.transform.facing_left
-        c.transform.init = True
-        c.personality.max_hp = c.personality.hp = hp
-        if kind == "familiar":
-            k = P["chase_speed_pct"] / 100.0
-            c.motion.speed = fig.motion.speed * k
-            c.motion.follow_speed = fig.motion.follow_speed * k
-        else:
-            c.motion.speed = c.motion.follow_speed = 0.0
-        cs = UAState(c)
-        cs.clone_of, cs.clone_left, cs.clone_P = fig, _ticks(P["life_ms"]), P
-        cs.construct = kind
-        cs.con_cd = _ticks(P["fire_ms"] if kind == "turret" else P["bite_ms"]) // 2
-        c.ua = cs
-        st.pending.append(c)
-        _burst(st.sparks, px, py, rgb, n=12, spd=(1.0, 4.0), rng=fig.personality.rng)
+def _sm():
+    """laser/summoner.py: the Summoner's constructs (imported on use, it
+    imports this module)."""
+    from . import summoner
+    return summoner
 
 
 def holds_still(fig):
-    """MotionSystem: turrets and totems never walk (a knockback still
-    slides them)."""
+    """MotionSystem: a construct without movement never walks (a knockback
+    still slides it)."""
     st = getattr(fig, "ua", None)
-    return st is not None and st.construct is not None and st.construct != "familiar"
+    return st is not None and st.construct is not None and _sm().holds_still(fig, st)
 
 
-def _construct_tick(fig, world, st):
-    P = st.clone_P
+def construct_anchor(fig):
+    """World.movement_target: where a construct's movement pattern centres
+    when it moves round its summoner (None = round the enemy as usual)."""
+    st = getattr(fig, "ua", None)
+    if st is None or st.construct is None or not st.con_owner_anchor:
+        return None
     o = st.clone_of
-    if st.con_cd > 0:
-        st.con_cd -= 1
-    x, y = fig.transform.x, fig.transform.y
-    rgb = _rgb(P["color"], (124, 243, 255))
-    kind = st.construct
-    tgt = _nearest(_enemy_points(fig, world), x, y)
-    if tgt is not None:
-        st.con_aim = math.atan2(tgt[1] - y, tgt[0] - x)
-        fig.transform.facing_left = tgt[0] < x
-    if kind == "turret":
-        if tgt is not None and st.con_cd <= 0 and math.hypot(tgt[0] - x, tgt[1] - y) <= P["range_px"]:
-            st.con_cd = _ticks(P["fire_ms"])
-            spd = config.PROJ_SPEED * P["shot_speed_pct"] / 100.0
-            pr = _shot(x, y, tgt[0], tgt[1], rgb, P["shot_damage"], fig, speed=spd,
-                       max_age=P["range_px"] / max(0.5, spd) + 10)
-            world.projectiles.append(pr)
-            world.muzzle_flashes.append([x, y, 0] + list(rgb))
-    elif kind == "familiar":
-        reach = P["size_px"] + 26.0
-        if tgt is not None and st.con_cd <= 0 and math.hypot(tgt[0] - x, tgt[1] - y) <= reach:
-            st.con_cd = _ticks(P["bite_ms"])
-            pr = _shot(x, y, tgt[0], tgt[1], rgb, P["bite_damage"], fig, speed=config.PROJ_SPEED,
-                       max_age=reach / config.PROJ_SPEED + 4)
-            pr.one_hit = True
-            world.projectiles.append(pr)
-            _burst(world.sparks, x, y, rgb, n=5, spd=(1.0, 3.0))
-    elif kind == "totem_heal" and o is not None and o.personality.hp > 0:
-        if (o.x - x) ** 2 + (o.y - y) ** 2 <= P["aura_px"] ** 2:
-            p = o.personality
-            if p.hp < p.max_hp:
-                p.hp = min(p.max_hp, p.hp + P["heal_per_s"] * TICK_MS / 1000.0)
-                if st.t % 12 == 0:
-                    _burst(world.sparks, o.x, o.y - 10, (110, 255, 150), n=2, spd=(0.5, 1.5))
+    return (o.transform.x, o.transform.y) if o is not None else None
+
+
+def taunt_point(world, fx, fy):
+    """A Black Ox Effigy of the other side that reaches (fx, fy): where the
+    enemies there aim instead of the nearest fighter (None = no taunt)."""
+    best = None
+    si = getattr(world, "side_idx", None)
+    for (sj, x, y, r) in getattr(world, "ua_taunts", ()) or ():
+        if sj == si:
+            continue
+        d = (x - fx) ** 2 + (y - fy) ** 2
+        if d <= r * r and (best is None or d < best[0]):
+            best = (d, (x, y))
+    return best[1] if best is not None else None
+
+
+def take_summon_fires(fig):
+    """fxkit.FxDriver hook: [(summon id, borrowed fx key, x, y)] of each
+    construct FX play since the last call."""
+    st = getattr(fig, "ua", None)
+    if st is None or not st.sm_fires:
+        return []
+    fires, st.sm_fires = st.sm_fires, []
+    return fires
 
 
 # ------------------------------------------------------------ Aegis
@@ -2676,77 +2768,12 @@ def _draw_structs(p, st, pscale):
 
 
 def draw_construct(fig, p):
-    """Figure.draw: a construct is drawn as itself (turret / totem /
-    familiar), not as its owner's sprite.  True when it drew."""
+    """Figure.draw: a construct is drawn as itself (laser/summoner.py), not
+    as its owner's sprite.  True when it drew."""
     st = getattr(fig, "ua", None)
     if st is None or st.construct is None:
         return False
-    P = st.clone_P
-    x, y = fig.transform.x, fig.transform.y
-    pscale = fig._position_scale()
-    R = P["size_px"] * pscale
-    rgb = _rgb(P["color"], (124, 243, 255))
-    r, g, b = rgb
-    tk = st.t
-    life = st.clone_left / float(max(1, _ticks(P["life_ms"])))
-    p.save()
-    p.setRenderHint(QPainter.Antialiasing, True)
-    kind = st.construct
-    if kind == "turret":
-        _glow(p, x, y, R * 1.8, rgb, 70)
-        p.setPen(QPen(QColor(r, g, b, 230), 2.0))
-        p.setBrush(QColor(20, 24, 30, 220))
-        p.drawEllipse(QPointF(x, y), R, R)
-        pen = QPen(QColor(r, g, b, 240), max(2.0, R * 0.45))
-        pen.setCapStyle(Qt.RoundCap)
-        p.setPen(pen)
-        p.drawLine(QPointF(x, y), QPointF(x + math.cos(st.con_aim) * R * 1.5,
-                                          y + math.sin(st.con_aim) * R * 1.5))
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(r, g, b, 255))
-        p.drawEllipse(QPointF(x, y), R * 0.35, R * 0.35)
-    elif kind in ("totem_heal", "totem_shield"):
-        pulse = 0.5 + 0.5 * math.sin(tk * 0.12)
-        ar = P["aura_px"]
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(QColor(r, g, b, int(40 + 40 * pulse)), 1.5, Qt.DashLine))
-        p.drawEllipse(QPointF(x, y), ar, ar)
-        _glow(p, x, y, R * 2.2, rgb, 90 + 60 * pulse)
-        poly = QPolygonF([QPointF(x, y - R * 1.6), QPointF(x + R * 0.7, y),
-                          QPointF(x, y + R * 1.2), QPointF(x - R * 0.7, y)])
-        p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
-        p.setBrush(QColor(r, g, b, 210))
-        p.drawPolygon(poly)
-        p.setPen(QPen(QColor(255, 255, 255, 230), 2.0))
-        if kind == "totem_heal":
-            p.drawLine(QPointF(x - R * 0.3, y - R * 0.2), QPointF(x + R * 0.3, y - R * 0.2))
-            p.drawLine(QPointF(x, y - R * 0.5), QPointF(x, y + R * 0.1))
-        else:
-            p.setBrush(Qt.NoBrush)
-            p.drawArc(QRectF(x - R * 0.4, y - R * 0.6, R * 0.8, R * 0.8), 0, 180 * 16)
-    else:   # familiar
-        _glow(p, x, y, R * 1.9, rgb, 110)
-        a = st.con_aim
-        bob = math.sin(tk * 0.3) * 1.5
-        p.setPen(QPen(QColor(255, 255, 255, 160), 1.2))
-        p.setBrush(QColor(r, g, b, 230))
-        p.drawEllipse(QPointF(x, y + bob), R * 0.8, R * 0.8)
-        for s_ in (-1, 1):
-            ex = x + math.cos(a + s_ * 0.45) * R * 0.45
-            ey = y + bob + math.sin(a + s_ * 0.45) * R * 0.45
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 255))
-            p.drawEllipse(QPointF(ex, ey), R * 0.18, R * 0.18)
-    pp = fig.personality
-    if pp.max_hp:
-        _bar(p, x, y + R * 1.7, 26.0 * pscale, pp.hp / float(pp.max_hp), rgb, pscale, 2.5)
-    p.setBrush(Qt.NoBrush)
-    p.setPen(QPen(QColor(r, g, b, 120), 1.2))
-    p.drawArc(QRectF(x - R * 1.3, y - R * 1.3, R * 2.6, R * 2.6), 90 * 16, int(360 * 16 * life))
-    if st.flash > 0:
-        p.setPen(QPen(QColor(255, 255, 255, int(200 * st.flash / 12.0)), 2.0))
-        p.drawEllipse(QPointF(x, y), R * 1.5, R * 1.5)
-    p.restore()
+    _sm().draw_construct(fig, p, st)
     return True
 
 
@@ -2785,6 +2812,8 @@ def draw(fig, p, pscale=1.0):
             p.drawArc(QRectF(x - R * 1.2, y - R * 1.2, R * 2.4, R * 2.4), 90 * 16, int(360 * 16 * frac))
     if st is not None and st.structs:
         _draw_structs(p, st, pscale)
+    if st is not None and (st.sm_flashes or st.clones):
+        _sm().draw_owner(fig, p, st, pscale)
     if kind == "berserker" and P["aura"]:
         f = _rage(fig, P)
         if f > 0.01:

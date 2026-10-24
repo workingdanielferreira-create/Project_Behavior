@@ -496,6 +496,11 @@ CHARACTER_KEY = "@character"
 # normal attack fires (laser/unique.py take_stack_fires), on the
 # attack_normal timing (FxDriver._stack_tick).
 STACK_KEY = "@stack"
+# "@summon:<id>": a Summoner summon's own FX, played once from its construct
+# each time it acts (laser/summoner.py), aimed at the target, on the
+# attack_normal timing (FxDriver._stack_tick, alongside the summon's
+# borrowed "fx").
+SUMMON_KEY = "@summon:"
 
 
 def normalize_blink_step(b):
@@ -3715,6 +3720,11 @@ class FxDriver:
                 bs = pscale[idx] if idx < len(pscale) else 1.0   # its character scale
                 hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS) * bs, (pf[0], pf[1])))
             self.target = (best[1][0], best[1][1])
+            # A Black Ox Effigy taunting this fighter (laser/summoner.py).
+            from . import unique as _uq
+            taunt = _uq.taunt_point(world, fig.x, fig.y)
+            if taunt is not None:
+                self.target = taunt
         else:
             self.target = tuple(world.cursor)
         self.hurts = hurts
@@ -3856,15 +3866,23 @@ class FxDriver:
         from . import unique
         borrow, fires = unique.take_stack_fires(fig)
         for (x, y) in fires:
-            self.slanes.append([[[Player(), False, 0, -1], [Player(), False, 0, -1]], (x, y), None])
+            self.slanes.append([[[Player(), False, 0, -1], [Player(), False, 0, -1]], (x, y), None, None])
+        # Summoner constructs (laser/summoner.py): the summon's borrowed FX
+        # and its "@summon:<id>" slot, once from the construct.
+        for (sid, sborrow, x, y) in unique.take_summon_fires(fig):
+            self.slanes.append([[[Player(), False, 0, -1], [Player(), False, 0, -1]], (x, y), None,
+                                (sborrow, SUMMON_KEY + sid)])
         if not self.slanes:
             return
         host_act = "attack_normal" if "attack_normal" in self.cfx.timing else self.action
-        jobs = (self.cfx.retreat_effects(borrow) if borrow else ([], None),
-                (self.cfx.retreat_effects("slot:" + STACK_KEY)[0], host_act))
+        stack_jobs = (self.cfx.retreat_effects(borrow) if borrow else ([], None),
+                      (self.cfx.retreat_effects("slot:" + STACK_KEY)[0], host_act))
         keep = []
         for entry in self.slanes:
-            lanes, (x, y), _h = entry
+            lanes, (x, y), _h, own = entry
+            jobs = stack_jobs if own is None else (
+                self.cfx.retreat_effects(own[0]) if own[0] else ([], None),
+                (self.cfx.retreat_effects("slot:" + own[1])[0], host_act))
             host = _OrbHost(self, fig, world, x, y)
             entry[2] = host
             live = False
@@ -3920,7 +3938,7 @@ class FxDriver:
         self.player.draw(p, self.host, layer, hidden)
         for ln in self.rlanes:
             ln[0].draw(p, self.host, layer, hidden)
-        for lanes, _xy, sh in self.slanes:
+        for lanes, _xy, sh, _own in self.slanes:
             if sh is not None:
                 sh.fig = fig
                 for ln in lanes:
