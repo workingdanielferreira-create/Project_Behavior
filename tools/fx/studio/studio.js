@@ -3292,8 +3292,14 @@ function uaSummoner(d, P) {
   add.title = "Adds another summon with its own construct and settings (up to " + FXK.SUMMON_MAX + ").";
   add.onclick = function () { var E = FXK.normalizeSummon({construct: asel.value, id: newSummonId()}, L.length, {}); L.push(E); S.smPage = E.id; ch(); };
   ar.appendChild(asel); ar.appendChild(add); s.appendChild(ar);
+  var pr = document.createElement("div"); pr.className = "row";
+  var pv = document.createElement("button"); pv.textContent = "▶ Preview summons"; pv.style.flex = "1";
+  pv.title = "Opens a floating preview window: the open summon (plus any you tick there) is summoned on a small arena, moving and attacking as in the game.";
+  pv.onclick = function () { SUMMONPREVIEW.open(); };
+  pr.appendChild(pv); s.appendChild(pr);
   var E = summonOf(S.smPage);
   if (E) uaSummonFields(d, E, L.indexOf(E));
+  SUMMONPREVIEW.refresh();
 }
 function uaSummonFields(d, E, i) {
   var info = SM_INFO[E.construct];
@@ -5797,5 +5803,6 @@ Array.prototype.forEach.call(document.querySelectorAll("details.panel"), functio
 kvOpen().then(function () { STORE.done = true; buildPresets(); geoRefreshPresets(); });
 buildPresets();
 requestAnimationFrame(loop);
+SUMMONPREVIEW.bind({S: S, C: function () { return C; }, inp: inp, info: SM_INFO, charScale: charScale});
 window.FXStudio = {S: S, get C() { return C; }, openFiles: openFiles, packData: packData, resetSim: resetSim, step: step, player: player, cplayer: cplayer, host: host, rebuild: rebuild};
 })();
