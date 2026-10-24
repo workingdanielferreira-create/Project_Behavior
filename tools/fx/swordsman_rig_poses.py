@@ -330,50 +330,44 @@ def draw(j, smear=None):
 #   grip: near (right) hand on the handle at the guard; blade: direction;
 #   front/back: toe position, heel lift, foot yaw.
 K = {
-    # Ichigo-style two-handed kesagiri, both fists on the handle and the
-    # blade carried out in front of the body the whole time.  Anime keys:
-    # sharp held poses, one shunpo smear frame, the impact held on twos.
+    # Ichigo two-handed attack, each key posed from a Bleach anime screenshot
+    # (Bleach Fandom wiki).  Both fists stay on the handle throughout.
     #
-    # GUARD: deep wide stance, weight forward, both hands out in front of the
-    # belly, blade pointing forward-up at the target (aggressive chudan).
+    # GUARD - Ep 38, Ichigo vs Kenpachi: deep crouch, body hunched forward,
+    # both fists low in front at knee height, blade angled steeply forward-up.
     "guard": dict(
-        pelvis=(-6, 62, 0), hip_yaw=10, twist=10, lean=18, curl=6, head=-14,
-        grip=(50, 95, 4), blade=(0.80, 0.55, -0.10),
-        front=dict(toe=(40, 0, 8), lift=0), back=dict(toe=(-48, 0, -8), lift=20, yaw=-15)),
-    # RAISE: anticipation.  Blade pulled up vertical in front of him, both
-    # fists at chest height ahead of the near shoulder, chest open, weight
-    # rocked onto the back leg.
-    "raise": dict(
-        pelvis=(-14, 66, 0), hip_yaw=12, twist=18, lean=-4, curl=-6, head=12,
-        grip=(14, 128, 16), blade=(-0.15, 0.98, -0.10),
-        front=dict(toe=(34, 0, 8), lift=0), back=dict(toe=(-52, 0, -8), lift=10, yaw=-15)),
-    # DASH: the shunpo in-between.  Body thrown low and forward off the back
-    # toe, blade coming over and down in front of him, eyes on the target.
+        pelvis=(-6, 54, 0), hip_yaw=10, twist=8, lean=38, curl=14, head=-36,
+        grip=(34, 64, 6), blade=(0.50, 0.86, -0.05),
+        front=dict(toe=(44, 0, 8), lift=0), back=dict(toe=(-50, 0, -8), lift=30, yaw=-15)),
+    # WINDUP - Ep 31, Ichigo vs Renji: stood up tall, both arms straight up,
+    # fists above the head, blade hanging back behind him.
+    "windup": dict(
+        pelvis=(-10, 74, 0), hip_yaw=14, twist=20, lean=-4, curl=-4, head=8,
+        grip=(-14, 178, 6), blade=(-0.90, -0.45, -0.10),
+        front=dict(toe=(30, 0, 8), lift=0), back=dict(toe=(-44, 0, -8), lift=25, yaw=-15)),
+    # DASH - Ep 121, Ichigo vs Grimmjow: thrown forward through the air, front
+    # knee driven up, back leg trailing, sword low at the hip, blade trailing
+    # down and back.
     "dash": dict(
-        pelvis=(18, 56, 2), hip_yaw=-6, twist=-10, lean=30, curl=12, head=-30,
-        grip=(80, 116, 2), blade=(0.70, 0.68, 0.05),
-        front=dict(toe=(62, 0, 10), lift=0), back=dict(toe=(-32, 8, -8), lift=60)),
-    # IMPACT: long low lunge, arms driven out in front, the cut finished
-    # diagonally down in front of the lead knee.  Held for two frames.
+        pelvis=(16, 74, 2), hip_yaw=-4, twist=-6, lean=24, curl=12, head=-22,
+        grip=(34, 80, 12), blade=(-0.55, -0.80, -0.10),
+        front=dict(toe=(42, 34, 8), lift=40), back=dict(toe=(-36, 8, -8), lift=60)),
+    # IMPACT - Ep 161, Ichigo vs Ulquiorra: hunched in close, fists up at
+    # shoulder height, blade driven forward nearly level at chest height,
+    # head tucked down behind the arms.  Held for two frames.
     "impact": dict(
-        pelvis=(34, 48, 2), hip_yaw=-14, twist=-18, lean=34, curl=16, head=-34,
-        grip=(96, 64, 2), blade=(0.72, -0.62, 0.10),
-        front=dict(toe=(78, 0, 10), lift=0), back=dict(toe=(-34, 0, -8), lift=45)),
-    # SETTLE: zanshin.  Weight eases back up, blade still out in front, low
-    # and pointed at the opponent.
-    "settle": dict(
-        pelvis=(30, 58, 2), hip_yaw=-6, twist=-6, lean=22, curl=8, head=-20,
-        grip=(84, 76, 2), blade=(0.92, -0.30, 0.05),
-        front=dict(toe=(78, 0, 10), lift=0), back=dict(toe=(-22, 0, -8), lift=30)),
+        pelvis=(34, 54, 2), hip_yaw=-14, twist=-20, lean=36, curl=14, head=-30,
+        grip=(100, 104, 2), blade=(0.95, -0.10, 0.10),
+        front=dict(toe=(78, 0, 10), lift=0), back=dict(toe=(-30, 0, -8), lift=40)),
 }
 
 ACTIONS = {
     # smear: frame -> (key it swings from, start fraction, alpha)
     # ghost: frame -> [(key drawn as a shunpo afterimage, alpha)]
     # speed: frame -> speed-line count
-    "attack_normal": dict(frame_ms=60, keys=["guard", "raise", "dash", "impact", "impact", "settle"],
-                          smear={2: (1, 0.0, 110), 3: (2, 0.0, 135), 4: (2, 0.4, 70)},
-                          ghost={2: [("raise", 0.30)], 3: [("raise", 0.14), ("dash", 0.28)]},
+    "attack_normal": dict(frame_ms=60, keys=["guard", "windup", "dash", "impact", "impact"],
+                          smear={3: (2, 0.0, 135), 4: (2, 0.4, 70)},
+                          ghost={2: [("windup", 0.30)], 3: [("windup", 0.14), ("dash", 0.28)]},
                           speed={2: 14, 3: 10}),
 }
 
