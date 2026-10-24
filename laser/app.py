@@ -486,6 +486,10 @@ class World:
                 # Solo: the cursor hits by touching, so it counts as melee.
                 ex, ey = self.cursor
                 melee = True
+            # A Summoner construct whose pattern moves round its summoner.
+            anchor = unique.construct_anchor(fig)
+            if anchor is not None:
+                ex, ey = anchor
             off = actions.chase_offset(fig, self)
             if off is None:
                 off = (fig.motion.offset_x, fig.motion.offset_y)
@@ -523,6 +527,11 @@ class World:
         return None
 
     def _nearest_enemy(self, fx, fy):
+        # A Black Ox Effigy (laser/summoner.py) within its taunt range pulls
+        # the aim off everything else.
+        taunt = unique.taunt_point(self, fx, fy)
+        if taunt is not None:
+            return taunt
         best_sq = float("inf")
         best = (fx, fy)
         for ex, ey, _dash, _parry in self.partner_figures:

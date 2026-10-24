@@ -698,11 +698,9 @@ var UNIQUE_DEFAULTS = {
       return t;
     })(),
     actions: {}},   // action name -> forms that play it, e.g. "ac" (missing / "both" = every form, "" = none)
-  summoner: {construct: "turret", trigger: "timer", every_ms: 6000, hp_thresholds: "75,50,25", every_hits: 6,
-    count: 1, max_alive: 3, life_ms: 12000, construct_hp: 15, placement: "around", spread_px: 80,
-    fire_ms: 900, shot_damage: 2, shot_speed_pct: 100, range_px: 500,
-    heal_per_s: 2, shield_pct: 40, aura_px: 220, bite_damage: 3, bite_ms: 700, chase_speed_pct: 120,
-    size_px: 14, color: "#7cf3ff"},
+  // Each entry is one independent summon ("Add summon"); empty = one
+  // SUMMON_DEFAULTS entry, an old flat block becomes that entry.
+  summoner: {summons: []},
   aegis: {shield_hp: 30, regen_delay_ms: 3000, regen_per_s: 8,
     blocks: {projectiles: true, fx: true, melee: true},
     wave_px: 180, wave_damage: 4, wave_knockback_px: 120, stun_ms: 900, show_bar: true, color: "#6fd0ff"},
@@ -728,9 +726,76 @@ var UNIQUE_DEFAULTS = {
   basic_stacks: {gain: "hits_landed", every_hits: 5, every_damage: 20, every_attacks: 5, max_orbs: 3,
     use: "one", fx: "", orbit_px: 55, orbit_deg_s: 120, orb_px: 5, show_orbs: true, color: "#7fd4ff"}
 };
+// Summoner (laser/unique.py SUMMON_* / laser/summoner.py): what a construct
+// can be and one summon's settings.
+var SUMMON_CONSTRUCTS = ["turret", "totem_heal", "totem_shield", "familiar",
+  "spirit_link", "liturgy_bell", "earthly_star",
+  "grounding", "black_ox", "soul_link", "commander",
+  "capacitor", "earthbind", "hex_ward", "siphon",
+  "imp_swarm", "automaton_queen", "demi_bahamut", "trance_eidolon"];
+var SUMMON_DEFAULTS = {id: "s1", name: "", construct: "turret",
+  trigger: "timer", every_ms: 6000, hp_thresholds: "75,50,25", every_hits: 6,
+  count: 1, max_alive: 3, life_ms: 12000, construct_hp: 15,
+  placement: "around", spread_px: 80,
+  fire_ms: 900, shot_damage: 2, shot_speed_pct: 100, range_px: 500,
+  heal_per_s: 2, shield_pct: 40, aura_px: 220,
+  bite_damage: 3, bite_ms: 700,
+  link_ms: 1000,
+  charges: 4, charge_heal: 4,
+  mature_ms: 5000, star_heal: 8, star_damage: 6, mature_pct: 200,
+  detonate_hp_pct: 0,
+  rearm_ms: 3000,
+  taunt_px: 400,
+  link_pct: 40,
+  extend_ms: 4000, buff_pct: 30,
+  charge_ms: 2000, stun_ms: 1200, zap_damage: 4,
+  slow_pct: 40,
+  weaken_pct: 25, expose_pct: 25,
+  drain_per_s: 2,
+  implode_at: 5, implode_damage: 4,
+  per_hit_pct: 10, max_power_pct: 300, finisher_damage: 10,
+  echo_damage: 2,
+  echo_ms: 5000, reappear_ms: 900,
+  // lite movement style: ONE pattern ("auto" = its own way, "none" = stands)
+  movement: {pattern: "auto", target: "enemy", speed_pct: 100, params: {}},
+  fx: "",   // borrowed "fx:<id>" / "group:<id>"; the "@summon:<id>" FX play too
+  fx_every_ms: 1500,
+  size_px: 14, color: "#7cf3ff"};
+var SUMMON_LIMITS = {count: [1, 8], max_alive: [1, 16], every_hits: [1, 99], charges: [1, 20], implode_at: [1, 16]};
+var SUMMON_MAX = 8;
+var SUMMON_MOVE_TARGETS = ["enemy", "owner"];
+function normalizeSummon(raw, i, used) {
+  raw = raw || {};
+  var out = {};
+  Object.keys(SUMMON_DEFAULTS).forEach(function (k) {
+    if (k === "movement") return;
+    var d = SUMMON_DEFAULTS[k], v = raw[k] === undefined ? d : raw[k];
+    if (typeof d === "number") { v = +v; if (!isFinite(v)) v = d; if (SUMMON_LIMITS[k]) v = Math.max(SUMMON_LIMITS[k][0], Math.min(SUMMON_LIMITS[k][1], Math.round(v))); }
+    else if (typeof d === "string") v = String(v);
+    out[k] = v;
+  });
+  if (SUMMON_CONSTRUCTS.indexOf(out.construct) < 0) out.construct = "turret";
+  var sid = out.id;
+  if (!sid || used[sid]) { var n = i + 1; while (used["s" + n]) n++; sid = "s" + n; }
+  used[sid] = 1; out.id = sid;
+  var m = raw.movement || {}, MS = window.MOVESTYLE;
+  var pat = m.pattern || "auto";
+  if (pat !== "auto" && pat !== "none" && (!MS || MS.PATTERNS.indexOf(pat) < 0)) pat = "auto";
+  var spd = m.speed_pct !== undefined ? +m.speed_pct : raw.chase_speed_pct !== undefined ? +raw.chase_speed_pct : 100;
+  out.movement = {pattern: pat, target: SUMMON_MOVE_TARGETS.indexOf(m.target) >= 0 ? m.target : "enemy",
+    speed_pct: isFinite(spd) ? Math.max(0, spd) : 100,
+    params: MS && MS.PATTERNS.indexOf(pat) >= 0 ? MS.normalizePhase({pattern: pat, params: m.params}).params : {}};
+  return out;
+}
+function normalizeSummoner(raw) {
+  raw = raw || {};
+  var lst = Array.isArray(raw.summons) && raw.summons.length ? raw.summons : [raw], used = {};
+  return {summons: lst.slice(0, SUMMON_MAX).map(function (e, i) { return normalizeSummon(e, i, used); })};
+}
 function normalizeUnique(a) {
   a = a || {};
   if (UNIQUE_TYPES.indexOf(a.type) < 0) a.type = "none";
+  a.summoner = normalizeSummoner(a.summoner);
   UNIQUE_TYPES.slice(1).forEach(function (k) { a[k] = fill(a[k] || {}, UNIQUE_DEFAULTS[k]); });
   a.phase_shift.destinations = fill(a.phase_shift.destinations || {}, UNIQUE_DEFAULTS.phase_shift.destinations);
   // nested settings blocks are filled key by key too
@@ -2620,6 +2685,8 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   UNIQUE_TYPES: UNIQUE_TYPES, UNIQUE_DEFAULTS: UNIQUE_DEFAULTS, normalizeUnique: normalizeUnique,
+  SUMMON_CONSTRUCTS: SUMMON_CONSTRUCTS, SUMMON_DEFAULTS: SUMMON_DEFAULTS, SUMMON_MAX: SUMMON_MAX,
+  normalizeSummon: normalizeSummon, normalizeSummoner: normalizeSummoner,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, normalizeDodge: normalizeDodge,

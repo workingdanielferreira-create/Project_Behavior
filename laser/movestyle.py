@@ -195,6 +195,11 @@ def normalize(raw):
 
 def cfg(fig):
     """The figure's normalised style, or None when it has none / it is off."""
+    # A Summoner construct (laser/summoner.py): its summon's lite style
+    # (one pattern), set when it was summoned.
+    ua = getattr(fig, "ua", None)
+    if ua is not None and getattr(ua, "construct", None) is not None:
+        return ua.con_style
     mode = fig.mode
     char = getattr(mode, "character", None) or {}
     # Keyed on the character dict, so a reload (F5) re-reads the style.

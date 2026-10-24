@@ -275,6 +275,12 @@ def main():
     ua = PyTables(os.path.join(ROOT, "laser", "unique.py"), {"config": cfg})
     diff(js.get("UNIQUE_TYPES"), list(ua.get("TYPES")), "UNIQUE_TYPES", out)
     diff(js.get("UNIQUE_DEFAULTS"), ua.get("DEFAULTS"), "UNIQUE_DEFAULTS", out)
+    # Summoner summons (laser/unique.py SUMMON_*, run by laser/summoner.py).
+    diff(js.get("SUMMON_CONSTRUCTS"), list(ua.get("SUMMON_CONSTRUCTS")), "SUMMON_CONSTRUCTS", out)
+    diff(js.get("SUMMON_DEFAULTS"), ua.get("SUMMON_DEFAULTS"), "SUMMON_DEFAULTS", out)
+    diff(js.get("SUMMON_LIMITS"), {k: list(v) for k, v in ua.get("SUMMON_LIMITS").items()}, "SUMMON_LIMITS", out)
+    diff(js.get("SUMMON_MAX"), ua.get("SUMMON_MAX"), "SUMMON_MAX", out)
+    diff(js.get("SUMMON_MOVE_TARGETS"), list(ua.get("SUMMON_MOVE_TARGETS")), "SUMMON_MOVE_TARGETS", out)
 
     # Movement style (laser/movestyle.py <-> tools/fx/studio/movestyle.js).
     mv_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "movestyle.js"))

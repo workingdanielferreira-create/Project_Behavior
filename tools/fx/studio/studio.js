@@ -142,7 +142,10 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 // "@stack": the Basic Stacks - FX orb's own FX, played once from each orb a
 // normal attack fires (laser/unique.py), built on the attack_normal frames.
 // S.react = "stack".
-var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:", FORM_KEY = "@form:", STACK_KEY = "@stack";
+// "@summon:<id>": a Summoner summon's own FX, played once from its construct
+// each time it acts (laser/summoner.py), built on the attack_normal frames.
+// S.react = "summon", S.smId = the summon's id.
+var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:", FORM_KEY = "@form:", STACK_KEY = "@stack", SUMMON_KEY = "@summon:";
 function retreatHost() { return C.actions.run ? "run" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
 function stackHost() { return C.actions.attack_normal ? "attack_normal" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
 function transHost(pair) {
@@ -154,12 +157,20 @@ function formName(l) { var F = S.unique.dual_form["form_" + l]; return (F && F.n
 function transLabel(pair) { return pair.length === 1 ? "Form FX · " + formName(pair) : "Transform " + formName(pair[0]) + " → " + formName(pair[2]); }
 function charHost() { return C.actions[S.action] ? S.action : Object.keys(C.actions)[0]; }
 function trKey(pair) { return (pair.length === 1 ? FORM_KEY : TRANS_KEY) + pair; }
-function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.react === "stack" ? STACK_KEY : S.action; }
-function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === STACK_KEY ? stackHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
-function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === STACK_KEY ? "Basic Stacks orb" : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
+function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.react === "stack" ? STACK_KEY : S.react === "summon" ? SUMMON_KEY + S.smId : S.action; }
+// The summons of the Summoner ability, and one by id.
+function summons() { return (S.unique.summoner && S.unique.summoner.summons) || []; }
+function summonOf(id) { return summons().filter(function (e) { return e.id === id; })[0] || null; }
+function summonLabel(id) {
+  var E = summonOf(id), i = summons().indexOf(E);
+  return "Summon " + (i >= 0 ? i + 1 : "?") + (E ? " · " + (E.name || SM_INFO[E.construct][0]) : " (removed)");
+}
+function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === STACK_KEY || key.indexOf(SUMMON_KEY) === 0 ? stackHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
+function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === STACK_KEY ? "Basic Stacks orb" : key.indexOf(SUMMON_KEY) === 0 ? summonLabel(key.slice(SUMMON_KEY.length)) : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
 function selectKey(key) {
   var tr = key.indexOf(TRANS_KEY) === 0 || key.indexOf(FORM_KEY) === 0;
-  S.react = key === RETREAT_KEY ? "retreat" : key === STACK_KEY ? "stack" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
+  S.react = key === RETREAT_KEY ? "retreat" : key === STACK_KEY ? "stack" : key.indexOf(SUMMON_KEY) === 0 ? "summon" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
+  if (S.react === "summon") S.smId = key.slice(SUMMON_KEY.length);
   if (tr) S.trPair = key.slice(key.indexOf(TRANS_KEY) === 0 ? TRANS_KEY.length : FORM_KEY.length);
   S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action;
 }
@@ -180,7 +191,8 @@ function fxKeyOptions() {
   var acts = Object.keys(C.actions);
   return acts.map(function (a) { return [a, a]; }).concat([[CHAR_KEY, "✦ Character FX"], [RETREAT_KEY, "⚡ Tactical retreat"]],
     acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }),
-    transSlots().map(function (p) { return [trKey(p), "⚡ " + transLabel(p)]; }), [[STACK_KEY, "⚡ Basic Stacks orb"]]);
+    transSlots().map(function (p) { return [trKey(p), "⚡ " + transLabel(p)]; }), [[STACK_KEY, "⚡ Basic Stacks orb"]],
+    summons().map(function (E) { return [SUMMON_KEY + E.id, "⚡ " + summonLabel(E.id)]; }));
 }
 function charEffects() { return S.effects.filter(function (e) { return e.action === CHAR_KEY; }); }
 // Character FX with a frequency (char_every_ms > 0) play their whole sequence
@@ -204,7 +216,7 @@ function actionEffects() { var k = fxKey(); return S.effects.filter(function (e)
 // does while Blink is on; always while editing the Blink reaction), or the
 // Tactical retreat's.
 function playEffects() {
-  if (S.react === "retreat" || S.react === "transform" || S.react === "stack") return actionEffects();   // a transition / orb shows only the action's animation + its own FX
+  if (S.react === "retreat" || S.react === "transform" || S.react === "stack" || S.react === "summon") return actionEffects();   // a transition / orb shows only the action's animation + its own FX
   var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;   // Character FX: cplayer
   return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
 }
@@ -241,7 +253,7 @@ function docIn(src) { DOC.forEach(function (f) { S[f[0]] = f[2](src[f[1]]); }); 
 function docCopy(key) { var f = DOC.filter(function (d) { return d[1] === key; })[0]; return f[2](S[f[0]]); }
 function persist() {
   var o = docOut();
-  o.action = S.action; o.react = S.react; o.tr_pair = S.trPair; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
+  o.action = S.action; o.react = S.react; o.tr_pair = S.trPair; o.sm_id = S.smId; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
   lsSet(LS_PROJECT + C.name, o);
 }
 
@@ -574,11 +586,13 @@ function finishOpen(man, acts, pack, name, local) {
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform" || local.react === "stack") ? local.react : null;
+  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform" || local.react === "stack" || local.react === "summon") ? local.react : null;
+  S.smId = local && typeof local.sm_id === "string" ? local.sm_id : null;
+  if (S.react === "summon" && !summonOf(S.smId)) S.react = null;
   S.trPair = local && typeof local.tr_pair === "string" && transSlots().indexOf(local.tr_pair) >= 0 ? local.tr_pair : transPairs()[0];
   if (S.react === "retreat") S.action = retreatHost();
   if (S.react === "transform") S.action = slotHost(S.trPair);
-  if (S.react === "stack") S.action = stackHost();
+  if (S.react === "stack" || S.react === "summon") S.action = stackHost();
   S.blinkAct = S.react === "blink" ? S.action : null;
   S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
@@ -919,16 +933,19 @@ function buildActions() {
   var nRt = S.effects.filter(function (e) { return e.action === RETREAT_KEY; }).length;
   var nTr = S.effects.filter(function (e) { return e.action.indexOf(TRANS_KEY) === 0 || e.action.indexOf(FORM_KEY) === 0; }).length;
   var nSt = S.effects.filter(function (e) { return e.action === STACK_KEY; }).length;
+  var nSm = S.effects.filter(function (e) { return e.action.indexOf(SUMMON_KEY) === 0; }).length;
   [["retreat", "⚡ Tactical retreat", S.retreat.enabled, nRt ? nRt + " fx" : ""],
    ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")],
    ["transform", "⚡ Transformations", S.unique.type === "dual_form", nTr ? nTr + " fx" : ""],
-   ["stack", "⚡ Basic Stacks - FX", S.unique.type === "basic_stacks", nSt ? nSt + " fx" : ""]].forEach(function (r) {
+   ["stack", "⚡ Basic Stacks - FX", S.unique.type === "basic_stacks", nSt ? nSt + " fx" : ""],
+   ["summon", "⚡ Summoner constructs", S.unique.type === "summoner", nSm ? nSm + " fx" : ""]].forEach(function (r) {
     var el = document.createElement("div"); el.className = (S.react === r[0] ? "sel" : "") + (r[2] ? "" : " off");
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = r[1];
     el.querySelector(".m").textContent = r[2] ? r[3] : "(off)" + (r[3] ? " · " + r[3] : "");
     el.title = r[0] === "retreat" ? "The Tactical retreat dash: build FX that play for the whole dash (on the " + retreatHost() + " frames) and preview the dash."
       : r[0] === "stack" ? "Basic Stacks - FX: the orb's own FX slot, built on the " + stackHost() + " frames. In the game each orb a normal attack fires plays these FX (and the borrowed FX) once, launched from the orb at the enemy."
+      : r[0] === "summon" ? "Summoner: each summon has its own FX slot, built on the " + stackHost() + " frames. In the game its constructs play these FX (and the summon's borrowed FX) once every time they act, launched from the construct at the enemy."
       : r[0] === "transform" ? "Transformations: each form has its own FX slot (its Character FX while in that form) and each form pair a transition FX slot, built on its transition action's frames. In the game the action plays only its animation during the transition; these FX (and the borrowed FX) play with it."
       : "An action's Blink: pick the action at the top of its settings, build FX that play over that action while its Blink is on, and preview the blink.";
     el.onclick = function () { openReaction(r[0]); };
@@ -939,7 +956,10 @@ function openReaction(kind) {
   if (!reactOwns()) S.lastAct = S.action;   // Blink opens on the action you were on
   if (kind === "retreat") S.action = retreatHost();
   else if (kind === "stack") S.action = stackHost();
-  else if (kind === "transform") {
+  else if (kind === "summon") {
+    if (!summonOf(S.smId)) S.smId = summons().length ? summons()[0].id : null;
+    S.action = stackHost();
+  } else if (kind === "transform") {
     if (transSlots().indexOf(S.trPair) < 0) S.trPair = transPairs()[0];
     S.action = slotHost(S.trPair);
   } else {
@@ -2728,7 +2748,7 @@ var UA_INFO = {
   dual_form: ["Transformations", "Shapeshifter · multi-form fighter",
     "Cycles through 2-6 forms in order, each with its own actions, palette and stats, on a gauge, a timer, HP thresholds or after a combo. Every form pair can have its own transition (an action with its own FX) played before the new form takes over, then a short buff."],
   summoner: ["Summoner", "Engineer · necromancer · beast tamer",
-    "Places constructs that are not copies of it: turrets that shoot, totems that heal or shield it, familiars that chase and bite. They stand on its side as fighters the enemy can target and destroy."],
+    "Places constructs that are not copies of it, from up to 8 summons (+ Add summon), each with its own trigger, movement and FX attack: turrets, totems, familiars, a Spirit Link, a Liturgy Bell, an Earthly Star, Grounding, a Black Ox taunt, a Soul Link, a Commander, Capacitor / Earthbind / Hex / Siphon totems, an Imp Swarm, an Automaton Queen, Demi-Bahamut and a Trance Eidolon. They stand on its side as fighters the enemy can target and destroy."],
   aegis: ["Aegis", "Guardian · knight",
     "A shield soaks damage before HP and regenerates after a delay with no hits. When it breaks, a shockwave damages, knocks back and stuns the enemies around it."],
   terraform: ["Terraform", "Earth shaper · architect",
@@ -3032,13 +3052,15 @@ function slotFxField(s, obj, key, label, help) {
     obj.fx = v; save();
   }));
   fe.style.minWidth = "0"; fe.style.width = "100%"; fe.title = help;
-  var stack = key === STACK_KEY, pair = stack ? "" : key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
+  var stack = key === STACK_KEY, smn = key.indexOf(SUMMON_KEY) === 0,
+    pair = stack || smn ? "" : key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
   var own = S.effects.filter(function (e) { return e.action === key; }), grs = S.groups.filter(function (gr) { return gr.action === key; });
   var row = document.createElement("div"); row.className = "row";
   var b = document.createElement("button");
   b.textContent = (S.react && fxKey() === key) ? "Own FX slot: " + own.length + " fx (open)" : "Edit own FX slot (" + own.length + " fx" + (grs.length ? ", " + grs.length + " group" + (grs.length > 1 ? "s" : "") : "") + ")";
-  b.title = "Open it under Actions > Triggered reactions > " + (stack ? "Basic Stacks - FX" : "Transformations") + ": build or add FX there. They always play with it, alongside the borrowed FX.";
+  b.title = "Open it under Actions > Triggered reactions > " + (stack ? "Basic Stacks - FX" : smn ? "Summoner constructs" : "Transformations") + ": build or add FX there. They always play with it, alongside the borrowed FX.";
   b.onclick = stack ? function () { openReaction("stack"); }
+    : smn ? function () { S.smId = key.slice(SUMMON_KEY.length); openReaction("summon"); }
     : function () { if (S.react !== "transform") S.lastAct = S.action; S.trPair = pair; openReaction("transform"); };
   row.appendChild(b); s.appendChild(row);
 }
@@ -3148,43 +3170,198 @@ function uaFormActions(d, P, L) {
     });
   });
 }
+// Summoner: a list of independent summons ("+ Add summon"), each with its
+// own construct, trigger, numbers, lite movement (one pattern) and FX
+// (laser/summoner.py).  S.smPage = the summon whose settings are open.
+var SM_CATS = [["offensive", "attack"], ["support", "support"], ["defensive", "defend"], ["debuff", "weaken"]];
+var SM_INFO = {
+  turret: ["Turret", "offensive", "Stands still and shoots the nearest enemy."],
+  familiar: ["Familiar", "offensive", "Chases the nearest enemy and bites on contact."],
+  imp_swarm: ["Imp Swarm + Implosion", "offensive", "Small imps that shoot. Once Implode at of them are out, they all dive at the enemy and explode: the more imps, the more blasts."],
+  automaton_queen: ["Automaton Queen", "offensive", "Her power is set by the hits the summoner landed since the last Queen (Power per hit %, up to Max power %). She shoots, and when her time runs out she fires a finisher blast at the enemy."],
+  demi_bahamut: ["Demi-Bahamut (Echo)", "offensive", "Every hit the summoner lands, it answers with a beam at the same target. When its time runs out: a megaflare finisher."],
+  trance_eidolon: ["Trance Eidolon", "offensive", "Chases and strikes. After its time runs out it keeps flashing back in next to the enemy to strike, every Reappear ms, for Echo ms."],
+  totem_heal: ["Heal Totem", "support", "Heals the summoner while it is inside the aura."],
+  spirit_link: ["Spirit Link Totem", "support", "Every pulse evens out the HP % of the summoner and every construct inside its aura: the constructs become HP batteries."],
+  liturgy_bell: ["Liturgy Bell", "support", "Holds charges. Each hit the summoner takes inside its aura spends one to heal it; the charges left heal it in one burst when the bell ends."],
+  earthly_star: ["Earthly Star", "support", "Grows until mature (Mature ms), then detonates when its time runs out (or early when the summoner's HP drops below Detonate at HP %): heals the summoner inside its aura and blasts the enemies there. Mature = Mature power % stronger."],
+  totem_shield: ["Shield Totem", "defensive", "The summoner takes less damage while inside the aura."],
+  grounding: ["Grounding Totem", "defensive", "The next shot or FX hit on the summoner inside its aura is pulled into the totem instead (it takes the damage). Re-arms after Re-arm ms."],
+  black_ox: ["Black Ox Effigy", "defensive", "Taunt: enemy fighters within Taunt px aim and move at the effigy instead of the nearest fighter. (Battle: in Solo the cursor is yours.)"],
+  soul_link: ["Soul-Linked Familiar", "defensive", "While it stands, it takes Link % of every hit on the summoner. Moves with the summoner by default."],
+  commander: ["Commander", "defensive", "When it arrives, the summoner's other constructs last Extend ms longer and gain Buff % HP; while it stands they deal Buff % more damage."],
+  capacitor: ["Capacitor Totem", "debuff", "Charges for Charge ms (it crackles harder), then discharges: damage and a stun to every enemy in its aura. Then charges again."],
+  earthbind: ["Earthbind Obelisk", "debuff", "Enemies inside its aura are slowed: movement and attacks."],
+  hex_ward: ["Hex Ward", "debuff", "Enemies inside its aura deal Weaken % less damage and take Expose % more."],
+  siphon: ["Siphon Totem", "debuff", "Every pulse drains HP from the enemies in its aura and heals the summoner by that much."]
+};
+// What "auto" movement does for each construct (laser/summoner.py AUTO_MOVE).
+var SM_AUTO = {familiar: "chases the enemy", trance_eidolon: "chases the enemy", soul_link: "orbits the summoner",
+  imp_swarm: "orbits the enemy", automaton_queen: "kites the enemy (keeps 150-280 px away)", demi_bahamut: "follows behind the summoner"};
+// [key, label, lo, hi, step, help] per construct.
+var SM_FIELDS = (function () {
+  var F = {
+    fire_ms: ["Fire every ms", 100, 10000, 50, "Time between shots."], shot_damage: ["Shot damage", 0, 1000, 1, "Damage per shot."],
+    shot_speed_pct: ["Shot speed %", 10, 400, 5, "Bullet speed as a % of a normal shot."], range_px: ["Range px", 50, 3000, 10, "It only fires at enemies this close."],
+    aura_px: ["Aura px", 20, 2000, 10, "Radius of its aura."], heal_per_s: ["Heal HP / s", 0, 1000, 0.5, "HP restored per second (never above max HP)."],
+    shield_pct: ["Damage cut %", 0, 100, 5, "Damage the summoner takes is cut by this % inside the aura."],
+    bite_damage: ["Strike damage", 0, 1000, 1, "Damage per bite / strike."], bite_ms: ["Strike every ms", 100, 10000, 50, "Time between strikes."],
+    link_ms: ["Pulse every ms", 100, 20000, 50, "Time between pulses."],
+    charges: ["Charges", 1, 20, 1, "Hits it can answer."], charge_heal: ["Heal per charge", 0, 1000, 0.5, "HP each charge heals (also each leftover charge at the end)."],
+    mature_ms: ["Mature ms", 0, 60000, 100, "How long it takes to mature."], star_heal: ["Heal", 0, 1000, 1, "HP it heals when it detonates (summoner inside the aura)."],
+    star_damage: ["Blast damage", 0, 1000, 1, "Damage to each enemy in its aura when it detonates."],
+    mature_pct: ["Mature power %", 100, 1000, 10, "Heal and damage once mature, as a % of the immature ones."],
+    detonate_hp_pct: ["Detonate at HP %", 0, 100, 1, "Detonates early when the summoner's HP drops to this % (0 = only when its time runs out)."],
+    rearm_ms: ["Re-arm ms", 100, 60000, 100, "Time before it can pull in another hit."],
+    taunt_px: ["Taunt px", 20, 3000, 10, "Enemy fighters this close to it aim at it."],
+    link_pct: ["Link %", 0, 100, 5, "Share of each hit on the summoner it takes instead."],
+    extend_ms: ["Extend ms", 0, 60000, 100, "Extra time the other constructs get when it arrives."],
+    buff_pct: ["Buff %", 0, 500, 5, "Extra HP (on arrival) and damage (while it stands) for the other constructs."],
+    charge_ms: ["Charge ms", 100, 30000, 100, "Charge time before each discharge."], zap_damage: ["Discharge damage", 0, 1000, 1, "Damage to each enemy in its aura."],
+    stun_ms: ["Stun ms", 0, 10000, 50, "Stun on each enemy it hits."],
+    slow_pct: ["Slow %", 0, 95, 5, "How much slower enemies in its aura move and attack."],
+    weaken_pct: ["Weaken %", 0, 100, 5, "Enemies in its aura deal this much less damage."], expose_pct: ["Expose %", 0, 500, 5, "Enemies in its aura take this much more damage."],
+    drain_per_s: ["Drain HP / s", 0, 1000, 0.5, "HP drained from each enemy in its aura per second (in pulses)."],
+    implode_at: ["Implode at", 1, 16, 1, "Once this many imps of this summon are out, they all dive and explode."],
+    implode_damage: ["Explosion damage", 0, 1000, 1, "Damage of each imp's explosion."],
+    per_hit_pct: ["Power per hit %", 0, 500, 5, "Extra power for each hit the summoner landed since the last Queen."],
+    max_power_pct: ["Max power %", 100, 2000, 10, "Power cap."], finisher_damage: ["Finisher damage", 0, 5000, 1, "Damage of the finisher blast when its time runs out."],
+    echo_damage: ["Echo beam damage", 0, 1000, 0.5, "Damage of each answering beam."],
+    echo_ms: ["Echo ms", 0, 60000, 100, "How long it keeps flashing back in after its time runs out."],
+    reappear_ms: ["Reappear every ms", 100, 10000, 50, "Time between flash-back strikes."]
+  };
+  var K = {turret: ["fire_ms", "shot_damage", "shot_speed_pct", "range_px"], totem_heal: ["aura_px", "heal_per_s"], totem_shield: ["aura_px", "shield_pct"],
+    familiar: ["bite_damage", "bite_ms"], spirit_link: ["aura_px", "link_ms"], liturgy_bell: ["aura_px", "charges", "charge_heal"],
+    earthly_star: ["aura_px", "mature_ms", "star_heal", "star_damage", "mature_pct", "detonate_hp_pct"], grounding: ["aura_px", "rearm_ms"],
+    black_ox: ["taunt_px"], soul_link: ["link_pct"], commander: ["extend_ms", "buff_pct"], capacitor: ["aura_px", "charge_ms", "zap_damage", "stun_ms"],
+    earthbind: ["aura_px", "slow_pct"], hex_ward: ["aura_px", "weaken_pct", "expose_pct"], siphon: ["aura_px", "drain_per_s", "link_ms"],
+    imp_swarm: ["fire_ms", "shot_damage", "shot_speed_pct", "range_px", "implode_at", "implode_damage"],
+    automaton_queen: ["fire_ms", "shot_damage", "shot_speed_pct", "range_px", "per_hit_pct", "max_power_pct", "finisher_damage", "aura_px"],
+    demi_bahamut: ["echo_damage", "finisher_damage", "aura_px"], trance_eidolon: ["bite_damage", "bite_ms", "echo_ms", "reappear_ms"]};
+  var out = {};
+  Object.keys(K).forEach(function (k) {
+    out[k] = K[k].map(function (f) {
+      var r = F[f].slice();
+      if (f === "aura_px" && (k === "automaton_queen" || k === "demi_bahamut")) { r[0] = "Finisher radius px"; r[4] = "Radius of the finisher blast."; }
+      return [f].concat(r);
+    });
+  });
+  return out;
+})();
+var SM_PASSIVE = ["totem_heal", "totem_shield", "black_ox", "soul_link", "commander", "earthbind", "hex_ward", "earthly_star", "liturgy_bell", "grounding"];
+function smOptions() {
+  var o = [];
+  SM_CATS.forEach(function (c) {
+    FXK.SUMMON_CONSTRUCTS.forEach(function (k) { if (SM_INFO[k][1] === c[0]) o.push([k, SM_INFO[k][0] + " · " + c[1]]); });
+  });
+  return o;
+}
+function newSummonId() { var used = {}; summons().forEach(function (e) { used[e.id] = 1; }); var n = 1; while (used["s" + n]) n++; return "s" + n; }
 function uaSummoner(d, P) {
-  var s = sec(d, "Construct", "ua-sm-kind", "What it summons.", "act");
-  uaChoice(s, "Construct", P, "construct", [["turret", "Turret (shoots)"], ["totem_heal", "Totem (heals it)"], ["totem_shield", "Totem (shields it)"], ["familiar", "Familiar (chases and bites)"]],
-    "Turret: stands still and shoots the nearest enemy. Heal totem: heals the summoner while it is inside the aura. Shield totem: the summoner takes less damage inside the aura. Familiar: chases the nearest enemy and bites on contact. All are fighters on its side: enemies can target and destroy them.");
-  if (P.construct === "turret") {
-    uaNum(s, "Fire every ms", P, "fire_ms", 100, 10000, 50, "Time between shots.");
-    uaNum(s, "Shot damage", P, "shot_damage", 0, 1000, 1, "Damage per shot.");
-    uaNum(s, "Shot speed %", P, "shot_speed_pct", 10, 400, 5, "Bullet speed as a % of a normal shot.");
-    uaNum(s, "Range px", P, "range_px", 50, 3000, 10, "It only fires at enemies this close.");
-  } else if (P.construct === "familiar") {
-    uaNum(s, "Bite damage", P, "bite_damage", 0, 1000, 1, "Damage per bite.");
-    uaNum(s, "Bite every ms", P, "bite_ms", 100, 10000, 50, "Time between bites.");
-    uaNum(s, "Chase speed %", P, "chase_speed_pct", 10, 400, 5, "Movement speed as a % of the summoner's.");
-  } else {
-    uaNum(s, "Aura px", P, "aura_px", 20, 2000, 10, "The summoner must be this close to the totem.");
-    if (P.construct === "totem_heal") uaNum(s, "Heal HP / s", P, "heal_per_s", 0, 1000, 0.5, "HP restored per second (never above max HP).");
-    else uaNum(s, "Damage cut %", P, "shield_pct", 0, 100, 5, "Damage the summoner takes is cut by this % while inside the aura.");
-  }
-  uaNum(s, "Construct HP", P, "construct_hp", 1, 10000, 1, "Each construct's HP. Destroying one is never a loss.");
-  uaNum(s, "Size px", P, "size_px", 4, 80, 1, "How big it is drawn.");
-  field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); })).title = "Its colour and its shots' colour.";
+  var L = P.summons, ch = function () { save(); buildActions(); buildProps(); };
+  if (!summonOf(S.smPage)) S.smPage = L.length ? L[0].id : null;
+  var s = sec(d, "Summons (" + L.length + "/" + FXK.SUMMON_MAX + ")", "ua-sm-list", "Each summon is independent: its own construct, trigger, numbers, movement and FX.", "act");
+  L.forEach(function (E, i) {
+    var row = document.createElement("div"); row.className = "row";
+    var b = document.createElement("button");
+    b.textContent = (E.id === S.smPage ? "▶ " : "") + (i + 1) + ". " + (E.name || SM_INFO[E.construct][0]);
+    b.title = SM_INFO[E.construct][2]; b.style.flex = "1"; b.style.textAlign = "left";
+    b.onclick = function () { S.smPage = E.id; buildProps(); };
+    var up = document.createElement("button"); up.textContent = "↑"; up.disabled = i === 0; up.title = "Move up";
+    up.onclick = function () { L.splice(i - 1, 0, L.splice(i, 1)[0]); ch(); };
+    var dup = document.createElement("button"); dup.textContent = "⧉"; dup.disabled = L.length >= FXK.SUMMON_MAX;
+    dup.title = "Duplicate: a copy of this summon (its own FX slot starts empty; the borrowed FX is kept).";
+    dup.onclick = function () { var c = clone(E); c.id = newSummonId(); L.splice(i + 1, 0, c); S.smPage = c.id; ch(); };
+    var rm = document.createElement("button"); rm.textContent = "✕"; rm.disabled = L.length <= 1;
+    rm.title = "Remove this summon (a Summoner keeps at least one). FX built in its own slot are deleted with it.";
+    rm.onclick = function () {
+      var key = SUMMON_KEY + E.id, n = S.effects.filter(function (e) { return e.action === key; }).length;
+      if (n && !confirm("Remove " + (E.name || SM_INFO[E.construct][0]) + " and the " + n + " FX in its own slot?")) return;
+      S.effects = S.effects.filter(function (e) { return e.action !== key; });
+      S.groups = S.groups.filter(function (gr) { return gr.action !== key; });
+      pruneGroups();
+      L.splice(i, 1); S.smPage = L[Math.max(0, i - 1)].id;
+      if (S.react === "summon" && S.smId === E.id) { S.react = null; S.action = C.actions[S.lastAct] ? S.lastAct : S.action; }
+      ch(); buildEffects();
+    };
+    row.appendChild(b); row.appendChild(up); row.appendChild(dup); row.appendChild(rm); s.appendChild(row);
+  });
+  var ar = document.createElement("div"); ar.className = "row";
+  var asel = inp(smOptions(), "turret", function () {}); asel.style.minWidth = "0"; asel.style.flex = "1";
+  var add = document.createElement("button"); add.textContent = "+ Add summon"; add.disabled = L.length >= FXK.SUMMON_MAX;
+  add.title = "Adds another summon with its own construct and settings (up to " + FXK.SUMMON_MAX + ").";
+  add.onclick = function () { var E = FXK.normalizeSummon({construct: asel.value, id: newSummonId()}, L.length, {}); L.push(E); S.smPage = E.id; ch(); };
+  ar.appendChild(asel); ar.appendChild(add); s.appendChild(ar);
+  var E = summonOf(S.smPage);
+  if (E) uaSummonFields(d, E, L.indexOf(E));
+}
+function uaSummonFields(d, E, i) {
+  var info = SM_INFO[E.construct];
+  var s = sec(d, "Summon " + (i + 1) + ": " + (E.name || info[0]), "ua-sm-kind", "What it summons.", "act");
+  field(s, "Name", inp("text", E.name, function (v) { E.name = v; save(); })).title = "Only for you (the list and the FX slot use it). Empty = the construct's name.";
+  uaChoice(s, "Construct", E, "construct", smOptions(), info[2]);
+  (SM_FIELDS[E.construct] || []).forEach(function (f) { uaNum(s, f[1], E, f[0], f[2], f[3], f[4], f[5]); });
+  uaNum(s, "Construct HP", E, "construct_hp", 1, 10000, 1, "Each construct's HP. Destroying one is never a loss.");
+  uaNum(s, "Size px", E, "size_px", 4, 80, 1, "How big it is drawn.");
+  field(s, "Colour", inp("color", E.color, function (v) { E.color = v; save(); })).title = "Its colour, its aura's and its shots'.";
   s = sec(d, "Trigger", "ua-sm-trig", "When it summons.", "act");
-  uaChoice(s, "Summon when", P, "trigger", [["timer", "On a timer"], ["hp_below", "HP drops below thresholds"], ["hits_taken", "Every N hits taken"]],
-    "Timer: every N ms. HP thresholds: each % summons once per life. Hits taken: every N hits that take HP.");
-  if (P.trigger === "timer") uaNum(s, "Every ms", P, "every_ms", 300, 120000, 100, "Summons on this timer (only while there is room).");
-  if (P.trigger === "hits_taken") uaNum(s, "Every N hits", P, "every_hits", 1, 99, 1, "Summons after this many hits that take HP.");
-  if (P.trigger === "hp_below") {
-    var th = field(s, "HP thresholds %", inp("text", P.hp_thresholds, function (v) { P.hp_thresholds = v; save(); }));
+  uaChoice(s, "Summon when", E, "trigger", [["timer", "On a timer"], ["hp_below", "HP drops below thresholds"], ["hits_taken", "Every N hits taken"]],
+    "Timer: every N ms. HP thresholds: each % summons once per life. Hits taken: every N hits that take HP. Each summon has its own trigger.");
+  if (E.trigger === "timer") uaNum(s, "Every ms", E, "every_ms", 300, 120000, 100, "Summons on this timer (only while there is room).");
+  if (E.trigger === "hits_taken") uaNum(s, "Every N hits", E, "every_hits", 1, 99, 1, "Summons after this many hits that take HP.");
+  if (E.trigger === "hp_below") {
+    var th = field(s, "HP thresholds %", inp("text", E.hp_thresholds, function (v) { E.hp_thresholds = v; save(); }));
     th.style.minWidth = "0"; th.style.width = "100%"; th.title = "Comma-separated HP %s, e.g. 75,50,25.";
   }
   s = sec(d, "How many & where", "ua-sm-place", "How many, how long, and where they appear.", "act");
-  uaNum(s, "Per summon", P, "count", 1, 8, 1, "Constructs placed each time.");
-  uaNum(s, "Most at once", P, "max_alive", 1, 16, 1, "Never more than this many alive.");
-  uaNum(s, "Last ms", P, "life_ms", 500, 120000, 100, "How long each lasts before it crumbles.");
-  uaChoice(s, "Place", P, "placement", [["around", "Around it"], ["between", "Between it and the enemy"], ["near_enemy", "Near the enemy"], ["random", "Anywhere on screen"]],
+  uaNum(s, "Per summon", E, "count", 1, 8, 1, "Constructs placed each time.");
+  uaNum(s, "Most at once", E, "max_alive", 1, 16, 1, "Never more than this many of this summon alive.");
+  uaNum(s, "Last ms", E, "life_ms", 500, 120000, 100, "How long each lasts before it crumbles (finishers go off then).");
+  uaChoice(s, "Place", E, "placement", [["around", "Around it"], ["between", "Between it and the enemy"], ["near_enemy", "Near the enemy"], ["random", "Anywhere on screen"]],
     "Around: in a ring at the spread distance. Between: across the line to the nearest enemy. Near the enemy: spread distance short of the enemy. Anywhere: random spots.");
-  uaNum(s, "Spread px", P, "spread_px", 0, 1000, 5, "Ring radius / distance from the enemy.");
+  uaNum(s, "Spread px", E, "spread_px", 0, 1000, 5, "Ring radius / distance from the enemy.");
+  uaSummonMove(d, E);
+  s = sec(d, "FX attack", "ua-sm-fx", "FX its constructs play.", "act");
+  slotFxField(s, E, SUMMON_KEY + E.id, summonLabel(E.id),
+    "Played once from the construct, aimed at the enemy (the cursor in Solo), every time it acts: each shot, bite, strike, pulse, discharge, beam or finisher. Borrowed: an effect or a whole group (▣) from an action. ＋ Library: copies a group / preset into this summon's own FX slot, where you can edit it. The own slot's FX always play too, and they can deal damage like any FX.");
+  if (SM_PASSIVE.indexOf(E.construct) >= 0)
+    uaNum(s, "FX every ms", E, "fx_every_ms", 100, 60000, 100, info[0] + " never attacks: its FX play when it arrives and then this often.");
+}
+// The lite movement style: ONE pattern per summon.
+function uaSummonMove(d, E) {
+  var m = E.movement, s = sec(d, "Movement (one pattern)", "ua-sm-move", "How its constructs move.", "act");
+  var opts = [["auto", "Auto: " + (SM_AUTO[E.construct] || "stands still")], ["none", "Stand still"]].concat(
+    MOVESTYLE.PATTERNS.map(function (p) { return [p, MS_PATTERN_LABEL[p]]; }));
+  field(s, "Pattern", inp(opts, m.pattern, function (v) {
+    m.pattern = v; m.params = MOVESTYLE.PATTERNS.indexOf(v) >= 0 ? MOVESTYLE.normalizePhase({pattern: v, params: m.params}).params : {};
+    save(); buildProps();
+  })).title = "A summon gets one movement pattern, from the same list as the character's Movement style. Auto: the construct's own way of moving. Stand still: it never walks (a knockback still slides it).";
+  if (m.pattern === "none" || (m.pattern === "auto" && !SM_AUTO[E.construct])) return;
+  if (MOVESTYLE.PATTERNS.indexOf(m.pattern) >= 0) {
+    var hn = document.createElement("div"); hn.className = "note"; hn.textContent = MS_PATTERN_HELP[m.pattern]; s.appendChild(hn);
+    field(s, "Moves round", inp([["enemy", "The enemy"], ["owner", "The summoner"]], m.target, function (v) { m.target = v; save(); })).title =
+      "What the pattern circles / chases / follows: the nearest enemy (the cursor in Solo), or its own summoner.";
+  }
+  uaNum(s, "Speed %", m, "speed_pct", 0, 500, 5, "Movement speed as a % of the summoner's own speed.");
+  if (MOVESTYLE.PATTERNS.indexOf(m.pattern) >= 0) Object.keys(m.params).forEach(function (k) { msField(s, m.params, k); });
+}
+// Right panel for a summon's own FX slot (Triggered reactions).
+function buildSummonProps(d, n) {
+  var on = S.unique.type === "summoner", L = summons(), E = summonOf(S.smId);
+  banner(d, "act", "Triggered reaction", "⚡ " + (E ? summonLabel(E.id) : "Summoner constructs"),
+    "FX added here play once from the construct each time it acts, on " + S.action + "'s frames. In the game every anchor is the construct and they aim at the enemy.",
+    ["Summoner settings", function () { S.react = null; S.smPage = S.smId; S.action = C.actions[S.lastAct] ? S.lastAct : S.action; openUnique("summoner"); }]);
+  var s = sec(d, "Summon", "r-summon", "Which summon's FX slot you are building.", "act");
+  if (!L.length) { note(s, "No summons yet."); return; }
+  var ps = field(s, "Summon", inp(L.map(function (x) { return [x.id, summonLabel(x.id) + (S.effects.some(function (e) { return e.action === SUMMON_KEY + x.id; }) ? "  ✦ fx" : "")]; }), S.smId,
+    function (v) { S.smId = v; setSel(); rebuild(); resetSim(0); save(); }));
+  ps.style.minWidth = "0"; ps.style.width = "100%"; ps.title = "Each summon has its own FX slot.";
+  if (E) slotFxField(s, E, SUMMON_KEY + E.id, summonLabel(E.id),
+    "Borrowed: an effect or a whole group (▣) from an action, played with this slot's own FX. ＋ Library: copies a group / preset into this slot.");
+  note(s, (n ? n + " effect" + (n > 1 ? "s" : "") + " in this slot." : "No effects in this slot yet: add one under Effects on the left, or pick ＋ Library in FX above.") +
+    (on ? "" : " Summoner is not this character's unique ability, so they won't play in the game until it is switched on."));
+  buildCharFxProps(d);
+  buildCharScaleProps(d);
 }
 function uaAegis(d, P) {
   var s = sec(d, "Shield", "ua-ag-shield", "Soaks damage before HP.", "act");
@@ -3555,6 +3732,7 @@ function buildReactionProps(d) {
   }
   if (S.react === "transform") { buildTransformProps(d, n); return; }
   if (S.react === "stack") { buildStackProps(d, n); return; }
+  if (S.react === "summon") { buildSummonProps(d, n); return; }
   var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
   banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
   var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");
