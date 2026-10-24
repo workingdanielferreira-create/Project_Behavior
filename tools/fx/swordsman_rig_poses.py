@@ -330,35 +330,51 @@ def draw(j, smear=None):
 #   grip: near (right) hand on the handle at the guard; blade: direction;
 #   front/back: toe position, heel lift, foot yaw.
 K = {
-    # WIND-UP: weight sunk onto the back leg, front knee lifted to step.
-    # Chest twisted open toward the viewer (sword shoulder pulled back) with
-    # the hips lagging, spine arched; hands high above the head, blade
-    # cocked back behind the head, angled away from the viewer.  Head level on
-    # the target.
-    "windup": dict(
-        pelvis=(-50, 72, 0), hip_yaw=8, twist=30, lean=-16, curl=-22, head=46,
-        grip=(-100.8, 177.5, -15.8), blade=(-0.95, 0.10, -0.25),
-        front=dict(toe=(-14, 24, 8), lift=55), back=dict(toe=(-60, 0, -8), lift=0, yaw=-20)),
-    # STRIKE: the back foot kicks, the front foot lands a long lunge.  Hips
-    # snap round first, then the chest drives the sword shoulder forward,
-    # back curls over the cut, eyes down on the blade.  Diagonal cut from
-    # over the far shoulder down across the body toward the camera; arms long.
-    "strike": dict(
-        pelvis=(4, 54, 2), hip_yaw=-14, twist=-22, lean=34, curl=28, head=-8,
-        grip=(94.2, 55.0, -29.7), blade=(0.80, -0.55, 0.20),
-        front=dict(toe=(42, 0, 10), lift=0), back=dict(toe=(-60, 0, -8), lift=55, yaw=-10)),
-    # FOLLOW-THROUGH: the back foot snaps up under him, weight carried over
-    # the front foot, shoulders over-rotated; the cut pulled on down with
-    # both fists in front of the leading knee, tip running on past it.
-    "follow": dict(
-        pelvis=(26, 66, 2), hip_yaw=-24, twist=-26, lean=30, curl=26, head=-6,
-        grip=(102.2, 61.8, -15.9), blade=(0.55, -0.78, 0.20),
-        front=dict(toe=(42, 0, 10), lift=0), back=dict(toe=(24, 0, -8), lift=45)),
+    # Ichigo-style two-handed kesagiri, both fists on the handle and the
+    # blade carried out in front of the body the whole time.  Anime keys:
+    # sharp held poses, one shunpo smear frame, the impact held on twos.
+    #
+    # GUARD: deep wide stance, weight forward, both hands out in front of the
+    # belly, blade pointing forward-up at the target (aggressive chudan).
+    "guard": dict(
+        pelvis=(-6, 62, 0), hip_yaw=10, twist=10, lean=18, curl=6, head=-14,
+        grip=(50, 95, 4), blade=(0.80, 0.55, -0.10),
+        front=dict(toe=(40, 0, 8), lift=0), back=dict(toe=(-48, 0, -8), lift=20, yaw=-15)),
+    # RAISE: anticipation.  Blade pulled up vertical in front of him, both
+    # fists at chest height ahead of the near shoulder, chest open, weight
+    # rocked onto the back leg.
+    "raise": dict(
+        pelvis=(-14, 66, 0), hip_yaw=12, twist=18, lean=-4, curl=-6, head=12,
+        grip=(14, 128, 16), blade=(-0.15, 0.98, -0.10),
+        front=dict(toe=(34, 0, 8), lift=0), back=dict(toe=(-52, 0, -8), lift=10, yaw=-15)),
+    # DASH: the shunpo in-between.  Body thrown low and forward off the back
+    # toe, blade coming over and down in front of him, eyes on the target.
+    "dash": dict(
+        pelvis=(18, 56, 2), hip_yaw=-6, twist=-10, lean=30, curl=12, head=-30,
+        grip=(80, 116, 2), blade=(0.70, 0.68, 0.05),
+        front=dict(toe=(62, 0, 10), lift=0), back=dict(toe=(-32, 8, -8), lift=60)),
+    # IMPACT: long low lunge, arms driven out in front, the cut finished
+    # diagonally down in front of the lead knee.  Held for two frames.
+    "impact": dict(
+        pelvis=(34, 48, 2), hip_yaw=-14, twist=-18, lean=34, curl=16, head=-34,
+        grip=(96, 64, 2), blade=(0.72, -0.62, 0.10),
+        front=dict(toe=(78, 0, 10), lift=0), back=dict(toe=(-34, 0, -8), lift=45)),
+    # SETTLE: zanshin.  Weight eases back up, blade still out in front, low
+    # and pointed at the opponent.
+    "settle": dict(
+        pelvis=(30, 58, 2), hip_yaw=-6, twist=-6, lean=22, curl=8, head=-20,
+        grip=(84, 76, 2), blade=(0.92, -0.30, 0.05),
+        front=dict(toe=(78, 0, 10), lift=0), back=dict(toe=(-22, 0, -8), lift=30)),
 }
 
 ACTIONS = {
-    "attack_normal": dict(frame_ms=90, keys=["windup", "strike", "follow"],
-                          smear={1: (0, 0.55, 125), 2: (1, 0.0, 70)}),
+    # smear: frame -> (key it swings from, start fraction, alpha)
+    # ghost: frame -> [(key drawn as a shunpo afterimage, alpha)]
+    # speed: frame -> speed-line count
+    "attack_normal": dict(frame_ms=60, keys=["guard", "raise", "dash", "impact", "impact", "settle"],
+                          smear={2: (1, 0.0, 110), 3: (2, 0.0, 135), 4: (2, 0.4, 70)},
+                          ghost={2: [("raise", 0.30)], 3: [("raise", 0.14), ("dash", 0.28)]},
+                          speed={2: 14, 3: 10}),
 }
 
 
@@ -372,6 +388,33 @@ def slerp(a, b, t):
 
 ANCHORS = ("hip", "chest", "neck", "head", "shB", "shL", "shR", "elL", "elR",
            "haL", "haR", "hpL", "hpR", "knL", "knR", "ftL", "ftR", "wtip", "root")
+
+
+def afterimage(j, alpha):
+    """Shunpo afterimage: the pose washed out toward the accent, faded."""
+    im = draw(j)
+    r, g, b, a = im.split()
+    wash = Image.new("RGBA", im.size, SMEAR + (0,))
+    im = Image.blend(im, wash, 0.55)
+    im.putalpha(a.point(lambda v: int(v * alpha)))
+    return im
+
+
+def speed_lines(j, count, seed):
+    """Horizontal anime speed lines trailing behind the body."""
+    import random
+    rnd = random.Random(seed)
+    im = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    hx, _hy = img(j["hip"], SS)
+    top, bot = img(j["head"], SS)[1] - 10 * SS, (GROUND_Y - 4) * SS
+    for _ in range(count):
+        y = rnd.uniform(top, bot)
+        x1 = hx - rnd.uniform(20, 70) * SS
+        x0 = x1 - rnd.uniform(70, 200) * SS
+        w = rnd.choice((1, 1, 2, 3)) * SS
+        d.line([(x0, y), (x1, y)], fill=(255, 236, 228, rnd.randint(90, 190)), width=w)
+    return im.resize((W, H), Image.LANCZOS)
 
 
 def build(action):
@@ -396,7 +439,12 @@ def build(action):
                 h = add(mul(a["grip"], 1 - t), mul(b["grip"], t))
                 tips.append(add(h, mul(g, BLADE_LEN))); mids.append(add(h, mul(g, 26.0)))
             smear = dict(tips=tips, mids=mids, alpha=alpha)
-        frames.append(draw(j, smear))
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        if i in spec.get("speed", {}):
+            im = Image.alpha_composite(im, speed_lines(j, spec["speed"][i], i * 7 + 3))
+        for name, alpha in spec.get("ghost", {}).get(i, []):
+            im = Image.alpha_composite(im, afterimage(solve(K[name]), alpha))
+        frames.append(Image.alpha_composite(im, draw(j, smear)))
         for name in ANCHORS:
             x, y = img(j[name])
             anchors.setdefault(name, []).append([round(x, 2), round(y, 2)])
