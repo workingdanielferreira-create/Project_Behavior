@@ -13893,7 +13893,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 2,
+    "damage": 20,
     "pierce": true,
     "rehit_ticks": 7,
     "knockback": 10,
@@ -13950,7 +13950,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -14061,7 +14067,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "id": "Emv2or14g13",
    "action": "attack_normal",
@@ -14164,7 +14176,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "id": "Emvcmil3y1",
    "action": "transform",
@@ -14317,7 +14335,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "id": "Emvcmil3y2",
    "action": "transform",
@@ -14453,7 +14477,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "id": "Emvcmil3y6",
    "action": "transform",
@@ -14565,7 +14595,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -14712,7 +14748,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -14847,7 +14889,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -14959,7 +15007,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -15098,7 +15152,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -15232,7 +15292,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -15344,7 +15410,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -15455,7 +15527,13 @@
     "w_yaw": 0,
     "w_pitch": 0,
     "w_spin": 0,
-    "w_depth": 0
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0
    },
    "flip": {
     "enabled": false,
@@ -16304,29 +16382,70 @@
    }
   },
   "summoner": {
-   "construct": "turret",
-   "trigger": "timer",
-   "every_ms": 6000,
-   "hp_thresholds": "75,50,25",
-   "every_hits": 6,
-   "count": 1,
-   "max_alive": 3,
-   "life_ms": 12000,
-   "construct_hp": 15,
-   "placement": "around",
-   "spread_px": 80,
-   "fire_ms": 900,
-   "shot_damage": 2,
-   "shot_speed_pct": 100,
-   "range_px": 500,
-   "heal_per_s": 2,
-   "shield_pct": 40,
-   "aura_px": 220,
-   "bite_damage": 3,
-   "bite_ms": 700,
-   "chase_speed_pct": 120,
-   "size_px": 14,
-   "color": "#7cf3ff"
+   "summons": [
+    {
+     "id": "s1",
+     "name": "",
+     "construct": "turret",
+     "trigger": "timer",
+     "every_ms": 6000,
+     "hp_thresholds": "75,50,25",
+     "every_hits": 6,
+     "count": 1,
+     "max_alive": 3,
+     "life_ms": 12000,
+     "construct_hp": 15,
+     "placement": "around",
+     "spread_px": 80,
+     "fire_ms": 900,
+     "shot_damage": 2,
+     "shot_speed_pct": 100,
+     "range_px": 500,
+     "heal_per_s": 2,
+     "shield_pct": 40,
+     "aura_px": 220,
+     "bite_damage": 3,
+     "bite_ms": 700,
+     "link_ms": 1000,
+     "charges": 4,
+     "charge_heal": 4,
+     "mature_ms": 5000,
+     "star_heal": 8,
+     "star_damage": 6,
+     "mature_pct": 200,
+     "detonate_hp_pct": 0,
+     "rearm_ms": 3000,
+     "taunt_px": 400,
+     "link_pct": 40,
+     "extend_ms": 4000,
+     "buff_pct": 30,
+     "charge_ms": 2000,
+     "stun_ms": 1200,
+     "zap_damage": 4,
+     "slow_pct": 40,
+     "weaken_pct": 25,
+     "expose_pct": 25,
+     "drain_per_s": 2,
+     "implode_at": 5,
+     "implode_damage": 4,
+     "per_hit_pct": 10,
+     "max_power_pct": 300,
+     "finisher_damage": 10,
+     "echo_damage": 2,
+     "echo_ms": 5000,
+     "reappear_ms": 900,
+     "fx": "",
+     "fx_every_ms": 1500,
+     "size_px": 14,
+     "color": "#7cf3ff",
+     "movement": {
+      "pattern": "auto",
+      "target": "enemy",
+      "speed_pct": 120,
+      "params": {}
+     }
+    }
+   ]
   },
   "aegis": {
    "shield_hp": 30,
