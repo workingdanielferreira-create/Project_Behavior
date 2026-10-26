@@ -13,7 +13,11 @@ was set up there (pack.action_settings):
                    the character scale).  Consecutive attacks within chain_reset_ms continue
                    the chain.  An attack with trigger conditions also needs
                    them to pass (ANY / ALL) on top of that range check; with
-                   none it attacks on range alone.
+                   none it attacks on range alone.  An attack_normal_N with
+                   conditions is also a conditional alternate: once they
+                   pass it plays in place of attack_normal, chained or not.
+                   An attack whose Blink lands on the target reaches at
+                   least that blink's proximity_px.
   * Attack mode (Alt+Up) gates attacks and triggered actions the same way
     it gates the built-in fighters; `defend` always works.
   * Movement "back" retreats straight away from the target at
@@ -432,34 +436,52 @@ class ActionRunner:
         if self.playing:
             self._finish(fig, 0)
 
+    def _attack_ok(self, fig, name, ctx, now):
+        """Attack `name` may start now: off cooldown, target inside its
+        range, its trigger conditions (if any) pass, and it has frames."""
+        if _unique.cd_now(fig, now) < self.cooldown_until.get(name, 0):
+            return False
+        if ctx["dist"] > attack_range(fig, name, now):
+            return False
+        cfg = _cfg(fig, name)
+        if cfg.get("conditions") and not self._conds_pass(fig, name, cfg, ctx):
+            return False
+        if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
+            return False
+        return name in fig.render.bundle.extra
+
     def _attack_choice(self, fig, ctx, now):
-        """Next attack to play, or None (archetype decides when)."""
+        """Next attack to play, or None (archetype decides when).
+
+        1. The chain: within chain_reset_ms of the last attack, its
+           chain_next plays when it can start.
+        2. Conditional alternates: any other attack_normal_N with trigger
+           conditions plays in place of attack_normal once they pass (and
+           the target is inside its range); first by name.
+        3. attack_normal.
+        A chained attack that can't start falls through to 2 / 3 instead of
+        holding every attack until the chain resets."""
         if ctx["target"] is None:
             return None
         if _unique.cd_now(fig, now) < self.gap_until:
             return None
-        name = "attack_normal"
+        nxt = ""
         if self.chain_pos:
             cfg = _cfg(fig, self.chain_pos)
             reset = float(cfg.get("chain_reset_ms") or 1000)
             nxt = cfg.get("chain_next") or ""
             if nxt and now - self.last_attack_end <= int(reset / TICK_MS):
-                name = nxt
+                if self._attack_ok(fig, nxt, ctx, now):
+                    return nxt
             else:
                 self.chain_pos = None
-        if _unique.cd_now(fig, now) < self.cooldown_until.get(name, 0):
-            return None
-        if ctx["dist"] > attack_range(fig, name):
-            return None
-        # Trigger conditions on an attack gate it on top of the range check
-        # (none = range alone).  A chained attack that fails waits; the
-        # chain resets to attack_normal after chain_reset_ms.
-        cfg = _cfg(fig, name)
-        if cfg.get("conditions") and not self._conds_pass(fig, name, cfg, ctx):
-            return None
-        if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
-            return None
-        return name if name in fig.render.bundle.extra else None
+                nxt = ""
+        names = sorted(k for k in (fig.mode.character.get("actions") or {})
+                       if _kind(k) == "attack" and k != "attack_normal" and k != nxt)
+        for name in names:
+            if _cfg(fig, name).get("conditions") and self._attack_ok(fig, name, ctx, now):
+                return name
+        return "attack_normal" if self._attack_ok(fig, "attack_normal", ctx, now) else None
 
     def observe(self, fig, world):
         """Take this tick's readings (HP lost, speeds, the target's state)
@@ -851,16 +873,27 @@ def runner(fig):
     return r
 
 
-def attack_range(fig, name):
+def attack_range(fig, name, now=None):
     """How close the target must be for attack `name` to start: its own
     attack_px (Attack distance) when set, else stats.basic_attack_radius
-    (shooters: at least SHOOTER_RANGE_PX); times the character scale."""
+    (shooters: at least SHOOTER_RANGE_PX); times the character scale.  An
+    attack whose Blink lands on the target ("target" anchor) reaches at
+    least as far as that blink's proximity_px (character scale too) —
+    unless its Blink is on cooldown at tick `now`."""
     mode = fig.mode
     own = float(_cfg(fig, name).get("attack_px") or 0)
     if own > 0:
-        return own * mode.body_scale()
-    radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS)) * mode.body_scale()
-    return radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
+        rng = own * mode.body_scale()
+    else:
+        radius = float(config.MODE_CONFIGS.get(mode.key, {}).get("basic_attack_radius", config.SLASH_RADIUS)) * mode.body_scale()
+        rng = radius if mode.uses_melee() or not mode.can_shoot() else max(radius, SHOOTER_RANGE_PX)
+    from . import blink as _blink
+    b = _blink.config_for(fig, name)
+    if b and not (now is not None and _blink._cooling(fig, getattr(fig, "blink", None), name, now)):
+        reach = [float(x.get("proximity_px") or 0) for x in b.get("blinks") or () if x.get("anchor") == "target"]
+        if reach:
+            rng = max(rng, max(reach) * mode.body_scale())
+    return rng
 
 
 CHASE_REACH = 0.5     # a chasing image character closes to this share of its attack range

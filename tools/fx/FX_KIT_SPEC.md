@@ -84,7 +84,13 @@ these characters; it plays the PNGs.
   must ALSO pass (`logic` any / all); with none it attacks on range alone.
   `chain_next` names the next attack in a combo (e.g.
   `attack_normal → attack_normal_2 → attack_normal_3`). The chain resets
-  after `chain_reset_ms` without attacking.
+  after `chain_reset_ms` without attacking; a chained attack that can't
+  start (range / conditions) falls back to the others instead of waiting.
+  An `attack_normal_N` **with conditions** is also a conditional alternate:
+  whenever they pass (and the target is in its range) it plays in place of
+  `attack_normal`, chained or not (first by name). An attack whose Blink
+  lands on the target (`anchor: "target"`) reaches at least that blink's
+  `proximity_px` (× character scale), unless its Blink is cooling down.
 - **Every other action** (`defend`, `deflect`, `attack_special`, `ultimate`,
   …) fires when its `conditions` are met: `logic: "any"` (OR) or `"all"`
   (AND), no more often than every `cooldown_ms`.
