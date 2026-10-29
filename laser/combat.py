@@ -4529,7 +4529,7 @@ def fire_json_action(fig, world, key, tx, ty):
 def try_fire_manual_special(fig, world):
     """Consumes a queued manual attack_special hotkey request
     (Ctrl+Shift+1..4 — see systems.InputSystem /
-    World.request_manual_special).  Fires this figure's attack_special
+    World.request_slot_special).  Fires this figure's attack_special
     now, bypassing its trigger conditions, cooldown and Attack mode:
     an image character plays its own `attack_special` action
     (actions.force_special), a JSON character fires its `attack_special`
@@ -4563,8 +4563,8 @@ def try_fire_manual_special(fig, world):
 
 
 def try_fire_manual_ultimate(fig, world):
-    """Consumes a queued manual-ultimate hotkey request (Ctrl+1 for P1,
-    Ctrl+2 for P2 — see systems.InputSystem / World.request_manual_ultimate).
+    """Consumes a queued manual-ultimate hotkey request (a slot's Ultimate
+    key, default Ctrl+1..4 — see systems.InputSystem / World.request_slot_ultimate).
     Forces this figure's ultimate immediately, bypassing the HP threshold
     that would normally arm it — style-aware, so it fires whichever
     pipeline (crescent / blinkstorm / beam / vanish_cut / loop_beams) this

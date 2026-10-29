@@ -18,6 +18,10 @@ laser/clashfx.py
 laser/swordfx.py
 laser/strikefx.py
 laser/powerfx.py
+laser/roster.py
+laser/startmenu.py
+laser/tag.py
+laser/hpbars.py
 laser/gunfx.py
 laser/combat.py
 laser/components.py
@@ -63,6 +67,13 @@ laser/weaponfx.py
 - Deaths in battle remove the fallen fighter (survivor continues solo); deaths in solo end the run — routing lives in `World.on_figure_death`
 - State flag ordering matters: setting two mutually exclusive flags simultaneously causes one FSM branch to consume all ticks — use pending flags and arm second state after first completes
 - `c.busy` side effects: setting `c.slashing = True` inside parry or secondary triggers halts figure movement via the `busy` property — avoid unless intentional
+
+### Roster, Start Menu & Tag
+- `laser/roster.py`: 4 slots (A-D), each char / team (2 teams, max 2 each) / single-or-tag / hotkeys (cycle, ultimate, special, tag); saved to `roster.json` (gitignored). `pick` = selection order (HP bars, fielding, which tag partner starts)
+- `laser/startmenu.py`: the character select WINDOW (the overlay is click-through). Opens on `--prebattle` and Ctrl+Shift+.; game pauses via `world.prebattle.open`. Start = keep unchanged fighters' state, Reset & Start = fresh
+- Every roster change goes through `World.apply_roster` (menu, slot cycle keys, Alt+Left/Right)
+- `laser/tag.py`: two Tag slots on one team = tag pair. Benched fighter is OUT of `side.figures` (frozen; `unique.cd_now` subtracts `fig.bench_ticks`). Switch = outgoing plays `switch_out`, then incoming takes its spot and plays `switch_in`. `switch_in`'s FX Studio conditions are read against the ON-FIELD partner's runner ctx; its cooldown_ms = pair cooldown. KO with a standing partner = forced switch (no loss). `switch_in`/`switch_out` never auto-trigger in `actions.py` (`SWITCH_ACTIONS`)
+- `laser/hpbars.py`: Team 1 top-left, Team 2 top-right, selection order
 
 ### Combat System
 - Dashslash and arcslash chosen 50/50 per attack; follow-ups also 50/50 with 0.2s type lock; 3-hit cap with ~1s cooldown

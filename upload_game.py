@@ -69,6 +69,7 @@ EXTRA_EXCLUDES = [
     "gh_token",
     "gh_token.txt",
     ".sync_state.json",
+    "roster.json",  # start-menu roster (laser/roster.py), per player
     "Lib/",        # pip-installed packages (PyQt5, numpy) - huge, per-PC
     "Scripts/",    # pip-generated launchers, rewritten on every pip install
 ]

@@ -16,3 +16,6 @@ characters/_baked/
 characters/*_thumb.png
 laser_cursor_error.log
 laser_cursor_log.txt
+
+# Start-menu roster (laser/roster.py) — each player's own setup, never commit.
+roster.json

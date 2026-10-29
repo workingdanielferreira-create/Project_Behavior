@@ -795,3 +795,29 @@ for every character; an old character file's `pack.clash` is ignored.
 
 Solo and Battle share this path. A clash needs two fielded sides, so Solo
 (with only the cursor as an opponent) never finds a pair.
+
+---
+
+## 14. Tag Pairs and the Switch Action (`laser/tag.py`)
+
+Two start-menu slots on the same team that are both set to **Tag** form a
+tag pair: one fights, the other waits on the bench (off screen, frozen:
+HP, cooldowns and timers wait). **Switch** swaps them, and each character
+authors its own Switch:
+
+| Where | What |
+|---|---|
+| Rig Forge | `switch_in` (incoming fighter) and `switch_out` (outgoing fighter) actions: "+ Action", type the name |
+| FX Studio, `switch_in` | its FX, plus **Switch trigger (reads the on-field partner)**: the conditions and **Switch cooldown ms** |
+| FX Studio, `switch_out` | its FX (no trigger: it plays when the partner's `switch_in` starts) |
+
+Sequence: the benched fighter's `switch_in` conditions pass (read against the
+on-field partner: its HP, its target, hits it took ...) or its **Tag in**
+hotkey is pressed (default Alt+1..4), the cooldown is over, and the on-field
+fighter is free (not mid ultimate / special / defend / clash). The on-field
+fighter plays `switch_out` where it stands; then the incoming fighter takes
+its spot and facing and plays `switch_in`. A missing animation is skipped. A
+KO'd on-field fighter with a standing partner is replaced at once (no
+conditions, no cooldown), so a tag team only loses when both are down.
+
+Only Rig Forge characters can be set to Tag. Solo and Battle share this path.

@@ -1162,8 +1162,10 @@ def cd_now(fig, now):
     cooldown (actions, Blink, Dodge, Retreat, activation triggers) is set
     and checked on it.  It runs ahead of the world clock by what
     cooldown_mult added each tick, so a cooldown already running also
-    finishes sooner as the rage grows."""
+    finishes sooner as the rage grows.  Time a tag fighter spent on the
+    bench (laser/tag.py) is left out, so its cooldowns stay frozen there."""
     st = getattr(fig, "ua", None)
+    now -= getattr(fig, "bench_ticks", 0) or 0
     return now + st.cd_ahead if st is not None else now
 
 

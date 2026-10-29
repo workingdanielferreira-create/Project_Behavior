@@ -3806,7 +3806,9 @@ function buildActionProps(d) {
     field(s, "Reset after ms idle", inp("n", cfg.chain_reset_ms, function (v) { cfg.chain_reset_ms = Math.max(0, v); save(); }, 0, 10000, 50));
     if (others.length === 1) note(s, "To chain, add more attack actions in Rig Forge named attack_normal_2, attack_normal_3 … and export again.");
   }
-  if (a !== CLASH_ACTION) buildTriggerProps(d, a, cfg, kind);
+  // Tag Switch (laser/tag.py): switch_out has no trigger of its own — it
+  // plays on the on-field fighter when its tag partner's switch_in starts.
+  if (a !== CLASH_ACTION && a !== "switch_out") buildTriggerProps(d, a, cfg, kind);
 }
 // The Rig Forge action a fighter shows while one of its effects clashes.
 var CLASH_ACTION = "clash";
@@ -3960,13 +3962,17 @@ function conditionList(s, listOf, o) {
 }
 // Trigger conditions for an attack or triggered action.
 function buildTriggerProps(d, a, cfg, kind) {
-  var s = sec(d, "Trigger conditions", "a-trig", kind === "attack"
+  // switch_in (tag pairs, laser/tag.py): its conditions are read against the
+  // ON-FIELD partner, and its cooldown is the pair's Switch cooldown.
+  var sw = a === "switch_in";
+  var s = sec(d, sw ? "Switch trigger (reads the on-field partner)" : "Trigger conditions", "a-trig", kind === "attack"
     ? "Extra conditions for this attack, checked on top of the target being in attack range. None = it attacks on range alone."
     : "The conditions that start this action, how they combine, and the cooldown.", "act");
   var ch = function () { save(); buildProps(); };
   field(s, "Fire when", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], cfg.logic, function (v) { cfg.logic = v; save(); }));
-  field(s, "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title =
-    "After it starts, how long before it can start again.";
+  field(s, sw ? "Switch cooldown ms" : "Cooldown ms", inp("n", cfg.cooldown_ms, function (v) { cfg.cooldown_ms = Math.max(0, v); save(); }, 0, 60000, 50)).title = sw
+    ? "After this fighter switches in, how long before the pair can Switch again (conditions or the Tag in hotkey)."
+    : "After it starts, how long before it can start again.";
   conditionList(s, function () { return cfgOf(a).conditions; }, {key: "a-cond", listId: "fxTagList", preview: true, onChange: ch,
     helpOf: function (t) { return COND_HELP[t]; },
     make: function (t) { return FXK.normalizeAction({conditions: [{type: t}]}).conditions[0]; }});

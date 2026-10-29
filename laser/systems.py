@@ -50,21 +50,43 @@ class InputSystem(System):
 
     def __init__(self):
         self.prev = {}
+        self.edges = {}
 
     def _pressed(self, vk):
-        """True only on the rising edge (key was up last tick, down now)."""
+        """True only on the rising edge (key was up last tick, down now).
+        Read once per tick per key (cached), so two bindings on one key —
+        a slot hotkey and a built-in combo — both see the same edge."""
+        if vk in self.edges:
+            return self.edges[vk]
         now = win.key_down(vk)
         was = self.prev.get(vk, False)
         self.prev[vk] = now
-        return now and not was
+        self.edges[vk] = now and not was
+        return self.edges[vk]
+
+    def swallow_held(self, world):
+        """Keys held right now count as already down, so closing the start
+        menu (Enter, a hotkey just typed) doesn't fire them in-game — nor
+        does letting go of a Ctrl held there toggle collision."""
+        for vk in range(0x08, 0xFF):
+            self.prev[vk] = win.key_down(vk)
+        world._ctrl_prev = win.key_down(win.VK_CTRL)
+        world.ctrl_used = True
 
     def update(self, world):
+        self.edges = {}
         ctrl = win.key_down(win.VK_CTRL)
         alt = win.key_down(win.VK_ALT)
 
         # Quit: Ctrl+Alt+Enter
         if ctrl and alt and win.key_down(win.VK_ENTER):
             world.request_quit()
+            return
+
+        # The start menu window (laser/startmenu.py) is open: the game is
+        # paused and the keyboard belongs to the menu (typing a hotkey there
+        # must not also play it here).
+        if world.prebattle.open:
             return
 
         if self._pressed(win.VK_F9):
@@ -80,89 +102,52 @@ class InputSystem(System):
         if self._pressed(win.VK_F6):
             world.preview_clash_fx()
 
-        # Ctrl+Shift+. (Ctrl+'>'): open / close the pre-battle menu
-        # (laser/prebattle.py).  While it is open Overlay._tick pauses the
-        # whole game; this input system keeps running so 1/2/3/4 still
-        # cycle characters and reveal their corner panels.  Same in Solo
-        # and Battle.
-        if self._pressed(win.VK_PERIOD) and ctrl and win.key_down(win.VK_SHIFT):
-            world.prebattle.toggle()
+        # Ctrl+Shift+. (Ctrl+'>'): open the start menu window
+        # (laser/startmenu.py) — the game pauses until it closes.  Same in
+        # Solo and Battle.
+        shift = win.key_down(win.VK_SHIFT)
+        if self._pressed(win.VK_PERIOD) and ctrl and shift and not alt:
+            world.start_menu_requested = True
             world.ctrl_used = True
 
         # Ctrl+0: toggle the roster lock.  While locked, every key that
-        # adds, removes or swaps a fighter (1/2/3/4, F7/F8) is ignored, so
-        # whatever is on screen stays put.  Ctrl+1 / Ctrl+2 manual ultimates
-        # still work.  Same behaviour in Solo and Battle.
+        # adds, removes or swaps a fighter (slot cycle keys, F7/F8) is
+        # ignored, so whatever is on screen stays put.  Ultimate / special /
+        # tag-in keys still work.  Same behaviour in Solo and Battle.
         if self._pressed(win.VK_0) and ctrl:
             world.roster_locked = not world.roster_locked
             world.ctrl_used = True
         locked = world.roster_locked
 
-        # 1 / 2: cycle P1's / P2's character.  P1 wraps through every
-        # registered character; P2 cycles through them and then OFF (side
-        # cleared — battle ends), tap again to re-field.
-        # Ctrl+1 / Ctrl+2: force that side's fielded character(s) to fire
-        # their ultimate on every press, bypassing the HP threshold and
-        # Attack mode (queued — fires the instant the figure is free; see
-        # World.request_manual_ultimate / combat.try_fire_manual_ultimate).
-        # ctrl_used is set so releasing Ctrl afterward doesn't also toggle
-        # collision (mirrors the Ctrl+Q / Ctrl+R pattern below).
-        # While the pre-battle menu is open, a plain 1/2/3/4 tap also reveals
-        # that slot's corner panel (lock or not — the panel is read-only).
-        # Ctrl+Shift+1..4: force ONE fighter's attack_special — 1 = P1's
-        # main fighter, 2 = P2's main, 3 = P1's extra (key '3'), 4 = P2's
-        # extra (key '4').  Queued like the manual ultimate (see
-        # World.request_manual_special / combat.try_fire_manual_special);
-        # works with the roster lock on and never cycles a slot.
-        special = ctrl and win.key_down(win.VK_SHIFT)
-        if self._pressed(win.VK_1):
-            if special:
-                world.request_manual_special(0, 0)
-                world.ctrl_used = True
-            elif ctrl:
-                world.request_manual_ultimate(0)
-                world.ctrl_used = True
-            else:
-                world.prebattle.reveal(1)
-                if not locked:
-                    world.cycle_side_char(0)
-        if self._pressed(win.VK_2):
-            if special:
-                world.request_manual_special(1, 0)
-                world.ctrl_used = True
-            elif ctrl:
-                world.request_manual_ultimate(1)
-                world.ctrl_used = True
-            else:
-                world.prebattle.reveal(2)
-                if not locked:
-                    world.cycle_side_char(1)
-
-        # 3 / 4: add and then cycle the SECOND fighter on P1's / P2's team,
-        # so one side can field two different characters (runner +
-        # swordsman, mage + new_fighter, ...).  First tap fields it as the
-        # first registered character, each further tap advances it through
-        # the roster, and the tap past the last character retires it (team
-        # back to one fighter).  Slot 0 stays owned by '1'/'2', so the two
-        # slots never fight over the same figure.  See
-        # World.cycle_side_extra — same behaviour in Solo and Battle.
-        # Edges are always consumed (so a held key doesn't fire on unlock).
-        if self._pressed(win.VK_3):
-            if special:
-                world.request_manual_special(0, 1)
-                world.ctrl_used = True
-            else:
-                world.prebattle.reveal(3)
-                if not locked:
-                    world.cycle_side_extra(0)
-        if self._pressed(win.VK_4):
-            if special:
-                world.request_manual_special(1, 1)
-                world.ctrl_used = True
-            else:
-                world.prebattle.reveal(4)
-                if not locked:
-                    world.cycle_side_extra(1)
+        # Slot hotkeys, set per slot in the start menu (laser/roster.py):
+        #   cycle    (default 1/2/3/4)            World.cycle_slot
+        #   ultimate (default Ctrl+1..4)          World.request_slot_ultimate
+        #   special  (default Ctrl+Shift+1..4)    World.request_slot_special
+        #   tag      (default Alt+1..4)           World.request_tag_in
+        # A binding fires on its key's rising edge when exactly its
+        # modifiers are held.  ultimate / special are queued on the fighter
+        # (combat.try_fire_manual_ultimate / _special) and fire the instant
+        # it is free.  A Ctrl binding sets ctrl_used so releasing Ctrl
+        # afterwards doesn't also toggle collision.  Edges are always
+        # consumed (so a held key doesn't fire on unlock).
+        held = (ctrl, shift, alt)
+        for vk, binds in world.slot_bindings().items():
+            if not self._pressed(vk):
+                continue
+            for (bc, bs, ba, slot_i, action) in binds:
+                if (bc, bs, ba) != held:
+                    continue
+                if bc:
+                    world.ctrl_used = True
+                if action == "cycle":
+                    if not locked:
+                        world.cycle_slot(slot_i)
+                elif action == "ultimate":
+                    world.request_slot_ultimate(slot_i)
+                elif action == "special":
+                    world.request_slot_special(slot_i)
+                elif action == "tag":
+                    world.request_tag_in(slot_i)
 
         if self._pressed(win.VK_F7) and not locked:
             world.add_figure()

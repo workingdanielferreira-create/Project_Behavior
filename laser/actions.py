@@ -108,6 +108,15 @@ def _cfg(fig, action):
     return settings.get(action) or norm({})
 
 
+# The Switch actions (laser/tag.py): a tag pair's incoming fighter plays
+# switch_in, the outgoing one switch_out.  They count as triggered actions
+# (so a forced ultimate, a dodge, ... waits for them to end) but never start
+# on their own here: laser/tag.py starts them.  switch_in's trigger
+# conditions are read against the ON-FIELD partner (tag.py), its cooldown_ms
+# is the pair's switch cooldown.
+SWITCH_ACTIONS = ("switch_in", "switch_out")
+
+
 def _kind(name):
     if name in ("idle", "run"):
         return "locomotion"
@@ -603,7 +612,8 @@ class ActionRunner:
         # — the moment (target in range, a hit, an incoming shot) would
         # otherwise be gone.  It never cuts into another triggered action.
         if self.playing is not None and self.forced is None and _kind(self.playing) == "attack":
-            names = [k for k in (fig.mode.character.get("actions") or {}) if _kind(k) == "triggered"]
+            names = [k for k in (fig.mode.character.get("actions") or {})
+                     if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
             for name in sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
                                                       2 if k == "attack_special" else 3, k)):
                 if not armed and name != "defend":
@@ -616,7 +626,8 @@ class ActionRunner:
                     break
         if self.playing is None:
             # Triggered actions first (defend, then ultimate, special, others).
-            names = [k for k in (fig.mode.character.get("actions") or {}) if _kind(k) == "triggered"]
+            names = [k for k in (fig.mode.character.get("actions") or {})
+                     if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
             order = sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
                                                  2 if k == "attack_special" else 3, k))
             for name in order:
