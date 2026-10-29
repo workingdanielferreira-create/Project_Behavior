@@ -26,7 +26,8 @@ def _is_image_mode(mode):
 class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
-                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge")
+                 "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
+                 "bench_since", "bench_ticks")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -59,6 +60,11 @@ class Figure:
         self.time = None     # timefx.TimeState (FX Studio time control: caster + time scales)
         self.ua = None       # unique.UAState (the character's unique ability)
         self.aim = None  # degrees: frame rotated so the weapon points at the target (actions.py)
+        # Tag bench (laser/tag.py): the world tick it was benched (None = on
+        # the field) and every tick it has spent on the bench, which its
+        # cooldown clock (unique.cd_now) leaves out so cooldowns stay frozen.
+        self.bench_since = None
+        self.bench_ticks = 0
 
     # convenience aliases ---------------------------------------------------
     @property

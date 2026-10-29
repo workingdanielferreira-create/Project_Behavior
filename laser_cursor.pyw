@@ -12,15 +12,20 @@ package folder.  Double-click with pythonw, or run `pythonw laser_cursor.pyw`.
 Controls:
     Ctrl+Alt+Enter  quit
     F9              toggle figures on/off
-    F7 / F8         add / remove a P1 figure
-    1               cycle P1's character
-    2               cycle P2's character (past the last one = P2 off);
-                    fielding P2 starts a Battle in this same window
+    Ctrl+Shift+.    start menu (character select: slots, teams, tag, hotkeys);
+                    launching with --prebattle (the updaters) opens it first
+    F7 / F8         add / remove an extra P1 figure (outside the slots)
+    1 / 2 / 3 / 4   field / cycle / retire slot A / B / C / D's character
+                    (default; set per slot in the start menu).  Fielding a
+                    Team 2 fighter starts a Battle in this same window
+    Ctrl+1..4       that slot's ultimate (default)
+    Ctrl+Shift+1..4 that slot's attack_special (default)
+    Alt+1..4        tag that slot in (tag pairs, default)
     Ctrl (tap)      toggle cursor collision
     Ctrl+Q          toggle follow-path vs chase
     Ctrl+R          toggle runaway
     Alt+Up          toggle attack/shoot mode
-    Alt+Left/Right  cycle P1 behaviour mode (runner / swordsman / ...)
+    Alt+Left/Right  cycle Team 1's first fighter (runner / swordsman / ...)
 """
 
 import os

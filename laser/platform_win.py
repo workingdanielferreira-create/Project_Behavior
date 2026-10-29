@@ -26,8 +26,8 @@ VK_RIGHT = 0x27
 VK_0     = 0x30            # Ctrl+0: roster lock toggle (World.roster_locked)
 VK_1     = 0x31
 VK_2     = 0x32
-VK_3     = 0x33            # P1 extra-fighter slot (World.cycle_side_extra)
-VK_4     = 0x34            # P2 extra-fighter slot (World.cycle_side_extra)
+VK_3     = 0x33            # default slot C key (laser/roster.py)
+VK_4     = 0x34            # default slot D key (laser/roster.py)
 VK_PERIOD = 0xBE           # VK_OEM_PERIOD: the '.' / '>' key
 
 _BELOW_NORMAL = 0x00004000

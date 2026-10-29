@@ -21,6 +21,9 @@ from . import config, modes, systems, ai, action_log, combat, actions, fxkit, bl
 from . import swordfx
 from . import dmgnum
 from .prebattle import PreBattleMenu
+from . import roster as _roster
+from . import tag as _tag
+from . import hpbars
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -190,13 +193,21 @@ class World:
         # whole game is paused and fighters stand idle (see Overlay._tick).
         self.prebattle = PreBattleMenu()
 
-        self.add_figure()
+        # The start menu's roster (laser/roster.py, saved in roster.json):
+        # four slots, each a character + team + single / tag + hotkeys.
+        # Tag pairs (laser/tag.py) are rebuilt from it by apply_roster.
+        self.slots = _roster.load(assets.dir, modes.ordered_modes())
+        self.tag_pairs = [None] * len(self.sides)
+        self.apply_roster(reset=True)
+        if not any(s.figures for s in self.sides):
+            self.slots = _roster.default_slots(modes.ordered_modes())
+            self.apply_roster(reset=True)
 
-        # update_game.py launches with --prebattle: start with the pre-battle
-        # character selector already open (same as pressing Ctrl+Shift+.).
+        # update_game.py / update_latest.py launch with --prebattle: the
+        # start menu (laser/startmenu.py) opens first.  Ctrl+Shift+. sets
+        # start_menu_requested mid-game; Overlay._tick opens the window.
         # World-level, so Solo and Battle behave identically.
-        if "--prebattle" in sys.argv[1:]:
-            self.prebattle.toggle()
+        self.start_menu_requested = "--prebattle" in sys.argv[1:]
 
         # Action log — init after all state is ready
         _launcher_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -213,7 +224,7 @@ class World:
 
         `mode_key` overrides the side's base character, which is what lets a
         single team hold two DIFFERENT characters at once (runner +
-        swordsman, mage + new_fighter, ...) — see cycle_side_extra.  `slot`
+        swordsman, mage + new_fighter, ...) — see apply_roster.  `slot`
         overrides the offset/palette slot for the same reason.  A Figure
         owns its own mode/bundle/lut, so nothing below the World level cares
         that its team-mate is a different character.
@@ -238,10 +249,14 @@ class World:
         return True
 
     def remove_figure(self, side_idx=0):
+        """F8: remove the last F7 extra fighter.  Start-menu slot fighters
+        are left alone (their own cycle key retires them)."""
         side = self.sides[side_idx]
-        real = [f for f in side.figures if not unique.is_clone(f)]
+        slotted = [s.fig for s in getattr(self, "slots", ()) if s.fig is not None]
+        real = [f for f in side.figures if not unique.is_clone(f)
+                and not any(f is g for g in slotted)]
         if real:
-            side.figures.remove(real[-1])
+            self._drop_figure(side, real[-1])
             return True
         return False
 
@@ -291,113 +306,23 @@ class World:
         fig.lut = lut_for_mode(mode_key, fig.index)
         fig.trail.lut = fig.lut
 
-    def _reskin_side(self, side_idx):
-        """Re-apply a side's mode_key to its BASE fighter (slot 0) only.
+    # --- roster (start menu slots, laser/roster.py) -------------------------
+    def _new_slot_figure(self, s, pos):
+        """A fresh Figure for slot `s`, `pos` = its place on the team in
+        selection order.  Palette / offset slot = team + 2 * pos, which is
+        what keys 1/2 (pos 0) and 3/4 (pos 1) always used."""
+        idx = s.team + 2 * pos
+        return Figure(modes.get_mode(s.char), self.assets.bundle(s.char),
+                      lut_for_mode(s.char, idx), idx,
+                      self.screen_w, self.screen_h)
 
-        Slot 0 belongs to keys '1'/'2' and Alt+Left/Right.  The extra fighter
-        added by key '3'/'4' owns its own character and is deliberately left
-        untouched here — that is exactly what allows one team to field two
-        different characters.
-        """
-        side = self.sides[side_idx]
-        if side.figures:
-            self._reskin_figure(side.figures[0], side.mode_key)
-
-    def cycle_mode(self, delta, side_idx=0):
-        order = modes.ordered_modes()
-        if not order:
-            return
-        side = self.sides[side_idx]
-        cur = order.index(side.mode_key) if side.mode_key in order else 0
-        new_key = order[(cur + delta) % len(order)]
-        if new_key == side.mode_key:
-            return
-        side.mode_key = new_key
-        if side_idx == self.side_idx:
-            self.mode_key = new_key
-        self._reskin_side(side_idx)
-
-    def cycle_side_char(self, side_idx):
-        """Key '1' / '2' character cycling.  P1 (side 0) always keeps a
-        fighter: tap to advance through every registered character, wrapping.
-        P2 (side 1) cycles through every character and then OFF (side
-        cleared, battle ends); tapping again fields the first character."""
-        order = modes.ordered_modes()
-        if not order:
-            return
-        side = self.sides[side_idx]
-        if not side.figures:
-            if side.mode_key not in order:
-                side.mode_key = order[0]
-            self.add_figure(side_idx)
-            return
-        cur = order.index(side.mode_key) if side.mode_key in order else -1
-        nxt = cur + 1
-        if side_idx == 1 and nxt >= len(order):
-            side.figures.clear()
-            side.projectiles.clear()
-            side.mode_key = order[0]
-            return
-        side.mode_key = order[nxt % len(order)]
-        if side_idx == self.side_idx:
-            self.mode_key = side.mode_key
-        self._reskin_side(side_idx)
-
-    def cycle_side_extra(self, side_idx):
-        """Key '3' (P1) / '4' (P2): the team's SECOND fighter slot.
-
-        Lets one side field two different characters at once — runner +
-        swordsman, mage + new_fighter, any pairing in the roster.
-
-        Tap 1 fields the extra fighter as the first registered character;
-        every further tap advances it one step through the roster; the tap
-        after the last character retires it (team back to one fighter), and
-        the next tap re-fields the first character again.  Slot 0 is never
-        touched — it stays owned by keys '1'/'2'.
-
-        Identical in Solo and Battle by construction: the per-tick pipeline
-        already runs over every figure on a fielded side and every system
-        routes through `fig.mode`'s predicates, so a two-character team is
-        just two figures with different modes in both modes.
-        """
-        order = modes.ordered_modes()
-        if not order:
-            return
-        side = self.sides[side_idx]
-        if not side.figures:
-            # Team is empty (P2 was cycled OFF with key '2').  Re-field the
-            # base fighter first so slot 0 always belongs to key '1'/'2';
-            # the next tap then stacks the extra fighter on top of it.
-            if side.mode_key not in order:
-                side.mode_key = order[0]
-            self.add_figure(side_idx)
-            return
-        if len([f for f in side.figures if not unique.is_clone(f)]) < 2:
-            self.add_figure(side_idx, mode_key=order[0],
-                            slot=config.EXTRA_FIGURE_SLOT + side_idx)
-            return
-        fig = side.figures[1]
-        cur = order.index(fig.mode.key) if fig.mode.key in order else -1
-        nxt = cur + 1
-        if nxt >= len(order):
-            self._retire_extra(side_idx)
-            return
-        self._reskin_figure(fig, order[nxt])
-
-    def _retire_extra(self, side_idx):
-        """Remove the key-'3'/'4' fighter and clean up what it owned.
-
-        Its in-flight bullets are killed AT SOURCE via combat.kill_projectile
-        (never by setting `alive`, which is derived).  The side's
-        HP-threshold clones are dropped only when no remaining fighter on
-        that side spawns them, so a retiring team-mate can't leave orphan
-        corner spheres firing on its behalf — and can't take a surviving
-        team-mate's clones with it either.
-        """
-        side = self.sides[side_idx]
-        if len([f for f in side.figures if not unique.is_clone(f)]) < 2:
-            return
-        fig = side.figures.pop(1)
+    def _drop_figure(self, side, fig):
+        """Take `fig` out of `side` and end what it owned: in-flight bullets
+        die AT SOURCE (combat.kill_projectile, never by touching `alive`),
+        and the side's HP-threshold clones go when no fighter left on the
+        side spawns them."""
+        if fig in side.figures:
+            side.figures.remove(fig)
         for pr in side.projectiles:
             if pr.owner is fig:
                 combat.kill_projectile(pr)
@@ -407,27 +332,180 @@ class World:
         if fig in self._dead:
             self._dead.remove(fig)
 
-    def request_manual_ultimate(self, side_idx):
-        """Ctrl+1 (side 0) / Ctrl+2 (side 1): force that side's currently
-        fielded figure(s) to fire their next ultimate tier, bypassing the
-        HP threshold. Queues on the figure; CombatSystem/
-        combat.try_fire_manual_ultimate fires it the instant the figure is
-        free (see systems.py). No-op if that side has no fielded figure.
-        Identical in Solo & Battle."""
-        for fig in self.sides[side_idx].figures:
-            fig.combat.manual_ult_queued = True
+    def apply_roster(self, slots=None, reset=False):
+        """Field the start-menu roster.  Every roster change funnels through
+        here (start menu, the per-slot cycle keys, Alt+Left/Right), so Solo
+        and Battle share one code path.
 
-    def request_manual_special(self, side_idx, slot):
-        """Ctrl+Shift+1..4: force ONE fielded fighter to fire its
-        attack_special, bypassing its trigger conditions and cooldown.
-        slot 0 = the key-'1'/'2' fighter, slot 1 = the key-'3'/'4' extra
-        fighter (Mirror Legion copies never count as a slot).  Queues on
-        the figure; combat.try_fire_manual_special fires it the instant the
-        figure is free (see systems.py).  No-op if that slot is empty.
-        Identical in Solo & Battle."""
-        real = [f for f in self.sides[side_idx].figures if not unique.is_clone(f)]
-        if slot < len(real):
-            real[slot].combat.manual_special_queued = True
+        slots — new roster.Slot list (start menu), None = re-apply the
+                current one after a slot changed.
+        reset — True: every fighter is fielded fresh (full HP, no state).
+                False: a slot that kept its character and team keeps its
+                fighter (HP, cooldowns, position); changed slots start fresh.
+
+        Per team, fighters stand in selection order; a tag pair
+        (laser/tag.py) fields one and benches the other.  A fallen fighter
+        stays in its slot (its HP bar reads KO) but is not fielded again
+        until its slot changes or the roster is reset."""
+        now = self.global_tick
+        old = list(getattr(self, "slots", None) or [])
+        old_figs = [s.fig for s in old if s.fig is not None]
+        if slots is not None:
+            new = [s.copy() for s in slots]
+            for s in new:
+                s.fig = None
+                o = old[s.index] if s.index < len(old) else None
+                if (not reset and o is not None and o.fig is not None
+                        and o.char == s.char and o.team == s.team):
+                    s.fig = o.fig
+            self.slots = new
+        _roster.renumber(self.slots)
+        for s in self.slots:
+            if not s.char:
+                s.fig = None
+            elif reset and slots is None:
+                s.fig = None
+        keep = {id(s.fig) for s in self.slots if s.fig is not None}
+        # Fighters that left the roster (or a reset): gone, with their shots.
+        for side in self.sides:
+            for f in list(side.figures):
+                if unique.is_clone(f):
+                    continue
+                slotted_before = any(f is g for g in old_figs)
+                if (slotted_before and id(f) not in keep) or reset:
+                    self._drop_figure(side, f)
+        if reset:
+            for side in self.sides:
+                side.projectiles.clear()
+                side.clones.clear()
+                side.hpt_beam_ticks = 0
+                side.shoot_ticks = side.shot_phase = side.shot_pause_ticks = 0
+            self._dead.clear()
+        for t in range(len(self.sides)):
+            for pos, s in enumerate(_roster.team_slots(self.slots, t)):
+                if s.fig is None:
+                    s.fig = self._new_slot_figure(s, pos)
+        self.tag_pairs = _tag.build_pairs(self, self.slots, [] if reset else
+                                          (getattr(self, "tag_pairs", None) or []))
+        slot_figs = [s.fig for s in self.slots if s.fig is not None]
+        for t, side in enumerate(self.sides):
+            ordered = _roster.team_slots(self.slots, t)
+            pair = self.tag_pairs[t]
+            benched = pair.off.fig if pair is not None else None
+            field = [s.fig for s in ordered
+                     if s.fig is not benched and s.fig.personality.hp > 0]
+            for f in field:
+                _tag.unbench(f, now)
+            if benched is not None:
+                _tag.bench(benched, now)
+            # F7 extras (no slot) stay; Mirror Legion copies ride at the end.
+            extras = [f for f in side.figures if not unique.is_clone(f)
+                      and not any(f is g for g in slot_figs)]
+            clones = [f for f in side.figures if unique.is_clone(f)]
+            side.figures[:] = field + extras + clones
+            if field:
+                side.mode_key = field[0].mode.key
+            elif not side.figures:
+                side.projectiles.clear()
+                side.clones.clear()
+                side.hpt_beam_ticks = 0
+        self.mode_key = self.sides[self.side_idx].mode_key
+        self.figures = self.sides[self.side_idx].figures
+        self.projectiles = self.sides[self.side_idx].projectiles
+        self.clones = self.sides[self.side_idx].clones
+        self._bindings = _roster.bindings(self.slots)
+
+    def slot_bindings(self):
+        """{vk: [(ctrl, shift, alt, slot_index, action), ...]}."""
+        return getattr(self, "_bindings", None) or {}
+
+    def _living_slots(self, but=None):
+        return [s for s in self.slots if s is not but and s.char
+                and s.fig is not None and s.fig.personality.hp > 0]
+
+    def cycle_slot(self, i):
+        """A slot's "Field / cycle" key (default 1/2/3/4): an empty slot
+        fields the first character; each tap advances it one step through
+        the roster; the tap after the last character empties the slot —
+        unless it is the last fighter standing, which wraps instead.  A team
+        already holding two fighters can't take a third.  Same in Solo and
+        Battle (apply_roster)."""
+        order = modes.ordered_modes()
+        if not order or not (0 <= i < len(self.slots)):
+            return
+        s = self.slots[i]
+        if not s.char:
+            if len(_roster.team_slots(self.slots, s.team)) >= _roster.TEAM_SIZE:
+                self.notice = ("Team %d already has %d fighters" % (s.team + 1, _roster.TEAM_SIZE), 90)
+                return
+            s.char = order[0]
+            s.pick = _roster.next_pick(self.slots)
+            s.fig = None
+        else:
+            cur = order.index(s.char) if s.char in order else -1
+            nxt = cur + 1
+            if nxt >= len(order):
+                if self._living_slots(but=s):
+                    s.char = None
+                else:
+                    s.char = order[0]
+            else:
+                s.char = order[nxt]
+            if s.char and s.fig is not None:
+                # Same spot, new character (HP refills with it).
+                self._reskin_figure(s.fig, s.char)
+        self.apply_roster()
+
+    def cycle_mode(self, delta, side_idx=0):
+        """Alt+Left / Alt+Right: step Team `side_idx`'s first-picked
+        fighter one character back / forward (it stays fielded)."""
+        order = modes.ordered_modes()
+        ts = _roster.team_slots(self.slots, side_idx)
+        if not order or not ts:
+            return
+        s = ts[0]
+        cur = order.index(s.char) if s.char in order else 0
+        new_key = order[(cur + delta) % len(order)]
+        if new_key == s.char:
+            return
+        s.char = new_key
+        if s.fig is not None:
+            self._reskin_figure(s.fig, new_key)
+        self.apply_roster()
+
+    def _slot_fig_on_field(self, i):
+        if not (0 <= i < len(self.slots)):
+            return None
+        s = self.slots[i]
+        f = s.fig
+        if f is None or not s.char or f not in self.sides[s.team].figures:
+            return None
+        return f
+
+    def request_slot_ultimate(self, i):
+        """A slot's Ultimate key (default Ctrl+1..4): force that fighter's
+        next ultimate tier, bypassing the HP threshold.  Queues on the
+        figure; CombatSystem / combat.try_fire_manual_ultimate fires it the
+        instant the figure is free (see systems.py).  No-op when the slot
+        is empty, benched or down.  Identical in Solo & Battle."""
+        f = self._slot_fig_on_field(i)
+        if f is not None:
+            f.combat.manual_ult_queued = True
+
+    def request_slot_special(self, i):
+        """A slot's Special key (default Ctrl+Shift+1..4): force that
+        fighter's attack_special, bypassing its trigger conditions and
+        cooldown.  Queued like the ultimate (combat.try_fire_manual_special).
+        No-op when the slot is empty, benched or down."""
+        f = self._slot_fig_on_field(i)
+        if f is not None:
+            f.combat.manual_special_queued = True
+
+    def request_tag_in(self, i):
+        """A slot's Tag in key (default Alt+1..4): Switch that benched
+        fighter in (laser/tag.py).  No-op unless it is a tag pair's benched
+        half."""
+        _tag.request(self, i)
 
     def preview_clash_fx(self):
         """F6: fire the next clash explosion variation at the cursor.  Side A
@@ -617,6 +695,12 @@ class World:
         # A Mirror Legion copy dying is never a loss (Solo or Battle): it
         # just dissolves (unique.world_tick removes it next tick).
         if unique.is_clone(fig):
+            return
+        # Tag pair (laser/tag.py): the benched partner switches in next
+        # tick, so the fall is not a loss — Solo or Battle.
+        if _tag.covers_ko(self, fig):
+            if fig not in self._dead:
+                self._dead.append(fig)
             return
         if self.battle_mode:
             if fig not in self._dead:
@@ -1018,10 +1102,15 @@ class Overlay(QWidget):
             self._shutdown()
             return
 
-        # --- PRE-BATTLE MENU (Ctrl+Shift+.): full pause ---
+        # --- START MENU (launch with --prebattle, or Ctrl+Shift+.) ---
+        if w.start_menu_requested:
+            w.start_menu_requested = False
+            self._open_start_menu()
+
+        # --- START MENU OPEN: full pause ---
         # Nothing simulates and global_tick stands still, so cooldowns,
         # timers, bullets and HP resume exactly where they were on close.
-        # _paint draws the fighters in their idle pose plus the menu.
+        # _paint draws the fighters in their idle pose (laser/prebattle.py).
         if w.prebattle.open:
             w.prebattle.tick += 1
             self.update()
@@ -1047,6 +1136,12 @@ class Overlay(QWidget):
         except Exception as e:
             action_log.crash("clash", e)
         unique.world_tick(w)   # Mirror Legion copies join / dissolve
+        # Tag pairs (laser/tag.py): Switch in / out, KO cover.  Before the
+        # snapshots, so both sides see the fighter now on the field.
+        try:
+            _tag.step(w)
+        except Exception as e:
+            action_log.crash("tag", e)
         w.refresh_battle()
         # FX Studio Time control: each figure's body / FX time scale this
         # tick (None = no time effect running anywhere).
@@ -1079,7 +1174,42 @@ class Overlay(QWidget):
         w.global_tick += 1
         self.update()
 
+    def _open_start_menu(self):
+        """Pause the game and show the start menu window
+        (laser/startmenu.py).  Start applies the roster keeping every
+        unchanged fighter's state; Reset & Start fields everyone fresh;
+        Cancel / closing resumes unchanged."""
+        w = self.world
+        if getattr(self, "_start_menu", None) is not None:
+            self._start_menu.raise_()
+            self._start_menu.activateWindow()
+            return
+        from .startmenu import StartMenu
+        if not w.prebattle.open:
+            w.prebattle.toggle()
+        self._start_menu = StartMenu(w, self._start_menu_done)
+        self._start_menu.show()
+        self._start_menu.raise_()
+        self._start_menu.activateWindow()
+
+    def _start_menu_done(self, slots, reset):
+        w = self.world
+        self._start_menu = None
+        if slots is not None:
+            w.apply_roster(slots, reset=reset)
+            _roster.save(w.assets.dir, w.slots)
+            action_log.log("ROSTER", ", ".join(
+                "%s=%s/T%d%s" % (s.name, s.char or "-", s.team + 1, "/tag" if s.tag else "")
+                for s in w.slots) + (" (reset)" if reset else ""))
+        # Edges of keys still held from the menu (Enter, the hotkeys just
+        # typed) must not fire in the game.
+        self.input.swallow_held(w)
+        if w.prebattle.open:
+            w.prebattle.toggle()
+
     def _shutdown(self):
+        if getattr(self, "_start_menu", None) is not None:
+            self._start_menu.close_silently()
         QApplication.quit()
 
     def paintEvent(self, _):
@@ -1297,6 +1427,9 @@ class Overlay(QWidget):
         if not hud:
             return
 
+        # --- Team HP bars — Team 1 top-left, Team 2 top-right (laser/hpbars.py) ---
+        hpbars.draw(p, w)
+
         # --- HP readout — bottom-right, one entry per figure (both sides) ---
         _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
                     for fig in s.figures if not unique.is_clone(fig)]
@@ -1331,15 +1464,17 @@ class Overlay(QWidget):
                 p.setPen(QColor(r2, g2, b2, alpha))
                 p.drawText(draw_x, draw_y, label)
 
-        # --- On-screen notice (F5 reload result) ---
+        # --- On-screen notice (F5 reload result, Switch, ...) — top
+        # centre, clear of the team HP bars in the corners ---
         _txt, _left = w.notice
         if _left > 0 and _txt:
             w.notice = (_txt, _left - 1)
             p.setFont(self._hp_font)
+            _nx = (w.screen_w - p.fontMetrics().horizontalAdvance(_txt)) // 2
             p.setPen(QColor(0, 0, 0, 160))
-            p.drawText(21, 41, _txt)
+            p.drawText(_nx + 1, 41, _txt)
             p.setPen(QColor(255, 255, 255, 230))
-            p.drawText(20, 40, _txt)
+            p.drawText(_nx, 40, _txt)
 
     def closeEvent(self, event):
         action_log.close()
