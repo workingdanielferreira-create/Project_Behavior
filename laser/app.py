@@ -1193,17 +1193,24 @@ class Overlay(QWidget):
         self._start_menu.activateWindow()
 
     def _start_menu_done(self, slots, reset):
+        """Runs from the menu's button click: an exception escaping a Qt
+        slot aborts PyQt5, so anything that goes wrong is logged and the
+        game resumes instead of closing."""
         w = self.world
         self._start_menu = None
-        if slots is not None:
-            w.apply_roster(slots, reset=reset)
-            _roster.save(w.assets.dir, w.slots)
-            action_log.log("ROSTER", ", ".join(
-                "%s=%s/T%d%s" % (s.name, s.char or "-", s.team + 1, "/tag" if s.tag else "")
-                for s in w.slots) + (" (reset)" if reset else ""))
-        # Edges of keys still held from the menu (Enter, the hotkeys just
-        # typed) must not fire in the game.
-        self.input.swallow_held(w)
+        try:
+            if slots is not None:
+                w.apply_roster(slots, reset=reset)
+                _roster.save(w.assets.dir, w.slots)
+                action_log.log("ROSTER", ", ".join(
+                    "%s=%s/T%d%s" % (s.name, s.char or "-", s.team + 1, "/tag" if s.tag else "")
+                    for s in w.slots) + (" (reset)" if reset else ""))
+            # Edges of keys still held from the menu (Enter, the hotkeys
+            # just typed) must not fire in the game.
+            self.input.swallow_held(w)
+        except Exception as e:
+            action_log.crash("start menu", e)
+            w.notice = ("Start menu: could not apply the roster (see the action log)", 240)
         if w.prebattle.open:
             w.prebattle.toggle()
 
@@ -1488,7 +1495,11 @@ def _asset_dir():
 
 def main():
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(True)
+    # The overlay is a Qt.Tool window, which Qt never counts as a "last
+    # window": with quit-on-last-window-closed on, closing the start menu
+    # (laser/startmenu.py) quit the whole game.  Quitting is explicit
+    # instead (Ctrl+Alt+Enter -> Overlay._shutdown -> QApplication.quit).
+    app.setQuitOnLastWindowClosed(False)
     overlay = Overlay()
     ret = app.exec_()
     sys.exit(ret)
