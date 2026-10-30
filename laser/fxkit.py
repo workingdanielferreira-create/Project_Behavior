@@ -201,8 +201,12 @@ PARAM_DEFAULTS = {
     # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks;
     # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
     # w_*: the weapons (laser/weaponfx.py): w_mode "signature" (its own
-    # sequence) or "hold" (just held); size, flips, 3D yaw / pitch / spin and
-    # depth — numbers, so keyframes can animate every one.
+    # sequence) or "hold" (just held, along the rig's hand -> wtip line);
+    # size, flips, 3D yaw / pitch / spin and depth — numbers, so keyframes
+    # can animate every one; w_weight 0..1 = momentum (drag, overshoot);
+    # w_plane / w_plane_roll = the swing plane's tilt out of the screen / turn
+    # on screen (degrees), w_side "front" / "behind" = which side of the
+    # fighter the blade passes.
     # ext_*: the blade extension's movement while it is out (swordfx._ext_frame):
     # ext_pivot = where on its centre line it turns (0 = base, 0.5 = middle,
     # 1 = tip); ext_spin = degrees per tick, ext_sweep = total degrees (with
@@ -222,7 +226,7 @@ PARAM_DEFAULTS = {
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
                       gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
-                      w_depth=0, ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
+                      w_depth=0, w_weight=0, w_plane=0, w_plane_roll=0, w_side="front", ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
                       impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
                       axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0),
@@ -3219,8 +3223,17 @@ class Player:
                 continue    # an anchored clash FX draws it meanwhile (laser/clash.py)
             if hidden and body_bound(inst):
                 continue    # blinked out: the fighter's own body FX are hidden
-            if inst.fx.get("layer", "front") == layer:
+            if inst_layer(inst, ps) == layer:
                 draw_inst(p, inst, host, ps)
+
+
+def inst_layer(inst, ps):
+    """The layer an instance draws on this tick: its own, except a weapon
+    swung behind the fighter (weaponfx.draw_layer)."""
+    lay = inst.fx.get("layer", "front")
+    if inst.fx["prim"] == "technique":
+        return swordfx.weaponfx.draw_layer(inst, ps, lay)
+    return lay
 
 
 def body_bound(inst):

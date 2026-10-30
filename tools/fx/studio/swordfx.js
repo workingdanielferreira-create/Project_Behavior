@@ -116,6 +116,8 @@ function onSpawn(inst, host) {
   inst.tq_imp = [];               // punch impacts: [tick, x, y]; kicks: [tick, x, y, ux, uy]
   inst.tq_hs = false;             // its hit-stop already froze the world (STRIKEFX freeze)
   inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
+  inst.w_dg = null;               // weapon weight: its spring, per slot (WEAPONFX drag)
+  inst.w_arm = isWeapon(st) ? [WEAPON().armAng(inst, host)] : [];   // Hold: the rig's blade angle, per tick
   if (POWER()) POWER().onSpawn(inst, host);
   recordOutline(inst, host);
   inst.life = activeTicks(fx.params);
@@ -132,6 +134,7 @@ function recordOutline(inst, host) {
 function onTick(inst, host) {
   inst.tq_path.push([inst.x, inst.y]);
   inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
+  if (isWeapon(style(inst.fx.params))) inst.w_arm.push(WEAPON().armAng(inst, host));
   recordOutline(inst, host);
   if (STRIKE()) { STRIKE().trackStep(inst, host); STRIKE().hitstopStep(inst, host); }
   if (KICK()) KICK().hitstopStep(inst, host);
