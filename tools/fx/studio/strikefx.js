@@ -2,18 +2,20 @@
  * punch styles of the FX Kit "technique" primitive.  Same timeline, same
  * random streams (FXK.rng), same geometry and painting order as the game, so
  * the Studio preview draws what Solo and Battle draw.  Keep the two in step.
- * Builds on swordfx.js (frame, pen, maths): load it after that file.
+ * Builds on swordfx.js (frame, pen, maths) and hitfx.js (what the punch
+ * paints: its motion, impact and environment partitions): load it after both.
  */
 (function (G) {
 "use strict";
 var FXK = function () { return G.FXK; };
 var L_ = function () { return G.SWORDFX.lib; };
+var H_ = function () { return G.HITFX; };
 var STYLES = ["ki_barrage", "impact_punch"];
 
 var KI_SPEED = [9, 13], KI_RANGE = [0.85, 1.12], KI_SIDE = 7, KI_FLASH = 6, KI_BLAST_LIFE = 22, KI_SMOKE_LIFE = 44;
 var SMOKE = [92, 86, 80];
 var PUNCH_RETRACT = 5, PUNCH_IMPACT_LIFE = 24;
-var IMPACT_FRAME_TICKS = 2, FULL_FRAME = 20000, THROUGH_LIFE = 14, THROUGH_GAP = 22, INK = [16, 10, 22];
+var IMPACT_FRAME_TICKS = 2, FULL_FRAME = 20000, INK = [16, 10, 22];
 // Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
 // impact_frame / impact_frame_r): the strikes they apply to.
 var HIT_OPTION_STYLES = ["impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick"];
@@ -226,9 +228,14 @@ function hitstopTicks(P) {
   if (!optsOn(P) || !P.hitstop) return 0;
   return Math.max(0, Math.trunc(+P.hitstop_ticks || 0));
 }
+// The strike's hit weight: its hit-stop and screen shake, once per strike
+// however often it re-hits.
 function freeze(inst, host) {
+  if (inst.tq_hs || !host || !optsOn(inst.fx.params)) return;
+  inst.tq_hs = true;
   var n = hitstopTicks(inst.fx.params);
-  if (n > 0 && host && host.hitstop && !inst.tq_hs) { inst.tq_hs = true; host.hitstop(n); }   // one freeze per strike
+  if (n > 0 && host.hitstop) host.hitstop(n);
+  H_().shake(inst, host);
 }
 // The strike just landed: its hit-stop.
 function hitFreeze(inst, host) { freeze(inst, host); }
@@ -351,63 +358,6 @@ function drawKi(pen, inst, host, ps) {
   }
 }
 
-function spikes(pen, x, y, ang, n, rOut, rIn, c, a) {
-  var pts = [];
-  for (var j = 0; j < 2 * n; j++) {
-    var rr = j % 2 === 0 ? rOut : rIn, an = ang + Math.PI * j / n;
-    pts.push([x + Math.cos(an) * rr, y + Math.sin(an) * rr]);
-  }
-  pen.poly(pts, c, a);
-}
-// An uneven impact star: the spikes are longest along the strike (ang),
-// shortest across it, with a shorter kick back the way the fist came.
-function star(pen, inst, x, y, ang, n, rOut, rIn, c, a, salt) {
-  var L = L_(), pts = [];
-  for (var j = 0; j < 2 * n; j++) {
-    var an = ang + Math.PI * j / n, rr = rIn;
-    if (j % 2 === 0) {
-      var r = L.rngFor(inst.seed, j, 60 + salt);
-      an += r.uniform(-0.3, 0.3) * Math.PI / n;
-      var k = Math.cos(an - ang);
-      rr = rOut * (0.45 + 0.65 * Math.pow(Math.max(0, k), 2) + 0.25 * Math.pow(Math.max(0, -k), 2)) * r.uniform(0.75, 1.2);
-    }
-    pts.push([x + Math.cos(an) * rr, y + Math.sin(an) * rr]);
-  }
-  pen.poly(pts, c, a);
-}
-// A shock ring broken into 3-5 arcs with gaps (rx along ang).
-function arcRing(pen, inst, x, y, rx, ry, ang, c, a, w, salt) {
-  if (a <= 1 || w <= 0.05 || rx <= 0.5 || ry <= 0.5) return;
-  var r = L_().rngFor(inst.seed, 0, 80 + salt), n = 3 + Math.trunc(r() * 3), t0 = r() * Math.PI * 2;
-  var ca = Math.cos(ang), sa = Math.sin(ang), st = Math.PI * 2 / n;
-  for (var i = 0; i < n; i++) {
-    var s0 = t0 + i * st, s1 = s0 + st * r.uniform(0.55, 0.85), pts = [];
-    for (var k = 0; k < 9; k++) {
-      var t = s0 + (s1 - s0) * k / 8, px = Math.cos(t) * rx, py = Math.sin(t) * ry;
-      pts.push([x + px * ca - py * sa, y + px * sa + py * ca]);
-    }
-    pen.polyline(pts, c, a, w);
-  }
-}
-// Punch-through: the blow carries on out of the target's far side, a cone of
-// wind and light bursting along the strike line u (default: the punch line;
-// a whiff: the air it pushed).
-function through(pen, inst, c, ps, x, y, a, sc, salt, u) {
-  if (a < 0 || a >= THROUGH_LIFE) return;
-  var L = L_(), HOT = L.HOT, q = a / THROUGH_LIFE, e = L.easeOut3(Math.min(1, a / 6)), uf = u || inst.tq_f;
-  var fx_ = uf[0], fy_ = uf[1], nx = -fy_, ny = fx_, g = THROUGH_GAP * ps * sc;
-  var bx = x + fx_ * g, by = y + fy_ * g;
-  function p(u, v) { return [bx + fx_ * u + nx * v, by + fy_ * u + ny * v]; }
-  var Ln = (30 + 90 * e) * ps * sc, W = (10 + 34 * e) * ps * sc, fade = 1 - q;
-  pen.poly([p(0, W * 0.25), p(Ln * 0.75, W), p(Ln, 0), p(Ln * 0.75, -W), p(0, -W * 0.25)], c, 120 * fade);
-  pen.poly([p(0, W * 0.1), p(Ln * 0.6, W * 0.45), p(Ln * 0.85, 0), p(Ln * 0.6, -W * 0.45), p(0, -W * 0.1)], HOT, 170 * Math.pow(fade, 1.5));
-  for (var j = 0; j < 7; j++) {
-    var r = L.rngFor(inst.seed, j, 110 + salt), off = r.uniform(-1, 1) * W * 0.9;
-    var s0 = r.uniform(0.1, 0.5) * Ln, ln = r.uniform(0.35, 0.7) * Ln;
-    var p0 = p(s0, off), p1 = p(s0 + ln, off * 1.4);
-    pen.line(p0[0], p0[1], p1[0], p1[1], L.mix(HOT, c, q), 220 * fade, 1.3 * ps);
-  }
-}
 // Impact frame (params impact_frame): a white flash crossed by ink focus lines
 // converging on the contact point, then the inverse (ink, light lines).
 // local = inside impact_frame_r, full = the whole overlay.
@@ -429,109 +379,40 @@ function impactFrame(pen, inst, c, ps, x, y, a, sc, salt) {
   }
   pen.add(true);
 }
-// The punch landing (sc = size; a whiff is smaller), laid along the strike
-// direction u (default: the punch line; kickfx.js passes its own).
-function impact(pen, inst, c, ps, x, y, a, sc, salt, u) {
-  var L = L_(), HOT = L.HOT, mix = L.mix, q = a / PUNCH_IMPACT_LIFE, uf = u || inst.tq_f, fx_ = uf[0], fy_ = uf[1];
-  var ang = Math.atan2(fy_, fx_), j, e;
-  if (a < 6) pen.glow(x, y, (18 + 24 * L.easeOut3(a / 6)) * ps * sc, HOT, 255 * (1 - a / 6));
-  if (a < 10) {
-    var qs = a / 10;
-    e = L.easeOut3(a / 4);
-    star(pen, inst, x, y, ang, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs), salt);
-    star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, HOT, 255 * Math.pow(1 - qs, 1.5), salt);
-  }
-  pen.glow(x, y, (26 + 20 * L.easeOut3(q)) * ps * sc, c, 140 * (1 - q), 0.4);
-  through(pen, inst, c, ps, x, y, a, sc, salt, u);
-  // shockwave rings standing across the punch line, squashed along it: a
-  // full one, then two broken into arcs, each further out and faster
-  [[0, 0, 1], [1, 3, 1.45], [2, 6, 1.9]].forEach(function (dk) {
-    var n = dk[0], aa = a - dk[1], k = dk[2];
-    if (aa < 0) return;
-    var qq = aa / (PUNCH_IMPACT_LIFE - dk[1]), ee = L.easeOut3(qq);
-    var cx = x + fx_ * 10 * ps * sc * ee * k, cy = y + fy_ * 10 * ps * sc * ee * k;
-    var rx = (4 + 10 * ee) * ps * sc * k, ry = (10 + 50 * ee) * ps * sc * k;
-    if (n === 0) {
-      pen.ring(cx, cy, rx, ry, ang, c, 210 * (1 - qq), 3 * ps * (1 - qq) + 0.2);
-      pen.ring(cx, cy, rx, ry, ang, HOT, 160 * Math.pow(1 - qq, 2), 1 * ps * (1 - qq) + 0.1);
-    } else {
-      arcRing(pen, inst, cx, cy, rx, ry, ang, c, 200 * (1 - qq), (3.4 - n) * ps * (1 - qq) + 0.2, salt + n);
-      arcRing(pen, inst, cx, cy, rx, ry, ang, HOT, 150 * Math.pow(1 - qq, 2), 0.9 * ps * (1 - qq) + 0.1, salt + n);
-    }
-  });
-  // radial speed lines
-  if (a < 12) {
-    var ql = a / 12;
-    for (j = 0; j < 12; j++) {
-      var r = L.rngFor(inst.seed, j, 70 + salt), an = r.uniform(0, Math.PI * 2);
-      var r1 = (12 + 46 * L.easeOut3(ql)) * ps * sc * r.uniform(0.8, 1.2), ln = r.uniform(12, 26) * ps * sc * (1 - ql);
-      var ca = Math.cos(an), sa = Math.sin(an);
-      pen.line(x + ca * r1, y + sa * r1, x + ca * (r1 + ln), y + sa * (r1 + ln), mix(HOT, c, ql), 230 * (1 - ql), 1.4 * ps);
-    }
-  }
-  // sparks thrown mostly forward
-  var nsp = Math.max(0, Math.round(10 * (+inst.fx.params.density || 1) * sc));
-  for (j = 0; j < nsp; j++) {
-    var rg = L.rngFor(inst.seed, j, 90 + salt), life = 10 + 10 * rg();
-    if (a >= life) continue;
-    var an2 = ang + rg.uniform(-75, 75) * L.D, sp = rg.uniform(3, 8) * ps, fd = L.dragDist(0.87, a);
-    var sx = x + Math.cos(an2) * sp * fd, sy = y + Math.sin(an2) * sp * fd + 0.1 * ps * a * a;
-    var dk2 = Math.pow(0.87, a), q2 = a / life;
-    pen.line(sx, sy, sx - Math.cos(an2) * sp * dk2 * 1.6, sy - Math.sin(an2) * sp * dk2 * 1.6, mix(HOT, c, q2), 255 * (1 - q2), 1.5 * ps);
-  }
-}
-// [age, x, y, size, salt] of every impact on show: where the fist was when it
-// landed; a whiff bursts smaller at full reach.
+// [age, x, y, size, salt, tick] of every impact on show: where the fist was
+// when it landed; a whiff bursts smaller at full reach.
 function impacts(inst, P, fr, ps) {
   var t = inst.age;
-  if (inst.tq_imp.length) return inst.tq_imp.map(function (h, n) { return [t - h[0], h[1], h[2], 1, 11 * n]; });
+  if (inst.tq_imp.length) return inst.tq_imp.map(function (h, n) { return [t - h[0], h[1], h[2], 1, 11 * n, h[0]]; });
   var w = fr.w(+P.length * ps + +P.radius * ps * 0.8, 0);
-  return [[t - L_().swing(P), w[0], w[1], 0.55, 0]];
+  return [[t - L_().swing(P), w[0], w[1], 0.55, 0, L_().swing(P)]];
+}
+// The punch for the motion partition (HITFX.Motion): shoulder -> fist.
+function punchMotion(inst, P, fr, ps) {
+  var L = +P.length * ps, Ts = L_().swing(P), Th = hold(P), f = inst.tq_f;
+  var limb = function (t) { var w = fr.w(reach(P, t, L), 0); return [inst.x, inst.y, w[0], w[1], f[0], f[1]]; };
+  var Motion = H_().Motion;
+  return new Motion(limb, 0, Ts, Ts, Ts + Th + PUNCH_RETRACT, +P.radius * ps, +P.thickness * ps);
+}
+// Where the target's feet were on tick b.
+function feet(inst, b, ps) {
+  var tp = inst.tq_tp[Math.min(Math.max(0, b), inst.tq_tp.length - 1)];
+  return +tp[1] + H_().FEET_DROP * ps;
 }
 function drawPunch(pen, inst, host, ps) {
-  var Lb = L_(), HOT = Lb.HOT, mix = Lb.mix, P = inst.fx.params, t = inst.age, fr = Lb.frame(inst);
-  var cs = Lb.colours(inst, host), c = cs[0], bright = cs[1];
-  var L = +P.length * ps, rf = +P.radius * ps, W = +P.thickness * ps, Ts = Lb.swing(P), Th = hold(P);
-  var l = reach(P, t, L), out = t < Ts + Th + PUNCH_RETRACT, j;
+  var Lb = L_(), H = H_(), P = inst.fx.params, t = inst.age, fr = Lb.frame(inst), c = Lb.colours(inst, host)[0];
   var imps = impacts(inst, P, fr, ps);
   // 0: the impact frame, under everything else
   imps.forEach(function (m) { impactFrame(pen, inst, c, ps, m[1], m[2], m[0], m[3], m[4]); });
-  pen.add(true);
-  if (out && l > 1) {
-    var fade = t < Ts + Th ? 1 : 1 - (t - Ts - Th) / PUNCH_RETRACT;
-    // 1: pressure streak from the shoulder to the fist
-    var tail = Math.max(0, l - Math.max(L * 0.9, 3 * rf));
-    pen.poly([fr.w(tail, -0.12 * W), fr.w(l, -W), fr.w(l + rf * 0.6, 0), fr.w(l, W), fr.w(tail, 0.12 * W)], c, 95 * fade);
-    var t3 = tail + (l - tail) * 0.3;
-    pen.poly([fr.w(t3, -0.06 * W), fr.w(l, -0.45 * W), fr.w(l + rf * 0.4, 0), fr.w(l, 0.45 * W), fr.w(t3, 0.06 * W)], bright, 170 * fade);
-    // 2: speed lines alongside it while it drives out
-    if (t <= Ts + 2) {
-      var sf = t <= Ts ? 1 : 1 - (t - Ts) / 2;
-      for (j = 0; j < 4; j++) {
-        var r = Lb.rngFor(inst.seed, j, 51), off = (j % 2 ? 1 : -1) * W * r.uniform(1.1, 2);
-        var x0 = l - r.uniform(0.5, 0.9) * L, x1 = l - r.uniform(0, 0.2) * L;
-        var a0 = fr.w(Math.max(0, x0), off), a1 = fr.w(Math.max(0, x1), off);
-        pen.line(a0[0], a0[1], a1[0], a1[1], mix(c, HOT, 0.4), 170 * sf, 1.2 * ps);
-      }
-    }
-    // 3: afterimages of the fist
-    [[2, 60], [1, 100]].forEach(function (ja) {
-      var g = fr.w(reach(P, Math.max(0, t - ja[0]), L), 0);
-      pen.glow(g[0], g[1], rf * 1.8, c, ja[1] * fade);
-    });
-    // 4: air ring compressing in front of the fist
-    if (t <= Ts + 1) {
-      var e = Lb.easeOut3(t / Ts), ar = fr.w(l + rf * (0.9 + 0.5 * e), 0);
-      pen.ring(ar[0], ar[1], rf * 0.45, rf * (1 + 0.9 * e), Math.atan2(inst.tq_f[1], inst.tq_f[0]), HOT, 200 * (0.4 + 0.6 * e), 1.4 * ps);
-    }
-    // 5: the fist
-    var f = fr.w(l, 0);
-    pen.glow(f[0], f[1], rf * 2.6, c, 170 * fade);
-    pen.glow(f[0], f[1], rf * 1.4, mix(c, HOT, 0.6), 235 * fade);
-    pen.glow(f[0], f[1], rf * 0.7, HOT, 255 * fade, 0.7);
-  }
-  // 6: the impacts
-  imps.forEach(function (m) { if (m[0] >= 0 && m[0] < PUNCH_IMPACT_LIFE) impact(pen, inst, c, ps, m[1], m[2], m[0], m[3], m[4]); });
+  // 1: the surroundings (fx_env): push-off dust under the fighter, a ground wave under the target
+  var p0 = inst.tq_path[0];
+  H.env(pen, inst, P, c, ps, ["push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m, 0, 0.8, 0]);
+  imps.forEach(function (m) { H.env(pen, inst, P, c, ps, ["ground", m[0], m[1], feet(inst, m[5], ps), 0, 0, m[3] * 0.7, m[4]]); });
+  // 2: the fist and its motion (fx_motion)
+  H.motion(pen, inst, P, t, ps, c, punchMotion(inst, P, fr, ps));
+  // 3: the impacts (fx_impact)
+  imps.forEach(function (m) { H.impact(pen, inst, P, c, ps, m[1], m[2], m[0], m[3], m[4], inst.tq_f); });
+  pen.add(false);
 }
 
 function draw(pen, inst, host, ps) {
@@ -540,6 +421,6 @@ function draw(pen, inst, host, ps) {
 }
 
 G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
-                impact: impact, impactFrame: impactFrame, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
+                impactFrame: impactFrame, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
                 shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);

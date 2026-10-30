@@ -217,6 +217,12 @@ PARAM_DEFAULTS = {
     # world hitstop_ticks when it lands (Solo: as it whiffs); kb_dir aim /
     # tangent / custom (kb_angle_deg turned from the strike, clockwise);
     # impact_frame off / local (impact_frame_r px) / full (the whole overlay).
+    # Strike FX partitions (laser/hitfx.py; the punch and the kicks): fx_motion
+    # / fx_impact / fx_env each off / ink / energy / gritty; motion_smear and
+    # motion_arcs switch the motion's smear frames and air strokes. Hit
+    # weight: shake (shake_px, shake_ticks) shakes the overlay with the
+    # hit-stop; squash (squash_amt, squash_ticks, squash_flash) squashes the
+    # fighter hit along the blow and flashes it white.
     # Kicks (laser/kickfx.py): kick_sweep high_low / low_high (roundhouse);
     # axe_dir screen_down / along_aim / custom, axe_crater contact / feet;
     # spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
@@ -229,7 +235,10 @@ PARAM_DEFAULTS = {
                       w_depth=0, w_weight=0, w_plane=0, w_plane_roll=0, w_side="front", ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
                       impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
-                      axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0),
+                      axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0,
+                      fx_motion="ink", motion_smear=True, motion_arcs=True, fx_impact="ink", fx_env="ink",
+                      shake=False, shake_px=6, shake_ticks=8, squash=False, squash_amt=0.3, squash_ticks=6,
+                      squash_flash=True),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -259,14 +268,19 @@ TECH_STYLE_DEFAULTS = {
     "combo_launcher": dict(radius=55, span=120, thickness=11, swing_ticks=5),
     "combo_backhand": dict(radius=70, span=150, thickness=11, swing_ticks=5),
     "ki_barrage": dict(radius=6, thickness=18, span=18, length=320, swing_ticks=3, hold_ticks=45),
-    "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3),
+    "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3, hitstop=True, hitstop_ticks=3,
+                         squash=True, squash_amt=0.25),
     # Kicks (laser/kickfx.py)
-    "roundhouse_kick": dict(radius=10, span=150, thickness=16, length=70, swing_ticks=6, hold_ticks=3, kb_dir="tangent"),
-    "thrust_kick": dict(radius=12, thickness=18, length=80, swing_ticks=5, hold_ticks=4, kb_dir="aim"),
-    "axe_kick": dict(radius=11, span=140, thickness=16, length=70, swing_ticks=7, hold_ticks=4, kb_dir="tangent"),
+    "roundhouse_kick": dict(radius=10, span=150, thickness=16, length=70, swing_ticks=6, hold_ticks=3, kb_dir="tangent",
+                            hitstop=True, hitstop_ticks=5, shake=True, shake_px=6, squash=True),
+    "thrust_kick": dict(radius=12, thickness=18, length=80, swing_ticks=5, hold_ticks=4, kb_dir="aim", hitstop=True,
+                        hitstop_ticks=5, shake=True, shake_px=5, squash=True),
+    "axe_kick": dict(radius=11, span=140, thickness=16, length=70, swing_ticks=7, hold_ticks=4, kb_dir="tangent",
+                     hitstop=True, hitstop_ticks=6, shake=True, shake_px=9, squash=True, squash_amt=0.4),
     "spinning_kick": dict(radius=10, thickness=14, length=65, swing_ticks=14, hold_ticks=2, kb_dir="tangent",
-                          spin_turns=2),
-    "rising_kick": dict(radius=10, span=150, thickness=15, length=70, swing_ticks=6, hold_ticks=4, kb_dir="tangent"),
+                          spin_turns=2, hitstop=True, hitstop_ticks=5, shake=True, shake_px=6, squash=True),
+    "rising_kick": dict(radius=10, span=150, thickness=15, length=70, swing_ticks=6, hold_ticks=4, kb_dir="tangent",
+                        hitstop=True, hitstop_ticks=4, shake=True, shake_px=4, squash=True),
     "ssj_aura": dict(radius=6, span=100, thickness=5, length=22, swing_ticks=14, hold_ticks=300, lightning=True,
                      lightning_rate=2, aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=True),
     "rasen_shuriken": dict(radius=10, span=46, thickness=110, length=420, swing_ticks=40, hold_ticks=50),
@@ -3498,6 +3512,13 @@ class _Host:
         World.hitstop_ticks freeze big hits use; both sides at once)."""
         w = self.world
         w.hitstop_ticks = max(int(getattr(w, "hitstop_ticks", 0) or 0), int(ticks))
+
+    def shake(self, px, ticks):
+        """A strike's screen shake (laser/hitfx.py): the overlay shakes px,
+        easing out over `ticks` (World.add_shake)."""
+        fn = getattr(self.world, "add_shake", None)
+        if fn is not None:
+            fn(px, ticks)
 
     def anchor(self, name):
         fig, cfx, drv = self.fig, self.drv.cfx, self.drv

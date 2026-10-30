@@ -27,7 +27,7 @@ class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
                  "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
-                 "bench_since", "bench_ticks", "tgt", "last_hit_by")
+                 "bench_since", "bench_ticks", "tgt", "last_hit_by", "hit_squash")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -69,6 +69,9 @@ class Figure:
         # id() of the enemy that last hit it ("last attacker").
         self.tgt = None
         self.last_hit_by = None
+        # Strike hit weight (laser/hitfx.py): [ticks left, total, dx, dy,
+        # amount, flash] while squashed by a punch / kick; None otherwise.
+        self.hit_squash = None
 
     # convenience aliases ---------------------------------------------------
     @property
@@ -201,6 +204,20 @@ class Figure:
             return fs[self.render.run_idx % len(fs)]
         return None
 
+    def _squash(self, p):
+        """Strike hit weight (laser/hitfx.py, World.step_hit_weight): squashed
+        along the blow (dx, dy) and stretched across it, springing back over
+        its ticks.  Applied at the figure's centre, before its own turn."""
+        hs = getattr(self, "hit_squash", None)
+        if hs is None or hs[4] <= 0:
+            return
+        k = hs[0] / float(max(1, hs[1]))
+        a = hs[4] * k * k
+        deg = math.degrees(math.atan2(hs[3], hs[2]))
+        p.rotate(deg)
+        p.scale(1.0 - a, 1.0 + a * 0.6)
+        p.rotate(-deg)
+
     def draw(self, p, pen, body=True):
         """Paint the figure and everything it owns.  body=False skips only
         the sprite (and its outline glow) — the pre-battle menu's frozen FX
@@ -291,6 +308,7 @@ class Figure:
                 sx, sy = -silh.width() // 2, -silh.height() // 2
                 p.save()
                 p.translate(self.transform.x, self.transform.y)
+                self._squash(p)
                 if self.aim is not None:
                     p.rotate(self.aim)
                 elif self.motion.rotate:
@@ -308,6 +326,7 @@ class Figure:
                 p.restore()
             p.save()
             p.translate(self.transform.x, self.transform.y)
+            self._squash(p)
             if self.aim is not None:
                 p.rotate(self.aim)
             elif self.motion.rotate:
@@ -318,6 +337,14 @@ class Figure:
             if _ga is not None:
                 p.setOpacity(_ga)
             p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
+            # Hit flash (strike hit weight): the body goes white, fading.
+            hs = getattr(self, "hit_squash", None)
+            if hs is not None and hs[5]:
+                k = hs[0] / float(max(1, hs[1]))
+                if k > 0.35:
+                    p.setOpacity(min(1.0, (k - 0.35) / 0.65) * 0.9)
+                    p.drawPixmap(-frame.width() // 2, -frame.height() // 2,
+                                 _combat.silhouette(frame, (255, 255, 255)))
             p.restore()
             if _ga is not None:
                 p.setOpacity(1.0)

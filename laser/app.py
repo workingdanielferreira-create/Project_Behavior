@@ -8,6 +8,7 @@ state and entity creation lives in World.
 
 import math
 import os
+import random
 import sys
 import time
 import traceback
@@ -19,6 +20,7 @@ from PyQt5.QtGui import (QPainter, QCursor, QPen, QColor, QRadialGradient,
 
 from . import config, modes, systems, ai, action_log, combat, actions, fxkit, blink, dodge, timefx, clashfx, clash, motion, unique, movestyle
 from . import swordfx
+from . import hitfx, strikefx
 from . import dmgnum
 from .prebattle import PreBattleMenu
 from . import roster as _roster
@@ -171,6 +173,10 @@ class World:
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
+        # Screen shake (laser/hitfx.py hit weight): [ticks left, total, px]
+        # or None.  Counts down every tick, hit-stop included, so a frozen
+        # hit shakes.
+        self.shake = None
         # FX Studio Time control (laser/timefx.py), set per time sub-pass:
         # ids of the figures whose FX step in it (None = all), the figures
         # whose FX step while their body is stopped, and whether the side's
@@ -981,6 +987,13 @@ class World:
                     # A new hit restarts the slide for its full distance.
                     spd = kb * (1.0 - config.BOUNCE_FRICTION)
                     motion.launch_knockback(ef, dx * spd, dy * spd, self.global_tick)
+                # Strike hit weight (laser/hitfx.py): the fighter hit squashes
+                # along the blow and flashes white (Figure.draw).
+                P = inst.fx.get("params") or {}
+                if inst.fx.get("prim") == "technique" and P.get("style") in strikefx.HIT_OPTION_STYLES:
+                    sq = hitfx.squash_of(P)
+                    if sq is not None:
+                        ef.hit_squash = [sq[0], sq[0], float(dx), float(dy), sq[1], sq[2]]
         # Deliver FX Studio pulls (gigantic meteor, black hole) from last
         # tick: the opposing fighters inside a pull field are drawn toward
         # it; a blinked-out fighter (or one not placed yet, which the
@@ -1072,6 +1085,37 @@ class World:
     def fielded_sides(self):
         return [i for i, s in enumerate(self.sides) if s.figures]
 
+    def add_shake(self, px, ticks):
+        """A strike's screen shake (fxkit _Host.shake): the stronger of it and
+        what is shaking now."""
+        cur = self.shake
+        if cur is None or px >= cur[2] * cur[0] / float(max(1, cur[1])):
+            self.shake = [int(ticks), int(ticks), float(px)]
+
+    def shake_offset(self):
+        """This frame's shake (dx, dy) in px, easing out; None when still."""
+        sh = self.shake
+        if sh is None:
+            return None
+        amp = sh[2] * sh[0] / float(max(1, sh[1]))
+        return random.uniform(-amp, amp), random.uniform(-amp, amp)
+
+    def step_hit_weight(self):
+        """Each tick (hit-stop included): the shake counts down; outside a
+        hit-stop the squash of every fighter hit springs back."""
+        if self.shake is not None:
+            self.shake[0] -= 1
+            if self.shake[0] <= 0:
+                self.shake = None
+        if self.hitstop_ticks > 0:
+            return
+        for fig in self.all_figures():
+            hs = getattr(fig, "hit_squash", None)
+            if hs is not None:
+                hs[0] -= 1
+                if hs[0] <= 0:
+                    fig.hit_squash = None
+
     def all_figures(self):
         for s in self.sides:
             for f in s.figures:
@@ -1157,6 +1201,9 @@ class Overlay(QWidget):
             w.prebattle.tick += 1
             self.update()
             return
+
+        # --- Hit weight: screen shake and target squash count down ---
+        w.step_hit_weight()
 
         # --- HIT-STOP: freeze the world for a few ticks on big hits ---
         # Input keeps running; combat, motion, collisions, and bullets all
@@ -1336,6 +1383,11 @@ class Overlay(QWidget):
         abs_front=False the absolute-front FX — used by the pre-battle
         menu's frozen FX layers."""
         w = self.world
+        # Screen shake (strike hit weight): the scene moves, the HUD stays.
+        shk = w.shake_offset()
+        if shk is not None:
+            p.save()
+            p.translate(shk[0], shk[1])
         self._paint_abs_layer(p, "abs_back")
         for fig in w.all_figures():
             fig.draw(p, self._pen, body=bodies)
@@ -1473,6 +1525,8 @@ class Overlay(QWidget):
             sw, sh = w.screen_w, w.screen_h
             dmgnum.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
 
+        if shk is not None:
+            p.restore()
         if not hud:
             return
 

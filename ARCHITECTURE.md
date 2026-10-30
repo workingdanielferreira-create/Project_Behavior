@@ -97,6 +97,8 @@ laser/
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
   strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
   kickfx.py          roundhouse / thrust / axe / spinning / rising kicks (with swordfx.py, strikefx.py)
+  hitfx.py           strike FX partitions the punch + kicks paint: motion / impact / environment,
+                     each off / ink / energy / gritty; hit weight (shake, target squash)
   powerfx.py         SSJ aura, rasen-shuriken, gigantic meteor, ghost kamikaze, serious punch,
                      black hole: hand-drawn "technique" styles + the meteor / black hole pull
   gunfx.py           anime gun shots (machine gun, shotgun, magnum, charged blast, dual

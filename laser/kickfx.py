@@ -4,13 +4,16 @@ at the same standard as the punch (laser/strikefx.py, whose impact, impact
 frame and hit options they share) and the sword techniques (laser/swordfx.py,
 whose frame, pen and timeline they share).
 
-Every kick is a path of the foot: a short wind-up (WIND ticks: a glint where
-the kick starts), the kick itself over Swing ticks, held for Hold ticks, then
-it fades over RETRACT ticks.  A crescent trail follows the foot, widest at the
-foot and tapering back along its path, growing in toward the pivot (the hip);
-speed lines run along it.  It hits along the lower leg; where it lands (or,
-on a whiff, where it meets the aim at its contact moment) the punch's impact
-plays laid along the way the foot was moving, heavier, with dust.
+Every kick is a path of the foot: a short wind-up (WIND ticks), the kick
+itself over Swing ticks, held for Hold ticks, then it fades over RETRACT
+ticks.  It hits along the lower leg.  What it paints is laser/hitfx.py's
+three partitions, each off / ink / energy / gritty: fx_motion (smear frames
+of the leg up to contact, broken air strokes along the foot's path, the
+foot), fx_impact (the hit where the foot lands, or on a whiff where it meets
+the aim at its contact moment, laid along the way the foot was moving and
+HEAVY times the punch's size) and fx_env (push-off dust as the kick starts, a
+ground wave under the target; the axe kick's crater, the rising kick's
+kick-up, the spinning kick's vortex).
 
 Styles (params.style):
 
@@ -26,26 +29,28 @@ Styles (params.style):
                    custom (kick_angle_deg turned from the aim, clockwise,
                    mirrors with the facing).  A crater, cracks spreading along
                    the ground and debris thrown up, at the contact point
-                   (axe_crater contact) or under the target's feet (feet).
+                   (axe_crater contact) or under the target's feet (feet)
+                   (fx_env).
   spinning_kick    spin_turns full circles of radius Length, ending on the aim.
                    spin_mode: centered (round the anchor, a wind vortex round
-                   the body), travel (drifting forward along the aim while it
+                   the body: fx_env), travel (drifting forward along the aim while it
                    spins), lunge (spins in place, the last part lunges forward
                    and lands the heavy hit).
   rising_kick      a launcher: an arc rising through the point 0.9 x Length
                    along the aim and on past it, moving the way rise_dir says:
                    screen_up (up and forward), perpendicular (square to the
                    aim, the side away from screen-down), straight_up, or custom
-                   (kick_angle_deg from the aim).  Dust kicked up as it starts.
+                   (kick_angle_deg from the aim).  Dust kicked up as it starts
+                   (fx_env).
 
 Parameters (the technique's own, reused): radius = foot size, thickness =
-trail width, length = leg reach (arc radius / thrust reach), span = arc sweep
+how far the air strokes spread, length = leg reach (arc radius / thrust reach), span = arc sweep
 (degrees; roundhouse / axe / rising), swing_ticks = kick ticks, hold_ticks =
 ticks held at the end, density = sparks / dust / debris.
 
-Hit options (strikefx.HIT_OPTION_STYLES): Hit-stop, Knockback direction (aim /
-tangent = the way the foot moves at contact / custom) and Impact frame work
-as for the punch.  Everything is a pure function of the instance (age, seed,
+Hit options (strikefx.HIT_OPTION_STYLES): Hit-stop, screen shake, target
+squash, Knockback direction (aim / tangent = the way the foot moves at
+contact / custom) and Impact frame work as for the punch.  Everything is a pure function of the instance (age, seed,
 the anchor, the target's path), so FX Studio's port (tools/fx/studio/kickfx.js)
 draws the same pixels.
 """
@@ -55,24 +60,20 @@ import math
 from . import fxkit as F
 from . import swordfx as S
 from . import strikefx as K
+from . import hitfx as H
 
 STYLES = ("roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick")
 ARC_STYLES = ("roundhouse_kick", "axe_kick", "rising_kick")
 
 WIND = 3                 # wind-up ticks before the kick moves
 RETRACT = 6              # ticks the foot fades after the hold
-TRAIL_LAG = 3.0          # ticks of the foot's path the trail covers
-TRAIL_N = 24             # trail samples
-FEET_DROP = 30.0         # target centre to its feet, px (x scale): axe_crater feet
+FEET_DROP = H.FEET_DROP  # target centre to its feet, px (x scale): ground waves, axe_crater feet
 RISE_REACH = 0.9         # the rising kick meets the aim this far out (x Length)
-DUST = (150, 138, 120)
-ROCK = (96, 84, 72)
-SCORCH = (40, 30, 28)
 # When in the kick (fraction of Swing ticks) the foot meets the aim.
 CONTACT = {"roundhouse_kick": 0.5, "thrust_kick": 1.0, "axe_kick": 1.0, "spinning_kick": 1.0, "rising_kick": 0.55}
 # How much bigger than the punch's its impact is.
 HEAVY = {"roundhouse_kick": 1.15, "thrust_kick": 1.3, "axe_kick": 1.3, "spinning_kick": 1.0, "rising_kick": 1.1}
-IMPACT_LIFE = K.PUNCH_IMPACT_LIFE
+IMPACT_LIFE = H.IMPACT_LIFE
 
 
 # ---------------------------------------------------------------- timeline
@@ -254,9 +255,10 @@ def hit_dir(inst):
 
 
 def hitstop_step(inst, host):
-    """Solo has no opponent: the kick freezes as its whiff bursts."""
+    """Solo has no opponent: the kick's hit weight (hit-stop, shake) plays
+    as its whiff bursts."""
     P = inst.fx["params"]
-    if host is None or S._style(P) not in STYLES or not P.get("hitstop") or not getattr(host, "solo", False):
+    if host is None or S._style(P) not in STYLES or not (P.get("hitstop") or P.get("shake")) or not getattr(host, "solo", False):
         return
     if not inst.tq_imp and inst.age + 1 == contact_tick(P):
         K._freeze(inst, host)
@@ -274,144 +276,25 @@ def _impacts(inst, P, ps):
     return [(t - tc, x, y, ux, uy, 0.55, 0, tc)]
 
 
-def _ellipse(x, y, rx, ry, n=20):
-    return [(x + math.cos(i * 2 * math.pi / n) * rx, y + math.sin(i * 2 * math.pi / n) * ry) for i in range(n)]
-
-
-def _windup(pen, inst, P, t, ps, c):
-    """A glint where the kick starts, drawing in."""
-    x, y, _ox, _oy, _ux, _uy = pose(inst, WIND, ps)
-    rf = float(P["radius"]) * ps
-    e = t / float(WIND)
-    pen.glow(x, y, rf * (0.8 + 1.2 * e), c, 120 + 100 * e)
-    pen.ring(x, y, rf * (3 - 2 * e), rf * (3 - 2 * e), 0.0, S.HOT, 150 * e, 1.2 * ps)
-
-
-def _trail(pen, inst, P, t, ps, c, bright, fade):
-    """The crescent trail: widest at the foot, tapering back along its path,
-    growing in toward the pivot (a thrust: both sides of its line)."""
-    W = float(P["thickness"]) * ps
+def _motion(inst, P, ps):
+    """The kick for the motion partition (hitfx.Motion): knee -> foot (a
+    thrust: hip -> foot), moving the way the foot moves."""
     thrust = S._style(P) == "thrust_kick"
-    out, inn, cout, cinn, side = [], [], [], [], []
-    for k in range(TRAIL_N + 1):
-        q = k / float(TRAIL_N)
-        x, y, ox, oy, ux, uy = pose(inst, t - TRAIL_LAG * q, ps)
+
+    def limb(t):
+        x, y, ox, oy, ux, uy = pose(inst, t, ps)
         if thrust:
-            rx, ry, o_, i_ = -uy, ux, 0.8, 0.8
-        else:
-            rx, ry = _unit(x - ox, y - oy)
-            o_, i_ = 0.35, 1.0
-        w = W * (1 - q) ** 0.8
-        out.append((x + rx * w * o_, y + ry * w * o_))
-        inn.append((x - rx * w * i_, y - ry * w * i_))
-        cout.append((x + rx * w * o_ * 0.35, y + ry * w * o_ * 0.35))
-        cinn.append((x - rx * w * i_ * 0.45, y - ry * w * i_ * 0.45))
-        side.append((x, y, rx, ry))
-    pen.poly(out + inn[::-1], c, 110 * fade)
-    pen.poly(cout + cinn[::-1], bright, 170 * fade)
-    # speed lines along it while it moves
-    Ts = S._swing(P)
-    if t <= WIND + Ts + 1:
-        for j in range(3):
-            r = S.rng_for(inst.seed, j, 151)
-            off = r.uniform(-1.4, 0.6) * W
-            k0 = F.trunc(r.uniform(0, 4))
-            pts = [(x + rx * off, y + ry * off) for (x, y, rx, ry) in side[k0:]]
-            pen.polyline(pts, S.mix(c, S.HOT, 0.4), 160 * fade, 1.2 * ps)
+            return ox, oy, x, y, ux, uy
+        return ox + (x - ox) * 0.35, oy + (y - oy) * 0.35, x, y, ux, uy
+    Ts, Th = S._swing(P), _hold(P)
+    return H.Motion(limb, WIND, contact_tick(P), WIND + Ts, WIND + Ts + Th + RETRACT, float(P["radius"]) * ps,
+                    float(P["thickness"]) * ps)
 
 
-def _foot(pen, inst, P, t, ps, c, fade):
-    rf = float(P["radius"]) * ps
-    for (j, al) in ((2, 60), (1, 100)):
-        x, y = pose(inst, max(float(WIND), t - j), ps)[:2]
-        pen.glow(x, y, rf * 1.8, c, al * fade)
-    x, y = pose(inst, t, ps)[:2]
-    pen.glow(x, y, rf * 2.6, c, 170 * fade)
-    pen.glow(x, y, rf * 1.4, S.mix(c, S.HOT, 0.6), 235 * fade)
-    pen.glow(x, y, rf * 0.7, S.HOT, 255 * fade, 0.7)
-
-
-def _swirl(pen, x, y, rx, ry, rot, c, a, w):
-    """Three arcs of an ellipse, turned by rot."""
-    for i in range(3):
-        s0 = rot + i * 2 * math.pi / 3
-        pts = [(x + math.cos(s0 + 1.2 * k / 8.0) * rx, y + math.sin(s0 + 1.2 * k / 8.0) * ry) for k in range(9)]
-        pen.polyline(pts, c, a, w)
-
-
-def _vortex(pen, inst, P, t, ps, c, fade):
-    """Spinning kick: a wind vortex round the body, turning with the kick."""
-    _x, _y, ox, oy, _ux, _uy = pose(inst, t, ps)
-    L = float(P["length"]) * ps
-    s = inst.tq_m
-    for j in range(3):
-        rx = L * (0.8 + 0.25 * j)
-        _swirl(pen, ox, oy + L * 0.15 * (j - 1), rx, rx * 0.32, s * (t * 0.55 + j * 1.3), S.mix(c, S.HOT, 0.3),
-               (150 - 30 * j) * fade, (1.8 - 0.4 * j) * ps)
-
-
-def _kickup(pen, inst, P, t, ps):
-    """Rising kick: dust kicked up where it starts."""
-    a = t - WIND
-    if a < 0 or a >= 18:
-        return
-    x, y = pose(inst, WIND, ps)[:2]
-    q = a / 18.0
-    n = max(0, F.jround(5 * float(P.get("density") or 1)))
-    for j in range(n):
-        r = S.rng_for(inst.seed, j, 161)
-        dx = r.uniform(-1.0, 1.0) * 14 * ps * q
-        dy = -r.uniform(0.6, 1.4) * 22 * ps * S.ease_out3(q)
-        pen.glow(x + dx, y + dy, (6 + 10 * q) * ps * r.uniform(0.7, 1.3), DUST, 110 * (1 - q), 0.6)
-
-
-def _dust(pen, inst, ps, x, y, a, sc, salt):
-    """Dust thrown out round the impact (normal blending)."""
-    n = max(0, F.jround(6 * float(inst.fx["params"].get("density") or 1) * sc))
-    for j in range(n):
-        r = S.rng_for(inst.seed, j, 170 + salt)
-        life = 20 + 10 * r()
-        if a >= life:
-            continue
-        q = a / life
-        an = r.uniform(0, math.pi * 2)
-        d = r.uniform(0.8, 2.2) * ps * S.drag_dist(0.9, a)
-        rad = (5 + 10 * S.ease_out3(q)) * ps * sc * r.uniform(0.7, 1.3)
-        pen.glow(x + math.cos(an) * d, y + math.sin(an) * d * 0.6, rad, DUST, 90 * (1 - q), 0.6)
-
-
-def _crater(pen, inst, c, ps, x, y, a, sc, salt):
-    """Axe kick: a scorched crater, cracks running along the ground, debris
-    thrown up and a ground shock ring (laid flat)."""
-    q = a / float(IMPACT_LIFE)
-    e = S.ease_out3(min(1.0, a / 8.0))
-    R = (22 + 26 * e) * ps * sc
-    pen.poly(_ellipse(x, y, R, R * 0.32), SCORCH, 140 * (1 - q))
-    pen.ring(x, y, R, R * 0.32, 0.0, DUST, 200 * (1 - q), 2.0 * ps)
-    for j in range(7):
-        r = S.rng_for(inst.seed, j, 180 + salt)
-        side = 0.0 if j % 2 == 0 else math.pi
-        an = side + r.uniform(-0.35, 0.35)
-        ln = (20 + 60 * e) * ps * sc * r.uniform(0.6, 1.2)
-        pts = [(x, y)]
-        for k in range(1, 5):
-            d = ln * k / 4.0
-            jit = r.uniform(-0.5, 0.5) * 6 * ps
-            pts.append((x + math.cos(an) * d, y + math.sin(an) * d * 0.4 + jit))
-        pen.polyline(pts, K.INK, 200 * (1 - q), 1.6 * ps)
-    n = max(0, F.jround(8 * float(inst.fx["params"].get("density") or 1)))
-    for j in range(n):
-        r = S.rng_for(inst.seed, j, 190 + salt)
-        vx = r.uniform(-3.0, 3.0) * ps
-        vy = -r.uniform(3.0, 7.0) * ps
-        rx_, ry_ = x + vx * a, y + vy * a + 0.225 * ps * a * a
-        if ry_ > y + 4 * ps:
-            continue
-        sz = r.uniform(2.0, 4.0) * ps
-        pen.poly([(rx_ - sz, ry_), (rx_, ry_ - sz), (rx_ + sz, ry_), (rx_, ry_ + sz * 0.7)], ROCK, 230 * (1 - q))
-    pen.add(True)
-    pen.ring(x, y, (10 + 70 * e) * ps * sc, (3 + 20 * e) * ps * sc, 0.0, c, 200 * (1 - q), 2.5 * ps * (1 - q) + 0.2)
-    pen.add(False)
+def _feet(inst, b, ps):
+    """Where the target's feet were on tick b."""
+    tp = inst.tq_tp[min(max(0, b), len(inst.tq_tp) - 1)]
+    return float(tp[1]) + FEET_DROP * ps
 
 
 def _crater_at(inst, P, ps, x, y, b):
@@ -420,42 +303,42 @@ def _crater_at(inst, P, ps, x, y, b):
     if (P.get("axe_crater") or "contact") != "feet":
         return x, y
     tp = inst.tq_tp[min(max(0, b), len(inst.tq_tp) - 1)]
-    return float(tp[0]), float(tp[1]) + FEET_DROP * ps
+    return float(tp[0]), _feet(inst, b, ps)
 
 
 def draw(pen, inst, host, ps):
     P = inst.fx["params"]
     st = S._style(P)
     t = inst.age
-    c, bright, _deep = S._colours(inst, host)
+    c, _bright, _deep = S._colours(inst, host)
     Ts, Th = S._swing(P), _hold(P)
     imps = _impacts(inst, P, ps)
+    hv = HEAVY[st]
     # 0: the impact frame, under everything else
     for (a, x, y, _ux, _uy, sc, salt, _b) in imps:
         K._impact_frame(pen, inst, c, ps, x, y, a, sc, salt)
-    pen.add(True)
-    if t < WIND:
-        _windup(pen, inst, P, t, ps, c)
-    elif t < WIND + Ts + Th + RETRACT:
-        fade = 1.0 if t < WIND + Ts + Th else 1 - (t - WIND - Ts - Th) / float(RETRACT)
-        if st == "spinning_kick":
-            _vortex(pen, inst, P, t, ps, c, fade)
-        _trail(pen, inst, P, t, ps, c, bright, fade)
-        _foot(pen, inst, P, t, ps, c, fade)
+    # 1: the surroundings (fx_env): push-off dust under the fighter as the
+    # kick starts, the rising kick's kick-up, the spinning kick's vortex, and
+    # under each impact a ground wave (the axe kick: its crater)
+    p0 = inst.tq_path[min(WIND, len(inst.tq_path) - 1)]
+    H.env(pen, inst, P, c, ps, ("push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m, 0.0, hv, 0))
     if st == "rising_kick":
-        pen.add(False)
-        _kickup(pen, inst, P, t, ps)
-        pen.add(True)
-    # the impacts: ground and dust first (normal blending), then the punch's
-    # impact laid along the foot's motion, heavier
-    hv = HEAVY[st]
-    for (a, x, y, ux, uy, sc, salt, b) in imps:
-        if not 0 <= a < IMPACT_LIFE:
-            continue
-        pen.add(False)
+        x, y = pose(inst, WIND, ps)[:2]
+        H.env(pen, inst, P, c, ps, ("kickup", t - WIND, x, y, 0.0, 0.0, 1.0, 0))
+    out = WIND <= t < WIND + Ts + Th + RETRACT
+    if st == "spinning_kick" and out and (P.get("spin_mode") or "centered") == "centered":
+        fade = 1.0 if t < WIND + Ts + Th else 1 - (t - WIND - Ts - Th) / float(RETRACT)
+        _x, _y, ox, oy, _ux, _uy = pose(inst, t, ps)
+        H.env(pen, inst, P, c, ps, ("vortex", t, ox, oy, float(P["length"]) * ps, inst.tq_m, fade, 0))
+    for (a, x, y, _ux, _uy, sc, salt, b) in imps:
         if st == "axe_kick":
             gx, gy = _crater_at(inst, P, ps, x, y, b)
-            _crater(pen, inst, c, ps, gx, gy, a, sc * hv, salt)
-        _dust(pen, inst, ps, x, y, a, sc * hv, salt)
-        pen.add(True)
-        K._impact(pen, inst, c, ps, x, y, a, sc * hv, salt, (ux, uy))
+            H.env(pen, inst, P, c, ps, ("crater", a, gx, gy, 0.0, 0.0, sc * hv, salt))
+        else:
+            H.env(pen, inst, P, c, ps, ("ground", a, x, _feet(inst, b, ps), 0.0, 0.0, sc * hv, salt))
+    # 2: the foot and its motion (fx_motion)
+    H.motion(pen, inst, P, t, ps, c, _motion(inst, P, ps))
+    # 3: the impacts (fx_impact), laid along the foot's motion, heavier
+    for (a, x, y, ux, uy, sc, salt, _b) in imps:
+        H.impact(pen, inst, P, c, ps, x, y, a, sc * hv, salt, (ux, uy))
+    pen.add(False)
