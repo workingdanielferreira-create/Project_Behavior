@@ -16,10 +16,26 @@ Styles (params.style):
                 target while the barrage keeps coming.
   impact_punch  the fist drives out along the aim inside a pressure streak
                 with speed lines and afterimages, an air ring compressing in
-                front of it; when it lands: a white flash, a spiked impact
-                star, two shockwave rings standing across the punch line,
-                radial speed lines and sparks.  A whiff gives a smaller burst
-                at full reach.
+                front of it; when it lands: a white flash, an uneven impact
+                star (spikes longest along the punch), three shockwave rings
+                standing across the punch line and squashed along it (the
+                outer two broken into arcs), a punch-through blast out of the
+                target's far side, radial speed lines and sparks.  A whiff
+                gives a smaller burst at full reach.
+
+Hit options (HIT_OPTION_STYLES; params, fxkit.PRIM_DEFAULTS["technique"]):
+
+  hitstop / hitstop_ticks   the world freezes (World.hitstop_ticks) for that
+                many ticks when the strike lands, once per strike.  Solo has
+                no opponent, so it freezes as the whiff bursts instead.
+  kb_dir / kb_angle_deg     which way a landed strike pushes (Battle): aim
+                (as every FX hit), tangent (the way the fist moves at contact)
+                or custom (kb_angle_deg turned from that, clockwise, mirrored
+                with the facing).
+  impact_frame / impact_frame_r   off / local / full: for IMPACT_FRAME_TICKS
+                a white flash crossed by ink focus lines converging on the
+                contact point, then the inverse; local inside impact_frame_r
+                px, full over the whole overlay.
 
 Parameters (the technique's own, reused):
 
@@ -67,6 +83,15 @@ SMOKE = (92, 86, 80)
 
 PUNCH_RETRACT = 5
 PUNCH_IMPACT_LIFE = 24
+IMPACT_FRAME_TICKS = 2       # impact frame: a white flash with ink focus lines, then the inverse
+FULL_FRAME = 20000.0         # half-size of the full-overlay impact frame, px
+THROUGH_LIFE = 14            # punch-through: the blast out of the target's far side
+THROUGH_GAP = 22.0           # ...bursting this far past the contact point, px (x scale)
+INK = (16, 10, 22)           # impact-frame ink
+
+# Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
+# impact_frame / impact_frame_r): the strikes they apply to.
+HIT_OPTION_STYLES = ("impact_punch",)
 
 
 # ---------------------------------------------------------------- timeline
@@ -379,6 +404,56 @@ def _punch_body(inst, ps):
     return [(inst.x, inst.y), S._frame(inst).w(l, 0)], float(P["radius"]) * ps
 
 
+# ---------------------------------------------------------------- hit options
+def _opts_on(P):
+    return S._style(P) in HIT_OPTION_STYLES
+
+
+def hitstop_ticks(P):
+    """Hit-stop (params hitstop / hitstop_ticks): how many ticks the world
+    freezes when the strike lands; 0 = none."""
+    if not _opts_on(P) or not P.get("hitstop"):
+        return 0
+    return max(0, F.trunc(float(P.get("hitstop_ticks") or 0)))
+
+
+def _freeze(inst, host):
+    n = hitstop_ticks(inst.fx["params"])
+    fn = getattr(host, "hitstop", None) if host is not None else None
+    if n > 0 and fn is not None and not inst.tq_hs:
+        inst.tq_hs = True          # one freeze per strike, however often it re-hits
+        fn(n)
+
+
+def hit_freeze(inst, host):
+    """The strike just landed: its hit-stop (World.hitstop_ticks)."""
+    _freeze(inst, host)
+
+
+def hitstop_step(inst, host):
+    """Solo has no opponent, so nothing lands: the strike freezes as its whiff
+    bursts at full reach instead (on_tick runs before the age moves on)."""
+    P = inst.fx["params"]
+    if host is None or not _opts_on(P) or not getattr(host, "solo", False):
+        return
+    if not inst.tq_imp and inst.age + 1 == S._swing(P):
+        _freeze(inst, host)
+
+
+def hit_dir(inst):
+    """Knockback direction of a landed strike (params kb_dir): aim = the
+    effect's aim (as every FX hit), tangent = the way the fist / foot moves at
+    contact, custom = kb_angle_deg turned from that (clockwise, mirrors with
+    the facing)."""
+    P = inst.fx["params"]
+    mode = P.get("kb_dir") or "aim"
+    if not _opts_on(P) or mode not in ("tangent", "custom"):
+        return inst.dir
+    if mode == "tangent":
+        return inst.tq_f
+    return tuple(F.rot(inst.tq_f, float(P.get("kb_angle_deg") or 0) * inst.tq_m))
+
+
 # ---------------------------------------------------------------- public
 def hit(inst, tx, ty, hr, ps):
     if S._style(inst.fx["params"]) == "ki_barrage":
@@ -527,6 +602,106 @@ def _spikes(pen, x, y, ang, n, r_out, r_in, c, a):
     pen.poly(pts, c, a)
 
 
+def _star(pen, inst, x, y, ang, n, r_out, r_in, c, a, salt):
+    """An uneven impact star: the spikes are longest along the strike (ang),
+    shortest across it, with a shorter kick back the way the fist came."""
+    pts = []
+    for j in range(2 * n):
+        an = ang + math.pi * j / n
+        rr = r_in
+        if j % 2 == 0:
+            r = S.rng_for(inst.seed, j, 60 + salt)
+            an += r.uniform(-0.3, 0.3) * math.pi / n
+            k = math.cos(an - ang)
+            rr = r_out * (0.45 + 0.65 * max(0.0, k) ** 2 + 0.25 * max(0.0, -k) ** 2) * r.uniform(0.75, 1.2)
+        pts.append((x + math.cos(an) * rr, y + math.sin(an) * rr))
+    pen.poly(pts, c, a)
+
+
+def _arc_ring(pen, inst, x, y, rx, ry, ang, c, a, w, salt):
+    """A shock ring broken into 3-5 arcs with gaps (rx along ang)."""
+    if a <= 1 or w <= 0.05 or rx <= 0.5 or ry <= 0.5:
+        return
+    r = S.rng_for(inst.seed, 0, 80 + salt)
+    n = 3 + F.trunc(r() * 3)
+    t0 = r() * math.pi * 2
+    ca, sa = math.cos(ang), math.sin(ang)
+    st = math.pi * 2 / n
+    for i in range(n):
+        s0 = t0 + i * st
+        s1 = s0 + st * r.uniform(0.55, 0.85)
+        pts = []
+        for k in range(9):
+            t = s0 + (s1 - s0) * k / 8.0
+            px, py = math.cos(t) * rx, math.sin(t) * ry
+            pts.append((x + px * ca - py * sa, y + px * sa + py * ca))
+        pen.polyline(pts, c, a, w)
+
+
+def _through(pen, inst, c, ps, x, y, a, sc, salt):
+    """Punch-through: the blow carries on out of the target's far side, a
+    cone of wind and light bursting along the punch line (a whiff: the air
+    it pushed)."""
+    if a < 0 or a >= THROUGH_LIFE:
+        return
+    q = a / float(THROUGH_LIFE)
+    e = S.ease_out3(min(1.0, a / 6.0))
+    fx_, fy_ = inst.tq_f
+    nx, ny = -fy_, fx_
+    g = THROUGH_GAP * ps * sc
+    bx, by = x + fx_ * g, y + fy_ * g
+
+    def p(u, v):
+        return bx + fx_ * u + nx * v, by + fy_ * u + ny * v
+
+    L = (30 + 90 * e) * ps * sc
+    W = (10 + 34 * e) * ps * sc
+    fade = 1 - q
+    pen.poly([p(0, W * 0.25), p(L * 0.75, W), p(L, 0), p(L * 0.75, -W), p(0, -W * 0.25)], c, 120 * fade)
+    pen.poly([p(0, W * 0.1), p(L * 0.6, W * 0.45), p(L * 0.85, 0), p(L * 0.6, -W * 0.45), p(0, -W * 0.1)], S.HOT,
+             170 * fade ** 1.5)
+    for j in range(7):
+        r = S.rng_for(inst.seed, j, 110 + salt)
+        off = r.uniform(-1.0, 1.0) * W * 0.9
+        s0 = r.uniform(0.1, 0.5) * L
+        ln = r.uniform(0.35, 0.7) * L
+        x0, y0 = p(s0, off)
+        x1, y1 = p(s0 + ln, off * 1.4)
+        pen.line(x0, y0, x1, y1, S.mix(S.HOT, c, q), 220 * fade, 1.3 * ps)
+
+
+def _impact_frame(pen, inst, c, ps, x, y, a, sc, salt):
+    """Impact frame (params impact_frame): a white flash crossed by ink focus
+    lines converging on the contact point, then the inverse (ink, light lines).
+    local = inside impact_frame_r, full = the whole overlay."""
+    P = inst.fx["params"]
+    mode = P.get("impact_frame") or "off"
+    if not _opts_on(P) or mode not in ("local", "full") or a < 0 or a >= IMPACT_FRAME_TICKS:
+        return
+    full = mode == "full"
+    R = FULL_FRAME if full else float(P.get("impact_frame_r") or 0) * ps * sc
+    if R <= 1:
+        return
+    lit = a == 0
+    bg, fg = (S.HOT, INK) if lit else (INK, S.mix(c, S.HOT, 0.5))
+    pen.add(False)
+    if full:
+        pen.poly([(x - R, y - R), (x + R, y - R), (x + R, y + R), (x - R, y + R)], bg, 190 if lit else 150)
+    else:
+        pen.glow(x, y, R, bg, 235 if lit else 200, 0.7)
+    Rl = 1400.0 * ps if full else R
+    n = 32 if full else 22
+    for j in range(n):
+        r = S.rng_for(inst.seed, j, 130 + salt)
+        an = (j + r.uniform(-0.4, 0.4)) * math.pi * 2 / n
+        r0 = Rl * r.uniform(0.18, 0.45)
+        hw = r.uniform(0.012, 0.03)
+        pen.poly([(x + math.cos(an - hw) * Rl, y + math.sin(an - hw) * Rl),
+                  (x + math.cos(an + hw) * Rl, y + math.sin(an + hw) * Rl),
+                  (x + math.cos(an) * r0, y + math.sin(an) * r0)], fg, 230 if lit else 200)
+    pen.add(True)
+
+
 def _impact(pen, inst, c, ps, x, y, a, sc, salt):
     """The punch landing (sc = size; a whiff is smaller)."""
     q = a / float(PUNCH_IMPACT_LIFE)
@@ -537,22 +712,27 @@ def _impact(pen, inst, c, ps, x, y, a, sc, salt):
     if a < 10:
         qs = a / 10.0
         e = S.ease_out3(a / 4.0)
-        rot = ang + 0.15 * a / 10.0
-        _spikes(pen, x, y, rot, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs))
-        _spikes(pen, x, y, rot, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, S.HOT, 255 * (1 - qs) ** 1.5)
+        _star(pen, inst, x, y, ang, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs), salt)
+        _star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, S.HOT, 255 * (1 - qs) ** 1.5,
+              salt)
     pen.glow(x, y, (26 + 20 * S.ease_out3(q)) * ps * sc, c, 140 * (1 - q), 0.4)
-    # shockwave rings standing across the punch line
-    for (d0, k) in ((0, 1.0), (3, 1.45)):
+    _through(pen, inst, c, ps, x, y, a, sc, salt)
+    # shockwave rings standing across the punch line, squashed along it: a
+    # full one, then two broken into arcs, each further out and faster
+    for (n, d0, k) in ((0, 0, 1.0), (1, 3, 1.45), (2, 6, 1.9)):
         aa = a - d0
         if aa < 0:
             continue
         qq = aa / float(PUNCH_IMPACT_LIFE - d0)
         e = S.ease_out3(qq)
         cx, cy = x + fx_ * 10 * ps * sc * e * k, y + fy_ * 10 * ps * sc * e * k
-        pen.ring(cx, cy, (5 + 14 * e) * ps * sc * k, (10 + 46 * e) * ps * sc * k, ang, c, 210 * (1 - qq),
-                 3.0 * ps * (1 - qq) + 0.2)
-        pen.ring(cx, cy, (5 + 14 * e) * ps * sc * k, (10 + 46 * e) * ps * sc * k, ang, S.HOT, 160 * (1 - qq) ** 2,
-                 1.0 * ps * (1 - qq) + 0.1)
+        rx, ry = (4 + 10 * e) * ps * sc * k, (10 + 50 * e) * ps * sc * k
+        if n == 0:
+            pen.ring(cx, cy, rx, ry, ang, c, 210 * (1 - qq), 3.0 * ps * (1 - qq) + 0.2)
+            pen.ring(cx, cy, rx, ry, ang, S.HOT, 160 * (1 - qq) ** 2, 1.0 * ps * (1 - qq) + 0.1)
+        else:
+            _arc_ring(pen, inst, cx, cy, rx, ry, ang, c, 200 * (1 - qq), (3.4 - n) * ps * (1 - qq) + 0.2, salt + n)
+            _arc_ring(pen, inst, cx, cy, rx, ry, ang, S.HOT, 150 * (1 - qq) ** 2, 0.9 * ps * (1 - qq) + 0.1, salt + n)
     # radial speed lines
     if a < 12:
         ql = a / 12.0
@@ -581,6 +761,17 @@ def _impact(pen, inst, c, ps, x, y, a, sc, salt):
                  255 * (1 - qq), 1.5 * ps)
 
 
+def _impacts(inst, P, fr, ps):
+    """(age, x, y, size, salt) of every impact on show: where the fist was
+    when it landed; a whiff bursts smaller at full reach."""
+    t = inst.age
+    if inst.tq_imp:
+        return [(t - b, x, y, 1.0, 11 * n) for n, (b, x, y) in enumerate(inst.tq_imp)]
+    L = float(P["length"]) * ps
+    x, y = fr.w(L + float(P["radius"]) * ps * 0.8, 0)
+    return [(t - S._swing(P), x, y, 0.55, 0)]
+
+
 def _draw_punch(pen, inst, host, ps):
     P = inst.fx["params"]
     t = inst.age
@@ -592,6 +783,10 @@ def _draw_punch(pen, inst, host, ps):
     Ts, Th = S._swing(P), _hold(P)
     l = _reach(P, t, L)
     out = t < Ts + Th + PUNCH_RETRACT
+    imps = _impacts(inst, P, fr, ps)
+    # 0: the impact frame, under everything else
+    for (a, x, y, sc, salt) in imps:
+        _impact_frame(pen, inst, c, ps, x, y, a, sc, salt)
     pen.add(True)
     if out and l > 1:
         fade = 1.0 if t < Ts + Th else 1 - (t - Ts - Th) / float(PUNCH_RETRACT)
@@ -626,17 +821,10 @@ def _draw_punch(pen, inst, host, ps):
         pen.glow(fx_, fy_, rf * 2.6, c, 170 * fade)
         pen.glow(fx_, fy_, rf * 1.4, S.mix(c, S.HOT, 0.6), 235 * fade)
         pen.glow(fx_, fy_, rf * 0.7, S.HOT, 255 * fade, 0.7)
-    # 6: the impact — where the fist was when it landed; a whiff bursts at full reach
-    if inst.tq_imp:
-        for n, (b, x, y) in enumerate(inst.tq_imp):
-            a = t - b
-            if 0 <= a < PUNCH_IMPACT_LIFE:
-                _impact(pen, inst, c, ps, x, y, a, 1.0, 11 * n)
-    else:
-        a = t - Ts
+    # 6: the impacts
+    for (a, x, y, sc, salt) in imps:
         if 0 <= a < PUNCH_IMPACT_LIFE:
-            x, y = fr.w(L + rf * 0.8, 0)
-            _impact(pen, inst, c, ps, x, y, a, 0.55, 0)
+            _impact(pen, inst, c, ps, x, y, a, sc, salt)
 
 
 def draw(pen, inst, host, ps):

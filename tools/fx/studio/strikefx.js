@@ -13,6 +13,10 @@ var STYLES = ["ki_barrage", "impact_punch"];
 var KI_SPEED = [9, 13], KI_RANGE = [0.85, 1.12], KI_SIDE = 7, KI_FLASH = 6, KI_BLAST_LIFE = 22, KI_SMOKE_LIFE = 44;
 var SMOKE = [92, 86, 80];
 var PUNCH_RETRACT = 5, PUNCH_IMPACT_LIFE = 24;
+var IMPACT_FRAME_TICKS = 2, FULL_FRAME = 20000, THROUGH_LIFE = 14, THROUGH_GAP = 22, INK = [16, 10, 22];
+// Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
+// impact_frame / impact_frame_r): the strikes they apply to.
+var HIT_OPTION_STYLES = ["impact_punch"];
 
 // ---------------------------------------------------------------- timeline
 function cad(P) { return Math.max(1, Math.trunc(+P.swing_ticks || 3)); }
@@ -214,6 +218,37 @@ function punchBody(inst, ps) {
   return [[[inst.x, inst.y], L_().frame(inst).w(l, 0)], +P.radius * ps];
 }
 
+// ---------------------------------------------------------------- hit options
+function optsOn(P) { return HIT_OPTION_STYLES.indexOf(L_().style(P)) >= 0; }
+// Hit-stop (params hitstop / hitstop_ticks): ticks the world freezes when the
+// strike lands; 0 = none.
+function hitstopTicks(P) {
+  if (!optsOn(P) || !P.hitstop) return 0;
+  return Math.max(0, Math.trunc(+P.hitstop_ticks || 0));
+}
+function freeze(inst, host) {
+  var n = hitstopTicks(inst.fx.params);
+  if (n > 0 && host && host.hitstop && !inst.tq_hs) { inst.tq_hs = true; host.hitstop(n); }   // one freeze per strike
+}
+// The strike just landed: its hit-stop.
+function hitFreeze(inst, host) { freeze(inst, host); }
+// No opponent (Solo; the Studio with every dummy down): nothing lands, so the
+// strike freezes as its whiff bursts at full reach (onTick runs before the age moves on).
+function hitstopStep(inst, host) {
+  var P = inst.fx.params;
+  if (!host || !optsOn(P) || !host.solo) return;
+  if (!inst.tq_imp.length && inst.age + 1 === L_().swing(P)) freeze(inst, host);
+}
+// Knockback direction of a landed strike (params kb_dir): aim = the effect's
+// aim, tangent = the way the fist / foot moves at contact, custom =
+// kb_angle_deg turned from that (clockwise, mirrors with the facing).
+function hitDir(inst) {
+  var P = inst.fx.params, mode = P.kb_dir || "aim";
+  if (!optsOn(P) || (mode !== "tangent" && mode !== "custom")) return inst.dir;
+  if (mode === "tangent") return inst.tq_f;
+  return FXK().rot(inst.tq_f, (+P.kb_angle_deg || 0) * inst.tq_m);
+}
+
 // ---------------------------------------------------------------- public
 function hit(inst, tx, ty, hr, ps) {
   return L_().style(inst.fx.params) === "ki_barrage" ? kiHit(inst, tx, ty, hr, ps) : punchHit(inst, tx, ty, hr, ps);
@@ -324,26 +359,103 @@ function spikes(pen, x, y, ang, n, rOut, rIn, c, a) {
   }
   pen.poly(pts, c, a);
 }
+// An uneven impact star: the spikes are longest along the strike (ang),
+// shortest across it, with a shorter kick back the way the fist came.
+function star(pen, inst, x, y, ang, n, rOut, rIn, c, a, salt) {
+  var L = L_(), pts = [];
+  for (var j = 0; j < 2 * n; j++) {
+    var an = ang + Math.PI * j / n, rr = rIn;
+    if (j % 2 === 0) {
+      var r = L.rngFor(inst.seed, j, 60 + salt);
+      an += r.uniform(-0.3, 0.3) * Math.PI / n;
+      var k = Math.cos(an - ang);
+      rr = rOut * (0.45 + 0.65 * Math.pow(Math.max(0, k), 2) + 0.25 * Math.pow(Math.max(0, -k), 2)) * r.uniform(0.75, 1.2);
+    }
+    pts.push([x + Math.cos(an) * rr, y + Math.sin(an) * rr]);
+  }
+  pen.poly(pts, c, a);
+}
+// A shock ring broken into 3-5 arcs with gaps (rx along ang).
+function arcRing(pen, inst, x, y, rx, ry, ang, c, a, w, salt) {
+  if (a <= 1 || w <= 0.05 || rx <= 0.5 || ry <= 0.5) return;
+  var r = L_().rngFor(inst.seed, 0, 80 + salt), n = 3 + Math.trunc(r() * 3), t0 = r() * Math.PI * 2;
+  var ca = Math.cos(ang), sa = Math.sin(ang), st = Math.PI * 2 / n;
+  for (var i = 0; i < n; i++) {
+    var s0 = t0 + i * st, s1 = s0 + st * r.uniform(0.55, 0.85), pts = [];
+    for (var k = 0; k < 9; k++) {
+      var t = s0 + (s1 - s0) * k / 8, px = Math.cos(t) * rx, py = Math.sin(t) * ry;
+      pts.push([x + px * ca - py * sa, y + px * sa + py * ca]);
+    }
+    pen.polyline(pts, c, a, w);
+  }
+}
+// Punch-through: the blow carries on out of the target's far side, a cone of
+// wind and light bursting along the punch line (a whiff: the air it pushed).
+function through(pen, inst, c, ps, x, y, a, sc, salt) {
+  if (a < 0 || a >= THROUGH_LIFE) return;
+  var L = L_(), HOT = L.HOT, q = a / THROUGH_LIFE, e = L.easeOut3(Math.min(1, a / 6));
+  var fx_ = inst.tq_f[0], fy_ = inst.tq_f[1], nx = -fy_, ny = fx_, g = THROUGH_GAP * ps * sc;
+  var bx = x + fx_ * g, by = y + fy_ * g;
+  function p(u, v) { return [bx + fx_ * u + nx * v, by + fy_ * u + ny * v]; }
+  var Ln = (30 + 90 * e) * ps * sc, W = (10 + 34 * e) * ps * sc, fade = 1 - q;
+  pen.poly([p(0, W * 0.25), p(Ln * 0.75, W), p(Ln, 0), p(Ln * 0.75, -W), p(0, -W * 0.25)], c, 120 * fade);
+  pen.poly([p(0, W * 0.1), p(Ln * 0.6, W * 0.45), p(Ln * 0.85, 0), p(Ln * 0.6, -W * 0.45), p(0, -W * 0.1)], HOT, 170 * Math.pow(fade, 1.5));
+  for (var j = 0; j < 7; j++) {
+    var r = L.rngFor(inst.seed, j, 110 + salt), off = r.uniform(-1, 1) * W * 0.9;
+    var s0 = r.uniform(0.1, 0.5) * Ln, ln = r.uniform(0.35, 0.7) * Ln;
+    var p0 = p(s0, off), p1 = p(s0 + ln, off * 1.4);
+    pen.line(p0[0], p0[1], p1[0], p1[1], L.mix(HOT, c, q), 220 * fade, 1.3 * ps);
+  }
+}
+// Impact frame (params impact_frame): a white flash crossed by ink focus lines
+// converging on the contact point, then the inverse (ink, light lines).
+// local = inside impact_frame_r, full = the whole overlay.
+function impactFrame(pen, inst, c, ps, x, y, a, sc, salt) {
+  var P = inst.fx.params, mode = P.impact_frame || "off";
+  if (!optsOn(P) || (mode !== "local" && mode !== "full") || a < 0 || a >= IMPACT_FRAME_TICKS) return;
+  var L = L_(), full = mode === "full", R = full ? FULL_FRAME : (+P.impact_frame_r || 0) * ps * sc;
+  if (R <= 1) return;
+  var lit = a === 0, bg = lit ? L.HOT : INK, fg = lit ? INK : L.mix(c, L.HOT, 0.5);
+  pen.add(false);
+  if (full) pen.poly([[x - R, y - R], [x + R, y - R], [x + R, y + R], [x - R, y + R]], bg, lit ? 190 : 150);
+  else pen.glow(x, y, R, bg, lit ? 235 : 200, 0.7);
+  var Rl = full ? 1400 * ps : R, n = full ? 32 : 22;
+  for (var j = 0; j < n; j++) {
+    var r = L.rngFor(inst.seed, j, 130 + salt), an = (j + r.uniform(-0.4, 0.4)) * Math.PI * 2 / n;
+    var r0 = Rl * r.uniform(0.18, 0.45), hw = r.uniform(0.012, 0.03);
+    pen.poly([[x + Math.cos(an - hw) * Rl, y + Math.sin(an - hw) * Rl], [x + Math.cos(an + hw) * Rl, y + Math.sin(an + hw) * Rl],
+      [x + Math.cos(an) * r0, y + Math.sin(an) * r0]], fg, lit ? 230 : 200);
+  }
+  pen.add(true);
+}
 // The punch landing (sc = size; a whiff is smaller).
 function impact(pen, inst, c, ps, x, y, a, sc, salt) {
   var L = L_(), HOT = L.HOT, mix = L.mix, q = a / PUNCH_IMPACT_LIFE, fx_ = inst.tq_f[0], fy_ = inst.tq_f[1];
   var ang = Math.atan2(fy_, fx_), j, e;
   if (a < 6) pen.glow(x, y, (18 + 24 * L.easeOut3(a / 6)) * ps * sc, HOT, 255 * (1 - a / 6));
   if (a < 10) {
-    var qs = a / 10, rot = ang + 0.15 * a / 10;
+    var qs = a / 10;
     e = L.easeOut3(a / 4);
-    spikes(pen, x, y, rot, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs));
-    spikes(pen, x, y, rot, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, HOT, 255 * Math.pow(1 - qs, 1.5));
+    star(pen, inst, x, y, ang, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs), salt);
+    star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, HOT, 255 * Math.pow(1 - qs, 1.5), salt);
   }
   pen.glow(x, y, (26 + 20 * L.easeOut3(q)) * ps * sc, c, 140 * (1 - q), 0.4);
-  // shockwave rings standing across the punch line
-  [[0, 1], [3, 1.45]].forEach(function (dk) {
-    var aa = a - dk[0], k = dk[1];
+  through(pen, inst, c, ps, x, y, a, sc, salt);
+  // shockwave rings standing across the punch line, squashed along it: a
+  // full one, then two broken into arcs, each further out and faster
+  [[0, 0, 1], [1, 3, 1.45], [2, 6, 1.9]].forEach(function (dk) {
+    var n = dk[0], aa = a - dk[1], k = dk[2];
     if (aa < 0) return;
-    var qq = aa / (PUNCH_IMPACT_LIFE - dk[0]), ee = L.easeOut3(qq);
+    var qq = aa / (PUNCH_IMPACT_LIFE - dk[1]), ee = L.easeOut3(qq);
     var cx = x + fx_ * 10 * ps * sc * ee * k, cy = y + fy_ * 10 * ps * sc * ee * k;
-    pen.ring(cx, cy, (5 + 14 * ee) * ps * sc * k, (10 + 46 * ee) * ps * sc * k, ang, c, 210 * (1 - qq), 3 * ps * (1 - qq) + 0.2);
-    pen.ring(cx, cy, (5 + 14 * ee) * ps * sc * k, (10 + 46 * ee) * ps * sc * k, ang, HOT, 160 * Math.pow(1 - qq, 2), 1 * ps * (1 - qq) + 0.1);
+    var rx = (4 + 10 * ee) * ps * sc * k, ry = (10 + 50 * ee) * ps * sc * k;
+    if (n === 0) {
+      pen.ring(cx, cy, rx, ry, ang, c, 210 * (1 - qq), 3 * ps * (1 - qq) + 0.2);
+      pen.ring(cx, cy, rx, ry, ang, HOT, 160 * Math.pow(1 - qq, 2), 1 * ps * (1 - qq) + 0.1);
+    } else {
+      arcRing(pen, inst, cx, cy, rx, ry, ang, c, 200 * (1 - qq), (3.4 - n) * ps * (1 - qq) + 0.2, salt + n);
+      arcRing(pen, inst, cx, cy, rx, ry, ang, HOT, 150 * Math.pow(1 - qq, 2), 0.9 * ps * (1 - qq) + 0.1, salt + n);
+    }
   });
   // radial speed lines
   if (a < 12) {
@@ -366,11 +478,22 @@ function impact(pen, inst, c, ps, x, y, a, sc, salt) {
     pen.line(sx, sy, sx - Math.cos(an2) * sp * dk2 * 1.6, sy - Math.sin(an2) * sp * dk2 * 1.6, mix(HOT, c, q2), 255 * (1 - q2), 1.5 * ps);
   }
 }
+// [age, x, y, size, salt] of every impact on show: where the fist was when it
+// landed; a whiff bursts smaller at full reach.
+function impacts(inst, P, fr, ps) {
+  var t = inst.age;
+  if (inst.tq_imp.length) return inst.tq_imp.map(function (h, n) { return [t - h[0], h[1], h[2], 1, 11 * n]; });
+  var w = fr.w(+P.length * ps + +P.radius * ps * 0.8, 0);
+  return [[t - L_().swing(P), w[0], w[1], 0.55, 0]];
+}
 function drawPunch(pen, inst, host, ps) {
   var Lb = L_(), HOT = Lb.HOT, mix = Lb.mix, P = inst.fx.params, t = inst.age, fr = Lb.frame(inst);
   var cs = Lb.colours(inst, host), c = cs[0], bright = cs[1];
   var L = +P.length * ps, rf = +P.radius * ps, W = +P.thickness * ps, Ts = Lb.swing(P), Th = hold(P);
-  var l = reach(P, t, L), out = t < Ts + Th + PUNCH_RETRACT, j, a;
+  var l = reach(P, t, L), out = t < Ts + Th + PUNCH_RETRACT, j;
+  var imps = impacts(inst, P, fr, ps);
+  // 0: the impact frame, under everything else
+  imps.forEach(function (m) { impactFrame(pen, inst, c, ps, m[1], m[2], m[0], m[3], m[4]); });
   pen.add(true);
   if (out && l > 1) {
     var fade = t < Ts + Th ? 1 : 1 - (t - Ts - Th) / PUNCH_RETRACT;
@@ -405,16 +528,8 @@ function drawPunch(pen, inst, host, ps) {
     pen.glow(f[0], f[1], rf * 1.4, mix(c, HOT, 0.6), 235 * fade);
     pen.glow(f[0], f[1], rf * 0.7, HOT, 255 * fade, 0.7);
   }
-  // 6: the impact — where the fist was when it landed; a whiff bursts at full reach
-  if (inst.tq_imp.length) {
-    inst.tq_imp.forEach(function (h, n) {
-      var aa = t - h[0];
-      if (aa >= 0 && aa < PUNCH_IMPACT_LIFE) impact(pen, inst, c, ps, h[1], h[2], aa, 1, 11 * n);
-    });
-  } else {
-    a = t - Ts;
-    if (a >= 0 && a < PUNCH_IMPACT_LIFE) { var w = fr.w(L + rf * 0.8, 0); impact(pen, inst, c, ps, w[0], w[1], a, 0.55, 0); }
-  }
+  // 6: the impacts
+  imps.forEach(function (m) { if (m[0] >= 0 && m[0] < PUNCH_IMPACT_LIFE) impact(pen, inst, c, ps, m[1], m[2], m[0], m[3], m[4]); });
 }
 
 function draw(pen, inst, host, ps) {
@@ -422,6 +537,6 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
+G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
                 shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);

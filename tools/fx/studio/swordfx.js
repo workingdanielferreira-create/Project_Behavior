@@ -110,6 +110,7 @@ function onSpawn(inst, host) {
   inst.tq_kd = {};                // ki shots an intercept pulled off their path (STRIKEFX.trackStep)
   inst.tq_off = {};               // gun rounds a clash moved: index -> [dx, dy] (GUNFX.place)
   inst.tq_imp = [];               // punch impacts: [tick, x, y]
+  inst.tq_hs = false;             // its hit-stop already froze the world (STRIKEFX freeze)
   inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
   if (POWER()) POWER().onSpawn(inst, host);
   recordOutline(inst, host);
@@ -128,7 +129,7 @@ function onTick(inst, host) {
   inst.tq_path.push([inst.x, inst.y]);
   inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
   recordOutline(inst, host);
-  if (STRIKE()) STRIKE().trackStep(inst, host);
+  if (STRIKE()) { STRIKE().trackStep(inst, host); STRIKE().hitstopStep(inst, host); }
   if (GUN()) GUN().trackStep(inst, host);
 }
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
@@ -428,6 +429,11 @@ function onHit(inst, x, y, ps) {
   else if (CUTS[st] !== undefined) slashOnHit(inst);
   inst.tq_hits.push([+x, +y, inst.age]);
 }
+// Which way a landed technique pushes the target: the aim, except for the
+// strikes' own Knockback direction (STRIKEFX.hitDir).  laser/swordfx.py hit_dir.
+function hitDir(inst) { return isStrike(style(inst.fx.params)) ? STRIKE().hitDir(inst) : inst.dir; }
+// A technique just landed: the strikes' Hit-stop (STRIKEFX.hitFreeze).
+function hitFreeze(inst, host) { if (isStrike(style(inst.fx.params))) STRIKE().hitFreeze(inst, host); }
 
 // ================================================================ drawing
 function Pen(g) { this.g = g; }
@@ -916,7 +922,7 @@ function draw(g, inst, host, ps) {
 
 // strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
 G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shotIds, shotAt: shotAt, placeShot: placeShot,
-             techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+             techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, hitDir: hitDir, hitFreeze: hitFreeze, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,

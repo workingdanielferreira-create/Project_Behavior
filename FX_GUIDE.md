@@ -535,9 +535,24 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
 - **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
   Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
   an air ring in front of the fist. Hits along the arm; the impact (flash,
-  spiked star, two shockwave rings across the punch line, radial speed lines,
-  sparks) stays where the fist landed (`inst.tq_imp`). A whiff bursts at 55 %
-  size at full reach. Clashes along the arm.
+  an uneven star with its longest spikes along the punch, three shockwave
+  rings across the punch line squashed along it — the outer two broken into
+  arcs — a punch-through blast out of the target's far side, radial speed
+  lines, sparks) stays where the fist landed (`inst.tq_imp`). A whiff bursts
+  at 55 % size at full reach. Clashes along the arm.
+- **Strike hit options** (`strikefx.HIT_OPTION_STYLES`, shown in the Studio
+  for those styles only):
+  - *Hit-stop* + *Hit-stop ticks*: the world freezes (`World.hitstop_ticks`,
+    both sides at once) when the punch lands, once per punch. Solo has no
+    opponent, so it freezes as the whiff bursts.
+  - *Knockback direction*: `aim` (as every FX hit), `tangent` (the way the
+    fist moves at contact) or `custom` (*Knockback angle °* turned from the
+    strike, clockwise, mirrored with the facing). Battle only — Solo deals no
+    knockback.
+  - *Impact frame*: `off`, `local` (inside *Impact frame radius px*) or
+    `full` (the whole overlay): a white flash crossed by ink focus lines
+    converging on the contact point, then the inverse, 2 ticks (held through
+    any hit-stop).
 - **Parameters reused:** see the `strikefx.py` docstring (e.g. ki: Radius =
   shot size, Thickness = blast size, Span = spread °, Length = range).
 - **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
