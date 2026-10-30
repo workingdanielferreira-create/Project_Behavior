@@ -96,6 +96,7 @@ laser/
   clashfx.py         clash explosion library (19 effects, derive() variations)
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
   strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
+  kickfx.py          roundhouse / thrust / axe / spinning / rising kicks (with swordfx.py, strikefx.py)
   powerfx.py         SSJ aura, rasen-shuriken, gigantic meteor, ghost kamikaze, serious punch,
                      black hole: hand-drawn "technique" styles + the meteor / black hole pull
   gunfx.py           anime gun shots (machine gun, shotgun, magnum, charged blast, dual

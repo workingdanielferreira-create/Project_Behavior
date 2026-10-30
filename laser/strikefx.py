@@ -91,7 +91,7 @@ INK = (16, 10, 22)           # impact-frame ink
 
 # Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
 # impact_frame / impact_frame_r): the strikes they apply to.
-HIT_OPTION_STYLES = ("impact_punch",)
+HIT_OPTION_STYLES = ("impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick")
 
 
 # ---------------------------------------------------------------- timeline
@@ -434,7 +434,7 @@ def hitstop_step(inst, host):
     """Solo has no opponent, so nothing lands: the strike freezes as its whiff
     bursts at full reach instead (on_tick runs before the age moves on)."""
     P = inst.fx["params"]
-    if host is None or not _opts_on(P) or not getattr(host, "solo", False):
+    if host is None or S._style(P) not in STYLES or not _opts_on(P) or not getattr(host, "solo", False):
         return
     if not inst.tq_imp and inst.age + 1 == S._swing(P):
         _freeze(inst, host)
@@ -638,15 +638,15 @@ def _arc_ring(pen, inst, x, y, rx, ry, ang, c, a, w, salt):
         pen.polyline(pts, c, a, w)
 
 
-def _through(pen, inst, c, ps, x, y, a, sc, salt):
+def _through(pen, inst, c, ps, x, y, a, sc, salt, u=None):
     """Punch-through: the blow carries on out of the target's far side, a
-    cone of wind and light bursting along the punch line (a whiff: the air
-    it pushed)."""
+    cone of wind and light bursting along the strike line u (default: the
+    punch line; a whiff: the air it pushed)."""
     if a < 0 or a >= THROUGH_LIFE:
         return
     q = a / float(THROUGH_LIFE)
     e = S.ease_out3(min(1.0, a / 6.0))
-    fx_, fy_ = inst.tq_f
+    fx_, fy_ = u or inst.tq_f
     nx, ny = -fy_, fx_
     g = THROUGH_GAP * ps * sc
     bx, by = x + fx_ * g, y + fy_ * g
@@ -702,10 +702,11 @@ def _impact_frame(pen, inst, c, ps, x, y, a, sc, salt):
     pen.add(True)
 
 
-def _impact(pen, inst, c, ps, x, y, a, sc, salt):
-    """The punch landing (sc = size; a whiff is smaller)."""
+def _impact(pen, inst, c, ps, x, y, a, sc, salt, u=None):
+    """The punch landing (sc = size; a whiff is smaller), laid along the
+    strike direction u (default: the punch line; kickfx passes its own)."""
     q = a / float(PUNCH_IMPACT_LIFE)
-    fx_, fy_ = inst.tq_f
+    fx_, fy_ = u or inst.tq_f
     ang = math.atan2(fy_, fx_)
     if a < 6:
         pen.glow(x, y, (18 + 24 * S.ease_out3(a / 6.0)) * ps * sc, S.HOT, 255 * (1 - a / 6.0))
@@ -716,7 +717,7 @@ def _impact(pen, inst, c, ps, x, y, a, sc, salt):
         _star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, S.HOT, 255 * (1 - qs) ** 1.5,
               salt)
     pen.glow(x, y, (26 + 20 * S.ease_out3(q)) * ps * sc, c, 140 * (1 - q), 0.4)
-    _through(pen, inst, c, ps, x, y, a, sc, salt)
+    _through(pen, inst, c, ps, x, y, a, sc, salt, u)
     # shockwave rings standing across the punch line, squashed along it: a
     # full one, then two broken into arcs, each further out and faster
     for (n, d0, k) in ((0, 0, 1.0), (1, 3, 1.45), (2, 6, 1.9)):

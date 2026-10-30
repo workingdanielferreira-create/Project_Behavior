@@ -232,6 +232,12 @@ def main():
     for name in ("STYLES", "KI_SPEED", "KI_RANGE", "KI_SIDE", "KI_FLASH", "KI_BLAST_LIFE", "KI_SMOKE_LIFE", "SMOKE",
                  "PUNCH_RETRACT", "PUNCH_IMPACT_LIFE"):
         diff(st_js.get(name), st_py.get(name), "strikefx " + name, out)
+    # ... the kicks' constants (laser/kickfx.py).
+    kk_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "kickfx.js"))
+    kk_py = PyTables(os.path.join(ROOT, "laser", "kickfx.py"))
+    for name in ("STYLES", "ARC_STYLES", "WIND", "RETRACT", "TRAIL_LAG", "TRAIL_N", "FEET_DROP", "RISE_REACH", "DUST",
+                 "ROCK", "SCORCH", "CONTACT", "HEAVY"):
+        diff(kk_js.get(name), kk_py.get(name), "kickfx " + name, out)
     # ... and the power techniques' constants (laser/powerfx.py).
     pw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "powerfx.js"))
     pw_py = PyTables(os.path.join(ROOT, "laser", "powerfx.py"))

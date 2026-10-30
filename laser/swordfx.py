@@ -38,6 +38,8 @@ Styles (params.style, fxkit.TECH_STYLES):
                     2.5D signature weapons (laser/weaponfx.py)
   ki_barrage        rapid-fire ki blasts (laser/strikefx.py)
   impact_punch      a punch with a shockwave impact (laser/strikefx.py)
+  roundhouse_kick, thrust_kick, axe_kick, spinning_kick, rising_kick
+                    kicks (laser/kickfx.py)
   ssj_aura, rasen_shuriken, gigantic_meteor, ghost_kamikaze, serious_punch,
   black_hole        anime power techniques (laser/powerfx.py)
   machine_gun, shotgun, magnum, charged_blast, dual_pistols, sniper_rail,
@@ -196,6 +198,8 @@ def active_ticks(P):
         return THR_WIND + _swing(P) + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + THR_RETRACT
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
+    if st in kickfx.STYLES:
+        return kickfx.active_ticks(P)
     if st in powerfx.STYLES:
         return powerfx.active_ticks(P)
     if st in gunfx.STYLES:
@@ -216,6 +220,8 @@ def total_ticks(P):
         return active_ticks(P) + THR_FADE
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
+    if st in kickfx.STYLES:
+        return kickfx.total_ticks(P)
     if st in powerfx.STYLES:
         return powerfx.total_ticks(P)
     if st in gunfx.STYLES:
@@ -255,7 +261,7 @@ def on_spawn(inst, host):
     inst.tq_off = {}               # gun rounds a clash moved: index -> (dx, dy) (gunfx.place)
     inst.tq_rw = {}                # gun rounds Rewind Bullets turned round (gunfx.rewind)
     inst.tq_rw_end = 0             # ...and the tick their effect may end (0 = as usual)
-    inst.tq_imp = []               # punch impacts: (tick, x, y)
+    inst.tq_imp = []               # punch impacts: (tick, x, y); kicks: (tick, x, y, ux, uy)
     inst.tq_hs = False             # its hit-stop already froze the world (strikefx._freeze)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
@@ -272,6 +278,7 @@ def on_tick(inst, host=None):
     _record_outline(inst, host)
     strikefx.track_step(inst, host)
     strikefx.hitstop_step(inst, host)
+    kickfx.hitstop_step(inst, host)
     gunfx.track_step(inst, host)
 
 
@@ -642,6 +649,8 @@ def hit(inst, tx, ty, hr, ps):
         return _thr_hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
+    if st in kickfx.STYLES:
+        return kickfx.hit(inst, tx, ty, hr, ps)
     if st in powerfx.STYLES:
         return powerfx.hit(inst, tx, ty, hr, ps)
     if st in gunfx.STYLES:
@@ -748,6 +757,8 @@ def body(inst, ps):
         return _thr_body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
+    if st in kickfx.STYLES:
+        return kickfx.body(inst, ps)
     if st in powerfx.STYLES:
         return powerfx.body(inst, ps)
     if st in gunfx.STYLES:
@@ -763,6 +774,8 @@ def on_hit(inst, x, y, ps=1.0):
     st = _style(inst.fx["params"])
     if st in strikefx.STYLES:
         strikefx.on_hit(inst, x, y, ps)
+    elif st in kickfx.STYLES:
+        kickfx.on_hit(inst, x, y, ps)
     elif st in powerfx.STYLES:
         powerfx.on_hit(inst, x, y, ps)
     elif st in gunfx.STYLES:
@@ -776,15 +789,20 @@ def on_hit(inst, x, y, ps=1.0):
 
 def hit_dir(inst):
     """Which way a landed technique pushes the target: the aim, except
-    for the strikes' own Knockback direction (strikefx.hit_dir)."""
-    if _style(inst.fx["params"]) in strikefx.STYLES:
+    for the strikes' and kicks' own Knockback direction (strikefx / kickfx
+    hit_dir)."""
+    st = _style(inst.fx["params"])
+    if st in strikefx.STYLES:
         return strikefx.hit_dir(inst)
+    if st in kickfx.STYLES:
+        return kickfx.hit_dir(inst)
     return inst.dir
 
 
 def hit_freeze(inst, host):
-    """A technique just landed: the strikes' Hit-stop (strikefx.hit_freeze)."""
-    if _style(inst.fx["params"]) in strikefx.STYLES:
+    """A technique just landed: the strikes' and kicks' Hit-stop
+    (strikefx.hit_freeze)."""
+    if _style(inst.fx["params"]) in strikefx.HIT_OPTION_STYLES:
         strikefx.hit_freeze(inst, host)
 
 
@@ -1415,6 +1433,8 @@ def draw(p, inst, host, ps):
         _draw_thrust(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
+    elif st in kickfx.STYLES:
+        kickfx.draw(pen, inst, host, ps)
     elif st in powerfx.STYLES:
         powerfx.draw(pen, inst, host, ps)
     elif st in gunfx.STYLES:
@@ -1430,6 +1450,7 @@ def draw(p, inst, host, ps):
 # (laser/weaponfx.py) share this module's frame,
 # pen and timeline; imported last because they build on them.
 from . import strikefx  # noqa: E402
+from . import kickfx  # noqa: E402
 from . import powerfx  # noqa: E402
 from . import gunfx  # noqa: E402
 from . import weaponfx  # noqa: E402

@@ -343,13 +343,21 @@ var PARAM_DEFAULTS = {
     // world hitstop_ticks when it lands (no opponent: as it whiffs); kb_dir
     // aim / tangent / custom (kb_angle_deg turned from the strike, clockwise);
     // impact_frame off / local (impact_frame_r px) / full (the whole overlay).
-    hitstop: false, hitstop_ticks: 4, kb_dir: "aim", kb_angle_deg: 0, impact_frame: "off", impact_frame_r: 90}
+    hitstop: false, hitstop_ticks: 4, kb_dir: "aim", kb_angle_deg: 0, impact_frame: "off", impact_frame_r: 90,
+    // Kicks (kickfx.js): kick_sweep high_low / low_high (roundhouse);
+    // axe_dir screen_down / along_aim / custom, axe_crater contact / feet;
+    // spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
+    // perpendicular / straight_up / custom; kick_angle_deg = the custom
+    // direction at contact, from the aim (clockwise, mirrors with the facing).
+    kick_sweep: "high_low", axe_dir: "screen_down", axe_crater: "contact", spin_mode: "centered", spin_turns: 2,
+    rise_dir: "screen_up", kick_angle_deg: 0}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
 var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
   "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
   "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
+  "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick",
   "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
   "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling",
   "rocket_barrage", "drill_bullet", "thunder_bullet",
@@ -373,6 +381,12 @@ var TECH_STYLE_DEFAULTS = {
   combo_backhand: {radius: 70, span: 150, thickness: 11, swing_ticks: 5},
   ki_barrage: {radius: 6, thickness: 18, span: 18, length: 320, swing_ticks: 3, hold_ticks: 45},
   impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3},
+  // Kicks (kickfx.js)
+  roundhouse_kick: {radius: 10, span: 150, thickness: 16, length: 70, swing_ticks: 6, hold_ticks: 3, kb_dir: "tangent"},
+  thrust_kick: {radius: 12, thickness: 18, length: 80, swing_ticks: 5, hold_ticks: 4, kb_dir: "aim"},
+  axe_kick: {radius: 11, span: 140, thickness: 16, length: 70, swing_ticks: 7, hold_ticks: 4, kb_dir: "tangent"},
+  spinning_kick: {radius: 10, thickness: 14, length: 65, swing_ticks: 14, hold_ticks: 2, kb_dir: "tangent", spin_turns: 2},
+  rising_kick: {radius: 10, span: 150, thickness: 15, length: 70, swing_ticks: 6, hold_ticks: 4, kb_dir: "tangent"},
   ssj_aura: {radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: true,
     lightning_rate: 2, aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true},
   rasen_shuriken: {radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50},

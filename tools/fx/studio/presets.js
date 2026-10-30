@@ -121,6 +121,33 @@ G.FX_PRESETS = [
      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 14},
      motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
      params: {style: "impact_punch", radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3, density: 1}}]},
+  // ---------------------------------------------------------------- kicks
+  // Hand-drawn (prim "technique", laser/kickfx.py + kickfx.js).
+  {name: "Roundhouse kick", group: "Kicks", desc: "An arc swung round the hip that meets the target halfway at full speed: a crescent trail widest at the foot, speed lines, and a heavy impact laid along the sweep that knocks the target along it",
+   effects: [{prim: "technique", name: "Roundhouse kick", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 16},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "roundhouse_kick", radius: 10, span: 150, thickness: 16, length: 70, swing_ticks: 6, hold_ticks: 3, density: 1, kb_dir: "tangent", kick_sweep: "high_low"}}]},
+  {name: "Thrust kick", group: "Kicks", desc: "A straight, heavy front kick along the aim: a wide pressure streak, bigger shock rings, a punch-through blast and ground dust",
+   effects: [{prim: "technique", name: "Thrust kick", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 18},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "thrust_kick", radius: 12, thickness: 18, length: 80, swing_ticks: 5, hold_ticks: 4, density: 1, kb_dir: "aim"}}]},
+  {name: "Axe kick", group: "Kicks", desc: "The heel comes straight down onto the target: a crater, cracks running along the ground, debris thrown up and a flat shock ring. Hit-stop on",
+   effects: [{prim: "technique", name: "Axe kick", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 18},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "axe_kick", radius: 11, span: 140, thickness: 16, length: 70, swing_ticks: 7, hold_ticks: 4, density: 1, kb_dir: "tangent", axe_dir: "screen_down", axe_crater: "contact", hitstop: true, hitstop_ticks: 5}}]},
+  {name: "Spinning kick", group: "Kicks", desc: "Two full turns round the body inside a wind vortex, landing on the target at the end of the spin",
+   effects: [{prim: "technique", name: "Spinning kick", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 14},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "spinning_kick", radius: 10, thickness: 14, length: 65, swing_ticks: 14, hold_ticks: 2, density: 1, kb_dir: "tangent", spin_mode: "centered", spin_turns: 2}}]},
+  {name: "Rising kick (launcher)", group: "Kicks", desc: "A launcher: the foot rises from low behind through the target and on up, dust kicked up as it starts; it knocks the target up and away",
+   effects: [{prim: "technique", name: "Rising kick (launcher)", tag: "energy", anchor: "figure", blend: "additive",
+     battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 16},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "palette"},
+     params: {style: "rising_kick", radius: 10, span: 150, thickness: 15, length: 70, swing_ticks: 6, hold_ticks: 4, density: 1, kb_dir: "tangent", rise_dir: "screen_up"}}]},
   // ---------------------------------------------------------------- gunfire
   // Hand-drawn (prim "technique", laser/gunfx.py + gunfx.js).  Each gun comes in the
   // character's palette colour and in its own signature colours.

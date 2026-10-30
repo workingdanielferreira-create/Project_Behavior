@@ -17,6 +17,7 @@ laser/clash.py
 laser/clashfx.py
 laser/swordfx.py
 laser/strikefx.py
+laser/kickfx.py
 laser/powerfx.py
 laser/roster.py
 laser/startmenu.py
