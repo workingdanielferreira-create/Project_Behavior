@@ -209,12 +209,17 @@ PARAM_DEFAULTS = {
     # spin: a cap, 0 = none; without: turned over the extend + hold);
     # ext_spin_dir clockwise / anticlockwise; ext_slide = px it slides along
     # the axis ext_slide_deg from the blade (0 = along it, 90 = sideways).
+    # Strike hit options (strikefx.HIT_OPTION_STYLES): hitstop freezes the
+    # world hitstop_ticks when it lands (Solo: as it whiffs); kb_dir aim /
+    # tangent / custom (kb_angle_deg turned from the strike, clockwise);
+    # impact_frame off / local (impact_frame_r px) / full (the whole overlay).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
                       gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
                       w_depth=0, ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
-                      ext_slide_deg=0),
+                      ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
+                      impact_frame="off", impact_frame_r=90),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -2420,9 +2425,11 @@ def resolve_hits(inst, host, ps):
             inst.last_hit = now
             g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
             rw = swordfx.gunfx.rewind_mult(inst, hx, hy, ps) if inst.fx["prim"] == "technique" else 1.0
-            host.on_hit(inst, b["damage"] * g * rw, inst.dir[0], inst.dir[1], b["knockback"] * g, key)
+            d = swordfx.hit_dir(inst) if inst.fx["prim"] == "technique" else inst.dir
+            host.on_hit(inst, b["damage"] * g * rw, d[0], d[1], b["knockback"] * g, key)
             if inst.fx["prim"] == "technique":
                 swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
+                swordfx.hit_freeze(inst, host)     # its hit-stop (strikes)
             # Ricochet (unique ability): bounces off the fighter instead.
             if not b["pierce"] and not _unique.inst_off_figure(inst, host, hx, hy, hr):
                 if can_lodge(inst):
@@ -3452,6 +3459,17 @@ class _Host:
         """Body rotation (degrees, after mirroring): the turn anchors get."""
         fig = self.fig
         return fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
+
+    @property
+    def solo(self):
+        """No opponent (Solo): strikes whiff, so Hit-stop plays on the whiff."""
+        return not getattr(self.world, "battle_mode", False)
+
+    def hitstop(self, ticks):
+        """A strike's Hit-stop: the world freezes for `ticks` (the same
+        World.hitstop_ticks freeze big hits use; both sides at once)."""
+        w = self.world
+        w.hitstop_ticks = max(int(getattr(w, "hitstop_ticks", 0) or 0), int(ticks))
 
     def anchor(self, name):
         fig, cfx, drv = self.fig, self.drv.cfx, self.drv

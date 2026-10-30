@@ -338,7 +338,12 @@ var PARAM_DEFAULTS = {
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
     gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0,
-    ext_pivot: 0, ext_spin: 0, ext_sweep: 0, ext_spin_dir: "clockwise", ext_slide: 0, ext_slide_deg: 0}
+    ext_pivot: 0, ext_spin: 0, ext_sweep: 0, ext_spin_dir: "clockwise", ext_slide: 0, ext_slide_deg: 0,
+    // Strike hit options (STRIKEFX HIT_OPTION_STYLES): hitstop freezes the
+    // world hitstop_ticks when it lands (no opponent: as it whiffs); kb_dir
+    // aim / tangent / custom (kb_angle_deg turned from the strike, clockwise);
+    // impact_frame off / local (impact_frame_r px) / full (the whole overlay).
+    hitstop: false, hitstop_ticks: 4, kb_dir: "aim", kb_angle_deg: 0, impact_frame: "off", impact_frame_r: 90}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -2489,8 +2494,12 @@ function resolveHits(inst, host, ps) {
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
   var gm = hitMult(inst, hurt.x, hurt.y, ps);   // grown by absorbing
-  if (host.onHit) host.onHit(inst, b.damage * gm, inst.dir[0], inst.dir[1], b.knockback * gm);
-  if (inst.fx.prim === "technique") G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // its slash flash on the target
+  var hd = inst.fx.prim === "technique" ? G.SWORDFX.hitDir(inst) : inst.dir;
+  if (host.onHit) host.onHit(inst, b.damage * gm, hd[0], hd[1], b.knockback * gm);
+  if (inst.fx.prim === "technique") {
+    G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // its slash flash on the target
+    G.SWORDFX.hitFreeze(inst, host);             // its hit-stop (strikes)
+  }
   if (b.pierce) return;
   if (canLodge(inst)) bladeLodge(inst, hurt.x, hurt.y, hurt.r, ps);
   else inst.age = Math.max(inst.age, inst.life);

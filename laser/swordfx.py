@@ -256,6 +256,7 @@ def on_spawn(inst, host):
     inst.tq_rw = {}                # gun rounds Rewind Bullets turned round (gunfx.rewind)
     inst.tq_rw_end = 0             # ...and the tick their effect may end (0 = as usual)
     inst.tq_imp = []               # punch impacts: (tick, x, y)
+    inst.tq_hs = False             # its hit-stop already froze the world (strikefx._freeze)
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     powerfx.on_spawn(inst, host)
     _record_outline(inst, host)
@@ -270,6 +271,7 @@ def on_tick(inst, host=None):
     inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
     _record_outline(inst, host)
     strikefx.track_step(inst, host)
+    strikefx.hitstop_step(inst, host)
     gunfx.track_step(inst, host)
 
 
@@ -770,6 +772,20 @@ def on_hit(inst, x, y, ps=1.0):
     elif st in CUTS:
         _slash_on_hit(inst)
     inst.tq_hits.append((float(x), float(y), inst.age))
+
+
+def hit_dir(inst):
+    """Which way a landed technique pushes the target: the aim, except
+    for the strikes' own Knockback direction (strikefx.hit_dir)."""
+    if _style(inst.fx["params"]) in strikefx.STYLES:
+        return strikefx.hit_dir(inst)
+    return inst.dir
+
+
+def hit_freeze(inst, host):
+    """A technique just landed: the strikes' Hit-stop (strikefx.hit_freeze)."""
+    if _style(inst.fx["params"]) in strikefx.STYLES:
+        strikefx.hit_freeze(inst, host)
 
 
 # ================================================================ drawing

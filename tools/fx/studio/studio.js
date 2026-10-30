@@ -387,6 +387,7 @@ function outlineOf(img, n) {   // the image's outline (image px), cached per ima
   return pts;
 }
 function G_POWER() { return window.POWERFX; }
+function G_STRIKE() { return window.STRIKEFX; }
 var host = {
   get facing() { return facing(); },
   get target() { return S.target; },
@@ -397,6 +398,10 @@ var host = {
   get showHitboxes() { return true; },
   // The target dummy the fighter is after (none while every dummy is down).
   get hurt() { return S.tgt < 0 ? null : {x: S.target[0], y: S.target[1], r: hurtR()}; },
+  // No opponent (every dummy down, like Solo): strikes whiff, so Hit-stop plays on the whiff.
+  get solo() { return S.tgt < 0; },
+  // A strike's Hit-stop (laser/fxkit.py _Host.hitstop): the preview freezes for n ticks.
+  hitstop: function (n) { S.hitstop = Math.max(S.hitstop || 0, n); },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
   // Path pins "blink:<i>:start|end" (laser/blink.py point).
   blinkPoint: function (i, which) { return blinkPointAt(i, which); },
@@ -1424,8 +1429,17 @@ var PARAM_UI = {
     ["ext_sweep", "Blade sweep ° (with spin: cap, 0 = none)", 0, 3600, 5],
     ["ext_spin_dir", "Blade spin direction", ["clockwise", "anticlockwise"]],
     ["ext_slide", "Blade slide px (− = back)", -2000, 2000, 1],
-    ["ext_slide_deg", "Blade slide axis ° (0 = along blade, 90 = sideways)", -180, 180, 5]]
+    ["ext_slide_deg", "Blade slide axis ° (0 = along blade, 90 = sideways)", -180, 180, 5],
+    // strikes only (STRIKEFX.HIT_OPTION_STYLES): hit-stop, knockback direction, impact frame
+    ["hitstop", "Hit-stop (freeze the world when it lands)", "chk"],
+    ["hitstop_ticks", "Hit-stop ticks", 0, 60, 1],
+    ["kb_dir", "Knockback direction", ["aim", "tangent", "custom"]],
+    ["kb_angle_deg", "Knockback angle ° (custom: from the strike, clockwise)", -180, 180, 5],
+    ["impact_frame", "Impact frame", ["off", "local", "full"]],
+    ["impact_frame_r", "Impact frame radius px (local)", 10, 1000, 5]]
 };
+// Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
+var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r"];
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
 // [key, label, min, max, step, tooltip] ("chk" in place of min for a checkbox).
@@ -1827,7 +1841,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, impact star and shockwave rings; a whiff bursts smaller at full reach. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, an uneven impact star (longest along the punch), shockwave rings squashed along the punch line (the outer ones broken into arcs) and a punch-through blast out of the target's far side; a whiff bursts smaller at full reach. Its hit options: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per punch; Knockback direction aim / tangent (the way the fist moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
@@ -2044,6 +2058,10 @@ function buildProps() {
     if (pw && k !== "style") return;
     if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0 || k === "gap_px" ||
         k.indexOf("w_") === 0 || (k.indexOf("ext_") === 0 && fx.params.style !== "blade_extension"))) return;
+    if (fx.prim === "technique" && HIT_OPTION_KEYS.indexOf(k) >= 0 &&
+        (!G_STRIKE() || G_STRIKE().HIT_OPTION_STYLES.indexOf(fx.params.style) < 0 ||
+         (k === "hitstop_ticks" && !fx.params.hitstop) || (k === "kb_angle_deg" && fx.params.kb_dir !== "custom") ||
+         (k === "impact_frame_r" && fx.params.impact_frame !== "local"))) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {
@@ -2054,8 +2072,10 @@ function buildProps() {
       }));
       return;
     }
-    field(s, u[1], Array.isArray(kind) ? inp(kind, fx.params[k], function (v) { fx.params[k] = v; changed(); })
-      : kind === "chk" ? inp("chk", fx.params[k], function (v) { fx.params[k] = v; changed(); })
+    // (a hit option that shows / hides another rebuilds the panel)
+    var rb = HIT_OPTION_KEYS.indexOf(k) >= 0;
+    field(s, u[1], Array.isArray(kind) ? inp(kind, fx.params[k], function (v) { fx.params[k] = v; changed(rb); })
+      : kind === "chk" ? inp("chk", fx.params[k], function (v) { fx.params[k] = v; changed(rb); })
       : kind === "color" ? inp("color", fx.params[k] || "#000000", function (v) { fx.params[k] = v; changed(); })
       : kind === "anchor" ? inp(anchorOptions(false), fx.params[k], function (v) { fx.params[k] = v; changed(); })
       : inp("n", fx.params[k], function (v) { fx.params[k] = v; changed(); }, u[2], u[3], u[4]));
@@ -4113,7 +4133,7 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
 function resetSim(t) {
-  player.reset(); cplayer.reset(); S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
+  player.reset(); cplayer.reset(); S.hitstop = 0; S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = [];
   dummyReset();
@@ -5501,7 +5521,7 @@ function loop(now) {
   var dt = Math.min(100, now - (last || now)); last = now;
   if (S.playing && C && act()) {
     acc += dt * (+$("speed").value || 1);
-    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length && !player.runs.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
+    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; if (S.hitstop > 0) { S.hitstop -= 1; continue; } step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length && !player.runs.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
   }
   draw();
   refreshCondPreview();
