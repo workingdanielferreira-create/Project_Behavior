@@ -676,7 +676,23 @@ Studio's "Weapons" group. Test dummies can attack with them too.
   card), `w_yaw`, `w_pitch`, `w_spin` (yaw per tick), `w_depth`, plus the
   shared `rotation_deg`. `w_mode`: **signature** (materialise → its own
   sequence → hold its last pose for Hold ticks → dissolve) or **hold** (just
-  held in its ready pose for Hold ticks — animate it with keyframes).
+  held for Hold ticks, lying along the rig's own blade: hand → `wtip` of the
+  frame on show, `haL` → `wtip2` when anchored on `haL`, grip on the hand; a
+  rig without that tip keeps the ready pose — animate it with keyframes).
+- **Momentum and swing plane (both modes):** `w_weight` 0..1 (0 = rigid, as
+  posed): the angle chases its pose through a damped spring (`DRAG_HZ`,
+  `DRAG_ZETA`; heavier = slower, more lag and overshoot) and the hand's
+  acceleration swings it like a rod held at one end — a rising slash drags
+  the tip down behind the hand, carries it past the peak and pivots it back.
+  Integrated tick by tick from the effect's start over the recorded anchor
+  path, so scrubbing, trails and hits all see the same blade. `w_plane`
+  (degrees out of the screen: 0 = flat, 90 = horizontal swing — the blade
+  shrinks as it points at or away from the camera and stretches out toward
+  the target, with perspective), `w_plane_roll` (turns that plane on screen
+  for diagonals), `w_side` **front** (passes between fighter and camera,
+  near end grows) / **behind** (passes round the back, far end shrinks, and
+  a front-layer weapon draws behind the fighter past `BEHIND_Z`). Hits,
+  clashes and trails follow the blade as drawn.
 - **Signature sequences** (`WEAPONS`): per weapon slot a keyed pose track
   `(t, x, y, reach, angle, yaw, pitch, scale, ease)` over `beats × Swing
   ticks`, timed events (`slam`, `cuts`, `xflash`, `snip`, `pillar`, `runes`,

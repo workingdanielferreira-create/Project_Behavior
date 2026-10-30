@@ -337,7 +337,7 @@ var PARAM_DEFAULTS = {
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
-    gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0,
+    gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0, w_weight: 0, w_plane: 0, w_plane_roll: 0, w_side: "front",
     ext_pivot: 0, ext_spin: 0, ext_sweep: 0, ext_spin_dir: "clockwise", ext_slide: 0, ext_slide_deg: 0,
     // Strike hit options (STRIKEFX HIT_OPTION_STYLES): hitstop freezes the
     // world hitstop_ticks when it lands (no opponent: as it whiffs); kb_dir
@@ -2728,8 +2728,14 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
 };
 // hidden (Blink, while the fighter is gone): its body FX are not drawn.
 Player.prototype.draw = function (g, host, layer, ps, hidden) {
-  this.insts.forEach(function (inst) { if (inst.fx.layer === layer && !(hidden && bodyBound(inst))) drawInst(g, inst, host, ps); });
+  this.insts.forEach(function (inst) { if (instLayer(inst, ps) === layer && !(hidden && bodyBound(inst))) drawInst(g, inst, host, ps); });
 };
+// The layer an instance draws on this tick: its own, except a weapon swung
+// behind the fighter (WEAPONFX.drawLayer).  laser/fxkit.py inst_layer.
+function instLayer(inst, ps) {
+  var lay = inst.fx.layer;
+  return inst.fx.prim === "technique" && G.WEAPONFX ? G.WEAPONFX.drawLayer(inst, ps, lay) : lay;
+}
 // FX that sit on the fighter's body (attached / orbit motion, weapon
 // hitboxes): hidden and harmless while it is blinked out.
 function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached" || fx.motion.kind === "orbit" || fx.prim === "weapon"; }

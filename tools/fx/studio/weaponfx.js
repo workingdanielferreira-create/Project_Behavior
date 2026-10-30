@@ -29,6 +29,14 @@ var IMPLODE_IN = 10;   // ticks a void implosion takes to collapse before it pop
 var VOID = [10, 4, 18];   // the void's black core (drawn over, not added)
 var IMPACT_LIFE = 16;
 var TAIL = 48;
+// Weight (w_weight): the spring the weapon's angle chases its pose through.
+var DRAG_HZ = [14, 4.5];      // spring frequency (Hz) from weight 0+ (snaps) to 1 (lags)
+var DRAG_ZETA = [0.9, 0.42];  // damping from weight 0+ to 1 (heavy overshoots its peak)
+var DRAG_SUB = 4;             // spring steps per tick
+var DRAG_MAX = 120;           // degrees the blade may trail its pose
+var GRIP_SMOOTH = 0.5;        // low-pass on the hand's path (rig frames step)
+var GRIP_ACC_MAX = 0.6;       // hand acceleration cap, weapon lengths per tick^2
+var BEHIND_Z = 0.3;           // Swing side behind: draws behind the fighter past this far round
 var EVT_LIFE = {slam: 28, cuts: 18, xflash: 16, snip: 16, pillar: 30, runes: 36, glyph: 22, burst: 16, charge: 0, petals: 30, blink: 12, implode: 26};
 var EVT_R = {slam: 46, cuts: 26, xflash: 20, snip: 22, pillar: 26, runes: 18, glyph: 24, burst: 20, charge: 0, petals: 0, blink: 0, implode: 0};
 var SHOTS = {light: {speed: 15, size: 1.1}, spark: {speed: 18, size: 0.9}, neon: {speed: 17, size: 0.75}, arrow: {speed: 14, size: 1}, beam: {speed: 0, size: 1.6}, rail: {speed: 0, size: 0.7}};
@@ -171,29 +179,137 @@ function recoil(w, P, slot, tick) {
   }
   return Math.min(1.5, k);
 }
-// The XF of weapon slot `slot` at tick (fractional ticks allowed).
-function xf(inst, ps, slot, tick) {
-  var P = inst.fx.params, w = W_(P), md = MODELS[w.models[slot]], L = L_();
-  var ph = phase(P, inst.life, tick), ap = ph[1];
-  var rows = w.tracks[slot];
+function wrap(d) { return d - 360 * Math.floor((d + 180) / 360); }   // folded into [-180, 180)
+// (hand, weapon tip) anchors Hold mode lines the weapon up along.
+function gripNames(fx) { return fx.anchor === "haL" ? ["haL", "wtip2"] : ["haR", "wtip"]; }
+// Hold mode: the local angle (degrees) of the hand -> weapon tip line on the
+// frame on show (the rig's own blade), or null (signature mode, or no such
+// tip on this rig).  Recorded every tick (swordfx.js onSpawn / onTick).
+function armAng(inst, host) {
+  var P = inst.fx.params;
+  if (!host || sig(P) || !WEAPONS[L_().style(P)]) return null;
+  var g = gripNames(inst.fx), p0 = host.anchor(g[0]), p1 = host.anchor(g[1]), fg = host.anchor("figure");
+  var dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+  if ((p1[0] === fg[0] && p1[1] === fg[1]) || Math.hypot(dx, dy) < 1) return null;
+  var fr = new (L_().Frame)(0, 0, inst.tq_f, inst.tq_m);
+  return Math.atan2(dx * fr.vx + dy * fr.vy, dx * fr.fx + dy * fr.fy) / L_().D;
+}
+function armAt(inst, tick) {
+  var A = inst.w_arm;
+  if (!A || !A.length) return null;
+  var k = Math.max(0, Math.min(Math.trunc(tick), A.length - 1)), a = A[k];
+  if (a == null) return null;
+  var b = k + 1 < A.length ? A[k + 1] : null, f = tick - Math.trunc(tick);
+  if (b == null || f <= 0) return a;
+  return a + wrap(b - a) * f;
+}
+// The slot's pose at tick before weight and swing plane:
+// [x, y, r, ang, yaw, pitch, scale, aim angle, target distance].
+function pose(inst, P, w, slot, tick) {
+  var ph = phase(P, inst.life, tick), rows = w.tracks[slot];
   var q = sig(P) ? track(rows, ph[0]) : rows[0].slice(1, 8);
-  var x = q[0], y = q[1], r = q[2], ang = q[3], yaw = q[4], pitch = q[5], sc = q[6];
-  if (!sig(P)) y += Math.sin(tick * 0.12) * 0.15;
-  var Lp = Math.max(1, +P.length || 40) * ps;
-  var Wp = md.vs === "l" ? Lp : Math.max(0.5, +P.thickness || 4) * ps;
-  var Gs = P.w_scale != null ? +P.w_scale : 1;
-  var dz = Math.max(-0.75, +P.w_depth || 0);
-  var ad = w.aim ? aimAng(inst, tick) : [0, 0], aa = ad[0], dist = ad[1];
-  ang += aa;
+  var x = q[0], y = q[1], ang = q[3];
+  var ad = w.aim ? aimAng(inst, tick) : [0, 0];
+  var arm = sig(P) ? null : armAt(inst, tick);
+  if (arm == null) {
+    if (!sig(P)) y += Math.sin(tick * 0.12) * 0.15;
+    ang += ad[0];
+  } else {
+    x = y = 0;      // the grip in the hand, along the rig's own blade line
+    ang = arm;
+  }
   if (w.shot) {
     var kick = recoil(w, P, slot, tick);
     ang -= 9 * kick;
     x -= 0.25 * kick;
   }
+  return [x, y, q[2], ang, q[4], q[5], q[6], ad[0], ad[1]];
+}
+function weight(P) { return Math.max(0, Math.min(1, +P.w_weight || 0)); }
+function flipSign(v) { return v != null && +v < 0 ? -1 : 1; }
+// Degrees the weapon trails its pose by at tick (w_weight; 0 = rigid).  A
+// damped spring pulls the angle toward the pose while the hand's
+// acceleration swings it like a rod held at one end (angular acceleration
+// -1.5 / L x (blade x hand acceleration)).  Integrated tick by tick from the
+// start of the effect over the recorded anchor path, so it is the same
+// however often it is asked (scrubbing, trails, hits).  laser/weaponfx.py _drag.
+function drag(inst, ps, slot, tick) {
+  var P = inst.fx.params, wt = weight(P);
+  if (wt <= 0) return 0;
+  var w = W_(P), L = L_();
+  var Gs = P.w_scale != null ? +P.w_scale : 1;
+  var s0 = 1 / (1 + Math.max(-0.75, +P.w_depth || 0));
+  var Lp = Math.max(1, +P.length || 40) * ps * Math.max(0.05, Math.abs(Gs));
+  var key = ps + "|" + wt;
+  if (!inst.w_dg || inst.w_dg.key !== key) inst.w_dg = {key: key};
+  var cache = inst.w_dg, c = cache[slot];
+  var known = inst.tq_path.length - 1;   // ticks whose anchor is recorded
+  var fr = new L.Frame(0, 0, inst.tq_f, inst.tq_m);
+  var sx = flipSign(P.w_flip_x), sy = flipSign(P.w_flip_y);
+  var w0 = 2 * Math.PI * (DRAG_HZ[0] + (DRAG_HZ[1] - DRAG_HZ[0]) * wt) * FXK().TICK_MS / 1000;
+  var ze = DRAG_ZETA[0] + (DRAG_ZETA[1] - DRAG_ZETA[0]) * wt;
+  var lim = DRAG_MAX * L.D, amax = GRIP_ACC_MAX * Lp;
+  function grip(k) {   // the hand in the weapon's own (unflipped) frame, px
+    var q = pose(inst, P, w, slot, k), p = inst.tq_path[k], px = p[0] * sx, py = p[1] * sy;
+    return [[px * fr.fx + py * fr.fy + q[0] * HU * ps * s0 * Gs, px * fr.vx + py * fr.vy + q[1] * HU * ps * s0 * Gs], q[3]];
+  }
+  if (!c) {
+    var r0 = grip(0), T0 = r0[1] * L.D;
+    c = cache[slot] = {dev: [0], th: T0, om: 0, T: T0, raw: r0[1], s: r0[0], v: [0, 0]};
+  }
+  var dev = c.dev, want = Math.min(known, Math.trunc(tick) + 1), h = 1 / DRAG_SUB;
+  while (dev.length <= want) {
+    var k = dev.length, r = grip(k), g = r[0], a = r[1];
+    var T = c.T + wrap(a - c.raw) * L.D;
+    var s = [c.s[0] + (g[0] - c.s[0]) * GRIP_SMOOTH, c.s[1] + (g[1] - c.s[1]) * GRIP_SMOOTH];
+    var v = [s[0] - c.s[0], s[1] - c.s[1]];
+    var ax = v[0] - c.v[0], ay = v[1] - c.v[1], am = Math.hypot(ax, ay);
+    if (am > amax) { ax = ax * amax / am; ay = ay * amax / am; }
+    var th = c.th, om = c.om, Tp = c.T;
+    for (var i = 1; i <= DRAG_SUB; i++) {
+      var Tt = Tp + (T - Tp) * i * h;
+      var tq = -1.5 / Lp * (Math.cos(th) * ay - Math.sin(th) * ax);
+      om += (w0 * w0 * (Tt - th) - 2 * ze * w0 * om + tq) * h;
+      th += om * h;
+    }
+    if (th - T > lim) { th = T + lim; om *= 0.5; }
+    else if (th - T < -lim) { th = T - lim; om *= 0.5; }
+    c.th = th; c.om = om; c.T = T; c.raw = a; c.s = s; c.v = v;
+    dev.push((th - T) / L.D);
+  }
+  var kk = Math.max(0, Math.min(Math.trunc(tick), dev.length - 1)), f = tick - Math.trunc(tick);
+  if (f > 0 && kk + 1 < dev.length) return dev[kk] + (dev[kk + 1] - dev[kk]) * f;
+  return dev[kk];
+}
+// The swing plane (w_plane / w_plane_roll / w_side): the pose's angle swept
+// round a plane tilted out of the screen.  -> [screen angle degrees, tilt out
+// of the screen degrees (- = toward the camera), how far round out of the
+// screen 0..1].  laser/weaponfx.py _plane.
+function plane(P, ang) {
+  var b = Math.max(0, Math.min(90, +P.w_plane || 0)), D = L_().D;
+  if (b <= 0) return [ang, 0, 0];
+  var g = +P.w_plane_roll || 0, a = (ang - g) * D;
+  var z = Math.min(1, Math.abs(Math.sin(a)) * Math.sin(b * D));
+  var scr = Math.atan2(Math.sin(a) * Math.cos(b * D), Math.cos(a)) / D + g;
+  var side = P.w_side === "behind" ? -1 : 1;
+  return [scr, -side * Math.asin(z) / D, z];
+}
+// The XF of weapon slot `slot` at tick (fractional ticks allowed).
+function xf(inst, ps, slot, tick) {
+  var P = inst.fx.params, w = W_(P), md = MODELS[w.models[slot]], L = L_();
+  var ph = phase(P, inst.life, tick), ap = ph[1];
+  var q = pose(inst, P, w, slot, tick);
+  var x = q[0], y = q[1], r = q[2], yaw = q[4], pitch = q[5], sc = q[6], aa = q[7], dist = q[8];
+  var pl = plane(P, q[3] + drag(inst, ps, slot, tick)), ang = pl[0];
+  var Lp = Math.max(1, +P.length || 40) * ps;
+  var Wp = md.vs === "l" ? Lp : Math.max(0.5, +P.thickness || 4) * ps;
+  var Gs = P.w_scale != null ? +P.w_scale : 1;
+  var dz = Math.max(-0.75, +P.w_depth || 0);
   var o = new XF(), p0 = at(inst.tq_path, tick);
   o.fr = new L.Frame(p0[0], p0[1], inst.tq_f, inst.tq_m);
   o.Y = (yaw + (+P.w_yaw || 0) + (+P.w_spin || 0) * tick) * L.D;
-  o.Pt = (pitch + (+P.w_pitch || 0)) * L.D;
+  o.Pt = (pitch + (+P.w_pitch || 0) + pl[1]) * L.D;
+  o.zp = pl[2];
   o.cy = Math.cos(o.Y); o.sy = Math.sin(o.Y);
   o.cp = Math.cos(o.Pt); o.sp = Math.sin(o.Pt);
   o.ca = Math.cos(ang * L.D); o.sa = Math.sin(ang * L.D);
@@ -217,6 +333,15 @@ function xf(inst, ps, slot, tick) {
   o.nz = o.cy * o.cp;
   o.m = md;
   return o;
+}
+// The layer the weapon draws on this tick: Swing side behind moves a
+// front-layer weapon behind the fighter while it is round the far side.
+// laser/weaponfx.py draw_layer.
+function drawLayer(inst, ps, layer) {
+  var P = inst.fx.params;
+  if (layer !== "front" || P.w_side !== "behind" || !((+P.w_plane || 0) > 0)) return layer;
+  if (!WEAPONS[L_().style(P)]) return layer;
+  return xf(inst, ps, 0, inst.age).zp > BEHIND_Z ? "back" : layer;
 }
 // Slot's cutting line: [x0, y0, x1, y1, half width] in world px.
 function seg(o) {
@@ -845,5 +970,6 @@ function draw(pen, inst, host, ps) {
 }
 
 G.WEAPONFX = {STYLES: STYLES, WEAPONS: WEAPONS, MODELS: MODELS, draw: draw, hit: hit, body: body, onHit: onHit,
-              activeTicks: activeTicks, totalTicks: totalTicks, fires: fires, livePoints: livePoints};
+              activeTicks: activeTicks, totalTicks: totalTicks, fires: fires, livePoints: livePoints,
+              armAng: armAng, drawLayer: drawLayer};
 })(window);

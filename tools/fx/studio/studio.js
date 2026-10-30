@@ -1424,6 +1424,8 @@ var PARAM_UI = {
     ["w_mode", "Weapon mode", ["signature", "hold"]], ["w_scale", "Weapon size ×", 0, 6, 0.05],
     ["w_flip_x", "Flip X", -1, 1, 0.05], ["w_flip_y", "Flip Y", -1, 1, 0.05], ["w_yaw", "3D spin (yaw) °", -720, 720, 1],
     ["w_pitch", "3D tilt (pitch) °", -180, 180, 1], ["w_spin", "Spin °/tick", -90, 90, 0.5], ["w_depth", "Depth", -0.75, 4, 0.05],
+    ["w_weight", "Weight", 0, 1, 0.05], ["w_plane", "Swing plane tilt °", 0, 90, 1],
+    ["w_plane_roll", "Swing plane roll °", -90, 90, 1], ["w_side", "Swing side", ["front", "behind"]],
     // blade extension only: its movement while it is out (laser/swordfx.py _ext_frame)
     ["ext_pivot", "Blade pivot (0 = base, 0.5 = middle, 1 = tip)", 0, 1, 0.05],
     ["ext_spin", "Blade spin °/tick (0 = use sweep)", 0, 90, 0.5],
@@ -1561,7 +1563,7 @@ var POWER_UI = {
 // timing, then the 2.5D controls every weapon shares.  Every number here can
 // be keyframed (◆): size, flips, spin, tilt and depth animate like the rest.
 (function () {
-  var MODE = ["w_mode", "Mode", ["signature", "hold"], 0, 0, "Signature: the weapon materialises, plays its own signature sequence, holds its last pose for Hold ticks, then dissolves. Hold: it simply appears in the anchor's hand in its ready pose for Hold ticks — animate it with keyframes."];
+  var MODE = ["w_mode", "Mode", ["signature", "hold"], 0, 0, "Signature: the weapon materialises, plays its own signature sequence, holds its last pose for Hold ticks, then dissolves. Hold: it appears in the anchor's hand for Hold ticks, lying along the rig's own blade (hand → wtip of the frame on show; haL → wtip2 when anchored on haL) — a rig without that tip keeps the ready pose; animate it with keyframes."];
   var COMMON = [["w_scale", "Size ×", 0, 6, 0.05, "Size of the weapon (1 = its own size). Key it to grow or shrink it."],
     ["w_flip_x", "Flip X", -1, 1, 0.05, "1 = as drawn, -1 = mirrored left / right on screen round the anchor. Key 1 → -1 and it turns over like a card."],
     ["w_flip_y", "Flip Y", -1, 1, 0.05, "1 = as drawn, -1 = mirrored up / down on screen round the anchor. Key 1 → -1 and it turns over like a card."],
@@ -1569,6 +1571,10 @@ var POWER_UI = {
     ["w_pitch", "3D tilt (pitch) °", -180, 180, 1, "Tilts the weapon toward (+) or away from (−) the camera, with perspective: the near end grows, the far end shrinks."],
     ["w_spin", "Spin °/tick", -90, 90, 0.5, "A continuous 3D spin round its long axis, degrees per tick, on top of 3D spin."],
     ["w_depth", "Depth", -0.75, 4, 0.05, "How far behind (+) or in front of (−) its plane it sits: 1 = twice as far (half size), −0.5 = twice as close."],
+    ["w_weight", "Weight", 0, 1, 0.05, "Momentum. 0 = rigid (exactly as posed). Above 0 the weapon chases its pose and the hand's movement swings it: on a rising slash the tip drags down behind the hand, carries on past the peak and pivots back. Heavier = more lag and overshoot. Its hits follow the blade you see."],
+    ["w_plane", "Swing plane tilt °", 0, 90, 1, "Tilts the swing out of the screen. 0 = it swings flat on the screen; 90 = a horizontal swing: the blade shrinks as it points at (or away from) the camera and stretches out again toward the target, with perspective."],
+    ["w_plane_roll", "Swing plane roll °", -90, 90, 1, "Turns the swing plane on screen, for diagonal swings."],
+    ["w_side", "Swing side", ["front", "behind"], 0, 0, "Which side of the fighter the blade passes when the swing plane is tilted. Front: between the fighter and the camera (its near end grows). Behind: round the back (its far end shrinks, and a front-layer weapon draws behind the fighter while it is round the far side)."],
     ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the weapon and its whole sequence (clockwise, mirrors with the facing)."]];
   var HIT = " Its blade hits while the sequence plays (Hold mode: while held), and every flash, slam or burst hits where it goes off: give it Pierce and a Re-hit of 1–2.";
   var GUN = " Each shot hits once: give it Pierce and a short Re-hit (2). Use Motion attached, Aim target: shots aim at the target.";

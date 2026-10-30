@@ -33,6 +33,25 @@ rules; FX Studio's weapon panel):
   w_spin      extra yaw per tick (a continuous 3D spin)
   w_depth     how far behind (+) / in front of (-) its plane it sits (0 =
               in plane; 1 = twice as far: half size)
+  w_weight    0..1: momentum.  0 = rigid (the angle is exactly the pose's);
+              above 0 the angle chases the pose through a damped spring and
+              the hand's acceleration swings it like a rod held at one end:
+              a rising slash drags the tip down behind the hand, carries it
+              on past the peak and pivots it back.  Heavier = slower spring,
+              more lag and overshoot (DRAG_HZ, DRAG_ZETA)
+  w_plane     swing plane tilt, degrees out of the screen: 0 = the swing
+              stays in the screen plane; 90 = a horizontal swing, so the
+              blade shrinks as it points at (or away from) the camera and
+              stretches out again toward the target (perspective too)
+  w_plane_roll  turns that plane on screen, degrees (diagonal swings)
+  w_side      "front": the blade passes between the fighter and the camera
+              (its near end grows); "behind": it passes behind (the far end
+              shrinks and the weapon draws behind the fighter while it is
+              round the far side, BEHIND_Z)
+
+Hold mode follows the arm: the weapon lies along the rig's own blade line,
+hand -> wtip of the frame on show (haL -> wtip2 when the effect is anchored
+on haL), its grip on the hand.  A rig without that tip keeps the ready pose.
   rotation_deg  turns the whole weapon and its sequence (shared technique field)
 
 Shared technique fields: length = weapon length px, thickness = blade
@@ -87,6 +106,14 @@ EVT_R = dict(slam=46, cuts=26, xflash=20, snip=22, pillar=26, runes=18, glyph=24
 SHOTS = dict(light=dict(speed=15, size=1.1), spark=dict(speed=18, size=0.9), neon=dict(speed=17, size=0.75),
              arrow=dict(speed=14, size=1.0), beam=dict(speed=0, size=1.6), rail=dict(speed=0, size=0.7))
 GLOWS = ("gem", "spirit")
+# Weight (w_weight): the spring the weapon's angle chases its pose through.
+DRAG_HZ = (14.0, 4.5)      # spring frequency (Hz) from weight 0+ (snaps) to 1 (lags)
+DRAG_ZETA = (0.9, 0.42)    # damping from weight 0+ to 1 (heavy overshoots its peak)
+DRAG_SUB = 4               # spring steps per tick
+DRAG_MAX = 120.0           # degrees the blade may trail its pose
+GRIP_SMOOTH = 0.5          # low-pass on the hand's path (rig frames step)
+GRIP_ACC_MAX = 0.6         # hand acceleration cap, weapon lengths per tick^2
+BEHIND_Z = 0.3             # Swing side behind: draws behind the fighter past this far round
 
 # ---------------------------------------------------------------- models
 # Each part: (role, ((u, v), ...)).  u runs along the weapon (0 = the hand,
@@ -558,7 +585,7 @@ class XF:
     """One weapon slot at one moment: model (u, v) -> world, through the
     yaw / pitch / perspective camera, the pose, the size and the flips."""
     __slots__ = ("fr", "px", "py", "ca", "sa", "cy", "sy", "cp", "sp", "K", "L", "W", "Fc", "dz", "fx_", "fy_",
-                 "nz", "tk", "Y", "Pt", "m")
+                 "nz", "tk", "Y", "Pt", "m", "zp")
 
     def pt(self, u, v, t=0.0):
         x3 = u * self.L
@@ -600,30 +627,182 @@ def _recoil(w, P, slot, tick):
     return min(1.5, k)
 
 
+def _wrap(d):
+    """d degrees folded into [-180, 180)."""
+    return d - 360.0 * math.floor((d + 180.0) / 360.0)
+
+
+def _grip_names(fx):
+    """(hand, weapon tip) anchors Hold mode lines the weapon up along."""
+    return ("haL", "wtip2") if fx.get("anchor") == "haL" else ("haR", "wtip")
+
+
+def arm_ang(inst, host):
+    """Hold mode: the local angle (degrees) of the hand -> weapon tip line on
+    the frame on show (the rig's own blade), or None (signature mode, or no
+    such tip on this rig).  Recorded every tick (swordfx on_spawn / on_tick)."""
+    P = inst.fx["params"]
+    if host is None or _sig(P) or S._style(P) not in WEAPONS:
+        return None
+    g, t = _grip_names(inst.fx)
+    p0, p1, fg = host.anchor(g), host.anchor(t), host.anchor("figure")
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    if (p1[0] == fg[0] and p1[1] == fg[1]) or math.hypot(dx, dy) < 1.0:
+        return None
+    fr = S.Frame(0.0, 0.0, inst.tq_f, inst.tq_m)
+    return math.atan2(dx * fr.vx + dy * fr.vy, dx * fr.fx + dy * fr.fy) / S.D
+
+
+def _arm_at(inst, tick):
+    A = getattr(inst, "w_arm", None)
+    if not A:
+        return None
+    k = max(0, min(F.trunc(tick), len(A) - 1))
+    a = A[k]
+    if a is None:
+        return None
+    b = A[k + 1] if k + 1 < len(A) else None
+    f = tick - F.trunc(tick)
+    if b is None or f <= 0:
+        return a
+    return a + _wrap(b - a) * f
+
+
+def _pose(inst, P, w, slot, tick):
+    """The slot's pose at tick before weight and swing plane:
+    (x, y, r, ang, yaw, pitch, scale, aim angle, target distance)."""
+    u, _ap, _fd = _phase(P, inst.life, tick)
+    rows = w["tracks"][slot]
+    x, y, r, ang, yaw, pitch, sc = _track(rows, u) if _sig(P) else list(rows[0][1:8])
+    aa, dist = (_aim_ang(inst, tick) if w["aim"] else (0.0, 0.0))
+    arm = None if _sig(P) else _arm_at(inst, tick)
+    if arm is None:
+        if not _sig(P):
+            y += math.sin(tick * 0.12) * 0.15
+        ang += aa
+    else:
+        x = y = 0.0      # the grip in the hand, along the rig's own blade line
+        ang = arm
+    if w["shot"]:
+        kick = _recoil(w, P, slot, tick)
+        ang -= 9.0 * kick
+        x -= 0.25 * kick
+    return x, y, r, ang, yaw, pitch, sc, aa, dist
+
+
+def _weight(P):
+    return max(0.0, min(1.0, float(P.get("w_weight") or 0)))
+
+
+def _flip_sign(v):
+    return -1.0 if (v is not None and float(v) < 0) else 1.0
+
+
+def _drag(inst, ps, slot, tick):
+    """Degrees the weapon trails its pose by at tick (w_weight; 0 = rigid).
+    A damped spring pulls the angle toward the pose while the hand's
+    acceleration swings it like a rod held at one end (angular acceleration
+    -1.5 / L x (blade x hand acceleration)).  It is integrated tick by tick
+    from the start of the effect over the recorded anchor path, so it is the
+    same however often it is asked (scrubbing, trails, hits)."""
+    P = inst.fx["params"]
+    wt = _weight(P)
+    if wt <= 0:
+        return 0.0
+    w = _w(P)
+    G = float(P.get("w_scale") if P.get("w_scale") is not None else 1)
+    s0 = 1.0 / (1.0 + max(-0.75, float(P.get("w_depth") or 0)))
+    Lp = max(1.0, float(P.get("length") or 40)) * ps * max(0.05, abs(G))
+    key = (ps, wt)
+    cache = getattr(inst, "w_dg", None)
+    if cache is None or cache.get("key") != key:
+        cache = inst.w_dg = {"key": key}
+    c = cache.get(slot)
+    known = len(inst.tq_path) - 1          # ticks whose anchor is recorded
+    fr = S.Frame(0.0, 0.0, inst.tq_f, inst.tq_m)
+    sx, sy = _flip_sign(P.get("w_flip_x")), _flip_sign(P.get("w_flip_y"))
+    w0 = 2.0 * math.pi * (DRAG_HZ[0] + (DRAG_HZ[1] - DRAG_HZ[0]) * wt) * F.TICK_MS / 1000.0
+    ze = DRAG_ZETA[0] + (DRAG_ZETA[1] - DRAG_ZETA[0]) * wt
+    lim = DRAG_MAX * S.D
+    amax = GRIP_ACC_MAX * Lp
+
+    def grip(k):
+        # the hand in the weapon's own (unflipped) frame, px
+        q = _pose(inst, P, w, slot, k)
+        px, py = inst.tq_path[k]
+        px, py = px * sx, py * sy
+        return (px * fr.fx + py * fr.fy + q[0] * HU * ps * s0 * G,
+                px * fr.vx + py * fr.vy + q[1] * HU * ps * s0 * G), q[3]
+
+    if c is None:
+        g0, a0 = grip(0)
+        T0 = a0 * S.D
+        c = cache[slot] = {"dev": [0.0], "th": T0, "om": 0.0, "T": T0, "raw": a0, "s": g0, "v": (0.0, 0.0)}
+    dev = c["dev"]
+    want = min(known, F.trunc(tick) + 1)
+    h = 1.0 / DRAG_SUB
+    while len(dev) <= want:
+        k = len(dev)
+        g, a = grip(k)
+        T = c["T"] + _wrap(a - c["raw"]) * S.D
+        s = (c["s"][0] + (g[0] - c["s"][0]) * GRIP_SMOOTH, c["s"][1] + (g[1] - c["s"][1]) * GRIP_SMOOTH)
+        v = (s[0] - c["s"][0], s[1] - c["s"][1])
+        ax, ay = v[0] - c["v"][0], v[1] - c["v"][1]
+        am = math.hypot(ax, ay)
+        if am > amax:
+            ax, ay = ax * amax / am, ay * amax / am
+        th, om, Tp = c["th"], c["om"], c["T"]
+        for i in range(1, DRAG_SUB + 1):
+            Tt = Tp + (T - Tp) * i * h
+            tq = -1.5 / Lp * (math.cos(th) * ay - math.sin(th) * ax)
+            om += (w0 * w0 * (Tt - th) - 2.0 * ze * w0 * om + tq) * h
+            th += om * h
+        if th - T > lim:
+            th, om = T + lim, om * 0.5
+        elif th - T < -lim:
+            th, om = T - lim, om * 0.5
+        c.update(th=th, om=om, T=T, raw=a, s=s, v=v)
+        dev.append((th - T) / S.D)
+    k = max(0, min(F.trunc(tick), len(dev) - 1))
+    f = tick - F.trunc(tick)
+    if f > 0 and k + 1 < len(dev):
+        return dev[k] + (dev[k + 1] - dev[k]) * f
+    return dev[k]
+
+
+def _plane(P, ang):
+    """The swing plane (w_plane / w_plane_roll / w_side): the pose's angle
+    swept round a plane tilted out of the screen.  -> (screen angle degrees,
+    tilt out of the screen degrees (- = toward the camera), how far round out
+    of the screen 0..1)."""
+    b = max(0.0, min(90.0, float(P.get("w_plane") or 0)))
+    if b <= 0:
+        return ang, 0.0, 0.0
+    g = float(P.get("w_plane_roll") or 0)
+    a = (ang - g) * S.D
+    z = min(1.0, abs(math.sin(a)) * math.sin(b * S.D))
+    scr = math.atan2(math.sin(a) * math.cos(b * S.D), math.cos(a)) / S.D + g
+    side = -1.0 if P.get("w_side") == "behind" else 1.0
+    return scr, -side * math.asin(z) / S.D, z
+
+
 def xf(inst, ps, slot, tick):
     """The XF of weapon slot `slot` at tick (fractional ticks allowed)."""
     P = inst.fx["params"]
     w = _w(P)
     md = MODELS[w["models"][slot]]
-    u, ap, _fd = _phase(P, inst.life, tick)
-    rows = w["tracks"][slot]
-    x, y, r, ang, yaw, pitch, sc = _track(rows, u) if _sig(P) else list(rows[0][1:8])
-    if not _sig(P):
-        y += math.sin(tick * 0.12) * 0.15
+    _u, ap, _fd = _phase(P, inst.life, tick)
+    x, y, r, ang, yaw, pitch, sc, aa, dist = _pose(inst, P, w, slot, tick)
+    ang, tilt, zp = _plane(P, ang + _drag(inst, ps, slot, tick))
     L = max(1.0, float(P.get("length") or 40)) * ps
     W = (L if md["vs"] == "l" else max(0.5, float(P.get("thickness") or 4)) * ps)
     G = float(P.get("w_scale") if P.get("w_scale") is not None else 1)
     dz = max(-0.75, float(P.get("w_depth") or 0))
-    aa, dist = (_aim_ang(inst, tick) if w["aim"] else (0.0, 0.0))
-    ang += aa
-    if w["shot"]:
-        kick = _recoil(w, P, slot, tick)
-        ang -= 9.0 * kick
-        x -= 0.25 * kick
     o = XF()
     o.fr = S.Frame(_at(inst.tq_path, tick)[0], _at(inst.tq_path, tick)[1], inst.tq_f, inst.tq_m)
     o.Y = (yaw + float(P.get("w_yaw") or 0) + float(P.get("w_spin") or 0) * tick) * S.D
-    o.Pt = (pitch + float(P.get("w_pitch") or 0)) * S.D
+    o.Pt = (pitch + float(P.get("w_pitch") or 0) + tilt) * S.D
+    o.zp = zp
     o.cy, o.sy = math.cos(o.Y), math.sin(o.Y)
     o.cp, o.sp = math.cos(o.Pt), math.sin(o.Pt)
     o.ca, o.sa = math.cos(ang * S.D), math.sin(ang * S.D)
@@ -646,6 +825,17 @@ def xf(inst, ps, slot, tick):
     o.nz = o.cy * o.cp
     o.m = md
     return o
+
+
+def draw_layer(inst, ps, layer):
+    """The layer the weapon draws on this tick: Swing side behind moves a
+    front-layer weapon behind the fighter while it is round the far side."""
+    P = inst.fx["params"]
+    if layer != "front" or P.get("w_side") != "behind" or not float(P.get("w_plane") or 0) > 0:
+        return layer
+    if S._style(P) not in WEAPONS:
+        return layer
+    return "back" if xf(inst, ps, 0, inst.age).zp > BEHIND_Z else layer
 
 
 def _seg(o):
