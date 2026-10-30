@@ -321,7 +321,7 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     # 'none' instead via ultimate_playback.style.
     if fig.mode.uses_melee() and _combat.ultimate_style(fig) == "crescent":
         if world.battle_mode and world.partner_figures:
-            tx, ty = world._nearest_enemy(fig.x, fig.y)
+            tx, ty = world.enemy_target(fig)
         else:
             tx, ty = world.cursor
         for thresh in _combat.ultc_cfg(fig)['thresholds']:
@@ -460,7 +460,7 @@ def battle_target(world, fig):
     if m.bounce_ending and m.bounce_end_ticks == 1:
         p.daze_ticks = rng.randint(*config.DAZE_TICKS_RANGE)
 
-    ex, ey = world._nearest_enemy(t.x, t.y)
+    ex, ey = world.enemy_target(fig)
     dx, dy = ex - t.x, ey - t.y
     dist = (dx * dx + dy * dy) ** 0.5
 

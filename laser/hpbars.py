@@ -17,7 +17,7 @@ from PyQt5.QtGui import QColor, QFont, QPen
 from . import roster as _roster
 from . import tag as _tag
 
-MARGIN_X = 24
+MARGIN_X = 30
 MARGIN_Y = 22
 BAR_W = 260
 BAR_H = 14
@@ -50,6 +50,7 @@ def _name(slot):
 
 def draw(p, world):
     slots = getattr(world, "slots", None) or []
+    pairs = list(getattr(world, "tag_pairs", None) or [])
     live = set()
     for team in range(_roster.TEAM_COUNT):
         rows = [s for s in _roster.team_slots(slots, team) if s.fig is not None]
@@ -57,16 +58,17 @@ def draw(p, world):
             continue
         right = team == 1
         x0 = world.screen_w - MARGIN_X - BAR_W if right else MARGIN_X
-        ys = []
+        ys = {}
         for n, s in enumerate(rows):
             y = MARGIN_Y + n * ROW_H
-            ys.append(y)
+            ys[s.index] = y
             live.add(id(s.fig))
             _row(p, s, x0, y, right, _tag.status(world, s),
                  _tag.partner_of(world, s) is not None)
-        pair = world.tag_pairs[team] if team < len(getattr(world, "tag_pairs", ())) else None
-        if pair is not None and len(rows) == 2:
-            _link(p, x0, ys, right)
+        for k, pr in enumerate(pairs):
+            if pr.team == team and pr.on.index in ys and pr.off.index in ys:
+                col = _roster.PAIR_COLORS[k % len(_roster.PAIR_COLORS)]
+                _link(p, x0, sorted((ys[pr.on.index], ys[pr.off.index])), right, col, k)
     for k in list(_lag.keys()):
         if k not in live:
             del _lag[k]
@@ -141,12 +143,14 @@ def _row(p, s, x0, y, right, status, linked):
     p.drawText(tx, by + BAR_H - 3, txt)
 
 
-def _link(p, x0, ys, right):
-    """TAG bracket joining a pair's two bars on the screen-edge side."""
-    pen = QPen(QColor(255, 255, 255, 120))
-    pen.setWidthF(1.5)
+def _link(p, x0, ys, right, col, k):
+    """TAG bracket in the pair's colour joining its two bars on the
+    screen-edge side (a second pair on the team sits one step further out)."""
+    pen = QPen(QColor(col[0], col[1], col[2], 200))
+    pen.setWidthF(2.0)
     p.setPen(pen)
-    ex = x0 + BAR_W + 8 if right else x0 - 8
+    off = 8 + 5 * (k % 2)
+    ex = x0 + BAR_W + off if right else x0 - off
     hx = ex - 5 if right else ex + 5
     y0, y1 = ys[0] + ROW_H // 2 + 2, ys[1] + ROW_H // 2 + 2
     p.drawLine(int(hx), int(y0), int(ex), int(y0))

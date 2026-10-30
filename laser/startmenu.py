@@ -12,10 +12,14 @@ card.  Right: the four roster slots (laser/roster.py).  Click a slot, then a
 character card, to put that character in it — the slot gets the next
 selection number, which orders the HP bars and the fielding.  Per slot:
 
-  * Team       Team 1 or Team 2 (at most two fighters per team)
+  * Team       Team 1 or Team 2
   * State      Single (fights alone) or Tag (Rig Forge characters only):
-               two Tag slots on the same team are linked as a tag pair that
-               swaps in and out with the Switch action (laser/tag.py)
+               choosing Tag asks for the partner — click its slot (or a
+               character card, which fills an empty slot); the partner
+               switches to Tag, joins the team, and both borders take the
+               pair's colour.  The pair swaps in and out with the Switch
+               action (laser/tag.py)
+  * Teams      any split of the four slots (1v1, 2v2, 1v3, 3v1 ...)
   * Hotkeys    Field / cycle, Ultimate, Special and Tag in — click a key
                box and press the combo (Esc cancels, Delete / Backspace
                clears it)
@@ -52,7 +56,7 @@ QLabel#Pick { font-size: 13px; font-weight: bold; color: #ffe600; }
 QLabel#Info { color: #8b98a5; font-size: 11px; }
 QLabel#Errors { color: #ff8a80; }
 QFrame#Slot { background: #1b2129; border: 2px solid #2a323d; border-radius: 8px; }
-QFrame#Slot[selected="true"] { border: 2px solid #ffe600; }
+QFrame#Slot[selected="true"] { border: 2px solid #ffe600; background: #243040; }
 QFrame#Slot[team="0"] QLabel#SlotName { color: #7cc4ff; }
 QFrame#Slot[team="1"] QLabel#SlotName { color: #ff8fb1; }
 QToolButton#Card { background: #1b2129; border: 2px solid #2a323d; border-radius: 8px; padding: 6px; }
@@ -250,25 +254,36 @@ class SlotPanel(QFrame):
         self.refresh()
 
     def mousePressEvent(self, e):
-        self.menu.select(self.slot.index)
+        self.menu.slot_clicked(self.slot.index)
         super().mousePressEvent(e)
 
     def _team(self, i):
         if self.menu.loading:
             return
         self.slot.team = i
+        # A tag partner moves with it, so the pair stays together.
+        if self.slot.link is not None:
+            self.menu.slots[self.slot.link].team = i
         self.menu.changed()
 
     def _state(self, i):
         if self.menu.loading:
             return
-        self.slot.tag = i == 1
+        if i == 1:
+            # Tag: pick the partner next (another slot, or a character card).
+            self.menu.start_linking(self.slot.index)
+        else:
+            _roster.unlink(self.menu.slots, self.slot)
+            if self.menu.linking == self.slot.index:
+                self.menu.linking = None
         self.menu.changed()
 
     def _clear(self):
+        _roster.unlink(self.menu.slots, self.slot)
+        if self.menu.linking == self.slot.index:
+            self.menu.linking = None
         self.slot.char = None
         self.slot.pick = 0
-        self.slot.tag = False
         self.menu.select(self.slot.index)
         self.menu.changed()
 
@@ -281,6 +296,16 @@ class SlotPanel(QFrame):
         m.loading = True
         self.setProperty("selected", "true" if m.selected == s.index else "false")
         self.setProperty("team", str(s.team))
+        # Linked tag partners share a border colour (roster.PAIR_COLORS);
+        # the slot waiting for its partner blinks in the selection yellow.
+        k = _roster.pair_index(m.slots, s, _tag.can_tag)
+        if m.linking == s.index:
+            self.setStyleSheet("QFrame#Slot { border: 3px dashed #ffe600; }")
+        elif k >= 0:
+            c = _roster.PAIR_COLORS[k % len(_roster.PAIR_COLORS)]
+            self.setStyleSheet("QFrame#Slot { border: 3px solid rgb(%d,%d,%d); }" % c)
+        else:
+            self.setStyleSheet("")
         self.style().unpolish(self)
         self.style().polish(self)
         for w in self.findChildren(QLabel):
@@ -291,9 +316,7 @@ class SlotPanel(QFrame):
         self.thumb.setPixmap(char_pixmap(m.assets, s.char, SLOT_THUMB) if s.char else QPixmap())
         self.team.setCurrentIndex(s.team)
         taggable = bool(s.char) and _tag.can_tag(s.char)
-        if not taggable and s.tag:
-            s.tag = False
-        self.state.setCurrentIndex(1 if s.tag else 0)
+        self.state.setCurrentIndex(1 if (s.tag or m.linking == s.index) else 0)
         self.state.setEnabled(taggable)
         self.state.setToolTip("" if taggable else "Only Rig Forge characters can Tag.")
         self.clear.setEnabled(bool(s.char))
@@ -320,12 +343,14 @@ class StartMenu(QWidget):
         for s in self.slots:
             s.fig = None
         self.selected = next((s.index for s in self.slots if not s.char), 0)
+        self.linking = None      # slot index waiting for its Tag partner
+        self.flash = ""          # one-off message under the slots
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 14, 18, 14)
         t = QLabel("CHARACTER SELECT")
         t.setObjectName("Title")
-        sub = QLabel("Click a slot, then a character.  Two Tag slots on one team link as a tag pair.")
+        sub = QLabel("Click a slot, then a character.  Set a slot to Tag, then click its partner.")
         sub.setObjectName("Sub")
         root.addWidget(t)
         root.addWidget(sub)
@@ -407,7 +432,45 @@ class StartMenu(QWidget):
         for pn in self.panels:
             pn.refresh()
 
+    def start_linking(self, i):
+        """Slot i was set to Tag: the next slot clicked (or character card,
+        which fills an empty slot) becomes its partner."""
+        _roster.unlink(self.slots, self.slots[i])
+        self.linking = i
+        self.selected = i
+
+    def _finish_link(self, j):
+        a, b = self.slots[self.linking], self.slots[j]
+        self.linking = None
+        if not b.char or not _tag.can_tag(b.char):
+            self.flash = "Slot %s can't tag: %s." % (
+                b.name, "it is empty" if not b.char else "only Rig Forge characters can Tag")
+            return
+        b.team = a.team              # the partner joins its team
+        _roster.link(self.slots, a, b)
+
+    def slot_clicked(self, i):
+        if self.linking is not None and i != self.linking:
+            self._finish_link(i)
+            self.changed()
+            return
+        if self.linking == i:
+            self.linking = None      # clicked itself again: cancel
+        self.select(i)
+
     def pick_char(self, key):
+        if self.linking is not None:
+            # Linking: the card goes into the first empty slot as the partner.
+            empty = next((o for o in self.slots if not o.char), None)
+            if empty is None:
+                self.flash = "No empty slot for a partner - click a filled slot instead."
+                self.changed()
+                return
+            empty.char = key
+            empty.pick = _roster.next_pick(self.slots)
+            self._finish_link(empty.index)
+            self.changed()
+            return
         s = self.slots[self.selected]
         if not s.char:
             s.pick = _roster.next_pick(self.slots)
@@ -420,14 +483,13 @@ class StartMenu(QWidget):
         self.changed()
 
     def slot_info(self, s):
+        if self.linking == s.index:
+            return "Tag: click the slot (or a character card) to tag with.  Click this slot again to cancel."
         if not s.char:
             return "Empty.  Select this slot and click a character."
         if not s.tag:
             return "Single: fights on its own."
-        mates = [o for o in self.slots if o is not s and o.char and o.team == s.team]
-        if not (mates and all(o.tag for o in mates)) or len(mates) != 1:
-            return "Tag: not linked yet - set its Team %d team-mate to Tag too." % (s.team + 1)
-        o = mates[0]
+        o = self.slots[s.link]
         lead = s if (s.pick, s.index) < (o.pick, o.index) else o
         miss = [a for a in ("switch_in", "switch_out") if not has_action(self.assets, s.char, a)]
         txt = "Tag: linked with slot %s.  %s" % (
@@ -438,10 +500,17 @@ class StartMenu(QWidget):
 
     def changed(self):
         _roster.renumber(self.slots)
+        _roster.clean_links(self.slots, _tag.can_tag)
+        if self.linking is not None and not self.slots[self.linking].char:
+            self.linking = None
         for pn in self.panels:
             pn.refresh()
         errs = _roster.validate(self.slots, _tag.can_tag)
-        self.errors.setText("\n".join(errs))
+        if self.linking is not None:
+            errs = ["Pick slot %s's Tag partner first." % self.slots[self.linking].name] + errs
+        msg = errs + ([self.flash] if self.flash else [])
+        self.flash = ""
+        self.errors.setText("\n".join(msg))
         self.start_btn.setEnabled(not errs)
         self.reset_btn.setEnabled(not errs)
 

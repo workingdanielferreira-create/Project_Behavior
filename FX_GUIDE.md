@@ -800,8 +800,9 @@ Solo and Battle share this path. A clash needs two fielded sides, so Solo
 
 ## 14. Tag Pairs and the Switch Action (`laser/tag.py`)
 
-Two start-menu slots on the same team that are both set to **Tag** form a
-tag pair: one fights, the other waits on the bench (off screen, frozen:
+In the start menu, set a slot to **Tag** and then click its partner (another
+slot, or a character card to fill an empty slot); both get the pair's border
+colour and form a tag pair (a team of 3 or 4 can hold one or two pairs): one fights, the other waits on the bench (off screen, frozen:
 HP, cooldowns and timers wait). **Switch** swaps them, and each character
 authors its own Switch:
 
@@ -821,3 +822,24 @@ KO'd on-field fighter with a standing partner is replaced at once (no
 conditions, no cooldown), so a tag team only loses when both are down.
 
 Only Rig Forge characters can be set to Tag. Solo and Battle share this path.
+
+
+---
+
+## 15. Targeting (`laser/targeting.py`, FX Studio "Targeting (whole character)")
+
+Which enemy the fighter fights in Battle (1v3 and other uneven splits make
+this matter). Off = the nearest enemy, as before; built-in characters always
+use the nearest. The chosen target drives movement and chasing, attacks and
+aiming, FX aimed at the target, and every `target_*` condition. A Black Ox
+Effigy's taunt still overrides it.
+
+| Setting | What |
+|---|---|
+| Mode | Nearest, Farthest, Lowest HP, Highest HP (by HP % or amount), Stick until KO, Last attacker, Weighted score |
+| Otherwise | the mode Stick / Last attacker use when they have no one |
+| Weighted score | Closeness, Low HP, Is attacking, Targets me, Melee fighter, Ranged fighter: -100..100 % each |
+| Retarget timing | Hold at least ms; Switch margin % (the new pick must score this much better) |
+| Range limits | Min / Max range px (0 = none; nobody inside = nearest); Ignore blinked out |
+| Team coordination | Focus (same target as team-mates) or Spread (different targets), Strength % |
+| Conditional rules | Rule list: trigger conditions (ANY / ALL) + a mode; the first rule that passes sets the mode |

@@ -502,7 +502,7 @@ class ActionRunner:
         p = fig.personality
         battle = bool(world.battle_mode and world.partner_figures)
         if battle:
-            tx, ty = world._nearest_enemy(fig.x, fig.y)
+            tx, ty = world.enemy_target(fig)
         else:
             tx, ty = world.cursor
         dist = ((tx - fig.x) ** 2 + (ty - fig.y) ** 2) ** 0.5
@@ -535,7 +535,11 @@ class ActionRunner:
         tgt_speed = _track_speed(self.tgt_track, tx, ty)
         tgt_state, tgt_facing_left = None, (None if battle else self.cursor_facing_left)
         if battle:
-            i = _nearest_index(world.partner_figures, fig.x, fig.y)
+            # Its target (FX Studio Targeting, laser/targeting.py; else the
+            # nearest): every target_* condition reads that enemy.
+            i = world.target_index(fig) if hasattr(world, "target_index") else -1
+            if i < 0:
+                i = _nearest_index(world.partner_figures, fig.x, fig.y)
             # A Black Ox Effigy taunting it (laser/summoner.py): read the effigy.
             _taunt = _unique.taunt_point(world, fig.x, fig.y)
             if _taunt is not None:
