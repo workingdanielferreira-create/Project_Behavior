@@ -37,6 +37,7 @@ var EXT_CHARGE = 4, EXT_EXTEND = 5, EXT_RETRACT = 7, EXT_DUST = 16;
 var THR_WIND = 3, THR_RETRACT = 5, THR_FADE = 14;   // thrust: wind-up, snap back, afterglow
 var HIT_MARK_LIFE = 16;
 var STRIKE = function () { return G.STRIKEFX; };
+var KICK = function () { return G.KICKFX; };
 var POWER = function () { return G.POWERFX; };
 var GUN = function () { return G.GUNFX; };
 var WEAPON = function () { return G.WEAPONFX; };
@@ -57,6 +58,7 @@ function hyp(x, y) { return Math.sqrt(x * x + y * y); }
 // ---------------------------------------------------------------- timeline
 function style(P) { var s = P.style; return FXK().TECH_STYLES.indexOf(s) >= 0 ? s : FXK().TECH_STYLES[0]; }
 function isStrike(st) { return STRIKE() && STRIKE().STYLES.indexOf(st) >= 0; }
+function isKick(st) { return KICK() && KICK().STYLES.indexOf(st) >= 0; }
 function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
 function isGun(st) { return GUN() && GUN().STYLES.indexOf(st) >= 0; }
 function isWeapon(st) { return WEAPON() && WEAPON().STYLES.indexOf(st) >= 0; }
@@ -71,6 +73,7 @@ function activeTicks(P) {
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
   if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
   if (isStrike(st)) return STRIKE().activeTicks(P);
+  if (isKick(st)) return KICK().activeTicks(P);
   if (isPower(st)) return POWER().activeTicks(P);
   if (isGun(st)) return GUN().activeTicks(P);
   if (isWeapon(st)) return WEAPON().activeTicks(P);
@@ -82,6 +85,7 @@ function totalTicks(P) {
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
   if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
   if (isStrike(st)) return STRIKE().totalTicks(P);
+  if (isKick(st)) return KICK().totalTicks(P);
   if (isPower(st)) return POWER().totalTicks(P);
   if (isGun(st)) return GUN().totalTicks(P);
   if (isWeapon(st)) return WEAPON().totalTicks(P);
@@ -109,7 +113,7 @@ function onSpawn(inst, host) {
   inst.tq_ki = {};                // ki shots stopped by a hit: index -> [tick, x, y]
   inst.tq_kd = {};                // ki shots an intercept pulled off their path (STRIKEFX.trackStep)
   inst.tq_off = {};               // gun rounds a clash moved: index -> [dx, dy] (GUNFX.place)
-  inst.tq_imp = [];               // punch impacts: [tick, x, y]
+  inst.tq_imp = [];               // punch impacts: [tick, x, y]; kicks: [tick, x, y, ux, uy]
   inst.tq_hs = false;             // its hit-stop already froze the world (STRIKEFX freeze)
   inst.tq_tp = [[+host.target[0], +host.target[1]]];   // where the target was, per tick
   if (POWER()) POWER().onSpawn(inst, host);
@@ -130,6 +134,7 @@ function onTick(inst, host) {
   inst.tq_tp.push(host ? [+host.target[0], +host.target[1]] : inst.tq_tp[inst.tq_tp.length - 1]);
   recordOutline(inst, host);
   if (STRIKE()) { STRIKE().trackStep(inst, host); STRIKE().hitstopStep(inst, host); }
+  if (KICK()) KICK().hitstopStep(inst, host);
   if (GUN()) GUN().trackStep(inst, host);
 }
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
@@ -347,6 +352,7 @@ function hit(inst, tx, ty, hr, ps) {
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
   if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
+  if (isKick(st)) return KICK().hit(inst, tx, ty, hr, ps);
   if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
   if (isGun(st)) return GUN().hit(inst, tx, ty, hr, ps);
   if (isWeapon(st)) return WEAPON().hit(inst, tx, ty, hr, ps);
@@ -400,6 +406,7 @@ function body(inst, ps) {
   if (st === "blade_extension") return extBody(inst, ps);
   if (st === "forward_thrust") return thrBody(inst, ps);
   if (isStrike(st)) return STRIKE().body(inst, ps);
+  if (isKick(st)) return KICK().body(inst, ps);
   if (isPower(st) || isGun(st)) return null;
   if (isWeapon(st)) return WEAPON().body(inst, ps);
   if (inst.age >= inst.life) return null;
@@ -423,6 +430,7 @@ function livePoints(inst, ps) {
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
+  else if (isKick(st)) KICK().onHit(inst, x, y, ps || 1);
   else if (isPower(st)) POWER().onHit(inst, x, y, ps || 1);
   else if (isGun(st)) GUN().onHit(inst, x, y, ps || 1);
   else if (isWeapon(st)) WEAPON().onHit(inst, x, y, ps || 1);
@@ -430,10 +438,16 @@ function onHit(inst, x, y, ps) {
   inst.tq_hits.push([+x, +y, inst.age]);
 }
 // Which way a landed technique pushes the target: the aim, except for the
-// strikes' own Knockback direction (STRIKEFX.hitDir).  laser/swordfx.py hit_dir.
-function hitDir(inst) { return isStrike(style(inst.fx.params)) ? STRIKE().hitDir(inst) : inst.dir; }
-// A technique just landed: the strikes' Hit-stop (STRIKEFX.hitFreeze).
-function hitFreeze(inst, host) { if (isStrike(style(inst.fx.params))) STRIKE().hitFreeze(inst, host); }
+// strikes' and kicks' own Knockback direction (STRIKEFX / KICKFX hitDir).
+// laser/swordfx.py hit_dir.
+function hitDir(inst) {
+  var st = style(inst.fx.params);
+  if (isStrike(st)) return STRIKE().hitDir(inst);
+  if (isKick(st)) return KICK().hitDir(inst);
+  return inst.dir;
+}
+// A technique just landed: the strikes' and kicks' Hit-stop (STRIKEFX.hitFreeze).
+function hitFreeze(inst, host) { if (STRIKE() && STRIKE().HIT_OPTION_STYLES.indexOf(style(inst.fx.params)) >= 0) STRIKE().hitFreeze(inst, host); }
 
 // ================================================================ drawing
 function Pen(g) { this.g = g; }
@@ -914,6 +928,7 @@ function draw(g, inst, host, ps) {
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
   else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
+  else if (isKick(st)) KICK().draw(pen, inst, host, ps);
   else if (isPower(st)) POWER().draw(pen, inst, host, ps);
   else if (isGun(st)) GUN().draw(pen, inst, host, ps);
   else if (isWeapon(st)) WEAPON().draw(pen, inst, host, ps);

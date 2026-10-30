@@ -1399,6 +1399,7 @@ var PARAM_UI = {
   weapon: [["to_anchor", "To anchor", "anchor"], ["width", "Hitbox width px", 1, 80, 0.5]],
   technique: [["style", "Technique", ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
     "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand", "ki_barrage", "impact_punch",
+    "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick",
     "forward_thrust", "overhead_slash", "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
     "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling", "rocket_barrage", "drill_bullet",
     "thunder_bullet", "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
@@ -1436,10 +1437,27 @@ var PARAM_UI = {
     ["kb_dir", "Knockback direction", ["aim", "tangent", "custom"]],
     ["kb_angle_deg", "Knockback angle ° (custom: from the strike, clockwise)", -180, 180, 5],
     ["impact_frame", "Impact frame", ["off", "local", "full"]],
-    ["impact_frame_r", "Impact frame radius px (local)", 10, 1000, 5]]
+    ["impact_frame_r", "Impact frame radius px (local)", 10, 1000, 5],
+    // kicks only (laser/kickfx.py): each style's own path options
+    ["kick_sweep", "Roundhouse sweep", ["high_low", "low_high"]],
+    ["axe_dir", "Axe kick comes down", ["screen_down", "along_aim", "custom"]],
+    ["axe_crater", "Axe kick crater at", ["contact", "feet"]],
+    ["spin_mode", "Spinning kick", ["centered", "travel", "lunge"]],
+    ["spin_turns", "Spin turns", 0.5, 8, 0.5],
+    ["rise_dir", "Rising kick rises", ["screen_up", "perpendicular", "straight_up", "custom"]],
+    ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5]]
 };
 // Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
 var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r"];
+// Kick path options: PARAM_UI key -> the kick styles that show it.
+var KICK_KEYS = {kick_sweep: ["roundhouse_kick"], axe_dir: ["axe_kick"], axe_crater: ["axe_kick"],
+  spin_mode: ["spinning_kick"], spin_turns: ["spinning_kick"], rise_dir: ["rising_kick"], kick_angle_deg: ["axe_kick", "rising_kick"]};
+// Does this kick show the key (kick_angle_deg: only with a custom direction)?
+function kickKeyShown(k, P) {
+  if ((KICK_KEYS[k] || []).indexOf(P.style) < 0) return false;
+  if (k === "kick_angle_deg") return P.style === "axe_kick" ? P.axe_dir === "custom" : P.rise_dir === "custom";
+  return true;
+}
 // Power techniques (laser/powerfx.py): each style has its own settings panel —
 // only the fields it uses, short labels, the explanation on hover.
 // [key, label, min, max, step, tooltip] ("chk" in place of min for a checkbox).
@@ -1841,7 +1859,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, an uneven impact star (longest along the punch), shockwave rings squashed along the punch line (the outer ones broken into arcs) and a punch-through blast out of the target's far side; a whiff bursts smaller at full reach. Its hit options: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per punch; Knockback direction aim / tangent (the way the fist moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, an uneven impact star (longest along the punch), shockwave rings squashed along the punch line (the outer ones broken into arcs) and a punch-through blast out of the target's far side; a whiff bursts smaller at full reach. Its hit options: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per punch; Knockback direction aim / tangent (the way the fist moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). Kicks (roundhouse, thrust, axe, spinning, rising; laser/kickfx.py): use Motion attached, anchor figure, Aim target. A short wind-up glint, then the foot kicks over Swing ticks (held Hold ticks, then fades) with a crescent trail widest at the foot, tapering back along its path; it hits along the lower leg and lands with the punch's impact laid along the way the foot moves, heavier, with dust. Radius = foot size, Thickness = trail width, Length = leg reach, Span = arc sweep °. Roundhouse: an arc round the hip meeting the aim halfway (sweep high → low or low → high). Thrust kick: straight along the aim, a wide streak and bigger rings. Axe kick: comes down onto the point Length along the aim (screen-down, along the aim or a custom Kick direction °), with a crater, cracks along the ground and debris at the contact point or under the target's feet. Spinning kick: Spin turns full circles ending on the aim — centred (a wind vortex round the body), travelling forward, or spinning then lunging. Rising kick: a launcher rising through the aim point (up and forward, square to the aim, straight up or a custom Kick direction °), dust kicked up as it starts. Kicks share the punch's Hit-stop, Knockback direction (tangent = the way the foot moves at contact) and Impact frame. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
@@ -2062,6 +2080,7 @@ function buildProps() {
         (!G_STRIKE() || G_STRIKE().HIT_OPTION_STYLES.indexOf(fx.params.style) < 0 ||
          (k === "hitstop_ticks" && !fx.params.hitstop) || (k === "kb_angle_deg" && fx.params.kb_dir !== "custom") ||
          (k === "impact_frame_r" && fx.params.impact_frame !== "local"))) return;
+    if (fx.prim === "technique" && KICK_KEYS[k] && !kickKeyShown(k, fx.params)) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {
@@ -2073,7 +2092,7 @@ function buildProps() {
       return;
     }
     // (a hit option that shows / hides another rebuilds the panel)
-    var rb = HIT_OPTION_KEYS.indexOf(k) >= 0;
+    var rb = HIT_OPTION_KEYS.indexOf(k) >= 0 || !!KICK_KEYS[k];
     field(s, u[1], Array.isArray(kind) ? inp(kind, fx.params[k], function (v) { fx.params[k] = v; changed(rb); })
       : kind === "chk" ? inp("chk", fx.params[k], function (v) { fx.params[k] = v; changed(rb); })
       : kind === "color" ? inp("color", fx.params[k] || "#000000", function (v) { fx.params[k] = v; changed(); })
@@ -4315,7 +4334,7 @@ function drawBlink(g, z, img) {
 // FX by the World Clash rules (see world clash below).
 var TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
 var SHOT_MOTIONS = ["travel", "homing", "zigzag", "path"], SHOT_SKIP = ["weapon", "ghost", "particles", "pulse"];   // laser/app.py enemy_shots
-var DUMMY_GROUPS = ["Gunfire", "Weapons", "Power techniques", "Ki & strikes", "Sword techniques", "Sword combos"];
+var DUMMY_GROUPS = ["Gunfire", "Weapons", "Power techniques", "Ki & strikes", "Kicks", "Sword techniques", "Sword combos"];
 var DUMMY_DEFAULTS = {name: "", attack: "none", every_ms: 1000, delay_ms: 0, aim: "fighter", angle_deg: 180, spread_deg: 0,
   hp: 0, respawn: true, respawn_ms: 3000, move: "still", move_px: 80, move_speed: 60, x: 0, y: 0};
 var DUMMY_LUT = FXK.buildLut([[255, 236, 228], [255, 74, 60]]);   // enemy red for palette-coloured presets
@@ -4546,6 +4565,7 @@ function clashKind(fx) {
       return m && m.blade ? k("crescent", "clashes while the blade swings") : k("none", "firearms never clash");
     }
     if (window.STRIKEFX && STRIKEFX.STYLES.indexOf(st) >= 0) return k("crescent", "clashes along the arm while the punch is out");
+    if (window.KICKFX && KICKFX.STYLES.indexOf(st) >= 0) return k("crescent", "clashes along the lower leg while the kick is out");
     return k("crescent", "every sword technique clashes as a blade");
   }
   return k("none", prim + " effects never clash");

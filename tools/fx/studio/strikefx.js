@@ -16,7 +16,7 @@ var PUNCH_RETRACT = 5, PUNCH_IMPACT_LIFE = 24;
 var IMPACT_FRAME_TICKS = 2, FULL_FRAME = 20000, THROUGH_LIFE = 14, THROUGH_GAP = 22, INK = [16, 10, 22];
 // Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
 // impact_frame / impact_frame_r): the strikes they apply to.
-var HIT_OPTION_STYLES = ["impact_punch"];
+var HIT_OPTION_STYLES = ["impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick"];
 
 // ---------------------------------------------------------------- timeline
 function cad(P) { return Math.max(1, Math.trunc(+P.swing_ticks || 3)); }
@@ -236,7 +236,7 @@ function hitFreeze(inst, host) { freeze(inst, host); }
 // strike freezes as its whiff bursts at full reach (onTick runs before the age moves on).
 function hitstopStep(inst, host) {
   var P = inst.fx.params;
-  if (!host || !optsOn(P) || !host.solo) return;
+  if (!host || STYLES.indexOf(L_().style(P)) < 0 || !optsOn(P) || !host.solo) return;
   if (!inst.tq_imp.length && inst.age + 1 === L_().swing(P)) freeze(inst, host);
 }
 // Knockback direction of a landed strike (params kb_dir): aim = the effect's
@@ -390,11 +390,12 @@ function arcRing(pen, inst, x, y, rx, ry, ang, c, a, w, salt) {
   }
 }
 // Punch-through: the blow carries on out of the target's far side, a cone of
-// wind and light bursting along the punch line (a whiff: the air it pushed).
-function through(pen, inst, c, ps, x, y, a, sc, salt) {
+// wind and light bursting along the strike line u (default: the punch line;
+// a whiff: the air it pushed).
+function through(pen, inst, c, ps, x, y, a, sc, salt, u) {
   if (a < 0 || a >= THROUGH_LIFE) return;
-  var L = L_(), HOT = L.HOT, q = a / THROUGH_LIFE, e = L.easeOut3(Math.min(1, a / 6));
-  var fx_ = inst.tq_f[0], fy_ = inst.tq_f[1], nx = -fy_, ny = fx_, g = THROUGH_GAP * ps * sc;
+  var L = L_(), HOT = L.HOT, q = a / THROUGH_LIFE, e = L.easeOut3(Math.min(1, a / 6)), uf = u || inst.tq_f;
+  var fx_ = uf[0], fy_ = uf[1], nx = -fy_, ny = fx_, g = THROUGH_GAP * ps * sc;
   var bx = x + fx_ * g, by = y + fy_ * g;
   function p(u, v) { return [bx + fx_ * u + nx * v, by + fy_ * u + ny * v]; }
   var Ln = (30 + 90 * e) * ps * sc, W = (10 + 34 * e) * ps * sc, fade = 1 - q;
@@ -428,9 +429,10 @@ function impactFrame(pen, inst, c, ps, x, y, a, sc, salt) {
   }
   pen.add(true);
 }
-// The punch landing (sc = size; a whiff is smaller).
-function impact(pen, inst, c, ps, x, y, a, sc, salt) {
-  var L = L_(), HOT = L.HOT, mix = L.mix, q = a / PUNCH_IMPACT_LIFE, fx_ = inst.tq_f[0], fy_ = inst.tq_f[1];
+// The punch landing (sc = size; a whiff is smaller), laid along the strike
+// direction u (default: the punch line; kickfx.js passes its own).
+function impact(pen, inst, c, ps, x, y, a, sc, salt, u) {
+  var L = L_(), HOT = L.HOT, mix = L.mix, q = a / PUNCH_IMPACT_LIFE, uf = u || inst.tq_f, fx_ = uf[0], fy_ = uf[1];
   var ang = Math.atan2(fy_, fx_), j, e;
   if (a < 6) pen.glow(x, y, (18 + 24 * L.easeOut3(a / 6)) * ps * sc, HOT, 255 * (1 - a / 6));
   if (a < 10) {
@@ -440,7 +442,7 @@ function impact(pen, inst, c, ps, x, y, a, sc, salt) {
     star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, HOT, 255 * Math.pow(1 - qs, 1.5), salt);
   }
   pen.glow(x, y, (26 + 20 * L.easeOut3(q)) * ps * sc, c, 140 * (1 - q), 0.4);
-  through(pen, inst, c, ps, x, y, a, sc, salt);
+  through(pen, inst, c, ps, x, y, a, sc, salt, u);
   // shockwave rings standing across the punch line, squashed along it: a
   // full one, then two broken into arcs, each further out and faster
   [[0, 0, 1], [1, 3, 1.45], [2, 6, 1.9]].forEach(function (dk) {
@@ -537,6 +539,7 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
+G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
+                impact: impact, impactFrame: impactFrame, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
                 shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);

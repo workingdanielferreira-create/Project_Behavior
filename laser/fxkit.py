@@ -213,19 +213,26 @@ PARAM_DEFAULTS = {
     # world hitstop_ticks when it lands (Solo: as it whiffs); kb_dir aim /
     # tangent / custom (kb_angle_deg turned from the strike, clockwise);
     # impact_frame off / local (impact_frame_r px) / full (the whole overlay).
+    # Kicks (laser/kickfx.py): kick_sweep high_low / low_high (roundhouse);
+    # axe_dir screen_down / along_aim / custom, axe_crater contact / feet;
+    # spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
+    # perpendicular / straight_up / custom; kick_angle_deg = the custom
+    # direction at contact, from the aim (clockwise, mirrors with the facing).
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
                       gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
                       w_depth=0, ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
-                      impact_frame="off", impact_frame_r=90),
+                      impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
+                      axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
 TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_wave", "blade_extension",
                "forward_sweep", "combo_triple", "combo_cross", "combo_flurry", "combo_launcher", "combo_backhand",
                "ki_barrage", "impact_punch", "forward_thrust", "overhead_slash",
+               "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick",
                "ssj_aura", "rasen_shuriken", "gigantic_meteor", "ghost_kamikaze", "serious_punch", "black_hole",
                "machine_gun", "shotgun", "magnum", "charged_blast", "dual_pistols", "sniper_rail", "gatling",
                "rocket_barrage", "drill_bullet", "thunder_bullet",
@@ -249,6 +256,13 @@ TECH_STYLE_DEFAULTS = {
     "combo_backhand": dict(radius=70, span=150, thickness=11, swing_ticks=5),
     "ki_barrage": dict(radius=6, thickness=18, span=18, length=320, swing_ticks=3, hold_ticks=45),
     "impact_punch": dict(radius=9, thickness=12, length=60, swing_ticks=4, hold_ticks=3),
+    # Kicks (laser/kickfx.py)
+    "roundhouse_kick": dict(radius=10, span=150, thickness=16, length=70, swing_ticks=6, hold_ticks=3, kb_dir="tangent"),
+    "thrust_kick": dict(radius=12, thickness=18, length=80, swing_ticks=5, hold_ticks=4, kb_dir="aim"),
+    "axe_kick": dict(radius=11, span=140, thickness=16, length=70, swing_ticks=7, hold_ticks=4, kb_dir="tangent"),
+    "spinning_kick": dict(radius=10, thickness=14, length=65, swing_ticks=14, hold_ticks=2, kb_dir="tangent",
+                          spin_turns=2),
+    "rising_kick": dict(radius=10, span=150, thickness=15, length=70, swing_ticks=6, hold_ticks=4, kb_dir="tangent"),
     "ssj_aura": dict(radius=6, span=100, thickness=5, length=22, swing_ticks=14, hold_ticks=300, lightning=True,
                      lightning_rate=2, aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=True),
     "rasen_shuriken": dict(radius=10, span=46, thickness=110, length=420, swing_ticks=40, hold_ticks=50),

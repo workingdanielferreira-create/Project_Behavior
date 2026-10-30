@@ -558,6 +558,31 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
 - **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
   compares `CUTS` and the strikefx constants. Same code path in Solo and
   Battle (FX Kit Player).
+- **Kicks (`laser/kickfx.py`, Studio: `kickfx.js`, presets group "Kicks").**
+  Every kick is a path of the foot: a 3-tick wind-up glint, the kick over
+  Swing ticks, held for Hold ticks, faded over 6. A crescent trail follows
+  the foot (widest at the foot, tapering back along its path, growing in
+  toward the pivot) with speed lines; it hits along the lower leg and lands
+  with the punch's impact laid along the way the foot moves (`HEAVY` x the
+  punch's size) plus dust. Radius = foot, Thickness = trail width, Length =
+  leg reach, Span = arc sweep °.
+  - `roundhouse_kick`: an arc round the hip meeting the aim halfway at full
+    speed; `kick_sweep` `high_low` / `low_high`.
+  - `thrust_kick`: straight along the aim, wide streak, bigger rings.
+  - `axe_kick`: comes down onto the point Length along the aim at full
+    speed, moving `axe_dir` `screen_down` / `along_aim` / `custom`
+    (`kick_angle_deg` from the aim); the arc starts on the higher side. A
+    crater, cracks along the ground, debris and a flat shock ring at
+    `axe_crater` `contact` or `feet` (30 px under the target).
+  - `spinning_kick`: `spin_turns` circles ending on the aim; `spin_mode`
+    `centered` (wind vortex round the body), `travel` (drifts forward 1.2 x
+    Length), `lunge` (the last 30 % lunges 0.6 x Length).
+  - `rising_kick`: a launcher rising through the point 0.9 x Length along the
+    aim and on past it, moving `rise_dir` `screen_up` / `perpendicular` /
+    `straight_up` / `custom`; dust kicked up as it starts.
+  - The punch's hit options apply (Hit-stop, Knockback direction — tangent =
+    the foot's motion at contact — and Impact frame). Style defaults set
+    Knockback direction to `tangent` (`aim` for the thrust kick).
 - **Gunfire (`laser/gunfx.py`, Studio: `gunfx.js`).** Ten anime gun shots,
   each a technique style with a palette preset and a signature-colour preset
   in the Studio's "Gunfire" group, and its own settings panel:
