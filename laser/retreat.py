@@ -135,6 +135,10 @@ def _target(world, fig):
             d = (pf[0] - fig.x) ** 2 + (pf[1] - fig.y) ** 2
             if best is None or d < best:
                 best, bi = d, i
+        # Its chosen target (FX Studio Targeting, laser/targeting.py).
+        ti = world.target_index(fig) if hasattr(world, "target_index") else -1
+        if 0 <= ti < len(world.partner_figures):
+            bi = ti
         pf = world.partner_figures[bi]
         facing = getattr(world, "partner_facing", None) or []
         return pf[0], pf[1], (facing[bi] if bi < len(facing) else None)

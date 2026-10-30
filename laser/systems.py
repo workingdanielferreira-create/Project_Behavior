@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting
 from . import platform_win as win
 from . import action_log
 
@@ -222,7 +222,7 @@ class MotionSystem(System):
                     # so the runner always lands on the far side of the target from
                     # where it was.
                     if battle:
-                        tx, ty = world._nearest_enemy(fig.x, fig.y)
+                        tx, ty = world.enemy_target(fig)
                     else:
                         tx, ty = world.cursor
                     # Vector from target → runner (runner's current outward direction)
@@ -261,7 +261,7 @@ class MotionSystem(System):
                     and not fig.motion.bounce_ending):
                 if p.teleport_ticks <= 0:
                     if battle:
-                        tx, ty = world._nearest_enemy(fig.x, fig.y)
+                        tx, ty = world.enemy_target(fig)
                     else:
                         tx, ty = world.cursor
                     dxa, dya = tx - fig.x, ty - fig.y
@@ -288,7 +288,7 @@ class MotionSystem(System):
             # no-op for characters without the block. ---
             if combat.hop_back_cfg(fig) is not None:
                 if battle:
-                    htx, hty = world._nearest_enemy(fig.x, fig.y)
+                    htx, hty = world.enemy_target(fig)
                 else:
                     htx, hty = world.cursor
                 if combat.tick_hop_back(fig, htx, hty):
@@ -419,7 +419,7 @@ class CombatSystem(System):
                 fig.combat.clone_cd -= 1
             if fig.combat.clones:
                 if world.battle_mode and world.partner_figures:
-                    ctx, cty = world._nearest_enemy(fig.x, fig.y)
+                    ctx, cty = world.enemy_target(fig)
                 else:
                     ctx, cty = world.cursor
                 live_clones = []
@@ -475,7 +475,7 @@ class CombatSystem(System):
             # Ctrl+1 / Ctrl+2 forced one): the nearest enemy in Battle,
             # the cursor in Solo.
             if world.battle_mode and world.partner_figures:
-                _fb = world._nearest_enemy(fig.x, fig.y)
+                _fb = world.enemy_target(fig)
             else:
                 _fb = world.cursor
             fig.combat.acted = combat.advance_combat(fig, tgt, _fb)
@@ -589,7 +589,7 @@ class ProjectileSystem(System):
                 # for the current one-vs-one architecture.
                 if world.figures:
                     ref_fig = world.figures[0]
-                    bx, by = world._nearest_enemy(ref_fig.x, ref_fig.y)
+                    bx, by = world.enemy_target(ref_fig)
                     combat.update_homing_targets(world.projectiles, bx, by)
             else:
                 cx, cy = world.cursor
@@ -760,7 +760,7 @@ class ProjectileSystem(System):
             p.ultimate_ticks -= 1
             if p.ultimate_ticks <= 0:
                 c.manual_beam = False
-            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+            tx, ty = (world.enemy_target(fig) if battle
                       else world.cursor)
             world.projectiles.extend(combat.make_beam_shot_cfg(fig, tx, ty))
             rr, gg, bb = fig.lut[128]
@@ -778,7 +778,7 @@ class ProjectileSystem(System):
         tag = "BATTLE " if battle else ""
 
         def _target(fig):
-            return (world._nearest_enemy(fig.x, fig.y) if battle
+            return (world.enemy_target(fig) if battle
                     else world.cursor)
 
         # --- Ultimate: bypass the shared timer and fire every tick ---
@@ -942,7 +942,7 @@ class ProjectileSystem(System):
             if st["tick"] < interval:
                 continue
             st["tick"] = 0
-            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+            tx, ty = (world.enemy_target(fig) if battle
                       else world.cursor)
             phase_cfg = cycle[st["phase"] % len(cycle)]
             new_projs = combat.fire_attack_pattern(fig, phase_cfg, tx, ty)
@@ -987,7 +987,7 @@ class ProjectileSystem(System):
                 continue
             st = fig.personality.trigger_state.setdefault(
                 "_prox_atk", {"tick": 0})
-            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+            tx, ty = (world.enemy_target(fig) if battle
                       else world.cursor)
             dist = math.hypot(tx - fig.x, ty - fig.y)
             mult = combat.proximity_attack_speed_multiplier(cfg, dist)
@@ -1020,7 +1020,7 @@ class ProjectileSystem(System):
             char = getattr(fig.mode, "character", None)
             if not char:
                 continue
-            tx, ty = (world._nearest_enemy(fig.x, fig.y) if battle
+            tx, ty = (world.enemy_target(fig) if battle
                       else world.cursor)
             dx, dy = tx - fig.x, ty - fig.y
             dist = (dx * dx + dy * dy) ** 0.5
@@ -1229,6 +1229,7 @@ class CollisionSystem(System):
                         continue
                     ddx, ddy = ex - fig.x, ey - fig.y
                     if ddx * ddx + ddy * ddy <= proj_hit_sq:
+                        targeting.note_hit(fig, getattr(_src, "owner", None))
                         ai.battle_hit(fig, evx, evy, world, amount=_dmg,
                                       knockback_px=getattr(_src, "knockback_px", 0),
                                       no_knockback=getattr(_src, "no_knockback", False))
@@ -1285,7 +1286,7 @@ class CollisionSystem(System):
                     if combat.dodge_style_cfg(fig) == "blink":
                         if fig.personality.rng.random() < 0.5:
                             # 45° tilted toward the target, shorter hop.
-                            tx_, ty_ = (world._nearest_enemy(fig.x, fig.y)
+                            tx_, ty_ = (world.enemy_target(fig)
                                         if world.battle_mode else world.cursor)
                             tsx, tsy = combat.dodge_tilt_toward(
                                 sx, sy, fig.x, fig.y, tx_, ty_)

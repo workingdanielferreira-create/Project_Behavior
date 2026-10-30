@@ -2,18 +2,21 @@
 Roster — the four fighter slots the start menu (laser/startmenu.py) sets up.
 
 Each slot holds one character (or none), the team it fights for (Team 1 /
-Team 2, at most two slots per team), its battle state ("single" or "tag")
-and its own hotkeys:
+Team 2 — any split of the four slots: 1v1, 2v2, 1v3, 3v1, ...; a battle
+needs a fighter on each team, 4v0 is Solo with four fighters), its battle
+state ("single", or "tag" linked to one partner slot) and its own hotkeys:
 
     cycle     field / cycle / retire this slot's character (was 1/2/3/4)
     ultimate  force this fighter's ultimate                (was Ctrl+1/2)
     special   force this fighter's attack_special          (was Ctrl+Shift+1..4)
     tag       Switch this fighter in from the bench        (tag pairs only)
 
-Two slots on the same team that are BOTH set to "tag" form a tag pair
-(laser/tag.py): one fights, the other waits on the bench, and they swap with
-the Switch action.  Only Rig Forge characters (they author switch_in /
-switch_out) can be set to tag.
+Tag links are explicit: setting a slot to Tag in the start menu asks for
+its partner, and clicking that team-mate's slot links the two (`link` =
+the partner's slot index, on both).  A linked pair (laser/tag.py) has one
+fighter on the field and one on the bench, swapping with the Switch
+action; a team can hold more than one pair.  Only Rig Forge characters
+(they author switch_in / switch_out) can tag.
 
 `pick` is the selection order: the start menu numbers a slot when a
 character is put into it, and HP bars (laser/hpbars.py), fielding order and
@@ -29,12 +32,15 @@ import os
 
 SLOT_COUNT = 4
 TEAM_COUNT = 2
-TEAM_SIZE = 2
+TEAM_SIZE = 4             # any split of the 4 slots
 SLOT_NAMES = ("A", "B", "C", "D")
 KEY_ACTIONS = ("cycle", "ultimate", "special", "tag")
 KEY_LABELS = {"cycle": "Field / cycle", "ultimate": "Ultimate",
               "special": "Special", "tag": "Tag in"}
 FILE_NAME = "roster.json"
+
+# One colour per tag pair (start-menu borders, HP-bar brackets), in pair order.
+PAIR_COLORS = ((255, 170, 40), (80, 220, 150), (190, 120, 255), (90, 190, 255))
 
 # Virtual-key names a binding can use (Windows VK codes).
 _VK = {}
@@ -115,13 +121,13 @@ class Slot:
     """One start-menu slot.  `fig` is the live Figure while the slot is
     filled (on the field or on the tag bench), else None."""
 
-    __slots__ = ("index", "char", "team", "tag", "keys", "pick", "fig")
+    __slots__ = ("index", "char", "team", "link", "keys", "pick", "fig")
 
-    def __init__(self, index, char=None, team=0, tag=False, keys=None, pick=0):
+    def __init__(self, index, char=None, team=0, link=None, keys=None, pick=0):
         self.index = index
         self.char = char or None
         self.team = 1 if int(team or 0) == 1 else 0
-        self.tag = bool(tag)
+        self.link = int(link) if link is not None and 0 <= int(link) < SLOT_COUNT and int(link) != index else None
         k = default_keys(index)
         for a in KEY_ACTIONS:
             if keys and a in keys:
@@ -134,12 +140,17 @@ class Slot:
     def name(self):
         return SLOT_NAMES[self.index]
 
+    @property
+    def tag(self):
+        """Set to Tag (linked to a partner slot)."""
+        return self.link is not None
+
     def to_dict(self):
-        return {"char": self.char, "team": self.team, "tag": self.tag,
+        return {"char": self.char, "team": self.team, "link": self.link,
                 "keys": dict(self.keys), "pick": self.pick}
 
     def copy(self):
-        s = Slot(self.index, self.char, self.team, self.tag, self.keys, self.pick)
+        s = Slot(self.index, self.char, self.team, self.link, self.keys, self.pick)
         s.fig = self.fig
         return s
 
@@ -173,11 +184,19 @@ def load(root, order):
         ch = d.get("char")
         if ch not in order:
             ch = None
-        slots.append(Slot(i, ch, d.get("team", i % 2), d.get("tag"), d.get("keys"),
+        slots.append(Slot(i, ch, d.get("team", i % 2), d.get("link"), d.get("keys"),
                           d.get("pick") if ch else 0))
+    # Older roster.json: "tag": true on two team-mates = linked.
+    if not any("link" in (d or {}) for d in raw if isinstance(d, dict)):
+        for t in range(TEAM_COUNT):
+            ts = [s for s in slots if s.char and s.team == t
+                  and (raw[s.index] if s.index < len(raw) else {}).get("tag")]
+            if len(ts) == 2:
+                ts[0].link, ts[1].link = ts[1].index, ts[0].index
     if not any(s.char for s in slots):
         return default_slots(order)
     renumber(slots)
+    clean_links(slots)
     return slots
 
 
@@ -210,13 +229,53 @@ def team_slots(slots, team):
                   key=lambda s: (s.pick, s.index))
 
 
-def tag_pair(slots, team, can_tag):
-    """The team's two tag slots (selection order) when both are filled and
-    set to tag with a Rig Forge character, else None."""
-    ts = team_slots(slots, team)
-    if len(ts) == 2 and all(s.tag and can_tag(s.char) for s in ts):
-        return ts
-    return None
+def unlink(slots, s):
+    """Break s's tag link (its partner goes back to Single too)."""
+    if s.link is not None:
+        o = slots[s.link]
+        if o.link == s.index:
+            o.link = None
+        s.link = None
+
+
+def link(slots, a, b):
+    """Link slots a and b as a tag pair (each loses any older link)."""
+    unlink(slots, a)
+    unlink(slots, b)
+    a.link, b.link = b.index, a.index
+
+
+def clean_links(slots, can_tag=None):
+    """Drop links that no longer hold: an empty slot, team-mates no more,
+    a one-sided link, or (with can_tag) a character that can't tag."""
+    for s in slots:
+        if s.link is None:
+            continue
+        o = slots[s.link]
+        if (not s.char or not o.char or o.link != s.index or o.team != s.team
+                or (can_tag is not None and not (can_tag(s.char) and can_tag(o.char)))):
+            unlink(slots, s)
+
+
+def tag_pairs(slots, can_tag):
+    """Every valid linked pair as (first pick, second pick), in pair order
+    (by the earlier pick).  Index in this list = the pair's colour."""
+    out = []
+    for s in sorted((x for x in slots if x.char), key=lambda x: (x.pick, x.index)):
+        if s.link is None or any(s in p for p in out):
+            continue
+        o = slots[s.link]
+        if (o.char and o.link == s.index and o.team == s.team
+                and can_tag(s.char) and can_tag(o.char)):
+            out.append((s, o) if (s.pick, s.index) <= (o.pick, o.index) else (o, s))
+    return out
+
+
+def pair_index(slots, s, can_tag):
+    for n, p in enumerate(tag_pairs(slots, can_tag)):
+        if s in p:
+            return n
+    return -1
 
 
 def validate(slots, can_tag):
@@ -231,6 +290,9 @@ def validate(slots, can_tag):
     for s in slots:
         if s.char and s.tag and not can_tag(s.char):
             errs.append("Slot %s: only Rig Forge characters can be set to Tag." % s.name)
+        elif s.tag and s.char and slots[s.link].team != s.team:
+            errs.append("Slot %s and its Tag partner %s are on different teams."
+                        % (s.name, slots[s.link].name))
     seen = {}
     for s in slots:
         for a in KEY_ACTIONS:

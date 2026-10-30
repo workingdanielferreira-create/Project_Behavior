@@ -27,7 +27,7 @@ class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
                  "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
-                 "bench_since", "bench_ticks")
+                 "bench_since", "bench_ticks", "tgt", "last_hit_by")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -65,6 +65,10 @@ class Figure:
         # cooldown clock (unique.cd_now) leaves out so cooldowns stay frozen.
         self.bench_since = None
         self.bench_ticks = 0
+        # FX Studio Targeting (laser/targeting.py): who it is on, and the
+        # id() of the enemy that last hit it ("last attacker").
+        self.tgt = None
+        self.last_hit_by = None
 
     # convenience aliases ---------------------------------------------------
     @property

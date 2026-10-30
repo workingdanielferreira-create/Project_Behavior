@@ -21,6 +21,7 @@ Controls:
     Ctrl+1..4       that slot's ultimate (default)
     Ctrl+Shift+1..4 that slot's attack_special (default)
     Alt+1..4        tag that slot in (tag pairs, default)
+                    Teams: any split of the 4 slots (1v1, 2v2, 1v3, 3v1 ...)
     Ctrl (tap)      toggle cursor collision
     Ctrl+Q          toggle follow-path vs chase
     Ctrl+R          toggle runaway

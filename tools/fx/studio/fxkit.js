@@ -927,6 +927,41 @@ function normalizeDodge(a) {
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return a;
 }
+// Character-level "Targeting" (pack.targeting), run by laser/targeting.py:
+// which enemy the fighter fights — it drives movement, attacks, aiming and
+// every target_* condition.  Off = the nearest enemy.  mode: nearest /
+// farthest / lowest_hp / highest_hp (hp_basis pct or amount) / stick (keep
+// one until it falls) / last_attacker / weighted (weights -100..100 %:
+// closeness, low_hp, attacking, targets_me, melee, ranged).  stick and
+// last_attacker use `fallback` when they have no one.  min_hold_ms /
+// switch_margin_pct stop flicker; min / max_range_px limit who counts (0 =
+// none; nobody inside = nearest); ignore_blinked skips blinked-out enemies;
+// team focus / spread (team_pct) leans toward / away from team-mates'
+// targets.  rules: [{logic, conditions, mode, hp_basis}], first that passes
+// sets the mode.
+var TARGET_WEIGHTS = {closeness: 100, low_hp: 0, attacking: 0, targets_me: 0, melee: 0, ranged: 0};
+var TARGET_DEFAULTS = {enabled: false, mode: "nearest", hp_basis: "pct", fallback: "nearest",
+  weights: TARGET_WEIGHTS, min_hold_ms: 0, switch_margin_pct: 0, min_range_px: 0, max_range_px: 0,
+  ignore_blinked: true, team: "none", team_pct: 50, rules: []};
+var TARGET_MODES = ["nearest", "farthest", "lowest_hp", "highest_hp", "stick", "last_attacker", "weighted"];
+var TARGET_BASIC = ["nearest", "farthest", "lowest_hp", "highest_hp", "weighted"];
+function normalizeTargeting(a) {
+  a = fill(a || {}, TARGET_DEFAULTS);
+  if (TARGET_MODES.indexOf(a.mode) < 0) a.mode = "nearest";
+  if (TARGET_BASIC.indexOf(a.fallback) < 0) a.fallback = "nearest";
+  if (a.hp_basis !== "amount") a.hp_basis = "pct";
+  if (["none", "focus", "spread"].indexOf(a.team) < 0) a.team = "none";
+  a.weights = fill(a.weights || {}, TARGET_WEIGHTS);
+  a.rules = (a.rules || []).map(function (r) {
+    r = fill(r || {}, {logic: "any", conditions: [], mode: "farthest", hp_basis: "pct"});
+    if (TARGET_MODES.indexOf(r.mode) < 0) r.mode = "nearest";
+    if (r.hp_basis !== "amount") r.hp_basis = "pct";
+    r.conditions = (r.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+      .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
+    return r;
+  });
+  return a;
+}
 // Blink (action_settings[action].blink), run by laser/blink.py: teleports
 // inside one action, set per action.  `blinks` is a list of blinks run in
 // order as the action's frames pass them; Blink is on while it holds any.
@@ -2690,6 +2725,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, normalizeDodge: normalizeDodge,
+  TARGET_DEFAULTS: TARGET_DEFAULTS, TARGET_MODES: TARGET_MODES, TARGET_BASIC: TARGET_BASIC, normalizeTargeting: normalizeTargeting,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
   normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,

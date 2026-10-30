@@ -69,11 +69,13 @@ laser/weaponfx.py
 - `c.busy` side effects: setting `c.slashing = True` inside parry or secondary triggers halts figure movement via the `busy` property — avoid unless intentional
 
 ### Roster, Start Menu & Tag
-- `laser/roster.py`: 4 slots (A-D), each char / team (2 teams, max 2 each) / single-or-tag / hotkeys (cycle, ultimate, special, tag); saved to `roster.json` (gitignored). `pick` = selection order (HP bars, fielding, which tag partner starts)
+- `laser/roster.py`: 4 slots (A-D), each char / team (2 teams, ANY split: 1v3, 3v1, 2v2, 4v0 = Solo) / `link` (tag partner slot index, mutual, same team) / hotkeys (cycle, ultimate, special, tag); saved to `roster.json` (gitignored). `pick` = selection order (HP bars, fielding, which tag partner starts). `world.tag_pairs` is a LIST (a team can hold 2 pairs); `roster.PAIR_COLORS[pair index]` = menu border + HP bracket colour
 - `laser/startmenu.py`: the character select WINDOW (the overlay is click-through). Opens on `--prebattle` and Ctrl+Shift+.; game pauses via `world.prebattle.open`. Start = keep unchanged fighters' state, Reset & Start = fresh
 - Every roster change goes through `World.apply_roster` (menu, slot cycle keys, Alt+Left/Right)
 - `laser/tag.py`: two Tag slots on one team = tag pair. Benched fighter is OUT of `side.figures` (frozen; `unique.cd_now` subtracts `fig.bench_ticks`). Switch = outgoing plays `switch_out`, then incoming takes its spot and plays `switch_in`. `switch_in`'s FX Studio conditions are read against the ON-FIELD partner's runner ctx; its cooldown_ms = pair cooldown. KO with a standing partner = forced switch (no loss). `switch_in`/`switch_out` never auto-trigger in `actions.py` (`SWITCH_ACTIONS`)
 - `laser/hpbars.py`: Team 1 top-left, Team 2 top-right, selection order
+- `laser/targeting.py`: FX Studio "Targeting" (`pack.targeting`). EVERY enemy lookup goes through `World.enemy_target(fig)` / `World.target_index(fig)` (taunt still overrides) — never call `_nearest_enemy(fig.x, fig.y)` for a fighter. Modes nearest/farthest/lowest_hp/highest_hp/stick/last_attacker/weighted + hold/margin, range, team focus/spread, conditional rules. Built-ins = nearest. Snapshots add `partner_ids` / `partner_hp` / `partner_target`; hits set `fig.last_hit_by`
+- `main()` uses `setQuitOnLastWindowClosed(False)`: the overlay is a Qt.Tool window, so closing the start menu would otherwise quit the game
 
 ### Combat System
 - Dashslash and arcslash chosen 50/50 per attack; follow-ups also 50/50 with 0.2s type lock; 3-hit cap with ~1s cooldown

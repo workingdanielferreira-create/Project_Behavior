@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}),
   unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}),
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
@@ -244,6 +244,7 @@ var DOC = [
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
   ["dodge", "dodge", function (v) { return FXK.normalizeDodge(clone(v || {})); }],
+  ["targeting", "targeting", function (v) { return FXK.normalizeTargeting(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
   ["moveStyle", "movement_style", function (v) { return MOVESTYLE.normalize(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
@@ -2510,6 +2511,78 @@ function buildDodgeProps(d) {
     helpOf: function (t) { return COND_HELP[t]; }, onChange: ch,
     make: function (t) { return FXK.normalizeDodge({conditions: [{type: t}]}).conditions[0]; }});
 }
+// Character-level Targeting (pack.targeting, laser/targeting.py), shown
+// under every action's settings: which enemy it fights (Battle; Solo has
+// only the cursor).  Drives movement, attacks, aiming and target_* conditions.
+var TARGET_MODE_LABEL = {nearest: "Nearest", farthest: "Farthest", lowest_hp: "Lowest HP", highest_hp: "Highest HP",
+  stick: "Stick until KO", last_attacker: "Last attacker", weighted: "Weighted score"};
+var TARGET_WEIGHT_LABEL = {closeness: "Closeness", low_hp: "Low HP", attacking: "Is attacking",
+  targets_me: "Targets me", melee: "Melee fighter", ranged: "Ranged fighter"};
+function buildTargetingProps(d) {
+  var s = sec(d, "Targeting (whole character)", "a-target", "", "act");
+  var tg = S.targeting, ch = function () { save(); buildProps(); };
+  var num = function (box, label, obj, key, lo, hi, step, help) {
+    field(box, label, inp("n", obj[key], function (v) { obj[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
+  };
+  var modes = function (list) { return list.map(function (m) { return [m, TARGET_MODE_LABEL[m]]; }); };
+  field(s, "Targeting", inp("chk", tg.enabled, function (v) { tg.enabled = v; ch(); })).title =
+    "On: the character picks its enemy by the rules below (movement, attacks, aiming and every target_* condition follow it). Off: the nearest enemy.";
+  if (!tg.enabled) return;
+  // --- Who
+  field(s, "Mode", inp(modes(FXK.TARGET_MODES), tg.mode, function (v) { tg.mode = v; ch(); })).title =
+    "Nearest / Farthest: by distance. Lowest / Highest HP: by HP. Stick until KO: keeps its first target until it falls. Last attacker: turns on whoever hit it last. Weighted score: blends the sliders below.";
+  var usesHp = function (m) { return m === "lowest_hp" || m === "highest_hp" || m === "weighted"; };
+  if (usesHp(tg.mode) || (tg.mode === "stick" || tg.mode === "last_attacker") && usesHp(tg.fallback))
+    field(s, "HP by", inp([["pct", "HP % (of its max)"], ["amount", "HP amount"]], tg.hp_basis, function (v) { tg.hp_basis = v; save(); })).title =
+      "Compare enemies by HP percentage or by raw HP.";
+  if (tg.mode === "stick" || tg.mode === "last_attacker")
+    field(s, "Otherwise", inp(modes(FXK.TARGET_BASIC), tg.fallback, function (v) { tg.fallback = v; ch(); })).title =
+      tg.mode === "stick" ? "How it picks the target it sticks to (and the next one after a KO)." : "Who it fights until someone hits it (or when its attacker is gone).";
+  if (tg.mode === "weighted" || tg.fallback === "weighted" && (tg.mode === "stick" || tg.mode === "last_attacker") ||
+      tg.rules.some(function (r) { return r.mode === "weighted"; })) {
+    var w = sec(s, "Weighted score", "a-tw", "", "act");
+    Object.keys(TARGET_WEIGHT_LABEL).forEach(function (k) {
+      num(w, TARGET_WEIGHT_LABEL[k] + " %", tg.weights, k, -100, 100, 5,
+        "How much this counts (negative = avoid). Each term is 0..1 across the enemies on screen; the highest total wins.");
+    });
+  }
+  // --- Switching
+  var sw = sec(s, "Retarget timing", "a-tsw", "", "act");
+  num(sw, "Hold at least ms", tg, "min_hold_ms", 0, 60000, 50, "Stay on a target at least this long before switching to another.");
+  num(sw, "Switch margin %", tg, "switch_margin_pct", 0, 100, 1, "Only switch when the new pick scores this much better (% of the score range) — stops it flickering between enemies.");
+  // --- Range
+  var rg = sec(s, "Range limits", "a-trg", "", "act");
+  num(rg, "Min range px", tg, "min_range_px", 0, 5000, 5, "Enemies closer than this don't count (0 = no limit).");
+  num(rg, "Max range px", tg, "max_range_px", 0, 5000, 5, "Enemies farther than this don't count (0 = no limit). When nobody is inside the band it fights the nearest enemy.");
+  field(rg, "Ignore blinked out", inp("chk", tg.ignore_blinked, function (v) { tg.ignore_blinked = v; save(); })).title =
+    "Skip enemies that are blinked out or invulnerable mid dodge (when every enemy is, they all count).";
+  // --- Team
+  var tm = sec(s, "Team coordination", "a-ttm", "", "act");
+  field(tm, "Team-mates", inp([["none", "Ignore team-mates"], ["focus", "Focus: same target as team-mates"], ["spread", "Spread: different targets"]],
+    tg.team, function (v) { tg.team = v; ch(); })).title = "Lean toward (focus) or away from (spread) the enemies its team-mates are on.";
+  if (tg.team !== "none") num(tm, "Strength %", tg, "team_pct", 0, 200, 5, "How strongly team-mates' targets count against the mode's own pick.");
+  // --- Rules
+  var rs = sec(s, "Conditional rules", "a-trl", "", "act");
+  tg.rules.forEach(function (r, i) {
+    var box = sec(rs, "Rule " + (i + 1) + ": " + TARGET_MODE_LABEL[r.mode], "a-trl" + i, "", "act");
+    field(box, "Target", inp(modes(FXK.TARGET_MODES.filter(function (m) { return m !== "stick"; })), r.mode, function (v) { r.mode = v; ch(); })).title =
+      "The mode used while this rule's conditions pass (the first passing rule wins; none = the Mode above).";
+    if (usesHp(r.mode)) field(box, "HP by", inp([["pct", "HP %"], ["amount", "HP amount"]], r.hp_basis, function (v) { r.hp_basis = v; save(); }));
+    field(box, "When", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], r.logic, function (v) { r.logic = v; save(); }));
+    conditionList(box, function () { return r.conditions; }, {key: "a-trc" + i, listId: "fxTagListT" + i,
+      helpOf: function (t) { return COND_HELP[t]; }, onChange: ch,
+      make: function (t) { return FXK.normalizeAction({conditions: [{type: t}]}).conditions[0]; }});
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.disabled = i === 0;
+    up.onclick = function () { tg.rules.splice(i - 1, 0, tg.rules.splice(i, 1)[0]); ch(); };
+    var del = document.createElement("button"); del.textContent = "Remove rule"; del.className = "warn";
+    del.onclick = function () { tg.rules.splice(i, 1); ch(); };
+    row.appendChild(up); row.appendChild(del); box.appendChild(row);
+  });
+  var add = document.createElement("button"); add.textContent = "+ Rule";
+  add.onclick = function () { tg.rules.push(FXK.normalizeTargeting({rules: [{}]}).rules[0]); ch(); };
+  rs.appendChild(add);
+}
 // Character-level Movement style (pack.movement_style, laser/movestyle.py;
 // the patterns and preview sim live in movestyle.js), shown under every
 // action's settings.  Phases of movement patterns + modifiers + conditions.
@@ -3719,6 +3792,7 @@ function buildReactionProps(d) {
     buildDamagedProps(d);
     buildRetreatProps(d);
     buildDodgeProps(d);
+    buildTargetingProps(d);
     buildMoveStyleProps(d);
     return;
   }
@@ -3792,6 +3866,7 @@ function buildActionProps(d) {
   buildDamagedProps(d);
   buildRetreatProps(d);
   buildDodgeProps(d);
+  buildTargetingProps(d);
   buildMoveStyleProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {

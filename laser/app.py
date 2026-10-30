@@ -24,6 +24,7 @@ from .prebattle import PreBattleMenu
 from . import roster as _roster
 from . import tag as _tag
 from . import hpbars
+from . import targeting as _targeting
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -96,6 +97,9 @@ class SideState:
         self.partner_melee = []     # per partner_figures entry: fights in melee (movement style "enemy")
         self.partner_state = []     # per partner_figures entry: (hp_pct, attacking, defending)
                                     # for FX Studio target_* trigger conditions
+        self.partner_ids = []       # per partner_figures entry: id() of that figure, and
+        self.partner_hp = []        # (hp, max_hp), and the id() of ITS target
+        self.partner_target = []    # (FX Studio Targeting, laser/targeting.py)
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
         self.fx_pulls = []          # FX Studio pull fields this tick (meteor /
@@ -157,6 +161,9 @@ class World:
         self.partner_scale = []
         self.partner_melee = []
         self.partner_state = []
+        self.partner_ids = []
+        self.partner_hp = []
+        self.partner_target = []
         self.intercepted_bullets = set()
 
         # Collision impact dots: list of [x, y, age] (drawn + culled in paintEvent)
@@ -197,7 +204,7 @@ class World:
         # four slots, each a character + team + single / tag + hotkeys.
         # Tag pairs (laser/tag.py) are rebuilt from it by apply_roster.
         self.slots = _roster.load(assets.dir, modes.ordered_modes())
-        self.tag_pairs = [None] * len(self.sides)
+        self.tag_pairs = []
         self.apply_roster(reset=True)
         if not any(s.figures for s in self.sides):
             self.slots = _roster.default_slots(modes.ordered_modes())
@@ -275,7 +282,7 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg",
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg", "_target_cfg",
                          "_ua_cfg", "_glide_cache"):
                 if m is not None and hasattr(m, attr):
                     try:
@@ -385,19 +392,20 @@ class World:
             for pos, s in enumerate(_roster.team_slots(self.slots, t)):
                 if s.fig is None:
                     s.fig = self._new_slot_figure(s, pos)
+        _roster.clean_links(self.slots, _tag.can_tag)
         self.tag_pairs = _tag.build_pairs(self, self.slots, [] if reset else
                                           (getattr(self, "tag_pairs", None) or []))
         slot_figs = [s.fig for s in self.slots if s.fig is not None]
+        benched = [p.off.fig for p in self.tag_pairs]
         for t, side in enumerate(self.sides):
             ordered = _roster.team_slots(self.slots, t)
-            pair = self.tag_pairs[t]
-            benched = pair.off.fig if pair is not None else None
             field = [s.fig for s in ordered
-                     if s.fig is not benched and s.fig.personality.hp > 0]
+                     if not any(s.fig is b for b in benched) and s.fig.personality.hp > 0]
             for f in field:
                 _tag.unbench(f, now)
-            if benched is not None:
-                _tag.bench(benched, now)
+            for p in self.tag_pairs:
+                if p.team == t:
+                    _tag.bench(p.off.fig, now)
             # F7 extras (no slot) stay; Mirror Legion copies ride at the end.
             extras = [f for f in side.figures if not unique.is_clone(f)
                       and not any(f is g for g in slot_figs)]
@@ -555,7 +563,7 @@ class World:
         # movement below runs.
         if movestyle.cfg(fig) is not None:
             if self.battle_mode and self.partner_figures:
-                ex, ey = self._nearest_enemy(fig.x, fig.y)
+                ex, ey = self.enemy_target(fig)
                 # The "enemy" condition: does that nearest enemy fight in melee.
                 mel = [m for (px, py, _d, _p), m in zip(self.partner_figures, self.partner_melee)
                        if (px, py) == (ex, ey)]
@@ -584,7 +592,7 @@ class World:
             # (target=nearest enemy) — ai.kite_target takes a plain point
             # and doesn't know or care which mode it came from.
             if self.battle_mode and self.partner_figures:
-                ex, ey = self._nearest_enemy(fig.x, fig.y)
+                ex, ey = self.enemy_target(fig)
             else:
                 ex, ey = self.cursor
             return ai.kite_target(fig, ex, ey)
@@ -599,10 +607,31 @@ class World:
         if not fig.mode.uses_melee():
             return None
         if self.battle_mode and self.partner_figures:
-            return self._nearest_enemy(fig.x, fig.y) if self.shoot_mode else None
+            return self.enemy_target(fig) if self.shoot_mode else None
         if self.shoot_mode:
             return self.cursor
         return None
+
+    def target_index(self, fig):
+        """Index into partner_figures of the enemy `fig` fights this tick
+        (laser/targeting.py: FX Studio Targeting, else the nearest), -1
+        when there is none.  Taunts are applied by enemy_target."""
+        if not (self.battle_mode and self.partner_figures):
+            return -1
+        return _targeting.choose_index(self, fig)
+
+    def enemy_target(self, fig):
+        """(x, y) of the enemy `fig` fights — every movement / attack / aim
+        read goes through here.  A Black Ox Effigy within its taunt range
+        (laser/summoner.py) overrides the choice."""
+        taunt = unique.taunt_point(self, fig.x, fig.y)
+        if taunt is not None:
+            return taunt
+        i = self.target_index(fig)
+        if i < 0:
+            return self._nearest_enemy(fig.x, fig.y)
+        e = self.partner_figures[i]
+        return (e[0], e[1])
 
     def _nearest_enemy(self, fx, fy):
         # A Black Ox Effigy (laser/summoner.py) within its taunt range pulls
@@ -728,6 +757,9 @@ class World:
         self.partner_scale = s.partner_scale
         self.partner_melee = s.partner_melee
         self.partner_state = s.partner_state
+        self.partner_ids = s.partner_ids
+        self.partner_hp = s.partner_hp
+        self.partner_target = s.partner_target
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -786,6 +818,11 @@ class World:
                                      for f in other.figures if f.transform.init]
                 side.partner_state = [actions.target_state(f, self.global_tick)
                                       for f in other.figures if f.transform.init]
+                side.partner_ids = [id(f) for f in other.figures if f.transform.init]
+                side.partner_hp = [(float(f.personality.hp), float(f.personality.max_hp))
+                                   for f in other.figures if f.transform.init]
+                side.partner_target = [getattr(getattr(f, "tgt", None), "target_id", None)
+                                       for f in other.figures if f.transform.init]
                 # Everything the opponent has out that can hurt, read by the
                 # fx_near / projectile_count action conditions:
                 # (x, y, tags, airborne).  tags is a tuple; an FX Studio
@@ -883,6 +920,9 @@ class World:
                 side.partner_scale = []
                 side.partner_melee = []
                 side.partner_state = []
+                side.partner_ids = []
+                side.partner_hp = []
+                side.partner_target = []
                 side.enemy_fx = []
                 side.enemy_shots = []
                 side.round_refs = {}
@@ -926,6 +966,7 @@ class World:
                              side.figures[0] if len(side.figures) == 1 else None)
                 if owner is not None:
                     actions.note_landed(owner, dmg)
+                _targeting.note_hit(ef, owner)
                 # Anti-knockback (FX Studio Damaged): at or above the hit's
                 # knockback, the hit still takes HP but neither knocks back
                 # nor counts toward the fighter's `defend` conditions.
@@ -998,6 +1039,7 @@ class World:
                         kb_ok = not ai.knockback_immune(ef, self)
                         if (ef is struck and actions.is_image(ef)
                                 and not ef.combat.parrying):
+                            _targeting.note_hit(ef, f)
                             ai.apply_hp_damage(ef, self)
                         if not kb_ok:
                             continue   # damage cooldown: invincible

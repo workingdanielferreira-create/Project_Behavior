@@ -2339,7 +2339,7 @@ def update_petals(fig, world):
             cfg["_base_cooldown_ms"] = cfg["cooldown_ms"]
         battle_on = bool(world.battle_mode and world.partner_figures)
         if battle_on:
-            tx, ty = world._nearest_enemy(fig.x, fig.y)
+            tx, ty = world.enemy_target(fig)
         else:
             tx, ty = world.cursor
         dist = math.hypot(tx - fig.x, ty - fig.y)
@@ -3852,7 +3852,7 @@ def check_reaction(fig, world):
     if rc is None:
         return
     if world.battle_mode and world.partner_figures:
-        tx, ty = world._nearest_enemy(fig.x, fig.y)
+        tx, ty = world.enemy_target(fig)
     else:
         tx, ty = world.cursor
     # --- Charge-based vanish-cut launch (gated on trigger_range_px so
@@ -4467,7 +4467,7 @@ def check_charge_starts(fig, world):
             or m.bouncing or m.bounce_ending):
         return
     if world.battle_mode and world.partner_figures:
-        tx, ty = world._nearest_enemy(fig.x, fig.y)
+        tx, ty = world.enemy_target(fig)
     else:
         tx, ty = world.cursor
     dist = math.hypot(tx - fig.transform.x, ty - fig.transform.y)
@@ -4555,7 +4555,7 @@ def try_fire_manual_special(fig, world):
     if not (char and (char.get("actions") or {}).get("attack_special")):
         return  # built-in fighter — no attack_special to force
     if world.battle_mode and world.partner_figures:
-        tx, ty = world._nearest_enemy(fig.x, fig.y)
+        tx, ty = world.enemy_target(fig)
     else:
         tx, ty = world.cursor
     fire_json_action(fig, world, "attack_special", tx, ty)
@@ -4596,7 +4596,7 @@ def try_fire_manual_ultimate(fig, world):
     p = fig.personality
     style = ultimate_style(fig)
     if world.battle_mode and world.partner_figures:
-        tx, ty = world._nearest_enemy(fig.x, fig.y)
+        tx, ty = world.enemy_target(fig)
     else:
         tx, ty = world.cursor
 

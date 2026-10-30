@@ -2,8 +2,8 @@
 Tag battle state and the Switch action.
 
 Every fighter is "single" by default: it fights on its own.  Two slots on
-the same team that are both set to "tag" in the start menu
-(laser/roster.py) are LINKED as a tag pair: one fights on the field, the
+the same team linked as Tag partners in the start menu (laser/roster.py;
+a team can hold more than one pair) form a tag pair: one fights on the field, the
 other waits on the bench, off screen and frozen — out of every system and
 snapshot, so it can't act or be hit, and its HP, cooldowns and timers wait
 (its cooldown clock leaves bench time out, see unique.cd_now).
@@ -72,27 +72,23 @@ class TagPair:
 
 
 def build_pairs(world, slots, old_pairs):
-    """One TagPair (or None) per team for `slots`; a pair that is still the
-    same two slots keeps which one is on the field and its cooldown."""
+    """A TagPair for every linked pair in `slots` (roster.tag_pairs order =
+    pair colour); a pair that is still the same two slots keeps which one
+    is on the field and its cooldown."""
     pairs = []
-    for t in range(_roster.TEAM_COUNT):
-        ts = _roster.tag_pair(slots, t, can_tag)
-        if ts is None:
-            pairs.append(None)
-            continue
-        a, b = ts
-        old = old_pairs[t] if t < len(old_pairs) else None
-        if old is not None and old.same_link(a, b):
+    old_pairs = [p for p in (old_pairs or []) if p is not None]
+    for a, b in _roster.tag_pairs(slots, can_tag):
+        old = next((p for p in old_pairs if p.same_link(a, b)), None)
+        if old is not None:
             on = a if old.on.index == a.index else b
             off = b if on is a else a
-            p = TagPair(t, on, off)
+            p = TagPair(a.team, on, off)
             p.cooldown_until = old.cooldown_until
         else:
-            on, off = a, b           # first pick starts on the field
-            p = TagPair(t, on, off)
+            p = TagPair(a.team, a, b)        # first pick starts on the field
         # A fallen on-field fighter with a standing partner: partner is on.
-        if _ko(on.fig) and not _ko(off.fig):
-            p.on, p.off = off, on
+        if _ko(p.on.fig) and not _ko(p.off.fig):
+            p.on, p.off = p.off, p.on
         pairs.append(p)
     return pairs
 

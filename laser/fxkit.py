@@ -3720,6 +3720,10 @@ class FxDriver:
                 bs = pscale[idx] if idx < len(pscale) else 1.0   # its character scale
                 hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS) * bs, (pf[0], pf[1])))
             self.target = (best[1][0], best[1][1])
+            # Its chosen target (FX Studio Targeting, laser/targeting.py).
+            ti = world.target_index(fig) if hasattr(world, "target_index") else -1
+            if 0 <= ti < len(world.partner_figures):
+                self.target = tuple(world.partner_figures[ti][:2])
             # A Black Ox Effigy taunting this fighter (laser/summoner.py).
             from . import unique as _uq
             taunt = _uq.taunt_point(world, fig.x, fig.y)
