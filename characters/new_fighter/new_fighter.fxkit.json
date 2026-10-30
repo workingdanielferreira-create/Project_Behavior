@@ -7067,13 +7067,13 @@
     }
    ],
    "chain_next": "attack_normal",
-   "chain_reset_ms": 1000,
+   "chain_reset_ms": 0,
    "fx_continuous": false,
    "movement": "leap",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
-   "attack_px": 80,
+   "attack_px": 280,
    "leap": {
     "start_frame": 0,
     "land_frame": 0,
@@ -7122,7 +7122,7 @@
    "conditions": [
     {
      "type": "target_within",
-     "px": 80,
+     "px": 120,
      "not": false
     }
    ],
@@ -7722,7 +7722,7 @@
     "angle_deg": 0,
     "aim_offset_deg": 0,
     "speed": 10.6,
-    "turn_deg": 8,
+    "turn_deg": 26,
     "amplitude": 55,
     "freq": 0.18,
     "orbit_rx": 46,
@@ -7784,7 +7784,7 @@
     "pierce": true,
     "rehit_ticks": 0,
     "knockback": 30,
-    "blockable": true,
+    "blockable": false,
     "deflectable": true
    },
    "intercept": {
@@ -10064,7 +10064,7 @@
   },
   "phantom_swap": {
    "trigger": "cooldown",
-   "cooldown_ms": 1000,
+   "cooldown_ms": 100,
    "chance_pct": 30,
    "uses": 0,
    "targets": {
@@ -10158,16 +10158,16 @@
      "swap_ms_max": 3500
     },
     "modifiers": {
-     "speed_pct": 135,
-     "pulse_pct": 0,
+     "speed_pct": 200,
+     "pulse_pct": 40,
      "pulse_ms": 1000,
-     "inertia_pct": 0,
+     "inertia_pct": 55,
      "weave_deg": 0,
      "weave_ms": 1600,
      "jitter_px": 0,
      "jitter_ms": 400,
      "pause_every_ms": 0,
-     "pause_ms": 300,
+     "pause_ms": 0,
      "face": "travel",
      "wall_avoid": true
     },
