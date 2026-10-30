@@ -533,13 +533,36 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   Intercept (FX Kit projectiles grow through `inst.ps`, `inst.ab_g`; guard
   ribbons too); a smaller lead (or none) is left to World Clash.
 - **Impact punch (`laser/strikefx.py`).** Fist out over Swing ticks, held for
-  Hold ticks, pulled back in 5; pressure streak, speed lines, afterimages and
-  an air ring in front of the fist. Hits along the arm; the impact (flash,
-  an uneven star with its longest spikes along the punch, three shockwave
-  rings across the punch line squashed along it — the outer two broken into
-  arcs — a punch-through blast out of the target's far side, radial speed
-  lines, sparks) stays where the fist landed (`inst.tq_imp`). A whiff bursts
-  at 55 % size at full reach. Clashes along the arm.
+  Hold ticks, pulled back in 5. Hits along the arm; the impact stays where
+  the fist landed (`inst.tq_imp`). A whiff bursts at 55 % size at full reach.
+  Clashes along the arm. What it paints is the strike FX partitions below.
+- **Strike FX partitions (`laser/hitfx.py`, Studio: `hitfx.js`).** The punch
+  and every kick paint three parts, each set on its own — `off` or one of
+  three looks: `ink` (anime limited animation: white shapes with ink
+  outlines, redrawn on twos, focus lines), `energy` (light: white-hot cores,
+  coloured pressure bursts, rays and air-friction sparks spilling forward,
+  shock rings; additive) or `gritty` (physical: dust, refraction-like
+  distortion rings, debris and sweat spray, hardly any glow). Defaults: all
+  `ink`.
+  - `fx_motion`: how the limb moved. `motion_smear` = smear frames — 3
+    afterimages of the forearm / shin along its real path during the fast
+    part only, gone on the contact frame (2D animators hold the smear up to
+    the hit and drop it there). `motion_arcs` = thin broken wind strokes
+    tracing the fist / foot's path, tapered at both ends, lingering 4 ticks.
+    Plus the fist / foot and (kicks) the wind-up glint. No solid trail.
+  - `fx_impact`: the hit at the contact point, laid along the limb's motion
+    (kicks `HEAVY` x bigger). ink: jagged white burst with an ink outline and
+    a coloured heart, breaking into shards, ink focus lines, a pressure disc
+    across the blow. energy: hot core, pressure glows pushed forward, rays
+    spilling through the target, impact star, shock ring + broken ring,
+    sparks. gritty: brief flash, dust burst off the body, light / dark
+    distortion rings, debris chips and sweat spray with gravity.
+  - `fx_env`: push-off dust under the attacker's feet as the strike starts, a
+    ground wave under the target's feet (`FEET_DROP` 30 px) per impact; the
+    axe kick's crater (cracks, debris, wave), the rising kick's kick-up, the
+    spinning kick's vortex (`spin_mode` `centered`).
+  - Every part is a pure function of the instance, so `hitfx.js` draws the
+    same calls (checked call-by-call against the game).
 - **Strike hit options** (`strikefx.HIT_OPTION_STYLES`, shown in the Studio
   for those styles only):
   - *Hit-stop* + *Hit-stop ticks*: the world freezes (`World.hitstop_ticks`,
@@ -553,22 +576,31 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
     `full` (the whole overlay): a white flash crossed by ink focus lines
     converging on the contact point, then the inverse, 2 ticks (held through
     any hit-stop).
+  - *Screen shake* (`shake`, `shake_px`, `shake_ticks`): fires with the
+    hit-stop (once per strike; Solo: as it whiffs) — `World.add_shake`; the
+    scene shakes, easing out, the HUD stays; it keeps shaking through the
+    hit-stop.
+  - *Target squash* (`squash`, `squash_amt`, `squash_ticks`,
+    `squash_flash`): the fighter hit squashes along the blow and stretches
+    across it, springing back (`Figure.hit_squash`, held through the
+    hit-stop), and flashes white. Battle (Solo has no one to hit); the Studio
+    squashes its target marker.
+  - Style defaults (picked in the Studio): punch hit-stop 3 + squash; kicks
+    hit-stop 4-6, shake 4-9 px, squash.
 - **Parameters reused:** see the `strikefx.py` docstring (e.g. ki: Radius =
   shot size, Thickness = blast size, Span = spread °, Length = range).
 - **Parity:** `strikefx.js` is the Studio port; `check_parity.py` also
   compares `CUTS` and the strikefx constants. Same code path in Solo and
   Battle (FX Kit Player).
 - **Kicks (`laser/kickfx.py`, Studio: `kickfx.js`, presets group "Kicks").**
-  Every kick is a path of the foot: a 3-tick wind-up glint, the kick over
-  Swing ticks, held for Hold ticks, faded over 6. A crescent trail follows
-  the foot (widest at the foot, tapering back along its path, growing in
-  toward the pivot) with speed lines; it hits along the lower leg and lands
-  with the punch's impact laid along the way the foot moves (`HEAVY` x the
-  punch's size) plus dust. Radius = foot, Thickness = trail width, Length =
-  leg reach, Span = arc sweep °.
+  Every kick is a path of the foot: a 3-tick wind-up, the kick over Swing
+  ticks, held for Hold ticks, faded over 6. It hits along the lower leg and
+  paints the strike FX partitions above (impact `HEAVY` x the punch's size).
+  Radius = foot, Thickness = how far the air strokes spread, Length = leg
+  reach, Span = arc sweep °.
   - `roundhouse_kick`: an arc round the hip meeting the aim halfway at full
     speed; `kick_sweep` `high_low` / `low_high`.
-  - `thrust_kick`: straight along the aim, wide streak, bigger rings.
+  - `thrust_kick`: straight along the aim.
   - `axe_kick`: comes down onto the point Length along the aim at full
     speed, moving `axe_dir` `screen_down` / `along_aim` / `custom`
     (`kick_angle_deg` from the aim); the arc starts on the higher side. A
@@ -580,8 +612,9 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
   - `rising_kick`: a launcher rising through the point 0.9 x Length along the
     aim and on past it, moving `rise_dir` `screen_up` / `perpendicular` /
     `straight_up` / `custom`; dust kicked up as it starts.
-  - The punch's hit options apply (Hit-stop, Knockback direction — tangent =
-    the foot's motion at contact — and Impact frame). Style defaults set
+  - The punch's hit options apply (Hit-stop, Screen shake, Target squash,
+    Knockback direction — tangent = the foot's motion at contact — and Impact
+    frame). Style defaults set
     Knockback direction to `tangent` (`aim` for the thrust kick).
 - **Gunfire (`laser/gunfx.py`, Studio: `gunfx.js`).** Ten anime gun shots,
   each a technique style with a palette preset and a signature-colour preset

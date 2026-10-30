@@ -344,6 +344,14 @@ var PARAM_DEFAULTS = {
     // aim / tangent / custom (kb_angle_deg turned from the strike, clockwise);
     // impact_frame off / local (impact_frame_r px) / full (the whole overlay).
     hitstop: false, hitstop_ticks: 4, kb_dir: "aim", kb_angle_deg: 0, impact_frame: "off", impact_frame_r: 90,
+    // Strike FX partitions (hitfx.js; the punch and the kicks): fx_motion /
+    // fx_impact / fx_env each off / ink / energy / gritty; motion_smear and
+    // motion_arcs switch the smear frames and air strokes.  Hit weight: shake
+    // (shake_px, shake_ticks) shakes the stage with the hit-stop; squash
+    // (squash_amt, squash_ticks, squash_flash) squashes the target hit along
+    // the blow and flashes it white.
+    fx_motion: "ink", motion_smear: true, motion_arcs: true, fx_impact: "ink", fx_env: "ink",
+    shake: false, shake_px: 6, shake_ticks: 8, squash: false, squash_amt: 0.3, squash_ticks: 6, squash_flash: true,
     // Kicks (kickfx.js): kick_sweep high_low / low_high (roundhouse);
     // axe_dir screen_down / along_aim / custom, axe_crater contact / feet;
     // spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
@@ -380,13 +388,13 @@ var TECH_STYLE_DEFAULTS = {
   combo_launcher: {radius: 55, span: 120, thickness: 11, swing_ticks: 5},
   combo_backhand: {radius: 70, span: 150, thickness: 11, swing_ticks: 5},
   ki_barrage: {radius: 6, thickness: 18, span: 18, length: 320, swing_ticks: 3, hold_ticks: 45},
-  impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3},
+  impact_punch: {radius: 9, thickness: 12, length: 60, swing_ticks: 4, hold_ticks: 3, hitstop: true, hitstop_ticks: 3, squash: true, squash_amt: 0.25},
   // Kicks (kickfx.js)
-  roundhouse_kick: {radius: 10, span: 150, thickness: 16, length: 70, swing_ticks: 6, hold_ticks: 3, kb_dir: "tangent"},
-  thrust_kick: {radius: 12, thickness: 18, length: 80, swing_ticks: 5, hold_ticks: 4, kb_dir: "aim"},
-  axe_kick: {radius: 11, span: 140, thickness: 16, length: 70, swing_ticks: 7, hold_ticks: 4, kb_dir: "tangent"},
-  spinning_kick: {radius: 10, thickness: 14, length: 65, swing_ticks: 14, hold_ticks: 2, kb_dir: "tangent", spin_turns: 2},
-  rising_kick: {radius: 10, span: 150, thickness: 15, length: 70, swing_ticks: 6, hold_ticks: 4, kb_dir: "tangent"},
+  roundhouse_kick: {radius: 10, span: 150, thickness: 16, length: 70, swing_ticks: 6, hold_ticks: 3, kb_dir: "tangent", hitstop: true, hitstop_ticks: 5, shake: true, shake_px: 6, squash: true},
+  thrust_kick: {radius: 12, thickness: 18, length: 80, swing_ticks: 5, hold_ticks: 4, kb_dir: "aim", hitstop: true, hitstop_ticks: 5, shake: true, shake_px: 5, squash: true},
+  axe_kick: {radius: 11, span: 140, thickness: 16, length: 70, swing_ticks: 7, hold_ticks: 4, kb_dir: "tangent", hitstop: true, hitstop_ticks: 6, shake: true, shake_px: 9, squash: true, squash_amt: 0.4},
+  spinning_kick: {radius: 10, thickness: 14, length: 65, swing_ticks: 14, hold_ticks: 2, kb_dir: "tangent", spin_turns: 2, hitstop: true, hitstop_ticks: 5, shake: true, shake_px: 6, squash: true},
+  rising_kick: {radius: 10, span: 150, thickness: 15, length: 70, swing_ticks: 6, hold_ticks: 4, kb_dir: "tangent", hitstop: true, hitstop_ticks: 4, shake: true, shake_px: 4, squash: true},
   ssj_aura: {radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: true,
     lightning_rate: 2, aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true},
   rasen_shuriken: {radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50},

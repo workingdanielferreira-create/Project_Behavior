@@ -235,9 +235,16 @@ def main():
     # ... the kicks' constants (laser/kickfx.py).
     kk_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "kickfx.js"))
     kk_py = PyTables(os.path.join(ROOT, "laser", "kickfx.py"))
-    for name in ("STYLES", "ARC_STYLES", "WIND", "RETRACT", "TRAIL_LAG", "TRAIL_N", "FEET_DROP", "RISE_REACH", "DUST",
-                 "ROCK", "SCORCH", "CONTACT", "HEAVY"):
+    for name in ("STYLES", "ARC_STYLES", "WIND", "RETRACT", "RISE_REACH", "CONTACT", "HEAVY"):
         diff(kk_js.get(name), kk_py.get(name), "kickfx " + name, out)
+    # ... the strike FX partitions the punch and kicks paint (laser/hitfx.py).
+    hf_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "hitfx.js"))
+    hf_py = PyTables(os.path.join(ROOT, "laser", "hitfx.py"))
+    for name in ("LOOKS", "PARTS", "IMPACT_LIFE", "ENV_LIFE", "CRATER_LIFE", "FEET_DROP", "SMEAR_N", "SMEAR_STEP",
+                 "SMEAR_LEN", "ARC_N", "ARC_LINGER", "INK", "PAPER", "DUST", "GREY", "ROCK", "SCORCH"):
+        diff(hf_js.get(name), hf_py.get(name), "hitfx " + name, out)
+    diff(kk_js.get("FEET_DROP"), hf_py.get("FEET_DROP"), "kickfx FEET_DROP / hitfx FEET_DROP", out)
+    diff(st_js.get("PUNCH_IMPACT_LIFE"), hf_py.get("IMPACT_LIFE"), "strikefx PUNCH_IMPACT_LIFE / hitfx IMPACT_LIFE", out)
     # ... and the power techniques' constants (laser/powerfx.py).
     pw_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "powerfx.js"))
     pw_py = PyTables(os.path.join(ROOT, "laser", "powerfx.py"))

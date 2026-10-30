@@ -14,14 +14,12 @@ Styles (params.style):
                 end of its range: a white flash, a fireball, shock ring and
                 sparks (three blast kinds), and smoke that piles up over the
                 target while the barrage keeps coming.
-  impact_punch  the fist drives out along the aim inside a pressure streak
-                with speed lines and afterimages, an air ring compressing in
-                front of it; when it lands: a white flash, an uneven impact
-                star (spikes longest along the punch), three shockwave rings
-                standing across the punch line and squashed along it (the
-                outer two broken into arcs), a punch-through blast out of the
-                target's far side, radial speed lines and sparks.  A whiff
-                gives a smaller burst at full reach.
+  impact_punch  the fist drives out along the aim and lands.  What it paints
+                is laser/hitfx.py's three partitions: fx_motion (smear frames
+                of the arm up to contact, broken air strokes, the fist),
+                fx_impact (the hit, laid along the punch) and fx_env (push-off
+                dust, a ground wave under the target), each off / ink /
+                energy / gritty.  A whiff bursts smaller at full reach.
 
 Hit options (HIT_OPTION_STYLES; params, fxkit.PRIM_DEFAULTS["technique"]):
 
@@ -36,6 +34,11 @@ Hit options (HIT_OPTION_STYLES; params, fxkit.PRIM_DEFAULTS["technique"]):
                 a white flash crossed by ink focus lines converging on the
                 contact point, then the inverse; local inside impact_frame_r
                 px, full over the whole overlay.
+
+  shake / shake_px / shake_ticks   the overlay shakes (World.shake) with
+                the hit-stop: when it lands, Solo as it whiffs.
+  squash / squash_amt / squash_ticks / squash_flash   the fighter hit squashes
+                along the blow and flashes white (Figure.hit_squash; Battle).
 
 Parameters (the technique's own, reused):
 
@@ -70,6 +73,7 @@ import math
 
 from . import fxkit as F
 from . import swordfx as S
+from . import hitfx as H
 
 STYLES = ("ki_barrage", "impact_punch")
 
@@ -85,8 +89,6 @@ PUNCH_RETRACT = 5
 PUNCH_IMPACT_LIFE = 24
 IMPACT_FRAME_TICKS = 2       # impact frame: a white flash with ink focus lines, then the inverse
 FULL_FRAME = 20000.0         # half-size of the full-overlay impact frame, px
-THROUGH_LIFE = 14            # punch-through: the blast out of the target's far side
-THROUGH_GAP = 22.0           # ...bursting this far past the contact point, px (x scale)
 INK = (16, 10, 22)           # impact-frame ink
 
 # Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
@@ -418,11 +420,16 @@ def hitstop_ticks(P):
 
 
 def _freeze(inst, host):
+    """The strike's hit weight: its hit-stop and screen shake, once per
+    strike however often it re-hits."""
+    if inst.tq_hs or host is None or not _opts_on(inst.fx["params"]):
+        return
+    inst.tq_hs = True
     n = hitstop_ticks(inst.fx["params"])
-    fn = getattr(host, "hitstop", None) if host is not None else None
-    if n > 0 and fn is not None and not inst.tq_hs:
-        inst.tq_hs = True          # one freeze per strike, however often it re-hits
+    fn = getattr(host, "hitstop", None)
+    if n > 0 and fn is not None:
         fn(n)
+    H.shake(inst, host)
 
 
 def hit_freeze(inst, host):
@@ -593,83 +600,6 @@ def _draw_ki(pen, inst, host, ps):
                      255 * (1 - qq), 1.4 * ps)
 
 
-def _spikes(pen, x, y, ang, n, r_out, r_in, c, a):
-    pts = []
-    for j in range(2 * n):
-        rr = r_out if j % 2 == 0 else r_in
-        an = ang + math.pi * j / n
-        pts.append((x + math.cos(an) * rr, y + math.sin(an) * rr))
-    pen.poly(pts, c, a)
-
-
-def _star(pen, inst, x, y, ang, n, r_out, r_in, c, a, salt):
-    """An uneven impact star: the spikes are longest along the strike (ang),
-    shortest across it, with a shorter kick back the way the fist came."""
-    pts = []
-    for j in range(2 * n):
-        an = ang + math.pi * j / n
-        rr = r_in
-        if j % 2 == 0:
-            r = S.rng_for(inst.seed, j, 60 + salt)
-            an += r.uniform(-0.3, 0.3) * math.pi / n
-            k = math.cos(an - ang)
-            rr = r_out * (0.45 + 0.65 * max(0.0, k) ** 2 + 0.25 * max(0.0, -k) ** 2) * r.uniform(0.75, 1.2)
-        pts.append((x + math.cos(an) * rr, y + math.sin(an) * rr))
-    pen.poly(pts, c, a)
-
-
-def _arc_ring(pen, inst, x, y, rx, ry, ang, c, a, w, salt):
-    """A shock ring broken into 3-5 arcs with gaps (rx along ang)."""
-    if a <= 1 or w <= 0.05 or rx <= 0.5 or ry <= 0.5:
-        return
-    r = S.rng_for(inst.seed, 0, 80 + salt)
-    n = 3 + F.trunc(r() * 3)
-    t0 = r() * math.pi * 2
-    ca, sa = math.cos(ang), math.sin(ang)
-    st = math.pi * 2 / n
-    for i in range(n):
-        s0 = t0 + i * st
-        s1 = s0 + st * r.uniform(0.55, 0.85)
-        pts = []
-        for k in range(9):
-            t = s0 + (s1 - s0) * k / 8.0
-            px, py = math.cos(t) * rx, math.sin(t) * ry
-            pts.append((x + px * ca - py * sa, y + px * sa + py * ca))
-        pen.polyline(pts, c, a, w)
-
-
-def _through(pen, inst, c, ps, x, y, a, sc, salt, u=None):
-    """Punch-through: the blow carries on out of the target's far side, a
-    cone of wind and light bursting along the strike line u (default: the
-    punch line; a whiff: the air it pushed)."""
-    if a < 0 or a >= THROUGH_LIFE:
-        return
-    q = a / float(THROUGH_LIFE)
-    e = S.ease_out3(min(1.0, a / 6.0))
-    fx_, fy_ = u or inst.tq_f
-    nx, ny = -fy_, fx_
-    g = THROUGH_GAP * ps * sc
-    bx, by = x + fx_ * g, y + fy_ * g
-
-    def p(u, v):
-        return bx + fx_ * u + nx * v, by + fy_ * u + ny * v
-
-    L = (30 + 90 * e) * ps * sc
-    W = (10 + 34 * e) * ps * sc
-    fade = 1 - q
-    pen.poly([p(0, W * 0.25), p(L * 0.75, W), p(L, 0), p(L * 0.75, -W), p(0, -W * 0.25)], c, 120 * fade)
-    pen.poly([p(0, W * 0.1), p(L * 0.6, W * 0.45), p(L * 0.85, 0), p(L * 0.6, -W * 0.45), p(0, -W * 0.1)], S.HOT,
-             170 * fade ** 1.5)
-    for j in range(7):
-        r = S.rng_for(inst.seed, j, 110 + salt)
-        off = r.uniform(-1.0, 1.0) * W * 0.9
-        s0 = r.uniform(0.1, 0.5) * L
-        ln = r.uniform(0.35, 0.7) * L
-        x0, y0 = p(s0, off)
-        x1, y1 = p(s0 + ln, off * 1.4)
-        pen.line(x0, y0, x1, y1, S.mix(S.HOT, c, q), 220 * fade, 1.3 * ps)
-
-
 def _impact_frame(pen, inst, c, ps, x, y, a, sc, salt):
     """Impact frame (params impact_frame): a white flash crossed by ink focus
     lines converging on the contact point, then the inverse (ink, light lines).
@@ -702,130 +632,56 @@ def _impact_frame(pen, inst, c, ps, x, y, a, sc, salt):
     pen.add(True)
 
 
-def _impact(pen, inst, c, ps, x, y, a, sc, salt, u=None):
-    """The punch landing (sc = size; a whiff is smaller), laid along the
-    strike direction u (default: the punch line; kickfx passes its own)."""
-    q = a / float(PUNCH_IMPACT_LIFE)
-    fx_, fy_ = u or inst.tq_f
-    ang = math.atan2(fy_, fx_)
-    if a < 6:
-        pen.glow(x, y, (18 + 24 * S.ease_out3(a / 6.0)) * ps * sc, S.HOT, 255 * (1 - a / 6.0))
-    if a < 10:
-        qs = a / 10.0
-        e = S.ease_out3(a / 4.0)
-        _star(pen, inst, x, y, ang, 8, (16 + 28 * e) * ps * sc, (6 + 8 * e) * ps * sc, c, 225 * (1 - qs), salt)
-        _star(pen, inst, x, y, ang, 8, (9 + 16 * e) * ps * sc, (3.5 + 4 * e) * ps * sc, S.HOT, 255 * (1 - qs) ** 1.5,
-              salt)
-    pen.glow(x, y, (26 + 20 * S.ease_out3(q)) * ps * sc, c, 140 * (1 - q), 0.4)
-    _through(pen, inst, c, ps, x, y, a, sc, salt, u)
-    # shockwave rings standing across the punch line, squashed along it: a
-    # full one, then two broken into arcs, each further out and faster
-    for (n, d0, k) in ((0, 0, 1.0), (1, 3, 1.45), (2, 6, 1.9)):
-        aa = a - d0
-        if aa < 0:
-            continue
-        qq = aa / float(PUNCH_IMPACT_LIFE - d0)
-        e = S.ease_out3(qq)
-        cx, cy = x + fx_ * 10 * ps * sc * e * k, y + fy_ * 10 * ps * sc * e * k
-        rx, ry = (4 + 10 * e) * ps * sc * k, (10 + 50 * e) * ps * sc * k
-        if n == 0:
-            pen.ring(cx, cy, rx, ry, ang, c, 210 * (1 - qq), 3.0 * ps * (1 - qq) + 0.2)
-            pen.ring(cx, cy, rx, ry, ang, S.HOT, 160 * (1 - qq) ** 2, 1.0 * ps * (1 - qq) + 0.1)
-        else:
-            _arc_ring(pen, inst, cx, cy, rx, ry, ang, c, 200 * (1 - qq), (3.4 - n) * ps * (1 - qq) + 0.2, salt + n)
-            _arc_ring(pen, inst, cx, cy, rx, ry, ang, S.HOT, 150 * (1 - qq) ** 2, 0.9 * ps * (1 - qq) + 0.1, salt + n)
-    # radial speed lines
-    if a < 12:
-        ql = a / 12.0
-        for j in range(12):
-            r = S.rng_for(inst.seed, j, 70 + salt)
-            an = r.uniform(0, math.pi * 2)
-            r1 = (12 + 46 * S.ease_out3(ql)) * ps * sc * r.uniform(0.8, 1.2)
-            ln = r.uniform(12, 26) * ps * sc * (1 - ql)
-            ca, sa = math.cos(an), math.sin(an)
-            pen.line(x + ca * r1, y + sa * r1, x + ca * (r1 + ln), y + sa * (r1 + ln), S.mix(S.HOT, c, ql), 230 * (1 - ql),
-                     1.4 * ps)
-    # sparks thrown mostly forward
-    n_sp = max(0, F.jround(10 * float(inst.fx["params"].get("density") or 1) * sc))
-    for j in range(n_sp):
-        r = S.rng_for(inst.seed, j, 90 + salt)
-        life = 10 + 10 * r()
-        if a >= life:
-            continue
-        an = ang + r.uniform(-75, 75) * S.D
-        sp = r.uniform(3, 8) * ps
-        fd = S.drag_dist(0.87, a)
-        sx, sy = x + math.cos(an) * sp * fd, y + math.sin(an) * sp * fd + 0.1 * ps * a * a
-        dk = 0.87 ** a
-        qq = a / life
-        pen.line(sx, sy, sx - math.cos(an) * sp * dk * 1.6, sy - math.sin(an) * sp * dk * 1.6, S.mix(S.HOT, c, qq),
-                 255 * (1 - qq), 1.5 * ps)
-
-
 def _impacts(inst, P, fr, ps):
-    """(age, x, y, size, salt) of every impact on show: where the fist was
-    when it landed; a whiff bursts smaller at full reach."""
+    """(age, x, y, size, salt, tick) of every impact on show: where the fist
+    was when it landed; a whiff bursts smaller at full reach."""
     t = inst.age
     if inst.tq_imp:
-        return [(t - b, x, y, 1.0, 11 * n) for n, (b, x, y) in enumerate(inst.tq_imp)]
+        return [(t - b, x, y, 1.0, 11 * n, b) for n, (b, x, y) in enumerate(inst.tq_imp)]
     L = float(P["length"]) * ps
     x, y = fr.w(L + float(P["radius"]) * ps * 0.8, 0)
-    return [(t - S._swing(P), x, y, 0.55, 0)]
+    return [(t - S._swing(P), x, y, 0.55, 0, S._swing(P))]
+
+
+def _motion(inst, P, fr, ps):
+    """The punch for the motion partition (hitfx.Motion): shoulder -> fist."""
+    L = float(P["length"]) * ps
+    Ts, Th = S._swing(P), _hold(P)
+    f = inst.tq_f
+
+    def limb(t):
+        tx, ty = fr.w(_reach(P, t, L), 0)
+        return inst.x, inst.y, tx, ty, f[0], f[1]
+    return H.Motion(limb, 0, Ts, Ts, Ts + Th + PUNCH_RETRACT, float(P["radius"]) * ps, float(P["thickness"]) * ps)
+
+
+def _feet(inst, b, ps):
+    """Where the target's feet were on tick b."""
+    tp = inst.tq_tp[min(max(0, b), len(inst.tq_tp) - 1)]
+    return float(tp[1]) + H.FEET_DROP * ps
 
 
 def _draw_punch(pen, inst, host, ps):
     P = inst.fx["params"]
     t = inst.age
     fr = S._frame(inst)
-    c, bright, _deep = S._colours(inst, host)
-    L = float(P["length"]) * ps
-    rf = float(P["radius"]) * ps
-    W = float(P["thickness"]) * ps
-    Ts, Th = S._swing(P), _hold(P)
-    l = _reach(P, t, L)
-    out = t < Ts + Th + PUNCH_RETRACT
+    c, _bright, _deep = S._colours(inst, host)
     imps = _impacts(inst, P, fr, ps)
     # 0: the impact frame, under everything else
-    for (a, x, y, sc, salt) in imps:
+    for (a, x, y, sc, salt, _b) in imps:
         _impact_frame(pen, inst, c, ps, x, y, a, sc, salt)
-    pen.add(True)
-    if out and l > 1:
-        fade = 1.0 if t < Ts + Th else 1 - (t - Ts - Th) / float(PUNCH_RETRACT)
-        # 1: pressure streak from the shoulder to the fist
-        tail = max(0.0, l - max(L * 0.9, 3 * rf))
-        pen.poly([fr.w(tail, -0.12 * W), fr.w(l, -W), fr.w(l + rf * 0.6, 0), fr.w(l, W), fr.w(tail, 0.12 * W)], c,
-                 95 * fade)
-        pen.poly([fr.w(tail + (l - tail) * 0.3, -0.06 * W), fr.w(l, -0.45 * W), fr.w(l + rf * 0.4, 0), fr.w(l, 0.45 * W),
-                  fr.w(tail + (l - tail) * 0.3, 0.06 * W)], bright, 170 * fade)
-        # 2: speed lines alongside it while it drives out
-        if t <= Ts + 2:
-            sf = 1.0 if t <= Ts else 1 - (t - Ts) / 2.0
-            for j in range(4):
-                r = S.rng_for(inst.seed, j, 51)
-                off = (1 if j % 2 else -1) * W * r.uniform(1.1, 2.0)
-                x0, x1 = l - r.uniform(0.5, 0.9) * L, l - r.uniform(0.0, 0.2) * L
-                a0, a1 = fr.w(max(0.0, x0), off), fr.w(max(0.0, x1), off)
-                pen.line(a0[0], a0[1], a1[0], a1[1], S.mix(c, S.HOT, 0.4), 170 * sf, 1.2 * ps)
-        # 3: afterimages of the fist
-        for (j, al) in ((2, 60), (1, 100)):
-            lj = _reach(P, max(0, t - j), L)
-            gx, gy = fr.w(lj, 0)
-            pen.glow(gx, gy, rf * 1.8, c, al * fade)
-        # 4: air ring compressing in front of the fist
-        if t <= Ts + 1:
-            e = S.ease_out3(t / float(Ts))
-            ax, ay = fr.w(l + rf * (0.9 + 0.5 * e), 0)
-            pen.ring(ax, ay, rf * 0.45, rf * (1.0 + 0.9 * e), math.atan2(inst.tq_f[1], inst.tq_f[0]), S.HOT, 200 * (0.4 + 0.6 * e),
-                     1.4 * ps)
-        # 5: the fist
-        fx_, fy_ = fr.w(l, 0)
-        pen.glow(fx_, fy_, rf * 2.6, c, 170 * fade)
-        pen.glow(fx_, fy_, rf * 1.4, S.mix(c, S.HOT, 0.6), 235 * fade)
-        pen.glow(fx_, fy_, rf * 0.7, S.HOT, 255 * fade, 0.7)
-    # 6: the impacts
-    for (a, x, y, sc, salt) in imps:
-        if 0 <= a < PUNCH_IMPACT_LIFE:
-            _impact(pen, inst, c, ps, x, y, a, sc, salt)
+    # 1: the surroundings (fx_env): push-off dust under the fighter, a ground
+    # wave under the target
+    p0 = inst.tq_path[0]
+    H.env(pen, inst, P, c, ps, ("push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m, 0.0, 0.8, 0))
+    for (a, x, y, sc, salt, b) in imps:
+        H.env(pen, inst, P, c, ps, ("ground", a, x, _feet(inst, b, ps), 0.0, 0.0, sc * 0.7, salt))
+    # 2: the fist and its motion (fx_motion)
+    H.motion(pen, inst, P, t, ps, c, _motion(inst, P, fr, ps))
+    # 3: the impacts (fx_impact)
+    for (a, x, y, sc, salt, _b) in imps:
+        H.impact(pen, inst, P, c, ps, x, y, a, sc, salt, inst.tq_f)
+    pen.add(False)
 
 
 def draw(pen, inst, host, ps):

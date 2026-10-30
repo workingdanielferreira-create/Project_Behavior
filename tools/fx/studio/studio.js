@@ -402,6 +402,8 @@ var host = {
   get solo() { return S.tgt < 0; },
   // A strike's Hit-stop (laser/fxkit.py _Host.hitstop): the preview freezes for n ticks.
   hitstop: function (n) { S.hitstop = Math.max(S.hitstop || 0, n); },
+  // A strike's screen shake (laser/fxkit.py _Host.shake, World.add_shake): the stronger of it and what is shaking now.
+  shake: function (px, n) { var c = S.shake; if (!c || px >= c[2] * c[0] / Math.max(1, c[1])) S.shake = [n, n, px]; },
   anchor: function (n) { return jointAt(n, frameAt(S.t)); },
   // Path pins "blink:<i>:start|end" (laser/blink.py point).
   blinkPoint: function (i, which) { return blinkPointAt(i, which); },
@@ -446,6 +448,9 @@ var host = {
     if (S.leap && S.leap.dmg != null && inst.fx.action === S.action) dmg = S.leap.dmg;   // "range" leap damage
     S.dealt += dmg;
     dummyHurt(S.tgt, dmg);
+    // Strike hit weight (laser/app.py refresh_battle): the target squashes along the blow and flashes white.
+    var P = inst.fx.params || {}, sq = inst.fx.prim === "technique" && G_STRIKE() && G_STRIKE().HIT_OPTION_STYLES.indexOf(P.style) >= 0 && window.HITFX ? HITFX.squashOf(P) : null;
+    if (sq) S.squash = [sq[0], sq[0], dx, dy, sq[1], sq[2]];
     S.hits.push({t: S.t, dmg: dmg, kb: kb, name: inst.fx.name});
     if (S.hits.length > 60) S.hits.shift();
   }
@@ -1440,6 +1445,19 @@ var PARAM_UI = {
     ["kb_angle_deg", "Knockback angle ° (custom: from the strike, clockwise)", -180, 180, 5],
     ["impact_frame", "Impact frame", ["off", "local", "full"]],
     ["impact_frame_r", "Impact frame radius px (local)", 10, 1000, 5],
+    // strikes only: the three FX partitions (laser/hitfx.py), each off / ink / energy / gritty, and the hit weight
+    ["fx_motion", "Motion FX (smear, air strokes, fist / foot)", ["ink", "energy", "gritty", "off"]],
+    ["motion_smear", "Motion: smear frames (limb afterimages up to contact)", "chk"],
+    ["motion_arcs", "Motion: air strokes along the path", "chk"],
+    ["fx_impact", "Impact FX (the hit)", ["ink", "energy", "gritty", "off"]],
+    ["fx_env", "Environment FX (dust, ground wave, crater, vortex)", ["ink", "energy", "gritty", "off"]],
+    ["shake", "Screen shake when it lands", "chk"],
+    ["shake_px", "Shake strength px", 0, 40, 1],
+    ["shake_ticks", "Shake ticks", 1, 60, 1],
+    ["squash", "Target squash when it lands", "chk"],
+    ["squash_amt", "Squash amount", 0, 0.8, 0.05],
+    ["squash_ticks", "Squash ticks", 1, 30, 1],
+    ["squash_flash", "Target flashes white", "chk"],
     // kicks only (laser/kickfx.py): each style's own path options
     ["kick_sweep", "Roundhouse sweep", ["high_low", "low_high"]],
     ["axe_dir", "Axe kick comes down", ["screen_down", "along_aim", "custom"]],
@@ -1450,7 +1468,9 @@ var PARAM_UI = {
     ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5]]
 };
 // Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
-var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r"];
+var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r",
+  "fx_motion", "motion_smear", "motion_arcs", "fx_impact", "fx_env", "shake", "shake_px", "shake_ticks",
+  "squash", "squash_amt", "squash_ticks", "squash_flash"];
 // Kick path options: PARAM_UI key -> the kick styles that show it.
 var KICK_KEYS = {kick_sweep: ["roundhouse_kick"], axe_dir: ["axe_kick"], axe_crater: ["axe_kick"],
   spin_mode: ["spinning_kick"], spin_turns: ["spinning_kick"], rise_dir: ["rising_kick"], kick_angle_deg: ["axe_kick", "rising_kick"]};
@@ -1865,7 +1885,7 @@ function buildProps() {
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
   if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots.");
-  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands with a flash, an uneven impact star (longest along the punch), shockwave rings squashed along the punch line (the outer ones broken into arcs) and a punch-through blast out of the target's far side; a whiff bursts smaller at full reach. Its hit options: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per punch; Knockback direction aim / tangent (the way the fist moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). Kicks (roundhouse, thrust, axe, spinning, rising; laser/kickfx.py): use Motion attached, anchor figure, Aim target. A short wind-up glint, then the foot kicks over Swing ticks (held Hold ticks, then fades) with a crescent trail widest at the foot, tapering back along its path; it hits along the lower leg and lands with the punch's impact laid along the way the foot moves, heavier, with dust. Radius = foot size, Thickness = trail width, Length = leg reach, Span = arc sweep °. Roundhouse: an arc round the hip meeting the aim halfway (sweep high → low or low → high). Thrust kick: straight along the aim, a wide streak and bigger rings. Axe kick: comes down onto the point Length along the aim (screen-down, along the aim or a custom Kick direction °), with a crater, cracks along the ground and debris at the contact point or under the target's feet. Spinning kick: Spin turns full circles ending on the aim — centred (a wind vortex round the body), travelling forward, or spinning then lunging. Rising kick: a launcher rising through the aim point (up and forward, square to the aim, straight up or a custom Kick direction °), dust kicked up as it starts. Kicks share the punch's Hit-stop, Knockback direction (tangent = the way the foot moves at contact) and Impact frame. The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
+  if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands; a whiff bursts smaller at full reach. Kicks (roundhouse, thrust, axe, spinning, rising; laser/kickfx.py): use Motion attached, anchor figure, Aim target. A short wind-up, then the foot kicks over Swing ticks (held Hold ticks, then fades); it hits along the lower leg. Radius = fist / foot size, Thickness = how far the air strokes spread, Length = reach, Span = arc sweep °. Roundhouse: an arc round the hip meeting the aim halfway (sweep high → low or low → high). Thrust kick: straight along the aim. Axe kick: comes down onto the point Length along the aim (screen-down, along the aim or a custom Kick direction °), its crater at the contact point or under the target's feet. Spinning kick: Spin turns full circles ending on the aim — centred (a wind vortex round the body), travelling forward, or spinning then lunging. Rising kick: a launcher rising through the aim point (up and forward, square to the aim, straight up or a custom Kick direction °). What the punch and kicks paint is split into three parts, each Off or one of three looks — Ink (anime: white shapes with ink outlines redrawn on twos, focus lines), Energy (light: hot cores, pressure bursts, rays and sparks spilling forward, shock rings) or Gritty (physical: dust, distortion rings, debris, little glow): Motion FX = smear frames (afterimages of the forearm / shin along its real path up to contact, gone on the hit), air strokes along the path and the fist / foot; Impact FX = the hit, laid along the way the limb moved (kicks bigger); Environment FX = push-off dust under the fighter, a ground wave under the target, the axe crater, the rising kick-up, the spinning vortex. Hit weight: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per strike; Screen shake shakes the stage with it; Target squash squashes the target along the blow for Squash ticks and can flash it white (Battle; here: the target marker). Knockback direction aim / tangent (the way the fist / foot moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
     field(s, "Deals damage", inp("chk", bt.deals_damage, function (v) { bt.deals_damage = v; buildEffects(); changed(true); })).title =
@@ -2085,7 +2105,10 @@ function buildProps() {
     if (fx.prim === "technique" && HIT_OPTION_KEYS.indexOf(k) >= 0 &&
         (!G_STRIKE() || G_STRIKE().HIT_OPTION_STYLES.indexOf(fx.params.style) < 0 ||
          (k === "hitstop_ticks" && !fx.params.hitstop) || (k === "kb_angle_deg" && fx.params.kb_dir !== "custom") ||
-         (k === "impact_frame_r" && fx.params.impact_frame !== "local"))) return;
+         (k === "impact_frame_r" && fx.params.impact_frame !== "local") ||
+         ((k === "motion_smear" || k === "motion_arcs") && fx.params.fx_motion === "off") ||
+         ((k === "shake_px" || k === "shake_ticks") && !fx.params.shake) ||
+         ((k === "squash_amt" || k === "squash_ticks" || k === "squash_flash") && !fx.params.squash))) return;
     if (fx.prim === "technique" && KICK_KEYS[k] && !kickKeyShown(k, fx.params)) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
@@ -4157,8 +4180,15 @@ function placeHead() { var W = $("timeline").clientWidth || 600; $("playhead").s
 // ------------------------------------------------------------ simulation
 // Scrubbing re-simulates deterministically from tick 0, so a paused frame
 // shows exactly what that tick looks like during playback.
+// Strike hit weight (World.step_hit_weight): each tick, hit-stop included, the
+// shake counts down; outside a hit-stop the target's squash springs back.
+function stepHitWeight() {
+  if (S.shake && --S.shake[0] <= 0) S.shake = null;
+  if (S.hitstop > 0) return;
+  if (S.squash && --S.squash[0] <= 0) S.squash = null;
+}
 function resetSim(t) {
-  player.reset(); cplayer.reset(); S.hitstop = 0; S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
+  player.reset(); cplayer.reset(); S.hitstop = 0; S.shake = null; S.squash = null; S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = [];
   dummyReset();
@@ -5547,7 +5577,7 @@ function loop(now) {
   var dt = Math.min(100, now - (last || now)); last = now;
   if (S.playing && C && act()) {
     acc += dt * (+$("speed").value || 1);
-    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; if (S.hitstop > 0) { S.hitstop -= 1; continue; } step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length && !player.runs.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
+    while (acc >= FXK.TICK_MS) { acc -= FXK.TICK_MS; stepHitWeight(); if (S.hitstop > 0) { S.hitstop -= 1; continue; } step(true); if (S.t >= totalTicks() && !$("loop").checked && !player.insts.length && !player.runs.length) { S.playing = false; $("bPlay").textContent = "▶ Play"; } }
   }
   draw();
   refreshCondPreview();
@@ -5609,6 +5639,10 @@ function draw() {
   for (var x = x0; x < cv.width / dpr; x += step10) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, cv.height); g.stroke(); }
   for (var y = y0; y < cv.height / dpr; y += step10) { g.beginPath(); g.moveTo(0, y); g.lineTo(cv.width, y); g.stroke(); }
   g.translate(c.x, c.y); g.scale(z, z);
+  if (S.shake) {   // strike screen shake (World.shake_offset)
+    var amp = S.shake[2] * S.shake[0] / Math.max(1, S.shake[1]);
+    g.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
+  }
   var ps = viewScale(), fr = frameAt(S.t), img = act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   var gone = blinkGone();
@@ -5632,12 +5666,23 @@ function draw() {
   drawMoveGuide(g, z);
   drawGeo(g, z);
   drawGroup(g, z);
-  // target + hurt radius (the circle damaging FX must touch)
+  // target + hurt radius (the circle damaging FX must touch); a strike's
+  // squash deforms it along the blow and flashes it white (Figure._squash)
   var hr = hurtR(), lastHit = S.hits.length ? S.hits[S.hits.length - 1] : null, flash = lastHit && S.t - lastHit.t < 8;
+  g.save();
+  if (S.squash) {
+    var sk = S.squash[0] / Math.max(1, S.squash[1]), sa = S.squash[4] * sk * sk, sang = Math.atan2(S.squash[3], S.squash[2]);
+    g.translate(S.target[0], S.target[1]); g.rotate(sang); g.scale(1 - sa, 1 + sa * 0.6); g.rotate(-sang); g.translate(-S.target[0], -S.target[1]);
+  }
   g.fillStyle = flash ? "rgba(255,80,80,.35)" : "rgba(240,194,74,.06)";
   g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.fill();
+  if (S.squash && S.squash[5] && S.squash[0] / Math.max(1, S.squash[1]) > 0.35) {
+    g.fillStyle = "rgba(255,255,255," + Math.min(1, (S.squash[0] / Math.max(1, S.squash[1]) - 0.35) / 0.65) * 0.9 + ")";
+    g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.fill();
+  }
   g.setLineDash([6 / z, 6 / z]); g.strokeStyle = flash ? "rgba(255,90,90,.95)" : "rgba(240,194,74,.45)"; g.lineWidth = 1 / z;
   g.beginPath(); g.arc(S.target[0], S.target[1], hr, 0, 6.2832); g.stroke(); g.setLineDash([]);
+  g.restore();
   g.font = (11 / z) + "px sans-serif"; g.textAlign = "center";
   S.hits.forEach(function (h, i) {
     var age = S.t - h.t; if (age < 0 || age > 40) return;
