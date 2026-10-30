@@ -15,6 +15,20 @@ limbs* is ticked. Each weapon has a *thickness* (across the blade). Widths
 belong to the character, so they apply to every action and frame, and the
 exported frames use them.
 
+**Weapon drag.** Each weapon has a *weight* (Weapon tab, 0–1; 0 = rigid, as
+posed). Above 0 the blade trails the hand when the frames play and are
+exported: it drags behind a swing, carries on past where the hand stops and
+pivots back, and a heavy blade droops a little under gravity. In the Actions
+card each action can override the weight per weapon, tick *weapon drag:
+loops* (idle, run and defend start ticked) so the momentum carries over the
+loop seam, and set a *swing plane*: tilt ° (90 = a horizontal swing, so the
+blade shortens as it points at or away from the camera, then stretches out
+to the front), roll ° (diagonals) and side (front, or behind the body, where
+the weapon draws under it). While you pose, a yellow dashed blade shows
+where the drag puts it on that frame. Only the played and exported frames
+change (PNGs, package frames and `wtip` anchors, baked JSON); keyframes stay
+as authored. `rigforge_bake.py` does not apply the drag.
+
 In Rig Forge, open the IO tab and use **Export character package…**. Pick the
 game's `characters` folder; a `<name>` sub-folder is created. Chrome and Edge
 write the files straight into the folder. Other browsers download them for you

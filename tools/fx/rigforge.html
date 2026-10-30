@@ -207,6 +207,12 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
         <div id="durread" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);line-height:1.45"></div>
         <div class="fld"><label>trigger</label><input type="text" id="trig"></div>
         <div class="fld"><label>cooldown_ms</label><input type="number" id="cool" min="0" step="50"></div>
+        <label class="tgl" title="Weapon drag: this action loops (idle, run…), so the blade's momentum carries over the seam from the last frame into the first. Off: it starts at rest on frame 1 (attacks)."><input type="checkbox" id="wdloop"> weapon drag: loops</label>
+        <div class="fld"><label>weight · weapon 1</label><input type="number" id="wdw1" min="0" max="1" step="0.05" placeholder="weapon's" title="This action's weight for weapon 1, 0..1. Empty = the weapon's own weight (Weapon panel)."></div>
+        <div class="fld"><label>weight · weapon 2</label><input type="number" id="wdw2" min="0" max="1" step="0.05" placeholder="weapon's" title="This action's weight for weapon 2, 0..1. Empty = the weapon's own weight (Weapon panel)."></div>
+        <div class="fld"><label>swing plane tilt °</label><input type="number" id="wdplane" min="0" max="90" step="1" title="Tilts this action's swings out of the screen: 0 = flat on the screen; 90 = a horizontal swing — the blade shortens as it points at (or away from) the camera and stretches out again to the front."></div>
+        <div class="fld"><label>swing plane roll °</label><input type="number" id="wdroll" min="-90" max="90" step="1" title="Turns the swing plane on screen, for diagonal swings."></div>
+        <div class="fld"><label>swing side</label><select id="wdside" title="Which side of the body the blade passes when the plane is tilted. Front: toward the camera (it looks longer up close). Behind: round the back (it looks shorter, and the weapon draws under the body while it is round the back)."><option value="front">front</option><option value="behind">behind</option></select></div>
       </div>
     </section>
     <section class="card">
@@ -393,6 +399,7 @@ footer{color:var(--muted);font-size:11px;border-top:1px solid var(--line);paddin
         <button id="wpcopy" title="Overwrite the weapon being edited with an exact copy of the other one: shapes, thickness, attach point, and its swing/grip/spin/length and visibility on every keyframe of every action">Copy from Weapon 2</button>
       </div>
       <div class="fld"><label>attach</label><select id="wpattach" title="The pivot point this weapon's grip rides on — for every keyframe of every action"></select></div>
+      <div class="fld"><label>weight</label><input type="number" id="wpweight" min="0" max="1" step="0.05" title="Momentum, 0..1 (0 = rigid, exactly as posed). Above 0 the blade trails the hand when the frames play and are exported: the tip drags behind a swing, carries on past where the hand stops and pivots back, and a heavy blade droops a little under gravity. Heavier = more lag, overshoot and sag. Each action can override it (Actions > weapon drag)."></div>
       <canvas id="wpcv" width="620" height="300"></canvas>
       <div class="row">
         <select id="wppreset">
@@ -684,6 +691,8 @@ var RIGSPEC=[["ua",0,200,30],["fa",0,200,30],["th",0,200,38],["sh",0,200,36],["t
 var RIGDEF={};RIGSPEC.forEach(function(r){RIGDEF[r[0]]=r[3];});
 /* weapon attach pivots (per character): the joint each weapon's grip rides on */
 RIGDEF.w1at="haR";RIGDEF.w2at="haL";
+/* weapon weight (per character, 0..1; 0 = rigid): bake-time drag, see wdragList() */
+RIGDEF.w1wt=0;RIGDEF.w2wt=0;
 /* component widths (per character): rig.wd[layer id] = [start %, end %] of the
    layer's default width (start = its first joint, end = the far joint; pair
    layers taper from the hub out).  Weapons use [thickness %] (perpendicular to
@@ -1479,6 +1488,92 @@ function playlist(act){
 }
 function tweenCount(act){return playlist(act).length-act.keyframes.length;}
 
+/* ---- bake-time weapon drag (the game's weaponfx w_weight / w_plane, baked into the frames) ----
+   Each weapon's world angle chases the posed angle through a damped spring, the grip's
+   acceleration swings it like a rod held at one end (a rising slash drags the tip down behind
+   the hand, carries it on past the peak and pivots it back) and gravity pulls the tip down
+   (a heavy blade droops a little when the hand is still).  Weight per weapon (rig.w1wt /
+   rig.w2wt), overridable per action (act.wdrag.w1 / w2).  act.wdrag.loop: the action is a
+   loop, so the spring runs warm-up cycles first and the seam is seamless; otherwise it starts
+   at rest on frame 1.  act.wdrag.plane / roll / side: the swing plane, tilted out of the screen
+   (90 = horizontal: the blade shortens as it points at / away from the camera and stretches
+   out again to the front), turned on screen, passing in front of or behind the body (behind:
+   the weapon layer goes under the body while it is round the back).  The result is the angle
+   (wp), length (wlen) and draw order of generated copies: authored keyframes never change. */
+var WDRAG_HZ=[24,10];        /* spring frequency from weight 0+ (snaps) to 1 (lags) */
+var WDRAG_ZETA=[0.9,0.55];   /* damping from weight 0+ to 1 (heavy overshoots its peak) */
+var WDRAG_MAX=90;            /* degrees the blade may trail its pose */
+var WDRAG_ACC=300;           /* grip acceleration cap, weapon lengths / s^2 */
+var WDRAG_G=815;             /* gravity, rig units / s^2 (~9.8 m/s^2 for a ~150-unit figure) */
+var WDRAG_SAG=24;            /* gravity gain at weight 1 (sag grows with weight) */
+var WDRAG_LOOPS=3;           /* passes over a loop: the last one is kept */
+var WDRAG_FOCAL=4;           /* swing plane perspective: camera distance in weapon lengths */
+var WDRAG_BEHIND=0.3;        /* side behind: under the body once the tip is this far round */
+var WDRAG_LOOPDEF={idle:1,run:1,defend:1};
+function wdragOf(act){
+  var d=act.wdrag||{};
+  return{loop:typeof d.loop==="boolean"?d.loop:!!WDRAG_LOOPDEF[act.name],
+         w1:d.w1==null||d.w1===""?null:Math.max(0,Math.min(1,+d.w1||0)),
+         w2:d.w2==null||d.w2===""?null:Math.max(0,Math.min(1,+d.w2||0)),
+         plane:Math.max(0,Math.min(90,+d.plane||0)),roll:+d.roll||0,side:d.side==="behind"?"behind":"front"};
+}
+function wdragWeight(act,i){var d=wdragOf(act),o=i?d.w2:d.w1;
+  return o!=null?o:Math.max(0,Math.min(1,+(S.rig[i?"w2wt":"w1wt"])||0));}
+function wdragWrap(d){return d-360*Math.floor((d+180)/360);}
+/* list = the frames to show / bake (playlist or keyframes).  Returns a list of the same length
+   and order: an untouched frame is the same object, a changed one a _wdk copy (its source in
+   the non-enumerable _dk). */
+function wdragList(act,list){
+  var d=wdragOf(act),n=list.length;
+  if(!n)return list;
+  var out=list.slice(),dt=Math.max(1,act.duration_ms||400)/n/1000,sub=Math.max(1,Math.ceil(dt*1000/4)),h=dt/sub;
+  [0,1].forEach(function(wi){
+    var wt=wdragWeight(act,wi);
+    if((wt<=0&&d.plane<=0)||wCount(wi)<3)return;
+    var W=WPN[wi],at=wAt(S.rig,wi);
+    var F=list.map(function(p){if(p._img)return null;normPose(p);var j=joints(p,S.rig),g=j[at]||j.haR,t=j[W.tip];
+      return{g:g,a:j[W.ang]-90,L:Math.max(5,Math.hypot(t.x-g.x,t.y-g.y))};});
+    var dev=new Array(n).fill(0);
+    if(wt>0){
+      var w0=2*Math.PI*(WDRAG_HZ[0]+(WDRAG_HZ[1]-WDRAG_HZ[0])*wt),ze=WDRAG_ZETA[0]+(WDRAG_ZETA[1]-WDRAG_ZETA[0])*wt;
+      var grav=WDRAG_G*WDRAG_SAG*wt,lim=WDRAG_MAX*D,st=null,passes=d.loop?WDRAG_LOOPS:1;
+      for(var ps=0;ps<passes;ps++)for(var f=0;f<n;f++){
+        var q=F[f];if(!q){st=null;continue;}   /* art frames break the chain: restart at rest */
+        if(!st){var T0=q.a*D;st={th:T0,om:0,T:T0,raw:q.a,g:q.g,v:{x:0,y:0}};if(ps===passes-1)dev[f]=0;continue;}
+        var T=st.T+wdragWrap(q.a-st.raw)*D,v={x:(q.g.x-st.g.x)/dt,y:(q.g.y-st.g.y)/dt};
+        var ax=(v.x-st.v.x)/dt,ay=(v.y-st.v.y)/dt,am=Math.hypot(ax,ay),amax=WDRAG_ACC*q.L;
+        if(am>amax){ax*=amax/am;ay*=amax/am;}
+        var th=st.th,om=st.om;
+        for(var i=1;i<=sub;i++){
+          var Tt=st.T+(T-st.T)*i/sub;
+          var tq=-1.5/q.L*(Math.cos(th)*ay-Math.sin(th)*ax)+1.5*grav/q.L*Math.cos(th);
+          om+=(w0*w0*(Tt-th)-2*ze*w0*om+tq)*h;th+=om*h;
+        }
+        if(th-T>lim){th=T+lim;om*=0.5;}else if(th-T<-lim){th=T-lim;om*=0.5;}
+        st={th:th,om:om,T:T,raw:q.a,g:q.g,v:v};
+        if(ps===passes-1)dev[f]=(th-T)/D;
+      }
+    }
+    for(var f2=0;f2<n;f2++){
+      var q2=F[f2];if(!q2)continue;
+      var ang=q2.a+dev[f2],len=1,lay=false;
+      if(d.plane>0){
+        var a2=(ang-d.roll)*D,b=d.plane*D,z=Math.min(1,Math.abs(Math.sin(a2))*Math.sin(b)),sd2=d.side==="behind"?-1:1;
+        ang=Math.atan2(Math.sin(a2)*Math.cos(b),Math.cos(a2))/D+d.roll;
+        len=Math.hypot(Math.cos(a2),Math.sin(a2)*Math.cos(b))*WDRAG_FOCAL/(WDRAG_FOCAL-sd2*z);
+        lay=sd2<0&&z>WDRAG_BEHIND;
+      }
+      var da=wdragWrap(ang-q2.a);
+      if(Math.abs(da)<1e-6&&Math.abs(len-1)<1e-6&&!lay)continue;
+      var src=list[f2],c=out[f2];
+      if(c===src){c=clone(src);Object.defineProperty(c,"_dk",{value:src,enumerable:false});c._wdk=true;out[f2]=c;}
+      c[W.k.p]+=da;c[W.k.len]*=len;
+      if(lay){var od=c._layers.order,ix=od.indexOf(W.lay);if(ix>0){od.splice(ix,1);od.unshift(W.lay);}}
+    }
+  });
+  return out;
+}
+
 function CUR(){return S.preview||KF();}
 /* face left is per keyframe (p._flip): the frame is mirrored about the hips' x = 0 */
 function isFlip(p){return!!(p&&p._flip);}
@@ -2112,6 +2207,18 @@ function render(){
   }
   drawFigure(ctx,p,S.rig,{color:"#ffffff"});
   drawRef(ctx,p,true);
+  if(!S.playing&&!p._img){   /* weapon drag ghost: where the drag puts the blade on this frame (wdragList) */
+    var fx0=frameIndex(),dl=wdragList(a,fx0.list),dp=dl[fx0.idx];
+    if(dp&&dp._dk){
+      [0,1].forEach(function(wi){
+        var La=weaponTip(p,S.rig,wi),Lb=weaponTip(dp,S.rig,wi);if(!La||!Lb)return;
+        if(Math.hypot(La.b.x-Lb.b.x,La.b.y-Lb.b.y)<0.5)return;
+        ctx.globalAlpha=.8;ctx.strokeStyle="#ffd050";ctx.lineWidth=2.2;ctx.lineCap="round";ctx.setLineDash([5,4]);
+        ctx.beginPath();ctx.moveTo(Lb.a.x,Lb.a.y);ctx.lineTo(Lb.b.x,Lb.b.y);ctx.stroke();ctx.setLineDash([]);
+        ctx.beginPath();ctx.arc(Lb.b.x,Lb.b.y,3,0,6.2832);ctx.fillStyle="#ffd050";ctx.fill();ctx.globalAlpha=1;
+      });
+    }
+  }
   if(gd&&n>1&&!S.preview){
     [[prev,"#1e9bd7"],[next,"#e8622a"]].forEach(function(pair){
       [0,1].forEach(function(wi){
@@ -2242,6 +2349,9 @@ function syncAction(){
   document.getElementById("dur").value=a.duration_ms;
   document.getElementById("trig").value=a.trigger||"";
   document.getElementById("cool").value=a.retrigger_cooldown_ms||0;
+  var wd=wdragOf(a);document.getElementById("wdloop").checked=wd.loop;
+  document.getElementById("wdw1").value=wd.w1==null?"":wd.w1;document.getElementById("wdw2").value=wd.w2==null?"":wd.w2;
+  document.getElementById("wdplane").value=wd.plane;document.getElementById("wdroll").value=wd.roll;document.getElementById("wdside").value=wd.side;
   document.getElementById("tw_from").value=1;document.getElementById("tw_to").value=a.keyframes.length;
   durRead();
 }
@@ -3187,9 +3297,9 @@ function tick(){
   var a=A(),dur=Math.max(60,a.duration_ms),n=pList.length||1;
   var t=(performance.now()-loopT0)%dur,i=Math.min(n-1,Math.floor(t/dur*n));
   if(i!==pIdx){
-    pIdx=i;var p=pList[i];
-    if(p._gen)S.preview=p;
-    else{S.preview=null;var ix=a.keyframes.indexOf(p);if(ix>=0)S.kf=ix;}
+    pIdx=i;var p=pList[i],src=p._dk||p;   /* a weapon-drag copy shows itself, on its source keyframe */
+    if(src._gen)S.preview=p;
+    else{S.preview=p._dk?p:null;var ix=a.keyframes.indexOf(src);if(ix>=0)S.kf=ix;}
     render();
   }
   raf=requestAnimationFrame(tick);
@@ -3200,7 +3310,7 @@ function play(on){
   S.preview=null;
   if(on){
     var a=A(),useTw=document.getElementById("playtween").checked;
-    pList=useTw?playlist(a):a.keyframes.slice();
+    pList=wdragList(a,useTw?playlist(a):a.keyframes.slice());
     pIdx=-1;loopT0=performance.now();tick();
   }else{buildFilm();syncSliders();buildLayers();}
   render();
@@ -3286,6 +3396,14 @@ document.getElementById("fpsin").onchange=function(){
   document.getElementById("dur").value=a.duration_ms;durRead();render();syncTween();save();};
 document.getElementById("trig").onchange=function(){A().trigger=this.value;save();};
 document.getElementById("cool").onchange=function(){A().retrigger_cooldown_ms=Math.max(0,+this.value||0);save();};
+/* weapon drag per action (wdragList): stored whole once any field is touched */
+function wdSet(k,v){var a=A(),d=wdragOf(a);d[k]=v;a.wdrag=d;syncAction();if(S.playing){play(false);play(true);}else render();save();}
+document.getElementById("wdloop").onchange=function(){wdSet("loop",this.checked);};
+document.getElementById("wdw1").onchange=function(){wdSet("w1",this.value===""?null:Math.max(0,Math.min(1,+this.value||0)));};
+document.getElementById("wdw2").onchange=function(){wdSet("w2",this.value===""?null:Math.max(0,Math.min(1,+this.value||0)));};
+document.getElementById("wdplane").onchange=function(){wdSet("plane",Math.max(0,Math.min(90,+this.value||0)));};
+document.getElementById("wdroll").onchange=function(){wdSet("roll",Math.max(-90,Math.min(90,+this.value||0)));};
+document.getElementById("wdside").onchange=function(){wdSet("side",this.value);};
 document.getElementById("addact").onclick=function(){
   askText("Action key (idle, run, attack_normal, attack_special, ultimate, defend, impact, special_ability, clash, switch_in, switch_out):","impact",function(n){
     if(!n)return;n=n.trim().toLowerCase().replace(/\s+/g,"_");if(!n)return;
@@ -3591,6 +3709,7 @@ function wshapeUI(){
   [0,1].forEach(function(i){var b=document.getElementById("wpsel"+i);if(b)b.className=i===WSELW?"primary":"";
     var sl=document.getElementById(i?"wsliders2":"wsliders");if(sl)sl.style.display=i===WSELW?"":"none";});
   var at=document.getElementById("wpattach");if(at)at.value=wAt(S.rig,WSELW);
+  var wwt=document.getElementById("wpweight");if(wwt)wwt.value=+S.rig[WSELW?"w2wt":"w1wt"]||0;
   var cp=document.getElementById("wpcopy");if(cp)cp.textContent="Copy from Weapon "+(WSELW?1:2);
   var el2=document.getElementById("wpshapes");if(!el2)return;
   var shs=wShapes(WSELW);
@@ -3626,6 +3745,8 @@ function wCopy(from,to){
   var sel=document.getElementById("wpattach");
   WATTACH.forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
   sel.onchange=function(){S.rig[WPN[WSELW].at]=this.value;refresh();save();};
+  document.getElementById("wpweight").onchange=function(){var v=Math.max(0,Math.min(1,+this.value||0));this.value=v;
+    S.rig[WSELW?"w2wt":"w1wt"]=v;render();save();};
   [0,1].forEach(function(i){document.getElementById("wpsel"+i).onclick=function(){WSELW=i;WSEL=0;wshapeUI();drawWeapon();};});
   document.getElementById("wpcopy").onclick=function(){var to=WSELW,from=1-to;
     if(!confirm("Overwrite Weapon "+(to+1)+" with a copy of Weapon "+(from+1)+"?\n\nShapes, thickness, attach point, and its pivots and visibility on every keyframe of every action."))return;
@@ -3671,8 +3792,8 @@ function round(p){var o={};PKEYS.forEach(function(k){o[k]=Math.round(p[k]*100)/1
 function build(){
   var bake=document.getElementById("bake").checked,acts={};
   Object.keys(S.actions).forEach(function(k){
-    var a=S.actions[k];xlInherit(a);var frames=bake?playlist(a):a.keyframes;
-    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,
+    var a=S.actions[k];xlInherit(a);var frames=bake?wdragList(a,playlist(a)):a.keyframes;
+    acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,wdrag:wdragOf(a),weapon_drag_baked:bake,
              keyframes:frames.map(round),fx_layers:[],activation_triggers:[],
              retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
              authored_keyframes:a.keyframes.length,
@@ -3686,8 +3807,8 @@ function build(){
          lines:clone(xlOf(S.rig)),anchors:clone(xaOf(S.rig)),
          pivots:{shoulder_x:S.rig.shx,shoulder_y:S.rig.shy,hip_x:S.rig.hipx,hip_y:S.rig.hipy,side_separation:S.rig.sep},
          pose_convention:"degrees; upper bones world-angle (0 = down); forearm/shin relative to parent; spine 0 = up; shlx/shly, shrx/shry, hplx/hply and hprx/hpry move each shoulder and hip pivot per keyframe, relative to the rig-level pivot base; wp swings the weapon about the grip at (wpx,wpy); wspin rolls it about its own long axis; wlen scales the blade along its length, _xl[id] = [angle, stretch] poses each rig.lines entry (an added line; its angle is relative to the bone it starts on plus its rest angle; rig.anchors are points t of the way along a line) and rot spins the whole figure about its hips (both Rig Forge extensions, not part of the documented schema); weapon.shapes holds independent sub-shapes, weapon.points repeats the first for v1 readers; weapon.attach / weapon2.attach name the joint each grip rides on, the weapon turning with the bone that ends there (Rig Forge extension); weapon2 is a second, independent weapon posed by w2p/w2px/w2py/w2spin/w2len"},
-    palette:S.meta.palette,defense:{},weapon:{points:wShapes(0)[0]||[],shapes:wShapes(0),attach:wAt(S.rig,0)},
-    weapon2:{points:wShapes(1)[0]||[],shapes:wShapes(1),attach:wAt(S.rig,1)},special_ability:null,actions:acts,
+    palette:S.meta.palette,defense:{},weapon:{points:wShapes(0)[0]||[],shapes:wShapes(0),attach:wAt(S.rig,0),weight:+S.rig.w1wt||0},
+    weapon2:{points:wShapes(1)[0]||[],shapes:wShapes(1),attach:wAt(S.rig,1),weight:+S.rig.w2wt||0},special_ability:null,actions:acts,
     battle_semantics:"Battle properties live per can_hit FX layer, not per action. Attack props (Explode, Scatter, Pierce, Slash) stack and are visual-only; defence props are mutually exclusive per layer and only \"deflect\" has an engine implementation.",
     fx_semantics:"fx_layers follow fx-authoring.md. Burst anchors (point, r_hand) are fixed-offset approximations from the character root — no live joint tracking.",
     activation_trigger_semantics:"Layers activate via trig / trig_ref / trig_delay_ms chains; cycle fields reference layers as \"action_name:LayerID\".",
@@ -3712,7 +3833,7 @@ function figBounds(p){
   });
   return hit?b:null;
 }
-function actFrames(a){return document.getElementById("bake").checked?playlist(a):a.keyframes.slice();}
+function actFrames(a){return wdragList(a,document.getElementById("bake").checked?playlist(a):a.keyframes.slice());}
 function actBounds(frames){
   var u=null;
   frames.forEach(function(p){var b=figBounds(p);if(!b)return;
@@ -3888,7 +4009,7 @@ function pkgBuild(){
   var cam=pkgCamera(headPx,travel),size=cam.size,files=[],acts={},anchors={},PKJ=pkgJoints();
   var toPx=function(v){return[Math.round(((v.x-cam.cx)*cam.ppu+size/2)*100)/100,Math.round(((v.y-cam.cy)*cam.ppu+size/2)*100)/100];};
   Object.keys(S.actions).forEach(function(k){
-    var a=S.actions[k],list=playlist(a),names=[];
+    var a=S.actions[k],list=wdragList(a,playlist(a)),names=[];
     anchors[k]={};PKJ.forEach(function(jn){anchors[k][jn]=[];});
     list.forEach(function(p0,i){
       var p=pkgFramePose(p0,travel),c=document.createElement("canvas");c.width=size;c.height=size;
@@ -4203,6 +4324,7 @@ function pkgBuildChar(man,pk,rigSrc){
             return q;});
           acts[k]={name:k,duration_ms:emb.actions[k].duration_ms||Math.round(fm*fr.length),trigger:emb.actions[k].trigger||a.trigger||"",
                    retrigger_cooldown_ms:emb.actions[k].retrigger_cooldown_ms||0,keyframes:kfs};
+          if(emb.actions[k].wdrag)acts[k].wdrag=clone(emb.actions[k].wdrag);
           return;
         }
         kfs=fr.map(function(f,i){
@@ -4262,14 +4384,14 @@ function pkgBuildPkg(){
   var pk=S.meta.pkg,col=document.getElementById("pk_col").value||pk.colour||"#000000",travel=document.getElementById("pk_travel").checked;
   var ppu=pk.ppu,W=pk.size[0],H=pk.size[1],nx=W/2,ny=H/2;
   var r2=function(v){return Math.round(v*100)/100;};
-  Object.keys(S.actions).forEach(function(k){playlist(S.actions[k]).forEach(function(p0){if(p0._img)return;
+  Object.keys(S.actions).forEach(function(k){wdragList(S.actions[k],playlist(S.actions[k])).forEach(function(p0){if(p0._img)return;
     pkgPoints(pkgFramePose(p0,travel)).forEach(function(v){nx=Math.max(nx,Math.abs((v.x-pk.cx)*ppu)+8);ny=Math.max(ny,Math.abs((v.y-pk.cy)*ppu)+8);});});});
   /* grow evenly on both sides, so the figure position stays the image centre */
   var W2=Math.min(4096,Math.max(W,2*Math.ceil(nx))),H2=Math.min(4096,Math.max(H,2*Math.ceil(ny))),ox=W2/2,oy=H2/2;
   var toPx=function(v){return[r2((v.x-pk.cx)*ppu+ox),r2((v.y-pk.cy)*ppu+oy)];};
   var files=[],acts={},anchors={},emb={},PKJ=pkgJoints();
   Object.keys(S.actions).forEach(function(k){
-    var a=S.actions[k],list=playlist(a),names=[],fileOf=new Map();
+    var a=S.actions[k],list=wdragList(a,playlist(a)),names=[],fileOf=new Map();
     anchors[k]={};PKJ.forEach(function(jn){anchors[k][jn]=[];});
     list.forEach(function(p0,i){
       var c=document.createElement("canvas");c.width=W2;c.height=H2;var g=c.getContext("2d");
@@ -4288,7 +4410,7 @@ function pkgBuildPkg(){
     PKJ.forEach(function(jn){if(!anchors[k][jn].some(Boolean))delete anchors[k][jn];});
     acts[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,frame_ms:Math.round(a.duration_ms/Math.max(1,list.length)*1000)/1000,frames:names};
     emb[k]={trigger:a.trigger||"",duration_ms:a.duration_ms,retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
-      keyframes:a.keyframes.map(function(p){var q=clone(p);delete q._ref;delete q._gen;delete q._hold;
+      wdrag:a.wdrag?clone(a.wdrag):undefined,keyframes:a.keyframes.map(function(p){var q=clone(p);delete q._ref;delete q._gen;delete q._hold;
         if(p._img){delete q._img;q._frame=fileOf.get(p);}return q;})};
   });
   var man=pkgManifest({size:[W2,H2],origin_px:[ox,oy],head_px:pk.head_px,px_per_rig_unit:Math.round(ppu*1e4)/1e4,facing:"right",root_travel:travel,figure_colour:col},acts,anchors,{rigforge:{version:1,rig:S.rig,weapon:S.weapon,weapon2:S.weapon2,pkg:{ppu:ppu,cx:pk.cx,cy:pk.cy},actions:emb},
@@ -4321,8 +4443,10 @@ document.getElementById("loadjson").onclick=function(){
     if(o.weapon&&o.weapon.shapes&&o.weapon.shapes.length>1)S.weapon=o.weapon.shapes;
     else if(o.weapon&&o.weapon.points)S.weapon=o.weapon.points;
     if(o.weapon&&o.weapon.attach)S.rig.w1at=o.weapon.attach;
+    if(o.weapon&&o.weapon.weight!=null)S.rig.w1wt=+o.weapon.weight||0;
     if(o.weapon2){S.weapon2=(o.weapon2.shapes&&o.weapon2.shapes.length)?o.weapon2.shapes:(o.weapon2.points||[]);
-      if(o.weapon2.attach)S.rig.w2at=o.weapon2.attach;}
+      if(o.weapon2.attach)S.rig.w2at=o.weapon2.attach;
+      if(o.weapon2.weight!=null)S.rig.w2wt=+o.weapon2.weight||0;}
     if(o.palette)S.meta.palette=Object.assign(S.meta.palette,o.palette);
     if(o.stats)S.meta.stats=Object.assign(S.meta.stats,o.stats);
     if(o.movement)S.meta.movement=Object.assign(S.meta.movement,o.movement);
@@ -4332,7 +4456,7 @@ document.getElementById("loadjson").onclick=function(){
       var A2={};Object.keys(o.actions).forEach(function(k){
         var a=o.actions[k];
         A2[k]={name:k,duration_ms:a.duration_ms||400,trigger:a.trigger||"",
-               retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,
+               retrigger_cooldown_ms:a.retrigger_cooldown_ms||0,wdrag:a.wdrag?clone(a.wdrag):undefined,
                keyframes:(a.keyframes&&a.keyframes.length?a.keyframes:[{}]).map(function(p){
                  var q=newPose();PKEYS.forEach(function(k2){if(typeof p[k2]==="number")q[k2]=p[k2];});
                  if(p._xl&&typeof p._xl==="object")q._xl=clone(p._xl);return q;})};
