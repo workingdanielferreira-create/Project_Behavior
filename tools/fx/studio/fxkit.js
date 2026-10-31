@@ -358,7 +358,10 @@ var PARAM_DEFAULTS = {
     // perpendicular / straight_up / custom; kick_angle_deg = the custom
     // direction at contact, from the aim (clockwise, mirrors with the facing).
     kick_sweep: "high_low", axe_dir: "screen_down", axe_crater: "contact", spin_mode: "centered", spin_turns: 2,
-    rise_dir: "screen_up", kick_angle_deg: 0}
+    rise_dir: "screen_up", kick_angle_deg: 0,
+    // Animation flips (STRIKEFX.FLIP_STYLES: punch, ki barrage, kicks):
+    // flip_h / flip_v mirror the animation in place, never its placement.
+    flip_h: false, flip_v: false}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.

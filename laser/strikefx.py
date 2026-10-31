@@ -35,6 +35,17 @@ Hit options (HIT_OPTION_STYLES; params, fxkit.PRIM_DEFAULTS["technique"]):
                 contact point, then the inverse; local inside impact_frame_r
                 px, full over the whole overlay.
 
+  flip_h / flip_v   mirror the ANIMATION in place (punch, ki barrage, every
+                kick), never its placement: flip_v mirrors it across the aim
+                line (through the anchor), flip_h front <-> back across the
+                line square to the aim through the contact point (the punch:
+                full reach; the ki barrage: Length out), so the strike still
+                lands where it did.  The hit area follows the drawn limb /
+                shots; push-off dust stays under the fighter (its direction
+                follows flip_h), knockback "tangent" / "custom" follow the
+                mirrored motion.  Fixed to the fighter: the facing still
+                mirrors the whole thing as before.
+
   shake / shake_px / shake_ticks   the overlay shakes (World.shake) with
                 the hit-stop: when it lands, Solo as it whiffs.
   squash / squash_amt / squash_ticks / squash_flash   the fighter hit squashes
@@ -94,6 +105,18 @@ INK = (16, 10, 22)           # impact-frame ink
 # Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
 # impact_frame / impact_frame_r): the strikes they apply to.
 HIT_OPTION_STYLES = ("impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick")
+
+
+# Animation flips (params flip_h / flip_v): the strikes they apply to.
+FLIP_STYLES = ("ki_barrage", "impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick")
+
+
+def flips(P):
+    """(h, v) signs of the animation flips: -1 = mirrored (params flip_h /
+    flip_v; FLIP_STYLES only)."""
+    if S._style(P) not in FLIP_STYLES:
+        return 1.0, 1.0
+    return (-1.0 if P.get("flip_h") else 1.0), (-1.0 if P.get("flip_v") else 1.0)
 
 
 # ---------------------------------------------------------------- timeline
@@ -171,6 +194,10 @@ class Shot:
         lat = self.curve * math.sin(math.pi * u)
         ca, sa = math.cos(self.ang), math.sin(self.ang)
         lx, ly = ca * d - sa * lat, sa * d + ca * lat + self.side * KI_SIDE * fr.s
+        if fr.h < 0:
+            lx = 2 * fr.c - lx
+        if fr.v < 0:
+            ly = -ly
         dx, dy = fr.f.d(lx, ly)
         return self.ox + dx, self.oy + dy
 
@@ -183,11 +210,16 @@ class Shot:
 
 
 class _Fr:
-    __slots__ = ("f", "s")
+    """A ki shot's frame: the aim, the scale, the flips (h, v) and the line
+    flip_h mirrors across (c px along the aim)."""
+    __slots__ = ("f", "s", "h", "v", "c")
 
     def __init__(self, inst, ps):
+        P = inst.fx["params"]
         self.f = S.Frame(0.0, 0.0, inst.tq_f, inst.tq_m)
         self.s = ps
+        self.h, self.v = flips(P)
+        self.c = float(P["length"]) * ps
 
 
 def _shots(inst, ps):
@@ -387,23 +419,40 @@ def _reach(P, t, L):
     return 0.0
 
 
+def _along(P, u, L):
+    """How far along the aim a point u px out of the punch is drawn: flip_h
+    mirrors it across full reach L (the fist then comes in from 2 L)."""
+    return 2 * L - u if flips(P)[0] < 0 else u
+
+
+def _arm(inst, P, t, ps):
+    """(shoulder, fist) world points of the punch at tick t, or None while
+    it is in."""
+    L = float(P["length"]) * ps
+    l = _reach(P, t, L)
+    if l <= 2:
+        return None
+    fr = S._frame(inst)
+    return fr.w(_along(P, 0.0, L), 0), fr.w(_along(P, l, L), 0)
+
+
 def _punch_hit(inst, tx, ty, hr, ps):
     if inst.age >= inst.life:
         return False
     P = inst.fx["params"]
-    l = _reach(P, inst.age, float(P["length"]) * ps)
-    if l <= 2:
+    g = _arm(inst, P, inst.age, ps)
+    if g is None:
         return False
-    b = S._frame(inst).w(l, 0)
-    return F.seg_dist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + float(P["radius"]) * ps * 1.2
+    (ax, ay), (bx, by) = g
+    return F.seg_dist(tx, ty, ax, ay, bx, by) <= hr + float(P["radius"]) * ps * 1.2
 
 
 def _punch_body(inst, ps):
     P = inst.fx["params"]
-    l = _reach(P, inst.age, float(P["length"]) * ps)
-    if l <= 2 or inst.age >= inst.life:
+    g = _arm(inst, P, inst.age, ps) if inst.age < inst.life else None
+    if g is None:
         return None
-    return [(inst.x, inst.y), S._frame(inst).w(l, 0)], float(P["radius"]) * ps
+    return [g[0], g[1]], float(P["radius"]) * ps
 
 
 # ---------------------------------------------------------------- hit options
@@ -456,9 +505,11 @@ def hit_dir(inst):
     mode = P.get("kb_dir") or "aim"
     if not _opts_on(P) or mode not in ("tangent", "custom"):
         return inst.dir
+    h, v = flips(P)
+    f = (inst.tq_f[0] * h, inst.tq_f[1] * h)   # the way the (mirrored) fist moves
     if mode == "tangent":
-        return inst.tq_f
-    return tuple(F.rot(inst.tq_f, float(P.get("kb_angle_deg") or 0) * inst.tq_m))
+        return f
+    return tuple(F.rot(f, float(P.get("kb_angle_deg") or 0) * inst.tq_m * h * v))
 
 
 # ---------------------------------------------------------------- public
@@ -481,8 +532,9 @@ def on_hit(inst, x, y, ps):
         _ki_on_hit(inst, x, y, ps)
     else:
         # the impact stays where the fist landed
-        l = _reach(P, inst.age, float(P["length"]) * ps) + float(P["radius"]) * ps * 0.8
-        ix, iy = S._frame(inst).w(l, 0)
+        L = float(P["length"]) * ps
+        l = _reach(P, inst.age, L) + float(P["radius"]) * ps * 0.8
+        ix, iy = S._frame(inst).w(_along(P, l, L), 0)
         inst.tq_imp.append((inst.age, ix, iy))
 
 
@@ -554,7 +606,7 @@ def _draw_ki(pen, inst, host, ps):
         if k < KI_FLASH:
             q = k / float(KI_FLASH)
             mx, my = s.pos(fr, 0)
-            ux, uy = fr.f.d(math.cos(s.ang), math.sin(s.ang))
+            ux, uy = fr.f.d(math.cos(s.ang) * fr.h, math.sin(s.ang) * fr.v)
             pen.glow(mx, my, (10 + 10 * S.ease_out3(q)) * ps * s.size, c, 220 * (1 - q))
             pen.glow(mx, my, 6 * ps * s.size, S.HOT, 255 * (1 - q))
             S._star(pen, mx, my, ux, uy, 16 * ps * s.size * (1 - 0.4 * q), 7 * ps * s.size, S.HOT, 230 * (1 - q), 1.3 * ps)
@@ -639,7 +691,7 @@ def _impacts(inst, P, fr, ps):
     if inst.tq_imp:
         return [(t - b, x, y, 1.0, 11 * n, b) for n, (b, x, y) in enumerate(inst.tq_imp)]
     L = float(P["length"]) * ps
-    x, y = fr.w(L + float(P["radius"]) * ps * 0.8, 0)
+    x, y = fr.w(_along(P, L + float(P["radius"]) * ps * 0.8, L), 0)
     return [(t - S._swing(P), x, y, 0.55, 0, S._swing(P))]
 
 
@@ -647,11 +699,13 @@ def _motion(inst, P, fr, ps):
     """The punch for the motion partition (hitfx.Motion): shoulder -> fist."""
     L = float(P["length"]) * ps
     Ts, Th = S._swing(P), _hold(P)
-    f = inst.tq_f
+    h = flips(P)[0]
+    f = (inst.tq_f[0] * h, inst.tq_f[1] * h)
+    rx, ry = fr.w(_along(P, 0.0, L), 0)
 
     def limb(t):
-        tx, ty = fr.w(_reach(P, t, L), 0)
-        return inst.x, inst.y, tx, ty, f[0], f[1]
+        tx, ty = fr.w(_along(P, _reach(P, t, L), L), 0)
+        return rx, ry, tx, ty, f[0], f[1]
     return H.Motion(limb, 0, Ts, Ts, Ts + Th + PUNCH_RETRACT, float(P["radius"]) * ps, float(P["thickness"]) * ps)
 
 
@@ -673,14 +727,15 @@ def _draw_punch(pen, inst, host, ps):
     # 1: the surroundings (fx_env): push-off dust under the fighter, a ground
     # wave under the target
     p0 = inst.tq_path[0]
-    H.env(pen, inst, P, c, ps, ("push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m, 0.0, 0.8, 0))
+    h = flips(P)[0]
+    H.env(pen, inst, P, c, ps, ("push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m * h, 0.0, 0.8, 0))
     for (a, x, y, sc, salt, b) in imps:
         H.env(pen, inst, P, c, ps, ("ground", a, x, _feet(inst, b, ps), 0.0, 0.0, sc * 0.7, salt))
     # 2: the fist and its motion (fx_motion)
     H.motion(pen, inst, P, t, ps, c, _motion(inst, P, fr, ps))
     # 3: the impacts (fx_impact)
     for (a, x, y, sc, salt, _b) in imps:
-        H.impact(pen, inst, P, c, ps, x, y, a, sc, salt, inst.tq_f)
+        H.impact(pen, inst, P, c, ps, x, y, a, sc, salt, (inst.tq_f[0] * h, inst.tq_f[1] * h))
     pen.add(False)
 
 

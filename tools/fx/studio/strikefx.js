@@ -19,6 +19,14 @@ var IMPACT_FRAME_TICKS = 2, FULL_FRAME = 20000, INK = [16, 10, 22];
 // Hit options (params hitstop / hitstop_ticks, kb_dir / kb_angle_deg,
 // impact_frame / impact_frame_r): the strikes they apply to.
 var HIT_OPTION_STYLES = ["impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick"];
+// Animation flips (params flip_h / flip_v): the strikes they apply to.  They
+// mirror the animation in place, never its placement (strikefx.py flips).
+var FLIP_STYLES = ["ki_barrage", "impact_punch", "roundhouse_kick", "thrust_kick", "axe_kick", "spinning_kick", "rising_kick"];
+// [h, v] signs of the animation flips: -1 = mirrored.
+function flips(P) {
+  if (FLIP_STYLES.indexOf(L_().style(P)) < 0) return [1, 1];
+  return [P.flip_h ? -1 : 1, P.flip_v ? -1 : 1];
+}
 
 // ---------------------------------------------------------------- timeline
 function cad(P) { return Math.max(1, Math.trunc(+P.swing_ticks || 3)); }
@@ -69,14 +77,23 @@ Shot.prototype.pos = function (fr, k) {
   }
   var d = this.sp * k, u = this.rng > 0 ? Math.min(1, d / this.rng) : 1;
   var lat = this.curve * Math.sin(Math.PI * u), ca = Math.cos(this.ang), sa = Math.sin(this.ang);
-  var w = fr.f.d(ca * d - sa * lat, sa * d + ca * lat + this.side * KI_SIDE * fr.s);
+  var lx = ca * d - sa * lat, ly = sa * d + ca * lat + this.side * KI_SIDE * fr.s;
+  if (fr.h < 0) lx = 2 * fr.c - lx;
+  if (fr.v < 0) ly = -ly;
+  var w = fr.f.d(lx, ly);
   return [this.ox + w[0], this.oy + w[1]];
 };
 Shot.prototype.end = function (inst) {   // [tick it detonates, stopped by a hit?]
   var h = inst.tq_ki[this.i];
   return h ? [h[0], true] : [this.b + this.flight, false];
 };
-function Fr(inst, ps) { this.f = new (L_().Frame)(0, 0, inst.tq_f, inst.tq_m); this.s = ps; }
+// A ki shot's frame: the aim, the scale, the flips (h, v) and the line flip_h
+// mirrors across (c px along the aim).
+function Fr(inst, ps) {
+  var P = inst.fx.params, fl = flips(P);
+  this.f = new (L_().Frame)(0, 0, inst.tq_f, inst.tq_m); this.s = ps;
+  this.h = fl[0]; this.v = fl[1]; this.c = +P.length * ps;
+}
 function shots(inst, ps) {
   var out = [], n = kiCount(inst.fx.params);
   for (var i = 0; i < n; i++) out.push(new Shot(inst, i, ps));
@@ -207,17 +224,26 @@ function reach(P, t, Lm) {
   if (t < Ts + Th + PUNCH_RETRACT) return Lm * (1 - L.easeIn3((t - Ts - Th) / PUNCH_RETRACT));
   return 0;
 }
+// How far along the aim a point u px out of the punch is drawn: flip_h
+// mirrors it across full reach L (the fist then comes in from 2 L).
+function along(P, u, L) { return flips(P)[0] < 0 ? 2 * L - u : u; }
+// [shoulder, fist] world points of the punch at tick t, or null while it is in.
+function arm(inst, P, t, ps) {
+  var L = +P.length * ps, l = reach(P, t, L);
+  if (l <= 2) return null;
+  var fr = L_().frame(inst);
+  return [fr.w(along(P, 0, L), 0), fr.w(along(P, l, L), 0)];
+}
 function punchHit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
-  var P = inst.fx.params, l = reach(P, inst.age, +P.length * ps);
-  if (l <= 2) return false;
-  var b = L_().frame(inst).w(l, 0);
-  return FXK().segDist(tx, ty, inst.x, inst.y, b[0], b[1]) <= hr + +P.radius * ps * 1.2;
+  var P = inst.fx.params, g = arm(inst, P, inst.age, ps);
+  if (!g) return false;
+  return FXK().segDist(tx, ty, g[0][0], g[0][1], g[1][0], g[1][1]) <= hr + +P.radius * ps * 1.2;
 }
 function punchBody(inst, ps) {
-  var P = inst.fx.params, l = reach(P, inst.age, +P.length * ps);
-  if (l <= 2 || inst.age >= inst.life) return null;
-  return [[[inst.x, inst.y], L_().frame(inst).w(l, 0)], +P.radius * ps];
+  var P = inst.fx.params, g = inst.age < inst.life ? arm(inst, P, inst.age, ps) : null;
+  if (!g) return null;
+  return [[g[0], g[1]], +P.radius * ps];
 }
 
 // ---------------------------------------------------------------- hit options
@@ -252,8 +278,9 @@ function hitstopStep(inst, host) {
 function hitDir(inst) {
   var P = inst.fx.params, mode = P.kb_dir || "aim";
   if (!optsOn(P) || (mode !== "tangent" && mode !== "custom")) return inst.dir;
-  if (mode === "tangent") return inst.tq_f;
-  return FXK().rot(inst.tq_f, (+P.kb_angle_deg || 0) * inst.tq_m);
+  var fl = flips(P), f = [inst.tq_f[0] * fl[0], inst.tq_f[1] * fl[0]];   // the way the (mirrored) fist moves
+  if (mode === "tangent") return f;
+  return FXK().rot(f, (+P.kb_angle_deg || 0) * inst.tq_m * fl[0] * fl[1]);
 }
 
 // ---------------------------------------------------------------- public
@@ -266,7 +293,7 @@ function onHit(inst, x, y, ps) {
   var P = inst.fx.params;
   if (L_().style(P) === "ki_barrage") { kiOnHit(inst, x, y, ps); return; }
   // the impact stays where the fist landed
-  var l = reach(P, inst.age, +P.length * ps) + +P.radius * ps * 0.8, w = L_().frame(inst).w(l, 0);
+  var L = +P.length * ps, l = reach(P, inst.age, L) + +P.radius * ps * 0.8, w = L_().frame(inst).w(along(P, l, L), 0);
   inst.tq_imp.push([inst.age, w[0], w[1]]);
 }
 
@@ -319,7 +346,7 @@ function drawKi(pen, inst, host, ps) {
     var tint = mix(c, HOT, 0.3 + s.tint), rs = r0 * s.size;
     // 3: muzzle flash at launch
     if (k < KI_FLASH) {
-      var qf = k / KI_FLASH, m = s.pos(fr, 0), u = fr.f.d(Math.cos(s.ang), Math.sin(s.ang));
+      var qf = k / KI_FLASH, m = s.pos(fr, 0), u = fr.f.d(Math.cos(s.ang) * fr.h, Math.sin(s.ang) * fr.v);
       pen.glow(m[0], m[1], (10 + 10 * L.easeOut3(qf)) * ps * s.size, c, 220 * (1 - qf));
       pen.glow(m[0], m[1], 6 * ps * s.size, HOT, 255 * (1 - qf));
       L.star(pen, m[0], m[1], u[0], u[1], 16 * ps * s.size * (1 - 0.4 * qf), 7 * ps * s.size, HOT, 230 * (1 - qf), 1.3 * ps);
@@ -384,13 +411,14 @@ function impactFrame(pen, inst, c, ps, x, y, a, sc, salt) {
 function impacts(inst, P, fr, ps) {
   var t = inst.age;
   if (inst.tq_imp.length) return inst.tq_imp.map(function (h, n) { return [t - h[0], h[1], h[2], 1, 11 * n, h[0]]; });
-  var w = fr.w(+P.length * ps + +P.radius * ps * 0.8, 0);
+  var L = +P.length * ps, w = fr.w(along(P, L + +P.radius * ps * 0.8, L), 0);
   return [[t - L_().swing(P), w[0], w[1], 0.55, 0, L_().swing(P)]];
 }
 // The punch for the motion partition (HITFX.Motion): shoulder -> fist.
 function punchMotion(inst, P, fr, ps) {
-  var L = +P.length * ps, Ts = L_().swing(P), Th = hold(P), f = inst.tq_f;
-  var limb = function (t) { var w = fr.w(reach(P, t, L), 0); return [inst.x, inst.y, w[0], w[1], f[0], f[1]]; };
+  var L = +P.length * ps, Ts = L_().swing(P), Th = hold(P), h = flips(P)[0], f = [inst.tq_f[0] * h, inst.tq_f[1] * h];
+  var r = fr.w(along(P, 0, L), 0);
+  var limb = function (t) { var w = fr.w(along(P, reach(P, t, L), L), 0); return [r[0], r[1], w[0], w[1], f[0], f[1]]; };
   var Motion = H_().Motion;
   return new Motion(limb, 0, Ts, Ts, Ts + Th + PUNCH_RETRACT, +P.radius * ps, +P.thickness * ps);
 }
@@ -405,13 +433,13 @@ function drawPunch(pen, inst, host, ps) {
   // 0: the impact frame, under everything else
   imps.forEach(function (m) { impactFrame(pen, inst, c, ps, m[1], m[2], m[0], m[3], m[4]); });
   // 1: the surroundings (fx_env): push-off dust under the fighter, a ground wave under the target
-  var p0 = inst.tq_path[0];
-  H.env(pen, inst, P, c, ps, ["push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m, 0, 0.8, 0]);
+  var p0 = inst.tq_path[0], h = flips(P)[0];
+  H.env(pen, inst, P, c, ps, ["push", t, p0[0], p0[1] + H.FEET_DROP * ps, -inst.tq_m * h, 0, 0.8, 0]);
   imps.forEach(function (m) { H.env(pen, inst, P, c, ps, ["ground", m[0], m[1], feet(inst, m[5], ps), 0, 0, m[3] * 0.7, m[4]]); });
   // 2: the fist and its motion (fx_motion)
   H.motion(pen, inst, P, t, ps, c, punchMotion(inst, P, fr, ps));
   // 3: the impacts (fx_impact)
-  imps.forEach(function (m) { H.impact(pen, inst, P, c, ps, m[1], m[2], m[0], m[3], m[4], inst.tq_f); });
+  imps.forEach(function (m) { H.impact(pen, inst, P, c, ps, m[1], m[2], m[0], m[3], m[4], [inst.tq_f[0] * h, inst.tq_f[1] * h]); });
   pen.add(false);
 }
 
@@ -420,7 +448,7 @@ function draw(pen, inst, host, ps) {
   else drawPunch(pen, inst, host, ps);
 }
 
-G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
+G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, FLIP_STYLES: FLIP_STYLES, flips: flips, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
                 impactFrame: impactFrame, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
                 shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);

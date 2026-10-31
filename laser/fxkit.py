@@ -228,6 +228,8 @@ PARAM_DEFAULTS = {
     # spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
     # perpendicular / straight_up / custom; kick_angle_deg = the custom
     # direction at contact, from the aim (clockwise, mirrors with the facing).
+    # Animation flips (strikefx.FLIP_STYLES: punch, ki barrage, kicks):
+    # flip_h / flip_v mirror the animation in place, never its placement.
     "technique": dict(style="rising_slash", radius=40, span=160, thickness=12, length=300, swing_ticks=6, hold_ticks=18,
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
@@ -236,7 +238,7 @@ PARAM_DEFAULTS = {
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
                       impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
                       axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0,
-                      fx_motion="ink", motion_smear=True, motion_arcs=True, fx_impact="ink", fx_env="ink",
+                      flip_h=False, flip_v=False, fx_motion="ink", motion_smear=True, motion_arcs=True, fx_impact="ink", fx_env="ink",
                       shake=False, shake_px=6, shake_ticks=8, squash=False, squash_amt=0.3, squash_ticks=6,
                       squash_flash=True),
 }

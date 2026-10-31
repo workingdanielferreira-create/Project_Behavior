@@ -48,6 +48,12 @@ how far the air strokes spread, length = leg reach (arc radius / thrust reach), 
 (degrees; roundhouse / axe / rising), swing_ticks = kick ticks, hold_ticks =
 ticks held at the end, density = sparks / dust / debris.
 
+Animation flips (params flip_h / flip_v, strikefx.flips): the foot's whole
+path is mirrored in place, never moved: flip_v across the aim line through
+the anchor, flip_h front <-> back across the line square to the aim through
+the contact point, so the kick lands where it did.  The leg's hit area, its
+impact and knockback "tangent" follow the mirrored path.
+
 Hit options (strikefx.HIT_OPTION_STYLES): Hit-stop, screen shake, target
 squash, Knockback direction (aim / tangent = the way the foot moves at
 contact / custom) and Impact frame work as for the punch.  Everything is a pure function of the instance (age, seed,
@@ -168,7 +174,38 @@ def _arc(inst, P, st, ps):
 def pose(inst, t, ps):
     """(foot x, y, pivot x, y, unit tangent x, y) at tick t (may be
     fractional): where the foot is, what it turns round, and which way it
-    moves."""
+    moves; mirrored in place by the animation flips (flip_h / flip_v)."""
+    q = _pose(inst, t, ps)
+    h, v = K.flips(inst.fx["params"])
+    if h > 0 and v > 0:
+        return q
+    f = inst.tq_f
+    ax, ay = inst.x, inst.y
+    # flip_h mirrors across the line square to the aim through the contact point
+    c = 0.0
+    if h < 0:
+        cx, cy = _pose(inst, contact_tick(inst.fx["params"]), ps)[:2]
+        c = (cx - ax) * f[0] + (cy - ay) * f[1]
+
+    def pt(x, y):
+        dx, dy = x - ax, y - ay
+        u, w = dx * f[0] + dy * f[1], dy * f[0] - dx * f[1]
+        if h < 0:
+            u = 2 * c - u
+        w *= v
+        return ax + u * f[0] - w * f[1], ay + u * f[1] + w * f[0]
+
+    def vec(x, y):
+        u, w = (x * f[0] + y * f[1]) * h, (y * f[0] - x * f[1]) * v
+        return u * f[0] - w * f[1], u * f[1] + w * f[0]
+    fx_, fy_ = pt(q[0], q[1])
+    ox, oy = pt(q[2], q[3])
+    ux, uy = vec(q[4], q[5])
+    return fx_, fy_, ox, oy, ux, uy
+
+
+def _pose(inst, t, ps):
+    """pose() before the animation flips."""
     P = inst.fx["params"]
     st = S._style(P)
     Ts, Th = S._swing(P), _hold(P)
@@ -251,7 +288,8 @@ def hit_dir(inst):
     _x, _y, _ox, _oy, ux, uy = pose(inst, inst.age, inst.ps or 1.0)
     if mode == "tangent":
         return ux, uy
-    return tuple(F.rot((ux, uy), float(P.get("kb_angle_deg") or 0) * inst.tq_m))
+    h, v = K.flips(P)
+    return tuple(F.rot((ux, uy), float(P.get("kb_angle_deg") or 0) * inst.tq_m * h * v))
 
 
 def hitstop_step(inst, host):
@@ -321,7 +359,8 @@ def draw(pen, inst, host, ps):
     # kick starts, the rising kick's kick-up, the spinning kick's vortex, and
     # under each impact a ground wave (the axe kick: its crater)
     p0 = inst.tq_path[min(WIND, len(inst.tq_path) - 1)]
-    H.env(pen, inst, P, c, ps, ("push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m, 0.0, hv, 0))
+    fh, fv = K.flips(P)
+    H.env(pen, inst, P, c, ps, ("push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m * fh, 0.0, hv, 0))
     if st == "rising_kick":
         x, y = pose(inst, WIND, ps)[:2]
         H.env(pen, inst, P, c, ps, ("kickup", t - WIND, x, y, 0.0, 0.0, 1.0, 0))
@@ -329,7 +368,7 @@ def draw(pen, inst, host, ps):
     if st == "spinning_kick" and out and (P.get("spin_mode") or "centered") == "centered":
         fade = 1.0 if t < WIND + Ts + Th else 1 - (t - WIND - Ts - Th) / float(RETRACT)
         _x, _y, ox, oy, _ux, _uy = pose(inst, t, ps)
-        H.env(pen, inst, P, c, ps, ("vortex", t, ox, oy, float(P["length"]) * ps, inst.tq_m, fade, 0))
+        H.env(pen, inst, P, c, ps, ("vortex", t, ox, oy, float(P["length"]) * ps, inst.tq_m * fh * fv, fade, 0))
     for (a, x, y, _ux, _uy, sc, salt, b) in imps:
         if st == "axe_kick":
             gx, gy = _crater_at(inst, P, ps, x, y, b)

@@ -80,7 +80,29 @@ function arc(inst, P, st, ps) {
 }
 // [foot x, y, pivot x, y, unit tangent x, y] at tick t (may be fractional):
 // where the foot is, what it turns round, and which way it moves.
+// pose() mirrored in place by the animation flips (flip_h / flip_v,
+// STRIKEFX.flips): flip_v across the aim line through the anchor, flip_h
+// across the line square to the aim through the contact point.
 function pose(inst, t, ps) {
+  var q = poseRaw(inst, t, ps), fl = K_().flips(inst.fx.params), h = fl[0], v = fl[1];
+  if (h > 0 && v > 0) return q;
+  var f = inst.tq_f, ax = inst.x, ay = inst.y, c = 0;
+  if (h < 0) {
+    var cq = poseRaw(inst, contactTick(inst.fx.params), ps);
+    c = (cq[0] - ax) * f[0] + (cq[1] - ay) * f[1];
+  }
+  function pt(x, y) {
+    var dx = x - ax, dy = y - ay, u = dx * f[0] + dy * f[1], w = dy * f[0] - dx * f[1];
+    if (h < 0) u = 2 * c - u;
+    w *= v;
+    return [ax + u * f[0] - w * f[1], ay + u * f[1] + w * f[0]];
+  }
+  var u = (q[4] * f[0] + q[5] * f[1]) * h, w = (q[5] * f[0] - q[4] * f[1]) * v;
+  var a = pt(q[0], q[1]), o = pt(q[2], q[3]);
+  return [a[0], a[1], o[0], o[1], u * f[0] - w * f[1], u * f[1] + w * f[0]];
+}
+// pose() before the animation flips.
+function poseRaw(inst, t, ps) {
   var Lb = L_(), P = inst.fx.params, st = Lb.style(P), Ts = Lb.swing(P), Th = hold(P);
   var u = Math.min(1, Math.max(0, (t - WIND) / Ts)), f = inst.tq_f, ax = inst.x, ay = inst.y, L = +P.length * ps;
   if (st === "thrust_kick") {
@@ -140,7 +162,8 @@ function hitDir(inst) {
   if (mode !== "tangent" && mode !== "custom") return inst.dir;
   var q = pose(inst, inst.age, inst.ps || 1), u = [q[4], q[5]];
   if (mode === "tangent") return u;
-  return FXK().rot(u, (+P.kb_angle_deg || 0) * inst.tq_m);
+  var fl = K_().flips(P);
+  return FXK().rot(u, (+P.kb_angle_deg || 0) * inst.tq_m * fl[0] * fl[1]);
 }
 // No opponent (Solo; the Studio with every dummy down): the kick's hit weight
 // (hit-stop, shake) plays as its whiff bursts.
@@ -191,7 +214,7 @@ function draw(pen, inst, host, ps) {
   // starts, the rising kick's kick-up, the spinning kick's vortex, and under
   // each impact a ground wave (the axe kick: its crater)
   var p0 = inst.tq_path[Math.min(WIND, inst.tq_path.length - 1)];
-  H.env(pen, inst, P, c, ps, ["push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m, 0, hv, 0]);
+  H.env(pen, inst, P, c, ps, ["push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m * K_().flips(P)[0], 0, hv, 0]);
   if (st === "rising_kick") {
     var w = pose(inst, WIND, ps);
     H.env(pen, inst, P, c, ps, ["kickup", t - WIND, w[0], w[1], 0, 0, 1, 0]);
@@ -199,7 +222,7 @@ function draw(pen, inst, host, ps) {
   var out = t >= WIND && t < WIND + Ts + Th + RETRACT;
   if (st === "spinning_kick" && out && (P.spin_mode || "centered") === "centered") {
     var fade = t < WIND + Ts + Th ? 1 : 1 - (t - WIND - Ts - Th) / RETRACT, q = pose(inst, t, ps);
-    H.env(pen, inst, P, c, ps, ["vortex", t, q[2], q[3], +P.length * ps, inst.tq_m, fade, 0]);
+    H.env(pen, inst, P, c, ps, ["vortex", t, q[2], q[3], +P.length * ps, inst.tq_m * K_().flips(P)[0] * K_().flips(P)[1], fade, 0]);
   }
   imps.forEach(function (m) {
     if (st === "axe_kick") {
