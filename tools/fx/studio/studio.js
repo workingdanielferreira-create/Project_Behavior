@@ -4188,7 +4188,7 @@ function stepHitWeight() {
   if (S.squash && --S.squash[0] <= 0) S.squash = null;
 }
 function resetSim(t) {
-  player.reset(); cplayer.reset(); S.hitstop = 0; S.shake = null; S.squash = null; S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.dealt = 0; S.blink = null; S.bmarks = {};
+  player.reset(); cplayer.reset(); S.hitstop = 0; S.shake = null; S.squash = null; S.cclock = 0; S.figX = 0; S.figY = 0; S.vel = moveVector(); S.t = 0; S.cycle = 0; S.hits = []; S.path = 0; S.el = 0; S.sx = 0; S.sy = 0; S.dealt = 0; S.blink = null; S.bmarks = {};
   S.leap = null;
   S.shots = []; S.ricochets = []; S.bursts = [];
   dummyReset();
@@ -4203,6 +4203,7 @@ function resetSim(t) {
 function step(allowWrap) {
   if (!C) return;
   var gone = blinkGone(), dash = S.react === "retreat";
+  var px0 = S.figX, py0 = S.figY;   // stats: path walked this tick
   // Dodge first (laser/dodge.py runs before the retreat): a sidestep owns
   // the figure's movement, layered on a retreat dash.
   var dodged = dodgeStep();
@@ -4240,14 +4241,21 @@ function step(allowWrap) {
   // World Clash: the fighter's FX against the dummies' FX (laser/clash.py).
   clashStep();
   S.t += 1;
+  // Stats: time since the action's first frame (across animation loops) and
+  // the path the figure has walked.
+  S.el = (S.el || 0) + 1;
+  S.path = (S.path || 0) + Math.hypot(S.figX - px0, S.figY - py0);
   if (S.t >= totalTicks() && allowWrap) {
     // Next pass of the animation (Animation loops); after the last pass the
     // action ends, and "loop" replays the whole action.
     if (!lastPass) { S.t = 0; S.cycle = (S.cycle || 0) + 1; S.bmarks = {}; }
-    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.dealt = 0; S.hits = []; S.taken = 0; S.thits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); }
-      else if (isLeap()) { S.figX = 0; S.figY = 0; S.leap = null; } }
+    else if ($("loop").checked) { S.t = 0; S.cycle = 0; S.el = 0; S.path = 0; S.dealt = 0; S.hits = []; S.taken = 0; S.thits = []; S.bmarks = {}; if (dash) { S.figX = 0; S.figY = 0; dashStart(); }
+      else if (isLeap()) { S.figX = 0; S.figY = 0; S.leap = null; }
+      S.sx = S.figX; S.sy = S.figY; }   // stats: this replay's starting point
   }
-  blinkStep();   // for the tick now on show (past the action's end: it reappears)
+  var bx0 = S.figX, by0 = S.figY;
+  blinkStep();
+  S.path = (S.path || 0) + Math.hypot(S.figX - bx0, S.figY - by0);   // a blink landing counts as moved   // for the tick now on show (past the action's end: it reappears)
 }
 // Time control preview (laser/timefx.py update_caster / plan): the time
 // effect starts when the frame on show reaches the start frame (conditions
@@ -5716,7 +5724,9 @@ function draw() {
   $("hud").textContent = (S.react ? fxKeyLabel(fxKey()) + " (" + S.action + " frames)" : S.action) +
     (ds ? "   dash " + Math.round(Math.min(ds.elapsed, ds.limit) * FXK.TICK_MS) + "/" + Math.round(ds.limit * FXK.TICK_MS) + " ms" + (ds.endless ? " (no limit: 3 s shown)" : "") + (ds.over ? (ds.arrived ? "   ARRIVED" : "   DASH OVER") : "") : "") +
     (!ds && nL > 1 ? "   loop " + Math.min(nL, (S.cycle || 0) + 1) + "/" + nL : "") + "   frame " + fr + "/" + (frames() - 1) + "   tick " + S.t + "/" + totalTicks() +
-    "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   " + (player.insts.length + cplayer.insts.length) + " live FX   damage this loop " + S.dealt + " HP" +
+    "   " + Math.round(frameMs() * 10) / 10 + " ms/frame   total " + Math.round((S.el || 0) * FXK.TICK_MS) + " ms" +
+    "   distance " + Math.round(Math.hypot((S.figX || 0) - (S.sx || 0), (S.figY || 0) - (S.sy || 0))) + " px (path " + Math.round(S.path || 0) + " px)" +
+    "   " + (player.insts.length + cplayer.insts.length) + " live FX   damage this loop " + S.dealt + " HP" +
     (S.taken ? "   taken from dummies " + S.taken + " HP" : "") + (S.tgt < 0 ? "   ALL DUMMIES DOWN" : "") +
     (ds && ds.armed ? "   waiting for incoming harm" : "") + (S.dg && S.dg.n ? "   dodges " + S.dg.n : "") + (S.dg && S.dg.moving ? "   DODGING" : "") +
     ((S.vel[0] || S.vel[1]) && simMoveFactor() <= 0 ? "   stands still (Movement)" : "") +
