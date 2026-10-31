@@ -186,6 +186,13 @@ class AssetLibrary:
             _clash.load_world(d)
         except Exception:
             pass
+        # World physics (characters/world_physics.json, FX Studio's World
+        # Physics page): the dust & air every character kicks up.
+        from . import worldfx as _worldfx
+        try:
+            _worldfx.load_world(d)
+        except Exception:
+            pass
 
     def bundle(self, mode_key):
         return self.bundles.get(mode_key, self.bundles["runner"])

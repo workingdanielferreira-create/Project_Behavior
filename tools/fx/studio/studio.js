@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}),
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}), worldPhysics: {},
   unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}),
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
@@ -245,6 +245,7 @@ var DOC = [
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
   ["dodge", "dodge", function (v) { return FXK.normalizeDodge(clone(v || {})); }],
   ["targeting", "targeting", function (v) { return FXK.normalizeTargeting(clone(v || {})); }],
+  ["worldPhysics", "world_physics", function (v) { return WORLDFX.normalizeOverride(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
   ["moveStyle", "movement_style", function (v) { return MOVESTYLE.normalize(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
@@ -1854,6 +1855,7 @@ function dragFields(s, fx, I) {
 function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (S.worldPage) return buildWorldClashProps(d);
+  if (S.physPage) return buildWorldPhysicsProps(d);
   if (C && S.uaPage) return buildUniqueProps(d);
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
@@ -3861,6 +3863,7 @@ function buildReactionProps(d) {
     buildRetreatProps(d);
     buildDodgeProps(d);
     buildTargetingProps(d);
+    buildWorldPhysicsCharProps(d);
     buildMoveStyleProps(d);
     return;
   }
@@ -4012,7 +4015,11 @@ function worldPreview(parent, slotKey) {
   return {replay: spawn};
 }
 function worldSave() { lsSet(WORLD_KEY, WORLD); }
-function openWorldPage(on) { S.worldPage = on; $("bWorld").classList.toggle("primary", !!on); buildProps(); }
+function openWorldPage(on) {
+  S.worldPage = on;
+  if (on && S.physPage) { S.physPage = false; $("bPhys").classList.remove("primary"); }
+  $("bWorld").classList.toggle("primary", !!on); buildProps();
+}
 function buildWorldClashProps(d) {
   banner(d, "act", "World physics", "⚔ World Clash",
     "Shared by every character, in Solo and Battle. When two opposing effects touch, the rule for their two kinds plays out and the clash FX below plays. The stronger knockback survives at full power, a tie cancels both, and a trail's owner recoils instead of losing its trail. A knockback lead of more than 100 is no clash at all: the weaker effect is destroyed and the stronger flies on untouched. Contacts between the same two fighters within 6 ticks and 60 px of a clash are part of it: one FX, not one per contact.",
@@ -4067,6 +4074,218 @@ function buildWorldClashProps(d) {
       "Sword duel: the chance each strike is a flurry combo — 2 to 4 quick hits at nearly the same spot, a short hop apart between them, then a bigger spring apart. 0 = never.";
   }
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash; among the techniques, Ki Barrage shots clash as sprites, the Charged Blast orb as an orb and the Serious Punch as a beam, while the other guns and power techniques never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html. On the stage, the fighter's FX clash with the target dummies' FX by these rules (struggles and sword duels play as their one-shot bursts).");
+}
+// ------------------------------------------------------------ World Physics
+// Dust & Air (laser/worldfx.py, port: studio/worldfx.js): the dust, debris
+// and displaced air the arena kicks up.  Shared by every character, in Solo
+// and Battle: kept in browser storage on its own and saved as
+// world_physics.json, which the game reads from characters/world_physics.json
+// (drop it like an FX file).  A character can override any section on its
+// Character FX page ("Dust & Air"), saved in its FX file.
+var PHYS_KEY = "pbfxstudio.v1.worldphysics";
+var PHYS = WORLDFX.normalize(lsGet(PHYS_KEY) || {});
+function physSave() { lsSet(PHYS_KEY, PHYS); }
+function openPhysPage(on) {
+  S.physPage = on;
+  if (on && S.worldPage) { S.worldPage = false; $("bWorld").classList.remove("primary"); }
+  $("bPhys").classList.toggle("primary", !!on); buildProps();
+}
+// The settings of one section as fields.  sobj = the live section object,
+// onch(rebuild) after every change.
+function physFields(parent, name, sobj, onch) {
+  WORLDFX.FIELDS[name].forEach(function (f) {
+    var k = f[0], d = WORLDFX.DEFAULTS[name][k], r = (WORLDFX.RANGES[name] || {})[k], e;
+    if (typeof d === "boolean") e = inp("chk", sobj[k], function (v) { sobj[k] = v; onch(); });
+    else if (typeof d === "string") e = inp("color", sobj[k], function (v) { sobj[k] = v; onch(); });
+    else e = inp("n", sobj[k], function (v) { sobj[k] = r ? Math.max(r[0], Math.min(r[1], v)) : v; onch(); },
+      r ? r[0] : null, r ? r[1] : null, (r && r[1] <= 1) ? 0.05 : 1);
+    field(parent, f[1], e).title = f[2] + (typeof d === "number" ? " (default " + d + (r ? ", " + r[0] + "–" + r[1] : "") + ")" : "");
+  });
+}
+// Live preview: a slope (bottom-left near and big, top-right far and small,
+// the game's position-scale grid) with stand-in fighters acting out each
+// event.  cfgOf() returns the settings to show: the world's, or the world's
+// with a character's overrides.  Click the ground to set off a blast.
+function physPreview(parent, cfgOf) {
+  var wrap = document.createElement("div"); wrap.className = "wpv";
+  var cv = document.createElement("canvas"); cv.width = 1120; cv.height = 630; cv.style.aspectRatio = "16/9"; wrap.appendChild(cv);
+  var cap = document.createElement("div"); cap.className = "wpvcap";
+  cap.textContent = "Bottom-left = near (big, fast), top-right = far (small, slow). Click the ground for a blast.";
+  wrap.appendChild(cap);
+  var row = document.createElement("div"); row.className = "row"; wrap.appendChild(row);
+  parent.appendChild(wrap);
+  var g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  var sim = new WORLDFX.Sim({sw: W, sh: H, world: cfgOf().world});
+  var figs = [], script = null, acc = 0, last = performance.now();
+  function mk(x, y) { return {x: x, y: y, h: 24, motion: {bouncing: false, bounce_ending: false, bounce_vx: 0, bounce_vy: 0}, hop_ticks: 0, leap: null, wp: cfgOf().over}; }
+  function ss(f) { return Math.max(0.4, WORLDFX.pscale(f.x, f.y, W, H) / 5 * 0.6 + 0.4 * 0.6); }
+  function slide(f) {   // a knockback slide, as laser/motion.py runs it
+    var m = f.motion, k = 1;
+    f.x += m.bounce_vx * k; f.y += m.bounce_vy * k;
+    if (f.x <= 10 && m.bounce_vx < 0) { sim.noteWall(f, "l", -m.bounce_vx); m.bounce_vx = Math.abs(m.bounce_vx); }
+    if (f.x >= W - 10 && m.bounce_vx > 0) { sim.noteWall(f, "r", m.bounce_vx); m.bounce_vx = -Math.abs(m.bounce_vx); }
+    if (f.y >= H - 10 && m.bounce_vy > 0) { sim.noteWall(f, "b", m.bounce_vy); m.bounce_vy = -Math.abs(m.bounce_vy); }
+    if (f.y <= 10 && m.bounce_vy < 0) { sim.noteWall(f, "t", -m.bounce_vy); m.bounce_vy = Math.abs(m.bounce_vy); }
+    f.x = Math.max(10, Math.min(W - 10, f.x)); f.y = Math.max(10, Math.min(H - 10, f.y));
+    m.bounce_vx *= 0.85; m.bounce_vy *= 0.85;
+    if (m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy < 0.09) { m.bouncing = false; m.bounce_vx = m.bounce_vy = 0; }
+  }
+  var SCENES = {
+    "Dash": function () {
+      var f = mk(140, 560), n = 0, c = cfgOf().sec("dash"); figs = [f];
+      return function () { n++; if (n > 10 && n < 60) { var v = c.speed * 1.7 * TICK_S(); f.x += v * 0.95; f.y -= v * 0.3; } return n < 130; };
+    },
+    "Jump": function () {
+      var f = mk(330, 520), n = 0; figs = [f];
+      return function () {
+        n++;
+        if (n === 12) f.leap = {sx: f.x, sy: f.y, ex: f.x + 220, ey: f.y - 30, t0: 0, t1: 480, h: 120 * WORLDFX.pscale(f.x, f.y, W, H) / 3, done: false, u: 0};
+        var lp = f.leap;
+        if (lp && !lp.done) {
+          lp.u = Math.min(1, lp.u + TICK_S() * 1000 / (lp.t1 - lp.t0));
+          f.x = lp.sx + (lp.ex - lp.sx) * lp.u; f.y = lp.sy + (lp.ey - lp.sy) * lp.u - lp.h * 4 * lp.u * (1 - lp.u);
+          if (lp.u >= 1) lp.done = true;
+        }
+        if (n === 20 + 30 + 20) { f.leap = null; f.hop_ticks = 12; }
+        if (f.hop_ticks > 0) { f.x -= 5; f.hop_ticks--; }
+        return n < 130;
+      };
+    },
+    "Slam": function () {
+      var f = mk(260, 470), n = 0; figs = [f];
+      return function () { n++; if (n === 10) { f.motion.bouncing = true; f.motion.bounce_vx = 34; f.motion.bounce_vy = 4; } if (f.motion.bouncing) slide(f); return n < 140; };
+    },
+    "Wall slam": function () {
+      var f = mk(240, 420), n = 0; figs = [f];
+      return function () { n++; if (n === 10) { f.motion.bouncing = true; f.motion.bounce_vx = -38; f.motion.bounce_vy = 2; } if (f.motion.bouncing) slide(f); return n < 120; };
+    },
+    "Clash": function () {
+      var a = mk(420, 470), b = mk(600, 440), n = 0; figs = [a, b];
+      return function () {
+        n++;
+        if (n === 14) { var ps = WORLDFX.pscale(510, 455, W, H); sim.clash(510, 455 - 4 * ps, 0, 80, [a, b]); }
+        return n < 110;
+      };
+    },
+    "Blast": function () {
+      var f = mk(260, 560), n = 0; figs = [f];
+      return function () { n++; if (n === 8) { sim.blast(560, 500, 30, f); } return n < 140; };
+    },
+    "Sound barrier": function () {
+      var f = mk(90, 600), n = 0, c = cfgOf().sec("sonic"); figs = [f];
+      return function () { n++; if (n > 8 && n < 40) { var v = c.mach * 1.35 * TICK_S(); f.x += v * 0.94; f.y -= v * 0.34; } return n < 120; };
+    }
+  };
+  function TICK_S() { return WORLDFX.TICK_MS / 1000; }
+  var cur = lsGet("pbfxstudio.v1.worldphysics.scene") || "Dash";
+  if (!SCENES[cur]) cur = "Dash";
+  function play(name) { cur = name; lsSet("pbfxstudio.v1.worldphysics.scene", name); sim.world = cfgOf().world; sim.reset(); script = SCENES[name](); }
+  Object.keys(SCENES).forEach(function (k) {
+    var b = document.createElement("button"); b.textContent = k; b.onclick = function () { play(k); }; row.appendChild(b);
+  });
+  cv.onclick = function (e) {
+    var r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+    sim.blast(x, y, 30, figs[0] || null);
+  };
+  function drawStage() {
+    g.globalCompositeOperation = "source-over";
+    g.fillStyle = "#07070c"; g.fillRect(0, 0, W, H);
+    // the slope: lines of equal size, nearer (bigger) toward the bottom-left
+    g.strokeStyle = "rgba(120,140,170,0.16)"; g.lineWidth = 1;
+    for (var i = 1; i < 9; i++) {
+      var t = i / 9; g.beginPath(); g.moveTo(0, H * t * 2); g.lineTo(W * t * 2, 0); g.stroke();
+    }
+  }
+  function drawFig(f) {
+    var ps = WORLDFX.pscale(f.x, f.y, W, H), x = f.x, y = f.y;
+    g.save(); g.strokeStyle = "#f3f3f3"; g.fillStyle = "#f3f3f3"; g.lineWidth = Math.max(1.5, 2.2 * ps); g.lineCap = "round";
+    g.beginPath(); g.arc(x, y - 8 * ps, 3.2 * ps, 0, 2 * Math.PI); g.fill();
+    g.beginPath(); g.moveTo(x, y - 5 * ps); g.lineTo(x, y + 3 * ps);
+    g.moveTo(x, y + 3 * ps); g.lineTo(x - 3 * ps, y + 11 * ps); g.moveTo(x, y + 3 * ps); g.lineTo(x + 3 * ps, y + 11 * ps);
+    g.moveTo(x - 4 * ps, y - 2 * ps); g.lineTo(x + 4 * ps, y - 2 * ps); g.stroke();
+    g.restore();
+  }
+  function frame(now) {
+    if (!document.body.contains(cv)) return;   // the page was rebuilt: this preview is gone
+    acc += Math.min(100, now - last); last = now;
+    var n = 0;
+    while (acc >= WORLDFX.TICK_MS && n < 6) {
+      acc -= WORLDFX.TICK_MS; n++;
+      sim.world = cfgOf().world;
+      figs.forEach(function (f) { f.wp = cfgOf().over; });
+      if (script && !script()) script = SCENES[cur]();
+      sim.step(figs);
+    }
+    drawStage();
+    sim.paintGround(g);
+    figs.forEach(drawFig);
+    sim.paintAir(g);
+    requestAnimationFrame(frame);
+  }
+  play(cur);
+  requestAnimationFrame(frame);
+  return {replay: function () { play(cur); }};
+}
+function physFileSection(d) {
+  var s = sec(d, "File", "p-file", "", "act");
+  var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
+  [["Save world_physics.json", function () { download("world_physics.json", JSON.stringify(PHYS, null, 1), "characters/"); }],
+   ["Open…", function () {
+     var f = document.createElement("input"); f.type = "file"; f.accept = ".json,application/json";
+     f.onchange = function () {
+       var file = f.files && f.files[0]; if (!file) return;
+       file.text().then(function (t) {
+         var o = JSON.parse(t);
+         if (!o || o.format !== WORLDFX.FORMAT) throw new Error("not a World Physics file");
+         PHYS = WORLDFX.normalize(o); physSave(); buildProps(); toast("Loaded " + file.name);
+       }).catch(function (e) { toast("Could not load it (" + e.message + ")", 5000); });
+     };
+     f.click();
+   }],
+   ["Reset to defaults", function () { PHYS = WORLDFX.normalize({}); physSave(); buildProps(); toast("World Physics reset to the defaults"); }]
+  ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
+  s.title = "The game reads characters/world_physics.json. Save it here, then drop it into the repo (top level or drop/) and run update_game.bat, or put it in characters/ yourself.";
+}
+function buildWorldPhysicsProps(d) {
+  banner(d, "act", "World physics", "🌪 Dust & Air",
+    "Shared by every character, in Solo and Battle: the dust, rocks and air the arena kicks up. A character can override any section on its Character FX page.",
+    ["Close", function () { openPhysPage(false); }]);
+  physFileSection(d);
+  var pv = sec(d, "Preview", "p-preview", "", "act");
+  if (lsGet("pbfxstudio.v2.psec.p-preview") == null) pv.open = true;
+  var prev = physPreview(pv, function () { return {world: PHYS, over: null, sec: function (n) { return PHYS[n]; }}; });
+  WORLDFX.SECTIONS.forEach(function (name) {
+    var s = sec(d, WORLDFX.TITLES[name], "p-" + name, "", "act");
+    physFields(s, name, PHYS[name], function () { physSave(); });
+  });
+  var rs = document.createElement("div"); rs.className = "row";
+  var rb = document.createElement("button"); rb.textContent = "↻ Replay preview"; rb.onclick = prev.replay; rs.appendChild(rb);
+  d.appendChild(rs);
+}
+// Character FX page: this character's own Dust & Air sections
+// (pack.world_physics); any section not overridden uses the world's.
+function buildWorldPhysicsCharProps(d) {
+  if (!S.worldPhysics) S.worldPhysics = {};
+  var wp = S.worldPhysics;
+  var s = sec(d, "Dust & Air (whole character)", "a-wphys", "", "act");
+  s.title = "World Physics (🌪 Dust & Air in the top bar) is shared by every character. Tick a section to give this character its own settings for the dust it kicks up.";
+  var pvs = sec(s, "Preview", "a-wphys-pv", "", "act");
+  physPreview(pvs, function () {
+    var w = WORLDFX.normalize(PHYS);
+    return {world: w, over: wp, sec: function (n) { return wp[n] || w[n]; }};
+  });
+  WORLDFX.SECTIONS.forEach(function (name) {
+    if (name === "ground") return;     // the ground is the world's alone
+    var own = !!wp[name];
+    field(s, "Own " + WORLDFX.TITLES[name], inp("chk", own, function (v) {
+      if (v) wp[name] = WORLDFX.normalizeSection(name, clone(PHYS[name])); else delete wp[name];
+      save(); buildProps();
+    })).title = own ? "This character uses its own settings below." : "Off: this character uses the world's " + WORLDFX.TITLES[name] + " settings.";
+    if (own) {
+      var b = sec(s, WORLDFX.TITLES[name] + " (this character)", "a-wphys-" + name, "", "act");
+      physFields(b, name, wp[name], function () { save(); });
+    }
+  });
 }
 // A condition list editor: one box per condition (its fields, Not, ↑ /
 // Duplicate / Remove) and the + Condition picker.  Action triggers and the
@@ -5780,6 +5999,7 @@ $("bOpen").onclick = pickFolder;
 $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.files); this.value = ""; if (l.length) openFiles(l, null); };
 $("bSave").onclick = saveFx;
 $("bWorld").onclick = function () { openWorldPage(!S.worldPage); };
+$("bPhys").onclick = function () { openPhysPage(!S.physPage); };
 $("contFx").onchange = function () {
   if (!C) { this.checked = false; return; }
   cfgOf(S.action).fx_continuous = this.checked; save(); buildProps();

@@ -22,6 +22,7 @@ from . import config, modes, systems, ai, action_log, combat, actions, fxkit, bl
 from . import swordfx
 from . import hitfx, strikefx
 from . import dmgnum
+from . import worldfx
 from .prebattle import PreBattleMenu
 from . import roster as _roster
 from . import tag as _tag
@@ -1260,6 +1261,14 @@ class Overlay(QWidget):
                     return
             w.unbind_side()
 
+        # World physics (laser/worldfx.py, FX Studio "World Physics"): the
+        # dust and air the arena kicks up.  Once per tick after BOTH sides
+        # moved; it only reads the fighters, so Solo and Battle match.
+        try:
+            worldfx.step(w)
+        except Exception as e:
+            action_log.crash("worldfx", e)
+
         w.global_tick += 1
         self.update()
 
@@ -1389,6 +1398,9 @@ class Overlay(QWidget):
             p.save()
             p.translate(shk[0], shk[1])
         self._paint_abs_layer(p, "abs_back")
+        # World physics: ground dust, rocks, rings and wall planes sit under
+        # every fighter (laser/worldfx.py).
+        worldfx.paint_ground(p, w)
         for fig in w.all_figures():
             fig.draw(p, self._pen, body=bodies)
         # Every bullet on screen is a live Projectile drawn with its own
@@ -1403,6 +1415,8 @@ class Overlay(QWidget):
         for clone in w.all_clones():
             pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
             clone.draw(p, pscale)
+        # World physics: sparks, booms and sonic cones over the fighters.
+        worldfx.paint_air(p, w)
         # FX Studio "absolute front" FX: above every character and bullet.
         if abs_front:
             self._paint_abs_layer(p, "abs_front")

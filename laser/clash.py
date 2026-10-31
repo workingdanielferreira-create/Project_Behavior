@@ -198,7 +198,7 @@ import copy
 import math
 import random
 
-from . import clashfx, config, fxkit, powerfx, swordfx
+from . import clashfx, config, fxkit, powerfx, swordfx, worldfx
 
 CONTACT_MARGIN = 4.0         # px of slack on top of both half widths
 STRONG_BEAM_DAMAGE = 10.0    # beam x beam explodes when BOTH deal more than this
@@ -825,6 +825,11 @@ def _spawn_fx(world, slot, c, angle, c1, c2, hold=None, winner=0, key=None, budg
     fx.duel_slot = slot     # a Sword Duel FX reads this slot's Loop X / Y and Flurry %
     if budget is not None:
         fx.fit(budget)
+    # World physics (laser/worldfx.py): the splash of air, dust and sparks
+    # thrown sideways to the hit.  Split-half end bursts (no pair) skip it.
+    if pair:
+        worldfx.note_clash(world, c[0], c[1], angle, max(pair[0].kb, pair[1].kb),
+                           [getattr(pair[0], "owner", None), getattr(pair[1], "owner", None)])
     return fx
 
 

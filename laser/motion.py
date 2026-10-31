@@ -12,6 +12,7 @@ import math
 from . import config
 from . import combat as _combat
 from . import movestyle as _movestyle
+from . import worldfx as _worldfx
 
 
 def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
@@ -499,12 +500,18 @@ def check_walls(fig, margin=10):
     t.x = max(margin, min(fig.screen_w - margin, t.x))
     t.y = max(margin, min(fig.screen_h - margin, t.y))
     if m.bouncing or m.bounce_ending:
+        # World physics (laser/worldfx.py): a knockback slide that hits a
+        # screen edge is a wall slam; noted here, drawn by the world.
         if t.x <= margin and m.bounce_vx < 0:
+            _worldfx.note_wall(fig, "l", -m.bounce_vx)
             m.bounce_vx = abs(m.bounce_vx)
         elif t.x >= fig.screen_w - margin and m.bounce_vx > 0:
+            _worldfx.note_wall(fig, "r", m.bounce_vx)
             m.bounce_vx = -abs(m.bounce_vx)
         if t.y <= margin and m.bounce_vy < 0:
+            _worldfx.note_wall(fig, "t", -m.bounce_vy)
             m.bounce_vy = abs(m.bounce_vy)
         elif t.y >= fig.screen_h - margin and m.bounce_vy > 0:
+            _worldfx.note_wall(fig, "b", m.bounce_vy)
             m.bounce_vy = -abs(m.bounce_vy)
 
