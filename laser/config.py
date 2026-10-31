@@ -263,8 +263,9 @@ SHOT_ANGLES = (0.0,)           # single bullet
 # ---------------------------------------------------------------------------
 # Battle / AI
 # ---------------------------------------------------------------------------
-BATTLE_BODY_HIT_SQ        = 18.0 * 18.0
-BATTLE_BODY_PUSH          = 14.0
+BATTLE_BODY_HIT_SQ        = 18.0 * 18.0   # a DASHING enemy's body contact (real knockback)
+BATTLE_BODY_SHOVE_SQ      = 5.0 * 5.0     # plain body contact: centres this close get shoved apart
+BATTLE_BODY_PUSH          = 14.0          # shove launch speed (~93 px slide under BOUNCE_FRICTION)
 DASH_HIT_KNOCKBACK_PX     = 200.0  # target travels this many px when struck by a dash-slash
 BATTLE_PROJ_HIT_SQ   = 20.0 * 20.0
 HIT_POWER_BASE       = 30.0

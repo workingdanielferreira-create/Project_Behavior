@@ -42,6 +42,7 @@ class MotionState:
                  "bounce_ending", "bounce_end_ticks",
                  "path", "follow", "runaway",
                  "battle_bounce_vx", "battle_bounce_vy", "knock_tick", "heavy_until",
+                 "shove_vx", "shove_vy",
                  "glide_vx", "glide_vy", "glide_dir", "glide_swap_ticks",
                  "glide_t", "glide_back", "glide_alt", "style",
                  "oval_px", "oval_py", "oval_rbx", "oval_rby")
@@ -65,6 +66,9 @@ class MotionState:
         self.battle_bounce_vy = 0.0
         self.knock_tick = -1000   # world tick of the last knockback launch (motion.launch_knockback)
         self.heavy_until = -1000  # a heavy launch (sword duel final hit) can't be replaced by a weaker one until then
+        # Body shove (motion.shove / apply_shove): a stagger-free slide that
+        # parts two fighters who ran into each other — no bouncing state.
+        self.shove_vx = self.shove_vy = 0.0
         # Glide (JSON movement.glide, motion._glide): carried skating
         # velocity, which way round the target it circles (+1 / -1), and
         # ticks until that direction next swaps.

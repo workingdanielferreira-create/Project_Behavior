@@ -139,6 +139,38 @@ def _bounce(fig, sf=1.0):
         m.bounce_end_ticks = config.BOUNCE_END_HOLD
 
 
+def shove(fig, vx, vy):
+    """Start a body shove at (vx, vy) (calibrated like a knockback launch:
+    dist * (1 - BOUNCE_FRICTION)).  Unlike launch_knockback it is no
+    stagger: the fighter never enters bouncing / bounce_ending, so its
+    action, leap, aim, attacks, movement and frames carry on untouched and
+    no daze follows — it is only slid apart from the one it ran into.  A
+    shove already carrying it the same way at least as fast is kept."""
+    m = fig.motion
+    if (m.shove_vx * vx + m.shove_vy * vy > 0.0
+            and m.shove_vx * m.shove_vx + m.shove_vy * m.shove_vy >= vx * vx + vy * vy):
+        return
+    m.shove_vx, m.shove_vy = vx, vy
+
+
+def apply_shove(fig):
+    """One tick of a body shove, laid on top of whatever moved the fighter
+    this tick (same position speed scale and decay as _bounce, so it covers
+    the full set distance)."""
+    m = fig.motion
+    if not (m.shove_vx or m.shove_vy):
+        return
+    t = fig.transform
+    sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
+    t.x += m.shove_vx * sf
+    t.y += m.shove_vy * sf
+    decay = 1.0 - (1.0 - config.BOUNCE_FRICTION) * sf
+    m.shove_vx *= decay
+    m.shove_vy *= decay
+    if m.shove_vx * m.shove_vx + m.shove_vy * m.shove_vy < config.BOUNCE_THRESH_SQ:
+        m.shove_vx = m.shove_vy = 0.0
+
+
 def launch_knockback(fig, vx, vy, tick, heavy_ticks=0):
     """Start a knockback slide at (vx, vy), calibrated by the caller as
     dist * (1 - BOUNCE_FRICTION) so it travels the full set distance.  A new

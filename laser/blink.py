@@ -166,6 +166,7 @@ def _vanish(fig, st, cfg, action, i, cooldown_ms):
     m, c = fig.motion, fig.combat
     m.bouncing = m.bounce_ending = False
     m.bounce_vx = m.bounce_vy = 0.0
+    m.shove_vx = m.shove_vy = 0.0      # and any body shove
     c.dashing = c.rebounding = c.slashing = False
     c.arc_repositioning = c.arc_recoiling = False
     c.dodge_dashing = c.dodge_counter = c.dodge_interrupt = False
