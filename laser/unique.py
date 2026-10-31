@@ -22,6 +22,8 @@ UNIQUE_DEFAULTS / normalizeUnique.
     berserker        attack + movement speed (every state) and skill
                      cooldown speed rise as HP falls
     phase_shift      a hit is nullified and the fighter teleports away
+                     (optionally only inside a Phase state opened by
+                     action trigger conditions: own / enemy actions, ...)
     ricochet         its bullets and moving FX bounce off walls / fighters / FX
     riposte          a hit inside the counter stance (or by chance) is
                      cancelled and answered with a counter-strike
@@ -106,7 +108,12 @@ DEFAULTS = {
         destinations=dict(behind_attacker=True, random=True, far_corner=False,
                           spawn=False, mirror=False, fixed=False),
         random_min_px=120.0, random_max_px=260.0, behind_px=70.0,
-        fixed_x_pct=50.0, fixed_y_pct=50.0, invuln_ms=300, show_charges=True),
+        fixed_x_pct=50.0, fixed_y_pct=50.0, invuln_ms=300, show_charges=True,
+        # Phase state: Phase Shift only works while the fighter is in it.  It
+        # opens when the conditions pass (ANY / ALL, every action trigger
+        # condition; "this action" = the state) and lasts state_ms (0 = never
+        # ends).  Off = always active, as before.
+        state=False, state_ms=3000, logic="any", conditions=[], show_state=True),
     "ricochet": dict(
         bounces=3, walls=True, characters=True, fx=True, fx_contact_px=18.0,
         keep_speed_pct=100.0, keep_damage_pct=100.0,
@@ -280,7 +287,7 @@ SUMMON_MOVE_TARGETS = ("enemy", "owner")
 
 _LIMITS = {
     "count": (1, 8), "max_alive": (1, 16), "every_hits": (1, 99), "bounces": (0, 20), "split": (0, 4),
-    "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700),
+    "charges": (0, 99), "steps": (1, 20), "max_bonus_pct": (0, 700), "state_ms": (0, 600000),
     "gauge_hits": (1, 999), "combo_hits": (1, 99), "shrapnel": (0, 24), "uses": (0, 99),
     "fill_hits": (1, 999), "hits": (1, 999), "forms": (2, 6),
     "every_attacks": (1, 99), "max_orbs": (1, 12),
@@ -378,6 +385,25 @@ def _norm(kind, raw):
             lo, hi = _LIMITS[k]
             v = max(lo, min(hi, v))
         out[k] = v
+    if kind == "phase_shift":
+        out["conditions"] = _norm_conds(out.get("conditions"))
+        if out["logic"] not in ("any", "all"):
+            out["logic"] = "any"
+    return out
+
+
+def _norm_conds(lst):
+    """Action trigger conditions (laser/actions.py CONDITION_TYPES), each
+    filled from its defaults, with `not`."""
+    from .actions import CONDITION_TYPES
+    out = []
+    for c in lst if isinstance(lst, list) else []:
+        t = c.get("type") if isinstance(c, dict) else None
+        if t in CONDITION_TYPES:
+            cc = dict(CONDITION_TYPES[t])
+            cc["not"] = False
+            cc.update(c)
+            out.append(cc)
     return out
 
 
@@ -436,7 +462,7 @@ def _hp_pct(fig):
 class UAState:
     __slots__ = ("shots", "sparks", "legion_fired", "legion_cd", "legion_timer", "hits",
                  "charges", "recharge", "spawn", "stance_left", "stance_timer",
-                 "riposte_cd", "flash", "flash_rgb",
+                 "riposte_cd", "flash", "flash_rgb", "ps_left", "ps_on",
                  "clones", "pending", "clone_of", "clone_left", "clone_P",
                  # every figure
                  "t", "landed", "stun_left", "cd_ahead",
@@ -477,6 +503,8 @@ class UAState:
         self.hits = 0
         self.charges = None      # phase shift charges left (set on first use)
         self.recharge = 0
+        self.ps_on = False       # Phase Shift: inside its Phase state
+        self.ps_left = 0         # ticks the Phase state has left (state_ms 0 = no limit)
         self.spawn = (fig.transform.x, fig.transform.y)
         self.stance_left = 0
         self.stance_timer = 0
@@ -715,6 +743,10 @@ def tick(fig, world):
             if st.recharge >= _ticks(P["recharge_ms"]):
                 st.recharge = 0
                 st.charges += 1
+        if P["state"]:
+            _ps_state_tick(fig, world, st, P)
+        else:
+            st.ps_on = False
     elif kind == "riposte":
         if st.riposte_cd > 0:
             st.riposte_cd -= 1
@@ -1235,6 +1267,10 @@ def _phase_shift(fig, world, amount, P):
         st.charges = P["charges"]
     if P["charges"] > 0 and st.charges <= 0:
         return False
+    # Phase state: outside it, hits land.  The hit itself may open it (its
+    # enemy-action conditions read the fighter landing this hit).
+    if P["state"] and not st.ps_on and not _ps_try_open(fig, world, st, P, at_hit=True):
+        return False
     p = fig.personality
     trig = P["trigger"]
     if trig == "min_damage" and amount < P["min_damage"]:
@@ -1274,6 +1310,70 @@ def _phase_shift(fig, world, amount, P):
     st.flash = 8
     st.flash_rgb = tuple(fig.lut[200])
     return True
+
+
+PS_KEY = "@phase"     # the Phase state's name in the condition tracker
+
+
+def _ps_attacker(fig, world):
+    """The fighter whose hit is landing (targeting.note_hit), or None."""
+    la = getattr(fig, "last_hit_by", None)
+    if la is None or world is None:
+        return None
+    for s in getattr(world, "sides", ()) or ():
+        for f in s.figures:
+            if id(f) == la:
+                return f
+    return None
+
+
+def _ps_try_open(fig, world, st, P, at_hit=False):
+    """Open the Phase state when its conditions pass.  Per tick they read the
+    fighter's own condition readings (its target as "enemy"); on a hit, the
+    enemy-action conditions read the attacker landing it."""
+    conds = P["conditions"]
+    if not conds or world is None:
+        return False
+    from . import actions
+    if at_hit:
+        r = getattr(fig, "act", None)
+        ctx = getattr(r, "ctx", None) if r is not None else None
+        if ctx is None:
+            return False
+        att = _ps_attacker(fig, world)
+        if att is not None:
+            ctx = dict(ctx)
+            info = actions.action_info(att, world.global_tick)
+            ctx["tgt_action"] = info if info[0] else None
+    else:
+        r, ctx = actions.tracker_ctx(fig, world)
+    if not r._conds_pass(fig, PS_KEY, P, ctx):
+        return False
+    r.mark_fired(fig, PS_KEY, P, ctx, world.global_tick)
+    st.ps_on = True
+    st.ps_left = _ticks(P["state_ms"]) if P["state_ms"] > 0 else 0
+    st.flash = 6
+    st.flash_rgb = tuple(fig.lut[200])
+    return True
+
+
+def _ps_state_tick(fig, world, st, P):
+    if st.ps_on:
+        if P["state_ms"] <= 0:
+            return            # 0 = the state never ends once entered
+        st.ps_left -= 1
+        if st.ps_left > 0:
+            return
+        st.ps_on = False
+        r = getattr(fig, "act", None)
+        if r is not None and world is not None:
+            r.stamp_end(fig, PS_KEY, world.global_tick)
+    _ps_try_open(fig, world, st, P)
+
+
+def in_phase_state(fig):
+    st = getattr(fig, "ua", None)
+    return bool(st is not None and st.ps_on)
 
 
 # ------------------------------------------------------------ Riposte
@@ -2833,6 +2933,12 @@ def draw(fig, p, pscale=1.0):
         p.setBrush(Qt.NoBrush)
         p.setPen(QPen(QColor(r, g, b, 200), 2.5 * pscale))
         p.drawEllipse(QPointF(x, y), R * 1.15, R * 1.15)
+    if kind == "phase_shift" and P["state"] and P["show_state"] and st is not None and st.ps_on:
+        r, g, b = fig.lut[200]
+        p.setBrush(Qt.NoBrush)
+        a = int(120 + 80 * (0.5 + 0.5 * math.sin(tk * 0.35)))
+        p.setPen(QPen(QColor(r, g, b, a), 2.0 * pscale, Qt.DashLine))
+        p.drawEllipse(QPointF(x, y), R * 1.2, R * 1.2)
     if kind == "phase_shift" and P["show_charges"] and P["charges"] > 0 and st is not None:
         n = st.charges if st.charges is not None else P["charges"]
         r, g, b = fig.lut[200]

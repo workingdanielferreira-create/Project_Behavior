@@ -682,7 +682,11 @@ var UNIQUE_DEFAULTS = {
     charges: 3, recharge_ms: 8000,
     destinations: {behind_attacker: true, random: true, far_corner: false, spawn: false, mirror: false, fixed: false},
     random_min_px: 120, random_max_px: 260, behind_px: 70, fixed_x_pct: 50, fixed_y_pct: 50,
-    invuln_ms: 300, show_charges: true},
+    invuln_ms: 300, show_charges: true,
+    // Phase state: Phase Shift only works while in it.  Opens when the
+    // conditions pass (ANY / ALL, every action trigger condition; "this
+    // action" = the state), lasts state_ms (0 = never ends).  Off = always on.
+    state: false, state_ms: 3000, logic: "any", conditions: [], show_state: true},
   ricochet: {bounces: 3, walls: true, characters: true, fx: true, fx_contact_px: 18,
     keep_speed_pct: 100, keep_damage_pct: 100, angle: "reflect", random_deg: 25, split: 0, split_deg: 20, sparks: true},
   riposte: {mode: "stance", stance_every_ms: 3000, stance_ms: 600, chance_pct: 25,
@@ -825,6 +829,10 @@ function normalizeUnique(a) {
   a.summoner = normalizeSummoner(a.summoner);
   UNIQUE_TYPES.slice(1).forEach(function (k) { a[k] = fill(a[k] || {}, UNIQUE_DEFAULTS[k]); });
   a.phase_shift.destinations = fill(a.phase_shift.destinations || {}, UNIQUE_DEFAULTS.phase_shift.destinations);
+  a.phase_shift.conditions = (Array.isArray(a.phase_shift.conditions) ? a.phase_shift.conditions : [])
+    .filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+    .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
+  if (a.phase_shift.logic !== "all") a.phase_shift.logic = "any";
   // nested settings blocks are filled key by key too
   [["dual_form", "form_a"], ["dual_form", "form_b"], ["dual_form", "form_c"], ["dual_form", "form_d"],
    ["dual_form", "form_e"], ["dual_form", "form_f"], ["aegis", "blocks"], ["phantom_swap", "targets"],
