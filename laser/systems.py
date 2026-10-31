@@ -330,6 +330,11 @@ class MotionSystem(System):
                     else:
                         combat.special_blocks_hit(fig)   # special-stance counter
         for fig in world.figures:
+            # Body shove (CollisionSystem): slid apart from a fighter it ran
+            # into, whatever moved it this tick — no stagger.  Blinked out or
+            # time-stopped, it holds still like every other movement.
+            if not blink.gone(fig) and not timefx.frozen(fig):
+                motion.apply_shove(fig)
             motion.check_walls(fig)
             # Terraform structures (laser/unique.py): bodies stay out.
             unique.push_out(fig, world)
@@ -1344,8 +1349,18 @@ class CollisionSystem(System):
                     break
 
         # --- Figure-to-figure body collision ---
+        # Two kinds of contact:
+        #   * a DASHING enemy's body (centres within BATTLE_BODY_HIT_SQ) is a
+        #     hit: real knockback (motion.launch_knockback), the built-ins'
+        #     1 HP / parry counter as before;
+        #   * plain contact (centres within BATTLE_BODY_SHOVE_SQ) is no hit at
+        #     all: both fighters are just shoved apart (motion.shove, ~93 px
+        #     slide) so their images don't bleed into each other — no
+        #     stagger (no bouncing state: actions, leaps, aim, attacks and
+        #     movement carry on), no HP, no parry counter, no dot.
         if world.partner_figures:
             bsq = config.BATTLE_BODY_HIT_SQ
+            ssq = config.BATTLE_BODY_SHOVE_SQ
             push = config.BATTLE_BODY_PUSH
             # Launch speed that produces DASH_HIT_KNOCKBACK_PX total travel
             # under BOUNCE_FRICTION per tick: v = dist * (1 - friction).
@@ -1366,64 +1381,42 @@ class CollisionSystem(System):
                 for _pi, (ex, ey, edash, _eparry) in enumerate(world.partner_figures):
                     if _pi < len(_pgone) and _pgone[_pi]:
                         continue
-                    # bounce_ending is the slide-stop hold phase — a plain
-                    # body bump doesn't interrupt it; a dashing enemy's hit
-                    # restarts the slide (motion.launch_knockback).
-                    if m.bounce_ending and not edash:
-                        continue
                     ddx, ddy = fig.x - ex, fig.y - ey
                     d_sq = ddx * ddx + ddy * ddy
-                    if 0 < d_sq <= bsq:
-                        # Damage cooldown: a dashing enemy's hit neither
-                        # launches nor damages an invincible fighter.
-                        if edash and ai.knockback_immune(fig, world):
-                            break
-                        dist = d_sq ** 0.5
-                        if edash:
-                            inv = dash_push_spd / dist
-                        else:
+                    if d_sq <= 0:
+                        continue
+                    dist = d_sq ** 0.5
+                    if not edash:
+                        # A knockback already sliding it (bouncing / its
+                        # stop hold) carries it apart on its own.
+                        if d_sq <= ssq and not (m.bouncing or m.bounce_ending):
                             inv = push / dist
-                        nvx = ddx * inv
-                        nvy = ddy * inv
-                        # Launch away from the collider (n points from it to
-                        # this figure), airborne or not.  An airborne figure
-                        # used to get -n, which threw two overlapping fighters
-                        # INTO each other every tick: they passed through,
-                        # collided, reversed and repeated — facing flipping
-                        # each tick, and a melee fighter stuck bouncing can
-                        # never start an attack.
-                        if edash:
-                            motion.launch_knockback(fig, nvx, nvy, world.global_tick)
-                        elif not (m.bouncing
-                                  and m.bounce_vx * ddx + m.bounce_vy * ddy > 0.0
-                                  and m.bounce_vx * m.bounce_vx + m.bounce_vy * m.bounce_vy
-                                  > nvx * nvx + nvy * nvy):
-                            # A plain bump never cuts short a stronger
-                            # knockback already carrying the fighter away
-                            # from the collider (the two still overlap on
-                            # the ticks right after a hit lands).
-                            m.bounce_vx = nvx
-                            m.bounce_vy = nvy
-                            m.bouncing = True
-                        # Dot on every collision, including mid-knockback re-hits
-                        if edash or m.bouncing:
-                            cx = (fig.x + ex) * 0.5
-                            cy = (fig.y + ey) * 0.5
-                            world.collision_dots.append([cx, cy, 0])
-                        # Body collision costs 1 HP to the TARGET only.
-                        # Skip if parrying, or if the target is a swordsman
-                        # mid-dash-slash (immune — handled by the FSM instead).
-                        # Image characters: their body never deals damage (their
-                        # FX do), and body contact never costs them HP — a
-                        # landed dash-slash does, delivered once per hit by
-                        # World.refresh_battle.  The push above still applies.
-                        if (_pi < len(_pimg) and _pimg[_pi]) or actions.is_image(fig):
-                            pass
-                        elif not fig.combat.parrying:
-                            ai.apply_hp_damage(fig, world)
-                        else:
-                            combat.special_blocks_hit(fig)   # special-stance counter
+                            motion.shove(fig, ddx * inv, ddy * inv)
+                            break
+                        continue
+                    if d_sq > bsq:
+                        continue
+                    # Damage cooldown: a dashing enemy's hit neither
+                    # launches nor damages an invincible fighter.
+                    if ai.knockback_immune(fig, world):
                         break
+                    inv = dash_push_spd / dist
+                    # Launch away from the collider (n points from it to
+                    # this figure), airborne or not.
+                    motion.launch_knockback(fig, ddx * inv, ddy * inv, world.global_tick)
+                    world.collision_dots.append([(fig.x + ex) * 0.5, (fig.y + ey) * 0.5, 0])
+                    # A dashing body costs 1 HP to the TARGET only (skip if
+                    # parrying: the special-stance counter instead).  Image
+                    # characters: body contact never costs them HP — a landed
+                    # dash-slash does, delivered once per hit by
+                    # World.refresh_battle.  The push above still applies.
+                    if (_pi < len(_pimg) and _pimg[_pi]) or actions.is_image(fig):
+                        pass
+                    elif not fig.combat.parrying:
+                        ai.apply_hp_damage(fig, world)
+                    else:
+                        combat.special_blocks_hit(fig)   # special-stance counter
+                    break
 
         # --- Ultimate crescent → enemy figure HP damage (battle mode) ---
         # Each partner figure within the arc band takes 1 HP per tick.

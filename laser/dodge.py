@@ -302,6 +302,7 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
     m = fig.motion
     m.bouncing = m.bounce_ending = False
     m.bounce_vx = m.bounce_vy = 0.0
+    m.shove_vx = m.shove_vy = 0.0      # and any body shove
     st.cooldown_until = _unique.cd_now(fig, now) + _ticks(cfg.get("cooldown_ms"))   # cooldown clock (Berserker)
     st.counter = bool(cfg.get("counter_action")) and not _retreating(fig)   # no counter mid-retreat
     st.counter_at = None
