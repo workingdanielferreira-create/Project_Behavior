@@ -219,6 +219,19 @@ def main():
     same_keys({r[0] for r in js.get("CLASH_FX")}, _clashfx_keys(), "CLASH_FX", out,
               "FX Studio's clash FX list", "laser/clashfx.py BASES")
 
+    # World physics: Dust & Air (laser/worldfx.py, studio/worldfx.js): its
+    # settings tables and the position grids the preview copies.
+    wf_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "worldfx.js"))
+    wf_py = PyTables(os.path.join(ROOT, "laser", "worldfx.py"), {"config": cfg})
+    for j, y in (("WP_DEFAULTS", "DEFAULTS"), ("WP_RANGES", "RANGES"), ("WP_FORMAT", "FORMAT"),
+                 ("WP_SECTIONS", "SECTIONS")):
+        diff(wf_js.get(j), wf_py.get(y), "worldfx " + y, out)
+    diff(wf_js.get("PS"), [cfg.get("POSITION_SCALE_" + k) for k in ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")],
+         "worldfx PS (config.POSITION_SCALE_*)", out)
+    diff(wf_js.get("SS"), [cfg.get("SPEED_SCALE_" + k) for k in ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")],
+         "worldfx SS (config.SPEED_SCALE_*)", out)
+    diff(wf_js.get("TELEPORT_PX"), cfg.get("ARENA_OVAL_TELEPORT_PX"), "worldfx TELEPORT_PX", out)
+
     # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py),
     # the ki barrage / impact punch constants (laser/strikefx.py), the power
     # techniques (laser/powerfx.py), the guns (laser/gunfx.py) and the

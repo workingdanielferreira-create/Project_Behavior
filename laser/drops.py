@@ -8,7 +8,9 @@ You export a character in two parts:
 
 FX Studio's World Clash page saves ``world_clash.json`` (format
 pb_world_clash): the clash table every character shares.  Dropped the same
-way, it is filed as ``characters/world_clash.json``.
+way, it is filed as ``characters/world_clash.json``.  Its World Physics
+page saves ``world_physics.json`` (format pb_world_physics: the dust & air
+every character kicks up), filed as ``characters/world_physics.json``.
 
 Upload either or both to the repo's main branch: to the top level, or into
 a ``drop/`` folder.  ``update_game.bat`` downloads them, and this module
@@ -67,6 +69,10 @@ def _is_fxkit(obj):
 
 def _is_world_clash(obj):
     return isinstance(obj, dict) and obj.get("format") == "pb_world_clash"
+
+
+def _is_world_physics(obj):
+    return isinstance(obj, dict) and obj.get("format") == "pb_world_physics"
 
 
 def _install_package(root, man, read_file, log):
@@ -188,6 +194,7 @@ def organize_drops(root):
         return log
     pkgs, fxs = {}, {}   # name -> [(stamp, label, payload)]
     worlds = []          # [(stamp, label, raw)] World Clash files
+    physics = []         # [(stamp, label, raw)] World Physics files
     for d in dirs:
         pkg = _package_in_dir(d)   # an unzipped folder, or loose files at the top level
         if pkg:
@@ -217,6 +224,8 @@ def organize_drops(root):
                     fxs.setdefault(_slug(obj["character"]), []).append((os.path.getmtime(p), os.path.relpath(p, root), raw))
                 elif _is_world_clash(obj):
                     worlds.append((os.path.getmtime(p), os.path.relpath(p, root), raw))
+                elif _is_world_physics(obj):
+                    physics.append((os.path.getmtime(p), os.path.relpath(p, root), raw))
     for name in sorted(pkgs):
         c = sorted(pkgs[name], key=lambda x: (x[0], x[1]))
         if len(c) > 1:
@@ -256,4 +265,14 @@ def organize_drops(root):
         _write(dest_w, c[-1][2], written)
         if written:
             log.append(f"characters/world_clash.json: World Clash table updated ({c[-1][1]})")
+    if physics:
+        c = sorted(physics, key=lambda x: (x[0], x[1]))
+        if len(c) > 1:
+            log.append(f"NOTE: {len(c)} World Physics files dropped ({', '.join(x[1] for x in c)}); "
+                       f"using {c[-1][1]}. Delete the others from the repo.")
+        dest_p = os.path.join(root, "characters", "world_physics.json")
+        written = []
+        _write(dest_p, c[-1][2], written)
+        if written:
+            log.append(f"characters/world_physics.json: World Physics updated ({c[-1][1]})")
     return log

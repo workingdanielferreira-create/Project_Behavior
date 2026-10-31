@@ -885,6 +885,37 @@ for every character; an old character file's `pack.clash` is ignored.
 Solo and Battle share this path. A clash needs two fielded sides, so Solo
 (with only the cursor as an opponent) never finds a pair.
 
+### World Physics: Dust & Air (`laser/worldfx.py`)
+
+The dust, rocks and air the ARENA kicks up. It belongs to the world, not to
+any fighter: `worldfx.step` runs once per tick after both sides moved and only
+reads the fighters, so Solo and Battle run the same code (a clash needs two
+sides, so clash dust is Battle-only; everything else plays in Solo too).
+
+* **Ground:** the screen is a slope seen from its foot. The position-scale grid
+  sets size and pace; a particle has a ground point plus a height drawn
+  straight up the screen. Ground rings are ellipses, `flat_near` (nearest) to
+  `flat_far` (farthest): rounder the farther away. Screen edges are the walls.
+* **Engine:** rocks, pebbles and sparks are closed-form; fine dust is
+  simulated and relaxes toward the local air velocity
+  (`v = u + (v - u) e^(-dt/tau)`); air = blast (push, then suck-back), wake
+  and shed curls, jump column, ground / wall jets. Size grows with the cube
+  root of energy.
+* **Events:** dash (on-screen speed over `dash.speed`), leap and hop-back
+  take-off / landing, knockback launch / skid / crater (a slide of 2x
+  `slam.min_speed` that stops), wall slam (a slide that hits a screen edge,
+  `motion.check_walls`), clash (`clash._spawn_fx`), blast (a technique shot
+  detonating, damage >= `blast.min_damage`), sound barrier (on-screen speed
+  over `sonic.mach`; knockback slides only with `sonic.knockback`).
+
+FX Studio's **🌪 Dust & Air** page edits the shared settings with a live
+preview and saves `world_physics.json` (format `pb_world_physics`); drop it
+like an FX file (`update_game.bat` files it as `characters/world_physics.json`).
+A character's **Character FX → Dust & Air** section can give it its own copy
+of any section (saved in its FX file as `world_physics`), used for the events
+that fighter causes. `tools/fx/check_parity.py` keeps the Studio's tables in
+step with the game.
+
 ---
 
 ## 14. Tag Pairs and the Switch Action (`laser/tag.py`)

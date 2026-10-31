@@ -94,6 +94,8 @@ laser/
   clash.py           clash interaction (world physics): opposing FX that touch play their pair
                      rule; world clash table (characters/world_clash.json)
   clashfx.py         clash explosion library (19 effects, derive() variations)
+  worldfx.py         world physics "Dust & Air": dust / rocks / air kicked up by dashes, jumps,
+                     slams, clashes, blasts, the sound barrier (characters/world_physics.json)
   swordfx.py         sword techniques: hand-drawn renderer for the FX Kit "technique" prim
   strikefx.py        ki barrage + impact punch: hand-drawn "technique" styles (with swordfx.py)
   kickfx.py          roundhouse / thrust / axe / spinning / rising kicks (with swordfx.py, strikefx.py)
