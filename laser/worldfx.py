@@ -145,21 +145,66 @@ def normalize_override(c):
 WORLD = normalize({})
 
 
-def load_world(root_dir):
+# The file WORLD came from and its last-seen stamp (watch_world).
+_SRC = {"root": None, "stamp": None, "next": 0}
+WATCH_TICKS = 60      # re-check characters/world_physics.json about once a second
+
+
+def _stamp(path):
+    import os
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def load_world(root_dir, keep_on_error=False):
     """Read characters/world_physics.json into WORLD (defaults when missing or
-    unreadable).  Called at start-up and on reload (assets)."""
+    unreadable).  Called at start-up (assets), on F5 (World.reload_characters)
+    and whenever the file changes (watch_world).  keep_on_error: a file that
+    can't be parsed right now (caught mid-save) keeps the current settings
+    and is tried again on the next check."""
     import json
     import os
     global WORLD
     path = os.path.join(root_dir, "characters", FILE)
+    _SRC["root"] = root_dir
+    stamp = _stamp(path)
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
             obj = json.load(f)
-    except (OSError, ValueError):
+    except OSError:
         WORLD = normalize({})
+        _SRC["stamp"] = stamp
+        return WORLD
+    except ValueError:
+        if not keep_on_error:
+            WORLD = normalize({})
+            _SRC["stamp"] = stamp
         return WORLD
     WORLD = normalize(obj if isinstance(obj, dict) and obj.get("format") == FORMAT else {})
+    _SRC["stamp"] = stamp
     return WORLD
+
+
+def watch_world():
+    """FX Studio's Dust & Air page writes characters/world_physics.json on
+    every edit (linked game folder): pick a change up while the game runs.
+    Cheap: one stat() about once a second.  Returns True when it reloaded."""
+    import os
+    root = _SRC["root"]
+    if root is None:
+        return False
+    _SRC["next"] -= 1
+    if _SRC["next"] > 0:
+        return False
+    _SRC["next"] = WATCH_TICKS
+    stamp = _stamp(os.path.join(root, "characters", FILE))
+    if stamp == _SRC["stamp"]:
+        return False
+    load_world(root, keep_on_error=True)
+    return True
 
 
 def cfg(fig, name):
@@ -603,6 +648,10 @@ class WorldFx:
     def step(self, world):
         self.sw, self.sh = max(1, int(world.screen_w)), max(1, int(world.screen_h))
         self.t += 1
+        try:
+            watch_world()
+        except Exception:
+            pass
         g = WORLD["ground"]
         if not g["enabled"]:
             if self.dust or self.src or self.bursts or self.rings:

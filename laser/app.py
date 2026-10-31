@@ -290,13 +290,18 @@ class World:
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
             for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg", "_target_cfg",
-                         "_ua_cfg", "_glide_cache"):
+                         "_ua_cfg", "_glide_cache", "_wphys_cfg"):
                 if m is not None and hasattr(m, attr):
                     try:
                         delattr(m, attr)
                     except AttributeError:
                         pass
         _chars.load_packages(root, self.assets.bundles, pkgs)
+        # World physics (Dust & Air): the shared settings file, re-read too.
+        try:
+            worldfx.load_world(root)
+        except Exception:
+            pass
         names = {p[0] for p in pkgs}
         for side in self.sides:
             for fig in side.figures:

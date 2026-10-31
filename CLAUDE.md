@@ -83,7 +83,7 @@ laser/worldfx.py
 ### World Physics: Dust & Air
 - `laser/worldfx.py` (Studio port `tools/fx/studio/worldfx.js`, page "🌪 Dust & Air"): world-owned dust / rocks / air. `worldfx.step(world)` runs once per tick after both sides (read-only on fighters); paint layers `paint_ground` (under fighters) / `paint_air` (over). Hybrid engine: closed-form rocks/sparks, simulated dust riding analytic air sources (blast, wake, curl, column, jet)
 - Ground = slope: pscale grid; height z drawn straight up the screen; ground ellipses rounder the farther away (`flat_near` -> `flat_far`); screen edges are walls (`motion.check_walls` -> `note_wall`)
-- Settings: `characters/world_physics.json` (`pb_world_physics`), per-character override `pack.world_physics` (any section). Sound barrier uses on-screen (position-scaled) speed. Hit-stop / shake / impact frames stay with each FX's own settings
+- Settings: `characters/world_physics.json` (`pb_world_physics`), per-character override `pack.world_physics` (any section). The Studio page writes the file directly once the game folder is linked; the game hot-reloads it (`watch_world`, ~1 s) and on F5 (`reload_characters` also clears `_wphys_cfg`). Sound barrier uses on-screen (position-scaled) speed. Hit-stop / shake / impact frames stay with each FX's own settings
 
 ### Combat System
 - Dashslash and arcslash chosen 50/50 per attack; follow-ups also 50/50 with 0.2s type lock; 3-hit cap with ~1s cooldown

@@ -4084,7 +4084,68 @@ function buildWorldClashProps(d) {
 // Character FX page ("Dust & Air"), saved in its FX file.
 var PHYS_KEY = "pbfxstudio.v1.worldphysics";
 var PHYS = WORLDFX.normalize(lsGet(PHYS_KEY) || {});
-function physSave() { lsSet(PHYS_KEY, PHYS); }
+function physSave() { lsSet(PHYS_KEY, PHYS); physWriteSoon(); }
+// Linked game folder: picked once ("Link game folder…"), its handle kept in
+// IndexedDB, then every edit writes characters/world_physics.json straight
+// into the game (debounced); the running game re-reads it within about a
+// second (laser/worldfx.py watch).  Chrome / Edge only, opened from disk.
+var PHYS_DIR_KEY = "pbfxstudio.v1.worldphysics.dir";
+var PHYS_LINK = {dir: null, ok: false, timer: 0, told: false, err: ""};
+function physCanLink() { return !!window.showDirectoryPicker && !inFrame(); }
+function physLinkLoad() {
+  return kvOpen().then(function () {
+    var h = STORE.cache[PHYS_DIR_KEY];
+    if (!h || typeof h.getFileHandle !== "function") return;
+    PHYS_LINK.dir = h;
+    return h.queryPermission({mode: "readwrite"}).then(function (p) { PHYS_LINK.ok = p === "granted"; }, function () {});
+  }).then(function () { if (S.physPage) buildProps(); }, function () {});
+}
+function physLinkStore(h) {
+  STORE.cache[PHYS_DIR_KEY] = h;
+  try { if (STORE.db) STORE.db.transaction("kv", "readwrite").objectStore("kv").put(h, PHYS_DIR_KEY); } catch (e) {}
+}
+// The folder picked may be the game folder (it has characters/) or
+// characters/ itself.
+function physLinkPick() {
+  window.showDirectoryPicker({mode: "readwrite", id: "pbgame"}).then(function (dir) {
+    return dir.getDirectoryHandle("characters").then(function (c) { return c; }, function () {
+      if (dir.name === "characters") return dir;
+      throw new Error("pick the game folder (the one with characters/ in it)");
+    });
+  }).then(function (chars) {
+    PHYS_LINK.dir = chars; PHYS_LINK.ok = true; PHYS_LINK.err = ""; physLinkStore(chars);
+    toast("Linked: edits now save to characters/world_physics.json"); physWrite(); buildProps();
+  }).catch(function (e) { if (e && e.name !== "AbortError") toast("Could not link it (" + e.message + ")", 5000); });
+}
+// Re-allow a remembered folder after a browser restart (needs a click).
+function physLinkAllow() {
+  if (!PHYS_LINK.dir) return physLinkPick();
+  PHYS_LINK.dir.requestPermission({mode: "readwrite"}).then(function (p) {
+    PHYS_LINK.ok = p === "granted";
+    if (PHYS_LINK.ok) { toast("Linked again"); physWrite(); }
+    buildProps();
+  }, function () { physLinkPick(); });
+}
+function physWriteSoon() {
+  if (!PHYS_LINK.dir || !PHYS_LINK.ok) return;
+  clearTimeout(PHYS_LINK.timer);
+  PHYS_LINK.timer = setTimeout(physWrite, 300);
+}
+function physWrite() {
+  if (!PHYS_LINK.dir || !PHYS_LINK.ok) return;
+  var txt = JSON.stringify(PHYS, null, 1);
+  PHYS_LINK.dir.getFileHandle("world_physics.json", {create: true})
+    .then(function (h) { return h.createWritable(); })
+    .then(function (w) { return w.write(txt).then(function () { return w.close(); }); })
+    .then(function () {
+      PHYS_LINK.err = "";
+      if (!PHYS_LINK.told) { PHYS_LINK.told = true; toast("Saved characters/world_physics.json — the game picks it up in about a second"); }
+    }, function (e) {
+      PHYS_LINK.ok = false; PHYS_LINK.err = e.message || String(e);
+      toast("Could not save world_physics.json (" + PHYS_LINK.err + "). Click Re-allow on the Dust & Air page.", 6000);
+      if (S.physPage) buildProps();
+    });
+}
 function openPhysPage(on) {
   S.physPage = on;
   if (on && S.worldPage) { S.worldPage = false; $("bWorld").classList.remove("primary"); }
@@ -4228,6 +4289,22 @@ function physPreview(parent, cfgOf) {
 }
 function physFileSection(d) {
   var s = sec(d, "File", "p-file", "", "act");
+  if (lsGet("pbfxstudio.v2.psec.p-file") == null) s.open = true;
+  var st = document.createElement("div"); st.className = "wpvcap";
+  st.textContent = !physCanLink() ? "This browser can't write into the game folder: use Save world_physics.json and put it in characters/." :
+    !PHYS_LINK.dir ? "Not linked: edits stay in this browser until the game folder is linked." :
+    PHYS_LINK.ok ? "Linked: every edit saves to " + PHYS_LINK.dir.name + "/world_physics.json; the game picks it up in about a second." :
+    "Linked folder needs permission again" + (PHYS_LINK.err ? " (" + PHYS_LINK.err + ")" : "") + ": click Re-allow.";
+  s.appendChild(st);
+  var lrow = document.createElement("div"); lrow.className = "row"; s.appendChild(lrow);
+  if (physCanLink()) {
+    var lb = document.createElement("button");
+    lb.textContent = !PHYS_LINK.dir ? "Link game folder…" : PHYS_LINK.ok ? "Change linked folder…" : "Re-allow";
+    lb.className = PHYS_LINK.ok ? "" : "primary";
+    lb.title = "Pick the game folder (the one with characters/ in it). Edits on this page then save straight into characters/world_physics.json.";
+    lb.onclick = PHYS_LINK.dir && !PHYS_LINK.ok ? physLinkAllow : physLinkPick;
+    lrow.appendChild(lb);
+  }
   var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
   [["Save world_physics.json", function () { download("world_physics.json", JSON.stringify(PHYS, null, 1), "characters/"); }],
    ["Open…", function () {
@@ -6000,6 +6077,7 @@ $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.file
 $("bSave").onclick = saveFx;
 $("bWorld").onclick = function () { openWorldPage(!S.worldPage); };
 $("bPhys").onclick = function () { openPhysPage(!S.physPage); };
+physLinkLoad();
 $("contFx").onchange = function () {
   if (!C) { this.checked = false; return; }
   cfgOf(S.action).fx_continuous = this.checked; save(); buildProps();
