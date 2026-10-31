@@ -22,32 +22,115 @@
 (function () {
 "use strict";
 var WP_FORMAT = "pb_world_physics";
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic"];
+var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
 var WP_DEFAULTS = {
-  "ground": {"enabled": true, "flat_near": 0.25, "flat_far": 0.55, "max_dust": 420, "tau_ms": 140, "ink": "#1b1712"},
+  "ground": {"enabled": true, "flat_near": 0.25, "flat_far": 0.55, "max_dust": 420, "tau_ms": 140, "ink":
+            "#1b1712", "style": "cel"},
   "dash": {"enabled": true, "speed": 380, "rate": 40, "inherit": 40, "size": 100, "life_ms": 700,
-           "start_burst": true, "wake": true, "wake_pct": 100, "curls": true, "grit": 6, "color": "#d9c4a3"},
-  "jump": {"enabled": true, "dust": 14, "pebbles": 8, "ring": true, "column": true, "land": true,
-           "hops": true, "size": 100, "color": "#d9c4a3"},
+          "start_burst": true, "wake": true, "wake_pct": 100, "curls": true, "grit": 6, "color": "#d9c4a3",
+          "style": "default"},
+  "jump": {"enabled": true, "dust": 14, "pebbles": 8, "ring": true, "column": true, "land": true, "hops":
+          true, "size": 100, "color": "#d9c4a3", "style": "default"},
   "slam": {"enabled": true, "min_speed": 7, "launch": true, "skid": true, "crater": true, "wall": true,
-           "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62"},
+          "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62", "style":
+          "default"},
   "clash": {"enabled": true, "sheet": true, "dust": 14, "sparks": 16, "ground_jet": true, "size": 100,
-            "color": "#e6dccb", "spark_color": "#ffb347"},
-  "blast": {"enabled": true, "min_damage": 4, "strength": 100, "suck_back": true, "reach": 80,
-            "dust": 18, "ring": true, "size": 100, "color": "#d9c4a3"},
-  "sonic": {"enabled": true, "mach": 1100, "knockback": false, "cone": true, "vapor": true,
-            "boom": true, "sweep": true, "color": "#e8f2ff"}
+           "color": "#e6dccb", "spark_color": "#ffb347", "style": "default"},
+  "blast": {"enabled": true, "min_damage": 4, "strength": 100, "suck_back": true, "reach": 80, "dust": 18,
+           "ring": true, "size": 100, "color": "#d9c4a3", "style": "default"},
+  "sonic": {"enabled": true, "mach": 1100, "knockback": false, "cone": true, "vapor": true, "boom": true,
+           "sweep": true, "color": "#e8f2ff", "style": "default"},
+  "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
+               "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
+               "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
+               "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+  "smoke_billow": {"tones": 3, "shadow": 38, "light": 50, "light_dir": 225, "outline": 2.5, "ink": "#1b1712",
+                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.4, "grow_at": 0.5, "shrink":
+                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 18, "tau_pct": 100,
+                  "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+  "smoke_ink": {"tones": 2, "shadow": 45, "light": 50, "light_dir": 225, "outline": 0.0, "ink": "#1b1712",
+               "tint": "#3a3640", "tint_mix": 35, "opacity": 85, "grow": 2.6, "grow_at": 0.6, "shrink":
+               "smooth", "steps": 3, "hold": 1, "fade": 60, "life_pct": 100, "rise": 8, "tau_pct": 100,
+               "ground_keep": 0.9, "wobble": 1.5, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+  "smoke_swirl": {"tones": 2, "shadow": 30, "light": 50, "light_dir": 225, "outline": 1.5, "ink": "#1b1712",
+                 "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 1.8, "grow_at": 0.6, "shrink":
+                 "smooth", "steps": 3, "hold": 1, "fade": 40, "life_pct": 100, "rise": 20, "tau_pct": 100,
+                 "ground_keep": 0.9, "wobble": 2, "wobble_hz": 1.0, "spread_pct": 100, "lift_pct": 100},
+  "smoke_flat": {"tones": 1, "shadow": 30, "light": 50, "light_dir": 225, "outline": 3.0, "ink": "#1b1712",
+                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
+                "steps", "steps": 2, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
+                "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+  "smoke_ring": {"tones": 1, "shadow": 30, "light": 50, "light_dir": 225, "outline": 1.5, "ink": "#1b1712",
+                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 3.0, "grow_at": 0.9, "shrink":
+                "smooth", "steps": 3, "hold": 1, "fade": 50, "life_pct": 100, "rise": 10, "tau_pct": 100,
+                "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+  "smoke_stepped": {"tones": 2, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
+                   "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
+                   "erode", "steps": 4, "hold": 2, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
+                   "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100}
 };
 var WP_RANGES = {
   "ground": {"flat_near": [0.05, 1.0], "flat_far": [0.05, 1.0], "max_dust": [0, 1500], "tau_ms": [20, 600]},
-  "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100, 3000],
-           "wake_pct": [0, 300], "grit": [0, 60]},
+  "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100,
+          3000], "wake_pct": [0, 300], "grit": [0, 60]},
   "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400]},
   "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400]},
   "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
-  "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120],
-            "size": [10, 400]},
-  "sonic": {"mach": [100, 6000]}
+  "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size": [10,
+           400]},
+  "sonic": {"mach": [100, 6000]},
+  "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
+               8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+               "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+               "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+               "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_billow": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                  0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                  [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0,
+                  10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_ink": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
+               8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+               "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+               "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+               "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_swirl": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                 [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+                 "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+                 "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+                 "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_flat": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
+                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+                "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+                "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_ring": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
+                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+                "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+                "spread_pct": [0, 400], "lift_pct": [0, 400]},
+  "smoke_stepped": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                   [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                   0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                   [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0,
+                   10], "spread_pct": [0, 400], "lift_pct": [0, 400]}
+};
+var WP_ENUMS = {
+  "smoke_cel": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_billow": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_ink": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_swirl": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_flat": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_ring": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "smoke_stepped": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "ground": {"style": ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "dash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "jump": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "slam": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "clash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "blast": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+  "sonic": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]}
 };
 // Labels and hover help for the Studio page: [key, label, help].
 var WP_FIELDS = {
@@ -56,7 +139,8 @@ var WP_FIELDS = {
            ["flat_far", "Ground flatness, far", "The same at the farthest spot (top-right). Higher than near = rounder the farther away (the slope rises toward your eye)."],
            ["max_dust", "Most dust puffs", "Cap on simulated dust puffs on screen; the oldest go first. Lower it if the game slows."],
            ["tau_ms", "Dust response (ms)", "How fast dust takes up the speed of the air round it: low = rides every gust, high = keeps its own momentum."],
-           ["ink", "Ink outline", "The outline colour round dust clouds, rocks and rings."]],
+           ["ink", "Ink outline", "The outline colour round rocks and rings (each smoke style has its own outline colour)."],
+           ["style", "Smoke style", "The look of every dust / smoke puff, unless an event below picks its own. Edit each style under Smoke styles."]],
   dash: [["enabled", "On", "Dust kicked up by fast movement."],
          ["speed", "Speed threshold (px/s)", "On-screen speed above which a fighter kicks up dust."],
          ["rate", "Puffs per second", "At the threshold speed; up to 3x faster above it."],
@@ -67,12 +151,12 @@ var WP_FIELDS = {
          ["wake_pct", "Wake strength %", ""],
          ["curls", "Wake curls", "Curls of air shed alternately from either side of the body."],
          ["grit", "Grit per second", "Small pebbles flicked back by the feet."],
-         ["color", "Dust colour", ""]],
+         ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
   jump: [["enabled", "On", "Leaps (Movement leap) and hop-backs."],
          ["dust", "Dust puffs", ""], ["pebbles", "Pebbles", "Thrown steeply (55-75 degrees) on take-off."],
          ["ring", "Ground ring", ""], ["column", "Air column", "Air drawn up behind the jumper lifts the dust after them."],
          ["land", "Landing puff", ""], ["hops", "Hop-backs too", "A hop-back makes a half-size take-off and landing."],
-         ["size", "Size %", ""], ["color", "Dust colour", ""]],
+         ["size", "Size %", ""], ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
   slam: [["enabled", "On", "Knockback slides: launch, skid, crater, wall."],
          ["min_speed", "Minimum knockback (px/tick)", "Slower slides make no slam dust. A crater needs twice this."],
          ["launch", "Launch burst", "Dust and rocks thrown back where the hit lands."],
@@ -80,19 +164,19 @@ var WP_FIELDS = {
          ["crater", "Crater", "Where a heavy slide stops: scorched dish, rim of rising dust, rocks."],
          ["wall", "Wall slam", "A slide that hits a screen edge: a dust plane on the wall."],
          ["dust", "Dust puffs", ""], ["rocks", "Rocks", ""], ["size", "Size %", ""],
-         ["color", "Dust colour", ""], ["rock_color", "Rock colour", ""]],
+         ["color", "Dust colour", ""], ["rock_color", "Rock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
   clash: [["enabled", "On", "When two opposing effects clash (World Clash)."],
           ["sheet", "Splash sheet", "Dust thrown sideways to the hit, both ways."],
           ["dust", "Dust puffs", ""], ["sparks", "Sparks", ""],
           ["ground_jet", "Ground jet", "The downward half of the splash reaches the floor a beat later and runs out along it."],
-          ["size", "Size %", ""], ["color", "Dust colour", ""], ["spark_color", "Spark colour", ""]],
+          ["size", "Size %", ""], ["color", "Dust colour", ""], ["spark_color", "Spark colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
   blast: [["enabled", "On", "Where a technique's shot detonates (ki blasts, charged blasts, rockets...)."],
           ["min_damage", "Minimum damage", "Weaker shots make no blast air."],
           ["strength", "Wind strength %", ""],
           ["suck_back", "Suck-back", "After the push, the air pulls back toward the centre."],
           ["reach", "Reach (px at damage 10)", "Grows with the cube root of the damage."],
           ["dust", "Dust puffs", ""], ["ring", "Ground ring", ""], ["size", "Size %", ""],
-          ["color", "Dust colour", ""]],
+          ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
   sonic: [["enabled", "On", "Breaking the sound barrier."],
           ["mach", "Sound speed (px/s)", "On-screen speed: near fighters (bottom-left) move faster on screen, so they break it more easily."],
           ["knockback", "Knockback slides count", "Off: only a fighter's own movement breaks the barrier."],
@@ -100,10 +184,39 @@ var WP_FIELDS = {
           ["vapor", "Vapour collar", "Flickers just behind the nose near Mach 1."],
           ["boom", "Barrier ring", "A ring round the body the moment it crosses Mach 1."],
           ["sweep", "Ground sweep", "Where the cone meets the floor, the air pushes out and pulls back."],
-          ["color", "Shock colour", ""]]
+          ["color", "Shock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]]
 };
+var SMOKE_FIELDS = [
+  ["tones", "Tones", "Shading bands: 1 = flat, 2 = shadow + base, 3 = shadow + base + highlight."],
+  ["shadow", "Shadow depth %", "How much darker the shadow tone is."],
+  ["light", "Highlight %", "How much lighter the highlight is."],
+  ["light_dir", "Light from (deg)", "Where the light comes from: 0 = right, 90 = below, 180 = left, 225 = upper left, 270 = above."],
+  ["outline", "Outline width", "Ink line round the smoke (0 = none)."],
+  ["ink", "Outline colour", ""],
+  ["tint", "Tint colour", "Mixed into the event's dust colour."],
+  ["tint_mix", "Tint %", "0 = the event's colour as is."],
+  ["opacity", "Opacity %", ""],
+  ["grow", "Peak size (x)", "How big a puff grows, from its spawn size."],
+  ["grow_at", "Peak at (life)", "When it reaches peak size, as a share of its life (0.6 = 60 %)."],
+  ["shrink", "Shrink", "After the peak: steps = snaps smaller in steps, smooth, erode = keeps its size and is eaten away in steps, none."],
+  ["steps", "Steps", "Steps for the step shrink / erode."],
+  ["hold", "Held frames", "1 = moves every tick (on ones), 2 = on twos, 3 = on threes: the held-frame anime cadence."],
+  ["fade", "Fade out %", "Share of the end of its life spent fading (0 = pops out)."],
+  ["life_pct", "Life %", "Scales how long puffs last."],
+  ["rise", "Rise (buoyancy)", "Up-drift per tick (negative sinks); crater rims and clash sheets keep their own."],
+  ["tau_pct", "Air response %", "How fast it takes up the wind: low = rides every gust, high = keeps its own momentum."],
+  ["ground_keep", "Ground slide", "Speed kept per tick while touching the ground (1 = slides forever, 0 = stops dead)."],
+  ["wobble", "Wobble (px)", "Turbulent sway, drawn only."],
+  ["wobble_hz", "Wobble speed (Hz)", ""],
+  ["spread_pct", "Spread %", "Scales how fast puffs fly out sideways."],
+  ["lift_pct", "Lift %", "Scales how fast puffs launch upward."]
+];
+var WP_STYLE_TITLES = {cel: "Cel puff", billow: "Billow / cauliflower", ink: "Ink wash (sumi)", swirl: "Swirl / curl",
+  flat: "Flat graphic", ring: "Ring puff", stepped: "Stepped / dithered"};
+WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS; });
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
   slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier"};
+WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;
 // Position grids (laser/config.py POSITION_SCALE_* / SPEED_SCALE_*): TL, TR, BL, BR.
@@ -114,10 +227,11 @@ var TELEPORT_PX = 40;
 function hex(v, d) { return (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)) ? v.toLowerCase() : d; }
 function normalizeSection(name, s) {
   s = (s && typeof s === "object") ? s : {};
-  var dflt = WP_DEFAULTS[name], rng = WP_RANGES[name] || {}, out = {};
+  var dflt = WP_DEFAULTS[name], rng = WP_RANGES[name] || {}, en = WP_ENUMS[name] || {}, out = {};
   Object.keys(dflt).forEach(function (k) {
     var d = dflt[k], v = s.hasOwnProperty(k) ? s[k] : d;
     if (typeof d === "boolean") out[k] = !!v;
+    else if (en[k]) out[k] = en[k].indexOf(v) >= 0 ? v : d;
     else if (typeof d === "string") out[k] = hex(v, d);
     else {
       v = parseFloat(v); if (!isFinite(v)) v = d;
@@ -147,6 +261,11 @@ function bil(xf, yf, g) {
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function escale(e) { return Math.max(0.45, Math.min(2.6, Math.pow(Math.max(0, e), 1 / 3))); }
 function rgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+function mix(c, tint, k) {
+  if (k <= 0) return c;
+  var t = rgb(tint);
+  return [0, 1, 2].map(function (i) { return Math.round(c[i] + (t[i] - c[i]) * k); });
+}
 function css(c, a) { return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + (a == null ? 1 : a) + ")"; }
 
 // ---------------------------------------------------------------- air sources
@@ -253,7 +372,19 @@ function Sim(opts) {
 }
 Sim.prototype.reset = function () {
   this.dust = []; this.src = []; this.bursts = []; this.rings = []; this.later = []; this.tracks = new Map(); this.walls = []; this.t = 0;
+  this.cur = this.smokeFor(null, null);
 };
+// (style, its deep-edit profile) for puffs an event section spawns: the
+// section's own style, or the ground's default ("default").
+Sim.prototype.smokeFor = function (fig, sec) {
+  var st = (sec && sec.style) || "default";
+  if (WP_SMOKE_STYLES.indexOf(st) < 0) st = this.cfg(fig, "ground").style;
+  if (WP_SMOKE_STYLES.indexOf(st) < 0) st = "cel";
+  return [st, this.cfg(fig, "smoke_" + st)];
+};
+Sim.prototype.use = function (fig, sec) { this.cur = this.smokeFor(fig, sec); };
+// Only this one smoke style, whatever the settings say (the style swatch).
+Sim.prototype.forceStyle = null;
 Sim.prototype.cfg = function (fig, name) {
   if (fig && fig.wp && fig.wp[name]) return fig.wp[name];
   return this.world[name];
@@ -266,9 +397,14 @@ Sim.prototype.flat = function (x, y) {
 };
 Sim.prototype.addSrc = function (s) { if (this.src.length >= 24) this.src.shift(); this.src.push(s); return s; };
 Sim.prototype.addRing = function (r) { if (this.rings.length >= 40) this.rings.shift(); this.rings.push(r); };
+// Record: x y z vx vy vz age life r0 tau rgb grav style prof seed keep.
 Sim.prototype.puff = function (x, y, z, vx, vy, vz, life, r0, col, tau, grav) {
-  var g = this.world.ground;
-  this.dust.push([x, y, z, vx, vy, vz, 0, Math.max(4, life), r0, Math.max(1, tau == null ? g.tau_ms / TICK_MS : tau), col, grav == null ? -0.012 : grav]);
+  var g = this.world.ground, cur = this.forceStyle ? [this.forceStyle, this.cfg(null, "smoke_" + this.forceStyle)] : this.cur;
+  var st = cur[0], pr = cur[1], sp = pr.spread_pct / 100, lf = pr.lift_pct / 100;
+  tau = (tau == null ? g.tau_ms / TICK_MS : tau) * pr.tau_pct / 100;
+  if (grav == null) grav = -pr.rise / 1000;
+  this.dust.push([x, y, z, vx * sp, vy * sp, vz * lf, 0, Math.max(4, life * pr.life_pct / 100), r0, Math.max(1, tau),
+    mix(col, pr.tint, pr.tint_mix / 100), grav, st, pr, Math.random() * 6.283, pr.ground_keep]);
 };
 Sim.prototype.puffs = function (x, y, n, sp, col, size, lifeMs, az, spread, up, r0, flat) {
   if (n <= 0) return;
@@ -338,6 +474,7 @@ Sim.prototype.observe = function (fig) {
 };
 Sim.prototype.leapEvents = function (fig, tr, lp, fx, fy, ps) {
   var c = this.cfg(fig, "jump"), live = lp && !lp.done && lp.h > 0;
+  this.use(fig, c);
   if (live && tr.leap !== lp) {
     tr.leap = lp; tr.leap_n = 0; tr.leap_t = Math.max(1, Math.round((lp.t1 - lp.t0) / TICK_MS));
     if (c.enabled) this.takeoff(fig, fx, fy, ps, 1, c);
@@ -349,6 +486,7 @@ Sim.prototype.leapEvents = function (fig, tr, lp, fx, fy, ps) {
 };
 Sim.prototype.hopEvents = function (fig, tr, fx, fy, ps) {
   var hop = (fig.hop_ticks || 0) > 0, c = this.cfg(fig, "jump");
+  this.use(fig, c);
   if (hop && !tr.hop && c.enabled && c.hops) this.takeoff(fig, fx, fy, ps, 0.5, c);
   else if (tr.hop && !hop && c.enabled && c.hops && c.land) this.landing(fig, fx, fy, ps, 0.5, c);
   tr.hop = hop;
@@ -369,6 +507,7 @@ Sim.prototype.landing = function (fig, x, y, ps, k, c) {
 };
 Sim.prototype.knockEvents = function (fig, tr, m, fx, fy, ps, jump) {
   var c = this.cfg(fig, "slam"), b = !!m.bouncing, back;
+  this.use(fig, c);
   if (b && !tr.bouncing) {
     tr.v0 = Math.hypot(m.bounce_vx, m.bounce_vy);
     if (c.enabled && c.launch && tr.v0 >= c.min_speed) {
@@ -402,6 +541,7 @@ Sim.prototype.crater = function (fig, x, y, ps, s, c) {
 };
 Sim.prototype.wall = function (fig, edge, x, y, sp) {
   var c = this.cfg(fig, "slam");
+  this.use(fig, c);
   if (!(c.enabled && c.wall) || sp < c.min_speed * 0.6) return;
   var ps = this.ps(x, y), s = escale(Math.pow(sp / 15, 2)) * c.size / 100, col = rgb(c.color);
   var o = {l: [1, 0], r: [-1, 0], t: [0, 1], b: [0, -1]}[edge], ox = o[0], oy = o[1];
@@ -419,6 +559,7 @@ Sim.prototype.wall = function (fig, edge, x, y, sp) {
 };
 Sim.prototype.dashEvents = function (fig, tr, fx, fy, ps, z, dx, dy, sp, hh) {
   var c = this.cfg(fig, "dash");
+  this.use(fig, c);
   if (!c.enabled) { if (tr.wake) { tr.wake.live = false; tr.wake = null; } tr.fast = false; return; }
   var thr = c.speed, fast = sp >= thr && z < 2, col = rgb(c.color), sz = c.size / 100, vx = dx, vy = dy, R = Math.random;
   if (fast) {
@@ -463,6 +604,7 @@ Sim.prototype.dashEvents = function (fig, tr, fx, fy, ps, z, dx, dy, sp, hh) {
 };
 Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   var c = this.cfg(fig, "sonic"), prev = tr.mach;
+  this.use(fig, c);
   if (!c.enabled || ((m.bouncing || m.bounce_ending) && !c.knockback)) { tr.mach = 0; return; }
   var M = sp / Math.max(1, c.mach); tr.mach = M;
   if (M >= 1 && prev < 1 && c.boom) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps));
@@ -479,6 +621,7 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
 // owners = preview fighters (their feet give the floor).
 Sim.prototype.clash = function (x, y, angle, kb, owners) {
   var own = (owners || []).filter(Boolean), c = this.cfg(own[0], "clash");
+  this.use(own[0], c);
   if (!(c.enabled && this.world.ground.enabled)) return;
   var ps = this.ps(x, y), s = escale(Math.max(0.05, kb / 100)) * c.size / 100, col = rgb(c.color), perp = angle + 90, self = this;
   var gy = null;
@@ -492,10 +635,11 @@ Sim.prototype.clash = function (x, y, angle, kb, owners) {
   this.addRing(new Ring("boom", x, y, 12, 36 * s * ps, 1, null, [255, 255, 255], 4 * ps));
   if (c.ground_jet && gy != null && gy > y + 2) {
     var delay = Math.max(1, Math.floor((gy - y) / Math.max(1, 4.5 * ps * s)));
-    this.later.push([this.t + delay, this.clashFloor, [x, gy, s, c]]);
+    this.later.push([this.t + delay, this.clashFloor, [x, gy, s, c, this.cur]]);
   }
 };
-Sim.prototype.clashFloor = function (x, y, s, c) {
+Sim.prototype.clashFloor = function (x, y, s, c, cur) {
+  if (cur) this.cur = cur;
   var ps = this.ps(x, y), fl = this.flat(x, y);
   this.addRing(new Ring("ground", x, y, 18, 50 * s * ps, fl, null, null, 5 * ps * s));
   this.addSrc(new Jet(x, y, 2.0 * ps * s, 3.0 * ps, 10 * ps, fl));
@@ -516,6 +660,7 @@ Sim.prototype.sparks2d = function (x, y, az, n, s, col, floor) {
 // A technique shot detonating at (x, y) with this damage; fig = its owner.
 Sim.prototype.blast = function (x, y, dmg, fig) {
   var c = this.cfg(fig, "blast");
+  this.use(fig, c);
   if (!c.enabled || dmg < c.min_damage) return;
   var ps = this.ps(x, y), s = escale(dmg / 10) * c.size / 100, fl = this.flat(x, y);
   this.addSrc(new Blast(x, y, s, ps, c.reach, c.strength / 100, c.suck_back, fl));
@@ -545,7 +690,7 @@ Sim.prototype.move = function () {
     var k = Math.exp(-ss / d[9]);
     d[3] = ux + (d[3] - ux) * k; d[4] = uy + (d[4] - uy) * k; d[5] = uz + (d[5] - uz) * k - d[11] * ss;
     d[0] = x + d[3] * ss; d[1] = y + d[4] * ss; z = z + d[5] * ss;
-    if (z < 0) { z = 0; if (d[5] < 0) d[5] = 0; d[3] *= 0.9; d[4] *= 0.9; }
+    if (z < 0) { z = 0; if (d[5] < 0) d[5] = 0; d[3] *= d[15]; d[4] *= d[15]; }
     d[2] = z; d[6] += ss;
     if (d[6] < d[7] && d[0] > -50 && d[0] < this.sw + 50 && d[1] > -50 && d[1] < this.sh + 50) live.push(d);
   }
@@ -660,39 +805,152 @@ Sim.prototype.sonic = function (g, tr) {
   }
   g.restore();
 };
-Sim.prototype.paintDust = function (g, ink) {
-  var items = [];
-  for (var i = 0; i < this.dust.length; i++) {
-    var d = this.dust[i], u = d[6] / d[7], gr;
-    if (u < 0.6) gr = 1 + (1 - Math.pow(1 - u / 0.6, 2));
-    else gr = 2 * (1 - (Math.floor((u - 0.6) / 0.4 * 3) + 1) / 4);
-    var r = d[8] * gr * this.ps(d[0], d[1]) * 0.5;
-    if (r < 1) continue;
-    items.push([d[0], d[1] - d[2], Math.min(60, Math.round(r)), d[10]]);
+// ---------------------------------------------------------------- anime smoke
+// (size factor, erosion 0..1, opacity) of a puff at this age under its
+// style's Life settings, or null once it is gone (laser/worldfx.py smoke_look).
+function smokeLook(pr, age, life) {
+  var hold = Math.max(1, Math.floor(pr.hold));
+  age = Math.floor(age / hold) * hold;
+  var u = age / life;
+  if (u >= 1) return null;
+  var gm = pr.grow, ga = pr.grow_at, ero = 0, g;
+  if (u < ga) g = 1 + (gm - 1) * (1 - Math.pow(1 - u / ga, 2));
+  else {
+    var v = (u - ga) / Math.max(1e-6, 1 - ga), n = Math.max(1, Math.floor(pr.steps));
+    if (pr.shrink === "smooth") g = gm * (1 - v);
+    else if (pr.shrink === "steps") g = gm * (1 - Math.floor(v * n) / n);
+    else if (pr.shrink === "erode") { g = gm; ero = Math.floor(v * n + 1) / (n + 1); }
+    else g = gm;
   }
-  if (!items.length) return;
+  var a = pr.opacity / 100, f = pr.fade / 100;
+  if (f > 0 && u > 1 - f) a *= Math.max(0, (1 - u) / f);
+  return [g, ero, a];
+}
+var MERGED = {cel: 1, billow: 1, flat: 1, stepped: 1};
+var LOBES = [[0, 0.18, 0.62], [-0.44, 0.12, 0.47], [0.44, 0.14, 0.5], [-0.22, -0.3, 0.46], [0.24, -0.32, 0.42]];
+var BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+var SPRITES = new Map(), DITHER = {};
+function lobes(st, r, seed) {
+  if (st !== "billow") return [[0, 0, r]];
+  var v = Math.floor(seed * 10) % 4, sx = v & 1 ? -1 : 1, k = v & 2 ? 1.08 : 1;
+  return LOBES.map(function (l, i) { return [l[0] * r * sx, l[1] * r, l[2] * r * (i % 2 ? k : 1)]; });
+}
+function shade(c, k) { return c.map(function (v) { return Math.max(0, Math.min(255, Math.floor(v * k))); }); }
+function lift(c, k) { return c.map(function (v) { return Math.floor(v + (255 - v) * k); }); }
+function ditherPattern(g, level) {
+  if (!DITHER[level]) {
+    var cv = document.createElement("canvas"); cv.width = cv.height = 4;
+    var x = cv.getContext("2d"); x.fillStyle = "#000";
+    for (var i = 0; i < 4; i++) for (var j = 0; j < 4; j++) if (BAYER[j][i] < level * 4) x.fillRect(i, j, 1, 1);
+    DITHER[level] = cv;
+  }
+  return g.createPattern(DITHER[level], "repeat");
+}
+// A cached puff sprite {cv, half}: outline = the ink silhouette grown by the
+// outline width, else the shaded fill (laser/worldfx.py _sprite).
+function sprite(st, r, col, pr, ero, seed, outline) {
+  var ow = Math.round(pr.outline * 2) / 2, lvl = ero > 0 ? Math.min(3, Math.floor(ero * 4)) : 0;
+  var vr = st === "billow" ? Math.floor(seed * 10) % 4 : 0, tones = st === "flat" ? 1 : Math.floor(pr.tones);
+  var ldir = Math.round(pr.light_dir / 15) * 15;
+  var key = outline ? ["o", st, r, pr.ink, ow, vr, lvl].join() :
+    ["f", st, r, col.join("."), tones, Math.floor(pr.shadow), Math.floor(pr.light), ldir, vr, lvl, ow].join();
+  var hit = SPRITES.get(key);
+  if (hit) return hit;
+  if (SPRITES.size > 1600) SPRITES.clear();
+  var lob = lobes(st, r, seed), half = Math.floor(r * 1.35 + ow + 3), n = 2 * half;
+  var cv = document.createElement("canvas"); cv.width = cv.height = n;
+  var q = cv.getContext("2d"), c = half;
+  function blobs(fn) { lob.forEach(function (l) { q.beginPath(); fn(l); q.fill(); }); }
+  if (st === "ink") {
+    var dark = shade(col, 1 - pr.shadow / 100), lite = lift(col, pr.light / 100);
+    var gr = q.createRadialGradient(c, c, 0, c, c, r);
+    gr.addColorStop(0, css(dark, 225 / 255)); gr.addColorStop(0.6, css(dark, 170 / 255));
+    if (tones >= 2) gr.addColorStop(0.84, css(lite, 105 / 255));
+    gr.addColorStop(1, css(lite, 0));
+    q.fillStyle = gr; q.beginPath(); q.arc(c, c, r, 0, 2 * Math.PI); q.fill();
+  } else if (outline) {
+    q.fillStyle = pr.ink;
+    blobs(function (l) { q.arc(c + l[0], c + l[1], l[2] + ow, 0, 2 * Math.PI); });
+  } else {
+    var a = ldir * Math.PI / 180, lx = Math.cos(a), ly = Math.sin(a);
+    if (tones >= 2) {
+      q.fillStyle = css(shade(col, 1 - pr.shadow / 100));
+      blobs(function (l) { q.arc(c + l[0], c + l[1], l[2], 0, 2 * Math.PI); });
+      q.fillStyle = css(col);
+      blobs(function (l) { q.arc(c + l[0] + lx * l[2] * 0.14, c + l[1] + ly * l[2] * 0.14, l[2] * 0.86, 0, 2 * Math.PI); });
+    } else {
+      q.fillStyle = css(col);
+      blobs(function (l) { q.arc(c + l[0], c + l[1], l[2], 0, 2 * Math.PI); });
+    }
+    if (tones >= 3 && pr.light > 0) {
+      q.fillStyle = css(lift(col, pr.light / 100));
+      blobs(function (l) { q.ellipse(c + l[0] + lx * l[2] * 0.4, c + l[1] + ly * l[2] * 0.4, l[2] * 0.36, l[2] * 0.3, 0, 0, 2 * Math.PI); });
+    }
+  }
+  if (lvl > 0) { q.globalCompositeOperation = "destination-out"; q.fillStyle = ditherPattern(q, lvl); q.fillRect(0, 0, n, n); }
+  hit = {cv: cv, half: half};
+  SPRITES.set(key, hit);
+  return hit;
+}
+function blit(g, sp, x, y, a) { g.globalAlpha = Math.max(0, Math.min(1, a)); g.drawImage(sp.cv, Math.floor(x - sp.half), Math.floor(y - sp.half)); }
+function swirl(g, x, y, r, col, pr, a, seed, age) {
+  var n = 12, turn = seed + age * 0.07, w = Math.max(1.5, r * 0.32), tones = Math.floor(pr.tones);
+  function path(ox, oy) {
+    g.beginPath();
+    for (var i = 0; i < n; i++) {
+      var f = i / (n - 1), ang = turn + f * 4.4, rr = r * (0.18 + 0.82 * f), px = x + ox + Math.cos(ang) * rr, py = y + oy + Math.sin(ang) * rr * 0.8;
+      if (i) g.lineTo(px, py); else g.moveTo(px, py);
+    }
+  }
+  g.globalAlpha = Math.max(0, Math.min(1, a)); g.lineCap = g.lineJoin = "round";
+  if (pr.outline > 0) { path(0, 0); g.strokeStyle = pr.ink; g.lineWidth = w + 2 * pr.outline; g.stroke(); }
+  path(0, 0); g.strokeStyle = css(tones >= 2 ? shade(col, 1 - pr.shadow / 100) : col); g.lineWidth = w; g.stroke();
+  if (tones >= 2) {
+    var al = pr.light_dir * Math.PI / 180;
+    path(Math.cos(al) * w * 0.25, Math.sin(al) * w * 0.25);
+    g.strokeStyle = css(tones >= 3 ? lift(col, pr.light / 100) : col); g.lineWidth = w * 0.45; g.stroke();
+  }
+}
+function ringPuff(g, x, y, r, col, pr, a) {
+  var t = Math.max(1, r * 0.3);
+  g.globalAlpha = Math.max(0, Math.min(1, a));
+  if (pr.outline > 0) { g.beginPath(); g.ellipse(x, y, r, r * 0.85, 0, 0, 2 * Math.PI); g.strokeStyle = pr.ink; g.lineWidth = t + 2 * pr.outline; g.stroke(); }
+  g.beginPath(); g.ellipse(x, y, r, r * 0.85, 0, 0, 2 * Math.PI); g.strokeStyle = css(col); g.lineWidth = t; g.stroke();
+  if (Math.floor(pr.tones) >= 2) {
+    g.beginPath(); g.ellipse(x, y, r + t * 0.15, r * 0.85 + t * 0.15, 0, 0, 2 * Math.PI);
+    g.strokeStyle = css(lift(col, pr.light / 100)); g.lineWidth = Math.max(1, t * 0.35); g.stroke();
+  }
+}
+// Every dust puff in its own smoke style: outlined styles draw every ink
+// outline first, then every fill, so overlapping puffs merge into one
+// outlined cloud; ink wash, swirl and ring draw one by one on top.
+Sim.prototype.paintDust = function (g, ink) {
+  var merged = [], loose = [];
+  for (var i = 0; i < this.dust.length; i++) {
+    var d = this.dust[i], pr = d[13], look = smokeLook(pr, d[6], d[7]);
+    if (!look) continue;
+    var ps = this.ps(d[0], d[1]), r = d[8] * look[0] * ps * 0.5;
+    if (r < 1) continue;
+    var x = d[0], y = d[1] - d[2];
+    if (pr.wobble > 0) { var ph = d[6] * pr.wobble_hz * 6.283 * TICK_S + d[14]; x += Math.sin(ph) * pr.wobble * ps; y += Math.cos(ph * 0.7) * pr.wobble * ps * 0.5; }
+    var it = [x, y, Math.min(60, Math.round(r)), d[10], d[12], pr, look[1], look[2], d[14], d[6]];
+    (MERGED[d[12]] ? merged : loose).push(it);
+  }
   g.save();
-  // Pass 1: every ink outline; pass 2: every fill (shadow, base, light),
-  // so overlapping puffs merge into one outlined cloud.
-  g.fillStyle = ink;
-  g.beginPath();
-  items.forEach(function (it) { g.moveTo(it[0] + it[2] + 2, it[1]); g.arc(it[0], it[1], it[2] + 2, 0, 2 * Math.PI); });
-  g.fill();
-  items.forEach(function (it) {
-    var x = it[0] - it[2], y = it[1] - it[2], n = 2 * it[2], c = it[3];
-    g.fillStyle = css([Math.floor(c[0] * 0.7), Math.floor(c[1] * 0.7), Math.floor(c[2] * 0.7)]);
-    g.beginPath(); g.arc(x + n / 2, y + n / 2, n / 2, 0, 2 * Math.PI); g.fill();
-    g.fillStyle = css(c);
-    g.beginPath(); g.arc(x + n * 0.43, y + n * 0.43, n * 0.43, 0, 2 * Math.PI); g.fill();
-    g.fillStyle = css([Math.floor(c[0] + (255 - c[0]) * 0.5), Math.floor(c[1] + (255 - c[1]) * 0.5), Math.floor(c[2] + (255 - c[2]) * 0.5)]);
-    g.beginPath(); g.ellipse(x + n * 0.34, y + n * 0.29, n * 0.2, n * 0.17, 0, 0, 2 * Math.PI); g.fill();
+  merged.forEach(function (it) { if (it[5].outline > 0) blit(g, sprite(it[4], it[2], it[3], it[5], it[6], it[8], true), it[0], it[1], it[7]); });
+  merged.forEach(function (it) { blit(g, sprite(it[4], it[2], it[3], it[5], it[6], it[8], false), it[0], it[1], it[7]); });
+  loose.forEach(function (it) {
+    if (it[4] === "ink") blit(g, sprite("ink", it[2], it[3], it[5], it[6], it[8], false), it[0], it[1], it[7]);
+    else if (it[4] === "swirl") swirl(g, it[0], it[1], it[2], it[3], it[5], it[7], it[8], it[9]);
+    else ringPuff(g, it[0], it[1], it[2], it[3], it[5], it[7]);
   });
   g.restore();
 };
 
 window.WORLDFX = {
   FORMAT: WP_FORMAT, FILE: "world_physics.json", SECTIONS: WP_SECTIONS, DEFAULTS: WP_DEFAULTS, RANGES: WP_RANGES,
-  FIELDS: WP_FIELDS, TITLES: WP_TITLES, TICK_MS: TICK_MS,
+  FIELDS: WP_FIELDS, TITLES: WP_TITLES, TICK_MS: TICK_MS, ENUMS: WP_ENUMS,
+  SMOKE_STYLES: WP_SMOKE_STYLES, STYLE_TITLES: WP_STYLE_TITLES,
   normalize: normalize, normalizeSection: normalizeSection, normalizeOverride: normalizeOverride,
   Sim: Sim, pscale: function (x, y, sw, sh) { return bil(clamp01(x / sw), clamp01(y / sh), PS); }
 };

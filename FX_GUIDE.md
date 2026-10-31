@@ -908,8 +908,20 @@ sides, so clash dust is Battle-only; everything else plays in Solo too).
   detonating, damage >= `blast.min_damage`), sound barrier (on-screen speed
   over `sonic.mach`; knockback slides only with `sonic.knockback`).
 
+* **Smoke styles:** every dust puff is drawn in one of seven anime styles:
+  Cel puff, Billow / cauliflower, Ink wash (sumi), Swirl / curl, Flat
+  graphic, Ring puff, Stepped / dithered. Ground & dust sets the default
+  `style`; each event (dash, jump, slam, clash, blast, sonic) can pick its
+  own (`"default"` = the ground's). Each style has a deep-edit section
+  `smoke_<style>`: Shading & colour (tones, shadow, highlight, light
+  direction, outline width / colour, tint, opacity), Life animation (peak
+  size and when, shrink steps / smooth / erode / none, steps, held frames,
+  fade, life %) and Motion (rise, air response, ground slide, wobble, spread,
+  lift). Puffs are cached sprites; outlined styles merge into one cloud.
+
 FX Studio's **🌪 Dust & Air** page edits the shared settings with a live
-preview. Click **Link game folder…** once (pick the game folder; Chrome /
+preview; **Smoke styles (deep edit)** shows the chosen style in a looping
+swatch. Click **Link game folder…** once (pick the game folder; Chrome /
 Edge, remembered) and every edit writes `characters/world_physics.json`
 straight into the game; the running game re-checks that file about once a
 second (`worldfx.watch_world`) and F5 re-reads it too. Without a link,

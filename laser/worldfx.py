@@ -52,39 +52,126 @@ from .geometry import bilinear
 
 FORMAT = "pb_world_physics"
 FILE = "world_physics.json"     # in characters/
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic"]
-
+# Anime smoke styles (Daniel 2026-10-31): Ground & Dust picks the default,
+# each event section may pick its own ("default" = the ground's), and every
+# style has its own deep-edit section smoke_<style> (shading & colour, life
+# animation, motion).  Characters can override any of these sections.
+SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
 # Every setting, with its default.  Numbers are clamped to RANGES; true /
-# false are switches; "#rrggbb" strings are colours.  Speeds in px/s and
-# sizes in px are at 100 % position scale.
+# false are switches; ENUMS lists a choice's options; other "#rrggbb"
+# strings are colours.  Speeds in px/s and sizes in px are at 100 % scale.
 DEFAULTS = {
-    "ground": {"enabled": True, "flat_near": 0.25, "flat_far": 0.55, "max_dust": 420,
-               "tau_ms": 140, "ink": "#1b1712"},
+    "ground": {"enabled": True, "flat_near": 0.25, "flat_far": 0.55, "max_dust": 420, "tau_ms": 140, "ink":
+              "#1b1712", "style": "cel"},
     "dash": {"enabled": True, "speed": 380, "rate": 40, "inherit": 40, "size": 100, "life_ms": 700,
-             "start_burst": True, "wake": True, "wake_pct": 100, "curls": True, "grit": 6,
-             "color": "#d9c4a3"},
-    "jump": {"enabled": True, "dust": 14, "pebbles": 8, "ring": True, "column": True, "land": True,
-             "hops": True, "size": 100, "color": "#d9c4a3"},
+            "start_burst": True, "wake": True, "wake_pct": 100, "curls": True, "grit": 6, "color": "#d9c4a3",
+            "style": "default"},
+    "jump": {"enabled": True, "dust": 14, "pebbles": 8, "ring": True, "column": True, "land": True, "hops":
+            True, "size": 100, "color": "#d9c4a3", "style": "default"},
     "slam": {"enabled": True, "min_speed": 7, "launch": True, "skid": True, "crater": True, "wall": True,
-             "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62"},
+            "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62", "style":
+            "default"},
     "clash": {"enabled": True, "sheet": True, "dust": 14, "sparks": 16, "ground_jet": True, "size": 100,
-              "color": "#e6dccb", "spark_color": "#ffb347"},
-    "blast": {"enabled": True, "min_damage": 4, "strength": 100, "suck_back": True, "reach": 80,
-              "dust": 18, "ring": True, "size": 100, "color": "#d9c4a3"},
-    "sonic": {"enabled": True, "mach": 1100, "knockback": False, "cone": True, "vapor": True,
-              "boom": True, "sweep": True, "color": "#e8f2ff"},
+             "color": "#e6dccb", "spark_color": "#ffb347", "style": "default"},
+    "blast": {"enabled": True, "min_damage": 4, "strength": 100, "suck_back": True, "reach": 80, "dust": 18,
+             "ring": True, "size": 100, "color": "#d9c4a3", "style": "default"},
+    "sonic": {"enabled": True, "mach": 1100, "knockback": False, "cone": True, "vapor": True, "boom": True,
+             "sweep": True, "color": "#e8f2ff", "style": "default"},
+    "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
+                 "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
+                 "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
+                 "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+    "smoke_billow": {"tones": 3, "shadow": 38, "light": 50, "light_dir": 225, "outline": 2.5, "ink":
+                    "#1b1712", "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.4, "grow_at": 0.5,
+                    "shrink": "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 18,
+                    "tau_pct": 100, "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100,
+                    "lift_pct": 100},
+    "smoke_ink": {"tones": 2, "shadow": 45, "light": 50, "light_dir": 225, "outline": 0.0, "ink": "#1b1712",
+                 "tint": "#3a3640", "tint_mix": 35, "opacity": 85, "grow": 2.6, "grow_at": 0.6, "shrink":
+                 "smooth", "steps": 3, "hold": 1, "fade": 60, "life_pct": 100, "rise": 8, "tau_pct": 100,
+                 "ground_keep": 0.9, "wobble": 1.5, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+    "smoke_swirl": {"tones": 2, "shadow": 30, "light": 50, "light_dir": 225, "outline": 1.5, "ink": "#1b1712",
+                   "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 1.8, "grow_at": 0.6, "shrink":
+                   "smooth", "steps": 3, "hold": 1, "fade": 40, "life_pct": 100, "rise": 20, "tau_pct": 100,
+                   "ground_keep": 0.9, "wobble": 2, "wobble_hz": 1.0, "spread_pct": 100, "lift_pct": 100},
+    "smoke_flat": {"tones": 1, "shadow": 30, "light": 50, "light_dir": 225, "outline": 3.0, "ink": "#1b1712",
+                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
+                  "steps", "steps": 2, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
+                  "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+    "smoke_ring": {"tones": 1, "shadow": 30, "light": 50, "light_dir": 225, "outline": 1.5, "ink": "#1b1712",
+                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 3.0, "grow_at": 0.9, "shrink":
+                  "smooth", "steps": 3, "hold": 1, "fade": 50, "life_pct": 100, "rise": 10, "tau_pct": 100,
+                  "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100, "lift_pct": 100},
+    "smoke_stepped": {"tones": 2, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink":
+                     "#1b1712", "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6,
+                     "shrink": "erode", "steps": 4, "hold": 2, "fade": 0, "life_pct": 100, "rise": 12,
+                     "tau_pct": 100, "ground_keep": 0.9, "wobble": 0, "wobble_hz": 1.5, "spread_pct": 100,
+                     "lift_pct": 100},
 }
 RANGES = {
     "ground": {"flat_near": [0.05, 1.0], "flat_far": [0.05, 1.0], "max_dust": [0, 1500], "tau_ms": [20, 600]},
-    "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100, 3000],
-             "wake_pct": [0, 300], "grit": [0, 60]},
+    "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100,
+            3000], "wake_pct": [0, 300], "grit": [0, 60]},
     "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400]},
     "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400]},
     "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
-    "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120],
-              "size": [10, 400]},
+    "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size":
+             [10, 400]},
     "sonic": {"mach": [100, 6000]},
+    "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                 [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+                 "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+                 "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+                 "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_billow": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                    [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                    0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                    [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz":
+                    [0, 10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_ink": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                 [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
+                 "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
+                 "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0, 10],
+                 "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_swirl": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                   [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                   0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                   [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0,
+                   10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_flat": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                  0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                  [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0,
+                  10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_ring": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
+                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05,
+                  0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise":
+                  [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0, 20], "wobble_hz": [0,
+                  10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
+    "smoke_stepped": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360],
+                     "outline": [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5],
+                     "grow_at": [0.05, 0.95], "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct":
+                     [10, 400], "rise": [-60, 60], "tau_pct": [10, 500], "ground_keep": [0, 1], "wobble": [0,
+                     20], "wobble_hz": [0, 10], "spread_pct": [0, 400], "lift_pct": [0, 400]},
 }
+ENUMS = {
+    "smoke_cel": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_billow": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_ink": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_swirl": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_flat": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_ring": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "smoke_stepped": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "ground": {"style": ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "dash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "jump": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "slam": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "clash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "blast": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+    "sonic": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
+}
+
 
 TICK_S = config.TICK_MS / 1000.0
 MAX_SOURCES = 24
@@ -104,15 +191,18 @@ def _hex(v, d):
 
 def normalize_section(name, s):
     """One section with every key filled in and clamped, unknown keys dropped
-    (FXK.WORLDFX.normalizeSection)."""
+    (WORLDFX.normalizeSection)."""
     s = s if isinstance(s, dict) else {}
     dflt = DEFAULTS[name]
     rng = RANGES.get(name, {})
+    enums = ENUMS.get(name, {})
     out = {}
     for k, d in dflt.items():
         v = s.get(k, d)
         if isinstance(d, bool):
             out[k] = bool(v)
+        elif k in enums:
+            out[k] = v if v in enums[k] else d
         elif isinstance(d, str):
             out[k] = _hex(v, d)
         else:
@@ -273,6 +363,24 @@ def escale(e):
 
 def _rgb(h):
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+
+
+def smoke_for(fig, sec):
+    """(style, its deep-edit profile) for puffs an event section spawns:
+    the section's own style, or the ground's default ("default")."""
+    st = (sec or {}).get("style", "default")
+    if st not in SMOKE_STYLES:
+        st = cfg(fig, "ground").get("style", "cel")
+        if st not in SMOKE_STYLES:
+            st = "cel"
+    return st, cfg(fig, "smoke_" + st)
+
+
+def _mix(rgb, tint, k):
+    if k <= 0:
+        return rgb
+    t = _rgb(tint)
+    return tuple(int(rgb[i] + (t[i] - rgb[i]) * k) for i in range(3))
 
 
 # ---------------------------------------------------------------- air sources
@@ -561,6 +669,7 @@ class WorldFx:
         self.t = 0
         self.rng = random.Random(0x5EED)
         self.sw = self.sh = 1
+        self.cur = smoke_for(None, None)   # smoke style + profile new puffs take (use)
 
     # ---- helpers
     def ps(self, x, y):
@@ -583,10 +692,26 @@ class WorldFx:
             self.rings.pop(0)
         self.rings.append(r)
 
-    def puff(self, x, y, z, vx, vy, vz, life, r0, rgb, tau=None, grav=-0.012):
+    def use(self, fig, sec):
+        """Puffs spawned next take this event's smoke style (smoke_for)."""
+        self.cur = smoke_for(fig, sec)
+
+    def puff(self, x, y, z, vx, vy, vz, life, r0, rgb, tau=None, grav=None):
+        """One dust puff.  Its style's Motion and Life settings apply here:
+        spread_pct / lift_pct scale the launch, life_pct the life, tau_pct
+        the air response, rise the buoyancy (grav overrides: crater rims
+        fall, clash sheets fly flat); tint is mixed into the colour.
+        Record: x y z vx vy vz age life r0 tau rgb grav style prof seed keep."""
         g = WORLD["ground"]
+        st, pr = self.cur
         tau = (g["tau_ms"] / config.TICK_MS) if tau is None else tau
-        self.dust.append([x, y, z, vx, vy, vz, 0.0, max(4.0, life), r0, max(1.0, tau), rgb, grav])
+        tau *= pr["tau_pct"] / 100.0
+        if grav is None:
+            grav = -pr["rise"] / 1000.0
+        sp, lf = pr["spread_pct"] / 100.0, pr["lift_pct"] / 100.0
+        rgb = _mix(rgb, pr["tint"], pr["tint_mix"] / 100.0)
+        self.dust.append([x, y, z, vx * sp, vy * sp, vz * lf, 0.0, max(4.0, life * pr["life_pct"] / 100.0), r0,
+                          max(1.0, tau), rgb, grav, st, pr, self.rng.random() * 6.283, pr["ground_keep"]])
 
     def puffs(self, x, y, n, sp, rgb, size, life_ms, az=None, spread=360.0, up=(0.2, 1.0), r0=6.0, flat=None):
         """n dust puffs from ground point (x, y), sp px/tick (at 100 %)."""
@@ -747,6 +872,7 @@ class WorldFx:
         tr.hop = hop
 
     def takeoff(self, fig, x, y, ps, k, c):
+        self.use(fig, c)
         sz = c["size"] / 100.0 * k
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
@@ -760,6 +886,7 @@ class WorldFx:
             self.add_src(Column(x, y, 1.4 * ps * sz, 26 * ps * sz, fl))
 
     def landing(self, fig, x, y, ps, k, c):
+        self.use(fig, c)
         sz = c["size"] / 100.0 * k * 0.6
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
@@ -770,6 +897,7 @@ class WorldFx:
 
     def knock_events(self, fig, tr, m, fx, fy, ps, jump):
         c = cfg(fig, "slam")
+        self.use(fig, c)
         b = bool(m.bouncing)
         if b and not tr.bouncing:
             tr.v0 = math.hypot(m.bounce_vx, m.bounce_vy)
@@ -795,6 +923,7 @@ class WorldFx:
         tr.bouncing = b
 
     def crater(self, fig, x, y, ps, s, c):
+        self.use(fig, c)
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
         R = 44 * s * ps
@@ -817,6 +946,7 @@ class WorldFx:
         c = cfg(fig, "slam")
         if not (c["enabled"] and c["wall"]) or sp < c["min_speed"] * 0.6:
             return
+        self.use(fig, c)
         ps = self.ps(x, y)
         s = escale((sp / 15.0) ** 2) * c["size"] / 100.0
         rgb = _rgb(c["color"])
@@ -847,6 +977,7 @@ class WorldFx:
 
     def dash_events(self, fig, tr, fx, fy, ps, z, dx, dy, sp_s, hh):
         c = cfg(fig, "dash")
+        self.use(fig, c)
         if not c["enabled"]:
             if tr.wake is not None:
                 tr.wake.live = False
@@ -911,6 +1042,7 @@ class WorldFx:
 
     def sonic_events(self, fig, tr, m, fx, fy, ps, sp_s, hh):
         c = cfg(fig, "sonic")
+        self.use(fig, c)
         prev = tr.mach
         if not c["enabled"] or ((m.bouncing or m.bounce_ending) and not c["knockback"]):
             tr.mach = 0.0
@@ -936,6 +1068,7 @@ class WorldFx:
         self.sw, self.sh = max(1, int(world.screen_w)), max(1, int(world.screen_h))
         own = [o for o in owners if o is not None]
         c = cfg(own[0] if own else None, "clash")
+        self.use(own[0] if own else None, c)
         if not (c["enabled"] and WORLD["ground"]["enabled"]):
             return
         ps = self.ps(x, y)
@@ -966,9 +1099,11 @@ class WorldFx:
         if c["ground_jet"]:
             if gy is not None and gy > y + 2:
                 delay = max(1, int((gy - y) / max(1.0, 4.5 * ps * s)))
-                self.later.append([self.t + delay, self._clash_floor, (x, gy, s, c)])
+                self.later.append([self.t + delay, self._clash_floor, (x, gy, s, c, self.cur)])
 
-    def _clash_floor(self, x, y, s, c):
+    def _clash_floor(self, x, y, s, c, cur=None):
+        if cur is not None:
+            self.cur = cur
         ps = self.ps(x, y)
         fl = self.flat(x, y)
         self.add_ring(Ring("ground", x, y, 18, 50 * s * ps, fl, w=5 * ps * s))
@@ -1024,6 +1159,7 @@ class WorldFx:
                             continue
                         dmg = float(((inst.fx or {}).get("battle") or {}).get("damage") or 1.0)
                         if dmg >= c["min_damage"]:
+                            self.use(fig, c)
                             self.blast(v[1], v[2], dmg, c)
         for k in [k for k, r in self.ki.items() if r[2] != self.t]:
             del self.ki[k]
@@ -1084,8 +1220,8 @@ class WorldFx:
                 z = 0.0
                 if d[5] < 0.0:
                     d[5] = 0.0
-                d[3] *= 0.9
-                d[4] *= 0.9
+                d[3] *= d[15]
+                d[4] *= d[15]
             d[2] = z
             d[6] += ss
             if d[6] < d[7] and -50 < d[0] < sw + 50 and -50 < d[1] < sh + 50:
@@ -1266,76 +1402,291 @@ class WorldFx:
                 p.setPen(QPen(col, 1.5 * max(1.0, ps * 0.6)))
                 p.drawLine(QPointF(tip[0] + ox, tip[1] + oy), QPointF(ex + ox, ey + oy))
 
-    # ---- cel dust
+    # ---- anime smoke
     def _dust(self, p, ink):
+        """Every dust puff in its own smoke style.  Outlined styles (cel,
+        billow, flat, stepped) draw every ink outline first, then every fill,
+        so overlapping puffs merge into one outlined cloud; ink wash, swirl
+        and ring draw one by one on top."""
         if not self.dust:
             return
         sw, sh = self.sw, self.sh
-        items = []
+        merged, loose = [], []
         for d in self.dust:
-            u = d[6] / d[7]
-            # grow to 2x over the first 60 %, then shrink away in 3 snapped steps
-            if u < 0.6:
-                gr = 1.0 + (1.0 - (1.0 - u / 0.6) ** 2)
-            else:
-                gr = 2.0 * (1.0 - math.floor((u - 0.6) / 0.4 * 3.0 + 1.0) / 4.0)
-            r = d[8] * gr * pscale(d[0], d[1], sw, sh) * 0.5
+            pr = d[13]
+            look = smoke_look(pr, d[6], d[7])
+            if look is None:
+                continue
+            g, ero, a = look
+            ps = pscale(d[0], d[1], sw, sh)
+            r = d[8] * g * ps * 0.5
             if r < 1.0:
                 continue
-            items.append((int(d[0]), int(d[1] - d[2]), min(60, int(r + 0.5)), d[10]))
-        if not items:
-            return
-        inkrgb = (ink.red(), ink.green(), ink.blue())
-        # Pass 1: every ink outline; pass 2: every fill, so overlapping puffs
-        # merge into one outlined cloud.
-        for x, y, r, rgb in items:
-            pm = _outline_sprite(r, inkrgb)
-            p.drawPixmap(x - r - 2, y - r - 2, pm)
-        for x, y, r, rgb in items:
-            pm = _fill_sprite(r, rgb)
-            p.drawPixmap(x - r, y - r, pm)
+            x, y = d[0], d[1] - d[2]
+            wob = pr["wobble"]
+            if wob > 0.0:
+                ph = d[6] * pr["wobble_hz"] * 6.283 * TICK_S + d[14]
+                x += math.sin(ph) * wob * ps
+                y += math.cos(ph * 0.7) * wob * ps * 0.5
+            it = (int(x), int(y), min(60, int(r + 0.5)), d[10], d[12], pr, ero, a, d[14], d[6])
+            (merged if d[12] in _MERGED else loose).append(it)
+        for x, y, r, rgb, st, pr, ero, a, seed, age in merged:
+            ow = pr["outline"]
+            if ow <= 0.0:
+                continue
+            pm, half = _sprite(st, r, rgb, pr, ero, seed, True)
+            _blit(p, pm, x - half, y - half, a)
+        for x, y, r, rgb, st, pr, ero, a, seed, age in merged:
+            pm, half = _sprite(st, r, rgb, pr, ero, seed, False)
+            _blit(p, pm, x - half, y - half, a)
+        for x, y, r, rgb, st, pr, ero, a, seed, age in loose:
+            if st == "ink":
+                pm, half = _sprite(st, r, rgb, pr, ero, seed, False)
+                _blit(p, pm, x - half, y - half, a)
+            elif st == "swirl":
+                _swirl(p, x, y, r, rgb, pr, a, seed, age)
+            else:
+                _ring_puff(p, x, y, r, rgb, pr, a)
+        p.setOpacity(1.0)
 
 
+# Smoke styles drawn with the merged outline pass.
+_MERGED = ("cel", "billow", "flat", "stepped")
+
+
+def smoke_look(pr, age, life):
+    """(size factor, erosion 0..1, opacity) of a puff at this age under its
+    style's Life settings, or None once it is gone.  hold = held frames
+    (on ones / twos / threes...); the puff grows to `grow` x by grow_at of
+    its life, then shrinks by `shrink`: steps (snapped), smooth, erode (keeps
+    its size and is eaten away in steps), none; `fade` % of the end fades."""
+    hold = max(1, int(pr["hold"]))
+    age = math.floor(age / hold) * hold
+    u = age / life
+    if u >= 1.0:
+        return None
+    gm, ga = pr["grow"], pr["grow_at"]
+    ero = 0.0
+    if u < ga:
+        g = 1.0 + (gm - 1.0) * (1.0 - (1.0 - u / ga) ** 2)
+    else:
+        v = (u - ga) / max(1e-6, 1.0 - ga)
+        mode = pr["shrink"]
+        n = max(1, int(pr["steps"]))
+        if mode == "smooth":
+            g = gm * (1.0 - v)
+        elif mode == "steps":
+            g = gm * (1.0 - math.floor(v * n) / n)
+        elif mode == "erode":
+            g = gm
+            ero = math.floor(v * n + 1.0) / (n + 1.0)
+        else:
+            g = gm
+    a = pr["opacity"] / 100.0
+    f = pr["fade"] / 100.0
+    if f > 0.0 and u > 1.0 - f:
+        a *= max(0.0, (1.0 - u) / f)
+    return g, ero, a
+
+
+def _blit(p, pm, x, y, a):
+    if a < 0.99:
+        p.setOpacity(max(0.0, a))
+        p.drawPixmap(int(x), int(y), pm)
+        p.setOpacity(1.0)
+    else:
+        p.drawPixmap(int(x), int(y), pm)
+
+
+# Billow: the lobes of a cauliflower cloud, (dx, dy, r) as fractions of the
+# puff radius.
+_LOBES = ((0.0, 0.18, 0.62), (-0.44, 0.12, 0.47), (0.44, 0.14, 0.5), (-0.22, -0.3, 0.46), (0.24, -0.32, 0.42))
+_BAYER = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
 _SPRITES = {}
+_DITHER = {}
 
 
-def _outline_sprite(r, rgb):
-    key = ("o", r, rgb)
-    pm = _SPRITES.get(key)
-    if pm is None:
-        n = 2 * r + 4
-        pm = QPixmap(n, n)
-        pm.fill(Qt.transparent)
-        q = QPainter(pm)
-        q.setRenderHint(QPainter.Antialiasing)
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor(*rgb))
-        q.drawEllipse(QRectF(0.5, 0.5, n - 1, n - 1))
-        q.end()
-        _SPRITES[key] = pm
-    return pm
+def _lobes(st, r, seed):
+    """[(dx, dy, radius)] of the shape, in px around the centre."""
+    if st != "billow":
+        return [(0.0, 0.0, float(r))]
+    v = int(seed * 10) % 4
+    sx = -1.0 if v & 1 else 1.0
+    k = 1.08 if v & 2 else 1.0
+    return [(dx * r * sx, dy * r, rr * r * (k if i % 2 else 1.0)) for i, (dx, dy, rr) in enumerate(_LOBES)]
 
 
-def _fill_sprite(r, rgb):
-    key = ("f", r, rgb)
-    pm = _SPRITES.get(key)
-    if pm is None:
-        n = 2 * r
-        pm = QPixmap(max(1, n), max(1, n))
-        pm.fill(Qt.transparent)
-        q = QPainter(pm)
-        q.setRenderHint(QPainter.Antialiasing)
-        q.setPen(Qt.NoPen)
-        sh = tuple(int(c * 0.7) for c in rgb)
-        lt = tuple(int(c + (255 - c) * 0.5) for c in rgb)
-        q.setBrush(QColor(*sh))          # shadow (lower right)
-        q.drawEllipse(QRectF(0, 0, n, n))
-        q.setBrush(QColor(*rgb))         # base, lit from the upper left
-        q.drawEllipse(QRectF(0, 0, n * 0.86, n * 0.86))
-        q.setBrush(QColor(*lt))          # light
-        q.drawEllipse(QRectF(n * 0.14, n * 0.12, n * 0.4, n * 0.34))
-        q.end()
-        _SPRITES[key] = pm
-    if len(_SPRITES) > 1200:
+def _dither_brush(level):
+    from PyQt5.QtGui import QBrush, QImage
+    b = _DITHER.get(level)
+    if b is None:
+        im = QImage(4, 4, QImage.Format_ARGB32)
+        for i in range(4):
+            for j in range(4):
+                im.setPixel(i, j, 0xFF000000 if _BAYER[j][i] < level * 4 else 0x00000000)
+        b = _DITHER[level] = QBrush(QPixmap.fromImage(im))
+    return b
+
+
+def _shade(rgb, k):
+    return tuple(max(0, min(255, int(c * k))) for c in rgb)
+
+
+def _lift(rgb, k):
+    return tuple(int(c + (255 - c) * k) for c in rgb)
+
+
+def _sprite(st, r, rgb, pr, ero, seed, outline):
+    """A cached puff sprite: (pixmap, half size).  outline=True: the ink
+    silhouette grown by the outline width; else the shaded fill."""
+    ow = round(pr["outline"] * 2.0) / 2.0
+    lvl = min(3, int(ero * 4.0)) if ero > 0.0 else 0
+    if st == "stepped" and ero <= 0.0:
+        lvl = 0
+    var = int(seed * 10) % 4 if st == "billow" else 0
+    tones = 1 if st == "flat" else int(pr["tones"])
+    ldir = int(pr["light_dir"] / 15.0 + 0.5) * 15
+    if outline:
+        key = ("o", st, r, pr["ink"], ow, var, lvl)
+    else:
+        key = ("f", st, r, rgb, tones, int(pr["shadow"]), int(pr["light"]), ldir, var, lvl, ow)
+    hit = _SPRITES.get(key)
+    if hit is not None:
+        return hit
+    if len(_SPRITES) > 1600:
         _SPRITES.clear()
-    return pm
+    lob = _lobes(st, r, seed)
+    half = int(r * 1.35 + ow + 3)
+    n = 2 * half
+    pm = QPixmap(n, n)
+    pm.fill(Qt.transparent)
+    q = QPainter(pm)
+    q.setRenderHint(QPainter.Antialiasing)
+    q.setPen(Qt.NoPen)
+    c = float(half)
+    if st == "ink":
+        from PyQt5.QtGui import QRadialGradient
+        dark = _shade(rgb, 1.0 - pr["shadow"] / 100.0)
+        lite = _lift(rgb, pr["light"] / 100.0)
+        gr = QRadialGradient(QPointF(c, c), float(r))
+        gr.setColorAt(0.0, QColor(*dark, 225))
+        gr.setColorAt(0.6, QColor(*dark, 170))
+        if tones >= 2:
+            gr.setColorAt(0.84, QColor(*lite, 105))
+        gr.setColorAt(1.0, QColor(*lite, 0))
+        q.setBrush(gr)
+        q.drawEllipse(QPointF(c, c), float(r), float(r))
+    elif outline:
+        q.setBrush(QColor(pr["ink"]))
+        for dx, dy, rr in lob:
+            q.drawEllipse(QPointF(c + dx, c + dy), rr + ow, rr + ow)
+    else:
+        a = math.radians(ldir)
+        lx, ly = math.cos(a), math.sin(a)
+        base = rgb
+        if tones >= 2:
+            q.setBrush(QColor(*_shade(rgb, 1.0 - pr["shadow"] / 100.0)))
+            for dx, dy, rr in lob:
+                q.drawEllipse(QPointF(c + dx, c + dy), rr, rr)
+            q.setBrush(QColor(*base))
+            for dx, dy, rr in lob:
+                q.drawEllipse(QPointF(c + dx + lx * rr * 0.14, c + dy + ly * rr * 0.14), rr * 0.86, rr * 0.86)
+        else:
+            q.setBrush(QColor(*base))
+            for dx, dy, rr in lob:
+                q.drawEllipse(QPointF(c + dx, c + dy), rr, rr)
+        if tones >= 3 and pr["light"] > 0:
+            q.setBrush(QColor(*_lift(rgb, pr["light"] / 100.0)))
+            for dx, dy, rr in lob:
+                q.drawEllipse(QPointF(c + dx + lx * rr * 0.4, c + dy + ly * rr * 0.4), rr * 0.36, rr * 0.3)
+    if lvl > 0:
+        q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
+        q.fillRect(0, 0, n, n, _dither_brush(lvl))
+    q.end()
+    hit = _SPRITES[key] = (pm, half)
+    return hit
+
+
+SWIRL_FRAMES = 12     # cached turn angles of a swirl puff
+
+
+def _swirl(p, x, y, r, rgb, pr, a, seed, age):
+    """A curling tendril: a spiral that turns as it rises, ink-lined.  Cached
+    as a sprite per size / look and one of SWIRL_FRAMES turn angles."""
+    turn = (seed + age * 0.07) % 6.283
+    fr = int(turn / 6.283 * SWIRL_FRAMES) % SWIRL_FRAMES
+    ow = round(pr["outline"] * 2.0) / 2.0
+    tones = int(pr["tones"])
+    key = ("s", r, rgb, fr, ow, pr["ink"], tones, int(pr["shadow"]), int(pr["light"]), int(pr["light_dir"] / 15.0 + 0.5))
+    hit = _SPRITES.get(key)
+    if hit is None:
+        from PyQt5.QtGui import QPainterPath
+        if len(_SPRITES) > 1600:
+            _SPRITES.clear()
+        w = max(1.5, r * 0.32)
+        half = int(r * 1.1 + w + ow + 3)
+        pm = QPixmap(2 * half, 2 * half)
+        pm.fill(Qt.transparent)
+        q = QPainter(pm)
+        q.setRenderHint(QPainter.Antialiasing)
+        c = float(half)
+        t0 = fr * 6.283 / SWIRL_FRAMES
+
+        def path(ox, oy):
+            pp = QPainterPath()
+            n = 12
+            for i in range(n):
+                f = i / (n - 1.0)
+                ang = t0 + f * 4.4
+                rr = r * (0.18 + 0.82 * f)
+                px, py = c + ox + math.cos(ang) * rr, c + oy + math.sin(ang) * rr * 0.8
+                if i == 0:
+                    pp.moveTo(px, py)
+                else:
+                    pp.lineTo(px, py)
+            return pp
+        if ow > 0.0:
+            q.setPen(QPen(QColor(pr["ink"]), w + 2.0 * ow, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            q.drawPath(path(0.0, 0.0))
+        q.setPen(QPen(QColor(*(_shade(rgb, 1.0 - pr["shadow"] / 100.0) if tones >= 2 else rgb)), w,
+                      Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        q.drawPath(path(0.0, 0.0))
+        if tones >= 2:
+            al = math.radians(pr["light_dir"])
+            q.setPen(QPen(QColor(*(_lift(rgb, pr["light"] / 100.0) if tones >= 3 else rgb)), w * 0.45,
+                          Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            q.drawPath(path(math.cos(al) * w * 0.25, math.sin(al) * w * 0.25))
+        q.end()
+        hit = _SPRITES[key] = (pm, half)
+    _blit(p, hit[0], x - hit[1], y - hit[1], a)
+
+
+def _ring_puff(p, x, y, r, rgb, pr, a):
+    """A hollow smoke ring that widens and thins (cached sprite)."""
+    ow = round(pr["outline"] * 2.0) / 2.0
+    tones = int(pr["tones"])
+    key = ("r", r, rgb, ow, pr["ink"], tones, int(pr["light"]))
+    hit = _SPRITES.get(key)
+    if hit is None:
+        if len(_SPRITES) > 1600:
+            _SPRITES.clear()
+        t = max(1.0, r * 0.3)
+        half = int(r + t + ow + 3)
+        pm = QPixmap(2 * half, 2 * half)
+        pm.fill(Qt.transparent)
+        q = QPainter(pm)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.setBrush(Qt.NoBrush)
+        c = float(half)
+        rect = QRectF(c - r, c - r * 0.85, 2.0 * r, 1.7 * r)
+        if ow > 0.0:
+            q.setPen(QPen(QColor(pr["ink"]), t + 2.0 * ow))
+            q.drawEllipse(rect)
+        q.setPen(QPen(QColor(*rgb), t))
+        q.drawEllipse(rect)
+        if tones >= 2:
+            q.setPen(QPen(QColor(*_lift(rgb, pr["light"] / 100.0)), max(1.0, t * 0.35)))
+            q.drawEllipse(rect.adjusted(-t * 0.15, -t * 0.15, t * 0.15, t * 0.15))
+        q.end()
+        hit = _SPRITES[key] = (pm, half)
+    _blit(p, hit[0], x - hit[1], y - hit[1], a)

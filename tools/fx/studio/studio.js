@@ -4155,8 +4155,11 @@ function openPhysPage(on) {
 // onch(rebuild) after every change.
 function physFields(parent, name, sobj, onch) {
   WORLDFX.FIELDS[name].forEach(function (f) {
-    var k = f[0], d = WORLDFX.DEFAULTS[name][k], r = (WORLDFX.RANGES[name] || {})[k], e;
+    var k = f[0], d = WORLDFX.DEFAULTS[name][k], r = (WORLDFX.RANGES[name] || {})[k], en = (WORLDFX.ENUMS[name] || {})[k], e;
     if (typeof d === "boolean") e = inp("chk", sobj[k], function (v) { sobj[k] = v; onch(); });
+    else if (en) e = inp(en.map(function (o) {
+      return [o, o === "default" ? "Ground default" : (WORLDFX.STYLE_TITLES[o] || o)];
+    }), sobj[k], function (v) { sobj[k] = v; onch(); });
     else if (typeof d === "string") e = inp("color", sobj[k], function (v) { sobj[k] = v; onch(); });
     else e = inp("n", sobj[k], function (v) { sobj[k] = r ? Math.max(r[0], Math.min(r[1], v)) : v; onch(); },
       r ? r[0] : null, r ? r[1] : null, (r && r[1] <= 1) ? 0.05 : 1);
@@ -4332,12 +4335,70 @@ function buildWorldPhysicsProps(d) {
   if (lsGet("pbfxstudio.v2.psec.p-preview") == null) pv.open = true;
   var prev = physPreview(pv, function () { return {world: PHYS, over: null, sec: function (n) { return PHYS[n]; }}; });
   WORLDFX.SECTIONS.forEach(function (name) {
+    if (name.indexOf("smoke_") === 0) return;     // under Smoke styles below
     var s = sec(d, WORLDFX.TITLES[name], "p-" + name, "", "act");
     physFields(s, name, PHYS[name], function () { physSave(); });
   });
+  physStyleSection(d, function () { return PHYS; }, function () { physSave(); });
   var rs = document.createElement("div"); rs.className = "row";
   var rb = document.createElement("button"); rb.textContent = "↻ Replay preview"; rb.onclick = prev.replay; rs.appendChild(rb);
   d.appendChild(rs);
+}
+// Smoke styles: pick a style, watch it in the swatch, edit its Shading &
+// colour, Life animation and Motion (section smoke_<style>).  getW() = the
+// settings object holding the sections, onch() saves them.
+var PHYS_STYLE_GROUPS = [["Shading & colour", ["tones", "shadow", "light", "light_dir", "outline", "ink", "tint", "tint_mix", "opacity"]],
+  ["Life animation", ["grow", "grow_at", "shrink", "steps", "hold", "fade", "life_pct"]],
+  ["Motion", ["rise", "tau_pct", "ground_keep", "wobble", "wobble_hz", "spread_pct", "lift_pct"]]];
+function physStyleSection(d, getW, onch) {
+  var s = sec(d, "Smoke styles (deep edit)", "p-styles", "", "act");
+  var cur = lsGet("pbfxstudio.v1.worldphysics.style");
+  if (WORLDFX.SMOKE_STYLES.indexOf(cur) < 0) cur = getW().ground.style;
+  field(s, "Edit style", inp(WORLDFX.SMOKE_STYLES.map(function (k) { return [k, WORLDFX.STYLE_TITLES[k]]; }), cur, function (v) {
+    lsSet("pbfxstudio.v1.worldphysics.style", v); buildProps();
+  })).title = "Which smoke style to edit. Ground & dust picks the default style; each event can pick its own.";
+  physSwatch(s, cur, getW);
+  var name = "smoke_" + cur, prof = getW()[name];
+  PHYS_STYLE_GROUPS.forEach(function (gr) {
+    var b = sec(s, gr[0], "p-st-" + gr[0], "", "act");
+    var keep = WORLDFX.FIELDS[name];
+    WORLDFX.FIELDS[name] = keep.filter(function (f) { return gr[1].indexOf(f[0]) >= 0; });
+    try { physFields(b, name, prof, onch); } finally { WORLDFX.FIELDS[name] = keep; }
+  });
+  var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
+  var rb = document.createElement("button"); rb.textContent = "Reset " + WORLDFX.STYLE_TITLES[cur];
+  rb.onclick = function () { getW()[name] = WORLDFX.normalizeSection(name, {}); onch(); buildProps(); };
+  row.appendChild(rb);
+}
+// A looping swatch of one smoke style: a puff column, a dash trail and a
+// burst, drawn by the same engine as the preview.
+function physSwatch(parent, style, getW) {
+  var wrap = document.createElement("div"); wrap.className = "wpv";
+  var cv = document.createElement("canvas"); cv.width = 560; cv.height = 240; cv.style.aspectRatio = "7/3"; wrap.appendChild(cv);
+  parent.appendChild(wrap);
+  var g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  var sim = new WORLDFX.Sim({sw: 1120, sh: 480, world: getW()});
+  sim.forceStyle = style;
+  var t = 0, acc = 0, last = performance.now(), col = [217, 196, 163];
+  function frame(now) {
+    if (!document.body.contains(cv)) return;
+    acc += Math.min(100, now - last); last = now;
+    var n = 0;
+    while (acc >= WORLDFX.TICK_MS && n < 6) {
+      acc -= WORLDFX.TICK_MS; n++; t++;
+      sim.world = getW();
+      try { col = [1, 3, 5].map(function (i) { return parseInt(getW().dash.color.substr(i, 2), 16); }); } catch (e) {}
+      if (t % 3 === 0) sim.puffs(260, 400, 1, 0.6, col, 1.6, 900, -90, 40, [0.6, 1.2], 6);
+      var k = t % 120;
+      if (k < 50) sim.puffs(500 + k * 8, 410, 1, 1.4, col, 1.2, 700, 180, 50, [0.1, 0.5], 6);
+      if (k === 70) sim.puffs(880, 410, 14, 3.0, col, 1.6, 900, 0, 360, [0.1, 0.9], 6);
+      sim.step([]);
+    }
+    g.fillStyle = "#07070c"; g.fillRect(0, 0, W, H);
+    g.save(); g.scale(W / 1120, H / 480); sim.paintDust(g, getW().ground.ink); g.restore();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 // Character FX page: this character's own Dust & Air sections
 // (pack.world_physics); any section not overridden uses the world's.

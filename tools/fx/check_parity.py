@@ -224,7 +224,7 @@ def main():
     wf_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "worldfx.js"))
     wf_py = PyTables(os.path.join(ROOT, "laser", "worldfx.py"), {"config": cfg})
     for j, y in (("WP_DEFAULTS", "DEFAULTS"), ("WP_RANGES", "RANGES"), ("WP_FORMAT", "FORMAT"),
-                 ("WP_SECTIONS", "SECTIONS")):
+                 ("WP_SECTIONS", "SECTIONS"), ("WP_ENUMS", "ENUMS"), ("WP_SMOKE_STYLES", "SMOKE_STYLES")):
         diff(wf_js.get(j), wf_py.get(y), "worldfx " + y, out)
     diff(wf_js.get("PS"), [cfg.get("POSITION_SCALE_" + k) for k in ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")],
          "worldfx PS (config.POSITION_SCALE_*)", out)
