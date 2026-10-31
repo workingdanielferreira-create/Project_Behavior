@@ -616,6 +616,20 @@ More `technique` styles at the same hand-drawn standard (FX Studio presets:
     Knockback direction — tangent = the foot's motion at contact — and Impact
     frame). Style defaults set
     Knockback direction to `tangent` (`aim` for the thrust kick).
+- **Animation flips (punch, ki barrage, every kick; params `flip_h` /
+  `flip_v`, Studio: "Flip animation horizontally / vertically").** They
+  mirror the ANIMATION in place, never its placement: `flip_v` mirrors it
+  across the aim line through the anchor (roundhouse comes from the other
+  side, the axe kick rises onto the point, ki curves and sides swap);
+  `flip_h` mirrors it front <-> back across the line square to the aim
+  through the contact point (kicks: where the foot meets the aim; punch:
+  full reach; ki barrage: Length out), so it still lands where it did. The
+  hit area follows the drawn limb / shots, knockback `tangent` / `custom`
+  follow the mirrored motion, push-off dust stays under the fighter (its
+  direction follows `flip_h`). Fixed to the fighter: the facing still
+  mirrors the whole thing. Shared helper `strikefx.flips` / `STRIKEFX.flips`.
+  Not the FX-level "Flip" (`fx.flip`), which lays an effect out toward the
+  target's side.
 - **Gunfire (`laser/gunfx.py`, Studio: `gunfx.js`).** Ten anime gun shots,
   each a technique style with a palette preset and a signature-colour preset
   in the Studio's "Gunfire" group, and its own settings panel:

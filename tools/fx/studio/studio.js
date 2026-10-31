@@ -1466,7 +1466,10 @@ var PARAM_UI = {
     ["spin_mode", "Spinning kick", ["centered", "travel", "lunge"]],
     ["spin_turns", "Spin turns", 0.5, 8, 0.5],
     ["rise_dir", "Rising kick rises", ["screen_up", "perpendicular", "straight_up", "custom"]],
-    ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5]]
+    ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5],
+    // punch, ki barrage and kicks (STRIKEFX.FLIP_STYLES): mirror the animation in place
+    ["flip_h", "Flip animation horizontally (front ↔ back, stays in place)", "chk"],
+    ["flip_v", "Flip animation vertically (top ↔ bottom, stays in place)", "chk"]]
 };
 // Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
 var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r",
@@ -2112,6 +2115,8 @@ function buildProps() {
          ((k === "shake_px" || k === "shake_ticks") && !fx.params.shake) ||
          ((k === "squash_amt" || k === "squash_ticks" || k === "squash_flash") && !fx.params.squash))) return;
     if (fx.prim === "technique" && KICK_KEYS[k] && !kickKeyShown(k, fx.params)) return;
+    if (fx.prim === "technique" && (k === "flip_h" || k === "flip_v") &&
+        (!G_STRIKE() || G_STRIKE().FLIP_STYLES.indexOf(fx.params.style) < 0)) return;
     // Picking a technique gives it that technique's own shape (FXK.TECH_STYLE_DEFAULTS).
     if (fx.prim === "technique" && k === "style") {
       field(s, u[1], inp(kind, fx.params[k], function (v) {
