@@ -77,7 +77,7 @@ DEFAULTS = {
     "blast": {"enabled": True, "min_damage": 4, "strength": 100, "suck_back": True, "reach": 80, "dust": 18,
              "ring": True, "size": 100, "color": "#d9c4a3", "style": "default"},
     "sonic": {"enabled": True, "mach": 1100, "knockback": False, "cone": True, "vapor": True, "boom": True,
-             "sweep": True, "color": "#e8f2ff", "style": "default"},
+             "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -118,7 +118,7 @@ RANGES = {
     "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
     "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size":
              [10, 400]},
-    "sonic": {"mach": [100, 6000]},
+    "sonic": {"mach": [100, 6000], "boom_hz": [0, 10]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -587,7 +587,7 @@ class Ring:
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep")
+                 "sp", "head", "sweep", "boom_t")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -610,6 +610,7 @@ class _Track:
         self.sp = 0.0
         self.head = (x, y)
         self.sweep = 0
+        self.boom_t = 0.0
 
 
 # Events noted from inside a side's pass (motion.check_walls): consumed by
@@ -1049,8 +1050,22 @@ class WorldFx:
             return
         M = sp_s / max(1.0, c["mach"])
         tr.mach = M
-        if M >= 1.0 and prev < 1.0 and c["boom"]:
-            self.add_ring(Ring("boom", fig.x, fig.y, 18, 46 * ps, 1.0, col=_rgb(c["color"]), w=5 * ps))
+        if M >= 1.0 and c["boom"]:
+            # First boom on crossing Mach 1; then boom_hz more per second while it stays supersonic
+            # (0 = once per crossing).
+            hz = float(c.get("boom_hz", 0.0) or 0.0)
+            if prev < 1.0:
+                fire = True
+                tr.boom_t = 0.0
+            elif hz > 0.0:
+                tr.boom_t += TICK_S
+                fire = tr.boom_t >= 1.0 / hz
+                if fire:
+                    tr.boom_t -= 1.0 / hz
+            else:
+                fire = False
+            if fire:
+                self.add_ring(Ring("boom", fig.x, fig.y, 18, 46 * ps, 1.0, col=_rgb(c["color"]), w=5 * ps))
         if M >= 1.0 and c["sweep"]:
             tr.sweep += 1
             if tr.sweep % 4 == 0:

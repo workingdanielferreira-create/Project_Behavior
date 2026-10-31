@@ -40,7 +40,7 @@ var WP_DEFAULTS = {
   "blast": {"enabled": true, "min_damage": 4, "strength": 100, "suck_back": true, "reach": 80, "dust": 18,
            "ring": true, "size": 100, "color": "#d9c4a3", "style": "default"},
   "sonic": {"enabled": true, "mach": 1100, "knockback": false, "cone": true, "vapor": true, "boom": true,
-           "sweep": true, "color": "#e8f2ff", "style": "default"},
+           "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -79,7 +79,7 @@ var WP_RANGES = {
   "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
   "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size": [10,
            400]},
-  "sonic": {"mach": [100, 6000]},
+  "sonic": {"mach": [100, 6000], "boom_hz": [0, 10]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -183,6 +183,7 @@ var WP_FIELDS = {
           ["cone", "Shock cone", "Bow shock lines at sin(angle) = 1 / Mach."],
           ["vapor", "Vapour collar", "Flickers just behind the nose near Mach 1."],
           ["boom", "Barrier ring", "A ring round the body the moment it crosses Mach 1."],
+          ["boom_hz", "Boom frequency (per s)", "More barrier rings per second while it stays above Mach 1. 0 = once per crossing."],
           ["sweep", "Ground sweep", "Where the cone meets the floor, the air pushes out and pulls back."],
           ["color", "Shock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]]
 };
@@ -456,7 +457,7 @@ Sim.prototype.observe = function (fig) {
     z = lp.h * 4 * u * (1 - u); fy += z;
   }
   if (!tr) { tr = {px: fx, py: fy, fast: false, slow: 99, burst: 0, acc: 0, gacc: 0, wake: null, shed: 0, sign: 1,
-    bouncing: false, v0: 0, leap: null, leap_n: 0, leap_t: 1, hop: false, mach: 0, seen: 0, nx: 0, ny: 0, sp: 0, head: [fx, fy], sweep: 0};
+    bouncing: false, v0: 0, leap: null, leap_n: 0, leap_t: 1, hop: false, mach: 0, seen: 0, nx: 0, ny: 0, sp: 0, head: [fx, fy], sweep: 0, boom_t: 0};
     this.tracks.set(fig, tr); }
   tr.seen = this.t;
   var dx = fx - tr.px, dy = fy - tr.py; tr.px = fx; tr.py = fy;
@@ -607,7 +608,13 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   this.use(fig, c);
   if (!c.enabled || ((m.bouncing || m.bounce_ending) && !c.knockback)) { tr.mach = 0; return; }
   var M = sp / Math.max(1, c.mach); tr.mach = M;
-  if (M >= 1 && prev < 1 && c.boom) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps));
+  if (M >= 1 && c.boom) {
+    // First boom on crossing Mach 1; then boom_hz more per second while supersonic (0 = once per crossing).
+    var hz = +c.boom_hz || 0, fire = false;
+    if (prev < 1) { fire = true; tr.boom_t = 0; }
+    else if (hz > 0) { tr.boom_t = (tr.boom_t || 0) + TICK_S; if (tr.boom_t >= 1 / hz) { fire = true; tr.boom_t -= 1 / hz; } }
+    if (fire) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps));
+  }
   if (M >= 1 && c.sweep) {
     tr.sweep++;
     if (tr.sweep % 4 === 0) {
