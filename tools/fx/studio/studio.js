@@ -3026,7 +3026,20 @@ function uaBerserker(d, P) {
 var UA_DEST = [["behind_attacker", "Behind the attacker"], ["random", "Random spot nearby"], ["far_corner", "Corner farthest from attacker"],
   ["spawn", "Where it started"], ["mirror", "Mirrored through the attacker"], ["fixed", "A fixed screen point"]];
 function uaPhaseShift(d, P) {
-  var s = sec(d, "Trigger", "ua-ps-trig", "Which hits it phases out of.", "act");
+  var s = sec(d, "Phase state", "ua-ps-state", "Optional: Phase Shift only works while the fighter is in its Phase state, which opens when the conditions below pass.", "act");
+  uaChk(s, "Use Phase state", P, "state", "On: hits are only phased while in the Phase state. Off: Phase Shift is always active (the hit filter below decides).", true);
+  if (P.state) {
+    uaNum(s, "State lasts ms", P, "state_ms", 0, 600000, 100, "How long the state stays open once the conditions pass. 0 = it never ends once entered.");
+    uaChk(s, "Show state", P, "show_state", "A pulsing dashed ring round the fighter while it is in the Phase state.");
+    field(s, "Conditions logic", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], P.logic, function (v) { P.logic = v; save(); })).title =
+      "How the conditions combine. No conditions = the state never opens.";
+    conditionList(s, function () { return S.unique.phase_shift.conditions; }, {key: "ua-ps-cond", listId: "fxTagListPS", ownLabel: "— last Phase state —",
+      helpOf: function (t) { return COND_HELP[t]; }, onChange: function () { save(); buildProps(); },
+      make: function (t) { return FXK.normalizeUnique({type: "phase_shift", phase_shift: {conditions: [{type: t}]}}).phase_shift.conditions[0]; }});
+    note(s, "Own / enemy actions: add \"own / enemy action triggered\" (who = self or the enemy; action blank = any). Checked every tick against its target, and again when a hit lands, against the fighter landing it. Where a condition says \"this action\", it means the Phase state.");
+    if (!P.conditions.length) note(s, "No conditions yet: the Phase state never opens, so nothing is phased.");
+  }
+  s = sec(d, "Trigger", "ua-ps-trig", P.state ? "Which hits it phases out of while in the Phase state." : "Which hits it phases out of.", "act");
   uaChoice(s, "Phase on", P, "trigger", [["every_hit", "Every hit"], ["min_damage", "Hits of at least X damage"], ["hp_below", "Hits while HP is below X%"], ["chance", "A % chance per hit"]],
     "Hits that don't qualify (or arrive with no charges left) land as normal. Unblockable FX always land.");
   if (P.trigger === "min_damage") uaNum(s, "Min damage", P, "min_damage", 0, 1000, 1, "Only hits at least this strong are phased.");
