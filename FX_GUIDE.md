@@ -909,8 +909,12 @@ sides, so clash dust is Battle-only; everything else plays in Solo too).
   over `sonic.mach`; knockback slides only with `sonic.knockback`).
 
 FX Studio's **🌪 Dust & Air** page edits the shared settings with a live
-preview and saves `world_physics.json` (format `pb_world_physics`); drop it
-like an FX file (`update_game.bat` files it as `characters/world_physics.json`).
+preview. Click **Link game folder…** once (pick the game folder; Chrome /
+Edge, remembered) and every edit writes `characters/world_physics.json`
+straight into the game; the running game re-checks that file about once a
+second (`worldfx.watch_world`) and F5 re-reads it too. Without a link,
+**Save world_physics.json** (format `pb_world_physics`) and drop it like an FX
+file (`update_game.bat` files it as `characters/world_physics.json`).
 A character's **Character FX → Dust & Air** section can give it its own copy
 of any section (saved in its FX file as `world_physics`), used for the events
 that fighter causes. `tools/fx/check_parity.py` keeps the Studio's tables in
