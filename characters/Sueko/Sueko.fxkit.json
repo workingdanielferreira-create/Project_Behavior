@@ -9036,7 +9036,7 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "attached",
+    "kind": "static",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
@@ -11038,7 +11038,7 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "attached",
+    "kind": "static",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
@@ -11111,11 +11111,11 @@
     "w_plane": 0,
     "w_plane_roll": 0,
     "w_side": "front",
-    "fx_motion": "ink",
+    "fx_motion": "gritty",
     "motion_smear": true,
     "motion_arcs": true,
-    "fx_impact": "ink",
-    "fx_env": "ink",
+    "fx_impact": "gritty",
+    "fx_env": "gritty",
     "shake": false,
     "shake_px": 6,
     "shake_ticks": 8,

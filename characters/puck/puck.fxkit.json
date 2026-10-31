@@ -17978,18 +17978,18 @@
    "battle": {
     "deals_damage": true,
     "damage": 50,
-    "pierce": true,
+    "pierce": false,
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
     "deflectable": true
    },
    "motion": {
-    "kind": "attached",
+    "kind": "travel",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 8,
+    "speed": 60,
     "turn_deg": 6,
     "amplitude": 55,
     "freq": 0.18,
@@ -18085,7 +18085,7 @@
    "always_on": false,
    "char_every_ms": 0,
    "offset": [
-    0,
+    -200,
     0
    ],
    "layer": "front",
@@ -18204,6 +18204,7 @@
   "team_pct": 50,
   "rules": []
  },
+ "world_physics": {},
  "unique_ability": {
   "type": "dual_form",
   "mirror_legion": {
