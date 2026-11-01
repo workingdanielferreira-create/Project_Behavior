@@ -57,7 +57,16 @@ FILE = "world_physics.json"     # in characters/
 # style has its own deep-edit section smoke_<style> (shading & colour, life
 # animation, motion).  Characters can override any of these sections.
 SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+# ---- Pressure spiral (Daniel 2026-11-01): the pulse ring every Dust & Air event
+# throws.  Seen end-on it is a circle; turned side-on it is a spring.  It can
+# split into 2-6 parts (flat, like a broken circle) and twist into a helix laid
+# along the action's direction.  Create / dissolve have their own timing, mode
+# (whole shape / every part together / part after part) and direction.
+# parts 1 + spiral 0 = the plain ring.  Each event can override parts
+# ("split", 0 = use this section) and the twist ("twist", -1 = use this section).
+SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"]
+SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"]
 # Every setting, with its default.  Numbers are clamped to RANGES; true /
 # false are switches; ENUMS lists a choice's options; other "#rrggbb"
 # strings are colours.  Speeds in px/s and sizes in px are at 100 % scale.
@@ -68,16 +77,20 @@ DEFAULTS = {
             "start_burst": True, "wake": True, "wake_pct": 100, "curls": True, "grit": 6, "color": "#d9c4a3",
             "style": "default"},
     "jump": {"enabled": True, "dust": 14, "pebbles": 8, "ring": True, "column": True, "land": True, "hops":
-            True, "size": 100, "color": "#d9c4a3", "style": "default"},
+            True, "size": 100, "color": "#d9c4a3", "style": "default", "split": 0, "twist": -1},
     "slam": {"enabled": True, "min_speed": 7, "launch": True, "skid": True, "crater": True, "wall": True,
             "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62", "style":
-            "default"},
+            "default", "split": 0, "twist": -1},
     "clash": {"enabled": True, "sheet": True, "dust": 14, "sparks": 16, "ground_jet": True, "size": 100,
-             "color": "#e6dccb", "spark_color": "#ffb347", "style": "default"},
+             "color": "#e6dccb", "spark_color": "#ffb347", "style": "default", "split": 0, "twist": -1},
     "blast": {"enabled": True, "min_damage": 4, "strength": 100, "suck_back": True, "reach": 80, "dust": 18,
-             "ring": True, "size": 100, "color": "#d9c4a3", "style": "default"},
+             "ring": True, "size": 100, "color": "#d9c4a3", "style": "default", "split": 0, "twist": -1},
     "sonic": {"enabled": True, "mach": 1100, "knockback": False, "cone": True, "vapor": True, "boom": True,
-             "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default"},
+             "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
+    "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "turns":
+              2.5, "length_pct": 100, "radius_pct": 100, "taper": 0, "spin_hz": 0.0, "hand": "right", "reach":
+              "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -113,12 +126,16 @@ RANGES = {
     "ground": {"flat_near": [0.05, 1.0], "flat_far": [0.05, 1.0], "max_dust": [0, 1500], "tau_ms": [20, 600]},
     "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100,
             3000], "wake_pct": [0, 300], "grit": [0, 60]},
-    "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400]},
-    "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400]},
-    "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
+    "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400], "split": [0, 6], "twist": [-1, 100]},
+    "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400], "split": [0, 6], "twist":
+            [-1, 100]},
+    "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400], "split": [0, 6], "twist": [-1, 100]},
     "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size":
-             [10, 400]},
-    "sonic": {"mach": [100, 6000], "boom_hz": [0, 10]},
+             [10, 400], "split": [0, 6], "twist": [-1, 100]},
+    "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
+    "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
+              "turns": [0.25, 10], "length_pct": [10, 500], "radius_pct": [10, 300], "taper": [-100, 100],
+              "spin_hz": [-10, 10], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -163,6 +180,8 @@ ENUMS = {
     "smoke_flat": {"shrink": ["steps", "smooth", "erode", "none"]},
     "smoke_ring": {"shrink": ["steps", "smooth", "erode", "none"]},
     "smoke_stepped": {"shrink": ["steps", "smooth", "erode", "none"]},
+    "spiral": {"hand": ["right", "left"], "reach": ["behind", "ahead", "centered"], "in_mode": SPIRAL_MODES,
+              "out_mode": SPIRAL_MODES, "in_dir": SPIRAL_DIRS, "out_dir": SPIRAL_DIRS},
     "ground": {"style": ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
     "dash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
     "jump": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
@@ -576,11 +595,36 @@ class Burst:
 class Ring:
     """kind: "ground" (flattened, spreading along the ground), "wall" (a dust
     plane on a screen edge: edge l/r/t/b), "boom" (round, round the body)."""
-    __slots__ = ("kind", "x", "y", "age", "life", "r", "flat", "edge", "col", "w")
+    __slots__ = ("kind", "x", "y", "age", "life", "r", "flat", "edge", "col", "w", "ax", "k", "sp")
 
-    def __init__(self, kind, x, y, life, r, flat=1.0, edge=None, col=(255, 255, 255), w=6.0):
+    def __init__(self, kind, x, y, life, r, flat=1.0, edge=None, col=(255, 255, 255), w=6.0, ax=0.0, k=1.0):
         self.kind, self.x, self.y, self.age, self.life = kind, x, y, 0.0, max(2.0, life)
         self.r, self.flat, self.edge, self.col, self.w = r, flat, edge, col, w
+        # ax: the action's direction (deg, screen) the spiral runs along; k: its
+        # power (1 = ordinary); sp: the split / spiral settings (add_ring fills it).
+        self.ax, self.k, self.sp = ax, k, None
+
+
+def ring_split(fig, sec):
+    """The Pressure spiral settings a new ring takes (None = the plain ring):
+    the world's / character's "spiral" section, with the event's own
+    split / twist overrides."""
+    s = cfg(fig, "spiral")
+    if not s["enabled"]:
+        return None
+    n, tw = int(round(s["parts"])), s["spiral"]
+    if sec:
+        ov = int(round(sec.get("split", 0)))
+        if ov > 0:
+            n = ov
+        t = sec.get("twist", -1)
+        if t >= 0:
+            tw = t
+    if n <= 1 and tw <= 0:
+        return None
+    d = dict(s)
+    d["n"], d["tw"] = max(1, min(6, n)), max(0.0, min(1.0, tw / 100.0))
+    return d
 
 
 # ---------------------------------------------------------------- per-fighter tracking
@@ -671,6 +715,7 @@ class WorldFx:
         self.rng = random.Random(0x5EED)
         self.sw = self.sh = 1
         self.cur = smoke_for(None, None)   # smoke style + profile new puffs take (use)
+        self.curfx = (None, None)          # (fighter, event section) new rings take their spiral from
 
     # ---- helpers
     def ps(self, x, y):
@@ -689,13 +734,20 @@ class WorldFx:
         return s
 
     def add_ring(self, r):
+        if r.kind in ("ground", "boom"):
+            fig, sec = self.curfx
+            r.sp = ring_split(fig, sec)
+            if r.sp is not None:
+                r.life = max(2.0, r.life * r.sp["life_pct"] / 100.0)
         if len(self.rings) >= MAX_RINGS:
             self.rings.pop(0)
         self.rings.append(r)
 
     def use(self, fig, sec):
-        """Puffs spawned next take this event's smoke style (smoke_for)."""
+        """Puffs spawned next take this event's smoke style (smoke_for); rings
+        take its Pressure spiral overrides."""
         self.cur = smoke_for(fig, sec)
+        self.curfx = (fig, sec)
 
     def puff(self, x, y, z, vx, vy, vz, life, r0, rgb, tau=None, grav=None):
         """One dust puff.  Its style's Motion and Life settings apply here:
@@ -878,7 +930,7 @@ class WorldFx:
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
         if c["ring"]:
-            self.add_ring(Ring("ground", x, y, 16, 46 * sz * ps, fl, col=(255, 255, 255), w=6 * ps * sz))
+            self.add_ring(Ring("ground", x, y, 16, 46 * sz * ps, fl, col=(255, 255, 255), w=6 * ps * sz, ax=-90.0, k=sz))
         self.puffs(x, y, c["dust"] * k, 2.6, rgb, sz, 650, up=(0.05, 0.4), r0=6.0)
         self.debris(x, y, "pebble", int(c["pebbles"] * k), sz, rgb, elev=(55.0, 75.0), spd=(4.0, 8.0),
                     size=(1.5, 3.5))
@@ -892,7 +944,7 @@ class WorldFx:
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
         if c["ring"]:
-            self.add_ring(Ring("ground", x, y, 12, 34 * sz * ps, fl, w=4 * ps * sz))
+            self.add_ring(Ring("ground", x, y, 12, 34 * sz * ps, fl, w=4 * ps * sz, ax=90.0, k=sz))
         self.puffs(x, y, c["dust"] * k * 0.6, 2.2, rgb, sz, 520, up=(0.02, 0.25), r0=6.0)
         self.add_src(Jet(x, y, 1.0 * ps * sz, 2.0 * ps, 8 * ps, fl))
 
@@ -907,7 +959,8 @@ class WorldFx:
                 rgb = _rgb(c["color"])
                 fl = self.flat(fx, fy)
                 back = math.degrees(math.atan2(-m.bounce_vy, -m.bounce_vx))
-                self.add_ring(Ring("ground", fx, fy, 14, 40 * s * ps, fl, w=5 * ps * s))
+                self.add_ring(Ring("ground", fx, fy, 14, 40 * s * ps, fl, w=5 * ps * s,
+                                   ax=math.degrees(math.atan2(m.bounce_vy, m.bounce_vx)), k=s))
                 self.puffs(fx, fy, c["dust"] * 0.5, 2.0, rgb, s, 700, up=(0.05, 0.5))
                 self.puffs(fx, fy, c["dust"] * 0.5, 4.0 * s, rgb, s, 800, az=back, spread=70.0, up=(0.1, 0.8))
                 self.debris(fx, fy, "rock", int(c["rocks"] * 0.4), s, _rgb(c["rock_color"]), az=back,
@@ -928,7 +981,7 @@ class WorldFx:
         rgb = _rgb(c["color"])
         fl = self.flat(x, y)
         R = 44 * s * ps
-        self.add_ring(Ring("ground", x, y, 22, R * 1.4, fl, w=7 * ps * s))
+        self.add_ring(Ring("ground", x, y, 22, R * 1.4, fl, w=7 * ps * s, ax=90.0, k=s))
         self.add_ring(Ring("crater", x, y, 70, R * 0.8, fl, col=_rgb(c["rock_color"]), w=3 * ps))
         # dust walls rising round the rim
         rnd = self.rng.random
@@ -1065,7 +1118,8 @@ class WorldFx:
             else:
                 fire = False
             if fire:
-                self.add_ring(Ring("boom", fig.x, fig.y, 18, 46 * ps, 1.0, col=_rgb(c["color"]), w=5 * ps))
+                self.add_ring(Ring("boom", fig.x, fig.y, 18, 46 * ps, 1.0, col=_rgb(c["color"]), w=5 * ps,
+                                   ax=math.degrees(math.atan2(tr.ny, tr.nx)), k=M))
         if M >= 1.0 and c["sweep"]:
             tr.sweep += 1
             if tr.sweep % 4 == 0:
@@ -1110,18 +1164,20 @@ class WorldFx:
                 self.puff(x, floor, z0, ux, 0.0, -uy, (450 + 450 * rnd()) / config.TICK_MS,
                           5.0 * s * (0.7 + 0.6 * rnd()), rgb, grav=0.0)
         self.sparks2d(x, y, perp, int(c["sparks"]), s, _rgb(c["spark_color"]), floor)
-        self.add_ring(Ring("boom", x, y, 12, 36 * s * ps, 1.0, col=(255, 255, 255), w=4 * ps))
+        self.add_ring(Ring("boom", x, y, 12, 36 * s * ps, 1.0, col=(255, 255, 255), w=4 * ps, ax=angle, k=s))
         if c["ground_jet"]:
             if gy is not None and gy > y + 2:
                 delay = max(1, int((gy - y) / max(1.0, 4.5 * ps * s)))
-                self.later.append([self.t + delay, self._clash_floor, (x, gy, s, c, self.cur)])
+                self.later.append([self.t + delay, self._clash_floor, (x, gy, s, c, self.cur, self.curfx)])
 
-    def _clash_floor(self, x, y, s, c, cur=None):
+    def _clash_floor(self, x, y, s, c, cur=None, curfx=None):
         if cur is not None:
             self.cur = cur
+        if curfx is not None:
+            self.curfx = curfx
         ps = self.ps(x, y)
         fl = self.flat(x, y)
-        self.add_ring(Ring("ground", x, y, 18, 50 * s * ps, fl, w=5 * ps * s))
+        self.add_ring(Ring("ground", x, y, 18, 50 * s * ps, fl, w=5 * ps * s, ax=90.0, k=s))
         self.add_src(Jet(x, y, 2.0 * ps * s, 3.0 * ps, 10 * ps, fl))
         self.puffs(x, y, int(c["dust"] * 0.8), 3.2 * s, _rgb(c["color"]), s, 700, up=(0.02, 0.3))
 
@@ -1185,7 +1241,7 @@ class WorldFx:
         fl = self.flat(x, y)
         self.add_src(Blast(x, y, s, ps, c["reach"], c["strength"] / 100.0, c["suck_back"], fl))
         if c["ring"]:
-            self.add_ring(Ring("ground", x, y, 20, c["reach"] * 0.6 * s * ps, fl, w=4 * ps * s))
+            self.add_ring(Ring("ground", x, y, 20, c["reach"] * 0.6 * s * ps, fl, w=4 * ps * s, k=s))
         self.puffs(x, y, int(c["dust"] * min(2.0, s)), 1.5, _rgb(c["color"]), s, 900, up=(0.05, 0.6))
 
     # ---- integrate
@@ -1281,8 +1337,136 @@ class WorldFx:
                     self._sonic(p, tr)
         p.restore()
 
+    def _ring_split(self, p, r, ink, u):
+        """A pressure ring split into 2-6 parts and / or twisted into a spring.
+        Every point is blended between the flat (ground ellipse) ring and the
+        helix seen side-on (laid along the action's direction, only the
+        near half of each coil visible), then create / dissolve wipes apply."""
+        sp = r.sp
+        n, b = sp["n"], sp["tw"]
+        grow = 1.0 - (1.0 - u) ** 3
+        w = max(1.0, r.w * (1.0 - u))
+        rad = r.r * (0.25 + 0.75 * grow)
+        fl = r.flat if r.kind == "ground" else 1.0
+        tms = float(config.TICK_MS)
+        in_t = 1.0 if sp["in_ms"] <= 0 else min(1.0, r.age * tms / sp["in_ms"])
+        if sp["out_ms"] > 0:
+            ot = max(1e-6, min(r.life, sp["out_ms"] / tms))
+            out_t = max(0.0, min(1.0, (r.age - (r.life - ot)) / ot))
+            a0 = 255.0
+        else:
+            out_t = 0.0
+            a0 = 255.0 * (1.0 - u * u)
+        tau = 2.0 * math.pi
+        ar = math.radians(r.ax)
+        ux, uy = math.cos(ar), math.sin(ar)
+        nx, ny = -uy, ux
+        length = r.r * 5.0 * sp["length_pct"] / 100.0 * (0.35 + 0.65 * grow)
+        length *= max(0.3, min(3.0, 1.0 + sp["speed_len"] / 100.0 * (r.k - 1.0)))
+        r0 = rad * 0.55 * sp["radius_pct"] / 100.0
+        rot = math.radians(sp["rotation"])
+        spin = (1.0 if sp["hand"] == "right" else -1.0)
+        th0 = spin * tau * sp["spin_hz"] * r.age * tms / 1000.0 + rot
+        gapf = sp["gap"] / 100.0 if n >= 2 else 0.0
+        span = tau / n
+        m = max(8, 96 // n)
+        parts = []
+        for i in range(n):
+            pts = []
+            for j in range(m + 1):
+                t = j / float(m)
+                uu = gapf / 2.0 + t * (1.0 - gapf)
+                s = (i + uu) / n
+                phi = (i + uu - 0.5) * span + rot
+                x = r.x + rad * math.cos(phi)
+                y = r.y + rad * fl * math.sin(phi)
+                af = 1.0
+                if b > 0.0:
+                    th = tau * sp["turns"] * s * spin + th0
+                    rs = r0 * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
+                    if sp["reach"] == "behind":
+                        off = -(1.0 - s) * length
+                    elif sp["reach"] == "ahead":
+                        off = s * length
+                    else:
+                        off = (s - 0.5) * length
+                    sn = math.sin(th)
+                    hx = r.x + ux * off + nx * rs * sn
+                    hy = r.y + uy * off + ny * rs * sn
+                    x += (hx - x) * b
+                    y += (hy - y) * b
+                    front = max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
+                    af = (1.0 - b) + b * front
+                pts.append([x, y, af, t])
+            parts.append(pts)
+        # the order parts take their turn in (create / dissolve)
+        mid = [sum(q[0] for q in pts) / len(pts) for pts in parts]
+
+        def ranks(d):
+            if d == "left_to_right":
+                key = mid
+            elif d == "right_to_left":
+                key = [-v for v in mid]
+            elif d == "reverse_creation":
+                key = [-i for i in range(n)]
+            else:
+                key = list(range(n))
+            order = sorted(range(n), key=lambda i: key[i])
+            return {i: k for k, i in enumerate(order)}
+
+        def wipe(mode, d, prog, rk, pts, i):
+            """Per-point 0..1 amount a wipe has reached (None = no wipe)."""
+            if mode == "whole":
+                return None
+            pr = prog if mode == "parts_together" else max(0.0, min(1.0, prog * n - rk[i]))
+            if d in ("left_to_right", "right_to_left"):
+                xs = [q[0] for q in pts]
+                lo, hi = min(xs), max(xs)
+                cs = [(q[0] - lo) / (hi - lo + 1e-6) for q in pts]
+                if d == "right_to_left":
+                    cs = [1.0 - c for c in cs]
+            elif d == "reverse_creation":
+                cs = [1.0 - q[3] for q in pts]
+            else:
+                cs = [q[3] for q in pts]
+            return [max(0.0, min(1.0, (pr * 1.1 - c) * 12.0)) for c in cs]
+
+        rk_in, rk_out = ranks(sp["in_dir"]), ranks(sp["out_dir"])
+        whole = 1.0
+        if sp["in_mode"] == "whole" and sp["in_ms"] > 0:
+            whole *= in_t
+        if sp["out_mode"] == "whole" and sp["out_ms"] > 0:
+            whole *= 1.0 - out_t
+        segs = []
+        for i, pts in enumerate(parts):
+            vin = wipe(sp["in_mode"], sp["in_dir"], in_t, rk_in, pts, i) if sp["in_ms"] > 0 else None
+            vout = wipe(sp["out_mode"], sp["out_dir"], out_t, rk_out, pts, i) if sp["out_ms"] > 0 else None
+            f = []
+            for j, q in enumerate(pts):
+                v = q[2] * whole
+                if vin is not None:
+                    v *= vin[j]
+                if vout is not None:
+                    v *= 1.0 - vout[j]
+                f.append(v)
+            for j in range(len(pts) - 1):
+                a = int(a0 * min(f[j], f[j + 1]))
+                if a > 2:
+                    segs.append((QPointF(pts[j][0], pts[j][1]), QPointF(pts[j + 1][0], pts[j + 1][1]), a))
+        for q0, q1, a in segs:
+            inkc = QColor(ink)
+            inkc.setAlpha(a)
+            p.setPen(QPen(inkc, w + 3, Qt.SolidLine, Qt.FlatCap))
+            p.drawLine(q0, q1)
+        for q0, q1, a in segs:
+            p.setPen(QPen(QColor(*r.col, a), w, Qt.SolidLine, Qt.FlatCap))
+            p.drawLine(q0, q1)
+
     def _ring(self, p, r, ink):
         u = r.age / r.life
+        if r.sp is not None and r.kind in ("ground", "boom"):
+            self._ring_split(p, r, ink, u)
+            return
         grow = 1.0 - (1.0 - u) ** 3
         w = max(1.0, r.w * (1.0 - u))
         if r.kind == "crater":
