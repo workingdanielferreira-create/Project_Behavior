@@ -968,7 +968,16 @@ class WorldFx:
         self.hop_events(fig, tr, fx, fy, ps)
         self.knock_events(fig, tr, m, fx, fy, ps, jump)
         self.dash_events(fig, tr, fx, fy, ps, z, dx, dy, sp_s, hh)
-        self.sonic_events(fig, tr, m, fx, fy, ps, sp_s, hh)
+        # Tactical retreat (laser/retreat.py): its dash is slowed by the position (perspective)
+        # speed scale like every mover, so far up the screen it can fall under the Spiral's
+        # min_speed.  For the spiral trail only, a retreat is measured UNSCALED - the same
+        # on-screen px/s it would make at full pace (Daniel 2026-11-01).  Mach / boom keep the
+        # real speed.  Solo and Battle share this path.
+        rs = getattr(fig, "retreat", None)
+        sp_t = sp_s
+        if rs is not None and rs.active and not (m.bouncing or m.bounce_ending) and sp_s > 0.0:
+            sp_t = sp_s / max(0.05, self.ss(fig.x, fig.y))
+        self.sonic_events(fig, tr, m, fx, fy, ps, sp_s, hh, sp_t)
 
     def leap_events(self, fig, tr, lp, fx, fy, ps):
         c = cfg(fig, "jump")
@@ -1169,7 +1178,9 @@ class WorldFx:
                 tr.wake = None
         tr.fast = fast
 
-    def sonic_events(self, fig, tr, m, fx, fy, ps, sp_s, hh):
+    def sonic_events(self, fig, tr, m, fx, fy, ps, sp_s, hh, sp_t=None):
+        if sp_t is None:
+            sp_t = sp_s             # speed the spiral trail reads (a tactical retreat: unscaled)
         c = cfg(fig, "sonic")
         self.use(fig, c)
         prev = tr.mach
@@ -1189,7 +1200,7 @@ class WorldFx:
         spl = ring_split(fig, c)
         trail_ok = spl is not None and spl["tw"] > 0.0 and spl.get("trail", True)
         tlo = float(spl["min_speed"]) if spl is not None else 0.0
-        running = trail_ok and (sp_s >= tlo or (tr.trail is not None and sp_s >= 0.75 * tlo))
+        running = trail_ok and (sp_t >= tlo or (tr.trail is not None and sp_t >= 0.75 * tlo))
         if running:
             t = tr.trail
             if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > \
@@ -1205,7 +1216,7 @@ class WorldFx:
             t.ps = ps
             t.col = _rgb(c["color"])
             t.life = max(2.0, 18.0 * spl["life_pct"] / 100.0)
-            t.add(fig.x, fig.y, sp_s)
+            t.add(fig.x, fig.y, sp_t)
             tr.boom_t = 0.0
             fire = False
         elif tr.trail is not None and trail_ok:
