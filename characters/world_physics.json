@@ -34,7 +34,9 @@
   "hops": false,
   "size": 22,
   "color": "#ffffff",
-  "style": "flat"
+  "style": "flat",
+  "split": 0,
+  "twist": -1
  },
  "slam": {
   "enabled": true,
@@ -48,7 +50,9 @@
   "size": 30,
   "color": "#cdb391",
   "rock_color": "#7a6e62",
-  "style": "flat"
+  "style": "flat",
+  "split": 0,
+  "twist": -1
  },
  "clash": {
   "enabled": true,
@@ -59,7 +63,9 @@
   "size": 100,
   "color": "#e6dccb",
   "spark_color": "#ffb347",
-  "style": "flat"
+  "style": "flat",
+  "split": 0,
+  "twist": -1
  },
  "blast": {
   "enabled": true,
@@ -71,7 +77,9 @@
   "ring": true,
   "size": 100,
   "color": "#d9c4a3",
-  "style": "flat"
+  "style": "flat",
+  "split": 0,
+  "twist": -1
  },
  "sonic": {
   "enabled": true,
@@ -83,7 +91,34 @@
   "boom_hz": 7,
   "sweep": true,
   "color": "#e8f2ff",
-  "style": "flat"
+  "style": "flat",
+  "split": 0,
+  "twist": -1
+ },
+ "spiral": {
+  "enabled": true,
+  "parts": 2,
+  "gap": 0,
+  "rotation": 0,
+  "life_pct": 200,
+  "spiral": 80,
+  "spin_hz": 29.1,
+  "min_speed": 200,
+  "max_speed": 1500,
+  "length_pct": 10,
+  "radius_pct": 200,
+  "body_scale": true,
+  "body_pct": 100,
+  "taper": -80,
+  "hand": "right",
+  "reach": "centered",
+  "speed_len": 200,
+  "in_ms": 10,
+  "in_mode": "parts_in_turn",
+  "in_dir": "creation",
+  "out_ms": 10,
+  "out_mode": "parts_in_turn",
+  "out_dir": "creation"
  },
  "smoke_cel": {
   "tones": 1,
