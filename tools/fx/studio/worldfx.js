@@ -849,8 +849,9 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
   var turns = Math.max(0.05, length / pitch);
   var r0 = (sp.body_scale && r.body > 0) ? r.body * sp.body_pct / 100 * (0.4 + 0.6 * grow) : rad * 0.55 * sp.radius_pct / 100;
   if (r.spd) r0 *= speedRadius(sp, r.spd);
+  r0 *= 1 + 0.5 * u;   // coils open wider with age
   var rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
-  var th0 = rot;
+  var th0 = rot + spin * TAU * 0.6 * (2 * u - u * u);   // rigid turn about the axis, slowing to 0 at end of life
   var gapf = n >= 2 ? sp.gap / 100 : 0, span = TAU / n, m = Math.max(8, Math.floor(96 / n)), parts = [], i, j;
   for (i = 0; i < n; i++) {
     var pts = [];
