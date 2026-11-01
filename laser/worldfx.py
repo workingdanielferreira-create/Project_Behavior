@@ -635,7 +635,7 @@ def ring_split(fig, sec):
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep", "boom_t", "trail", "tgap", "tel", "warp")
+                 "sp", "head", "sweep", "boom_t", "trail", "tgap", "tel", "warp", "air", "leap_end")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -651,6 +651,8 @@ class _Track:
         self.leap = None
         self.leap_n = 0
         self.leap_t = 1
+        self.air = False
+        self.leap_end = None
         self.hop = False
         self.mach = 0.0
         self.seen = 0
@@ -1055,21 +1057,54 @@ class WorldFx:
             reach = 0.0
         return max(config.ARENA_OVAL_TELEPORT_PX, reach * 1.5 + 10.0)
 
+    def pose_air(self, fig):
+        """True while the playing action's FRAMES say the fighter is airborne:
+        an action with movement "leap" between leap.start_frame and land_frame.
+        The sprite carries the jump (Sync's Ultimate_2 launches off-screen from
+        frame 29), so this does not depend on the engine's leap arc being live."""
+        act = getattr(fig, "act", None)
+        name = getattr(act, "playing", None) if act is not None else None
+        if not name:
+            return False
+        try:
+            from . import actions as _actions
+            ac = _actions._cfg(fig, name)
+            if ac.get("movement") != "leap":
+                return False
+            lp = ac.get("leap") or {}
+            n, _fm = act._frames(fig, name)
+            f0 = max(0, int(lp.get("start_frame") or 0))
+            f1 = int(lp.get("land_frame") if lp.get("land_frame") is not None else -1)
+            if f1 < 0 or f1 > n:
+                f1 = n
+            f1 = max(f0 + 1, f1)
+            idx = int(getattr(fig.combat, "action_idx", 0) or 0)
+            return f0 <= idx < f1
+        except Exception:
+            return False
+
     def leap_events(self, fig, tr, lp, fx, fy, ps):
         c = cfg(fig, "jump")
         live = lp is not None and not lp.get("done") and lp.get("h", 0) > 0
         if live and tr.leap is not lp:
             tr.leap, tr.leap_n = lp, 0
             tr.leap_t = max(1, int(round((lp["t1"] - lp["t0"]) / config.TICK_MS)))
-            if c["enabled"]:
-                self.takeoff(fig, fx, fy, ps, 1.0, c)
         elif live:
             tr.leap_n += 1
         elif tr.leap is not None:
-            land = tr.leap
+            tr.leap_end = tr.leap.get("ex", fx)
             tr.leap = None
+        # Airborne = the engine arc is live OR the action's frames are in the jump.
+        # Takeoff / landing fire on the edges, once each, in Solo and Battle alike.
+        air = live or self.pose_air(fig)
+        if air and not tr.air:
+            if c["enabled"]:
+                self.takeoff(fig, fx, fy, ps, 1.0, c)
+        elif tr.air and not air:
             if c["enabled"] and c["land"]:
-                self.landing(fig, land.get("ex", fx), fy, ps, 1.0, c)
+                self.landing(fig, tr.leap_end if tr.leap_end is not None else fx, fy, ps, 1.0, c)
+            tr.leap_end = None
+        tr.air = air
 
     def hop_events(self, fig, tr, fx, fy, ps):
         hop = getattr(fig.combat, "hop_ticks", 0) > 0
