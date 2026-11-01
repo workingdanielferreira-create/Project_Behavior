@@ -635,7 +635,7 @@ def ring_split(fig, sec):
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep", "boom_t", "trail", "tgap")
+                 "sp", "head", "sweep", "boom_t", "trail", "tgap", "tel", "warp")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -661,6 +661,8 @@ class _Track:
         self.boom_t = 0.0
         self.trail = None       # the live sound-barrier spiral trail this fighter is drawing
         self.tgap = 0           # ticks it has been below the trail's hold speed
+        self.tel = config.ARENA_OVAL_TELEPORT_PX   # one-tick jump (px) above which it counts as a blink
+        self.warp = False       # this tick's move was a blink / teleport, not real movement
 
 
 def speed_radius(sp, v):
@@ -707,6 +709,14 @@ class Trail:
 # Events noted from inside a side's pass (motion.check_walls): consumed by
 # step() after both sides moved.
 _WALLS = []
+# Fighters that blinked / teleported this tick (combat.drain_blink_fx): their jump
+# is a warp, never real movement, however short it is.
+_WARPS = set()
+
+
+def note_warp(fig):
+    """A blink / teleport warp was drained for this fighter (combat.drain_blink_fx)."""
+    _WARPS.add(id(fig))
 
 
 def note_wall(fig, edge, speed):
@@ -912,6 +922,7 @@ class WorldFx:
             if self.dust or self.src or self.bursts or self.rings or self.trails:
                 self.__init__()
             del _WALLS[:]
+            _WARPS.clear()
             return
         # Delayed events (the clash sheet reaching the floor).
         if self.later:
@@ -927,6 +938,7 @@ class WorldFx:
                 self.observe(world, fig)
             except Exception:
                 pass
+        _WARPS.clear()
         for fig, edge, x, y, sp in _WALLS:
             try:
                 self.wall(fig, edge, x, y, sp)
@@ -961,7 +973,15 @@ class WorldFx:
         dx, dy = fx - tr.px, fy - tr.py
         tr.px, tr.py = fx, fy
         jump = math.hypot(dx, dy)
-        if jump > config.ARENA_OVAL_TELEPORT_PX:    # blink / teleport / respawn: no momentum
+        # Blink / teleport / respawn: no momentum.  A blink is flagged (combat.drain_blink_fx,
+        # or still queued); otherwise only a jump well beyond what the fighter's OWN movement
+        # can cover this tick counts as one.  A fixed 40 px cut-off read every fast fighter as
+        # teleporting - Puck's 1270 % tactical retreat x2 / x3 body steps in SSJ / SSJ God is
+        # 75-220 px a tick - so his speed read 0 and his spiral restarted every tick (no spiral).
+        tr.tel = self.warp_px(fig)
+        blinked = id(fig) in _WARPS or bool(getattr(fig.combat, "blink_fx_pending", None))
+        tr.warp = (blinked and jump > config.ARENA_OVAL_TELEPORT_PX) or jump > tr.tel
+        if tr.warp:
             dx = dy = 0.0
             jump = 0.0
         sp_s = jump / TICK_S           # on-screen px/s (position-scaled, Daniel's pick)
@@ -993,12 +1013,47 @@ class WorldFx:
                 from . import retreat as _rt
                 rc = _rt.config_for(fig)
                 if rc is not None:
-                    cmd = float(m.speed) * max(0.0, float(rc.get("speed_pct") or 0)) / 100.0 / TICK_S
+                    cmd = float(m.speed) * max(0.0, float(rc.get("speed_pct") or 0)) / 100.0 / TICK_S \
+                        * self.body_steps(fig)
                     if sp_s > 0.0 or cmd > 0.0:
                         sp_t = max(sp_t, cmd)
             except Exception:
                 pass
         self.sonic_events(fig, tr, m, fx, fy, ps, sp_s, hh, sp_t)
+
+    @staticmethod
+    def body_steps(fig):
+        """Movement steps the fighter's body takes this tick (laser/timefx.py: a
+        Transformation's / Berserker's speed runs the body 2, 3 ... times a tick)."""
+        st = getattr(fig, "time", None)
+        try:
+            return max(1, int(st.body_steps)) if st is not None else 1
+        except Exception:
+            return 1
+
+    def warp_px(self, fig):
+        """The largest one-tick jump (px) that is still the fighter's own movement:
+        its speed x its fastest own multiplier (tactical retreat speed_pct, movement
+        style) x its body steps this tick, with headroom.  Anything bigger is a warp."""
+        m = fig.motion
+        k = 1.0
+        rt = getattr(fig, "retreat", None)
+        if rt is not None and getattr(rt, "active", False):
+            try:
+                from . import retreat as _rt
+                rc = _rt.config_for(fig)
+                if rc is not None:
+                    k = max(k, float(rc.get("speed_pct") or 0) / 100.0)
+            except Exception:
+                pass
+        sty = getattr(m, "style", None)
+        if sty is not None and getattr(sty, "live", False):
+            k = max(k, float(getattr(sty, "speed_mult", 1.0) or 1.0))
+        try:
+            reach = abs(float(m.speed)) * k * self.body_steps(fig)
+        except Exception:
+            reach = 0.0
+        return max(config.ARENA_OVAL_TELEPORT_PX, reach * 1.5 + 10.0)
 
     def leap_events(self, fig, tr, lp, fx, fy, ps):
         c = cfg(fig, "jump")
@@ -1224,8 +1279,8 @@ class WorldFx:
         running = trail_ok and sp_t >= tlo      # strictly at / above min_speed, no slack below it
         if running:
             t = tr.trail
-            if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > \
-                    config.ARENA_OVAL_TELEPORT_PX * (1 + tr.tgap):
+            if t is not None and (tr.warp or (t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) >
+                                              tr.tel * (1 + tr.tgap))):
                 self.end_trail(tr)      # blink / teleport: the spring ends where it was
                 t = None
             tr.tgap = 0
