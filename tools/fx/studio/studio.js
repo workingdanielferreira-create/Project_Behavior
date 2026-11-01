@@ -4255,7 +4255,7 @@ function physPreview(parent, cfgOf) {
     },
     "Blast": function () {
       var f = mk(260, 560), n = 0; figs = [f];
-      return function () { n++; if (n === 8) { sim.blast(560, 500, 30, f); } return n < 140; };
+      return function () { n++; if (n === 8) { var dx = 560 - f.x, dy = 500 - f.y, dd = Math.hypot(dx, dy); sim.blast(560, 500, 30, f, {ax: Math.atan2(dy, dx) * 180 / Math.PI, dist: dd, spd: 900}); } return n < 140; };
     },
     "Sound barrier": function () {
       var f = mk(90, 600), n = 0, c = cfgOf().sec("sonic"); figs = [f];

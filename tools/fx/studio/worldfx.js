@@ -43,9 +43,9 @@ var WP_DEFAULTS = {
            "ring": true, "size": 100, "color": "#d9c4a3", "style": "default", "split": 0, "twist": -1},
   "sonic": {"enabled": true, "mach": 1100, "knockback": false, "cone": true, "vapor": true, "boom": true,
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
-  "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "turns":
-            2.5, "length_pct": 100, "radius_pct": 100, "taper": 0, "spin_hz": 0.0, "hand": "right", "reach":
-            "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+  "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
+            6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
+            true, "body_pct": 100, "taper": 0, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -87,8 +87,8 @@ var WP_RANGES = {
            400], "split": [0, 6], "twist": [-1, 100]},
   "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
-            "turns": [0.25, 10], "length_pct": [10, 500], "radius_pct": [10, 300], "taper": [-100, 100],
-            "spin_hz": [-10, 10], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+            "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
+            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -213,14 +213,17 @@ var WP_FIELDS = {
            ["rotation", "Rotate pattern (deg)", "Turns where the parts' gaps sit, and where the spiral starts."],
            ["life_pct", "Ring life %", "How long rings last; longer lets a slow create / dissolve play out."],
            ["spiral", "Spiral %", "0 = a flat ring (a circle seen end-on). 100 = the ring seen side-on as a spring, laid along the direction of the action. In between blends the two."],
-           ["turns", "Coils", "How many full turns the spring makes along its whole length."],
-           ["length_pct", "Length %", "How far along the action the spring reaches."],
-           ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size."],
+           ["spin_hz", "Rotation frequency (coils/s)", "How often the spring completes a coil. Coil spacing = speed / frequency, so the coils come from the distance travelled rather than a fixed count."],
+           ["min_speed", "Min speed (px/s)", "At or below this speed the coils are packed as tight as they get (slow movement = coils close together)."],
+           ["max_speed", "Max speed (px/s)", "At or above this speed the coils are spread as far as they get (fast movement = a stretched spiral)."],
+           ["length_pct", "Length %", "How much of the distance travelled the spring covers (100 = all of it). A take-off or clash has no track, so it takes a length from the ring."],
+           ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size (used when Scale to thrower is off or the thrower is unknown)."],
+           ["body_scale", "Scale to thrower", "The coils' base radius is the size of the fighter that made it, so the spiral looks like it comes from that body."],
+           ["body_pct", "Thrower size %", "Scales the coil radius taken from the fighter's body."],
            ["taper", "Taper %", "Positive widens the coils toward the end of the spring; negative tightens them (a shock cone)."],
-           ["spin_hz", "Spin speed (turns/s)", "How fast the coils turn as they live."],
-           ["hand", "Handedness", "Which way the coils wind."],
+                      ["hand", "Handedness", "Which way the coils wind."],
            ["reach", "Reaches", "Behind the action (a trail), ahead of it, or centred on it."],
-           ["speed_len", "Length from power %", "A faster, harder action (knockback, sound barrier, big blast) stretches the spring longer."],
+           ["speed_len", "Length from power %", "Only for rings with no track (take-off, clash): a harder action stretches the spring longer."],
            ["in_ms", "Create time (ms)", "How long the ring takes to be drawn in. 0 = it appears at once."],
            ["in_mode", "Create: how", "Whole shape = every part fades in together. Parts together = every part draws in at the same time. Part by part = one after another."],
            ["in_dir", "Create: direction / order", "Left to right / right to left across the screen, or in the order the parts were created (or reversed). Sets the sweep inside each part, and the order part by part."],
@@ -399,11 +402,13 @@ Burst.prototype.at = function (pc, t) {
   }
   return [this.x + ca * dist, this.y + sa * dist, Math.max(0, z)];
 };
-function Ring(kind, x, y, life, r, flat, edge, col, w, ax, k) {
+function Ring(kind, x, y, life, r, flat, edge, col, w, ax, k, spd, dist, body) {
   this.kind = kind; this.x = x; this.y = y; this.age = 0; this.life = Math.max(2, life); this.r = r;
   this.flat = flat == null ? 1 : flat; this.edge = edge || null; this.col = col || [255, 255, 255]; this.w = w == null ? 6 : w;
   // ax: the action's direction (deg, screen) the spiral runs along; k: its power; sp: split / spiral settings (addRing).
   this.ax = ax || 0; this.k = k == null ? 1 : k; this.sp = null;
+  // spd: on-screen speed (px/s) of the thrower, dist: the way it travelled (px), body: thrower body radius (px).
+  this.spd = spd || 0; this.dist = dist || 0; this.body = body || 0;
 }
 // The Pressure spiral settings a new ring takes (null = the plain ring): the "spiral" section with the event's split / twist.
 Sim.prototype.ringSplit = function (fig, sec) {
@@ -499,6 +504,7 @@ Sim.prototype.debris = function (x, y, kind, n, s, col, o) {
 };
 // A preview fighter: {x, y, h (foot offset at 100 %), motion{bouncing, bounce_ending, bounce_vx, bounce_vy},
 // hop_ticks, leap {sx, sy, ex, ey, t0, t1, h, done}, wp (override sections)}.
+Sim.prototype.bodyR = function (fig, ps) { return fig ? (fig.h || 24) * ps * 0.5 : 0; };
 Sim.prototype.foot = function (fig, ps) { var h = (fig.h || 24) * 0.46 * ps; return [fig.x, fig.y + h, h]; };
 Sim.prototype.noteWall = function (fig, edge, speed) { this.walls.push([fig, edge, fig.x, fig.y, speed]); };
 Sim.prototype.step = function (figs) {
@@ -558,7 +564,7 @@ Sim.prototype.hopEvents = function (fig, tr, fx, fy, ps) {
 };
 Sim.prototype.takeoff = function (fig, x, y, ps, k, c) {
   var sz = c.size / 100 * k, col = rgb(c.color), fl = this.flat(x, y);
-  if (c.ring) this.addRing(new Ring("ground", x, y, 16, 46 * sz * ps, fl, null, [255, 255, 255], 6 * ps * sz, -90, sz));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 16, 46 * sz * ps, fl, null, [255, 255, 255], 6 * ps * sz, -90, sz, 0, 0, this.bodyR(fig, ps)));
   this.puffs(x, y, c.dust * k, 2.6, col, sz, 650, 0, 360, [0.05, 0.4], 6);
   this.debris(x, y, "pebble", Math.floor(c.pebbles * k), sz, col, {elev: [55, 75], spd: [4, 8], size: [1.5, 3.5]});
   this.addSrc(new Jet(x, y, 1.6 * ps * sz, 2.2 * ps, 10 * ps, fl));
@@ -566,7 +572,7 @@ Sim.prototype.takeoff = function (fig, x, y, ps, k, c) {
 };
 Sim.prototype.landing = function (fig, x, y, ps, k, c) {
   var sz = c.size / 100 * k * 0.6, col = rgb(c.color), fl = this.flat(x, y);
-  if (c.ring) this.addRing(new Ring("ground", x, y, 12, 34 * sz * ps, fl, null, null, 4 * ps * sz, 90, sz));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 12, 34 * sz * ps, fl, null, null, 4 * ps * sz, 90, sz, 0, 0, this.bodyR(fig, ps)));
   this.puffs(x, y, c.dust * k * 0.6, 2.2, col, sz, 520, 0, 360, [0.02, 0.25], 6);
   this.addSrc(new Jet(x, y, 1.0 * ps * sz, 2.0 * ps, 8 * ps, fl));
 };
@@ -578,7 +584,7 @@ Sim.prototype.knockEvents = function (fig, tr, m, fx, fy, ps, jump) {
     if (c.enabled && c.launch && tr.v0 >= c.min_speed) {
       var s = escale(Math.pow(tr.v0 / 15, 2)) * c.size / 100, col = rgb(c.color), fl = this.flat(fx, fy);
       back = Math.atan2(-m.bounce_vy, -m.bounce_vx) * 180 / Math.PI;
-      this.addRing(new Ring("ground", fx, fy, 14, 40 * s * ps, fl, null, null, 5 * ps * s, Math.atan2(m.bounce_vy, m.bounce_vx) * 180 / Math.PI, s));
+      this.addRing(new Ring("ground", fx, fy, 14, 40 * s * ps, fl, null, null, 5 * ps * s, Math.atan2(m.bounce_vy, m.bounce_vx) * 180 / Math.PI, s, tr.v0 * this.ssc(fx, fy) / TICK_S, 0, this.bodyR(fig, ps)));
       this.puffs(fx, fy, c.dust * 0.5, 2.0, col, s, 700, 0, 360, [0.05, 0.5]);
       this.puffs(fx, fy, c.dust * 0.5, 4.0 * s, col, s, 800, back, 70, [0.1, 0.8]);
       this.debris(fx, fy, "rock", Math.floor(c.rocks * 0.4), s, rgb(c.rock_color), {az: back, spread: 90, elev: [35, 60], spd: [3, 7], size: [2, 4.5]});
@@ -594,7 +600,7 @@ Sim.prototype.knockEvents = function (fig, tr, m, fx, fy, ps, jump) {
 };
 Sim.prototype.crater = function (fig, x, y, ps, s, c) {
   var col = rgb(c.color), fl = this.flat(x, y), R = 44 * s * ps, n = Math.floor(c.dust);
-  this.addRing(new Ring("ground", x, y, 22, R * 1.4, fl, null, null, 7 * ps * s, 90, s));
+  this.addRing(new Ring("ground", x, y, 22, R * 1.4, fl, null, null, 7 * ps * s, 90, s, 0, 0, this.bodyR(fig, ps)));
   this.addRing(new Ring("crater", x, y, 70, R * 0.8, fl, null, rgb(c.rock_color), 3 * ps));
   for (var i = 0; i < n; i++) {
     var a = 2 * Math.PI * i / Math.max(1, n) + Math.random() * 0.3;
@@ -677,7 +683,7 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
     var hz = +c.boom_hz || 0, fire = false;
     if (prev < 1) { fire = true; tr.boom_t = 0; }
     else if (hz > 0) { tr.boom_t = (tr.boom_t || 0) + TICK_S; if (tr.boom_t >= 1 / hz) { fire = true; tr.boom_t -= 1 / hz; } }
-    if (fire) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps, Math.atan2(tr.ny, tr.nx) * 180 / Math.PI, M));
+    if (fire) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps, Math.atan2(tr.ny, tr.nx) * 180 / Math.PI, M, sp, 0, this.bodyR(fig, ps)));
   }
   if (M >= 1 && c.sweep) {
     tr.sweep++;
@@ -703,7 +709,7 @@ Sim.prototype.clash = function (x, y, angle, kb, owners) {
     this.puff(x, floor, z0, Math.cos(a) * sp * sgn, 0, -Math.sin(a) * sp * sgn, (450 + 450 * Math.random()) / TICK_MS, 5 * s * (0.7 + 0.6 * Math.random()), col, null, 0);
   }
   this.sparks2d(x, y, perp, Math.floor(c.sparks), s, rgb(c.spark_color), floor);
-  this.addRing(new Ring("boom", x, y, 12, 36 * s * ps, 1, null, [255, 255, 255], 4 * ps, perp - 90, s));
+  this.addRing(new Ring("boom", x, y, 12, 36 * s * ps, 1, null, [255, 255, 255], 4 * ps, perp - 90, s, 0, 0, this.bodyR(own[0], ps)));
   if (c.ground_jet && gy != null && gy > y + 2) {
     var delay = Math.max(1, Math.floor((gy - y) / Math.max(1, 4.5 * ps * s)));
     this.later.push([this.t + delay, this.clashFloor, [x, gy, s, c, this.cur, this.curFx]]);
@@ -730,13 +736,15 @@ Sim.prototype.sparks2d = function (x, y, az, n, s, col, floor) {
   this.bursts.push(b);
 };
 // A technique shot detonating at (x, y) with this damage; fig = its owner.
-Sim.prototype.blast = function (x, y, dmg, fig) {
+// track (optional): {ax: heading deg, dist: px flown, spd: px/s} - the spiral's axis, length and pitch.
+Sim.prototype.blast = function (x, y, dmg, fig, track) {
   var c = this.cfg(fig, "blast");
   this.use(fig, c);
   if (!c.enabled || dmg < c.min_damage) return;
   var ps = this.ps(x, y), s = escale(dmg / 10) * c.size / 100, fl = this.flat(x, y);
   this.addSrc(new Blast(x, y, s, ps, c.reach, c.strength / 100, c.suck_back, fl));
-  if (c.ring) this.addRing(new Ring("ground", x, y, 20, c.reach * 0.6 * s * ps, fl, null, null, 4 * ps * s, 0, s));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 20, c.reach * 0.6 * s * ps, fl, null, null, 4 * ps * s,
+    track ? track.ax : 0, s, track ? track.spd : 0, track ? track.dist : 0, 0));
   this.puffs(x, y, Math.floor(c.dust * Math.min(2, s)), 1.5, rgb(c.color), s, 900, 0, 360, [0.05, 0.6]);
 };
 Sim.prototype.move = function () {
@@ -793,10 +801,17 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
     outT = Math.max(0, Math.min(1, (r.age - (r.life - ot)) / ot)); a0 = 1;
   }
   var ar = r.ax * Math.PI / 180, ux = Math.cos(ar), uy = Math.sin(ar), nx = -uy, ny = ux;
-  var length = r.r * 5.0 * sp.length_pct / 100 * (0.35 + 0.65 * grow);
-  length *= Math.max(0.3, Math.min(3, 1 + sp.speed_len / 100 * (r.k - 1)));
-  var r0 = rad * 0.55 * sp.radius_pct / 100, rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
-  var th0 = spin * TAU * sp.spin_hz * r.age * TICK_MS / 1000 + rot;
+  var length, lo = sp.min_speed, hi = Math.max(sp.min_speed, sp.max_speed);
+  if (r.dist) length = r.dist * sp.length_pct / 100 * (0.35 + 0.65 * grow);
+  else {
+    length = r.r * 5.0 * sp.length_pct / 100 * (0.35 + 0.65 * grow);
+    length *= Math.max(0.3, Math.min(3, 1 + sp.speed_len / 100 * (r.k - 1)));
+  }
+  // Rotation frequency + speed = pitch (px per coil = speed / frequency), speed held inside min..max.
+  var v = r.spd || (lo + hi) * 0.5, pitch = Math.max(4, Math.max(lo, Math.min(hi, v)) / Math.max(0.1, sp.spin_hz));
+  var turns = Math.max(0.05, length / pitch);
+  var r0 = (sp.body_scale && r.body > 0) ? r.body * sp.body_pct / 100 * (0.4 + 0.6 * grow) : rad * 0.55 * sp.radius_pct / 100, rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
+  var th0 = rot;
   var gapf = n >= 2 ? sp.gap / 100 : 0, span = TAU / n, m = Math.max(8, Math.floor(96 / n)), parts = [], i, j;
   for (i = 0; i < n; i++) {
     var pts = [];
@@ -804,7 +819,7 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
       var t = j / m, uu = gapf / 2 + t * (1 - gapf), s = (i + uu) / n, phi = (i + uu - 0.5) * span + rot;
       var x = r.x + rad * Math.cos(phi), y = r.y + rad * fl * Math.sin(phi), af = 1;
       if (b > 0) {
-        var th = TAU * sp.turns * s * spin + th0, rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1));
+        var th = TAU * turns * s * spin + th0, rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1));
         var off = sp.reach === "behind" ? -(1 - s) * length : sp.reach === "ahead" ? s * length : (s - 0.5) * length;
         var sn = Math.sin(th), hx = r.x + ux * off + nx * rs * sn, hy = r.y + uy * off + ny * rs * sn;
         x += (hx - x) * b; y += (hy - y) * b;
