@@ -635,7 +635,7 @@ def ring_split(fig, sec):
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep", "boom_t", "trail")
+                 "sp", "head", "sweep", "boom_t", "trail", "tgap")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -660,6 +660,10 @@ class _Track:
         self.sweep = 0
         self.boom_t = 0.0
         self.trail = None       # the live sound-barrier spiral trail this fighter is drawing
+        self.tgap = 0           # ticks it has been below the trail's hold speed
+
+
+TRAIL_GRACE = 8     # ticks a spiral trail survives below 0.75 Mach before it stops growing
 
 
 class Trail:
@@ -1158,12 +1162,16 @@ class WorldFx:
         tr.mach = M
         # Live spiral trail: while supersonic, ONE spring follows the fighter (instead of a
         # separate ring per boom).  It needs the spiral on, twist > 0 and "trail" ticked.
-        spl = ring_split(fig, c) if (M >= 1.0 and c["boom"]) else None
+        # A trail STARTS at Mach 1 but only ENDS after TRAIL_GRACE ticks below 0.75 Mach, so a single
+        # slow tick (hit-stop, speed pulse, weave) no longer cuts it into short stripes.
+        spl = ring_split(fig, c) if (c["boom"] and (M >= 1.0 or (tr.trail is not None and M >= 0.75))) else None
         if spl is not None and spl["tw"] > 0.0 and spl.get("trail", True):
             t = tr.trail
-            if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > config.ARENA_OVAL_TELEPORT_PX:
+            if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > \
+                    config.ARENA_OVAL_TELEPORT_PX * (1 + tr.tgap):
                 self.end_trail(tr)      # blink / teleport: the spring ends where it was
                 t = None
+            tr.tgap = 0
             if t is None:
                 t = tr.trail = Trail(_rgb(c["color"]), spl, self.body_r(fig, ps), ps,
                                      18.0 * spl["life_pct"] / 100.0)
@@ -1175,6 +1183,13 @@ class WorldFx:
             t.add(fig.x, fig.y, sp_s)
             tr.boom_t = 0.0
             fire = False
+        elif tr.trail is not None and spl is None and c["boom"]:
+            tr.tgap += 1                # slow for a moment: hold the trail (no new points) a few ticks
+            if tr.tgap > TRAIL_GRACE:
+                self.end_trail(tr)
+                fire = None
+            else:
+                fire = False
         else:
             self.end_trail(tr)
             fire = None
@@ -1602,7 +1617,8 @@ class WorldFx:
             off = rs * math.sin(th) * b
             x = q[0] - ty * off
             y = q[1] + tx * off
-            front = max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
+            # the whole wave stays drawn (a continuous trail); the far side of each coil is just dimmer
+            front = 0.45 + 0.55 * max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
             af = (1.0 - b) + b * front
             age = q[3]
             fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
