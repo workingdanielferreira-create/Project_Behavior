@@ -1248,6 +1248,7 @@ class Inst:
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb")
 
     def __init__(self):
+        self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
         self.tq_grow = {}      # a technique's shots grown by absorbing: index -> growth
         # Unique ability Ricochet (laser/unique.py): bounces left (None = not
@@ -2433,48 +2434,63 @@ def resolve_hits(inst, host, ps):
                     host.on_hit(inst, b["damage"] * g, ux, uy, b["knockback"] * g, key)
         return
     if inst.fx["prim"] == "particles":
+        # AOE: a particle overlapping several enemies hits every one of them.
         keep = []
         for q in inst.parts:
-            hit_key = None
+            hit_keys = []
             size = max(0.5, q["s0"])
             for (hx, hy, hr, key) in hurts:
                 if math.hypot(q["x"] - hx, q["y"] - hy) <= hr + size / 2:
-                    hit_key = key
-                    break
-            if hit_key is None or not _can_hit(b, q["hits"], q["last_hit"], now):
+                    hit_keys.append(key)
+            if not hit_keys or not _can_hit(b, q["hits"], q["last_hit"], now):
                 keep.append(q)
                 continue
             q["hits"] += 1
             q["last_hit"] = now
             d = norm(q["vx"], q["vy"])
             g = inst.ab_g
-            host.on_hit(inst, b["damage"] * g, d[0], d[1], b["knockback"] * g, hit_key)
+            for hit_key in hit_keys:
+                host.on_hit(inst, b["damage"] * g, d[0], d[1], b["knockback"] * g, hit_key)
             if b["pierce"]:
                 keep.append(q)
         inst.parts = keep
         return
     if drag_on(inst.fx) and drag_step(inst, host, ps):
         return
-    if not _can_hit(b, inst.hits, inst.last_hit, now):
-        return
-    for (hx, hy, hr, key) in hurts:
-        if _hit_shape(inst, hx, hy, hr, ps, host):
-            inst.hits += 1
-            inst.last_hit = now
-            g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
-            rw = swordfx.gunfx.rewind_mult(inst, hx, hy, ps) if inst.fx["prim"] == "technique" else 1.0
-            d = swordfx.hit_dir(inst) if inst.fx["prim"] == "technique" else inst.dir
-            host.on_hit(inst, b["damage"] * g * rw, d[0], d[1], b["knockback"] * g, key)
-            if inst.fx["prim"] == "technique":
-                swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
-                swordfx.hit_freeze(inst, host)     # its hit-stop (strikes)
-            # Ricochet (unique ability): bounces off the fighter instead.
-            if not b["pierce"] and not _unique.inst_off_figure(inst, host, hx, hy, hr):
-                if can_lodge(inst):
-                    blade_lodge(inst, hx, hy, hr, ps)
-                else:
-                    inst.age = max(inst.age, inst.life)
-            return
+    # AOE: every enemy the effect overlaps this tick is hit, each with its own
+    # re-hit clock (inst.hit_targets: hurt slot -> [hits, last_hit]); a
+    # non-piercing effect still ends after this tick's hits.
+    if inst.hit_targets is None:
+        inst.hit_targets = {}
+    first = None
+    for i, (hx, hy, hr, key) in enumerate(hurts):
+        th = inst.hit_targets.get(i)
+        if th is None:
+            th = inst.hit_targets[i] = [0, -10 ** 9]
+        if not _can_hit(b, th[0], th[1], now):
+            continue
+        if not _hit_shape(inst, hx, hy, hr, ps, host):
+            continue
+        th[0] += 1
+        th[1] = now
+        inst.hits += 1
+        inst.last_hit = now
+        g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
+        rw = swordfx.gunfx.rewind_mult(inst, hx, hy, ps) if inst.fx["prim"] == "technique" else 1.0
+        d = swordfx.hit_dir(inst) if inst.fx["prim"] == "technique" else inst.dir
+        host.on_hit(inst, b["damage"] * g * rw, d[0], d[1], b["knockback"] * g, key)
+        if inst.fx["prim"] == "technique":
+            swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
+            swordfx.hit_freeze(inst, host)     # its hit-stop (strikes)
+        if first is None:
+            first = (hx, hy, hr)
+    # Ricochet (unique ability): bounces off the fighter instead.  Judged on
+    # the first enemy struck; the effect ends once, after every hit landed.
+    if first is not None and not b["pierce"] and not _unique.inst_off_figure(inst, host, first[0], first[1], first[2]):
+        if can_lodge(inst):
+            blade_lodge(inst, first[0], first[1], first[2], ps)
+        else:
+            inst.age = max(inst.age, inst.life)
 
 
 # ---------------------------------------------------------------- drawing (QPainter)
