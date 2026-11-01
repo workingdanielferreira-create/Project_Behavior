@@ -4303,6 +4303,7 @@ function physPreview(parent, cfgOf) {
       sim.step(figs);
     }
     drawStage();
+    sim.paintBack(g);
     sim.paintGround(g);
     figs.forEach(drawFig);
     sim.paintAir(g);
