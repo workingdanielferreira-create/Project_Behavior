@@ -4,13 +4,13 @@
   "enabled": true,
   "flat_near": 0.05,
   "flat_far": 0.5,
-  "max_dust": 81,
+  "max_dust": 65,
   "tau_ms": 66,
   "ink": "#ffffff",
   "style": "flat"
  },
  "dash": {
-  "enabled": true,
+  "enabled": false,
   "speed": 380,
   "rate": 16,
   "inherit": 62,
@@ -25,30 +25,30 @@
   "style": "flat"
  },
  "jump": {
-  "enabled": true,
-  "dust": 7,
+  "enabled": false,
+  "dust": 0,
   "pebbles": 19,
   "ring": true,
   "column": true,
   "land": true,
   "hops": false,
-  "size": 57,
+  "size": 22,
   "color": "#ffffff",
-  "style": "default"
+  "style": "flat"
  },
  "slam": {
   "enabled": true,
   "min_speed": 7,
-  "launch": true,
-  "skid": true,
-  "crater": true,
-  "wall": true,
-  "dust": 22,
-  "rocks": 10,
-  "size": 100,
+  "launch": false,
+  "skid": false,
+  "crater": false,
+  "wall": false,
+  "dust": 0,
+  "rocks": 11,
+  "size": 30,
   "color": "#cdb391",
   "rock_color": "#7a6e62",
-  "style": "default"
+  "style": "flat"
  },
  "clash": {
   "enabled": true,
@@ -59,7 +59,7 @@
   "size": 100,
   "color": "#e6dccb",
   "spark_color": "#ffb347",
-  "style": "default"
+  "style": "flat"
  },
  "blast": {
   "enabled": true,
