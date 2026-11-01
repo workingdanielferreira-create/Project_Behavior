@@ -126,6 +126,13 @@ function poseRaw(inst, t, ps) {
     a = A[3] + s * (+P.span || 0) * Lb.D * (p - prog(st, uc(P)));
   }
   var ca = Math.cos(a), sa = Math.sin(a);
+  if (st === "spinning_kick" && P.spin_vertical) {
+    // vertical spin: the foot swings up <-> down (screen x squashed), then opens
+    // back to the full circle over the last 20% so it lands on the aim
+    var kx = 0.3 + 0.7 * Lb.easeOut3(Math.min(1, Math.max(0, (p - 0.8) / 0.2)));
+    var tx = -sa * s * kx, ty = ca * s, n = Math.hypot(tx, ty) || 1;
+    return [ox + ca * L * kx, oy + sa * L, ox, oy, tx / n, ty / n];
+  }
   return [ox + ca * L, oy + sa * L, ox, oy, -sa * s, ca * s];
 }
 // [x0, y0, x1, y1, half width] of the lower leg while it is out.

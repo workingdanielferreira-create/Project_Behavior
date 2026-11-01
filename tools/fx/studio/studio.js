@@ -1465,6 +1465,7 @@ var PARAM_UI = {
     ["axe_crater", "Axe kick crater at", ["contact", "feet"]],
     ["spin_mode", "Spinning kick", ["centered", "travel", "lunge"]],
     ["spin_turns", "Spin turns", 0.5, 8, 0.5],
+    ["spin_vertical", "Spin vertically (up ↔ down) instead of left ↔ right", "chk"],
     ["rise_dir", "Rising kick rises", ["screen_up", "perpendicular", "straight_up", "custom"]],
     ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5],
     // punch, ki barrage and kicks (STRIKEFX.FLIP_STYLES): mirror the animation in place
@@ -1477,7 +1478,7 @@ var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "im
   "squash", "squash_amt", "squash_ticks", "squash_flash"];
 // Kick path options: PARAM_UI key -> the kick styles that show it.
 var KICK_KEYS = {kick_sweep: ["roundhouse_kick"], axe_dir: ["axe_kick"], axe_crater: ["axe_kick"],
-  spin_mode: ["spinning_kick"], spin_turns: ["spinning_kick"], rise_dir: ["rising_kick"], kick_angle_deg: ["axe_kick", "rising_kick"]};
+  spin_mode: ["spinning_kick"], spin_turns: ["spinning_kick"], spin_vertical: ["spinning_kick"], rise_dir: ["rising_kick"], kick_angle_deg: ["axe_kick", "rising_kick"]};
 // Does this kick show the key (kick_angle_deg: only with a custom direction)?
 function kickKeyShown(k, P) {
   if ((KICK_KEYS[k] || []).indexOf(P.style) < 0) return false;
