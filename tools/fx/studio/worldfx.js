@@ -23,7 +23,9 @@
 "use strict";
 var WP_FORMAT = "pb_world_physics";
 var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"];
+var SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"];
 var WP_DEFAULTS = {
   "ground": {"enabled": true, "flat_near": 0.25, "flat_far": 0.55, "max_dust": 420, "tau_ms": 140, "ink":
             "#1b1712", "style": "cel"},
@@ -31,16 +33,20 @@ var WP_DEFAULTS = {
           "start_burst": true, "wake": true, "wake_pct": 100, "curls": true, "grit": 6, "color": "#d9c4a3",
           "style": "default"},
   "jump": {"enabled": true, "dust": 14, "pebbles": 8, "ring": true, "column": true, "land": true, "hops":
-          true, "size": 100, "color": "#d9c4a3", "style": "default"},
+          true, "size": 100, "color": "#d9c4a3", "style": "default", "split": 0, "twist": -1},
   "slam": {"enabled": true, "min_speed": 7, "launch": true, "skid": true, "crater": true, "wall": true,
           "dust": 22, "rocks": 10, "size": 100, "color": "#cdb391", "rock_color": "#7a6e62", "style":
-          "default"},
+          "default", "split": 0, "twist": -1},
   "clash": {"enabled": true, "sheet": true, "dust": 14, "sparks": 16, "ground_jet": true, "size": 100,
-           "color": "#e6dccb", "spark_color": "#ffb347", "style": "default"},
+           "color": "#e6dccb", "spark_color": "#ffb347", "style": "default", "split": 0, "twist": -1},
   "blast": {"enabled": true, "min_damage": 4, "strength": 100, "suck_back": true, "reach": 80, "dust": 18,
-           "ring": true, "size": 100, "color": "#d9c4a3", "style": "default"},
+           "ring": true, "size": 100, "color": "#d9c4a3", "style": "default", "split": 0, "twist": -1},
   "sonic": {"enabled": true, "mach": 1100, "knockback": false, "cone": true, "vapor": true, "boom": true,
-           "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default"},
+           "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
+  "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "turns":
+            2.5, "length_pct": 100, "radius_pct": 100, "taper": 0, "spin_hz": 0.0, "hand": "right", "reach":
+            "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -74,12 +80,15 @@ var WP_RANGES = {
   "ground": {"flat_near": [0.05, 1.0], "flat_far": [0.05, 1.0], "max_dust": [0, 1500], "tau_ms": [20, 600]},
   "dash": {"speed": [50, 3000], "rate": [0, 200], "inherit": [0, 100], "size": [10, 400], "life_ms": [100,
           3000], "wake_pct": [0, 300], "grit": [0, 60]},
-  "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400]},
-  "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400]},
-  "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400]},
+  "jump": {"dust": [0, 80], "pebbles": [0, 40], "size": [10, 400], "split": [0, 6], "twist": [-1, 100]},
+  "slam": {"min_speed": [0, 60], "dust": [0, 120], "rocks": [0, 40], "size": [10, 400], "split": [0, 6], "twist": [-1, 100]},
+  "clash": {"dust": [0, 80], "sparks": [0, 80], "size": [10, 400], "split": [0, 6], "twist": [-1, 100]},
   "blast": {"min_damage": [0, 500], "strength": [0, 300], "reach": [20, 1200], "dust": [0, 120], "size": [10,
-           400]},
-  "sonic": {"mach": [100, 6000], "boom_hz": [0, 10]},
+           400], "split": [0, 6], "twist": [-1, 100]},
+  "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
+  "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
+            "turns": [0.25, 10], "length_pct": [10, 500], "radius_pct": [10, 300], "taper": [-100, 100],
+            "spin_hz": [-10, 10], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -124,6 +133,8 @@ var WP_ENUMS = {
   "smoke_flat": {"shrink": ["steps", "smooth", "erode", "none"]},
   "smoke_ring": {"shrink": ["steps", "smooth", "erode", "none"]},
   "smoke_stepped": {"shrink": ["steps", "smooth", "erode", "none"]},
+  "spiral": {"hand": ["right", "left"], "reach": ["behind", "ahead", "centered"], "in_mode": SPIRAL_MODES,
+            "out_mode": SPIRAL_MODES, "in_dir": SPIRAL_DIRS, "out_dir": SPIRAL_DIRS},
   "ground": {"style": ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
   "dash": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
   "jump": {"style": ["default", "cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]},
@@ -156,7 +167,9 @@ var WP_FIELDS = {
          ["dust", "Dust puffs", ""], ["pebbles", "Pebbles", "Thrown steeply (55-75 degrees) on take-off."],
          ["ring", "Ground ring", ""], ["column", "Air column", "Air drawn up behind the jumper lifts the dust after them."],
          ["land", "Landing puff", ""], ["hops", "Hop-backs too", "A hop-back makes a half-size take-off and landing."],
-         ["size", "Size %", ""], ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
+         ["size", "Size %", ""], ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
+         ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
+         ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
   slam: [["enabled", "On", "Knockback slides: launch, skid, crater, wall."],
          ["min_speed", "Minimum knockback (px/tick)", "Slower slides make no slam dust. A crater needs twice this."],
          ["launch", "Launch burst", "Dust and rocks thrown back where the hit lands."],
@@ -164,19 +177,25 @@ var WP_FIELDS = {
          ["crater", "Crater", "Where a heavy slide stops: scorched dish, rim of rising dust, rocks."],
          ["wall", "Wall slam", "A slide that hits a screen edge: a dust plane on the wall."],
          ["dust", "Dust puffs", ""], ["rocks", "Rocks", ""], ["size", "Size %", ""],
-         ["color", "Dust colour", ""], ["rock_color", "Rock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
+         ["color", "Dust colour", ""], ["rock_color", "Rock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
+         ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
+         ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
   clash: [["enabled", "On", "When two opposing effects clash (World Clash)."],
           ["sheet", "Splash sheet", "Dust thrown sideways to the hit, both ways."],
           ["dust", "Dust puffs", ""], ["sparks", "Sparks", ""],
           ["ground_jet", "Ground jet", "The downward half of the splash reaches the floor a beat later and runs out along it."],
-          ["size", "Size %", ""], ["color", "Dust colour", ""], ["spark_color", "Spark colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
+          ["size", "Size %", ""], ["color", "Dust colour", ""], ["spark_color", "Spark colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
+         ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
+         ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
   blast: [["enabled", "On", "Where a technique's shot detonates (ki blasts, charged blasts, rockets...)."],
           ["min_damage", "Minimum damage", "Weaker shots make no blast air."],
           ["strength", "Wind strength %", ""],
           ["suck_back", "Suck-back", "After the push, the air pulls back toward the centre."],
           ["reach", "Reach (px at damage 10)", "Grows with the cube root of the damage."],
           ["dust", "Dust puffs", ""], ["ring", "Ground ring", ""], ["size", "Size %", ""],
-          ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]],
+          ["color", "Dust colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
+         ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
+         ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
   sonic: [["enabled", "On", "Breaking the sound barrier."],
           ["mach", "Sound speed (px/s)", "On-screen speed: near fighters (bottom-left) move faster on screen, so they break it more easily."],
           ["knockback", "Knockback slides count", "Off: only a fighter's own movement breaks the barrier."],
@@ -185,7 +204,29 @@ var WP_FIELDS = {
           ["boom", "Barrier ring", "A ring round the body the moment it crosses Mach 1."],
           ["boom_hz", "Boom frequency (per s)", "More barrier rings per second while it stays above Mach 1. 0 = once per crossing."],
           ["sweep", "Ground sweep", "Where the cone meets the floor, the air pushes out and pulls back."],
-          ["color", "Shock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."]]
+          ["color", "Shock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
+         ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
+         ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
+  spiral: [["enabled", "On", "Every Dust & Air ring (the pulse each jump, slam, clash, blast and sound barrier throws) takes these settings. Parts 1 + Spiral 0 = the plain ring."],
+           ["parts", "Parts", "Split the ring into 2-6 parts, evenly round the circle (2 = left and right arcs, 4 = four arcs)."],
+           ["gap", "Gap between parts %", "How much of each part's share of the circle is left empty (needs 2 or more parts)."],
+           ["rotation", "Rotate pattern (deg)", "Turns where the parts' gaps sit, and where the spiral starts."],
+           ["life_pct", "Ring life %", "How long rings last; longer lets a slow create / dissolve play out."],
+           ["spiral", "Spiral %", "0 = a flat ring (a circle seen end-on). 100 = the ring seen side-on as a spring, laid along the direction of the action. In between blends the two."],
+           ["turns", "Coils", "How many full turns the spring makes along its whole length."],
+           ["length_pct", "Length %", "How far along the action the spring reaches."],
+           ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size."],
+           ["taper", "Taper %", "Positive widens the coils toward the end of the spring; negative tightens them (a shock cone)."],
+           ["spin_hz", "Spin speed (turns/s)", "How fast the coils turn as they live."],
+           ["hand", "Handedness", "Which way the coils wind."],
+           ["reach", "Reaches", "Behind the action (a trail), ahead of it, or centred on it."],
+           ["speed_len", "Length from power %", "A faster, harder action (knockback, sound barrier, big blast) stretches the spring longer."],
+           ["in_ms", "Create time (ms)", "How long the ring takes to be drawn in. 0 = it appears at once."],
+           ["in_mode", "Create: how", "Whole shape = every part fades in together. Parts together = every part draws in at the same time. Part by part = one after another."],
+           ["in_dir", "Create: direction / order", "Left to right / right to left across the screen, or in the order the parts were created (or reversed). Sets the sweep inside each part, and the order part by part."],
+           ["out_ms", "Dissolve time (ms)", "How long the ring takes to dissolve at the end of its life. 0 = the plain fade."],
+           ["out_mode", "Dissolve: how", "Whole shape = everything fades together. Parts together = each part is wiped away at the same time. Part by part = one after another."],
+           ["out_dir", "Dissolve: direction / order", "Left to right / right to left, or in creation order (or reversed)."]]
 };
 var SMOKE_FIELDS = [
   ["tones", "Tones", "Shading bands: 1 = flat, 2 = shadow + base, 3 = shadow + base + highlight."],
@@ -216,7 +257,7 @@ var WP_STYLE_TITLES = {cel: "Cel puff", billow: "Billow / cauliflower", ink: "In
   flat: "Flat graphic", ring: "Ring puff", stepped: "Stepped / dithered"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS; });
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
-  slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier"};
+  slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;
@@ -358,10 +399,26 @@ Burst.prototype.at = function (pc, t) {
   }
   return [this.x + ca * dist, this.y + sa * dist, Math.max(0, z)];
 };
-function Ring(kind, x, y, life, r, flat, edge, col, w) {
+function Ring(kind, x, y, life, r, flat, edge, col, w, ax, k) {
   this.kind = kind; this.x = x; this.y = y; this.age = 0; this.life = Math.max(2, life); this.r = r;
   this.flat = flat == null ? 1 : flat; this.edge = edge || null; this.col = col || [255, 255, 255]; this.w = w == null ? 6 : w;
+  // ax: the action's direction (deg, screen) the spiral runs along; k: its power; sp: split / spiral settings (addRing).
+  this.ax = ax || 0; this.k = k == null ? 1 : k; this.sp = null;
 }
+// The Pressure spiral settings a new ring takes (null = the plain ring): the "spiral" section with the event's split / twist.
+Sim.prototype.ringSplit = function (fig, sec) {
+  var s = this.cfg(fig, "spiral");
+  if (!s.enabled) return null;
+  var n = Math.round(s.parts), tw = s.spiral, ov, t;
+  if (sec) {
+    ov = Math.round(sec.split || 0); if (ov > 0) n = ov;
+    t = sec.twist == null ? -1 : sec.twist; if (t >= 0) tw = t;
+  }
+  if (n <= 1 && tw <= 0) return null;
+  var d = {}; Object.keys(s).forEach(function (k) { d[k] = s[k]; });
+  d.n = Math.max(1, Math.min(6, n)); d.tw = Math.max(0, Math.min(1, tw / 100));
+  return d;
+};
 
 // ---------------------------------------------------------------- the simulation
 // opts: {sw, sh, world (normalized), cfgFor(fig, section) optional}
@@ -373,7 +430,7 @@ function Sim(opts) {
 }
 Sim.prototype.reset = function () {
   this.dust = []; this.src = []; this.bursts = []; this.rings = []; this.later = []; this.tracks = new Map(); this.walls = []; this.t = 0;
-  this.cur = this.smokeFor(null, null);
+  this.cur = this.smokeFor(null, null); this.curFx = [null, null];
 };
 // (style, its deep-edit profile) for puffs an event section spawns: the
 // section's own style, or the ground's default ("default").
@@ -383,7 +440,7 @@ Sim.prototype.smokeFor = function (fig, sec) {
   if (WP_SMOKE_STYLES.indexOf(st) < 0) st = "cel";
   return [st, this.cfg(fig, "smoke_" + st)];
 };
-Sim.prototype.use = function (fig, sec) { this.cur = this.smokeFor(fig, sec); };
+Sim.prototype.use = function (fig, sec) { this.cur = this.smokeFor(fig, sec); this.curFx = [fig, sec]; };
 // Only this one smoke style, whatever the settings say (the style swatch).
 Sim.prototype.forceStyle = null;
 Sim.prototype.cfg = function (fig, name) {
@@ -397,7 +454,14 @@ Sim.prototype.flat = function (x, y) {
   return g.flat_near + (g.flat_far - g.flat_near) * f;
 };
 Sim.prototype.addSrc = function (s) { if (this.src.length >= 24) this.src.shift(); this.src.push(s); return s; };
-Sim.prototype.addRing = function (r) { if (this.rings.length >= 40) this.rings.shift(); this.rings.push(r); };
+Sim.prototype.addRing = function (r) {
+  if (r.kind === "ground" || r.kind === "boom") {
+    var f = this.curFx || [null, null];
+    r.sp = this.ringSplit(f[0], f[1]);
+    if (r.sp) r.life = Math.max(2, r.life * r.sp.life_pct / 100);
+  }
+  if (this.rings.length >= 40) this.rings.shift(); this.rings.push(r);
+};
 // Record: x y z vx vy vz age life r0 tau rgb grav style prof seed keep.
 Sim.prototype.puff = function (x, y, z, vx, vy, vz, life, r0, col, tau, grav) {
   var g = this.world.ground, cur = this.forceStyle ? [this.forceStyle, this.cfg(null, "smoke_" + this.forceStyle)] : this.cur;
@@ -494,7 +558,7 @@ Sim.prototype.hopEvents = function (fig, tr, fx, fy, ps) {
 };
 Sim.prototype.takeoff = function (fig, x, y, ps, k, c) {
   var sz = c.size / 100 * k, col = rgb(c.color), fl = this.flat(x, y);
-  if (c.ring) this.addRing(new Ring("ground", x, y, 16, 46 * sz * ps, fl, null, [255, 255, 255], 6 * ps * sz));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 16, 46 * sz * ps, fl, null, [255, 255, 255], 6 * ps * sz, -90, sz));
   this.puffs(x, y, c.dust * k, 2.6, col, sz, 650, 0, 360, [0.05, 0.4], 6);
   this.debris(x, y, "pebble", Math.floor(c.pebbles * k), sz, col, {elev: [55, 75], spd: [4, 8], size: [1.5, 3.5]});
   this.addSrc(new Jet(x, y, 1.6 * ps * sz, 2.2 * ps, 10 * ps, fl));
@@ -502,7 +566,7 @@ Sim.prototype.takeoff = function (fig, x, y, ps, k, c) {
 };
 Sim.prototype.landing = function (fig, x, y, ps, k, c) {
   var sz = c.size / 100 * k * 0.6, col = rgb(c.color), fl = this.flat(x, y);
-  if (c.ring) this.addRing(new Ring("ground", x, y, 12, 34 * sz * ps, fl, null, null, 4 * ps * sz));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 12, 34 * sz * ps, fl, null, null, 4 * ps * sz, 90, sz));
   this.puffs(x, y, c.dust * k * 0.6, 2.2, col, sz, 520, 0, 360, [0.02, 0.25], 6);
   this.addSrc(new Jet(x, y, 1.0 * ps * sz, 2.0 * ps, 8 * ps, fl));
 };
@@ -514,7 +578,7 @@ Sim.prototype.knockEvents = function (fig, tr, m, fx, fy, ps, jump) {
     if (c.enabled && c.launch && tr.v0 >= c.min_speed) {
       var s = escale(Math.pow(tr.v0 / 15, 2)) * c.size / 100, col = rgb(c.color), fl = this.flat(fx, fy);
       back = Math.atan2(-m.bounce_vy, -m.bounce_vx) * 180 / Math.PI;
-      this.addRing(new Ring("ground", fx, fy, 14, 40 * s * ps, fl, null, null, 5 * ps * s));
+      this.addRing(new Ring("ground", fx, fy, 14, 40 * s * ps, fl, null, null, 5 * ps * s, Math.atan2(m.bounce_vy, m.bounce_vx) * 180 / Math.PI, s));
       this.puffs(fx, fy, c.dust * 0.5, 2.0, col, s, 700, 0, 360, [0.05, 0.5]);
       this.puffs(fx, fy, c.dust * 0.5, 4.0 * s, col, s, 800, back, 70, [0.1, 0.8]);
       this.debris(fx, fy, "rock", Math.floor(c.rocks * 0.4), s, rgb(c.rock_color), {az: back, spread: 90, elev: [35, 60], spd: [3, 7], size: [2, 4.5]});
@@ -530,7 +594,7 @@ Sim.prototype.knockEvents = function (fig, tr, m, fx, fy, ps, jump) {
 };
 Sim.prototype.crater = function (fig, x, y, ps, s, c) {
   var col = rgb(c.color), fl = this.flat(x, y), R = 44 * s * ps, n = Math.floor(c.dust);
-  this.addRing(new Ring("ground", x, y, 22, R * 1.4, fl, null, null, 7 * ps * s));
+  this.addRing(new Ring("ground", x, y, 22, R * 1.4, fl, null, null, 7 * ps * s, 90, s));
   this.addRing(new Ring("crater", x, y, 70, R * 0.8, fl, null, rgb(c.rock_color), 3 * ps));
   for (var i = 0; i < n; i++) {
     var a = 2 * Math.PI * i / Math.max(1, n) + Math.random() * 0.3;
@@ -613,7 +677,7 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
     var hz = +c.boom_hz || 0, fire = false;
     if (prev < 1) { fire = true; tr.boom_t = 0; }
     else if (hz > 0) { tr.boom_t = (tr.boom_t || 0) + TICK_S; if (tr.boom_t >= 1 / hz) { fire = true; tr.boom_t -= 1 / hz; } }
-    if (fire) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps));
+    if (fire) this.addRing(new Ring("boom", fig.x, fig.y, 18, 46 * ps, 1, null, rgb(c.color), 5 * ps, Math.atan2(tr.ny, tr.nx) * 180 / Math.PI, M));
   }
   if (M >= 1 && c.sweep) {
     tr.sweep++;
@@ -639,16 +703,17 @@ Sim.prototype.clash = function (x, y, angle, kb, owners) {
     this.puff(x, floor, z0, Math.cos(a) * sp * sgn, 0, -Math.sin(a) * sp * sgn, (450 + 450 * Math.random()) / TICK_MS, 5 * s * (0.7 + 0.6 * Math.random()), col, null, 0);
   }
   this.sparks2d(x, y, perp, Math.floor(c.sparks), s, rgb(c.spark_color), floor);
-  this.addRing(new Ring("boom", x, y, 12, 36 * s * ps, 1, null, [255, 255, 255], 4 * ps));
+  this.addRing(new Ring("boom", x, y, 12, 36 * s * ps, 1, null, [255, 255, 255], 4 * ps, perp - 90, s));
   if (c.ground_jet && gy != null && gy > y + 2) {
     var delay = Math.max(1, Math.floor((gy - y) / Math.max(1, 4.5 * ps * s)));
-    this.later.push([this.t + delay, this.clashFloor, [x, gy, s, c, this.cur]]);
+    this.later.push([this.t + delay, this.clashFloor, [x, gy, s, c, this.cur, this.curFx]]);
   }
 };
-Sim.prototype.clashFloor = function (x, y, s, c, cur) {
+Sim.prototype.clashFloor = function (x, y, s, c, cur, curFx) {
   if (cur) this.cur = cur;
+  if (curFx) this.curFx = curFx;
   var ps = this.ps(x, y), fl = this.flat(x, y);
-  this.addRing(new Ring("ground", x, y, 18, 50 * s * ps, fl, null, null, 5 * ps * s));
+  this.addRing(new Ring("ground", x, y, 18, 50 * s * ps, fl, null, null, 5 * ps * s, 90, s));
   this.addSrc(new Jet(x, y, 2.0 * ps * s, 3.0 * ps, 10 * ps, fl));
   this.puffs(x, y, Math.floor(c.dust * 0.8), 3.2 * s, rgb(c.color), s, 700, 0, 360, [0.02, 0.3]);
 };
@@ -671,7 +736,7 @@ Sim.prototype.blast = function (x, y, dmg, fig) {
   if (!c.enabled || dmg < c.min_damage) return;
   var ps = this.ps(x, y), s = escale(dmg / 10) * c.size / 100, fl = this.flat(x, y);
   this.addSrc(new Blast(x, y, s, ps, c.reach, c.strength / 100, c.suck_back, fl));
-  if (c.ring) this.addRing(new Ring("ground", x, y, 20, c.reach * 0.6 * s * ps, fl, null, null, 4 * ps * s));
+  if (c.ring) this.addRing(new Ring("ground", x, y, 20, c.reach * 0.6 * s * ps, fl, null, null, 4 * ps * s, 0, s));
   this.puffs(x, y, Math.floor(c.dust * Math.min(2, s)), 1.5, rgb(c.color), s, 900, 0, 360, [0.05, 0.6]);
 };
 Sim.prototype.move = function () {
@@ -719,7 +784,83 @@ Sim.prototype.paintAir = function (g) {
   g.restore();
   this.tracks.forEach(function (tr) { if (tr.mach >= 0.9) self.sonic(g, tr); });
 };
+Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
+  var sp = r.sp, n = sp.n, b = sp.tw, grow = 1 - Math.pow(1 - u, 3), w = Math.max(1, r.w * (1 - u));
+  var rad = r.r * (0.25 + 0.75 * grow), fl = r.kind === "ground" ? r.flat : 1, TAU = 2 * Math.PI;
+  var inT = sp.in_ms <= 0 ? 1 : Math.min(1, r.age * TICK_MS / sp.in_ms), outT = 0, a0 = 1 - u * u;
+  if (sp.out_ms > 0) {
+    var ot = Math.max(1e-6, Math.min(r.life, sp.out_ms / TICK_MS));
+    outT = Math.max(0, Math.min(1, (r.age - (r.life - ot)) / ot)); a0 = 1;
+  }
+  var ar = r.ax * Math.PI / 180, ux = Math.cos(ar), uy = Math.sin(ar), nx = -uy, ny = ux;
+  var length = r.r * 5.0 * sp.length_pct / 100 * (0.35 + 0.65 * grow);
+  length *= Math.max(0.3, Math.min(3, 1 + sp.speed_len / 100 * (r.k - 1)));
+  var r0 = rad * 0.55 * sp.radius_pct / 100, rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
+  var th0 = spin * TAU * sp.spin_hz * r.age * TICK_MS / 1000 + rot;
+  var gapf = n >= 2 ? sp.gap / 100 : 0, span = TAU / n, m = Math.max(8, Math.floor(96 / n)), parts = [], i, j;
+  for (i = 0; i < n; i++) {
+    var pts = [];
+    for (j = 0; j <= m; j++) {
+      var t = j / m, uu = gapf / 2 + t * (1 - gapf), s = (i + uu) / n, phi = (i + uu - 0.5) * span + rot;
+      var x = r.x + rad * Math.cos(phi), y = r.y + rad * fl * Math.sin(phi), af = 1;
+      if (b > 0) {
+        var th = TAU * sp.turns * s * spin + th0, rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1));
+        var off = sp.reach === "behind" ? -(1 - s) * length : sp.reach === "ahead" ? s * length : (s - 0.5) * length;
+        var sn = Math.sin(th), hx = r.x + ux * off + nx * rs * sn, hy = r.y + uy * off + ny * rs * sn;
+        x += (hx - x) * b; y += (hy - y) * b;
+        af = (1 - b) + b * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th)));
+      }
+      pts.push([x, y, af, t]);
+    }
+    parts.push(pts);
+  }
+  var mid = parts.map(function (pts) { var q = 0; pts.forEach(function (v) { q += v[0]; }); return q / pts.length; });
+  function ranks(d) {
+    var key = [], k;
+    for (k = 0; k < n; k++) key.push(d === "left_to_right" ? mid[k] : d === "right_to_left" ? -mid[k] : d === "reverse_creation" ? -k : k);
+    var order = key.map(function (v, k2) { return k2; }).sort(function (a, c) { return key[a] - key[c]; }), rk = {};
+    order.forEach(function (v, k2) { rk[v] = k2; });
+    return rk;
+  }
+  function wipe(mode, d, prog, rk, pts, idx) {
+    if (mode === "whole") return null;
+    var pr = mode === "parts_together" ? prog : Math.max(0, Math.min(1, prog * n - rk[idx])), cs;
+    if (d === "left_to_right" || d === "right_to_left") {
+      var lo = 1e9, hi = -1e9;
+      pts.forEach(function (q) { lo = Math.min(lo, q[0]); hi = Math.max(hi, q[0]); });
+      cs = pts.map(function (q) { var c = (q[0] - lo) / (hi - lo + 1e-6); return d === "right_to_left" ? 1 - c : c; });
+    } else cs = pts.map(function (q) { return d === "reverse_creation" ? 1 - q[3] : q[3]; });
+    return cs.map(function (c) { return Math.max(0, Math.min(1, (pr * 1.1 - c) * 12)); });
+  }
+  var rkIn = ranks(sp.in_dir), rkOut = ranks(sp.out_dir), whole = 1;
+  if (sp.in_mode === "whole" && sp.in_ms > 0) whole *= inT;
+  if (sp.out_mode === "whole" && sp.out_ms > 0) whole *= 1 - outT;
+  var segs = [];
+  parts.forEach(function (pts, idx) {
+    var vin = sp.in_ms > 0 ? wipe(sp.in_mode, sp.in_dir, inT, rkIn, pts, idx) : null;
+    var vout = sp.out_ms > 0 ? wipe(sp.out_mode, sp.out_dir, outT, rkOut, pts, idx) : null, f = [], q;
+    for (q = 0; q < pts.length; q++) {
+      var v = pts[q][2] * whole;
+      if (vin) v *= vin[q];
+      if (vout) v *= 1 - vout[q];
+      f.push(v);
+    }
+    for (q = 0; q < pts.length - 1; q++) {
+      var a = a0 * Math.min(f[q], f[q + 1]);
+      if (a > 0.01) segs.push([pts[q][0], pts[q][1], pts[q + 1][0], pts[q + 1][1], a]);
+    }
+  });
+  g.save(); g.lineCap = "butt";
+  [[w + 3, ink], [w, css(r.col)]].forEach(function (pass) {
+    g.lineWidth = pass[0]; g.strokeStyle = pass[1];
+    segs.forEach(function (sg) {
+      g.globalAlpha = sg[4]; g.beginPath(); g.moveTo(sg[0], sg[1]); g.lineTo(sg[2], sg[3]); g.stroke();
+    });
+  });
+  g.restore();
+};
 Sim.prototype.ring = function (g, r, ink) {
+  if (r.sp && (r.kind === "ground" || r.kind === "boom")) { this.ringSplitDraw(g, r, ink, r.age / r.life); return; }
   var u = r.age / r.life, grow = 1 - Math.pow(1 - u, 3), w = Math.max(1, r.w * (1 - u)), rx, ry, a;
   g.save();
   if (r.kind === "crater") {
