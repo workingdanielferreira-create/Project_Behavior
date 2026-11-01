@@ -740,7 +740,12 @@ class ProjectileSystem(System):
                                         f"at=({proj.x:.0f},{proj.y:.0f}) "
                                         f"pierce={proj.pierce}")
                                 hit = True
-                            break
+                            # A bullet that survives the contact (pierce /
+                            # ricochet) carries on to every other enemy it
+                            # overlaps this tick (AOE) instead of stopping
+                            # at the first.
+                            if hit:
+                                break
 
                 if not hit:
                     alive.append(proj)
@@ -1242,6 +1247,30 @@ class CollisionSystem(System):
                         world.collision_dots.append([ex, ey, 0])
                         # HP was reduced -> the bullet explodes in a burst.
                         _spawn_bullet_burst(world, ex, ey, _r, _g, _b)
+                        # AOE splash: a normal bullet's impact also hurts the
+                        # other fighters of this side standing close to it
+                        # (full damage each; own parry / cooldown / blocks
+                        # decide per fighter).  Fighters already inside the
+                        # direct hit circle get theirs in their own pass, and
+                        # pierce / beam bolts (many per tick) never splash.
+                        _splash = float(getattr(_src, "splash_radius", config.BULLET_SPLASH_RADIUS))
+                        if (_splash > 0.0 and not getattr(_src, "pierce", False)
+                                and getattr(_src, "style", None) != "beam"):
+                            for sf in world.figures:
+                                if sf is fig or blink.gone(sf) or dodge.untouchable(sf, world.global_tick):
+                                    continue
+                                if sf.combat.parrying:
+                                    continue
+                                _shb = sf.mode.hurtbox_radius()
+                                _sbs = sf.mode.body_scale()
+                                _hit_sq = _shb * _shb if _shb else config.BATTLE_PROJ_HIT_SQ * _sbs * _sbs
+                                _sd = (ex - sf.x) ** 2 + (ey - sf.y) ** 2
+                                if _sd <= _hit_sq or _sd > (_hit_sq ** 0.5 + _splash) ** 2:
+                                    continue
+                                targeting.note_hit(sf, getattr(_src, "owner", None))
+                                ai.battle_hit(sf, evx, evy, world, amount=_dmg,
+                                              knockback_px=getattr(_src, "knockback_px", 0),
+                                              no_knockback=getattr(_src, "no_knockback", False))
                         # Ricochet (shooter's unique ability): the bullet
                         # bounces off this fighter instead of dying.
                         _bounced = unique.proj_off_figure(_src, fig.x, fig.y,
@@ -1425,14 +1454,25 @@ class CollisionSystem(System):
             for fig in world.figures:
                 if not fig.mode.uses_melee():
                     continue
+                # AOE: every enemy inside ANY arc band is listed (once per
+                # tick however many bands overlap it).  partner_figures is a
+                # read-only snapshot, so the damage rides World.refresh_battle
+                # to the opposing side (queue_crescent_hits), 1 HP per tick of
+                # overlap as the arc's spec says; here we mark the contact dot.
+                _pgone = getattr(world, "partner_gone", None) or []
+                _pids = getattr(world, "partner_ids", None) or []
+                _touched = set()
                 for uc in fig.combat.ult_crescents:
-                    for ex, ey, _edash, _eparry in world.partner_figures:
+                    for _pi, (ex, ey, _edash, _eparry) in enumerate(world.partner_figures):
+                        if _pi in _touched or (_pi < len(_pgone) and _pgone[_pi]):
+                            continue
                         if uc.check_figure_hit(ex, ey):
-                            # partner_figures is a read-only snapshot — the
-                            # opposing side registers crescent damage through
-                            # the normal projectile pipeline on its own pass.
-                            # Here we only mark the visual contact dot.
+                            _touched.add(_pi)
                             world.collision_dots.append([ex, ey, 0])
+                if _touched:
+                    world.queue_crescent_hits(
+                        [(_pids[_pi], config.ULTC_DAMAGE) for _pi in sorted(_touched)
+                         if _pi < len(_pids)])
 
         # --- Ultimate crescent → own figure HP damage (ult hits our figs back) ---
         # Only apply in solo mode (target = cursor proximity) or when enemy

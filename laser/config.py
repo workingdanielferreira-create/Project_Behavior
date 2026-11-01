@@ -569,6 +569,8 @@ ULTC_SEGS               = 32         # draw segments for the arc gradient
 ULTC_LIFETIME           = 600        # max ticks alive (safety cap)
 ULTC_SECOND_DELAY_TICKS = 1          # ticks after 1st before 2nd fires
 ULTC_HIT_FIGURE_DIST    = 40.0       # px — figure within this of arc surface takes 1 HP/tick
+ULTC_DAMAGE             = 1.0        # HP per tick each enemy inside the arc band takes (AOE: all of them)
+BULLET_SPLASH_RADIUS    = 45.0       # px past the hit circle: enemies this close to a normal bullet's impact take it too (0 = off)
 ULTC_CROSS_ANGLE        = 45.0       # degrees each blade is rotated ± from travel axis to form X
 
 

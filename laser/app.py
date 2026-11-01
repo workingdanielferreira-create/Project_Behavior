@@ -109,6 +109,10 @@ class SideState:
                                     # black hole, laser/powerfx.py), same delivery
         self.fx_drags = []          # FX Studio Drag pushes this tick (fxkit
                                     # drag_step), same delivery
+        self.crescent_hits = []     # ultimate-crescent contacts this tick:
+                                    # (target id(), damage), delivered to the
+                                    # opponent by refresh_battle (AOE: every
+                                    # fighter inside the arc band is listed)
 
 
 class World:
@@ -667,6 +671,11 @@ class World:
         """fxkit hits from the side being simulated (see refresh_battle)."""
         self.sides[self.side_idx].fx_hits.extend(hits)
 
+    def queue_crescent_hits(self, hits):
+        """Ultimate-crescent contacts from the side being simulated (see
+        refresh_battle): (target id(), damage) per enemy inside the arc."""
+        self.sides[self.side_idx].crescent_hits.extend(hits)
+
     def queue_fx_pulls(self, pulls):
         """fxkit pull fields from the side being simulated (see refresh_battle)."""
         self.sides[self.side_idx].fx_pulls.extend(pulls)
@@ -1025,6 +1034,21 @@ class World:
                     sq = hitfx.squash_of(P)
                     if sq is not None:
                         ef.hit_squash = [sq[0], sq[0], float(dx), float(dy), sq[1], sq[2]]
+        # Deliver ultimate-crescent contacts from last tick (AOE): every
+        # opposing fighter the arc band touched takes the hit, each through
+        # its own damage cooldown / block / unique-ability checks.
+        for i, side in enumerate(self.sides):
+            chits, side.crescent_hits = side.crescent_hits, []
+            if not chits or not self.battle_mode:
+                continue
+            by_id = {id(ef): ef for ef in self.sides[1 - i].figures}
+            for (tid, dmg) in chits:
+                ef = by_id.get(tid)
+                if ef is None or blink.gone(ef) or dodge.untouchable(ef, self.global_tick):
+                    continue
+                if ai.damage_immune(ef, self):
+                    continue
+                ai.apply_hp_damage(ef, self, dmg, kind="melee")
         # Deliver FX Studio pulls (gigantic meteor, black hole) from last
         # tick: the opposing fighters inside a pull field are drawn toward
         # it; a blinked-out fighter (or one not placed yet, which the
