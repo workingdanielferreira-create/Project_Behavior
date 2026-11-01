@@ -64,7 +64,7 @@ from . import unique as _unique
 from . import movestyle as _movestyle
 
 TICK_MS = config.TICK_MS
-DEFAULT_ATTACK_GAP_MS = 350     # minimum gap between attacks without a cooldown
+DEFAULT_ATTACK_GAP_MS = 350     # default gap after an attack ends (action_settings[attack].attack_gap_ms)
 SHOOTER_RANGE_PX = 420          # shooters attack from this far (or their radius)
 HISTORY = 12
 SPEED_WINDOW = 6                # ticks averaged for own / target speed (px/s)
@@ -106,6 +106,20 @@ def _settings(fig):
 def _cfg(fig, action):
     settings, norm = _settings(fig)
     return settings.get(action) or norm({})
+
+
+def attack_gap_ms(fig, name):
+    """Minimum pause after attack `name` ends before ANY attack may start
+    (action_settings[name].attack_gap_ms, default DEFAULT_ATTACK_GAP_MS;
+    0 = none).  Runs on the cooldown clock (unique.cd_now).  Same in Solo
+    and Battle."""
+    v = _cfg(fig, name).get("attack_gap_ms")
+    if v is None or v == "":
+        return float(DEFAULT_ATTACK_GAP_MS)
+    try:
+        return max(0.0, float(v))
+    except (TypeError, ValueError):
+        return float(DEFAULT_ATTACK_GAP_MS)
 
 
 # The Switch actions (laser/tag.py): a tag pair's incoming fighter plays
@@ -432,7 +446,7 @@ class ActionRunner:
         self.stamp_idle(fig, now)
         if _kind(name) == "attack":
             self.last_attack_end = now
-            self.gap_until = _unique.cd_now(fig, now) + int(DEFAULT_ATTACK_GAP_MS / TICK_MS)
+            self.gap_until = _unique.cd_now(fig, now) + int(attack_gap_ms(fig, name) / TICK_MS)
             self.chain_pos = name
         self._restore_speed(fig)
 

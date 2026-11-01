@@ -618,8 +618,10 @@ var CONDITION_COMMON = {not: false};
 // attack_px (normal attacks): how close the target must be for this attack to
 // start, game px at 100 % character scale; 0 = the character's
 // stats.basic_attack_radius (shooters: their shooting range).
+// attack_gap_ms (attacks): minimum pause after this attack ends before any
+// attack may start (0 = none), laser/actions.py attack_gap_ms.
 var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next: "", chain_reset_ms: 1000, fx_continuous: false,
-  movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80, attack_px: 0};
+  movement: "stand", move_speed_pct: 100, anim_loops: 1, back_stop_pct: 80, attack_px: 0, attack_gap_ms: 350};
 // leap (movement "leap", laser/actions.py _leap_step): at start_frame the
 // target's spot is locked and the fighter travels there in an arc height_px
 // high (game px at 100 %), arriving as land_frame starts (-1 = the last
