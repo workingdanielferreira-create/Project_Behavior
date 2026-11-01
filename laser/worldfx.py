@@ -794,9 +794,9 @@ class WorldFx:
             r.sp = ring_split(fig, sec)
             # The spiral only exists on a mover that makes the Spiral's min_speed (px/s at
             # full pace); a slower one gets the plain ring.  Rings with no speed are untouched.
-            if r.sp is not None and r.spd:
-                v = r.spd / max(0.05, self.ss(r.x, r.y))
-                if v < float(r.sp["min_speed"]):
+            if r.sp is not None:
+                v = (r.spd / max(0.05, self.ss(r.x, r.y))) if r.spd else 0.0
+                if v < float(r.sp["min_speed"]):      # below min_speed (or no speed at all): no spiral
                     r.sp = None
             if r.sp is not None:
                 r.life = max(2.0, r.life * r.sp["life_pct"] / 100.0)
@@ -1221,7 +1221,7 @@ class WorldFx:
         spl = ring_split(fig, c)
         trail_ok = spl is not None and spl["tw"] > 0.0 and spl.get("trail", True)
         tlo = float(spl["min_speed"]) if spl is not None else 0.0
-        running = trail_ok and (sp_t >= tlo or (tr.trail is not None and sp_t >= 0.75 * tlo))
+        running = trail_ok and sp_t >= tlo      # strictly at / above min_speed, no slack below it
         if running:
             t = tr.trail
             if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > \
