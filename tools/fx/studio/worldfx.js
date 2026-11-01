@@ -682,10 +682,12 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   if (!c.enabled || ((m.bouncing || m.bounce_ending) && !c.knockback)) { tr.mach = 0; this.endTrail(tr); return; }
   var M = sp / Math.max(1, c.mach); tr.mach = M;
   // Live spiral trail: while supersonic ONE spring follows the fighter (not a separate ring per boom).
-  var spl = (M >= 1 && c.boom) ? this.ringSplit(fig, c) : null, trailed = false;
+  // Starts at Mach 1, only ends after 8 ticks below 0.75 Mach (one slow tick no longer cuts it into stripes).
+  var spl = (c.boom && (M >= 1 || (tr.trail && M >= 0.75))) ? this.ringSplit(fig, c) : null, trailed = false;
   if (spl && spl.tw > 0 && spl.trail !== false) {
     var tl = tr.trail;
-    if (tl && tl.pts.length) { var lp = tl.pts[tl.pts.length - 1]; if (Math.hypot(fig.x - lp[0], fig.y - lp[1]) > 300) { this.endTrail(tr); tl = null; } }
+    if (tl && tl.pts.length) { var lp = tl.pts[tl.pts.length - 1]; if (Math.hypot(fig.x - lp[0], fig.y - lp[1]) > 40 * (1 + (tr.tgap || 0))) { this.endTrail(tr); tl = null; } }
+    tr.tgap = 0;
     if (!tl) { tl = tr.trail = {pts: [], live: true, phase: 0}; this.trails.push(tl); tl.body = this.bodyR(fig, ps); }
     tl.sp = spl; tl.ps = ps; tl.col = rgb(c.color); tl.life = Math.max(2, 18 * spl.life_pct / 100);
     if (tl.pts.length) {
@@ -695,6 +697,9 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
     }
     tl.pts.push([fig.x, fig.y, tl.phase, 0, sp]);
     tr.boom_t = 0; trailed = true;
+  } else if (tr.trail && !spl && c.boom) {
+    tr.tgap = (tr.tgap || 0) + 1;       // slow for a moment: hold the trail (no new points)
+    if (tr.tgap > 8) this.endTrail(tr); else trailed = true;
   } else this.endTrail(tr);
   if (M >= 1 && c.boom && !trailed) {
     // First boom on crossing Mach 1; then boom_hz more per second while supersonic (0 = once per crossing).
@@ -909,7 +914,7 @@ Sim.prototype.trailDraw = function (g, t, ink) {
     var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty);
     if (ln < 1e-6) { tx = pos.length ? pos[pos.length - 1][4] : 1; ty = pos.length ? pos[pos.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
     var s = i / (n - 1), rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1)), th = pts[i][2], off = rs * Math.sin(th) * b;
-    var af = (1 - b) + b * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th))), age = pts[i][3];
+    var af = (1 - b) + b * (0.45 + 0.55 * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th)))), age = pts[i][3];
     var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
     pos.push([pts[i][0] - ty * off, pts[i][1] + tx * off, af * fo * fi, fo, tx, ty]);
   }
