@@ -968,14 +968,15 @@ class WorldFx:
         self.hop_events(fig, tr, fx, fy, ps)
         self.knock_events(fig, tr, m, fx, fy, ps, jump)
         self.dash_events(fig, tr, fx, fy, ps, z, dx, dy, sp_s, hh)
-        # Tactical retreat (laser/retreat.py): its dash is slowed by the position (perspective)
-        # speed scale like every mover, so far up the screen it can fall under the Spiral's
-        # min_speed.  For the spiral trail only, a retreat is measured UNSCALED - the same
-        # on-screen px/s it would make at full pace (Daniel 2026-11-01).  Mach / boom keep the
-        # real speed.  Solo and Battle share this path.
-        rs = getattr(fig, "retreat", None)
+        # Every mover is slowed by the position (perspective) speed scale (0.4 - 1.0), so
+        # ordinary walking / running / chasing lands at ~0-200 px/s on screen - under the
+        # Spiral's min_speed (200) almost all the time, which is why the trail never started
+        # (measured: 1500 ticks of real play, 0 trails).  For the spiral trail only, ALL
+        # self-propelled movement (not a knockback slide) is measured UNSCALED - the px/s it
+        # would make at full pace.  Mach / boom keep the real on-screen speed.  Solo and Battle
+        # share this path.
         sp_t = sp_s
-        if rs is not None and rs.active and not (m.bouncing or m.bounce_ending) and sp_s > 0.0:
+        if not (m.bouncing or m.bounce_ending) and sp_s > 0.0:
             sp_t = sp_s / max(0.05, self.ss(fig.x, fig.y))
         self.sonic_events(fig, tr, m, fx, fy, ps, sp_s, hh, sp_t)
 
