@@ -635,7 +635,7 @@ def ring_split(fig, sec):
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep", "boom_t", "trail", "tgap", "tel", "warp", "air", "leap_end")
+                 "sp", "head", "sweep", "boom_t", "trail", "tgap", "tel", "warp", "air", "leap_end", "leap_name")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -653,6 +653,7 @@ class _Track:
         self.leap_t = 1
         self.air = False
         self.leap_end = None
+        self.leap_name = None
         self.hop = False
         self.mach = 0.0
         self.seen = 0
@@ -1095,16 +1096,53 @@ class WorldFx:
             tr.leap_end = tr.leap.get("ex", fx)
             tr.leap = None
         # Airborne = the engine arc is live OR the action's frames are in the jump.
-        # Takeoff / landing fire on the edges, once each, in Solo and Battle alike.
+        # Takeoff / landing fire on the edges, once each, in Solo and Battle alike,
+        # at the fighter's FEET (the character's ftL / ftR anchors on the frame just
+        # before the launch / on the landing frame), not at a guess from sprite height.
         air = live or self.pose_air(fig)
         if air and not tr.air:
             if c["enabled"]:
-                self.takeoff(fig, fx, fy, ps, 1.0, c)
+                tr.leap_name = getattr(getattr(fig, "act", None), "playing", None)
+                gx, gy = self.jump_ground(fig, tr.leap_name, ps, False, fx, fy)
+                self.takeoff(fig, gx, gy, ps, 1.0, c)
         elif tr.air and not air:
             if c["enabled"] and c["land"]:
-                self.landing(fig, tr.leap_end if tr.leap_end is not None else fx, fy, ps, 1.0, c)
+                gx, gy = self.jump_ground(fig, tr.leap_name, ps, True, fx, fy)
+                self.landing(fig, gx, gy, ps, 1.0, c)
             tr.leap_end = None
         tr.air = air
+
+    def jump_ground(self, fig, name, ps, landing, fx, fy):
+        """Where the jump FX sit: the fighter's feet on the ground, screen px.
+        Takeoff = feet on the frame before leap.start_frame; landing = feet on
+        leap.land_frame (character anchors ftL / ftR).  Falls back to the body's
+        foot estimate (fx, fy) when the character has no usable anchors."""
+        try:
+            from .fxkit import character_fx
+            from . import actions as _actions
+            act = getattr(fig, "act", None)
+            cfx = character_fx(fig.mode)
+            if act is None or cfx is None or not name:
+                return fx, fy
+            lp = _actions._cfg(fig, name).get("leap") or {}
+            n, _fm = act._frames(fig, name)
+            f0 = max(0, int(lp.get("start_frame") or 0))
+            f1 = int(lp.get("land_frame") if lp.get("land_frame") is not None else -1)
+            if f1 < 0 or f1 > n:
+                f1 = n
+            f1 = max(f0 + 1, f1)
+            frame = min(f1, max(0, n - 1)) if landing else max(0, f0 - 1)
+            pts = [cfx.anchor_px(name, a, frame) for a in ("ftL", "ftR")]
+            pts = [q for q in pts if q]
+            if not pts:
+                return fx, fy
+            face = -1.0 if fig.transform.facing_left else 1.0
+            k = cfx.k * ps
+            ax = sum(q[0] for q in pts) / len(pts)
+            ay = sum(q[1] for q in pts) / len(pts)
+            return fig.x + (ax - cfx.origin[0]) * k * face, fig.y + (ay - cfx.origin[1]) * k
+        except Exception:
+            return fx, fy
 
     def hop_events(self, fig, tr, fx, fy, ps):
         hop = getattr(fig.combat, "hop_ticks", 0) > 0
