@@ -792,6 +792,12 @@ class WorldFx:
         if r.kind in ("ground", "boom"):
             fig, sec = self.curfx
             r.sp = ring_split(fig, sec)
+            # The spiral only exists on a mover that makes the Spiral's min_speed (px/s at
+            # full pace); a slower one gets the plain ring.  Rings with no speed are untouched.
+            if r.sp is not None and r.spd:
+                v = r.spd / max(0.05, self.ss(r.x, r.y))
+                if v < float(r.sp["min_speed"]):
+                    r.sp = None
             if r.sp is not None:
                 r.life = max(2.0, r.life * r.sp["life_pct"] / 100.0)
         if len(self.rings) >= MAX_RINGS:
@@ -978,6 +984,20 @@ class WorldFx:
         sp_t = sp_s
         if not (m.bouncing or m.bounce_ending) and sp_s > 0.0:
             sp_t = sp_s / max(0.05, self.ss(fig.x, fig.y))
+        # Tactical retreat: the dash's own commanded pace (px/s at full pace) is the speed the
+        # spiral reads - not a per-tick measurement, which hit-stop, walls or steering can drag
+        # under min_speed and so cut the spiral off mid-retreat.  Solo and Battle share this.
+        rt = getattr(fig, "retreat", None)
+        if rt is not None and getattr(rt, "active", False) and not (m.bouncing or m.bounce_ending):
+            try:
+                from . import retreat as _rt
+                rc = _rt.config_for(fig)
+                if rc is not None:
+                    cmd = float(m.speed) * max(0.0, float(rc.get("speed_pct") or 0)) / 100.0 / TICK_S
+                    if sp_s > 0.0 or cmd > 0.0:
+                        sp_t = max(sp_t, cmd)
+            except Exception:
+                pass
         self.sonic_events(fig, tr, m, fx, fy, ps, sp_s, hh, sp_t)
 
     def leap_events(self, fig, tr, lp, fx, fy, ps):
