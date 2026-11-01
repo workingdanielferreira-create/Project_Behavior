@@ -237,7 +237,7 @@ PARAM_DEFAULTS = {
                       w_depth=0, w_weight=0, w_plane=0, w_plane_roll=0, w_side="front", ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
                       impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
-                      axe_crater="contact", spin_mode="centered", spin_turns=2, rise_dir="screen_up", kick_angle_deg=0,
+                      axe_crater="contact", spin_mode="centered", spin_turns=2, spin_vertical=False, rise_dir="screen_up", kick_angle_deg=0,
                       flip_h=False, flip_v=False, fx_motion="ink", motion_smear=True, motion_arcs=True, fx_impact="ink", fx_env="ink",
                       shake=False, shake_px=6, shake_ticks=8, squash=False, squash_amt=0.3, squash_ticks=6,
                       squash_flash=True),

@@ -357,7 +357,7 @@ var PARAM_DEFAULTS = {
     // spin_mode centered / travel / lunge, spin_turns; rise_dir screen_up /
     // perpendicular / straight_up / custom; kick_angle_deg = the custom
     // direction at contact, from the aim (clockwise, mirrors with the facing).
-    kick_sweep: "high_low", axe_dir: "screen_down", axe_crater: "contact", spin_mode: "centered", spin_turns: 2,
+    kick_sweep: "high_low", axe_dir: "screen_down", axe_crater: "contact", spin_mode: "centered", spin_turns: 2, spin_vertical: false,
     rise_dir: "screen_up", kick_angle_deg: 0,
     // Animation flips (STRIKEFX.FLIP_STYLES: punch, ki barrage, kicks):
     // flip_h / flip_v mirror the animation in place, never its placement.

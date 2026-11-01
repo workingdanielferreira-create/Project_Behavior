@@ -237,6 +237,13 @@ def _pose(inst, t, ps):
         span = float(P.get("span") or 0) * S.D
         a = ac + s * span * (p - _prog(st, _uc(P)))
     ca, sa = math.cos(a), math.sin(a)
+    if st == "spinning_kick" and P.get("spin_vertical"):
+        # vertical spin: the foot swings up <-> down (screen x squashed), then
+        # opens back to the full circle over the last 20% so it lands on the aim
+        kx = 0.3 + 0.7 * S.ease_out3(min(1.0, max(0.0, (p - 0.8) / 0.2)))
+        tx, ty = -sa * s * kx, ca * s
+        n = math.hypot(tx, ty) or 1.0
+        return ox + ca * L * kx, oy + sa * L, ox, oy, tx / n, ty / n
     return ox + ca * L, oy + sa * L, ox, oy, -sa * s, ca * s
 
 
