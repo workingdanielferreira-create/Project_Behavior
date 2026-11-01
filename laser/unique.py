@@ -783,9 +783,11 @@ def tick(fig, world):
 
 
 # ------------------------------------------------------------ being hit
-def intercept(fig, world, amount):
+def intercept(fig, world, amount, unblockable=False):
     """Called for every incoming hit before it lands (after the normal
-    blocks).  True = the hit is nullified (Phase Shift / Riposte)."""
+    blocks).  True = the hit is nullified (Phase Shift / Riposte).
+    `unblockable` (an FX with Blockable off): Riposte can't take it, but
+    Phase Shift still does — it dodges every hit it has a charge for."""
     c = cfg(fig)
     if c is None:
         return False
@@ -796,7 +798,7 @@ def intercept(fig, world, amount):
     kind, P = c
     if kind == "phase_shift":
         return _phase_shift(fig, world, amount, P)
-    if kind == "riposte":
+    if kind == "riposte" and not unblockable:
         return _riposte(fig, world, amount, P)
     return False
 

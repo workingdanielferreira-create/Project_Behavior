@@ -1601,7 +1601,7 @@ def _overload(world, figs, c):
         motion.launch_knockback(f, dx * spd, dy * spd, world.global_tick)
         p = f.personality
         p.dmg_immune_until = 0        # the blast lands whatever hit came before it
-        ai.apply_hp_damage(f, world, max(1, int(round(p.max_hp * OVERLOAD_HP_PCT / 100.0))), unblockable=True)
+        ai.apply_hp_damage(f, world, max(1, int(round(p.max_hp * OVERLOAD_HP_PCT / 100.0))), unblockable=True, _ua_checked=True)
 
 
 def _push_through(world, st, w, l, c):
