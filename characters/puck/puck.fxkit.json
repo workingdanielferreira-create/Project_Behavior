@@ -12678,7 +12678,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "run": {
    "logic": "any",
@@ -12718,7 +12719,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_normal": {
    "logic": "any",
@@ -12758,7 +12760,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "defend": {
    "logic": "all",
@@ -12798,7 +12801,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_special": {
    "logic": "any",
@@ -12868,7 +12872,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "ultimate": {
    "logic": "any",
@@ -12933,7 +12938,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_special_2": {
    "logic": "any",
@@ -12984,7 +12990,8 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20
-   }
+   },
+   "attack_gap_ms": 350
   },
   "transform": {
    "logic": "any",
@@ -13030,7 +13037,8 @@
     ],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "switch_in": {
    "logic": "any",
@@ -13087,7 +13095,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "switch_out": {
    "logic": "any",
@@ -13127,7 +13136,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   }
  },
  "entry_sets": [
@@ -15656,11 +15666,11 @@
     "detach_ticks": 0,
     "grow_ticks": 0,
     "tip_fade": 0.4,
-    "pos_scale": false
+    "pos_scale": true
    },
    "battle": {
     "deals_damage": true,
-    "damage": 5,
+    "damage": 20,
     "pierce": true,
     "rehit_ticks": 2,
     "knockback": 100,
@@ -15675,7 +15685,7 @@
     "mode": "destroy",
     "deflect_who": "enemy",
     "hurts_owner": false,
-    "drag": false,
+    "drag": true,
     "drag_pct": 100,
     "drag_deg": 90,
     "drag_every": 10
@@ -15894,7 +15904,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -16032,7 +16044,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvcmil3y1",
    "action": "transform",
@@ -16220,7 +16234,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvcmil3y2",
    "action": "transform",
@@ -16391,7 +16407,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvcmil3y6",
    "action": "transform",
@@ -16538,7 +16556,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -16720,7 +16740,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -16890,7 +16912,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17037,7 +17061,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17211,7 +17237,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17380,7 +17408,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17527,7 +17557,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17673,7 +17705,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -17923,7 +17957,9 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvvmemub7",
    "action": "switch_in",
@@ -17977,7 +18013,7 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 50,
+    "damage": 20,
     "pierce": false,
     "rehit_ticks": 0,
     "knockback": 0,
@@ -17985,7 +18021,7 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "travel",
+    "kind": "attached",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
@@ -18011,14 +18047,14 @@
    },
    "params": {
     "style": "thrust_kick",
-    "radius": 9,
-    "thickness": 21.5,
-    "length": 60,
-    "swing_ticks": 5,
+    "radius": 11,
+    "thickness": 26,
+    "length": 65,
+    "swing_ticks": 4,
     "hold_ticks": 4,
     "density": 1,
-    "kb_dir": "aim",
-    "span": 197,
+    "kb_dir": "tangent",
+    "span": 169,
     "rotation_deg": 0,
     "lightning": false,
     "lightning_rate": 1.5,
@@ -18059,7 +18095,7 @@
     "shake": true,
     "shake_px": 6,
     "shake_ticks": 8,
-    "squash": true,
+    "squash": false,
     "squash_amt": 0.8,
     "squash_ticks": 20,
     "squash_flash": true,
@@ -18069,7 +18105,9 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvvmvvpf9",
    "action": "attack_normal",
@@ -18085,8 +18123,8 @@
    "always_on": false,
    "char_every_ms": 0,
    "offset": [
-    -200,
-    0
+    15.5,
+    -4.5
    ],
    "layer": "front",
    "emit": {
@@ -18258,7 +18296,12 @@
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
    "invuln_ms": 1,
-   "show_charges": false
+   "show_charges": false,
+   "state": false,
+   "state_ms": 3000,
+   "logic": "any",
+   "conditions": [],
+   "show_state": true
   },
   "ricochet": {
    "bounces": 3,

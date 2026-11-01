@@ -8579,7 +8579,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "run": {
    "logic": "any",
@@ -8619,7 +8620,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_normal": {
    "logic": "any",
@@ -8659,7 +8661,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "defend": {
    "logic": "any",
@@ -8699,7 +8702,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_special": {
    "logic": "any",
@@ -8745,7 +8749,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "ultimate": {
    "logic": "any",
@@ -8791,7 +8796,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_special_2": {
    "logic": "any",
@@ -8837,7 +8843,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "transform": {
    "logic": "any",
@@ -8877,7 +8884,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "switch_in": {
    "logic": "any",
@@ -8923,7 +8931,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "switch_out": {
    "logic": "any",
@@ -8963,7 +8972,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   }
  },
  "entry_sets": [],
@@ -9120,7 +9130,9 @@
     "squash": true,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvdn0gkj1",
    "action": "attack_normal",
@@ -9266,7 +9278,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvdn7mv02",
    "action": "attack_special",
@@ -9355,10 +9369,10 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 10,
+    "damage": 25,
     "pierce": true,
-    "rehit_ticks": 92,
-    "knockback": 1000,
+    "rehit_ticks": 1,
+    "knockback": 0,
     "blockable": false,
     "deflectable": false
    },
@@ -9447,7 +9461,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvdntvjn34",
    "action": "ultimate",
@@ -9593,7 +9609,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvdobxcw1",
    "action": "attack_special_2",
@@ -9731,7 +9749,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -9905,7 +9925,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10074,7 +10096,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10221,7 +10245,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10403,7 +10429,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10580,7 +10608,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10727,7 +10757,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -10873,7 +10905,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "flip": {
     "enabled": false,
@@ -11122,7 +11156,9 @@
     "squash": false,
     "squash_amt": 0.3,
     "squash_ticks": 6,
-    "squash_flash": true
+    "squash_flash": true,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvupj46j6",
    "action": "switch_in",
@@ -11214,6 +11250,7 @@
   "team_pct": 50,
   "rules": []
  },
+ "world_physics": {},
  "unique_ability": {
   "type": "dual_form",
   "mirror_legion": {
@@ -11266,7 +11303,12 @@
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
    "invuln_ms": 300,
-   "show_charges": true
+   "show_charges": true,
+   "state": false,
+   "state_ms": 3000,
+   "logic": "any",
+   "conditions": [],
+   "show_state": true
   },
   "ricochet": {
    "bounces": 3,

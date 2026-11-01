@@ -4,7 +4,7 @@
   "enabled": true,
   "flat_near": 0.05,
   "flat_far": 0.5,
-  "max_dust": 65,
+  "max_dust": 15,
   "tau_ms": 66,
   "ink": "#ffffff",
   "style": "flat"
@@ -25,18 +25,18 @@
   "style": "flat"
  },
  "jump": {
-  "enabled": false,
+  "enabled": true,
   "dust": 0,
-  "pebbles": 19,
+  "pebbles": 15,
   "ring": true,
   "column": true,
   "land": true,
   "hops": false,
-  "size": 22,
+  "size": 49,
   "color": "#ffffff",
   "style": "flat",
   "split": 0,
-  "twist": -1
+  "twist": 1
  },
  "slam": {
   "enabled": true,
@@ -52,20 +52,20 @@
   "rock_color": "#7a6e62",
   "style": "flat",
   "split": 0,
-  "twist": -1
+  "twist": 0
  },
  "clash": {
-  "enabled": true,
+  "enabled": false,
   "sheet": true,
   "dust": 14,
   "sparks": 16,
   "ground_jet": true,
-  "size": 100,
+  "size": 74,
   "color": "#e6dccb",
   "spark_color": "#ffb347",
   "style": "flat",
   "split": 0,
-  "twist": -1
+  "twist": 1
  },
  "blast": {
   "enabled": true,
@@ -79,7 +79,7 @@
   "color": "#d9c4a3",
   "style": "flat",
   "split": 0,
-  "twist": -1
+  "twist": 0
  },
  "sonic": {
   "enabled": true,
@@ -97,28 +97,32 @@
  },
  "spiral": {
   "enabled": true,
-  "parts": 3,
-  "gap": 2,
+  "parts": 1,
+  "gap": 0,
   "rotation": 0,
-  "life_pct": 200,
+  "life_pct": 50,
   "spiral": 100,
-  "spin_hz": 4,
-  "min_speed": 200,
+  "spin_hz": 11.1,
+  "min_speed": 1500,
   "max_speed": 4000,
-  "length_pct": 58,
-  "radius_pct": 200,
+  "length_pct": 10,
+  "radius_pct": 10,
   "body_scale": true,
-  "body_pct": 100,
-  "taper": -80,
+  "body_pct": 80,
+  "taper": 0,
   "trail": true,
+  "radius_speed_pct": 40,
+  "thread_px": 1,
+  "segments": 24,
+  "tail_pct": 5,
   "hand": "right",
   "reach": "centered",
-  "speed_len": 200,
-  "in_ms": 13,
+  "speed_len": 66,
+  "in_ms": 10,
   "in_mode": "parts_in_turn",
   "in_dir": "creation",
   "out_ms": 10,
-  "out_mode": "parts_together",
+  "out_mode": "parts_in_turn",
   "out_dir": "creation"
  },
  "smoke_cel": {
