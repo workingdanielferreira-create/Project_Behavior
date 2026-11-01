@@ -988,6 +988,12 @@ class World:
                     if not inst.fx["battle"]["pierce"]:
                         inst.age = max(inst.age, inst.life)
                     continue
+                # Unique ability (Phase Shift / Riposte) before anything else:
+                # a nullified hit counts as no landed hit for the attacker, no
+                # hit taken, no knockback, no squash.  Phase Shift also dodges
+                # unblockable FX; Riposte only blockable ones.
+                if (dmg > 0 or kb > 0) and unique.intercept(ef, self, dmg, unblockable=not blockable):
+                    continue
                 actions.note_fx_hit(ef, tag)
                 # The fighter whose FX connected (landed_hit condition); a
                 # one-fighter side owns it even if the instance has ended.
@@ -1005,7 +1011,7 @@ class World:
                 if dmg > 0:
                     if resisted:
                         actions.note_resisted(ef)
-                    ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable, kind="fx")
+                    ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable, _ua_checked=True, kind="fx")
                     if resisted:
                         actions.clear_resisted(ef)
                 if kb > 0 and not resisted:

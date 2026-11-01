@@ -23237,7 +23237,7 @@
    "behind_px": 90,
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
-   "invuln_ms": 0,
+   "invuln_ms": 300,
    "show_charges": false,
    "state": true,
    "state_ms": 0,

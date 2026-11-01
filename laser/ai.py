@@ -239,7 +239,7 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
 
     `unblockable` (an FX Studio effect with Blockable off) skips the blocks
     below: the special stance and the `defend` action don't stop it, and
-    neither do the Phase Shift / Riposte unique abilities.
+    neither does the Riposte unique ability (Phase Shift still dodges it).
 
     `_ua_checked`: battle_hit already asked the unique ability whether it
     nullifies this hit (so a chance roll isn't made twice).
@@ -265,6 +265,8 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
         # Riposte counters — the hit is nullified.
         if not _ua_checked and _unique.intercept(fig, world, amount):
             return False
+    elif not _ua_checked and _unique.intercept(fig, world, amount, unblockable=True):
+        return False   # Phase Shift dodges unblockable hits too
     # Domain Expansion "damage heals": inside its own domain a hit heals.
     if _unique.heals_instead(fig, amount):
         return False
@@ -391,8 +393,9 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         return
     # Unique ability (Phase Shift / Riposte): nullified — no knockback, no
     # damage.  Asked once here; apply_hp_damage below skips asking again.
+    # Returns True so the caller lets the bullet fly on (no burst).
     if _unique.intercept(fig, world, amount):
-        return
+        return True
     p = fig.personality
     m = fig.motion
 
