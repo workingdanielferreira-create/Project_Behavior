@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -135,7 +135,7 @@ RANGES = {
     "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -736,6 +736,13 @@ def note_clash(world, x, y, angle, kb, owners):
         pass
 
 
+def paint_back(p, world):
+    """The far side of the spirals: the very first thing painted (laser/app.py)."""
+    st = getattr(world, "worldfx", None)
+    if st is not None and WORLD["ground"]["enabled"]:
+        st.paint_back(p, world)
+
+
 def paint_ground(p, world):
     st = getattr(world, "worldfx", None)
     if st is not None and WORLD["ground"]["enabled"]:
@@ -1172,12 +1179,18 @@ class WorldFx:
             return
         M = sp_s / max(1.0, c["mach"])
         tr.mach = M
-        # Live spiral trail: while supersonic, ONE spring follows the fighter (instead of a
-        # separate ring per boom).  It needs the spiral on, twist > 0 and "trail" ticked.
-        # A trail STARTS at Mach 1 but only ENDS after TRAIL_GRACE ticks below 0.75 Mach, so a single
-        # slow tick (hit-stop, speed pulse, weave) no longer cuts it into short stripes.
-        spl = ring_split(fig, c) if (c["boom"] and (M >= 1.0 or (tr.trail is not None and M >= 0.75))) else None
-        if spl is not None and spl["tw"] > 0.0 and spl.get("trail", True):
+        # Live spiral trail: ONE spring follows the fighter (instead of a separate ring per
+        # boom).  It needs the spiral on, twist > 0 and "trail" ticked, and runs on the
+        # Spiral's OWN speed range, not on Mach: below Spiral "min_speed" nothing starts; at
+        # or above it the spring follows the whole movement (a slow tactical retreat gets the
+        # full spiral); above "max_speed" the coils just stay at the max-speed look (pitch and
+        # radius are clamped).  A trail only ENDS after TRAIL_GRACE ticks below 0.75 x min_speed,
+        # so a single slow tick (hit-stop, speed pulse, weave) does not cut it into stripes.
+        spl = ring_split(fig, c)
+        trail_ok = spl is not None and spl["tw"] > 0.0 and spl.get("trail", True)
+        tlo = float(spl["min_speed"]) if spl is not None else 0.0
+        running = trail_ok and (sp_s >= tlo or (tr.trail is not None and sp_s >= 0.75 * tlo))
+        if running:
             t = tr.trail
             if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > \
                     config.ARENA_OVAL_TELEPORT_PX * (1 + tr.tgap):
@@ -1195,7 +1208,7 @@ class WorldFx:
             t.add(fig.x, fig.y, sp_s)
             tr.boom_t = 0.0
             fire = False
-        elif tr.trail is not None and spl is None and c["boom"]:
+        elif tr.trail is not None and trail_ok:
             tr.tgap += 1                # slow for a moment: hold the trail (no new points) a few ticks
             if tr.tgap > TRAIL_GRACE:
                 self.end_trail(tr)
@@ -1430,6 +1443,22 @@ class WorldFx:
         self._dust(p, ink)
         p.restore()
 
+    def paint_back(self, p, world):
+        """The far side of every spiral (its dark half), drawn FIRST - under the ground
+        layer, the dust and every fighter - so the coil appears to wrap round the scene."""
+        rings = [r for r in self.rings if r.sp is not None and r.kind in ("ground", "boom") and r.sp["tw"] >= 0.5]
+        trails = [t for t in self.trails if t.sp["tw"] >= 0.5]
+        if not (rings or trails):
+            return
+        p.save()
+        p.setBrush(Qt.NoBrush)
+        ink = QColor(WORLD["ground"]["ink"])
+        for r in rings:
+            self._ring_split(p, r, ink, r.age / r.life, "back")
+        for t in trails:
+            self._trail(p, t, ink, "back")
+        p.restore()
+
     def paint_air(self, p, world):
         has_sonic = any(tr.mach >= 0.9 for tr in self.tracks.values())
         if not (self.rings or self.bursts or has_sonic or self.trails):
@@ -1453,8 +1482,10 @@ class WorldFx:
                     self._sonic(p, tr)
         p.restore()
 
-    def _ring_split(self, p, r, ink, u):
+    def _ring_split(self, p, r, ink, u, layer="front"):
         """A pressure ring split into 2-6 parts and / or twisted into a spring.
+        layer "front" draws everything except the far side of the coils; "back" draws
+        only that far side (paint_back, under everything) so the spring reads as turning.
         Every point is blended between the flat (ground ellipse) ring and the
         helix seen side-on (laid along the action's direction, only the
         near half of each coil visible), then create / dissolve wipes apply."""
@@ -1506,7 +1537,11 @@ class WorldFx:
         th0 = rot + spin * tau * 0.6 * (2.0 * u - u * u)
         gapf = sp["gap"] / 100.0 if n >= 2 else 0.0
         span = tau / n
-        m = max(8, 96 // n)
+        if b > 0.0:
+            # Smoothness: "segments" line pieces per coil (the more, the rounder the curve).
+            m = max(8, min(700, int(math.ceil(max(6.0, float(sp.get("segments", 24))) * max(1.0, turns) / n))))
+        else:
+            m = max(8, 96 // n)
         parts = []
         for i in range(n):
             pts = []
@@ -1518,6 +1553,7 @@ class WorldFx:
                 x = r.x + rad * math.cos(phi)
                 y = r.y + rad * fl * math.sin(phi)
                 af = 1.0
+                bk = False
                 if b > 0.0:
                     th = tau * turns * s * spin + th0
                     rs = r0 * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
@@ -1534,7 +1570,8 @@ class WorldFx:
                     y += (hy - y) * b
                     front = max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
                     af = (1.0 - b) + b * front
-                pts.append([x, y, af, t])
+                    bk = b >= 0.5 and math.cos(th) < 0.0      # the far side of the coil
+                pts.append([x, y, af, t, bk])
             parts.append(pts)
         # the order parts take their turn in (create / dissolve)
         mid = [sum(q[0] for q in pts) / len(pts) for pts in parts]
@@ -1587,6 +1624,8 @@ class WorldFx:
                     v *= 1.0 - vout[j]
                 f.append(v)
             for j in range(len(pts) - 1):
+                if (pts[j][4] and pts[j + 1][4]) != (layer == "back"):
+                    continue
                 a = int(a0 * min(f[j], f[j + 1]))
                 if a > 2:
                     segs.append((QPointF(pts[j][0], pts[j][1]), QPointF(pts[j + 1][0], pts[j + 1][1]), a))
@@ -1599,7 +1638,7 @@ class WorldFx:
             p.setPen(QPen(QColor(*r.col, a), w, Qt.SolidLine, Qt.FlatCap))
             p.drawLine(q0, q1)
 
-    def _trail(self, p, t, ink):
+    def _trail(self, p, t, ink, layer="front"):
         """The live spiral trail: the spring seen side-on, laid along the path the fighter
         actually took.  Alpha per point = fade-in (create) x tail fade (dissolve, oldest
         first) x the near-half-only coil visibility, blended by Spiral %."""
@@ -1609,6 +1648,22 @@ class WorldFx:
             return
         sp = t.sp
         b = sp["tw"]
+        # Smoothness: one trail point per tick is too coarse for a fast, tight coil, so each
+        # gap is cut into enough pieces to give "segments" line pieces per coil.
+        seg = max(6.0, float(sp.get("segments", 24)))
+        ex = [pts[0]]
+        for i in range(1, n):
+            a0_, c0_ = pts[i - 1], pts[i]
+            k = min(24, max(1, int(math.ceil(abs(c0_[2] - a0_[2]) / (2.0 * math.pi) * seg))))
+            for j in range(1, k + 1):
+                f = j / float(k)
+                ex.append([a0_[0] + (c0_[0] - a0_[0]) * f, a0_[1] + (c0_[1] - a0_[1]) * f,
+                           a0_[2] + (c0_[2] - a0_[2]) * f, a0_[3] + (c0_[3] - a0_[3]) * f,
+                           c0_[4], a0_[5] + (c0_[5] - a0_[5]) * f])
+        if len(ex) > 4000:
+            ex = ex[-4000:]
+        pts = ex
+        n = len(pts)
         tms = float(config.TICK_MS)
         life = t.life
         # tail fade: the last stretch of each point's life (the dissolve time, else 40 % of the life span)
@@ -1643,9 +1698,11 @@ class WorldFx:
             age = q[3]
             fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
             fi = 1.0 if in_t <= 0.0 else min(1.0, age / in_t)     # create: a new point draws in over the create time
-            pos.append((x, y, af * fo * fi, fo, tx, ty))
+            pos.append((x, y, af * fo * fi, fo, tx, ty, b >= 0.5 and math.cos(th) < 0.0))
         segs = []
         for i in range(n - 1):
+            if (pos[i][6] and pos[i + 1][6]) != (layer == "back"):
+                continue
             al = min(pos[i][2], pos[i + 1][2])
             a = int(255 * al)
             if a > 2:

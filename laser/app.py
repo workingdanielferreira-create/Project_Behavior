@@ -1427,6 +1427,9 @@ class Overlay(QWidget):
         if shk is not None:
             p.save()
             p.translate(shk[0], shk[1])
+        # World physics: the far (dark) side of every spiral is the very last layer
+        # on the field - under everything else (laser/worldfx.py).
+        worldfx.paint_back(p, w)
         self._paint_abs_layer(p, "abs_back")
         # World physics: ground dust, rocks, rings and wall planes sit under
         # every fighter (laser/worldfx.py).
