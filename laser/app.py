@@ -848,6 +848,7 @@ class World:
                 # technique itself, which stays with its owner, no longer
                 # does), and become threat-only enemy shots below.
                 rounds = []
+                rails = []
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
                     if drv is not None:
@@ -862,6 +863,10 @@ class World:
                                 for (ri, rx, ry, rvx, rvy) in (swordfx.live_points(inst, inst.ps or 1.0) if gun else ()):
                                     efx.append((rx, ry, tg, True))
                                     rounds.append((inst, ri, rx, ry, rvx, rvy))
+                                # A sniper rail: its locked-on sight line and the
+                                # rail itself, seen as a beam (gunfx.rail_lines).
+                                for (ri, x0, y0, x1, y1, hw) in (swordfx.rail_lines(inst, inst.ps or 1.0) if gun else ()):
+                                    rails.append((inst, ri, x0, y0, x1, y1, hw))
                     c = f.combat
                     efx.extend((cr.x, cr.y, ("crescent",), True) for cr in c.crescents if cr.alive)
                     efx.extend((uc.x, uc.y, ("ult_crescent",), True) for uc in c.ult_crescents if uc.alive)
@@ -911,6 +916,20 @@ class World:
                     shots.append(fxkit.Shot(rx, ry, rvx, rvy, "fx", ref, blockable=False, deflectable=False,
                                             knockback=fxkit.inst_knockback(inst, ri), threat=True,
                                             rblock=bt.get("blockable", True), rdeflect=bt.get("deflectable", True)))
+                # Sniper rails: threat-only beams (Dodge, retreat, projectile
+                # counts).  No rblock / rdeflect: nothing can take a rail that
+                # has not fired yet.
+                for (inst, ri, x0, y0, x1, y1, hw) in rails:
+                    key = (id(inst), ri)
+                    ref = side.round_refs.get(key)
+                    if ref is None or ref.inst is not inst:
+                        ref = fxkit.RoundRef(inst, ri)
+                    refs[key] = ref
+                    ln = math.hypot(x1 - x0, y1 - y0) or 1.0
+                    shots.append(fxkit.Shot(x1, y1, (x1 - x0) / ln, (y1 - y0) / ln, "fx", ref,
+                                            blockable=False, deflectable=False,
+                                            knockback=fxkit.inst_knockback(inst, ri), body=(x1, y1, x0, y0, hw),
+                                            threat=True))
                 side.round_refs = refs
                 side.enemy_shots = shots
                 # Real bullets only (hit_r_sq > 0); cosmetic deflects and
