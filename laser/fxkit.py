@@ -473,8 +473,11 @@ def turn_sign(fx, host, d, at=None):
 # attack_px (normal attacks): how close the target must be for this attack
 # to start, game px at 100 % character scale; 0 = the character's
 # stats.basic_attack_radius (shooters: their shooting range).  laser/actions.py.
+# attack_gap_ms (attacks): minimum pause after this attack ends before any
+# attack may start (0 = none).  laser/actions.py attack_gap_ms.
 ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="", chain_reset_ms=1000, fx_continuous=False,
-                       movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80, attack_px=0)
+                       movement="stand", move_speed_pct=100, anim_loops=1, back_stop_pct=80, attack_px=0,
+                       attack_gap_ms=350)
 # Movement "leap" (action_settings[action].leap, laser/actions.py): jump onto
 # the target between start_frame and land_frame (-1 = the last frame) in an
 # arc height_px high, landing so the hit point is on the target; hit_px

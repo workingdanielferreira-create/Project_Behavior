@@ -3964,6 +3964,10 @@ function buildActionProps(d) {
       "This attack starts once the target is this close (game px at 100 % character scale; grows and shrinks with Character scale). 0 = the character's basic attack radius (shooters: their shooting range, at least 420 px). Each attack in a chain has its own.";
     note(s, +cfg.attack_px > 0 ? "Attacks when the target is within " + Math.round(cfg.attack_px * charScale()) + " px (at the current character scale). Shooters keep their distance (about 320 px): below that they rarely get close enough."
       : "0: uses the character's basic attack radius (Rig Forge stats).");
+    s = sec(d, "Attack gap", "a-gap", "Minimum pause after this attack ends before any attack can start.", "act");
+    field(s, "Gap after attack ms", inp("n", cfg.attack_gap_ms, function (v) { cfg.attack_gap_ms = Math.max(0, Math.min(10000, v)); save(); buildProps(); }, 0, 10000, 10)).title =
+      "After this attack finishes, no attack (this one or any other, chained or not) can start for this long. 0 = the next attack can start straight away. Runs on the cooldown clock (Berserker rage shortens it). Default 350.";
+    note(s, +cfg.attack_gap_ms > 0 ? "Next attack waits at least " + Math.round(+cfg.attack_gap_ms) + " ms after this one ends." : "0: no pause, the next attack can start the moment this one ends.");
     s = sec(d, "Attack chain (combo)", "a-chain", "Which attack action plays next when attacks are chained.", "act");
     var others = [["", "— none (every attack plays " + a + ") —"]].concat(Object.keys(C.actions).filter(function (k) { return k !== a && FXK.actionKind(k) === "attack"; }).map(function (k) { return [k, k]; }));
     field(s, "Next attack", inp(others, cfg.chain_next, function (v) { cfg.chain_next = v; save(); buildProps(); }));
