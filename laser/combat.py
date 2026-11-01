@@ -3404,6 +3404,11 @@ def drain_blink_fx(fig, world):
     No-op when nothing is queued. Identical in Solo & Battle."""
     if not fig.combat.blink_fx_pending:
         return
+    try:
+        from . import worldfx
+        worldfx.note_warp(fig)     # Dust & Air: this tick's jump is a warp, not movement
+    except Exception:
+        pass
     bl_cfg = blink_cfg(fig)
     bolt_hex = bl_cfg.get("bolt_color") if bl_cfg else ""
     if bolt_hex:
