@@ -1496,9 +1496,14 @@ class WorldFx:
             r0 = rad * 0.55 * sp["radius_pct"] / 100.0
         if r.spd:
             r0 *= speed_radius(sp, r.spd)     # faster = wider coils
+        # Age: the coil keeps turning about its own axis (never stops mid-life), the turn
+        # slowing as it ages (rate falls linearly to 0 -> 0.6 turn over the whole life), and the
+        # coils open wider (+50 % by the end).  The twist is one shared phase offset, so the
+        # spring turns rigidly - nothing bends.
+        r0 *= 1.0 + 0.5 * u
         rot = math.radians(sp["rotation"])
         spin = (1.0 if sp["hand"] == "right" else -1.0)
-        th0 = rot
+        th0 = rot + spin * tau * 0.6 * (2.0 * u - u * u)
         gapf = sp["gap"] / 100.0 if n >= 2 else 0.0
         span = tau / n
         m = max(8, 96 // n)
