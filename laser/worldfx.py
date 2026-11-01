@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -135,7 +135,7 @@ RANGES = {
     "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -1461,7 +1461,7 @@ class WorldFx:
         sp = r.sp
         n, b = sp["n"], sp["tw"]
         grow = 1.0 - (1.0 - u) ** 3
-        w = max(1.0, r.w * (1.0 - u))
+        w = max(1.0, r.w * (1.0 - u) * sp["thread_px"] / 5.0)
         rad = r.r * (0.25 + 0.75 * grow)
         fl = r.flat if r.kind == "ground" else 1.0
         tms = float(config.TICK_MS)
@@ -1615,7 +1615,8 @@ class WorldFx:
             r0 = t.body * sp["body_pct"] / 100.0
         else:
             r0 = 46.0 * t.ps * 0.55 * sp["radius_pct"] / 100.0
-        base_w = max(1.0, 5.0 * t.ps)
+        base_w = max(1.0, sp["thread_px"] * t.ps)      # the thread thickness setting
+        tail = max(0.0, min(1.0, sp["tail_pct"] / 100.0))      # thickness left at the faded tail
         pos = []
         for i, q in enumerate(pts):
             a, c = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
@@ -1643,7 +1644,7 @@ class WorldFx:
             al = min(pos[i][2], pos[i + 1][2])
             a = int(255 * al)
             if a > 2:
-                w = max(1.0, base_w * (0.4 + 0.6 * min(pos[i][3], pos[i + 1][3])))
+                w = max(1.0, base_w * (tail + (1.0 - tail) * min(pos[i][3], pos[i + 1][3])))
                 segs.append((QPointF(pos[i][0], pos[i][1]), QPointF(pos[i + 1][0], pos[i + 1][1]), a, w))
         for q0, q1, a, w in segs:
             inkc = QColor(ink)

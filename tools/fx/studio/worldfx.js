@@ -45,7 +45,7 @@ var WP_DEFAULTS = {
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
   "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -88,7 +88,7 @@ var WP_RANGES = {
   "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -218,6 +218,8 @@ var WP_FIELDS = {
            ["max_speed", "Max speed (px/s)", "At or above this speed the coils are spread as far as they get (fast movement = a stretched spiral)."],
            ["trail", "Live trail (sound barrier)", "While the fighter stays above Mach 1, ONE spiral follows its path like a laser trail instead of a separate ring per boom. Its tail dissolves from the oldest point once it is older than Ring life %. Coil spacing = speed / Rotation frequency: faster stretches the spiral long, slower squashes it (keep Max speed above the Mach speed to see the stretch)."],
            ["radius_speed_pct", "Radius from speed %", "How much WIDER the spiral's coils swing (their radius, not the line thickness) as the fighter gets faster: the radius is x1 at Min speed and grows by this much at Max speed. 0 = the radius never changes with speed."],
+           ["thread_px", "Thread thickness (px)", "How thick the spiral's line is (not its radius). Scaled by perspective like the rest of the world. The dark outline stays 3 px wider."],
+           ["tail_pct", "Tail thickness %", "How thick the oldest part of a live trail is, as a % of the thread thickness. 100 = the same thickness all along; 40 = thins to 40% as it fades."],
            ["length_pct", "Length %", "How much of the distance travelled the spring covers (100 = all of it). A take-off or clash has no track, so it takes a length from the ring."],
            ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size (used when Scale to thrower is off or the thrower is unknown)."],
            ["body_scale", "Scale to thrower", "The coils' base radius is the size of the fighter that made it, so the spiral looks like it comes from that body."],
@@ -828,7 +830,7 @@ Sim.prototype.paintAir = function (g) {
   this.tracks.forEach(function (tr) { if (tr.mach >= 0.9) self.sonic(g, tr); });
 };
 Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
-  var sp = r.sp, n = sp.n, b = sp.tw, grow = 1 - Math.pow(1 - u, 3), w = Math.max(1, r.w * (1 - u));
+  var sp = r.sp, n = sp.n, b = sp.tw, grow = 1 - Math.pow(1 - u, 3), w = Math.max(1, r.w * (1 - u) * sp.thread_px / 5);
   var rad = r.r * (0.25 + 0.75 * grow), fl = r.kind === "ground" ? r.flat : 1, TAU = 2 * Math.PI;
   var inT = sp.in_ms <= 0 ? 1 : Math.min(1, r.age * TICK_MS / sp.in_ms), outT = 0, a0 = 1 - u * u;
   if (sp.out_ms > 0) {
@@ -919,7 +921,7 @@ Sim.prototype.trailDraw = function (g, t, ink) {
   b = sp.tw; fadeT = sp.out_ms > 0 ? Math.max(1, Math.min(life, sp.out_ms / TICK_MS)) : life * 0.4;
   inT = sp.in_ms > 0 ? sp.in_ms / TICK_MS : 0;
   r0 = (sp.body_scale && t.body > 0) ? t.body * sp.body_pct / 100 : 46 * t.ps * 0.55 * sp.radius_pct / 100;
-  baseW = Math.max(1, 5 * t.ps);
+  baseW = Math.max(1, sp.thread_px * t.ps); var tail = Math.max(0, Math.min(1, sp.tail_pct / 100));
   for (i = 0; i < n; i++) {
     var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty);
     if (ln < 1e-6) { tx = pos.length ? pos[pos.length - 1][4] : 1; ty = pos.length ? pos[pos.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
@@ -930,7 +932,7 @@ Sim.prototype.trailDraw = function (g, t, ink) {
   }
   for (i = 0; i < n - 1; i++) {
     var al = Math.min(pos[i][2], pos[i + 1][2]);
-    if (al > 0.01) segs.push([pos[i][0], pos[i][1], pos[i + 1][0], pos[i + 1][1], al, Math.max(1, baseW * (0.4 + 0.6 * Math.min(pos[i][3], pos[i + 1][3])))]);
+    if (al > 0.01) segs.push([pos[i][0], pos[i][1], pos[i + 1][0], pos[i + 1][1], al, Math.max(1, baseW * (tail + (1 - tail) * Math.min(pos[i][3], pos[i + 1][3])))]);
   }
   g.save(); g.lineCap = "butt";
   [[3, ink], [0, css(t.col)]].forEach(function (pass) {
