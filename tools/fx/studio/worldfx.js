@@ -45,7 +45,7 @@ var WP_DEFAULTS = {
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
   "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-            true, "body_pct": 100, "taper": 0, "trail": true, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -88,7 +88,7 @@ var WP_RANGES = {
   "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -217,6 +217,7 @@ var WP_FIELDS = {
            ["min_speed", "Min speed (px/s)", "At or below this speed the coils are packed as tight as they get (slow movement = coils close together)."],
            ["max_speed", "Max speed (px/s)", "At or above this speed the coils are spread as far as they get (fast movement = a stretched spiral)."],
            ["trail", "Live trail (sound barrier)", "While the fighter stays above Mach 1, ONE spiral follows its path like a laser trail instead of a separate ring per boom. Its tail dissolves from the oldest point once it is older than Ring life %. Coil spacing = speed / Rotation frequency: faster stretches the spiral long, slower squashes it (keep Max speed above the Mach speed to see the stretch)."],
+           ["radius_speed_pct", "Radius from speed %", "How much WIDER the spiral's coils swing (their radius, not the line thickness) as the fighter gets faster: the radius is x1 at Min speed and grows by this much at Max speed. 0 = the radius never changes with speed."],
            ["length_pct", "Length %", "How much of the distance travelled the spring covers (100 = all of it). A take-off or clash has no track, so it takes a length from the ring."],
            ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size (used when Scale to thrower is off or the thrower is unknown)."],
            ["body_scale", "Scale to thrower", "The coils' base radius is the size of the fighter that made it, so the spiral looks like it comes from that body."],
@@ -675,6 +676,11 @@ Sim.prototype.dashEvents = function (fig, tr, fx, fy, ps, z, dx, dy, sp, hh) {
   tr.fast = fast;
 };
 // The fighter slowed below Mach 1 (or blinked): its spring stops growing and dissolves from the oldest point.
+// Coil radius multiplier for a speed: x1 at min_speed, 1 + radius_speed_pct / 100 at max_speed.
+function speedRadius(sp, v) {
+  var lo = sp.min_speed, hi = Math.max(sp.min_speed, sp.max_speed);
+  return 1 + (sp.radius_speed_pct || 0) / 100 * (v > 0 ? Math.max(0, Math.min(1, (v - lo) / Math.max(1, hi - lo))) : 0);
+}
 Sim.prototype.endTrail = function (tr) { if (tr.trail) { tr.trail.live = false; tr.trail = null; } };
 Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   var c = this.cfg(fig, "sonic"), prev = tr.mach;
@@ -695,7 +701,9 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
       var tpitch = Math.max(4, Math.max(tlo, Math.min(thi, sp > 0 ? sp : (tlo + thi) / 2)) / Math.max(0.1, spl.spin_hz));
       tl.phase += 2 * Math.PI * Math.hypot(fig.x - lq[0], fig.y - lq[1]) / tpitch * (spl.hand === "right" ? 1 : -1);
     }
-    tl.pts.push([fig.x, fig.y, tl.phase, 0, sp]);
+    var rtgt = speedRadius(spl, sp);      // coil RADIUS follows speed (smoothed)
+    tl.rf = tl.rf == null ? rtgt : tl.rf + (rtgt - tl.rf) * 0.25;
+    tl.pts.push([fig.x, fig.y, tl.phase, 0, sp, tl.rf]);
     tr.boom_t = 0; trailed = true;
   } else if (tr.trail && !spl && c.boom) {
     tr.tgap = (tr.tgap || 0) + 1;       // slow for a moment: hold the trail (no new points)
@@ -837,7 +845,9 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
   // Rotation frequency + speed = pitch (px per coil = speed / frequency), speed held inside min..max.
   var v = r.spd || (lo + hi) * 0.5, pitch = Math.max(4, Math.max(lo, Math.min(hi, v)) / Math.max(0.1, sp.spin_hz));
   var turns = Math.max(0.05, length / pitch);
-  var r0 = (sp.body_scale && r.body > 0) ? r.body * sp.body_pct / 100 * (0.4 + 0.6 * grow) : rad * 0.55 * sp.radius_pct / 100, rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
+  var r0 = (sp.body_scale && r.body > 0) ? r.body * sp.body_pct / 100 * (0.4 + 0.6 * grow) : rad * 0.55 * sp.radius_pct / 100;
+  if (r.spd) r0 *= speedRadius(sp, r.spd);
+  var rot = sp.rotation * Math.PI / 180, spin = sp.hand === "right" ? 1 : -1;
   var th0 = rot;
   var gapf = n >= 2 ? sp.gap / 100 : 0, span = TAU / n, m = Math.max(8, Math.floor(96 / n)), parts = [], i, j;
   for (i = 0; i < n; i++) {
@@ -913,7 +923,7 @@ Sim.prototype.trailDraw = function (g, t, ink) {
   for (i = 0; i < n; i++) {
     var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty);
     if (ln < 1e-6) { tx = pos.length ? pos[pos.length - 1][4] : 1; ty = pos.length ? pos[pos.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
-    var s = i / (n - 1), rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1)), th = pts[i][2], off = rs * Math.sin(th) * b;
+    var s = i / (n - 1), rs = r0 * pts[i][5] * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1)), th = pts[i][2], off = rs * Math.sin(th) * b;
     var af = (1 - b) + b * (0.45 + 0.55 * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th)))), age = pts[i][3];
     var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
     pos.push([pts[i][0] - ty * off, pts[i][1] + tx * off, af * fo * fi, fo, tx, ty]);
