@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -635,7 +635,7 @@ def ring_split(fig, sec):
 class _Track:
     __slots__ = ("px", "py", "fast", "slow", "burst", "acc", "gacc", "wake", "shed", "sign",
                  "bouncing", "v0", "leap", "leap_n", "leap_t", "hop", "mach", "seen", "nx", "ny",
-                 "sp", "head", "sweep", "boom_t")
+                 "sp", "head", "sweep", "boom_t", "trail")
 
     def __init__(self, x, y):
         self.px, self.py = x, y
@@ -659,6 +659,33 @@ class _Track:
         self.head = (x, y)
         self.sweep = 0
         self.boom_t = 0.0
+        self.trail = None       # the live sound-barrier spiral trail this fighter is drawing
+
+
+class Trail:
+    """One live spiral trail (Daniel 2026-11-01): while a fighter stays supersonic a
+    SINGLE spring follows its path like a laser trail, instead of a separate ring each
+    boom.  Every tick adds a point [x, y, phase, age, px/s]; the phase grows by the
+    distance moved / pitch (pitch = speed / spin_hz), so a fast stretch is pulled long
+    and a slow one is squashed, and the coils stay continuous through speed changes.
+    A point lives `life` ticks and fades out from the OLDEST point.  When the fighter
+    slows below Mach 1 the trail stops growing and just dissolves."""
+    __slots__ = ("pts", "live", "col", "sp", "body", "ps", "life", "phase")
+
+    def __init__(self, col, sp, body, ps, life):
+        self.pts = []
+        self.live = True
+        self.col, self.sp, self.body, self.ps, self.life = col, sp, body, ps, max(2.0, life)
+        self.phase = 0.0
+
+    def add(self, x, y, v):
+        sp = self.sp
+        if self.pts:
+            ds = math.hypot(x - self.pts[-1][0], y - self.pts[-1][1])
+            lo, hi = sp["min_speed"], max(sp["min_speed"], sp["max_speed"])
+            pitch = max(4.0, max(lo, min(hi, v if v > 0.0 else (lo + hi) * 0.5)) / max(0.1, sp["spin_hz"]))
+            self.phase += 2.0 * math.pi * ds / pitch * (1.0 if sp["hand"] == "right" else -1.0)
+        self.pts.append([x, y, self.phase, 0.0, v])
 
 
 # Events noted from inside a side's pass (motion.check_walls): consumed by
@@ -712,6 +739,7 @@ class WorldFx:
         self.src = []
         self.bursts = []
         self.rings = []
+        self.trails = []    # live / dissolving sound-barrier spiral trails
         self.later = []     # [due tick, fn, args]
         self.tracks = {}
         self.ki = {}        # id(inst) -> [inst, seen detonation indices, touched]
@@ -746,6 +774,12 @@ class WorldFx:
         if len(self.rings) >= MAX_RINGS:
             self.rings.pop(0)
         self.rings.append(r)
+
+    def end_trail(self, tr):
+        """The fighter slowed below Mach 1 (or blinked): its spring stops growing and dissolves."""
+        if tr.trail is not None:
+            tr.trail.live = False
+            tr.trail = None
 
     def body_r(self, fig, ps):
         """Half the thrower's drawn height (px): the spiral's coil radius when it
@@ -846,7 +880,7 @@ class WorldFx:
             pass
         g = WORLD["ground"]
         if not g["enabled"]:
-            if self.dust or self.src or self.bursts or self.rings:
+            if self.dust or self.src or self.bursts or self.rings or self.trails:
                 self.__init__()
             del _WALLS[:]
             return
@@ -1118,10 +1152,33 @@ class WorldFx:
         prev = tr.mach
         if not c["enabled"] or ((m.bouncing or m.bounce_ending) and not c["knockback"]):
             tr.mach = 0.0
+            self.end_trail(tr)
             return
         M = sp_s / max(1.0, c["mach"])
         tr.mach = M
-        if M >= 1.0 and c["boom"]:
+        # Live spiral trail: while supersonic, ONE spring follows the fighter (instead of a
+        # separate ring per boom).  It needs the spiral on, twist > 0 and "trail" ticked.
+        spl = ring_split(fig, c) if (M >= 1.0 and c["boom"]) else None
+        if spl is not None and spl["tw"] > 0.0 and spl.get("trail", True):
+            t = tr.trail
+            if t is not None and t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) > config.ARENA_OVAL_TELEPORT_PX:
+                self.end_trail(tr)      # blink / teleport: the spring ends where it was
+                t = None
+            if t is None:
+                t = tr.trail = Trail(_rgb(c["color"]), spl, self.body_r(fig, ps), ps,
+                                     18.0 * spl["life_pct"] / 100.0)
+                self.trails.append(t)
+            t.sp = spl
+            t.ps = ps
+            t.col = _rgb(c["color"])
+            t.life = max(2.0, 18.0 * spl["life_pct"] / 100.0)
+            t.add(fig.x, fig.y, sp_s)
+            tr.boom_t = 0.0
+            fire = False
+        else:
+            self.end_trail(tr)
+            fire = None
+        if M >= 1.0 and c["boom"] and fire is not False:
             # First boom on crossing Mach 1; then boom_hz more per second while it stays supersonic
             # (0 = once per crossing).
             hz = float(c.get("boom_hz", 0.0) or 0.0)
@@ -1283,6 +1340,12 @@ class WorldFx:
         for r in self.rings:
             r.age += 1.0
         self.rings = [r for r in self.rings if r.age < r.life]
+        # Spiral trails: every point ages; the oldest (tail) ones are dropped first once past the life span.
+        for t in self.trails:
+            for q in t.pts:
+                q[3] += 1.0
+            t.pts = [q for q in t.pts if q[3] < t.life]
+        self.trails = [t for t in self.trails if t.pts or t.live]
         cap = int(g["max_dust"])
         if len(self.dust) > cap:
             del self.dust[:len(self.dust) - cap]
@@ -1342,13 +1405,15 @@ class WorldFx:
 
     def paint_air(self, p, world):
         has_sonic = any(tr.mach >= 0.9 for tr in self.tracks.values())
-        if not (self.rings or self.bursts or has_sonic):
+        if not (self.rings or self.bursts or has_sonic or self.trails):
             return
         p.save()
         ink = QColor(WORLD["ground"]["ink"])
         for r in self.rings:
             if r.kind == "boom":
                 self._ring(p, r, ink)
+        for t in self.trails:
+            self._trail(p, t, ink)
         sparks = [b for b in self.bursts if b.kind == "spark"]
         if sparks:
             p.setCompositionMode(QPainter.CompositionMode_Plus)
@@ -1498,6 +1563,65 @@ class WorldFx:
             p.drawLine(q0, q1)
         for q0, q1, a in segs:
             p.setPen(QPen(QColor(*r.col, a), w, Qt.SolidLine, Qt.FlatCap))
+            p.drawLine(q0, q1)
+
+    def _trail(self, p, t, ink):
+        """The live spiral trail: the spring seen side-on, laid along the path the fighter
+        actually took.  Alpha per point = fade-in (create) x tail fade (dissolve, oldest
+        first) x the near-half-only coil visibility, blended by Spiral %."""
+        pts = t.pts
+        n = len(pts)
+        if n < 2:
+            return
+        sp = t.sp
+        b = sp["tw"]
+        tms = float(config.TICK_MS)
+        life = t.life
+        # tail fade: the last stretch of each point's life (the dissolve time, else 40 % of the life span)
+        fade_t = life * 0.4
+        if sp["out_ms"] > 0:
+            fade_t = max(1.0, min(life, sp["out_ms"] / tms))
+        in_t = sp["in_ms"] / tms if sp["in_ms"] > 0 else 0.0
+        if sp["body_scale"] and t.body > 0.0:
+            r0 = t.body * sp["body_pct"] / 100.0
+        else:
+            r0 = 46.0 * t.ps * 0.55 * sp["radius_pct"] / 100.0
+        base_w = max(1.0, 5.0 * t.ps)
+        pos = []
+        for i, q in enumerate(pts):
+            a, c = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+            tx, ty = c[0] - a[0], c[1] - a[1]
+            ln = math.hypot(tx, ty)
+            if ln < 1e-6:
+                tx, ty = (pos[-1][4], pos[-1][5]) if pos else (1.0, 0.0)
+            else:
+                tx, ty = tx / ln, ty / ln
+            s = i / float(n - 1)
+            rs = r0 * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
+            th = q[2]               # the phase already carries the handedness
+            off = rs * math.sin(th) * b
+            x = q[0] - ty * off
+            y = q[1] + tx * off
+            front = max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
+            af = (1.0 - b) + b * front
+            age = q[3]
+            fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
+            fi = 1.0 if in_t <= 0.0 else min(1.0, age / in_t)     # create: a new point draws in over the create time
+            pos.append((x, y, af * fo * fi, fo, tx, ty))
+        segs = []
+        for i in range(n - 1):
+            al = min(pos[i][2], pos[i + 1][2])
+            a = int(255 * al)
+            if a > 2:
+                w = max(1.0, base_w * (0.4 + 0.6 * min(pos[i][3], pos[i + 1][3])))
+                segs.append((QPointF(pos[i][0], pos[i][1]), QPointF(pos[i + 1][0], pos[i + 1][1]), a, w))
+        for q0, q1, a, w in segs:
+            inkc = QColor(ink)
+            inkc.setAlpha(a)
+            p.setPen(QPen(inkc, w + 3, Qt.SolidLine, Qt.FlatCap))
+            p.drawLine(q0, q1)
+        for q0, q1, a, w in segs:
+            p.setPen(QPen(QColor(*t.col, a), w, Qt.SolidLine, Qt.FlatCap))
             p.drawLine(q0, q1)
 
     def _ring(self, p, r, ink):

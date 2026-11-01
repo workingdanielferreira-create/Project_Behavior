@@ -45,7 +45,7 @@ var WP_DEFAULTS = {
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
   "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-            true, "body_pct": 100, "taper": 0, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            true, "body_pct": 100, "taper": 0, "trail": true, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -216,6 +216,7 @@ var WP_FIELDS = {
            ["spin_hz", "Rotation frequency (coils/s)", "How often the spring completes a coil. Coil spacing = speed / frequency, so the coils come from the distance travelled rather than a fixed count."],
            ["min_speed", "Min speed (px/s)", "At or below this speed the coils are packed as tight as they get (slow movement = coils close together)."],
            ["max_speed", "Max speed (px/s)", "At or above this speed the coils are spread as far as they get (fast movement = a stretched spiral)."],
+           ["trail", "Live trail (sound barrier)", "While the fighter stays above Mach 1, ONE spiral follows its path like a laser trail instead of a separate ring per boom. Its tail dissolves from the oldest point once it is older than Ring life %. Coil spacing = speed / Rotation frequency: faster stretches the spiral long, slower squashes it (keep Max speed above the Mach speed to see the stretch)."],
            ["length_pct", "Length %", "How much of the distance travelled the spring covers (100 = all of it). A take-off or clash has no track, so it takes a length from the ring."],
            ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size (used when Scale to thrower is off or the thrower is unknown)."],
            ["body_scale", "Scale to thrower", "The coils' base radius is the size of the fighter that made it, so the spiral looks like it comes from that body."],
@@ -434,7 +435,7 @@ function Sim(opts) {
   this.reset();
 }
 Sim.prototype.reset = function () {
-  this.dust = []; this.src = []; this.bursts = []; this.rings = []; this.later = []; this.tracks = new Map(); this.walls = []; this.t = 0;
+  this.dust = []; this.src = []; this.bursts = []; this.rings = []; this.trails = []; this.later = []; this.tracks = new Map(); this.walls = []; this.t = 0;
   this.cur = this.smokeFor(null, null); this.curFx = [null, null];
 };
 // (style, its deep-edit profile) for puffs an event section spawns: the
@@ -527,7 +528,7 @@ Sim.prototype.observe = function (fig) {
     z = lp.h * 4 * u * (1 - u); fy += z;
   }
   if (!tr) { tr = {px: fx, py: fy, fast: false, slow: 99, burst: 0, acc: 0, gacc: 0, wake: null, shed: 0, sign: 1,
-    bouncing: false, v0: 0, leap: null, leap_n: 0, leap_t: 1, hop: false, mach: 0, seen: 0, nx: 0, ny: 0, sp: 0, head: [fx, fy], sweep: 0, boom_t: 0};
+    bouncing: false, v0: 0, leap: null, leap_n: 0, leap_t: 1, hop: false, mach: 0, seen: 0, nx: 0, ny: 0, sp: 0, head: [fx, fy], sweep: 0, boom_t: 0, trail: null};
     this.tracks.set(fig, tr); }
   tr.seen = this.t;
   var dx = fx - tr.px, dy = fy - tr.py; tr.px = fx; tr.py = fy;
@@ -673,12 +674,29 @@ Sim.prototype.dashEvents = function (fig, tr, fx, fy, ps, z, dx, dy, sp, hh) {
   }
   tr.fast = fast;
 };
+// The fighter slowed below Mach 1 (or blinked): its spring stops growing and dissolves from the oldest point.
+Sim.prototype.endTrail = function (tr) { if (tr.trail) { tr.trail.live = false; tr.trail = null; } };
 Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   var c = this.cfg(fig, "sonic"), prev = tr.mach;
   this.use(fig, c);
-  if (!c.enabled || ((m.bouncing || m.bounce_ending) && !c.knockback)) { tr.mach = 0; return; }
+  if (!c.enabled || ((m.bouncing || m.bounce_ending) && !c.knockback)) { tr.mach = 0; this.endTrail(tr); return; }
   var M = sp / Math.max(1, c.mach); tr.mach = M;
-  if (M >= 1 && c.boom) {
+  // Live spiral trail: while supersonic ONE spring follows the fighter (not a separate ring per boom).
+  var spl = (M >= 1 && c.boom) ? this.ringSplit(fig, c) : null, trailed = false;
+  if (spl && spl.tw > 0 && spl.trail !== false) {
+    var tl = tr.trail;
+    if (tl && tl.pts.length) { var lp = tl.pts[tl.pts.length - 1]; if (Math.hypot(fig.x - lp[0], fig.y - lp[1]) > 300) { this.endTrail(tr); tl = null; } }
+    if (!tl) { tl = tr.trail = {pts: [], live: true, phase: 0}; this.trails.push(tl); tl.body = this.bodyR(fig, ps); }
+    tl.sp = spl; tl.ps = ps; tl.col = rgb(c.color); tl.life = Math.max(2, 18 * spl.life_pct / 100);
+    if (tl.pts.length) {
+      var lq = tl.pts[tl.pts.length - 1], tlo = spl.min_speed, thi = Math.max(spl.min_speed, spl.max_speed);
+      var tpitch = Math.max(4, Math.max(tlo, Math.min(thi, sp > 0 ? sp : (tlo + thi) / 2)) / Math.max(0.1, spl.spin_hz));
+      tl.phase += 2 * Math.PI * Math.hypot(fig.x - lq[0], fig.y - lq[1]) / tpitch * (spl.hand === "right" ? 1 : -1);
+    }
+    tl.pts.push([fig.x, fig.y, tl.phase, 0, sp]);
+    tr.boom_t = 0; trailed = true;
+  } else this.endTrail(tr);
+  if (M >= 1 && c.boom && !trailed) {
     // First boom on crossing Mach 1; then boom_hz more per second while supersonic (0 = once per crossing).
     var hz = +c.boom_hz || 0, fire = false;
     if (prev < 1) { fire = true; tr.boom_t = 0; }
@@ -756,6 +774,9 @@ Sim.prototype.move = function () {
   this.bursts = this.bursts.filter(function (b) { return b.age < b.life; });
   this.rings.forEach(function (r) { r.age += 1; });
   this.rings = this.rings.filter(function (r) { return r.age < r.life; });
+  // Spiral trails: every point ages; the oldest (tail) ones are dropped first once past the life span.
+  this.trails.forEach(function (t) { t.pts.forEach(function (q) { q[3] += 1; }); t.pts = t.pts.filter(function (q) { return q[3] < t.life; }); });
+  this.trails = this.trails.filter(function (t) { return t.pts.length || t.live; });
   var cap = Math.floor(g.max_dust);
   if (this.dust.length > cap) this.dust.splice(0, this.dust.length - cap);
   var src = this.src.map(function (s) { return [s].concat(s.bbox()); }), live = [];
@@ -787,6 +808,7 @@ Sim.prototype.paintGround = function (g) {
 Sim.prototype.paintAir = function (g) {
   var self = this, ink = this.world.ground.ink;
   this.rings.forEach(function (r) { if (r.kind === "boom") self.ring(g, r, ink); });
+  this.trails.forEach(function (t) { self.trailDraw(g, t, ink); });
   g.save(); g.globalCompositeOperation = "lighter";
   this.bursts.forEach(function (b) { if (b.kind === "spark") self.sparks(g, b); });
   g.restore();
@@ -871,6 +893,34 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u) {
     segs.forEach(function (sg) {
       g.globalAlpha = sg[4]; g.beginPath(); g.moveTo(sg[0], sg[1]); g.lineTo(sg[2], sg[3]); g.stroke();
     });
+  });
+  g.restore();
+};
+// The live spiral trail: the spring seen side-on, laid along the path the fighter took.  Per-point alpha = create fade-in x
+// tail fade (dissolve, oldest first) x near-half-only coil visibility, blended by Spiral %.
+Sim.prototype.trailDraw = function (g, t, ink) {
+  var pts = t.pts, n = pts.length, sp = t.sp, b, life = t.life, fadeT, inT, r0, baseW, pos = [], i, segs = [];
+  if (n < 2) return;
+  b = sp.tw; fadeT = sp.out_ms > 0 ? Math.max(1, Math.min(life, sp.out_ms / TICK_MS)) : life * 0.4;
+  inT = sp.in_ms > 0 ? sp.in_ms / TICK_MS : 0;
+  r0 = (sp.body_scale && t.body > 0) ? t.body * sp.body_pct / 100 : 46 * t.ps * 0.55 * sp.radius_pct / 100;
+  baseW = Math.max(1, 5 * t.ps);
+  for (i = 0; i < n; i++) {
+    var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty);
+    if (ln < 1e-6) { tx = pos.length ? pos[pos.length - 1][4] : 1; ty = pos.length ? pos[pos.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
+    var s = i / (n - 1), rs = r0 * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1)), th = pts[i][2], off = rs * Math.sin(th) * b;
+    var af = (1 - b) + b * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th))), age = pts[i][3];
+    var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
+    pos.push([pts[i][0] - ty * off, pts[i][1] + tx * off, af * fo * fi, fo, tx, ty]);
+  }
+  for (i = 0; i < n - 1; i++) {
+    var al = Math.min(pos[i][2], pos[i + 1][2]);
+    if (al > 0.01) segs.push([pos[i][0], pos[i][1], pos[i + 1][0], pos[i + 1][1], al, Math.max(1, baseW * (0.4 + 0.6 * Math.min(pos[i][3], pos[i + 1][3])))]);
+  }
+  g.save(); g.lineCap = "butt";
+  [[3, ink], [0, css(t.col)]].forEach(function (pass) {
+    g.strokeStyle = pass[1];
+    segs.forEach(function (sg) { g.lineWidth = sg[5] + pass[0]; g.globalAlpha = sg[4]; g.beginPath(); g.moveTo(sg[0], sg[1]); g.lineTo(sg[2], sg[3]); g.stroke(); });
   });
   g.restore();
 };
