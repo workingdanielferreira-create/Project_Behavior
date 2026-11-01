@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "trail": True, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -135,7 +135,7 @@ RANGES = {
     "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -663,7 +663,14 @@ class _Track:
         self.tgap = 0           # ticks it has been below the trail's hold speed
 
 
-TRAIL_GRACE = 8     # ticks a spiral trail survives below 0.75 Mach before it stops growing
+def speed_radius(sp, v):
+    """Coil radius multiplier for a speed: 1 at min_speed, 1 + radius_speed_pct/100 at max_speed."""
+    lo, hi = sp["min_speed"], max(sp["min_speed"], sp["max_speed"])
+    f = max(0.0, min(1.0, (v - lo) / max(1.0, hi - lo))) if v > 0.0 else 0.0
+    return 1.0 + sp.get("radius_speed_pct", 0.0) / 100.0 * f
+
+
+TRAIL_GRACE = 8    # ticks a spiral trail survives below 0.75 Mach before it stops growing
 
 
 class Trail:
@@ -674,22 +681,27 @@ class Trail:
     and a slow one is squashed, and the coils stay continuous through speed changes.
     A point lives `life` ticks and fades out from the OLDEST point.  When the fighter
     slows below Mach 1 the trail stops growing and just dissolves."""
-    __slots__ = ("pts", "live", "col", "sp", "body", "ps", "life", "phase")
+    __slots__ = ("pts", "live", "col", "sp", "body", "ps", "life", "phase", "rf")
 
     def __init__(self, col, sp, body, ps, life):
         self.pts = []
         self.live = True
         self.col, self.sp, self.body, self.ps, self.life = col, sp, body, ps, max(2.0, life)
         self.phase = 0.0
+        self.rf = None
 
     def add(self, x, y, v):
         sp = self.sp
+        lo, hi = sp["min_speed"], max(sp["min_speed"], sp["max_speed"])
         if self.pts:
             ds = math.hypot(x - self.pts[-1][0], y - self.pts[-1][1])
-            lo, hi = sp["min_speed"], max(sp["min_speed"], sp["max_speed"])
             pitch = max(4.0, max(lo, min(hi, v if v > 0.0 else (lo + hi) * 0.5)) / max(0.1, sp["spin_hz"]))
             self.phase += 2.0 * math.pi * ds / pitch * (1.0 if sp["hand"] == "right" else -1.0)
-        self.pts.append([x, y, self.phase, 0.0, v])
+        # Coil RADIUS follows speed: x1 at min_speed up to x(1 + radius_speed_pct / 100) at max_speed
+        # (smoothed, so a speed flicker does not make the spiral pulse).
+        tgt = speed_radius(sp, v)
+        self.rf = tgt if self.rf is None else self.rf + (tgt - self.rf) * 0.25
+        self.pts.append([x, y, self.phase, 0.0, v, self.rf])
 
 
 # Events noted from inside a side's pass (motion.check_walls): consumed by
@@ -1482,6 +1494,8 @@ class WorldFx:
             r0 = r.body * sp["body_pct"] / 100.0 * (0.4 + 0.6 * grow)
         else:
             r0 = rad * 0.55 * sp["radius_pct"] / 100.0
+        if r.spd:
+            r0 *= speed_radius(sp, r.spd)     # faster = wider coils
         rot = math.radians(sp["rotation"])
         spin = (1.0 if sp["hand"] == "right" else -1.0)
         th0 = rot
@@ -1612,7 +1626,7 @@ class WorldFx:
             else:
                 tx, ty = tx / ln, ty / ln
             s = i / float(n - 1)
-            rs = r0 * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
+            rs = r0 * q[5] * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
             th = q[2]               # the phase already carries the handedness
             off = rs * math.sin(th) * b
             x = q[0] - ty * off
