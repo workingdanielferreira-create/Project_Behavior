@@ -45,6 +45,7 @@ var EXPLODES = ["orb", "rocket", "bolt", "drill"];   // these go off at the end 
 var TRACER_TAIL = 3.2, FADE_TAIL = 0.25, CASING_LIFE = 28, CASING_G = 0.32, SMOKE_LIFE = 40;
 var GAT_GAP = [4.0, 1.0], GAT_RAMP = 0.45, GAT_BARREL = 1.0472, GAT_SPIN = 0.55, GAT_SPIN_DOWN = 18;
 var RAIL_HIT = 3, RAIL_DELAY = 5, CHARGE_P = 14, CHARGE_RING = 9;
+var RAIL_WARN_PCT = 0.2, RAIL_WARN_MIN = 6;   // sniper: locked-on aim seen by Dodge / retreat as a beam
 var ROCKET_ARC = 0.55, ROCKET_EASE = 1.35, ROCKET_MIN = 12, ROCKET_PUFF = 2;
 var DRILL_SPIN = 0.22, DRILL_RING = 5, BOLT_SEG = 20;
 var BRASS = [255, 198, 92], HULL = [214, 44, 40], SMOKE = [96, 90, 84], STEEL = [226, 230, 236];
@@ -90,10 +91,22 @@ function totalTicks(P) {
 function at(lst, k) { return lst[Math.max(0, Math.min(k, lst.length - 1))]; }
 function tracks(inst) { return (inst.fx.motion || {}).aim === "target"; }
 // [origin x, origin y, forward] of the gun at tick k: at the target when tracking.
+// Ticks before a rail fired on tick b that its sight is locked (and Dodge /
+// retreat see it coming).  laser/gunfx.py _rail_warn.
+function railWarn(b) { return Math.min(b, Math.max(RAIL_WARN_MIN, Math.trunc(b * RAIL_WARN_PCT))); }
+// The tick whose target spot a tracking gun aims at on tick k: k, except a
+// rail, whose sight locks for the last railWarn ticks before it fires and
+// stays there after.  laser/gunfx.py _lock_tick.
+function lockTick(inst, k) {
+  var P = inst.fx.params;
+  if (g_(P).look !== "rail") return k;
+  var b = launches(P)[0];
+  return Math.min(k, b - railWarn(b));
+}
 function aim(inst, k) {
   var o = at(inst.tq_path, k), ox = o[0], oy = o[1], f = inst.tq_f;
   if (tracks(inst)) {
-    var tp = at(inst.tq_tp, k), dx = tp[0] - ox, dy = tp[1] - oy, d = L_().hyp(dx, dy);
+    var tp = at(inst.tq_tp, lockTick(inst, k)), dx = tp[0] - ox, dy = tp[1] - oy, d = L_().hyp(dx, dy);
     if (d > 1) f = [dx / d, dy / d];
   }
   return [ox, oy, f];
@@ -204,6 +217,25 @@ function livePoints(inst, ps) {
     if (k >= 1) { q = s.pos(k - 1); return [s.i, p[0], p[1], p[0] - q[0], p[1] - q[1]]; }
     q = s.pos(1); return [s.i, p[0], p[1], q[0] - p[0], q[1] - p[1]];
   });
+}
+// [[i, x0, y0, x1, y1, halfWidth]]: a rail (sniper) shot as Dodge / Tactical
+// retreat see it: the locked-on sight line for the last RAIL_WARN_PCT of
+// the aim (at least RAIL_WARN_MIN ticks), then the rail line while it hits.
+// [] for other guns.  laser/gunfx.py rail_lines.
+function railLines(inst, ps) {
+  var P = inst.fx.params, g = g_(P), out = [];
+  if (g.look !== "rail" || inst.age >= inst.life) return out;
+  var n = g.pellets, t = inst.age, L = +P.length * ps, hw = +P.radius * ps;
+  launches(P).forEach(function (b, v) {
+    var warn = railWarn(b);
+    if (t < b - warn || t >= b + RAIL_HIT) return;
+    for (var j = 0; j < n; j++) {
+      var i = v * n + j, e;
+      if (t < b) { var a = aim(inst, t); out.push([i, a[0], a[1], a[0] + a[2][0] * L, a[1] + a[2][1] * L, hw]); }
+      else { e = railLine(new Round(inst, i, v, j, b, ps)); out.push([i, e[0], e[1], e[2], e[3], hw]); }
+    }
+  });
+  return out;
 }
 // ---------------------------------------------------------------- clash
 // A charged blast's orb clashes on its own (an orb body per round in
@@ -702,7 +734,7 @@ function drawAim(pen, inst, P, c, ps, t, b) {
   pen.line(ox, oy, ex, ey, c, 120 * fl, 1.0 * ps);
   pen.line(ox, oy, ex, ey, HOT, 150 * fl, 0.5 * ps);
   if (tracks(inst)) {
-    var tp = at(inst.tq_tp, t);
+    var tp = at(inst.tq_tp, lockTick(inst, t));
     if (L.hyp(tp[0] - ox, tp[1] - oy) < Lp) { ex = tp[0]; ey = tp[1]; }
   }
   var rad = (26 - 18 * e) * ps;
@@ -828,5 +860,5 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches, livePoints: livePoints, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep, dragTouch: dragTouch};
+           launches: launches, livePoints: livePoints, railLines: railLines, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep, dragTouch: dragTouch};
 })(window);

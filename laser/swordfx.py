@@ -687,6 +687,15 @@ def live_points(inst, ps):
     return []
 
 
+def rail_lines(inst, ps):
+    """[(i, x0, y0, x1, y1, half_width)] for a rail (sniper) technique's
+    sight / rail line while dodgers can see it coming (gunfx.rail_lines);
+    [] for every other style."""
+    if inst.fx.get("prim") != "technique" or _style(inst.fx["params"]) not in gunfx.STYLES:
+        return []
+    return gunfx.rail_lines(inst, ps)
+
+
 def clash_cat(P):
     """What a technique is to World Clash (laser/clash.py): the ki barrage's
     shots are sprites, the charged blast's orb an orb, the serious punch a

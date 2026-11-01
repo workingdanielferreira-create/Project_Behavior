@@ -4954,6 +4954,14 @@ function stepDummies(nMove, nFire) {
           blockable: false, deflectable: false, knockback: FXK.instKnockback(inst, r[0]), threat: true,
           rblock: b.blockable !== false, rdeflect: b.deflectable !== false});
       });
+      // A sniper rail: its locked-on sight line, then the rail, as a
+      // threat-only beam (laser/app.py refresh_battle rails).
+      if (SWORDFX.shoots(inst)) SWORDFX.railLines(inst, inst.ps || 1).forEach(function (r) {
+        var ln = Math.hypot(r[3] - r[1], r[4] - r[2]) || 1;
+        fxShots.push({x: r[3], y: r[4], vx: (r[3] - r[1]) / ln, vy: (r[4] - r[2]) / ln, dead: false, kind: "fx", ref: inst,
+          round: "rail" + r[0], blockable: false, deflectable: false, knockback: FXK.instKnockback(inst, r[0]), threat: true,
+          rblock: false, rdeflect: false, body: [r[3], r[4], r[1], r[2], r[5]]});
+      });
     });
   });
   S.allShots = S.shots.concat(fxShots);

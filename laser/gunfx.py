@@ -97,6 +97,8 @@ GAT_BARREL = 1.0472      # gatling: barrel turn between rounds, radians
 GAT_SPIN = 0.55          # gatling: barrel spin at full speed, radians per tick
 GAT_SPIN_DOWN = 18
 RAIL_HIT = 3             # sniper: ticks the rail line hits for
+RAIL_WARN_PCT = 0.2      # sniper: last part of the aim (locked on) that Dodge / retreat see as a beam
+RAIL_WARN_MIN = 6        # ... at least this many ticks
 RAIL_DELAY = 5           # sniper: the hit bursts this many ticks after the line
 CHARGE_P = 14            # charged blast: ticks a gathering streak takes to rush in
 CHARGE_RING = 9          # charged blast: a closing ring every this many ticks
@@ -177,12 +179,29 @@ def _tracks(inst):
     return (inst.fx.get("motion") or {}).get("aim") == "target"
 
 
+def _rail_warn(b):
+    """Ticks before a rail fired on tick b that its sight is locked (and
+    Dodge / retreat see it coming)."""
+    return min(b, max(RAIL_WARN_MIN, int(b * RAIL_WARN_PCT)))
+
+
+def _lock_tick(inst, k):
+    """The tick whose target spot a tracking gun aims at on tick k: k itself,
+    except a rail, whose sight locks for the last _rail_warn ticks before it
+    fires, and stays there after (so a dodge off the line works)."""
+    P = inst.fx["params"]
+    if _g(P)["look"] != "rail":
+        return k
+    b = launches(P)[0]          # a rail fires once
+    return min(k, b - _rail_warn(b))
+
+
 def _aim(inst, k):
     """(origin, forward) of the gun at tick k: at the target when tracking."""
     ox, oy = _at(inst.tq_path, k)
     f = inst.tq_f
     if _tracks(inst):
-        tx, ty = _at(inst.tq_tp, k)
+        tx, ty = _at(inst.tq_tp, _lock_tick(inst, k))
         dx, dy = tx - ox, ty - oy
         d = math.hypot(dx, dy)
         if d > 1:
@@ -354,6 +373,37 @@ def live_points(inst, ps):
         out.append((s.i, x, y, vx, vy))
     return out
 
+
+
+def rail_lines(inst, ps):
+    """[(i, x0, y0, x1, y1, half_width)]: a rail (sniper) shot as Dodge /
+    Tactical retreat see it (gunfx.js railLines).  The rail is instant and
+    hits for RAIL_HIT ticks, too fast for a dodge reading a one-tick-old
+    snapshot, so its sight line already counts as an incoming beam while
+    it is locked (_rail_warn: the last RAIL_WARN_PCT of the aim, at least
+    RAIL_WARN_MIN ticks; the aim stops tracking then, _lock_tick), then the
+    rail line itself while it hits.  [] for other guns."""
+    P = inst.fx["params"]
+    if _g(P)["look"] != "rail" or inst.age >= inst.life:
+        return []
+    n = _g(P)["pellets"]
+    t = inst.age
+    L = float(P["length"]) * ps
+    hw = float(P["radius"]) * ps
+    out = []
+    for v, b in enumerate(launches(P)):
+        warn = _rail_warn(b)
+        if t < b - warn or t >= b + RAIL_HIT:
+            continue
+        for j in range(n):
+            i = v * n + j
+            if t < b:
+                ox, oy, f = _aim(inst, t)
+                out.append((i, ox, oy, ox + f[0] * L, oy + f[1] * L, hw))
+            else:
+                x0, y0, x1, y1 = _rail_line(Round(inst, i, v, j, b, ps))
+                out.append((i, x0, y0, x1, y1, hw))
+    return out
 
 # ---------------------------------------------------------------- clash
 # A charged blast's orb clashes on its own (laser/clash.py: an orb body per
@@ -1035,7 +1085,7 @@ def _draw_aim(pen, inst, P, c, ps, t, b):
     pen.line(ox, oy, ex, ey, c, 120 * fl, 1.0 * ps)
     pen.line(ox, oy, ex, ey, S.HOT, 150 * fl, 0.5 * ps)
     if _tracks(inst):
-        tx, ty = _at(inst.tq_tp, t)
+        tx, ty = _at(inst.tq_tp, _lock_tick(inst, t))
         if math.hypot(tx - ox, ty - oy) < L:
             ex, ey = tx, ty
     rad = (26 - 18 * e) * ps

@@ -430,6 +430,12 @@ function livePoints(inst, ps) {
   if (isWeapon(st)) return WEAPON().livePoints(inst, ps);
   return STRIKE().livePoints(inst, ps);
 }
+// A rail (sniper) technique's sight / rail line while dodgers can see it
+// coming; [] for every other style.  laser/swordfx.py rail_lines.
+function railLines(inst, ps) {
+  if (inst.fx.prim !== "technique" || !isGun(style(inst.fx.params))) return [];
+  return GUN().railLines(inst, ps);
+}
 function onHit(inst, x, y, ps) {
   var st = style(inst.fx.params);
   if (isStrike(st)) STRIKE().onHit(inst, x, y, ps || 1);
@@ -940,7 +946,7 @@ function draw(g, inst, host, ps) {
 
 // strikefx.js (ki blasts, punches), powerfx.js, gunfx.js and weaponfx.js build on these.
 G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shotIds, shotAt: shotAt, placeShot: placeShot,
-             techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, hitDir: hitDir, hitFreeze: hitFreeze, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
+             techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, hitDir: hitDir, hitFreeze: hitFreeze, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, railLines: railLines, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,
