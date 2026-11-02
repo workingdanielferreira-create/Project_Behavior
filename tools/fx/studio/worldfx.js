@@ -726,6 +726,19 @@ function trailRibbons(t, r0, baseW) {
   // (across, along) coil radius at life u: pushed OUT of its centre - across the travel it balloons, along it hardly widens
   function amps(q, u) { var a0 = r0 * q[7] * (1 - streak * Math.pow(q[5], 1.5)) * b, g = 1 - Math.pow(1 - u, 3); return [a0 * (1 + expand * g), a0 * 1.1 * (1 + 0.04 * expand * g)]; }
   function sweep(q, qp, u) { var dph = Math.abs(q[6] - qp[6]), th = 0.5 * (q[6] + qp[6]), a = amps(q, u); return dph * Math.hypot(a[1] * Math.sin(th), a[0] * Math.cos(th)); }
+  // smoothness: fill in pieces between far-apart points (every field blended) so no drawn piece is longer than ~6 px
+  var segN = Math.max(6, sp.segments || 24), fine = [pts[0]];
+  for (i = 1; i < n; i++) {
+    var qa = pts[i - 1], qb = pts[i], ub = Math.max(0, Math.min(1, qb[4] / life));
+    var reach = r0 * qb[7] * (1 + expand * (1 - Math.pow(1 - ub, 3))) * b, dph = Math.abs(qb[6] - qa[6]);
+    var kk = Math.max(1, Math.min(16, Math.ceil(Math.max(dph * reach / 6, dph / (2 * Math.PI) * segN))));
+    for (var jj = 1; jj <= kk; jj++) {
+      var aa = jj / kk, qq = [];
+      for (var m = 0; m < 8; m++) qq.push(qa[m] + (qb[m] - qa[m]) * aa);
+      qq.push(qb[8] / kk); fine.push(qq);
+    }
+  }
+  pts = fine; n = pts.length;
   var base = pts.map(function (q) { var dr = driftAt(q[4]); return [q[0] + q[2] * dr, q[1] + q[3] * dr]; });
   var seg = []; for (i = 0; i < n; i++) seg.push(1);
   for (i = 1; i < n; i++) {

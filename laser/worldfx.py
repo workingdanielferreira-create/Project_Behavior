@@ -793,6 +793,24 @@ def trail_ribbons(t, r0, base_w):
     expand = max(0.0, float(sp.get("expand_pct", 600))) / 100.0
     streak = max(0.0, min(1.0, float(sp.get("streak_pct", 90)) / 100.0))
     thin = max(0.0, min(1.0, float(sp.get("thin_pct", 30)) / 100.0))
+    # Smoothness: once a coil is pushed out, neighbouring points sit far apart on the
+    # curve, so fill in pieces between them (every field blended) until no piece of the
+    # drawn coil is longer than about 6 px.
+    seg_n = max(6.0, float(sp.get("segments", 24)))
+    fine = [pts[0]]
+    for i in range(1, n):
+        qa, qb = pts[i - 1], pts[i]
+        ub = max(0.0, min(1.0, qb[4] / life))
+        reach = r0 * qb[7] * (1.0 + expand * (1.0 - (1.0 - ub) ** 3)) * b
+        dph = abs(qb[6] - qa[6])
+        k = max(1, min(16, int(math.ceil(max(dph * reach / 6.0, dph / (2.0 * math.pi) * seg_n)))))
+        for j in range(1, k + 1):
+            a = j / float(k)
+            q = [qa[m] + (qb[m] - qa[m]) * a for m in range(8)]
+            q.append(qb[8] / k)
+            fine.append(q)
+    pts = fine
+    n = len(pts)
     # where each point has drifted to: the path the spring winds round
     base = []
     for q in pts:
