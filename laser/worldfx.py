@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 15, "expand_pct": 100, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -135,7 +135,7 @@ RANGES = {
     "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 500], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -790,7 +790,7 @@ def trail_ribbons(t, r0, base_w):
     if sp["out_ms"] > 0:
         fade_t = max(1.0, min(life, sp["out_ms"] / tms))
     in_t = sp["in_ms"] / tms if sp["in_ms"] > 0 else 0.0
-    expand = max(0.0, float(sp.get("expand_pct", 100))) / 100.0
+    expand = max(0.0, float(sp.get("expand_pct", 600))) / 100.0
     streak = max(0.0, min(1.0, float(sp.get("streak_pct", 90)) / 100.0))
     thin = max(0.0, min(1.0, float(sp.get("thin_pct", 30)) / 100.0))
     # where each point has drifted to: the path the spring winds round
@@ -798,21 +798,33 @@ def trail_ribbons(t, r0, base_w):
     for q in pts:
         dr = drift_at(q[4])
         base.append((q[0] + q[2] * dr, q[1] + q[3] * dr))
-    def amp_of(q, u):
-        return r0 * q[7] * (1.0 + expand * (1.0 - (1.0 - u) ** 2)) * (1.0 - streak * q[5] ** 1.5) * b
+    def amps(q, u):
+        """(across, along) coil radius at life u.  The spring is pushed OUT of its centre:
+        across the travel it balloons (1 + expand_pct/100 by the end of its life), along
+        the travel it hardly widens - so the loops grow into tall arches."""
+        a0 = r0 * q[7] * (1.0 - streak * q[5] ** 1.5) * b
+        g = 1.0 - (1.0 - u) ** 3            # pushed out fast at first, then still opening
+        return a0 * (1.0 + expand * g), a0 * 1.1 * (1.0 + 0.04 * expand * g)
+
+    def sweep(q, qp, u):
+        """Length of thread one piece of the coil sweeps (its 3-D turn, path aside)."""
+        dph = abs(q[6] - qp[6])
+        th = 0.5 * (q[6] + qp[6])
+        a_c, a_l = amps(q, u)
+        return dph * math.hypot(a_l * math.sin(th), a_c * math.cos(th))
 
     # Stretch of each piece of thread: its length now (path spacing now, after the drift
-    # pulled it, and the coil's sweep now that it has opened up) against its length when
-    # it was laid.  Width goes as 1 / sqrt(stretch): the same material, pulled longer.
+    # pulled it, and the coil's sweep now it has been pushed out) against its length when
+    # it was laid.  Width goes as 1 / sqrt(stretch): the same material, pulled longer -
+    # the legs of each arch stretch the most, its crown hardly at all.
     seg = [1.0] * n
     for i in range(1, n):
         q, qp = pts[i], pts[i - 1]
         if q[8] <= 1e-6:
             continue
         uq = max(0.0, min(1.0, q[4] / life))
-        dph = abs(q[6] - qp[6])
-        now = math.hypot(math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), amp_of(q, uq) * dph)
-        laid = math.hypot(q[8], amp_of(q, 0.0) * dph)
+        now = math.hypot(math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), sweep(q, qp, uq))
+        laid = math.hypot(q[8], sweep(q, qp, 0.0))
         seg[i] = now / max(1e-6, laid)
     seg[0] = seg[1] if n > 1 else 1.0
     out = []
@@ -827,10 +839,11 @@ def trail_ribbons(t, r0, base_w):
         age, f, ph = q[4], q[5], q[6]
         u = max(0.0, min(1.0, age / life))
         px, py = base[i]
-        amp = amp_of(q, u)
-        amp *= 0.35 + 0.65 * min(1.0, age / 3.0)     # the coil winds out of the fighter, not at full size
+        a_c, a_l = amps(q, u)
+        ramp = 0.35 + 0.65 * min(1.0, age / 3.0)     # the coil winds out of the fighter, not at full size
+        amp = a_c * ramp
         cs = math.cos(ph)
-        al = amp * 1.1 * cs                  # seen a little from the side: the coils close into loops
+        al = a_l * ramp * cs                 # seen a little from the side: the coils close into loops
         ac = amp * math.sin(ph)
         x = px + tx * al - ty * ac
         y = py + ty * al + tx * ac
@@ -838,7 +851,7 @@ def trail_ribbons(t, r0, base_w):
         sf = max(0.2, min(1.6, 1.0 / math.sqrt(max(1e-3, st_))))
         # friction wears the thread down with age (a little faster the faster it was made);
         # what is stretched thin wears through first
-        wear = u ** 1.3 * (1.0 + 0.5 * f)
+        wear = u ** 1.2 * (1.0 + 0.5 * f)
         w = base_w * (1.0 - (1.0 - thin) * f) * max(0.0, sf - wear)
         fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
         fi = 1.0 if in_t <= 0.0 else min(1.0, age / in_t)

@@ -115,7 +115,7 @@
   "thread_px": 11,
   "segments": 24,
   "tail_pct": 15,
-  "expand_pct": 100,
+  "expand_pct": 600,
   "thin_pct": 30,
   "streak_pct": 90,
   "drift_pct": 100,

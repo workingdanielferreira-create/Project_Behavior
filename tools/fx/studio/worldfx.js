@@ -45,7 +45,7 @@ var WP_DEFAULTS = {
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
   "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 15, "expand_pct": 100, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -88,7 +88,7 @@ var WP_RANGES = {
   "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 500], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -221,7 +221,7 @@ var WP_FIELDS = {
            ["thread_px", "Thread thickness (px)", "How thick the spiral's line is (not its radius). Scaled by perspective like the rest of the world. A trail coil is born this thick (no outline: white air)."],
            ["segments", "Thread segments (per coil)", "Smoothness: how many line pieces make up each coil of the thread. More = a rounder, smoother curve (and a little more drawing work)."],
            ["tail_pct", "Tail thickness %", "Not used by the live trail (its thread thins by stretch and friction)."],
-           ["expand_pct", "Coil open-up %", "How much the trail's coils open up as they age: 100 = twice as wide by the end of their life. Stretching the thread like this also thins it."],
+           ["expand_pct", "Push-out %", "How far each coil is pushed out of the spring's centre as it ages: 600 = 7x as tall by the end of its life (across the travel; it hardly widens along it), so loops grow into tall arches. The stretched legs thin and tear first; the crowns last longest."],
            ["thin_pct", "Thickness at max speed %", "How thick the trail's thread is at Max speed, as a % of Thread thickness. Moderate speed = a thick thread; blistering speed = this thin."],
            ["streak_pct", "Streak at max speed %", "How flat the coils get at Max speed: 100 = a perfectly straight streak of air (like a laser trail), 0 = they keep their full loop."],
            ["drift_pct", "Inertia %", "How much of the fighter's momentum the trail carries on with. On a hard turn the streak keeps flying the old way and swings round after it. 0 = it sits exactly on the path."],
@@ -720,18 +720,20 @@ function trailRibbons(t, r0, baseW) {
   var pts = t.pts, n = pts.length, sp = t.sp, b = sp.tw, life = t.life, i;
   if (n < 2) return [];
   var fadeT = sp.out_ms > 0 ? Math.max(1, Math.min(life, sp.out_ms / TICK_MS)) : life * 0.5, inT = sp.in_ms > 0 ? sp.in_ms / TICK_MS : 0;
-  var expand = Math.max(0, sp.expand_pct == null ? 100 : +sp.expand_pct) / 100;
+  var expand = Math.max(0, sp.expand_pct == null ? 600 : +sp.expand_pct) / 100;
   var streak = Math.max(0, Math.min(1, (sp.streak_pct == null ? 90 : +sp.streak_pct) / 100));
   var thin = Math.max(0, Math.min(1, (sp.thin_pct == null ? 30 : +sp.thin_pct) / 100));
-  function ampOf(q, u) { return r0 * q[7] * (1 + expand * (1 - (1 - u) * (1 - u))) * (1 - streak * Math.pow(q[5], 1.5)) * b; }
+  // (across, along) coil radius at life u: pushed OUT of its centre - across the travel it balloons, along it hardly widens
+  function amps(q, u) { var a0 = r0 * q[7] * (1 - streak * Math.pow(q[5], 1.5)) * b, g = 1 - Math.pow(1 - u, 3); return [a0 * (1 + expand * g), a0 * 1.1 * (1 + 0.04 * expand * g)]; }
+  function sweep(q, qp, u) { var dph = Math.abs(q[6] - qp[6]), th = 0.5 * (q[6] + qp[6]), a = amps(q, u); return dph * Math.hypot(a[1] * Math.sin(th), a[0] * Math.cos(th)); }
   var base = pts.map(function (q) { var dr = driftAt(q[4]); return [q[0] + q[2] * dr, q[1] + q[3] * dr]; });
   var seg = []; for (i = 0; i < n; i++) seg.push(1);
   for (i = 1; i < n; i++) {
     var q = pts[i], qp = pts[i - 1];
     if (q[8] <= 1e-6) continue;
-    var uq = Math.max(0, Math.min(1, q[4] / life)), dph = Math.abs(q[6] - qp[6]);
-    var now = Math.hypot(Math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), ampOf(q, uq) * dph);
-    seg[i] = now / Math.max(1e-6, Math.hypot(q[8], ampOf(q, 0) * dph));
+    var uq = Math.max(0, Math.min(1, q[4] / life));
+    var now = Math.hypot(Math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), sweep(q, qp, uq));
+    seg[i] = now / Math.max(1e-6, Math.hypot(q[8], sweep(q, qp, 0)));
   }
   seg[0] = seg[1];
   var out = [];
@@ -739,10 +741,10 @@ function trailRibbons(t, r0, baseW) {
     var p = pts[i], pa = base[Math.max(0, i - 1)], pc = base[Math.min(n - 1, i + 1)], tx = pc[0] - pa[0], ty = pc[1] - pa[1], ln = Math.hypot(tx, ty);
     if (ln < 1e-6) { tx = out.length ? out[out.length - 1][4] : 1; ty = out.length ? out[out.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
     var age = p[4], f = p[5], ph = p[6], u = Math.max(0, Math.min(1, age / life));
-    var amp = ampOf(p, u) * (0.35 + 0.65 * Math.min(1, age / 3)), cs = Math.cos(ph), al = amp * 1.1 * cs, ac = amp * Math.sin(ph);
+    var ac2 = amps(p, u), ramp = 0.35 + 0.65 * Math.min(1, age / 3), amp = ac2[0] * ramp, cs = Math.cos(ph), al = ac2[1] * ramp * cs, ac = amp * Math.sin(ph);
     var x = base[i][0] + tx * al - ty * ac, y = base[i][1] + ty * al + tx * ac;
     var st = (seg[Math.max(0, i - 1)] + seg[i] + seg[Math.min(n - 1, i + 1)]) / 3, sf = Math.max(0.2, Math.min(1.6, 1 / Math.sqrt(Math.max(1e-3, st))));
-    var wear = Math.pow(u, 1.3) * (1 + 0.5 * f), w = baseW * (1 - (1 - thin) * f) * Math.max(0, sf - wear);
+    var wear = Math.pow(u, 1.2) * (1 + 0.5 * f), w = baseW * (1 - (1 - thin) * f) * Math.max(0, sf - wear);
     var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
     var back = b >= 0.5 && amp > 0.5 && cs < 0, depth = b >= 0.5 ? 1 - (1 - COIL_BACK_ALPHA) * Math.max(0, Math.min(1, 0.5 - cs)) : 1;
     out.push([x, y, w, fo * fi * depth, tx, ty, back]);
