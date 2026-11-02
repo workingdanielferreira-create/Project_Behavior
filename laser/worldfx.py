@@ -45,7 +45,7 @@ import math
 import random
 
 from PyQt5.QtCore import Qt, QPointF, QRectF
-from PyQt5.QtGui import QColor, QPainter, QPen, QPixmap, QPolygonF
+from PyQt5.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 
 from . import config
 from .geometry import bilinear
@@ -89,7 +89,7 @@ DEFAULTS = {
              "boom_hz": 0.0, "sweep": True, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
     "spiral": {"enabled": True, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+              True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -135,7 +135,7 @@ RANGES = {
     "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+              "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -676,37 +676,233 @@ def speed_radius(sp, v):
 
 
 TRAIL_GRACE = 8    # ticks a spiral trail survives below 0.75 Mach before it stops growing
+TRAIL_MAX_PTS = 700    # path points one trail may hold (oldest dropped first)
+TRAIL_STEP_PX = 10.0   # a tick's move is cut into pieces this long so the spring stays smooth
+COIL_BACK_ALPHA = 0.55  # the far side of each coil is this much fainter
 
 
 class Trail:
-    """One live spiral trail (Daniel 2026-11-01): while a fighter stays supersonic a
-    SINGLE spring follows its path like a laser trail, instead of a separate ring each
-    boom.  Every tick adds a point [x, y, phase, age, px/s]; the phase grows by the
-    distance moved / pitch (pitch = speed / spin_hz), so a fast stretch is pulled long
-    and a slow one is squashed, and the coils stay continuous through speed changes.
-    A point lives `life` ticks and fades out from the OLDEST point.  When the fighter
-    slows below Mach 1 the trail stops growing and just dissolves."""
-    __slots__ = ("pts", "live", "col", "sp", "body", "ps", "life", "phase", "rf")
+    """One live spiral trail (Daniel 2026-11-02): the air the fighter bursts through,
+    built in REAL TIME on the path it actually takes - like the laser trail - so an
+    instant turn bends the spring right there.  Speed shapes it, smoothly:
+      * moderate speed: a thick thread wound in tight, cursive loops;
+      * faster: the coils stretch out (pitch = speed / spin_hz, stretched further
+        toward max_speed) and the thread thins (thin_pct at max_speed);
+      * blistering (max_speed and up): the coils flatten (streak_pct) into a straight
+        streak of air, a laser-like line.
+    Every path point keeps a little of the fighter's momentum (drift_pct) and drifts
+    on after it, slowing, so the newest stretch whips round a hard turn instead of
+    sitting on the track.  As a stretch ages its coils open up (expand_pct), the
+    thread thins toward tail_pct and the tail fades.
+    Point record: [x, y, vx, vy, age, speed 0..1, phase, radius factor, laid spacing px] -
+    (x, y) where it was laid, (vx, vy) the momentum it carries (drift_at(age) gives how far
+    it has gone), laid spacing = the path length to the point before it when it was laid.
+    The thread is MATERIAL (trail_ribbons): stretched longer than it was laid - the coils
+    opening up, the drift pulling it apart round a hard turn - it thins by the same
+    measure (volume kept); air friction wears it down with age; where it is worn through
+    it parts, so the oldest, most stretched (thinnest) stretches dissolve first."""
+    __slots__ = ("pts", "live", "col", "sp", "body", "ps", "life", "lx", "ly", "phase", "f", "rf", "cv")
 
     def __init__(self, col, sp, body, ps, life):
         self.pts = []
         self.live = True
         self.col, self.sp, self.body, self.ps, self.life = col, sp, body, ps, max(2.0, life)
+        self.lx = self.ly = None    # where the fighter was last tick
         self.phase = 0.0
+        self.f = None               # smoothed speed, 0 at min_speed .. 1 at max_speed
         self.rf = None
+        self.cv = None              # the momentum the last piece laid carries
 
     def add(self, x, y, v):
         sp = self.sp
-        lo, hi = sp["min_speed"], max(sp["min_speed"], sp["max_speed"])
-        if self.pts:
-            ds = math.hypot(x - self.pts[-1][0], y - self.pts[-1][1])
-            pitch = max(4.0, max(lo, min(hi, v if v > 0.0 else (lo + hi) * 0.5)) / max(0.1, sp["spin_hz"]))
-            self.phase += 2.0 * math.pi * ds / pitch * (1.0 if sp["hand"] == "right" else -1.0)
-        # Coil RADIUS follows speed: x1 at min_speed up to x(1 + radius_speed_pct / 100) at max_speed
-        # (smoothed, so a speed flicker does not make the spiral pulse).
+        lo, hi = sp["min_speed"], max(sp["min_speed"] + 1.0, sp["max_speed"])
+        ft = max(0.0, min(1.0, (v - lo) / (hi - lo))) if v > 0.0 else 0.5
+        # follows the speed quickly (real time) but without a one-tick flicker
+        self.f = ft if self.f is None else self.f + (ft - self.f) * 0.4
         tgt = speed_radius(sp, v)
-        self.rf = tgt if self.rf is None else self.rf + (tgt - self.rf) * 0.25
-        self.pts.append([x, y, self.phase, 0.0, v, self.rf])
+        self.rf = tgt if self.rf is None else self.rf + (tgt - self.rf) * 0.4
+        if self.lx is None:
+            self.lx, self.ly = x, y
+            self.pts.append([x, y, 0.0, 0.0, 0.0, self.f, self.phase, self.rf, 0.0])
+            return
+        dx, dy = x - self.lx, y - self.ly
+        ds = math.hypot(dx, dy)
+        if ds < 0.5:
+            return
+        f = self.f
+        # speed / radius of the last piece laid: this tick's pieces blend from those, so
+        # the coil never jumps at a tick boundary
+        f_a = self.pts[-1][5] if self.pts else f
+        r_a = self.pts[-1][7] if self.pts else self.rf
+        pitch = max(4.0, max(lo, min(hi, v if v > 0.0 else (lo + hi) * 0.5)) / max(0.1, sp["spin_hz"]))
+        pitch *= 1.0 + 2.0 * f * f          # faster = the coils stretch out
+        hand = 1.0 if sp["hand"] == "right" else -1.0
+        carry = min(0.9, TRAIL_CARRY * max(0.0, float(sp.get("drift_pct", 100))) / 100.0)
+        n = max(1, min(30, int(math.ceil(ds / TRAIL_STEP_PX))))
+        cx, cy = dx * carry, dy * carry
+        px, py = self.cv if self.cv is not None else (cx, cy)
+        # the air's momentum swings round over a few ticks, not at once: a hard turn
+        # throws the streak out in a curve that follows through
+        cx, cy = px + (cx - px) * TRAIL_TURN, py + (cy - py) * TRAIL_TURN
+        for k in range(1, n + 1):
+            a = k / float(n)
+            self.phase += 2.0 * math.pi * (ds / n) / pitch * hand
+            # pieces laid earlier in this tick's move are that much older already; their
+            # momentum blends from last tick's to this tick's, so the line never steps
+            self.pts.append([self.lx + dx * a, self.ly + dy * a, px + (cx - px) * a, py + (cy - py) * a,
+                             1.0 - a, f_a + (f - f_a) * a, self.phase, r_a + (self.rf - r_a) * a, ds / n])
+        self.cv = (cx, cy)
+        if len(self.pts) > TRAIL_MAX_PTS:
+            del self.pts[:len(self.pts) - TRAIL_MAX_PTS]
+        self.lx, self.ly = x, y
+
+    def step(self):
+        """Age every point; the oldest are gone once past the life span."""
+        for q in self.pts:
+            q[4] += 1.0
+        self.pts = [q for q in self.pts if q[4] < self.life]
+
+
+TRAIL_DRAG = 0.9       # per tick: how much of its momentum a trail point keeps (inertia)
+TRAIL_TURN = 0.4       # per tick: how far the carried momentum swings toward a new heading
+TRAIL_CARRY = 0.35     # share of the fighter's per-tick move a new trail point carries on with
+
+
+def drift_at(age):
+    """How far (in ticks of its starting momentum) a trail point has drifted by `age`.
+    Continuous in age, so the points laid inside one tick stay a smooth line."""
+    a = max(0.0, age - 1.0)    # a point only starts to drift once the fighter has left it (never ahead of it)
+    return (1.0 - TRAIL_DRAG ** a) / (1.0 - TRAIL_DRAG)
+
+
+def trail_ribbons(t, r0, base_w):
+    """The trail's spring -> [(points [(x, y, width, alpha 0..1)], far side?)]: short runs
+    of one layer, each drawn as one brush ribbon."""
+    pts = t.pts
+    n = len(pts)
+    if n < 2:
+        return []
+    sp = t.sp
+    b = sp["tw"]
+    tms = float(config.TICK_MS)
+    life = t.life
+    fade_t = life * 0.5
+    if sp["out_ms"] > 0:
+        fade_t = max(1.0, min(life, sp["out_ms"] / tms))
+    in_t = sp["in_ms"] / tms if sp["in_ms"] > 0 else 0.0
+    expand = max(0.0, float(sp.get("expand_pct", 600))) / 100.0
+    streak = max(0.0, min(1.0, float(sp.get("streak_pct", 90)) / 100.0))
+    thin = max(0.0, min(1.0, float(sp.get("thin_pct", 30)) / 100.0))
+    # where each point has drifted to: the path the spring winds round
+    base = []
+    for q in pts:
+        dr = drift_at(q[4])
+        base.append((q[0] + q[2] * dr, q[1] + q[3] * dr))
+    def amps(q, u):
+        """(across, along) coil radius at life u.  The spring is pushed OUT of its centre:
+        across the travel it balloons (1 + expand_pct/100 by the end of its life), along
+        the travel it hardly widens - so the loops grow into tall arches."""
+        a0 = r0 * q[7] * (1.0 - streak * q[5] ** 1.5) * b
+        g = 1.0 - (1.0 - u) ** 3            # pushed out fast at first, then still opening
+        return a0 * (1.0 + expand * g), a0 * 1.1 * (1.0 + 0.04 * expand * g)
+
+    def sweep(q, qp, u):
+        """Length of thread one piece of the coil sweeps (its 3-D turn, path aside)."""
+        dph = abs(q[6] - qp[6])
+        th = 0.5 * (q[6] + qp[6])
+        a_c, a_l = amps(q, u)
+        return dph * math.hypot(a_l * math.sin(th), a_c * math.cos(th))
+
+    # Stretch of each piece of thread: its length now (path spacing now, after the drift
+    # pulled it, and the coil's sweep now it has been pushed out) against its length when
+    # it was laid.  Width goes as 1 / sqrt(stretch): the same material, pulled longer -
+    # the legs of each arch stretch the most, its crown hardly at all.
+    seg = [1.0] * n
+    for i in range(1, n):
+        q, qp = pts[i], pts[i - 1]
+        if q[8] <= 1e-6:
+            continue
+        uq = max(0.0, min(1.0, q[4] / life))
+        now = math.hypot(math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), sweep(q, qp, uq))
+        laid = math.hypot(q[8], sweep(q, qp, 0.0))
+        seg[i] = now / max(1e-6, laid)
+    seg[0] = seg[1] if n > 1 else 1.0
+    out = []
+    for i, q in enumerate(pts):
+        a, c = base[max(0, i - 1)], base[min(n - 1, i + 1)]
+        tx, ty = c[0] - a[0], c[1] - a[1]
+        ln = math.hypot(tx, ty)
+        if ln < 1e-6:
+            tx, ty = (out[-1][4], out[-1][5]) if out else (1.0, 0.0)
+        else:
+            tx, ty = tx / ln, ty / ln
+        age, f, ph = q[4], q[5], q[6]
+        u = max(0.0, min(1.0, age / life))
+        px, py = base[i]
+        a_c, a_l = amps(q, u)
+        ramp = 0.35 + 0.65 * min(1.0, age / 3.0)     # the coil winds out of the fighter, not at full size
+        amp = a_c * ramp
+        cs = math.cos(ph)
+        al = a_l * ramp * cs                 # seen a little from the side: the coils close into loops
+        ac = amp * math.sin(ph)
+        x = px + tx * al - ty * ac
+        y = py + ty * al + tx * ac
+        st_ = (seg[max(0, i - 1)] + seg[i] + seg[min(n - 1, i + 1)]) / 3.0
+        sf = max(0.2, min(1.6, 1.0 / math.sqrt(max(1e-3, st_))))
+        # friction wears the thread down with age (a little faster the faster it was made);
+        # what is stretched thin wears through first
+        wear = u ** 1.2 * (1.0 + 0.5 * f)
+        w = base_w * (1.0 - (1.0 - thin) * f) * max(0.0, sf - wear)
+        fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
+        fi = 1.0 if in_t <= 0.0 else min(1.0, age / in_t)
+        back = b >= 0.5 and amp > 0.5 and cs < 0.0
+        # near side bright, far side fainter - a smooth turn, not a hard switch
+        depth = 1.0 - (1.0 - COIL_BACK_ALPHA) * max(0.0, min(1.0, 0.5 - cs)) if b >= 0.5 else 1.0
+        out.append((x, y, w, fo * fi * depth, tx, ty, back))
+    # short runs of one layer; each is drawn with a gradient from its first point's
+    # alpha to its last's, so the fade is smooth (no banding)
+    # Worn through (width 0) = a gap: the run ends there, tapering to a point.
+    ribbons = []
+    run, rb = [], None
+    prev = None
+    for x, y, w, al, _tx, _ty, bk in out:
+        if w <= 0.15:
+            if run:
+                run.append((x, y, 0.0, al))
+                if len(run) >= 2:
+                    ribbons.append((run, rb))
+            run, rb = [], None
+            prev = (x, y, 0.0, al, bk)
+            continue
+        if not run and prev is not None and prev[2] == 0.0:
+            run, rb = [prev[:4]], bk         # grow out of the gap's point
+        prev = (x, y, w, al, bk)
+        if run and (bk != rb or len(run) >= 6):
+            run.append((x, y, w, al))       # share the joint so the pieces meet
+            if len(run) >= 2:
+                ribbons.append((run, rb))
+            run = []
+        if not run:
+            rb = bk
+        run.append((x, y, w, al))
+    if len(run) >= 2:
+        ribbons.append((run, rb))
+    return ribbons
+
+
+def ribbon_polygon(pts):
+    """A brush stroke of varying width [(x, y, width, ...)] -> its outline [(x, y)]."""
+    n = len(pts)
+    left, right = [], []
+    for i, q in enumerate(pts):
+        x, y, w = q[0], q[1], q[2]
+        a, c = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+        tx, ty = c[0] - a[0], c[1] - a[1]
+        ln = math.hypot(tx, ty) or 1.0
+        nx, ny = -ty / ln * w * 0.5, tx / ln * w * 0.5
+        left.append((x + nx, y + ny))
+        right.append((x - nx, y - ny))
+    return left + right[::-1]
 
 
 # Events noted from inside a side's pass (motion.check_walls): consumed by
@@ -1352,7 +1548,7 @@ class WorldFx:
         running = trail_ok and sp_t >= tlo      # strictly at / above min_speed, no slack below it
         if running:
             t = tr.trail
-            if t is not None and (tr.warp or (t.pts and math.hypot(fig.x - t.pts[-1][0], fig.y - t.pts[-1][1]) >
+            if t is not None and (tr.warp or (t.lx is not None and math.hypot(fig.x - t.lx, fig.y - t.ly) >
                                               tr.tel * (1 + tr.tgap))):
                 self.end_trail(tr)      # blink / teleport: the spring ends where it was
                 t = None
@@ -1540,11 +1736,9 @@ class WorldFx:
         for r in self.rings:
             r.age += 1.0
         self.rings = [r for r in self.rings if r.age < r.life]
-        # Spiral trails: every point ages; the oldest (tail) ones are dropped first once past the life span.
+        # Spiral trails: every coil ages on its own and is gone at the end of its life.
         for t in self.trails:
-            for q in t.pts:
-                q[3] += 1.0
-            t.pts = [q for q in t.pts if q[3] < t.life]
+            t.step()
         self.trails = [t for t in self.trails if t.pts or t.live]
         cap = int(g["max_dust"])
         if len(self.dust) > cap:
@@ -1799,83 +1993,31 @@ class WorldFx:
             p.drawLine(q0, q1)
 
     def _trail(self, p, t, ink, layer="front"):
-        """The live spiral trail: the spring seen side-on, laid along the path the fighter
-        actually took.  Alpha per point = fade-in (create) x tail fade (dissolve, oldest
-        first) x the near-half-only coil visibility, blended by Spiral %."""
-        pts = t.pts
-        n = len(pts)
-        if n < 2:
+        """The live spiral trail (Trail / trail_ribbons): white air, no ink outline,
+        drawn as brush ribbons whose width follows speed and age.  layer "back" =
+        only the far side of each coil (paint_back, under everything)."""
+        if len(t.pts) < 2:
             return
         sp = t.sp
-        b = sp["tw"]
-        # Smoothness: one trail point per tick is too coarse for a fast, tight coil, so each
-        # gap is cut into enough pieces to give "segments" line pieces per coil.
-        seg = max(6.0, float(sp.get("segments", 24)))
-        ex = [pts[0]]
-        for i in range(1, n):
-            a0_, c0_ = pts[i - 1], pts[i]
-            k = min(24, max(1, int(math.ceil(abs(c0_[2] - a0_[2]) / (2.0 * math.pi) * seg))))
-            for j in range(1, k + 1):
-                f = j / float(k)
-                ex.append([a0_[0] + (c0_[0] - a0_[0]) * f, a0_[1] + (c0_[1] - a0_[1]) * f,
-                           a0_[2] + (c0_[2] - a0_[2]) * f, a0_[3] + (c0_[3] - a0_[3]) * f,
-                           c0_[4], a0_[5] + (c0_[5] - a0_[5]) * f])
-        if len(ex) > 4000:
-            ex = ex[-4000:]
-        pts = ex
-        n = len(pts)
-        tms = float(config.TICK_MS)
-        life = t.life
-        # tail fade: the last stretch of each point's life (the dissolve time, else 40 % of the life span)
-        fade_t = life * 0.4
-        if sp["out_ms"] > 0:
-            fade_t = max(1.0, min(life, sp["out_ms"] / tms))
-        in_t = sp["in_ms"] / tms if sp["in_ms"] > 0 else 0.0
         if sp["body_scale"] and t.body > 0.0:
             r0 = t.body * sp["body_pct"] / 100.0
         else:
             r0 = 46.0 * t.ps * 0.55 * sp["radius_pct"] / 100.0
-        base_w = max(1.0, sp["thread_px"] * t.ps)      # the thread thickness setting
-        tail = max(0.0, min(1.0, sp["tail_pct"] / 100.0))      # thickness left at the faded tail
-        pos = []
-        for i, q in enumerate(pts):
-            a, c = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
-            tx, ty = c[0] - a[0], c[1] - a[1]
-            ln = math.hypot(tx, ty)
-            if ln < 1e-6:
-                tx, ty = (pos[-1][4], pos[-1][5]) if pos else (1.0, 0.0)
-            else:
-                tx, ty = tx / ln, ty / ln
-            s = i / float(n - 1)
-            rs = r0 * q[5] * max(0.05, 1.0 + sp["taper"] / 100.0 * (2.0 * s - 1.0))
-            th = q[2]               # the phase already carries the handedness
-            off = rs * math.sin(th) * b
-            x = q[0] - ty * off
-            y = q[1] + tx * off
-            # the whole wave stays drawn (a continuous trail); the far side of each coil is just dimmer
-            front = 0.45 + 0.55 * max(0.0, min(1.0, 0.5 + 2.0 * math.cos(th)))
-            af = (1.0 - b) + b * front
-            age = q[3]
-            fo = 1.0 if age <= life - fade_t else max(0.0, (life - age) / fade_t)
-            fi = 1.0 if in_t <= 0.0 else min(1.0, age / in_t)     # create: a new point draws in over the create time
-            pos.append((x, y, af * fo * fi, fo, tx, ty, b >= 0.5 and math.cos(th) < 0.0))
-        segs = []
-        for i in range(n - 1):
-            if (pos[i][6] and pos[i + 1][6]) != (layer == "back"):
+        base_w = max(1.0, sp["thread_px"] * t.ps)
+        back = layer == "back"
+        p.setPen(Qt.NoPen)
+        for pts, bk in trail_ribbons(t, r0, base_w):
+            if bk != back:
                 continue
-            al = min(pos[i][2], pos[i + 1][2])
-            a = int(255 * al)
-            if a > 2:
-                w = max(1.0, base_w * (tail + (1.0 - tail) * min(pos[i][3], pos[i + 1][3])))
-                segs.append((QPointF(pos[i][0], pos[i][1]), QPointF(pos[i + 1][0], pos[i + 1][1]), a, w))
-        for q0, q1, a, w in segs:
-            inkc = QColor(ink)
-            inkc.setAlpha(a)
-            p.setPen(QPen(inkc, w + 3, Qt.SolidLine, Qt.FlatCap))
-            p.drawLine(q0, q1)
-        for q0, q1, a, w in segs:
-            p.setPen(QPen(QColor(*t.col, a), w, Qt.SolidLine, Qt.FlatCap))
-            p.drawLine(q0, q1)
+            a0, a1 = int(255 * pts[0][3]), int(255 * pts[-1][3])
+            if a0 <= 2 and a1 <= 2:
+                continue
+            g = QLinearGradient(pts[0][0], pts[0][1], pts[-1][0], pts[-1][1])
+            g.setColorAt(0.0, QColor(*t.col, a0))
+            g.setColorAt(1.0, QColor(*t.col, a1))
+            p.setBrush(QBrush(g))
+            p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in ribbon_polygon(pts)]))
+        p.setBrush(Qt.NoBrush)
 
     def _ring(self, p, r, ink):
         u = r.age / r.life

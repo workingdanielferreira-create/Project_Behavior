@@ -45,7 +45,7 @@ var WP_DEFAULTS = {
            "boom_hz": 0, "sweep": true, "color": "#e8f2ff", "style": "default", "split": 0, "twist": -1},
   "spiral": {"enabled": true, "parts": 1, "gap": 14, "rotation": 0, "life_pct": 100, "spiral": 0, "spin_hz":
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
-            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 40, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
+            true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
@@ -88,7 +88,7 @@ var WP_RANGES = {
   "sonic": {"mach": [100, 6000], "boom_hz": [0, 10], "split": [0, 6], "twist": [-1, 100]},
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
-            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+            "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -216,11 +216,15 @@ var WP_FIELDS = {
            ["spin_hz", "Rotation frequency (coils/s)", "How often the spring completes a coil. Coil spacing = speed / frequency, so the coils come from the distance travelled rather than a fixed count."],
            ["min_speed", "Min speed (px/s)", "At or below this speed the coils are packed as tight as they get (slow movement = coils close together)."],
            ["max_speed", "Max speed (px/s)", "At or above this speed the coils are spread as far as they get (fast movement = a stretched spiral)."],
-           ["trail", "Live trail (sound barrier)", "While the fighter moves at or above Min speed (below it nothing starts; above Max speed the coils stay at the Max-speed look), ONE spiral follows its whole path like a laser trail instead of a separate ring per boom - Mach 1 is not needed. Its tail dissolves from the oldest point once it is older than Ring life %. Coil spacing = speed / Rotation frequency: faster stretches the spiral long, slower squashes it (keep Max speed above the Mach speed to see the stretch)."],
+           ["trail", "Live trail (sound barrier)", "While the fighter moves at or above Min speed (below it nothing starts) the air it bursts through winds into a spring built in real time on its actual path - a hard turn bends it right there. Moderate speed = thick cursive loops; faster = the coils stretch and the thread thins; Max speed = a straight streak. The thread is material: stretched (coils opening, pulled round a turn) it thins, friction wears it with age, and the oldest, thinnest parts dissolve first. It lives Ring life %."],
            ["radius_speed_pct", "Radius from speed %", "How much WIDER the spiral's coils swing (their radius, not the line thickness) as the fighter gets faster: the radius is x1 at Min speed and grows by this much at Max speed. 0 = the radius never changes with speed."],
-           ["thread_px", "Thread thickness (px)", "How thick the spiral's line is (not its radius). Scaled by perspective like the rest of the world. The dark outline stays 3 px wider."],
+           ["thread_px", "Thread thickness (px)", "How thick the spiral's line is (not its radius). Scaled by perspective like the rest of the world. A trail coil is born this thick (no outline: white air)."],
            ["segments", "Thread segments (per coil)", "Smoothness: how many line pieces make up each coil of the thread. More = a rounder, smoother curve (and a little more drawing work)."],
-           ["tail_pct", "Tail thickness %", "How thick the oldest part of a live trail is, as a % of the thread thickness. 100 = the same thickness all along; 40 = thins to 40% as it fades."],
+           ["tail_pct", "Tail thickness %", "Not used by the live trail (its thread thins by stretch and friction)."],
+           ["expand_pct", "Push-out %", "How far each coil is pushed out of the spring's centre as it ages: 600 = 7x as tall by the end of its life (across the travel; it hardly widens along it), so loops grow into tall arches. The stretched legs thin and tear first; the crowns last longest."],
+           ["thin_pct", "Thickness at max speed %", "How thick the trail's thread is at Max speed, as a % of Thread thickness. Moderate speed = a thick thread; blistering speed = this thin."],
+           ["streak_pct", "Streak at max speed %", "How flat the coils get at Max speed: 100 = a perfectly straight streak of air (like a laser trail), 0 = they keep their full loop."],
+           ["drift_pct", "Inertia %", "How much of the fighter's momentum the trail carries on with. On a hard turn the streak keeps flying the old way and swings round after it. 0 = it sits exactly on the path."],
            ["length_pct", "Length %", "How much of the distance travelled the spring covers (100 = all of it). A take-off or clash has no track, so it takes a length from the ring."],
            ["radius_pct", "Coil radius %", "How wide the coils swing, from the ring's own size (used when Scale to thrower is off or the thrower is unknown)."],
            ["body_scale", "Scale to thrower", "The coils' base radius is the size of the fighter that made it, so the spiral looks like it comes from that body."],
@@ -684,6 +688,93 @@ function speedRadius(sp, v) {
   var lo = sp.min_speed, hi = Math.max(sp.min_speed, sp.max_speed);
   return 1 + (sp.radius_speed_pct || 0) / 100 * (v > 0 ? Math.max(0, Math.min(1, (v - lo) / Math.max(1, hi - lo))) : 0);
 }
+// Spiral trail (laser/worldfx.py Trail / trail_ribbons): a spring built in real time on the fighter's path.
+// Point record: [x, y, vx, vy, age, speed 0..1, phase, radius factor, laid spacing px].
+var TRAIL_MAX_PTS = 700, TRAIL_STEP_PX = 10, COIL_BACK_ALPHA = 0.55, TRAIL_DRAG = 0.9, TRAIL_TURN = 0.4, TRAIL_CARRY = 0.35;
+function trailAdd(t, x, y, v) {
+  var sp = t.sp, lo = sp.min_speed, hi = Math.max(sp.min_speed + 1, sp.max_speed);
+  var ft = v > 0 ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 0.5;
+  t.f = t.f == null ? ft : t.f + (ft - t.f) * 0.4;
+  var tgt = speedRadius(sp, v);
+  t.rf = t.rf == null ? tgt : t.rf + (tgt - t.rf) * 0.4;
+  if (t.lx == null) { t.lx = x; t.ly = y; t.pts.push([x, y, 0, 0, 0, t.f, t.phase, t.rf, 0]); return; }
+  var dx = x - t.lx, dy = y - t.ly, ds = Math.hypot(dx, dy);
+  if (ds < 0.5) return;
+  var f = t.f, last = t.pts.length ? t.pts[t.pts.length - 1] : null, fa = last ? last[5] : f, ra = last ? last[7] : t.rf;
+  var pitch = Math.max(4, Math.max(lo, Math.min(hi, v > 0 ? v : (lo + hi) / 2)) / Math.max(0.1, sp.spin_hz)) * (1 + 2 * f * f);
+  var hand = sp.hand === "right" ? 1 : -1, carry = Math.min(0.9, TRAIL_CARRY * Math.max(0, sp.drift_pct == null ? 100 : +sp.drift_pct) / 100);
+  var n = Math.max(1, Math.min(30, Math.ceil(ds / TRAIL_STEP_PX))), cx = dx * carry, cy = dy * carry;
+  var px = t.cv ? t.cv[0] : cx, py = t.cv ? t.cv[1] : cy;
+  cx = px + (cx - px) * TRAIL_TURN; cy = py + (cy - py) * TRAIL_TURN;   // momentum swings round over a few ticks
+  for (var k = 1; k <= n; k++) {
+    var a = k / n;
+    t.phase += 2 * Math.PI * (ds / n) / pitch * hand;
+    t.pts.push([t.lx + dx * a, t.ly + dy * a, px + (cx - px) * a, py + (cy - py) * a, 1 - a, fa + (f - fa) * a, t.phase, ra + (t.rf - ra) * a, ds / n]);
+  }
+  t.cv = [cx, cy];
+  if (t.pts.length > TRAIL_MAX_PTS) t.pts.splice(0, t.pts.length - TRAIL_MAX_PTS);
+  t.lx = x; t.ly = y;
+}
+function driftAt(age) { var a = Math.max(0, age - 1); return (1 - Math.pow(TRAIL_DRAG, a)) / (1 - TRAIL_DRAG); }
+function trailRibbons(t, r0, baseW) {
+  var pts = t.pts, n = pts.length, sp = t.sp, b = sp.tw, life = t.life, i;
+  if (n < 2) return [];
+  var fadeT = sp.out_ms > 0 ? Math.max(1, Math.min(life, sp.out_ms / TICK_MS)) : life * 0.5, inT = sp.in_ms > 0 ? sp.in_ms / TICK_MS : 0;
+  var expand = Math.max(0, sp.expand_pct == null ? 600 : +sp.expand_pct) / 100;
+  var streak = Math.max(0, Math.min(1, (sp.streak_pct == null ? 90 : +sp.streak_pct) / 100));
+  var thin = Math.max(0, Math.min(1, (sp.thin_pct == null ? 30 : +sp.thin_pct) / 100));
+  // (across, along) coil radius at life u: pushed OUT of its centre - across the travel it balloons, along it hardly widens
+  function amps(q, u) { var a0 = r0 * q[7] * (1 - streak * Math.pow(q[5], 1.5)) * b, g = 1 - Math.pow(1 - u, 3); return [a0 * (1 + expand * g), a0 * 1.1 * (1 + 0.04 * expand * g)]; }
+  function sweep(q, qp, u) { var dph = Math.abs(q[6] - qp[6]), th = 0.5 * (q[6] + qp[6]), a = amps(q, u); return dph * Math.hypot(a[1] * Math.sin(th), a[0] * Math.cos(th)); }
+  var base = pts.map(function (q) { var dr = driftAt(q[4]); return [q[0] + q[2] * dr, q[1] + q[3] * dr]; });
+  var seg = []; for (i = 0; i < n; i++) seg.push(1);
+  for (i = 1; i < n; i++) {
+    var q = pts[i], qp = pts[i - 1];
+    if (q[8] <= 1e-6) continue;
+    var uq = Math.max(0, Math.min(1, q[4] / life));
+    var now = Math.hypot(Math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]), sweep(q, qp, uq));
+    seg[i] = now / Math.max(1e-6, Math.hypot(q[8], sweep(q, qp, 0)));
+  }
+  seg[0] = seg[1];
+  var out = [];
+  for (i = 0; i < n; i++) {
+    var p = pts[i], pa = base[Math.max(0, i - 1)], pc = base[Math.min(n - 1, i + 1)], tx = pc[0] - pa[0], ty = pc[1] - pa[1], ln = Math.hypot(tx, ty);
+    if (ln < 1e-6) { tx = out.length ? out[out.length - 1][4] : 1; ty = out.length ? out[out.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
+    var age = p[4], f = p[5], ph = p[6], u = Math.max(0, Math.min(1, age / life));
+    var ac2 = amps(p, u), ramp = 0.35 + 0.65 * Math.min(1, age / 3), amp = ac2[0] * ramp, cs = Math.cos(ph), al = ac2[1] * ramp * cs, ac = amp * Math.sin(ph);
+    var x = base[i][0] + tx * al - ty * ac, y = base[i][1] + ty * al + tx * ac;
+    var st = (seg[Math.max(0, i - 1)] + seg[i] + seg[Math.min(n - 1, i + 1)]) / 3, sf = Math.max(0.2, Math.min(1.6, 1 / Math.sqrt(Math.max(1e-3, st))));
+    var wear = Math.pow(u, 1.2) * (1 + 0.5 * f), w = baseW * (1 - (1 - thin) * f) * Math.max(0, sf - wear);
+    var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
+    var back = b >= 0.5 && amp > 0.5 && cs < 0, depth = b >= 0.5 ? 1 - (1 - COIL_BACK_ALPHA) * Math.max(0, Math.min(1, 0.5 - cs)) : 1;
+    out.push([x, y, w, fo * fi * depth, tx, ty, back]);
+  }
+  // worn through (width 0) = a gap that tapers to a point; otherwise short runs of one layer
+  var ribbons = [], run = [], rb = null, prev = null;
+  out.forEach(function (o) {
+    var x = o[0], y = o[1], w = o[2], al = o[3], bk = o[6];
+    if (w <= 0.15) {
+      if (run.length) { run.push([x, y, 0, al]); if (run.length >= 2) ribbons.push([run, rb]); }
+      run = []; rb = null; prev = [x, y, 0, al, bk]; return;
+    }
+    if (!run.length && prev && prev[2] === 0) { run = [prev.slice(0, 4)]; rb = bk; }
+    prev = [x, y, w, al, bk];
+    if (run.length && (bk !== rb || run.length >= 6)) { run.push([x, y, w, al]); if (run.length >= 2) ribbons.push([run, rb]); run = []; }
+    if (!run.length) rb = bk;
+    run.push([x, y, w, al]);
+  });
+  if (run.length >= 2) ribbons.push([run, rb]);
+  return ribbons;
+}
+function ribbonPolygon(pts) {
+  var n = pts.length, left = [], right = [];
+  for (var i = 0; i < n; i++) {
+    var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty) || 1;
+    var nx = -ty / ln * pts[i][2] * 0.5, ny = tx / ln * pts[i][2] * 0.5;
+    left.push([pts[i][0] + nx, pts[i][1] + ny]); right.push([pts[i][0] - nx, pts[i][1] - ny]);
+  }
+  return left.concat(right.reverse());
+}
 Sim.prototype.endTrail = function (tr) { if (tr.trail) { tr.trail.live = false; tr.trail = null; } };
 Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   var c = this.cfg(fig, "sonic"), prev = tr.mach;
@@ -697,18 +788,11 @@ Sim.prototype.sonicEvents = function (fig, tr, m, fx, fy, ps, sp, hh) {
   var running = trailOk && (sp >= tlo0 || (tr.trail && sp >= 0.75 * tlo0));
   if (running) {
     var tl = tr.trail;
-    if (tl && tl.pts.length) { var lp = tl.pts[tl.pts.length - 1]; if (Math.hypot(fig.x - lp[0], fig.y - lp[1]) > 40 * (1 + (tr.tgap || 0))) { this.endTrail(tr); tl = null; } }
+    if (tl && tl.lx != null && Math.hypot(fig.x - tl.lx, fig.y - tl.ly) > 40 * (1 + (tr.tgap || 0))) { this.endTrail(tr); tl = null; }
     tr.tgap = 0;
-    if (!tl) { tl = tr.trail = {pts: [], live: true, phase: 0}; this.trails.push(tl); tl.body = this.bodyR(fig, ps); }
+    if (!tl) { tl = tr.trail = {pts: [], live: true, lx: null, ly: null, phase: 0, f: null, rf: null, cv: null}; this.trails.push(tl); tl.body = this.bodyR(fig, ps); }
     tl.sp = spl; tl.ps = ps; tl.col = rgb(c.color); tl.life = Math.max(2, 18 * spl.life_pct / 100);
-    if (tl.pts.length) {
-      var lq = tl.pts[tl.pts.length - 1], tlo = spl.min_speed, thi = Math.max(spl.min_speed, spl.max_speed);
-      var tpitch = Math.max(4, Math.max(tlo, Math.min(thi, sp > 0 ? sp : (tlo + thi) / 2)) / Math.max(0.1, spl.spin_hz));
-      tl.phase += 2 * Math.PI * Math.hypot(fig.x - lq[0], fig.y - lq[1]) / tpitch * (spl.hand === "right" ? 1 : -1);
-    }
-    var rtgt = speedRadius(spl, sp);      // coil RADIUS follows speed (smoothed)
-    tl.rf = tl.rf == null ? rtgt : tl.rf + (rtgt - tl.rf) * 0.25;
-    tl.pts.push([fig.x, fig.y, tl.phase, 0, sp, tl.rf]);
+    trailAdd(tl, fig.x, fig.y, sp);
     tr.boom_t = 0; trailed = true;
   } else if (tr.trail && trailOk) {
     tr.tgap = (tr.tgap || 0) + 1;       // slow for a moment: hold the trail (no new points)
@@ -792,8 +876,8 @@ Sim.prototype.move = function () {
   this.bursts = this.bursts.filter(function (b) { return b.age < b.life; });
   this.rings.forEach(function (r) { r.age += 1; });
   this.rings = this.rings.filter(function (r) { return r.age < r.life; });
-  // Spiral trails: every point ages; the oldest (tail) ones are dropped first once past the life span.
-  this.trails.forEach(function (t) { t.pts.forEach(function (q) { q[3] += 1; }); t.pts = t.pts.filter(function (q) { return q[3] < t.life; }); });
+  // Spiral trails: every coil ages on its own and is gone at the end of its life.
+  this.trails.forEach(function (t) { t.pts.forEach(function (q) { q[4] += 1; }); t.pts = t.pts.filter(function (q) { return q[4] < t.life; }); });
   this.trails = this.trails.filter(function (t) { return t.pts.length || t.live; });
   var cap = Math.floor(g.max_dust);
   if (this.dust.length > cap) this.dust.splice(0, this.dust.length - cap);
@@ -927,43 +1011,25 @@ Sim.prototype.ringSplitDraw = function (g, r, ink, u, layer) {
   });
   g.restore();
 };
-// The live spiral trail: the spring seen side-on, laid along the path the fighter took.  Per-point alpha = create fade-in x
-// tail fade (dissolve, oldest first) x near-half-only coil visibility, blended by Spiral %.
+// The live spiral trail (trailRibbons): white air, no ink outline, brush ribbons whose width follows speed,
+// stretch and friction wear.  layer "back" = only the far side of each coil.
 Sim.prototype.trailDraw = function (g, t, ink, layer) {
-  var pts = t.pts, n = pts.length, sp = t.sp, b, life = t.life, fadeT, inT, r0, baseW, pos = [], i, segs = [];
-  if (n < 2) return;
-  // Smoothness: cut each gap into enough pieces for "segments" line pieces per coil.
-  var seg = Math.max(6, sp.segments || 24), ex = [pts[0]], jj;
-  for (i = 1; i < n; i++) {
-    var pa = pts[i - 1], pc = pts[i], kk = Math.min(24, Math.max(1, Math.ceil(Math.abs(pc[2] - pa[2]) / (2 * Math.PI) * seg)));
-    for (jj = 1; jj <= kk; jj++) {
-      var ff = jj / kk;
-      ex.push([pa[0] + (pc[0] - pa[0]) * ff, pa[1] + (pc[1] - pa[1]) * ff, pa[2] + (pc[2] - pa[2]) * ff, pa[3] + (pc[3] - pa[3]) * ff, pc[4], pa[5] + (pc[5] - pa[5]) * ff]);
-    }
-  }
-  if (ex.length > 4000) ex = ex.slice(ex.length - 4000);
-  pts = ex; n = pts.length;
-  b = sp.tw; fadeT = sp.out_ms > 0 ? Math.max(1, Math.min(life, sp.out_ms / TICK_MS)) : life * 0.4;
-  inT = sp.in_ms > 0 ? sp.in_ms / TICK_MS : 0;
-  r0 = (sp.body_scale && t.body > 0) ? t.body * sp.body_pct / 100 : 46 * t.ps * 0.55 * sp.radius_pct / 100;
-  baseW = Math.max(1, sp.thread_px * t.ps); var tail = Math.max(0, Math.min(1, sp.tail_pct / 100));
-  for (i = 0; i < n; i++) {
-    var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)], tx = c[0] - a[0], ty = c[1] - a[1], ln = Math.hypot(tx, ty);
-    if (ln < 1e-6) { tx = pos.length ? pos[pos.length - 1][4] : 1; ty = pos.length ? pos[pos.length - 1][5] : 0; } else { tx /= ln; ty /= ln; }
-    var s = i / (n - 1), rs = r0 * pts[i][5] * Math.max(0.05, 1 + sp.taper / 100 * (2 * s - 1)), th = pts[i][2], off = rs * Math.sin(th) * b;
-    var af = (1 - b) + b * (0.45 + 0.55 * Math.max(0, Math.min(1, 0.5 + 2 * Math.cos(th)))), age = pts[i][3];
-    var fo = age <= life - fadeT ? 1 : Math.max(0, (life - age) / fadeT), fi = inT <= 0 ? 1 : Math.min(1, age / inT);
-    pos.push([pts[i][0] - ty * off, pts[i][1] + tx * off, af * fo * fi, fo, tx, ty, b >= 0.5 && Math.cos(th) < 0]);
-  }
-  for (i = 0; i < n - 1; i++) {
-    if ((pos[i][6] && pos[i + 1][6]) !== (layer === "back")) continue;
-    var al = Math.min(pos[i][2], pos[i + 1][2]);
-    if (al > 0.01) segs.push([pos[i][0], pos[i][1], pos[i + 1][0], pos[i + 1][1], al, Math.max(1, baseW * (tail + (1 - tail) * Math.min(pos[i][3], pos[i + 1][3])))]);
-  }
-  g.save(); g.lineCap = "butt";
-  [[3, ink], [0, css(t.col)]].forEach(function (pass) {
-    g.strokeStyle = pass[1];
-    segs.forEach(function (sg) { g.lineWidth = sg[5] + pass[0]; g.globalAlpha = sg[4]; g.beginPath(); g.moveTo(sg[0], sg[1]); g.lineTo(sg[2], sg[3]); g.stroke(); });
+  if (!t.pts || t.pts.length < 2 || !t.sp) return;
+  var sp = t.sp, back = layer === "back";
+  var r0 = (sp.body_scale && t.body > 0) ? t.body * sp.body_pct / 100 : 46 * t.ps * 0.55 * sp.radius_pct / 100;
+  var baseW = Math.max(1, sp.thread_px * t.ps);
+  g.save();
+  trailRibbons(t, r0, baseW).forEach(function (rib) {
+    var pts = rib[0];
+    if (rib[1] !== back) return;
+    var a0 = pts[0][3], a1 = pts[pts.length - 1][3];
+    if (a0 <= 0.01 && a1 <= 0.01) return;
+    var gr = g.createLinearGradient(pts[0][0], pts[0][1], pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    gr.addColorStop(0, css(t.col, a0)); gr.addColorStop(1, css(t.col, a1));
+    var poly = ribbonPolygon(pts);
+    g.fillStyle = gr; g.beginPath(); g.moveTo(poly[0][0], poly[0][1]);
+    for (var j = 1; j < poly.length; j++) g.lineTo(poly[j][0], poly[j][1]);
+    g.closePath(); g.fill();
   });
   g.restore();
 };
