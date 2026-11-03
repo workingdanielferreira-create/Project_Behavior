@@ -184,6 +184,15 @@ class World:
         # simulation never sees it.  Steps every tick, hit-stop included,
         # so a frozen hit still shakes and punches in.
         self.camera = _camera.Camera(screen_w, screen_h, assets.dir)
+        # KO slow-mo (camera.json ko_slow / ko_slow_s): for slowmo_ticks
+        # real ticks the simulation advances only slowmo_rate of a tick per
+        # tick (both sides at once, like hit-stop).  ko_quit_ticks: Solo's
+        # final KO holds the frame (simulation frozen) for the KO shot,
+        # then the run ends as before.
+        self.slowmo_ticks = 0
+        self.slowmo_rate = 1.0
+        self.slowmo_acc = 0.0
+        self.ko_quit_ticks = 0
         # FX Studio Time control (laser/timefx.py), set per time sub-pass:
         # ids of the figures whose FX step in it (None = all), the figures
         # whose FX step while their body is stopped, and whether the side's
@@ -758,12 +767,30 @@ class World:
         if _tag.covers_ko(self, fig):
             if fig not in self._dead:
                 self._dead.append(fig)
+            self._ko_cinematic(fig)
             return
         if self.battle_mode:
             if fig not in self._dead:
                 self._dead.append(fig)
-        else:
-            self.request_quit()
+            self._ko_cinematic(fig)
+        elif self.ko_quit_ticks <= 0:
+            # Solo's final KO: hold on the fallen fighter (KO shot on),
+            # then the run ends (Overlay._tick counts ko_quit_ticks down).
+            if self.camera_shot("ko", fig=fig):
+                self.ko_quit_ticks = self.camera.ko_hold_ticks()
+            else:
+                self.request_quit()
+
+    def _ko_cinematic(self, fig):
+        """KO shot (laser/camera.py) on the fallen fighter plus the KO
+        slow-mo (both sides at once).  Solo and Battle alike."""
+        if not self.camera_shot("ko", fig=fig):
+            return
+        c = self.camera.cfg
+        if c["ko_slow"] < 1.0 and c["ko_slow_s"] > 0.0:
+            self.slowmo_rate = float(c["ko_slow"])
+            self.slowmo_ticks = max(1, int(round(c["ko_slow_s"] * 1000.0 / config.TICK_MS)))
+            self.slowmo_acc = 0.0
 
     # --- side binding (one simulation pass per fielded side) ---------------
     def bind_side(self, i):
@@ -1157,6 +1184,16 @@ class World:
         camera punches in there (laser/camera.py).  View only."""
         self.camera.punch(x, y, dx, dy)
 
+    def camera_shot(self, kind, x=None, y=None, fig=None):
+        """A cinematic camera shot ('switch_in', 'ko', 'clash'; ultimates
+        are seen by the camera itself) on (x, y) or on fig.  View only;
+        True if it started."""
+        try:
+            return self.camera.start_shot(kind, x, y, fig)
+        except Exception as e:
+            action_log.crash("camera_shot", e)
+            return False
+
     def step_hit_weight(self):
         """Each tick (hit-stop included): outside a hit-stop the squash of
         every fighter hit springs back.  (The screen shake decays in
@@ -1276,6 +1313,25 @@ class Overlay(QWidget):
             w.hitstop_ticks -= 1
             self.update()
             return
+
+        # --- SOLO FINAL KO: hold the frame for the camera's KO shot, then
+        # the run ends (World.on_figure_death). ---
+        if w.ko_quit_ticks > 0:
+            w.ko_quit_ticks -= 1
+            if w.ko_quit_ticks <= 0:
+                w.request_quit()
+            self.update()
+            return
+
+        # --- KO SLOW-MO: the simulation advances slowmo_rate of a tick per
+        # real tick (both sides at once); the camera keeps full speed. ---
+        if w.slowmo_ticks > 0:
+            w.slowmo_ticks -= 1
+            w.slowmo_acc += w.slowmo_rate
+            if w.slowmo_acc < 1.0:
+                self.update()
+                return
+            w.slowmo_acc -= 1.0
 
         # One simulation pass per fielded side.  Snapshots are rebuilt once,
         # up front, so both sides read the same frozen picture of each other

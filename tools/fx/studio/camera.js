@@ -17,14 +17,25 @@ var CAM_DEFAULTS = {
   "follow": true, "punch": true, "shake": true,
   "max_zoom": 1.6, "solo_zoom": 1.15, "follow_s": 0.4, "margin_px": 220.0,
   "punch_zoom": 0.3, "punch_tilt_deg": 3.0, "punch_pull": 0.6, "punch_in_ticks": 3, "punch_out_s": 0.35,
-  "shake_max_px": 16.0, "shake_hz": 18.0
+  "shake_max_px": 16.0, "shake_hz": 18.0,
+  "ult_on": true, "ult_zoom": 2.3, "ult_in_s": 0.6, "ult_max_s": 1.5, "ult_out_s": 0.5,
+  "switch_on": true, "switch_zoom": 1.8, "switch_in_s": 0.15, "switch_hold_s": 0.5, "switch_out_s": 0.4,
+  "ko_on": true, "ko_zoom": 2.5, "ko_in_s": 0.2, "ko_hold_s": 1.0, "ko_out_s": 0.6, "ko_slow": 0.25, "ko_slow_s": 0.9,
+  "clash_on": true, "clash_zoom": 2.0, "clash_in_s": 0.08, "clash_hold_s": 0.3, "clash_out_s": 0.35
 };
 var CAM_RANGES = {
   "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
   "punch_zoom": [0.0, 1.5], "punch_tilt_deg": [0.0, 30.0], "punch_pull": [0.0, 1.0],
   "punch_in_ticks": [1, 30], "punch_out_s": [0.02, 5.0],
-  "shake_max_px": [0.0, 100.0], "shake_hz": [1.0, 60.0]
+  "shake_max_px": [0.0, 100.0], "shake_hz": [1.0, 60.0],
+  "ult_zoom": [1.0, 4.0], "ult_in_s": [0.02, 5.0], "ult_max_s": [0.0, 10.0], "ult_out_s": [0.02, 5.0],
+  "switch_zoom": [1.0, 4.0], "switch_in_s": [0.02, 5.0], "switch_hold_s": [0.0, 10.0], "switch_out_s": [0.02, 5.0],
+  "ko_zoom": [1.0, 4.0], "ko_in_s": [0.02, 5.0], "ko_hold_s": [0.0, 10.0], "ko_out_s": [0.02, 5.0],
+  "ko_slow": [0.05, 1.0], "ko_slow_s": [0.0, 5.0],
+  "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0]
 };
+// Cinematic shot kinds: settings prefix and priority (higher wins).
+var CAM_SHOTS = {"clash": ["clash", 1], "switch_in": ["switch", 2], "ultimate": ["ult", 3], "ko": ["ko", 4]};
 // [group title, [[key, label, tip, step], ...]]
 var CAM_GROUPS = [
   ["Follow-cam", [
@@ -46,6 +57,36 @@ var CAM_GROUPS = [
     ["shake", "Shake", "Strike shakes (Hit weight: shake / shake_px / shake_ticks) add trauma; overlapping hits build up and fade together. Off = no screen shake at all."],
     ["shake_max_px", "Max shake (px)", "Amplitude at full trauma. A single shake from rest still shakes its own px (up to this).", 1],
     ["shake_hz", "Shake speed (Hz)", "How fast the smooth shake moves. Higher = buzzier, lower = rolling.", 1]
+  ]],
+  ["Cinematic: Ultimate", [
+    ["ult_on", "Ultimate push-in", "When any fighter starts its ultimate, the camera pushes in on it and holds while the ultimate plays."],
+    ["ult_zoom", "Zoom ×", "How close the push-in gets.", 0.05],
+    ["ult_in_s", "Push-in time (s)", "A slow push-in reads as a wind-up.", 0.05],
+    ["ult_max_s", "Max hold (s)", "Holds while the ultimate plays, but never longer than this.", 0.1],
+    ["ult_out_s", "Ease-back (s)", "How long it takes to return to the follow-cam.", 0.05]
+  ]],
+  ["Cinematic: Tag switch-in", [
+    ["switch_on", "Switch-in shot", "When a tag partner switches in, the camera moves onto it."],
+    ["switch_zoom", "Zoom ×", "", 0.05],
+    ["switch_in_s", "Move-in time (s)", "", 0.05],
+    ["switch_hold_s", "Hold (s)", "", 0.05],
+    ["switch_out_s", "Ease-back (s)", "", 0.05]
+  ]],
+  ["Cinematic: KO", [
+    ["ko_on", "KO shot", "On a KO the camera holds on the fallen fighter, then re-frames whoever is left. In Solo the final KO holds the frame, then the run ends."],
+    ["ko_zoom", "Zoom ×", "", 0.05],
+    ["ko_in_s", "Move-in time (s)", "", 0.05],
+    ["ko_hold_s", "Hold (s)", "", 0.05],
+    ["ko_out_s", "Ease-back (s)", "", 0.05],
+    ["ko_slow", "Slow-mo speed", "Game speed during the KO slow-mo (both sides at once). 1 = no slow-mo, 0.25 = quarter speed.", 0.05],
+    ["ko_slow_s", "Slow-mo time (s)", "How long the slow-mo lasts (real seconds). 0 = none.", 0.05]
+  ]],
+  ["Cinematic: Clash", [
+    ["clash_on", "Clash shot", "When two opposing FX clash, the camera snaps onto the clash point."],
+    ["clash_zoom", "Zoom ×", "", 0.05],
+    ["clash_in_s", "Snap-in time (s)", "", 0.02],
+    ["clash_hold_s", "Hold (s)", "", 0.05],
+    ["clash_out_s", "Ease-back (s)", "", 0.05]
   ]]
 ];
 var TICK_MS = 16, DT = TICK_MS / 1000;
@@ -55,7 +96,7 @@ function normalize(o) {
   var s = {format: CAM_FORMAT};
   Object.keys(CAM_DEFAULTS).forEach(function (k) { s[k] = CAM_DEFAULTS[k]; });
   if (!o || typeof o !== "object") return s;
-  ["follow", "punch", "shake"].forEach(function (k) { if (k in o) s[k] = !!o[k]; });
+  Object.keys(CAM_DEFAULTS).forEach(function (k) { if (typeof CAM_DEFAULTS[k] === "boolean" && k in o) s[k] = !!o[k]; });
   Object.keys(CAM_RANGES).forEach(function (k) {
     if (!(k in o)) return;
     var v = parseFloat(o[k]);
@@ -75,6 +116,26 @@ function noise(x, seed) {
   return a + (b - a) * u;
 }
 function ease(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+function ticks(sec) { return Math.max(1, Math.round(sec / DT)); }
+
+// One cinematic move (laser/camera.py _Shot): ramps in, holds, eases out;
+// follows `fig` ({x, y}) when given; whileFn keeps the hold going.
+function Shot(kind, x, y, fig, zoom, inT, holdT, outT, whileFn) {
+  this.kind = kind; this.prio = CAM_SHOTS[kind][1]; this.x = x; this.y = y; this.fig = fig; this.zoom = zoom;
+  this.inT = Math.max(1, inT); this.holdT = Math.max(0, holdT); this.outT = Math.max(1, outT); this.whileFn = whileFn || null;
+  this.env = 0; this.age = 0; this.out = false;
+}
+Shot.prototype.step = function () {
+  if (this.fig) { this.x = this.fig.x; this.y = this.fig.y; }
+  this.age++;
+  if (!this.out) {
+    this.env = Math.min(1, this.env + 1 / this.inT);
+    var held = this.age - this.inT;
+    if (this.whileFn) { var going = false; try { going = !!this.whileFn(); } catch (e) {} if (held >= 0 && (!going || held >= this.holdT)) this.out = true; }
+    else if (held >= this.holdT) this.out = true;
+  } else this.env = Math.max(0, this.env - 1 / this.outT);
+  return !(this.out && this.env <= 0);
+};
 
 // The camera.  figs = [{x, y}], battle = bool, hitstop = ticks left.
 function Cam(sw, sh, cfg) {
@@ -84,7 +145,21 @@ function Cam(sw, sh, cfg) {
 Cam.prototype.reset = function () {
   this.cx = this.sw / 2; this.cy = this.sh / 2; this.zoom = 1;
   this.env = 0; this.inLeft = 0; this.px = this.cx; this.py = this.cy; this.roll = 0;
-  this.req = null; this.prevHs = 0; this.trauma = 0; this.decay = 0; this.t = 0;
+  this.req = null; this.prevHs = 0; this.trauma = 0; this.decay = 0; this.t = 0; this.shot = null;
+};
+Cam.prototype.shotOn = function (kind) { var s = CAM_SHOTS[kind]; return !!s && !!this.cfg[s[0] + "_on"]; };
+Cam.prototype.koHoldTicks = function () { return ticks(this.cfg.ko_in_s) + ticks(this.cfg.ko_hold_s); };
+// kind: "ultimate" / "switch_in" / "ko" / "clash"; on (x, y) or on fig.
+Cam.prototype.startShot = function (kind, x, y, fig, whileFn) {
+  if (!CAM_SHOTS[kind] || !this.shotOn(kind)) return false;
+  var cur = this.shot;
+  if (cur && !cur.out && cur.prio > CAM_SHOTS[kind][1]) return false;
+  if (fig) { x = fig.x; y = fig.y; }
+  var pre = CAM_SHOTS[kind][0], c = this.cfg, hold = kind === "ultimate" ? c.ult_max_s : c[pre + "_hold_s"];
+  var s = new Shot(kind, x, y, fig, c[pre + "_zoom"], ticks(c[pre + "_in_s"]), Math.round(hold / DT), ticks(c[pre + "_out_s"]), whileFn);
+  if (cur) s.env = cur.env;
+  this.shot = s;
+  return true;
 };
 Cam.prototype.addShake = function (px, ticks) {
   var mx = this.cfg.shake_max_px;
@@ -112,6 +187,7 @@ Cam.prototype.step = function (figs, battle, hs) {
   var c = this.cfg; this.t++;
   var tg = this.target(figs, battle), a = 1 - Math.exp(-DT * 3 / c.follow_s);
   this.cx += (tg[0] - this.cx) * a; this.cy += (tg[1] - this.cy) * a; this.zoom += (tg[2] - this.zoom) * a;
+  if (this.shot && (!this.shotOn(this.shot.kind) || !this.shot.step())) this.shot = null;
   var req = this.req; this.req = null;
   if (c.punch) {
     if (!req && hs > 0 && this.prevHs <= 0) req = [this.cx, this.cy, 0, 0];
@@ -129,8 +205,11 @@ Cam.prototype.step = function (figs, battle, hs) {
 };
 // [cx, cy, zoom, roll_deg, shake_dx, shake_dy]
 Cam.prototype.view = function () {
-  var c = this.cfg, e = c.punch ? ease(this.env) : 0, z = this.zoom + c.punch_zoom * e, pull = c.punch_pull * e;
-  var cc = this.clampC(this.cx + (this.px - this.cx) * pull, this.cy + (this.py - this.cy) * pull, z);
+  var c = this.cfg, cx = this.cx, cy = this.cy, z = this.zoom, s = this.shot;
+  if (s && s.env > 0) { var k = ease(s.env); cx += (s.x - cx) * k; cy += (s.y - cy) * k; z += (Math.max(z, s.zoom) - z) * k; }
+  var e = c.punch ? ease(this.env) : 0, pull = c.punch_pull * e;
+  z += c.punch_zoom * e;
+  var cc = this.clampC(cx + (this.px - cx) * pull, cy + (this.py - cy) * pull, z);
   var sx = 0, sy = 0;
   if (c.shake && this.trauma > 0) {
     var amp = c.shake_max_px * this.trauma * this.trauma, ph = this.t * DT * c.shake_hz;
@@ -147,7 +226,7 @@ Cam.prototype.apply = function (g, v) {
 };
 
 window.CAMERA = {
-  FORMAT: CAM_FORMAT, DEFAULTS: CAM_DEFAULTS, RANGES: CAM_RANGES, GROUPS: CAM_GROUPS,
+  FORMAT: CAM_FORMAT, DEFAULTS: CAM_DEFAULTS, RANGES: CAM_RANGES, GROUPS: CAM_GROUPS, SHOTS: CAM_SHOTS,
   TICK_MS: TICK_MS, normalize: normalize, Cam: Cam
 };
 })();

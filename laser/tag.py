@@ -200,6 +200,11 @@ def _swap(world, p, ko=False):
     if "switch_in" in in_fig.render.bundle.extra:
         actions.force_action(in_fig, world, "switch_in")
     world.notice = ("Team %d: %s in" % (p.team + 1, _name(in_fig)), 60)
+    # World Camera (laser/camera.py): switch-in shot on the incoming
+    # partner (view only; a running KO shot keeps priority).
+    shot = getattr(world, "camera_shot", None)
+    if shot is not None:
+        shot("switch_in", fig=in_fig)
 
 
 def _name(fig):

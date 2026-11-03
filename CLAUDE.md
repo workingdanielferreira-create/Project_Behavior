@@ -89,6 +89,7 @@ laser/camera.py
 ### World Camera
 - `laser/camera.py` (Studio port `tools/fx/studio/camera.js`, top-bar tab "🎥 World Camera"): paint-time VIEW only — never moves fighters; hit tests / walls / targeting / snapshots stay in screen coords. `World.camera` steps every tick (hit-stop included, not while the start menu pauses); `_paint_scene` applies it, the HUD is drawn after it (never zooms/shakes). Only the mouse cursor is mapped back (`Camera.screen_to_world` in `_tick`)
 - Follow-cam frames all fielded fighters (Battle up to `max_zoom`, Solo fixed `solo_zoom`, never < 1.0x, view clamped on-screen); hit-stop punch-in via `World.punch_camera` (systems.py hit-stop + fxkit `_Host.hitstop`); `World.add_shake` = camera trauma (stacks)
+- Cinematic shots (one at a time, priority ko > ultimate > switch_in > clash): ultimate is detected by the camera itself (`actions.current_action_name == "ultimate"`, clones excluded); `World.camera_shot(kind, x, y, fig)` from `tag._swap` (switch_in), `World.on_figure_death` (ko) and `clash.step` (clash). KO also runs a REAL slow-mo (`World.slowmo_*`, sim advances `ko_slow` of a tick per tick, both sides); Solo's final KO freezes the sim for the KO shot (`World.ko_quit_ticks`), then quits as before
 - Settings: `characters/camera.json` (`pb_camera`), hot-reloaded ~1 s and on F5; the Studio tab writes it through the Dust & Air folder link. `tools/fx/check_parity.py` checks DEFAULTS / RANGES / FORMAT
 
 ### Combat System
