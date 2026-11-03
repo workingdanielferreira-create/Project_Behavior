@@ -320,8 +320,14 @@ class MotionSystem(System):
             if battle:
                 motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
             else:
+                # Solo cursor hold (motion._solo_hold): plain-chase fighters
+                # stand still within 80 px of the cursor and chase to ~60 px
+                # beyond it.  Kiting fighters chase their own kite point, so
+                # they (and styles / glide / path-follow / runaway, which
+                # motion.update picks first) keep their own movement.
                 hit = motion.update(fig, tx_motion, ty_motion, world.collision_on,
-                                    world.path_follow, world.runaway, offset=_off)
+                                    world.path_follow, world.runaway, offset=_off,
+                                    solo_hold=not fig.mode.kites())
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
                     # Solo mode cursor bounce costs 1 HP — unless parrying
