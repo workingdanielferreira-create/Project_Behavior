@@ -1484,8 +1484,19 @@ class Overlay(QWidget):
             mb.paint_menu(p, w, self._pen)
             p.end()
             return
+        # World Camera depth tilt: time the scene so a perspective transform
+        # that is too slow for this machine switches itself off.
+        _t0 = time.perf_counter()
         self._paint_scene(p)
         p.end()
+        cam = w.camera
+        _v = cam._view
+        cam.note_paint((time.perf_counter() - _t0) * 1000.0,
+                       _v is not None and _v[6] > 1e-4)
+        if cam.suspend_note:
+            w.notice = (cam.suspend_note, 300)
+            action_log.log("CAMERA", cam.suspend_note)
+            cam.suspend_note = None
 
     def _capture_frozen_layer(self, paint_fn):
         """Whatever paint_fn draws, captured into a transparent pixmap."""
