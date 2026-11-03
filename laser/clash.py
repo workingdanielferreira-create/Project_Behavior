@@ -2005,6 +2005,14 @@ def step(world):
                 st["active"].append(rec)
                 busy.add(id(a.ref))
                 busy.add(id(b.ref))
+                # World Camera (laser/camera.py): clash shot on the contact
+                # point (view only).
+                shot = getattr(world, "camera_shot", None)
+                if shot is not None:
+                    try:
+                        shot("clash", float(c[0]), float(c[1]))
+                    except (TypeError, IndexError, ValueError):
+                        pass
     # forget pairs apart for a while
     if len(seen) > 256 or now % 60 == 0:
         for k in [k for k, t in seen.items() if now - t > REARM_TICKS * 3]:

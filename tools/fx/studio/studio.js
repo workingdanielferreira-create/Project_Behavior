@@ -4149,8 +4149,10 @@ function camPreview(parent) {
   var cam = new CAMERA.Cam(SW, SH, CAMCFG);
   var battle = lsGet("pbfxstudio.v1.camera.battle") !== false;
   var n = 0, hs = 0, figs = [], sparks = [], acc = 0, last = performance.now(), kb = null;
+  var slowT = 0, slowRate = 1, slowAcc = 0, ultLeft = 0, koQuit = 0;
   function setup() {
     n = 0; hs = 0; sparks = []; kb = null; cam.cfg = CAMCFG; cam.reset();
+    slowT = 0; slowAcc = 0; ultLeft = 0; koQuit = 0;
     figs = battle ? [{x: 500, y: 640, c: "#ff6b6b"}, {x: 1420, y: 600, c: "#6bb8ff"}] : [{x: 960, y: 620, c: "#ff6b6b"}];
   }
   function hit(px, shakeTicks) {
@@ -4160,10 +4162,38 @@ function camPreview(parent) {
     if (figs[1]) kb = {vx: dx / d * 26, vy: dy / d * 26};
     for (var i = 0; i < 14; i++) { var an = Math.random() * 2 * Math.PI, sp = 6 + Math.random() * 10; sparks.push([b.x, b.y - 40, Math.cos(an) * sp, Math.sin(an) * sp, 0]); }
   }
+  function burst(x, y, k) {
+    for (var i = 0; i < (k || 14); i++) { var an = Math.random() * 2 * Math.PI, sp = 6 + Math.random() * 10; sparks.push([x, y, Math.cos(an) * sp, Math.sin(an) * sp, 0]); }
+  }
+  // The four cinematic shots, as the game starts them.
+  function ultimate() {
+    var f = figs[0]; ultLeft = 70;
+    cam.startShot("ultimate", null, null, f, function () { return ultLeft > 0; });
+  }
+  function switchIn() {
+    var f = figs[0]; f.c = f.c === "#ff6b6b" ? "#ffd166" : "#ff6b6b"; burst(f.x, f.y - 60, 20);
+    cam.startShot("switch_in", null, null, f);
+  }
+  function ko() {
+    var f = figs[1] || figs[0];
+    if (f.down) return;
+    f.down = 200;
+    if (!cam.startShot("ko", null, null, f)) return;
+    if (!battle) koQuit = cam.koHoldTicks();   // Solo: hold the frame, then (in the game) the run ends
+    else if (CAMCFG.ko_slow < 1 && CAMCFG.ko_slow_s > 0) { slowRate = CAMCFG.ko_slow; slowT = Math.max(1, Math.round(CAMCFG.ko_slow_s * 1000 / CAMERA.TICK_MS)); slowAcc = 0; }
+  }
+  function clashAt() {
+    var a = figs[0], b = figs[1] || {x: a.x + 160, y: a.y}, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2 - 60;
+    burst(x, y, 24); cam.startShot("clash", x, y);
+  }
   function tick() {
     cam.cfg = CAMCFG;
     if (hs > 0) { hs--; cam.step(figs, battle, hs + 1); return; }
+    if (koQuit > 0) { koQuit--; if (koQuit === 0) figs.forEach(function (f) { f.down = 0; }); cam.step(figs, battle, 0); return; }
+    if (slowT > 0) { slowT--; slowAcc += slowRate; if (slowAcc < 1) { cam.step(figs, battle, 0); return; } slowAcc -= 1; }
     n++;
+    if (ultLeft > 0) ultLeft--;
+    figs.forEach(function (f) { if (f.down > 0) f.down--; });
     if (battle) {
       // Close in, trade blows, get knocked apart, regroup: a 9 s loop.
       var a = figs[0], b = figs[1], ph = (n % 560) / 560;
@@ -4171,22 +4201,29 @@ function camPreview(parent) {
       var mx = 960 + 260 * Math.sin(n / 170), my = 620 + 140 * Math.sin(n / 230);
       if (kb) { b.x += kb.vx; b.y += kb.vy; kb.vx *= 0.82; kb.vy *= 0.82; if (Math.hypot(kb.vx, kb.vy) < 0.5) kb = null; }
       else {
-        a.x += (mx - gap / 2 - a.x) * 0.06; a.y += (my + 30 - a.y) * 0.06;
-        b.x += (mx + gap / 2 - b.x) * 0.06; b.y += (my - 30 - b.y) * 0.06;
+        if (!a.down) { a.x += (mx - gap / 2 - a.x) * 0.06; a.y += (my + 30 - a.y) * 0.06; }
+        if (!b.down) { b.x += (mx + gap / 2 - b.x) * 0.06; b.y += (my - 30 - b.y) * 0.06; }
       }
-      if (ph >= 0.45 && ph < 0.75 && n % 45 === 0) hit((n % 135 === 0) ? 9 : 4, 10);
+      if (ph >= 0.45 && ph < 0.75 && n % 45 === 0 && !a.down && !b.down) hit((n % 135 === 0) ? 9 : 4, 10);
       figs.forEach(function (f) { f.x = clampN(f.x, 60, SW - 60); f.y = clampN(f.y, 120, SH - 60); });
     } else {
       var f = figs[0];
-      f.x = 960 + 620 * Math.sin(n / 110); f.y = 620 + 260 * Math.sin(n / 55);
-      if (n % 150 === 0) hit(6, 10);
+      if (!f.down) { f.x = 960 + 620 * Math.sin(n / 110); f.y = 620 + 260 * Math.sin(n / 55); }
+      if (n % 150 === 0 && !f.down) hit(6, 10);
     }
     sparks = sparks.filter(function (s) { s[0] += s[2]; s[1] += s[3]; s[2] *= 0.88; s[3] *= 0.88; s[4]++; return s[4] < 22; });
     cam.step(figs, battle, 0);
   }
   function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-  function drawFig(f) {
-    g.save(); g.translate(f.x, f.y); g.scale(1.8, 1.8); g.translate(-f.x, -f.y);
+  function drawFig(f, i) {
+    g.save(); g.translate(f.x, f.y); g.scale(1.8, 1.8);
+    if (f.down) { g.rotate(Math.PI / 2); g.globalAlpha = 0.6; }
+    g.translate(-f.x, -f.y);
+    if (i === 0 && ultLeft > 0) {
+      var gr = g.createRadialGradient(f.x, f.y - 50, 4, f.x, f.y - 50, 70);
+      gr.addColorStop(0, "rgba(255,240,160,0.75)"); gr.addColorStop(1, "rgba(255,200,60,0)");
+      g.fillStyle = gr; g.beginPath(); g.arc(f.x, f.y - 50, 70, 0, 2 * Math.PI); g.fill();
+    }
     g.strokeStyle = f.c; g.fillStyle = f.c; g.lineWidth = 6; g.lineCap = "round";
     var x = f.x, y = f.y;
     g.beginPath(); g.arc(x, y - 92, 14, 0, 2 * Math.PI); g.fill();
@@ -4220,14 +4257,19 @@ function camPreview(parent) {
     g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
     if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }
     g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "bold 26px Consolas, monospace";
-    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  trauma " + cam.trauma.toFixed(2) + (hs > 0 ? "  HIT-STOP" : ""), 18, H - 18);
+    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  trauma " + cam.trauma.toFixed(2) +
+      (cam.shot ? "  " + cam.shot.kind.toUpperCase() : "") + (hs > 0 ? "  HIT-STOP" : "") + (slowT > 0 ? "  SLOW-MO" : "") + (koQuit > 0 ? "  KO HOLD" : ""), 18, H - 18);
     requestAnimationFrame(frame);
   }
-  cap.textContent = "The desktop and the HUD stay still; the fighters, arena and FX move with the camera. Battle: they close in, trade hits (hit-stop + shake), get knocked apart.";
+  cap.textContent = "The desktop and the HUD stay still; the fighters, arena and FX move with the camera. Battle: they close in, trade hits (hit-stop + shake), get knocked apart. The ⚡ ⇄ ✖ ✦ buttons play each cinematic shot (KO in Battle = slow-mo; in Solo = frame hold).";
   [["Battle", function () { battle = true; lsSet("pbfxstudio.v1.camera.battle", true); setup(); }],
    ["Solo", function () { battle = false; lsSet("pbfxstudio.v1.camera.battle", false); setup(); }],
    ["💥 Big hit", function () { hit(9, 12); }],
    ["〰 Shake ×3", function () { cam.addShake(5, 10); cam.addShake(5, 10); cam.addShake(5, 10); }],
+   ["⚡ Ultimate", ultimate],
+   ["⇄ Switch-in", switchIn],
+   ["✖ KO", ko],
+   ["✦ Clash", clashAt],
    ["↻ Replay", setup]
   ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
   setup();

@@ -11,7 +11,7 @@ through the camera is the mouse cursor (Overlay._tick ->
 Camera.screen_to_world), so a fighter told to go "to the cursor" is DRAWN
 under the real cursor.
 
-Three layers, one transform:
+Four layers, one transform:
 
   1. Follow-cam      frames every fielded fighter (box + margin) and eases
                      there (follow_s ~ time to catch up).  Battle zooms in
@@ -19,18 +19,30 @@ Three layers, one transform:
                      fighter at a light fixed zoom (solo_zoom).  Never below
                      1.0x, and the view never leaves the screen, so at 1.0x
                      the picture is exactly the old, untransformed one.
-  2. Hit-stop punch  a big hit (World.hitstop_ticks — finishers, ultimates,
+  2. Cinematic shots one scripted move at a time, blended over the follow:
+                     ultimate  push in on the caster while its ultimate plays
+                               (seen through actions.current_action_name, so
+                               every character gets it), up to ult_max_s;
+                     switch_in quick move onto a tag partner coming in
+                               (tag._swap -> World.camera_shot);
+                     ko        hold on the fallen fighter (World.
+                               on_figure_death); the World also runs a real
+                               slow-mo (ko_slow x speed for ko_slow_s);
+                     clash     snap onto a new clash point (clash.step).
+                     Priority ko > ultimate > switch_in > clash: a shot
+                     only replaces one of lower or equal priority, or one
+                     already easing out.  Each: zoom, in / hold / out time.
+  3. Hit-stop punch  a big hit (World.hitstop_ticks — finishers, ultimates,
                      strikes with Hit-stop) snaps punch_zoom extra zoom
                      toward the impact with a punch_tilt_deg roll along the
                      knockback, holds through the freeze, eases back out.
-  3. Trauma shake    every World.add_shake adds "trauma" (0..1) instead of
-                     the old "keep the stronger shake".  Amplitude =
+  4. Trauma shake    every World.add_shake adds "trauma" (0..1).  Amplitude =
                      shake_max_px * trauma^2 on smooth value noise, so
                      overlapping hits build up and fade naturally.  A single
                      hit from rest still shakes exactly its authored px.
 
 Identical in Solo and Battle: the same step / view runs either way; the
-only difference is the zoom rule (battle_mode).
+only difference is the follow zoom rule (battle_mode).
 
 Settings: characters/camera.json (format pb_camera), any key optional,
 hot-reloaded about once a second and on F5.  Missing file = DEFAULTS.
@@ -61,6 +73,29 @@ DEFAULTS = {
     "punch_out_s": 0.35,     # ease-back time after the freeze ends
     "shake_max_px": 16.0,    # amplitude at full trauma (1.0)
     "shake_hz": 18.0,        # shake noise frequency
+    # Cinematic shots
+    "ult_on": True,          # ultimate: push in on the caster
+    "ult_zoom": 2.3,
+    "ult_in_s": 0.6,         # slow push-in
+    "ult_max_s": 1.5,        # holds while the ultimate plays, at most this
+    "ult_out_s": 0.5,
+    "switch_on": True,       # tag switch-in: move onto the incoming partner
+    "switch_zoom": 1.8,
+    "switch_in_s": 0.15,
+    "switch_hold_s": 0.5,
+    "switch_out_s": 0.4,
+    "ko_on": True,           # KO: hold on the fallen fighter
+    "ko_zoom": 2.5,
+    "ko_in_s": 0.2,
+    "ko_hold_s": 1.0,
+    "ko_out_s": 0.6,
+    "ko_slow": 0.25,         # KO slow-mo: game speed (1 = no slow-mo)
+    "ko_slow_s": 0.9,        # KO slow-mo: how long (real seconds)
+    "clash_on": True,        # clash: snap onto the clash point
+    "clash_zoom": 2.0,
+    "clash_in_s": 0.08,
+    "clash_hold_s": 0.3,
+    "clash_out_s": 0.35,
 }
 # [lo, hi] per numeric key (FX Studio's port: tools/fx/studio/camera.js
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
@@ -70,7 +105,14 @@ RANGES = {
     "punch_tilt_deg": [0.0, 30.0], "punch_pull": [0.0, 1.0],
     "punch_in_ticks": [1, 30], "punch_out_s": [0.02, 5.0],
     "shake_max_px": [0.0, 100.0], "shake_hz": [1.0, 60.0],
+    "ult_zoom": [1.0, 4.0], "ult_in_s": [0.02, 5.0], "ult_max_s": [0.0, 10.0], "ult_out_s": [0.02, 5.0],
+    "switch_zoom": [1.0, 4.0], "switch_in_s": [0.02, 5.0], "switch_hold_s": [0.0, 10.0], "switch_out_s": [0.02, 5.0],
+    "ko_zoom": [1.0, 4.0], "ko_in_s": [0.02, 5.0], "ko_hold_s": [0.0, 10.0], "ko_out_s": [0.02, 5.0],
+    "ko_slow": [0.05, 1.0], "ko_slow_s": [0.0, 5.0],
+    "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0],
 }
+# Shot kinds: settings prefix and priority (higher wins).
+SHOTS = {"clash": ("clash", 1), "switch_in": ("switch", 2), "ultimate": ("ult", 3), "ko": ("ko", 4)}
 
 _DT = config.TICK_MS / 1000.0
 
@@ -90,8 +132,8 @@ def normalize(obj):
     s = dict(DEFAULTS)
     if not isinstance(obj, dict):
         return s
-    for k in ("follow", "punch", "shake"):
-        if k in obj:
+    for k, d in DEFAULTS.items():
+        if isinstance(d, bool) and k in obj:
             s[k] = bool(obj[k])
     for k, (lo, hi) in RANGES.items():
         if k in obj:
@@ -123,6 +165,61 @@ def _ease(t):
     return t * t * (3.0 - 2.0 * t)
 
 
+def _ticks(s):
+    return max(1, int(round(s / _DT)))
+
+
+def _fig_pos(fig):
+    tr = getattr(fig, "transform", None)
+    if tr is None:
+        return None
+    return float(tr.x), float(tr.y)
+
+
+class _Shot:
+    """One cinematic move: ramps in, holds, eases out.  `fig` (optional) is
+    followed while the shot plays (its last position when it is gone).
+    `while_fn` (optional) keeps the hold going while it returns True, up to
+    hold ticks."""
+
+    def __init__(self, kind, x, y, fig, zoom, in_t, hold_t, out_t, while_fn=None):
+        self.kind = kind
+        self.prio = SHOTS[kind][1]
+        self.x, self.y = x, y
+        self.fig = fig
+        self.zoom = zoom
+        self.in_t = max(1, in_t)
+        self.hold_t = max(0, hold_t)
+        self.out_t = max(1, out_t)
+        self.while_fn = while_fn
+        self.env = 0.0
+        self.age = 0
+        self.out = False
+
+    def step(self):
+        """Advance one tick; False when finished."""
+        if self.fig is not None:
+            p = _fig_pos(self.fig)
+            if p is not None:
+                self.x, self.y = p
+        self.age += 1
+        if not self.out:
+            self.env = min(1.0, self.env + 1.0 / self.in_t)
+            held = self.age - self.in_t
+            if self.while_fn is not None:
+                try:
+                    going = bool(self.while_fn())
+                except Exception:
+                    going = False
+                if held >= 0 and (not going or held >= self.hold_t):
+                    self.out = True
+            elif held >= self.hold_t:
+                self.out = True
+        else:
+            self.env = max(0.0, self.env - 1.0 / self.out_t)
+        return not (self.out and self.env <= 0.0)
+
+
 class Camera:
 
     def __init__(self, screen_w, screen_h, root_dir=None):
@@ -136,6 +233,9 @@ class Camera:
         self.cx = self.sw / 2.0
         self.cy = self.sh / 2.0
         self.zoom = 1.0
+        # Cinematic shot (one at a time) + who was in an ultimate last tick
+        self.shot = None
+        self._ult_seen = set()
         # Hit-stop punch
         self.env = 0.0              # 0..1 punch envelope (linear; eased on use)
         self.in_left = 0            # snap-in ticks still forcing the punch
@@ -215,6 +315,43 @@ class Camera:
         """A hit-stop starts at (x, y), knockback roughly along (dx, dy)."""
         self._req = (float(x), float(y), float(dx), float(dy))
 
+    def shot_on(self, kind):
+        """Is this cinematic shot kind switched on?"""
+        pre = SHOTS.get(kind, (None,))[0]
+        return bool(pre) and bool(self.cfg.get(pre + "_on"))
+
+    def ko_hold_ticks(self):
+        """How long a KO shot takes to reach and hold its frame (ticks)."""
+        c = self.cfg
+        return _ticks(c["ko_in_s"]) + _ticks(c["ko_hold_s"])
+
+    def start_shot(self, kind, x=None, y=None, fig=None, while_fn=None):
+        """Start cinematic shot `kind` ('ultimate', 'switch_in', 'ko',
+        'clash') on (x, y) or on `fig` (followed).  Returns True if it
+        started (it is on, and nothing of higher priority is playing)."""
+        if kind not in SHOTS or not self.shot_on(kind):
+            return False
+        cur = self.shot
+        if cur is not None and not cur.out and cur.prio > SHOTS[kind][1]:
+            return False
+        if fig is not None:
+            p = _fig_pos(fig)
+            if p is not None:
+                x, y = p
+        if x is None or y is None:
+            return False
+        pre = SHOTS[kind][0]
+        c = self.cfg
+        hold = c["ult_max_s"] if kind == "ultimate" else c[pre + "_hold_s"]
+        s = _Shot(kind, float(x), float(y), fig, c[pre + "_zoom"],
+                  _ticks(c[pre + "_in_s"]), int(round(hold / _DT)),
+                  _ticks(c[pre + "_out_s"]), while_fn)
+        # Carry the current blend so a replaced shot doesn't pop.
+        if cur is not None:
+            s.env = cur.env
+        self.shot = s
+        return True
+
     # --- per tick ---------------------------------------------------------
     def _target(self, world):
         """(cx, cy, zoom) the follow-cam wants this tick."""
@@ -251,9 +388,30 @@ class Camera:
         return (min(max(cx, hw), self.sw - hw),
                 min(max(cy, hh), self.sh - hh))
 
+    def _watch_ultimates(self, world):
+        """Start the ultimate shot on the edge of any fighter's ultimate
+        (Mirror Legion copies excluded).  Read-only on the fighters."""
+        from . import actions, unique
+        now = set()
+        for f in world.all_figures():
+            if unique.is_clone(f):
+                continue
+            try:
+                ult = actions.current_action_name(f) == "ultimate"
+            except Exception:
+                ult = False
+            if not ult:
+                continue
+            now.add(id(f))
+            if id(f) not in self._ult_seen:
+                def going(f=f):
+                    return actions.current_action_name(f) == "ultimate"
+                self.start_shot("ultimate", fig=f, while_fn=going)
+        self._ult_seen = now
+
     def step(self, world):
-        """Once per game tick (hit-stop included; not while the start menu
-        pauses the game).  Read-only on the world."""
+        """Once per game tick (hit-stop and slow-mo included; not while the
+        start menu pauses the game).  Read-only on the world."""
         self._watch()
         self.t += 1
         c = self.cfg
@@ -265,7 +423,13 @@ class Camera:
         self.cy += (ty - self.cy) * a
         self.zoom += (tz - self.zoom) * a
 
-        # 2. Hit-stop punch-in.
+        # 2. Cinematic shots.
+        self._watch_ultimates(world)
+        if self.shot is not None:
+            if not self.shot_on(self.shot.kind) or not self.shot.step():
+                self.shot = None
+
+        # 3. Hit-stop punch-in.
         hs = int(getattr(world, "hitstop_ticks", 0) or 0)
         req, self._req = self._req, None
         if c["punch"]:
@@ -289,7 +453,7 @@ class Camera:
             self.in_left = 0
         self._prev_hitstop = hs
 
-        # 3. Trauma decays.
+        # 4. Trauma decays.
         if self.trauma > 0.0:
             self.trauma = max(0.0, self.trauma - self.decay)
 
@@ -299,11 +463,18 @@ class Camera:
         when the camera is exactly identity.  Deterministic per camera tick,
         so a paused frame (start menu) holds perfectly still."""
         c = self.cfg
+        cx, cy, z = self.cx, self.cy, self.zoom
+        s = self.shot
+        if s is not None and s.env > 0.0:
+            k = _ease(s.env)
+            cx += (s.x - cx) * k
+            cy += (s.y - cy) * k
+            z += (max(z, s.zoom) - z) * k
         e = _ease(self.env) if c["punch"] else 0.0
-        z = self.zoom + c["punch_zoom"] * e
+        z += c["punch_zoom"] * e
         pull = c["punch_pull"] * e
-        cx = self.cx + (self.px - self.cx) * pull
-        cy = self.cy + (self.py - self.cy) * pull
+        cx += (self.px - cx) * pull
+        cy += (self.py - cy) * pull
         cx, cy = self._clamp(cx, cy, z)
         roll = self.roll * e
         sx = sy = 0.0
