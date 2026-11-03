@@ -45,7 +45,8 @@ class MotionState:
                  "shove_vx", "shove_vy",
                  "glide_vx", "glide_vy", "glide_dir", "glide_swap_ticks",
                  "glide_t", "glide_back", "glide_alt", "style",
-                 "oval_px", "oval_py", "oval_rbx", "oval_rby", "solo_holding")
+                 "oval_px", "oval_py", "oval_rbx", "oval_rby", "solo_holding",
+                 "solo_retreating")
 
     def __init__(self, speed, follow_speed, offset_x=0, offset_y=0,
                  min_move=0.5, rotate=False):
@@ -84,9 +85,12 @@ class MotionState:
         # rebound velocity that curves it off the wall.
         self.oval_px = self.oval_py = None
         self.oval_rbx = self.oval_rby = 0.0
-        # Solo cursor hold (motion._solo_hold): standing still near the
-        # cursor until it moves past config.SOLO_HOLD_RESUME_PX.
+        # Solo default movement (motion._solo_hold / _solo_orbit): a melee
+        # fighter standing still near the cursor until it moves past
+        # config.SOLO_HOLD_RESUME_PX; a ranged fighter retreating from the
+        # cursor back out to its orbit ring.
         self.solo_holding = False
+        self.solo_retreating = False
 
 
 class TrailComponent:
