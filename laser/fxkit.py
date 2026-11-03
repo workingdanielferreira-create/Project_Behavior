@@ -3533,6 +3533,15 @@ class _Host:
         World.hitstop_ticks freeze big hits use; both sides at once)."""
         w = self.world
         w.hitstop_ticks = max(int(getattr(w, "hitstop_ticks", 0) or 0), int(ticks))
+        # Camera punch-in (laser/camera.py, view only): on the target,
+        # rolling along fighter -> target.
+        punch = getattr(w, "punch_camera", None)
+        if punch is not None:
+            try:
+                tx, ty = self.target[0], self.target[1]
+                punch(tx, ty, tx - self.fig.x, ty - self.fig.y)
+            except (TypeError, IndexError, AttributeError):
+                pass
 
     def shake(self, px, ticks):
         """A strike's screen shake (laser/hitfx.py): the overlay shakes px,

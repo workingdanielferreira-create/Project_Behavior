@@ -1860,6 +1860,7 @@ function buildProps() {
   var d = $("props"); d.innerHTML = ""; d.className = ""; KV = null;
   if (S.worldPage) return buildWorldClashProps(d);
   if (S.physPage) return buildWorldPhysicsProps(d);
+  if (S.camPage) return buildWorldCameraProps(d);
   if (C && S.uaPage) return buildUniqueProps(d);
   if (C && geoItem()) return buildGeoProps(d);
   var fx = selFx();
@@ -4041,6 +4042,7 @@ function worldSave() { lsSet(WORLD_KEY, WORLD); }
 function openWorldPage(on) {
   S.worldPage = on;
   if (on && S.physPage) { S.physPage = false; $("bPhys").classList.remove("primary"); }
+  if (on && S.camPage) { S.camPage = false; $("bCam").classList.remove("primary"); }
   $("bWorld").classList.toggle("primary", !!on); buildProps();
 }
 function buildWorldClashProps(d) {
@@ -4098,6 +4100,195 @@ function buildWorldClashProps(d) {
   }
   note(d, "Rules: beam × beam explodes when both deal more than 10 damage, otherwise they struggle and the stronger blows through. Beam × orb holds the orb on the beam, then it bursts. A trail, crescent or sprite that cuts a beam splits it into two halves fanning ±30° half the time (both halves still hit, then explode); otherwise the beam carries on. Every other pair of kinds (orb, trail, crescent, sprite) has its own clash FX above; a trail × trail clash is a sword duel when it has time to play out. Ghosts, glows, pulses, particles and weapons never clash; among the techniques, Ki Barrage shots clash as sprites, the Charged Blast orb as an orb and the Serious Punch as a beam, while the other guns and power techniques never clash. Preview every clash FX with F6 in the game or in tools/fx/clash_gallery.html. On the stage, the fighter's FX clash with the target dummies' FX by these rules (struggles and sword duels play as their one-shot bursts).");
 }
+// ------------------------------------------------------------ World Camera
+// 🎥 World Camera (laser/camera.py, port: studio/camera.js): the dynamic
+// action camera — follow-cam, hit-stop punch-in, trauma screen shake.
+// Shared by every character, in Solo and Battle: kept in browser storage and
+// saved as camera.json, which the game reads from characters/camera.json
+// (hot-reloaded about once a second).  Saves through the same linked game
+// folder as Dust & Air (PHYS_LINK), so one link covers both pages.
+var CAM_KEY = "pbfxstudio.v1.camera";
+var CAMCFG = CAMERA.normalize(lsGet(CAM_KEY) || {});
+var CAM_LINK = {timer: 0, told: false};
+function camSave() { lsSet(CAM_KEY, CAMCFG); camWriteSoon(); }
+function camWriteSoon() {
+  if (!PHYS_LINK.dir || !PHYS_LINK.ok) return;
+  clearTimeout(CAM_LINK.timer);
+  CAM_LINK.timer = setTimeout(camWrite, 300);
+}
+function camWrite() {
+  if (!PHYS_LINK.dir || !PHYS_LINK.ok) return;
+  var txt = JSON.stringify(CAMCFG, null, 1);
+  PHYS_LINK.dir.getFileHandle("camera.json", {create: true})
+    .then(function (h) { return h.createWritable(); })
+    .then(function (w) { return w.write(txt).then(function () { return w.close(); }); })
+    .then(function () {
+      if (!CAM_LINK.told) { CAM_LINK.told = true; toast("Saved characters/camera.json — the game picks it up in about a second"); }
+    }, function (e) {
+      PHYS_LINK.ok = false; PHYS_LINK.err = e.message || String(e);
+      toast("Could not save camera.json (" + PHYS_LINK.err + "). Click Re-allow on the World Camera page.", 6000);
+      if (S.camPage) buildProps();
+    });
+}
+function openCamPage(on) {
+  S.camPage = on;
+  if (on && S.worldPage) { S.worldPage = false; $("bWorld").classList.remove("primary"); }
+  if (on && S.physPage) { S.physPage = false; $("bPhys").classList.remove("primary"); }
+  $("bCam").classList.toggle("primary", !!on); buildProps();
+}
+// Live preview: a 1920x1080 "screen" scaled into the canvas.  The desktop
+// behind the overlay and the HUD stay still (as in the game); the arena,
+// fighters and hit sparks are drawn through the camera.
+function camPreview(parent) {
+  var wrap = document.createElement("div"); wrap.className = "wpv";
+  var cv = document.createElement("canvas"); cv.width = 1120; cv.height = 630; cv.style.aspectRatio = "16/9"; wrap.appendChild(cv);
+  var cap = document.createElement("div"); cap.className = "wpvcap"; wrap.appendChild(cap);
+  var row = document.createElement("div"); row.className = "row"; wrap.appendChild(row);
+  parent.appendChild(wrap);
+  var g = cv.getContext("2d"), W = cv.width, H = cv.height, SW = 1920, SH = 1080, K = W / SW;
+  var cam = new CAMERA.Cam(SW, SH, CAMCFG);
+  var battle = lsGet("pbfxstudio.v1.camera.battle") !== false;
+  var n = 0, hs = 0, figs = [], sparks = [], acc = 0, last = performance.now(), kb = null;
+  function setup() {
+    n = 0; hs = 0; sparks = []; kb = null; cam.cfg = CAMCFG; cam.reset();
+    figs = battle ? [{x: 500, y: 640, c: "#ff6b6b"}, {x: 1420, y: 600, c: "#6bb8ff"}] : [{x: 960, y: 620, c: "#ff6b6b"}];
+  }
+  function hit(px, shakeTicks) {
+    var a = figs[0], b = figs[1] || {x: a.x + 120, y: a.y};
+    var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+    hs = 5; cam.punch(b.x, b.y, dx, dy); cam.addShake(px, shakeTicks || 10);
+    if (figs[1]) kb = {vx: dx / d * 26, vy: dy / d * 26};
+    for (var i = 0; i < 14; i++) { var an = Math.random() * 2 * Math.PI, sp = 6 + Math.random() * 10; sparks.push([b.x, b.y - 40, Math.cos(an) * sp, Math.sin(an) * sp, 0]); }
+  }
+  function tick() {
+    cam.cfg = CAMCFG;
+    if (hs > 0) { hs--; cam.step(figs, battle, hs + 1); return; }
+    n++;
+    if (battle) {
+      // Close in, trade blows, get knocked apart, regroup: a 9 s loop.
+      var a = figs[0], b = figs[1], ph = (n % 560) / 560;
+      var gap = ph < 0.45 ? 900 - 1500 * ph : ph < 0.75 ? 230 : 230 + (ph - 0.75) * 2600;
+      var mx = 960 + 260 * Math.sin(n / 170), my = 620 + 140 * Math.sin(n / 230);
+      if (kb) { b.x += kb.vx; b.y += kb.vy; kb.vx *= 0.82; kb.vy *= 0.82; if (Math.hypot(kb.vx, kb.vy) < 0.5) kb = null; }
+      else {
+        a.x += (mx - gap / 2 - a.x) * 0.06; a.y += (my + 30 - a.y) * 0.06;
+        b.x += (mx + gap / 2 - b.x) * 0.06; b.y += (my - 30 - b.y) * 0.06;
+      }
+      if (ph >= 0.45 && ph < 0.75 && n % 45 === 0) hit((n % 135 === 0) ? 9 : 4, 10);
+      figs.forEach(function (f) { f.x = clampN(f.x, 60, SW - 60); f.y = clampN(f.y, 120, SH - 60); });
+    } else {
+      var f = figs[0];
+      f.x = 960 + 620 * Math.sin(n / 110); f.y = 620 + 260 * Math.sin(n / 55);
+      if (n % 150 === 0) hit(6, 10);
+    }
+    sparks = sparks.filter(function (s) { s[0] += s[2]; s[1] += s[3]; s[2] *= 0.88; s[3] *= 0.88; s[4]++; return s[4] < 22; });
+    cam.step(figs, battle, 0);
+  }
+  function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function drawFig(f) {
+    g.save(); g.translate(f.x, f.y); g.scale(1.8, 1.8); g.translate(-f.x, -f.y);
+    g.strokeStyle = f.c; g.fillStyle = f.c; g.lineWidth = 6; g.lineCap = "round";
+    var x = f.x, y = f.y;
+    g.beginPath(); g.arc(x, y - 92, 14, 0, 2 * Math.PI); g.fill();
+    g.beginPath(); g.moveTo(x, y - 76); g.lineTo(x, y - 30); g.lineTo(x - 18, y); g.moveTo(x, y - 30); g.lineTo(x + 18, y);
+    g.moveTo(x - 24, y - 62); g.lineTo(x + 24, y - 62); g.stroke();
+    g.fillStyle = "rgba(0,0,0,0.35)"; g.beginPath(); g.ellipse(x, y + 4, 26, 7, 0, 0, 2 * Math.PI); g.fill();
+    g.restore();
+  }
+  function frame(now) {
+    if (!document.body.contains(cv)) return;   // the page was rebuilt: this preview is gone
+    acc += Math.min(100, now - last); last = now;
+    var k = 0;
+    while (acc >= CAMERA.TICK_MS && k < 6) { acc -= CAMERA.TICK_MS; k++; tick(); }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    // The desktop behind the overlay: never moves.
+    g.fillStyle = "#1b2433"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "rgba(255,255,255,0.05)";
+    g.fillRect(W * 0.06, H * 0.1, W * 0.38, H * 0.5); g.fillRect(W * 0.52, H * 0.18, W * 0.4, H * 0.6);
+    // The scene, through the camera.
+    var v = cam.view();
+    g.save(); g.scale(K, K); cam.apply(g, v);
+    g.strokeStyle = "rgba(160,190,230,0.18)"; g.lineWidth = 2;
+    for (var i = 1; i < 9; i++) { var t = i / 9; g.beginPath(); g.moveTo(0, SH * t * 2); g.lineTo(SW * t * 2, 0); g.stroke(); }
+    g.strokeStyle = "rgba(160,190,230,0.35)"; g.strokeRect(4, 4, SW - 8, SH - 8);
+    figs.forEach(drawFig);
+    g.strokeStyle = "#fff6e0"; g.lineWidth = 3;
+    sparks.forEach(function (s) { g.globalAlpha = 1 - s[4] / 22; g.beginPath(); g.moveTo(s[0] - s[2], s[1] - s[3]); g.lineTo(s[0], s[1]); g.stroke(); });
+    g.globalAlpha = 1;
+    g.restore();
+    // The HUD: never zooms or shakes.
+    g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
+    if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }
+    g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "bold 26px Consolas, monospace";
+    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  trauma " + cam.trauma.toFixed(2) + (hs > 0 ? "  HIT-STOP" : ""), 18, H - 18);
+    requestAnimationFrame(frame);
+  }
+  cap.textContent = "The desktop and the HUD stay still; the fighters, arena and FX move with the camera. Battle: they close in, trade hits (hit-stop + shake), get knocked apart.";
+  [["Battle", function () { battle = true; lsSet("pbfxstudio.v1.camera.battle", true); setup(); }],
+   ["Solo", function () { battle = false; lsSet("pbfxstudio.v1.camera.battle", false); setup(); }],
+   ["💥 Big hit", function () { hit(9, 12); }],
+   ["〰 Shake ×3", function () { cam.addShake(5, 10); cam.addShake(5, 10); cam.addShake(5, 10); }],
+   ["↻ Replay", setup]
+  ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
+  setup();
+  requestAnimationFrame(frame);
+}
+function camFileSection(d) {
+  var s = sec(d, "File", "c-file", "", "act");
+  if (lsGet("pbfxstudio.v2.psec.c-file") == null) s.open = true;
+  var st = document.createElement("div"); st.className = "wpvcap";
+  st.textContent = !physCanLink() ? "This browser can't write into the game folder: use Save camera.json and put it in characters/." :
+    !PHYS_LINK.dir ? "Not linked: edits stay in this browser until the game folder is linked (the same link as Dust & Air)." :
+    PHYS_LINK.ok ? "Linked: every edit saves to " + PHYS_LINK.dir.name + "/camera.json; the game picks it up in about a second." :
+    "Linked folder needs permission again" + (PHYS_LINK.err ? " (" + PHYS_LINK.err + ")" : "") + ": click Re-allow.";
+  s.appendChild(st);
+  var lrow = document.createElement("div"); lrow.className = "row"; s.appendChild(lrow);
+  if (physCanLink()) {
+    var lb = document.createElement("button");
+    lb.textContent = !PHYS_LINK.dir ? "Link game folder…" : PHYS_LINK.ok ? "Change linked folder…" : "Re-allow";
+    lb.className = PHYS_LINK.ok ? "" : "primary";
+    lb.title = "Pick the game folder (the one with characters/ in it). Edits on this page then save straight into characters/camera.json.";
+    lb.onclick = PHYS_LINK.dir && !PHYS_LINK.ok ? physLinkAllow : physLinkPick;
+    lrow.appendChild(lb);
+  }
+  var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
+  [["Save camera.json", function () { download("camera.json", JSON.stringify(CAMCFG, null, 1), "characters/"); }],
+   ["Open…", function () {
+     var f = document.createElement("input"); f.type = "file"; f.accept = ".json,application/json";
+     f.onchange = function () {
+       var file = f.files && f.files[0]; if (!file) return;
+       file.text().then(function (t) {
+         var o = JSON.parse(t);
+         if (!o || o.format !== CAMERA.FORMAT) throw new Error("not a World Camera file");
+         CAMCFG = CAMERA.normalize(o); camSave(); buildProps(); toast("Loaded " + file.name);
+       }).catch(function (e) { toast("Could not load it (" + e.message + ")", 5000); });
+     };
+     f.click();
+   }],
+   ["Reset to defaults", function () { CAMCFG = CAMERA.normalize({}); camSave(); buildProps(); toast("World Camera reset to the defaults"); }]
+  ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
+  s.title = "The game reads characters/camera.json. Save it here, then drop it into the repo (top level or drop/) and run update_game.bat, or put it in characters/ yourself.";
+}
+function buildWorldCameraProps(d) {
+  banner(d, "act", "World camera", "🎥 World Camera",
+    "Shared by every character, in Solo and Battle: the dynamic action camera. It only changes how the scene is drawn — fighters, hits and targeting never see it, and the HUD never zooms or shakes.",
+    ["Close", function () { openCamPage(false); }]);
+  camFileSection(d);
+  var pv = sec(d, "Preview", "c-preview", "", "act");
+  if (lsGet("pbfxstudio.v2.psec.c-preview") == null) pv.open = true;
+  camPreview(pv);
+  CAMERA.GROUPS.forEach(function (gr, gi) {
+    var s = sec(d, gr[0], "c-grp-" + gi, "", "act");
+    gr[1].forEach(function (f) {
+      var k = f[0], dflt = CAMERA.DEFAULTS[k], r = CAMERA.RANGES[k], e;
+      if (typeof dflt === "boolean") e = inp("chk", CAMCFG[k], function (v) { CAMCFG[k] = v; camSave(); });
+      else e = inp("n", CAMCFG[k], function (v) {
+        CAMCFG[k] = Math.max(r[0], Math.min(r[1], k === "punch_in_ticks" ? Math.round(v) : v)); camSave();
+      }, r[0], r[1], f[3] || 0.05);
+      field(s, f[1], e).title = f[2] + (typeof dflt === "number" ? " (default " + dflt + ", " + r[0] + "–" + r[1] + ")" : "");
+    });
+  });
+}
 // ------------------------------------------------------------ World Physics
 // Dust & Air (laser/worldfx.py, port: studio/worldfx.js): the dust, debris
 // and displaced air the arena kicks up.  Shared by every character, in Solo
@@ -4121,7 +4312,7 @@ function physLinkLoad() {
     if (!h || typeof h.getFileHandle !== "function") return;
     PHYS_LINK.dir = h;
     return h.queryPermission({mode: "readwrite"}).then(function (p) { PHYS_LINK.ok = p === "granted"; }, function () {});
-  }).then(function () { if (S.physPage) buildProps(); }, function () {});
+  }).then(function () { if (S.physPage || S.camPage) buildProps(); }, function () {});
 }
 function physLinkStore(h) {
   STORE.cache[PHYS_DIR_KEY] = h;
@@ -4137,7 +4328,7 @@ function physLinkPick() {
     });
   }).then(function (chars) {
     PHYS_LINK.dir = chars; PHYS_LINK.ok = true; PHYS_LINK.err = ""; physLinkStore(chars);
-    toast("Linked: edits now save to characters/world_physics.json"); physWrite(); buildProps();
+    toast("Linked: edits now save to characters/world_physics.json and camera.json"); physWrite(); camWrite(); buildProps();
   }).catch(function (e) { if (e && e.name !== "AbortError") toast("Could not link it (" + e.message + ")", 5000); });
 }
 // Re-allow a remembered folder after a browser restart (needs a click).
@@ -4145,7 +4336,7 @@ function physLinkAllow() {
   if (!PHYS_LINK.dir) return physLinkPick();
   PHYS_LINK.dir.requestPermission({mode: "readwrite"}).then(function (p) {
     PHYS_LINK.ok = p === "granted";
-    if (PHYS_LINK.ok) { toast("Linked again"); physWrite(); }
+    if (PHYS_LINK.ok) { toast("Linked again"); physWrite(); camWrite(); }
     buildProps();
   }, function () { physLinkPick(); });
 }
@@ -4172,6 +4363,7 @@ function physWrite() {
 function openPhysPage(on) {
   S.physPage = on;
   if (on && S.worldPage) { S.worldPage = false; $("bWorld").classList.remove("primary"); }
+  if (on && S.camPage) { S.camPage = false; $("bCam").classList.remove("primary"); }
   $("bPhys").classList.toggle("primary", !!on); buildProps();
 }
 // The settings of one section as fields.  sobj = the live section object,
@@ -6170,6 +6362,7 @@ $("dirIn").onchange = function () { var l = Array.prototype.slice.call(this.file
 $("bSave").onclick = saveFx;
 $("bWorld").onclick = function () { openWorldPage(!S.worldPage); };
 $("bPhys").onclick = function () { openPhysPage(!S.physPage); };
+$("bCam").onclick = function () { openCamPage(!S.camPage); };
 physLinkLoad();
 $("contFx").onchange = function () {
   if (!C) { this.checked = false; return; }

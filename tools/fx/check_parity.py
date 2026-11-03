@@ -231,6 +231,11 @@ def main():
     diff(wf_js.get("SS"), [cfg.get("SPEED_SCALE_" + k) for k in ("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")],
          "worldfx SS (config.SPEED_SCALE_*)", out)
     diff(wf_js.get("TELEPORT_PX"), cfg.get("ARENA_OVAL_TELEPORT_PX"), "worldfx TELEPORT_PX", out)
+    # World Camera (laser/camera.py, studio/camera.js): settings tables.
+    cam_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "camera.js"))
+    cam_py = PyTables(os.path.join(ROOT, "laser", "camera.py"), {"config": cfg})
+    for j, y in (("CAM_DEFAULTS", "DEFAULTS"), ("CAM_RANGES", "RANGES"), ("CAM_FORMAT", "FORMAT")):
+        diff(cam_js.get(j), cam_py.get(y), "camera " + y, out)
 
     # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py),
     # the ki barrage / impact punch constants (laser/strikefx.py), the power
