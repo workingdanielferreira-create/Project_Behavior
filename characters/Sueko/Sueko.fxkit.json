@@ -8662,7 +8662,7 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 50
   },
   "defend": {
    "logic": "any",
@@ -9132,7 +9132,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvdn0gkj1",
    "action": "attack_normal",
@@ -9280,7 +9281,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvdn7mv02",
    "action": "attack_special",
@@ -9463,7 +9465,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvdntvjn34",
    "action": "ultimate",
@@ -9611,7 +9614,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvdobxcw1",
    "action": "attack_special_2",
@@ -9751,7 +9755,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -9927,7 +9932,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10098,7 +10104,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10247,7 +10254,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10431,7 +10439,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10610,7 +10619,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10759,7 +10769,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -10907,7 +10918,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -11158,7 +11170,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvupj46j6",
    "action": "switch_in",

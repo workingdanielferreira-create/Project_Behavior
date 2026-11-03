@@ -12761,7 +12761,7 @@
     "damage_min": 5,
     "damage_max": 20
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 50
   },
   "defend": {
    "logic": "all",
@@ -15906,7 +15906,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -16046,7 +16047,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvcmil3y1",
    "action": "transform",
@@ -16236,7 +16238,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvcmil3y2",
    "action": "transform",
@@ -16409,7 +16412,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvcmil3y6",
    "action": "transform",
@@ -16558,7 +16562,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -16742,7 +16747,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -16914,7 +16920,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17063,7 +17070,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17239,7 +17247,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17410,7 +17419,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17559,7 +17569,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17707,7 +17718,8 @@
     "squash_ticks": 6,
     "squash_flash": true,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "flip": {
     "enabled": false,
@@ -17959,7 +17971,8 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvvmemub7",
    "action": "switch_in",
@@ -18107,7 +18120,8 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "spin_vertical": false
    },
    "id": "Emvvmvvpf9",
    "action": "attack_normal",
