@@ -199,8 +199,9 @@ class MotionSystem(System):
             if fig.combat.acted:
                 continue  # combat system already advanced this figure this tick
             # Summoner turret / totem (laser/unique.py): never walks; a
-            # knockback still slides it.
-            if unique.holds_still(fig):
+            # knockback still slides it.  Battle only — in Solo every
+            # fighter uses the shared default movement (motion.update solo).
+            if battle and unique.holds_still(fig):
                 motion.carry_knockback(fig)
                 fig.render.is_moving = False
                 fig.render.advance()
@@ -295,6 +296,32 @@ class MotionSystem(System):
                     fig.render.advance()
                     continue
 
+            if not battle:
+                # --- Solo default movement (config SOLO_*): replaces every
+                # character's own movement — styles, kiting, glide,
+                # path-follow / runaway keys, stationary, Summoner
+                # turrets.  Melee (mode.uses_melee) stands still within
+                # 80 px of the cursor and chases to ~60 px beyond that;
+                # ranged orbits the cursor at its normal-attack range and
+                # retreats back out to it when the cursor gets within
+                # 60 px.  Cursor-collision bounce still applies. ---
+                if fig.mode.uses_melee():
+                    _solo = ("melee",)
+                else:
+                    _solo = ("ranged", max(config.SOLO_ORBIT_MIN_PX,
+                                           actions.attack_range(fig, "attack_normal")))
+                cx, cy = world.cursor
+                hit = motion.update(fig, cx, cy, world.collision_on,
+                                    False, False, solo=_solo)
+                if hit is not None:
+                    world.collision_dots.append([hit[0], hit[1], 0])
+                    # Solo mode cursor bounce costs 1 HP — unless parrying
+                    if not fig.combat.parrying:
+                        ai.apply_hp_damage(fig, world)
+                    else:
+                        combat.special_blocks_hit(fig)   # special-stance counter
+                continue
+
             tx_motion, ty_motion = world.movement_target(fig)
             _char = getattr(fig.mode, "character", None)
             if _char and _char.get("stationary"):
@@ -316,25 +343,9 @@ class MotionSystem(System):
                 continue
             # Image characters close to within their attack range instead of
             # stopping at their formation offset (actions.chase_offset).
+            # Battle only from here on (Solo continued above).
             _off = actions.chase_offset(fig, world)
-            if battle:
-                motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
-            else:
-                # Solo cursor hold (motion._solo_hold): plain-chase fighters
-                # stand still within 80 px of the cursor and chase to ~60 px
-                # beyond it.  Kiting fighters chase their own kite point, so
-                # they (and styles / glide / path-follow / runaway, which
-                # motion.update picks first) keep their own movement.
-                hit = motion.update(fig, tx_motion, ty_motion, world.collision_on,
-                                    world.path_follow, world.runaway, offset=_off,
-                                    solo_hold=not fig.mode.kites())
-                if hit is not None:
-                    world.collision_dots.append([hit[0], hit[1], 0])
-                    # Solo mode cursor bounce costs 1 HP — unless parrying
-                    if not fig.combat.parrying:
-                        ai.apply_hp_damage(fig, world)
-                    else:
-                        combat.special_blocks_hit(fig)   # special-stance counter
+            motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
         for fig in world.figures:
             # Body shove (CollisionSystem): slid apart from a fighter it ran
             # into, whatever moved it this tick — no stagger.  Blinked out or

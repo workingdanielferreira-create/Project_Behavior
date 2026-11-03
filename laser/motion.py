@@ -16,13 +16,18 @@ from . import worldfx as _worldfx
 
 
 def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None,
-           solo_hold=False):
+           solo=None):
     """Advance one figure's position toward (tx, ty) for this tick.
     offset: the chase offset to use instead of the figure's formation offset
-    (actions.chase_offset).  solo_hold: Solo plain chase — the fighter uses
-    the cursor stand/chase band (_solo_hold) instead of _chase.  Returns
-    (cx, cy) if a cursor-collision bounce was triggered this tick, otherwise
-    None."""
+    (actions.chase_offset).  solo: Solo's shared default movement, which
+    replaces every character's own movement (styles, kiting, glide,
+    path-follow, runaway) — ("melee",) = stand/chase band (_solo_hold),
+    ("ranged", ring_px) = orbit the cursor at ring_px and retreat inside
+    SOLO_RETREAT_PX (_solo_orbit); (tx, ty) is the cursor.  None = the
+    character's own movement (Battle).  Returns (cx, cy) if a
+    cursor-collision bounce was triggered this tick, otherwise None."""
+    if solo is not None:
+        path_follow = runaway = False
     m = fig.motion
     t = fig.transform
 
@@ -57,7 +62,15 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None,
     # both fielded fighters, so Solo and Battle match automatically.
     sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
 
-    styled = _movestyle.live(fig)
+    if solo is not None:
+        # Solo default movement: no style / glide state carries over.
+        if m.style is not None:
+            m.style.live = False
+        m.glide_vx = m.glide_vy = 0.0
+        m.glide_back = False
+        styled = False
+    else:
+        styled = _movestyle.live(fig)
     if m.bouncing:
         _bounce(fig, sf)
         _movestyle.reset_velocity(fig)   # a knockback kills any carried style velocity
@@ -67,6 +80,13 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None,
         t.x, t.y = tx, ty
         t.init = True
         m.path.clear()
+    elif solo is not None:
+        if m.path:
+            m.path.clear()
+        if solo[0] == "ranged":
+            _solo_orbit(fig, tx, ty, solo[1], sf)
+        else:
+            _solo_hold(fig, tx, ty, sf)
     elif runaway:
         _runaway(fig, tx, ty, sf)
     elif path_follow:
@@ -79,20 +99,21 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None,
         _movestyle.step(fig, tx, ty, sf)
     elif glide_cfg(fig) is not None:
         _glide(fig, tx, ty, sf, offset)
-    elif solo_hold:
-        _solo_hold(fig, tx, ty, sf)
     else:
         _chase(fig, tx, ty, sf, offset)
-    if not solo_hold:
+    if solo is None or solo[0] != "melee":
         m.solo_holding = False
+    if solo is None or solo[0] != "ranged":
+        m.solo_retreating = False
 
     fig.face(ox, oy)
     if styled:
         _movestyle.face(fig)
     # The glide block's skate-and-shoot facing and backward frames apply under
     # a movement style too (the style's carried velocity stands in for the
-    # glide's), so a styled skater still fires skating backwards.
-    g = glide_cfg(fig)
+    # glide's), so a styled skater still fires skating backwards.  Not in
+    # Solo, whose default movement replaces the glide.
+    g = glide_cfg(fig) if solo is None else None
     m.glide_alt = None
     if g is not None:
         anim = fig.combat.action_anim or ""
@@ -297,11 +318,12 @@ def _chase(fig, cx, cy, sf=1.0, offset=None):
 
 
 def _solo_hold(fig, cx, cy, sf=1.0):
-    """Solo plain chase around the cursor (cx, cy), measured centre to
-    cursor with no formation offset.  Standing: holds still while the
-    cursor stays within SOLO_HOLD_RESUME_PX (80 px).  Beyond that it runs
-    straight at the cursor and stands again once it is SOLO_HOLD_STOP_PX
-    (~60 px) away, on whichever side it arrived from."""
+    """Solo melee default movement around the cursor (cx, cy), measured
+    centre to cursor with no formation offset.  Standing wins wherever the
+    two ranges overlap: a standing fighter holds still while the cursor
+    stays within SOLO_HOLD_RESUME_PX (80 px).  Beyond that it runs straight
+    at the cursor and stands again once it is SOLO_HOLD_STOP_PX (~60 px)
+    away, on whichever side it arrived from."""
     m = fig.motion
     t = fig.transform
     if m.path:
@@ -328,6 +350,48 @@ def _solo_hold(fig, cx, cy, sf=1.0):
         k = step / d
         t.x += dx * k
         t.y += dy * k
+
+
+def _solo_orbit(fig, cx, cy, ring, sf=1.0):
+    """Solo ranged default movement: circle the cursor (cx, cy) at `ring` px
+    (the character's normal-attack range, worked out by MotionSystem).  Far
+    off the ring it heads almost straight in / out; on the ring it circles
+    (config.ORBIT_CLOCKWISE).  If the cursor gets within SOLO_RETREAT_PX
+    (60 px) it retreats straight away from the cursor until it is back on
+    the ring, then carries on orbiting."""
+    m = fig.motion
+    t = fig.transform
+    dx = t.x - cx
+    dy = t.y - cy
+    d = (dx * dx + dy * dy) ** 0.5
+    if d < 1e-3:
+        dx, dy, d = (-1.0 if t.facing_left else 1.0), 0.0, 1.0
+    ux, uy = dx / d, dy / d                      # outward from the cursor
+    # Screen is y-down: clockwise tangent about the cursor = (-uy, ux).
+    sgn = 1.0 if config.ORBIT_CLOCKWISE else -1.0
+    tx_, ty_ = -uy * sgn, ux * sgn
+    step = m.speed * sf
+    if d < config.SOLO_RETREAT_PX:
+        m.solo_retreating = True
+    if m.solo_retreating:
+        if d + step >= ring:
+            # Land on the ring and go back to orbiting.
+            k = max(0.0, ring - d)
+            t.x += ux * k
+            t.y += uy * k
+            m.solo_retreating = False
+            return
+        # Straight away from the cursor, with a slight sideways lean so a
+        # retreat into a screen edge slides along it instead of pinning.
+        vx = ux + tx_ * config.SOLO_RETREAT_SLIDE
+        vy = uy + ty_ * config.SOLO_RETREAT_SLIDE
+    else:
+        pull = max(-3.0, min(3.0, (d - ring) / max(1.0, ring * 0.35)))
+        vx = tx_ - ux * pull
+        vy = ty_ - uy * pull
+    vn = (vx * vx + vy * vy) ** 0.5
+    t.x += vx / vn * step
+    t.y += vy / vn * step
 
 
 # Glide (JSON `movement.glide`, opt-in per character): instead of running to

@@ -155,15 +155,28 @@ BOUNCE_END_HOLD       = 8       # ticks slide2 frame is held before resuming run
 HIT_RADIUS_SQ         = 225.0   # cursor within sqrt(225)=15px triggers bounce
 
 # ---------------------------------------------------------------------------
-# Solo cursor hold (motion._solo_hold) — Solo only, plain-chase fighters
-# (movement styles, kiting, glide, path-follow and runaway keep their own
-# movement).  Distance is fighter centre -> cursor; formation offset ignored.
-# Standing still: stays put while the cursor is within SOLO_HOLD_RESUME_PX
-# (0-80 px).  Once the cursor is farther than that it chases straight at
-# the cursor and stops again at SOLO_HOLD_STOP_PX (~60 px).
+# Solo default movement (motion._solo_hold / motion._solo_orbit) — Solo
+# only.  Every fighter in Solo uses this instead of its own movement
+# (movement styles, kiting, glide, path-follow / runaway keys, stationary
+# and Summoner turrets/totems all replaced).  Melee vs ranged =
+# mode.uses_melee().  Distance is fighter centre -> cursor; formation
+# offset ignored.  Combat-owned movement (dashes, dodge, tactical retreat,
+# blinks, hop-back, survival teleport) and knockback are unchanged.
+#
+# Melee: standing still wins where the ranges overlap — stays put while the
+# cursor is within SOLO_HOLD_RESUME_PX (0-80 px).  Once the cursor is
+# farther than that it chases straight at it and stops at SOLO_HOLD_STOP_PX.
+#
+# Ranged: orbits the cursor at its normal-attack range (actions.attack_range,
+# at least SOLO_ORBIT_MIN_PX), direction config.ORBIT_CLOCKWISE.  If the
+# cursor gets within SOLO_RETREAT_PX it retreats straight away from the
+# cursor back out to the ring, then carries on orbiting.
 # ---------------------------------------------------------------------------
-SOLO_HOLD_STOP_PX   = 60.0   # chase ends (and the stand begins) this close
-SOLO_HOLD_RESUME_PX = 80.0   # a standing fighter resumes only beyond this
+SOLO_HOLD_STOP_PX   = 60.0   # melee: chase ends (and the stand begins) this close
+SOLO_HOLD_RESUME_PX = 80.0   # melee: a standing fighter resumes only beyond this
+SOLO_RETREAT_PX     = 60.0   # ranged: cursor this close -> retreat to the ring
+SOLO_ORBIT_MIN_PX   = 80.0   # ranged: the orbit ring is never smaller than this
+SOLO_RETREAT_SLIDE  = 0.25   # ranged: sideways lean while retreating (slides off walls)
 
 # ---------------------------------------------------------------------------
 # Runaway (flee the cursor)
