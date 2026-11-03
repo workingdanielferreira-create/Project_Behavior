@@ -509,6 +509,9 @@ class CombatSystem(System):
 
             # --- Slash FX: drain hit events into world FX lists ---
             c = fig.combat
+            # Last impact point this tick: where a hit-stop's camera
+            # punch-in aims (laser/camera.py).
+            _impact = c.impact_fx_pending[-1] if c.impact_fx_pending else None
             if c.impact_fx_pending:
                 rr, gg, bb = fig.lut[80]
                 rng = fig.personality.rng
@@ -530,6 +533,16 @@ class CombatSystem(System):
             if c.hitstop_request:
                 c.hitstop_request = False
                 world.hitstop_ticks = config.HITSTOP_TICKS
+                # Camera punch-in (view only): on the impact, rolling along
+                # attacker -> impact; no impact (an ultimate launch) = on
+                # the attacker, level.
+                _punch = getattr(world, "punch_camera", None)
+                if _punch is not None:
+                    if _impact is not None:
+                        _punch(_impact[0], _impact[1],
+                               _impact[0] - fig.x, _impact[1] - fig.y)
+                    else:
+                        _punch(fig.x, fig.y)
 
         # HP-threshold stationary clones: orbit/attack + hittability for
         # every clone this side owns (spawn checks already ran per-figure

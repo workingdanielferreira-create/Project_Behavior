@@ -23,6 +23,7 @@ from . import swordfx
 from . import hitfx, strikefx
 from . import dmgnum
 from . import worldfx
+from . import camera as _camera
 from .prebattle import PreBattleMenu
 from . import roster as _roster
 from . import tag as _tag
@@ -178,10 +179,11 @@ class World:
 
         # Slash FX state
         self.hitstop_ticks = 0              # >0 = world frozen (big-hit freeze)
-        # Screen shake (laser/hitfx.py hit weight): [ticks left, total, px]
-        # or None.  Counts down every tick, hit-stop included, so a frozen
-        # hit shakes.
-        self.shake = None
+        # Dynamic action camera (laser/camera.py): follow-cam, hit-stop
+        # punch-in and trauma screen shake.  A paint-time VIEW only — the
+        # simulation never sees it.  Steps every tick, hit-stop included,
+        # so a frozen hit still shakes and punches in.
+        self.camera = _camera.Camera(screen_w, screen_h, assets.dir)
         # FX Studio Time control (laser/timefx.py), set per time sub-pass:
         # ids of the figures whose FX step in it (None = all), the figures
         # whose FX step while their body is stopped, and whether the side's
@@ -304,6 +306,11 @@ class World:
         # World physics (Dust & Air): the shared settings file, re-read too.
         try:
             worldfx.load_world(root)
+        except Exception:
+            pass
+        # World Camera (laser/camera.py): characters/camera.json, re-read too.
+        try:
+            self.camera.load()
         except Exception:
             pass
         names = {p[0] for p in pkgs}
@@ -1141,27 +1148,19 @@ class World:
         return [i for i, s in enumerate(self.sides) if s.figures]
 
     def add_shake(self, px, ticks):
-        """A strike's screen shake (fxkit _Host.shake): the stronger of it and
-        what is shaking now."""
-        cur = self.shake
-        if cur is None or px >= cur[2] * cur[0] / float(max(1, cur[1])):
-            self.shake = [int(ticks), int(ticks), float(px)]
+        """A strike's screen shake (fxkit _Host.shake): adds camera trauma,
+        so overlapping shakes stack and fade together (laser/camera.py)."""
+        self.camera.add_shake(px, ticks)
 
-    def shake_offset(self):
-        """This frame's shake (dx, dy) in px, easing out; None when still."""
-        sh = self.shake
-        if sh is None:
-            return None
-        amp = sh[2] * sh[0] / float(max(1, sh[1]))
-        return random.uniform(-amp, amp), random.uniform(-amp, amp)
+    def punch_camera(self, x, y, dx=0.0, dy=0.0):
+        """A hit-stop starts at (x, y) with knockback along (dx, dy): the
+        camera punches in there (laser/camera.py).  View only."""
+        self.camera.punch(x, y, dx, dy)
 
     def step_hit_weight(self):
-        """Each tick (hit-stop included): the shake counts down; outside a
-        hit-stop the squash of every fighter hit springs back."""
-        if self.shake is not None:
-            self.shake[0] -= 1
-            if self.shake[0] <= 0:
-                self.shake = None
+        """Each tick (hit-stop included): outside a hit-stop the squash of
+        every fighter hit springs back.  (The screen shake decays in
+        Camera.step.)"""
         if self.hitstop_ticks > 0:
             return
         for fig in self.all_figures():
@@ -1233,7 +1232,9 @@ class Overlay(QWidget):
     def _tick(self):
         w = self.world
         pos = QCursor.pos()
-        w.cursor = (pos.x(), pos.y())
+        # The real cursor mapped through the camera's last view, so a fighter
+        # sent "to the cursor" is DRAWN under it (identity at 1.0x).
+        w.cursor = w.camera.screen_to_world(pos.x(), pos.y())
 
         try:
             self.input.update(w)
@@ -1257,8 +1258,15 @@ class Overlay(QWidget):
             self.update()
             return
 
-        # --- Hit weight: screen shake and target squash count down ---
+        # --- Hit weight: target squash counts down ---
         w.step_hit_weight()
+
+        # --- Camera (laser/camera.py): follow, punch-in, shake.  Every tick
+        # including hit-stop; read-only on the world; Solo and Battle alike.
+        try:
+            w.camera.step(w)
+        except Exception as e:
+            action_log.crash("camera", e)
 
         # --- HIT-STOP: freeze the world for a few ticks on big hits ---
         # Input keeps running; combat, motion, collisions, and bullets all
@@ -1401,13 +1409,22 @@ class Overlay(QWidget):
             if mb.frozen is None or mb.frozen_sig != sig:
                 mb.frozen = self._capture_frozen_layer(
                     lambda qp: self._paint_scene(qp, bodies=False, hud=False,
-                                                 abs_front=False))
+                                                 abs_front=False, cam=False))
                 mb.frozen_front = self._capture_frozen_layer(
                     lambda qp: self._paint_abs_layer(qp, "abs_front"))
                 mb.frozen_sig = sig
+            # The frozen layers are captured un-camera'd; the paused camera
+            # view (it does not step while paused) is applied around them
+            # and the idle fighters, so the frame holds exactly as it was.
+            cv = w.camera.view()
+            if cv is not None:
+                p.save()
+                w.camera.apply(p, cv)
             p.drawPixmap(0, 0, mb.frozen)
             mb.paint_fighters(p, w)
             p.drawPixmap(0, 0, mb.frozen_front)
+            if cv is not None:
+                p.restore()
             mb.paint_menu(p, w, self._pen)
             p.end()
             return
@@ -1440,17 +1457,18 @@ class Overlay(QWidget):
             if fig.fx is not None:
                 fig.fx.draw(p, fig, layer)
 
-    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True):
+    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True):
         """Everything the game draws in a normal frame.  bodies=False skips
         the fighters' sprites, hud=False the HP readout and notice,
-        abs_front=False the absolute-front FX — used by the pre-battle
-        menu's frozen FX layers."""
+        abs_front=False the absolute-front FX, cam=False the camera view
+        — used by the pre-battle menu's frozen FX layers."""
         w = self.world
-        # Screen shake (strike hit weight): the scene moves, the HUD stays.
-        shk = w.shake_offset()
+        # Camera (laser/camera.py: follow, punch-in, shake): the scene moves,
+        # the HUD stays.
+        shk = w.camera.view() if cam else None
         if shk is not None:
             p.save()
-            p.translate(shk[0], shk[1])
+            w.camera.apply(p, shk)
         # World physics: the far (dark) side of every spiral is the very last layer
         # on the field - under everything else (laser/worldfx.py).
         worldfx.paint_back(p, w)

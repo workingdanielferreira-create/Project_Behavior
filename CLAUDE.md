@@ -40,6 +40,7 @@ laser/unique.py
 laser/summoner.py
 laser/weaponfx.py
 laser/worldfx.py
+laser/camera.py
 ```
 
 ## Mandatory Session Rules
@@ -84,6 +85,11 @@ laser/worldfx.py
 - `laser/worldfx.py` (Studio port `tools/fx/studio/worldfx.js`, page "🌪 Dust & Air"): world-owned dust / rocks / air. `worldfx.step(world)` runs once per tick after both sides (read-only on fighters); paint layers `paint_ground` (under fighters) / `paint_air` (over). Hybrid engine: closed-form rocks/sparks, simulated dust riding analytic air sources (blast, wake, curl, column, jet)
 - Ground = slope: pscale grid; height z drawn straight up the screen; ground ellipses rounder the farther away (`flat_near` -> `flat_far`); screen edges are walls (`motion.check_walls` -> `note_wall`)
 - Settings: `characters/world_physics.json` (`pb_world_physics`), per-character override `pack.world_physics` (any section). The Studio page writes the file directly once the game folder is linked; the game hot-reloads it (`watch_world`, ~1 s) and on F5 (`reload_characters` also clears `_wphys_cfg`). Smoke styles: `SMOKE_STYLES` (cel, billow, ink, swirl, flat, ring, stepped); `ground.style` default, per-event `style` (`default` = ground's), deep edit per style in section `smoke_<style>` (`smoke_look` = life curve; `ENUMS` validated). Sound barrier uses on-screen (position-scaled) speed. Hit-stop / shake / impact frames stay with each FX's own settings
+
+### World Camera
+- `laser/camera.py` (Studio port `tools/fx/studio/camera.js`, top-bar tab "🎥 World Camera"): paint-time VIEW only — never moves fighters; hit tests / walls / targeting / snapshots stay in screen coords. `World.camera` steps every tick (hit-stop included, not while the start menu pauses); `_paint_scene` applies it, the HUD is drawn after it (never zooms/shakes). Only the mouse cursor is mapped back (`Camera.screen_to_world` in `_tick`)
+- Follow-cam frames all fielded fighters (Battle up to `max_zoom`, Solo fixed `solo_zoom`, never < 1.0x, view clamped on-screen); hit-stop punch-in via `World.punch_camera` (systems.py hit-stop + fxkit `_Host.hitstop`); `World.add_shake` = camera trauma (stacks)
+- Settings: `characters/camera.json` (`pb_camera`), hot-reloaded ~1 s and on F5; the Studio tab writes it through the Dust & Air folder link. `tools/fx/check_parity.py` checks DEFAULTS / RANGES / FORMAT
 
 ### Combat System
 - Dashslash and arcslash chosen 50/50 per attack; follow-ups also 50/50 with 0.2s type lock; 3-hit cap with ~1s cooldown
