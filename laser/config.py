@@ -155,6 +155,17 @@ BOUNCE_END_HOLD       = 8       # ticks slide2 frame is held before resuming run
 HIT_RADIUS_SQ         = 225.0   # cursor within sqrt(225)=15px triggers bounce
 
 # ---------------------------------------------------------------------------
+# Solo cursor hold (motion._solo_hold) — Solo only, plain-chase fighters
+# (movement styles, kiting, glide, path-follow and runaway keep their own
+# movement).  Distance is fighter centre -> cursor; formation offset ignored.
+# Standing still: stays put while the cursor is within SOLO_HOLD_RESUME_PX
+# (0-80 px).  Once the cursor is farther than that it chases straight at
+# the cursor and stops again at SOLO_HOLD_STOP_PX (~60 px).
+# ---------------------------------------------------------------------------
+SOLO_HOLD_STOP_PX   = 60.0   # chase ends (and the stand begins) this close
+SOLO_HOLD_RESUME_PX = 80.0   # a standing fighter resumes only beyond this
+
+# ---------------------------------------------------------------------------
 # Runaway (flee the cursor)
 # ---------------------------------------------------------------------------
 RUNAWAY_RADIUS  = 120.0

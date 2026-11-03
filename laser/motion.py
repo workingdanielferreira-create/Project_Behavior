@@ -15,11 +15,14 @@ from . import movestyle as _movestyle
 from . import worldfx as _worldfx
 
 
-def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
+def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None,
+           solo_hold=False):
     """Advance one figure's position toward (tx, ty) for this tick.
     offset: the chase offset to use instead of the figure's formation offset
-    (actions.chase_offset).  Returns (cx, cy) if a cursor-collision bounce
-    was triggered this tick, otherwise None."""
+    (actions.chase_offset).  solo_hold: Solo plain chase — the fighter uses
+    the cursor stand/chase band (_solo_hold) instead of _chase.  Returns
+    (cx, cy) if a cursor-collision bounce was triggered this tick, otherwise
+    None."""
     m = fig.motion
     t = fig.transform
 
@@ -76,8 +79,12 @@ def update(fig, tx, ty, collision_on, path_follow, runaway, offset=None):
         _movestyle.step(fig, tx, ty, sf)
     elif glide_cfg(fig) is not None:
         _glide(fig, tx, ty, sf, offset)
+    elif solo_hold:
+        _solo_hold(fig, tx, ty, sf)
     else:
         _chase(fig, tx, ty, sf, offset)
+    if not solo_hold:
+        m.solo_holding = False
 
     fig.face(ox, oy)
     if styled:
@@ -287,6 +294,40 @@ def _chase(fig, cx, cy, sf=1.0, offset=None):
     else:
         t.x = cx + ox
         t.y = cy + oy
+
+
+def _solo_hold(fig, cx, cy, sf=1.0):
+    """Solo plain chase around the cursor (cx, cy), measured centre to
+    cursor with no formation offset.  Standing: holds still while the
+    cursor stays within SOLO_HOLD_RESUME_PX (80 px).  Beyond that it runs
+    straight at the cursor and stands again once it is SOLO_HOLD_STOP_PX
+    (~60 px) away, on whichever side it arrived from."""
+    m = fig.motion
+    t = fig.transform
+    if m.path:
+        m.path.clear()
+    dx = cx - t.x
+    dy = cy - t.y
+    d = (dx * dx + dy * dy) ** 0.5
+    stop = config.SOLO_HOLD_STOP_PX
+    if m.solo_holding:
+        if d <= config.SOLO_HOLD_RESUME_PX:
+            return
+        m.solo_holding = False
+    if d <= stop:
+        m.solo_holding = True
+        return
+    step = m.speed * sf
+    if d - stop <= step:
+        # Land exactly on the 60 px ring and start standing.
+        k = (d - stop) / d
+        t.x += dx * k
+        t.y += dy * k
+        m.solo_holding = True
+    else:
+        k = step / d
+        t.x += dx * k
+        t.y += dy * k
 
 
 # Glide (JSON `movement.glide`, opt-in per character): instead of running to
