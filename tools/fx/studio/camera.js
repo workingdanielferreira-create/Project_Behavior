@@ -21,7 +21,8 @@ var CAM_DEFAULTS = {
   "ult_on": true, "ult_zoom": 2.3, "ult_in_s": 0.6, "ult_max_s": 1.5, "ult_out_s": 0.5,
   "switch_on": true, "switch_zoom": 1.8, "switch_in_s": 0.15, "switch_hold_s": 0.5, "switch_out_s": 0.4,
   "ko_on": true, "ko_zoom": 2.5, "ko_in_s": 0.2, "ko_hold_s": 1.0, "ko_out_s": 0.6, "ko_slow": 0.25, "ko_slow_s": 0.9,
-  "clash_on": true, "clash_zoom": 2.0, "clash_in_s": 0.08, "clash_hold_s": 0.3, "clash_out_s": 0.35
+  "clash_on": true, "clash_zoom": 2.0, "clash_in_s": 0.08, "clash_hold_s": 0.3, "clash_out_s": 0.35,
+  "depth": true, "depth_base": 0.10, "depth_gain": 0.20, "depth_shot": 0.15, "depth_budget_ms": 14.0
 };
 var CAM_RANGES = {
   "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
@@ -32,8 +33,11 @@ var CAM_RANGES = {
   "switch_zoom": [1.0, 4.0], "switch_in_s": [0.02, 5.0], "switch_hold_s": [0.0, 10.0], "switch_out_s": [0.02, 5.0],
   "ko_zoom": [1.0, 4.0], "ko_in_s": [0.02, 5.0], "ko_hold_s": [0.0, 10.0], "ko_out_s": [0.02, 5.0],
   "ko_slow": [0.05, 1.0], "ko_slow_s": [0.0, 5.0],
-  "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0]
+  "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0],
+  "depth_base": [0.0, 0.6], "depth_gain": [0.0, 0.6], "depth_shot": [0.0, 0.6],
+  "depth_budget_ms": [4.0, 60.0]
 };
+var DEPTH_MAX = 0.6;
 // Cinematic shot kinds: settings prefix and priority (higher wins).
 var CAM_SHOTS = {"clash": ["clash", 1], "switch_in": ["switch", 2], "ultimate": ["ult", 3], "ko": ["ko", 4]};
 // [group title, [[key, label, tip, step], ...]]
@@ -87,6 +91,13 @@ var CAM_GROUPS = [
     ["clash_in_s", "Snap-in time (s)", "", 0.02],
     ["clash_hold_s", "Hold (s)", "", 0.05],
     ["clash_out_s", "Ease-back (s)", "", 0.05]
+  ]],
+  ["Depth tilt", [
+    ["depth", "Depth tilt", "A real perspective along the arena's depth (bottom-left near, top-right far): far things shrink and draw in toward the nearest fighter, so the slope reads deeper. Drawing only — sizes, hits and walls in the game are unchanged."],
+    ["depth_base", "Base strength", "Perspective always applied (0 = none).", 0.01],
+    ["depth_gain", "Near-side extra", "Added when the action is at the near (bottom-left) side: a lower, more dramatic camera.", 0.01],
+    ["depth_shot", "Cinematic extra", "Added at the peak of a cinematic shot (ultimate, switch-in, KO, clash).", 0.01],
+    ["depth_budget_ms", "Paint budget (ms)", "Perspective painting costs more. If drawing a frame takes longer than this for about 2 s, the game turns the depth tilt off for the session (save camera.json or press F5 to retry).", 1]
   ]]
 ];
 var TICK_MS = 16, DT = TICK_MS / 1000;
@@ -146,6 +157,20 @@ Cam.prototype.reset = function () {
   this.cx = this.sw / 2; this.cy = this.sh / 2; this.zoom = 1;
   this.env = 0; this.inLeft = 0; this.px = this.cx; this.py = this.cy; this.roll = 0;
   this.req = null; this.prevHs = 0; this.trauma = 0; this.decay = 0; this.t = 0; this.shot = null;
+  this.k = 0; this.ax = this.sw / 2; this.ay = this.sh / 2;
+};
+Cam.prototype.depthT = function (x, y) { return 0.5 * (x / this.sw) + 0.5 * (1 - y / this.sh); };
+Cam.prototype.depthTarget = function (figs) {
+  var c = this.cfg, best = null, self = this;
+  if (!c.depth || !figs.length) return [0, this.ax, this.ay];
+  figs.forEach(function (f) { var t = self.depthT(f.x, f.y); if (!best || t < best[0]) best = [t, f.x, f.y]; });
+  var t = clamp(best[0], 0, 1);
+  return [Math.min(DEPTH_MAX, c.depth_base + c.depth_gain * (1 - t)), best[1], best[2]];
+};
+// Depth tilt of a scene point under view v: [x', y', w] (draw sizes at 1/w).
+Cam.prototype.depth = function (v, x, y) {
+  var k = v[6], w = 1 + k * (this.depthT(x, y) - this.depthT(v[7], v[8]));
+  return [v[7] + (x - v[7]) / w, v[8] + (y - v[8]) / w, w];
 };
 Cam.prototype.shotOn = function (kind) { var s = CAM_SHOTS[kind]; return !!s && !!this.cfg[s[0] + "_on"]; };
 Cam.prototype.koHoldTicks = function () { return ticks(this.cfg.ko_in_s) + ticks(this.cfg.ko_hold_s); };
@@ -187,6 +212,8 @@ Cam.prototype.step = function (figs, battle, hs) {
   var c = this.cfg; this.t++;
   var tg = this.target(figs, battle), a = 1 - Math.exp(-DT * 3 / c.follow_s);
   this.cx += (tg[0] - this.cx) * a; this.cy += (tg[1] - this.cy) * a; this.zoom += (tg[2] - this.zoom) * a;
+  var dt = this.depthTarget(figs);
+  this.k += (dt[0] - this.k) * a; this.ax += (dt[1] - this.ax) * a; this.ay += (dt[2] - this.ay) * a;
   if (this.shot && (!this.shotOn(this.shot.kind) || !this.shot.step())) this.shot = null;
   var req = this.req; this.req = null;
   if (c.punch) {
@@ -206,7 +233,9 @@ Cam.prototype.step = function (figs, battle, hs) {
 // [cx, cy, zoom, roll_deg, shake_dx, shake_dy]
 Cam.prototype.view = function () {
   var c = this.cfg, cx = this.cx, cy = this.cy, z = this.zoom, s = this.shot;
-  if (s && s.env > 0) { var k = ease(s.env); cx += (s.x - cx) * k; cy += (s.y - cy) * k; z += (Math.max(z, s.zoom) - z) * k; }
+  var dk = c.depth ? this.k : 0;
+  if (s && s.env > 0) { var k = ease(s.env); cx += (s.x - cx) * k; cy += (s.y - cy) * k; z += (Math.max(z, s.zoom) - z) * k; if (c.depth) dk += c.depth_shot * k; }
+  dk = clamp(dk, 0, DEPTH_MAX);
   var e = c.punch ? ease(this.env) : 0, pull = c.punch_pull * e;
   z += c.punch_zoom * e;
   var cc = this.clampC(cx + (this.px - cx) * pull, cy + (this.py - cy) * pull, z);
@@ -215,7 +244,7 @@ Cam.prototype.view = function () {
     var amp = c.shake_max_px * this.trauma * this.trauma, ph = this.t * DT * c.shake_hz;
     sx = amp * noise(ph, 1); sy = amp * noise(ph, 2);
   }
-  return [cc[0], cc[1], z, this.roll * e, sx, sy];
+  return [cc[0], cc[1], z, this.roll * e, sx, sy, dk, this.ax, this.ay];
 };
 // Push the view onto a 2D canvas context (the caller saves / restores).
 Cam.prototype.apply = function (g, v) {

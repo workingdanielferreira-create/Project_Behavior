@@ -4215,8 +4215,11 @@ function camPreview(parent) {
     cam.step(figs, battle, 0);
   }
   function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  var V = null;   // this frame's view (depth projection reads it)
+  function P(x, y) { return cam.depth(V, x, y); }
   function drawFig(f, i) {
-    g.save(); g.translate(f.x, f.y); g.scale(1.8, 1.8);
+    var q = P(f.x, f.y);
+    g.save(); g.translate(q[0], q[1]); g.scale(1.8 / q[2], 1.8 / q[2]);
     if (f.down) { g.rotate(Math.PI / 2); g.globalAlpha = 0.6; }
     g.translate(-f.x, -f.y);
     if (i === 0 && ultLeft > 0) {
@@ -4245,19 +4248,24 @@ function camPreview(parent) {
     // The scene, through the camera.
     var v = cam.view();
     g.save(); g.scale(K, K); cam.apply(g, v);
+    V = v;
+    function line(x0, y0, x1, y1) { var a = P(x0, y0), b = P(x1, y1); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+    // The slope: lines of equal depth (and a cross grid), so the tilt shows.
     g.strokeStyle = "rgba(160,190,230,0.18)"; g.lineWidth = 2;
-    for (var i = 1; i < 9; i++) { var t = i / 9; g.beginPath(); g.moveTo(0, SH * t * 2); g.lineTo(SW * t * 2, 0); g.stroke(); }
-    g.strokeStyle = "rgba(160,190,230,0.35)"; g.strokeRect(4, 4, SW - 8, SH - 8);
+    for (var i = 1; i < 9; i++) { var t = i / 9; g.beginPath(); line(0, SH * t * 2, SW * t * 2, 0); g.stroke(); }
+    g.strokeStyle = "rgba(160,190,230,0.08)";
+    for (var j = 1; j < 12; j++) { var u = j / 12; g.beginPath(); line(SW * u, SH, SW * u - SH * 0.6, 0); g.stroke(); }
+    g.strokeStyle = "rgba(160,190,230,0.35)"; g.beginPath(); line(4, 4, SW - 4, 4); line(SW - 4, 4, SW - 4, SH - 4); line(SW - 4, SH - 4, 4, SH - 4); line(4, SH - 4, 4, 4); g.stroke();
     figs.forEach(drawFig);
     g.strokeStyle = "#fff6e0"; g.lineWidth = 3;
-    sparks.forEach(function (s) { g.globalAlpha = 1 - s[4] / 22; g.beginPath(); g.moveTo(s[0] - s[2], s[1] - s[3]); g.lineTo(s[0], s[1]); g.stroke(); });
+    sparks.forEach(function (s) { g.globalAlpha = 1 - s[4] / 22; g.beginPath(); line(s[0] - s[2], s[1] - s[3], s[0], s[1]); g.stroke(); });
     g.globalAlpha = 1;
     g.restore();
     // The HUD: never zooms or shakes.
     g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
     if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }
     g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "bold 26px Consolas, monospace";
-    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  trauma " + cam.trauma.toFixed(2) +
+    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  depth " + v[6].toFixed(2) + "  trauma " + cam.trauma.toFixed(2) +
       (cam.shot ? "  " + cam.shot.kind.toUpperCase() : "") + (hs > 0 ? "  HIT-STOP" : "") + (slowT > 0 ? "  SLOW-MO" : "") + (koQuit > 0 ? "  KO HOLD" : ""), 18, H - 18);
     requestAnimationFrame(frame);
   }

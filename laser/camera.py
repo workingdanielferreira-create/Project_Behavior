@@ -40,6 +40,19 @@ Four layers, one transform:
                      shake_max_px * trauma^2 on smooth value noise, so
                      overlapping hits build up and fade naturally.  A single
                      hit from rest still shakes exactly its authored px.
+  5. Depth tilt      a real (projective) perspective along the arena's own
+                     depth axis (combat.position_scale: bottom-left near,
+                     top-right far), applied in scene space under the rest:
+                     a point at depth t (0 near .. 1 far) is drawn at
+                     A + (p - A) / w with w = 1 + k (t - t_A), where A is the
+                     NEAREST fielded fighter.  Every fighter is therefore
+                     only ever pulled in toward A (never off-screen) and the
+                     far side shrinks — the slope reads deeper.  Dynamic:
+                     k = depth_base + depth_gain * (1 - t_A) (action near
+                     the front = lower, stronger camera) + depth_shot during
+                     a cinematic shot; eased like the follow-cam.  Drawing
+                     only: position_scale, hit tests, walls and dust physics
+                     are untouched.
 
 Identical in Solo and Battle: the same step / view runs either way; the
 only difference is the follow zoom rule (battle_mode).
@@ -96,6 +109,12 @@ DEFAULTS = {
     "clash_in_s": 0.08,
     "clash_hold_s": 0.3,
     "clash_out_s": 0.35,
+    # Depth tilt (perspective along the arena's depth axis)
+    "depth": True,
+    "depth_base": 0.10,      # always-on perspective strength
+    "depth_gain": 0.20,      # extra when the action is at the near side
+    "depth_shot": 0.15,      # extra at the peak of a cinematic shot
+    "depth_budget_ms": 14.0, # paint-time budget: over it ~2 s = depth off
 }
 # [lo, hi] per numeric key (FX Studio's port: tools/fx/studio/camera.js
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
@@ -110,7 +129,11 @@ RANGES = {
     "ko_zoom": [1.0, 4.0], "ko_in_s": [0.02, 5.0], "ko_hold_s": [0.0, 10.0], "ko_out_s": [0.02, 5.0],
     "ko_slow": [0.05, 1.0], "ko_slow_s": [0.0, 5.0],
     "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0],
+    "depth_base": [0.0, 0.6], "depth_gain": [0.0, 0.6], "depth_shot": [0.0, 0.6],
+    "depth_budget_ms": [4.0, 60.0],
 }
+DEPTH_SLOW_FRAMES = 120   # ~2 s of over-budget frames before depth turns off
+DEPTH_MAX = 0.6     # total perspective strength cap (keeps w > 0 everywhere)
 # Shot kinds: settings prefix and priority (higher wins).
 SHOTS = {"clash": ("clash", 1), "switch_in": ("switch", 2), "ultimate": ("ult", 3), "ko": ("ko", 4)}
 
@@ -163,6 +186,23 @@ def _noise(x, seed):
 def _ease(t):
     t = max(0.0, min(1.0, t))
     return t * t * (3.0 - 2.0 * t)
+
+
+def _mul(a, b):
+    """3x3 matrix product (row-vector convention, as QTransform)."""
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+def _inv(m):
+    """3x3 inverse (None when singular)."""
+    (a, b, c), (d, e, f), (g, h, i) = m
+    A, B, C = e * i - f * h, -(d * i - f * g), d * h - e * g
+    det = a * A + b * B + c * C
+    if abs(det) < 1e-12:
+        return None
+    D, E, F = -(b * i - c * h), a * i - c * g, -(a * h - b * g)
+    G, H, I = b * f - c * e, -(a * f - c * d), a * e - b * d
+    return [[A / det, D / det, G / det], [B / det, E / det, H / det], [C / det, F / det, I / det]]
 
 
 def _ticks(s):
@@ -236,6 +276,18 @@ class Camera:
         # Cinematic shot (one at a time) + who was in an ultimate last tick
         self.shot = None
         self._ult_seen = set()
+        # Depth tilt: strength k and anchor A (the nearest fighter), eased
+        self.k = 0.0
+        self.ax = self.sw / 2.0
+        self.ay = self.sh / 2.0
+        # Perspective painting is slower than affine in Qt's raster engine:
+        # note_paint() watches the frame paint time and turns the depth
+        # tilt off for the session when it runs over depth_budget_ms
+        # (re-armed whenever the settings are (re)loaded).
+        self.paint_ms = 0.0
+        self._slow = 0
+        self.depth_suspended = False
+        self.suspend_note = None    # message for the World notice, once
         # Hit-stop punch
         self.env = 0.0              # 0..1 punch envelope (linear; eased on use)
         self.in_left = 0            # snap-in ticks still forcing the punch
@@ -271,6 +323,9 @@ class Camera:
         settings when keep_on_error, and is retried on the next check."""
         path = self._path()
         self._stamp = self._file_stamp(path)
+        # (Re)loading re-arms a depth tilt switched off for being too slow.
+        self.depth_suspended = False
+        self._slow = 0
         if path is None:
             self.cfg = dict(DEFAULTS)
             return
@@ -381,6 +436,53 @@ class Camera:
         cx, cy = self._clamp(cx, cy, z)
         return cx, cy, z
 
+    def depth_live(self):
+        return bool(self.cfg["depth"]) and not getattr(self, "depth_suspended", False)
+
+    def note_paint(self, ms, used_depth):
+        """Overlay._paint: how long the scene took (ms) and whether the depth
+        tilt was in the transform.  Over budget for DEPTH_SLOW_FRAMES frames
+        in a row with depth on = depth off for this session."""
+        self.paint_ms += (ms - self.paint_ms) * 0.1
+        if not used_depth or self.depth_suspended:
+            self._slow = 0
+            return
+        if self.paint_ms > self.cfg["depth_budget_ms"]:
+            self._slow += 1
+            if self._slow >= DEPTH_SLOW_FRAMES:
+                self.depth_suspended = True
+                self.suspend_note = ("Depth tilt off: painting took %.0f ms a frame "
+                                     "(budget %.0f). Save camera.json or F5 to retry."
+                                     % (self.paint_ms, self.cfg["depth_budget_ms"]))
+        else:
+            self._slow = 0
+
+    def _depth_t(self, x, y):
+        """Depth of a scene point: 0 at the near (bottom-left) corner, 1 at
+        the far (top-right) one — the axis combat.position_scale shrinks
+        along."""
+        return 0.5 * (x / self.sw) + 0.5 * (1.0 - y / self.sh)
+
+    def _depth_target(self, world):
+        """(k, ax, ay) the depth tilt wants this tick."""
+        c = self.cfg
+        if not self.depth_live():
+            return 0.0, self.ax, self.ay
+        best = None
+        for f in world.all_figures():
+            tr = getattr(f, "transform", None)
+            if tr is None or not getattr(tr, "init", True):
+                continue
+            t = self._depth_t(tr.x, tr.y)
+            if best is None or t < best[0]:
+                best = (t, tr.x, tr.y)
+        if best is None:
+            return 0.0, self.ax, self.ay
+        t, x, y = best
+        t = max(0.0, min(1.0, t))
+        k = c["depth_base"] + c["depth_gain"] * (1.0 - t)
+        return min(DEPTH_MAX, k), x, y
+
     def _clamp(self, cx, cy, z):
         """Keep the zoomed view inside the screen (at 1.0x: dead centre)."""
         hw = self.sw / (2.0 * z)
@@ -422,6 +524,11 @@ class Camera:
         self.cx += (tx - self.cx) * a
         self.cy += (ty - self.cy) * a
         self.zoom += (tz - self.zoom) * a
+        # Depth tilt eases with the follow-cam.
+        tk, tax, tay = self._depth_target(world)
+        self.k += (tk - self.k) * a
+        self.ax += (tax - self.ax) * a
+        self.ay += (tay - self.ay) * a
 
         # 2. Cinematic shots.
         self._watch_ultimates(world)
@@ -459,17 +566,22 @@ class Camera:
 
     # --- view -------------------------------------------------------------
     def view(self):
-        """This frame's (cx, cy, zoom, roll_deg, shake_dx, shake_dy), or None
-        when the camera is exactly identity.  Deterministic per camera tick,
-        so a paused frame (start menu) holds perfectly still."""
+        """This frame's (cx, cy, zoom, roll_deg, shake_dx, shake_dy, k, ax,
+        ay), or None when the camera is exactly identity.  Deterministic per
+        camera tick, so a paused frame (start menu) holds perfectly still."""
         c = self.cfg
         cx, cy, z = self.cx, self.cy, self.zoom
+        live = self.depth_live()
+        k = self.k if live else 0.0
         s = self.shot
         if s is not None and s.env > 0.0:
-            k = _ease(s.env)
-            cx += (s.x - cx) * k
-            cy += (s.y - cy) * k
-            z += (max(z, s.zoom) - z) * k
+            e = _ease(s.env)
+            cx += (s.x - cx) * e
+            cy += (s.y - cy) * e
+            z += (max(z, s.zoom) - z) * e
+            if live:
+                k += c["depth_shot"] * e
+        k = max(0.0, min(DEPTH_MAX, k))
         e = _ease(self.env) if c["punch"] else 0.0
         z += c["punch_zoom"] * e
         pull = c["punch_pull"] * e
@@ -483,34 +595,57 @@ class Camera:
             ph = self.t * _DT * c["shake_hz"]
             sx = amp * _noise(ph, 1)
             sy = amp * _noise(ph, 2)
-        ident = (abs(z - 1.0) < 1e-4 and abs(roll) < 1e-3
+        ident = (abs(z - 1.0) < 1e-4 and abs(roll) < 1e-3 and k < 1e-4
                  and abs(sx) < 0.05 and abs(sy) < 0.05
                  and abs(cx - self.sw / 2.0) < 0.05
                  and abs(cy - self.sh / 2.0) < 0.05)
-        self._view = None if ident else (cx, cy, z, roll, sx, sy)
+        self._view = None if ident else (cx, cy, z, roll, sx, sy, k, self.ax, self.ay)
+        self._mat = None if ident else self.matrix(self._view)
         return self._view
+
+    def matrix(self, view):
+        """The full scene -> screen transform of `view` as a 3x3 matrix in
+        QTransform's row-vector convention: depth tilt first (scene space),
+        then the camera (centre, zoom, roll, shake)."""
+        cx, cy, z, roll, sx, sy, k, ax, ay = view
+        # Depth tilt: p' = A + (p - A) / w, w = 1 + k (t(p) - t(A)),
+        # t(p) = 0.5 x / sw + 0.5 (1 - y / sh).
+        pa = 0.5 * k / self.sw
+        pb = -0.5 * k / self.sh
+        pc = 1.0 + k * (0.5 - self._depth_t(ax, ay))
+        P = [[1.0 + ax * pa, ay * pa, pa],
+             [ax * pb, 1.0 + ay * pb, pb],
+             [ax * (pc - 1.0), ay * (pc - 1.0), pc]]
+        r = math.radians(roll)
+        cs, sn = math.cos(r), math.sin(r)
+        T2 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [-cx, -cy, 1.0]]
+        S = [[z, 0.0, 0.0], [0.0, z, 0.0], [0.0, 0.0, 1.0]]
+        R = [[cs, sn, 0.0], [-sn, cs, 0.0], [0.0, 0.0, 1.0]]
+        T1 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
+              [self.sw / 2.0 + sx, self.sh / 2.0 + sy, 1.0]]
+        return _mul(_mul(_mul(_mul(P, T2), S), R), T1)
 
     def apply(self, p, view):
         """Push `view` onto QPainter p (caller save()s / restore()s).  The
         shake is in screen pixels, so it never scales with the zoom."""
-        cx, cy, z, roll, sx, sy = view
-        p.translate(self.sw / 2.0 + sx, self.sh / 2.0 + sy)
-        if roll:
-            p.rotate(roll)
-        p.scale(z, z)
-        p.translate(-cx, -cy)
+        from PyQt5.QtGui import QTransform
+        m = self.matrix(view)
+        p.setTransform(QTransform(m[0][0], m[0][1], m[0][2],
+                                  m[1][0], m[1][1], m[1][2],
+                                  m[2][0], m[2][1], m[2][2]), True)
 
     def screen_to_world(self, x, y):
         """A screen point (the real mouse cursor) -> scene coordinates under
         the last painted view."""
-        v = self._view
-        if v is None:
+        m = getattr(self, "_mat", None)
+        if self._view is None or m is None:
             return x, y
-        cx, cy, z, roll, sx, sy = v
-        u = x - self.sw / 2.0 - sx
-        w = y - self.sh / 2.0 - sy
-        if roll:
-            r = math.radians(-roll)
-            cs, sn = math.cos(r), math.sin(r)
-            u, w = u * cs - w * sn, u * sn + w * cs
-        return cx + u / z, cy + w / z
+        mi = _inv(m)
+        if mi is None:
+            return x, y
+        X = x * mi[0][0] + y * mi[1][0] + mi[2][0]
+        Y = x * mi[0][1] + y * mi[1][1] + mi[2][1]
+        W = x * mi[0][2] + y * mi[1][2] + mi[2][2]
+        if abs(W) < 1e-9:
+            return x, y
+        return X / W, Y / W
