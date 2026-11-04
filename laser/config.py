@@ -83,15 +83,18 @@ TRAIL_DOWN      = 6.0          # px the trail anchor sits below the figure
 # ---------------------------------------------------------------------------
 ARENA_OVAL_CENTER_X_FRAC   = 0.5     # oval center, fraction of screen_w
 ARENA_OVAL_CENTER_Y_FRAC   = 0.52    # oval center, fraction of screen_h
-ARENA_OVAL_RADIUS_X_FRAC   = 0.40    # oval horizontal radius, fraction of screen_w
-ARENA_OVAL_RADIUS_Y_FRAC   = 0.40    # oval vertical radius, fraction of screen_h
+# Relieved by 2/3 (Daniel 2026-11-04): radius x 5/3 (was 0.40, now past the
+# screen sides, so the screen edges hold left / right) and the rebound push
+# cut to 1/3 (gain was 1.6, cap was 9.0).
+ARENA_OVAL_RADIUS_X_FRAC   = 0.667   # oval horizontal radius, fraction of screen_w
+ARENA_OVAL_RADIUS_Y_FRAC   = 0.667   # oval vertical radius, fraction of screen_h
 ARENA_OVAL_REBOUND_START   = 0.85    # normalized ellipse distance where the
                                       # wall starts bending movement (0..1, 1 = edge)
-ARENA_OVAL_REBOUND_GAIN    = 1.6     # outward speed turned into inward rebound per
+ARENA_OVAL_REBOUND_GAIN    = 0.533   # outward speed turned into inward rebound per
                                       # tick, at the edge (eased in from START)
 ARENA_OVAL_REBOUND_CARRY   = 0.90    # share of the rebound velocity kept each tick
                                       # (the inertia: higher = wider, longer curve)
-ARENA_OVAL_REBOUND_MAX     = 9.0     # rebound speed cap, px/tick
+ARENA_OVAL_REBOUND_MAX     = 3.0     # rebound speed cap, px/tick
 ARENA_OVAL_TELEPORT_PX     = 40.0    # a jump larger than this in one tick (blink,
                                       # teleport, respawn) carries no momentum
 
