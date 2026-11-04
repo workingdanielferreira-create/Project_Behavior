@@ -12644,7 +12644,7 @@
       "start_frame": 5,
       "end_frame": 5,
       "anchor": "target",
-      "direction": "above",
+      "direction": "below",
       "angle_deg": 0,
       "proximity_px": 460,
       "flash": true,
@@ -12958,7 +12958,7 @@
       "anchor": "target",
       "direction": "above",
       "angle_deg": 180,
-      "proximity_px": 350,
+      "proximity_px": 250,
       "flash": true,
       "mirror": false
      }
@@ -12986,7 +12986,7 @@
     "damage_min": 5,
     "damage_max": 20
    },
-   "attack_gap_ms": 50
+   "attack_gap_ms": 150
   },
   "attack_normal_3": {
    "logic": "any",
@@ -13010,7 +13010,7 @@
       "anchor": "target",
       "direction": "behind",
       "angle_deg": 0,
-      "proximity_px": 210,
+      "proximity_px": 410,
       "flash": true,
       "mirror": false
      }
@@ -13038,7 +13038,7 @@
     "damage_min": 5,
     "damage_max": 20
    },
-   "attack_gap_ms": 50
+   "attack_gap_ms": 150
   },
   "attack_normal_4": {
    "logic": "any",
@@ -13100,7 +13100,7 @@
     "damage_min": 5,
     "damage_max": 20
    },
-   "attack_gap_ms": 50
+   "attack_gap_ms": 150
   }
  },
  "entry_sets": [],
@@ -13116,24 +13116,31 @@
     [
      0,
      0
+    ],
+    [
+     0,
+     0
     ]
    ],
    "anchors": [
     "blink:0:start",
-    "target"
+    "target",
+    "blink:0:end"
    ],
    "smooth": true,
-   "ticks": 2,
+   "ticks": 6,
    "orient": "facing",
    "end": "stop",
    "follow": false,
    "leg_ticks": [
     0,
-    4
+    4,
+    0
    ],
    "leg_lock": [
     false,
-    true
+    false,
+    false
    ]
   },
   {
@@ -15060,7 +15067,7 @@
     "deflectable": true
    },
    "motion": {
-    "kind": "static",
+    "kind": "attached",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
@@ -15213,7 +15220,7 @@
     "deflectable": false
    },
    "motion": {
-    "kind": "static",
+    "kind": "attached",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
@@ -15362,12 +15369,12 @@
     "deflectable": false
    },
    "motion": {
-    "kind": "travel",
+    "kind": "homing",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 15.4,
-    "turn_deg": 6,
+    "speed": 100,
+    "turn_deg": 0,
     "amplitude": 55,
     "freq": 0.18,
     "orbit_rx": 46,
@@ -15454,7 +15461,7 @@
    "id": "Emv3xf6al9",
    "action": "attack_normal_3",
    "enabled": true,
-   "start_frame": 2,
+   "start_frame": 0,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
