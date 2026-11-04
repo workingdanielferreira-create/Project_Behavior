@@ -30,6 +30,20 @@ Rubble
   or more in one tick), a fighter moving at speed px/tick or more (with a
   per-fighter cooldown).  Knockback / heavy hits also crater.
 
+2.5D look
+  Each pillar is a small low-poly rock MESH (its own random shape, `facets`
+  sides) drawn with an oblique 2.5D projection that keeps its on-screen
+  height = the collision height.  The view turns with the pillar's place:
+    yaw   = view_yaw x clamp((x - anchor x) / (view_reach_frac x width))
+            -> straight on at the world anchor (the fighters' centre), and
+               the side facing the fight turns into view as it moves away;
+               it is one continuous rotation of a real shape, so crossing
+               the anchor line has no seam or flip to hide.
+    pitch = pitch_top (top of the screen) .. pitch_bottom (bottom): low on
+            screen you look down on a big top face, higher up less of it,
+            never the underside.
+  Flat cel shading per facet (light from the top-left), ink silhouette.
+
 World-owned, run once per tick by the overlay before worldfx.step (after
 both sides moved); painted under the fighters (rubble, pillars behind a
 fighter) and over them (pillars in front of a fighter).
@@ -39,7 +53,7 @@ import math
 import random
 
 from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QColor, QPen, QPolygonF
+from PyQt5.QtGui import QColor, QPainterPath, QPen, QPolygonF
 
 from . import config
 from . import worldfx
@@ -66,8 +80,73 @@ def _seg_dist(a, b):
     return fxkit.seg_seg_dist(a, b)
 
 
+# ---- 2.5D rock mesh
+_LIGHT = (-0.55, -0.45, 0.70)          # from the top-left, a little in front
+_LN = math.sqrt(sum(c * c for c in _LIGHT))
+_LIGHT = tuple(c / _LN for c in _LIGHT)
+
+
+def _newell(pts):
+    nx = ny = nz = 0.0
+    m = len(pts)
+    for i in range(m):
+        x0, y0, z0 = pts[i]
+        x1, y1, z1 = pts[(i + 1) % m]
+        nx += (y0 - y1) * (z0 + z1)
+        ny += (z0 - z1) * (x0 + x1)
+        nz += (x0 - x1) * (y0 + y1)
+    return nx, ny, nz
+
+
+def rock_mesh(seed, n):
+    """A low-poly rock in unit space: X / Y across (radius ~1), Z up 0..~1.
+    Returns (verts, faces); faces = (vertex indices, tone), wound so that
+    Newell's normal points OUT of the rock.  No bottom face."""
+    rng = random.Random(seed)
+    n = max(5, min(12, int(n)))
+    a0 = rng.uniform(0.0, 2.0 * math.pi)
+    angs = [a0 + (i + rng.uniform(-0.28, 0.28)) * 2.0 * math.pi / n for i in range(n)]
+    # Chunky: near-vertical sides, a bevel ring, then a broad faceted top.
+    levels = ((0.0, 1.0), (rng.uniform(0.40, 0.60), rng.uniform(0.90, 1.0)),
+              (rng.uniform(0.80, 0.88), rng.uniform(0.80, 0.92)),
+              (rng.uniform(0.93, 0.98), rng.uniform(0.50, 0.66)))
+    verts, rings = [], []
+    for z, rf in levels:
+        ring = []
+        for a in angs:
+            r = rf * rng.uniform(0.82, 1.12)
+            a2 = a + rng.uniform(-0.12, 0.12)
+            ring.append(len(verts))
+            verts.append((math.cos(a2) * r, math.sin(a2) * r, z + (rng.uniform(-0.04, 0.04) if z > 0.0 else 0.0)))
+        rings.append(ring)
+    # Slanted, slightly off-centre peak.
+    top = len(verts)
+    verts.append((rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0.99, 1.04)))
+    faces = []
+    for k in range(len(rings) - 1):
+        lo, hi = rings[k], rings[k + 1]
+        for j in range(n):
+            j2 = (j + 1) % n
+            faces.append([lo[j], lo[j2], hi[j2], hi[j]])
+    last = rings[-1]
+    for j in range(n):
+        faces.append([last[j], last[(j + 1) % n], top])
+    out = []
+    for f in faces:
+        pts = [verts[i] for i in f]
+        nx, ny, nz = _newell(pts)
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        cz = sum(p[2] for p in pts) / len(pts)
+        if nx * cx + ny * cy + nz * (cz - 0.45) < 0.0:
+            f = list(reversed(f))
+        out.append((tuple(f), rng.uniform(0.9, 1.06)))
+    return verts, out
+
+
 class Pillar:
-    __slots__ = ("x", "y", "hp", "hp0", "age", "rise_t", "flash", "ps", "jag", "cracks", "seen")
+    __slots__ = ("x", "y", "hp", "hp0", "age", "rise_t", "flash", "ps", "jag", "cracks", "seen",
+                 "seed", "_mesh")
 
     def __init__(self, x, y, hp, rise_t, rng):
         self.x, self.y = float(x), float(y)
@@ -91,6 +170,14 @@ class Pillar:
             cracks.append(pts)
         self.cracks = cracks
         self.seen = set()       # ids of melee / blast sources that already hit
+        self.seed = rng.random()
+        self._mesh = None       # (facets, verts, faces), built on first paint
+
+    def mesh(self, n):
+        n = int(n)
+        if self._mesh is None or self._mesh[0] != n:
+            self._mesh = (n,) + rock_mesh(self.seed, n)
+        return self._mesh[1], self._mesh[2]
 
     def rise(self):
         f = min(1.0, self.age / float(self.rise_t))
@@ -562,58 +649,99 @@ class Terrain:
             qp.drawPolygon(QPolygonF([pts[0], pts[1], QPointF(x, y)]))
         qp.restore()
 
+    def _view(self, p, P):
+        """(yaw rad, depth factor s) of pillar p's 2.5D view this frame."""
+        sw, sh = max(1.0, float(self.sw)), max(1.0, float(self.sh))
+        ax = worldscale._A[0] if worldscale._A is not None else sw * 0.5
+        reach = max(1.0, P["view_reach_frac"] * sw)
+        u = max(-1.0, min(1.0, (p.x - ax) / reach))
+        yaw = math.radians(P["view_yaw"]) * u
+        yf = max(0.0, min(1.0, p.y / sh))
+        e = math.radians(P["pitch_top"] + (P["pitch_bottom"] - P["pitch_top"]) * yf)
+        return yaw, math.sin(e)
+
     def _paint_pillar(self, qp, p, P, ink):
+        """A low-poly rock, oblique 2.5D projection (see the module notes):
+        screen x = bx + X', screen y = by - Z - Y' s, so the drawn height is
+        the collision height and the base sits on the ground spot."""
         hw, h = p.dims(P)
         if h < 0.5 or hw < 0.5:
             return
         rgb = _rgb(P["color"])
         bx, by = p.x, p.y
-        jl, jt, jr = p.jag
         fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
+        yaw, s = self._view(p, P)
+        cs, sn = math.cos(yaw), math.sin(yaw)
+        verts, faces = p.mesh(P["facets"])
+        # Rotated, scaled vertices (px) and their screen points.
+        rv, sp = [], []
+        for x, y, z in verts:
+            X = (x * cs - y * sn) * hw
+            Y = (x * sn + y * cs) * hw
+            Z = z * h
+            rv.append((X, Y, Z))
+            sp.append(QPointF(bx + X, by - Z - Y * s))
+        # View direction of the oblique projection (what projects to a point).
+        vl = math.sqrt(1.0 + s * s)
+        vx, vy, vz = 0.0, 1.0 / vl, -s / vl
+        vis = []
+        for idx, tone in faces:
+            pts = [rv[i] for i in idx]
+            nx, ny, nz = _newell(pts)
+            nl = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if nl < 1e-9:
+                continue
+            nx, ny, nz = nx / nl, ny / nl, nz / nl
+            if nx * vx + ny * vy + nz * vz >= -1e-4:
+                continue                                  # facing away
+            d = sum(q[1] * vy + q[2] * vz for q in pts) / len(pts)
+            lam = max(0.0, nx * _LIGHT[0] + ny * _LIGHT[1] + nz * _LIGHT[2])
+            band = math.floor(lam * 4.0 + 0.5) / 4.0       # cel bands
+            k = (0.42 + 0.72 * band) * tone
+            col = QColor(max(0, min(255, int(rgb[0] * k))), max(0, min(255, int(rgb[1] * k))),
+                         max(0, min(255, int(rgb[2] * k))))
+            vis.append((d, QPolygonF([sp[i] for i in idx]), col))
+        if not vis:
+            return
+        vis.sort(key=lambda t: -t[0])                       # far first
         qp.save()
-        # Ground shadow / base ring.
+        # Ground shadow / base.
         qp.setPen(Qt.NoPen)
         qp.setBrush(QColor(0, 0, 0, 70))
         qp.drawEllipse(QPointF(bx + hw * 0.25, by), hw * 1.35, hw * 1.35 * fl)
-        n = len(jl) - 1
-        left, right = [], []
-        for i in range(n + 1):
-            v = i / float(n)
-            w = hw * (1.0 - 0.22 * v)
-            left.append(QPointF(bx - w + jl[i] * hw * 0.10, by - h * v))
-            right.append(QPointF(bx + w + jr[i] * hw * 0.10, by - h * v))
-        top = [QPointF(bx - hw * 0.35, by - h - jt[0] * hw * 0.45),
-               QPointF(bx + hw * 0.05, by - h - jt[1] * hw * 0.7),
-               QPointF(bx + hw * 0.45, by - h - jt[2] * hw * 0.35)]
-        body = left + top + list(reversed(right))
-        dark = QColor(max(0, rgb[0] - 45), max(0, rgb[1] - 45), max(0, rgb[2] - 45))
-        lit = QColor(min(255, rgb[0] + 45), min(255, rgb[1] + 45), min(255, rgb[2] + 45))
         pw = max(1.0, min(3.0, 1.4 * p.ps))
-        qp.setPen(QPen(ink, pw))
-        qp.setBrush(QColor(*rgb))
-        qp.drawPolygon(QPolygonF(body))
-        qp.setPen(Qt.NoPen)
-        # Lit left face and shadowed right face (light from the top-left).
-        mid = [QPointF(bx - hw * 0.15 + jl[i] * hw * 0.05, by - h * i / float(n)) for i in range(n + 1)]
-        qp.setBrush(lit)
-        qp.drawPolygon(QPolygonF(left + [top[0]] + list(reversed(mid))))
-        qp.setBrush(dark)
-        rmid = [QPointF(bx + hw * 0.4 + jr[i] * hw * 0.05, by - h * i / float(n)) for i in range(n + 1)]
-        qp.drawPolygon(QPolygonF(rmid + [top[2]] + list(reversed(right))))
-        # Cracks grow as its HP drops.
+        # Ink silhouette: every visible facet in ink with a fat pen, then the
+        # facets over it (only the outer edge of the fat pen survives).
+        qp.setPen(QPen(ink, 2.0 * pw, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        qp.setBrush(ink)
+        for _d, poly, _c in vis:
+            qp.drawPolygon(poly)
+        for _d, poly, col in vis:
+            qp.setPen(QPen(col.darker(118), 1.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            qp.setBrush(col)
+            qp.drawPolygon(poly)
         frac = p.hp / p.hp0 if p.hp0 > 0 else 1.0
         nc = 0 if frac > 0.75 else 2 if frac > 0.5 else 4 if frac > 0.25 else 5
-        if nc:
-            qp.setPen(QPen(ink, max(1.0, pw * 0.8)))
-            qp.setBrush(Qt.NoBrush)
-            for cr in p.cracks[:nc]:
-                qp.drawPolyline(QPolygonF([QPointF(bx + u * hw * 0.85, by - h * v) for u, v in cr]))
-        # Hit flash.
-        if p.flash > 0:
-            qp.setOpacity(0.5 * p.flash / 6.0)
-            qp.setPen(Qt.NoPen)
-            qp.setBrush(QColor(255, 255, 255))
-            qp.drawPolygon(QPolygonF(body))
+        if nc or p.flash > 0:
+            clip = QPainterPath()
+            clip.setFillRule(Qt.WindingFill)
+            for _d, poly, _c in vis:
+                clip.addPolygon(poly)
+                clip.closeSubpath()
+            qp.setClipPath(clip, Qt.IntersectClip)
+            # Cracks grow as its HP drops (on the face toward the viewer).
+            if nc:
+                qp.setPen(QPen(ink, max(1.0, pw * 0.8)))
+                qp.setBrush(Qt.NoBrush)
+                for cr in p.cracks[:nc]:
+                    qp.drawPolyline(QPolygonF([QPointF(bx + u * hw * 0.85, by - h * v + hw * s * 0.7)
+                                               for u, v in cr]))
+            # Hit flash.
+            if p.flash > 0:
+                qp.setOpacity(0.5 * p.flash / 6.0)
+                qp.setPen(Qt.NoPen)
+                qp.setBrush(QColor(255, 255, 255))
+                qp.drawPath(clip)
         qp.restore()
 
 
