@@ -624,6 +624,13 @@ OUTLINE_GLOW_DEFAULT_RADIUS  = 3.0           # px offset of each outline copy
 OUTLINE_GLOW_DEFAULT_OPACITY = 140           # 0-255
 OUTLINE_GLOW_STEPS           = 8             # copies drawn in a ring (every 45°)
 
+# Body ink outline (Daniel 2026-11-04): every fighter's sprite gets a solid
+# black line round it so it reads on light backgrounds (combat.ink_outlined).
+# Drawn tight on the body, under any character's own outline_glow halo.
+BODY_OUTLINE_ON    = True
+BODY_OUTLINE_PX    = 1                 # line width in sprite pixels
+BODY_OUTLINE_RGB   = (0, 0, 0)
+
 # ---------------------------------------------------------------------------
 # Trail gradient — generic static two-colour trail override for characters
 # that opt in via a top-level `trail_gradient` block. Replaces the default

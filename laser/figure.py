@@ -336,7 +336,10 @@ class Figure:
             _ga = _unique.body_alpha(self)   # Mirror Legion copy: ghostly body
             if _ga is not None:
                 p.setOpacity(_ga)
-            p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
+            # Black ink outline round the body (config.BODY_OUTLINE_*): reads on
+            # light backgrounds.  Same placement as the plain frame, padded.
+            opm, pad = _combat.ink_outlined(frame)
+            p.drawPixmap(-frame.width() // 2 - pad, -frame.height() // 2 - pad, opm)
             # Hit flash (strike hit weight): the body goes white, fading.
             hs = getattr(self, "hit_squash", None)
             if hs is not None and hs[5]:

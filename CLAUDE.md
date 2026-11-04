@@ -121,6 +121,7 @@ laser/terrain.py
 - LUT assignment on mode switch: `cycle_mode` must explicitly update `fig.lut` and `fig.trail.lut` after `set_mode()`
 - Swordsman trail: red-to-crimson gradient (`LUT_RED`) via `lut_for_mode()`
 - HP display: Runner label shifted 70px left; swordsman label unchanged; differentiated via `fig.mode.uses_melee()`
+- Body ink outline: every fighter sprite (Figure.draw, prebattle idle pose, clones) is drawn via `combat.ink_outlined(frame)` = cached pixmap with a solid `config.BODY_OUTLINE_PX` (1) black line, padded by pad px (draw at -w//2-pad). Sits under a character's own `outline_glow` halo (both kept)
 - One bullet per direction per phase: zigzag and multi-directional phases must fire exactly one bullet per direction
 
 ## Workflow for Recovering Lost Code

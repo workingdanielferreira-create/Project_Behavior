@@ -207,6 +207,33 @@ def bolt_sprite(r, g, b, radius, stretch, hot=False, glow_pct=100.0, glow_size_p
 # (frames live for the program lifetime, so id()-keying is safe) and reused.
 # ---------------------------------------------------------------------------
 _SILHOUETTES = {}
+_OUTLINED = {}
+
+
+def ink_outlined(frame):
+    """(pixmap, pad): the sprite frame with a solid BODY_OUTLINE_PX ink line
+    round it (config.BODY_OUTLINE_*), padded by `pad` px on every side, so
+    draw it at (-w // 2 - pad, -h // 2 - pad) where the plain frame would go.
+    Cached per frame.  Returns (frame, 0) when the outline is off."""
+    if not config.BODY_OUTLINE_ON or frame is None:
+        return frame, 0
+    pad = max(1, int(config.BODY_OUTLINE_PX))
+    key = (id(frame), pad, config.BODY_OUTLINE_RGB)
+    hit = _OUTLINED.get(key)
+    if hit is not None and hit[1] is frame:
+        return hit[0], pad
+    ink = silhouette(frame, config.BODY_OUTLINE_RGB)
+    pm = QPixmap(frame.width() + 2 * pad, frame.height() + 2 * pad)
+    pm.fill(Qt.transparent)
+    qp = QPainter(pm)
+    for dx in range(-pad, pad + 1):
+        for dy in range(-pad, pad + 1):
+            if (dx or dy) and dx * dx + dy * dy <= pad * pad + pad:
+                qp.drawPixmap(pad + dx, pad + dy, ink)
+    qp.drawPixmap(pad, pad, frame)
+    qp.end()
+    _OUTLINED[key] = (pm, frame)     # keep frame alive so its id stays unique
+    return pm, pad
 
 
 def silhouette(frame, rgb=None):
@@ -3337,7 +3364,8 @@ class CloneEffect:
             p.scale(pscale, pscale)
         alpha = config.CLONE_ALPHA if self.alpha is None else self.alpha
         p.setOpacity((alpha / 255.0) * fade)
-        p.drawPixmap(-fr.width() // 2, -fr.height() // 2, fr)
+        opm, pad = ink_outlined(fr)                # black body outline, like the fighter
+        p.drawPixmap(-fr.width() // 2 - pad, -fr.height() // 2 - pad, opm)
         p.restore()
         p.setOpacity(1.0)
 
