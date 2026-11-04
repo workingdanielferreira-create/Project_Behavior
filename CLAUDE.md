@@ -42,6 +42,7 @@ laser/weaponfx.py
 laser/worldfx.py
 laser/camera.py
 laser/worldscale.py
+laser/terrain.py
 ```
 
 ## Mandatory Session Rules
@@ -86,6 +87,11 @@ laser/worldscale.py
 - `laser/worldfx.py` (Studio port `tools/fx/studio/worldfx.js`, page "🌪 Dust & Air"): world-owned dust / rocks / air. `worldfx.step(world)` runs once per tick after both sides (read-only on fighters); paint layers `paint_ground` (under fighters) / `paint_air` (over). Hybrid engine: closed-form rocks/sparks, simulated dust riding analytic air sources (blast, wake, curl, column, jet)
 - Ground = slope: pscale grid; height z drawn straight up the screen; ground ellipses rounder the farther away (`flat_near` -> `flat_far`); screen edges are walls (`motion.check_walls` -> `note_wall`)
 - Settings: `characters/world_physics.json` (`pb_world_physics`), per-character override `pack.world_physics` (any section). The Studio page writes the file directly once the game folder is linked; the game hot-reloads it (`watch_world`, ~1 s) and on F5 (`reload_characters` also clears `_wphys_cfg`). Smoke styles: `SMOKE_STYLES` (cel, billow, ink, swirl, flat, ring, stepped); `ground.style` default, per-event `style` (`default` = ground's), deep edit per style in section `smoke_<style>` (`smoke_look` = life curve; `ENUMS` validated). Sound barrier uses on-screen (position-scaled) speed. Hit-stop / shake / impact frames stay with each FX's own settings
+
+### Destructible Terrain: Pillars & Rubble
+- `laser/terrain.py`, settings = Dust & Air sections `pillars` (world only) and `rubble` (per-character override ok) in `world_physics.json`; Studio port tables in `worldfx.js` (`WP_SECTIONS` / DEFAULTS / RANGES / FIELDS / TITLES). `terrain.step(w)` runs in `Overlay._tick` after both sides, BEFORE `worldfx.step`; paint `terrain.paint_back` (rubble + pillars nobody stands behind, after `worldfx.paint_ground`) and `paint_front` (after the fighters). `apply_roster(reset=True)` -> `terrain.reset`
+- Pillars: `count` kept around the fight (random within `radius_px` of the anchor / fighters' centre, `clear_px` from fighters, `gap_px` apart); a broken one is replaced after `respawn_s`, one at a time. Real obstacles for both sides (like walls; AI unaware): fighters pushed out of the flat ground footprint + subtle `repel` away from centre, knockback slides reflect; projectiles (side.projectiles -> `combat.kill_projectile`, travelling FX -> inst.age=life/dead, gun/ki rounds -> `RoundRef.stop`) blocked when `block_projectiles`; melee FX / built-in slashes & crescent waves (`melee_damage`) / blasts (`worldfx.scan_blasts` -> `terrain.note_blast`, `blast_reach`) hit once per source. ANY of speed (px/tick) >= `break_speed`, FX knockback >= `break_knockback`, damage >= `break_damage` breaks it and the hit passes; otherwise blocked + chip (`chip_pct` of damage, bodies `body_chip`), crumbles at 0 HP. Built-in ultimate crescents always break. Blink warps (`worldfx._WARPS`) are not speed
+- Rubble: `worldfx.WorldFx.move` hands landed rock-burst pieces to `terrain.note_rubble` at 72% of burst life (rest_s + fade_s). Boulders (`debris` with boulder sizes) on: knockback slide start >= `hit_knockback`, HP drop in a tick >= `hit_damage` (both crater if `crater`), fighter speed >= `speed` (half, smaller); `cooldown_ms` per fighter
 
 ### World Camera
 - `laser/camera.py` (Studio port `tools/fx/studio/camera.js`, top-bar tab "🎥 World Camera"): paint-time VIEW only — never moves fighters; hit tests / walls / targeting / snapshots stay in screen coords. `World.camera` steps every tick (hit-stop included, not while the start menu pauses); `_paint_scene` applies it, the HUD is drawn after it (never zooms/shakes). Only the mouse cursor is mapped back (`Camera.screen_to_world` in `_tick`)

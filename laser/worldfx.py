@@ -58,7 +58,7 @@ FILE = "world_physics.json"     # in characters/
 # style has its own deep-edit section smoke_<style> (shading & colour, life
 # animation, motion).  Characters can override any of these sections.
 SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
 # ---- Pressure spiral (Daniel 2026-11-01): the pulse ring every Dust & Air event
 # throws.  Seen end-on it is a circle; turned side-on it is a spring.  It can
 # split into 2-6 parts (flat, like a broken circle) and twist into a helix laid
@@ -92,6 +92,14 @@ DEFAULTS = {
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
               True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
+    "pillars": {"enabled": True, "count": 3, "radius_px": 420, "clear_px": 110, "gap_px": 140, "respawn_s": 6.0,
+                "width": 22, "height": 70, "rise_ms": 450, "hp": 60, "break_damage": 30, "break_knockback": 200,
+                "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
+                "repel": 0.25, "repel_px": 10, "block_projectiles": True, "rubble": 9, "boulders": 4,
+                "color": "#8a7c6c"},
+    "rubble": {"enabled": True, "rest": True, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": True,
+               "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
+               "speed": 20, "cooldown_ms": 700, "crater": True, "color": "#7a6e62"},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -137,6 +145,14 @@ RANGES = {
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
               "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+    "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
+                "respawn_s": [0, 120], "width": [4, 200], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
+                "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
+                "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
+                "repel": [0, 5], "repel_px": [0, 100], "rubble": [0, 60], "boulders": [0, 30]},
+    "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
+               "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
+               "speed": [0, 200], "cooldown_ms": [0, 10000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -1005,6 +1021,7 @@ class WorldFx:
         self.sw = self.sh = 1
         self.cur = smoke_for(None, None)   # smoke style + profile new puffs take (use)
         self.curfx = (None, None)          # (fighter, event section) new rings take their spiral from
+        self.world = None                  # the World of the last step (rubble handoff)
 
     # ---- helpers
     def ps(self, x, y):
@@ -1136,6 +1153,7 @@ class WorldFx:
     # ---- tick
     def step(self, world):
         self.sw, self.sh = max(1, int(world.screen_w)), max(1, int(world.screen_h))
+        self.world = world
         self.t += 1
         try:
             watch_world()
@@ -1724,9 +1742,17 @@ class WorldFx:
                         rec[1].add(i)
                         if len(v) >= 4 and v[3]:
                             continue      # a split orb vanishing: no detonation
+                        dmg = float(((inst.fx or {}).get("battle") or {}).get("damage") or 1.0)
+                        # Destructible terrain: a detonation hits the pillars it reaches.
+                        from . import terrain
+                        try:
+                            from . import fxkit
+                            kb = fxkit.inst_knockback(inst)
+                        except Exception:
+                            kb = 0.0
+                        terrain.note_blast(world, v[1], v[2], dmg, kb)
                         if not c["enabled"]:
                             continue
-                        dmg = float(((inst.fx or {}).get("battle") or {}).get("damage") or 1.0)
                         if dmg >= c["min_damage"]:
                             self.use(fig, c)
                             ox, oy = (inst.tq_path[0] if getattr(inst, "tq_path", None) else (v[1], v[2]))[:2]
@@ -1755,9 +1781,22 @@ class WorldFx:
         for s in self.src:
             if isinstance(s, Wake) and not s.live:
                 s.k *= 0.85
+        R = WORLD["rubble"]
+        rest = R["enabled"] and R["rest"] and self.world is not None
+        handed = []
         for b in self.bursts:
+            a0 = b.age
             b.age += b.ss
-        self.bursts = [b for b in self.bursts if b.age < b.life]
+            # Destructible terrain (laser/terrain.py): rocks that have landed
+            # lie on the ground as rubble once the burst would start to fade.
+            if rest and b.kind == "rock" and a0 < b.life * 0.72 <= b.age:
+                from . import terrain
+                for pc in b.pieces:
+                    at = b.at(pc, b.age)
+                    if at is not None and at[2] <= 0.0:
+                        terrain.note_rubble(self.world, at[0], at[1], pc[4], pc[6], b.col)
+                handed.append(b)
+        self.bursts = [b for b in self.bursts if b.age < b.life and b not in handed]
         for r in self.rings:
             r.age += 1.0
         self.rings = [r for r in self.rings if r.age < r.life]

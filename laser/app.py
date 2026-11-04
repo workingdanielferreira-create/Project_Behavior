@@ -23,6 +23,7 @@ from . import swordfx
 from . import hitfx, strikefx
 from . import dmgnum
 from . import worldfx
+from . import terrain
 from . import camera as _camera
 from .prebattle import PreBattleMenu
 from . import roster as _roster
@@ -387,6 +388,10 @@ class World:
         stays in its slot (its HP bar reads KO) but is not fielded again
         until its slot changes or the roster is reset."""
         now = self.global_tick
+        if reset:
+            # Destructible terrain (laser/terrain.py): a fresh round re-raises
+            # the pillars and clears the rubble.
+            terrain.reset(self)
         old = list(getattr(self, "slots", None) or [])
         old_figs = [s.fig for s in old if s.fig is not None]
         if slots is not None:
@@ -1379,6 +1384,14 @@ class Overlay(QWidget):
                     return
             w.unbind_side()
 
+        # Destructible terrain (laser/terrain.py, Dust & Air "Rock pillars" /
+        # "Rubble & boulders"): pillars block / repel fighters and stop
+        # projectiles like the screen walls do; once per tick after BOTH
+        # sides moved, before the dust (it hands rocks to worldfx).
+        try:
+            terrain.step(w)
+        except Exception as e:
+            action_log.crash("terrain", e)
         # World physics (laser/worldfx.py, FX Studio "World Physics"): the
         # dust and air the arena kicks up.  Once per tick after BOTH sides
         # moved; it only reads the fighters, so Solo and Battle match.
@@ -1543,8 +1556,12 @@ class Overlay(QWidget):
         # World physics: ground dust, rocks, rings and wall planes sit under
         # every fighter (laser/worldfx.py).
         worldfx.paint_ground(p, w)
+        # Destructible terrain: rubble, and the pillars no fighter stands behind.
+        terrain.paint_back(p, w)
         for fig in w.all_figures():
             fig.draw(p, self._pen, body=bodies)
+        # Pillars with a fighter behind them are drawn over it.
+        terrain.paint_front(p, w)
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.
