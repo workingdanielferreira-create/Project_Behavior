@@ -58,7 +58,7 @@ FILE = "world_physics.json"     # in characters/
 # style has its own deep-edit section smoke_<style> (shading & colour, life
 # animation, motion).  Characters can override any of these sections.
 SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
 # ---- Pressure spiral (Daniel 2026-11-01): the pulse ring every Dust & Air event
 # throws.  Seen end-on it is a circle; turned side-on it is a spring.  It can
 # split into 2-6 parts (flat, like a broken circle) and twist into a helix laid
@@ -101,6 +101,24 @@ DEFAULTS = {
     "rubble": {"enabled": True, "rest": True, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": True,
                "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
                "speed": 20, "cooldown_ms": 700, "crater": True, "color": "#7a6e62"},
+    # FX on the ground (Daniel 2026-11-04): beams dealing MORE than
+    # beam_min_damage gouge a trench along the ground under their head as it
+    # travels (debris + dust kicked up there) and pull a Pressure spiral trail
+    # from that head (the fighters' sound-barrier trail logic); orb (ki / gun
+    # round) detonations of orb_min_damage or more leave a crater; crescents of
+    # crescent_min_damage or more streak the ground.  Marks last mark_s, then
+    # fade over fade_s.
+    "ground_fx": {"enabled": True, "beam_min_damage": 30, "beam_trench": True, "beam_debris": True,
+                  "beam_spiral": True, "trench_width": 100, "orb_min_damage": 40, "orb_crater": 100,
+                  "crescent_min_damage": 40, "streak_width": 100, "mark_s": 6.0, "fade_s": 1.5,
+                  "color": "#3b3129"},
+    # Rolling world (Daniel 2026-11-04): when the world anchor (the fighters'
+    # centre) is in the outer zone_frac of the screen, the world - pillars,
+    # rubble, craters, ground marks, dust - rolls the other way, faster the
+    # nearer the edge (max_speed px/s at the edge); fighters are not moved.
+    # Pillars that roll off-screen are replaced by new ones off the far side.
+    "roll": {"enabled": True, "max_speed": 600, "zone_frac": 0.333, "vertical": True, "ease_ms": 400,
+             "spawn_ahead_px": 320, "margin_px": 60},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -156,6 +174,11 @@ RANGES = {
     "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
                "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
                "speed": [0, 200], "cooldown_ms": [0, 10000]},
+    "ground_fx": {"beam_min_damage": [0, 10000], "trench_width": [10, 500], "orb_min_damage": [0, 10000],
+                  "orb_crater": [10, 500], "crescent_min_damage": [0, 10000], "streak_width": [10, 500],
+                  "mark_s": [0, 120], "fade_s": [0.05, 20]},
+    "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
+             "margin_px": [0, 600]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -1019,6 +1042,7 @@ class WorldFx:
         self.later = []     # [due tick, fn, args]
         self.tracks = {}
         self.ki = {}        # id(inst) -> [inst, seen detonation indices, touched]
+        self.gfx = {}       # id(inst) -> FX-on-the-ground record (scan_ground_fx)
         self.t = 0
         self.rng = random.Random(0x5EED)
         self.sw = self.sh = 1
@@ -1192,6 +1216,10 @@ class WorldFx:
         del _WALLS[:]
         try:
             self.scan_blasts(world)
+        except Exception:
+            pass
+        try:
+            self.scan_ground_fx(world)
         except Exception:
             pass
         for k in [k for k, tr in self.tracks.items() if tr.seen != self.t]:
@@ -1754,6 +1782,11 @@ class WorldFx:
                         except Exception:
                             kb = 0.0
                         terrain.note_blast(world, v[1], v[2], dmg, kb)
+                        # FX on the ground: a heavy orb leaves a crater under where it went off.
+                        try:
+                            self.orb_crater(world, fig, v[1], v[2], dmg)
+                        except Exception:
+                            pass
                         if not c["enabled"]:
                             continue
                         if dmg >= c["min_damage"]:
@@ -1765,6 +1798,185 @@ class WorldFx:
                                        dist=dist, spd=spd)
         for k in [k for k, r in self.ki.items() if r[2] != self.t]:
             del self.ki[k]
+
+    # ---- FX on the ground (section ground_fx)
+    def ground_off(self, fig):
+        """Screen px from the thrower's body centre down to the ground under
+        it: an effect flying at body height marks the ground this far below."""
+        try:
+            return float(self.foot(fig, self.ps(fig.x, fig.y))[1] - fig.y)
+        except Exception:
+            return 0.0
+
+    def orb_crater(self, world, fig, x, y, dmg):
+        """An orb (ki blast / gun round) went off on impact at (x, y): one of
+        orb_min_damage or more leaves a crater, sized by its damage."""
+        G = cfg(fig, "ground_fx")
+        if not G["enabled"] or dmg < G["orb_min_damage"]:
+            return
+        gy = y + self.ground_off(fig)
+        ps = self.ps(x, gy)
+        k = math.sqrt(max(1.0, dmg) / 40.0) * G["orb_crater"] / 100.0
+        rx = max(6.0, min(160.0, 16.0 * ps * k))
+        from . import terrain
+        terrain.note_crater(world, x, gy, rx, G["mark_s"], G["fade_s"])
+        sl = cfg(fig, "slam")
+        self.use(fig, sl)
+        self.debris(x, gy, "rock", int(4 + 3 * min(3.0, k)), max(0.6, k), _rgb(sl["rock_color"]),
+                    elev=(35.0, 70.0), spd=(2.5, 6.0), size=(2.0, 4.5))
+
+    @staticmethod
+    def _is_crescent(inst):
+        fxd = inst.fx
+        if fxd.get("prim") == "technique":
+            from . import swordfx
+            return swordfx._style(fxd["params"]) == "crescent_wave"
+        return fxd.get("prim") == "arc" and (fxd.get("motion") or {}).get("kind") in ("travel", "homing", "zigzag", "path")
+
+    def scan_ground_fx(self, world):
+        """Beams dealing more than beam_min_damage gouge a trench under their
+        head as it travels (debris + dust there) and pull a Pressure spiral
+        trail from that head - the same logic as a fighter's sound-barrier
+        trail; crescents of crescent_min_damage or more streak the ground.
+        Solo and Battle share this."""
+        from . import terrain, fxkit
+        seen = set()
+        for fig in world.all_figures():
+            drv = getattr(fig, "fx", None)
+            if drv is None:
+                continue
+            G = cfg(fig, "ground_fx")
+            if not G["enabled"]:
+                continue
+            try:
+                players = [drv.player, drv.clane[0]] + [ln[0] for ln in drv.rlanes] + drv.stack_players()
+            except Exception:
+                continue
+            for pl in players:
+                for inst in pl.insts:
+                    fxd = inst.fx
+                    bt = fxd.get("battle") or {}
+                    if not bt.get("deals_damage") or inst.dead or inst.age >= inst.life:
+                        continue
+                    dmg = float(bt.get("damage") or 0.0)
+                    if fxd.get("prim") == "beam":
+                        if dmg <= G["beam_min_damage"]:
+                            continue
+                        kind = "trench"
+                    elif self._is_crescent(inst):
+                        if dmg < G["crescent_min_damage"]:
+                            continue
+                        kind = "streak"
+                    else:
+                        continue
+                    k = id(inst)
+                    rec = self.gfx.get(k)
+                    if rec is None or rec[0] is not inst:
+                        if rec is not None and rec[3] is not None:
+                            rec[3].live = False
+                        rec = self.gfx[k] = [inst, self.ground_off(fig), None, None, 0]
+                    seen.add(k)
+                    rec[4] += 1
+                    try:
+                        self._ground_mark(world, fig, G, inst, rec, kind, fxkit, terrain)
+                    except Exception:
+                        pass
+        for k in [k for k in self.gfx if k not in seen]:
+            rec = self.gfx.pop(k)
+            if rec[3] is not None:
+                rec[3].live = False      # the beam is gone: its spring dissolves
+            terrain.end_mark(world, ("gfx", k))
+
+    def _ground_mark(self, world, fig, G, inst, rec, kind, fxkit, terrain):
+        off = rec[1]
+        sw, sh = self.sw, self.sh
+        ps = inst.ps or 1.0
+        key = ("gfx", id(inst))
+        if kind == "trench":
+            hx, hy, ux, uy, reach = fxkit.beam_reach(inst, ps)
+            if reach <= 0:
+                return
+            w = max(3.0, min(60.0, 2.0 * fxkit.beam_half_width(inst, ps))) * G["trench_width"] / 100.0
+            if rec[2] is None:
+                # First sight: the trench starts at the beam's root.
+                tx, ty = hx - ux * reach, hy - uy * reach
+                if -40 < tx < sw + 40 and -40 < ty + off < sh + 40:
+                    terrain.note_mark(world, key, tx, ty + off, "trench", w, G)
+            head = (hx, hy)
+        else:
+            hx, hy = inst.x, inst.y
+            ux, uy = getattr(inst, "dir", (1.0, 0.0))
+            w = max(2.0, 5.0 * ps) * G["streak_width"] / 100.0
+            head = (hx, hy)
+        gx, gy = hx, hy + off
+        on = -40 < gx < sw + 40 and -40 < gy < sh + 40
+        if on and ((kind == "trench" and G["beam_trench"]) or kind == "streak"):
+            terrain.note_mark(world, key, gx, gy, kind, w, G)
+        last = rec[2]
+        rec[2] = head
+        if kind != "trench":
+            return
+        # Debris where the beam's head meets the ground.
+        if on and G["beam_debris"] and rec[4] % 3 == 1:
+            sl = cfg(fig, "slam")
+            self.use(fig, sl)
+            az = math.degrees(math.atan2(uy, ux))
+            self.debris(gx, gy, "rock", 2, 0.7, _rgb(sl["rock_color"]), az=az + 180.0, spread=150.0,
+                        elev=(35.0, 70.0), spd=(2.0, 5.0), size=(1.5, 3.5))
+            self.puffs(gx, gy, 2, 1.2, _rgb(sl["color"]), 0.8, 700, up=(0.05, 0.5))
+        # Pressure spiral from the beam's head: the fighters' sound-barrier
+        # trail logic (Spiral settings, its Min speed gate, Sound barrier colour).
+        if not G["beam_spiral"]:
+            if rec[3] is not None:
+                rec[3].live = False
+                rec[3] = None
+            return
+        c = cfg(fig, "sonic")
+        spl = ring_split(fig, c)
+        trail_ok = c["enabled"] and spl is not None and spl["tw"] > 0.0 and spl.get("trail", True)
+        v = 0.0
+        if last is not None:
+            v = math.hypot(hx - last[0], hy - last[1]) / TICK_S / max(0.05, self.ss(hx, hy))
+        if trail_ok and v >= float(spl["min_speed"]) and on:
+            t = rec[3]
+            hps = self.ps(hx, hy)
+            if t is None:
+                t = rec[3] = Trail(_rgb(c["color"]), spl, max(4.0, w), hps, 18.0 * spl["life_pct"] / 100.0)
+                self.trails.append(t)
+            t.sp, t.ps, t.col = spl, hps, _rgb(c["color"])
+            t.life = max(2.0, 18.0 * spl["life_pct"] / 100.0)
+            t.add(hx, hy, v)
+        elif rec[3] is not None and last is not None:
+            rec[3].live = False
+            rec[3] = None
+
+    # ---- rolling world
+    def shift(self, dx, dy):
+        """The world rolled (terrain.Terrain.roll): everything on the ground
+        moves with it - dust, rocks, ground rings, the air left behind.  The
+        fighters' own wakes, wall jets, booms and spiral trails stay."""
+        if not (dx or dy):
+            return
+        for d in self.dust:
+            d[0] += dx
+            d[1] += dy
+        for b in self.bursts:
+            b.x += dx
+            b.y += dy
+            if b.floor is not None:
+                b.floor += dy
+        for r in self.rings:
+            if r.kind in ("ground", "crater"):
+                r.x += dx
+                r.y += dy
+        for s in self.src:
+            if isinstance(s, (Jet,)) or (isinstance(s, Wake) and s.live):
+                continue
+            try:
+                s.x += dx
+                s.y += dy
+            except AttributeError:
+                pass
 
     def blast(self, x, y, dmg, c, ax=0.0, dist=None, spd=None):
         ps = self.ps(x, y)

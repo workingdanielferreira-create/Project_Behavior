@@ -23,7 +23,7 @@
 "use strict";
 var WP_FORMAT = "pb_world_physics";
 var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
 var SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"];
 var SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"];
 var WP_DEFAULTS = {
@@ -56,6 +56,12 @@ var WP_DEFAULTS = {
   "rubble": {"enabled": true, "rest": true, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": true,
              "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
              "speed": 20, "cooldown_ms": 700, "crater": true, "color": "#7a6e62"},
+  "ground_fx": {"enabled": true, "beam_min_damage": 30, "beam_trench": true, "beam_debris": true,
+                "beam_spiral": true, "trench_width": 100, "orb_min_damage": 40, "orb_crater": 100,
+                "crescent_min_damage": 40, "streak_width": 100, "mark_s": 6.0, "fade_s": 1.5,
+                "color": "#3b3129"},
+  "roll": {"enabled": true, "max_speed": 600, "zone_frac": 0.333, "vertical": true, "ease_ms": 400,
+           "spawn_ahead_px": 320, "margin_px": 60},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -108,6 +114,11 @@ var WP_RANGES = {
   "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
              "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
              "speed": [0, 200], "cooldown_ms": [0, 10000]},
+  "ground_fx": {"beam_min_damage": [0, 10000], "trench_width": [10, 500], "orb_min_damage": [0, 10000],
+                "orb_crater": [10, 500], "crescent_min_damage": [0, 10000], "streak_width": [10, 500],
+                "mark_s": [0, 120], "fade_s": [0.05, 20]},
+  "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
+           "margin_px": [0, 600]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -269,6 +280,26 @@ var WP_FIELDS = {
            ["cooldown_ms", "Cooldown per fighter (ms)", "Least time between two boulder events from one fighter."],
            ["crater", "Crater on hits", "Knockback / heavy-hit triggers also leave a crater."],
            ["color", "Boulder colour", ""]],
+  ground_fx: [["enabled", "On", "FX Studio effects mark the ground (Solo and Battle)."],
+           ["beam_min_damage", "Beam: damage over", "A beam whose damage is MORE than this gouges a trench along the ground under its head as it travels."],
+           ["beam_trench", "Beam trench", "The scorched gouge left on the ground under the beam's path."],
+           ["beam_debris", "Beam debris", "Rocks and dust kicked up where the beam's head meets the ground."],
+           ["beam_spiral", "Beam pressure spiral", "The beam's head pulls a Pressure spiral trail, with the same logic as a fighter's sound-barrier trail (Sound barrier colour, Pressure spiral settings, Min speed gate)."],
+           ["trench_width", "Trench width %", "Scales the trench with the beam's own width."],
+           ["orb_min_damage", "Orb: crater at damage", "An orb (ki blast / gun round) that detonates on impact with this much damage or more leaves a crater."],
+           ["orb_crater", "Orb crater size %", "Crater size grows with the orb's damage; this scales it."],
+           ["crescent_min_damage", "Crescent: streak at damage", "A travelling crescent (crescent wave) with this much damage or more streaks the ground under it."],
+           ["streak_width", "Streak width %", ""],
+           ["mark_s", "Marks last (s)", "How long trenches, streaks and orb craters stay before they fade."],
+           ["fade_s", "Marks fade (s)", ""],
+           ["color", "Scorch colour", "The trench / streak floor."]],
+  roll: [["enabled", "On", "Rolling world (Solo and Battle): when the fighters' centre (the world anchor) is near a screen side the world rolls past them the other way, faster the nearer the edge, so they seem to travel great distances. Pillars, rubble, craters, marks and dust roll; the fighters are not moved. Pillars that roll off-screen are replaced off the side the world rolls in from."],
+           ["max_speed", "Max roll speed (px/s)", "With the anchor right at the screen edge."],
+           ["zone_frac", "Roll zone (share of screen)", "The outer share of the screen, on each side, where the roll starts (0.333 = the outer thirds). The middle is still."],
+           ["vertical", "Roll up / down too", "Also roll when the anchor is near the top or bottom."],
+           ["ease_ms", "Ease (ms)", "How long the roll takes to speed up / slow down."],
+           ["spawn_ahead_px", "New pillars: spread (px)", "New pillars rise this far (at most) beyond the edge, so they come in at different times."],
+           ["margin_px", "Off-screen margin (px)", "How far past the edge a pillar rolls before it is gone."]],
   spiral: [["enabled", "On", "Every Dust & Air ring (the pulse each jump, slam, clash, blast and sound barrier throws) takes these settings. Parts 1 + Spiral 0 = the plain ring."],
            ["parts", "Parts", "Split the ring into 2-6 parts, evenly round the circle (2 = left and right arcs, 4 = four arcs)."],
            ["gap", "Gap between parts %", "How much of each part's share of the circle is left empty (needs 2 or more parts)."],
@@ -332,7 +363,8 @@ var WP_STYLE_TITLES = {cel: "Cel puff", billow: "Billow / cauliflower", ink: "In
 WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS; });
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
   slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)",
-  pillars: "Rock pillars (destructible)", rubble: "Rubble & boulders"};
+  pillars: "Rock pillars (destructible)", rubble: "Rubble & boulders", ground_fx: "FX on the ground",
+  roll: "Rolling world"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;

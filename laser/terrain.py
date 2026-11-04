@@ -233,7 +233,16 @@ class Terrain:
     def __init__(self):
         self.pillars = []
         self.rubble = []       # [x, y, size, rot, rgb, age, life]
-        self.pits = []         # broken-pillar craters: [x, y, rx, flat, rgb, age, life, rim]
+        self.pits = []         # craters: [x, y, rx, flat, rgb, age, life, rim, fade ticks]
+        # Ground marks (worldfx.scan_ground_fx): beam trenches / crescent
+        # streaks, each {"pts": [[x, y, age], ...], "kind", "w", "life",
+        # "fade", "rgb"}; open ones (still being laid) by their source key.
+        self.marks = []
+        self.mark_open = {}
+        # Rolling world: the roll velocity now (px/tick) and the next tick a
+        # pillar may rise off the far side.
+        self.roll_v = (0.0, 0.0)
+        self.roll_next = 0
         self.filled = False
         self.next_spawn = 0
         self.t = 0
@@ -373,7 +382,8 @@ class Terrain:
                     self.next_spawn = self.t + _ticks(P["respawn_s"])
                 elif len(self.pillars) > int(P["count"]):
                     del self.pillars[int(P["count"]):]
-                elif len(self.pillars) < int(P["count"]) and self.t >= self.next_spawn:
+                elif (len(self.pillars) < int(P["count"]) and self.t >= self.next_spawn
+                      and not (self.roll_v[0] or self.roll_v[1])):
                     if self._spawn(figs, P):
                         self.next_spawn = self.t + _ticks(P["respawn_s"])
                     else:
@@ -403,7 +413,12 @@ class Terrain:
             self._triggers(figs)
         except Exception:
             pass
+        try:
+            self.roll(world, figs)
+        except Exception:
+            pass
         self._age_rubble()
+        self._age_marks()
 
     # ---- fighters
     def _body(self, f, P):
@@ -634,17 +649,203 @@ class Terrain:
             self.rubble.pop(0)
         self.rubble.append([x, y, size, rot, rgb, 0, _ticks(R["rest_s"] + R["fade_s"])])
 
-    def _add_pit(self, x, y, rx, fl, rgb):
-        """A broken pillar's crater: a jagged dish rx wide, flattened by the
-        ground's tilt (fl).  Stays rubble rest_s, then fades over fade_s."""
+    def _add_pit(self, x, y, rx, fl, rgb, rest_s=None, fade_s=None):
+        """A crater: a jagged dish rx wide, flattened by the ground's tilt
+        (fl).  Stays rest_s (default: rubble rest_s), then fades over fade_s."""
         R = _wf()["rubble"]
+        rest_s = R["rest_s"] if rest_s is None else rest_s
+        fade_s = R["fade_s"] if fade_s is None else fade_s
         rnd = self.rng.random
         n = 15
         # Jagged rim: radius per point (fraction of rx) and a small angle jitter.
         rim = [(0.78 + 0.34 * rnd(), (rnd() - 0.5) * 0.22) for _ in range(n)]
-        if len(self.pits) >= 12:
+        if len(self.pits) >= 24:
             self.pits.pop(0)
-        self.pits.append([x, y, rx, fl, rgb, 0, _ticks(max(0.5, R["rest_s"]) + R["fade_s"]), rim])
+        self.pits.append([x, y, rx, fl, rgb, 0, _ticks(max(0.5, rest_s) + fade_s), rim, _ticks(fade_s)])
+
+    # ---- FX on the ground (worldfx.scan_ground_fx / orb_crater)
+    def add_crater(self, x, y, rx, rest_s, fade_s):
+        fl = max(0.2, worldfx.flat_at(worldfx.pscale(x, y, self.sw, self.sh), _wf()["ground"]))
+        self._add_pit(x, y, rx, fl, _rgb(_wf()["rubble"]["color"]), rest_s, fade_s)
+
+    def add_mark(self, key, x, y, kind, w, G):
+        m = self.mark_open.get(key)
+        if m is None:
+            if len(self.marks) >= 24:
+                old = self.marks.pop(0)
+                for k in [k for k, v in self.mark_open.items() if v is old]:
+                    del self.mark_open[k]
+            m = {"pts": [], "kind": kind, "w": float(w), "life": _ticks(max(0.1, G["mark_s"]) + G["fade_s"]),
+                 "fade": _ticks(G["fade_s"]), "rgb": _rgb(G["color"])}
+            self.marks.append(m)
+            self.mark_open[key] = m
+        m["w"] = max(m["w"] * 0.9, float(w))
+        pts = m["pts"]
+        if pts:
+            lx, ly = pts[-1][0], pts[-1][1]
+            if (x - lx) ** 2 + (y - ly) ** 2 < 9.0:
+                return
+        pts.append([float(x), float(y), 0, float(w)])
+        if len(pts) > 260:
+            del pts[0]
+
+    def end_mark(self, key):
+        self.mark_open.pop(key, None)
+
+    def _age_marks(self):
+        if not self.marks:
+            return
+        live = []
+        for m in self.marks:
+            life = m["life"]
+            for q in m["pts"]:
+                q[2] += 1
+            m["pts"] = [q for q in m["pts"] if q[2] < life]
+            if m["pts"]:
+                live.append(m)
+        if len(live) != len(self.marks):
+            ids = {id(m) for m in live}
+            for k in [k for k, v in self.mark_open.items() if id(v) not in ids]:
+                del self.mark_open[k]
+        self.marks = live
+
+    def _paint_marks(self, qp, ink):
+        """Trenches: a scorched gouge with a lit lip and a dark floor; streaks:
+        a thinner scorch line.  Older points fade over the mark's fade."""
+        qp.save()
+        for m in self.marks:
+            pts = m["pts"]
+            if len(pts) < 2:
+                continue
+            life, fade = m["life"], max(1, m["fade"])
+            rgb = m["rgb"]
+            trench = m["kind"] == "trench"
+            lip = worldfx._lift(rgb, 0.45)
+            for i in range(1, len(pts)):
+                a, b = pts[i - 1], pts[i]
+                age = max(a[2], b[2])
+                al = 1.0 if age < life - fade else max(0.0, (life - age) / float(fade))
+                if al <= 0.0:
+                    continue
+                al = math.ceil(al * 4.0) / 4.0             # fades in steps, like the craters
+                w = 0.5 * (a[3] + b[3])
+                ps = worldfx.pscale(b[0], b[1], self.sw, self.sh)
+                fl = max(0.2, worldfx.flat_at(ps, _wf()["ground"]))
+                wf = w * (0.55 + 0.45 * fl)                # flatter ground = a thinner-looking trench
+                p0, p1 = QPointF(a[0], a[1]), QPointF(b[0], b[1])
+                qp.setOpacity(al)
+                if trench:
+                    qp.setPen(QPen(ink, wf * 1.35 + 2.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(p0, p1)
+                    qp.setPen(QPen(QColor(*lip), wf * 1.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(p0, p1)
+                    qp.setPen(QPen(QColor(*rgb), wf * 0.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(p0, p1)
+                    qp.setPen(QPen(QColor(int(rgb[0] * 0.45), int(rgb[1] * 0.45), int(rgb[2] * 0.45)),
+                                   max(1.0, wf * 0.35), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(QPointF(a[0], a[1] + wf * fl * 0.12), QPointF(b[0], b[1] + wf * fl * 0.12))
+                else:
+                    qp.setPen(QPen(QColor(*rgb), wf, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(p0, p1)
+                    qp.setPen(QPen(ink, max(1.0, wf * 0.3), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                    qp.drawLine(p0, p1)
+        qp.restore()
+
+    # ---- rolling world
+    def roll(self, world, figs):
+        """Section roll: the world anchor in the outer zone of the screen rolls
+        the world the other way (fighters stay put): pillars, rubble, craters,
+        marks and Dust & Air move; pillars rolled off-screen are dropped and
+        new ones rise off the side the world rolls in from."""
+        Rl = _wf()["roll"]
+        sw, sh = float(self.sw), float(self.sh)
+        tx = ty = 0.0
+        if Rl["enabled"] and figs:
+            ax, ay = self._centre(figs)
+            z = max(0.05, min(0.5, Rl["zone_frac"]))
+            vmax = Rl["max_speed"] * TICK_S
+
+            def axis(u):
+                if u < z:
+                    return (z - u) / z            # near the low edge: the world rolls +
+                if u > 1.0 - z:
+                    return -(u - (1.0 - z)) / z   # near the high edge: the world rolls -
+                return 0.0
+            tx = vmax * max(-1.0, min(1.0, axis(ax / sw)))
+            if Rl["vertical"]:
+                ty = vmax * max(-1.0, min(1.0, axis(ay / sh)))
+        e = 1.0 if Rl["ease_ms"] <= 0 else min(1.0, config.TICK_MS / float(Rl["ease_ms"]))
+        vx = self.roll_v[0] + (tx - self.roll_v[0]) * e
+        vy = self.roll_v[1] + (ty - self.roll_v[1]) * e
+        if abs(vx) < 0.01:
+            vx = 0.0
+        if abs(vy) < 0.01:
+            vy = 0.0
+        self.roll_v = (vx, vy)
+        if not (vx or vy):
+            return
+        for p in self.pillars:
+            p.x += vx
+            p.y += vy
+        for r in self.rubble:
+            r[0] += vx
+            r[1] += vy
+        for q in self.pits:
+            q[0] += vx
+            q[1] += vy
+        for m in self.marks:
+            for q in m["pts"]:
+                q[0] += vx
+                q[1] += vy
+        try:
+            worldfx.state(world).shift(vx, vy)
+        except Exception:
+            pass
+        # Off the trailing side: gone (no break - it just rolled away).
+        P = _wf()["pillars"]
+        mg = Rl["margin_px"]
+        keep = []
+        for p in self.pillars:
+            hw, h = p.dims(P)
+            gone = ((vx < 0 and p.x < -hw - mg) or (vx > 0 and p.x > sw + hw + mg) or
+                    (vy < 0 and p.y < -mg) or (vy > 0 and p.y - h > sh + mg) or
+                    abs(p.x - sw * 0.5) > 3.0 * sw or abs(p.y - sh * 0.5) > 3.0 * sh)
+            if not gone:
+                keep.append(p)
+        self.pillars = keep
+        if P["enabled"] and figs and len(self.pillars) < int(P["count"]) and self.t >= self.roll_next:
+            if self._spawn_ahead(P, vx, vy):
+                self.roll_next = self.t + _ticks(0.25 + 0.75 * self.rng.random())
+                self.next_spawn = max(self.next_spawn, self.t + _ticks(P["respawn_s"]))
+            else:
+                self.roll_next = self.t + 10
+
+    def _spawn_ahead(self, P, vx, vy):
+        """A new pillar off the side the world rolls in from, already standing,
+        a random way past the edge so they come in one after another."""
+        sw, sh = float(self.sw), float(self.sh)
+        Rl = _wf()["roll"]
+        rnd = self.rng.random
+        for _ in range(MAX_TRIES):
+            horiz = rnd() * (abs(vx) + abs(vy)) < abs(vx)
+            ext = Rl["margin_px"] * 0.5 + rnd() * Rl["spawn_ahead_px"]
+            if horiz:
+                y = sh * 0.12 + rnd() * (sh * 0.88 - 14)
+                ps = worldfx.pscale(0.0 if vx > 0 else sw, y, self.sw, self.sh)
+                hw = P["width"] * 0.5 * ps
+                x = -hw - ext if vx > 0 else sw + hw + ext
+            else:
+                x = 20 + rnd() * (sw - 40)
+                ps = worldfx.pscale(x, 0.0 if vy > 0 else sh, self.sw, self.sh)
+                y = -10.0 - ext if vy > 0 else sh + P["height"] * ps + 10.0 + ext
+            if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] for p in self.pillars):
+                continue
+            p = Pillar(x, y, P["hp"], 1, self.rng)
+            p.age = p.rise_t
+            p.ps = worldfx.pscale(x, y, self.sw, self.sh)
+            self.pillars.append(p)
+            return True
+        return False
 
     def _age_rubble(self):
         if self.pits:
@@ -671,6 +872,8 @@ class Terrain:
     def paint_back(self, qp, world):
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
+        if self.marks:
+            self._paint_marks(qp, ink)
         if self.pits:
             self._paint_pits(qp, ink)
         if self.rubble:
@@ -730,8 +933,10 @@ class Terrain:
         fade_t = max(1, _ticks(R["fade_s"]))
         qp.save()
         sq = worldscale.squasher(qp, self.sw)
-        for x, y, rx, fl, rgb, age, life, rim in self.pits:
-            a = 1.0 if age < life - fade_t else max(0.0, (life - age) / float(fade_t))
+        for pit in self.pits:
+            x, y, rx, fl, rgb, age, life, rim = pit[:8]
+            ft = max(1, pit[8]) if len(pit) > 8 else fade_t
+            a = 1.0 if age < life - ft else max(0.0, (life - age) / float(ft))
             if a <= 0.0:
                 continue
             a = math.ceil(a * 4.0) / 4.0                  # fades in steps, like the crater rings
@@ -991,6 +1196,26 @@ def note_blast(world, x, y, dmg, kb=0.0):
             st.blast(x, y, dmg, kb)
         except Exception:
             pass
+
+
+def note_crater(world, x, y, rx, rest_s, fade_s):
+    """FX on the ground: an orb went off here (worldfx.orb_crater)."""
+    st = getattr(world, "terrain", None)
+    if st is not None:
+        st.add_crater(x, y, rx, rest_s, fade_s)
+
+
+def note_mark(world, key, x, y, kind, w, G):
+    """FX on the ground: extend the trench / streak `key` to (x, y)."""
+    st = getattr(world, "terrain", None)
+    if st is not None:
+        st.add_mark(key, x, y, kind, w, G)
+
+
+def end_mark(world, key):
+    st = getattr(world, "terrain", None)
+    if st is not None:
+        st.end_mark(key)
 
 
 def note_rubble(world, x, y, size, rot, rgb):
