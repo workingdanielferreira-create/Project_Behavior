@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting, player
 from . import platform_win as win
 from . import action_log
 
@@ -99,6 +99,10 @@ class InputSystem(System):
             world.toggle_freeze()
         if self._pressed(win.VK_F11):
             world.toggle_puppet()
+        # F4: player control — character 1 (the first-picked fielded image
+        # character) is driven by the keyboard (laser/player.py).
+        if self._pressed(win.VK_F4):
+            world.toggle_player()
         # F12: see-through boulders (pillars at 20% opacity).  Solo + Battle.
         if self._pressed(win.VK_F12):
             world.toggle_boulder_ghost()
@@ -184,6 +188,34 @@ class InputSystem(System):
             world.collision_on = not world.collision_on
         world._ctrl_prev = ctrl
 
+        # Player control (F4, laser/player.py), Solo and Battle:
+        #   arrows      move (none while Alt is held: Alt+arrows keep their jobs)
+        #   Ctrl+Z/X/C  next attack_normal / attack_special / ultimate in its chain
+        #   Ctrl+Space  HP drops to 25%
+        # Edges are read every tick so a key held when control turns on
+        # doesn't fire.
+        z_edge = self._pressed(win.VK_Z)
+        x_edge = self._pressed(win.VK_X)
+        c_edge = self._pressed(win.VK_C)
+        sp_edge = self._pressed(win.VK_SPACE)
+        dx = dy = 0
+        if world.player_fig() is not None:
+            if not alt:
+                dx = int(win.key_down(win.VK_RIGHT)) - int(win.key_down(win.VK_LEFT))
+                dy = int(win.key_down(win.VK_DOWN)) - int(win.key_down(win.VK_UP))
+            if ctrl and not shift and not alt:
+                if z_edge:
+                    player.press(world, "attack")
+                elif x_edge:
+                    player.press(world, "special")
+                elif c_edge:
+                    player.press(world, "ultimate")
+                if sp_edge:
+                    player.drop_hp(world)
+                if z_edge or x_edge or c_edge or sp_edge:
+                    world.ctrl_used = True
+        world.player_dir = (dx, dy)
+
         # Alt+Up: toggle attack/shoot for all modes
         if alt and self._pressed(win.VK_UP):
             world.toggle_shoot_mode()
@@ -206,9 +238,16 @@ class MotionSystem(System):
         if not world.runner_on:
             return
         battle = world.battle_mode and world.partner_figures
+        pf = world.player_fig()
         for fig in world.figures:
             if fig.combat.acted:
                 continue  # combat system already advanced this figure this tick
+            # Player control (F4, laser/player.py): the arrow keys move it
+            # instead of its AI (no chase / kiting / blinks / teleports).
+            # Same in Solo and Battle.
+            if fig is pf and fig.transform.init:
+                motion.player_step(fig, world.player_dir[0], world.player_dir[1])
+                continue
             # Summoner turret / totem (laser/unique.py): never walks; a
             # knockback still slides it.  Battle only — in Solo every
             # fighter uses the shared default movement (motion.update solo).
@@ -492,7 +531,9 @@ class CombatSystem(System):
             if dodge.tick(fig, world):
                 fig.combat.acted = True
                 continue
-            if retreat.tick(fig, world):
+            # Player control (F4, laser/player.py): no tactical retreat —
+            # only the Dodge above stays automatic.
+            if fig is not world.player_fig() and retreat.tick(fig, world):
                 fig.combat.acted = True
                 continue
             if _img:

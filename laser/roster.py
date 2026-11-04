@@ -68,6 +68,10 @@ RESERVED = {
     "Ctrl+Q": "follow path", "Ctrl+R": "runaway", "Alt+Up": "attack mode",
     "Alt+Left": "cycle behaviour", "Alt+Right": "cycle behaviour",
     "Ctrl+Shift+.": "start menu", "Ctrl+Alt+Enter": "quit",
+    # Player control (laser/player.py).
+    "F4": "player control", "Up": "player move", "Down": "player move",
+    "Left": "player move", "Right": "player move", "Ctrl+Z": "player attack",
+    "Ctrl+X": "player special", "Ctrl+C": "player ultimate", "Ctrl+Space": "player HP to 25%",
 }
 
 

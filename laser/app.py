@@ -227,6 +227,13 @@ class World:
         # motion.puppet_step); it ignores the freeze.  Solo and Battle.
         self.freeze_fighters = False
         self.puppet_on = False
+        # F4 player control (laser/player.py): character 1 (puppet_fig's
+        # pick, image characters only) moves on the arrow keys and plays
+        # Ctrl+Z / X / C chains; only its Dodge stays automatic.  Solo and
+        # Battle.  player_dir = held arrows, player_req = buffered press.
+        self.player_on = False
+        self.player_dir = (0, 0)
+        self.player_req = None
         # F12 see-through boulders: pillars drawn at terrain.GHOST_ALPHA
         # (20%) opacity; off = solid, with fighters behind a pillar shown as
         # tinted silhouettes through it (laser/terrain.py).  Solo and Battle.
@@ -1197,6 +1204,11 @@ class World:
         when the puppet is off / nobody is fielded."""
         if not self.puppet_on:
             return None
+        return self._first_fielded()
+
+    def _first_fielded(self):
+        """The first-picked slot whose fighter is on the field (a benched
+        tag partner is skipped), else the first fighter, else None."""
         live = {id(f) for f in self.all_figures()}
         for s in sorted((s for s in getattr(self, "slots", ()) if s.fig is not None),
                         key=lambda s: (s.pick or 99, s.index)):
@@ -1204,6 +1216,31 @@ class World:
                 return s.fig
         figs = self.all_figures()
         return figs[0] if figs else None
+
+    def player_fig(self):
+        """F4 player control (laser/player.py): character 1 — the
+        first-picked fielded fighter, when control is on and it is an
+        image character (the built-in swordsman / runner can't be
+        controlled).  None otherwise."""
+        if not self.player_on:
+            return None
+        f = self._first_fielded()
+        return f if f is not None and actions.is_image(f) else None
+
+    def toggle_player(self):
+        self.player_on = not self.player_on
+        self.player_req = None
+        self.player_dir = (0, 0)
+        if self.player_on and self.puppet_on:
+            self.puppet_on = False          # F4 and F11 are exclusive
+        f = self._first_fielded()
+        if not self.player_on:
+            self.notice = ("Player control off", 90)
+        elif f is not None and actions.is_image(f):
+            self.notice = ("You control %s (F4): arrows move, Ctrl+Z / X / C attack / special / ultimate, "
+                           "Ctrl+Space HP 25%%" % getattr(f.mode, "key", "Fighter"), 180)
+        else:
+            self.notice = ("Player control on, but character 1 is not a JSON character", 180)
 
     def toggle_freeze(self):
         self.freeze_fighters = not self.freeze_fighters
@@ -1217,6 +1254,10 @@ class World:
 
     def toggle_puppet(self):
         self.puppet_on = not self.puppet_on
+        if self.puppet_on and self.player_on:
+            self.player_on = False          # F4 and F11 are exclusive
+            self.player_req = None
+            self.player_dir = (0, 0)
         f = self.puppet_fig()
         if self.puppet_on and f is not None:
             self.notice = ("%s follows the cursor (F11)" % getattr(f.mode, "key", "Fighter"), 90)

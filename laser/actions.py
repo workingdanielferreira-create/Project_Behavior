@@ -173,7 +173,7 @@ class ActionRunner:
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
                  "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg", "gap_until",
-                 "cd_born", "cd_start", "cd_end", "cd_idle")
+                 "cd_born", "cd_start", "cd_end", "cd_idle", "player")
 
     def __init__(self):
         self.playing = None
@@ -235,6 +235,8 @@ class ActionRunner:
         self.leap = None
         # (action, damage) while a "range"-damage leap's FX can hit, else None.
         self.leap_dmg = None
+        # Player control chain positions (laser/player.py PlayerState).
+        self.player = None
 
     # ------------------------------------------------------------ events
     def note_damage(self, amount=0.0):
@@ -622,44 +624,52 @@ class ActionRunner:
                 self._finish(fig, now)
             self.forced = None
 
-        # Attack mode (Alt+Up) gates attacking exactly as it gates the
-        # built-in fighters; defend is always allowed.
-        armed = bool(getattr(world, "shoot_mode", True))
-        # A triggered action (defend, ultimate, special, ...) whose conditions
-        # are met cuts into a normal attack instead of waiting for it to end
-        # — the moment (target in range, a hit, an incoming shot) would
-        # otherwise be gone.  It never cuts into another triggered action.
-        if self.playing is not None and self.forced is None and _kind(self.playing) == "attack":
-            names = [k for k in (fig.mode.character.get("actions") or {})
-                     if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
-            for name in sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
-                                                      2 if k == "attack_special" else 3, k)):
-                if not armed and name != "defend":
-                    continue
-                if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
-                    continue
-                if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
-                    self._finish(fig, now)
-                    self._start(fig, name, ctx, now)
-                    break
-        if self.playing is None:
-            # Triggered actions first (defend, then ultimate, special, others).
-            names = [k for k in (fig.mode.character.get("actions") or {})
-                     if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
-            order = sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
-                                                 2 if k == "attack_special" else 3, k))
-            for name in order:
-                if not armed and name != "defend":
-                    continue
-                if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
-                    continue
-                if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
-                    if self._start(fig, name, ctx, now):
+        # Player control (F4, laser/player.py): the keyboard picks the
+        # actions; nothing starts on its own (the Dodge, laser/dodge.py,
+        # still does).  Same in Solo and Battle.
+        _pf = world.player_fig() if hasattr(world, "player_fig") else None
+        if _pf is not None and _pf is fig:
+            from . import player as _player
+            _player.runner_tick(self, fig, world, ctx, now)
+        else:
+            # Attack mode (Alt+Up) gates attacking exactly as it gates the
+            # built-in fighters; defend is always allowed.
+            armed = bool(getattr(world, "shoot_mode", True))
+            # A triggered action (defend, ultimate, special, ...) whose conditions
+            # are met cuts into a normal attack instead of waiting for it to end
+            # — the moment (target in range, a hit, an incoming shot) would
+            # otherwise be gone.  It never cuts into another triggered action.
+            if self.playing is not None and self.forced is None and _kind(self.playing) == "attack":
+                names = [k for k in (fig.mode.character.get("actions") or {})
+                         if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
+                for name in sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
+                                                          2 if k == "attack_special" else 3, k)):
+                    if not armed and name != "defend":
+                        continue
+                    if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
+                        continue
+                    if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
+                        self._finish(fig, now)
+                        self._start(fig, name, ctx, now)
                         break
-            if self.playing is None and armed:
-                atk = self._attack_choice(fig, ctx, now)
-                if atk:
-                    self._start(fig, atk, ctx, now)
+            if self.playing is None:
+                # Triggered actions first (defend, then ultimate, special, others).
+                names = [k for k in (fig.mode.character.get("actions") or {})
+                         if _kind(k) == "triggered" and k not in SWITCH_ACTIONS]
+                order = sorted(names, key=lambda k: (0 if k == "defend" else 1 if k == "ultimate" else
+                                                     2 if k == "attack_special" else 3, k))
+                for name in order:
+                    if not armed and name != "defend":
+                        continue
+                    if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
+                        continue
+                    if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
+                        if self._start(fig, name, ctx, now):
+                            break
+                if self.playing is None and armed:
+                    atk = self._attack_choice(fig, ctx, now)
+                    if atk:
+                        self._start(fig, atk, ctx, now)
 
         from .fxkit import character_fx
         cfx = character_fx(fig.mode)
