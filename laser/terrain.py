@@ -144,6 +144,37 @@ def rock_mesh(seed, n):
     return verts, out
 
 
+class _Gust:
+    """Dust & Air source: a pocket of air (radius r, flattened by the ground
+    tilt) blowing along angle a at v px/tick, travelling with its own air and
+    easing off over its life.  Carries a broken pillar's smoke away from the hit."""
+    __slots__ = ("x", "y", "cx", "cy", "v", "r", "flat", "age", "life")
+
+    def __init__(self, x, y, a, v, r, flat):
+        self.x, self.y = x, y
+        self.cx, self.cy = math.cos(a), math.sin(a)
+        self.v, self.r, self.flat = v, max(6.0, r), max(0.05, flat)
+        self.age, self.life = 0.0, 0.9 / TICK_S
+
+    def _at(self):
+        d = self.v * self.age * 0.6
+        return self.x + self.cx * d, self.y + self.cy * d * self.flat
+
+    def bbox(self):
+        x, y = self._at()
+        r = 2.0 * self.r
+        return x - r, y - r * self.flat - 3.0 * self.r, x + r, y + r * self.flat
+
+    def air(self, x, y, z):
+        gx, gy = self._at()
+        dx, dy = (x - gx) / self.r, (y - gy) / (self.r * self.flat)
+        q = dx * dx + dy * dy
+        if q > 4.0:
+            return None
+        w = self.v * (1.0 - self.age / self.life) * math.exp(-q)
+        return self.cx * w, self.cy * w * self.flat, 0.0
+
+
 class Pillar:
     __slots__ = ("x", "y", "hp", "hp0", "age", "rise_t", "flash", "ps", "jag", "cracks", "seen",
                  "seed", "_mesh")
@@ -197,6 +228,7 @@ class Terrain:
     def __init__(self):
         self.pillars = []
         self.rubble = []       # [x, y, size, rot, rgb, age, life]
+        self.pits = []         # broken-pillar craters: [x, y, rx, flat, rgb, age, life, rim]
         self.filled = False
         self.next_spawn = 0
         self.t = 0
@@ -266,7 +298,24 @@ class Terrain:
         hw, h = P["width"] * 0.5 * p.ps, P["height"] * p.ps * p.rise()
         rgb = _rgb(P["color"])
         s = max(0.6, P["width"] / 18.0)
-        wf.puffs(p.x, p.y, 18, 2.4, rgb, s, 1100, up=(0.2, 1.2))
+        fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
+        # The crater it leaves: its own footprint, laid flat on the ground.
+        self._add_pit(p.x, p.y, hw * 1.25, fl, rgb)
+        # Break smoke: small puffs from all over the collapsing column (not
+        # one width-scaled disc), drifting away from the hit (ax) in a ~90 deg cone.
+        rnd = self.rng.random
+        psz = max(0.8, min(2.2, P["width"] / 60.0))
+        for _ in range(14):
+            pa, pr = rnd() * 2 * math.pi, math.sqrt(rnd())
+            a = math.radians(ax + (rnd() - 0.5) * 90.0) if ax is not None else rnd() * 2 * math.pi
+            sp = 2.4 * (0.5 + 0.5 * rnd()) * p.ps
+            wf.puff(p.x + math.cos(pa) * hw * pr, p.y + math.sin(pa) * hw * pr * fl, rnd() * h * 0.7,
+                    math.cos(a) * sp, math.sin(a) * sp * fl, (0.1 + 0.5 * rnd()) * p.ps,
+                    1100.0 / config.TICK_MS * (0.7 + 0.6 * rnd()), 6.0 * psz * (0.7 + 0.6 * rnd()), rgb)
+        if ax is not None:
+            # The dust otherwise settles into still air at once: a gust
+            # carries it on, away from the hit.
+            wf.add_src(_Gust(p.x, p.y, math.radians(ax), 1.8 * p.ps, max(hw * 1.6, 30.0 * p.ps), fl))
         # The column comes down in chunks from its whole height.
         n = int(P["rubble"])
         for i in range(max(1, n // 3)):
@@ -580,7 +629,23 @@ class Terrain:
             self.rubble.pop(0)
         self.rubble.append([x, y, size, rot, rgb, 0, _ticks(R["rest_s"] + R["fade_s"])])
 
+    def _add_pit(self, x, y, rx, fl, rgb):
+        """A broken pillar's crater: a jagged dish rx wide, flattened by the
+        ground's tilt (fl).  Stays rubble rest_s, then fades over fade_s."""
+        R = _wf()["rubble"]
+        rnd = self.rng.random
+        n = 15
+        # Jagged rim: radius per point (fraction of rx) and a small angle jitter.
+        rim = [(0.78 + 0.34 * rnd(), (rnd() - 0.5) * 0.22) for _ in range(n)]
+        if len(self.pits) >= 12:
+            self.pits.pop(0)
+        self.pits.append([x, y, rx, fl, rgb, 0, _ticks(max(0.5, R["rest_s"]) + R["fade_s"]), rim])
+
     def _age_rubble(self):
+        if self.pits:
+            for q in self.pits:
+                q[5] += 1
+            self.pits = [q for q in self.pits if q[5] < q[6]]
         if not self.rubble:
             return
         for r in self.rubble:
@@ -601,6 +666,8 @@ class Terrain:
     def paint_back(self, qp, world):
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
+        if self.pits:
+            self._paint_pits(qp, ink)
         if self.rubble:
             self._paint_rubble(qp, ink)
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
@@ -621,6 +688,46 @@ class Terrain:
                 sq.at(p.x, p.y)
                 self._paint_pillar(qp, p, P, ink)
         sq.done()
+
+    def _paint_pits(self, qp, ink):
+        """Broken-pillar craters, flat on the ground (rx across, rx * flat
+        deep): a jagged raised lip, the inner wall, and the floor shifted
+        toward the viewer (the far inner wall shows, the near one is hidden)."""
+        R = _wf()["rubble"]
+        fade_t = max(1, _ticks(R["fade_s"]))
+        qp.save()
+        sq = worldscale.squasher(qp, self.sw)
+        for x, y, rx, fl, rgb, age, life, rim in self.pits:
+            a = 1.0 if age < life - fade_t else max(0.0, (life - age) / float(fade_t))
+            if a <= 0.0:
+                continue
+            a = math.ceil(a * 4.0) / 4.0                  # fades in steps, like the crater rings
+            sq.at(x, y)
+            qp.setOpacity(a)
+            n = len(rim)
+
+            def poly(k, dy=0.0):
+                pts = []
+                for i, (rr, jit) in enumerate(rim):
+                    th = 2 * math.pi * i / n + jit
+                    r = rx * k * (rr if k > 0.9 else 0.5 + 0.5 * rr)
+                    pts.append(QPointF(x + math.cos(th) * r, y + dy + math.sin(th) * r * fl))
+                return QPolygonF(pts)
+            lip = worldfx._lift(rgb, 0.18)
+            wall = tuple(int(c * 0.55) for c in rgb)
+            floor = tuple(int(c * 0.38) for c in rgb)
+            pw = max(1.0, min(2.5, rx / 40.0))
+            qp.setPen(QPen(ink, pw, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            qp.setBrush(QColor(*lip))
+            qp.drawPolygon(poly(1.0))
+            qp.setPen(QPen(ink, max(1.0, pw * 0.7), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            qp.setBrush(QColor(*wall))
+            qp.drawPolygon(poly(0.74))
+            qp.setPen(Qt.NoPen)
+            qp.setBrush(QColor(*floor))
+            qp.drawPolygon(poly(0.5, rx * fl * 0.16))
+        sq.done()
+        qp.restore()
 
     def _paint_rubble(self, qp, ink):
         R = _wf()["rubble"]
