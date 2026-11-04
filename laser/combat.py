@@ -16,6 +16,7 @@ from PyQt5.QtGui import (QColor, QPen, QRadialGradient, QPainterPath,
                          QPixmap, QPainter, QImage)
 
 from . import config, modes
+from . import worldscale as _wscale
 from . import dmgnum as _dmgnum
 from .geometry import angle_deg_qt, angle_diff, bilinear
 from .palette import LUT_MASK
@@ -38,6 +39,10 @@ def position_scale(x, y, screen_w, screen_h):
     """
     if not config.POSITION_SCALE_ENABLED or screen_w <= 0 or screen_h <= 0:
         return 1.0
+    if _wscale._A is not None:
+        # World anchor scaling (camera.json anchor_scale): vertical x
+        # distance-from-anchor rule, see laser/worldscale.py.
+        return _wscale.size(x, y, screen_w, screen_h)
     xf = max(0.0, min(1.0, x / screen_w))
     yf = max(0.0, min(1.0, y / screen_h))
     return bilinear(xf, yf,
@@ -61,6 +66,8 @@ def position_speed_scale(x, y, screen_w, screen_h):
     """
     if not config.SPEED_SCALE_ENABLED or screen_w <= 0 or screen_h <= 0:
         return 1.0
+    if _wscale._A is not None:
+        return _wscale.speed(x, y, screen_w, screen_h)
     xf = max(0.0, min(1.0, x / screen_w))
     yf = max(0.0, min(1.0, y / screen_h))
     return bilinear(xf, yf,

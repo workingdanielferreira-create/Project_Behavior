@@ -41,6 +41,7 @@ laser/summoner.py
 laser/weaponfx.py
 laser/worldfx.py
 laser/camera.py
+laser/worldscale.py
 ```
 
 ## Mandatory Session Rules
@@ -91,6 +92,7 @@ laser/camera.py
 - Follow-cam frames all fielded fighters (Battle up to `max_zoom`, Solo fixed `solo_zoom`, never < 1.0x, view clamped on-screen); hit-stop punch-in via `World.punch_camera` (systems.py hit-stop + fxkit `_Host.hitstop`); `World.add_shake` = camera trauma (stacks)
 - Cinematic shots (one at a time, priority ko > ultimate > switch_in > clash): ultimate is detected by the camera itself (`actions.current_action_name == "ultimate"`, clones excluded); `World.camera_shot(kind, x, y, fig)` from `tag._swap` (switch_in), `World.on_figure_death` (ko) and `clash.step` (clash). KO also runs a REAL slow-mo (`World.slowmo_*`, sim advances `ko_slow` of a tick per tick, both sides); Solo's final KO freezes the sim for the KO shot (`World.ko_quit_ticks`), then quits as before
 - Depth tilt: a projective (perspective) term in the camera matrix, scene space, along `position_scale`'s depth axis (bottom-left near, top-right far): p' = A + (p-A)/w, w = 1 + k(t(p) - t(A)), A = NEAREST fighter (fighters only ever pulled in toward A, never off-screen). k = depth_base + depth_gain*(1 - t_A) + depth_shot during a cinematic shot. Drawing only: position_scale / hits / walls / dust untouched. `Camera.matrix` = the full 3x3 (QTransform row-vector convention), cursor inverse = its inverse. Qt raster perspective is ~2x paint cost: `Camera.note_paint` (timed in `Overlay._paint`) turns depth off for the session after ~2 s over `depth_budget_ms` (notice shown); reload/F5 re-arms
+- World anchor scaling (`anchor_scale`, default on; `laser/worldscale.py`): invisible anchor = eased centre of all fielded fighters (`Camera._step_anchor` -> `worldscale.set_anchor`). `combat.position_scale` / `position_speed_scale` and `worldfx.pscale` / `sscale` use size = clamp(vertical (x5 bottom .. x1 top) x distance-from-anchor (x1 .. x0.10 at `dscale_far_frac` x width, `dscale_curve`), `scale_min`..`scale_max`); pace linear in size (`speed_min`..`speed_max`). While on: follow-cam centres on the anchor at fixed `anchor_zoom` (only reduced to fit; no closeness zoom-in, that's the scaling's job) and the depth tilt axis is vertical. Off = old corner grid + old follow zoom
 - Settings: `characters/camera.json` (`pb_camera`), hot-reloaded ~1 s and on F5; the Studio tab writes it through the Dust & Air folder link. `tools/fx/check_parity.py` checks DEFAULTS / RANGES / FORMAT
 
 ### Combat System

@@ -22,7 +22,11 @@ var CAM_DEFAULTS = {
   "switch_on": true, "switch_zoom": 1.8, "switch_in_s": 0.15, "switch_hold_s": 0.5, "switch_out_s": 0.4,
   "ko_on": true, "ko_zoom": 2.5, "ko_in_s": 0.2, "ko_hold_s": 1.0, "ko_out_s": 0.6, "ko_slow": 0.25, "ko_slow_s": 0.9,
   "clash_on": true, "clash_zoom": 2.0, "clash_in_s": 0.08, "clash_hold_s": 0.3, "clash_out_s": 0.35,
-  "depth": true, "depth_base": 0.10, "depth_gain": 0.20, "depth_shot": 0.15, "depth_budget_ms": 14.0
+  "depth": true, "depth_base": 0.10, "depth_gain": 0.20, "depth_shot": 0.15, "depth_budget_ms": 14.0,
+  "anchor_scale": true, "anchor_s": 0.3, "anchor_zoom": 1.15,
+  "vscale_bottom": 5.0, "vscale_top": 1.0, "dscale_near": 1.0, "dscale_far": 0.10,
+  "dscale_far_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
+  "speed_min": 0.40, "speed_max": 1.00
 };
 var CAM_RANGES = {
   "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
@@ -35,7 +39,13 @@ var CAM_RANGES = {
   "ko_slow": [0.05, 1.0], "ko_slow_s": [0.0, 5.0],
   "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0],
   "depth_base": [0.0, 0.6], "depth_gain": [0.0, 0.6], "depth_shot": [0.0, 0.6],
-  "depth_budget_ms": [4.0, 60.0]
+  "depth_budget_ms": [4.0, 60.0],
+  "anchor_s": [0.02, 5.0], "anchor_zoom": [1.0, 3.0],
+  "vscale_bottom": [0.1, 10.0], "vscale_top": [0.1, 10.0],
+  "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
+  "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
+  "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
+  "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0]
 };
 var DEPTH_MAX = 0.6;
 // Cinematic shot kinds: settings prefix and priority (higher wins).
@@ -98,6 +108,21 @@ var CAM_GROUPS = [
     ["depth_gain", "Near-side extra", "Added when the action is at the near (bottom-left) side: a lower, more dramatic camera.", 0.01],
     ["depth_shot", "Cinematic extra", "Added at the peak of a cinematic shot (ultimate, switch-in, KO, clash).", 0.01],
     ["depth_budget_ms", "Paint budget (ms)", "Perspective painting costs more. If drawing a frame takes longer than this for about 2 s, the game turns the depth tilt off for the session (save camera.json or press F5 to retry).", 1]
+  ]],
+  ["World anchor scaling", [
+    ["anchor_scale", "Anchor scaling", "An invisible anchor sits at the centre of all fighters; the camera pans onto it. Every fighter, FX and its pace scale by height on screen x distance from the anchor. While on, closeness is shown by the scaling (the camera keeps a fixed pan zoom, only reduced to fit everyone) and the depth tilt runs bottom-near / top-far. Off = the old corner grid and follow zoom."],
+    ["anchor_s", "Anchor follow (s)", "How long the anchor takes to catch up with the centre of the fighters (about 95%).", 0.05],
+    ["anchor_zoom", "Pan zoom ×", "Fixed follow zoom while anchor scaling is on (1.0 = no room to pan). Only ever reduced to keep everyone in view.", 0.05],
+    ["vscale_bottom", "Bottom size ×", "Size at the very bottom of the screen (left or right does not matter).", 0.1],
+    ["vscale_top", "Top size ×", "Size at the very top of the screen.", 0.1],
+    ["dscale_near", "On-anchor ×", "Distance factor right on the anchor (fighters face to face).", 0.05],
+    ["dscale_far", "Far ×", "Distance factor at the far distance below.", 0.01],
+    ["dscale_far_frac", "Far distance (× width)", "Distance from the anchor that gets the Far factor, as a share of the screen width. 0.5 = two fighters on opposite edges.", 0.05],
+    ["dscale_curve", "Falloff curve", "1 = linear. Above 1 = stays big at close range, drops when far. Below 1 = drops quickly.", 0.05],
+    ["scale_min", "Min size ×", "Final size is clamped between Min and Max (final = vertical × distance).", 0.01],
+    ["scale_max", "Max size ×", "", 0.1],
+    ["speed_min", "Pace at min size", "Movement pace at the smallest size (pace rises linearly with size).", 0.05],
+    ["speed_max", "Pace at max size", "Movement pace at the largest size.", 0.05]
   ]]
 ];
 var TICK_MS = 16, DT = TICK_MS / 1000;
@@ -114,6 +139,7 @@ function normalize(o) {
     if (isFinite(v)) s[k] = clamp(v, CAM_RANGES[k][0], CAM_RANGES[k][1]);
   });
   s.punch_in_ticks = Math.round(s.punch_in_ticks);
+  if (s.scale_min > s.scale_max) { var t = s.scale_min; s.scale_min = s.scale_max; s.scale_max = t; }
   return s;
 }
 function hash(i, seed) {
@@ -157,9 +183,34 @@ Cam.prototype.reset = function () {
   this.cx = this.sw / 2; this.cy = this.sh / 2; this.zoom = 1;
   this.env = 0; this.inLeft = 0; this.px = this.cx; this.py = this.cy; this.roll = 0;
   this.req = null; this.prevHs = 0; this.trauma = 0; this.decay = 0; this.t = 0; this.shot = null;
-  this.k = 0; this.ax = this.sw / 2; this.ay = this.sh / 2;
+  this.k = 0; this.ax = this.sw / 2; this.ay = this.sh / 2; this.anc = null;
 };
-Cam.prototype.depthT = function (x, y) { return 0.5 * (x / this.sw) + 0.5 * (1 - y / this.sh); };
+Cam.prototype.depthT = function (x, y) {
+  if (this.cfg.anchor_scale) return 1 - y / this.sh;
+  return 0.5 * (x / this.sw) + 0.5 * (1 - y / this.sh);
+};
+// World anchor (laser/camera.py _step_anchor): eased centre of the fighters.
+Cam.prototype.stepAnchor = function (figs) {
+  var c = this.cfg;
+  if (!c.anchor_scale) { this.anc = null; return; }
+  if (!figs.length) return;
+  var tx = 0, ty = 0;
+  figs.forEach(function (f) { tx += f.x; ty += f.y; });
+  tx /= figs.length; ty /= figs.length;
+  if (!this.anc) { this.anc = [tx, ty]; return; }
+  var a = 1 - Math.exp(-DT * 3 / c.anchor_s);
+  this.anc = [this.anc[0] + (tx - this.anc[0]) * a, this.anc[1] + (ty - this.anc[1]) * a];
+};
+// laser/worldscale.py size(): vertical x distance-from-anchor (null = off).
+Cam.prototype.sizeAt = function (x, y) {
+  var c = this.cfg;
+  if (!c.anchor_scale || !this.anc) return null;
+  var v = c.vscale_top + (c.vscale_bottom - c.vscale_top) * clamp(y / this.sh, 0, 1);
+  var reach = c.dscale_far_frac * this.sw;
+  var u = reach > 1e-6 ? clamp(Math.hypot(x - this.anc[0], y - this.anc[1]) / reach, 0, 1) : 0;
+  var d = c.dscale_near + (c.dscale_far - c.dscale_near) * (u > 0 ? Math.pow(u, c.dscale_curve) : 0);
+  return clamp(v * d, c.scale_min, c.scale_max);
+};
 Cam.prototype.depthTarget = function (figs) {
   var c = this.cfg, best = null, self = this;
   if (!c.depth || !figs.length) return [0, this.ax, this.ay];
@@ -204,12 +255,19 @@ Cam.prototype.target = function (figs, battle) {
   var xs = figs.map(function (f) { return f.x; }), ys = figs.map(function (f) { return f.y; });
   var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
   var m = c.margin_px, fit = Math.min(this.sw / Math.max(1, x1 - x0 + 2 * m), this.sh / Math.max(1, y1 - y0 + 2 * m));
-  var z = battle ? clamp(fit, 1, c.max_zoom) : clamp(Math.min(c.solo_zoom, fit), 1, c.solo_zoom);
-  var cc = this.clampC((x0 + x1) / 2, (y0 + y1) / 2, z);
+  var z, cc;
+  if (c.anchor_scale && this.anc) {
+    z = Math.max(1, Math.min(c.anchor_zoom, fit));
+    cc = this.clampC(this.anc[0], this.anc[1], z);
+  } else {
+    z = battle ? clamp(fit, 1, c.max_zoom) : clamp(Math.min(c.solo_zoom, fit), 1, c.solo_zoom);
+    cc = this.clampC((x0 + x1) / 2, (y0 + y1) / 2, z);
+  }
   return [cc[0], cc[1], z];
 };
 Cam.prototype.step = function (figs, battle, hs) {
   var c = this.cfg; this.t++;
+  this.stepAnchor(figs);
   var tg = this.target(figs, battle), a = 1 - Math.exp(-DT * 3 / c.follow_s);
   this.cx += (tg[0] - this.cx) * a; this.cy += (tg[1] - this.cy) * a; this.zoom += (tg[2] - this.zoom) * a;
   var dt = this.depthTarget(figs);
