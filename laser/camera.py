@@ -54,8 +54,22 @@ Four layers, one transform:
                      only: position_scale, hit tests, walls and dust physics
                      are untouched.
 
+  6. World anchor   (anchor_scale) an invisible point eased to the centre of
+                     every fielded fighter (Solo: the lone fighter).  It
+                     drives laser/worldscale.py — every fighter / FX / pace
+                     scales by vertical (x5 bottom .. x1 top) x distance from
+                     the anchor (x1 on it .. x0.10 far, tunable curve) — and
+                     the follow-cam pans onto it.  So closeness is shown by
+                     the scaling, not the camera: the follow zoom is a fixed
+                     anchor_zoom (just enough to pan), only ever reduced to
+                     keep everyone in view; punch-in / cinematic shots keep
+                     their own zoom.  The depth tilt's axis turns vertical
+                     (bottom near, top far) to match.  Off = the old corner
+                     grid and the old follow zoom, unchanged.
+
 Identical in Solo and Battle: the same step / view runs either way; the
-only difference is the follow zoom rule (battle_mode).
+only difference is the follow zoom rule (battle_mode) when anchor_scale is
+off.
 
 Settings: characters/camera.json (format pb_camera), any key optional,
 hot-reloaded about once a second and on F5.  Missing file = DEFAULTS.
@@ -115,6 +129,20 @@ DEFAULTS = {
     "depth_gain": 0.20,      # extra when the action is at the near side
     "depth_shot": 0.15,      # extra at the peak of a cinematic shot
     "depth_budget_ms": 14.0, # paint-time budget: over it ~2 s = depth off
+    # World anchor scaling (laser/worldscale.py)
+    "anchor_scale": True,    # on = vertical x distance rule; off = corner grid
+    "anchor_s": 0.3,         # seconds for the anchor to (95%) catch up
+    "anchor_zoom": 1.15,     # fixed follow zoom while on (only reduced to fit)
+    "vscale_bottom": 5.0,    # size at the very bottom of the screen
+    "vscale_top": 1.0,       # size at the very top
+    "dscale_near": 1.0,      # distance factor on the anchor
+    "dscale_far": 0.10,      # distance factor at dscale_far_frac away
+    "dscale_far_frac": 0.5,  # x screen width (0.5 = fighters on opposite edges)
+    "dscale_curve": 1.0,     # falloff exponent (1 linear, >1 soft near, <1 fast)
+    "scale_min": 0.10,       # final size clamp
+    "scale_max": 5.0,
+    "speed_min": 0.40,       # pace at scale_min
+    "speed_max": 1.00,       # pace at scale_max
 }
 # [lo, hi] per numeric key (FX Studio's port: tools/fx/studio/camera.js
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
@@ -131,6 +159,12 @@ RANGES = {
     "clash_zoom": [1.0, 4.0], "clash_in_s": [0.02, 5.0], "clash_hold_s": [0.0, 10.0], "clash_out_s": [0.02, 5.0],
     "depth_base": [0.0, 0.6], "depth_gain": [0.0, 0.6], "depth_shot": [0.0, 0.6],
     "depth_budget_ms": [4.0, 60.0],
+    "anchor_s": [0.02, 5.0], "anchor_zoom": [1.0, 3.0],
+    "vscale_bottom": [0.1, 10.0], "vscale_top": [0.1, 10.0],
+    "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
+    "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
+    "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
+    "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
 }
 DEPTH_SLOW_FRAMES = 120   # ~2 s of over-budget frames before depth turns off
 DEPTH_MAX = 0.6     # total perspective strength cap (keeps w > 0 everywhere)
@@ -162,6 +196,8 @@ def normalize(obj):
         if k in obj:
             s[k] = _num(obj[k], DEFAULTS[k], lo, hi)
     s["punch_in_ticks"] = int(s["punch_in_ticks"])
+    if s["scale_min"] > s["scale_max"]:
+        s["scale_min"], s["scale_max"] = s["scale_max"], s["scale_min"]
     return s
 
 
@@ -280,6 +316,8 @@ class Camera:
         self.k = 0.0
         self.ax = self.sw / 2.0
         self.ay = self.sh / 2.0
+        # World anchor (eased centre of all fighters; None until first seen)
+        self.anc = None
         # Perspective painting is slower than affine in Qt's raster engine:
         # note_paint() watches the frame paint time and turns the depth
         # tilt off for the session when it runs over depth_budget_ms
@@ -408,31 +446,68 @@ class Camera:
         return True
 
     # --- per tick ---------------------------------------------------------
-    def _target(self, world):
+    @staticmethod
+    def _fielded(world):
+        """[(x, y)] of every fielded fighter, both sides."""
+        out = []
+        for f in world.all_figures():
+            tr = getattr(f, "transform", None)
+            if tr is None or not getattr(tr, "init", True):
+                continue
+            out.append((float(tr.x), float(tr.y)))
+        return out
+
+    def _step_anchor(self, pts):
+        """Ease the world anchor to the centre of the fighters and hand it to
+        laser/worldscale.py (off = the corner grid)."""
+        from . import worldscale
+        c = self.cfg
+        if not c["anchor_scale"]:
+            self.anc = None
+            worldscale.set_anchor(None)
+            return
+        if pts:
+            tx = sum(p[0] for p in pts) / len(pts)
+            ty = sum(p[1] for p in pts) / len(pts)
+            if self.anc is None:
+                self.anc = (tx, ty)          # first sight: no glide in
+            else:
+                a = 1.0 - math.exp(-_DT * 3.0 / c["anchor_s"])
+                ax, ay = self.anc
+                self.anc = (ax + (tx - ax) * a, ay + (ty - ay) * a)
+        if self.anc is None:
+            worldscale.set_anchor(None)
+        else:
+            worldscale.set_anchor(self.anc[0], self.anc[1], c)
+
+    def _target(self, world, pts=None):
         """(cx, cy, zoom) the follow-cam wants this tick."""
         c = self.cfg
         cx0, cy0 = self.sw / 2.0, self.sh / 2.0
         if not c["follow"]:
             return cx0, cy0, 1.0
-        xs, ys = [], []
-        for f in world.all_figures():
-            tr = getattr(f, "transform", None)
-            if tr is None or not getattr(tr, "init", True):
-                continue
-            xs.append(tr.x)
-            ys.append(tr.y)
-        if not xs:
+        if pts is None:
+            pts = self._fielded(world)
+        if not pts:
             return cx0, cy0, 1.0
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
         m = c["margin_px"]
         bw = max(xs) - min(xs) + 2.0 * m
         bh = max(ys) - min(ys) + 2.0 * m
         fit = min(self.sw / max(1.0, bw), self.sh / max(1.0, bh))
-        if getattr(world, "battle_mode", False):
-            z = max(1.0, min(c["max_zoom"], fit))
+        if c["anchor_scale"] and self.anc is not None:
+            # Closeness is the scaling's job: a fixed pan zoom, only ever
+            # reduced to keep everyone in view; centred on the anchor.
+            z = max(1.0, min(c["anchor_zoom"], fit))
+            cx, cy = self.anc
         else:
-            z = max(1.0, min(c["solo_zoom"], fit))
-        cx = (max(xs) + min(xs)) / 2.0
-        cy = (max(ys) + min(ys)) / 2.0
+            if getattr(world, "battle_mode", False):
+                z = max(1.0, min(c["max_zoom"], fit))
+            else:
+                z = max(1.0, min(c["solo_zoom"], fit))
+            cx = (max(xs) + min(xs)) / 2.0
+            cy = (max(ys) + min(ys)) / 2.0
         cx, cy = self._clamp(cx, cy, z)
         return cx, cy, z
 
@@ -457,11 +532,19 @@ class Camera:
         else:
             self._slow = 0
 
+    def _depth_w(self):
+        """(wx, wy) of the depth axis t = wx x/sw + wy (1 - y/sh): the
+        corner grid's diagonal (bottom-left near), or vertical (bottom
+        near) while anchor_scale is on."""
+        if self.cfg.get("anchor_scale"):
+            return 0.0, 1.0
+        return 0.5, 0.5
+
     def _depth_t(self, x, y):
-        """Depth of a scene point: 0 at the near (bottom-left) corner, 1 at
-        the far (top-right) one — the axis combat.position_scale shrinks
-        along."""
-        return 0.5 * (x / self.sw) + 0.5 * (1.0 - y / self.sh)
+        """Depth of a scene point: 0 at the near side, 1 at the far side —
+        the axis combat.position_scale shrinks along."""
+        wx, wy = self._depth_w()
+        return wx * (x / self.sw) + wy * (1.0 - y / self.sh)
 
     def _depth_target(self, world):
         """(k, ax, ay) the depth tilt wants this tick."""
@@ -518,8 +601,12 @@ class Camera:
         self.t += 1
         c = self.cfg
 
+        # 0. World anchor (drives laser/worldscale.py and the follow centre).
+        pts = self._fielded(world)
+        self._step_anchor(pts)
+
         # 1. Follow-cam: exponential ease, ~95% caught up after follow_s.
-        tx, ty, tz = self._target(world)
+        tx, ty, tz = self._target(world, pts)
         a = 1.0 - math.exp(-_DT * 3.0 / c["follow_s"])
         self.cx += (tx - self.cx) * a
         self.cy += (ty - self.cy) * a
@@ -609,10 +696,11 @@ class Camera:
         then the camera (centre, zoom, roll, shake)."""
         cx, cy, z, roll, sx, sy, k, ax, ay = view
         # Depth tilt: p' = A + (p - A) / w, w = 1 + k (t(p) - t(A)),
-        # t(p) = 0.5 x / sw + 0.5 (1 - y / sh).
-        pa = 0.5 * k / self.sw
-        pb = -0.5 * k / self.sh
-        pc = 1.0 + k * (0.5 - self._depth_t(ax, ay))
+        # t(p) = wx x / sw + wy (1 - y / sh).
+        wx, wy = self._depth_w()
+        pa = wx * k / self.sw
+        pb = -wy * k / self.sh
+        pc = 1.0 + k * (wy - self._depth_t(ax, ay))
         P = [[1.0 + ax * pa, ay * pa, pa],
              [ax * pb, 1.0 + ay * pb, pb],
              [ax * (pc - 1.0), ay * (pc - 1.0), pc]]

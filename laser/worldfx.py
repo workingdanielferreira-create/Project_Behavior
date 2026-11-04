@@ -48,6 +48,7 @@ from PyQt5.QtCore import Qt, QPointF, QRectF
 from PyQt5.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 
 from . import config
+from . import worldscale as _wscale
 from .geometry import bilinear
 
 FORMAT = "pb_world_physics"
@@ -351,17 +352,22 @@ def _fr(x, y, sw, sh):
 
 
 def pscale(x, y, sw, sh):
-    """Drawn size at (x, y): combat.position_scale's grid."""
+    """Drawn size at (x, y): combat.position_scale's rule (the corner grid,
+    or the world anchor rule while camera.json anchor_scale is on)."""
     if not config.POSITION_SCALE_ENABLED:
         return 1.0
+    if _wscale._A is not None and sw > 0 and sh > 0:
+        return _wscale.size(x, y, sw, sh)
     xf, yf = _fr(x, y, sw, sh)
     return bilinear(xf, yf, *_PS)
 
 
 def sscale(x, y, sw, sh):
-    """Pace at (x, y): combat.position_speed_scale's grid."""
+    """Pace at (x, y): combat.position_speed_scale's rule."""
     if not config.SPEED_SCALE_ENABLED:
         return 1.0
+    if _wscale._A is not None and sw > 0 and sh > 0:
+        return _wscale.speed(x, y, sw, sh)
     xf, yf = _fr(x, y, sw, sh)
     return bilinear(xf, yf, *_SS)
 
@@ -369,9 +375,10 @@ def sscale(x, y, sw, sh):
 def flat_at(ps, g):
     """Ground ellipse height / width at a spot drawn at size ps: flat_near at
     the nearest (largest) spot, flat_far at the farthest (smallest)."""
-    if _PS_HI - _PS_LO < 1e-6:
+    lo, hi = _wscale.size_range() or (_PS_LO, _PS_HI)
+    if hi - lo < 1e-6:
         return g["flat_near"]
-    f = max(0.0, min(1.0, (_PS_HI - ps) / (_PS_HI - _PS_LO)))
+    f = max(0.0, min(1.0, (hi - ps) / (hi - lo)))
     return g["flat_near"] + (g["flat_far"] - g["flat_near"]) * f
 
 
