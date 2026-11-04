@@ -252,12 +252,13 @@ def puppet_step(fig, cx, cy):
     fig.render.advance()
 
 
-def player_step(fig, dx, dy):
+def player_step(fig, dx, dy, mult=1.0):
     """Player control (F4, laser/player.py): move along the held arrow
     keys (dx, dy each -1 / 0 / 1; diagonals normalised) at the fighter's
     own pace (position speed scaled; an action's move_speed_pct already
     set motion.speed), walking frames while it moves, else stand.  A
-    knockback still slides it."""
+    knockback still slides it.  mult > 1 = Ctrl+Shift sprint (speed-ghost
+    afterimages trail it)."""
     m = fig.motion
     t = fig.transform
     ox, oy = t.x, t.y
@@ -269,9 +270,11 @@ def player_step(fig, dx, dy):
         d = (dx * dx + dy * dy) ** 0.5
         if d > 0:
             sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
-            step = max(0.5, getattr(m, "speed", 4.0)) * sf
+            step = max(0.5, getattr(m, "speed", 4.0)) * sf * mult
             t.x += dx / d * step
             t.y += dy / d * step
+            if mult > 1.0:
+                _combat.spawn_afterimage(fig)
     fig.face(ox, oy)
     fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving, False)
     fig.render.advance()
