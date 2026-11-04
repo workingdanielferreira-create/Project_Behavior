@@ -219,6 +219,14 @@ class World:
         # (1/2/3/4, F7/F8) are ignored in Solo and Battle.  Deaths still
         # follow the normal rules (World.on_figure_death).
         self.roster_locked = False
+        # F10 freeze: every fighter's body stops (no moving, attacking, AI,
+        # cooldowns); bullets / FX in flight, dust, pillars and the camera
+        # keep running and a frozen fighter can still be hit
+        # (laser/timefx.py plan).  F11 puppet: the first-picked fielded
+        # fighter's AI is off and it glides to the cursor (puppet_fig /
+        # motion.puppet_step); it ignores the freeze.  Solo and Battle.
+        self.freeze_fighters = False
+        self.puppet_on = False
         # Ctrl+Shift+. pre-battle menu (laser/prebattle.py): while open the
         # whole game is paused and fighters stand idle (see Overlay._tick).
         self.prebattle = PreBattleMenu()
@@ -1179,6 +1187,33 @@ class World:
     def fielded_sides(self):
         return [i for i, s in enumerate(self.sides) if s.figures]
 
+    def puppet_fig(self):
+        """F11: the fighter on the cursor — the first-picked slot whose
+        fighter is on the field (a benched tag partner is skipped), or None
+        when the puppet is off / nobody is fielded."""
+        if not self.puppet_on:
+            return None
+        live = {id(f) for f in self.all_figures()}
+        for s in sorted((s for s in getattr(self, "slots", ()) if s.fig is not None),
+                        key=lambda s: (s.pick or 99, s.index)):
+            if id(s.fig) in live:
+                return s.fig
+        figs = self.all_figures()
+        return figs[0] if figs else None
+
+    def toggle_freeze(self):
+        self.freeze_fighters = not self.freeze_fighters
+        self.notice = ("Fighters frozen (F10)" if self.freeze_fighters
+                       else "Fighters unfrozen", 90)
+
+    def toggle_puppet(self):
+        self.puppet_on = not self.puppet_on
+        f = self.puppet_fig()
+        if self.puppet_on and f is not None:
+            self.notice = ("%s follows the cursor (F11)" % getattr(f.mode, "key", "Fighter"), 90)
+        else:
+            self.notice = ("Cursor control off", 90)
+
     def add_shake(self, px, ticks):
         """A strike's screen shake (fxkit _Host.shake): adds camera trauma,
         so overlapping shakes stack and fade together (laser/camera.py)."""
@@ -1383,6 +1418,18 @@ class Overlay(QWidget):
                     self._shutdown()
                     return
             w.unbind_side()
+
+        # F11 puppet: the first-picked fighter glides to the cursor (its AI
+        # and attacks are held by timefx.plan, so its side's pass skipped
+        # it apart from being hit).  Same in Solo and Battle.
+        pf = w.puppet_fig()
+        if pf is not None:
+            try:
+                motion.puppet_step(pf, w.cursor[0], w.cursor[1])
+                motion.check_walls(pf)
+                motion.apply_arena_oval(pf, w)
+            except Exception as e:
+                action_log.crash("puppet", e)
 
         # Destructible terrain (laser/terrain.py, Dust & Air "Rock pillars" /
         # "Rubble & boulders"): pillars block / repel fighters and stop
