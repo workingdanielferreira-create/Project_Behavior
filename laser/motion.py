@@ -225,6 +225,33 @@ def launch_knockback(fig, vx, vy, tick, heavy_ticks=0):
     return True
 
 
+def puppet_step(fig, cx, cy):
+    """F11 puppet: glide straight to the cursor (cx, cy) at the fighter's
+    own pace (position speed scaled), walking frames while it moves, then
+    stand.  A knockback still slides it.  Its AI and attacks are held
+    elsewhere (timefx.plan)."""
+    m = fig.motion
+    t = fig.transform
+    ox, oy = t.x, t.y
+    if m.bouncing or m.bounce_ending:
+        carry_knockback(fig)
+    else:
+        if m.path:
+            m.path.clear()
+        dx, dy = cx - t.x, cy - t.y
+        d = (dx * dx + dy * dy) ** 0.5
+        sf = _combat.position_speed_scale(t.x, t.y, fig.screen_w, fig.screen_h)
+        step = max(0.5, getattr(m, "speed", 4.0)) * sf
+        if d <= step:
+            t.x, t.y = cx, cy
+        else:
+            t.x += dx / d * step
+            t.y += dy / d * step
+    fig.face(ox, oy)
+    fig.trail.update(t.x, t.y, t.facing_left, fig.render.is_moving, False)
+    fig.render.advance()
+
+
 def carry_knockback(fig):
     """Advance a knockback slide for a fighter whose movement is owned
     elsewhere this tick (a melee attack in progress, or a stationary

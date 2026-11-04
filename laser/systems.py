@@ -92,6 +92,14 @@ class InputSystem(System):
         if self._pressed(win.VK_F9):
             world.runner_on = not world.runner_on
 
+        # F10: freeze every fighter (the world keeps running).  F11: the
+        # first-picked fighter follows the mouse cursor (its AI is off).
+        # Same in Solo and Battle.
+        if self._pressed(win.VK_F10):
+            world.toggle_freeze()
+        if self._pressed(win.VK_F11):
+            world.toggle_puppet()
+
         # F5: reload characters from disk — pick up a Rig Forge export or an
         # FX Studio save without restarting the game.
         if self._pressed(win.VK_F5):

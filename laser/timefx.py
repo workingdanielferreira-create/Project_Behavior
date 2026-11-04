@@ -175,8 +175,17 @@ def plan(world):
     # enemy domain's slow scales a fighter's body and shots; an Aegis
     # shockwave stun stops the body (0) while its FX run on.
     boosts = {}
+    # F10 freeze / F11 puppet (World.freeze_fighters / puppet_fig): the body
+    # stops (no moving, attacking, AI, cooldowns) while its FX and bullets
+    # in flight run on and it can still be hit — the Aegis-stun path.  The
+    # puppet's movement is done by the overlay (motion.puppet_step), and it
+    # ignores the freeze.
+    frz = bool(getattr(world, "freeze_fighters", False))
+    pup = world.puppet_fig() if hasattr(world, "puppet_fig") else None
     for f in world.all_figures():
         b, bf = unique.speed_mult(f, world), unique.fx_speed_mult(f, world)
+        if frz or f is pup:
+            b = 0.0
         if b != 1.0 or bf != 1.0:
             boosts[id(f)] = (b, bf)
     if not casters and not boosts:
