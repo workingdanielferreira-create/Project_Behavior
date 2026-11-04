@@ -52,12 +52,17 @@ fighter) and over them (pillars in front of a fighter).
 import math
 import random
 
-from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QColor, QPainterPath, QPen, QPolygonF
+from PyQt5.QtCore import Qt, QPointF, QRectF
+from PyQt5.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 
 from . import config
 from . import worldfx
 from . import worldscale
+
+# F12 see-through boulders (World.boulders_ghost): pillar opacity while on.
+GHOST_ALPHA = 0.20
+# Opacity of a fighter's tinted silhouette seen through a pillar.
+SILHOUETTE_ALPHA = 0.80
 
 TICK_S = config.TICK_MS / 1000.0
 MAX_TRIES = 40
@@ -671,23 +676,51 @@ class Terrain:
         if self.rubble:
             self._paint_rubble(qp, ink)
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
+        alpha = GHOST_ALPHA if getattr(world, "boulders_ghost", False) else 1.0
         sq = worldscale.squasher(qp, self.sw)     # tiny planet (no-op when off)
         for p in sorted(self.pillars, key=lambda q: q.y):
             if not self._front(p, P, figs):
                 sq.at(p.x, p.y)
-                self._paint_pillar(qp, p, P, ink)
+                self._paint_pillar(qp, p, P, ink, alpha)
         sq.done()
 
-    def paint_front(self, qp, world):
+    def paint_front(self, qp, world, silhouettes=True):
+        """Pillars a fighter stands behind, drawn over the fighters.  Every
+        fighter they cover shows through as a flat tinted silhouette, clipped
+        to the rock (skipped while F12 see-through boulders is on: the rock
+        is faded then, so the fighter itself shows)."""
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
+        ghost = getattr(world, "boulders_ghost", False)
+        alpha = GHOST_ALPHA if ghost else 1.0
+        base = qp.transform()                     # camera view (no planet squash)
         sq = worldscale.squasher(qp, self.sw)
         for p in sorted(self.pillars, key=lambda q: q.y):
             if self._front(p, P, figs):
                 sq.at(p.x, p.y)
-                self._paint_pillar(qp, p, P, ink)
+                clip = self._paint_pillar(qp, p, P, ink, alpha)
+                if silhouettes and not ghost and clip is not None:
+                    behind = self._behind(p, P, figs)
+                    if behind:
+                        qp.save()
+                        qp.setClipPath(clip, Qt.IntersectClip)   # rock shape (squashed)
+                        qp.setTransform(base)                     # fighters are not squashed
+                        for f in behind:
+                            _paint_silhouette(qp, f)
+                        qp.restore()
         sq.done()
+
+    def _behind(self, p, P, figs):
+        """Fighters standing behind pillar p whose body can overlap it."""
+        hw, h = p.dims(P)
+        out = []
+        for f in figs:
+            ps = worldfx.pscale(f.x, f.y, self.sw, self.sh)
+            fx, fy, hh = worldfx.WorldFx.foot(f, ps)
+            if fy < p.y and abs(fx - p.x) < hw + 2.2 * hh and fy > p.y - h - 2.2 * hh:
+                out.append(f)
+        return out
 
     def _paint_pits(self, qp, ink):
         """Broken-pillar craters, flat on the ground (rx across, rx * flat
@@ -767,13 +800,53 @@ class Terrain:
         e = math.radians(P["pitch_top"] + (P["pitch_bottom"] - P["pitch_top"]) * yf)
         return yaw, math.sin(e)
 
-    def _paint_pillar(self, qp, p, P, ink):
+    def _paint_pillar(self, qp, p, P, ink, alpha=1.0):
+        """Paint pillar p; returns its silhouette path (painter coords) or
+        None.  alpha < 1 (F12 see-through boulders): the rock is rendered
+        whole into an offscreen layer first, then laid down at that opacity,
+        so overlapping facets / the ink pass don't stack into dark seams."""
+        if alpha >= 0.999:
+            return self._draw_pillar(qp, p, P, ink)
+        hw, h = p.dims(P)
+        if h < 0.5 or hw < 0.5:
+            return None
+        fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
+        pad = 6.0 + 3.0 * max(1.0, p.ps)
+        local = QRectF(p.x - hw * 1.6 - pad, p.y - h - hw - pad,
+                       hw * 3.2 + 2 * pad, h + hw * (1.0 + 1.4 * fl) + 2 * pad)
+        T = qp.transform()
+        dev = qp.device()
+        r = T.mapRect(local).intersected(QRectF(0, 0, dev.width(), dev.height()))
+        if r.width() < 1 or r.height() < 1:
+            return None
+        rx, ry = math.floor(r.x()), math.floor(r.y())
+        rw, rh = int(math.ceil(r.right())) - rx, int(math.ceil(r.bottom())) - ry
+        try:
+            dpr = float(dev.devicePixelRatioF())
+        except Exception:
+            dpr = 1.0
+        img = QImage(max(1, int(rw * dpr)), max(1, int(rh * dpr)), QImage.Format_ARGB32_Premultiplied)
+        img.setDevicePixelRatio(dpr)
+        img.fill(Qt.transparent)
+        ip = QPainter(img)
+        ip.setRenderHint(QPainter.Antialiasing)
+        ip.setTransform(T * QTransform.fromTranslate(-rx, -ry))
+        clip = self._draw_pillar(ip, p, P, ink)
+        ip.end()
+        qp.save()
+        qp.setTransform(QTransform())
+        qp.setOpacity(qp.opacity() * alpha)
+        qp.drawImage(QPointF(rx, ry), img)
+        qp.restore()
+        return clip
+
+    def _draw_pillar(self, qp, p, P, ink):
         """A low-poly rock, oblique 2.5D projection (see the module notes):
         screen x = bx + X', screen y = by - Z - Y' s, so the drawn height is
         the collision height and the base sits on the ground spot."""
         hw, h = p.dims(P)
         if h < 0.5 or hw < 0.5:
-            return
+            return None
         rgb = _rgb(P["color"])
         bx, by = p.x, p.y
         fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
@@ -809,7 +882,7 @@ class Terrain:
                          max(0, min(255, int(rgb[2] * k))))
             vis.append((d, QPolygonF([sp[i] for i in idx]), col))
         if not vis:
-            return
+            return None
         vis.sort(key=lambda t: -t[0])                       # far first
         qp.save()
         # Ground shadow / base.
@@ -829,12 +902,12 @@ class Terrain:
             qp.drawPolygon(poly)
         frac = p.hp / p.hp0 if p.hp0 > 0 else 1.0
         nc = 0 if frac > 0.75 else 2 if frac > 0.5 else 4 if frac > 0.25 else 5
+        clip = QPainterPath()
+        clip.setFillRule(Qt.WindingFill)
+        for _d, poly, _c in vis:
+            clip.addPolygon(poly)
+            clip.closeSubpath()
         if nc or p.flash > 0:
-            clip = QPainterPath()
-            clip.setFillRule(Qt.WindingFill)
-            for _d, poly, _c in vis:
-                clip.addPolygon(poly)
-                clip.closeSubpath()
             qp.setClipPath(clip, Qt.IntersectClip)
             # Cracks grow as its HP drops (on the face toward the viewer).
             if nc:
@@ -850,6 +923,42 @@ class Terrain:
                 qp.setBrush(QColor(255, 255, 255))
                 qp.drawPath(clip)
         qp.restore()
+        return clip
+
+def _paint_silhouette(qp, f):
+    """Fighter f's body as one flat tint (its HP-bar colour), placed exactly
+    like the sprite in Figure.draw; the caller clips it to the rock."""
+    try:
+        if getattr(getattr(f, "ua", None), "construct", None) is not None:
+            return
+        if f.combat.vc_hidden or (f.blink is not None and f.blink.gone):
+            return
+        frame = f._current_frame()
+        if frame is None:
+            return
+        base = tuple(f.lut[128])
+        rgb = tuple(int(c + (255 - c) * 0.35) for c in base[:3])
+        pm = _combat().silhouette(frame, rgb)
+        qp.save()
+        qp.translate(f.transform.x, f.transform.y)
+        f._squash(qp)
+        if f.aim is not None:
+            qp.rotate(f.aim)
+        elif f.motion.rotate:
+            qp.rotate(f.transform.angle)
+        ps = f._position_scale()
+        if ps != 1.0:
+            qp.scale(ps, ps)
+        qp.setOpacity(SILHOUETTE_ALPHA)
+        qp.drawPixmap(-pm.width() // 2, -pm.height() // 2, pm)
+        qp.restore()
+    except Exception:
+        pass
+
+
+def _combat():
+    from . import combat
+    return combat
 
 
 def _end_inst(inst):
@@ -896,7 +1005,7 @@ def paint_back(qp, world):
         st.paint_back(qp, world)
 
 
-def paint_front(qp, world):
+def paint_front(qp, world, silhouettes=True):
     st = getattr(world, "terrain", None)
     if st is not None and st.pillars and _wf()["ground"]["enabled"]:
-        st.paint_front(qp, world)
+        st.paint_front(qp, world, silhouettes)

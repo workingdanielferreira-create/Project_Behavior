@@ -64,7 +64,7 @@ NAME_BY_VK = {v: k for k, v in _VK.items()}
 RESERVED = {
     "F5": "reload characters", "F6": "clash FX preview", "F7": "add figure",
     "F8": "remove figure", "F9": "figures on / off", "Ctrl+0": "roster lock",
-    "F10": "freeze fighters", "F11": "fighter on cursor",
+    "F10": "freeze fighters", "F11": "fighter on cursor", "F12": "see-through boulders",
     "Ctrl+Q": "follow path", "Ctrl+R": "runaway", "Alt+Up": "attack mode",
     "Alt+Left": "cycle behaviour", "Alt+Right": "cycle behaviour",
     "Ctrl+Shift+.": "start menu", "Ctrl+Alt+Enter": "quit",
