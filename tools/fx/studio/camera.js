@@ -26,7 +26,8 @@ var CAM_DEFAULTS = {
   "anchor_scale": true, "anchor_s": 0.3, "anchor_zoom": 1.15,
   "vscale_bottom": 5.0, "vscale_top": 1.0, "dscale_near": 1.0, "dscale_far": 0.10,
   "dscale_far_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
-  "speed_min": 0.40, "speed_max": 1.00
+  "speed_min": 0.40, "speed_max": 1.00,
+  "planet": true, "planet_reach_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85
 };
 var CAM_RANGES = {
   "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
@@ -45,7 +46,9 @@ var CAM_RANGES = {
   "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
   "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
   "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
-  "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0]
+  "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
+  "planet_reach_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
+  "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95]
 };
 var DEPTH_MAX = 0.6;
 // Cinematic shot kinds: settings prefix and priority (higher wins).
@@ -123,6 +126,13 @@ var CAM_GROUPS = [
     ["scale_max", "Max size ×", "", 0.1],
     ["speed_min", "Pace at min size", "Movement pace at the smallest size (pace rises linearly with size).", 0.05],
     ["speed_max", "Pace at max size", "Movement pace at the largest size.", 0.05]
+  ]],
+  ["Tiny planet", [
+    ["planet", "Tiny planet", "The anchor becomes the top of a small planet: everything shrinks along a sphere curve as it moves away from the anchor (big near the top, dropping fast toward the horizon), and the terrain, rubble, debris, dust & air are squashed along the line to the anchor near the rim (foreshortening). Nothing is moved, so pillars and dust still line up with the fighters. Needs Anchor scaling; replaces the distance factors above and the depth tilt while on."],
+    ["planet_reach_frac", "Horizon distance (× width)", "How far from the anchor the horizon is, as a share of the screen width. Smaller = a tinier planet.", 0.05],
+    ["planet_horizon_deg", "Horizon angle (°)", "How far round the sphere the horizon sits. 90 = a full quarter turn (strongest falloff and squash at the rim).", 1],
+    ["planet_far", "Size at horizon ×", "Distance factor at the horizon (1 on the anchor).", 0.01],
+    ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01]
   ]]
 ];
 var TICK_MS = 16, DT = TICK_MS / 1000;
@@ -202,10 +212,30 @@ Cam.prototype.stepAnchor = function (figs) {
   this.anc = [this.anc[0] + (tx - this.anc[0]) * a, this.anc[1] + (ty - this.anc[1]) * a];
 };
 // laser/worldscale.py size(): vertical x distance-from-anchor (null = off).
+Cam.prototype.planetOn = function () { return !!(this.cfg.planet && this.cfg.anchor_scale); };
+// Tiny planet: [theta, dx, dy, dist] of a point (laser/worldscale.py _theta).
+Cam.prototype.theta = function (x, y) {
+  var c = this.cfg, hz = clamp(c.planet_horizon_deg, 1, 90) * Math.PI / 180;
+  var dx = x - this.anc[0], dy = y - this.anc[1], d = Math.hypot(dx, dy), r = c.planet_reach_frac * this.sw;
+  return [(r > 1e-6 ? clamp(d / r, 0, 1) : 0) * hz, dx, dy, d];
+};
+// laser/worldscale.py squash(): [k, ux, uy] or null.
+Cam.prototype.squashAt = function (x, y) {
+  if (!this.planetOn() || !this.anc) return null;
+  var t = this.theta(x, y);
+  if (t[3] < 1e-3) return null;
+  var k = clamp(1 - this.cfg.planet_squash * (1 - Math.cos(t[0])), 0.05, 1);
+  return k > 0.999 ? null : [k, t[1] / t[3], t[2] / t[3]];
+};
 Cam.prototype.sizeAt = function (x, y) {
   var c = this.cfg;
   if (!c.anchor_scale || !this.anc) return null;
   var v = c.vscale_top + (c.vscale_bottom - c.vscale_top) * clamp(y / this.sh, 0, 1);
+  if (this.planetOn()) {
+    var ch = Math.cos(clamp(c.planet_horizon_deg, 1, 90) * Math.PI / 180);
+    var cc = ch < 1 - 1e-6 ? (Math.cos(this.theta(x, y)[0]) - ch) / (1 - ch) : 1;
+    return clamp(v * (c.planet_far + (1 - c.planet_far) * clamp(cc, 0, 1)), c.scale_min, c.scale_max);
+  }
   var reach = c.dscale_far_frac * this.sw;
   var u = reach > 1e-6 ? clamp(Math.hypot(x - this.anc[0], y - this.anc[1]) / reach, 0, 1) : 0;
   var d = c.dscale_near + (c.dscale_far - c.dscale_near) * (u > 0 ? Math.pow(u, c.dscale_curve) : 0);
@@ -213,7 +243,7 @@ Cam.prototype.sizeAt = function (x, y) {
 };
 Cam.prototype.depthTarget = function (figs) {
   var c = this.cfg, best = null, self = this;
-  if (!c.depth || !figs.length) return [0, this.ax, this.ay];
+  if (!c.depth || this.planetOn() || !figs.length) return [0, this.ax, this.ay];
   figs.forEach(function (f) { var t = self.depthT(f.x, f.y); if (!best || t < best[0]) best = [t, f.x, f.y]; });
   var t = clamp(best[0], 0, 1);
   return [Math.min(DEPTH_MAX, c.depth_base + c.depth_gain * (1 - t)), best[1], best[2]];
@@ -291,8 +321,8 @@ Cam.prototype.step = function (figs, battle, hs) {
 // [cx, cy, zoom, roll_deg, shake_dx, shake_dy]
 Cam.prototype.view = function () {
   var c = this.cfg, cx = this.cx, cy = this.cy, z = this.zoom, s = this.shot;
-  var dk = c.depth ? this.k : 0;
-  if (s && s.env > 0) { var k = ease(s.env); cx += (s.x - cx) * k; cy += (s.y - cy) * k; z += (Math.max(z, s.zoom) - z) * k; if (c.depth) dk += c.depth_shot * k; }
+  var dep = c.depth && !this.planetOn(), dk = dep ? this.k : 0;
+  if (s && s.env > 0) { var k = ease(s.env); cx += (s.x - cx) * k; cy += (s.y - cy) * k; z += (Math.max(z, s.zoom) - z) * k; if (dep) dk += c.depth_shot * k; }
   dk = clamp(dk, 0, DEPTH_MAX);
   var e = c.punch ? ease(this.env) : 0, pull = c.punch_pull * e;
   z += c.punch_zoom * e;

@@ -1852,9 +1852,12 @@ class WorldFx:
         ink = QColor(g["ink"])
         p.save()
         p.setBrush(Qt.NoBrush)
+        sq = _wscale.squasher(p, self.sw)     # tiny planet (no-op when off)
         for r in self.rings:
             if r.kind in ("ground", "crater", "wall"):
+                sq.at(r.x, r.y)
                 self._ring(p, r, ink)
+        sq.done()
         for b in self.bursts:
             if b.kind != "spark":
                 self._rocks(p, b, ink)
@@ -1871,8 +1874,11 @@ class WorldFx:
         p.save()
         p.setBrush(Qt.NoBrush)
         ink = QColor(WORLD["ground"]["ink"])
+        sq = _wscale.squasher(p, self.sw)
         for r in rings:
+            sq.at(r.x, r.y)
             self._ring_split(p, r, ink, r.age / r.life, "back")
+        sq.done()
         for t in trails:
             self._trail(p, t, ink, "back")
         p.restore()
@@ -1883,16 +1889,23 @@ class WorldFx:
             return
         p.save()
         ink = QColor(WORLD["ground"]["ink"])
+        # Tiny planet squash: rings and spark bursts about their own spot;
+        # trails / sonic cones ride a fighter's path, so they are left flat.
+        sq = _wscale.squasher(p, self.sw)
         for r in self.rings:
             if r.kind == "boom":
+                sq.at(r.x, r.y)
                 self._ring(p, r, ink)
+        sq.done()
         for t in self.trails:
             self._trail(p, t, ink)
         sparks = [b for b in self.bursts if b.kind == "spark"]
         if sparks:
             p.setCompositionMode(QPainter.CompositionMode_Plus)
             for b in sparks:
+                sq.at(b.x, b.y)
                 self._sparks(p, b)
+            sq.done()
             p.setCompositionMode(QPainter.CompositionMode_SourceOver)
         if has_sonic:
             for fid, tr in self.tracks.items():
@@ -2134,12 +2147,14 @@ class WorldFx:
             return
         p.setOpacity(fade)
         pen = QPen(ink, 1.2)
+        sq = _wscale.squasher(p, self.sw)     # tiny planet: each piece in place
         for pc in b.pieces:
             at = b.at(pc, b.age)
             if at is None:
                 continue
             x, y, z = at
             sy = y - z
+            sq.at(x, sy)
             s = pc[4] * (1.0 if b.kind == "rock" else 0.7)
             rot = pc[6] + pc[5] * b.age if z > 0.0 else pc[6]
             pts = []
@@ -2153,6 +2168,7 @@ class WorldFx:
             p.setPen(Qt.NoPen)
             p.setBrush(lit)
             p.drawPolygon(QPolygonF([pts[0], pts[1], QPointF(x, sy)]))
+        sq.done()
         p.setOpacity(1.0)
         p.setBrush(Qt.NoBrush)
 
@@ -2250,16 +2266,21 @@ class WorldFx:
                 y += math.cos(ph * 0.7) * wob * ps * 0.5
             it = (int(x), int(y), min(60, int(r + 0.5)), d[10], d[12], pr, ero, a, d[14], d[6])
             (merged if d[12] in _MERGED else loose).append(it)
+        # Tiny planet: every puff squashed about its own spot (no-op when off).
+        sq = _wscale.squasher(p, sw)
         for x, y, r, rgb, st, pr, ero, a, seed, age in merged:
             ow = pr["outline"]
             if ow <= 0.0:
                 continue
             pm, half = _sprite(st, r, rgb, pr, ero, seed, True)
+            sq.at(x, y)
             _blit(p, pm, x - half, y - half, a)
         for x, y, r, rgb, st, pr, ero, a, seed, age in merged:
             pm, half = _sprite(st, r, rgb, pr, ero, seed, False)
+            sq.at(x, y)
             _blit(p, pm, x - half, y - half, a)
         for x, y, r, rgb, st, pr, ero, a, seed, age in loose:
+            sq.at(x, y)
             if st == "ink":
                 pm, half = _sprite(st, r, rgb, pr, ero, seed, False)
                 _blit(p, pm, x - half, y - half, a)
@@ -2267,6 +2288,7 @@ class WorldFx:
                 _swirl(p, x, y, r, rgb, pr, a, seed, age)
             else:
                 _ring_puff(p, x, y, r, rgb, pr, a)
+        sq.done()
         p.setOpacity(1.0)
 
 

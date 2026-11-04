@@ -67,6 +67,16 @@ Four layers, one transform:
                      (bottom near, top far) to match.  Off = the old corner
                      grid and the old follow zoom, unchanged.
 
+  7. Tiny planet    (planet, needs anchor_scale) the anchor is the top of a
+                     small planet: worldscale's distance term becomes a
+                     sphere curve (big near the top, dropping fast toward a
+                     horizon planet_reach_frac x width away) and the world
+                     layers - terrain, rubble, debris, dust & air - are
+                     squashed along the line to the anchor toward the rim
+                     (foreshortening; drawn in place, never moved).
+                     Fighters and their FX only take the size curve.  While
+                     on, the depth tilt is off (the planet replaces it).
+
 Identical in Solo and Battle: the same step / view runs either way; the
 only difference is the follow zoom rule (battle_mode) when anchor_scale is
 off.
@@ -143,6 +153,12 @@ DEFAULTS = {
     "scale_max": 5.0,
     "speed_min": 0.40,       # pace at scale_min
     "speed_max": 1.00,       # pace at scale_max
+    # Tiny planet (laser/worldscale.py; replaces the depth tilt + distance term)
+    "planet": True,          # on = sphere curve around the anchor
+    "planet_reach_frac": 0.6,   # anchor -> horizon distance, x screen width
+    "planet_horizon_deg": 80.0, # how far round the sphere the horizon is
+    "planet_far": 0.15,      # size factor at the horizon
+    "planet_squash": 0.85,   # foreshortening at the horizon (0 = none)
 }
 # [lo, hi] per numeric key (FX Studio's port: tools/fx/studio/camera.js
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
@@ -165,6 +181,8 @@ RANGES = {
     "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
     "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
     "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
+    "planet_reach_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
+    "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
 }
 DEPTH_SLOW_FRAMES = 120   # ~2 s of over-budget frames before depth turns off
 DEPTH_MAX = 0.6     # total perspective strength cap (keeps w > 0 everywhere)
@@ -511,8 +529,13 @@ class Camera:
         cx, cy = self._clamp(cx, cy, z)
         return cx, cy, z
 
+    def planet_live(self):
+        """Tiny planet on (it needs the anchor; it replaces the depth tilt)."""
+        return bool(self.cfg.get("planet")) and bool(self.cfg["anchor_scale"])
+
     def depth_live(self):
-        return bool(self.cfg["depth"]) and not getattr(self, "depth_suspended", False)
+        return (bool(self.cfg["depth"]) and not self.planet_live()
+                and not getattr(self, "depth_suspended", False))
 
     def note_paint(self, ms, used_depth):
         """Overlay._paint: how long the scene took (ms) and whether the depth
