@@ -4256,6 +4256,21 @@ function camPreview(parent) {
     g.strokeStyle = "rgba(160,190,230,0.08)";
     for (var j = 1; j < 12; j++) { var u = j / 12; g.beginPath(); line(SW * u, SH, SW * u - SH * 0.6, 0); g.stroke(); }
     g.strokeStyle = "rgba(160,190,230,0.35)"; g.beginPath(); line(4, 4, SW - 4, 4); line(SW - 4, 4, SW - 4, SH - 4); line(SW - 4, SH - 4, 4, SH - 4); line(4, SH - 4, 4, 4); g.stroke();
+    // Tiny planet: a field of rocks, each drawn at its true spot, shrunk by the
+    // sphere curve and squashed along the line to the anchor (as the game's
+    // terrain, rubble, debris and dust are).
+    if (cam.planetOn() && cam.anc) {
+      g.strokeStyle = "rgba(160,190,230,0.25)"; g.lineWidth = 2;
+      g.beginPath(); g.arc(cam.anc[0], cam.anc[1], CAMCFG.planet_reach_frac * SW, 0, 2 * Math.PI); g.stroke();
+      for (var ry = 60; ry < SH; ry += 120) for (var rx = 60 + ((ry / 120) % 2) * 60; rx < SW; rx += 120) {
+        var sz = cam.sizeAt(rx, ry) || 1, q = cam.squashAt(rx, ry), r0 = 16 * Math.min(2.5, sz);
+        g.save(); g.translate(rx, ry);
+        if (q) { var an = Math.atan2(q[2], q[1]); g.rotate(an); g.scale(q[0], 1); g.rotate(-an); }
+        g.fillStyle = "#5a5148"; g.strokeStyle = "#151515"; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(-r0, 0); g.lineTo(-r0 * 0.7, -r0 * 1.6); g.lineTo(r0 * 0.6, -r0 * 1.8); g.lineTo(r0, 0); g.closePath(); g.fill(); g.stroke();
+        g.restore();
+      }
+    }
     figs.forEach(drawFig);
     g.strokeStyle = "#fff6e0"; g.lineWidth = 3;
     sparks.forEach(function (s) { g.globalAlpha = 1 - s[4] / 22; g.beginPath(); line(s[0] - s[2], s[1] - s[3], s[0], s[1]); g.stroke(); });
@@ -4265,7 +4280,7 @@ function camPreview(parent) {
     g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
     if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }
     g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "bold 26px Consolas, monospace";
-    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°  depth " + v[6].toFixed(2) + "  trauma " + cam.trauma.toFixed(2) +
+    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°" + (cam.planetOn() ? "  PLANET" : "  depth " + v[6].toFixed(2)) + "  trauma " + cam.trauma.toFixed(2) +
       (cam.shot ? "  " + cam.shot.kind.toUpperCase() : "") + (hs > 0 ? "  HIT-STOP" : "") + (slowT > 0 ? "  SLOW-MO" : "") + (koQuit > 0 ? "  KO HOLD" : ""), 18, H - 18);
     requestAnimationFrame(frame);
   }

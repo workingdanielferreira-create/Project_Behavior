@@ -517,27 +517,35 @@ class Terrain:
         if self.rubble:
             self._paint_rubble(qp, ink)
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
+        sq = worldscale.squasher(qp, self.sw)     # tiny planet (no-op when off)
         for p in sorted(self.pillars, key=lambda q: q.y):
             if not self._front(p, P, figs):
+                sq.at(p.x, p.y)
                 self._paint_pillar(qp, p, P, ink)
+        sq.done()
 
     def paint_front(self, qp, world):
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
+        sq = worldscale.squasher(qp, self.sw)
         for p in sorted(self.pillars, key=lambda q: q.y):
             if self._front(p, P, figs):
+                sq.at(p.x, p.y)
                 self._paint_pillar(qp, p, P, ink)
+        sq.done()
 
     def _paint_rubble(self, qp, ink):
         R = _wf()["rubble"]
         fade_t = max(1, _ticks(R["fade_s"]))
         qp.save()
+        sq = worldscale.squasher(qp, self.sw)
         pen = QPen(ink, 1.2)
         for x, y, s, rot, rgb, age, life in self.rubble:
             a = 1.0 if age < life - fade_t else max(0.0, (life - age) / float(fade_t))
             if a <= 0.0:
                 continue
+            sq.at(x, y)
             qp.setOpacity(a)
             col = QColor(*rgb)
             lit = QColor(min(255, rgb[0] + 60), min(255, rgb[1] + 60), min(255, rgb[2] + 60))
