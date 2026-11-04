@@ -43,6 +43,7 @@ laser/worldfx.py
 laser/camera.py
 laser/worldscale.py
 laser/terrain.py
+laser/player.py
 ```
 
 ## Mandatory Session Rules
@@ -82,6 +83,7 @@ laser/terrain.py
 - `laser/hpbars.py`: Team 1 top-left, Team 2 top-right, selection order
 - `laser/targeting.py`: FX Studio "Targeting" (`pack.targeting`). EVERY enemy lookup goes through `World.enemy_target(fig)` / `World.target_index(fig)` (taunt still overrides) — never call `_nearest_enemy(fig.x, fig.y)` for a fighter. Modes nearest/farthest/lowest_hp/highest_hp/stick/last_attacker/weighted + hold/margin, range, team focus/spread, conditional rules. Built-ins = nearest. Snapshots add `partner_ids` / `partner_hp` / `partner_target`; hits set `fig.last_hit_by`
 - Test keys (Solo + Battle): F10 = `World.toggle_freeze` (every fighter's body stops via `timefx.plan` body 0 = the Aegis-stun path: no moving / attacking / AI / cooldowns, still hittable; bullets, FX in flight, dust, pillars, camera keep running). F11 = `World.toggle_puppet`: `World.puppet_fig()` (first-picked FIELDED slot) has body 0 in `timefx.plan` and is moved by `motion.puppet_step` toward `w.cursor` in `Overlay._tick` after the side passes (own pace, walk frames, knockback still slides); ignores the freeze. F12 = `World.toggle_boulder_ghost` (`world.boulders_ghost`: pillars painted at `terrain.GHOST_ALPHA` 20% opacity via an offscreen layer). All three in `roster.RESERVED`
+- Player control (`laser/player.py`, Solo + Battle): F4 = `World.toggle_player` (exclusive with F11). `World.player_fig()` = first-picked FIELDED fighter (`_first_fielded`) and only if `actions.is_image` (built-ins ignored). Arrows -> `world.player_dir` -> `motion.player_step` in MotionSystem (replaces AI movement, skips blinks/teleports; Alt+arrows unchanged). Ctrl+Z / X / C -> `player.press` buffers `world.player_req` (latest press, `BUFFER_MS`); `ActionRunner.update` calls `player.runner_tick` INSTEAD of the auto attack / triggered choice: chains attack_normal(_N) / attack_special(_N) / ultimate(_N), wrap, restart after the last one's `chain_reset_ms`; ignores conditions / cooldowns / Attack mode; special / ultimate cut into a normal attack. Tactical retreat off for it; Dodge (`dodge.tick` + counter) stays automatic. Ctrl+Space = `player.drop_hp` (HP to 25% of max, never raises). Keys in `roster.RESERVED`
 - Pillar X-ray: `Terrain.paint_front` (pillars drawn over a fighter) paints every fighter behind that pillar as a flat tinted silhouette (`terrain._paint_silhouette`, HP-bar colour, `SILHOUETTE_ALPHA`) clipped to the rock's silhouette path (`_paint_pillar` returns it); skipped while F12 is on and in the start menu's frozen layer (`silhouettes=bodies`)
 - `main()` uses `setQuitOnLastWindowClosed(False)`: the overlay is a Qt.Tool window, so closing the start menu would otherwise quit the game
 
