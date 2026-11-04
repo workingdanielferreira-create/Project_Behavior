@@ -82,7 +82,8 @@ class PreBattleMenu:
         p.translate(x, y)
         if s != 1.0:
             p.scale(s, s)
-        p.drawPixmap(-frame.width() // 2, -frame.height() // 2, frame)
+        opm, pad = combat.ink_outlined(frame)      # black body outline, as in the fight
+        p.drawPixmap(-frame.width() // 2 - pad, -frame.height() // 2 - pad, opm)
         p.restore()
 
     def _draw_title(self, p, world):
