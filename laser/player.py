@@ -27,6 +27,9 @@ While control is on:
     ultimates, tactical retreat, AI movement) is off.  Only the Dodge
     (laser/dodge.py, with its counter action) still runs on its own.
   * Ctrl+Space drops the fighter's HP to 25% of max (never raises it).
+  * Ctrl+Shift held = sprint: arrow movement at the character's tactical
+    retreat speed_pct (FX Studio), or SPRINT_PCT when it has none, with
+    speed-ghost afterimages.  (The retreat's dash / steering is not used.)
 
 Freeze (F10) holds the player fighter like everyone else.  F4 and F11
 (cursor puppet) are exclusive: turning one on turns the other off.
@@ -40,6 +43,7 @@ TICK_MS = config.TICK_MS
 BUFFER_MS = 600              # a buffered press is dropped after this long
 DEFAULT_CHAIN_RESET_MS = 1000
 HP_DROP_FRAC = 0.25
+SPRINT_PCT = 250.0           # Ctrl+Shift sprint speed when the character has no tactical retreat
 
 CHAINS = {
     "attack": "attack_normal",
@@ -155,3 +159,17 @@ def drop_hp(world):
     if p.hp > tgt:
         p.hp = tgt
     world.notice = ("%s HP -> 25%%" % getattr(fig.mode, "key", "Fighter"), 90)
+
+
+def sprint_mult(fig):
+    """Ctrl+Shift sprint speed multiplier: the character's tactical retreat
+    speed_pct (laser/retreat.py) when it has one, else SPRINT_PCT."""
+    from . import retreat
+    cfg = retreat.config_for(fig)
+    pct = SPRINT_PCT
+    if cfg is not None:
+        try:
+            pct = float(cfg.get("speed_pct") or SPRINT_PCT)
+        except (TypeError, ValueError):
+            pct = SPRINT_PCT
+    return max(1.0, pct / 100.0)

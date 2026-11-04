@@ -234,6 +234,7 @@ class World:
         self.player_on = False
         self.player_dir = (0, 0)
         self.player_req = None
+        self.player_sprint = False      # Ctrl+Shift held: sprint (player.sprint_mult)
         # F12 see-through boulders: pillars drawn at terrain.GHOST_ALPHA
         # (20%) opacity; off = solid, with fighters behind a pillar shown as
         # tinted silhouettes through it (laser/terrain.py).  Solo and Battle.

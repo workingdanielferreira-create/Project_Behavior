@@ -215,6 +215,12 @@ class InputSystem(System):
                 if z_edge or x_edge or c_edge or sp_edge:
                     world.ctrl_used = True
         world.player_dir = (dx, dy)
+        # Ctrl+Shift held (player control only): sprint — the arrow
+        # movement runs at player.sprint_mult (the character's tactical
+        # retreat speed_pct, else SPRINT_PCT).  Solo and Battle.
+        world.player_sprint = bool(world.player_fig() is not None and ctrl and shift and not alt)
+        if world.player_sprint:
+            world.ctrl_used = True      # releasing Ctrl after a sprint doesn't toggle collision
 
         # Alt+Up: toggle attack/shoot for all modes
         if alt and self._pressed(win.VK_UP):
@@ -246,7 +252,8 @@ class MotionSystem(System):
             # instead of its AI (no chase / kiting / blinks / teleports).
             # Same in Solo and Battle.
             if fig is pf and fig.transform.init:
-                motion.player_step(fig, world.player_dir[0], world.player_dir[1])
+                motion.player_step(fig, world.player_dir[0], world.player_dir[1],
+                                   player.sprint_mult(fig) if world.player_sprint else 1.0)
                 continue
             # Summoner turret / totem (laser/unique.py): never walks; a
             # knockback still slides it.  Battle only — in Solo every
