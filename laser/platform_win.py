@@ -22,6 +22,7 @@ VK_F8    = 0x77
 VK_F9    = 0x78
 VK_F10   = 0x79            # freeze fighters (World.freeze_fighters)
 VK_F11   = 0x7A            # first-picked fighter follows the cursor (World.puppet_on)
+VK_F12   = 0x7B            # see-through boulders (World.boulders_ghost)
 VK_UP    = 0x26
 VK_LEFT  = 0x25
 VK_RIGHT = 0x27

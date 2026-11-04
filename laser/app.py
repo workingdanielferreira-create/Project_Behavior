@@ -227,6 +227,10 @@ class World:
         # motion.puppet_step); it ignores the freeze.  Solo and Battle.
         self.freeze_fighters = False
         self.puppet_on = False
+        # F12 see-through boulders: pillars drawn at terrain.GHOST_ALPHA
+        # (20%) opacity; off = solid, with fighters behind a pillar shown as
+        # tinted silhouettes through it (laser/terrain.py).  Solo and Battle.
+        self.boulders_ghost = False
         # Ctrl+Shift+. pre-battle menu (laser/prebattle.py): while open the
         # whole game is paused and fighters stand idle (see Overlay._tick).
         self.prebattle = PreBattleMenu()
@@ -1206,6 +1210,11 @@ class World:
         self.notice = ("Fighters frozen (F10)" if self.freeze_fighters
                        else "Fighters unfrozen", 90)
 
+    def toggle_boulder_ghost(self):
+        self.boulders_ghost = not self.boulders_ghost
+        self.notice = ("See-through boulders (F12)" if self.boulders_ghost
+                       else "Solid boulders", 90)
+
     def toggle_puppet(self):
         self.puppet_on = not self.puppet_on
         f = self.puppet_fig()
@@ -1608,7 +1617,7 @@ class Overlay(QWidget):
         for fig in w.all_figures():
             fig.draw(p, self._pen, body=bodies)
         # Pillars with a fighter behind them are drawn over it.
-        terrain.paint_front(p, w)
+        terrain.paint_front(p, w, silhouettes=bodies)
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.

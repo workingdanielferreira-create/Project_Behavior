@@ -99,6 +99,9 @@ class InputSystem(System):
             world.toggle_freeze()
         if self._pressed(win.VK_F11):
             world.toggle_puppet()
+        # F12: see-through boulders (pillars at 20% opacity).  Solo + Battle.
+        if self._pressed(win.VK_F12):
+            world.toggle_boulder_ghost()
 
         # F5: reload characters from disk — pick up a Rig Forge export or an
         # FX Studio save without restarting the game.
