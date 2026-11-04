@@ -23,7 +23,7 @@
 "use strict";
 var WP_FORMAT = "pb_world_physics";
 var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
 var SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"];
 var SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"];
 var WP_DEFAULTS = {
@@ -47,6 +47,14 @@ var WP_DEFAULTS = {
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
             true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
+  "pillars": {"enabled": true, "count": 3, "radius_px": 420, "clear_px": 110, "gap_px": 140, "respawn_s": 6.0,
+              "width": 22, "height": 70, "rise_ms": 450, "hp": 60, "break_damage": 30, "break_knockback": 200,
+              "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
+              "repel": 0.25, "repel_px": 10, "block_projectiles": true, "rubble": 9, "boulders": 4,
+              "color": "#8a7c6c"},
+  "rubble": {"enabled": true, "rest": true, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": true,
+             "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
+             "speed": 20, "cooldown_ms": 700, "crater": true, "color": "#7a6e62"},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -89,6 +97,14 @@ var WP_RANGES = {
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
             "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
+  "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
+              "respawn_s": [0, 120], "width": [4, 200], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
+              "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
+              "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
+              "repel": [0, 5], "repel_px": [0, 100], "rubble": [0, 60], "boulders": [0, 30]},
+  "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
+             "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
+             "speed": [0, 200], "cooldown_ms": [0, 10000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -207,6 +223,44 @@ var WP_FIELDS = {
           ["color", "Shock colour", ""], ["style", "Smoke style", "The smoke look for this event; Ground default = the Ground & dust style."],
          ["split", "Ring parts (0 = Pressure spiral)", "Split this event's pulse ring into 2-6 parts. 0 = take the Pressure spiral section's parts."],
          ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
+  pillars: [["enabled", "On", "Rock pillars that rise around the fight (Solo and Battle). They block fighters and projectiles for both sides; the AI does not know about them. A hit breaks one outright when ANY of its speed, FX knockback or FX damage meets the threshold below (the hit carries on); anything under every threshold is blocked and chips its HP."],
+           ["count", "Pillars in the arena", "How many stand at once. A round starts with this many; when one breaks a new one rises after Respawn time."],
+           ["radius_px", "Spawn radius (px)", "Pillars rise at random spots within this distance of the fighters' centre (the world anchor while anchor scaling is on)."],
+           ["clear_px", "Clear of fighters (px)", "Never rises closer than this to a fighter."],
+           ["gap_px", "Gap between pillars (px)", "Never rises closer than this to another pillar."],
+           ["respawn_s", "Respawn time (s)", "After a pillar breaks, a new one rises this long later (one at a time) until the arena holds the set count again."],
+           ["width", "Width (px)", "At 100% scale; perspective (position scale) sizes it like the fighters."],
+           ["height", "Height (px)", "At 100% scale."],
+           ["rise_ms", "Rise time (ms)", "How long it takes to grow out of the ground."],
+           ["hp", "HP", "Blocked hits chip this away; at 0 it crumbles. Cracks show as it drops."],
+           ["break_damage", "Break: damage", "A hit dealing this much damage or more breaks it at once."],
+           ["break_knockback", "Break: FX knockback", "An effect whose knockback is this or more breaks it at once."],
+           ["break_speed", "Break: speed (px/tick)", "A projectile or a fighter (running, dashing or knocked back) moving this fast or faster breaks it at once."],
+           ["chip_pct", "Chip damage %", "A blocked hit takes this % of its damage off the pillar's HP."],
+           ["body_chip", "Body bump chip (HP)", "HP a fighter takes off when it bumps into it under the speed threshold."],
+           ["melee_damage", "Built-in slash damage", "Damage the built-in sword's slashes and crescent waves deal to a pillar (FX Studio effects use their own damage)."],
+           ["blast_reach", "Blast reach (px)", "Energy blasts hit pillars within this distance of the detonation."],
+           ["repel", "Repel (px/tick)", "The very subtle push that slides a touching fighter away from the pillar's centre."],
+           ["repel_px", "Repel range (px)", "How close (past touching) the repel starts."],
+           ["block_projectiles", "Block projectiles", "Blocked bullets / FX are destroyed at the pillar. Off = they pass through (they still chip it)."],
+           ["rubble", "Break chunks", "Rocks thrown when it breaks."],
+           ["boulders", "Break boulders", "Big chunks thrown when it breaks (sizes from Rubble & boulders)."],
+           ["color", "Rock colour", ""]],
+  rubble: [["enabled", "On", "Rocks that land stay on the ground, and heavy events throw boulders."],
+           ["rest", "Resting rubble", "Rocks thrown by slams, craters, walls, pillar breaks and boulders lie where they land."],
+           ["rest_s", "Rest time (s)", "How long landed rubble lies before it fades."],
+           ["fade_s", "Fade (s)", ""],
+           ["max_rubble", "Most rubble pieces", "Oldest go first."],
+           ["boulders", "Boulders", "Big chunks thrown high by a hard hit, a heavy hit or a fast fighter."],
+           ["boulder_min", "Boulder size min (px)", "At 100% scale."],
+           ["boulder_max", "Boulder size max (px)", ""],
+           ["boulder_count", "Boulders per event", "A fast fighter throws half as many, smaller."],
+           ["hit_knockback", "Trigger: knockback (px/tick)", "A hit whose knockback slide starts at this speed or more throws boulders (and craters)."],
+           ["hit_damage", "Trigger: damage", "A hit taking this much HP or more in one tick throws boulders (and craters)."],
+           ["speed", "Trigger: fighter speed (px/tick)", "A fighter moving this fast kicks up boulders behind it."],
+           ["cooldown_ms", "Cooldown per fighter (ms)", "Least time between two boulder events from one fighter."],
+           ["crater", "Crater on hits", "Knockback / heavy-hit triggers also leave a crater."],
+           ["color", "Boulder colour", ""]],
   spiral: [["enabled", "On", "Every Dust & Air ring (the pulse each jump, slam, clash, blast and sound barrier throws) takes these settings. Parts 1 + Spiral 0 = the plain ring."],
            ["parts", "Parts", "Split the ring into 2-6 parts, evenly round the circle (2 = left and right arcs, 4 = four arcs)."],
            ["gap", "Gap between parts %", "How much of each part's share of the circle is left empty (needs 2 or more parts)."],
@@ -269,7 +323,8 @@ var WP_STYLE_TITLES = {cel: "Cel puff", billow: "Billow / cauliflower", ink: "In
   flat: "Flat graphic", ring: "Ring puff", stepped: "Stepped / dithered"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS; });
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
-  slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)"};
+  slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)",
+  pillars: "Rock pillars (destructible)", rubble: "Rubble & boulders"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;

@@ -4679,7 +4679,7 @@ function buildWorldPhysicsCharProps(d) {
     return {world: w, over: wp, sec: function (n) { return wp[n] || w[n]; }};
   });
   WORLDFX.SECTIONS.forEach(function (name) {
-    if (name === "ground") return;     // the ground is the world's alone
+    if (name === "ground" || name === "pillars") return;     // the ground and pillars are the world's alone
     var own = !!wp[name];
     field(s, "Own " + WORLDFX.TITLES[name], inp("chk", own, function (v) {
       if (v) wp[name] = WORLDFX.normalizeSection(name, clone(PHYS[name])); else delete wp[name];
