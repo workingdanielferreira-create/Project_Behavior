@@ -1,0 +1,29 @@
+{
+ "format": "pb_fxkit",
+ "version": 2,
+ "tick_ms": 16,
+ "character": "nobody",
+ "action_settings": {
+  "attack_normal": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "attack_normal_2",
+   "chain_reset_ms": 1000
+  },
+  "attack_normal_2": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "attack_normal_3",
+   "chain_reset_ms": 1000
+  },
+  "attack_normal_3": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000
+  }
+ }
+}
