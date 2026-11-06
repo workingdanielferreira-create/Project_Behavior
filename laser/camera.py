@@ -159,6 +159,10 @@ DEFAULTS = {
     "planet_horizon_deg": 80.0, # how far round the sphere the horizon is
     "planet_far": 0.15,      # size factor at the horizon
     "planet_squash": 0.85,   # foreshortening at the horizon (0 = none)
+    # Wireframe overlay (laser/wireframe.py): how the environment acts on the
+    # fighters - scaling, anchor / planet / depth, roll zones, camera framing,
+    # pillar spawning - drawn in the scene over everything but the HUD.
+    "wireframe": False,
 }
 # [lo, hi] per numeric key (FX Studio's port: tools/fx/studio/camera.js
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
