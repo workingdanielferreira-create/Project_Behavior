@@ -15,7 +15,7 @@
 var CAM_FORMAT = "pb_camera";
 var CAM_DEFAULTS = {
   "follow": true, "punch": true, "shake": true,
-  "max_zoom": 1.6, "solo_zoom": 1.15, "follow_s": 0.4, "margin_px": 220.0,
+  "max_zoom": 1.6, "solo_zoom": 1.15, "follow_s": 0.4, "margin_x_px": 220.0, "margin_y_px": 220.0,
   "punch_zoom": 0.3, "punch_tilt_deg": 3.0, "punch_pull": 0.6, "punch_in_ticks": 3, "punch_out_s": 0.35,
   "shake_max_px": 16.0, "shake_hz": 18.0,
   "ult_on": true, "ult_zoom": 2.3, "ult_in_s": 0.6, "ult_max_s": 1.5, "ult_out_s": 0.5,
@@ -25,13 +25,13 @@ var CAM_DEFAULTS = {
   "depth": true, "depth_base": 0.10, "depth_gain": 0.20, "depth_shot": 0.15, "depth_budget_ms": 14.0,
   "anchor_scale": true, "anchor_s": 0.3, "anchor_zoom": 1.15,
   "vscale_bottom": 5.0, "vscale_top": 1.0, "dscale_near": 1.0, "dscale_far": 0.10,
-  "dscale_far_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
+  "dscale_far_x_frac": 0.5, "dscale_far_y_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
   "speed_min": 0.40, "speed_max": 1.00,
-  "planet": true, "planet_reach_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
+  "planet": true, "planet_reach_x_frac": 0.6, "planet_reach_y_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
   "wireframe": false
 };
 var CAM_RANGES = {
-  "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
+  "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_x_px": [0.0, 1000.0], "margin_y_px": [0.0, 1000.0],
   "punch_zoom": [0.0, 1.5], "punch_tilt_deg": [0.0, 30.0], "punch_pull": [0.0, 1.0],
   "punch_in_ticks": [1, 30], "punch_out_s": [0.02, 5.0],
   "shake_max_px": [0.0, 100.0], "shake_hz": [1.0, 60.0],
@@ -45,12 +45,60 @@ var CAM_RANGES = {
   "anchor_s": [0.02, 5.0], "anchor_zoom": [1.0, 3.0],
   "vscale_bottom": [0.1, 10.0], "vscale_top": [0.1, 10.0],
   "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
-  "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
+  "dscale_far_x_frac": [0.1, 1.5], "dscale_far_y_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
   "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
   "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
-  "planet_reach_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
+  "planet_reach_x_frac": [0.1, 2.0], "planet_reach_y_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
   "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95]
 };
+// Settings split into x / y: an old file's single value seeds both.
+var CAM_LEGACY_XY = {"margin_px": ["margin_x_px", "margin_y_px"],
+  "dscale_far_frac": ["dscale_far_x_frac", "dscale_far_y_frac"],
+  "planet_reach_frac": ["planet_reach_x_frac", "planet_reach_y_frac"]};
+// Wireframe overlay toggles (laser/camera.py WIRE_KEYS): camera.json
+// "wire_off" lists the keys whose part of the wireframe is hidden.  Camera
+// settings, two wireframe-only parts and "section.key" Dust & Air settings;
+// a part with several owners hides when ANY of them is unticked.
+var CAM_WIRE_KEYS = [
+  "follow", "margin_x_px", "margin_y_px", "max_zoom", "solo_zoom", "anchor_zoom",
+  "punch", "punch_tilt_deg", "shake", "shake_max_px", "ult_on", "switch_on", "ko_on", "clash_on",
+  "depth", "depth_base", "depth_gain", "depth_shot",
+  "anchor_scale", "vscale_bottom", "vscale_top", "dscale_near", "dscale_far",
+  "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve", "scale_min", "scale_max", "speed_min", "speed_max",
+  "planet", "planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash",
+  "wire_grid", "wire_view",
+  "roll.enabled", "roll.max_speed", "roll.zone_x_frac", "roll.zone_y_frac", "roll.vertical",
+  "roll.spawn_ahead_px", "roll.margin_px",
+  "pillars.enabled", "pillars.count", "pillars.respawn_s", "pillars.radius_x_px", "pillars.radius_y_px",
+  "pillars.clear_x_px", "pillars.clear_y_px", "pillars.gap_x_px", "pillars.gap_y_px",
+  "pillars.width", "pillars.height", "pillars.hp", "pillars.multi_chance"
+];
+// The Wireframe group's own rows: the two wireframe-only parts, then the Dust
+// & Air settings it draws (also ticked beside them on the Dust & Air page).
+var CAM_WIRE_EXTRA = [
+  ["wire_grid", "Plain grid & border", "The plain scene grid and the screen border (cyan): the camera's zoom / tilt warp shows on it."],
+  ["wire_view", "View box", "The green box of what the camera sees now, with its zoom."],
+  ["roll.enabled", "Roll: off notice", "Rolling world (Dust & Air): the \"rolling world OFF\" status line."],
+  ["roll.max_speed", "Roll: direction arrow", "Rolling world: the live roll direction / speed arrow and the max speed in the zone labels."],
+  ["roll.zone_x_frac", "Roll: left / right zones", "Rolling world: the left and right roll bands (Roll zone X)."],
+  ["roll.zone_y_frac", "Roll: top / bottom zones", "Rolling world: the top and bottom roll bands (Roll zone Y)."],
+  ["roll.vertical", "Roll: up / down", "Rolling world: the top and bottom bands (shown only with Roll up / down too)."],
+  ["roll.margin_px", "Roll: off-screen margin", "Rolling world: where pillars are dropped past the edge (seen when zoomed out)."],
+  ["roll.spawn_ahead_px", "Roll: new pillar spread", "Rolling world: how far out new pillars rise (seen when zoomed out)."],
+  ["pillars.enabled", "Pillars: off notice", "Rock pillars (Dust & Air): the \"pillars OFF\" status line."],
+  ["pillars.count", "Pillars: count line", "Rock pillars: the pillars standing / wanted status line."],
+  ["pillars.respawn_s", "Pillars: respawn timer", "Rock pillars: the next-pillar countdown in the status line."],
+  ["pillars.radius_x_px", "Pillars: spawn X", "Rock pillars: the spawn ellipse and its X reach."],
+  ["pillars.radius_y_px", "Pillars: spawn Y", "Rock pillars: the spawn ellipse and its Y reach."],
+  ["pillars.clear_x_px", "Pillars: clear X", "Rock pillars: each fighter's clear ellipse and its X reach."],
+  ["pillars.clear_y_px", "Pillars: clear Y", "Rock pillars: each fighter's clear ellipse and its Y reach."],
+  ["pillars.gap_x_px", "Pillars: gap X", "Rock pillars: each pillar's gap ellipse (game only: live pillars)."],
+  ["pillars.gap_y_px", "Pillars: gap Y", "Rock pillars: each pillar's gap ellipse (game only: live pillars)."],
+  ["pillars.width", "Pillars: footprints", "Rock pillars: each pillar's ground footprint and body (game only: live pillars)."],
+  ["pillars.height", "Pillars: bodies", "Rock pillars: each pillar's projectile / melee body (game only: live pillars)."],
+  ["pillars.hp", "Pillars: HP", "Rock pillars: each pillar's HP label (game only: live pillars)."],
+  ["pillars.multi_chance", "Pillars: multi-part", "Rock pillars: the multi-part block count label."]
+];
 var DEPTH_MAX = 0.6;
 // Cinematic shot kinds: settings prefix and priority (higher wins).
 var CAM_SHOTS = {"clash": ["clash", 1], "switch_in": ["switch", 2], "ultimate": ["ult", 3], "ko": ["ko", 4]};
@@ -61,7 +109,8 @@ var CAM_GROUPS = [
     ["max_zoom", "Battle max zoom ×", "Battle: how far the camera zooms in when the fighters are close. It never zooms out below 1.0x, so nobody is pushed off the overlay.", 0.05],
     ["solo_zoom", "Solo zoom ×", "Solo: the light fixed zoom the camera follows the fighter at.", 0.05],
     ["follow_s", "Follow time (s)", "How long the camera takes to catch up with the fighters (about 95% of the way). Lower = snappier, higher = floatier.", 0.05],
-    ["margin_px", "Margin (px)", "Space kept around the outermost fighters when framing them. Bigger = zooms in less.", 10]
+    ["margin_x_px", "Margin X (px)", "Space kept left and right of the outermost fighters when framing them. Bigger = zooms in less.", 10],
+    ["margin_y_px", "Margin Y (px)", "Space kept above and below the outermost fighters when framing them. Bigger = zooms in less.", 10]
   ]],
   ["Hit-stop punch-in", [
     ["punch", "Punch-in", "On every hit-stop (finishers, ultimates, strikes with Hit-stop) the camera snaps in toward the impact, holds through the freeze, then eases back."],
@@ -107,7 +156,7 @@ var CAM_GROUPS = [
     ["clash_out_s", "Ease-back (s)", "", 0.05]
   ]],
   ["Wireframe overlay", [
-    ["wireframe", "Wireframe overlay", "Draws a wireframe over the scene showing how the environment acts on the fighters: size contours and per-spot size / pace (Scaling grid, cyan), the anchor, planet horizon and squash rings and the depth tilt's near / far lines (magenta), the roll zones and roll direction (orange), the camera framing and view (green), the pillar spawn radius, clear zones, footprints and respawn timer (yellow). Shown on the preview here AND over the game screen (Solo and Battle); it follows every edit live."]
+    ["wireframe", "Wireframe overlay", "Draws a wireframe over the scene showing how the environment acts on the fighters: size contours and per-spot size / pace (Scaling grid, cyan), the anchor, planet horizon and squash rings and the depth tilt's near / far lines (magenta), the roll zones and roll direction (orange), the camera framing and view (green), the pillar spawn radius, clear zones, footprints and respawn timer (yellow). Shown on the preview here AND over the game screen (Solo and Battle); it follows every edit live. While it is on, every setting it draws gets a tick box in front of its name (here and on the Dust & Air page): untick one to hide its part of the wireframe (preview and game). A part drawn for several settings hides when any of them is unticked."]
   ]],
   ["Depth tilt", [
     ["depth", "Depth tilt", "A real perspective along the arena's depth (bottom-left near, top-right far): far things shrink and draw in toward the nearest fighter, so the slope reads deeper. Drawing only — sizes, hits and walls in the game are unchanged."],
@@ -124,7 +173,8 @@ var CAM_GROUPS = [
     ["vscale_top", "Top size ×", "Size at the very top of the screen.", 0.1],
     ["dscale_near", "On-anchor ×", "Distance factor right on the anchor (fighters face to face).", 0.05],
     ["dscale_far", "Far ×", "Distance factor at the far distance below.", 0.01],
-    ["dscale_far_frac", "Far distance (× width)", "Distance from the anchor that gets the Far factor, as a share of the screen width. 0.5 = two fighters on opposite edges.", 0.05],
+    ["dscale_far_x_frac", "Far distance X (× width)", "Left / right reach of the ellipse round the anchor that gets the Far factor, as a share of the screen width. 0.5 = two fighters on opposite edges.", 0.05],
+    ["dscale_far_y_frac", "Far distance Y (× width)", "Up / down reach of the far ellipse, as a share of the screen width (same unit as X, so equal values = a circle).", 0.05],
     ["dscale_curve", "Falloff curve", "1 = linear. Above 1 = stays big at close range, drops when far. Below 1 = drops quickly.", 0.05],
     ["scale_min", "Min size ×", "Final size is clamped between Min and Max (final = vertical × distance).", 0.01],
     ["scale_max", "Max size ×", "", 0.1],
@@ -133,7 +183,8 @@ var CAM_GROUPS = [
   ]],
   ["Tiny planet", [
     ["planet", "Tiny planet", "The anchor becomes the top of a small planet: everything shrinks along a sphere curve as it moves away from the anchor (big near the top, dropping fast toward the horizon), and the terrain, rubble, debris, dust & air are squashed along the line to the anchor near the rim (foreshortening). Nothing is moved, so pillars and dust still line up with the fighters. Needs Anchor scaling; replaces the distance factors above and the depth tilt while on."],
-    ["planet_reach_frac", "Horizon distance (× width)", "How far from the anchor the horizon is, as a share of the screen width. Smaller = a tinier planet.", 0.05],
+    ["planet_reach_x_frac", "Horizon distance X (× width)", "How far left / right of the anchor the horizon is, as a share of the screen width. Smaller = a tinier planet.", 0.05],
+    ["planet_reach_y_frac", "Horizon distance Y (× width)", "How far above / below the anchor the horizon is, as a share of the screen width (same unit as X, so equal values = a round horizon).", 0.05],
     ["planet_horizon_deg", "Horizon angle (°)", "How far round the sphere the horizon sits. 90 = a full quarter turn (strongest falloff and squash at the rim).", 1],
     ["planet_far", "Size at horizon ×", "Distance factor at the horizon (1 on the anchor).", 0.01],
     ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01]
@@ -145,7 +196,13 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function normalize(o) {
   var s = {format: CAM_FORMAT};
   Object.keys(CAM_DEFAULTS).forEach(function (k) { s[k] = CAM_DEFAULTS[k]; });
+  s.wire_off = [];
   if (!o || typeof o !== "object") return s;
+  o = Object.assign({}, o);
+  Object.keys(CAM_LEGACY_XY).forEach(function (old) {
+    if (old in o) CAM_LEGACY_XY[old].forEach(function (k) { if (!(k in o)) o[k] = o[old]; });
+  });
+  if (Array.isArray(o.wire_off)) s.wire_off = CAM_WIRE_KEYS.filter(function (k) { return o.wire_off.indexOf(k) >= 0; });
   Object.keys(CAM_DEFAULTS).forEach(function (k) { if (typeof CAM_DEFAULTS[k] === "boolean" && k in o) s[k] = !!o[k]; });
   Object.keys(CAM_RANGES).forEach(function (k) {
     if (!(k in o)) return;
@@ -166,6 +223,8 @@ function noise(x, seed) {
   var i = Math.floor(x), f = x - i, a = hash(i, seed), b = hash(i + 1, seed), u = f * f * (3 - 2 * f);
   return a + (b - a) * u;
 }
+// laser/worldscale.py _ellipse_u: 0 at the centre, 1 on the (rx, ry) ellipse.
+function ellU(dx, dy, rx, ry) { return rx > 1e-6 && ry > 1e-6 ? Math.hypot(dx / rx, dy / ry) : 0; }
 function ease(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
 function ticks(sec) { return Math.max(1, Math.round(sec / DT)); }
 
@@ -220,8 +279,8 @@ Cam.prototype.planetOn = function () { return !!(this.cfg.planet && this.cfg.anc
 // Tiny planet: [theta, dx, dy, dist] of a point (laser/worldscale.py _theta).
 Cam.prototype.theta = function (x, y) {
   var c = this.cfg, hz = clamp(c.planet_horizon_deg, 1, 90) * Math.PI / 180;
-  var dx = x - this.anc[0], dy = y - this.anc[1], d = Math.hypot(dx, dy), r = c.planet_reach_frac * this.sw;
-  return [(r > 1e-6 ? clamp(d / r, 0, 1) : 0) * hz, dx, dy, d];
+  var dx = x - this.anc[0], dy = y - this.anc[1], d = Math.hypot(dx, dy);
+  return [clamp(ellU(dx, dy, c.planet_reach_x_frac * this.sw, c.planet_reach_y_frac * this.sw), 0, 1) * hz, dx, dy, d];
 };
 // laser/worldscale.py squash(): [k, ux, uy] or null.
 Cam.prototype.squashAt = function (x, y) {
@@ -240,8 +299,7 @@ Cam.prototype.sizeAt = function (x, y) {
     var cc = ch < 1 - 1e-6 ? (Math.cos(this.theta(x, y)[0]) - ch) / (1 - ch) : 1;
     return clamp(v * (c.planet_far + (1 - c.planet_far) * clamp(cc, 0, 1)), c.scale_min, c.scale_max);
   }
-  var reach = c.dscale_far_frac * this.sw;
-  var u = reach > 1e-6 ? clamp(Math.hypot(x - this.anc[0], y - this.anc[1]) / reach, 0, 1) : 0;
+  var u = clamp(ellU(x - this.anc[0], y - this.anc[1], c.dscale_far_x_frac * this.sw, c.dscale_far_y_frac * this.sw), 0, 1);
   var d = c.dscale_near + (c.dscale_far - c.dscale_near) * (u > 0 ? Math.pow(u, c.dscale_curve) : 0);
   return clamp(v * d, c.scale_min, c.scale_max);
 };
@@ -302,7 +360,7 @@ Cam.prototype.target = function (figs, battle) {
   if (!c.follow || !figs.length) return [this.sw / 2, this.sh / 2, 1];
   var xs = figs.map(function (f) { return f.x; }), ys = figs.map(function (f) { return f.y; });
   var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
-  var m = c.margin_px, fit = Math.min(this.sw / Math.max(1, x1 - x0 + 2 * m), this.sh / Math.max(1, y1 - y0 + 2 * m));
+  var fit = Math.min(this.sw / Math.max(1, x1 - x0 + 2 * c.margin_x_px), this.sh / Math.max(1, y1 - y0 + 2 * c.margin_y_px));
   var z, cc;
   if (c.anchor_scale && this.anc) {
     z = Math.max(1, Math.min(c.anchor_zoom, fit));
@@ -362,6 +420,7 @@ Cam.prototype.apply = function (g, v) {
 
 window.CAMERA = {
   FORMAT: CAM_FORMAT, DEFAULTS: CAM_DEFAULTS, RANGES: CAM_RANGES, GROUPS: CAM_GROUPS, SHOTS: CAM_SHOTS,
+  WIRE_KEYS: CAM_WIRE_KEYS, WIRE_EXTRA: CAM_WIRE_EXTRA, ellU: ellU,
   TICK_MS: TICK_MS, normalize: normalize, Cam: Cam
 };
 })();

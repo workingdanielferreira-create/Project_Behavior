@@ -4183,35 +4183,55 @@ function camWire(g, cam, v, figs, battle, SW, SH, P) {
   var hw0 = SW / (2 * z), hh0 = SH / (2 * z), sx0 = v[0] - hw0 + 24 / z, sy0 = v[1] - hh0 + 70 / z, sn = 0;
   function S(k, text) { sn++; T(k, sx0, sy0 + sn * 28 / z, text); }
   var i, j, x, y;
-  // ---- Scaling grid (cyan)
-  for (x = 0; x <= SW; x += 120) L("cyan", 0.16, 1, x, 0, x, SH, false, 9);
-  for (y = 0; y <= SH; y += 120) L("cyan", 0.16, 1, 0, y, SW, y, false, 16);
-  var ST = 60, nx = Math.floor(SW / ST) + 2, ny = Math.floor(SH / ST) + 2, xs = [], ys = [], val = [], lo = 1e9, hi = -1e9;
-  for (i = 0; i < nx; i++) xs.push(Math.min(SW, i * ST));
-  for (j = 0; j < ny; j++) ys.push(Math.min(SH, j * ST));
-  for (j = 0; j < ny; j++) { val.push([]); for (i = 0; i < nx; i++) { var sv = cam.sizeAny(xs[i], ys[j]); val[j].push(sv); lo = Math.min(lo, sv); hi = Math.max(hi, sv); } }
-  WIRE_LEVELS.forEach(function (lv) {
-    if (!(lo < lv && lv < hi)) return;
-    var segs = [];
-    for (var jj = 0; jj < ny - 1; jj++) for (var ii = 0; ii < nx - 1; ii++) {
-      var cc = [[xs[ii], ys[jj], val[jj][ii]], [xs[ii + 1], ys[jj], val[jj][ii + 1]], [xs[ii + 1], ys[jj + 1], val[jj + 1][ii + 1]], [xs[ii], ys[jj + 1], val[jj + 1][ii]]], pts = [];
-      for (var k = 0; k < 4; k++) {
-        var a = cc[k], b = cc[(k + 1) % 4];
-        if ((a[2] - lv) * (b[2] - lv) < 0) { var t = (lv - a[2]) / (b[2] - a[2]); pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
-      }
-      if (pts.length >= 2) segs.push([pts[0][0], pts[0][1], pts[1][0], pts[1][1]]);
-      if (pts.length === 4) segs.push([pts[2][0], pts[2][1], pts[3][0], pts[3][1]]);
+  // A part is drawn unless ANY of its owning settings is unticked (wire_off).
+  var off = c.wire_off || [];
+  function on() { for (var q = 0; q < arguments.length; q++) if (off.indexOf(arguments[q]) >= 0) return false; return true; }
+  // The x / y reach of an ellipse: two labelled radius arrows, one per setting.
+  function reach(k, cx, cy, rx, ry, kx, ky, what) {
+    function arw(x1, y1) {
+      var an = Math.atan2(y1 - cy, x1 - cx);
+      L(k, 0.8, 1.5, cx, cy, x1, y1, false, 4);
+      L(k, 0.8, 1.5, x1, y1, x1 + Math.cos(an + 2.6) * 14, y1 + Math.sin(an + 2.6) * 14, false, 1);
+      L(k, 0.8, 1.5, x1, y1, x1 + Math.cos(an - 2.6) * 14, y1 + Math.sin(an - 2.6) * 14, false, 1);
     }
-    if (!segs.length) return;
-    g.strokeStyle = col("cyan", lv === 1 ? 0.7 : 0.45); g.lineWidth = (lv === 1 ? 2.5 : 1.5) / z; g.beginPath();
-    segs.forEach(function (s) { seg(s[0], s[1], s[2], s[3], 1); }); g.stroke();
-    var m = segs[segs.length >> 1]; T("cyan", m[0] + 4, m[1] - 4, "size ×" + lv);
-  });
-  for (y = 120; y < SH; y += 240) for (x = 120; x < SW; x += 240) {
+    if (on(kx)) { arw(cx + rx, cy); T(k, cx + rx * 0.5, cy - 6, what + " x " + Math.round(rx) + " px"); }
+    if (on(ky)) { arw(cx, cy - ry); T(k, cx + 6, cy - ry * 0.5, what + " y " + Math.round(ry) + " px"); }
+  }
+  // ---- Scaling grid (cyan)
+  if (on("wire_grid")) {
+    for (x = 0; x <= SW; x += 120) L("cyan", 0.16, 1, x, 0, x, SH, false, 9);
+    for (y = 0; y <= SH; y += 120) L("cyan", 0.16, 1, 0, y, SW, y, false, 16);
+  }
+  var sizeOn = on("vscale_bottom", "vscale_top", "scale_min", "scale_max"), paceOn = on("speed_min", "speed_max");
+  if (sizeOn) {
+    var ST = 60, nx = Math.floor(SW / ST) + 2, ny = Math.floor(SH / ST) + 2, xs = [], ys = [], val = [], lo = 1e9, hi = -1e9;
+    for (i = 0; i < nx; i++) xs.push(Math.min(SW, i * ST));
+    for (j = 0; j < ny; j++) ys.push(Math.min(SH, j * ST));
+    for (j = 0; j < ny; j++) { val.push([]); for (i = 0; i < nx; i++) { var sv = cam.sizeAny(xs[i], ys[j]); val[j].push(sv); lo = Math.min(lo, sv); hi = Math.max(hi, sv); } }
+    WIRE_LEVELS.forEach(function (lv) {
+      if (!(lo < lv && lv < hi)) return;
+      var segs = [];
+      for (var jj = 0; jj < ny - 1; jj++) for (var ii = 0; ii < nx - 1; ii++) {
+        var cc = [[xs[ii], ys[jj], val[jj][ii]], [xs[ii + 1], ys[jj], val[jj][ii + 1]], [xs[ii + 1], ys[jj + 1], val[jj + 1][ii + 1]], [xs[ii], ys[jj + 1], val[jj + 1][ii]]], pts = [];
+        for (var k = 0; k < 4; k++) {
+          var a = cc[k], b = cc[(k + 1) % 4];
+          if ((a[2] - lv) * (b[2] - lv) < 0) { var t = (lv - a[2]) / (b[2] - a[2]); pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+        }
+        if (pts.length >= 2) segs.push([pts[0][0], pts[0][1], pts[1][0], pts[1][1]]);
+        if (pts.length === 4) segs.push([pts[2][0], pts[2][1], pts[3][0], pts[3][1]]);
+      }
+      if (!segs.length) return;
+      g.strokeStyle = col("cyan", lv === 1 ? 0.7 : 0.45); g.lineWidth = (lv === 1 ? 2.5 : 1.5) / z; g.beginPath();
+      segs.forEach(function (s) { seg(s[0], s[1], s[2], s[3], 1); }); g.stroke();
+      var m = segs[segs.length >> 1]; T("cyan", m[0] + 4, m[1] - 4, "size ×" + lv);
+    });
+  }
+  var ringOn = cam.planetOn() && on("planet_squash");
+  if (sizeOn || paceOn || ringOn) for (y = 120; y < SH; y += 240) for (x = 120; x < SW; x += 240) {
     var s = cam.sizeAny(x, y), pc = cam.paceAny(x, y);
-    L("cyan", 0.8, 2.5, x, y, x, y - 20 * s, false, 1); L("cyan", 0.8, 2.5, x - 5, y, x + 5, y, false, 1);
+    if (sizeOn) { L("cyan", 0.8, 2.5, x, y, x, y - 20 * s, false, 1); L("cyan", 0.8, 2.5, x - 5, y, x + 5, y, false, 1); }
     var sq = cam.squashAt(x, y);
-    if (sq && cam.planetOn()) {
+    if (sq && ringOn) {
       var an = Math.atan2(sq[2], sq[1]), r0 = 9 * s;
       g.strokeStyle = col("cyan", 0.65); g.lineWidth = 1.5 / z; g.beginPath();
       for (var e = 0; e <= 32; e++) {
@@ -4221,74 +4241,116 @@ function camWire(g, cam, v, figs, battle, SW, SH, P) {
       }
       g.stroke();
     }
-    T("cyan", x + 6, y - 2, "×" + s.toFixed(2) + " " + Math.round(pc * 100) + "%");
+    var bt = (sizeOn ? "×" + s.toFixed(2) : "") + (sizeOn && paceOn ? " " : "") + (paceOn ? Math.round(pc * 100) + "%" : "");
+    if (bt) T("cyan", x + 6, y - 2, bt);
   }
   // ---- Roll zones (orange)
   var Rl = PHYS.roll, anc = cam.anc || (figs.length ? [figs.reduce(function (a, f) { return a + f.x; }, 0) / figs.length, figs.reduce(function (a, f) { return a + f.y; }, 0) / figs.length] : [SW / 2, SH / 2]);
   if (Rl && Rl.enabled) {
-    var zf = clampN(Rl.zone_frac, 0.05, 0.5);
-    R("orange", 0.65, 1.5, 0, 0, SW * zf, SH, false, 0.08); R("orange", 0.65, 1.5, SW * (1 - zf), 0, SW * zf, SH, false, 0.08);
-    if (Rl.vertical) { R("orange", 0.65, 1.5, 0, 0, SW, SH * zf, false, 0.06); R("orange", 0.65, 1.5, 0, SH * (1 - zf), SW, SH * zf, false, 0.06); }
-    T("orange", 12, SH * 0.5, "roll zone: world rolls →"); T("orange", SW * (1 - zf) + 12, SH * 0.5, "← world rolls (max " + Rl.max_speed + " px/s)");
-    function ax1(u) { return u < zf ? (zf - u) / zf : u > 1 - zf ? -(u - (1 - zf)) / zf : 0; }
-    var rvx = Rl.max_speed * clampN(ax1(anc[0] / SW), -1, 1), rvy = Rl.vertical ? Rl.max_speed * clampN(ax1(anc[1] / SH), -1, 1) : 0, rs = Math.hypot(rvx, rvy);
-    if (rs > 1) {
+    var zx = clampN(Rl.zone_x_frac, 0.05, 0.5), zy = clampN(Rl.zone_y_frac, 0.05, 0.5);
+    var spdTxt = on("roll.max_speed") ? " (max " + Rl.max_speed + " px/s)" : "";
+    if (on("roll.zone_x_frac")) {
+      R("orange", 0.65, 1.5, 0, 0, SW * zx, SH, false, 0.08); R("orange", 0.65, 1.5, SW * (1 - zx), 0, SW * zx, SH, false, 0.08);
+      T("orange", 12, SH * 0.5, "roll zone x " + zx.toFixed(2) + ": world rolls →"); T("orange", SW * (1 - zx) + 12, SH * 0.5, "← world rolls" + spdTxt);
+    }
+    if (Rl.vertical && on("roll.zone_y_frac", "roll.vertical")) {
+      R("orange", 0.65, 1.5, 0, 0, SW, SH * zy, false, 0.06); R("orange", 0.65, 1.5, 0, SH * (1 - zy), SW, SH * zy, false, 0.06);
+      T("orange", SW * 0.5, SH * zy - 8, "roll zone y " + zy.toFixed(2) + " (vertical)" + spdTxt);
+    }
+    if (on("roll.margin_px")) [-Rl.margin_px, SW + Rl.margin_px].forEach(function (xx) { L("orange", 0.45, 1, xx, 0, xx, SH, true, 9); });
+    if (on("roll.spawn_ahead_px")) [-Rl.margin_px - Rl.spawn_ahead_px, SW + Rl.margin_px + Rl.spawn_ahead_px].forEach(function (xx) { L("orange", 0.45, 1, xx, 0, xx, SH, true, 9); });
+    function ax1(u, zf) { return u < zf ? (zf - u) / zf : u > 1 - zf ? -(u - (1 - zf)) / zf : 0; }
+    var rvx = Rl.max_speed * clampN(ax1(anc[0] / SW, zx), -1, 1), rvy = Rl.vertical ? Rl.max_speed * clampN(ax1(anc[1] / SH, zy), -1, 1) : 0, rs = Math.hypot(rvx, rvy);
+    if (rs > 1 && on("roll.max_speed")) {
       var Ln = Math.min(260, 40 + rs * 0.3), ex = anc[0] + rvx / rs * Ln, ey = anc[1] + rvy / rs * Ln, ang = Math.atan2(ey - anc[1], ex - anc[0]);
       L("orange", 0.95, 3, anc[0], anc[1], ex, ey, false, 4);
       L("orange", 0.95, 3, ex, ey, ex + Math.cos(ang + 2.6) * 18, ey + Math.sin(ang + 2.6) * 18, false, 1);
       L("orange", 0.95, 3, ex, ey, ex + Math.cos(ang - 2.6) * 18, ey + Math.sin(ang - 2.6) * 18, false, 1);
       T("orange", anc[0] + 12, anc[1] + 34, "rolling " + Math.round(rs) + " px/s");
     }
-  } else S("orange", "rolling world OFF");
+  } else if (on("roll.enabled")) S("orange", "rolling world OFF");
   // ---- Pillars (yellow): from Dust & Air's Rock pillars
   var Pp = PHYS.pillars;
   if (Pp && Pp.enabled && PHYS.ground.enabled) {
-    C("yellow", 0.6, 1.5, anc[0], anc[1], Pp.radius_px, null, true);
-    T("yellow", anc[0] + 6, anc[1] - Pp.radius_px - 6, "pillar spawn radius " + Pp.radius_px);
-    figs.forEach(function (f) { C("yellow", 0.45, 1, f.x, f.y, Pp.clear_px, null, true); });
-    if (figs.length) T("yellow", figs[0].x + 6, figs[0].y + Pp.clear_px + 26, "clear " + Pp.clear_px);
-    S("yellow", "pillars: " + Pp.count + " (multi-part " + Pp.multi_chance + "%, gap " + Pp.gap_px + ", respawn " + Pp.respawn_s + " s) — live ones show in the game");
-  } else S("yellow", "pillars OFF");
+    if (on("pillars.radius_x_px", "pillars.radius_y_px")) {
+      C("yellow", 0.6, 1.5, anc[0], anc[1], Pp.radius_x_px, Pp.radius_y_px, true);
+      T("yellow", anc[0] + 6, anc[1] - Pp.radius_y_px - 6, "pillar spawn ellipse");
+    }
+    reach("yellow", anc[0], anc[1], Pp.radius_x_px, Pp.radius_y_px, "pillars.radius_x_px", "pillars.radius_y_px", "spawn");
+    if (on("pillars.clear_x_px", "pillars.clear_y_px")) figs.forEach(function (f) { C("yellow", 0.45, 1, f.x, f.y, Pp.clear_x_px, Pp.clear_y_px, true); });
+    if (figs.length) reach("yellow", figs[0].x, figs[0].y, Pp.clear_x_px, Pp.clear_y_px, "pillars.clear_x_px", "pillars.clear_y_px", "clear");
+    if (on("pillars.count")) S("yellow", "pillars: " + Pp.count + (on("pillars.multi_chance") ? " (multi-part " + Pp.multi_chance + "%)" : "") +
+      (on("pillars.gap_x_px", "pillars.gap_y_px") ? " gap " + Pp.gap_x_px + "×" + Pp.gap_y_px : "") +
+      (on("pillars.respawn_s") ? ", respawn " + Pp.respawn_s + " s" : "") + " — live ones show in the game");
+  } else if (on("pillars.enabled")) S("yellow", "pillars OFF");
   // ---- Anchor, planet, depth (magenta)
   if (c.anchor_scale && cam.anc) {
     var A = cam.anc;
-    figs.forEach(function (f) { L("magenta", 0.45, 1, A[0], A[1], f.x, f.y, true); T("magenta", (A[0] + f.x) / 2, (A[1] + f.y) / 2, Math.round(Math.hypot(f.x - A[0], f.y - A[1])) + " px"); });
-    var rr = 16;
-    L("magenta", 0.9, 2.5, A[0] - rr, A[1], A[0] + rr, A[1], false, 1); L("magenta", 0.9, 2.5, A[0], A[1] - rr, A[0], A[1] + rr, false, 1);
-    T("magenta", A[0] + rr, A[1] - rr, "ANCHOR");
+    if (on("anchor_scale")) {
+      figs.forEach(function (f) { L("magenta", 0.45, 1, A[0], A[1], f.x, f.y, true); T("magenta", (A[0] + f.x) / 2, (A[1] + f.y) / 2, Math.round(Math.hypot(f.x - A[0], f.y - A[1])) + " px"); });
+      var rr = 16;
+      L("magenta", 0.9, 2.5, A[0] - rr, A[1], A[0] + rr, A[1], false, 1); L("magenta", 0.9, 2.5, A[0], A[1] - rr, A[0], A[1] + rr, false, 1);
+      T("magenta", A[0] + rr, A[1] - rr, "ANCHOR");
+    }
     if (cam.planetOn()) {
-      var Rp = c.planet_reach_frac * SW, hz = clampN(c.planet_horizon_deg, 1, 90) * Math.PI / 180;
-      C("magenta", 0.85, 2.5, A[0], A[1], Rp);
-      T("magenta", A[0] + 6, A[1] - Rp - 6, "planet horizon (" + c.planet_horizon_deg + "°, size ×" + c.planet_far + ", squash " + c.planet_squash + ")");
-      [1 / 3, 2 / 3].forEach(function (fr) {
+      var Rpx = c.planet_reach_x_frac * SW, Rpy = c.planet_reach_y_frac * SW, hz = clampN(c.planet_horizon_deg, 1, 90) * Math.PI / 180;
+      if (on("planet", "planet_reach_x_frac", "planet_reach_y_frac")) {
+        C("magenta", 0.85, 2.5, A[0], A[1], Rpx, Rpy);
+        if (on("planet_horizon_deg")) T("magenta", A[0] + 6, A[1] - Rpy - 6, "planet horizon " + c.planet_horizon_deg + "°");
+      }
+      if (on("planet_far")) T("magenta", A[0] + 6, A[1] + Rpy + 26, "size ×" + c.planet_far + " at the horizon");
+      reach("magenta", A[0], A[1], Rpx, Rpy, "planet_reach_x_frac", "planet_reach_y_frac", "horizon");
+      if (on("planet_squash")) [1 / 3, 2 / 3].forEach(function (fr) {
         var kq = clampN(1 - c.planet_squash * (1 - Math.cos(fr * hz)), 0.05, 1);
-        C("magenta", 0.5, 1, A[0], A[1], Rp * fr, null, true);
-        T("magenta", A[0] + Rp * fr * 0.71 + 6, A[1] + Rp * fr * 0.71, "squash ×" + kq.toFixed(2));
+        C("magenta", 0.5, 1, A[0], A[1], Rpx * fr, Rpy * fr, true);
+        T("magenta", A[0] + Rpx * fr * 0.71 + 6, A[1] + Rpy * fr * 0.71, "squash ×" + kq.toFixed(2));
       });
     } else {
-      var Rf = c.dscale_far_frac * SW;
-      C("magenta", 0.65, 1.5, A[0], A[1], Rf, null, true);
-      T("magenta", A[0] + 6, A[1] - Rf - 6, "far distance: ×" + c.dscale_far + " (curve " + c.dscale_curve + ")");
+      var Rfx = c.dscale_far_x_frac * SW, Rfy = c.dscale_far_y_frac * SW;
+      if (on("dscale_far", "dscale_far_x_frac", "dscale_far_y_frac")) {
+        C("magenta", 0.65, 1.5, A[0], A[1], Rfx, Rfy, true);
+        T("magenta", A[0] + 6, A[1] - Rfy - 6, "far distance: ×" + c.dscale_far);
+      }
+      reach("magenta", A[0], A[1], Rfx, Rfy, "dscale_far_x_frac", "dscale_far_y_frac", "far");
+      if (on("dscale_curve")) {
+        var kh = c.dscale_near + (c.dscale_far - c.dscale_near) * Math.pow(0.5, c.dscale_curve);
+        C("magenta", 0.35, 1, A[0], A[1], Rfx * 0.5, Rfy * 0.5, true);
+        T("magenta", A[0] - Rfx * 0.35, A[1] + Rfy * 0.5 + 26, "half way: ×" + kh.toFixed(2) + " (curve " + c.dscale_curve + ")");
+      }
+      if (on("dscale_near")) T("magenta", A[0] + 20, A[1] + 34, "on-anchor ×" + c.dscale_near);
     }
-  } else S("magenta", "anchor scaling OFF: corner-grid sizes");
+  } else if (on("anchor_scale")) S("magenta", "anchor scaling OFF: corner-grid sizes");
   if (c.depth && !cam.planetOn()) {
-    if (c.anchor_scale) { for (i = 1; i < 6; i++) L("magenta", 0.3, 1, 0, SH * i / 6, SW, SH * i / 6, true, 16); }
-    else { for (i = 1; i < 6; i++) L("magenta", 0.3, 1, 0, SH * i / 3, SW * i / 3, 0, true, 16); }
-    C("magenta", 0.9, 2.5, v[7], v[8], 12);
-    T("magenta", v[7] + 16, v[8] + 26, "depth A  k=" + v[6].toFixed(2) + (c.anchor_scale ? "  (bottom near → top far)" : "  (bottom-left near → top-right far)"));
-  } else if (c.depth) S("magenta", "depth tilt replaced by the tiny planet");
+    if (on("depth")) {
+      if (c.anchor_scale) { for (i = 1; i < 6; i++) L("magenta", 0.3, 1, 0, SH * i / 6, SW, SH * i / 6, true, 16); }
+      else { for (i = 1; i < 6; i++) L("magenta", 0.3, 1, 0, SH * i / 3, SW * i / 3, 0, true, 16); }
+    }
+    if (on("depth_base", "depth_gain", "depth_shot")) {
+      C("magenta", 0.9, 2.5, v[7], v[8], 12);
+      T("magenta", v[7] + 16, v[8] + 26, "depth A  k=" + v[6].toFixed(2) + (c.anchor_scale ? "  (bottom near → top far)" : "  (bottom-left near → top-right far)"));
+    }
+  } else if (!on("depth")) { /* hidden */ }
+  else if (c.depth) S("magenta", "depth tilt replaced by the tiny planet");
   else S("magenta", "depth tilt OFF");
   // ---- Camera (green)
-  if (figs.length && c.follow) {
-    var X = figs.map(function (f) { return f.x; }), Y = figs.map(function (f) { return f.y; }), mg = c.margin_px;
-    var x0 = Math.min.apply(null, X) - mg, y0 = Math.min.apply(null, Y) - mg;
-    R("green", 0.8, 1.5, x0, y0, Math.max.apply(null, X) - Math.min.apply(null, X) + 2 * mg, Math.max.apply(null, Y) - Math.min.apply(null, Y) + 2 * mg, true);
-    T("green", x0 + 6, y0 - 6, "framing (+" + mg + " margin) — " + (c.anchor_scale ? "anchor pan zoom ×" + c.anchor_zoom : battle ? "battle max zoom ×" + c.max_zoom : "solo zoom ×" + c.solo_zoom));
+  if (figs.length && c.follow && on("follow")) {
+    var X = figs.map(function (f) { return f.x; }), Y = figs.map(function (f) { return f.y; }), mx = c.margin_x_px, my = c.margin_y_px;
+    var x0 = Math.min.apply(null, X) - mx, y0 = Math.min.apply(null, Y) - my, x1 = Math.max.apply(null, X) + mx, y1 = Math.max.apply(null, Y) + my;
+    if (on("margin_x_px")) { L("green", 0.8, 1.5, x0, y0, x0, y1, true); L("green", 0.8, 1.5, x1, y0, x1, y1, true); }   // left / right = x margin
+    if (on("margin_y_px")) { L("green", 0.8, 1.5, x0, y0, x1, y0, true); L("green", 0.8, 1.5, x0, y1, x1, y1, true); }   // top / bottom = y margin
+    var zk = c.anchor_scale ? "anchor_zoom" : battle ? "max_zoom" : "solo_zoom";
+    var zt = c.anchor_scale ? "anchor pan zoom ×" + c.anchor_zoom : battle ? "battle max zoom ×" + c.max_zoom : "solo zoom ×" + c.solo_zoom;
+    T("green", x0 + 6, y0 - 6, "framing" + (on("margin_x_px") ? " +" + mx + " x" : "") + (on("margin_y_px") ? " +" + my + " y" : "") + (on(zk) ? " — " + zt : ""));
   }
-  var ins = 8 / z;
-  R("green", 0.9, 2.5, v[0] - hw0 + ins, v[1] - hh0 + ins, 2 * hw0 - 2 * ins, 2 * hh0 - 2 * ins, false);
-  T("green", v[0] - hw0 + 24 / z, v[1] + hh0 - 110 / z, "view ×" + z.toFixed(2) + (Math.abs(v[3]) > 0.05 ? " roll " + v[3].toFixed(1) + "°" : "") +
-    (cam.shot && cam.shot.env > 0 ? "  shot: " + cam.shot.kind : "") + (cam.trauma > 0.01 ? "  shake " + cam.trauma.toFixed(2) : ""));
+  var ins = 8 / z, vt = [];
+  if (on("wire_view")) {
+    R("green", 0.9, 2.5, v[0] - hw0 + ins, v[1] - hh0 + ins, 2 * hw0 - 2 * ins, 2 * hh0 - 2 * ins, false);
+    vt.push("view ×" + z.toFixed(2));
+  }
+  if (Math.abs(v[3]) > 0.05 && on("punch", "punch_tilt_deg")) vt.push("roll " + v[3].toFixed(1) + "°");
+  if (cam.shot && cam.shot.env > 0 && on(CAMERA.SHOTS[cam.shot.kind][0] + "_on")) vt.push("shot: " + cam.shot.kind);
+  if (cam.trauma > 0.01 && on("shake", "shake_max_px")) vt.push("shake " + cam.trauma.toFixed(2));
+  if (vt.length) T("green", v[0] - hw0 + 24 / z, v[1] + hh0 - 110 / z, vt.join("  "));
   function clampN(vv, a, b) { return Math.max(a, Math.min(b, vv)); }
 }
 // Live preview: a 1920x1080 "screen" scaled into the canvas.  The desktop
@@ -4416,7 +4478,7 @@ function camPreview(parent) {
     // terrain, rubble, debris and dust are).
     if (cam.planetOn() && cam.anc) {
       g.strokeStyle = "rgba(160,190,230,0.25)"; g.lineWidth = 2;
-      g.beginPath(); g.arc(cam.anc[0], cam.anc[1], CAMCFG.planet_reach_frac * SW, 0, 2 * Math.PI); g.stroke();
+      g.beginPath(); g.ellipse(cam.anc[0], cam.anc[1], CAMCFG.planet_reach_x_frac * SW, CAMCFG.planet_reach_y_frac * SW, 0, 0, 2 * Math.PI); g.stroke();
       for (var ry = 60; ry < SH; ry += 120) for (var rx = 60 + ((ry / 120) % 2) * 60; rx < SW; rx += 120) {
         var sz = cam.sizeAt(rx, ry) || 1, q = cam.squashAt(rx, ry), r0 = 16 * Math.min(2.5, sz);
         g.save(); g.translate(rx, ry);
@@ -4502,13 +4564,49 @@ function buildWorldCameraProps(d) {
     var s = sec(d, gr[0], "c-grp-" + gi, "", "act");
     gr[1].forEach(function (f) {
       var k = f[0], dflt = CAMERA.DEFAULTS[k], r = CAMERA.RANGES[k], e;
-      if (typeof dflt === "boolean") e = inp("chk", CAMCFG[k], function (v) { CAMCFG[k] = v; camSave(); });
+      if (typeof dflt === "boolean") e = inp("chk", CAMCFG[k], function (v) { CAMCFG[k] = v; camSave(); if (k === "wireframe") buildProps(); });
       else e = inp("n", CAMCFG[k], function (v) {
         CAMCFG[k] = Math.max(r[0], Math.min(r[1], k === "punch_in_ticks" ? Math.round(v) : v)); camSave();
       }, r[0], r[1], f[3] || 0.05);
       field(s, f[1], e).title = f[2] + (typeof dflt === "number" ? " (default " + dflt + ", " + r[0] + "–" + r[1] + ")" : "");
+      wireTick(e, k);
+      if (k === "wireframe" && CAMCFG.wireframe) wireExtras(s);
     });
   });
+}
+// Wireframe toggles (camera.json wire_off, laser/wireframe.py): while the
+// Wireframe overlay is on, every setting the wireframe draws gets a tick box
+// in front of its label; unticked = its part of the wireframe is hidden in
+// the preview and in the game (Solo and Battle).  A part drawn for several
+// settings hides when any of them is unticked.
+function wireShown(key) { return (CAMCFG.wire_off || []).indexOf(key) < 0; }
+function wireSet(key, on) {
+  var o = (CAMCFG.wire_off || []).filter(function (k) { return k !== key; });
+  if (!on) o.push(key);
+  CAMCFG.wire_off = CAMERA.WIRE_KEYS.filter(function (k) { return o.indexOf(k) >= 0; });
+  camSave();
+}
+function wireTick(input, key) {
+  if (!CAMCFG.wireframe || CAMERA.WIRE_KEYS.indexOf(key) < 0) return;
+  var lab = input.previousSibling; if (!lab) return;
+  var t = document.createElement("input"); t.type = "checkbox"; t.checked = wireShown(key);
+  t.style.margin = "0 5px 0 0"; t.style.verticalAlign = "middle";
+  t.title = "Wireframe: show this setting's part of the wireframe overlay (preview and game). Untick to hide it.";
+  t.onclick = function (ev) { ev.stopPropagation(); };
+  t.onchange = function () { wireSet(key, t.checked); };
+  lab.insertBefore(t, lab.firstChild);
+}
+// The Wireframe group's own rows: the wireframe-only parts and the Dust & Air
+// settings it draws (the same ticks sit beside them on the Dust & Air page).
+function wireExtras(s) {
+  var sub = document.createElement("div"); sub.className = "sub"; sub.textContent = "Wireframe parts (tick = shown)"; s.appendChild(sub);
+  CAMERA.WIRE_EXTRA.forEach(function (w) {
+    field(s, w[1], inp("chk", wireShown(w[0]), function (v) { wireSet(w[0], v); })).title = w[2];
+  });
+  var row = document.createElement("div"); row.className = "row"; s.appendChild(row);
+  [["Show all parts", function () { CAMCFG.wire_off = []; camSave(); buildProps(); }],
+   ["Hide all parts", function () { CAMCFG.wire_off = CAMERA.WIRE_KEYS.slice(); camSave(); buildProps(); }]
+  ].forEach(function (b) { var x = document.createElement("button"); x.textContent = b[0]; x.onclick = b[1]; row.appendChild(x); });
 }
 // ------------------------------------------------------------ World Physics
 // Dust & Air (laser/worldfx.py, port: studio/worldfx.js): the dust, debris
@@ -4589,7 +4687,7 @@ function openPhysPage(on) {
 }
 // The settings of one section as fields.  sobj = the live section object,
 // onch(rebuild) after every change.
-function physFields(parent, name, sobj, onch) {
+function physFields(parent, name, sobj, onch, wire) {
   WORLDFX.FIELDS[name].forEach(function (f) {
     var k = f[0], d = WORLDFX.DEFAULTS[name][k], r = (WORLDFX.RANGES[name] || {})[k], en = (WORLDFX.ENUMS[name] || {})[k], e;
     if (typeof d === "boolean") e = inp("chk", sobj[k], function (v) { sobj[k] = v; onch(); });
@@ -4600,6 +4698,7 @@ function physFields(parent, name, sobj, onch) {
     else e = inp("n", sobj[k], function (v) { sobj[k] = r ? Math.max(r[0], Math.min(r[1], v)) : v; onch(); },
       r ? r[0] : null, r ? r[1] : null, (r && r[1] <= 1) ? 0.05 : 1);
     field(parent, f[1], e).title = f[2] + (typeof d === "number" ? " (default " + d + (r ? ", " + r[0] + "–" + r[1] : "") + ")" : "");
+    if (wire) wireTick(e, name + "." + k);   // the world's own settings: World Camera wireframe ticks
   });
 }
 // Live preview: a slope (bottom-left near and big, top-right far and small,
@@ -4774,7 +4873,7 @@ function buildWorldPhysicsProps(d) {
   WORLDFX.SECTIONS.forEach(function (name) {
     if (name.indexOf("smoke_") === 0) return;     // under Smoke styles below
     var s = sec(d, WORLDFX.TITLES[name], "p-" + name, "", "act");
-    physFields(s, name, PHYS[name], function () { physSave(); });
+    physFields(s, name, PHYS[name], function () { physSave(); }, true);
   });
   physStyleSection(d, function () { return PHYS; }, function () { physSave(); });
   var rs = document.createElement("div"); rs.className = "row";

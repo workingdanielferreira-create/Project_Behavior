@@ -234,8 +234,10 @@ def main():
     # World Camera (laser/camera.py, studio/camera.js): settings tables.
     cam_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "camera.js"))
     cam_py = PyTables(os.path.join(ROOT, "laser", "camera.py"), {"config": cfg})
-    for j, y in (("CAM_DEFAULTS", "DEFAULTS"), ("CAM_RANGES", "RANGES"), ("CAM_FORMAT", "FORMAT")):
+    for j, y in (("CAM_DEFAULTS", "DEFAULTS"), ("CAM_RANGES", "RANGES"), ("CAM_FORMAT", "FORMAT"),
+                 ("CAM_WIRE_KEYS", "WIRE_KEYS"), ("CAM_LEGACY_XY", "LEGACY_XY")):
         diff(cam_js.get(j), cam_py.get(y), "camera " + y, out)
+    diff(wf_js.get("WP_LEGACY_XY"), wf_py.get("LEGACY_XY"), "worldfx LEGACY_XY", out)
 
     # Hand-drawn techniques: the slash-family cut table (laser/swordfx.py),
     # the ki barrage / impact punch constants (laser/strikefx.py), the power

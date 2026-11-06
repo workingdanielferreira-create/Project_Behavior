@@ -21,10 +21,10 @@ Size at a point (x, y):
 
 Tiny planet (camera.json "planet", needs anchor_scale): the distance term
 is replaced by a sphere curve.  The anchor is the top of a small planet
-and the ground bends away over a horizon planet_reach_frac x screen_w
+and the ground bends away over a horizon (planet_reach_x_frac, planet_reach_y_frac) x screen_w (an ellipse)
 from it, in every direction:
 
-    u         = clamp(dist / (reach_frac * screen_w), 0, 1)
+    u         = clamp(hypot(dx / rx, dy / ry), 0, 1)   rx, ry = reach x / y * screen_w
     theta     = u * horizon_deg
     c         = (cos theta - cos horizon) / (1 - cos horizon)   (1 .. 0)
     distance  = far + (1 - far) * c         -> stays big near the top,
@@ -60,18 +60,19 @@ def set_anchor(ax=None, ay=None, cfg=None):
     _A = (float(ax), float(ay),
           float(cfg["vscale_bottom"]), float(cfg["vscale_top"]),
           float(cfg["dscale_near"]), float(cfg["dscale_far"]),
-          float(cfg["dscale_far_frac"]), float(cfg["dscale_curve"]),
+          (float(cfg["dscale_far_x_frac"]), float(cfg["dscale_far_y_frac"])), float(cfg["dscale_curve"]),
           float(cfg["scale_min"]), float(cfg["scale_max"]),
           float(cfg["speed_min"]), float(cfg["speed_max"]),
           _planet(cfg))
 
 
 def _planet(cfg):
-    """(reach_frac, cos_horizon, horizon_rad, far, squash) or None (off)."""
+    """((reach_x_frac, reach_y_frac), cos_horizon, horizon_rad, far, squash)
+    or None (off).  The horizon is an ellipse: x and y reach apart."""
     if not cfg.get("planet"):
         return None
     hz = math.radians(max(1.0, min(90.0, float(cfg.get("planet_horizon_deg", 80.0)))))
-    return (float(cfg.get("planet_reach_frac", 0.6)), math.cos(hz), hz,
+    return ((float(cfg.get("planet_reach_x_frac", 0.6)), float(cfg.get("planet_reach_y_frac", 0.6))), math.cos(hz), hz,
             float(cfg.get("planet_far", 0.15)), float(cfg.get("planet_squash", 0.85)))
 
 
@@ -85,9 +86,16 @@ def _theta(x, y, sw):
     reach, _ch, hz = _A[12][0], _A[12][1], _A[12][2]
     dx, dy = x - ax, y - ay
     dist = math.hypot(dx, dy)
-    r = reach * sw
-    u = max(0.0, min(1.0, dist / r)) if r > 1e-6 else 0.0
+    u = max(0.0, min(1.0, _ellipse_u(dx, dy, reach[0] * sw, reach[1] * sw)))
     return u * hz, dx, dy, dist
+
+
+def _ellipse_u(dx, dy, rx, ry):
+    """How far (dx, dy) is out to the ellipse of half-axes (rx, ry): 0 at
+    the centre, 1 on the ellipse (x and y reach set apart)."""
+    if rx <= 1e-6 or ry <= 1e-6:
+        return 0.0
+    return math.hypot(dx / rx, dy / ry)
 
 
 def active():
@@ -112,11 +120,7 @@ def size(x, y, sw, sh):
         c = (math.cos(th) - ch) / (1.0 - ch) if ch < 1.0 - 1e-6 else 1.0
         d = pl[3] + (1.0 - pl[3]) * max(0.0, min(1.0, c))
         return max(smin, min(smax, v * d))
-    reach = ff * sw
-    if reach > 1e-6:
-        u = max(0.0, min(1.0, math.hypot(x - ax, y - ay) / reach))
-    else:
-        u = 0.0
+    u = max(0.0, min(1.0, _ellipse_u(x - ax, y - ay, ff[0] * sw, ff[1] * sw)))
     d = dn + (df - dn) * (u ** cv if u > 0.0 else 0.0)
     return max(smin, min(smax, v * d))
 

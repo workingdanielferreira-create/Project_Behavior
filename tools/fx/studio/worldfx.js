@@ -47,7 +47,8 @@ var WP_DEFAULTS = {
             6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
             true, "body_pct": 100, "taper": 0, "trail": true, "radius_speed_pct": 100, "thread_px": 5, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
             0, "out_mode": "whole", "out_dir": "left_to_right"},
-  "pillars": {"enabled": true, "count": 3, "radius_px": 420, "clear_px": 110, "gap_px": 140, "respawn_s": 6.0,
+  "pillars": {"enabled": true, "count": 3, "radius_x_px": 420, "radius_y_px": 420, "clear_x_px": 110,
+              "clear_y_px": 110, "gap_x_px": 140, "gap_y_px": 140, "respawn_s": 6.0,
               "width": 22, "height": 70, "rise_ms": 450, "hp": 60, "break_damage": 30, "break_knockback": 200,
               "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
               "repel": 0.25, "repel_px": 10, "block_projectiles": true, "rubble": 9, "boulders": 4,
@@ -61,7 +62,7 @@ var WP_DEFAULTS = {
                 "beam_spiral": true, "trench_width": 100, "orb_min_damage": 40, "orb_crater": 100,
                 "crescent_min_damage": 40, "streak_width": 100, "mark_s": 6.0, "fade_s": 1.5,
                 "color": "#3b3129"},
-  "roll": {"enabled": true, "max_speed": 600, "zone_frac": 0.333, "vertical": true, "ease_ms": 400,
+  "roll": {"enabled": true, "max_speed": 600, "zone_x_frac": 0.333, "zone_y_frac": 0.333, "vertical": true, "ease_ms": 400,
            "spawn_ahead_px": 320, "margin_px": 60},
   "boulder_impact": {"enabled": true, "speed_keep_pct": 50, "damage_keep_pct": 50, "chip_ms": 250,
                      "fighters": true},
@@ -107,7 +108,8 @@ var WP_RANGES = {
   "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
             "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
-  "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
+  "pillars": {"count": [0, 12], "radius_x_px": [50, 2000], "radius_y_px": [50, 2000], "clear_x_px": [0, 600],
+              "clear_y_px": [0, 600], "gap_x_px": [0, 800], "gap_y_px": [0, 800],
               "respawn_s": [0, 120], "width": [4, 2000], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
               "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
               "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
@@ -121,7 +123,7 @@ var WP_RANGES = {
   "ground_fx": {"beam_min_damage": [0, 10000], "trench_width": [10, 500], "orb_min_damage": [0, 10000],
                 "orb_crater": [10, 500], "crescent_min_damage": [0, 10000], "streak_width": [10, 500],
                 "mark_s": [0, 120], "fade_s": [0.05, 20]},
-  "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
+  "roll": {"max_speed": [0, 5000], "zone_x_frac": [0.05, 0.5], "zone_y_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
            "margin_px": [0, 600]},
   "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
@@ -244,9 +246,12 @@ var WP_FIELDS = {
          ["twist", "Spiral % (-1 = Pressure spiral)", "How far this event's ring is twisted into a spring along its direction. -1 = take the Pressure spiral section's value."]],
   pillars: [["enabled", "On", "Rock pillars that rise around the fight (Solo and Battle). They block fighters and projectiles for both sides; the AI does not know about them. A hit breaks one outright when ANY of its speed, FX knockback or FX damage meets the threshold below (the hit carries on); anything under every threshold is blocked and chips its HP."],
            ["count", "Pillars in the arena", "How many stand at once. A round starts with this many; when one breaks a new one rises after Respawn time."],
-           ["radius_px", "Spawn radius (px)", "Pillars rise at random spots within this distance of the fighters' centre (the world anchor while anchor scaling is on)."],
-           ["clear_px", "Clear of fighters (px)", "Never rises closer than this to a fighter."],
-           ["gap_px", "Gap between pillars (px)", "Never rises closer than this to another pillar."],
+           ["radius_x_px", "Spawn radius X (px)", "Pillars rise at random spots inside an ellipse round the fighters' centre (the world anchor while anchor scaling is on): this is how far it reaches left / right."],
+           ["radius_y_px", "Spawn radius Y (px)", "How far the spawn ellipse reaches up / down."],
+           ["clear_x_px", "Clear of fighters X (px)", "Never rises inside this ellipse round a fighter: left / right reach."],
+           ["clear_y_px", "Clear of fighters Y (px)", "Up / down reach of the clear ellipse round each fighter."],
+           ["gap_x_px", "Gap between pillars X (px)", "Never rises inside this ellipse round another pillar: left / right reach."],
+           ["gap_y_px", "Gap between pillars Y (px)", "Up / down reach of the gap ellipse round each pillar."],
            ["respawn_s", "Respawn time (s)", "After a pillar breaks, a new one rises this long later (one at a time) until the arena holds the set count again."],
            ["width", "Width (px)", "At 100% scale; perspective (position scale) sizes it like the fighters."],
            ["height", "Height (px)", "At 100% scale."],
@@ -304,7 +309,8 @@ var WP_FIELDS = {
            ["color", "Scorch colour", "The trench / streak floor."]],
   roll: [["enabled", "On", "Rolling world (Solo and Battle): when the fighters' centre (the world anchor) is near a screen side the world rolls past them the other way, faster the nearer the edge, so they seem to travel great distances. Pillars, rubble, craters, marks and dust roll; the fighters are not moved. Pillars that roll off-screen are replaced off the side the world rolls in from."],
            ["max_speed", "Max roll speed (px/s)", "With the anchor right at the screen edge."],
-           ["zone_frac", "Roll zone (share of screen)", "The outer share of the screen, on each side, where the roll starts (0.333 = the outer thirds). The middle is still."],
+           ["zone_x_frac", "Roll zone X (share of width)", "The outer share of the screen's width, left and right, where the roll starts (0.333 = the outer thirds). The middle is still."],
+           ["zone_y_frac", "Roll zone Y (share of height)", "The outer share of the screen's height, top and bottom, where the up / down roll starts (needs Roll up / down too)."],
            ["vertical", "Roll up / down too", "Also roll when the anchor is near the top or bottom."],
            ["ease_ms", "Ease (ms)", "How long the roll takes to speed up / slow down."],
            ["spawn_ahead_px", "New pillars: spread (px)", "New pillars rise this far (at most) beyond the edge, so they come in at different times."],
@@ -388,8 +394,16 @@ var PS_LO = Math.min.apply(null, PS), PS_HI = Math.max.apply(null, PS);
 var TELEPORT_PX = 40;
 
 function hex(v, d) { return (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)) ? v.toLowerCase() : d; }
+// Settings split into x / y: an old file's single value seeds both.
+var WP_LEGACY_XY = {"pillars": {"radius_px": ["radius_x_px", "radius_y_px"], "clear_px": ["clear_x_px", "clear_y_px"],
+                                "gap_px": ["gap_x_px", "gap_y_px"]},
+                    "roll": {"zone_frac": ["zone_x_frac", "zone_y_frac"]}};
 function normalizeSection(name, s) {
-  s = (s && typeof s === "object") ? s : {};
+  s = (s && typeof s === "object") ? Object.assign({}, s) : {};
+  var lg = WP_LEGACY_XY[name] || {};
+  Object.keys(lg).forEach(function (o) {
+    if (s.hasOwnProperty(o)) lg[o].forEach(function (k) { if (!s.hasOwnProperty(k)) s[k] = s[o]; });
+  });
   var dflt = WP_DEFAULTS[name], rng = WP_RANGES[name] || {}, en = WP_ENUMS[name] || {}, out = {};
   Object.keys(dflt).forEach(function (k) {
     var d = dflt[k], v = s.hasOwnProperty(k) ? s[k] : d;
