@@ -58,7 +58,7 @@ FILE = "world_physics.json"     # in characters/
 # style has its own deep-edit section smoke_<style> (shading & colour, life
 # animation, motion).  Characters can override any of these sections.
 SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
 # ---- Pressure spiral (Daniel 2026-11-01): the pulse ring every Dust & Air event
 # throws.  Seen end-on it is a circle; turned side-on it is a spring.  It can
 # split into 2-6 parts (flat, like a broken circle) and twist into a helix laid
@@ -97,7 +97,8 @@ DEFAULTS = {
                 "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
                 "repel": 0.25, "repel_px": 10, "block_projectiles": True, "rubble": 9, "boulders": 4,
                 "color": "#8a7c6c", "facets": 7, "view_yaw": 55, "view_reach_frac": 0.5,
-                "pitch_bottom": 65, "pitch_top": 15},
+                "pitch_bottom": 65, "pitch_top": 15, "multi_chance": 30, "multi_size_pct": 250,
+                "multi_min": 3, "multi_max": 6},
     "rubble": {"enabled": True, "rest": True, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": True,
                "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
                "speed": 20, "cooldown_ms": 700, "crater": True, "color": "#7a6e62"},
@@ -119,6 +120,14 @@ DEFAULTS = {
     # Pillars that roll off-screen are replaced by new ones off the far side.
     "roll": {"enabled": True, "max_speed": 600, "zone_frac": 0.333, "vertical": True, "ease_ms": 400,
              "spawn_ahead_px": 320, "margin_px": 60},
+    # Boulder impact (Daniel 2026-11-06): every pillar / multi-part block a
+    # fighter or an effect collides with keeps only speed_keep_pct of its speed
+    # (and damage_keep_pct of an effect's damage, for the rest of its life).
+    # The break check uses the damage before the cut; an effect left under the
+    # break damage is stuck on the block until its life ends, chipping it
+    # every chip_ms.  terrain.py.
+    "boulder_impact": {"enabled": True, "speed_keep_pct": 50, "damage_keep_pct": 50, "chip_ms": 250,
+                       "fighters": True},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -165,12 +174,13 @@ RANGES = {
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
               "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
     "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
-                "respawn_s": [0, 120], "width": [4, 200], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
+                "respawn_s": [0, 120], "width": [4, 2000], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
                 "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
                 "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
                 "repel": [0, 5], "repel_px": [0, 100], "rubble": [0, 60], "boulders": [0, 30],
                 "facets": [5, 12], "view_yaw": [0, 85], "view_reach_frac": [0.05, 2],
-                "pitch_bottom": [5, 85], "pitch_top": [5, 85]},
+                "pitch_bottom": [5, 85], "pitch_top": [5, 85], "multi_chance": [0, 100],
+                "multi_size_pct": [100, 1000], "multi_min": [2, 12], "multi_max": [2, 12]},
     "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
                "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
                "speed": [0, 200], "cooldown_ms": [0, 10000]},
@@ -179,6 +189,7 @@ RANGES = {
                   "mark_s": [0, 120], "fade_s": [0.05, 20]},
     "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
              "margin_px": [0, 600]},
+    "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],

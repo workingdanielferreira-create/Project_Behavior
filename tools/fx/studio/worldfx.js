@@ -23,7 +23,7 @@
 "use strict";
 var WP_FORMAT = "pb_world_physics";
 var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
 var SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"];
 var SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"];
 var WP_DEFAULTS = {
@@ -52,7 +52,8 @@ var WP_DEFAULTS = {
               "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
               "repel": 0.25, "repel_px": 10, "block_projectiles": true, "rubble": 9, "boulders": 4,
               "color": "#8a7c6c", "facets": 7, "view_yaw": 55, "view_reach_frac": 0.5,
-              "pitch_bottom": 65, "pitch_top": 15},
+              "pitch_bottom": 65, "pitch_top": 15, "multi_chance": 30, "multi_size_pct": 250,
+              "multi_min": 3, "multi_max": 6},
   "rubble": {"enabled": true, "rest": true, "rest_s": 6.0, "fade_s": 1.5, "max_rubble": 160, "boulders": true,
              "boulder_min": 5, "boulder_max": 11, "boulder_count": 3, "hit_knockback": 14, "hit_damage": 20,
              "speed": 20, "cooldown_ms": 700, "crater": true, "color": "#7a6e62"},
@@ -62,6 +63,8 @@ var WP_DEFAULTS = {
                 "color": "#3b3129"},
   "roll": {"enabled": true, "max_speed": 600, "zone_frac": 0.333, "vertical": true, "ease_ms": 400,
            "spawn_ahead_px": 320, "margin_px": 60},
+  "boulder_impact": {"enabled": true, "speed_keep_pct": 50, "damage_keep_pct": 50, "chip_ms": 250,
+                     "fighters": true},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -105,12 +108,13 @@ var WP_RANGES = {
             "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
             "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
   "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
-              "respawn_s": [0, 120], "width": [4, 200], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
+              "respawn_s": [0, 120], "width": [4, 2000], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
               "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
               "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
               "repel": [0, 5], "repel_px": [0, 100], "rubble": [0, 60], "boulders": [0, 30],
               "facets": [5, 12], "view_yaw": [0, 85], "view_reach_frac": [0.05, 2],
-              "pitch_bottom": [5, 85], "pitch_top": [5, 85]},
+              "pitch_bottom": [5, 85], "pitch_top": [5, 85], "multi_chance": [0, 100],
+              "multi_size_pct": [100, 1000], "multi_min": [2, 12], "multi_max": [2, 12]},
   "rubble": {"rest_s": [0, 120], "fade_s": [0.05, 20], "max_rubble": [0, 1000], "boulder_min": [1, 60],
              "boulder_max": [1, 80], "boulder_count": [0, 30], "hit_knockback": [0, 200], "hit_damage": [0, 1000],
              "speed": [0, 200], "cooldown_ms": [0, 10000]},
@@ -119,6 +123,7 @@ var WP_RANGES = {
                 "mark_s": [0, 120], "fade_s": [0.05, 20]},
   "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
            "margin_px": [0, 600]},
+  "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -264,7 +269,11 @@ var WP_FIELDS = {
            ["view_yaw", "View turn (°)", "2.5D look: how far the rock turns to show its side as it moves away from the fighters' centre (the world anchor). 0 = always straight on."],
            ["view_reach_frac", "Full turn distance (× width)", "Distance from the anchor at which the rock has turned the full View turn, as a share of the screen width."],
            ["pitch_bottom", "Look-down at bottom (°)", "Camera angle for a rock at the bottom of the screen: higher = more of its top face shows."],
-           ["pitch_top", "Look-down at top (°)", "Camera angle for a rock at the top of the screen (less top face; never the underside)."]],
+           ["pitch_top", "Look-down at top (°)", "Camera angle for a rock at the top of the screen (less top face; never the underside)."],
+           ["multi_chance", "Multi-part chance %", "Chance a new pillar is a multi-part boulder instead: a cluster of rock blocks, side by side and stacked. Each block has the pillar's HP and break thresholds and breaks on its own; blocks above a broken one drop down."],
+           ["multi_size_pct", "Multi-part size %", "Footprint of a multi-part boulder, % of Width."],
+           ["multi_min", "Blocks min", "Fewest blocks in a multi-part boulder."],
+           ["multi_max", "Blocks max", "Most blocks in a multi-part boulder."]],
   rubble: [["enabled", "On", "Rocks that land stay on the ground, and heavy events throw boulders."],
            ["rest", "Resting rubble", "Rocks thrown by slams, craters, walls, pillar breaks and boulders lie where they land."],
            ["rest_s", "Rest time (s)", "How long landed rubble lies before it fades."],
@@ -300,6 +309,11 @@ var WP_FIELDS = {
            ["ease_ms", "Ease (ms)", "How long the roll takes to speed up / slow down."],
            ["spawn_ahead_px", "New pillars: spread (px)", "New pillars rise this far (at most) beyond the edge, so they come in at different times."],
            ["margin_px", "Off-screen margin (px)", "How far past the edge a pillar rolls before it is gone."]],
+  boulder_impact: [["enabled", "On", "Boulders and the blocks of multi-part boulders slow what hits them (Solo and Battle). Every block or boulder a fighter or an effect collides with cuts its speed (and an effect's damage) at that moment. An effect keeps the reduced damage for the rest of its life; the next attack starts at full damage again."],
+           ["speed_keep_pct", "Speed kept per collision %", "50 = half the speed it had when it hit. A projectile / travelling effect that breaks the block flies on this slowly; a knockback slide that breaks it slides on this slowly; one that doesn't break it bounces off this slowly."],
+           ["damage_keep_pct", "Damage kept per collision %", "50 = half the damage it had when it hit. The break check uses the damage BEFORE the cut. An effect left under the block's break damage is stuck there until its life ends."],
+           ["chip_ms", "Stuck effect: chip every (ms)", "A stuck effect keeps chipping the block it is stuck on (Chip damage % of its reduced damage). If the block crumbles it flies on again."],
+           ["fighters", "Fighters too", "Knockback slides are slowed / bounced at the cut speed. Off = fighters as before."]],
   spiral: [["enabled", "On", "Every Dust & Air ring (the pulse each jump, slam, clash, blast and sound barrier throws) takes these settings. Parts 1 + Spiral 0 = the plain ring."],
            ["parts", "Parts", "Split the ring into 2-6 parts, evenly round the circle (2 = left and right arcs, 4 = four arcs)."],
            ["gap", "Gap between parts %", "How much of each part's share of the circle is left empty (needs 2 or more parts)."],
@@ -364,7 +378,7 @@ WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS;
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
   slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)",
   pillars: "Rock pillars (destructible)", rubble: "Rubble & boulders", ground_fx: "FX on the ground",
-  roll: "Rolling world"};
+  roll: "Rolling world", boulder_impact: "Boulder impact"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;
