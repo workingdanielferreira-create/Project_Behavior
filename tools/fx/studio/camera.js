@@ -193,6 +193,44 @@ var CAM_GROUPS = [
     ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01]
   ]]
 ];
+// Settings that do nothing under the current settings (Studio greys them out
+// and locks them).  Each rule mirrors the game code that skips them; the first
+// matching rule names the reason.  [controller test, reason, keys]
+var CAM_DEPTH_KEYS = ["depth", "depth_base", "depth_gain", "depth_shot", "depth_budget_ms"];
+var CAM_DSCALE_KEYS = ["dscale_near", "dscale_far", "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve"];
+var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash"];
+var CAM_IDLE_RULES = [
+  // camera.py _target: follow off = fixed 1.0x at the centre.
+  [function (c) { return !c.follow; }, "Follow-cam is off",
+   ["margin_x_px", "margin_y_px", "max_zoom", "solo_zoom", "anchor_zoom", "anchor_view_x_frac", "anchor_view_y_frac"]],
+  // worldscale.set_anchor / camera.py _target: anchor scaling off = corner grid + old follow zoom.
+  [function (c) { return !c.anchor_scale; }, "Anchor scaling is off",
+   ["anchor_s", "anchor_zoom", "anchor_view_x_frac", "anchor_view_y_frac", "vscale_bottom", "vscale_top"]
+     .concat(CAM_DSCALE_KEYS, ["scale_min", "scale_max", "speed_min", "speed_max", "planet"], CAM_PLANET_KEYS)],
+  // camera.py _target: anchor scaling uses Pan zoom instead.
+  [function (c) { return c.anchor_scale; }, "Anchor scaling is on (it uses Pan zoom instead)", ["max_zoom", "solo_zoom"]],
+  // worldscale.size (planet curve replaces the distance term), Camera.depth_live (planet replaces the tilt).
+  [function (c) { return c.anchor_scale && c.planet; }, "Tiny planet is on", CAM_DSCALE_KEYS.concat(CAM_DEPTH_KEYS)],
+  [function (c) { return !c.planet; }, "Tiny planet is off", CAM_PLANET_KEYS],
+  [function (c) { return !c.depth; }, "Depth tilt is off", CAM_DEPTH_KEYS.slice(1)],
+  [function (c) { return !c.punch; }, "Punch-in is off", ["punch_zoom", "punch_tilt_deg", "punch_pull", "punch_in_ticks", "punch_out_s"]],
+  [function (c) { return !c.shake; }, "Shake is off", ["shake_max_px", "shake_hz"]],
+  [function (c) { return !c.ult_on; }, "Ultimate push-in is off", ["ult_zoom", "ult_in_s", "ult_max_s", "ult_out_s"]],
+  [function (c) { return !c.switch_on; }, "Switch-in shot is off", ["switch_zoom", "switch_in_s", "switch_hold_s", "switch_out_s"]],
+  // app.py _ko_cinematic: no KO shot = no KO slow-mo either.
+  [function (c) { return !c.ko_on; }, "KO shot is off", ["ko_zoom", "ko_in_s", "ko_hold_s", "ko_out_s", "ko_slow", "ko_slow_s"]],
+  [function (c) { return !c.clash_on; }, "Clash shot is off", ["clash_zoom", "clash_in_s", "clash_hold_s", "clash_out_s"]]
+];
+// Settings whose change can grey / un-grey others (the page rebuilds on them).
+var CAM_IDLE_CONTROLLERS = ["follow", "anchor_scale", "planet", "depth", "punch", "shake", "ult_on", "switch_on", "ko_on", "clash_on"];
+function camIdle(c, k) {
+  for (var i = 0; i < CAM_IDLE_RULES.length; i++) {
+    var r = CAM_IDLE_RULES[i];
+    if (r[2].indexOf(k) >= 0 && r[0](c)) return r[1];
+  }
+  return "";
+}
+
 var TICK_MS = 16, DT = TICK_MS / 1000;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -425,6 +463,7 @@ Cam.prototype.apply = function (g, v) {
 window.CAMERA = {
   FORMAT: CAM_FORMAT, DEFAULTS: CAM_DEFAULTS, RANGES: CAM_RANGES, GROUPS: CAM_GROUPS, SHOTS: CAM_SHOTS,
   WIRE_KEYS: CAM_WIRE_KEYS, WIRE_EXTRA: CAM_WIRE_EXTRA, ellU: ellU,
+  idle: camIdle, IDLE_CONTROLLERS: CAM_IDLE_CONTROLLERS,
   TICK_MS: TICK_MS, normalize: normalize, Cam: Cam
 };
 })();
