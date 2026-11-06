@@ -4564,11 +4564,23 @@ function buildWorldCameraProps(d) {
     var s = sec(d, gr[0], "c-grp-" + gi, "", "act");
     gr[1].forEach(function (f) {
       var k = f[0], dflt = CAMERA.DEFAULTS[k], r = CAMERA.RANGES[k], e;
-      if (typeof dflt === "boolean") e = inp("chk", CAMCFG[k], function (v) { CAMCFG[k] = v; camSave(); if (k === "wireframe") buildProps(); });
+      if (typeof dflt === "boolean") e = inp("chk", CAMCFG[k], function (v) {
+        CAMCFG[k] = v; camSave();
+        if (k === "wireframe" || CAMERA.IDLE_CONTROLLERS.indexOf(k) >= 0) buildProps();   // re-grey what it switches
+      });
       else e = inp("n", CAMCFG[k], function (v) {
         CAMCFG[k] = Math.max(r[0], Math.min(r[1], k === "punch_in_ticks" ? Math.round(v) : v)); camSave();
       }, r[0], r[1], f[3] || 0.05);
       field(s, f[1], e).title = f[2] + (typeof dflt === "number" ? " (default " + dflt + ", " + r[0] + "–" + r[1] + ")" : "");
+      // Does nothing under the current settings: dimmed and locked, the
+      // tooltip says why (CAMERA.idle mirrors the game code that skips it).
+      var why = CAMERA.idle(CAMCFG, k);
+      if (why) {
+        e.disabled = true;
+        e.parentNode.style.opacity = "0.4";
+        e.parentNode.title = "Not used: " + why + ". " + e.title;
+        e.title = e.parentNode.title;
+      }
       wireTick(e, k);
       if (k === "wireframe" && CAMCFG.wireframe) wireExtras(s);
     });
