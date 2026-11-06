@@ -59,7 +59,9 @@ Four layers, one transform:
                      drives laser/worldscale.py — every fighter / FX / pace
                      scales by vertical (x5 bottom .. x1 top) x distance from
                      the anchor (x1 on it .. x0.10 far, tunable curve) — and
-                     the follow-cam pans onto it.  So closeness is shown by
+                     the follow-cam pans onto it, framing it at
+                     anchor_view_x_frac / anchor_view_y_frac of the view
+                     (0.5 / 0.5 = centred).  So closeness is shown by
                      the scaling, not the camera: the follow zoom is a fixed
                      anchor_zoom (just enough to pan), only ever reduced to
                      keep everyone in view; punch-in / cinematic shots keep
@@ -144,6 +146,8 @@ DEFAULTS = {
     "anchor_scale": True,    # on = vertical x distance rule; off = corner grid
     "anchor_s": 0.3,         # seconds for the anchor to (95%) catch up
     "anchor_zoom": 1.15,     # fixed follow zoom while on (only reduced to fit)
+    "anchor_view_x_frac": 0.5,  # where the follow-cam puts the anchor: x share of the view (0.5 = centre)
+    "anchor_view_y_frac": 0.5,  # ... y share of the view (0.5 = centre, 0.7 = lower)
     "vscale_bottom": 5.0,    # size at the very bottom of the screen
     "vscale_top": 1.0,       # size at the very top
     "dscale_near": 1.0,      # distance factor on the anchor
@@ -183,6 +187,7 @@ RANGES = {
     "depth_base": [0.0, 0.6], "depth_gain": [0.0, 0.6], "depth_shot": [0.0, 0.6],
     "depth_budget_ms": [4.0, 60.0],
     "anchor_s": [0.02, 5.0], "anchor_zoom": [1.0, 3.0],
+    "anchor_view_x_frac": [0.0, 1.0], "anchor_view_y_frac": [0.0, 1.0],
     "vscale_bottom": [0.1, 10.0], "vscale_top": [0.1, 10.0],
     "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
     "dscale_far_x_frac": [0.1, 1.5], "dscale_far_y_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
@@ -554,9 +559,12 @@ class Camera:
         fit = min(self.sw / max(1.0, bw), self.sh / max(1.0, bh))
         if c["anchor_scale"] and self.anc is not None:
             # Closeness is the scaling's job: a fixed pan zoom, only ever
-            # reduced to keep everyone in view; centred on the anchor.
+            # reduced to keep everyone in view.  The anchor is framed at
+            # (anchor_view_x_frac, anchor_view_y_frac) of the view (0.5, 0.5
+            # = centred); the view clamp below still keeps it on-screen.
             z = max(1.0, min(c["anchor_zoom"], fit))
-            cx, cy = self.anc
+            cx = self.anc[0] - (c["anchor_view_x_frac"] - 0.5) * self.sw / z
+            cy = self.anc[1] - (c["anchor_view_y_frac"] - 0.5) * self.sh / z
         else:
             if getattr(world, "battle_mode", False):
                 z = max(1.0, min(c["max_zoom"], fit))
