@@ -762,7 +762,7 @@ Studio's "Weapons" group. Test dummies can attack with them too.
 |---|---|---|
 | `buster_sword` | Buster Sword (Cloud Strife) | overhead slam: shock rings, cracks, rocks |
 | `masamune` | Masamune (Sephiroth) | glint, instant draw, eight flash cuts on the target |
-| `oath_oblivion` | Oathkeeper & Oblivion (Roxas) | twin counter-spins into an X slash |
+| `oath_oblivion` | Oathkeeper & Oblivion (Roxas) | twin counter-spins into an X slash ; Mode also offers 5 single-action moves (`weaponfx.SEQS`): Twin Lunge, Orbit Guard, Crane Wings, Shadow Step, Starburst Flurry |
 | `crescent_scythe` | Scythe (RWBY) | 3D-tilted body spin shedding rose petals, reaping hook |
 | `scissor_blade` | Scissor Blade (Kill la Kill) | splits into giant scissors, reaches, snips shut |
 | `gungnir` | Gungnir (Fate) | rune charge, spiralling throw, pillar of light |
