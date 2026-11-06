@@ -201,7 +201,9 @@ PARAM_DEFAULTS = {
     # aura_cracks: its power-up burst, rising rocks, flare-ups, ground cracks;
     # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
     # w_*: the weapons (laser/weaponfx.py): w_mode "signature" (its own
-    # sequence) or "hold" (just held, along the rig's hand -> wtip line);
+    # sequence), one of its extra sequences (weaponfx.SEQS, e.g. Oathkeeper &
+    # Oblivion "twin_lunge") or "hold" (just held, along the rig's hand ->
+    # wtip line);
     # size, flips, 3D yaw / pitch / spin and depth — numbers, so keyframes
     # can animate every one; w_weight 0..1 = momentum (drag, overshoot);
     # w_plane / w_plane_roll = the swing plane's tilt out of the screen / turn
@@ -304,7 +306,7 @@ TECH_STYLE_DEFAULTS = {
     # Weapons (laser/weaponfx.py)
     "buster_sword": dict(length=64, thickness=9, radius=0, span=0, swing_ticks=6, hold_ticks=10),
     "masamune": dict(length=120, thickness=2.6, radius=0, span=0, swing_ticks=5, hold_ticks=10),
-    "oath_oblivion": dict(length=40, thickness=4, radius=0, span=0, swing_ticks=5, hold_ticks=10),
+    "oath_oblivion": dict(length=40, thickness=4, radius=160, span=0, swing_ticks=5, hold_ticks=10),
     "crescent_scythe": dict(length=50, thickness=2.4, radius=0, span=0, swing_ticks=6, hold_ticks=10),
     "scissor_blade": dict(length=46, thickness=6, radius=120, span=0, swing_ticks=6, hold_ticks=10),
     "gungnir": dict(length=70, thickness=4.5, radius=320, span=0, swing_ticks=6, hold_ticks=8),

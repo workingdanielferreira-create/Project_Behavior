@@ -419,7 +419,7 @@ var TECH_STYLE_DEFAULTS = {
   // Weapons (weaponfx.js)
   buster_sword: {length: 64, thickness: 9, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 10},
   masamune: {length: 120, thickness: 2.6, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 10},
-  oath_oblivion: {length: 40, thickness: 4, radius: 0, span: 0, swing_ticks: 5, hold_ticks: 10},
+  oath_oblivion: {length: 40, thickness: 4, radius: 160, span: 0, swing_ticks: 5, hold_ticks: 10},
   crescent_scythe: {length: 50, thickness: 2.4, radius: 0, span: 0, swing_ticks: 6, hold_ticks: 10},
   scissor_blade: {length: 46, thickness: 6, radius: 120, span: 0, swing_ticks: 6, hold_ticks: 10},
   gungnir: {length: 70, thickness: 4.5, radius: 320, span: 0, swing_ticks: 6, hold_ticks: 8},

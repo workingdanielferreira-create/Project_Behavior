@@ -16,6 +16,9 @@ Two modes (params.w_mode):
   signature   the weapon materialises, plays its own signature sequence
               (WEAPONS[style]: a pose track per weapon slot, timed events,
               shots for the guns), holds its last pose, then dissolves
+  <sequence>  the same, but one of the weapon's extra sequences (SEQS[style],
+              e.g. Oathkeeper & Oblivion: twin_lunge, orbit_guard,
+              crane_wings, shadow_step, starburst_flurry)
   hold        the weapon simply appears in the anchor's hand in its ready
               pose and stays for Hold ticks: animate it with keyframes
 
@@ -494,10 +497,43 @@ WEAPONS = {
                         fire=((0.58, 0),)),
 }
 
+# Extra signature sequences a weapon can play instead of its own: params.w_mode
+# names one of them (FX Studio: the weapon's Mode dropdown).  Same layout as
+# WEAPONS.  Oathkeeper & Oblivion: single actions (one move each) meant to be
+# put on separate actions and chained in any order —
+#   twin_lunge        both drawn back, swung round into a twin thrust at the
+#                     target, crossed into an X (reach: Reach px)
+#   orbit_guard       both leave the hands and circle the fighter twice in
+#                     opposite directions, then fling out forward
+#   crane_wings       both thrown, cartwheeling on arcs above / below, meet in
+#                     an X on the target, swing back round to the hands
+#   shadow_step       reverse grip: a blink to just past the target, two
+#                     backstab cuts (Oathkeeper, then Oblivion), a blink home
+#   starburst_flurry  six alternating slashes, one blade after the other,
+#                     cuts on the target, an X flash to close
+SEQS = {
+    "oath_oblivion": {
+        "twin_lunge": dict(models=("oathkeeper", "oblivion"), beats=5, aim=True, trail="swept", shot="", tracks=(((0, -0.2, -0.5, 0, -150, 0, 0, 1, 3), (0.3, -0.7, -0.7, 0, -165, 180, 0, 1, 3), (0.5, 0.4, -0.3, 1, -15, 360, 0, 1.05, 2), (0.62, 0.5, -0.2, 1, 28, 360, 0, 1.05, 1), (1, 0.3, -0.4, 0, -30, 360, 0, 1, 3)), ((0, -0.2, 0.5, 0, 150, 0, 0, 1, 3), (0.3, -0.7, 0.7, 0, 165, -180, 0, 1, 3), (0.5, 0.4, 0.3, 1, 15, -360, 0, 1.05, 2), (0.62, 0.5, 0.2, 1, -28, -360, 0, 1.05, 1), (1, 0.3, 0.4, 0, 30, -360, 0, 1, 3))), events=((0.5, "burst", "tip0", 0.8, 0), (0.62, "xflash", "target", 1.4, 0)), fire=()),
+        "orbit_guard": dict(models=("oathkeeper", "oblivion"), beats=7, aim=False, trail="ghost", shot="", tracks=(((0, 0.2, -0.5, 0, -45, 0, 0, 1, 3), (0.1, 0, -2, 0, -120, 0, 0, 1, 1), (0.144, 1.414, -1.414, 0, -75, 45, 0, 1, 0), (0.188, 2, 0, 0, -30, 90, 0, 1, 0), (0.231, 1.414, 1.414, 0, 15, 135, 0, 1, 0), (0.275, 0, 2, 0, 60, 180, 0, 1, 0), (0.319, -1.414, 1.414, 0, 105, 225, 0, 1, 0), (0.363, -2, 0, 0, 150, 270, 0, 1, 0), (0.406, -1.414, -1.414, 0, 195, 315, 0, 1, 0), (0.45, 0, -2, 0, 240, 360, 0, 1, 0), (0.494, 1.414, -1.414, 0, 285, 405, 0, 1, 0), (0.538, 2, 0, 0, 330, 450, 0, 1, 0), (0.581, 1.414, 1.414, 0, 375, 495, 0, 1, 0), (0.625, 0, 2, 0, 420, 540, 0, 1, 0), (0.669, -1.414, 1.414, 0, 465, 585, 0, 1, 0), (0.713, -2, 0, 0, 510, 630, 0, 1, 0), (0.756, -1.414, -1.414, 0, 555, 675, 0, 1, 0), (0.8, 0, -2, 0, 600, 720, 0, 1, 0), (0.9, 1.4, -0.3, 0, 710, 900, 0, 1.1, 1), (1, 0.4, -0.5, 0, 675, 900, 0, 1, 3)), ((0, 0.2, 0.5, 0, 45, 0, 0, 1, 3), (0.1, 0, 2, 0, 120, 0, 0, 1, 1), (0.144, 1.414, 1.414, 0, 75, -45, 0, 1, 0), (0.188, 2, 0, 0, 30, -90, 0, 1, 0), (0.231, 1.414, -1.414, 0, -15, -135, 0, 1, 0), (0.275, 0, -2, 0, -60, -180, 0, 1, 0), (0.319, -1.414, -1.414, 0, -105, -225, 0, 1, 0), (0.363, -2, 0, 0, -150, -270, 0, 1, 0), (0.406, -1.414, 1.414, 0, -195, -315, 0, 1, 0), (0.45, 0, 2, 0, -240, -360, 0, 1, 0), (0.494, 1.414, 1.414, 0, -285, -405, 0, 1, 0), (0.538, 2, 0, 0, -330, -450, 0, 1, 0), (0.581, 1.414, -1.414, 0, -375, -495, 0, 1, 0), (0.625, 0, -2, 0, -420, -540, 0, 1, 0), (0.669, -1.414, -1.414, 0, -465, -585, 0, 1, 0), (0.713, -2, 0, 0, -510, -630, 0, 1, 0), (0.756, -1.414, 1.414, 0, -555, -675, 0, 1, 0), (0.8, 0, 2, 0, -600, -720, 0, 1, 0), (0.9, 1.4, 0.3, 0, -710, -900, 0, 1.1, 1), (1, 0.4, 0.5, 0, -675, -900, 0, 1, 3))), events=((0.9, "burst", "tip0", 1.0, 0), (0.9, "burst", "tip1", 1.0, 0)), fire=()),
+        "crane_wings": dict(models=("oathkeeper", "oblivion"), beats=7, aim=True, trail="ghost", shot="", tracks=(((0, 0.2, -0.4, 0, -40, 0, 0, 1, 3), (0.12, -0.4, -0.8, 0, -120, 0, 0, 1, 3), (0.2, 0.2, -1.4, 0.1, 0, 0, 0, 1, 1), (0.38, 0, -5, 0.55, 540, 0, 0, 1, 0), (0.55, 0, -0.3, 1, 1080, 0, 0, 1, 2), (0.72, 0, 4.2, 0.5, 1440, 0, 0, 1, 0), (0.88, 0.2, -0.4, 0, 1760, 0, 0, 1, 1), (1, 0.2, -0.4, 0, 1760, 0, 0, 1, 3)), ((0, 0.2, 0.4, 0, 40, 0, 0, 1, 3), (0.12, -0.4, 0.8, 0, 120, 0, 0, 1, 3), (0.2, 0.2, 1.4, 0.1, 0, 0, 0, 1, 1), (0.38, 0, 5, 0.55, -540, 0, 0, 1, 0), (0.55, 0, 0.3, 1, -1080, 0, 0, 1, 2), (0.72, 0, -4.2, 0.5, -1440, 0, 0, 1, 0), (0.88, 0.2, 0.4, 0, -1760, 0, 0, 1, 1), (1, 0.2, 0.4, 0, -1760, 0, 0, 1, 3))), events=((0.56, "xflash", "target", 1.3, 0),), fire=()),
+        "shadow_step": dict(models=("oathkeeper", "oblivion"), beats=6, aim=True, trail="ghost", shot="", tracks=(((0, 0.2, -0.4, 0, 150, 0, 0, 1, 3), (0.15, -0.3, -0.24, 0, 165, 0, 0, 1, 3), (0.2, -0.3, -0.24, 0, 165, 0, 0, 1, 0), (0.22, -0.3, -0.24, 0, 165, 0, 0, 0, 0), (0.3, 0, -0.4, 1.3, 220, 0, 0, 0, 0), (0.32, 0, -0.4, 1.3, 220, 0, 0, 1, 0), (0.38, 0, -0.4, 1.3, 220, 0, 0, 1, 3), (0.42, 0, -0.4, 1.3, 140, 180, 0, 1.05, 1), (0.66, 0, -0.4, 1.3, 140, 180, 0, 1, 3), (0.68, 0, -0.4, 1.3, 140, 180, 0, 0, 0), (0.76, 0.2, -0.4, 0, 150, 180, 0, 0, 0), (0.78, 0.2, -0.4, 0, 150, 180, 0, 1, 0), (1, 0.2, -0.4, 0, 150, 180, 0, 1, 3)), ((0, 0.2, 0.4, 0, 150, 0, 0, 1, 3), (0.15, -0.3, 0.24, 0, 165, 0, 0, 1, 3), (0.2, -0.3, 0.24, 0, 165, 0, 0, 1, 0), (0.22, -0.3, 0.24, 0, 165, 0, 0, 0, 0), (0.3, 0, 0.4, 1.3, 140, 0, 0, 0, 0), (0.32, 0, 0.4, 1.3, 140, 0, 0, 1, 0), (0.51, 0, 0.4, 1.3, 140, 0, 0, 1, 3), (0.55, 0, 0.4, 1.3, 220, -180, 0, 1.05, 1), (0.66, 0, 0.4, 1.3, 220, -180, 0, 1, 3), (0.68, 0, 0.4, 1.3, 220, -180, 0, 0, 0), (0.76, 0.2, 0.4, 0, 150, -180, 0, 0, 0), (0.78, 0.2, 0.4, 0, 150, -180, 0, 1, 0), (1, 0.2, 0.4, 0, 150, -180, 0, 1, 3))), events=((0.21, "blink", "tip0", 1.0, 0), (0.21, "blink", "tip1", 1.0, 0), (0.31, "blink", "tip0", 1.0, 0), (0.31, "blink", "tip1", 1.0, 0), (0.42, "cuts", "target", 3, 0), (0.55, "cuts", "target", 3, 0), (0.67, "blink", "tip0", 1.0, 0), (0.67, "blink", "tip1", 1.0, 0), (0.77, "blink", "tip0", 1.0, 0), (0.77, "blink", "tip1", 1.0, 0)), fire=()),
+        "starburst_flurry": dict(models=("oathkeeper", "oblivion"), beats=8, aim=True, trail="swept", shot="", tracks=(((0, 0, -0.4, 0, -110, 0, 0, 1, 3), (0.2, 0.7, -0.2, 0.9, 50, 180, 0, 1.05, 1), (0.33, 0.4, -0.3, 0.9, 60, 180, 0, 1, 3), (0.46, 0.7, -0.5, 0.9, -100, 360, 0, 1.05, 1), (0.59, 0.4, -0.5, 0.9, -110, 360, 0, 1, 3), (0.72, 0.8, -0.2, 0.9, 50, 540, 0, 1.05, 1), (0.85, 0.4, -0.3, 0.9, 30, 540, 0, 1, 3), (1, 0.2, -0.4, 0, -30, 540, 0, 1, 3)), ((0, 0, 0.4, 0, 110, 0, 0, 1, 3), (0.2, 0.2, 0.4, 0.9, 120, 0, 0, 1, 3), (0.33, 0.7, 0.2, 0.9, -50, -180, 0, 1.05, 1), (0.46, 0.4, 0.3, 0.9, -60, -180, 0, 1, 3), (0.59, 0.7, 0.5, 0.9, 100, -360, 0, 1.05, 1), (0.72, 0.4, 0.5, 0.9, 110, -360, 0, 1, 3), (0.85, 0.8, 0.2, 0.9, -50, -540, 0, 1.05, 1), (1, 0.2, 0.4, 0, 30, -540, 0, 1, 3))), events=((0.2, "cuts", "target", 2, 0), (0.33, "cuts", "target", 2, 0), (0.46, "cuts", "target", 2, 0), (0.59, "cuts", "target", 2, 0), (0.72, "cuts", "target", 2, 0), (0.85, "cuts", "target", 2, 0), (0.88, "xflash", "target", 1.2, 0)), fire=()),
+    },
+}
+
 
 # ---------------------------------------------------------------- timeline
 def _w(P):
-    return WEAPONS[S._style(P)]
+    st = S._style(P)
+    alt = SEQS.get(st)
+    if alt is not None and P.get("w_mode") in alt:
+        return alt[P.get("w_mode")]
+    return WEAPONS[st]
+
+
+def sequences(style):
+    """The Mode choices of a weapon: signature, its extra sequences, hold."""
+    return ("signature",) + tuple(SEQS.get(style, {}).keys()) + ("hold",)
 
 
 def _sig(P):
