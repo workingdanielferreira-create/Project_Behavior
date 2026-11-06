@@ -1,0 +1,111 @@
+{
+ "format": "pb_char_pkg",
+ "version": 1,
+ "name": "nobody",
+ "display_name": "Nobody",
+ "description": "Hooded dual-keyblade fighter (sprite-sheet art frames).",
+ "archetype": "New",
+ "predicates": {
+  "can_shoot": false,
+  "uses_melee": true,
+  "retreats": false,
+  "charges_full": true
+ },
+ "movement": {
+  "wander_strength": 0.15
+ },
+ "stats": {
+  "max_hp": 1700,
+  "chase_speed": 0.9,
+  "follow_speed": 0.9,
+  "scale": 0.6,
+  "basic_attack_radius": 180
+ },
+ "palette": {
+  "body": "#002060",
+  "accent": "#002060"
+ },
+ "image": {
+  "size": [
+   528,
+   638
+  ],
+  "origin_px": [
+   264,
+   319
+  ],
+  "head_px": 40,
+  "px_per_rig_unit": 1,
+  "facing": "right",
+  "root_travel": true,
+  "figure_colour": "#2A2A2E"
+ },
+ "actions": {
+  "idle": {
+   "trigger": "always",
+   "duration_ms": 500,
+   "frame_ms": 500,
+   "frames": [
+    "idle_01.png"
+   ]
+  },
+  "run": {
+   "trigger": "moving",
+   "duration_ms": 640,
+   "frame_ms": 80,
+   "frames": [
+    "run_01.png",
+    "run_02.png",
+    "run_03.png",
+    "run_04.png",
+    "run_05.png",
+    "run_06.png",
+    "run_07.png",
+    "run_08.png"
+   ]
+  },
+  "attack_normal": {
+   "trigger": "in_range",
+   "duration_ms": 300,
+   "frame_ms": 100,
+   "frames": [
+    "attack_normal_01.png",
+    "attack_normal_02.png",
+    "attack_normal_03.png"
+   ]
+  },
+  "attack_normal_2": {
+   "trigger": "in_range",
+   "duration_ms": 300,
+   "frame_ms": 100,
+   "frames": [
+    "attack_normal_2_01.png",
+    "attack_normal_2_02.png",
+    "attack_normal_2_03.png"
+   ]
+  },
+  "attack_normal_3": {
+   "trigger": "in_range",
+   "duration_ms": 300,
+   "frame_ms": 100,
+   "frames": [
+    "attack_normal_3_01.png",
+    "attack_normal_3_02.png",
+    "attack_normal_3_03.png"
+   ]
+  },
+  "attack_special": {
+   "trigger": "",
+   "duration_ms": 550,
+   "frame_ms": 110,
+   "frames": [
+    "attack_special_01.png",
+    "attack_special_02.png",
+    "attack_special_03.png",
+    "attack_special_04.png",
+    "attack_special_05.png"
+   ]
+  }
+ },
+ "note": "Art frames cut from sprite sheets (mirrored to face right). The image centre (origin_px) is the figure's position in-game; feet sit 55 px below it. Open in Rig Forge with Import package..."
+}
