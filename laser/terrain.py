@@ -44,6 +44,23 @@ Rubble
             never the underside.
   Flat cel shading per facet (light from the top-left), ink silhouette.
 
+Multi-part boulders (multi_chance %)
+  A cluster of rock blocks (multi_min..multi_max of them, footprint
+  multi_size_pct % of width), side by side and stacked.  Every block is its
+  own pillar (the pillar HP and break thresholds) and breaks on its own;
+  blocks resting on a broken one drop down onto what is under them (another
+  block of the cluster, or the ground).  A cluster counts as one pillar for
+  `count`; it is replaced once all its blocks are gone.
+
+Boulder impact (section boulder_impact)
+  Every pillar / block a fighter or an effect collides with keeps only
+  speed_keep_pct of its speed (and damage_keep_pct of an effect's damage,
+  for the rest of the effect's life) at the moment of the collision.  The
+  break check uses the damage from before the cut.  A projectile / travelling
+  effect that does not break the block is stuck on it until its life ends,
+  chipping it every chip_ms; if the block goes it flies on.  A knockback
+  slide that does not break it bounces off at the cut speed.
+
 World-owned, run once per tick by the overlay before worldfx.step (after
 both sides moved); painted under the fighters (rubble, pillars behind a
 fighter) and over them (pillars in front of a fighter).
@@ -103,30 +120,43 @@ def _newell(pts):
     return nx, ny, nz
 
 
-def rock_mesh(seed, n):
+def rock_mesh(seed, n, block=False):
     """A low-poly rock in unit space: X / Y across (radius ~1), Z up 0..~1.
     Returns (verts, faces); faces = (vertex indices, tone), wound so that
-    Newell's normal points OUT of the rock.  No bottom face."""
+    Newell's normal points OUT of the rock.  No bottom face.  block = a
+    rough rock CHUNK of a multi-part boulder: 4-6 sides, squarer (straight
+    sides, a small bevel, a broad near-flat top)."""
     rng = random.Random(seed)
-    n = max(5, min(12, int(n)))
+    n = max(4 if block else 5, min(12, int(n)))
     a0 = rng.uniform(0.0, 2.0 * math.pi)
-    angs = [a0 + (i + rng.uniform(-0.28, 0.28)) * 2.0 * math.pi / n for i in range(n)]
-    # Chunky: near-vertical sides, a bevel ring, then a broad faceted top.
-    levels = ((0.0, 1.0), (rng.uniform(0.40, 0.60), rng.uniform(0.90, 1.0)),
-              (rng.uniform(0.80, 0.88), rng.uniform(0.80, 0.92)),
-              (rng.uniform(0.93, 0.98), rng.uniform(0.50, 0.66)))
+    jit = 0.12 if block else 0.28
+    angs = [a0 + (i + rng.uniform(-jit, jit)) * 2.0 * math.pi / n for i in range(n)]
+    if block:
+        levels = ((0.0, 1.0), (rng.uniform(0.45, 0.60), rng.uniform(0.96, 1.03)),
+                  (rng.uniform(0.86, 0.92), rng.uniform(0.90, 0.98)),
+                  (rng.uniform(0.97, 1.0), rng.uniform(0.72, 0.85)))
+        rj, aj, zj = (0.92, 1.06), 0.06, 0.03
+    else:
+        # Chunky: near-vertical sides, a bevel ring, then a broad faceted top.
+        levels = ((0.0, 1.0), (rng.uniform(0.40, 0.60), rng.uniform(0.90, 1.0)),
+                  (rng.uniform(0.80, 0.88), rng.uniform(0.80, 0.92)),
+                  (rng.uniform(0.93, 0.98), rng.uniform(0.50, 0.66)))
+        rj, aj, zj = (0.82, 1.12), 0.12, 0.04
     verts, rings = [], []
     for z, rf in levels:
         ring = []
         for a in angs:
-            r = rf * rng.uniform(0.82, 1.12)
-            a2 = a + rng.uniform(-0.12, 0.12)
+            r = rf * rng.uniform(*rj)
+            a2 = a + rng.uniform(-aj, aj)
             ring.append(len(verts))
-            verts.append((math.cos(a2) * r, math.sin(a2) * r, z + (rng.uniform(-0.04, 0.04) if z > 0.0 else 0.0)))
+            verts.append((math.cos(a2) * r, math.sin(a2) * r, z + (rng.uniform(-zj, zj) if z > 0.0 else 0.0)))
         rings.append(ring)
-    # Slanted, slightly off-centre peak.
+    # Slanted, slightly off-centre peak (a block: nearly flat).
     top = len(verts)
-    verts.append((rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0.99, 1.04)))
+    if block:
+        verts.append((rng.uniform(-0.12, 0.12), rng.uniform(-0.12, 0.12), rng.uniform(0.99, 1.02)))
+    else:
+        verts.append((rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0.99, 1.04)))
     faces = []
     for k in range(len(rings) - 1):
         lo, hi = rings[k], rings[k + 1]
@@ -181,10 +211,18 @@ class _Gust:
 
 
 class Pillar:
+    """A rock pillar, or one block of a multi-part boulder (cl = its cluster
+    token).  wk / hk = width / height as a share of the section's width /
+    height; zk = its base above the ground in heights (a stacked block), on =
+    the block it rests on (None = the ground), vz = falling speed."""
     __slots__ = ("x", "y", "hp", "hp0", "age", "rise_t", "flash", "ps", "jag", "cracks", "seen",
-                 "seed", "_mesh")
+                 "seed", "_mesh", "wk", "hk", "zk", "vz", "on", "cl")
 
-    def __init__(self, x, y, hp, rise_t, rng):
+    def __init__(self, x, y, hp, rise_t, rng, wk=1.0, hk=1.0, zk=0.0, cl=None):
+        self.wk, self.hk, self.zk = float(wk), float(hk), float(zk)
+        self.vz = 0.0
+        self.on = None
+        self.cl = cl
         self.x, self.y = float(x), float(y)
         self.hp = self.hp0 = float(hp)
         self.age = 0
@@ -210,23 +248,42 @@ class Pillar:
         self._mesh = None       # (facets, verts, faces), built on first paint
 
     def mesh(self, n):
-        n = int(n)
+        block = self.cl is not None
+        n = 4 + int(self.seed * 3.0) if block else int(n)     # a block: 4-6 sides
         if self._mesh is None or self._mesh[0] != n:
-            self._mesh = (n,) + rock_mesh(self.seed, n)
+            self._mesh = (n,) + rock_mesh(self.seed, n, block)
         return self._mesh[1], self._mesh[2]
 
     def rise(self):
         f = min(1.0, self.age / float(self.rise_t))
         return 1.0 - (1.0 - f) ** 3
 
+    def half_w(self, P):
+        """Half width at full size (px, scaled)."""
+        return P["width"] * self.wk * 0.5 * self.ps
+
     def dims(self, P):
         """(half width, height) drawn now (px)."""
-        return P["width"] * 0.5 * self.ps, P["height"] * self.ps * self.rise()
+        return self.half_w(P), P["height"] * self.hk * self.ps * self.rise()
+
+    def lift(self, P):
+        """Its base above the ground now (px): a stacked block's."""
+        return P["height"] * self.zk * self.ps
+
+    def top(self):
+        """Its top above the ground, in section heights."""
+        return self.zk + self.hk * self.rise()
 
     def axis(self, P):
         """(x0, y0, x1, y1, half width): the pillar as a fat segment."""
         hw, h = self.dims(P)
-        return (self.x, self.y - max(1.0, h), self.x, self.y, hw)
+        b = self.y - self.lift(P)
+        return (self.x, b - max(1.0, h), self.x, b, hw)
+
+
+class _Cluster:
+    """Identity of one multi-part boulder (its blocks share it)."""
+    __slots__ = ()
 
 
 class Terrain:
@@ -250,6 +307,9 @@ class Terrain:
         self.sw = self.sh = 1
         self.track = {}        # id(fig) -> [x, y, hp, bouncing, last boulder tick]
         self.hit_ids = set()   # projectiles already handled this tick
+        # Boulder impact: projectiles / effects stuck on a block, by key ->
+        # {"obj", "p", "x", "y", "vx", "vy", "dmg", "next", "t0"}.
+        self.stuck = {}
         self.world = None
 
     # ---- spawning
@@ -258,43 +318,98 @@ class Terrain:
             return worldscale._A[0], worldscale._A[1]
         return (sum(f.x for f in figs) / len(figs), sum(f.y for f in figs) / len(figs))
 
-    def _place(self, figs, P):
+    def _groups(self):
+        """Pillars standing, a multi-part boulder counting once."""
+        return len({id(p.cl) if p.cl is not None else id(p) for p in self.pillars})
+
+    def _place(self, figs, P, multi=False):
         cx, cy = self._centre(figs)
         R = P["radius_px"]
         rnd = self.rng.random
+        wm = P["multi_size_pct"] / 100.0 if multi else 1.0
         for _ in range(MAX_TRIES):
             a = rnd() * 2 * math.pi
             r = R * math.sqrt(rnd())
             x = cx + math.cos(a) * r
             y = cy + math.sin(a) * r
             ps = worldfx.pscale(x, y, self.sw, self.sh)
-            hw = P["width"] * 0.5 * ps
+            hw = P["width"] * 0.5 * ps * wm
             if x < hw + 20 or x > self.sw - hw - 20 or y < self.sh * 0.12 or y > self.sh - 14:
                 continue
-            if any(math.hypot(f.x - x, f.y - y) < P["clear_px"] for f in figs):
+            extra = hw if multi else 0.0
+            if any(math.hypot(f.x - x, f.y - y) < P["clear_px"] + extra for f in figs):
                 continue
-            if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] for p in self.pillars):
+            if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] + extra for p in self.pillars):
                 continue
             return x, y
         return None
 
     def _spawn(self, figs, P):
-        at = self._place(figs, P)
+        multi = self.rng.random() * 100.0 < P["multi_chance"]
+        at = self._place(figs, P, multi)
         if at is None:
             return False
-        p = Pillar(at[0], at[1], P["hp"], _ticks(P["rise_ms"] / 1000.0), self.rng)
+        rise_t = _ticks(P["rise_ms"] / 1000.0)
+        if multi:
+            self._spawn_multi(at[0], at[1], P, rise_t)
+            return True
+        p = Pillar(at[0], at[1], P["hp"], rise_t, self.rng)
         p.ps = worldfx.pscale(p.x, p.y, self.sw, self.sh)
         self.pillars.append(p)
         self._rise_fx(p, P)
         return True
 
-    def _rise_fx(self, p, P):
+    def _spawn_multi(self, x, y, P, rise_t, standing=False):
+        """A multi-part boulder centred on ground spot (x, y): ground blocks
+        side by side (staggered in depth), the rest stacked on them (at most
+        two high).  Sizes in pillar widths / heights, so they follow the
+        section's width / height."""
+        rng = self.rng
+        U = rng.uniform
+        ps = worldfx.pscale(x, y, self.sw, self.sh)
+        fl = max(0.2, worldfx.flat_at(ps, _wf()["ground"]))
+        lo, hi = sorted((int(P["multi_min"]), int(P["multi_max"])))
+        n = rng.randint(lo, hi)
+        W = P["multi_size_pct"] / 100.0
+        ng = max(1, min(n, int(round(n * U(0.45, 0.65)))))
+        # [ox, oy (depth), wk, hk, zk, on index, stack level]
+        bl = [[0.0, 0.0, W * U(0.45, 0.65), U(0.55, 0.95), 0.0, None, 0]]
+        for _ in range(ng - 1):
+            a = bl[rng.randrange(len(bl))]
+            side = -1.0 if rng.random() < 0.5 else 1.0
+            wk = W * U(0.30, 0.55)
+            bl.append([a[0] + side * (a[2] + wk) * 0.5 * U(0.70, 0.95),
+                       a[1] + U(-0.4, 0.4) * min(a[2], wk) * 0.5, wk, U(0.35, 0.80), 0.0, None, 0])
+        for _ in range(n - ng):
+            cand = [i for i, b in enumerate(bl) if b[6] < 2]
+            i = cand[rng.randrange(len(cand))]
+            b = bl[i]
+            wk = b[2] * U(0.45, 0.85)
+            # Same depth as its support (+ a hair, so it is drawn after it).
+            bl.append([b[0] + U(-0.5, 0.5) * (b[2] - wk), b[1] + 0.001, wk, U(0.30, 0.60),
+                       b[4] + b[3], i, b[6] + 1])
+        cl = _Cluster()
+        made = []
+        wpx = P["width"] * ps
+        for ox, oy, wk, hk, zk, on, _lv in bl:
+            q = Pillar(x + ox * wpx, y + oy * wpx * fl, P["hp"], rise_t, rng, wk, hk, zk, cl)
+            q.ps = worldfx.pscale(q.x, q.y, self.sw, self.sh)
+            if standing:
+                q.age = q.rise_t
+            made.append(q)
+        for q, b in zip(made, bl):
+            q.on = made[b[5]] if b[5] is not None else None
+        self.pillars.extend(made)
+        if not standing:
+            self._rise_fx(made[0], P, W)
+
+    def _rise_fx(self, p, P, wmul=1.0):
         wf = worldfx.state(self.world)
         if not _wf()["ground"]["enabled"]:
             return
         c = _wf()["slam"]
         wf.use(None, c)
-        s = max(0.5, P["width"] / 20.0)
+        s = max(0.5, P["width"] * wmul / 20.0)
         wf.puffs(p.x, p.y, 10, 1.6, _rgb(P["color"]), s, 800, up=(0.1, 0.9))
         wf.debris(p.x, p.y, "rock", 5, s, _rgb(P["color"]), elev=(55.0, 80.0), spd=(2.5, 6.0), size=(2.0, 4.0))
 
@@ -303,18 +418,28 @@ class Terrain:
         if p not in self.pillars:
             return
         self.pillars.remove(p)
-        self.next_spawn = max(self.next_spawn, self.t + _ticks(P["respawn_s"]))
+        cl = p.cl
+        if cl is None or not any(q.cl is cl for q in self.pillars):
+            self.next_spawn = max(self.next_spawn, self.t + _ticks(P["respawn_s"]))
+        if cl is not None:
+            # Blocks resting on it lose their support: they drop (_settle).
+            for q in self.pillars:
+                if q.on is p:
+                    q.on = self._support_for(q, P)
         if not _wf()["ground"]["enabled"]:
             return
         wf = worldfx.state(self.world)
         c = _wf()["slam"]
         wf.use(None, c)
-        hw, h = P["width"] * 0.5 * p.ps, P["height"] * p.ps * p.rise()
+        hw, h = p.dims(P)
+        lift = p.lift(P)
         rgb = _rgb(P["color"])
-        s = max(0.6, P["width"] / 18.0)
+        s = max(0.6, P["width"] * p.wk / 18.0)
         fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
-        # The crater it leaves: its own footprint, laid flat on the ground.
-        self._add_pit(p.x, p.y, hw * 1.25, fl, rgb)
+        # The crater it leaves: its own footprint, laid flat on the ground
+        # (a raised block of a multi-part boulder leaves none).
+        if lift < 2.0:
+            self._add_pit(p.x, p.y, hw * 1.25, fl, rgb)
         # Break smoke: small puffs from all over the collapsing column (not
         # one width-scaled disc), drifting away from the hit (ax) in a ~90 deg cone.
         rnd = self.rng.random
@@ -323,7 +448,7 @@ class Terrain:
             pa, pr = rnd() * 2 * math.pi, math.sqrt(rnd())
             a = math.radians(ax + (rnd() - 0.5) * 90.0) if ax is not None else rnd() * 2 * math.pi
             sp = 2.4 * (0.5 + 0.5 * rnd()) * p.ps
-            wf.puff(p.x + math.cos(pa) * hw * pr, p.y + math.sin(pa) * hw * pr * fl, rnd() * h * 0.7,
+            wf.puff(p.x + math.cos(pa) * hw * pr, p.y + math.sin(pa) * hw * pr * fl, lift + rnd() * h * 0.7,
                     math.cos(a) * sp, math.sin(a) * sp * fl, (0.1 + 0.5 * rnd()) * p.ps,
                     1100.0 / config.TICK_MS * (0.7 + 0.6 * rnd()), 6.0 * psz * (0.7 + 0.6 * rnd()), rgb)
         if ax is not None:
@@ -336,11 +461,58 @@ class Terrain:
             yy = p.y - h * (i + 0.5) / max(1, n // 3) * 0.2
             wf.debris(p.x, yy, "rock", 3, s, rgb, az=ax, spread=360.0 if ax is None else 140.0,
                       elev=(20.0, 70.0), spd=(2.0, 6.0), size=(2.5, 5.5))
-        b = int(P["boulders"])
+        b = int(P["boulders"]) if cl is None else int(round(P["boulders"] * min(1.0, p.wk)))
         if b > 0:
             R = _wf()["rubble"]
             wf.debris(p.x, p.y, "rock", b, s, rgb, az=ax, spread=360.0 if ax is None else 120.0,
                       elev=(45.0, 72.0), spd=(2.5, 5.5), size=(R["boulder_min"], R["boulder_max"]))
+
+    def _support_for(self, q, P):
+        """The block of q's cluster q now rests on: the highest one under its
+        footprint whose top is not above q's base; None = the ground."""
+        best, bt = None, -1.0
+        hq = q.half_w(P)
+        fl = max(0.2, worldfx.flat_at(q.ps, _wf()["ground"]))
+        for c in self.pillars:
+            if c is q or c.cl is not q.cl or c.zk >= q.zk - 1e-6:
+                continue
+            reach = (c.half_w(P) + hq) * 0.6
+            if abs(c.x - q.x) > reach or abs(c.y - q.y) > reach * fl + 2.0:
+                continue
+            t = c.top()
+            if t <= q.zk + 1e-3 and t > bt:
+                best, bt = c, t
+        return best
+
+    def _settle(self, P):
+        """Stacked blocks ride their support (rising with it) and fall onto
+        what is under them when it breaks."""
+        live = set(map(id, self.pillars))
+        H = max(1.0, float(P["height"]))
+        g = 0.9 / H                                   # gravity, heights / tick^2
+        for q in sorted(self.pillars, key=lambda q: q.zk):
+            if q.cl is None:
+                continue
+            if q.on is not None and id(q.on) not in live:
+                q.on = self._support_for(q, P)
+            tgt = q.on.top() if q.on is not None else 0.0
+            if q.zk > tgt + 1e-4:
+                q.vz += g
+                q.zk = max(tgt, q.zk - q.vz)
+                if q.zk <= tgt + 1e-4:
+                    self._land_fx(q, P)
+                    q.vz = 0.0
+            else:
+                q.zk, q.vz = tgt, 0.0
+
+    def _land_fx(self, q, P):
+        if not _wf()["ground"]["enabled"]:
+            return
+        wf = worldfx.state(self.world)
+        wf.use(None, _wf()["slam"])
+        s = max(0.4, P["width"] * q.wk / 24.0)
+        wf.puffs(q.x, q.y, 5, 1.2, _rgb(P["color"]), s, 600, up=(0.1, 0.6))
+        wf.debris(q.x, q.y, "rock", 2, s, _rgb(P["color"]), elev=(20.0, 50.0), spd=(1.5, 3.5), size=(1.5, 3.0))
 
     def _chip_fx(self, p, P, x, y):
         if not _wf()["ground"]["enabled"]:
@@ -373,16 +545,26 @@ class Terrain:
         if not P["enabled"] or not _wf()["ground"]["enabled"]:
             self.pillars = []
             self.filled = False
+            self.release_all()
         else:
             if figs:
+                ng = self._groups()
                 if not self.filled:
                     for _ in range(int(P["count"])):
                         self._spawn(figs, P)
                     self.filled = True
                     self.next_spawn = self.t + _ticks(P["respawn_s"])
-                elif len(self.pillars) > int(P["count"]):
-                    del self.pillars[int(P["count"]):]
-                elif (len(self.pillars) < int(P["count"]) and self.t >= self.next_spawn
+                elif ng > int(P["count"]):
+                    keep, out = [], []
+                    for p in self.pillars:
+                        k = id(p.cl) if p.cl is not None else id(p)
+                        if k not in keep:
+                            if len(keep) >= int(P["count"]):
+                                continue
+                            keep.append(k)
+                        out.append(p)
+                    self.pillars = out
+                elif (ng < int(P["count"]) and self.t >= self.next_spawn
                       and not (self.roll_v[0] or self.roll_v[1])):
                     if self._spawn(figs, P):
                         self.next_spawn = self.t + _ticks(P["respawn_s"])
@@ -394,6 +576,11 @@ class Terrain:
                 p.age += 1
                 p.flash = max(0, p.flash - 1)
                 p.ps = worldfx.pscale(p.x, p.y, self.sw, self.sh)
+            self._settle(P)
+            try:
+                self._stuck_step(P)
+            except Exception:
+                pass
             if self.pillars:
                 self.hit_ids = set()
                 for f in figs:
@@ -434,8 +621,12 @@ class Terrain:
             spd = max(spd, math.hypot(m.bounce_vx, m.bounce_vy))
         br = 8.0 * ps
         fl_g = _wf()["ground"]
+        BI = worldfx.cfg(f, "boulder_impact")
+        sk = BI["speed_keep_pct"] / 100.0 if (BI["enabled"] and BI["fighters"]) else None
         for p in list(self.pillars):
-            hw = P["width"] * 0.5 * p.ps
+            if p.lift(P) > 2.0:
+                continue                   # a raised block: over the fighters' feet
+            hw = p.half_w(P)
             fl = max(0.2, worldfx.flat_at(p.ps, fl_g))
             dx = fx - p.x
             dy = (fy - p.y) / fl
@@ -452,7 +643,13 @@ class Terrain:
             if d < reach:
                 if f not in p.seen:
                     p.seen.add(f)
-                    if self.hit(p, P, spd=spd, body=True, ax=math.degrees(math.atan2(-ny, -nx))):
+                    broke = self.hit(p, P, spd=spd, body=True, ax=math.degrees(math.atan2(-ny, -nx)))
+                    if sk is not None and (m.bouncing or m.bounce_ending):
+                        # Boulder impact: a knockback slide loses speed at each
+                        # block it hits (through it, or bouncing off it).
+                        m.bounce_vx *= sk
+                        m.bounce_vy *= sk
+                    if broke:
                         continue      # broke through on speed: it keeps going
                     if p not in self.pillars:
                         continue      # crumbled at 0 HP
@@ -481,7 +678,8 @@ class Terrain:
                     continue
                 r = max(1.0, float(getattr(pr, "radius", 3) or 3)) * worldfx.pscale(pr.x, pr.y, self.sw, self.sh)
                 self._shot(P, (pr.x, pr.y, pr.x - pr.vx, pr.y - pr.vy, r), float(getattr(pr, "damage", 1.0) or 0.0),
-                           0.0, math.hypot(pr.vx, pr.vy), lambda pr=pr: combat.kill_projectile(pr), pr)
+                           0.0, math.hypot(pr.vx, pr.vy), lambda pr=pr: combat.kill_projectile(pr), pr,
+                           getattr(pr, "owner", None), ("pr", pr))
             for f in side.figures:
                 drv = getattr(f, "fx", None)
                 if drv is None:
@@ -491,40 +689,131 @@ class Terrain:
                     bt = fxd["battle"]
                     if not bt["deals_damage"] or inst.dead or inst.age >= inst.life or inst.lodge is not None:
                         continue
-                    dmg = float(bt.get("damage") or 1.0)
+                    dmg = float(bt.get("damage") or 1.0) * inst.bd_m
                     if swordfx.shoots(inst):
                         for (ri, rx, ry, rvx, rvy) in swordfx.live_points(inst, inst.ps or 1.0):
                             ref = fxkit.RoundRef(inst, ri)
                             if ref.stopped:
                                 continue
-                            self._shot(P, (rx, ry, rx - rvx, ry - rvy, 4.0 * (inst.ps or 1.0)), dmg,
-                                       fxkit.inst_knockback(inst, ri), math.hypot(rvx, rvy),
-                                       lambda ref=ref, rx=rx, ry=ry: ref.stop(rx, ry), (id(inst), ri))
+                            g = inst.tq_bd.get(ri, 1.0) * inst.bd_m
+                            self._shot(P, (rx, ry, rx - rvx, ry - rvy, 4.0 * (inst.ps or 1.0)),
+                                       dmg * inst.tq_bd.get(ri, 1.0), fxkit.inst_knockback(inst, ri) * g,
+                                       math.hypot(rvx, rvy), lambda ref=ref, rx=rx, ry=ry: ref.stop(rx, ry),
+                                       (id(inst), ri), f, ("rd", inst, ri, ref, rx, ry))
                         continue
+                    if inst.bd_stuck:
+                        continue          # stuck on a block: _stuck_step
                     if (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
                             and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                         b = fxkit.inst_body(inst)
                         hw = b[4] if b[4] > 0 else 8.0 * (inst.ps or 1.0)
-                        self._shot(P, (b[0], b[1], b[2], b[3], hw), dmg, fxkit.inst_knockback(inst),
+                        self._shot(P, (b[0], b[1], b[2], b[3], hw), dmg, fxkit.inst_knockback(inst) * inst.bd_m,
                                    math.hypot(inst.x - inst.px, inst.y - inst.py),
-                                   lambda inst=inst: _end_inst(inst), inst)
+                                   lambda inst=inst: _end_inst(inst), inst, f, ("fx", inst))
 
-    def _shot(self, P, body, dmg, kb, spd, kill, key):
+    def _shot(self, P, body, dmg, kb, spd, kill, key, owner=None, obj=None):
         k = id(key) if not isinstance(key, tuple) else key
-        if k in self.hit_ids:
+        if k in self.hit_ids or k in self.stuck:
             return
+        BI = worldfx.cfg(owner, "boulder_impact")
+        impact = BI["enabled"] and obj is not None
         for p in list(self.pillars):
             ax = p.axis(P)
             if _seg_dist(body, ax) - body[4] - ax[4] > 0.0:
                 continue
             self.hit_ids.add(k)
             hx, hy = body[0], body[1]
-            if self.hit(p, P, dmg=dmg, kb=kb, spd=spd, x=hx, y=hy,
-                        ax=math.degrees(math.atan2(body[1] - body[3], body[0] - body[2]))):
+            # The break check uses the damage it had as it hit (before the cut).
+            broke = self.hit(p, P, dmg=dmg, kb=kb, spd=spd, x=hx, y=hy,
+                             ax=math.degrees(math.atan2(body[1] - body[3], body[0] - body[2])))
+            if impact:
+                dmg, kb = self._cut(obj, BI, dmg, kb)
+                if broke or not P["block_projectiles"]:
+                    continue      # through it, slowed (and weaker)
+                if p in self.pillars:
+                    self._stick(k, obj, p, BI, dmg)
+                return            # (crumbled at 0 HP: it flies on, slowed)
+            if broke:
                 continue          # broke on a threshold: it flies on
             if P["block_projectiles"]:
                 kill()
             return
+
+    # ---- boulder impact
+    def _cut(self, obj, BI, dmg, kb):
+        """A collision with a block: the projectile / effect keeps
+        speed_keep_pct of its speed and damage_keep_pct of its damage (an
+        effect for the rest of its life).  Returns the new (dmg, kb)."""
+        sk, dk = BI["speed_keep_pct"] / 100.0, BI["damage_keep_pct"] / 100.0
+        kind, ref = obj[0], obj[1]
+        if kind == "pr":
+            ref.vx *= sk
+            ref.vy *= sk
+            ref.damage = float(ref.damage) * dk
+        elif kind == "fx":
+            ref.vx *= sk
+            ref.vy *= sk
+            ref.zx *= sk
+            ref.zy *= sk
+            ref.bd_m *= dk
+        elif kind == "rd":
+            # A gun / ki round flies on its own fixed path: its damage is cut,
+            # its speed cannot be.
+            ref.tq_bd[obj[2]] = ref.tq_bd.get(obj[2], 1.0) * dk
+        return dmg * dk, kb * dk
+
+    def _stick(self, k, obj, p, BI, dmg):
+        """Left under the block's break damage: it stays stuck on the block
+        until its life ends, chipping it every chip_ms (_stuck_step).  A gun /
+        ki round cannot be held: it bursts there."""
+        kind, ref = obj[0], obj[1]
+        if kind == "rd":
+            obj[3].stop(obj[4], obj[5])
+            return
+        self.stuck[k] = {"obj": obj, "p": p, "x": ref.x, "y": ref.y, "vx": ref.vx, "vy": ref.vy,
+                         "dmg": float(dmg), "next": self.t + _ticks(BI["chip_ms"] / 1000.0), "t0": self.t,
+                         "chip": BI["chip_ms"]}
+        if kind == "fx":
+            ref.bd_stuck = True
+        ref.vx = ref.vy = 0.0
+
+    def _release(self, k, r, done=False):
+        ref = r["obj"][1]
+        if r["obj"][0] == "fx":
+            ref.bd_stuck = False
+        if not done:
+            ref.vx, ref.vy = r["vx"], r["vy"]
+        self.stuck.pop(k, None)
+
+    def release_all(self):
+        for k, r in list(self.stuck.items()):
+            self._release(k, r)
+
+    def _stuck_step(self, P):
+        if not self.stuck:
+            return
+        for k, r in list(self.stuck.items()):
+            kind, ref = r["obj"][0], r["obj"][1]
+            if kind == "pr":
+                done = not ref.alive
+            else:
+                done = ref.dead or ref.age >= ref.life
+            if done or self.t - r["t0"] > 60 * 60:
+                self._release(k, r, True)
+                continue
+            p = r["p"]
+            if p not in self.pillars:
+                self._release(k, r)       # the block is gone: it flies on
+                continue
+            ref.x, ref.y = r["x"], r["y"]
+            ref.vx = ref.vy = 0.0
+            if kind == "fx":
+                ref.px, ref.py = ref.x, ref.y
+            if self.t >= r["next"]:
+                r["next"] = self.t + _ticks(r["chip"] / 1000.0)
+                self.hit(p, P, dmg=r["dmg"], x=r["x"], y=r["y"])
+                if p not in self.pillars:
+                    self._release(k, r)
 
     # ---- melee and blasts
     def _melee(self, world, figs, P):
@@ -542,8 +831,8 @@ class Terrain:
                         continue          # a projectile: _projectiles
                     b = fxkit.inst_body(inst)
                     hw = (b[4] if b[4] > 0 else 0.0) + 24.0 * (inst.ps or 1.0)
-                    self._area(P, (b[0], b[1], b[2], b[3], hw), float(bt.get("damage") or 1.0),
-                               fxkit.inst_knockback(inst), inst)
+                    self._area(P, (b[0], b[1], b[2], b[3], hw), float(bt.get("damage") or 1.0) * inst.bd_m,
+                               fxkit.inst_knockback(inst) * inst.bd_m, inst, f)
             c = f.combat
             ps = worldfx.pscale(f.x, f.y, self.sw, self.sh)
             # Built-in sword: a slash and its crescent waves hit what they reach.
@@ -563,9 +852,12 @@ class Terrain:
                     r = 40.0 * worldfx.pscale(uc.x, uc.y, self.sw, self.sh)
                     self._area(P, (uc.x, uc.y, uc.x, uc.y, r), float("inf"), 0.0, uc)
 
-    def _area(self, P, body, dmg, kb, src):
-        """A melee / area source touching a pillar hits it once (per pillar)."""
+    def _area(self, P, body, dmg, kb, src, owner=None):
+        """A melee / area source touching a pillar hits it once (per pillar).
+        An FX Studio effect (owner given) loses damage at each block it
+        touches (boulder impact), for the rest of its life."""
         k = id(src) if not isinstance(src, tuple) else src
+        BI = worldfx.cfg(owner, "boulder_impact") if owner is not None else None
         for p in list(self.pillars):
             if k in p.seen:
                 continue
@@ -573,8 +865,12 @@ class Terrain:
             if _seg_dist(body, ax) - body[4] - ax[4] > 0.0:
                 continue
             p.seen.add(k)
-            self.hit(p, P, dmg=dmg, kb=kb, x=p.x, y=p.y - 0.5 * (p.y - ax[1]),
+            self.hit(p, P, dmg=dmg, kb=kb, x=p.x, y=ax[1] + 0.5 * (ax[3] - ax[1]),
                      ax=math.degrees(math.atan2(p.y - body[1], p.x - body[0])))
+            if BI is not None and BI["enabled"]:
+                dk = BI["damage_keep_pct"] / 100.0
+                src.bd_m *= dk
+                dmg, kb = dmg * dk, kb * dk
 
     def blast(self, x, y, dmg, kb=0.0):
         """A blast detonated at (x, y) (worldfx.scan_blasts)."""
@@ -587,7 +883,7 @@ class Terrain:
             ax = p.axis(P)
             if _seg_dist((x, y, x, y, r), ax) - r - ax[4] > 0.0:
                 continue
-            self.hit(p, P, dmg=dmg, kb=kb, x=p.x, y=p.y - 0.5 * (p.y - ax[1]),
+            self.hit(p, P, dmg=dmg, kb=kb, x=p.x, y=ax[1] + 0.5 * (ax[3] - ax[1]),
                      ax=math.degrees(math.atan2(p.y - y, p.x - x)))
 
     # ---- rubble & boulders
@@ -813,7 +1109,7 @@ class Terrain:
             if not gone:
                 keep.append(p)
         self.pillars = keep
-        if P["enabled"] and figs and len(self.pillars) < int(P["count"]) and self.t >= self.roll_next:
+        if P["enabled"] and figs and self._groups() < int(P["count"]) and self.t >= self.roll_next:
             if self._spawn_ahead(P, vx, vy):
                 self.roll_next = self.t + _ticks(0.25 + 0.75 * self.rng.random())
                 self.next_spawn = max(self.next_spawn, self.t + _ticks(P["respawn_s"]))
@@ -840,6 +1136,12 @@ class Terrain:
                 y = -10.0 - ext if vy > 0 else sh + P["height"] * ps + 10.0 + ext
             if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] for p in self.pillars):
                 continue
+            if rnd() * 100.0 < P["multi_chance"]:
+                hx = P["width"] * 0.5 * ps * P["multi_size_pct"] / 100.0
+                if horiz:
+                    x += -hx if vx > 0 else hx
+                self._spawn_multi(x, y, P, 1, standing=True)
+                return True
             p = Pillar(x, y, P["hp"], 1, self.rng)
             p.age = p.rise_t
             p.ps = worldfx.pscale(x, y, self.sw, self.sh)
@@ -862,6 +1164,7 @@ class Terrain:
     def _front(self, p, P, figs):
         """Is a fighter standing behind pillar p (drawn over it)?"""
         hw, h = p.dims(P)
+        h += p.lift(P)
         for f in figs:
             ps = worldfx.pscale(f.x, f.y, self.sw, self.sh)
             fx, fy, hh = worldfx.WorldFx.foot(f, ps)
@@ -881,7 +1184,7 @@ class Terrain:
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
         alpha = GHOST_ALPHA if getattr(world, "boulders_ghost", False) else 1.0
         sq = worldscale.squasher(qp, self.sw)     # tiny planet (no-op when off)
-        for p in sorted(self.pillars, key=lambda q: q.y):
+        for p in sorted(self.pillars, key=lambda q: (q.y, q.zk)):
             if not self._front(p, P, figs):
                 sq.at(p.x, p.y)
                 self._paint_pillar(qp, p, P, ink, alpha)
@@ -899,7 +1202,7 @@ class Terrain:
         alpha = GHOST_ALPHA if ghost else 1.0
         base = qp.transform()                     # camera view (no planet squash)
         sq = worldscale.squasher(qp, self.sw)
-        for p in sorted(self.pillars, key=lambda q: q.y):
+        for p in sorted(self.pillars, key=lambda q: (q.y, q.zk)):
             if self._front(p, P, figs):
                 sq.at(p.x, p.y)
                 clip = self._paint_pillar(qp, p, P, ink, alpha)
@@ -917,6 +1220,7 @@ class Terrain:
     def _behind(self, p, P, figs):
         """Fighters standing behind pillar p whose body can overlap it."""
         hw, h = p.dims(P)
+        h += p.lift(P)
         out = []
         for f in figs:
             ps = worldfx.pscale(f.x, f.y, self.sw, self.sh)
@@ -1017,8 +1321,9 @@ class Terrain:
             return None
         fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
         pad = 6.0 + 3.0 * max(1.0, p.ps)
-        local = QRectF(p.x - hw * 1.6 - pad, p.y - h - hw - pad,
-                       hw * 3.2 + 2 * pad, h + hw * (1.0 + 1.4 * fl) + 2 * pad)
+        top = p.y - p.lift(P) - h - hw
+        local = QRectF(p.x - hw * 1.6 - pad, top - pad,
+                       hw * 3.2 + 2 * pad, (p.y - top) + hw * 1.4 * fl + 2 * pad)
         T = qp.transform()
         dev = qp.device()
         r = T.mapRect(local).intersected(QRectF(0, 0, dev.width(), dev.height()))
@@ -1053,16 +1358,20 @@ class Terrain:
         if h < 0.5 or hw < 0.5:
             return None
         rgb = _rgb(P["color"])
-        bx, by = p.x, p.y
+        lift = p.lift(P)
+        bx, by = p.x, p.y - lift                  # a stacked block sits up on its support
         fl = max(0.2, worldfx.flat_at(p.ps, _wf()["ground"]))
         yaw, s = self._view(p, P)
         cs, sn = math.cos(yaw), math.sin(yaw)
         verts, faces = p.mesh(P["facets"])
+        # A block's 4-6 sided chunk: corners at radius 1, so widen it a touch
+        # to fill its footprint like a many-sided rock.
+        rw = hw * (1.15 if p.cl is not None else 1.0)
         # Rotated, scaled vertices (px) and their screen points.
         rv, sp = [], []
         for x, y, z in verts:
-            X = (x * cs - y * sn) * hw
-            Y = (x * sn + y * cs) * hw
+            X = (x * cs - y * sn) * rw
+            Y = (x * sn + y * cs) * rw
             Z = z * h
             rv.append((X, Y, Z))
             sp.append(QPointF(bx + X, by - Z - Y * s))
@@ -1090,10 +1399,11 @@ class Terrain:
             return None
         vis.sort(key=lambda t: -t[0])                       # far first
         qp.save()
-        # Ground shadow / base.
-        qp.setPen(Qt.NoPen)
-        qp.setBrush(QColor(0, 0, 0, 70))
-        qp.drawEllipse(QPointF(bx + hw * 0.25, by), hw * 1.35, hw * 1.35 * fl)
+        # Ground shadow / base (on the ground only: not under a raised block).
+        if lift < 2.0:
+            qp.setPen(Qt.NoPen)
+            qp.setBrush(QColor(0, 0, 0, 70))
+            qp.drawEllipse(QPointF(bx + hw * 0.25, by), hw * 1.35, hw * 1.35 * fl)
         pw = max(1.0, min(3.0, 1.4 * p.ps))
         # Ink silhouette: every visible facet in ink with a fat pen, then the
         # facets over it (only the outer edge of the fat pen survives).
@@ -1185,7 +1495,14 @@ def step(world):
 
 
 def reset(world):
-    """A fresh round (Reset & Start): pillars and rubble start over."""
+    """A fresh round (Reset & Start): pillars and rubble start over (anything
+    stuck on a block is let go first)."""
+    old = getattr(world, "terrain", None)
+    if old is not None:
+        try:
+            old.release_all()
+        except Exception:
+            pass
     world.terrain = Terrain()
 
 

@@ -1245,12 +1245,19 @@ class Inst:
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end", "tq_hs",
                  "w_dg", "w_arm",
-                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb")
+                 "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
+                 "bd_m", "bd_stuck", "tq_bd")
 
     def __init__(self):
         self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
         self.tq_grow = {}      # a technique's shots grown by absorbing: index -> growth
+        # Boulder impact (terrain.py): damage kept after the boulder blocks it
+        # collided with (1 = full), the same per shot of a technique, and
+        # stuck = pinned on a block it could not break (move_inst holds it).
+        self.bd_m = 1.0
+        self.tq_bd = {}
+        self.bd_stuck = False
         # Unique ability Ricochet (laser/unique.py): bounces left (None = not
         # read yet), no-rebounce window, damage kept after the bounces so far.
         self.ua_rb = None
@@ -1446,6 +1453,8 @@ def motion_switch(inst, host):
 def move_inst(inst, host):
     fx, m = inst.fx, inst.fx["motion"]
     inst.px, inst.py = inst.x, inst.y
+    if inst.bd_stuck:
+        return          # stuck on a boulder block (terrain.py) until it ends or the block breaks
     inst.tgt = aim_target(fx, host)
     if m["kind"] == "attached":
         a = anchor_pos(fx, host, inst.ep)
@@ -1585,10 +1594,24 @@ def absorb_grow(inst, i=None):
 
 def hit_mult(inst, x, y, ps):
     """Damage / knockback multiplier of a hit at (x, y): what the instance
-    (a technique: its shot nearest the hit) has grown by absorbing."""
+    (a technique: its shot nearest the hit) has grown by absorbing, times
+    what it kept after the boulder blocks it collided with (bd_m / tq_bd)."""
     if inst.fx["prim"] == "technique":
-        return swordfx.hit_growth(inst, x, y, ps)
-    return inst.ab_g
+        g = swordfx.hit_growth(inst, x, y, ps)
+        if inst.tq_bd:
+            g *= _round_bd(inst, x, y, ps)
+        return g * inst.bd_m
+    return inst.ab_g * inst.bd_m
+
+
+def _round_bd(inst, x, y, ps):
+    """Boulder impact damage kept by the technique shot nearest (x, y)."""
+    best, bd = 1.0, None
+    for (i, rx, ry, _vx, _vy) in swordfx.live_points(inst, ps):
+        d = (rx - x) ** 2 + (ry - y) ** 2
+        if bd is None or d < bd:
+            best, bd = inst.tq_bd.get(i, 1.0), d
+    return best
 
 
 def inst_body(inst):
@@ -3726,6 +3749,8 @@ def _deflected_copy(src, vel, hurts_owner):
     q.age = 0
     q.life = max(config.DEFLECT_MAX_AGE, trunc(src.life - src.age) if src.life != INF else 0)
     q.hits, q.last_hit = 0, -1e9
+    q.bd_stuck = False
+    q.tq_bd = dict(src.tq_bd)
     return q
 
 
