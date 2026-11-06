@@ -61,9 +61,10 @@ Four layers, one transform:
                      the anchor (x1 on it .. x0.10 far, tunable curve) — and
                      the follow-cam pans onto it, framing it at
                      anchor_view_x_frac / anchor_view_y_frac of the view
-                     (0.5 / 0.5 = centred).  anchor_fixed: the anchor
-                     stays where it is (no longer follows the fighters)
-                     and the follow-cam frames the fighters instead.  So closeness is shown by
+                     (0.5 / 0.5 = centred).  anchor_fixed: the anchor is
+                     pinned to that spot ON SCREEN instead: the follow-cam
+                     frames the fighters and the anchor rides along with
+                     the view (_pin_anchor), so it never slides on screen.  So closeness is shown by
                      the scaling, not the camera: the follow zoom is a fixed
                      anchor_zoom (just enough to pan), only ever reduced to
                      keep everyone in view; punch-in / cinematic shots keep
@@ -147,7 +148,7 @@ DEFAULTS = {
     # World anchor scaling (laser/worldscale.py)
     "anchor_scale": True,    # on = vertical x distance rule; off = corner grid
     "anchor_s": 0.3,         # seconds for the anchor to (95%) catch up
-    "anchor_fixed": False,   # on = the anchor stays where it is (stops following the fighters)
+    "anchor_fixed": False,   # on = the anchor is pinned to a spot ON SCREEN (anchor_view_x/y_frac of the view)
     "anchor_zoom": 1.15,     # fixed follow zoom while on (only reduced to fit)
     "anchor_view_x_frac": 0.5,  # where the follow-cam puts the anchor: x share of the view (0.5 = centre)
     "anchor_view_y_frac": 0.5,  # ... y share of the view (0.5 = centre, 0.7 = lower)
@@ -531,9 +532,10 @@ class Camera:
             self.anc = None
             worldscale.set_anchor(None)
             return
-        if c["anchor_fixed"] and self.anc is not None:
-            pass                             # fixed: stays where it is
-        elif pts:
+        if c["anchor_fixed"]:
+            self._pin_anchor()               # fixed: on its screen spot
+            return
+        if pts:
             tx = sum(p[0] for p in pts) / len(pts)
             ty = sum(p[1] for p in pts) / len(pts)
             if self.anc is None:
@@ -546,6 +548,18 @@ class Camera:
             worldscale.set_anchor(None)
         else:
             worldscale.set_anchor(self.anc[0], self.anc[1], c)
+
+    def _pin_anchor(self):
+        """anchor_fixed: put the anchor under the screen spot (anchor_view_x
+        / y_frac) of the follow view (centre cx, cy, zoom), so it stays put
+        on screen while the camera follows the fighters.  Punch-in, shake
+        and cinematic shots are left out so it never jitters."""
+        from . import worldscale
+        c = self.cfg
+        z = max(1e-6, self.zoom)
+        self.anc = (self.cx + (c["anchor_view_x_frac"] - 0.5) * self.sw / z,
+                    self.cy + (c["anchor_view_y_frac"] - 0.5) * self.sh / z)
+        worldscale.set_anchor(self.anc[0], self.anc[1], c)
 
     def _target(self, world, pts=None):
         """(cx, cy, zoom) the follow-cam wants this tick."""
@@ -562,9 +576,10 @@ class Camera:
         bw = max(xs) - min(xs) + 2.0 * c["margin_x_px"]
         bh = max(ys) - min(ys) + 2.0 * c["margin_y_px"]
         fit = min(self.sw / max(1.0, bw), self.sh / max(1.0, bh))
-        if c["anchor_scale"] and self.anc is not None and c["anchor_fixed"]:
-            # Fixed anchor: the cam still follows the fighters (their
-            # centre) at the anchor pan zoom, only reduced to fit.
+        if c["anchor_scale"] and c["anchor_fixed"]:
+            # Anchor pinned on screen: the cam follows the fighters (their
+            # centre) at the anchor pan zoom, only reduced to fit; the
+            # anchor rides along with the view (_pin_anchor).
             z = max(1.0, min(c["anchor_zoom"], fit))
             cx = (max(xs) + min(xs)) / 2.0
             cy = (max(ys) + min(ys)) / 2.0
@@ -691,6 +706,8 @@ class Camera:
         self.cx += (tx - self.cx) * a
         self.cy += (ty - self.cy) * a
         self.zoom += (tz - self.zoom) * a
+        if c["anchor_scale"] and c["anchor_fixed"]:
+            self._pin_anchor()               # this tick's view: no lag
         # Depth tilt eases with the follow-cam.
         tk, tax, tay = self._depth_target(world)
         self.k += (tk - self.k) * a
