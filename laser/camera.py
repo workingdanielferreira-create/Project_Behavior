@@ -70,7 +70,7 @@ Four layers, one transform:
   7. Tiny planet    (planet, needs anchor_scale) the anchor is the top of a
                      small planet: worldscale's distance term becomes a
                      sphere curve (big near the top, dropping fast toward a
-                     horizon planet_reach_frac x width away) and the world
+                     horizon ellipse planet_reach_x/y_frac x width away) and the world
                      layers - terrain, rubble, debris, dust & air - are
                      squashed along the line to the anchor toward the rim
                      (foreshortening; drawn in place, never moved).
@@ -102,7 +102,8 @@ DEFAULTS = {
     "max_zoom": 1.6,         # Battle: tightest follow zoom (fighters close)
     "solo_zoom": 1.15,       # Solo: light fixed follow zoom
     "follow_s": 0.4,         # seconds to (95%) catch up with the fighters
-    "margin_px": 220.0,      # space kept around the framed fighters
+    "margin_x_px": 220.0,    # space kept left / right of the framed fighters
+    "margin_y_px": 220.0,    # space kept above / below the framed fighters
     "punch_zoom": 0.3,       # extra zoom on a hit-stop punch-in
     "punch_tilt_deg": 3.0,   # roll along the knockback during the punch
     "punch_pull": 0.6,       # 0..1: how far the centre moves onto the impact
@@ -146,8 +147,9 @@ DEFAULTS = {
     "vscale_bottom": 5.0,    # size at the very bottom of the screen
     "vscale_top": 1.0,       # size at the very top
     "dscale_near": 1.0,      # distance factor on the anchor
-    "dscale_far": 0.10,      # distance factor at dscale_far_frac away
-    "dscale_far_frac": 0.5,  # x screen width (0.5 = fighters on opposite edges)
+    "dscale_far": 0.10,      # distance factor at the far ellipse
+    "dscale_far_x_frac": 0.5,  # far ellipse half-width, x screen width (0.5 = opposite edges)
+    "dscale_far_y_frac": 0.5,  # far ellipse half-height, x screen width
     "dscale_curve": 1.0,     # falloff exponent (1 linear, >1 soft near, <1 fast)
     "scale_min": 0.10,       # final size clamp
     "scale_max": 5.0,
@@ -155,7 +157,8 @@ DEFAULTS = {
     "speed_max": 1.00,       # pace at scale_max
     # Tiny planet (laser/worldscale.py; replaces the depth tilt + distance term)
     "planet": True,          # on = sphere curve around the anchor
-    "planet_reach_frac": 0.6,   # anchor -> horizon distance, x screen width
+    "planet_reach_x_frac": 0.6,  # anchor -> horizon left / right, x screen width
+    "planet_reach_y_frac": 0.6,  # anchor -> horizon up / down, x screen width
     "planet_horizon_deg": 80.0, # how far round the sphere the horizon is
     "planet_far": 0.15,      # size factor at the horizon
     "planet_squash": 0.85,   # foreshortening at the horizon (0 = none)
@@ -168,7 +171,7 @@ DEFAULTS = {
 # CAM_RANGES; tools/fx/check_parity.py keeps the two in step).
 RANGES = {
     "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0],
-    "margin_px": [0.0, 1000.0], "punch_zoom": [0.0, 1.5],
+    "margin_x_px": [0.0, 1000.0], "margin_y_px": [0.0, 1000.0], "punch_zoom": [0.0, 1.5],
     "punch_tilt_deg": [0.0, 30.0], "punch_pull": [0.0, 1.0],
     "punch_in_ticks": [1, 30], "punch_out_s": [0.02, 5.0],
     "shake_max_px": [0.0, 100.0], "shake_hz": [1.0, 60.0],
@@ -182,12 +185,35 @@ RANGES = {
     "anchor_s": [0.02, 5.0], "anchor_zoom": [1.0, 3.0],
     "vscale_bottom": [0.1, 10.0], "vscale_top": [0.1, 10.0],
     "dscale_near": [0.05, 2.0], "dscale_far": [0.05, 2.0],
-    "dscale_far_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
+    "dscale_far_x_frac": [0.1, 1.5], "dscale_far_y_frac": [0.1, 1.5], "dscale_curve": [0.2, 5.0],
     "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
     "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
-    "planet_reach_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
+    "planet_reach_x_frac": [0.1, 2.0], "planet_reach_y_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
     "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
 }
+# Settings split into x / y: an old file's single value seeds both.
+LEGACY_XY = {"margin_px": ("margin_x_px", "margin_y_px"),
+             "dscale_far_frac": ("dscale_far_x_frac", "dscale_far_y_frac"),
+             "planet_reach_frac": ("planet_reach_x_frac", "planet_reach_y_frac")}
+# Wireframe overlay toggles (camera.json "wire_off" = the keys whose part of
+# the wireframe is hidden; FX Studio: a tick box beside each setting while
+# the wireframe is on).  Camera settings, two wireframe-only parts
+# (wire_grid, wire_view) and "section.key" Dust & Air settings.  A part with
+# several owners is hidden when ANY of them is unticked (laser/wireframe.py).
+WIRE_KEYS = [
+    "follow", "margin_x_px", "margin_y_px", "max_zoom", "solo_zoom", "anchor_zoom",
+    "punch", "punch_tilt_deg", "shake", "shake_max_px", "ult_on", "switch_on", "ko_on", "clash_on",
+    "depth", "depth_base", "depth_gain", "depth_shot",
+    "anchor_scale", "vscale_bottom", "vscale_top", "dscale_near", "dscale_far",
+    "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve", "scale_min", "scale_max", "speed_min", "speed_max",
+    "planet", "planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash",
+    "wire_grid", "wire_view",
+    "roll.enabled", "roll.max_speed", "roll.zone_x_frac", "roll.zone_y_frac", "roll.vertical",
+    "roll.spawn_ahead_px", "roll.margin_px",
+    "pillars.enabled", "pillars.count", "pillars.respawn_s", "pillars.radius_x_px", "pillars.radius_y_px",
+    "pillars.clear_x_px", "pillars.clear_y_px", "pillars.gap_x_px", "pillars.gap_y_px",
+    "pillars.width", "pillars.height", "pillars.hp", "pillars.multi_chance",
+]
 DEPTH_SLOW_FRAMES = 120   # ~2 s of over-budget frames before depth turns off
 DEPTH_MAX = 0.6     # total perspective strength cap (keeps w > 0 everywhere)
 # Shot kinds: settings prefix and priority (higher wins).
@@ -209,8 +235,17 @@ def _num(v, d, lo, hi):
 def normalize(obj):
     """A camera.json dict -> a complete, range-checked settings dict."""
     s = dict(DEFAULTS)
+    s["wire_off"] = []
     if not isinstance(obj, dict):
         return s
+    obj = dict(obj)
+    for old, new in LEGACY_XY.items():
+        if old in obj:
+            for k in new:
+                obj.setdefault(k, obj[old])
+    wo = obj.get("wire_off")
+    if isinstance(wo, list):
+        s["wire_off"] = [k for k in WIRE_KEYS if k in wo]
     for k, d in DEFAULTS.items():
         if isinstance(d, bool) and k in obj:
             s[k] = bool(obj[k])
@@ -324,7 +359,7 @@ class Camera:
         self.sw = float(screen_w)
         self.sh = float(screen_h)
         self.root = root_dir
-        self.cfg = dict(DEFAULTS)
+        self.cfg = normalize({})
         self._stamp = None
         self._next = 0
         # Follow state (smoothed)
@@ -387,17 +422,17 @@ class Camera:
         self.depth_suspended = False
         self._slow = 0
         if path is None:
-            self.cfg = dict(DEFAULTS)
+            self.cfg = normalize({})
             return
         try:
             with open(path, "r", encoding="utf-8-sig") as f:
                 obj = json.load(f)
         except OSError:
-            self.cfg = dict(DEFAULTS)
+            self.cfg = normalize({})
             return
         except ValueError:
             if not keep_on_error:
-                self.cfg = dict(DEFAULTS)
+                self.cfg = normalize({})
             return
         ok = isinstance(obj, dict) and obj.get("format") == FORMAT
         self.cfg = normalize(obj if ok else {})
@@ -514,9 +549,8 @@ class Camera:
             return cx0, cy0, 1.0
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        m = c["margin_px"]
-        bw = max(xs) - min(xs) + 2.0 * m
-        bh = max(ys) - min(ys) + 2.0 * m
+        bw = max(xs) - min(xs) + 2.0 * c["margin_x_px"]
+        bh = max(ys) - min(ys) + 2.0 * c["margin_y_px"]
         fit = min(self.sw / max(1.0, bw), self.sh / max(1.0, bh))
         if c["anchor_scale"] and self.anc is not None:
             # Closeness is the scaling's job: a fixed pan zoom, only ever

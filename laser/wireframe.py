@@ -8,6 +8,10 @@ it exactly as they warp the world), over everything but the HUD.  Solo and
 Battle alike.  It reads the live settings every frame, so an edit in the
 Studio (hot-reloaded ~1 s) shows straight away.
 
+Every part is owned by the setting(s) it shows; camera.json "wire_off"
+(FX Studio: the tick box beside each setting while the wireframe is on)
+hides a part when ANY of its owners is unticked (camera.WIRE_KEYS).
+
 Layers (each its own colour):
   * Scaling grid (cyan): a plain scene grid (shows the camera's warp),
     size contours of combat.position_scale (x0.5, x1, x2 ...) and, at a
@@ -17,7 +21,7 @@ Layers (each its own colour):
   * Anchor & planet (magenta): the world anchor, the planet horizon and
     squash rings (or the anchor's far-distance ring), lines to each fighter;
     the depth tilt's near / far lines and its anchor A with strength k.
-  * Roll zones (orange): the outer zone_frac bands that roll the world, and
+  * Roll zones (orange): the outer zone_x_frac / zone_y_frac bands that roll the world, and
     the current roll direction / speed.
   * Camera & boulders (green / yellow): the follow-cam framing box (+margin)
     and the view at its current zoom; the pillar spawn radius, every
@@ -31,6 +35,7 @@ from PyQt5.QtCore import Qt, QPointF, QRectF
 from PyQt5.QtGui import QColor, QFont, QPen, QPolygonF
 
 from . import combat, config, worldfx, worldscale
+from .camera import SHOTS
 
 CYAN = (79, 209, 255)
 MAGENTA = (255, 95, 210)
@@ -41,6 +46,8 @@ YELLOW = (255, 225, 77)
 GRID = 120          # plain scene grid spacing (px)
 SAMPLE = 60         # contour sampling step (px)
 SPOTS = 240         # size-bar spots spacing (px)
+# The settings that shape the size rule (contours and size bars).
+SIZE_KEYS = ("vscale_bottom", "vscale_top", "scale_min", "scale_max")
 LEVELS = (0.1, 0.15, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0, 10.0)
 TICK_S = config.TICK_MS / 1000.0
 
@@ -64,6 +71,11 @@ class _Painter:
         self.bounds = None         # (x0, y0, x1, y1) of the visible view (scene)
         self.sx = self.sy = 0.0    # status lines: the view's top-left corner
         self.n = 0
+        self.off = set()           # camera.json wire_off: unticked owners
+
+    def on(self, *keys):
+        """A part is drawn unless ANY of its owning settings is unticked."""
+        return not any(k in self.off for k in keys)
 
     def status(self, text, rgb):
         """A line of the status stack in the view's top-left corner."""
@@ -149,29 +161,35 @@ def _contours(sw, sh):
 def _scaling(d, sw, sh):
     p = d.p
     # Plain scene grid: the camera / depth tilt warp shows on it.
-    p.setPen(_pen(CYAN, 40, 1))
-    x = 0.0
-    while x <= sw:
-        d.line(x, 0, x, sh)
-        x += GRID
-    y = 0.0
-    while y <= sh:
-        d.line(0, y, sw, y)
-        y += GRID
-    p.setPen(_pen(CYAN, 120, 1.5))
-    d.line(0, 0, sw, 0)
-    d.line(sw, 0, sw, sh)
-    d.line(sw, sh, 0, sh)
-    d.line(0, sh, 0, 0)
+    if d.on("wire_grid"):
+        p.setPen(_pen(CYAN, 40, 1))
+        x = 0.0
+        while x <= sw:
+            d.line(x, 0, x, sh)
+            x += GRID
+        y = 0.0
+        while y <= sh:
+            d.line(0, y, sw, y)
+            y += GRID
+        p.setPen(_pen(CYAN, 120, 1.5))
+        d.line(0, 0, sw, 0)
+        d.line(sw, 0, sw, sh)
+        d.line(sw, sh, 0, sh)
+        d.line(0, sh, 0, 0)
+    size_on = d.on(*SIZE_KEYS)
+    pace_on = d.on("speed_min", "speed_max")
     # Size contours.
-    for L, segs in _contours(sw, sh).items():
-        p.setPen(_pen(CYAN, 170 if L == 1.0 else 110, 2.0 if L == 1.0 else 1.2))
-        for s in segs:
-            d.line(*s)
-        m = segs[len(segs) // 2]
-        d.label(m[0] + 3, m[1] - 3, "size x%g" % L, CYAN)
+    if size_on:
+        for L, segs in _contours(sw, sh).items():
+            p.setPen(_pen(CYAN, 170 if L == 1.0 else 110, 2.0 if L == 1.0 else 1.2))
+            for s in segs:
+                d.line(*s)
+            m = segs[len(segs) // 2]
+            d.label(m[0] + 3, m[1] - 3, "size x%g" % L, CYAN)
     # Size bars: as tall as a fighter would be drawn here; planet squash ring.
-    planet = worldscale.planet_on()
+    ring_on = worldscale.planet_on() and d.on("planet_squash")
+    if not (size_on or pace_on or ring_on):
+        return
     sq = worldscale.squasher(p, sw)
     y = SPOTS * 0.5
     while y < sh:
@@ -179,76 +197,110 @@ def _scaling(d, sw, sh):
         while x < sw:
             s = combat.position_scale(x, y, sw, sh)
             sp = combat.position_speed_scale(x, y, sw, sh)
-            hgt = 20.0 * s
-            p.setPen(_pen(CYAN, 200, 2))
-            d.line(x, y, x, y - hgt)
-            d.line(x - 4, y, x + 4, y)
-            if planet:
+            if size_on:
+                p.setPen(_pen(CYAN, 200, 2))
+                d.line(x, y, x, y - 20.0 * s)
+                d.line(x - 4, y, x + 4, y)
+            if ring_on:
                 sq.at(x, y)
                 p.setPen(_pen(CYAN, 160, 1.2))
                 d.circle(x, y, 9.0 * s)
                 sq.done()
-            d.label(x + 5, y - 2, "x%.2f %d%%" % (s, int(round(sp * 100))), CYAN)
+            txt = " ".join(t for t, on in (("x%.2f" % s, size_on), ("%d%%" % int(round(sp * 100)), pace_on)) if on)
+            if txt:
+                d.label(x + 5, y - 2, txt, CYAN)
             x += SPOTS
         y += SPOTS
 
 
 # ------------------------------------------------------------ anchor / planet / depth
+def _reach(d, ax, ay, rx, ry, kx, ky, rgb, what):
+    """The x / y reach of an ellipse as two labelled radius lines, each
+    owned by its own setting (kx / ky)."""
+    p = d.p
+    p.setPen(_pen(rgb, 200, 1.5))
+    if d.on(kx):
+        d.arrow(ax, ay, ax + rx, ay)
+        d.label(ax + rx * 0.5, ay - 4, "%s x %d px" % (what, rx), rgb)
+    if d.on(ky):
+        d.arrow(ax, ay, ax, ay - ry)
+        d.label(ax + 4, ay - ry * 0.5, "%s y %d px" % (what, ry), rgb)
+
+
 def _anchor(d, world, figs, cam, view, sw, sh):
     p = d.p
     c = cam.cfg
     if worldscale.active():
         ax, ay = worldscale._A[0], worldscale._A[1]
-        p.setPen(_pen(MAGENTA, 120, 1, True))
-        for f in figs:
-            d.line(ax, ay, f.transform.x, f.transform.y)
-            dist = math.hypot(f.transform.x - ax, f.transform.y - ay)
-            d.label((ax + f.transform.x) / 2, (ay + f.transform.y) / 2, "%d px" % dist, MAGENTA)
-        p.setPen(_pen(MAGENTA, 230, 2))
-        r = 14.0 / d.z
-        d.line(ax - r, ay, ax + r, ay)
-        d.line(ax, ay - r, ax, ay + r)
-        d.circle(ax, ay, r * 0.6)
-        d.label(ax + r, ay - r, "ANCHOR", MAGENTA)
+        if d.on("anchor_scale"):
+            p.setPen(_pen(MAGENTA, 120, 1, True))
+            for f in figs:
+                d.line(ax, ay, f.transform.x, f.transform.y)
+                dist = math.hypot(f.transform.x - ax, f.transform.y - ay)
+                d.label((ax + f.transform.x) / 2, (ay + f.transform.y) / 2, "%d px" % dist, MAGENTA)
+            p.setPen(_pen(MAGENTA, 230, 2))
+            r = 14.0 / d.z
+            d.line(ax - r, ay, ax + r, ay)
+            d.line(ax, ay - r, ax, ay + r)
+            d.circle(ax, ay, r * 0.6)
+            d.label(ax + r, ay - r, "ANCHOR", MAGENTA)
         if worldscale.planet_on():
             pl = worldscale._A[12]
-            R = pl[0] * sw
-            p.setPen(_pen(MAGENTA, 210, 2))
-            d.circle(ax, ay, R)
-            d.label(ax + 4, ay - R - 4, "planet horizon (%g deg, size x%g, squash %g)"
-                    % (c["planet_horizon_deg"], c["planet_far"], c["planet_squash"]), MAGENTA)
-            p.setPen(_pen(MAGENTA, 120, 1, True))
-            for fr in (1.0 / 3.0, 2.0 / 3.0):
-                th = fr * pl[2]
-                k = max(0.05, min(1.0, 1.0 - pl[4] * (1.0 - math.cos(th))))
-                d.circle(ax, ay, R * fr)
-                d.label(ax + R * fr * 0.71 + 4, ay + R * fr * 0.71, "squash x%.2f" % k, MAGENTA)
+            rx, ry = pl[0][0] * sw, pl[0][1] * sw
+            if d.on("planet", "planet_reach_x_frac", "planet_reach_y_frac"):
+                p.setPen(_pen(MAGENTA, 210, 2))
+                d.circle(ax, ay, rx, ry)
+                if d.on("planet_horizon_deg"):
+                    d.label(ax + 4, ay - ry - 4, "planet horizon %g deg" % c["planet_horizon_deg"], MAGENTA)
+            if d.on("planet_far"):
+                d.label(ax + 4, ay + ry + 14 / d.z, "size x%g at the horizon" % c["planet_far"], MAGENTA)
+            _reach(d, ax, ay, rx, ry, "planet_reach_x_frac", "planet_reach_y_frac", MAGENTA, "horizon")
+            if d.on("planet_squash"):
+                p.setPen(_pen(MAGENTA, 120, 1, True))
+                for fr in (1.0 / 3.0, 2.0 / 3.0):
+                    th = fr * pl[2]
+                    k = max(0.05, min(1.0, 1.0 - pl[4] * (1.0 - math.cos(th))))
+                    d.circle(ax, ay, rx * fr, ry * fr)
+                    d.label(ax + rx * fr * 0.71 + 4, ay + ry * fr * 0.71, "squash x%.2f" % k, MAGENTA)
         else:
-            R = c["dscale_far_frac"] * sw
-            p.setPen(_pen(MAGENTA, 170, 1.5, True))
-            d.circle(ax, ay, R)
-            d.label(ax + 4, ay - R - 4, "far distance: x%g (curve %g)" % (c["dscale_far"], c["dscale_curve"]), MAGENTA)
-    else:
+            rx, ry = c["dscale_far_x_frac"] * sw, c["dscale_far_y_frac"] * sw
+            if d.on("dscale_far", "dscale_far_x_frac", "dscale_far_y_frac"):
+                p.setPen(_pen(MAGENTA, 170, 1.5, True))
+                d.circle(ax, ay, rx, ry)
+                d.label(ax + 4, ay - ry - 4, "far distance: x%g" % c["dscale_far"], MAGENTA)
+            _reach(d, ax, ay, rx, ry, "dscale_far_x_frac", "dscale_far_y_frac", MAGENTA, "far")
+            if d.on("dscale_curve"):
+                k = c["dscale_near"] + (c["dscale_far"] - c["dscale_near"]) * (0.5 ** c["dscale_curve"])
+                p.setPen(_pen(MAGENTA, 90, 1, True))
+                d.circle(ax, ay, rx * 0.5, ry * 0.5)
+                d.label(ax - rx * 0.35, ay + ry * 0.5 + 14 / d.z, "half way: x%.2f (curve %g)" % (k, c["dscale_curve"]), MAGENTA)
+            if d.on("dscale_near"):
+                d.label(ax + 16 / d.z, ay + 18 / d.z, "on-anchor x%g" % c["dscale_near"], MAGENTA)
+    elif d.on("anchor_scale"):
         d.status("anchor scaling OFF: corner-grid sizes", MAGENTA)
     # Depth tilt: lines of equal depth, near -> far, and its anchor A.
     if cam.depth_live() and view is not None:
         k, Ax, Ay = view[6], view[7], view[8]
-        p.setPen(_pen(MAGENTA, 70, 1, True))
-        if c["anchor_scale"]:
-            for i in range(1, 6):
-                yy = sh * i / 6.0
-                d.line(0, yy, sw, yy)
-            d.arrow(sw * 0.97, sh * 0.9, sw * 0.97, sh * 0.1)
-            d.label(sw * 0.97 - 120 / d.z, sh * 0.1 - 6, "near -> far", MAGENTA)
-        else:
-            for i in range(1, 6):
-                t = i / 6.0
-                d.line(0, sh * t * 2, sw * t * 2, 0)
-            d.arrow(sw * 0.1, sh * 0.9, sw * 0.9, sh * 0.1)
-            d.label(sw * 0.5, sh * 0.5, "near -> far", MAGENTA)
-        p.setPen(_pen(MAGENTA, 230, 2))
-        d.circle(Ax, Ay, 10.0 / d.z)
-        d.label(Ax + 12 / d.z, Ay + 14 / d.z, "depth A  k=%.2f" % k, MAGENTA)
+        if d.on("depth"):
+            p.setPen(_pen(MAGENTA, 70, 1, True))
+            if c["anchor_scale"]:
+                for i in range(1, 6):
+                    yy = sh * i / 6.0
+                    d.line(0, yy, sw, yy)
+                d.arrow(sw * 0.97, sh * 0.9, sw * 0.97, sh * 0.1)
+                d.label(sw * 0.97 - 120 / d.z, sh * 0.1 - 6, "near -> far", MAGENTA)
+            else:
+                for i in range(1, 6):
+                    t = i / 6.0
+                    d.line(0, sh * t * 2, sw * t * 2, 0)
+                d.arrow(sw * 0.1, sh * 0.9, sw * 0.9, sh * 0.1)
+                d.label(sw * 0.5, sh * 0.5, "near -> far", MAGENTA)
+        if d.on("depth_base", "depth_gain", "depth_shot"):
+            p.setPen(_pen(MAGENTA, 230, 2))
+            d.circle(Ax, Ay, 10.0 / d.z)
+            d.label(Ax + 12 / d.z, Ay + 14 / d.z, "depth A  k=%.2f" % k, MAGENTA)
+    elif not d.on("depth"):
+        pass
     elif c["depth"] and cam.planet_live():
         d.status("depth tilt replaced by the tiny planet", MAGENTA)
     elif getattr(cam, "depth_suspended", False):
@@ -260,28 +312,38 @@ def _roll(d, world, sw, sh):
     p = d.p
     R = worldfx.WORLD.get("roll") or {}
     if not R.get("enabled"):
-        d.status("rolling world OFF", ORANGE)
+        if d.on("roll.enabled"):
+            d.status("rolling world OFF", ORANGE)
         return
-    z = max(0.05, min(0.5, R["zone_frac"]))
+    zx = max(0.05, min(0.5, R["zone_x_frac"]))
+    zy = max(0.05, min(0.5, R["zone_y_frac"]))
+    spd_txt = " (max %d px/s)" % R["max_speed"] if d.on("roll.max_speed") else ""
     p.setPen(_pen(ORANGE, 170, 1.5))
     p.setBrush(QColor(ORANGE[0], ORANGE[1], ORANGE[2], 22))
-    bands = [QRectF(0, 0, sw * z, sh), QRectF(sw * (1 - z), 0, sw * z, sh)]
-    if R.get("vertical"):
-        bands += [QRectF(0, 0, sw, sh * z), QRectF(0, sh * (1 - z), sw, sh * z)]
-    for b in bands:
-        p.drawRect(b)
+    if d.on("roll.zone_x_frac"):
+        p.drawRect(QRectF(0, 0, sw * zx, sh))
+        p.drawRect(QRectF(sw * (1 - zx), 0, sw * zx, sh))
+        p.setBrush(Qt.NoBrush)
+        d.label(8, sh * 0.5, "roll zone x %.2f: world rolls ->" % zx, ORANGE)
+        d.label(sw * (1 - zx) + 8, sh * 0.5, "<- world rolls" + spd_txt, ORANGE)
+    if R.get("vertical") and d.on("roll.zone_y_frac", "roll.vertical"):
+        p.setBrush(QColor(ORANGE[0], ORANGE[1], ORANGE[2], 22))
+        p.drawRect(QRectF(0, 0, sw, sh * zy))
+        p.drawRect(QRectF(0, sh * (1 - zy), sw, sh * zy))
+        p.setBrush(Qt.NoBrush)
+        d.label(sw * 0.5, sh * zy - 6, "roll zone y %.2f (vertical)%s" % (zy, spd_txt), ORANGE)
     p.setBrush(Qt.NoBrush)
-    d.label(8, sh * 0.5, "roll zone: world rolls ->", ORANGE)
-    d.label(sw * (1 - z) + 8, sh * 0.5, "<- world rolls (max %d px/s)" % R["max_speed"], ORANGE)
-    if R.get("vertical"):
-        d.label(sw * 0.5, sh * z - 6, "roll zone (vertical)", ORANGE)
     # Off-screen: where pillars are dropped / raised (seen when zoomed out).
     mg, ah = R["margin_px"], R["spawn_ahead_px"]
     p.setPen(_pen(ORANGE, 110, 1, True))
-    for xx in (-mg, sw + mg, -mg - ah, sw + mg + ah):
-        d.line(xx, 0, xx, sh)
+    if d.on("roll.margin_px"):
+        for xx in (-mg, sw + mg):
+            d.line(xx, 0, xx, sh)
+    if d.on("roll.spawn_ahead_px"):
+        for xx in (-mg - ah, sw + mg + ah):
+            d.line(xx, 0, xx, sh)
     st = getattr(world, "terrain", None)
-    if st is not None:
+    if st is not None and d.on("roll.max_speed"):
         vx, vy = st.roll_v
         spd = math.hypot(vx, vy) / TICK_S
         if spd > 1.0:
@@ -297,35 +359,53 @@ def _roll(d, world, sw, sh):
 def _camera(d, world, figs, cam, view, sw, sh):
     p = d.p
     c = cam.cfg
-    if figs and c["follow"]:
-        xs = [f.transform.x for f in figs]
-        ys = [f.transform.y for f in figs]
-        m = c["margin_px"]
+    if figs and c["follow"] and d.on("follow"):
+        x0, x1 = min(f.transform.x for f in figs), max(f.transform.x for f in figs)
+        y0, y1 = min(f.transform.y for f in figs), max(f.transform.y for f in figs)
+        mx, my = c["margin_x_px"], c["margin_y_px"]
         p.setPen(_pen(GREEN, 200, 1.5, True))
-        p.setBrush(Qt.NoBrush)
-        p.drawRect(QRectF(min(xs) - m, min(ys) - m, max(xs) - min(xs) + 2 * m, max(ys) - min(ys) + 2 * m))
+        if d.on("margin_x_px"):          # left / right sides: the x margin
+            d.line(x0 - mx, y0 - my, x0 - mx, y1 + my)
+            d.line(x1 + mx, y0 - my, x1 + mx, y1 + my)
+        if d.on("margin_y_px"):          # top / bottom sides: the y margin
+            d.line(x0 - mx, y0 - my, x1 + mx, y0 - my)
+            d.line(x0 - mx, y1 + my, x1 + mx, y1 + my)
         if c["anchor_scale"]:
-            zt = "anchor pan zoom x%g" % c["anchor_zoom"]
+            zk, zt = "anchor_zoom", "anchor pan zoom x%g" % c["anchor_zoom"]
         elif getattr(world, "battle_mode", False):
-            zt = "battle max zoom x%g" % c["max_zoom"]
+            zk, zt = "max_zoom", "battle max zoom x%g" % c["max_zoom"]
         else:
-            zt = "solo zoom x%g" % c["solo_zoom"]
-        d.label(min(xs) - m + 4, min(ys) - m - 4, "framing (+%d margin) - %s" % (m, zt), GREEN)
+            zk, zt = "solo_zoom", "solo zoom x%g" % c["solo_zoom"]
+        parts = ["framing"]
+        if d.on("margin_x_px"):
+            parts.append("+%d x" % mx)
+        if d.on("margin_y_px"):
+            parts.append("+%d y" % my)
+        if d.on(zk):
+            parts.append("- " + zt)
+        d.label(x0 - mx + 4, y0 - my - 4, " ".join(parts), GREEN)
     if view is not None:
         cx, cy, z = view[0], view[1], view[2]
         hw, hh = sw / (2.0 * z), sh / (2.0 * z)
         ins = 6.0 / d.z
-        p.setPen(_pen(GREEN, 230, 2))
-        p.setBrush(Qt.NoBrush)
-        p.drawRect(QRectF(cx - hw + ins, cy - hh + ins, 2 * hw - 2 * ins, 2 * hh - 2 * ins))
+        parts = []
+        if d.on("wire_view"):
+            p.setPen(_pen(GREEN, 230, 2))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(QRectF(cx - hw + ins, cy - hh + ins, 2 * hw - 2 * ins, 2 * hh - 2 * ins))
+            parts.append("view x%.2f" % z)
+        if abs(view[3]) > 0.05 and d.on("punch", "punch_tilt_deg"):
+            parts.append("roll %.1f deg" % view[3])
         s = cam.shot
-        txt = "view x%.2f" % z + (" roll %.1f deg" % view[3] if abs(view[3]) > 0.05 else "")
         if s is not None and s.env > 0.0:
-            txt += "  shot: %s" % s.kind
-        if cam.trauma > 0.01:
-            txt += "  shake %.2f" % cam.trauma
-        d.label(cx - hw + ins + 4, cy + hh - ins - 6, txt, GREEN)
-    else:
+            pre = SHOTS.get(s.kind)
+            if pre is None or d.on(pre[0] + "_on"):
+                parts.append("shot: %s" % s.kind)
+        if cam.trauma > 0.01 and d.on("shake", "shake_max_px"):
+            parts.append("shake %.2f" % cam.trauma)
+        if parts:
+            d.label(cx - hw + ins + 4, cy + hh - ins - 6, "  ".join(parts), GREEN)
+    elif d.on("wire_view"):
         d.status("view x1.00 (camera at rest)", GREEN)
 
 
@@ -334,19 +414,24 @@ def _boulders(d, world, figs, sw, sh):
     P = worldfx.WORLD.get("pillars") or {}
     st = getattr(world, "terrain", None)
     if not P.get("enabled") or not worldfx.WORLD["ground"]["enabled"]:
-        d.status("pillars OFF", YELLOW)
+        if d.on("pillars.enabled"):
+            d.status("pillars OFF", YELLOW)
         return
     if figs and st is not None:
         cx, cy = st._centre(figs)
-        p.setPen(_pen(YELLOW, 150, 1.5, True))
-        d.circle(cx, cy, P["radius_px"])
-        d.label(cx + 4, cy - P["radius_px"] - 4, "pillar spawn radius %d" % P["radius_px"], YELLOW)
-        p.setPen(_pen(YELLOW, 110, 1, True))
-        for f in figs:
-            d.circle(f.transform.x, f.transform.y, P["clear_px"])
-        if figs:
-            f = figs[0]
-            d.label(f.transform.x + 4, f.transform.y + P["clear_px"] + 14 / d.z, "clear %d" % P["clear_px"], YELLOW)
+        rx, ry = P["radius_x_px"], P["radius_y_px"]
+        if d.on("pillars.radius_x_px", "pillars.radius_y_px"):
+            p.setPen(_pen(YELLOW, 150, 1.5, True))
+            d.circle(cx, cy, rx, ry)
+            d.label(cx + 4, cy - ry - 4, "pillar spawn ellipse", YELLOW)
+        _reach(d, cx, cy, rx, ry, "pillars.radius_x_px", "pillars.radius_y_px", YELLOW, "spawn")
+        kx, ky = P["clear_x_px"], P["clear_y_px"]
+        if d.on("pillars.clear_x_px", "pillars.clear_y_px"):
+            p.setPen(_pen(YELLOW, 110, 1, True))
+            for f in figs:
+                d.circle(f.transform.x, f.transform.y, kx, ky)
+        f = figs[0]
+        _reach(d, f.transform.x, f.transform.y, kx, ky, "pillars.clear_x_px", "pillars.clear_y_px", YELLOW, "clear")
     if st is None:
         return
     G = worldfx.WORLD["ground"]
@@ -355,29 +440,34 @@ def _boulders(d, world, figs, sw, sh):
         hw = q.half_w(P)
         fl = max(0.2, worldfx.flat_at(q.ps, G))
         lift = q.lift(P)
-        p.setPen(_pen(YELLOW, 230, 1.8))
-        if lift < 2.0:
+        if lift < 2.0 and d.on("pillars.width"):
+            p.setPen(_pen(YELLOW, 230, 1.8))
             d.circle(q.x, q.y, hw, hw * fl)           # what blocks the fighters' feet
         ax = q.axis(P)
-        p.setPen(_pen(YELLOW, 160, 1.2))
-        d.line(ax[0] - ax[4], ax[1], ax[0] - ax[4], ax[3])    # projectile / melee body
-        d.line(ax[0] + ax[4], ax[1], ax[0] + ax[4], ax[3])
-        d.line(ax[0] - ax[4], ax[1], ax[0] + ax[4], ax[1])
-        d.label(q.x + hw + 3, ax[1] + 12 / d.z, "%d/%d" % (max(0, q.hp), q.hp0), YELLOW)
+        if d.on("pillars.width", "pillars.height"):
+            p.setPen(_pen(YELLOW, 160, 1.2))
+            d.line(ax[0] - ax[4], ax[1], ax[0] - ax[4], ax[3])    # projectile / melee body
+            d.line(ax[0] + ax[4], ax[1], ax[0] + ax[4], ax[3])
+            d.line(ax[0] - ax[4], ax[1], ax[0] + ax[4], ax[1])
+        if d.on("pillars.hp"):
+            d.label(q.x + hw + 3, ax[1] + 12 / d.z, "%d/%d" % (max(0, q.hp), q.hp0), YELLOW)
         g = id(q.cl) if q.cl is not None else id(q)
         if g not in seen and lift < 2.0:
             seen.add(g)
-            p.setPen(_pen(YELLOW, 60, 1, True))
-            d.circle(q.x, q.y, P["gap_px"])
-            if q.cl is not None:
+            if d.on("pillars.gap_x_px", "pillars.gap_y_px"):
+                p.setPen(_pen(YELLOW, 60, 1, True))
+                d.circle(q.x, q.y, P["gap_x_px"], P["gap_y_px"])
+            if q.cl is not None and d.on("pillars.multi_chance"):
                 n = sum(1 for o in st.pillars if o.cl is q.cl)
                 d.label(q.x - hw, q.y + hw * fl + 14 / d.z, "multi-part: %d blocks" % n, YELLOW)
+    if not d.on("pillars.count"):
+        return
     ng, want = st._groups(), int(P["count"])
     txt = "pillars %d / %d" % (ng, want)
     if ng < want:
         if st.roll_v[0] or st.roll_v[1]:
             txt += "  (rolling: new ones rise off the far side)"
-        else:
+        elif d.on("pillars.respawn_s"):
             left = max(0, st.next_spawn - st.t) * TICK_S
             txt += "  next in %.1f s" % left
     d.status(txt, YELLOW)
@@ -398,6 +488,7 @@ def paint(p, world):
     try:
         p.setRenderHint(p.Antialiasing, True)
         d = _Painter(p, view[2] if view is not None else 1.0)
+        d.off = set(cam.cfg.get("wire_off") or ())
         if view is not None:
             hw, hh = sw / (2.0 * view[2]), sh / (2.0 * view[2])
             d.bounds = (view[0] - hw, view[1] - hh, view[0] + hw, view[1] + hh)

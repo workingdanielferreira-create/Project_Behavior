@@ -4,9 +4,10 @@ sections "pillars" and "rubble" of characters/world_physics.json).
 
 Pillars
   Rock columns kept around the fight: when a round starts `count` of them
-  rise at random spots within `radius_px` of the fighters' centre (the world
-  anchor while anchor scaling is on), never on a fighter (clear_px) or on
-  each other (gap_px).  When one breaks, a new one rises after respawn_s,
+  rise at random spots inside the radius_x_px x radius_y_px ellipse round the
+  fighters' centre (the world anchor while anchor scaling is on), never inside
+  a fighter's clear_x_px x clear_y_px ellipse or another pillar's
+  gap_x_px x gap_y_px ellipse.  When one breaks, a new one rises after respawn_s,
   so the arena steadily holds `count`.
   They are REAL obstacles, for both sides, Solo and Battle alike:
     * projectiles (built-in bullets, crescents, travelling FX, beams, gun /
@@ -91,6 +92,14 @@ def _wf():
 
 def _rgb(h):
     return worldfx._rgb(h)
+
+
+def _in_ellipse(dx, dy, rx, ry):
+    """(dx, dy) strictly inside the ellipse of half-axes (rx, ry) (x and y
+    distances set apart; equal = the old circle)."""
+    if rx <= 0.0 or ry <= 0.0:
+        return False
+    return (dx / rx) ** 2 + (dy / ry) ** 2 < 1.0
 
 
 def _ticks(sec):
@@ -324,22 +333,22 @@ class Terrain:
 
     def _place(self, figs, P, multi=False):
         cx, cy = self._centre(figs)
-        R = P["radius_px"]
+        Rx, Ry = P["radius_x_px"], P["radius_y_px"]
         rnd = self.rng.random
         wm = P["multi_size_pct"] / 100.0 if multi else 1.0
         for _ in range(MAX_TRIES):
             a = rnd() * 2 * math.pi
-            r = R * math.sqrt(rnd())
-            x = cx + math.cos(a) * r
-            y = cy + math.sin(a) * r
+            r = math.sqrt(rnd())            # uniform inside the spawn ellipse
+            x = cx + math.cos(a) * r * Rx
+            y = cy + math.sin(a) * r * Ry
             ps = worldfx.pscale(x, y, self.sw, self.sh)
             hw = P["width"] * 0.5 * ps * wm
             if x < hw + 20 or x > self.sw - hw - 20 or y < self.sh * 0.12 or y > self.sh - 14:
                 continue
             extra = hw if multi else 0.0
-            if any(math.hypot(f.x - x, f.y - y) < P["clear_px"] + extra for f in figs):
+            if any(_in_ellipse(f.x - x, f.y - y, P["clear_x_px"] + extra, P["clear_y_px"] + extra) for f in figs):
                 continue
-            if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] + extra for p in self.pillars):
+            if any(_in_ellipse(p.x - x, p.y - y, P["gap_x_px"] + extra, P["gap_y_px"] + extra) for p in self.pillars):
                 continue
             return x, y
         return None
@@ -1058,18 +1067,19 @@ class Terrain:
         tx = ty = 0.0
         if Rl["enabled"] and figs:
             ax, ay = self._centre(figs)
-            z = max(0.05, min(0.5, Rl["zone_frac"]))
+            zx = max(0.05, min(0.5, Rl["zone_x_frac"]))
+            zy = max(0.05, min(0.5, Rl["zone_y_frac"]))
             vmax = Rl["max_speed"] * TICK_S
 
-            def axis(u):
+            def axis(u, z):
                 if u < z:
                     return (z - u) / z            # near the low edge: the world rolls +
                 if u > 1.0 - z:
                     return -(u - (1.0 - z)) / z   # near the high edge: the world rolls -
                 return 0.0
-            tx = vmax * max(-1.0, min(1.0, axis(ax / sw)))
+            tx = vmax * max(-1.0, min(1.0, axis(ax / sw, zx)))
             if Rl["vertical"]:
-                ty = vmax * max(-1.0, min(1.0, axis(ay / sh)))
+                ty = vmax * max(-1.0, min(1.0, axis(ay / sh, zy)))
         e = 1.0 if Rl["ease_ms"] <= 0 else min(1.0, config.TICK_MS / float(Rl["ease_ms"]))
         vx = self.roll_v[0] + (tx - self.roll_v[0]) * e
         vy = self.roll_v[1] + (ty - self.roll_v[1]) * e
@@ -1134,7 +1144,7 @@ class Terrain:
                 x = 20 + rnd() * (sw - 40)
                 ps = worldfx.pscale(x, 0.0 if vy > 0 else sh, self.sw, self.sh)
                 y = -10.0 - ext if vy > 0 else sh + P["height"] * ps + 10.0 + ext
-            if any(math.hypot(p.x - x, p.y - y) < P["gap_px"] for p in self.pillars):
+            if any(_in_ellipse(p.x - x, p.y - y, P["gap_x_px"], P["gap_y_px"]) for p in self.pillars):
                 continue
             if rnd() * 100.0 < P["multi_chance"]:
                 hx = P["width"] * 0.5 * ps * P["multi_size_pct"] / 100.0

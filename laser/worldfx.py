@@ -92,7 +92,8 @@ DEFAULTS = {
               6.0, "min_speed": 200, "max_speed": 1500, "length_pct": 100, "radius_pct": 100, "body_scale":
               True, "body_pct": 100, "taper": 0, "trail": True, "radius_speed_pct": 100, "thread_px": 5.0, "segments": 24, "tail_pct": 15, "expand_pct": 600, "thin_pct": 30, "streak_pct": 90, "drift_pct": 100, "hand": "right", "reach": "behind", "speed_len": 50, "in_ms": 0, "in_mode": "whole", "in_dir": "left_to_right", "out_ms":
               0, "out_mode": "whole", "out_dir": "left_to_right"},
-    "pillars": {"enabled": True, "count": 3, "radius_px": 420, "clear_px": 110, "gap_px": 140, "respawn_s": 6.0,
+    "pillars": {"enabled": True, "count": 3, "radius_x_px": 420, "radius_y_px": 420, "clear_x_px": 110,
+                "clear_y_px": 110, "gap_x_px": 140, "gap_y_px": 140, "respawn_s": 6.0,
                 "width": 22, "height": 70, "rise_ms": 450, "hp": 60, "break_damage": 30, "break_knockback": 200,
                 "break_speed": 24, "chip_pct": 100, "body_chip": 2, "melee_damage": 10, "blast_reach": 60,
                 "repel": 0.25, "repel_px": 10, "block_projectiles": True, "rubble": 9, "boulders": 4,
@@ -114,11 +115,11 @@ DEFAULTS = {
                   "crescent_min_damage": 40, "streak_width": 100, "mark_s": 6.0, "fade_s": 1.5,
                   "color": "#3b3129"},
     # Rolling world (Daniel 2026-11-04): when the world anchor (the fighters'
-    # centre) is in the outer zone_frac of the screen, the world - pillars,
+    # centre) is in the outer zone_x_frac (left / right) or zone_y_frac (top / bottom) of the screen, the world - pillars,
     # rubble, craters, ground marks, dust - rolls the other way, faster the
     # nearer the edge (max_speed px/s at the edge); fighters are not moved.
     # Pillars that roll off-screen are replaced by new ones off the far side.
-    "roll": {"enabled": True, "max_speed": 600, "zone_frac": 0.333, "vertical": True, "ease_ms": 400,
+    "roll": {"enabled": True, "max_speed": 600, "zone_x_frac": 0.333, "zone_y_frac": 0.333, "vertical": True, "ease_ms": 400,
              "spawn_ahead_px": 320, "margin_px": 60},
     # Boulder impact (Daniel 2026-11-06): every pillar / multi-part block a
     # fighter or an effect collides with keeps only speed_keep_pct of its speed
@@ -173,7 +174,8 @@ RANGES = {
     "spiral": {"parts": [1, 6], "gap": [0, 60], "rotation": [0, 360], "life_pct": [20, 500], "spiral": [0, 100],
               "spin_hz": [0.1, 30], "min_speed": [10, 3000], "max_speed": [10, 6000], "length_pct": [10, 500],
               "radius_pct": [10, 300], "body_pct": [10, 300], "taper": [-100, 100], "radius_speed_pct": [0, 500], "thread_px": [1, 40], "segments": [6, 120], "tail_pct": [5, 100], "expand_pct": [0, 1000], "thin_pct": [5, 100], "streak_pct": [0, 100], "drift_pct": [0, 300], "speed_len": [0, 200], "in_ms": [0, 2000], "out_ms": [0, 2000]},
-    "pillars": {"count": [0, 12], "radius_px": [50, 2000], "clear_px": [0, 600], "gap_px": [0, 800],
+    "pillars": {"count": [0, 12], "radius_x_px": [50, 2000], "radius_y_px": [50, 2000], "clear_x_px": [0, 600],
+                "clear_y_px": [0, 600], "gap_x_px": [0, 800], "gap_y_px": [0, 800],
                 "respawn_s": [0, 120], "width": [4, 2000], "height": [8, 600], "rise_ms": [16, 5000], "hp": [1, 2000],
                 "break_damage": [0, 10000], "break_knockback": [0, 10000], "break_speed": [0, 200],
                 "chip_pct": [0, 500], "body_chip": [0, 100], "melee_damage": [0, 500], "blast_reach": [0, 600],
@@ -187,7 +189,7 @@ RANGES = {
     "ground_fx": {"beam_min_damage": [0, 10000], "trench_width": [10, 500], "orb_min_damage": [0, 10000],
                   "orb_crater": [10, 500], "crescent_min_damage": [0, 10000], "streak_width": [10, 500],
                   "mark_s": [0, 120], "fade_s": [0.05, 20]},
-    "roll": {"max_speed": [0, 5000], "zone_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
+    "roll": {"max_speed": [0, 5000], "zone_x_frac": [0.05, 0.5], "zone_y_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
              "margin_px": [0, 600]},
     "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
@@ -262,10 +264,20 @@ def _hex(v, d):
     return d
 
 
+# Settings split into x / y: an old file's single value seeds both.
+LEGACY_XY = {"pillars": {"radius_px": ["radius_x_px", "radius_y_px"], "clear_px": ["clear_x_px", "clear_y_px"],
+                         "gap_px": ["gap_x_px", "gap_y_px"]},
+             "roll": {"zone_frac": ["zone_x_frac", "zone_y_frac"]}}
+
+
 def normalize_section(name, s):
     """One section with every key filled in and clamped, unknown keys dropped
     (WORLDFX.normalizeSection)."""
-    s = s if isinstance(s, dict) else {}
+    s = dict(s) if isinstance(s, dict) else {}
+    for old, new in LEGACY_XY.get(name, {}).items():
+        if old in s:
+            for k in new:
+                s.setdefault(k, s[old])
     dflt = DEFAULTS[name]
     rng = RANGES.get(name, {})
     enums = ENUMS.get(name, {})
