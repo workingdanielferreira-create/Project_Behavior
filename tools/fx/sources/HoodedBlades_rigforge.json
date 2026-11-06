@@ -1,0 +1,5190 @@
+{
+ "format": "pb_character",
+ "version": 2,
+ "name": "hooded_blades",
+ "display_name": "Hooded Blades",
+ "description": "Hooded dual-blade duellist: explosive dashes, overhead and rising cuts, a back-jump, a spin, a launch to an apex hit and a blade orbit. Rig Forge rig.",
+ "archetype": "New",
+ "predicates": {
+  "can_shoot": false,
+  "uses_melee": true,
+  "retreats": false,
+  "charges_full": true
+ },
+ "movement": {
+  "wander_strength": 0.15
+ },
+ "stats": {
+  "max_hp": 100,
+  "chase_speed": 0.9,
+  "follow_speed": 0.9,
+  "scale": 1.0,
+  "basic_attack_radius": 180
+ },
+ "rig": {
+  "bones": {
+   "ua": 18,
+   "fa": 17,
+   "th": 16,
+   "sh": 18,
+   "torso": 27,
+   "head": 22
+  },
+  "pivots": {
+   "shoulder_x": 0,
+   "shoulder_y": 2,
+   "hip_x": 0,
+   "hip_y": 0,
+   "side_separation": 4
+  },
+  "widths": {
+   "near_upper_arm": [
+    105,
+    85
+   ],
+   "far_upper_arm": [
+    100,
+    80
+   ],
+   "near_forearm": [
+    90,
+    72
+   ],
+   "far_forearm": [
+    85,
+    68
+   ],
+   "near_thigh": [
+    110,
+    82
+   ],
+   "far_thigh": [
+    105,
+    78
+   ],
+   "near_shin": [
+    85,
+    60
+   ],
+   "far_shin": [
+    80,
+    58
+   ],
+   "shoulder_girdle": [
+    140,
+    105
+   ],
+   "upper_spine": [
+    170,
+    175
+   ],
+   "lower_spine": [
+    190,
+    150
+   ],
+   "pelvis_girdle": [
+    130,
+    110
+   ],
+   "weapon": [
+    110
+   ],
+   "weapon2": [
+    110
+   ],
+   "x:hood": [
+    300,
+    18
+   ],
+   "x:coat_b": [
+    150,
+    25
+   ],
+   "x:coat_f": [
+    95,
+    40
+   ]
+  },
+  "lines": [
+   {
+    "id": "hood",
+    "name": "hood point",
+    "at": "head",
+    "len": 36,
+    "ang": 72,
+    "far": false,
+    "w": 1
+   },
+   {
+    "id": "coat_b",
+    "name": "coat tail (back)",
+    "at": "hip",
+    "len": 30,
+    "ang": 146,
+    "far": false,
+    "w": 1
+   },
+   {
+    "id": "coat_f",
+    "name": "coat tail (front)",
+    "at": "hip",
+    "len": 12,
+    "ang": 200,
+    "far": false,
+    "w": 1
+   }
+  ],
+  "anchors": []
+ },
+ "palette": {
+  "body": "#2b2f45",
+  "accent": "#8fd0ff"
+ },
+ "defense": [],
+ "weapon": {
+  "points": [
+   [
+    -8,
+    -1.8
+   ],
+   [
+    0,
+    -1.8
+   ],
+   [
+    0,
+    -6.2
+   ],
+   [
+    2.6,
+    -6.2
+   ],
+   [
+    2.6,
+    -2.7
+   ],
+   [
+    55,
+    -2.7
+   ],
+   [
+    63,
+    0
+   ],
+   [
+    55,
+    2.7
+   ],
+   [
+    2.6,
+    2.7
+   ],
+   [
+    2.6,
+    6.2
+   ],
+   [
+    0,
+    6.2
+   ],
+   [
+    0,
+    1.8
+   ],
+   [
+    -8,
+    1.8
+   ]
+  ],
+  "shapes": [
+   [
+    [
+     -8,
+     -1.8
+    ],
+    [
+     0,
+     -1.8
+    ],
+    [
+     0,
+     -6.2
+    ],
+    [
+     2.6,
+     -6.2
+    ],
+    [
+     2.6,
+     -2.7
+    ],
+    [
+     55,
+     -2.7
+    ],
+    [
+     63,
+     0
+    ],
+    [
+     55,
+     2.7
+    ],
+    [
+     2.6,
+     2.7
+    ],
+    [
+     2.6,
+     6.2
+    ],
+    [
+     0,
+     6.2
+    ],
+    [
+     0,
+     1.8
+    ],
+    [
+     -8,
+     1.8
+    ]
+   ]
+  ],
+  "attach": "haR",
+  "weight": 0
+ },
+ "weapon2": {
+  "points": [
+   [
+    -8,
+    -1.8
+   ],
+   [
+    0,
+    -1.8
+   ],
+   [
+    0,
+    -6.2
+   ],
+   [
+    2.6,
+    -6.2
+   ],
+   [
+    2.6,
+    -2.7
+   ],
+   [
+    55,
+    -2.7
+   ],
+   [
+    63,
+    0
+   ],
+   [
+    55,
+    2.7
+   ],
+   [
+    2.6,
+    2.7
+   ],
+   [
+    2.6,
+    6.2
+   ],
+   [
+    0,
+    6.2
+   ],
+   [
+    0,
+    1.8
+   ],
+   [
+    -8,
+    1.8
+   ]
+  ],
+  "shapes": [
+   [
+    [
+     -8,
+     -1.8
+    ],
+    [
+     0,
+     -1.8
+    ],
+    [
+     0,
+     -6.2
+    ],
+    [
+     2.6,
+     -6.2
+    ],
+    [
+     2.6,
+     -2.7
+    ],
+    [
+     55,
+     -2.7
+    ],
+    [
+     63,
+     0
+    ],
+    [
+     55,
+     2.7
+    ],
+    [
+     2.6,
+     2.7
+    ],
+    [
+     2.6,
+     6.2
+    ],
+    [
+     0,
+     6.2
+    ],
+    [
+     0,
+     1.8
+    ],
+    [
+     -8,
+     1.8
+    ]
+   ]
+  ],
+  "attach": "haL",
+  "weight": 0
+ },
+ "special_ability": null,
+ "actions": {
+  "idle": {
+   "trigger": "always",
+   "duration_ms": 1300,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 5,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 0.742,
+     "rot": 0,
+     "sp": 22,
+     "sp2": 6,
+     "hd": -10,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -24,
+     "lfa": -36,
+     "rua": 34,
+     "rfa": 56,
+     "lth": -44,
+     "lsh": 14,
+     "rth": 56,
+     "rsh": -56,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -42.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 8.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       3,
+       1
+      ],
+      "coat_b": [
+       4,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 5,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard, breathe in (sink)"
+    }
+   ]
+  },
+  "run": {
+   "trigger": "moving",
+   "duration_ms": 440,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 7.543,
+     "rot": 0,
+     "sp": 34,
+     "sp2": 6,
+     "hd": -14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -58,
+     "lfa": 14,
+     "rua": -78,
+     "rfa": 22,
+     "lth": -58,
+     "lsh": -38,
+     "rth": 66,
+     "rsh": -26,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -28.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -14,
+       1
+      ],
+      "coat_b": [
+       -34,
+       1
+      ],
+      "coat_f": [
+       -20,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "contact, near foot ahead"
+    },
+    {
+     "rx": 0,
+     "ry": -5.192,
+     "rot": 0,
+     "sp": 34,
+     "sp2": 6,
+     "hd": -14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -64,
+     "lfa": 12,
+     "rua": -70,
+     "rfa": 26,
+     "lth": -6,
+     "lsh": -12,
+     "rth": 18,
+     "rsh": -80,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -44.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 8.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -14,
+       1
+      ],
+      "coat_b": [
+       -34,
+       1
+      ],
+      "coat_f": [
+       -20,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "pass, near knee up"
+    },
+    {
+     "rx": 0,
+     "ry": 7.543,
+     "rot": 0,
+     "sp": 34,
+     "sp2": 6,
+     "hd": -14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -52,
+     "lfa": 16,
+     "rua": -84,
+     "rfa": 20,
+     "lth": 66,
+     "lsh": -26,
+     "rth": -58,
+     "rsh": -38,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -18.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -14.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -14,
+       1
+      ],
+      "coat_b": [
+       -34,
+       1
+      ],
+      "coat_f": [
+       -20,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "contact, far foot ahead"
+    },
+    {
+     "rx": 0,
+     "ry": -5.192,
+     "rot": 0,
+     "sp": 34,
+     "sp2": 6,
+     "hd": -14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -62,
+     "lfa": 12,
+     "rua": -72,
+     "rfa": 24,
+     "lth": 18,
+     "lsh": -80,
+     "rth": -6,
+     "rsh": -12,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -38.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -14,
+       1
+      ],
+      "coat_b": [
+       -34,
+       1
+      ],
+      "coat_f": [
+       -20,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "pass, far knee up"
+    }
+   ]
+  },
+  "attack_normal": {
+   "trigger": "in_range",
+   "duration_ms": 272,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 10.274,
+     "rot": 0,
+     "sp": 12,
+     "sp2": 4,
+     "hd": -18,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -44,
+     "lfa": -30,
+     "rua": -62,
+     "rfa": -18,
+     "lth": -46,
+     "lsh": -44,
+     "rth": 84,
+     "rsh": -112,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 0.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 44.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       4,
+       1
+      ],
+      "coat_b": [
+       6,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "coil: sink, blades swept low-back"
+    },
+    {
+     "rx": 34,
+     "ry": 5.703,
+     "rot": 0,
+     "sp": 56,
+     "sp2": 8,
+     "hd": -22,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -130,
+     "lfa": 18,
+     "rua": -104,
+     "rfa": 10,
+     "lth": -70,
+     "lsh": -4,
+     "rth": 74,
+     "rsh": -64,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 6.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 60.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -30,
+       1
+      ],
+      "coat_b": [
+       -58,
+       1
+      ],
+      "coat_f": [
+       -40,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "out",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "DASH: flat lunge, foot-to-head diagonal"
+    },
+    {
+     "rx": 44,
+     "ry": 2.372,
+     "rot": 0,
+     "sp": 26,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -34,
+     "lfa": -40,
+     "rua": 44,
+     "rfa": 58,
+     "lth": -52,
+     "lsh": 8,
+     "rth": 62,
+     "rsh": -58,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -50.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 26.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       22,
+       1
+      ],
+      "coat_f": [
+       14,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 2
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "brake: plant, coat swings past"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard (feet re-planted)"
+    }
+   ]
+  },
+  "attack_normal_2": {
+   "trigger": "in_range",
+   "duration_ms": 289,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": -2.242,
+     "rot": 0,
+     "sp": -4,
+     "sp2": -4,
+     "hd": 0,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 56,
+     "lfa": 46,
+     "rua": -70,
+     "rfa": -10,
+     "lth": -38,
+     "lsh": 14,
+     "rth": 40,
+     "rsh": -48,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 0.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -68.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       4,
+       1
+      ],
+      "coat_b": [
+       4,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "bd: near blade pulled down-back (keeps the wind-up behind the body)"
+    },
+    {
+     "rx": 0,
+     "ry": -2.89,
+     "rot": 0,
+     "sp": -22,
+     "sp2": -10,
+     "hd": 12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 72,
+     "lfa": 42,
+     "rua": -150,
+     "rfa": -22,
+     "lth": -36,
+     "lsh": 16,
+     "rth": 34,
+     "rsh": -48,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 130.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -86.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       14,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "weapon",
+       "near_upper_arm",
+       "near_forearm",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin"
+      ],
+      "hidden": {}
+     },
+     "_note": "LOAD: lean back, near blade cocked behind head (drawn under it)"
+    },
+    {
+     "rx": 10,
+     "ry": 1.46,
+     "rot": 0,
+     "sp": 26,
+     "sp2": 8,
+     "hd": -10,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -60,
+     "lfa": 18,
+     "rua": 124,
+     "rfa": 10,
+     "lth": -50,
+     "lsh": 6,
+     "rth": 58,
+     "rsh": -52,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -66.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -42.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -10,
+       1
+      ],
+      "coat_b": [
+       -20,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "out",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "breakdown: blade overhead, far arm pulls back"
+    },
+    {
+     "rx": 22,
+     "ry": 7.596,
+     "rot": 0,
+     "sp": 38,
+     "sp2": 12,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -100,
+     "lfa": 14,
+     "rua": 96,
+     "rfa": -4,
+     "lth": -66,
+     "lsh": 0,
+     "rth": 80,
+     "rsh": -66,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 12.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1.15,
+     "w2p": 18.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       12,
+       1
+      ],
+      "coat_b": [
+       24,
+       1
+      ],
+      "coat_f": [
+       18,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "out",
+      "dir": "short",
+      "hold": 3
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "CONTACT: full-reach lunge, blade stretched (reach exaggeration)"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  },
+  "attack_normal_3": {
+   "trigger": "in_range",
+   "duration_ms": 255,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 8.704,
+     "rot": 0,
+     "sp": 34,
+     "sp2": 8,
+     "hd": -20,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -104,
+     "lfa": -12,
+     "rua": 30,
+     "rfa": 66,
+     "lth": -48,
+     "lsh": -34,
+     "rth": 76,
+     "rsh": -108,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 8.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 70.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       6,
+       1
+      ],
+      "coat_b": [
+       4,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "COIL: deep crouch, blade crossed low in front"
+    },
+    {
+     "rx": 8,
+     "ry": -1.626,
+     "rot": 0,
+     "sp": 8,
+     "sp2": 2,
+     "hd": -4,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -84,
+     "lfa": -10,
+     "rua": 100,
+     "rfa": 16,
+     "lth": -36,
+     "lsh": 0,
+     "rth": 44,
+     "rsh": -48,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 34.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       -10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "out",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "breakdown: rising, blade passes forward"
+    },
+    {
+     "rx": 12,
+     "ry": -12.587,
+     "rot": 0,
+     "sp": -22,
+     "sp2": -8,
+     "hd": 16,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 62,
+     "lfa": 12,
+     "rua": 148,
+     "rfa": 14,
+     "lth": -26,
+     "lsh": 12,
+     "rth": 14,
+     "rsh": -8,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -150.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 44.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -16,
+       1
+      ],
+      "coat_b": [
+       -26,
+       1
+      ],
+      "coat_f": [
+       -20,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "out",
+      "dir": "short",
+      "hold": 3
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "CONTACT: up on the toes, blade straight up-back, far blade counters low-forward"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  },
+  "attack_normal_4": {
+   "trigger": "in_range",
+   "duration_ms": 272,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 11.459,
+     "rot": 0,
+     "sp": 26,
+     "sp2": 4,
+     "hd": -14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -62,
+     "lfa": -22,
+     "rua": 10,
+     "rfa": 80,
+     "lth": -48,
+     "lsh": -44,
+     "rth": 86,
+     "rsh": -118,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -36.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 38.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "sink: knees loaded"
+    },
+    {
+     "rx": -34,
+     "ry": -30.256,
+     "rot": 0,
+     "sp": -26,
+     "sp2": -8,
+     "hd": 10,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -132,
+     "lfa": -24,
+     "rua": 124,
+     "rfa": 22,
+     "lth": 64,
+     "lsh": -116,
+     "rth": 96,
+     "rsh": -128,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -134.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 144.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       24,
+       1
+      ],
+      "coat_b": [
+       40,
+       1
+      ],
+      "coat_f": [
+       30,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 2,
+      "ease": "out",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "APEX: tucked knees, blades flung wide (spread X)"
+    },
+    {
+     "rx": -44,
+     "ry": 9.253,
+     "rot": 0,
+     "sp": 30,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -70,
+     "lfa": -30,
+     "rua": 54,
+     "rfa": 42,
+     "lth": -52,
+     "lsh": -32,
+     "rth": 84,
+     "rsh": -104,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -22.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 28.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -10,
+       1
+      ],
+      "coat_b": [
+       -18,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 2
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "land: low, blades wide"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  },
+  "attack_normal_5": {
+   "trigger": "in_range",
+   "duration_ms": 306,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 5.678,
+     "rot": 0,
+     "sp": 22,
+     "sp2": -6,
+     "hd": -10,
+     "shlx": 4,
+     "shly": 0,
+     "shrx": -6,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -74,
+     "lfa": -30,
+     "rua": -104,
+     "rfa": -22,
+     "lth": -42,
+     "lsh": -26,
+     "rth": 70,
+     "rsh": -92,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 70.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 42.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       8,
+       1
+      ],
+      "coat_b": [
+       8,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 1
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "WIND: chest twisted away, both blades back"
+    },
+    {
+     "rx": 3,
+     "ry": -3.729,
+     "rot": 0,
+     "sp": 2,
+     "sp2": 0,
+     "hd": -6,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 70,
+     "lfa": 0,
+     "rua": -70,
+     "rfa": 0,
+     "lth": -36,
+     "lsh": 12,
+     "rth": 32,
+     "rsh": -32,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -32.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 0.32,
+     "w2p": 32.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 0.32,
+     "_xl": {
+      "hood": [
+       -4,
+       1
+      ],
+      "coat_b": [
+       -10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "1/4: near blade swings at the camera (foreshortened)"
+    },
+    {
+     "rx": 6,
+     "ry": -3.729,
+     "rot": 0,
+     "sp": 2,
+     "sp2": 0,
+     "hd": -6,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -92,
+     "lfa": 0,
+     "rua": 92,
+     "rfa": 0,
+     "lth": -36,
+     "lsh": 12,
+     "rth": 32,
+     "rsh": -32,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -4.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -4,
+       1
+      ],
+      "coat_b": [
+       -24,
+       1
+      ],
+      "coat_f": [
+       -16,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "1/2: blades flat out front / back"
+    },
+    {
+     "rx": 9,
+     "ry": -3.729,
+     "rot": 0,
+     "sp": 2,
+     "sp2": 0,
+     "hd": -6,
+     "shlx": 8,
+     "shly": 0,
+     "shrx": -8,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -70,
+     "lfa": 0,
+     "rua": 70,
+     "rfa": 0,
+     "lth": -36,
+     "lsh": 12,
+     "rth": 32,
+     "rsh": -32,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 32.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 0.32,
+     "w2p": -32.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 0.4,
+     "_xl": {
+      "hood": [
+       -4,
+       1
+      ],
+      "coat_b": [
+       -6,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "3/4: back to camera, near blade behind"
+    },
+    {
+     "rx": 12,
+     "ry": -3.729,
+     "rot": 0,
+     "sp": 2,
+     "sp2": 0,
+     "hd": -6,
+     "shlx": 8,
+     "shly": 0,
+     "shrx": -8,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 92,
+     "lfa": 0,
+     "rua": -92,
+     "rfa": 0,
+     "lth": -36,
+     "lsh": 12,
+     "rth": 32,
+     "rsh": -32,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 4.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -4,
+       1
+      ],
+      "coat_b": [
+       22,
+       1
+      ],
+      "coat_f": [
+       14,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "1: blades swapped, near blade behind"
+    },
+    {
+     "rx": 15,
+     "ry": -3.729,
+     "rot": 0,
+     "sp": 2,
+     "sp2": 0,
+     "hd": -6,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 70,
+     "lfa": 0,
+     "rua": -70,
+     "rfa": 0,
+     "lth": -36,
+     "lsh": 12,
+     "rth": 32,
+     "rsh": -32,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -32.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 0.32,
+     "w2p": 32.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 0.32,
+     "_xl": {
+      "hood": [
+       -4,
+       1
+      ],
+      "coat_b": [
+       8,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "1 1/4: near blade at the camera again"
+    },
+    {
+     "rx": 18,
+     "ry": 1.883,
+     "rot": 0,
+     "sp": 16,
+     "sp2": 4,
+     "hd": -10,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -104,
+     "lfa": 10,
+     "rua": 96,
+     "rfa": -6,
+     "lth": -56,
+     "lsh": 10,
+     "rth": 60,
+     "rsh": -56,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 4.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1.15,
+     "w2p": 10.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       12,
+       1
+      ],
+      "coat_b": [
+       30,
+       1
+      ],
+      "coat_f": [
+       22,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "out",
+      "dir": "short",
+      "hold": 3
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "CONTACT: wide stance, near blade at full reach"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  },
+  "attack_normal_6": {
+   "trigger": "in_range",
+   "duration_ms": 391,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": 14.247,
+     "rot": 0,
+     "sp": 42,
+     "sp2": 10,
+     "hd": -24,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -62,
+     "lfa": -8,
+     "rua": -62,
+     "rfa": 2,
+     "lth": -56,
+     "lsh": -46,
+     "rth": 96,
+     "rsh": -128,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -20.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 2.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       8,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in3",
+      "dir": "short",
+      "hold": 2
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "LOAD: deepest crouch, blades low behind"
+    },
+    {
+     "rx": 8,
+     "ry": -39.819,
+     "rot": 0,
+     "sp": -4,
+     "sp2": -4,
+     "hd": 8,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -160,
+     "lfa": 0,
+     "rua": 150,
+     "rfa": 6,
+     "lth": -10,
+     "lsh": 16,
+     "rth": 8,
+     "rsh": 6,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -116.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1.1,
+     "w2p": 122.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1.1,
+     "_xl": {
+      "hood": [
+       -20,
+       1
+      ],
+      "coat_b": [
+       -4,
+       1
+      ],
+      "coat_f": [
+       -4,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "out",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "LAUNCH: one straight vertical line, blades up"
+    },
+    {
+     "rx": 16,
+     "ry": -64.722,
+     "rot": 0,
+     "sp": 12,
+     "sp2": 6,
+     "hd": -6,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": 168,
+     "lfa": -26,
+     "rua": 138,
+     "rfa": 22,
+     "lth": -22,
+     "lsh": 12,
+     "rth": 84,
+     "rsh": -96,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -122.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": -176.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       16,
+       1
+      ],
+      "coat_b": [
+       34,
+       1
+      ],
+      "coat_f": [
+       26,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 4
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "APEX HIT: flying knee, blades crossed forward-up / up-back"
+    },
+    {
+     "rx": 20,
+     "ry": 11.15,
+     "rot": 0,
+     "sp": 32,
+     "sp2": 8,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -68,
+     "lfa": -34,
+     "rua": 68,
+     "rfa": 34,
+     "lth": -50,
+     "lsh": -36,
+     "rth": 90,
+     "rsh": -112,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -24.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 24.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -10,
+       1
+      ],
+      "coat_b": [
+       -20,
+       1
+      ],
+      "coat_f": [
+       -12,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 2
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "land: crouch, blades wide"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  },
+  "attack_normal_7": {
+   "trigger": "in_range",
+   "duration_ms": 374,
+   "retrigger_cooldown_ms": 0,
+   "keyframes": [
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "in",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    },
+    {
+     "rx": 0,
+     "ry": -1.176,
+     "rot": 0,
+     "sp": -2,
+     "sp2": -2,
+     "hd": 6,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -108,
+     "lfa": -4,
+     "rua": 108,
+     "rfa": 4,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 46,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -40.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 40.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       -6,
+       1
+      ],
+      "coat_b": [
+       -12,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 1,
+      "ease": "out",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "FLING: arms snap open, blades leave the hands"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -50.0,
+     "wpx": -6.27,
+     "wpy": -17.295,
+     "wspin": 0,
+     "wlen": 1.0,
+     "w2p": -40.0,
+     "w2px": 12.705,
+     "w2py": -20.946,
+     "w2spin": 0,
+     "w2len": 1.0,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=0"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -117.5,
+     "wpx": 49.692,
+     "wpy": -27.951,
+     "wspin": 0,
+     "wlen": 0.868,
+     "w2p": -107.5,
+     "w2px": 30.64,
+     "w2py": -9.001,
+     "w2spin": 0,
+     "w2len": 0.868,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon2",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=45"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 175.0,
+     "wpx": 41.012,
+     "wpy": 36.788,
+     "wspin": 0,
+     "wlen": 0.55,
+     "w2p": -175.0,
+     "w2px": -12.117,
+     "w2py": -29.239,
+     "w2spin": 0,
+     "w2len": 0.55,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon2",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=90"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 107.5,
+     "wpx": -48.459,
+     "wpy": 0.461,
+     "wspin": 0,
+     "wlen": 0.868,
+     "w2p": 117.5,
+     "w2px": 73.043,
+     "w2py": -69.023,
+     "w2spin": 0,
+     "w2len": 0.868,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon2",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=135"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": 40.0,
+     "wpx": 12.705,
+     "wpy": -79.73,
+     "wspin": 0,
+     "wlen": 1.0,
+     "w2p": 50.0,
+     "w2px": 125.054,
+     "w2py": 17.295,
+     "w2spin": 0,
+     "w2len": 1.0,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon2",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=180"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -27.5,
+     "wpx": 93.209,
+     "wpy": -31.497,
+     "wspin": 0,
+     "wlen": 0.868,
+     "w2p": -17.5,
+     "w2px": 36.225,
+     "w2py": 82.26,
+     "w2spin": 0,
+     "w2len": 0.868,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=225"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -95.0,
+     "wpx": 63.46,
+     "wpy": 12.328,
+     "wspin": 0,
+     "wlen": 0.55,
+     "w2p": -85.0,
+     "w2px": -56.588,
+     "w2py": 4.779,
+     "w2spin": 0,
+     "w2len": 0.55,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=270"
+    },
+    {
+     "rx": 0,
+     "ry": -0.691,
+     "rot": 0,
+     "sp": -6,
+     "sp2": -4,
+     "hd": 14,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -122,
+     "lfa": -18,
+     "rua": 122,
+     "rfa": 18,
+     "lth": -46,
+     "lsh": 14,
+     "rth": 48,
+     "rsh": -40,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -162.5,
+     "wpx": 47.126,
+     "wpy": -14.713,
+     "wspin": 0,
+     "wlen": 0.868,
+     "w2p": -152.5,
+     "w2px": 45.891,
+     "w2py": -22.957,
+     "w2spin": 0,
+     "w2len": 0.868,
+     "_xl": {
+      "hood": [
+       10,
+       1
+      ],
+      "coat_b": [
+       10,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "weapon",
+       "far_upper_arm",
+       "far_forearm",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon2"
+      ],
+      "hidden": {}
+     },
+     "_note": "orbit t=315"
+    },
+    {
+     "rx": 0,
+     "ry": 2.427,
+     "rot": 0,
+     "sp": 16,
+     "sp2": 6,
+     "hd": -10,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -62,
+     "lfa": -30,
+     "rua": 78,
+     "rfa": 34,
+     "lth": -54,
+     "lsh": 18,
+     "rth": 62,
+     "rsh": -56,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -54.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 62.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       12,
+       1
+      ],
+      "coat_b": [
+       26,
+       1
+      ],
+      "coat_f": [
+       18,
+       1
+      ]
+     },
+     "_tween": {
+      "on": true,
+      "steps": 3,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 5
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "CATCH: wide stance, forward blade up, reverse-grip blade back"
+    },
+    {
+     "rx": 0,
+     "ry": 0.0,
+     "rot": 0,
+     "sp": 18,
+     "sp2": 6,
+     "hd": -12,
+     "shlx": 0,
+     "shly": 0,
+     "shrx": 0,
+     "shry": 0,
+     "hplx": 0,
+     "hply": 0,
+     "hprx": 0,
+     "hpry": 0,
+     "lua": -28,
+     "lfa": -34,
+     "rua": 38,
+     "rfa": 52,
+     "lth": -42,
+     "lsh": 12,
+     "rth": 52,
+     "rsh": -50,
+     "luas": 1,
+     "lfas": 1,
+     "ruas": 1,
+     "rfas": 1,
+     "lths": 1,
+     "lshs": 1,
+     "rths": 1,
+     "rshs": 1,
+     "torsos": 1,
+     "wp": -48.0,
+     "wpx": -4.0,
+     "wpy": 0,
+     "wspin": 0,
+     "wlen": 1,
+     "w2p": 4.0,
+     "w2px": -4.0,
+     "w2py": 0,
+     "w2spin": 0,
+     "w2len": 1,
+     "_xl": {
+      "hood": [
+       0,
+       1
+      ],
+      "coat_b": [
+       0,
+       1
+      ],
+      "coat_f": [
+       0,
+       1
+      ]
+     },
+     "_tween": {
+      "on": false,
+      "steps": 1,
+      "ease": "inout",
+      "dir": "short",
+      "hold": 0
+     },
+     "_layers": {
+      "order": [
+       "far_upper_arm",
+       "far_forearm",
+       "weapon2",
+       "far_thigh",
+       "far_shin",
+       "pelvis_girdle",
+       "x:coat_b",
+       "x:coat_f",
+       "lower_spine",
+       "upper_spine",
+       "shoulder_girdle",
+       "head",
+       "x:hood",
+       "near_thigh",
+       "near_shin",
+       "near_upper_arm",
+       "near_forearm",
+       "weapon"
+      ],
+      "hidden": {}
+     },
+     "_note": "guard"
+    }
+   ]
+  }
+ }
+}
