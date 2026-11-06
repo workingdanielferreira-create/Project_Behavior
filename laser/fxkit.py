@@ -202,7 +202,7 @@ PARAM_DEFAULTS = {
     # aura_part: "all" of it or one component (powerfx.AURA_PARTS).
     # w_*: the weapons (laser/weaponfx.py): w_mode "signature" (its own
     # sequence), one of its extra sequences (weaponfx.SEQS, e.g. Oathkeeper &
-    # Oblivion "twin_lunge") or "hold" (just held, along the rig's hand ->
+    # Oblivion "pierce_chop") or "hold" (just held, along the rig's hand ->
     # wtip line);
     # size, flips, 3D yaw / pitch / spin and depth — numbers, so keyframes
     # can animate every one; w_weight 0..1 = momentum (drag, overshoot);
