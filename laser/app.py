@@ -24,6 +24,7 @@ from . import hitfx, strikefx
 from . import dmgnum
 from . import worldfx
 from . import terrain
+from . import wireframe
 from . import camera as _camera
 from .prebattle import PreBattleMenu
 from . import roster as _roster
@@ -1795,6 +1796,11 @@ class Overlay(QWidget):
         if w.damage_numbers:
             sw, sh = w.screen_w, w.screen_h
             dmgnum.draw_all(p, w, lambda x, y: combat.position_scale(x, y, sw, sh))
+
+        # World Camera "Wireframe overlay" (laser/wireframe.py): in the scene,
+        # over everything but the HUD; normal frames only.
+        if hud and cam:
+            wireframe.paint(p, w)
 
         if shk is not None:
             p.restore()

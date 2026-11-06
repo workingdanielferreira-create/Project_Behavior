@@ -27,7 +27,8 @@ var CAM_DEFAULTS = {
   "vscale_bottom": 5.0, "vscale_top": 1.0, "dscale_near": 1.0, "dscale_far": 0.10,
   "dscale_far_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
   "speed_min": 0.40, "speed_max": 1.00,
-  "planet": true, "planet_reach_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85
+  "planet": true, "planet_reach_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
+  "wireframe": false
 };
 var CAM_RANGES = {
   "max_zoom": [1.0, 3.0], "solo_zoom": [1.0, 3.0], "follow_s": [0.02, 5.0], "margin_px": [0.0, 1000.0],
@@ -104,6 +105,9 @@ var CAM_GROUPS = [
     ["clash_in_s", "Snap-in time (s)", "", 0.02],
     ["clash_hold_s", "Hold (s)", "", 0.05],
     ["clash_out_s", "Ease-back (s)", "", 0.05]
+  ]],
+  ["Wireframe overlay", [
+    ["wireframe", "Wireframe overlay", "Draws a wireframe over the scene showing how the environment acts on the fighters: size contours and per-spot size / pace (Scaling grid, cyan), the anchor, planet horizon and squash rings and the depth tilt's near / far lines (magenta), the roll zones and roll direction (orange), the camera framing and view (green), the pillar spawn radius, clear zones, footprints and respawn timer (yellow). Shown on the preview here AND over the game screen (Solo and Battle); it follows every edit live."]
   ]],
   ["Depth tilt", [
     ["depth", "Depth tilt", "A real perspective along the arena's depth (bottom-left near, top-right far): far things shrink and draw in toward the nearest fighter, so the slope reads deeper. Drawing only — sizes, hits and walls in the game are unchanged."],
@@ -240,6 +244,20 @@ Cam.prototype.sizeAt = function (x, y) {
   var u = reach > 1e-6 ? clamp(Math.hypot(x - this.anc[0], y - this.anc[1]) / reach, 0, 1) : 0;
   var d = c.dscale_near + (c.dscale_far - c.dscale_near) * (u > 0 ? Math.pow(u, c.dscale_curve) : 0);
   return clamp(v * d, c.scale_min, c.scale_max);
+};
+// The size / pace rule a fighter gets at (x, y): anchor scaling (sizeAt), else
+// the old corner grid (laser/combat.py position_scale, laser/config.py).
+var GRID_SIZE = [2.3333, 1.0, 5.0, 2.3333], GRID_PACE = [0.6, 0.4, 1.0, 0.6];   // TL, TR, BL, BR
+function bilerp(c, x, y) { return (c[0] * (1 - x) + c[1] * x) * (1 - y) + (c[2] * (1 - x) + c[3] * x) * y; }
+Cam.prototype.sizeAny = function (x, y) {
+  var s = this.sizeAt(x, y);
+  return s != null ? s : bilerp(GRID_SIZE, clamp(x / this.sw, 0, 1), clamp(y / this.sh, 0, 1));
+};
+Cam.prototype.paceAny = function (x, y) {
+  var c = this.cfg, s = this.sizeAt(x, y);
+  if (s == null) return bilerp(GRID_PACE, clamp(x / this.sw, 0, 1), clamp(y / this.sh, 0, 1));
+  if (c.scale_max - c.scale_min < 1e-6) return c.speed_max;
+  return c.speed_min + (c.speed_max - c.speed_min) * (s - c.scale_min) / (c.scale_max - c.scale_min);
 };
 Cam.prototype.depthTarget = function (figs) {
   var c = this.cfg, best = null, self = this;
