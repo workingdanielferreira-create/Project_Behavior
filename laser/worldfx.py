@@ -113,7 +113,7 @@ DEFAULTS = {
     "ground_fx": {"enabled": True, "beam_min_damage": 30, "beam_trench": True, "beam_debris": True,
                   "beam_spiral": True, "trench_width": 100, "orb_min_damage": 40, "orb_crater": 100,
                   "crescent_min_damage": 40, "streak_width": 100, "mark_s": 6.0, "fade_s": 1.5,
-                  "color": "#3b3129"},
+                  "color": "#3b3129", "tilt_top": 6, "tilt_bottom": 90, "merge": True},
     # Rolling world (Daniel 2026-11-04): when the world anchor (the fighters'
     # centre) is in the outer zone_x_frac (left / right) or zone_y_frac (top / bottom) of the screen, the world - pillars,
     # rubble, craters, ground marks, dust - rolls the other way, faster the
@@ -188,7 +188,7 @@ RANGES = {
                "speed": [0, 200], "cooldown_ms": [0, 10000]},
     "ground_fx": {"beam_min_damage": [0, 10000], "trench_width": [10, 500], "orb_min_damage": [0, 10000],
                   "orb_crater": [10, 500], "crescent_min_damage": [0, 10000], "streak_width": [10, 500],
-                  "mark_s": [0, 120], "fade_s": [0.05, 20]},
+                  "mark_s": [0, 120], "fade_s": [0.05, 20], "tilt_top": [1, 90], "tilt_bottom": [1, 90]},
     "roll": {"max_speed": [0, 5000], "zone_x_frac": [0.05, 0.5], "zone_y_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
              "margin_px": [0, 600]},
     "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},

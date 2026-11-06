@@ -299,7 +299,7 @@ class Terrain:
     def __init__(self):
         self.pillars = []
         self.rubble = []       # [x, y, size, rot, rgb, age, life]
-        self.pits = []         # craters: [x, y, rx, flat, rgb, age, life, rim, fade ticks]
+        self.pits = []         # craters: [x, y, rx, flat, rgb, age, life, rim, fade ticks, ps at birth]
         # Ground marks (worldfx.scan_ground_fx): beam trenches / crescent
         # streaks, each {"pts": [[x, y, age], ...], "kind", "w", "life",
         # "fade", "rgb"}; open ones (still being laid) by their source key.
@@ -966,7 +966,8 @@ class Terrain:
         rim = [(0.78 + 0.34 * rnd(), (rnd() - 0.5) * 0.22) for _ in range(n)]
         if len(self.pits) >= 24:
             self.pits.pop(0)
-        self.pits.append([x, y, rx, fl, rgb, 0, _ticks(max(0.5, rest_s) + fade_s), rim, _ticks(fade_s)])
+        ps0 = max(1e-3, worldfx.pscale(x, y, self.sw, self.sh))
+        self.pits.append([x, y, rx, fl, rgb, 0, _ticks(max(0.5, rest_s) + fade_s), rim, _ticks(fade_s), ps0])
 
     # ---- FX on the ground (worldfx.scan_ground_fx / orb_crater)
     def add_crater(self, x, y, rx, rest_s, fade_s):
@@ -990,7 +991,7 @@ class Terrain:
             lx, ly = pts[-1][0], pts[-1][1]
             if (x - lx) ** 2 + (y - ly) ** 2 < 9.0:
                 return
-        pts.append([float(x), float(y), 0, float(w)])
+        pts.append([float(x), float(y), 0, float(w), max(1e-3, worldfx.pscale(x, y, self.sw, self.sh))])
         if len(pts) > 260:
             del pts[0]
 
@@ -1013,48 +1014,6 @@ class Terrain:
             for k in [k for k, v in self.mark_open.items() if id(v) not in ids]:
                 del self.mark_open[k]
         self.marks = live
-
-    def _paint_marks(self, qp, ink):
-        """Trenches: a scorched gouge with a lit lip and a dark floor; streaks:
-        a thinner scorch line.  Older points fade over the mark's fade."""
-        qp.save()
-        for m in self.marks:
-            pts = m["pts"]
-            if len(pts) < 2:
-                continue
-            life, fade = m["life"], max(1, m["fade"])
-            rgb = m["rgb"]
-            trench = m["kind"] == "trench"
-            lip = worldfx._lift(rgb, 0.45)
-            for i in range(1, len(pts)):
-                a, b = pts[i - 1], pts[i]
-                age = max(a[2], b[2])
-                al = 1.0 if age < life - fade else max(0.0, (life - age) / float(fade))
-                if al <= 0.0:
-                    continue
-                al = math.ceil(al * 4.0) / 4.0             # fades in steps, like the craters
-                w = 0.5 * (a[3] + b[3])
-                ps = worldfx.pscale(b[0], b[1], self.sw, self.sh)
-                fl = max(0.2, worldfx.flat_at(ps, _wf()["ground"]))
-                wf = w * (0.55 + 0.45 * fl)                # flatter ground = a thinner-looking trench
-                p0, p1 = QPointF(a[0], a[1]), QPointF(b[0], b[1])
-                qp.setOpacity(al)
-                if trench:
-                    qp.setPen(QPen(ink, wf * 1.35 + 2.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(p0, p1)
-                    qp.setPen(QPen(QColor(*lip), wf * 1.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(p0, p1)
-                    qp.setPen(QPen(QColor(*rgb), wf * 0.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(p0, p1)
-                    qp.setPen(QPen(QColor(int(rgb[0] * 0.45), int(rgb[1] * 0.45), int(rgb[2] * 0.45)),
-                                   max(1.0, wf * 0.35), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(QPointF(a[0], a[1] + wf * fl * 0.12), QPointF(b[0], b[1] + wf * fl * 0.12))
-                else:
-                    qp.setPen(QPen(QColor(*rgb), wf, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(p0, p1)
-                    qp.setPen(QPen(ink, max(1.0, wf * 0.3), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                    qp.drawLine(p0, p1)
-        qp.restore()
 
     # ---- rolling world
     def roll(self, world, figs):
@@ -1185,10 +1144,8 @@ class Terrain:
     def paint_back(self, qp, world):
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
-        if self.marks:
-            self._paint_marks(qp, ink)
-        if self.pits:
-            self._paint_pits(qp, ink)
+        if self.marks or self.pits:
+            self._paint_ground_damage(qp, ink)
         if self.rubble:
             self._paint_rubble(qp, ink)
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
@@ -1239,47 +1196,201 @@ class Terrain:
                 out.append(f)
         return out
 
-    def _paint_pits(self, qp, ink):
-        """Broken-pillar craters, flat on the ground (rx across, rx * flat
-        deep): a jagged raised lip, the inner wall, and the floor shifted
-        toward the viewer (the far inner wall shows, the near one is hidden)."""
-        R = _wf()["rubble"]
-        fade_t = max(1, _ticks(R["fade_s"]))
-        qp.save()
-        sq = worldscale.squasher(qp, self.sw)
-        for pit in self.pits:
-            x, y, rx, fl, rgb, age, life, rim = pit[:8]
-            ft = max(1, pit[8]) if len(pit) > 8 else fade_t
-            a = 1.0 if age < life - ft else max(0.0, (life - age) / float(ft))
-            if a <= 0.0:
-                continue
-            a = math.ceil(a * 4.0) / 4.0                  # fades in steps, like the crater rings
-            sq.at(x, y)
-            qp.setOpacity(a)
-            n = len(rim)
+    # ---- ground damage: craters, trenches, streaks (Daniel 2026-11-06)
+    def _gmap(self, x, y, G):
+        """The ground seen at (x, y): (a, b, c, d, cos e, sin e) where the
+        linear map [a b; c d] takes a flat-on-the-ground offset to the screen.
+        Look-down angle e by screen y: ground_fx tilt_top at the very top (the
+        ground is almost edge-on, a crater / trench is little more than a line
+        on the horizon) .. tilt_bottom at the very bottom (90 = straight down
+        into it).  Then the tiny planet squashes it along the line to the
+        anchor, like the boulders (worldscale.squash; none when it's off)."""
+        sh = max(1.0, float(self.sh))
+        yf = max(0.0, min(1.0, y / sh))
+        e = math.radians(G["tilt_top"] + (G["tilt_bottom"] - G["tilt_top"]) * yf)
+        st = max(0.02, math.sin(e))
+        ct = max(0.0, math.cos(e))
+        a, b, c, d = 1.0, 0.0, 0.0, st
+        q = worldscale.squash(x, y, self.sw)
+        if q is not None:
+            k, ux, uy = q
+            f = 1.0 - k
+            m11, m12, m22 = 1.0 - f * ux * ux, -f * ux * uy, 1.0 - f * uy * uy
+            a, b, c, d = m11 * a + m12 * c, m11 * b + m12 * d, m12 * a + m22 * c, m12 * b + m22 * d
+        return a, b, c, d, ct, st
 
-            def poly(k, dy=0.0):
-                pts = []
-                for i, (rr, jit) in enumerate(rim):
-                    th = 2 * math.pi * i / n + jit
-                    r = rx * k * (rr if k > 0.9 else 0.5 + 0.5 * rr)
-                    pts.append(QPointF(x + math.cos(th) * r, y + dy + math.sin(th) * r * fl))
-                return QPolygonF(pts)
-            lip = worldfx._lift(rgb, 0.18)
-            wall = tuple(int(c * 0.55) for c in rgb)
-            floor = tuple(int(c * 0.38) for c in rgb)
-            pw = max(1.0, min(2.5, rx / 40.0))
-            qp.setPen(QPen(ink, pw, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            qp.setBrush(QColor(*lip))
-            qp.drawPolygon(poly(1.0))
-            qp.setPen(QPen(ink, max(1.0, pw * 0.7), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            qp.setBrush(QColor(*wall))
-            qp.drawPolygon(poly(0.74))
-            qp.setPen(Qt.NoPen)
-            qp.setBrush(QColor(*floor))
-            qp.drawPolygon(poly(0.5, rx * fl * 0.16))
-        sq.done()
+    def _glive(self, x, y, ps0):
+        """Size now / size at birth: nearer the anchor = bigger, farther = smaller."""
+        if not ps0:
+            return 1.0
+        return max(0.25, min(4.0, worldfx.pscale(x, y, self.sw, self.sh) / ps0))
+
+    def _paint_ground_damage(self, qp, ink):
+        """Craters, trenches and streaks, each made of 3 layers (lip, wall /
+        scorch, floor).  Every shape is laid on the ground (_gmap: tilt by
+        screen y + planet squash) and sized live by the anchor.  ground_fx
+        merge on: each layer is drawn for ALL shapes at once - every outline
+        first, then every fill - so where shapes overlap their inner outlines
+        are covered and the damage reads as one gouge with one outer edge."""
+        G = _wf()["ground_fx"]
+        shapes = []
+        for m in self.marks:
+            sh = self._mark_shape(m, G)
+            if sh:
+                shapes.append(sh)
+        for pit in self.pits:
+            sh = self._pit_shape(pit, G)
+            if sh:
+                shapes.append(sh)
+        if not shapes:
+            return
+        qp.save()
+        if G["merge"]:
+            for li in range(3):
+                self._gd_draw(qp, ink, [e for s in shapes for e in s[li]])
+        else:
+            for s in shapes:
+                for li in range(3):
+                    self._gd_draw(qp, ink, s[li])
         qp.restore()
+
+    @staticmethod
+    def _gd_draw(qp, ink, entries):
+        """entries: (opacity, polygon, outline px, fill colour).  Outlines
+        first (the fill then covers their inner half), then the fills."""
+        qp.setBrush(Qt.NoBrush)
+        for a, poly, pw, col in entries:
+            if pw > 0.0:
+                qp.setOpacity(a)
+                qp.setPen(QPen(ink, pw, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                qp.drawPolygon(poly)
+        qp.setPen(Qt.NoPen)
+        for a, poly, pw, col in entries:
+            qp.setOpacity(a)
+            qp.setBrush(col)
+            qp.drawPolygon(poly)
+        qp.setBrush(Qt.NoBrush)
+
+    def _pit_shape(self, pit, G):
+        """A crater: jagged raised lip, inner wall, floor shifted toward the
+        viewer (the far inner wall shows; none when looking straight down)."""
+        R0 = _wf()["rubble"]
+        x, y, rx, _fl, rgb, age, life, rim = pit[:8]
+        ft = max(1, pit[8]) if len(pit) > 8 else max(1, _ticks(R0["fade_s"]))
+        a = 1.0 if age < life - ft else max(0.0, (life - age) / float(ft))
+        if a <= 0.0:
+            return None
+        a = math.ceil(a * 4.0) / 4.0                      # fades in steps
+        R = rx * self._glive(x, y, pit[9] if len(pit) > 9 else None)
+        A, B, C, D, ct, st = self._gmap(x, y, G)
+        n = len(rim)
+
+        def poly(k, dy=0.0):
+            pts = []
+            for i, (rr, jit) in enumerate(rim):
+                th = 2 * math.pi * i / n + jit
+                r = R * k * (rr if k > 0.9 else 0.5 + 0.5 * rr)
+                gx, gy = math.cos(th) * r, math.sin(th) * r
+                pts.append(QPointF(x + A * gx + B * gy, y + dy + C * gx + D * gy))
+            return QPolygonF(pts)
+        lip = QColor(*worldfx._lift(rgb, 0.18))
+        wall = QColor(*(int(c * 0.55) for c in rgb))
+        floor = QColor(*(int(c * 0.38) for c in rgb))
+        pw = max(1.0, min(2.5, R / 40.0))
+        shift = 0.2 * R * min(ct, st)
+        return ([(a, poly(1.0), 2.0 * pw, lip)],
+                [(a, poly(0.74), 1.4 * pw, wall)],
+                [(a, poly(0.5, shift), 0.0, floor)])
+
+    def _mark_shape(self, m, G):
+        """A trench (lit lip, scorched floor, dark gouge) or a streak (scorch
+        + ink line) as ribbons laid on the ground: each point's width runs
+        across the path ON the ground, so a trench across the screen near the
+        top is a sliver and one at the bottom shows its full width."""
+        pts = m["pts"]
+        n = len(pts)
+        if n < 2:
+            return None
+        life, fade = m["life"], max(1, m["fade"])
+        geo = []
+        for i, q in enumerate(pts):
+            x, y = q[0], q[1]
+            A, B, C, D, ct, st = self._gmap(x, y, G)
+            p0, p1 = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+            dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+            det = A * D - B * C
+            if abs(det) < 1e-6:
+                det = 1e-6
+            gx, gy = (D * dx - B * dy) / det, (-C * dx + A * dy) / det   # path direction on the ground
+            L = math.hypot(gx, gy) or 1.0
+            gx, gy = gx / L, gy / L
+            nx, ny = A * -gy + B * gx, C * -gy + D * gx               # across, on the screen
+            tx, ty = A * gx + B * gy, C * gx + D * gy                 # along, on the screen
+            hw = 0.5 * q[3] * self._glive(x, y, q[4] if len(q) > 4 else None)
+            age = q[2]
+            al = 1.0 if age < life - fade else max(0.0, (life - age) / float(fade))
+            al = math.ceil(al * 4.0) / 4.0
+            geo.append((x, y, nx, ny, tx, ty, hw, al, min(ct, st)))
+        # Runs of segments sharing one (stepped) fade level.
+        runs = []
+        cur, start = None, 0
+        for i in range(1, n):
+            al = min(geo[i - 1][7], geo[i][7])
+            if al != cur:
+                if cur is not None and cur > 0.0:
+                    runs.append((start, i - 1, cur))
+                cur, start = al, i - 1
+        if cur is not None and cur > 0.0:
+            runs.append((start, n - 1, cur))
+        if not runs:
+            return None
+        rgb = m["rgb"]
+        trench = m["kind"] == "trench"
+        out = ([], [], [])
+        for i0, i1, al in runs:
+            seg = geo[i0:i1 + 1]
+            mw = 2.0 * sum(g[6] for g in seg) / len(seg)
+            cap0, cap1 = i0 == 0, i1 == n - 1
+            if trench:
+                out[0].append((al, self._ribbon(seg, 1.2, 0.0, cap0, cap1), 0.15 * mw + 2.0,
+                               QColor(*worldfx._lift(rgb, 0.45))))
+                out[1].append((al, self._ribbon(seg, 0.8, 0.0, cap0, cap1), 0.0, QColor(*rgb)))
+                out[2].append((al, self._ribbon(seg, 0.35, 0.24, cap0, cap1), 0.0,
+                               QColor(int(rgb[0] * 0.45), int(rgb[1] * 0.45), int(rgb[2] * 0.45))))
+            else:
+                out[0].append((al, self._ribbon(seg, 1.0, 0.0, cap0, cap1), 0.0, QColor(*rgb)))
+                out[2].append((al, self._ribbon(seg, 0.3, 0.0, cap0, cap1), 0.0,
+                               QColor(_wf()["ground"]["ink"])))
+        return out
+
+    @staticmethod
+    def _ribbon(seg, kw, drop, cap0, cap1):
+        """Polygon of a ground ribbon kw x the mark's width; drop = floor
+        shift toward the viewer (x half width, 0 looking straight down);
+        round ends laid on the ground where the mark really ends."""
+        left, right = [], []
+        for x, y, nx, ny, tx, ty, hw, _al, dep in seg:
+            h = hw * kw
+            oy = drop * hw * dep
+            left.append(QPointF(x + nx * h, y + oy + ny * h))
+            right.append(QPointF(x - nx * h, y + oy - ny * h))
+        pts = list(left)
+        if cap1:
+            x, y, nx, ny, tx, ty, hw, _al, dep = seg[-1]
+            h, oy = hw * kw, drop * hw * dep
+            for j in range(1, 6):
+                f = math.pi * j / 6.0
+                cf, sf = math.cos(f), math.sin(f)
+                pts.append(QPointF(x + h * (cf * nx + sf * tx), y + oy + h * (cf * ny + sf * ty)))
+        pts.extend(reversed(right))
+        if cap0:
+            x, y, nx, ny, tx, ty, hw, _al, dep = seg[0]
+            h, oy = hw * kw, drop * hw * dep
+            for j in range(1, 6):
+                f = math.pi * j / 6.0
+                cf, sf = math.cos(f), math.sin(f)
+                pts.append(QPointF(x - h * (cf * nx + sf * tx), y + oy - h * (cf * ny + sf * ty)))
+        return QPolygonF(pts)
 
     def _paint_rubble(self, qp, ink):
         R = _wf()["rubble"]
