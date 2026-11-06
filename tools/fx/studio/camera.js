@@ -169,7 +169,7 @@ var CAM_GROUPS = [
   ["World anchor scaling", [
     ["anchor_scale", "Anchor scaling", "An invisible anchor sits at the centre of all fighters; the camera pans onto it. Every fighter, FX and its pace scale by height on screen x distance from the anchor. While on, closeness is shown by the scaling (the camera keeps a fixed pan zoom, only reduced to fit everyone) and the depth tilt runs bottom-near / top-far. Off = the old corner grid and follow zoom."],
     ["anchor_s", "Anchor follow (s)", "How long the anchor takes to catch up with the centre of the fighters (about 95%).", 0.05],
-    ["anchor_fixed", "Fix anchor position", "On = the anchor stays where it is right now and stops following the fighters; scaling and the tiny planet are measured from that spot. The camera follows the fighters instead (at the pan zoom). Off = the anchor glides back to the fighters' centre."],
+    ["anchor_fixed", "Fix anchor position", "On = the anchor is pinned to a spot on the screen (Anchor on view X / Y below) and moves with the camera, so it never slides on screen; fighters grow and shrink around it as they move. The camera follows the fighters (at the pan zoom). Off = the anchor follows the fighters' centre."],
     ["anchor_zoom", "Pan zoom ×", "Fixed follow zoom while anchor scaling is on (1.0 = no room to pan). Only ever reduced to keep everyone in view.", 0.05],
     ["anchor_view_x_frac", "Anchor on view X (× width)", "Where the camera puts the anchor left / right in the view: 0 = left edge, 0.5 = centre, 1 = right edge. Needs a pan zoom above 1.0 to have room to move; the view still never leaves the screen.", 0.01],
     ["anchor_view_y_frac", "Anchor on view Y (× height)", "Where the camera puts the anchor up / down in the view: 0 = top edge, 0.5 = centre, 1 = bottom edge. Needs a pan zoom above 1.0 to have room to move; the view still never leaves the screen.", 0.01],
@@ -203,13 +203,15 @@ var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_hor
 var CAM_IDLE_RULES = [
   // camera.py _target: follow off = fixed 1.0x at the centre.
   [function (c) { return !c.follow; }, "Follow-cam is off",
-   ["margin_x_px", "margin_y_px", "max_zoom", "solo_zoom", "anchor_zoom", "anchor_view_x_frac", "anchor_view_y_frac"]],
+   ["margin_x_px", "margin_y_px", "max_zoom", "solo_zoom", "anchor_zoom"]],
+  // ... Anchor on view X / Y still place a fixed anchor on screen with the follow-cam off.
+  [function (c) { return !c.follow && !c.anchor_fixed; }, "Follow-cam is off", ["anchor_view_x_frac", "anchor_view_y_frac"]],
   // worldscale.set_anchor / camera.py _target: anchor scaling off = corner grid + old follow zoom.
   [function (c) { return !c.anchor_scale; }, "Anchor scaling is off",
    ["anchor_s", "anchor_fixed", "anchor_zoom", "anchor_view_x_frac", "anchor_view_y_frac", "vscale_bottom", "vscale_top"]
      .concat(CAM_DSCALE_KEYS, ["scale_min", "scale_max", "speed_min", "speed_max", "planet"], CAM_PLANET_KEYS)],
   // camera.py _step_anchor / _target: a fixed anchor doesn't glide, and the cam frames the fighters.
-  [function (c) { return c.anchor_fixed; }, "Fix anchor position is on", ["anchor_s", "anchor_view_x_frac", "anchor_view_y_frac"]],
+  [function (c) { return c.anchor_fixed; }, "Fix anchor position is on", ["anchor_s"]],
   // camera.py _target: anchor scaling uses Pan zoom instead.
   [function (c) { return c.anchor_scale; }, "Anchor scaling is on (it uses Pan zoom instead)", ["max_zoom", "solo_zoom"]],
   // worldscale.size (planet curve replaces the distance term), Camera.depth_live (planet replaces the tilt).
@@ -310,13 +312,19 @@ Cam.prototype.depthT = function (x, y) {
 Cam.prototype.stepAnchor = function (figs) {
   var c = this.cfg;
   if (!c.anchor_scale) { this.anc = null; return; }
-  if (!figs.length || (c.anchor_fixed && this.anc)) return;   // fixed: stays where it is
+  if (c.anchor_fixed) { this.pinAnchor(); return; }   // fixed: on its screen spot
+  if (!figs.length) return;
   var tx = 0, ty = 0;
   figs.forEach(function (f) { tx += f.x; ty += f.y; });
   tx /= figs.length; ty /= figs.length;
   if (!this.anc) { this.anc = [tx, ty]; return; }
   var a = 1 - Math.exp(-DT * 3 / c.anchor_s);
   this.anc = [this.anc[0] + (tx - this.anc[0]) * a, this.anc[1] + (ty - this.anc[1]) * a];
+};
+// laser/camera.py _pin_anchor: the anchor under its screen spot of the follow view.
+Cam.prototype.pinAnchor = function () {
+  var c = this.cfg, z = Math.max(1e-6, this.zoom);
+  this.anc = [this.cx + (c.anchor_view_x_frac - 0.5) * this.sw / z, this.cy + (c.anchor_view_y_frac - 0.5) * this.sh / z];
 };
 // laser/worldscale.py size(): vertical x distance-from-anchor (null = off).
 Cam.prototype.planetOn = function () { return !!(this.cfg.planet && this.cfg.anchor_scale); };
@@ -406,7 +414,7 @@ Cam.prototype.target = function (figs, battle) {
   var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
   var fit = Math.min(this.sw / Math.max(1, x1 - x0 + 2 * c.margin_x_px), this.sh / Math.max(1, y1 - y0 + 2 * c.margin_y_px));
   var z, cc;
-  if (c.anchor_scale && this.anc && c.anchor_fixed) {
+  if (c.anchor_scale && c.anchor_fixed) {
     z = Math.max(1, Math.min(c.anchor_zoom, fit));   // fixed anchor: follow the fighters instead
     cc = this.clampC((x0 + x1) / 2, (y0 + y1) / 2, z);
   } else if (c.anchor_scale && this.anc) {
@@ -424,6 +432,7 @@ Cam.prototype.step = function (figs, battle, hs) {
   this.stepAnchor(figs);
   var tg = this.target(figs, battle), a = 1 - Math.exp(-DT * 3 / c.follow_s);
   this.cx += (tg[0] - this.cx) * a; this.cy += (tg[1] - this.cy) * a; this.zoom += (tg[2] - this.zoom) * a;
+  if (c.anchor_scale && c.anchor_fixed) this.pinAnchor();   // this tick's view: no lag
   var dt = this.depthTarget(figs);
   this.k += (dt[0] - this.k) * a; this.ax += (dt[1] - this.ax) * a; this.ay += (dt[2] - this.ay) * a;
   if (this.shot && (!this.shotOn(this.shot.kind) || !this.shot.step())) this.shot = null;
