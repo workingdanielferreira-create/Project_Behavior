@@ -42,6 +42,7 @@ MAGENTA = (255, 95, 210)
 ORANGE = (255, 160, 64)
 GREEN = (125, 255, 106)
 YELLOW = (255, 225, 77)
+RED = (255, 70, 60)
 
 GRID = 120          # plain scene grid spacing (px)
 SAMPLE = 60         # contour sampling step (px)
@@ -355,6 +356,42 @@ def _roll(d, world, sw, sh):
             d.label(cx + 10, cy + 22 / d.z, "rolling %d px/s" % spd, ORANGE)
 
 
+# ------------------------------------------------------------ speed band & barrier
+def _band(d, world, figs, sw, sh):
+    """Speed band (laser/speedband.py): the world band status line, the
+    barrier's outer / inner edges and each fighter's live allowance."""
+    sb = getattr(world, "speedband", None)
+    if sb is None or not sb.live:
+        return
+    c = world.camera.cfg
+    p = d.p
+    if d.on("band"):
+        txt = "speed band: world depth %.2f" % sb.D
+        if sb.slow is not None:
+            txt += " (slowest base speed %.1f)" % sb.slow
+        d.status(txt, RED)
+    if not sb.bar or not d.on("barrier"):
+        return
+    cx, cy, rx, ry, T = sb.geom(c, sw, sh)
+    p.setPen(_pen(RED, 210, 2))
+    d.circle(cx, cy, rx, ry)
+    p.setPen(_pen(RED, 150, 1.5, True))
+    d.circle(cx, cy, rx * (1.0 - T), ry * (1.0 - T))
+    d.label(cx + 8, cy - ry * (1.0 - T) + 16 / d.z, "barrier %.0f%% deep (live %.1f..%.1f px/tick)"
+            % (T * 100.0, c["barrier_speed_lo"], c["barrier_speed_hi"]), RED)
+    for f in figs:
+        st = sb.figs.get(id(f))
+        if st is None:
+            continue
+        k = (1.0 - T) + st.allow * T
+        p.setPen(_pen((235, 235, 235), 120, 1, True))
+        d.circle(cx, cy, rx * k, ry * k)
+        txt = "v %.1f  allow %d%%  band %.2f" % (st.v, int(round(st.allow * 100)), st.D)
+        if st.r > st.allow + 1e-3:
+            txt += "  easing out"
+        d.label(f.transform.x + 12 / d.z, f.transform.y - 30 / d.z, txt, RED)
+
+
 # ------------------------------------------------------------ camera & boulders
 def _camera(d, world, figs, cam, view, sw, sh):
     p = d.p
@@ -498,6 +535,7 @@ def paint(p, world):
         d.sy = d.bounds[1] + 40.0 / d.z
         _scaling(d, sw, sh)
         _roll(d, world, sw, sh)
+        _band(d, world, figs, sw, sh)
         _boulders(d, world, figs, sw, sh)
         _anchor(d, world, figs, cam, view, sw, sh)
         _camera(d, world, figs, cam, view, sw, sh)

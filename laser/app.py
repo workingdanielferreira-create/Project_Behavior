@@ -24,6 +24,7 @@ from . import hitfx, strikefx
 from . import dmgnum
 from . import worldfx
 from . import terrain
+from . import speedband
 from . import wireframe
 from . import camera as _camera
 from .prebattle import PreBattleMenu
@@ -1484,6 +1485,14 @@ class Overlay(QWidget):
             except Exception as e:
                 action_log.crash("puppet", e)
 
+        # Speed band + speed barrier (laser/speedband.py): the world band
+        # from the slowest fighter's base speed, each fighter's own band, and
+        # the barrier holding fighters by live speed.  After both sides and
+        # the puppet, before terrain (whose roll reads the barrier's pull).
+        try:
+            speedband.step(w)
+        except Exception as e:
+            action_log.crash("speedband", e)
         # Destructible terrain (laser/terrain.py, Dust & Air "Rock pillars" /
         # "Rubble & boulders"): pillars block / repel fighters and stop
         # projectiles like the screen walls do; once per tick after BOTH
@@ -1681,19 +1690,36 @@ class Overlay(QWidget):
                 qp.end()
             ball.paint(p, img, cam.cfg, dpr, slot)
 
-        bent("ground", 0)
-        # Standing things: World.ball_obj(x, y) = the screen-space transform
-        # that redraws a thing standing at world (x, y) upright on the ball.
-        w.ball_obj = lambda x, y: ball.stand_transform(*cam.world_to_screen(x, y))
+        # Speed band (laser/speedband.py): every layer is drawn with the
+        # world's band (the slowest fighter's); fighters, their travelling FX
+        # and bullets switch to their own while they draw.
+        speedband.paint_begin(w)
         try:
-            p.save()
-            p.setRenderHint(QPainter.Antialiasing)
-            p.setRenderHint(QPainter.SmoothPixmapTransform)
-            self._paint_scene(p, hud=False, wire=False, layer="objects")
-            p.restore()
+            bent("ground", 0)
+            # Standing things: World.ball_obj(x, y[, fig]) = the screen-space
+            # transform that redraws a thing standing at world (x, y) upright
+            # on the ball, placed by the world band, sized (and, for a
+            # fighter, squashed) by fig's own band (None = the world's).
+            sq = cam.cfg.get("band_fig_squash", 0.0) if speedband.state(w).live else 0.0
+
+            def hook(x, y, fig=None):
+                sx, sy = cam.world_to_screen(x, y)
+                if fig is None:
+                    return ball.stand_transform(sx, sy)
+                return ball.stand_transform(sx, sy, speedband.fig_depth(w, fig), sq)
+            w.ball_obj = hook
+            try:
+                p.save()
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setRenderHint(QPainter.SmoothPixmapTransform)
+                self._paint_scene(p, hud=False, wire=False, layer="objects")
+                p.restore()
+            finally:
+                w.ball_obj = None
+                speedband.objects(None, None)
+            bent("air", 1)
         finally:
-            w.ball_obj = None
-        bent("air", 1)
+            speedband.paint_end()
 
     def _stand_at(self, p, base, fig):
         """Big ball: put fighter fig's whole drawing upright at its spot on
@@ -1706,7 +1732,7 @@ class Overlay(QWidget):
             fx, fy, _hh = worldfx.WorldFx.foot(fig, ps)
         except Exception:
             fx, fy = fig.transform.x, fig.transform.y
-        p.setTransform(base * hook(fx, fy))
+        p.setTransform(base * hook(fx, fy, fig))
 
     def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True, wire=None, layer=None):
         """Everything the game draws in a normal frame.  bodies=False skips
@@ -1741,10 +1767,16 @@ class Overlay(QWidget):
             # Pillars no fighter stands behind.
             terrain.paint_back(p, w, ground=False)
             base = p.transform()
+            if getattr(w, "ball_obj", None) is not None:
+                # Speed band: travelling FX stand at their own spot
+                # (speedband.travel_at) on top of this camera transform.
+                speedband.objects(base, w.ball_obj)
             for fig in w.all_figures():
                 self._stand_at(p, base, fig)
+                speedband.observe(fig)
                 fig.draw(p, self._pen, body=bodies)
                 p.setTransform(base)
+            speedband.observe(None)
             # Pillars with a fighter behind them are drawn over it.
             terrain.paint_front(p, w, silhouettes=bodies)
             # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
@@ -1765,8 +1797,10 @@ class Overlay(QWidget):
         for proj in w.all_projectiles():
             if id(proj) in clashfx.HIDDEN:
                 continue    # an anchored clash FX draws it meanwhile (laser/clash.py)
+            speedband.observe(getattr(proj, "owner", None))   # its owner's band (big ball only)
             pscale = combat.position_scale(proj.x, proj.y, w.screen_w, w.screen_h)
             proj.draw(p, pscale)
+        speedband.observe(None)
         # World physics: sparks, booms and sonic cones over the fighters.
         worldfx.paint_air(p, w)
         # FX Studio "absolute front" FX: above every character and bullet.
