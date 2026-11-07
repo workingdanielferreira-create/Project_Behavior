@@ -28,6 +28,19 @@ Screen space, after the camera (zoom / shake / shots stay as they are):
     on / below the row:
         drawn at (px + Rx sin lon,  y)
 
+Speed band (laser/speedband.py; band depth D, 1 = the look above): only the
+top share D of the way to the pole bends.  The ground stays flat for
+s0 = (1 - D) x Ry x 90deg above the row, then rolls over a smaller ball of
+radius D x Ry (smooth join, same pole in flat px):
+    s <= s0:  lat = 0, drawn at (px + Rx sin lon, y)
+    s >  s0:  lat = (s - s0) / (D Ry)
+              drawn at (px + Rx sin lon cos lat,  py - s0 - D Ry sin lat)
+so a slow world is near flat with its horizon high (off the top when D is
+small) and a fast one is today's ball.  The ground layers use the world's D
+(the slowest fighter's); a standing thing is PLACED by the world's D but
+SIZED (and, for fighters, squashed) by its own observer D, so a fast
+fighter shrinks toward the horizon on the slow world's ground.
+
 A big Rx (default 3 x width) keeps the fight row nearly straight and full
 width; smaller = the sides wrap round the ball too.  The screen's own edges
 become the ball's outline, pinching to the horizon's top (lat 90, one point
@@ -38,8 +51,8 @@ reaches all the way to the pole.  Standing things: size
 and lean outward by atan2(cos lat sin lon, 1 + sin lat).
 
 The ground layers are painted into offscreen images and redrawn as
-planet_ball_cols x planet_ball_bands projective cells (bands spread over
-the latitudes above the row; below it the map is straight, one band).
+planet_ball_cols x planet_ball_bands affine cells (bands spread over the
+bending latitudes; the flat part and below the row are one band each).
 Drawing only: hit tests, walls, targeting and the battle snapshots stay in
 plain screen coordinates.  The mouse cursor is mapped back (unwarp ->
 Camera.screen_to_world).  The HUD is drawn after it, flat.  Solo + Battle.
@@ -49,12 +62,14 @@ import math
 
 _HALF_PI = math.pi * 0.5
 LAT_MAX = math.radians(89.0)     # cells stop just short of the pole
+D_MIN = 0.02                     # smallest band depth (a near-flat world)
 
 
 class BallWarp:
 
     def __init__(self):
         self.geo = None         # (px, py, Rx, Ry, top, h, sw, sh) of this frame
+        self.D = 1.0            # world band depth of this frame (laser/speedband.py)
         self.head = 0           # px of room painted above the screen (ground reaches the pole)
         self._key = None
         self._cells = []
@@ -76,45 +91,75 @@ class BallWarp:
             px, py = cam.world_to_screen(cam.anc[0], cam.anc[1])
         py = max(top + 20.0, min(sh, py))
         ry = py - top
+        self.D = max(D_MIN, min(1.0, float(getattr(cam, "band_D", 1.0) or 1.0)))
         self.geo = (px, py, rx, ry, top, c["planet_ball_horizon_size"], sw, sh)
-        self.head = int(max(0.0, ry * LAT_MAX - py)) + 2
+        self.head = int(max(0.0, self._s_max() - py)) + 2
         return True
 
     def live(self):
         return self.geo is not None
 
-    def _latlon(self, x, y):
-        px, py, rx, ry = self.geo[:4]
+    def _s0(self, d=None):
+        """Flat px above the row before the bend starts (band depth d)."""
+        d = self.D if d is None else d
+        return (1.0 - d) * self.geo[3] * _HALF_PI
+
+    def _s_max(self):
+        """Flat px above the row where the cells stop (just short of the pole)."""
+        return self._s0() + self.D * self.geo[3] * LAT_MAX
+
+    def _lat(self, s, d):
+        """Latitude of flat height s above the row for band depth d."""
+        if s <= 0.0:
+            return 0.0
+        s0 = (1.0 - d) * self.geo[3] * _HALF_PI
+        if s <= s0:
+            return 0.0
+        return min(_HALF_PI, (s - s0) / (d * self.geo[3]))
+
+    def _latlon(self, x, y, d=None):
+        px, py, rx = self.geo[:3]
         lon = max(-_HALF_PI, min(_HALF_PI, (x - px) / rx))
-        lat = max(0.0, min(_HALF_PI, (py - y) / ry))
-        return lat, lon
+        return self._lat(py - y, self.D if d is None else d), lon
 
     def map(self, x, y):
-        """A flat screen point -> where the ball draws it."""
+        """A flat screen point -> where the ball draws it (world band)."""
         px, py, rx, ry = self.geo[:4]
-        lat, lon = self._latlon(x, y)
-        if y >= py:
+        lon = max(-_HALF_PI, min(_HALF_PI, (x - px) / rx))
+        s = py - y
+        s0 = self._s0()
+        if s <= s0:
             return px + rx * math.sin(lon), y
-        return px + rx * math.sin(lon) * math.cos(lat), py - ry * math.sin(lat)
+        R = self.D * ry
+        lat = min(_HALF_PI, (s - s0) / R)
+        return px + rx * math.sin(lon) * math.cos(lat), py - s0 - R * math.sin(lat)
 
-    def stand(self, x, y):
-        """(X, Y, k, lean_deg) for a thing standing at flat screen (x, y)."""
-        lat, lon = self._latlon(x, y)
+    def stand(self, x, y, d=None):
+        """(X, Y, k, lean_deg, lat) for a thing standing at flat screen
+        (x, y): placed and leaning by the world band, sized by band depth d
+        (None = the world's; laser/speedband.py)."""
+        lat_w, lon = self._latlon(x, y)
+        lat = lat_w if d is None or d <= self.D else self._latlon(x, y, max(D_MIN, min(1.0, d)))[0]
         h = self.geo[5]
         k = h + (1.0 - h) * max(0.0, math.cos(lat) * math.cos(lon))
-        lean = math.degrees(math.atan2(math.cos(lat) * math.sin(lon), 1.0 + math.sin(lat)))
+        lean = math.degrees(math.atan2(math.cos(lat_w) * math.sin(lon), 1.0 + math.sin(lat_w)))
         X, Y = self.map(x, y)
-        return X, Y, k, lean
+        return X, Y, k, lean, lat
 
-    def stand_transform(self, x, y):
+    def stand_transform(self, x, y, d=None, squash=0.0):
         """QTransform (screen space) that redraws a thing standing at flat
-        screen (x, y) upright at its spot on the ball."""
+        screen (x, y) upright at its spot on the ball.  d = its band depth
+        (None = the world's), squash = how much it flattens toward the
+        horizon at the pole (0 = none)."""
         from PyQt5.QtGui import QTransform
-        X, Y, k, lean = self.stand(x, y)
+        X, Y, k, lean, lat = self.stand(x, y, d)
+        q = 1.0
+        if squash > 0.0 and lat > 0.0:
+            q = max(0.05, 1.0 - squash * (1.0 - math.cos(lat)))
         t = QTransform()
         t.translate(X, Y)
         t.rotate(lean)
-        t.scale(k, k)
+        t.scale(k, k * q)
         t.translate(-x, -y)
         return t
 
@@ -123,16 +168,20 @@ class BallWarp:
         if self.geo is None:
             return x, y
         px, py, rx, ry = self.geo[:4]
-        if y >= py:
+        sd = py - y
+        s0 = self._s0()
+        if sd <= s0:
             u = max(-1.0, min(1.0, (x - px) / rx))
             return px + math.asin(u) * rx, y
-        lat = math.asin(max(0.0, min(1.0, (py - y) / ry)))
+        R = self.D * ry
+        lat = math.asin(max(0.0, min(1.0, (sd - s0) / R)))
         c = max(1e-3, math.cos(lat))
         u = max(-1.0, min(1.0, (x - px) / (rx * c)))
-        return px + math.asin(u) * rx, py - lat * ry
+        return px + math.asin(u) * rx, py - s0 - lat * R
 
     def horizon_y(self, frac=0.97):
-        """Flat screen y of the row frac of the way to the horizon's top."""
+        """Flat screen y of the row frac of the way to the horizon's top
+        (the pole is Ry x 90deg flat px above the row for every band)."""
         px, py, rx, ry = self.geo[:4]
         return py - ry * _HALF_PI * frac
 
@@ -152,10 +201,17 @@ class BallWarp:
         if x_hi - x_lo < 1.0:
             return cells
         xs = [x_lo + (x_hi - x_lo) * i / cols for i in range(cols + 1)]
-        # Rows: latitude bands above the fight row (the squeeze needs them),
-        # one straight band below it.
-        lat_top = min(LAT_MAX, (py + self.head) / ry)
-        ys = [py - ry * lat_top * (1.0 - j / bands) for j in range(bands + 1)]
+        # Rows: latitude bands over the bending part (the squeeze needs
+        # them), one band over the flat part above the row (speed band) and
+        # one straight band below the row.
+        s_top = min(self._s_max(), py + self.head)
+        s0 = self._s0()
+        if s_top <= s0:
+            ys = [py - s_top]
+        else:
+            ys = [py - s0 - (s_top - s0) * (1.0 - j / bands) for j in range(bands + 1)]
+        if s0 > 0.5:
+            ys.append(py)
         if py < sh - 0.5:
             ys.append(sh)
         m = self.map
@@ -213,7 +269,7 @@ class BallWarp:
         if self.geo is None:
             return
         cols, bands = int(cfg["planet_ball_cols"]), int(cfg["planet_ball_bands"])
-        key = tuple(round(v * 2.0) for v in self.geo) + (cols, bands, self.head)
+        key = tuple(round(v * 2.0) for v in self.geo) + (cols, bands, self.head, round(self.D * 400.0))
         if key != self._key:
             self._cells = self._build(cols, bands)
             self._key = key

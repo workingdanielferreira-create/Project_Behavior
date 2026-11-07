@@ -29,6 +29,9 @@ var CAM_DEFAULTS = {
   "speed_min": 0.40, "speed_max": 1.00,
   "planet": true, "planet_reach_x_frac": 0.6, "planet_reach_y_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
   "planet_ball": true, "planet_ball_radius_frac": 3.0, "planet_ball_top_frac": 0.15, "planet_ball_horizon_size": 0.02, "planet_ball_cols": 48, "planet_ball_bands": 8,
+  "band": true, "band_speed_slow": 1.5, "band_speed_fast": 5.0, "band_depth_slow": 0.25, "band_ease_s": 1.0, "band_fig_squash": 0.5,
+  "barrier": true, "barrier_rx_frac": 0.75, "barrier_ry_frac": 1.0, "barrier_depth_slow": 0.15, "barrier_depth_fast": 0.45,
+  "barrier_speed_lo": 1.0, "barrier_speed_hi": 8.0, "barrier_return_s": 0.6, "barrier_roll": 2.0,
   "wireframe": false
 };
 var CAM_RANGES = {
@@ -54,7 +57,13 @@ var CAM_RANGES = {
   "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
   "planet_ball_radius_frac": [0.2, 5.0], "planet_ball_top_frac": [0.0, 0.9],
   "planet_ball_horizon_size": [0.0, 1.0],
-  "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32]
+  "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32],
+  "band_speed_slow": [0.0, 20.0], "band_speed_fast": [0.0, 20.0], "band_depth_slow": [0.02, 1.0],
+  "band_ease_s": [0.02, 5.0], "band_fig_squash": [0.0, 0.95],
+  "barrier_rx_frac": [0.2, 2.0], "barrier_ry_frac": [0.2, 2.0],
+  "barrier_depth_slow": [0.01, 0.95], "barrier_depth_fast": [0.01, 0.95],
+  "barrier_speed_lo": [0.0, 40.0], "barrier_speed_hi": [0.0, 40.0],
+  "barrier_return_s": [0.02, 5.0], "barrier_roll": [0.0, 10.0]
 };
 // Settings split into x / y: an old file's single value seeds both.
 var CAM_LEGACY_XY = {"margin_px": ["margin_x_px", "margin_y_px"],
@@ -71,6 +80,7 @@ var CAM_WIRE_KEYS = [
   "anchor_scale", "vscale_bottom", "vscale_top", "dscale_near", "dscale_far",
   "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve", "scale_min", "scale_max", "speed_min", "speed_max",
   "planet", "planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash",
+  "band", "barrier",
   "wire_grid", "wire_view",
   "roll.enabled", "roll.max_speed", "roll.zone_x_frac", "roll.zone_y_frac", "roll.vertical",
   "roll.spawn_ahead_px", "roll.margin_px",
@@ -202,6 +212,23 @@ var CAM_GROUPS = [
     ["planet_ball_horizon_size", "Size at horizon ×", "How big boulders, fighters and their FX are drawn on the horizon (1 = full size). They grow smoothly to full size on the fight's row.", 0.01],
     ["planet_ball_cols", "Curve cells across", "How many slices the bend is made of across the screen. More = smoother curve, slower.", 1],
     ["planet_ball_bands", "Curve cells up", "How many slices from the fight row up to the horizon. More = a smoother squeeze into the horizon, slower.", 1]
+  ]],
+  ["Speed band & barrier", [
+    ["band", "Speed band", "How far the big ball's bend reaches down the screen follows the fighters' speeds (their base movement stat). The world (ground, boulders, rubble, dust) is seen by the SLOWEST fighter: slow = the ground stays flat and big, only the very top bends (horizon high, off the top when very slow); fast = today's full ball. Each fighter, and the FX it fires that travel (bullets, crescents, travel / homing / zigzag FX), uses its own speed: a fast fighter shrinks and squashes toward the horizon while the slow fighter's ground stays as it is, so it looks like it covers huge ground. Near the fight row every band matches, so fighters meet at the same size. Movement pace is unchanged (drawing only). Needs Big ball. This preview always shows the full ball (no fighters' speeds here)."],
+    ["band_speed_slow", "Slow speed (px/tick)", "Base speed at or below which the band is thinnest (Slow band depth). Built-in swordsman 3.0, runner 4.5; JSON characters' chase_speed.", 0.1],
+    ["band_speed_fast", "Fast speed (px/tick)", "Base speed at or above which the band is the full ball (today's look).", 0.1],
+    ["band_depth_slow", "Slow band depth", "How far down the bend reaches for the slowest speed, as a share of the way from the fight row to the pole (1 = the full ball).", 0.01],
+    ["band_ease_s", "World band ease (s)", "How long the world's band takes to follow when the slowest fighter changes (tag switch, KO).", 0.05],
+    ["band_fig_squash", "Fighter squash", "How much a fighter (and its travelling FX) flattens toward the horizon at the pole. 0 = shrink only.", 0.01],
+    ["barrier", "Speed barrier", "The top of the screen becomes a speed gradient instead of a plain wall: an arc along the horizon (an ellipse round the bottom middle of the screen). How deep a fighter may go into it follows its LIVE speed (dashes and knockback count; blinks / teleports do not). Too slow: held there like a wall. Went in fast and slowed down: eased back out while the rolling world rolls toward the camera faster, so it still looks like it keeps going. Fighters only (FX fly on). The barrier is thinner when the world is slow. F11 puppet and F10 freeze are left alone. Needs Big ball."],
+    ["barrier_rx_frac", "Barrier width (× width)", "Half-width of the barrier ellipse round the bottom middle of the screen, as a share of the screen width. Smaller = the arc comes further down the sides.", 0.01],
+    ["barrier_ry_frac", "Barrier height (× height)", "Height of the barrier ellipse, as a share of the screen height (1 = its outer edge touches the top of the screen).", 0.01],
+    ["barrier_depth_slow", "Thickness: slow world", "How thick the barrier band is (share of the ellipse) when the slowest fighter is slow.", 0.01],
+    ["barrier_depth_fast", "Thickness: fast world", "How thick the barrier band is when the slowest fighter is fast.", 0.01],
+    ["barrier_speed_lo", "Speed to enter (px/tick)", "Live speed a fighter needs to get into the barrier at all.", 0.1],
+    ["barrier_speed_hi", "Speed for the edge (px/tick)", "Live speed a fighter needs to reach the barrier's outer edge (in between = part of the way).", 0.1],
+    ["barrier_return_s", "Ease-out time (s)", "How long a fighter that slowed down takes to be brought back to where its speed is allowed.", 0.05],
+    ["barrier_roll", "Roll toward camera ×", "While a fighter is eased back out, the rolling world (Dust & Air: Rolling world) rolls toward the camera faster by up to this × its max speed. 0 = no extra roll.", 0.1]
   ]]
 ];
 // Settings that do nothing under the current settings (Studio greys them out
@@ -210,7 +237,11 @@ var CAM_GROUPS = [
 var CAM_DEPTH_KEYS = ["depth", "depth_base", "depth_gain", "depth_shot", "depth_budget_ms"];
 var CAM_DSCALE_KEYS = ["dscale_near", "dscale_far", "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve"];
 var CAM_BALL_KEYS = ["planet_ball_radius_frac", "planet_ball_top_frac", "planet_ball_horizon_size", "planet_ball_cols", "planet_ball_bands"];
-var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash", "planet_ball"].concat(CAM_BALL_KEYS);
+var CAM_BAND_KEYS = ["band_speed_slow", "band_speed_fast", "band_depth_slow", "band_ease_s", "band_fig_squash"];
+var CAM_BARRIER_KEYS = ["barrier_rx_frac", "barrier_ry_frac", "barrier_depth_slow", "barrier_depth_fast",
+  "barrier_speed_lo", "barrier_speed_hi", "barrier_return_s", "barrier_roll"];
+var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash", "planet_ball"]
+  .concat(CAM_BALL_KEYS, ["band", "barrier"], CAM_BAND_KEYS, CAM_BARRIER_KEYS);
 var CAM_IDLE_RULES = [
   // camera.py _target: follow off = fixed 1.0x at the centre.
   [function (c) { return !c.follow; }, "Follow-cam is off",
@@ -229,7 +260,10 @@ var CAM_IDLE_RULES = [
   [function (c) { return c.anchor_scale && c.planet; }, "Tiny planet is on", CAM_DSCALE_KEYS.concat(CAM_DEPTH_KEYS)],
   [function (c) { return !c.planet; }, "Tiny planet is off", CAM_PLANET_KEYS],
   // camera.py / ballwarp.py: the big ball bend is off.
-  [function (c) { return !c.planet_ball; }, "Big ball is off", CAM_BALL_KEYS],
+  [function (c) { return !c.planet_ball; }, "Big ball is off", CAM_BALL_KEYS.concat(["band", "barrier"], CAM_BAND_KEYS, CAM_BARRIER_KEYS)],
+  // laser/speedband.py: the band / barrier off.
+  [function (c) { return !c.band; }, "Speed band is off", CAM_BAND_KEYS.concat(["barrier"], CAM_BARRIER_KEYS)],
+  [function (c) { return !c.barrier; }, "Speed barrier is off", CAM_BARRIER_KEYS],
   [function (c) { return !c.depth; }, "Depth tilt is off", CAM_DEPTH_KEYS.slice(1)],
   [function (c) { return !c.punch; }, "Punch-in is off", ["punch_zoom", "punch_tilt_deg", "punch_pull", "punch_in_ticks", "punch_out_s"]],
   [function (c) { return !c.shake; }, "Shake is off", ["shake_max_px", "shake_hz"]],
@@ -240,7 +274,7 @@ var CAM_IDLE_RULES = [
   [function (c) { return !c.clash_on; }, "Clash shot is off", ["clash_zoom", "clash_in_s", "clash_hold_s", "clash_out_s"]]
 ];
 // Settings whose change can grey / un-grey others (the page rebuilds on them).
-var CAM_IDLE_CONTROLLERS = ["follow", "anchor_scale", "anchor_fixed", "planet", "planet_ball", "depth", "punch", "shake", "ult_on", "switch_on", "ko_on", "clash_on"];
+var CAM_IDLE_CONTROLLERS = ["follow", "anchor_scale", "anchor_fixed", "planet", "planet_ball", "band", "barrier", "depth", "punch", "shake", "ult_on", "switch_on", "ko_on", "clash_on"];
 function camIdle(c, k) {
   for (var i = 0; i < CAM_IDLE_RULES.length; i++) {
     var r = CAM_IDLE_RULES[i];

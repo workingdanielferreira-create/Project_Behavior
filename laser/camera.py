@@ -90,6 +90,12 @@ Four layers, one transform:
                      planet_ball_horizon_size at the horizon, never clipped.
                      Screen space, after the camera; the HUD stays flat;
                      the cursor is mapped back.
+  9. Speed band     (band / barrier, needs the big ball; laser/speedband.py)
+                     the bend's reach follows the slowest fighter's base
+                     speed (world), each fighter + its travelling FX use
+                     their own; the barrier at the top holds fighters by
+                     live speed and rolls the world toward the camera while
+                     easing one back out.
 
 Identical in Solo and Battle: the same step / view runs either way; the
 only difference is the follow zoom rule (battle_mode) when anchor_scale is
@@ -186,6 +192,22 @@ DEFAULTS = {
     "planet_ball_horizon_size": 0.02,  # size of standing things at the horizon (1 = full)
     "planet_ball_cols": 48,  # warp cells across (more = smoother curve, slower)
     "planet_ball_bands": 8,  # warp cells from the fight row up to the horizon
+    # Speed band + speed barrier (laser/speedband.py; needs the big ball)
+    "band": True,            # on = how far the bend reaches follows the fighters' base speeds
+    "band_speed_slow": 1.5,  # base speed (px/tick) at / below which the band is thinnest
+    "band_speed_fast": 5.0,  # base speed at / above which it is the full ball
+    "band_depth_slow": 0.25, # band depth at the slow end (share of the way to the pole; 1 = full ball)
+    "band_ease_s": 1.0,      # seconds for the world band to follow a change of slowest fighter
+    "band_fig_squash": 0.5,  # how much a fighter flattens toward the horizon at the pole
+    "barrier": True,         # on = the top of the screen holds fighters by live speed
+    "barrier_rx_frac": 0.75, # barrier ellipse half-width (x screen width), centred bottom middle
+    "barrier_ry_frac": 1.0,  # barrier ellipse height (x screen height)
+    "barrier_depth_slow": 0.15,  # barrier band thickness (share of the ellipse) for a slow world
+    "barrier_depth_fast": 0.45,  # ... for a fast world
+    "barrier_speed_lo": 1.0, # live speed (px/tick) needed to enter the barrier at all
+    "barrier_speed_hi": 8.0, # live speed needed to reach its outer edge
+    "barrier_return_s": 0.6, # time to ease a fighter that slowed down back out
+    "barrier_roll": 2.0,     # extra roll toward the camera meanwhile (x roll max speed)
     # Wireframe overlay (laser/wireframe.py): how the environment acts on the
     # fighters - scaling, anchor / planet / depth, roll zones, camera framing,
     # pillar spawning - drawn in the scene over everything but the HUD.
@@ -218,6 +240,12 @@ RANGES = {
     "planet_ball_radius_frac": [0.2, 5.0], "planet_ball_top_frac": [0.0, 0.9],
     "planet_ball_horizon_size": [0.0, 1.0],
     "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32],
+    "band_speed_slow": [0.0, 20.0], "band_speed_fast": [0.0, 20.0], "band_depth_slow": [0.02, 1.0],
+    "band_ease_s": [0.02, 5.0], "band_fig_squash": [0.0, 0.95],
+    "barrier_rx_frac": [0.2, 2.0], "barrier_ry_frac": [0.2, 2.0],
+    "barrier_depth_slow": [0.01, 0.95], "barrier_depth_fast": [0.01, 0.95],
+    "barrier_speed_lo": [0.0, 40.0], "barrier_speed_hi": [0.0, 40.0],
+    "barrier_return_s": [0.02, 5.0], "barrier_roll": [0.0, 10.0],
 }
 # Settings split into x / y: an old file's single value seeds both.
 LEGACY_XY = {"margin_px": ("margin_x_px", "margin_y_px"),
@@ -235,6 +263,7 @@ WIRE_KEYS = [
     "anchor_scale", "vscale_bottom", "vscale_top", "dscale_near", "dscale_far",
     "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve", "scale_min", "scale_max", "speed_min", "speed_max",
     "planet", "planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash",
+    "band", "barrier",
     "wire_grid", "wire_view",
     "roll.enabled", "roll.max_speed", "roll.zone_x_frac", "roll.zone_y_frac", "roll.vertical",
     "roll.spawn_ahead_px", "roll.margin_px",
@@ -403,6 +432,9 @@ class Camera:
         self.k = 0.0
         self.ax = self.sw / 2.0
         self.ay = self.sh / 2.0
+        # Speed band (laser/speedband.py): the world band depth the big ball
+        # draws with (1 = full ball), set each tick by speedband.step.
+        self.band_D = 1.0
         # World anchor (eased centre of all fighters; None until first seen)
         self.anc = None
         # Perspective painting is slower than affine in Qt's raster engine:

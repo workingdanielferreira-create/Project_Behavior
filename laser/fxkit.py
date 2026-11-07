@@ -28,6 +28,7 @@ from PyQt5.QtGui import (QBrush, QColor, QLinearGradient, QPen, QPainter, QPaint
 
 from . import clashfx, config
 from . import unique as _unique
+from . import speedband as _speedband
 
 TICK_MS = 16
 TICK_S = TICK_MS / 1000.0
@@ -3285,7 +3286,17 @@ class Player:
             if hidden and body_bound(inst):
                 continue    # blinked out: the fighter's own body FX are hidden
             if inst_layer(inst, ps) == layer:
+                # Big ball speed band (laser/speedband.py): an FX that
+                # travels stands at its own spot with its owner's band and
+                # takes the size of its own spot, instead of riding the
+                # owner's feet.  No-op otherwise.
+                old = None
+                if inst.fx["motion"]["kind"] in MOVERS:
+                    old = _speedband.travel_at(p, inst.x, inst.y, getattr(host, "fig", None),
+                                               None if (inst.fx.get("params") or {}).get("pos_scale") else ps)
                 draw_inst(p, inst, host, ps)
+                if old is not None:
+                    p.setTransform(old)
 
 
 def inst_layer(inst, ps):
@@ -4063,17 +4074,25 @@ class FxDriver:
                                      or any(ln[0].insts for ln in self.rlanes) or self.slanes):
             return
         self.host.fig = fig
-        self.player.draw(p, self.host, layer, hidden)
-        for ln in self.rlanes:
-            ln[0].draw(p, self.host, layer, hidden)
-        for lanes, _xy, sh, _own in self.slanes:
-            if sh is not None:
-                sh.fig = fig
-                for ln in lanes:
-                    ln[0].draw(p, sh, layer, hidden)
-        if self.clane[0].insts:
-            from . import blink as _blink
-            self.clane[0].draw(p, self.host, layer, hidden or _blink.gone(fig))
+        # Size drawn this frame (big ball speed band: the paint-time size
+        # may differ from the tick's); the tick's value is put back after.
+        ps_tick = self.host.pscale
+        if _speedband._W is not None:
+            self.host.pscale = fig._position_scale()
+        try:
+            self.player.draw(p, self.host, layer, hidden)
+            for ln in self.rlanes:
+                ln[0].draw(p, self.host, layer, hidden)
+            for lanes, _xy, sh, _own in self.slanes:
+                if sh is not None:
+                    sh.fig = fig
+                    for ln in lanes:
+                        ln[0].draw(p, sh, layer, hidden)
+            if self.clane[0].insts:
+                from . import blink as _blink
+                self.clane[0].draw(p, self.host, layer, hidden or _blink.gone(fig))
+        finally:
+            self.host.pscale = ps_tick
 
     def take_hits(self):
         h, self.hits_out = self.hits_out, []

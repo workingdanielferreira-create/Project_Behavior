@@ -358,6 +358,11 @@ class Terrain:
         at = self._place(figs, P, multi)
         if at is None:
             return False
+        # Big ball: never past the horizon (a slow world's horizon is high,
+        # a fast world's low; laser/speedband.py) - try again later.
+        hy = self._ball_horizon_y(at[0], 0.97)
+        if hy is not None and at[1] < hy:
+            return False
         rise_t = _ticks(P["rise_ms"] / 1000.0)
         if multi:
             self._spawn_multi(at[0], at[1], P, rise_t)
@@ -1039,6 +1044,17 @@ class Terrain:
             tx = vmax * max(-1.0, min(1.0, axis(ax / sw, zx)))
             if Rl["vertical"]:
                 ty = vmax * max(-1.0, min(1.0, axis(ay / sh, zy)))
+            # Speed barrier (laser/speedband.py): while a fighter is eased
+            # back out of the barrier the world rolls toward the camera
+            # faster, so it still reads as travelling on.
+            try:
+                sb = getattr(world, "speedband", None)
+                if sb is not None:
+                    bx, by = sb.roll_boost(world, vmax)
+                    tx += bx
+                    ty += by
+            except Exception:
+                pass
         e = 1.0 if Rl["ease_ms"] <= 0 else min(1.0, config.TICK_MS / float(Rl["ease_ms"]))
         vx = self.roll_v[0] + (tx - self.roll_v[0]) * e
         vy = self.roll_v[1] + (ty - self.roll_v[1]) * e

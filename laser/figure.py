@@ -12,6 +12,7 @@ from PyQt5.QtGui import QPen
 from . import config
 from . import combat as _combat
 from . import unique as _unique
+from . import speedband as _speedband
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
@@ -362,11 +363,15 @@ class Figure:
             cpen.setJoinStyle(Qt.RoundJoin)
             for c in self.combat.crescents:
                 # Crescents travel outward from the figure, so they scale
-                # by their own current position.
+                # by their own current position (big ball: and stand at
+                # their own spot with this fighter's speed band).
                 cscale = _combat.position_scale(c.x, c.y,
                                                  self.screen_w, self.screen_h)
+                old = _speedband.travel_at(p, c.x, c.y, self)
                 c.draw(p, cpen, lut=self.lut, flow_off=self.trail.flow_off,
                        pscale=cscale)
+                if old is not None:
+                    p.setTransform(old)
 
         if self.combat.ult_crescents:
             upen = QPen()
@@ -375,7 +380,10 @@ class Figure:
             for uc in self.combat.ult_crescents:
                 uscale = _combat.position_scale(uc.x, uc.y,
                                                  self.screen_w, self.screen_h)
+                old = _speedband.travel_at(p, uc.x, uc.y, self)
                 uc.draw(p, upen, pscale=uscale)
+                if old is not None:
+                    p.setTransform(old)
 
         # --- Final-hit energy columns + loop-beam ultimate beams (cosmetic,
         # figure-owned; ticked by combat.update_loop_fx). ---

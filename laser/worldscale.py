@@ -41,6 +41,14 @@ bigger (nearer) a thing is drawn the faster it moves on screen, as before.
 
 Drawing / pace only: hit tests, walls, targeting and the battle snapshots
 stay in plain screen coordinates.  The same rule runs in Solo and Battle.
+
+Speed band (laser/speedband.py, big ball only): while a frame is painted
+the planet's size and squash are drawn for an OBSERVER band depth D (the
+slowest fighter's for the world, each fighter's own for it and the FX it
+fires that travel): only the outer share D of the way to the horizon bends,
+    u' = clamp((u - (1 - D)) / D)       (D = 1: today's curve, unchanged)
+Outside painting D is 1, and pace (speed()) always reads D = 1, so the
+simulation is untouched.
 """
 
 import math
@@ -48,6 +56,26 @@ import math
 # None = anchor scaling off (callers fall back to the corner grid).
 # Otherwise a tuple, see set_anchor().
 _A = None
+# Paint-time observer band depth (laser/speedband.py); 1 = no band.
+_D = 1.0
+
+
+def set_observer(d):
+    """Overlay paint (laser/speedband.py): the band depth what is drawn next
+    is seen with.  1.0 = the full planet (also the simulation's value)."""
+    global _D
+    try:
+        d = float(d)
+    except (TypeError, ValueError):
+        d = 1.0
+    _D = 1.0 if d != d else max(0.02, min(1.0, d))
+
+
+def _band(u, d):
+    """Remap the planet distance u (0 anchor .. 1 horizon) for band depth d."""
+    if d >= 0.999:
+        return u
+    return max(0.0, min(1.0, (u - (1.0 - d)) / d))
 
 
 def set_anchor(ax=None, ay=None, cfg=None):
@@ -80,14 +108,15 @@ def planet_on():
     return _A is not None and _A[12] is not None
 
 
-def _theta(x, y, sw):
-    """(theta, dx, dy, dist) of (x, y) on the planet (planet_on() only)."""
+def _theta(x, y, sw, d=1.0):
+    """(theta, dx, dy, dist) of (x, y) on the planet (planet_on() only),
+    for band depth d (laser/speedband.py; 1 = the full planet)."""
     ax, ay = _A[0], _A[1]
     reach, _ch, hz = _A[12][0], _A[12][1], _A[12][2]
     dx, dy = x - ax, y - ay
     dist = math.hypot(dx, dy)
     u = max(0.0, min(1.0, _ellipse_u(dx, dy, reach[0] * sw, reach[1] * sw)))
-    return u * hz, dx, dy, dist
+    return _band(u, d) * hz, dx, dy, dist
 
 
 def _ellipse_u(dx, dy, rx, ry):
@@ -110,12 +139,17 @@ def size_range():
 
 
 def size(x, y, sw, sh):
-    """Drawn size at (x, y) (call only while active())."""
+    """Drawn size at (x, y) (call only while active()), for the paint-time
+    observer band (set_observer; 1 outside painting)."""
+    return _size(x, y, sw, sh, _D)
+
+
+def _size(x, y, sw, sh, d):
     (ax, ay, vb, vt, dn, df, ff, cv, smin, smax, _p0, _p1, pl) = _A
     yf = max(0.0, min(1.0, y / sh)) if sh > 0 else 0.5
     v = vt + (vb - vt) * yf
     if pl is not None:
-        th = _theta(x, y, sw)[0]
+        th = _theta(x, y, sw, d)[0]
         ch = pl[1]
         c = (math.cos(th) - ch) / (1.0 - ch) if ch < 1.0 - 1e-6 else 1.0
         d = pl[3] + (1.0 - pl[3]) * max(0.0, min(1.0, c))
@@ -126,9 +160,10 @@ def size(x, y, sw, sh):
 
 
 def speed(x, y, sw, sh):
-    """Pace at (x, y): linear in size (call only while active())."""
+    """Pace at (x, y): linear in size (call only while active()).  Always
+    the full planet (no speed band): pace is gameplay, the band is drawing."""
     smin, smax, pmin, pmax = _A[8], _A[9], _A[10], _A[11]
-    s = size(x, y, sw, sh)
+    s = _size(x, y, sw, sh, 1.0)
     if smax - smin < 1e-6:
         return pmax
     f = (s - smin) / (smax - smin)
@@ -141,7 +176,7 @@ def squash(x, y, sw):
     None when the planet is off or there is nothing to squash."""
     if _A is None or _A[12] is None:
         return None
-    th, dx, dy, dist = _theta(x, y, sw)
+    th, dx, dy, dist = _theta(x, y, sw, _D)
     if dist < 1e-3:
         return None
     k = 1.0 - _A[12][4] * (1.0 - math.cos(th))
