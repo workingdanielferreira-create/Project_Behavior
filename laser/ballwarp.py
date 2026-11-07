@@ -1,48 +1,64 @@
 """
 Big ball - the tiny planet's curved look (camera.json "planet_ball", needs
-the tiny planet).  The battle happens on top of a big ball: the finished
-scene (fighters, FX, bullets, trails, terrain, dust, wireframe: everything
-the camera draws) is bent onto the ball at paint time, so the ground curves
-away over one horizon arc ABOVE the fight, things off to the side drop down
-the curve and lean outward (they stand straight off the ball), and nothing
-is drawn above the horizon (the desktop shows through there).
+the tiny planet).  The battle happens on the near face of a big ball, like a
+globe with its pole on the top edge of the horizon (Daniel 2026-11-07):
 
-Screen space, after the camera (so zoom / shake / shots stay as they are):
+  * The GROUND (dust, rubble on the floor, craters, trenches, rings, air FX,
+    bullets: everything that isn't standing on it) is bent onto the ball.
+    Ground lines running away from the camera are the globe's meridians:
+    they curve round the ball and pinch to a point at the horizon's top,
+    and the ground squeezes flat toward the horizon.  Nothing is cut: it
+    shrinks into the horizon.
+  * Things STANDING on the ground (boulders, fighters and the FX they carry,
+    clones) are not bent: each is drawn whole at its spot on the ball,
+    leaning with it and shrunk toward the horizon (planet_ball_horizon_size
+    at the horizon .. full size on the fight's row).  They are never clipped,
+    so they stick up past the horizon.
 
-    R      = planet_ball_radius_frac x screen width   (the horizon arc's radius)
-    top    = planet_ball_top_frac x screen height    (the horizon's top on screen)
-    C      = (px, top + R)          the ball's centre; px = the anchor's x on screen
-    py     = the anchor's y on screen (the fight's row)
-    Rref   = R - (py - top)         radius of the fight's row
+Screen space, after the camera (zoom / shake / shots stay as they are):
 
-    a scene point (x, y) is drawn at   C + r (sin phi, -cos phi)
-        r   = R - (y - top)         (the horizon row lands on the arc)
-        phi = (x - px) / Rref       (the fight's row keeps its lengths)
+    px, py = the anchor on screen (the fight's row = the ball's equator)
+    Rx     = planet_ball_radius_frac x screen width   (half-width of the ball)
+    top    = planet_ball_top_frac x screen height    (the horizon's top)
+    Ry     = py - top                                 (equator -> horizon top)
 
-So vertical lines become radial (lean outward) and the fight's row keeps
-its scale; the anchor's spot is drawn where it is.  The scene is painted
-into an offscreen image and redrawn as planet_ball_cols x planet_ball_bands
-wedge cells (one projective QTransform each, shared edges line up so there
-are no seams).
+    lon = (x - px) / Rx                      (sideways round the ball)
+    above the row (s = py - y > 0):  lat = s / Ry           (pole at 90 deg)
+        drawn at (px + Rx sin lon cos lat,  py - Ry sin lat)
+    on / below the row:
+        drawn at (px + Rx sin lon,  y)
 
+A big Rx (default 3 x width) keeps the fight row nearly straight and full
+width; smaller = the sides wrap round the ball too.  The screen's own edges
+become the ball's outline, pinching to the horizon's top (lat 90, one point
+above the anchor), so it leans with the fight when the anchor is off centre.
+The ground image is painted with room above the screen (head) so the ground
+reaches all the way to the pole.  Standing things: size
+    k = h + (1 - h) * max(0, cos lat * cos lon)       h = horizon size
+and lean outward by atan2(cos lat sin lon, 1 + sin lat).
+
+The ground layers are painted into offscreen images and redrawn as
+planet_ball_cols x planet_ball_bands projective cells (bands spread over
+the latitudes above the row; below it the map is straight, one band).
 Drawing only: hit tests, walls, targeting and the battle snapshots stay in
 plain screen coordinates.  The mouse cursor is mapped back (unwarp ->
-Camera.screen_to_world).  The HUD (HP bars, notices) is drawn after it,
-unbent.  Identical in Solo and Battle.
+Camera.screen_to_world).  The HUD is drawn after it, flat.  Solo + Battle.
 """
 
 import math
 
 _HALF_PI = math.pi * 0.5
+LAT_MAX = math.radians(89.0)     # cells stop just short of the pole
 
 
 class BallWarp:
 
     def __init__(self):
-        self.geo = None         # (px, py, R, top, Rref, cy, y_bot, sw, sh) of this frame
+        self.geo = None         # (px, py, Rx, Ry, top, h, sw, sh) of this frame
+        self.head = 0           # px of room painted above the screen (ground reaches the pole)
         self._key = None
-        self._cells = []        # [(QTransform, QRectF target, (x, y, w, h) source)]
-        self._img = None
+        self._cells = []
+        self._imgs = {}
 
     # --- per frame ----------------------------------------------------
     def setup(self, cam, sw, sh):
@@ -53,91 +69,168 @@ class BallWarp:
             self.geo = None
             return False
         sw, sh = float(sw), float(sh)
-        R = max(16.0, c["planet_ball_radius_frac"] * sw)
+        rx = max(16.0, c["planet_ball_radius_frac"] * sw)
         top = c["planet_ball_top_frac"] * sh
         px, py = sw * 0.5, sh * 0.6
         if cam.anc is not None:
             px, py = cam.world_to_screen(cam.anc[0], cam.anc[1])
-        py = max(top + 1.0, min(sh, py))
-        rref = max(0.3 * R, R - (py - top))
-        cy = top + R
-        y_bot = min(sh, top + 0.97 * R)          # never past the ball's centre
-        self.geo = (px, py, R, top, rref, cy, y_bot, sw, sh)
+        py = max(top + 20.0, min(sh, py))
+        ry = py - top
+        self.geo = (px, py, rx, ry, top, c["planet_ball_horizon_size"], sw, sh)
+        self.head = int(max(0.0, ry * LAT_MAX - py)) + 2
         return True
 
-    def _map(self, x, y):
-        px, _py, R, top, rref, cy = self.geo[:6]
-        r = R - (y - top)
-        phi = (x - px) / rref
-        return px + r * math.sin(phi), cy - r * math.cos(phi)
+    def live(self):
+        return self.geo is not None
+
+    def _latlon(self, x, y):
+        px, py, rx, ry = self.geo[:4]
+        lon = max(-_HALF_PI, min(_HALF_PI, (x - px) / rx))
+        lat = max(0.0, min(_HALF_PI, (py - y) / ry))
+        return lat, lon
+
+    def map(self, x, y):
+        """A flat screen point -> where the ball draws it."""
+        px, py, rx, ry = self.geo[:4]
+        lat, lon = self._latlon(x, y)
+        if y >= py:
+            return px + rx * math.sin(lon), y
+        return px + rx * math.sin(lon) * math.cos(lat), py - ry * math.sin(lat)
+
+    def stand(self, x, y):
+        """(X, Y, k, lean_deg) for a thing standing at flat screen (x, y)."""
+        lat, lon = self._latlon(x, y)
+        h = self.geo[5]
+        k = h + (1.0 - h) * max(0.0, math.cos(lat) * math.cos(lon))
+        lean = math.degrees(math.atan2(math.cos(lat) * math.sin(lon), 1.0 + math.sin(lat)))
+        X, Y = self.map(x, y)
+        return X, Y, k, lean
+
+    def stand_transform(self, x, y):
+        """QTransform (screen space) that redraws a thing standing at flat
+        screen (x, y) upright at its spot on the ball."""
+        from PyQt5.QtGui import QTransform
+        X, Y, k, lean = self.stand(x, y)
+        t = QTransform()
+        t.translate(X, Y)
+        t.rotate(lean)
+        t.scale(k, k)
+        t.translate(-x, -y)
+        return t
 
     def unwarp(self, x, y):
-        """A drawn screen point -> the unbent screen point (cursor)."""
+        """A drawn screen point -> the flat screen point (cursor)."""
         if self.geo is None:
             return x, y
-        px, _py, R, top, rref, cy = self.geo[:6]
-        dx, dy = x - px, cy - y
-        r = math.hypot(dx, dy)
-        phi = math.atan2(dx, dy)
-        return px + phi * rref, top + R - r
+        px, py, rx, ry = self.geo[:4]
+        if y >= py:
+            u = max(-1.0, min(1.0, (x - px) / rx))
+            return px + math.asin(u) * rx, y
+        lat = math.asin(max(0.0, min(1.0, (py - y) / ry)))
+        c = max(1e-3, math.cos(lat))
+        u = max(-1.0, min(1.0, (x - px) / (rx * c)))
+        return px + math.asin(u) * rx, py - lat * ry
 
+    def horizon_y(self, frac=0.97):
+        """Flat screen y of the row frac of the way to the horizon's top."""
+        px, py, rx, ry = self.geo[:4]
+        return py - ry * _HALF_PI * frac
+
+    # --- drawing ------------------------------------------------------
     def _build(self, cols, bands):
-        from PyQt5.QtCore import QPointF, QRectF
-        from PyQt5.QtGui import QPolygonF, QTransform
-        px, _py, R, top, rref, _cy, y_bot, sw, _sh = self.geo
+        """[(QTransform, padded source QRectF)]: one affine cell per grid
+        cell (fitted through the cell's centre and mid-edges), grown by its
+        own corner error so neighbours overlap (no gaps).  Affine is ~2x
+        faster than projective in Qt's raster engine; paint() draws them in
+        Source mode so the overlaps never double up see-through pixels."""
+        from PyQt5.QtCore import QRectF
+        from PyQt5.QtGui import QTransform
+        px, py, rx, ry, _top, _h, sw, sh = self.geo
         cells = []
-        if y_bot - top < 1.0:
-            return cells
-        # Columns: whole screen width, cut to the side of the ball (|phi| < 90 deg).
-        x_lo = max(0.0, px - _HALF_PI * rref)
-        x_hi = min(sw, px + _HALF_PI * rref)
+        x_lo = max(0.0, px - _HALF_PI * rx)
+        x_hi = min(sw, px + _HALF_PI * rx)
         if x_hi - x_lo < 1.0:
             return cells
         xs = [x_lo + (x_hi - x_lo) * i / cols for i in range(cols + 1)]
-        ys = [top + (y_bot - top) * j / bands for j in range(bands + 1)]
-        for j in range(bands):
+        # Rows: latitude bands above the fight row (the squeeze needs them),
+        # one straight band below it.
+        lat_top = min(LAT_MAX, (py + self.head) / ry)
+        ys = [py - ry * lat_top * (1.0 - j / bands) for j in range(bands + 1)]
+        if py < sh - 0.5:
+            ys.append(sh)
+        m = self.map
+        for j in range(len(ys) - 1):
             y0, y1 = ys[j], ys[j + 1]
+            h = y1 - y0
+            if h < 0.25:
+                continue
             for i in range(cols):
                 x0, x1 = xs[i], xs[i + 1]
-                src = QPolygonF([QPointF(x0, y0), QPointF(x1, y0), QPointF(x1, y1), QPointF(x0, y1)])
-                dst = QPolygonF([QPointF(*self._map(x0, y0)), QPointF(*self._map(x1, y0)),
-                                 QPointF(*self._map(x1, y1)), QPointF(*self._map(x0, y1))])
-                t = QTransform()
-                if not QTransform.quadToQuad(src, dst, t):
-                    continue
-                cells.append((t, QRectF(x0, y0, x1 - x0, y1 - y0), (x0, y0, x1 - x0, y1 - y0)))
+                w = x1 - x0
+                cx, cy = x0 + w * 0.5, y0 + h * 0.5
+                C = m(cx, cy)
+                L, R = m(x0, cy), m(x1, cy)
+                T, B = m(cx, y0), m(cx, y1)
+                exx, exy = (R[0] - L[0]) / w, (R[1] - L[1]) / w
+                eyx, eyy = (B[0] - T[0]) / h, (B[1] - T[1]) / h
+                dx = C[0] - exx * cx - eyx * cy
+                dy = C[1] - exy * cx - eyy * cy
+                err = 0.0
+                for (qx, qy) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+                    tx, ty = m(qx, qy)
+                    ax = exx * qx + eyx * qy + dx
+                    ay = exy * qx + eyy * qy + dy
+                    err = max(err, math.hypot(tx - ax, ty - ay))
+                sc = max(1e-3, min(math.hypot(exx, exy), math.hypot(eyx, eyy)))
+                pad = min(12.0, err / sc + 0.75)
+                cells.append((QTransform(exx, exy, eyx, eyy, dx, dy),
+                              QRectF(x0 - pad, y0 - pad, w + 2.0 * pad, h + 2.0 * pad)))
         return cells
 
-    def image(self, w, h, dpr):
-        """The reused offscreen scene image (cleared)."""
+    def image(self, w, h, dpr, slot=0):
+        """A reused offscreen image (cleared); one per slot (ground / air),
+        head px taller than the screen: paint into it translated down by
+        self.head (the room above the screen)."""
+        return self._img(("src", slot), w, h + self.head, dpr)
+
+    def _img(self, key, w, h, dpr):
         from PyQt5.QtGui import QImage
         from PyQt5.QtCore import Qt
         iw, ih = max(1, int(round(w * dpr))), max(1, int(round(h * dpr)))
-        img = self._img
+        img = self._imgs.get(key)
         if img is None or img.width() != iw or img.height() != ih:
             img = QImage(iw, ih, QImage.Format_ARGB32_Premultiplied)
-            self._img = img
+            self._imgs[key] = img
         img.setDevicePixelRatio(dpr)
         img.fill(Qt.transparent)
         return img
 
-    def paint(self, p, img, cfg, dpr):
-        """Draw the scene image bent onto the ball through QPainter p."""
+    def paint(self, p, img, cfg, dpr, slot=0):
+        """Draw a ground image bent onto the ball through QPainter p (whose
+        transform is the plain screen)."""
         from PyQt5.QtCore import QRectF
         from PyQt5.QtGui import QPainter
         if self.geo is None:
             return
         cols, bands = int(cfg["planet_ball_cols"]), int(cfg["planet_ball_bands"])
-        key = tuple(round(v * 2.0) for v in self.geo) + (cols, bands)
+        key = tuple(round(v * 2.0) for v in self.geo) + (cols, bands, self.head)
         if key != self._key:
             self._cells = self._build(cols, bands)
             self._key = key
-        p.save()
-        # Hard cell edges: anti-aliased edges would leave faint seams.
-        p.setRenderHint(QPainter.Antialiasing, False)
-        p.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        base = p.transform()
-        for t, tgt, (sx, sy, sw_, sh_) in self._cells:
-            p.setTransform(t * base)
-            p.drawImage(tgt, img, QRectF(sx * dpr, sy * dpr, sw_ * dpr, sh_ * dpr))
-        p.restore()
+        sw, sh = self.geo[6], self.geo[7]
+        out = self._img(("out", slot), sw, sh, dpr)
+        q = QPainter(out)
+        try:
+            # Hard cell edges + Source mode: overlapping cells replace each
+            # other instead of stacking see-through pixels (no seams).
+            q.setCompositionMode(QPainter.CompositionMode_Source)
+            q.setRenderHint(QPainter.Antialiasing, False)
+            q.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            hd = self.head
+            for t, r in self._cells:
+                q.setTransform(t)
+                q.drawImage(r, img, QRectF(r.x() * dpr, (r.y() + hd) * dpr,
+                                           r.width() * dpr, r.height() * dpr))
+        finally:
+            q.end()
+        p.drawImage(QRectF(0.0, 0.0, sw, sh), out)

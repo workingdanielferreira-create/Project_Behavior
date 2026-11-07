@@ -4362,45 +4362,39 @@ function camWire(g, cam, v, figs, battle, SW, SH, P) {
 // Live preview: a 1920x1080 "screen" scaled into the canvas.  The desktop
 // behind the overlay and the HUD stay still (as in the game); the arena,
 // fighters and hit sparks are drawn through the camera.
-// Big ball (laser/ballwarp.py): redraw the scene canvas `src` bent onto the
-// ball.  The game uses one projective cell per wedge; a 2D canvas has no
-// projective transform, so each cell is two affine triangles here.
+// Big ball (laser/ballwarp.py BallWarp.paint): redraw the ground canvas
+// `src` (geo.head px of room above the screen, x K) bent onto the ball: one
+// affine cell per grid cell, fitted through its centre and mid-edges and
+// grown by its own corner error so neighbours overlap.  The preview canvas
+// is ~half the game's width, so half the columns.
 function camBall(g, src, geo, K, c) {
-  // The preview canvas is ~half the game's width: half the cells look the same.
   var cols = Math.max(8, Math.ceil((c.planet_ball_cols | 0) / 2)), bands = c.planet_ball_bands | 0;
-  var px = geo[0], R = geo[2], top = geo[3], rref = geo[4], yBot = geo[6], sw = geo[7];
-  if (yBot - top < 1) return;
-  var xLo = Math.max(0, px - Math.PI / 2 * rref), xHi = Math.min(sw, px + Math.PI / 2 * rref);
+  var px = geo.px, py = geo.py, rx = geo.rx, ry = geo.ry, sw = geo.sw, sh = geo.sh, hd = geo.head;
+  var xLo = Math.max(0, px - Math.PI / 2 * rx), xHi = Math.min(sw, px + Math.PI / 2 * rx);
   if (xHi - xLo < 1) return;
-  function tri(s0, s1, s2, d0, d1, d2) {
-    // Affine map: source triangle (screen px) -> dest triangle (screen px), then x K.
-    var ax = s1[0] - s0[0], ay = s1[1] - s0[1], bx = s2[0] - s0[0], by = s2[1] - s0[1];
-    var det = ax * by - ay * bx; if (Math.abs(det) < 1e-9) return;
-    var ux = d1[0] - d0[0], uy = d1[1] - d0[1], vx = d2[0] - d0[0], vy = d2[1] - d0[1];
-    var a = (ux * by - vx * ay) / det, cc = (vx * ax - ux * bx) / det;
-    var b = (uy * by - vy * ay) / det, d = (vy * ax - uy * bx) / det;
-    var e = d0[0] - a * s0[0] - cc * s0[1], f = d0[1] - b * s0[0] - d * s0[1];
-    // Clip to the dest triangle, grown ~1 preview px so cells overlap (no seams).
-    var mx = (d0[0] + d1[0] + d2[0]) / 3, my = (d0[1] + d1[1] + d2[1]) / 3;
-    function grow(q) { var dx = q[0] - mx, dy = q[1] - my, l = Math.hypot(dx, dy) || 1, k = 1 + 1.2 / (K * l); return [(mx + dx * k) * K, (my + dy * k) * K]; }
-    var p0 = grow(d0), p1 = grow(d1), p2 = grow(d2);
-    g.save();
-    g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.clip();
-    g.setTransform(a * K, b * K, cc * K, d * K, e * K, f * K);
-    var x0 = Math.min(s0[0], s1[0], s2[0]) - 2, y0 = Math.min(s0[1], s1[1], s2[1]) - 2;
-    var x1 = Math.max(s0[0], s1[0], s2[0]) + 2, y1 = Math.max(s0[1], s1[1], s2[1]) + 2;
-    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(src.width / K, x1); y1 = Math.min(src.height / K, y1);
-    if (x1 > x0 && y1 > y0) g.drawImage(src, x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K, x0, y0, x1 - x0, y1 - y0);
-    g.restore();
-  }
-  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
-  for (var j = 0; j < bands; j++) {
-    var ya = top + (yBot - top) * j / bands, yb = top + (yBot - top) * (j + 1) / bands;
+  var latTop = Math.min(CAMERA.BALL_LAT_MAX, (py + hd) / ry), ys = [];
+  for (var j = 0; j <= bands; j++) ys.push(py - ry * latTop * (1 - j / bands));
+  if (py < sh - 0.5) ys.push(sh);
+  function m(x, y) { return CAMERA.ballMap(geo, x, y); }
+  g.save();
+  g.imageSmoothingEnabled = true;
+  for (var r = 0; r < ys.length - 1; r++) {
+    var y0 = ys[r], h = ys[r + 1] - y0;
+    if (h < 0.25) continue;
     for (var i = 0; i < cols; i++) {
-      var xa = xLo + (xHi - xLo) * i / cols, xb = xLo + (xHi - xLo) * (i + 1) / cols;
-      var A = [xa, ya], B = [xb, ya], C = [xb, yb], D = [xa, yb];
-      var mA = CAMERA.ballMap(geo, xa, ya), mB = CAMERA.ballMap(geo, xb, ya), mC = CAMERA.ballMap(geo, xb, yb), mD = CAMERA.ballMap(geo, xa, yb);
-      tri(A, B, C, mA, mB, mC); tri(A, C, D, mA, mC, mD);
+      var x0 = xLo + (xHi - xLo) * i / cols, w = (xHi - xLo) / cols, cx = x0 + w / 2, cy = y0 + h / 2;
+      var C = m(cx, cy), L = m(x0, cy), R = m(x0 + w, cy), T = m(cx, y0), B = m(cx, y0 + h);
+      var exx = (R[0] - L[0]) / w, exy = (R[1] - L[1]) / w, eyx = (B[0] - T[0]) / h, eyy = (B[1] - T[1]) / h;
+      var dx = C[0] - exx * cx - eyx * cy, dy = C[1] - exy * cx - eyy * cy, err = 0;
+      [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]].forEach(function (q) {
+        var t = m(q[0], q[1]);
+        err = Math.max(err, Math.hypot(t[0] - (exx * q[0] + eyx * q[1] + dx), t[1] - (exy * q[0] + eyy * q[1] + dy)));
+      });
+      var sc = Math.max(1e-3, Math.min(Math.hypot(exx, exy), Math.hypot(eyx, eyy)));
+      var pad = Math.min(12, err / sc + 1.5);
+      var sx = x0 - pad, sy = y0 - pad, sW = w + 2 * pad, sH = h + 2 * pad;
+      g.setTransform(exx * K, exy * K, eyx * K, eyy * K, dx * K, dy * K);
+      g.drawImage(src, sx * K, (sy + hd) * K, sW * K, sH * K, sx, sy, sW, sH);
     }
   }
   g.restore();
@@ -4486,6 +4480,20 @@ function camPreview(parent) {
   function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   var V = null;   // this frame's view (depth projection reads it)
   function P(x, y) { return cam.depth(V, x, y); }
+  // Tiny planet rock field: f(x, y) per rock; far = also rows above the
+  // screen (the big ball shows them on its way to the horizon).
+  function rocks(f, far) {
+    for (var ry = far ? 60 - 120 * 6 : 60; ry < SH; ry += 120)
+      for (var rx = 60 + (((ry + 1200) / 120) % 2) * 60; rx < SW; rx += 120) f(rx, ry);
+  }
+  function drawRock(rx, ry) {
+    var sz = cam.sizeAt(rx, ry) || 1, q = cam.squashAt(rx, ry), r0 = 16 * Math.min(2.5, sz);
+    g.save(); g.translate(rx, ry);
+    if (q) { var an = Math.atan2(q[2], q[1]); g.rotate(an); g.scale(q[0], 1); g.rotate(-an); }
+    g.fillStyle = "#5a5148"; g.strokeStyle = "#151515"; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(-r0, 0); g.lineTo(-r0 * 0.7, -r0 * 1.6); g.lineTo(r0 * 0.6, -r0 * 1.8); g.lineTo(r0, 0); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
   function drawFig(f, i) {
     var q = P(f.x, f.y);
     g.save(); g.translate(q[0], q[1]); g.scale(1.8 / q[2], 1.8 / q[2]);
@@ -4517,7 +4525,13 @@ function camPreview(parent) {
     // The scene, through the camera.
     var v = cam.view();
     var geo = cam.ballGeo(v);
-    if (geo) { g = bg; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); }
+    if (geo) {
+      // Big ball: the ground goes to bcv (with room above the screen), is
+      // bent onto g0, then the standing things are drawn whole on top.
+      var bh = Math.ceil(H + geo.head * K);
+      if (bcv.height !== bh) bcv.height = bh;
+      g = bg; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, bcv.height); g.translate(0, geo.head * K);
+    }
     g.save(); g.scale(K, K); cam.apply(g, v);
     V = v;
     function line(x0, y0, x1, y1) { var a = P(x0, y0), b = P(x1, y1); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
@@ -4533,22 +4547,31 @@ function camPreview(parent) {
     if (cam.planetOn() && cam.anc) {
       g.strokeStyle = "rgba(160,190,230,0.25)"; g.lineWidth = 2;
       g.beginPath(); g.ellipse(cam.anc[0], cam.anc[1], CAMCFG.planet_reach_x_frac * SW, CAMCFG.planet_reach_y_frac * SW, 0, 0, 2 * Math.PI); g.stroke();
-      for (var ry = 60; ry < SH; ry += 120) for (var rx = 60 + ((ry / 120) % 2) * 60; rx < SW; rx += 120) {
-        var sz = cam.sizeAt(rx, ry) || 1, q = cam.squashAt(rx, ry), r0 = 16 * Math.min(2.5, sz);
-        g.save(); g.translate(rx, ry);
-        if (q) { var an = Math.atan2(q[2], q[1]); g.rotate(an); g.scale(q[0], 1); g.rotate(-an); }
-        g.fillStyle = "#5a5148"; g.strokeStyle = "#151515"; g.lineWidth = 2;
-        g.beginPath(); g.moveTo(-r0, 0); g.lineTo(-r0 * 0.7, -r0 * 1.6); g.lineTo(r0 * 0.6, -r0 * 1.8); g.lineTo(r0, 0); g.closePath(); g.fill(); g.stroke();
-        g.restore();
-      }
+      if (!geo) rocks(function (rx, ry) { drawRock(rx, ry); });
     }
-    figs.forEach(drawFig);
+    if (!geo) figs.forEach(drawFig);
     g.strokeStyle = "#fff6e0"; g.lineWidth = 3;
     sparks.forEach(function (s) { g.globalAlpha = 1 - s[4] / 22; g.beginPath(); line(s[0] - s[2], s[1] - s[3], s[0], s[1]); g.stroke(); });
     g.globalAlpha = 1;
     if (CAMCFG.wireframe) camWire(g, cam, v, figs.filter(function (f) { return !f.down; }), battle, SW, SH, P);
     g.restore();
-    if (geo) { g = g0; camBall(g0, bcv, geo, K, CAMCFG); }
+    if (geo) {
+      g = g0; camBall(g0, bcv, geo, K, CAMCFG);
+      // Standing things (laser/ballwarp.py stand_transform): whole, upright
+      // at their spot on the ball, shrinking to the horizon, never clipped.
+      // Rocks on the planet start above the screen so some sit on the horizon.
+      var standAt = function (x, y) {
+        var r = (v[3] || 0) * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+        var dx = (x - v[0]) * v[2], dy = (y - v[1]) * v[2];
+        var sx = SW / 2 + v[4] + dx * cs - dy * sn, sy = SH / 2 + v[5] + dx * sn + dy * cs;
+        var st = CAMERA.ballStand(geo, sx, sy);
+        g0.setTransform(K, 0, 0, K, 0, 0); g0.translate(st[0], st[1]); g0.rotate(st[3] * Math.PI / 180);
+        g0.scale(st[2], st[2]); g0.translate(-sx, -sy); cam.apply(g0, v);
+      };
+      if (cam.anc) rocks(function (rx, ry) { g0.save(); standAt(rx, ry); drawRock(rx, ry); g0.restore(); }, true);
+      figs.forEach(function (f, i) { g0.save(); standAt(f.x, f.y); drawFig(f, i); g0.restore(); });
+      g0.setTransform(1, 0, 0, 1, 0, 0);
+    }
     // The HUD: never zooms or shakes (or bends).
     g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
     if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }

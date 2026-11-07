@@ -186,6 +186,7 @@ class World:
         # simulation never sees it.  Steps every tick, hit-stop included,
         # so a frozen hit still shakes and punches in.
         self.camera = _camera.Camera(screen_w, screen_h, assets.dir)
+        self.ball_obj = None     # big ball: standing-thing transform while painting (Overlay._paint_ball)
         # KO slow-mo (camera.json ko_slow / ko_slow_s): for slowmo_ticks
         # real ticks the simulation advances only slowmo_rate of a tick per
         # tick (both sides at once, like hit-stop).  ko_quit_ticks: Solo's
@@ -1595,6 +1596,7 @@ class Overlay(QWidget):
                 sp = QPainter(img)
                 sp.setRenderHint(QPainter.Antialiasing)
                 sp.setRenderHint(QPainter.SmoothPixmapTransform)
+                sp.translate(0, cam.ball.head)   # room above the screen
             if cv is not None:
                 sp.save()
                 cam.apply(sp, cv)
@@ -1615,18 +1617,12 @@ class Overlay(QWidget):
         cam = w.camera
         cam.view()
         if cam.ball.setup(cam, w.screen_w, w.screen_h):
-            # Big ball (laser/ballwarp.py): the scene is painted offscreen,
-            # bent onto the ball, then the HUD goes on top, flat.
-            dpr = self.devicePixelRatioF()
-            img = cam.ball.image(self.width(), self.height(), dpr)
-            qp = QPainter(img)
-            qp.setRenderHint(QPainter.Antialiasing)
-            qp.setRenderHint(QPainter.SmoothPixmapTransform)
-            try:
-                self._paint_scene(qp, hud=False, wire=True)
-            finally:
-                qp.end()
-            cam.ball.paint(p, img, cam.cfg, dpr)
+            # Big ball (laser/ballwarp.py): the ground layers are painted
+            # offscreen and bent onto the ball; the things standing on it
+            # (boulders, fighters + their FX, clones) are drawn whole at their
+            # spot on the ball, never clipped; the air layers (bullets,
+            # sparks, front FX, wireframe) are bent over them; the HUD flat.
+            self._paint_ball(p, cam)
             self._paint_hud(p)
         else:
             self._paint_scene(p)
@@ -1665,33 +1661,104 @@ class Overlay(QWidget):
             if fig.fx is not None:
                 fig.fx.draw(p, fig, layer)
 
-    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True, wire=None):
+    def _paint_ball(self, p, cam):
+        """A normal frame on the big ball (laser/ballwarp.py), three passes:
+        ground layers bent, standing things whole at their spot on the
+        ball (World.ball_obj), air layers bent on top."""
+        w = self.world
+        ball = cam.ball
+        dpr = self.devicePixelRatioF()
+
+        def bent(layer, slot):
+            img = ball.image(self.width(), self.height(), dpr, slot)
+            qp = QPainter(img)
+            qp.setRenderHint(QPainter.Antialiasing)
+            qp.setRenderHint(QPainter.SmoothPixmapTransform)
+            qp.translate(0, ball.head)       # room above the screen: the ground reaches the horizon
+            try:
+                self._paint_scene(qp, hud=False, wire=True, layer=layer)
+            finally:
+                qp.end()
+            ball.paint(p, img, cam.cfg, dpr, slot)
+
+        bent("ground", 0)
+        # Standing things: World.ball_obj(x, y) = the screen-space transform
+        # that redraws a thing standing at world (x, y) upright on the ball.
+        w.ball_obj = lambda x, y: ball.stand_transform(*cam.world_to_screen(x, y))
+        try:
+            p.save()
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            self._paint_scene(p, hud=False, wire=False, layer="objects")
+            p.restore()
+        finally:
+            w.ball_obj = None
+        bent("air", 1)
+
+    def _stand_at(self, p, base, fig):
+        """Big ball: put fighter fig's whole drawing upright at its spot on
+        the ball (about its feet).  No-op when the ball is off."""
+        hook = getattr(self.world, "ball_obj", None)
+        if hook is None:
+            return
+        try:
+            ps = worldfx.pscale(fig.x, fig.y, self.world.screen_w, self.world.screen_h)
+            fx, fy, _hh = worldfx.WorldFx.foot(fig, ps)
+        except Exception:
+            fx, fy = fig.transform.x, fig.transform.y
+        p.setTransform(base * hook(fx, fy))
+
+    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True, wire=None, layer=None):
         """Everything the game draws in a normal frame.  bodies=False skips
         the fighters' sprites, hud=False the HP readout and notice,
         abs_front=False the absolute-front FX, cam=False the camera view
         — used by the pre-battle menu's frozen FX layers.  wire (default:
-        same as hud) = draw the wireframe overlay (the big ball paints the
-        scene with hud=False, wire=True, then the HUD flat)."""
+        same as hud) = draw the wireframe overlay.  layer (big ball,
+        _paint_ball): None = everything, "ground" = the layers under the
+        standing things, "objects" = boulders, fighters (+ their FX) and
+        clones, "air" = bullets and everything over the fighters."""
         w = self.world
+        L_ground = layer in (None, "ground")
+        L_obj = layer in (None, "objects")
+        L_air = layer in (None, "air")
         # Camera (laser/camera.py: follow, punch-in, shake): the scene moves,
         # the HUD stays.
         shk = w.camera.view() if cam else None
         if shk is not None:
             p.save()
             w.camera.apply(p, shk)
-        # World physics: the far (dark) side of every spiral is the very last layer
-        # on the field - under everything else (laser/worldfx.py).
-        worldfx.paint_back(p, w)
-        self._paint_abs_layer(p, "abs_back")
-        # World physics: ground dust, rocks, rings and wall planes sit under
-        # every fighter (laser/worldfx.py).
-        worldfx.paint_ground(p, w)
-        # Destructible terrain: rubble, and the pillars no fighter stands behind.
-        terrain.paint_back(p, w)
-        for fig in w.all_figures():
-            fig.draw(p, self._pen, body=bodies)
-        # Pillars with a fighter behind them are drawn over it.
-        terrain.paint_front(p, w, silhouettes=bodies)
+        if L_ground:
+            # World physics: the far (dark) side of every spiral is the very
+            # last layer on the field - under everything else (laser/worldfx.py).
+            worldfx.paint_back(p, w)
+            self._paint_abs_layer(p, "abs_back")
+            # World physics: ground dust, rocks, rings and wall planes sit
+            # under every fighter (laser/worldfx.py).
+            worldfx.paint_ground(p, w)
+            # Destructible terrain: craters, marks, rubble.
+            terrain.paint_back(p, w, pillars=False)
+        if L_obj:
+            # Pillars no fighter stands behind.
+            terrain.paint_back(p, w, ground=False)
+            base = p.transform()
+            for fig in w.all_figures():
+                self._stand_at(p, base, fig)
+                fig.draw(p, self._pen, body=bodies)
+                p.setTransform(base)
+            # Pillars with a fighter behind them are drawn over it.
+            terrain.paint_front(p, w, silhouettes=bodies)
+            # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
+            hook = getattr(w, "ball_obj", None)
+            for clone in w.all_clones():
+                if hook is not None:
+                    p.setTransform(base * hook(clone.x, clone.y))
+                pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
+                clone.draw(p, pscale)
+                p.setTransform(base)
+        if not L_air:
+            if shk is not None:
+                p.restore()
+            return
         # Every bullet on screen is a live Projectile drawn with its own
         # authored visuals — both sides render identically, no downgraded
         # "enemy dot" pass. Each bullet scales by its own current position.
@@ -1700,10 +1767,6 @@ class Overlay(QWidget):
                 continue    # an anchored clash FX draws it meanwhile (laser/clash.py)
             pscale = combat.position_scale(proj.x, proj.y, w.screen_w, w.screen_h)
             proj.draw(p, pscale)
-        # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
-        for clone in w.all_clones():
-            pscale = combat.position_scale(clone.x, clone.y, w.screen_w, w.screen_h)
-            clone.draw(p, pscale)
         # World physics: sparks, booms and sonic cones over the fighters.
         worldfx.paint_air(p, w)
         # FX Studio "absolute front" FX: above every character and bullet.
