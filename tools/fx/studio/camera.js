@@ -28,6 +28,7 @@ var CAM_DEFAULTS = {
   "dscale_far_x_frac": 0.5, "dscale_far_y_frac": 0.5, "dscale_curve": 1.0, "scale_min": 0.10, "scale_max": 5.0,
   "speed_min": 0.40, "speed_max": 1.00,
   "planet": true, "planet_reach_x_frac": 0.6, "planet_reach_y_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
+  "planet_ball": true, "planet_ball_radius_frac": 1.5, "planet_ball_top_frac": 0.15, "planet_ball_cols": 64, "planet_ball_bands": 3,
   "wireframe": false
 };
 var CAM_RANGES = {
@@ -50,7 +51,9 @@ var CAM_RANGES = {
   "scale_min": [0.05, 10.0], "scale_max": [0.05, 10.0],
   "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
   "planet_reach_x_frac": [0.1, 2.0], "planet_reach_y_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
-  "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95]
+  "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
+  "planet_ball_radius_frac": [0.3, 5.0], "planet_ball_top_frac": [0.0, 0.9],
+  "planet_ball_cols": [16, 192], "planet_ball_bands": [1, 8]
 };
 // Settings split into x / y: an old file's single value seeds both.
 var CAM_LEGACY_XY = {"margin_px": ["margin_x_px", "margin_y_px"],
@@ -191,7 +194,12 @@ var CAM_GROUPS = [
     ["planet_reach_y_frac", "Horizon distance Y (× width)", "How far above / below the anchor the horizon is, as a share of the screen width (same unit as X, so equal values = a round horizon).", 0.05],
     ["planet_horizon_deg", "Horizon angle (°)", "How far round the sphere the horizon sits. 90 = a full quarter turn (strongest falloff and squash at the rim).", 1],
     ["planet_far", "Size at horizon ×", "Distance factor at the horizon (1 on the anchor).", 0.01],
-    ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01]
+    ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01],
+    ["planet_ball", "Big ball", "The fight happens on top of a big ball (game only, not shown in this preview): the whole scene - fighters, FX, bullets, terrain, dust - is bent onto the ball. One curved horizon arc above the fight, nothing drawn past it, and things off to the side drop down the curve and lean outward. Drawing only: hits and walls are unchanged; the HUD stays flat."],
+    ["planet_ball_radius_frac", "Ball radius (× width)", "Radius of the horizon arc, as a share of the screen width. Smaller = a rounder, tighter ball.", 0.05],
+    ["planet_ball_top_frac", "Horizon height (× height)", "Where the top of the ball's horizon sits on screen, as a share of the screen height (0 = the very top).", 0.01],
+    ["planet_ball_cols", "Curve cells across", "How many slices the bend is made of across the screen. More = smoother curve, slower.", 1],
+    ["planet_ball_bands", "Curve cells down", "How many slices down the screen. More = more even spacing, slower.", 1]
   ]]
 ];
 // Settings that do nothing under the current settings (Studio greys them out
@@ -199,7 +207,8 @@ var CAM_GROUPS = [
 // matching rule names the reason.  [controller test, reason, keys]
 var CAM_DEPTH_KEYS = ["depth", "depth_base", "depth_gain", "depth_shot", "depth_budget_ms"];
 var CAM_DSCALE_KEYS = ["dscale_near", "dscale_far", "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve"];
-var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash"];
+var CAM_BALL_KEYS = ["planet_ball_radius_frac", "planet_ball_top_frac", "planet_ball_cols", "planet_ball_bands"];
+var CAM_PLANET_KEYS = ["planet_reach_x_frac", "planet_reach_y_frac", "planet_horizon_deg", "planet_far", "planet_squash", "planet_ball"].concat(CAM_BALL_KEYS);
 var CAM_IDLE_RULES = [
   // camera.py _target: follow off = fixed 1.0x at the centre.
   [function (c) { return !c.follow; }, "Follow-cam is off",
@@ -217,6 +226,8 @@ var CAM_IDLE_RULES = [
   // worldscale.size (planet curve replaces the distance term), Camera.depth_live (planet replaces the tilt).
   [function (c) { return c.anchor_scale && c.planet; }, "Tiny planet is on", CAM_DSCALE_KEYS.concat(CAM_DEPTH_KEYS)],
   [function (c) { return !c.planet; }, "Tiny planet is off", CAM_PLANET_KEYS],
+  // camera.py / ballwarp.py: the big ball bend is off.
+  [function (c) { return !c.planet_ball; }, "Big ball is off", CAM_BALL_KEYS],
   [function (c) { return !c.depth; }, "Depth tilt is off", CAM_DEPTH_KEYS.slice(1)],
   [function (c) { return !c.punch; }, "Punch-in is off", ["punch_zoom", "punch_tilt_deg", "punch_pull", "punch_in_ticks", "punch_out_s"]],
   [function (c) { return !c.shake; }, "Shake is off", ["shake_max_px", "shake_hz"]],
@@ -227,7 +238,7 @@ var CAM_IDLE_RULES = [
   [function (c) { return !c.clash_on; }, "Clash shot is off", ["clash_zoom", "clash_in_s", "clash_hold_s", "clash_out_s"]]
 ];
 // Settings whose change can grey / un-grey others (the page rebuilds on them).
-var CAM_IDLE_CONTROLLERS = ["follow", "anchor_scale", "anchor_fixed", "planet", "depth", "punch", "shake", "ult_on", "switch_on", "ko_on", "clash_on"];
+var CAM_IDLE_CONTROLLERS = ["follow", "anchor_scale", "anchor_fixed", "planet", "planet_ball", "depth", "punch", "shake", "ult_on", "switch_on", "ko_on", "clash_on"];
 function camIdle(c, k) {
   for (var i = 0; i < CAM_IDLE_RULES.length; i++) {
     var r = CAM_IDLE_RULES[i];

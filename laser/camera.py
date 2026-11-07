@@ -81,6 +81,13 @@ Four layers, one transform:
                      (foreshortening; drawn in place, never moved).
                      Fighters and their FX only take the size curve.  While
                      on, the depth tilt is off (the planet replaces it).
+  8. Big ball       (planet_ball, needs the tiny planet) the fight happens on
+                     top of a big ball: the finished scene (everything the
+                     camera draws) is bent onto it at paint time
+                     (laser/ballwarp.py) - one horizon arc above the fight,
+                     nothing drawn past it, things off to the side drop down
+                     the curve and lean outward.  Screen space, after the
+                     camera; the HUD stays flat; the cursor is mapped back.
 
 Identical in Solo and Battle: the same step / view runs either way; the
 only difference is the follow zoom rule (battle_mode) when anchor_scale is
@@ -170,6 +177,12 @@ DEFAULTS = {
     "planet_horizon_deg": 80.0, # how far round the sphere the horizon is
     "planet_far": 0.15,      # size factor at the horizon
     "planet_squash": 0.85,   # foreshortening at the horizon (0 = none)
+    # Big ball (laser/ballwarp.py): the whole scene bent onto a ball.
+    "planet_ball": True,     # on = curved horizon arc, things lean off the ball
+    "planet_ball_radius_frac": 1.5,  # ball (horizon arc) radius, x screen width
+    "planet_ball_top_frac": 0.15,    # horizon's top on screen, x screen height
+    "planet_ball_cols": 64,  # warp cells across (more = smoother curve, slower)
+    "planet_ball_bands": 3,  # warp cells down
     # Wireframe overlay (laser/wireframe.py): how the environment acts on the
     # fighters - scaling, anchor / planet / depth, roll zones, camera framing,
     # pillar spawning - drawn in the scene over everything but the HUD.
@@ -199,6 +212,8 @@ RANGES = {
     "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
     "planet_reach_x_frac": [0.1, 2.0], "planet_reach_y_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
     "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
+    "planet_ball_radius_frac": [0.3, 5.0], "planet_ball_top_frac": [0.0, 0.9],
+    "planet_ball_cols": [16, 192], "planet_ball_bands": [1, 8],
 }
 # Settings split into x / y: an old file's single value seeds both.
 LEGACY_XY = {"margin_px": ("margin_x_px", "margin_y_px"),
@@ -262,6 +277,8 @@ def normalize(obj):
         if k in obj:
             s[k] = _num(obj[k], DEFAULTS[k], lo, hi)
     s["punch_in_ticks"] = int(s["punch_in_ticks"])
+    s["planet_ball_cols"] = int(s["planet_ball_cols"])
+    s["planet_ball_bands"] = int(s["planet_ball_bands"])
     if s["scale_min"] > s["scale_max"]:
         s["scale_min"], s["scale_max"] = s["scale_max"], s["scale_min"]
     return s
@@ -405,6 +422,8 @@ class Camera:
         self.decay = 0.0            # trauma lost per tick
         self.t = 0                  # camera clock (ticks; stands still paused)
         self._view = None           # last view() result (None = identity)
+        from .ballwarp import BallWarp
+        self.ball = BallWarp()      # big ball warp (Overlay._paint)
         self.load()
 
     # --- settings ---------------------------------------------------------
@@ -819,9 +838,22 @@ class Camera:
                                   m[1][0], m[1][1], m[1][2],
                                   m[2][0], m[2][1], m[2][2]), True)
 
+    def world_to_screen(self, x, y):
+        """A scene point -> screen under the last view() (no ball bend)."""
+        m = getattr(self, "_mat", None)
+        if self._view is None or m is None:
+            return x, y
+        X = x * m[0][0] + y * m[1][0] + m[2][0]
+        Y = x * m[0][1] + y * m[1][1] + m[2][1]
+        W = x * m[0][2] + y * m[1][2] + m[2][2]
+        if abs(W) < 1e-9:
+            return x, y
+        return X / W, Y / W
+
     def screen_to_world(self, x, y):
         """A screen point (the real mouse cursor) -> scene coordinates under
-        the last painted view."""
+        the last painted view (big ball bend undone first)."""
+        x, y = self.ball.unwarp(x, y)
         m = getattr(self, "_mat", None)
         if self._view is None or m is None:
             return x, y
