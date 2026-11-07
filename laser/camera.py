@@ -82,12 +82,14 @@ Four layers, one transform:
                      Fighters and their FX only take the size curve.  While
                      on, the depth tilt is off (the planet replaces it).
   8. Big ball       (planet_ball, needs the tiny planet) the fight happens on
-                     top of a big ball: the finished scene (everything the
-                     camera draws) is bent onto it at paint time
-                     (laser/ballwarp.py) - one horizon arc above the fight,
-                     nothing drawn past it, things off to the side drop down
-                     the curve and lean outward.  Screen space, after the
-                     camera; the HUD stays flat; the cursor is mapped back.
+                     the near face of a big ball (laser/ballwarp.py): the
+                     ground layers are bent onto it (meridians pinching to
+                     the horizon's top), the things standing on it -
+                     boulders, fighters and their FX - are drawn whole at
+                     their spot, leaning with it and shrinking to
+                     planet_ball_horizon_size at the horizon, never clipped.
+                     Screen space, after the camera; the HUD stays flat;
+                     the cursor is mapped back.
 
 Identical in Solo and Battle: the same step / view runs either way; the
 only difference is the follow zoom rule (battle_mode) when anchor_scale is
@@ -179,10 +181,11 @@ DEFAULTS = {
     "planet_squash": 0.85,   # foreshortening at the horizon (0 = none)
     # Big ball (laser/ballwarp.py): the whole scene bent onto a ball.
     "planet_ball": True,     # on = curved horizon arc, things lean off the ball
-    "planet_ball_radius_frac": 1.5,  # ball (horizon arc) radius, x screen width
+    "planet_ball_radius_frac": 3.0,  # sideways curve: ball half-width, x screen width (big = straight)
     "planet_ball_top_frac": 0.15,    # horizon's top on screen, x screen height
-    "planet_ball_cols": 64,  # warp cells across (more = smoother curve, slower)
-    "planet_ball_bands": 3,  # warp cells down
+    "planet_ball_horizon_size": 0.02,  # size of standing things at the horizon (1 = full)
+    "planet_ball_cols": 48,  # warp cells across (more = smoother curve, slower)
+    "planet_ball_bands": 8,  # warp cells from the fight row up to the horizon
     # Wireframe overlay (laser/wireframe.py): how the environment acts on the
     # fighters - scaling, anchor / planet / depth, roll zones, camera framing,
     # pillar spawning - drawn in the scene over everything but the HUD.
@@ -212,8 +215,9 @@ RANGES = {
     "speed_min": [0.05, 2.0], "speed_max": [0.05, 2.0],
     "planet_reach_x_frac": [0.1, 2.0], "planet_reach_y_frac": [0.1, 2.0], "planet_horizon_deg": [10.0, 90.0],
     "planet_far": [0.05, 1.0], "planet_squash": [0.0, 0.95],
-    "planet_ball_radius_frac": [0.3, 5.0], "planet_ball_top_frac": [0.0, 0.9],
-    "planet_ball_cols": [16, 192], "planet_ball_bands": [1, 8],
+    "planet_ball_radius_frac": [0.2, 5.0], "planet_ball_top_frac": [0.0, 0.9],
+    "planet_ball_horizon_size": [0.0, 1.0],
+    "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32],
 }
 # Settings split into x / y: an old file's single value seeds both.
 LEGACY_XY = {"margin_px": ("margin_x_px", "margin_y_px"),
@@ -853,7 +857,10 @@ class Camera:
     def screen_to_world(self, x, y):
         """A screen point (the real mouse cursor) -> scene coordinates under
         the last painted view (big ball bend undone first)."""
-        x, y = self.ball.unwarp(x, y)
+        return self.flat_to_world(*self.ball.unwarp(x, y))
+
+    def flat_to_world(self, x, y):
+        """An unbent screen point -> scene coordinates under the last view."""
         m = getattr(self, "_mat", None)
         if self._view is None or m is None:
             return x, y

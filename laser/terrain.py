@@ -1103,6 +1103,10 @@ class Terrain:
                 x = 20 + rnd() * (sw - 40)
                 ps = worldfx.pscale(x, 0.0 if vy > 0 else sh, self.sw, self.sh)
                 y = -10.0 - ext if vy > 0 else sh + P["height"] * ps + 10.0 + ext
+                if vy > 0:
+                    hy = self._ball_horizon_y(x, 0.90 + 0.09 * rnd())
+                    if hy is not None:
+                        y = hy       # big ball: pops up tiny on the horizon
             if any(_in_ellipse(p.x - x, p.y - y, P["gap_x_px"], P["gap_y_px"]) for p in self.pillars):
                 continue
             if rnd() * 100.0 < P["multi_chance"]:
@@ -1117,6 +1121,21 @@ class Terrain:
             self.pillars.append(p)
             return True
         return False
+
+    def _ball_horizon_y(self, x, frac):
+        """Big ball (laser/ballwarp.py): the world y, at world x, of the row
+        frac of the way from the fight row to the horizon's top - where a
+        boulder rolling in from the top first shows, tiny.  None when the
+        ball is off."""
+        cam = getattr(self.world, "camera", None)
+        ball = getattr(cam, "ball", None)
+        if ball is None or not ball.live():
+            return None
+        try:
+            sx, _sy = cam.world_to_screen(x, 0.0)
+            return cam.flat_to_world(sx, ball.horizon_y(frac))[1]
+        except Exception:
+            return None
 
     def _age_rubble(self):
         if self.pits:
@@ -1141,21 +1160,42 @@ class Terrain:
                 return True
         return False
 
-    def paint_back(self, qp, world):
+    @staticmethod
+    def _stand(qp, sq, cam_t, world, x, y):
+        """Big ball (laser/ballwarp.py): draw the next thing upright at its
+        spot on the ball (World.ball_obj), then the planet squash about its
+        own spot.  Without the ball: just the squash."""
+        hook = getattr(world, "ball_obj", None)
+        if hook is not None:
+            t = cam_t * hook(x, y)
+            if sq.base is not None:
+                sq.base = t
+            else:
+                qp.setTransform(t)
+        sq.at(x, y)
+
+    def paint_back(self, qp, world, ground=True, pillars=True):
+        """ground: craters, marks, rubble; pillars: the pillars no fighter
+        stands behind (the big ball draws them in separate passes)."""
         P = _wf()["pillars"]
         ink = QColor(_wf()["ground"]["ink"])
-        if self.marks or self.pits:
-            self._paint_ground_damage(qp, ink)
-        if self.rubble:
-            self._paint_rubble(qp, ink)
+        if ground:
+            if self.marks or self.pits:
+                self._paint_ground_damage(qp, ink)
+            if self.rubble:
+                self._paint_rubble(qp, ink)
+        if not pillars:
+            return
         figs = [f for f in world.all_figures() if getattr(f.transform, "init", True)]
         alpha = GHOST_ALPHA if getattr(world, "boulders_ghost", False) else 1.0
+        cam_t = qp.transform()
         sq = worldscale.squasher(qp, self.sw)     # tiny planet (no-op when off)
         for p in sorted(self.pillars, key=lambda q: (q.y, q.zk)):
             if not self._front(p, P, figs):
-                sq.at(p.x, p.y)
+                self._stand(qp, sq, cam_t, world, p.x, p.y)
                 self._paint_pillar(qp, p, P, ink, alpha)
         sq.done()
+        qp.setTransform(cam_t)
 
     def paint_front(self, qp, world, silhouettes=True):
         """Pillars a fighter stands behind, drawn over the fighters.  Every
@@ -1168,21 +1208,30 @@ class Terrain:
         ghost = getattr(world, "boulders_ghost", False)
         alpha = GHOST_ALPHA if ghost else 1.0
         base = qp.transform()                     # camera view (no planet squash)
+        hook = getattr(world, "ball_obj", None)
         sq = worldscale.squasher(qp, self.sw)
         for p in sorted(self.pillars, key=lambda q: (q.y, q.zk)):
             if self._front(p, P, figs):
-                sq.at(p.x, p.y)
+                self._stand(qp, sq, base, world, p.x, p.y)
                 clip = self._paint_pillar(qp, p, P, ink, alpha)
                 if silhouettes and not ghost and clip is not None:
                     behind = self._behind(p, P, figs)
                     if behind:
                         qp.save()
                         qp.setClipPath(clip, Qt.IntersectClip)   # rock shape (squashed)
-                        qp.setTransform(base)                     # fighters are not squashed
                         for f in behind:
+                            # fighters are not squashed; on the big ball each
+                            # stands at its own spot (about its feet)
+                            if hook is not None:
+                                fx, fy, _hh = worldfx.WorldFx.foot(
+                                    f, worldfx.pscale(f.x, f.y, self.sw, self.sh))
+                                qp.setTransform(base * hook(fx, fy))
+                            else:
+                                qp.setTransform(base)
                             _paint_silhouette(qp, f)
                         qp.restore()
         sq.done()
+        qp.setTransform(base)
 
     def _behind(self, p, P, figs):
         """Fighters standing behind pillar p whose body can overlap it."""
@@ -1662,10 +1711,10 @@ def note_rubble(world, x, y, size, rot, rgb):
         st.add_rubble(x, y, size, rot, rgb)
 
 
-def paint_back(qp, world):
+def paint_back(qp, world, ground=True, pillars=True):
     st = getattr(world, "terrain", None)
     if st is not None and _wf()["ground"]["enabled"]:
-        st.paint_back(qp, world)
+        st.paint_back(qp, world, ground, pillars)
 
 
 def paint_front(qp, world, silhouettes=True):
