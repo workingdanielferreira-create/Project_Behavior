@@ -700,6 +700,7 @@ var UNIQUE_DEFAULTS = {
   // Shown as "Transformations" (the key stays dual_form so older files load).
   dual_form: {trigger: "gauge", gauge_hits: 12, every_ms: 8000, hp_thresholds: "60,30", combo_hits: 4, combo_window_ms: 1500,
     cooldown_ms: 2000, buff_ms: 2000, buff_speed_pct: 30, buff_damage_pct: 30, transition_fx: true, show_gauge: true,
+    speed_fx_anim: false,   // "Speed up character FX and animation" (off = speed only moves it further)
     forms: 2,   // how many forms (2-6), cycled a -> b -> ... -> a
     form_a: {name: "Form A", speed_pct: 100, damage_pct: 100, taken_pct: 100,
       palette: false, body: "#f2f4f6", accent: "#3fb0ea", aura: false, aura_color: "#3fb0ea",
