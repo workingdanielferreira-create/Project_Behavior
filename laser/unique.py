@@ -58,7 +58,7 @@ Hooks (all shared by Solo and Battle; Solo's enemy is the cursor):
     fxkit.FxDriver                       take_stack_fires() (Basic Stacks orbs)
     systems.CombatSystem                 tick() once per body step
     systems.MotionSystem                 holds_still(), push_out(), blink_free()
-    timefx.plan                          speed_mult() / fx_speed_mult()
+    timefx.plan                          speed_mult() / fx_speed_mult() / move_mult()
     actions / blink / dodge / retreat / ai cooldowns   cd_now()
     systems.ProjectileSystem             proj_step(), proj_wants_figures(), proj_off_point()
     systems.CollisionSystem              proj_off_figure(), proj_ghost()
@@ -132,6 +132,11 @@ DEFAULTS = {
         cooldown_ms=2000,
         buff_ms=2000, buff_speed_pct=30.0, buff_damage_pct=30.0,
         transition_fx=True, show_gauge=True,
+        # "Speed up character FX and animation": off = a form's speed (and
+        # the switch buff's) only changes how far it moves; its actions,
+        # their FX trigger times and its FX keep their set timing.  On = its
+        # actions (animation) and its own FX / bullets run at that speed too.
+        speed_fx_anim=False,
         forms=2,                     # how many forms (2-6), cycled a -> b -> ... -> a
         form_a=dict(name="Form A", speed_pct=100.0, damage_pct=100.0, taken_pct=100.0,
                     palette=False, body="#f2f4f6", accent="#3fb0ea", aura=False, aura_color="#3fb0ea",
@@ -1203,11 +1208,20 @@ def cd_now(fig, now):
     return now + st.cd_ahead if st is not None else now
 
 
+def _df_speed(fig, P):
+    """A Transformations fighter's speed from its form and the switch buff."""
+    st = getattr(fig, "ua", None)
+    k = max(0.05, _form(fig, P)["speed_pct"] / 100.0)
+    if st is not None and st.df_buff > 0:
+        k *= 1.0 + P["buff_speed_pct"] / 100.0
+    return k
+
+
 def speed_mult(fig, world=None):
     """Body time scale (movement + attack speed, every state): Berserker
-    rage, the Dual Form's speed (and its switch buff), an enemy domain's
-    slow, and 0 while stunned by an Aegis shockwave (body stopped; its FX
-    run on)."""
+    rage, the Dual Form's speed (and its switch buff) when "Speed up
+    character FX and animation" is on, an enemy domain's slow, and 0 while
+    stunned by an Aegis shockwave (body stopped; its FX run on)."""
     st = getattr(fig, "ua", None)
     if st is not None and st.stun_left > 0:
         return 0.0
@@ -1217,23 +1231,41 @@ def speed_mult(fig, world=None):
         kind, P = c
         if kind == "berserker":
             k *= 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
-        elif kind == "dual_form":
-            k *= max(0.05, _form(fig, P)["speed_pct"] / 100.0)
-            if st is not None and st.df_buff > 0:
-                k *= 1.0 + P["buff_speed_pct"] / 100.0
+        elif kind == "dual_form" and P["speed_fx_anim"]:
+            k *= _df_speed(fig, P)
     if st is not None:
         k *= st.ca_slow   # an enemy Earthbind Obelisk
     return k * _enemy_slow(fig, world)
 
 
 def fx_speed_mult(fig, world=None):
-    """Time scale of the figure's own FX / bullets (Berserker 'speed FX';
-    an enemy domain's slow reaches its shots too)."""
+    """Time scale of the figure's own FX / bullets (Berserker 'speed FX',
+    Transformations 'Speed up character FX and animation'; an enemy
+    domain's slow reaches its shots too)."""
     k = 1.0
-    P = _of(fig, "berserker")
-    if P is not None and P["speed_fx"]:
-        k *= 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
+    c = cfg(fig)
+    if c is not None:
+        kind, P = c
+        if kind == "berserker" and P["speed_fx"]:
+            k *= 1.0 + P["max_bonus_pct"] / 100.0 * _rage(fig, P)
+        elif kind == "dual_form" and P["speed_fx_anim"]:
+            k *= _df_speed(fig, P)
     return k * _enemy_slow(fig, world)
+
+
+def move_mult(fig, world=None):
+    """Distance scale of the fighter's own movement this tick (timefx.run_side):
+    a Transformations form's speed (and its switch buff) while "Speed up
+    character FX and animation" is off, so it covers more / less ground
+    (walking and the movement inside its actions) while its actions and
+    FX keep their set timing.  1 otherwise."""
+    c = cfg(fig)
+    if c is None:
+        return 1.0
+    kind, P = c
+    if kind != "dual_form" or P["speed_fx_anim"]:
+        return 1.0
+    return _df_speed(fig, P)
 
 
 def out_mult(fig):

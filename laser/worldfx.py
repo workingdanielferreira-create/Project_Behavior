@@ -1320,10 +1320,12 @@ class WorldFx:
     @staticmethod
     def body_steps(fig):
         """Movement steps the fighter's body takes this tick (laser/timefx.py: a
-        Transformation's / Berserker's speed runs the body 2, 3 ... times a tick)."""
+        Transformation's / Berserker's speed runs the body 2, 3 ... times a tick;
+        a Transformation without "Speed up character FX and animation" scales
+        the distance instead: timefx `move`)."""
         st = getattr(fig, "time", None)
         try:
-            return max(1, int(st.body_steps)) if st is not None else 1
+            return max(1, int(st.body_steps)) * max(1.0, float(st.move)) if st is not None else 1
         except Exception:
             return 1
 

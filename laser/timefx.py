@@ -55,7 +55,7 @@ class TimeState:
     reads."""
     __slots__ = ("active", "action", "t", "fired", "last_action", "last_frame", "end", "cfg", "speed",
                  "body", "fx", "body_acc", "fx_acc", "body_steps", "fx_steps", "frozen",
-                 "act_name", "act_start", "left")
+                 "act_name", "act_start", "left", "move")
 
     def __init__(self):
         self.active = False       # this figure's time effect is running
@@ -77,6 +77,7 @@ class TimeState:
         self.act_name = None      # actions.action_info
         self.act_start = 0
         self.left = None          # ticks left of a Transformations transition's time effect without an action
+        self.move = 1.0           # distance scale of its own movement this tick (unique.move_mult)
 
 
 def state(fig):
@@ -182,13 +183,24 @@ def plan(world):
     # ignores the freeze.
     frz = bool(getattr(world, "freeze_fighters", False))
     pup = world.puppet_fig() if hasattr(world, "puppet_fig") else None
+    # Transformations with "Speed up character FX and animation" off: the
+    # form's speed scales only the distance it moves (move), not its body
+    # time, so its actions and FX keep their set timing.
+    moves = {}
     for f in world.all_figures():
         b, bf = unique.speed_mult(f, world), unique.fx_speed_mult(f, world)
+        mv = unique.move_mult(f, world)
         if frz or f is pup:
             b = 0.0
+        if mv != 1.0:
+            moves[id(f)] = mv
         if b != 1.0 or bf != 1.0:
             boosts[id(f)] = (b, bf)
-    if not casters and not boosts:
+    for f in world.all_figures():
+        st = getattr(f, "time", None)
+        if st is not None or id(f) in moves:
+            state(f).move = moves.get(id(f), 1.0)
+    if not casters and not boosts and not moves:
         for f in world.all_figures():
             st = getattr(f, "time", None)
             if st is not None:
@@ -249,6 +261,33 @@ def frozen(fig):
     return bool(st is not None and st.frozen)
 
 
+MOVE_WARP_PX = 60.0    # a one-tick jump bigger than this is a blink / teleport: never scaled
+
+
+def _scale_moves(full, start):
+    """Transformations with "Speed up character FX and animation" off: the
+    distance each fighter moved this pass (walking and the movement inside
+    its actions) x its form's speed.  Knockback slides / shoves (not its
+    own movement) and blinks / teleports are left as they are."""
+    from . import motion
+    for f in full:
+        p = start.get(id(f))
+        if p is None:
+            continue
+        m, t = f.motion, f.transform
+        if m.bouncing or m.bounce_ending or m.shove_vx or m.shove_vy:
+            continue
+        dx, dy = t.x - p[0], t.y - p[1]
+        if not (dx or dy) or dx * dx + dy * dy > MOVE_WARP_PX * MOVE_WARP_PX:
+            continue
+        k = state(f).move
+        t.x, t.y = p[0] + dx * k, p[1] + dy * k
+        try:
+            motion.check_walls(f)
+        except Exception as e:
+            action_log.crash("timefx.move", e)
+
+
 def run_side(world, pipeline):
     """One side's pipeline pass (side already bound) as time sub-passes.
     Returns False when the game is quitting."""
@@ -263,6 +302,10 @@ def run_side(world, pipeline):
     S = max([0] + list(nb.values()) + list(nx.values()))
     for f in full:
         state(f).frozen = nb[id(f)] == 0
+    # Transformations move scale: where each such fighter stood before its
+    # pass (its own movement this tick is scaled after it).
+    start = {id(f): (f.transform.x, f.transform.y) for f in full
+             if nb[id(f)] > 0 and state(f).move != 1.0}
     try:
         for s in range(max(1, S)):
             active = [f for f in full if nb[id(f)] > s]
@@ -287,6 +330,8 @@ def run_side(world, pipeline):
                 if world.quitting:
                     return False
             world.projectiles = held + world.projectiles
+        if start:
+            _scale_moves(full, start)
     finally:
         world.figures = full
         world.time_fx_on = None

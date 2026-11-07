@@ -3145,13 +3145,16 @@ function uaDualForm(d, P) {
   uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "Shortest gap between two switches (gauge / combo).");
   s = sec(d, "After a switch", "ua-df-buff", "A short buff and the transition flash once the new form takes over.", "act");
   uaNum(s, "Buff ms", P, "buff_ms", 0, 30000, 100, "How long the buff lasts after each switch. 0 = no buff.");
-  uaNum(s, "Buff speed %", P, "buff_speed_pct", 0, 500, 5, "Extra speed (every state) during the buff.");
+  uaNum(s, "Buff speed %", P, "buff_speed_pct", 0, 500, 5, "Extra speed during the buff (same rule as the form speed: see \"Speed up character FX and animation\").");
   uaNum(s, "Buff damage %", P, "buff_damage_pct", 0, 500, 5, "Extra damage during the buff.");
   uaChk(s, "Transition flash", P, "transition_fx", "A burst and a flash in the new form's aura colour as it takes over.");
+  s = sec(d, "Form speed", "ua-df-speed", "What a form's Speed % (and the switch buff's speed) changes.", "act");
+  uaChk(s, "Speed up character FX and animation", P, "speed_fx_anim",
+    "Off: a form's speed only changes how far it moves (walking and the movement inside its actions); its actions, their FX trigger times and its FX keep their set timing. On: its actions, their animation and its own FX / shots also run faster (or slower) by the form's speed %.");
   L.split("").forEach(function (l, i) {
     var F = P["form_" + l], t = sec(d, "Form " + (i + 1) + (i === 0 ? " (starts in)" : ""), "ua-df-form_" + l, "This form's name, stats and look.", "act");
     var nm = field(t, "Name", inp("text", F.name, function (v) { F.name = v; save(); })); nm.style.minWidth = "0"; nm.style.width = "100%";
-    uaNum(t, "Speed %", F, "speed_pct", 5, 800, 5, "Speed in this form (every state): 100 = normal.");
+    uaNum(t, "Speed %", F, "speed_pct", 5, 800, 5, "Speed in this form: 100 = normal. Moves it further; also speeds its actions and FX only with \"Speed up character FX and animation\" on.");
     uaNum(t, "Damage %", F, "damage_pct", 0, 800, 5, "Damage dealt in this form: 100 = normal.");
     uaNum(t, "Damage taken %", F, "taken_pct", 0, 800, 5, "Damage taken in this form: 100 = normal.");
     uaChk(t, "Own palette", F, "palette", "On: this form recolours the fighter and its FX palette from the two colours below. Off: the character's own palette.", true);
