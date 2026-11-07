@@ -762,7 +762,7 @@ Studio's "Weapons" group. Test dummies can attack with them too.
 |---|---|---|
 | `buster_sword` | Buster Sword (Cloud Strife) | overhead slam: shock rings, cracks, rocks |
 | `masamune` | Masamune (Sephiroth) | glint, instant draw, eight flash cuts on the target |
-| `oath_oblivion` | Oathkeeper & Oblivion (Roxas) | twin counter-spins into an X slash ; Mode also offers 5 single-action moves (`weaponfx.SEQS`): Pierce & Chop, Ricochet, Shadow Step, Satellite, Starburst (each blade with its own role) |
+| `oath_oblivion` | Oathkeeper & Oblivion (Roxas) | twin counter-spins into an X slash ; Mode also offers 5 single-action moves (`weaponfx.SEQS`): Pierce & Chop, Ricochet, Shadow Step, Satellite, Starburst (each blade with its own role). No materialise intro (`weaponfx.INSTANT`): the move starts on tick 0, blades half transparent then solid, with a flash of stars. `w_blade` first / second = one effect per blade (the "one FX per blade" group presets; each event belongs to the blade landing it, `own`) |
 | `crescent_scythe` | Scythe (RWBY) | 3D-tilted body spin shedding rose petals, reaping hook |
 | `scissor_blade` | Scissor Blade (Kill la Kill) | splits into giant scissors, reaches, snips shut |
 | `gungnir` | Gungnir (Fate) | rune charge, spiralling throw, pillar of light |

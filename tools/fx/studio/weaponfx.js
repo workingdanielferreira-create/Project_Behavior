@@ -15,6 +15,11 @@ var STYLES = ["buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "s
 var HU = 10;
 var SUMMON = 8;
 var DISMISS = 12;
+var INSTANT = ["oath_oblivion"];   // no materialise intro: the move starts on tick 0
+var POP_A = 0.5;     // instant styles: opacity on tick 0 ...
+var POP_IN = 5;      // ... rising to solid over this many ticks
+var STAR_T = 14;     // instant styles: ticks the flash of stars lasts
+var STAR_N = 9;      // stars per blade (times density)
 var FOCAL = 4;
 var THICK_K = 0.5;
 var TRAIL_N = 6;
@@ -71,7 +76,7 @@ var MODELS = {
 var WEAPONS = {
   buster_sword: {models: ["buster_sword"], beats: 4, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.2, -0.4, 0, 210, 0, 0, 1, 3], [0.4, -0.1, -1, 0, 250, 20, 0, 1.05, 3], [0.62, 0.5, 0.2, 0, 440, 0, 0, 1.08, 2], [0.75, 0.55, 0.3, 0, 445, 0, 0, 1.05, 1], [1, 0.4, 0.2, 0, 430, 0, 0, 1, 3]]], events: [[0.62, "slam", "tip0", 1.3, 0]], fire: []},
   masamune: {models: ["masamune"], beats: 4, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.3, 0.3, 0, 160, 0, 0, 1, 3], [0.3, -0.3, 0.2, 0, 150, 40, 0, 1, 3], [0.4, 0.5, -0.4, 0, 340, 0, 0, 1, 1], [0.6, 0.4, -0.3, 0, 350, 0, 0, 1, 3], [1, 0.2, 0, 0, 380, 20, 0, 1, 3]]], events: [[0.42, "cuts", "target", 8, 0]], fire: []},
-  oath_oblivion: {models: ["oathkeeper", "oblivion"], beats: 5, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.2, -0.6, 0, -60, 0, 0, 1, 3], [0.45, 0.3, -1.4, 0, 300, 180, 0, 1, 3], [0.7, 0.6, -1.6, 0, 405, 360, 0, 1, 1], [1, 0.5, -1.4, 0, 395, 360, 0, 1, 3]], [[0, -0.2, 0.6, 0, 60, 0, 0, 1, 3], [0.45, 0.3, 1.4, 0, -300, -180, 0, 1, 3], [0.7, 0.6, 1.6, 0, -405, -360, 0, 1, 1], [1, 0.5, 1.4, 0, -395, -360, 0, 1, 3]]], events: [[0.7, "xflash", "mid", 1.3, 0]], fire: []},
+  oath_oblivion: {models: ["oathkeeper", "oblivion"], beats: 5, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.2, -0.6, 0, -60, 0, 0, 1, 3], [0.45, 0.3, -1.4, 0, 300, 180, 0, 1, 3], [0.7, 0.6, -1.6, 0, 405, 360, 0, 1, 1], [1, 0.5, -1.4, 0, 395, 360, 0, 1, 3]], [[0, -0.2, 0.6, 0, 60, 0, 0, 1, 3], [0.45, 0.3, 1.4, 0, -300, -180, 0, 1, 3], [0.7, 0.6, 1.6, 0, -405, -360, 0, 1, 1], [1, 0.5, 1.4, 0, -395, -360, 0, 1, 3]]], events: [[0.7, "xflash", "mid", 1.3, 0]], fire: [], own: [0]},
   crescent_scythe: {models: ["crescent_scythe"], beats: 5, aim: false, trail: "swept", shot: "", tracks: [[[0, -0.4, -0.3, 0, -100, 0, 0, 1, 3], [0.15, -0.2, -0.4, 0, -100, 0, 40, 1, 3], [0.55, 0.2, -0.3, 0, 260, 0, 50, 1, 0], [0.75, 0.9, 0, 0, 390, 0, 0, 1.1, 1], [1, 0.7, 0, 0, 380, 0, 0, 1, 3]]], events: [[0.1, "petals", "tip0", 1, 0], [0.74, "burst", "tip0", 1, 0]], fire: []},
   scissor_blade: {models: ["scissor_a", "scissor_b"], beats: 5, aim: true, trail: "", shot: "", tracks: [[[0, 0.2, -0.3, 0, -30, 0, 0, 1, 3], [0.3, 0.6, -0.2, 0.2, -75, 0, 0, 1.5, 3], [0.6, 0.6, -0.2, 1, -80, 0, 0, 1.6, 3], [0.72, 0.6, -0.2, 1, -5, 0, 0, 1.6, 2], [1, 0.3, -0.2, 0, -30, 0, 0, 1, 3]], [[0, 0.2, -0.3, 0, -30, 0, 0, 1, 3], [0.3, 0.6, -0.2, 0.2, 15, 0, 0, 1.5, 3], [0.6, 0.6, -0.2, 1, 20, 0, 0, 1.6, 3], [0.72, 0.6, -0.2, 1, -5, 0, 0, 1.6, 2], [1, 0.3, -0.2, 0, -30, 0, 0, 1, 3]]], events: [[0.72, "snip", "mid", 1.4, 0]], fire: []},
   gungnir: {models: ["gungnir"], beats: 6, aim: true, trail: "", shot: "", tracks: [[[0, -0.2, -0.6, 0, 0, 0, 0, 1, 3], [0.35, -0.9, -0.9, 0, -8, 90, 0, 1, 3], [0.45, -0.6, -0.9, 0, -4, 180, 0, 1.05, 2], [0.72, 0, -0.5, 1, 0, 1440, 0, 1.05, 2], [1, 0, -0.5, 1, 0, 1440, 0, 1, 3]]], events: [[0.05, "charge", "tip0", 1, 0.4], [0.72, "pillar", "tip0", 1.3, 0]], fire: []},
@@ -94,11 +99,11 @@ var WEAPONS = {
 // Extra signature sequences (params.w_mode names one): laser/weaponfx.py SEQS.
 var SEQS = {
   oath_oblivion: {
-    pierce_chop: {models: ["oathkeeper", "oblivion"], beats: 6, aim: true, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -60, 0, 0, 1, 3], [0.18, -0.5, -1, 0, -150, 0, 0, 1, 3], [0.4, -0.4, -1.2, 0.3, -165, 15, 0, 1, 3], [0.58, 0.3, -0.6, 0.8, 50, 30, 0, 1.08, 2], [0.66, 0.4, -0.3, 0.8, 72, 30, 0, 1, 1], [0.85, 0.1, 0, 0.3, 85, 0, 0, 1, 3], [1, 0, -0.3, 0, -40, 0, 0, 1, 3]], [[0, 0.1, 0.3, 0, 30, 0, 0, 1, 3], [0.18, -0.6, 0.6, 0, 5, 0, 0, 1, 3], [0.32, 0.2, 0.2, 1, 0, 0, 0, 1.08, 2], [0.42, 0.2, 0.2, 1, 0, 0, 0, 1.08, 0], [0.55, -0.3, 0.7, 0.45, 25, 0, 0, 1, 1], [0.8, 0, 0.6, 0.2, 40, 0, 0, 1, 3], [1, 0.1, 0.4, 0, 30, 0, 0, 1, 3]]], events: [[0.32, "burst", "tip1", 0.9, 0], [0.58, "cuts", "target", 3, 0]], fire: []},
-    ricochet: {models: ["oathkeeper", "oblivion"], beats: 8, aim: true, trail: "ghost", shot: "", tracks: [[[0, 0, -0.3, 0, -50, 0, 0, 1, 3], [0.16, -0.2, -0.5, 0, -40, 0, 0, 1, 3], [0.4, 0, 0.6, 0.35, 150, 0, 0, 1, 3], [0.55, 0, 0.7, 0.7, 160, 0, 0, 1, 3], [0.62, 0.3, -0.4, 0.85, -60, 40, 0, 1.1, 2], [0.7, 0.3, -0.7, 0.8, -82, 40, 0, 1.05, 1], [0.92, 0, -0.4, 0.2, -50, 0, 0, 1, 3], [1, 0, -0.3, 0, -50, 0, 0, 1, 3]], [[0, 0.1, 0.4, 0, 30, 0, 0, 1, 3], [0.08, -0.6, 0.2, 0, 160, 0, 0, 1, 3], [0.16, 0.4, -0.6, 0.15, 300, 0, 0, 1, 1], [0.32, 0, -6, 0.8, 480, 0, 0, 1, 0], [0.46, 0, -3, 1.5, 660, 0, 0, 1, 0], [0.56, 0, 1, 1.25, 840, 0, 0, 1, 0], [0.62, 0, 0, 0.95, 900, 0, 0, 1.05, 0], [0.8, 0, 4.5, 0.5, 1080, 0, 0, 1, 0], [0.92, 0.1, 0.4, 0, 1110, 0, 0, 1, 1], [1, 0.1, 0.4, 0, 1110, 0, 0, 1, 3]]], events: [[0.62, "cuts", "target", 2, 0], [0.63, "burst", "tip0", 1, 0]], fire: []},
-    shadow_step: {models: ["oathkeeper", "oblivion"], beats: 6, aim: true, trail: "ghost", shot: "", tracks: [[[0, 0.2, -0.3, 0, 110, 0, 0, 1, 3], [0.12, -0.2, 0, 0, 115, 0, 0, 1, 3], [0.15, -0.2, 0, 0, 115, 0, 0, 1, 0], [0.17, -0.2, 0, 0, 115, 0, 0, 0, 0], [0.25, 0, -1.4, 1.3, 95, 0, 0, 0, 0], [0.27, 0, -1.4, 1.3, 95, 0, 0, 1, 0], [0.32, 0, -1.6, 1.25, 95, 0, 0, 1, 1], [0.38, -0.3, 0.2, 1.1, 95, 0, 0, 1.1, 2], [0.5, 0, -0.6, 1.25, 110, 0, 0, 1, 1], [0.66, 0, -0.4, 1.25, 110, 0, 0, 1, 3], [0.68, 0, -0.4, 1.25, 110, 0, 0, 0, 0], [0.76, 0.2, -0.3, 0, 110, 0, 0, 0, 0], [0.78, 0.2, -0.3, 0, 110, 0, 0, 1, 0], [1, 0.2, -0.3, 0, 110, 0, 0, 1, 3]], [[0, -0.1, 0.4, 0, 120, 0, 0, 1, 3], [0.12, -0.4, 0.5, 0, 125, 0, 0, 1, 3], [0.15, -0.4, 0.5, 0, 125, 0, 0, 1, 0], [0.17, -0.4, 0.5, 0, 125, 0, 0, 0, 0], [0.25, 0.2, 0.3, 1.35, 230, 0, 0, 0, 0], [0.27, 0.2, 0.3, 1.35, 230, 0, 0, 1, 0], [0.42, 0.3, 0.1, 1.35, 235, 0, 0, 1, 3], [0.5, 0, 0, 1.3, 130, 30, 0, 1.1, 2], [0.58, -0.1, 0.1, 1.3, 115, 30, 0, 1, 1], [0.66, -0.1, 0.2, 1.3, 120, 0, 0, 1, 3], [0.68, -0.1, 0.2, 1.3, 120, 0, 0, 0, 0], [0.76, -0.1, 0.4, 0, 120, 0, 0, 0, 0], [0.78, -0.1, 0.4, 0, 120, 0, 0, 1, 0], [1, -0.1, 0.4, 0, 120, 0, 0, 1, 3]]], events: [[0.16, "blink", "tip0", 1, 0], [0.16, "blink", "tip1", 1, 0], [0.26, "blink", "tip0", 1, 0], [0.26, "blink", "tip1", 1, 0], [0.38, "cuts", "target", 2, 0], [0.5, "cuts", "target", 3, 0], [0.67, "blink", "tip0", 1, 0], [0.67, "blink", "tip1", 1, 0], [0.77, "blink", "tip0", 1, 0], [0.77, "blink", "tip1", 1, 0]], fire: []},
-    satellite: {models: ["oathkeeper", "oblivion"], beats: 7, aim: false, trail: "ghost", shot: "", tracks: [[[0, 0, -0.3, 0, -50, 0, 0, 1, 3], [0.12, -0.6, 0.4, 0, 170, 0, 40, 1, 3], [0.3, 0.9, 0.5, 0, 10, 0, 50, 1.05, 2], [0.38, 1, 0.4, 0, -5, 0, 30, 1, 1], [0.5, 0.2, 0.8, 0, 120, 0, 0, 1, 3], [0.6, 0.8, -0.6, 0, -70, 30, 0, 1.08, 2], [0.68, 0.7, -0.9, 0, -90, 30, 0, 1.05, 1], [1, 0, -0.3, 0, -50, 0, 0, 1, 3]], [[0, 0.1, 0.4, 0, 30, 0, 0, 1, 3], [0.06, 0.6, 0, 0, -20, 0, 0, 1, 1], [0.12, 3.889, -3.889, 0, -125, 0, 0, 1, 1], [0.203, 0, -5.5, 0, -170, 0, 0, 1, 0], [0.285, -3.889, -3.889, 0, -215, 0, 0, 1, 0], [0.367, -5.5, 0, 0, -260, 0, 0, 1, 0], [0.45, -3.889, 3.889, 0, -305, 0, 0, 1, 0], [0.532, 0, 5.5, 0, -350, 0, 0, 1, 0], [0.615, 3.889, 3.889, 0, -395, 0, 0, 1, 0], [0.698, 5.5, 0, 0, -440, 0, 0, 1, 0], [0.78, 3.889, -3.889, 0, -485, 0, 0, 1, 0], [0.88, 0.6, 0.3, 0, -690, 0, 0, 1, 1], [1, 0.1, 0.4, 0, -690, 0, 0, 1, 3]]], events: [[0.3, "burst", "tip0", 0.7, 0], [0.6, "burst", "tip0", 0.8, 0], [0.7, "burst", "tip1", 1.1, 0]], fire: []},
-    starburst: {models: ["oathkeeper", "oblivion"], beats: 9, aim: true, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -60, 0, 0, 1, 3], [0.06, -0.2, -0.8, 0.4, -130, 0, 0, 1, 3], [0.14, 0.5, 0, 0.6, 45, 0, 0, 1.05, 2], [0.2, 0.4, 0.3, 0.6, 70, 0, 0, 1, 1], [0.34, 0, 0.6, 0.7, 140, 0, 0, 1, 3], [0.42, 0.5, -0.6, 0.8, -60, 0, 0, 1.05, 2], [0.5, 0.4, -0.9, 0.8, -85, 0, 0, 1, 1], [0.62, 0.1, -1.3, 0.85, -100, 0, 0, 1, 3], [0.7, 0.6, 0.2, 0.9, 80, 20, 0, 1.08, 2], [0.76, 0.5, 0.4, 0.9, 95, 20, 0, 1, 1], [0.82, -0.1, -0.8, 0.95, -140, 0, 0, 1, 3], [0.88, 0.5, -0.1, 1, 40, 0, 0, 1.1, 2], [1, 0.1, -0.3, 0, -40, 0, 0, 1, 3]], [[0, 0, 0.4, 0, 40, 0, 0, 1, 3], [0.14, -0.5, 0.5, 0.6, 170, 0, 0, 1, 3], [0.28, 0.8, 0.6, 0.7, -5, 0, 45, 1.05, 2], [0.34, 0.9, 0.5, 0.7, -15, 0, 30, 1, 1], [0.48, -0.5, 0.2, 0.75, 0, 0, 0, 1, 3], [0.56, 0.3, 0.1, 1, 0, 0, 0, 1.1, 2], [0.62, 0.3, 0.1, 1, 0, 0, 0, 1.1, 0], [0.74, -0.2, 0.9, 0.9, 140, 0, 0, 1, 3], [0.82, -0.1, 0.9, 0.95, 150, 0, 0, 1, 3], [0.88, 0.5, -0.2, 1, -40, 0, 0, 1.1, 2], [1, 0.1, 0.4, 0, 40, 0, 0, 1, 3]]], events: [[0.14, "cuts", "target", 2, 0], [0.28, "cuts", "target", 2, 0], [0.42, "cuts", "target", 2, 0], [0.56, "burst", "tip1", 0.9, 0], [0.7, "cuts", "target", 2, 0], [0.88, "xflash", "target", 1.4, 0]], fire: []}
+    pierce_chop: {models: ["oathkeeper", "oblivion"], beats: 6, aim: true, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -60, 0, 0, 1, 3], [0.18, -0.5, -1, 0, -150, 0, 0, 1, 3], [0.4, -0.4, -1.2, 0.3, -165, 15, 0, 1, 3], [0.58, 0.3, -0.6, 0.8, 50, 30, 0, 1.08, 2], [0.66, 0.4, -0.3, 0.8, 72, 30, 0, 1, 1], [0.85, 0.1, 0, 0.3, 85, 0, 0, 1, 3], [1, 0, -0.3, 0, -40, 0, 0, 1, 3]], [[0, 0.1, 0.3, 0, 30, 0, 0, 1, 3], [0.18, -0.6, 0.6, 0, 5, 0, 0, 1, 3], [0.32, 0.2, 0.2, 1, 0, 0, 0, 1.08, 2], [0.42, 0.2, 0.2, 1, 0, 0, 0, 1.08, 0], [0.55, -0.3, 0.7, 0.45, 25, 0, 0, 1, 1], [0.8, 0, 0.6, 0.2, 40, 0, 0, 1, 3], [1, 0.1, 0.4, 0, 30, 0, 0, 1, 3]]], events: [[0.32, "burst", "tip1", 0.9, 0], [0.58, "cuts", "target", 3, 0]], fire: [], own: [1, 0]},
+    ricochet: {models: ["oathkeeper", "oblivion"], beats: 8, aim: true, trail: "ghost", shot: "", tracks: [[[0, 0, -0.3, 0, -50, 0, 0, 1, 3], [0.16, -0.2, -0.5, 0, -40, 0, 0, 1, 3], [0.4, 0, 0.6, 0.35, 150, 0, 0, 1, 3], [0.55, 0, 0.7, 0.7, 160, 0, 0, 1, 3], [0.62, 0.3, -0.4, 0.85, -60, 40, 0, 1.1, 2], [0.7, 0.3, -0.7, 0.8, -82, 40, 0, 1.05, 1], [0.92, 0, -0.4, 0.2, -50, 0, 0, 1, 3], [1, 0, -0.3, 0, -50, 0, 0, 1, 3]], [[0, 0.1, 0.4, 0, 30, 0, 0, 1, 3], [0.08, -0.6, 0.2, 0, 160, 0, 0, 1, 3], [0.16, 0.4, -0.6, 0.15, 300, 0, 0, 1, 1], [0.32, 0, -6, 0.8, 480, 0, 0, 1, 0], [0.46, 0, -3, 1.5, 660, 0, 0, 1, 0], [0.56, 0, 1, 1.25, 840, 0, 0, 1, 0], [0.62, 0, 0, 0.95, 900, 0, 0, 1.05, 0], [0.8, 0, 4.5, 0.5, 1080, 0, 0, 1, 0], [0.92, 0.1, 0.4, 0, 1110, 0, 0, 1, 1], [1, 0.1, 0.4, 0, 1110, 0, 0, 1, 3]]], events: [[0.62, "cuts", "target", 2, 0], [0.63, "burst", "tip0", 1, 0]], fire: [], own: [1, 0]},
+    shadow_step: {models: ["oathkeeper", "oblivion"], beats: 6, aim: true, trail: "ghost", shot: "", tracks: [[[0, 0.2, -0.3, 0, 110, 0, 0, 1, 3], [0.12, -0.2, 0, 0, 115, 0, 0, 1, 3], [0.15, -0.2, 0, 0, 115, 0, 0, 1, 0], [0.17, -0.2, 0, 0, 115, 0, 0, 0, 0], [0.25, 0, -1.4, 1.3, 95, 0, 0, 0, 0], [0.27, 0, -1.4, 1.3, 95, 0, 0, 1, 0], [0.32, 0, -1.6, 1.25, 95, 0, 0, 1, 1], [0.38, -0.3, 0.2, 1.1, 95, 0, 0, 1.1, 2], [0.5, 0, -0.6, 1.25, 110, 0, 0, 1, 1], [0.66, 0, -0.4, 1.25, 110, 0, 0, 1, 3], [0.68, 0, -0.4, 1.25, 110, 0, 0, 0, 0], [0.76, 0.2, -0.3, 0, 110, 0, 0, 0, 0], [0.78, 0.2, -0.3, 0, 110, 0, 0, 1, 0], [1, 0.2, -0.3, 0, 110, 0, 0, 1, 3]], [[0, -0.1, 0.4, 0, 120, 0, 0, 1, 3], [0.12, -0.4, 0.5, 0, 125, 0, 0, 1, 3], [0.15, -0.4, 0.5, 0, 125, 0, 0, 1, 0], [0.17, -0.4, 0.5, 0, 125, 0, 0, 0, 0], [0.25, 0.2, 0.3, 1.35, 230, 0, 0, 0, 0], [0.27, 0.2, 0.3, 1.35, 230, 0, 0, 1, 0], [0.42, 0.3, 0.1, 1.35, 235, 0, 0, 1, 3], [0.5, 0, 0, 1.3, 130, 30, 0, 1.1, 2], [0.58, -0.1, 0.1, 1.3, 115, 30, 0, 1, 1], [0.66, -0.1, 0.2, 1.3, 120, 0, 0, 1, 3], [0.68, -0.1, 0.2, 1.3, 120, 0, 0, 0, 0], [0.76, -0.1, 0.4, 0, 120, 0, 0, 0, 0], [0.78, -0.1, 0.4, 0, 120, 0, 0, 1, 0], [1, -0.1, 0.4, 0, 120, 0, 0, 1, 3]]], events: [[0.16, "blink", "tip0", 1, 0], [0.16, "blink", "tip1", 1, 0], [0.26, "blink", "tip0", 1, 0], [0.26, "blink", "tip1", 1, 0], [0.38, "cuts", "target", 2, 0], [0.5, "cuts", "target", 3, 0], [0.67, "blink", "tip0", 1, 0], [0.67, "blink", "tip1", 1, 0], [0.77, "blink", "tip0", 1, 0], [0.77, "blink", "tip1", 1, 0]], fire: [], own: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1]},
+    satellite: {models: ["oathkeeper", "oblivion"], beats: 7, aim: false, trail: "ghost", shot: "", tracks: [[[0, 0, -0.3, 0, -50, 0, 0, 1, 3], [0.12, -0.6, 0.4, 0, 170, 0, 40, 1, 3], [0.3, 0.9, 0.5, 0, 10, 0, 50, 1.05, 2], [0.38, 1, 0.4, 0, -5, 0, 30, 1, 1], [0.5, 0.2, 0.8, 0, 120, 0, 0, 1, 3], [0.6, 0.8, -0.6, 0, -70, 30, 0, 1.08, 2], [0.68, 0.7, -0.9, 0, -90, 30, 0, 1.05, 1], [1, 0, -0.3, 0, -50, 0, 0, 1, 3]], [[0, 0.1, 0.4, 0, 30, 0, 0, 1, 3], [0.06, 0.6, 0, 0, -20, 0, 0, 1, 1], [0.12, 3.889, -3.889, 0, -125, 0, 0, 1, 1], [0.203, 0, -5.5, 0, -170, 0, 0, 1, 0], [0.285, -3.889, -3.889, 0, -215, 0, 0, 1, 0], [0.367, -5.5, 0, 0, -260, 0, 0, 1, 0], [0.45, -3.889, 3.889, 0, -305, 0, 0, 1, 0], [0.532, 0, 5.5, 0, -350, 0, 0, 1, 0], [0.615, 3.889, 3.889, 0, -395, 0, 0, 1, 0], [0.698, 5.5, 0, 0, -440, 0, 0, 1, 0], [0.78, 3.889, -3.889, 0, -485, 0, 0, 1, 0], [0.88, 0.6, 0.3, 0, -690, 0, 0, 1, 1], [1, 0.1, 0.4, 0, -690, 0, 0, 1, 3]]], events: [[0.3, "burst", "tip0", 0.7, 0], [0.6, "burst", "tip0", 0.8, 0], [0.7, "burst", "tip1", 1.1, 0]], fire: [], own: [0, 0, 1]},
+    starburst: {models: ["oathkeeper", "oblivion"], beats: 9, aim: true, trail: "swept", shot: "", tracks: [[[0, 0, -0.3, 0, -60, 0, 0, 1, 3], [0.06, -0.2, -0.8, 0.4, -130, 0, 0, 1, 3], [0.14, 0.5, 0, 0.6, 45, 0, 0, 1.05, 2], [0.2, 0.4, 0.3, 0.6, 70, 0, 0, 1, 1], [0.34, 0, 0.6, 0.7, 140, 0, 0, 1, 3], [0.42, 0.5, -0.6, 0.8, -60, 0, 0, 1.05, 2], [0.5, 0.4, -0.9, 0.8, -85, 0, 0, 1, 1], [0.62, 0.1, -1.3, 0.85, -100, 0, 0, 1, 3], [0.7, 0.6, 0.2, 0.9, 80, 20, 0, 1.08, 2], [0.76, 0.5, 0.4, 0.9, 95, 20, 0, 1, 1], [0.82, -0.1, -0.8, 0.95, -140, 0, 0, 1, 3], [0.88, 0.5, -0.1, 1, 40, 0, 0, 1.1, 2], [1, 0.1, -0.3, 0, -40, 0, 0, 1, 3]], [[0, 0, 0.4, 0, 40, 0, 0, 1, 3], [0.14, -0.5, 0.5, 0.6, 170, 0, 0, 1, 3], [0.28, 0.8, 0.6, 0.7, -5, 0, 45, 1.05, 2], [0.34, 0.9, 0.5, 0.7, -15, 0, 30, 1, 1], [0.48, -0.5, 0.2, 0.75, 0, 0, 0, 1, 3], [0.56, 0.3, 0.1, 1, 0, 0, 0, 1.1, 2], [0.62, 0.3, 0.1, 1, 0, 0, 0, 1.1, 0], [0.74, -0.2, 0.9, 0.9, 140, 0, 0, 1, 3], [0.82, -0.1, 0.9, 0.95, 150, 0, 0, 1, 3], [0.88, 0.5, -0.2, 1, -40, 0, 0, 1.1, 2], [1, 0.1, 0.4, 0, 40, 0, 0, 1, 3]]], events: [[0.14, "cuts", "target", 2, 0], [0.28, "cuts", "target", 2, 0], [0.42, "cuts", "target", 2, 0], [0.56, "burst", "tip1", 0.9, 0], [0.7, "cuts", "target", 2, 0], [0.88, "xflash", "target", 1.4, 0]], fire: [], own: [0, 1, 0, 1, 0, 0]}
   }
 };
 
@@ -110,9 +115,26 @@ function W_(P) {
 // The Mode choices of a weapon: signature, its extra sequences, hold.
 function sequences(style) { return ["signature"].concat(Object.keys(SEQS[style] || {})).concat(["hold"]); }
 function sig(P) { return P.w_mode !== "hold"; }
+function instant(P) { return INSTANT.indexOf(L_().style(P)) >= 0; }
+// Ticks before the sequence starts: the materialise intro (0 for INSTANT styles).
+function summonT(P) { return instant(P) ? 0 : SUMMON; }
+// The weapon slots this effect draws and hits with (w_blade).
+function blades(P) {
+  var n = W_(P).models.length, out = [];
+  if (P.w_blade === "first") return [0];
+  if (P.w_blade === "second" && n > 1) return [1];
+  for (var i = 0; i < n; i++) out.push(i);
+  return out;
+}
+// The slot event n belongs to.
+function evOwn(w, n, e) {
+  if (w.own && n < w.own.length) return w.own[n];
+  return e[2] === "tip1" && w.models.length > 1 ? 1 : 0;
+}
+function evOn(P, w, n, e) { return blades(P).indexOf(evOwn(w, n, e)) >= 0; }
 function moveT(P) { return W_(P).beats * Math.max(1, Math.trunc(+P.swing_ticks || 6)); }   // the sequence, ticks
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
-function tickOf(P, t) { return SUMMON + Math.round(t * moveT(P)); }
+function tickOf(P, t) { return summonT(P) + Math.round(t * moveT(P)); }
 function shotFlight(P) {
   var w = W_(P);
   if (!w.shot) return 0;
@@ -121,22 +143,29 @@ function shotFlight(P) {
 }
 // The weapon's life: the hit window (and how long it stays).
 function activeTicks(P) {
-  if (!sig(P)) return SUMMON + Math.max(1, holdT(P));
-  var w = W_(P), n = SUMMON + moveT(P) + holdT(P), i;
-  for (i = 0; i < w.fire.length; i++) n = Math.max(n, tickOf(P, w.fire[i][0]) + shotFlight(P) + 1);
+  if (!sig(P)) return summonT(P) + Math.max(1, holdT(P));
+  var w = W_(P), n = summonT(P) + moveT(P) + holdT(P), on = blades(P), i;
+  for (i = 0; i < w.fire.length; i++) if (on.indexOf(w.fire[i][1]) >= 0) n = Math.max(n, tickOf(P, w.fire[i][0]) + shotFlight(P) + 1);
   for (i = 0; i < w.events.length; i++) {
     var e = w.events[i];
-    if (EVT_R[e[1]] > 0) n = Math.max(n, tickOf(P, e[0]) + EVT_HIT + (e[1] === "runes" ? 24 : 0) + 1);
+    if (EVT_R[e[1]] > 0 && evOn(P, w, i, e)) n = Math.max(n, tickOf(P, e[0]) + EVT_HIT + (e[1] === "runes" ? 24 : 0) + 1);
   }
   return n;
 }
 function totalTicks(P) { return activeTicks(P) + DISMISS + TAIL; }
-// [u through the sequence, materialise 0..1, fade 1..0] at tick.
+// [u through the sequence, materialise 0..1, fade 1..0] at tick.  INSTANT
+// styles are fully there (full size) from tick 0; their opacity is alpha's.
 function phase(P, life, tick) {
-  var ap = Math.min(1, tick / SUMMON);
+  var sm = summonT(P), ap = sm <= 0 ? 1 : Math.min(1, tick / sm);
   var fd = tick < life ? 1 : Math.max(0, 1 - (tick - life) / DISMISS);
-  if (!sig(P) || tick < SUMMON) return [0, ap, fd];
-  return [Math.min(1, (tick - SUMMON) / moveT(P)), ap, fd];
+  if (!sig(P) || tick < sm) return [0, ap, fd];
+  return [Math.min(1, (tick - sm) / moveT(P)), ap, fd];
+}
+// Opacity from the materialise phase: INSTANT styles start at POP_A on tick
+// 0 and are solid after POP_IN ticks.
+function alpha(P, ap, tick) {
+  if (instant(P)) return POP_A + (1 - POP_A) * L_().easeOut3(Math.min(1, Math.max(0, tick) / POP_IN));
+  return L_().easeOut3(ap);
 }
 function ease(e, k) {
   var L = L_();
@@ -356,7 +385,7 @@ function drawLayer(inst, ps, layer) {
   var P = inst.fx.params;
   if (layer !== "front" || P.w_side !== "behind" || !((+P.w_plane || 0) > 0)) return layer;
   if (!WEAPONS[L_().style(P)]) return layer;
-  return xf(inst, ps, 0, inst.age).zp > BEHIND_Z ? "back" : layer;
+  return xf(inst, ps, blades(P)[0], inst.age).zp > BEHIND_Z ? "back" : layer;
 }
 // Slot's cutting line: [x0, y0, x1, y1, half width] in world px.
 function seg(o) {
@@ -405,10 +434,10 @@ Shot.prototype.end = function (inst) {   // [tick it stops, stopped by a hit?]
 function shots(inst, ps) {
   var P = inst.fx.params, out = [];
   if (!sig(P)) return out;
-  var fire = W_(P).fire;
+  var fire = W_(P).fire, on = blades(P);
   for (var i = 0; i < fire.length; i++) {
     if (tickOf(P, fire[i][0]) > inst.age) break;
-    out.push(new Shot(inst, ps, i, fire[i]));
+    if (on.indexOf(fire[i][1]) >= 0) out.push(new Shot(inst, ps, i, fire[i]));
   }
   return out;
 }
@@ -430,15 +459,17 @@ function livePoints(inst, ps) {
 // ---------------------------------------------------------------- public
 function bladeLive(inst, P) {
   if (!sig(P)) return inst.age < inst.life;
-  return SUMMON <= inst.age && inst.age <= SUMMON + moveT(P);
+  var sm = summonT(P);
+  return sm <= inst.age && inst.age <= sm + moveT(P);
 }
 function hit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var P = inst.fx.params, w = W_(P), t = inst.age, i, p, s;
   var segDist = FXK().segDist;
   if (bladeLive(inst, P)) {
-    for (var sl = 0; sl < slots(P); sl++) {
-      var o = xf(inst, ps, sl, t);
+    var on = blades(P);
+    for (var b = 0; b < on.length; b++) {
+      var o = xf(inst, ps, on[b], t);
       if (!o.m.blade || Math.abs(o.K) < 0.05) continue;
       s = seg(o);
       if (segDist(tx, ty, s[0], s[1], s[2], s[3]) <= hr + s[4]) return true;
@@ -447,7 +478,7 @@ function hit(inst, tx, ty, hr, ps) {
   if (!sig(P)) return false;
   for (i = 0; i < w.events.length; i++) {
     var e = w.events[i], R = EVT_R[e[1]];
-    if (R <= 0) continue;
+    if (R <= 0 || !evOn(P, w, i, e)) continue;
     var te = tickOf(P, e[0]);
     if (e[1] === "runes") {
       var bs = [6, 12, 18];
@@ -482,7 +513,7 @@ function hit(inst, tx, ty, hr, ps) {
 function body(inst, ps) {
   var P = inst.fx.params;
   if (inst.age >= inst.life || !bladeLive(inst, P)) return null;
-  var o = xf(inst, ps, 0, inst.age);
+  var o = xf(inst, ps, blades(P)[0], inst.age);
   if (!o.m.blade || Math.abs(o.K) < 0.05) return null;
   var s = seg(o);
   return [[[s[0], s[1]], [s[2], s[3]]], s[4]];
@@ -552,6 +583,33 @@ function drawWeapon(pen, o, c, a, ps, tick) {
     pen.glow(gx, gy, 6 * ps * Math.abs(o.K), L.HOT, st * 0.7);
   }
 }
+// INSTANT styles: the blade is there at once, and a flash of four-point stars
+// bursts off it as it appears (a quick white flash first).  laser/weaponfx.py _draw_pop.
+function drawPop(pen, inst, o, c, ps, t, sl) {
+  if (t < 0 || t >= STAR_T) return;
+  var L = L_(), s = seg(o), x0 = s[0], y0 = s[1], x1 = s[2], y1 = s[3];
+  if (t < 3) {
+    var q0 = t / 3;
+    pen.glow((x0 + x1) * 0.5, (y0 + y1) * 0.5, (14 + 10 * q0) * ps, L.HOT, 230 * (1 - q0));
+  }
+  var hot = L.mix(c, L.HOT, 0.6);
+  var n = Math.max(3, Math.round(STAR_N * (+inst.fx.params.density || 1)));
+  for (var j = 0; j < n; j++) {
+    var r = L.rngFor(inst.seed, j + 17 * sl, 59);
+    var t0 = r.uniform(0, 4), life = r.uniform(7, STAR_T - 4), u = r(), an = r.uniform(0, Math.PI * 2);
+    var dist = r.uniform(4, 16), size = r.uniform(4, 9), rot = r.uniform(0, Math.PI * 0.5);
+    var k = t - t0;
+    if (k < 0 || k >= life) continue;
+    var q = k / life, d = dist * ps * L.easeOut3(q);
+    var px = x0 + (x1 - x0) * u + Math.cos(an) * d, py = y0 + (y1 - y0) * u + Math.sin(an) * d;
+    var env = L.easeOut3(Math.min(1, q / 0.25)) * (1 - q), sz = size * ps * env;
+    if (sz <= 0.2) continue;
+    var al = 255 * Math.min(1, (1 - q) * 1.6);
+    pen.glow(px, py, sz * 1.1, c, 150 * (1 - q));
+    spikes(pen, px, py, rot + q * 0.8, 4, sz, sz * 0.22, hot, al);
+    pen.glow(px, py, sz * 0.35 + 0.5, L.HOT, al);
+  }
+}
 // Light rushes in and a scan line runs up the blade as it appears.
 function drawSummon(pen, inst, o, c, ps, t) {
   if (t >= SUMMON) return;
@@ -584,7 +642,7 @@ function drawDismiss(pen, inst, o, c, ps, t) {
 // A swept ribbon between where the tip and the inner end of the trail band
 // were over the last TRAIL_N ticks.
 function drawTrail(pen, inst, ps, c, sl, t) {
-  var P = inst.fx.params, L = L_(), t0 = SUMMON, t1 = SUMMON + moveT(P);
+  var P = inst.fx.params, L = L_(), t0 = summonT(P), t1 = summonT(P) + moveT(P);
   if (t < t0 || t > t1 + TRAIL_N) return;
   var pts = [];
   for (var i = 0; i < TRAIL_N * TRAIL_SUB + 1; i++) {
@@ -602,11 +660,11 @@ function drawTrail(pen, inst, ps, c, sl, t) {
 }
 // Afterimages: the blade's outline where it was a few ticks ago.
 function drawGhosts(pen, inst, ps, c, sl, t) {
-  var P = inst.fx.params;
-  if (t < SUMMON || t > SUMMON + moveT(P) + 6) return;
+  var P = inst.fx.params, sm = summonT(P);
+  if (t < sm || t > sm + moveT(P) + 6) return;
   [2, 4, 6].forEach(function (k) {
     var tt = t - k;
-    if (tt < SUMMON) return;
+    if (tt < sm) return;
     var o = xf(inst, ps, sl, tt), near = o.nz > 0 ? -1 : 1;
     o.m.parts.forEach(function (pt) {
       if (pt[0] === "grip" || pt[0] === "dark") return;
@@ -766,7 +824,7 @@ function evCharge(pen, inst, c, ps, x, y, a, dur, k, salt) {
   pen.ring(x, y, rr, rr, 0, c, 160 * fade * q, 1.4 * ps);
 }
 function evPetals(pen, inst, ps, c, te, t, salt) {
-  var P = inst.fx.params, L = L_(), life = EVT_LIFE.petals, t1 = SUMMON + moveT(P), dens = +P.density || 1;
+  var P = inst.fx.params, L = L_(), life = EVT_LIFE.petals, t1 = summonT(P) + moveT(P), dens = +P.density || 1;
   pen.add(false);
   for (var tau = Math.max(te, t - life + 1); tau <= Math.min(t, t1); tau++) {
     var n = Math.max(0, Math.round(2 * dens)), s = seg(xf(inst, ps, 0, tau)), x1 = s[2], y1 = s[3];
@@ -826,7 +884,9 @@ function evImplode(pen, inst, c, ps, x, y, a, k, salt) {
 function drawEvents(pen, inst, ps, c, t) {
   var P = inst.fx.params;
   if (!sig(P)) return;
-  W_(P).events.forEach(function (e, n) {
+  var w = W_(P);
+  w.events.forEach(function (e, n) {
+    if (!evOn(P, w, n, e)) return;
     var kind = e[1], te = tickOf(P, e[0]), a = t - te, p;
     if (kind === "petals") { if (a >= 0) evPetals(pen, inst, ps, c, te, t, n * 13); return; }
     if (kind === "charge") {
@@ -957,26 +1017,29 @@ function drawBow(pen, inst, o, c, a, ps, t) {
 
 function draw(pen, inst, host, ps) {
   var P = inst.fx.params, L = L_(), t = inst.age, c = L.colours(inst, host)[0], w = W_(P), sl;
-  var ph = phase(P, inst.life, t), fd = ph[2], a = L.easeOut3(ph[1]) * fd;
+  var ph = phase(P, inst.life, t), fd = ph[2], a = alpha(P, ph[1], t) * fd, on = blades(P), b;
   pen.add(true);
   drawEvents(pen, inst, ps, c, t);
-  var xfs = [];
-  for (sl = 0; sl < slots(P); sl++) xfs.push(xf(inst, ps, sl, t));
+  var xfs = {};
+  for (b = 0; b < on.length; b++) xfs[on[b]] = xf(inst, ps, on[b], t);
   if (sig(P)) {
-    for (sl = 0; sl < slots(P); sl++) {
+    for (b = 0; b < on.length; b++) {
+      sl = on[b];
       if (!xfs[sl].m.blade) continue;
       if (w.trail === "swept") drawTrail(pen, inst, ps, c, sl, t);
       else if (w.trail === "ghost") drawGhosts(pen, inst, ps, c, sl, t);
     }
   }
-  for (sl = 0; sl < slots(P); sl++) {
+  for (b = 0; b < on.length; b++) {
+    sl = on[b];
     var o = xfs[sl];
     if (fd > 0) {
       drawWeapon(pen, o, c, a, ps, t);
       if (w.models[sl] === "pulse_bow") drawBow(pen, inst, o, c, a, ps, t);
     }
     pen.add(true);
-    drawSummon(pen, inst, o, c, ps, t);
+    if (instant(P)) drawPop(pen, inst, o, c, ps, t, sl);
+    else drawSummon(pen, inst, o, c, ps, t);
     drawDismiss(pen, inst, o, c, ps, t);
   }
   pen.add(true);
