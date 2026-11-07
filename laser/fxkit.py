@@ -492,9 +492,20 @@ ACTION_DEFAULTS = dict(logic="any", cooldown_ms=0, conditions=[], chain_next="",
 # deals its own damage; "range" = every Deals-damage FX of the action deals
 # damage_min at the lowest arc up to damage_max at the highest (the same
 # proportion), for that leap.
+# The same dict also holds the other travel movements' settings (arc,
+# hit_retreat, zigzag, flank; laser/travel.py documents each): dist_px =
+# distance from target along the final direction of travel (- short, + past
+# it), side left / right / random, hop_px (not leap), arc_radius_px /
+# arc_curve_pct, turn_frame / retreat_px / return_angle_deg / flip,
+# zig_count / zig_angle_deg / zig_len_px / zig_turn / zig_turn_pct,
+# fake_angle_deg / fake_len_px / flank_radius_px.
 LEAP_DEFAULTS = dict(start_frame=0, land_frame=-1, height_px=40.0, hit_px=None,
                      height_max_px=None, dist_min_px=300.0, dist_max_px=900.0,
-                     damage_mode="fixed", damage_min=5.0, damage_max=20.0)
+                     damage_mode="fixed", damage_min=5.0, damage_max=20.0,
+                     dist_px=0.0, side="left", hop_px=0.0, arc_radius_px=120.0, arc_curve_pct=0.0,
+                     turn_frame=-1, retreat_px=150.0, return_angle_deg=0.0, flip=False,
+                     zig_count=3, zig_angle_deg=45.0, zig_len_px=120.0, zig_turn="sharp", zig_turn_pct=50.0,
+                     fake_angle_deg=-20.0, fake_len_px=120.0, flank_radius_px=100.0)
 # The action's Blink (action_settings[action].blink, FXK.BLINK_DEFAULTS): a
 # list of blinks (`blinks`, each BLINK_STEP_DEFAULTS) that run in order as the
 # action's frames pass them; on while the list holds any.  Each blink: the

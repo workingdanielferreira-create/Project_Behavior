@@ -126,6 +126,9 @@ laser/speedband.py
 - Runner: 100 HP, ultimate triggers at 30% HP with survival teleport; shoot cycle is CONE→ZIGZAG→HOMING twice per second
 - Knockback immunity: Runner cycles vulnerable (3 hits) → immune (10 hits) indefinitely
 
+### Per-action Travel Movements
+- FX Studio action Movement "While doing it" (per action, NOT Movement styles): leap / arc / hit_retreat (Attack & retreat) / zigzag / flank (Fakeout to flank). Maths in `laser/travel.py` (`plan` / `at`), mirrored by `FXK.travelPlan` / `travelAt` in fxkit.js; run by `ActionRunner._leap_step` (game) and `leapStep` (Studio). All settings on `action_settings[action].leap` (`LEAP_DEFAULTS`): route fitted between `start_frame` and `land_frame`; `dist_px` = distance from target along the final direction of travel (0 = hit point on target, - short, + past); `side` left/right/random; `hop_px` (non-leap); arc `arc_radius_px`/`arc_curve_pct`; hit_retreat `turn_frame` (hit lands there unless `flip`), `retreat_px`, `return_angle_deg`, `flip`; zigzag `zig_count`/`zig_len_px`/`zig_angle_deg`/`zig_turn` (sharp/smooth/inertia)/`zig_turn_pct`; flank `fake_len_px`/`fake_angle_deg`/`flank_radius_px` (ends behind the target facing it)
+
 ### Rendering
 - LUT assignment on mode switch: `cycle_mode` must explicitly update `fig.lut` and `fig.trail.lut` after `set_mode()`
 - Swordsman trail: red-to-crimson gradient (`LUT_RED`) via `lut_for_mode()`

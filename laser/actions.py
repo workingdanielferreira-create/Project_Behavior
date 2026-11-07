@@ -26,6 +26,10 @@ was set up there (pack.action_settings):
     spot is locked and the fighter travels there in a hop arc
     (leap.height_px high), arriving as leap.land_frame starts, placed so
     the action's hit point lands on that spot (see _leap_hit_offset).
+  * Movements "arc", "hit_retreat", "zigzag", "flank" travel to the target
+    along their own routes between the same frames (laser/travel.py); every
+    travel movement takes leap.dist_px (distance from target: - short,
+    + past it along the final direction of travel).
   * Aim (pack.aim): the fighter always faces the target and its frame turns
     so the normal attack's barrel (from -> to anchor) points at it.
   * everything else (attack_special, ultimate, defend, ...) — plays when its
@@ -62,6 +66,7 @@ import re
 from . import config
 from . import unique as _unique
 from . import movestyle as _movestyle
+from .travel import TRAVEL_MOVES as _TRAVEL_MOVES
 
 TICK_MS = config.TICK_MS
 DEFAULT_ATTACK_GAP_MS = 350     # default gap after an attack ends (action_settings[attack].attack_gap_ms)
@@ -230,8 +235,8 @@ class ActionRunner:
         self.ctx = None              # the last observe() result (conditions read it)
         self.ctx_tick = None         # the tick it was taken on
         self.was_attacking = False   # tracker for non-image fighters: dash / slash edge
-        # Movement "leap": None = not taken off yet this loop; a dict while
-        # in the air / landed (sx, sy, ex, ey, t0, t1, h, left, done).
+        # Travel movements (leap / arc / ...): None = not taken off yet this
+        # loop; a dict while travelling / arrived (plan, t0, h, gy, left, done).
         self.leap = None
         # (action, damage) while a "range"-damage leap's FX can hit, else None.
         self.leap_dmg = None
@@ -722,7 +727,7 @@ class ActionRunner:
                             fig.transform.facing_left = True
                         elif dx > 0.001:
                             fig.transform.facing_left = False
-                elif cfg.get("movement") == "leap" and not (fig.motion.bouncing or fig.motion.bounce_ending):
+                elif cfg.get("movement") in _TRAVEL_MOVES and not (fig.motion.bouncing or fig.motion.bounce_ending):
                     rooted = True
                     fig.render.is_moving = False
                     self._leap_step(fig, name, cfg, n, fm, tx, ty)
@@ -768,12 +773,16 @@ class ActionRunner:
     def blocking(self):
         return self.playing == "defend"
 
-    # ------------------------------------------------------------ leap
+    # ------------------------------------------------------------ travel
     def _leap_step(self, fig, name, cfg, n, fm, tx, ty):
-        """Movement "leap", one tick (the action's frames carry the pose; this
-        carries the body).  Before leap.start_frame: stand facing the target.
-        At it: lock the target's spot.  Until leap.land_frame starts: travel
-        there along a hop arc.  After: stay landed.  Each loop leaps anew."""
+        """Travel movements (leap / arc / hit_retreat / zigzag / flank,
+        laser/travel.py), one tick (the action's frames carry the pose; this
+        carries the body).  Before leap.start_frame: stand facing the
+        target.  At it: lock the target's spot and plan the route.  Until
+        leap.land_frame starts: travel it.  After: stay put.  Each loop
+        travels anew."""
+        from . import travel as _travel
+        move = cfg.get("movement")
         lp = cfg.get("leap") or {}
         f0 = max(0, int(lp.get("start_frame") or 0))
         f1 = int(lp.get("land_frame") if lp.get("land_frame") is not None else -1)
@@ -783,7 +792,7 @@ class ActionRunner:
         t = self.elapsed - TICK_MS          # time into this loop before this tick
         st = self.leap
         if st is not None and t < st["t0"]:
-            st = self.leap = None           # a new loop: leap again
+            st = self.leap = None           # a new loop: travel again
         if st is None:
             if t < f0 * fm:
                 dx = tx - fig.x
@@ -796,38 +805,54 @@ class ActionRunner:
             left = (tx < fig.x) if abs(tx - fig.x) > 0.001 else fig.transform.facing_left
             sw, sh = fig.screen_w, fig.screen_h
             ps = _combat.position_scale(tx, ty, sw, sh)
-            ox, oy = _leap_hit_offset(fig, name, cfg, f1, -1.0 if left else 1.0, ps)
-            ex = max(0.0, min(float(sw), tx - ox))
-            ey = max(0.0, min(float(sh), ty - oy))
-            frac = _leap_frac(lp, ((tx - fig.x) ** 2 + (ty - fig.y) ** 2) ** 0.5)
-            h = _leap_height(lp, frac) * fig._position_scale()
-            if lp.get("damage_mode") == "range":
-                d0, d1 = float(lp.get("damage_min") or 0), float(lp.get("damage_max") or 0)
-                self.leap_dmg = (name, round(max(0.0, d0 + (d1 - d0) * frac), 2))
+            hit_f = f1
+            tturn = None
+            if move == "hit_retreat":
+                ft = int(lp.get("turn_frame") if lp.get("turn_frame") is not None else -1)
+                ft = (f0 + f1) // 2 if ft < 0 else max(f0 + 1, min(f1 - 1, ft)) if f1 - f0 > 1 else f1
+                tturn = ft * fm
+                if not lp.get("flip"):
+                    hit_f = ft
+            pl = _travel.plan(move, lp, fig.x, fig.y, tx, ty, fig._position_scale(), -1.0 if left else 1.0,
+                              lambda face: _leap_hit_offset(fig, name, cfg, hit_f, face, ps),
+                              f0 * fm, f1 * fm, tturn)
+            if move == "leap":
+                frac = _leap_frac(lp, ((tx - fig.x) ** 2 + (ty - fig.y) ** 2) ** 0.5)
+                pl["hop"] = _leap_height(lp, frac) * fig._position_scale()
+                if lp.get("damage_mode") == "range":
+                    d0, d1 = float(lp.get("damage_min") or 0), float(lp.get("damage_max") or 0)
+                    self.leap_dmg = (name, round(max(0.0, d0 + (d1 - d0) * frac), 2))
+                else:
+                    self.leap_dmg = None
             else:
                 self.leap_dmg = None
-            st = self.leap = dict(sx=fig.x, sy=fig.y, ex=ex, ey=ey, t0=f0 * fm, t1=f1 * fm,
-                                  h=h, left=left, done=False)
-        fig.transform.facing_left = st["left"]
+            st = self.leap = dict(plan=pl, t0=f0 * fm, h=pl["hop"], gy=fig.y, done=False,
+                                  left=pl["face"] < 0, sw=float(sw), sh=float(sh))
         if st["done"]:
             return
-        u = max(0.0, min(1.0, (t + TICK_MS - st["t0"]) / max(1.0, st["t1"] - st["t0"])))
-        fig.transform.x = st["sx"] + (st["ex"] - st["sx"]) * u
-        fig.transform.y = st["sy"] + (st["ey"] - st["sy"]) * u - st["h"] * 4.0 * u * (1.0 - u)
-        if u >= 1.0:
+        x, gy, lift, dx, fmode, done = _travel.at(st["plan"], t + TICK_MS)
+        x = max(0.0, min(st["sw"], x))
+        gy = max(0.0, min(st["sh"], gy))
+        fig.transform.x = x
+        fig.transform.y = gy - lift
+        st["gy"] = gy
+        if fmode == "travel" and not done and abs(dx) > 0.3:
+            fig.transform.facing_left = dx < 0
+        else:
+            fig.transform.facing_left = st["left"]
+        fig.render.is_moving = move != "leap" and not done
+        if done:
+            fig.transform.facing_left = st["left"]
             st["done"] = True
 
     def _leap_settle(self, fig):
         """The action ended (or was cut) mid-air: drop straight to the ground
-        line under the arc so the fighter isn't left hanging."""
+        line under the route so the fighter isn't left hanging."""
         st = self.leap
         self.leap = None
         if st is None or st["done"] or st["h"] <= 0:
             return
-        dx = st["ex"] - st["sx"]
-        u = (fig.x - st["sx"]) / dx if abs(dx) > 1e-6 else 0.0
-        u = max(0.0, min(1.0, u))
-        fig.transform.y = st["sy"] + (st["ey"] - st["sy"]) * u
+        fig.transform.y = st["gy"]
 
 
 def _leap_frac(lp, dist):

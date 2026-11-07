@@ -609,7 +609,9 @@ var CONDITION_COMMON = {not: false};
 // "move" = it keeps moving (at move_speed_pct % of its normal speed);
 // "back" = it retreats straight away from the target at move_speed_pct % of
 // its normal speed until back_stop_pct % of the whole action, then holds;
-// "leap" = it jumps onto the target (LEAP_DEFAULTS below).  Only
+// "leap" = it jumps onto the target (LEAP_DEFAULTS below); "arc",
+// "hit_retreat", "zigzag", "flank" = they travel to the target along their
+// own routes (travelPlan below, laser/travel.py).  Only
 // for attack / triggered actions; idle always stands and run always moves.
 // anim_loops: how many times the animation plays before the action ends
 // (attack / triggered actions; idle and run loop for as long as they last).
@@ -633,8 +635,14 @@ var ACTION_DEFAULTS = {logic: "any", cooldown_ms: 0, conditions: [], chain_next:
 // or farther.  damage_mode "fixed" = every FX deals its own damage; "range"
 // = every Deals-damage FX of the action deals damage_min at the lowest arc
 // up to damage_max at the highest, for that leap.
+// The same dict holds the other travel movements' settings (arc,
+// hit_retreat, zigzag, flank; laser/travel.py, travelPlan below).
 var LEAP_DEFAULTS = {start_frame: 0, land_frame: -1, height_px: 40, hit_px: null,
-  height_max_px: null, dist_min_px: 300, dist_max_px: 900, damage_mode: "fixed", damage_min: 5, damage_max: 20};
+  height_max_px: null, dist_min_px: 300, dist_max_px: 900, damage_mode: "fixed", damage_min: 5, damage_max: 20,
+  dist_px: 0, side: "left", hop_px: 0, arc_radius_px: 120, arc_curve_pct: 0,
+  turn_frame: -1, retreat_px: 150, return_angle_deg: 0, flip: false,
+  zig_count: 3, zig_angle_deg: 45, zig_len_px: 120, zig_turn: "sharp", zig_turn_pct: 50,
+  fake_angle_deg: -20, fake_len_px: 120, flank_radius_px: 100};
 // Where a leap at distance `dist` sits in its range, 0..1 (laser/actions.py
 // _leap_frac), its arc height (game px at 100 %) and its damage (null = each
 // FX's own).
@@ -652,6 +660,135 @@ function leapDamage(lp, f) {
   var d0 = +lp.damage_min || 0, d1 = +lp.damage_max || 0;
   return Math.round(Math.max(0, d0 + (d1 - d0) * f) * 100) / 100;
 }
+// ---------------------------------------------------------------- travel
+// Travel movements (laser/travel.py, same maths): the route from take-off to
+// the target for "leap" / "arc" / "hit_retreat" / "zigzag" / "flank".
+var TRAVEL_MOVES = ["leap", "arc", "hit_retreat", "zigzag", "flank"];
+var TRAVEL_SAMPLES = 40;
+function _tUnit(x, y, fx) { var d = Math.hypot(x, y); return d < 1e-6 ? [fx == null ? 1 : fx, 0, 0] : [x / d, y / d, d]; }
+function _tNum(lp, k, d) { var v = lp[k]; v = v == null ? d : +v; return isFinite(v) ? v : d; }
+function _tCubic(p0, p1, p2, p3, n) {
+  n = n || TRAVEL_SAMPLES; var out = [];
+  for (var i = 1; i <= n; i++) {
+    var t = i / n, a = Math.pow(1 - t, 3), b = 3 * (1 - t) * (1 - t) * t, c = 3 * (1 - t) * t * t, d = t * t * t;
+    out.push([a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]]);
+  }
+  return out;
+}
+function _tQuad(p0, p1, p2, n) {
+  n = n || TRAVEL_SAMPLES / 2; var out = [];
+  for (var i = 1; i <= n; i++) { var t = i / n, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t; out.push([a * p0[0] + b * p1[0] + c * p2[0], a * p0[1] + b * p1[1] + c * p2[1]]); }
+  return out;
+}
+function travelSide(lp, rnd) { var s = lp.side || "left"; return s === "random" ? ((rnd || Math.random)() < 0.5 ? 1 : -1) : s === "right" ? -1 : 1; }
+function _tArc(lp, s, sx, sy, px, py, ps) {
+  var u = _tUnit(px - sx, py - sy), fx = u[0], fy = u[1], D = u[2], lx = fy * s, ly = -fx * s;
+  var R = Math.max(0, _tNum(lp, "arc_radius_px", 120)) * ps, h = Math.max(0, Math.min(100, _tNum(lp, "arc_curve_pct", 0))) / 100, k = 4 / 3;
+  var p1 = [sx + fx * D * (1 / 3 + 0.5 * h) + lx * k * R * (1 - 0.5 * h), sy + fy * D * (1 / 3 + 0.5 * h) + ly * k * R * (1 - 0.5 * h)];
+  var p2 = [sx + fx * D * (2 / 3 + 0.9 * h) + lx * k * R, sy + fy * D * (2 / 3 + 0.9 * h) + ly * k * R];
+  return [[sx, sy]].concat(_tCubic([sx, sy], p1, p2, [px, py]));
+}
+function _tCorners(verts, style, k) {
+  if ((style !== "smooth" && style !== "inertia") || k <= 0) return verts.slice();
+  var out = [verts[0]];
+  for (var i = 1; i < verts.length - 1; i++) {
+    var a = verts[i - 1], v = verts[i], b = verts[i + 1];
+    var I = _tUnit(v[0] - a[0], v[1] - a[1]), O = _tUnit(b[0] - v[0], b[1] - v[1]);
+    var c = 0.45 * k * Math.min(I[2], O[2]);
+    var p0 = [v[0] - I[0] * c, v[1] - I[1] * c], p3 = [v[0] + O[0] * c, v[1] + O[1] * c];
+    out.push(p0);
+    if (style === "smooth") out = out.concat(_tQuad(p0, v, p3));
+    else out = out.concat(_tCubic(p0, [v[0] + I[0] * c, v[1] + I[1] * c], [v[0] + I[0] * c * 0.5 + O[0] * c * 0.5, v[1] + I[1] * c * 0.5 + O[1] * c * 0.5], p3, TRAVEL_SAMPLES / 2));
+  }
+  out.push(verts[verts.length - 1]);
+  return out;
+}
+function _tZig(lp, s, sx, sy, px, py, ps) {
+  var u = _tUnit(px - sx, py - sy), fx = u[0], fy = u[1], D = u[2], lx = fy * s, ly = -fx * s;
+  var n = Math.max(1, Math.min(20, Math.round(_tNum(lp, "zig_count", 3))));
+  var th = Math.max(5, Math.min(85, _tNum(lp, "zig_angle_deg", 45))) * Math.PI / 180;
+  var L = Math.max(0, _tNum(lp, "zig_len_px", 120)) * ps, fwd = L * Math.cos(th) * (n - 0.5);
+  if (fwd > 0.85 * D && fwd > 1e-6) L *= 0.85 * D / fwd;
+  var w = L * Math.sin(th) / 2, verts = [[sx, sy]], a = L * Math.cos(th) / 2;
+  for (var i = 0; i < n; i++) { var b = i % 2 === 0 ? w : -w; verts.push([sx + fx * a + lx * b, sy + fy * a + ly * b]); a += L * Math.cos(th); }
+  verts.push([px, py]);
+  return _tCorners(verts, lp.zig_turn || "sharp", Math.max(0, Math.min(100, _tNum(lp, "zig_turn_pct", 50))) / 100);
+}
+function _tFlank(lp, s, sx, sy, tx, ty, px, py, ps) {
+  var u = _tUnit(tx - sx, ty - sy), fx = u[0], fy = u[1], lx = fy * s, ly = -fx * s;
+  var a = _tNum(lp, "fake_angle_deg", -20) * Math.PI / 180, dx = fx * Math.cos(a) + lx * Math.sin(a), dy = fy * Math.cos(a) + ly * Math.sin(a);
+  var fl = Math.max(0, _tNum(lp, "fake_len_px", 120)) * ps, R = Math.max(4, _tNum(lp, "flank_radius_px", 100) * ps);
+  var F = [sx + dx * fl, sy + dy * fl], M = [tx + lx * R, ty + ly * R], k1 = Math.hypot(M[0] - F[0], M[1] - F[1]) / 3;
+  return [[sx, sy], F].concat(_tCubic(F, [F[0] + dx * k1, F[1] + dy * k1], [M[0] - fx * k1, M[1] - fy * k1], M),
+    _tCubic(M, [M[0] + fx * R * 1.3, M[1] + fy * R * 1.3], [px + fx * R * 1.3, py + fy * R * 1.3], [px, py]));
+}
+function _tEndDir(pts) {
+  var e = pts[pts.length - 1];
+  for (var i = pts.length - 2; i >= 0; i--) { var dx = e[0] - pts[i][0], dy = e[1] - pts[i][1]; if (dx * dx + dy * dy > 1) return _tUnit(dx, dy); }
+  return null;
+}
+function _tFace(dx, fb) { return Math.abs(dx) > 0.15 ? (dx < 0 ? -1 : 1) : fb; }
+// One take-off's route (laser/travel.py plan): face0 = facing at take-off,
+// hitOff(face) -> [ox, oy] where the hit lands relative to the body, t0/t1 =
+// take-off / arrival ms, tturn = attack & retreat turn ms.
+function travelPlan(move, lp, sx, sy, tx, ty, ps, face0, hitOff, t0, t1, tturn, rnd) {
+  var s = travelSide(lp, rnd), dist = _tNum(lp, "dist_px", 0) * ps, hop = Math.max(0, _tNum(lp, "hop_px", 0)) * ps;
+  var u = _tUnit(tx - sx, ty - sy, face0), fx = u[0], fy = u[1];
+  var aim = function (dx, dy) { var f = _tFace(dx, _tFace(tx - sx, face0)), o = hitOff(f); return [tx - o[0] + dx * dist, ty - o[1] + dy * dist, f]; };
+  var E, pts;
+  if (move === "hit_retreat") {
+    if (tturn == null) tturn = (t0 + t1) / 2;
+    tturn = t1 - t0 > 2 ? Math.max(t0 + 1, Math.min(t1 - 1, tturn)) : (t0 + t1) / 2;
+    var lx = fy, ly = -fx, a = _tNum(lp, "return_angle_deg", 0) * Math.PI / 180;
+    var rx = -fx * Math.cos(a) + s * lx * Math.sin(a), ry = -fy * Math.cos(a) + s * ly * Math.sin(a), rl = Math.max(0, _tNum(lp, "retreat_px", 150)) * ps;
+    if (lp.flip) {
+      var r0 = [sx + rx * rl, sy + ry * rl], d = _tUnit(tx - r0[0], ty - r0[1], face0);
+      E = aim(d[0], d[1]);
+      return {legs: [{pts: [[sx, sy], r0], t0: t0, t1: tturn, face: "lock"}, {pts: [r0, [E[0], E[1]]], t0: tturn, t1: t1, face: "lock"}], face: E[2], hop: hop, hit_t: t1};
+    }
+    E = aim(fx, fy);
+    return {legs: [{pts: [[sx, sy], [E[0], E[1]]], t0: t0, t1: tturn, face: "lock"}, {pts: [[E[0], E[1]], [E[0] + rx * rl, E[1] + ry * rl]], t0: tturn, t1: t1, face: "lock"}], face: E[2], hop: hop, hit_t: tturn};
+  }
+  if (move === "flank") {
+    var f = _tFace(-fx, face0), o = hitOff(f), ex = tx - o[0] - fx * dist, ey = ty - o[1] - fy * dist;
+    return {legs: [{pts: _tFlank(lp, s, sx, sy, tx, ty, ex, ey, ps), t0: t0, t1: t1, face: "travel"}], face: f, hop: hop, hit_t: t1};
+  }
+  if (move === "arc" || move === "zigzag") {
+    var shape = move === "arc" ? _tArc : _tZig, d0 = _tEndDir(shape(lp, s, sx, sy, tx, ty, ps)) || [fx, fy];
+    E = aim(d0[0], d0[1]);
+    return {legs: [{pts: shape(lp, s, sx, sy, E[0], E[1], ps), t0: t0, t1: t1, face: "travel"}], face: E[2], hop: hop, hit_t: t1};
+  }
+  E = aim(fx, fy);
+  return {legs: [{pts: [[sx, sy], [E[0], E[1]]], t0: t0, t1: t1, face: "lock"}], face: E[2], hop: 0, hit_t: t1};
+}
+function _tAlong(pts, u) {
+  if (pts.length < 2) return [pts[0][0], pts[0][1], 0, 0];
+  var segs = [], tot = 0, i;
+  for (i = 1; i < pts.length; i++) { var d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(d); tot += d; }
+  var last = pts[pts.length - 1];
+  if (tot < 1e-6) return [last[0], last[1], 0, 0];
+  var want = Math.max(0, Math.min(1, u)) * tot;
+  for (i = 0; i < segs.length; i++) {
+    if (want <= segs[i] || i === segs.length - 1) {
+      var k = segs[i] > 1e-9 ? want / segs[i] : 1, a = pts[i], b = pts[i + 1];
+      return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, b[0] - a[0], b[1] - a[1]];
+    }
+    want -= segs[i];
+  }
+  return [last[0], last[1], 0, 0];
+}
+// Where the body is at ms t: {x, y (ground), lift, dx, face, done}.
+function travelAt(pl, t) {
+  var legs = pl.legs;
+  for (var i = 0; i < legs.length; i++) {
+    var lg = legs[i];
+    if (t < lg.t1 || i === legs.length - 1) {
+      var u = Math.max(0, Math.min(1, (t - lg.t0) / Math.max(1, lg.t1 - lg.t0))), p = _tAlong(lg.pts, u);
+      return {x: p[0], y: p[1], lift: pl.hop * 4 * u * (1 - u), dx: p[2], face: lg.face, done: i === legs.length - 1 && u >= 1};
+    }
+  }
+}
+function travelGuide(pl) { var out = []; pl.legs.forEach(function (lg) { out = out.concat(lg.pts); }); return out; }
 // blink: the action's Blink (BLINK_DEFAULTS below).
 // Character-level aiming (pack.aim): the fighter always faces the target and
 // the whole frame on show turns so its barrel (from -> to anchor of that
@@ -2768,7 +2905,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, TRAVEL_MOVES: TRAVEL_MOVES, travelPlan: travelPlan, travelAt: travelAt, travelGuide: travelGuide, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   UNIQUE_TYPES: UNIQUE_TYPES, UNIQUE_DEFAULTS: UNIQUE_DEFAULTS, normalizeUnique: normalizeUnique,
   SUMMON_CONSTRUCTS: SUMMON_CONSTRUCTS, SUMMON_DEFAULTS: SUMMON_DEFAULTS, SUMMON_MAX: SUMMON_MAX,
