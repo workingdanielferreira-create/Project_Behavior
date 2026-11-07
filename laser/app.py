@@ -1584,24 +1584,53 @@ class Overlay(QWidget):
             # The frozen layers are captured un-camera'd; the paused camera
             # view (it does not step while paused) is applied around them
             # and the idle fighters, so the frame holds exactly as it was.
-            cv = w.camera.view()
+            # Big ball (laser/ballwarp.py): the held frame is bent onto the
+            # ball the same way as a normal frame; the menu stays flat.
+            cam = w.camera
+            cv = cam.view()
+            ball = cam.ball.setup(cam, w.screen_w, w.screen_h)
+            sp, img = p, None
+            if ball:
+                img = cam.ball.image(self.width(), self.height(), self.devicePixelRatioF())
+                sp = QPainter(img)
+                sp.setRenderHint(QPainter.Antialiasing)
+                sp.setRenderHint(QPainter.SmoothPixmapTransform)
             if cv is not None:
-                p.save()
-                w.camera.apply(p, cv)
-            p.drawPixmap(0, 0, mb.frozen)
-            mb.paint_fighters(p, w)
-            p.drawPixmap(0, 0, mb.frozen_front)
+                sp.save()
+                cam.apply(sp, cv)
+            sp.drawPixmap(0, 0, mb.frozen)
+            mb.paint_fighters(sp, w)
+            sp.drawPixmap(0, 0, mb.frozen_front)
             if cv is not None:
-                p.restore()
+                sp.restore()
+            if ball:
+                sp.end()
+                cam.ball.paint(p, img, cam.cfg, self.devicePixelRatioF())
             mb.paint_menu(p, w, self._pen)
             p.end()
             return
         # World Camera depth tilt: time the scene so a perspective transform
         # that is too slow for this machine switches itself off.
         _t0 = time.perf_counter()
-        self._paint_scene(p)
-        p.end()
         cam = w.camera
+        cam.view()
+        if cam.ball.setup(cam, w.screen_w, w.screen_h):
+            # Big ball (laser/ballwarp.py): the scene is painted offscreen,
+            # bent onto the ball, then the HUD goes on top, flat.
+            dpr = self.devicePixelRatioF()
+            img = cam.ball.image(self.width(), self.height(), dpr)
+            qp = QPainter(img)
+            qp.setRenderHint(QPainter.Antialiasing)
+            qp.setRenderHint(QPainter.SmoothPixmapTransform)
+            try:
+                self._paint_scene(qp, hud=False, wire=True)
+            finally:
+                qp.end()
+            cam.ball.paint(p, img, cam.cfg, dpr)
+            self._paint_hud(p)
+        else:
+            self._paint_scene(p)
+        p.end()
         _v = cam._view
         cam.note_paint((time.perf_counter() - _t0) * 1000.0,
                        _v is not None and _v[6] > 1e-4)
@@ -1636,11 +1665,13 @@ class Overlay(QWidget):
             if fig.fx is not None:
                 fig.fx.draw(p, fig, layer)
 
-    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True):
+    def _paint_scene(self, p, bodies=True, hud=True, abs_front=True, cam=True, wire=None):
         """Everything the game draws in a normal frame.  bodies=False skips
         the fighters' sprites, hud=False the HP readout and notice,
         abs_front=False the absolute-front FX, cam=False the camera view
-        — used by the pre-battle menu's frozen FX layers."""
+        — used by the pre-battle menu's frozen FX layers.  wire (default:
+        same as hud) = draw the wireframe overlay (the big ball paints the
+        scene with hud=False, wire=True, then the HUD flat)."""
         w = self.world
         # Camera (laser/camera.py: follow, punch-in, shake): the scene moves,
         # the HUD stays.
@@ -1799,13 +1830,18 @@ class Overlay(QWidget):
 
         # World Camera "Wireframe overlay" (laser/wireframe.py): in the scene,
         # over everything but the HUD; normal frames only.
-        if hud and cam:
+        if (hud if wire is None else wire) and cam:
             wireframe.paint(p, w)
 
         if shk is not None:
             p.restore()
-        if not hud:
-            return
+        if hud:
+            self._paint_hud(p)
+
+    def _paint_hud(self, p):
+        """The HUD: team HP bars, HP readout, notice (never camera'd or
+        bent by the big ball)."""
+        w = self.world
 
         # --- Team HP bars — Team 1 top-left, Team 2 top-right (laser/hpbars.py) ---
         hpbars.draw(p, w)
