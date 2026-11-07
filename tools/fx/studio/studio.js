@@ -106,7 +106,8 @@ function frameAt(t) { return Math.max(0, Math.min(frames() - 1, Math.floor(Math.
 function facing() {
   if (S.aim.enabled && aimRef()) return targetSideNow();   // aiming: always faces the target
   if (S.react === "retreat" && S.dash && S.dash.face) return S.dash.face;   // the dash faces the way it moves (fig.face)
-  if (S.leap) return S.leap.face;   // a leap faces the target it locked at takeoff
+  if (S.leapFace) return S.leapFace;   // planning a travel move: the facing it will hit with
+  if (S.leap) return S.leap.face;   // a travel move faces the way it travels (a leap: the target it locked at takeoff)
   if (S.react !== "retreat" && isLeap()) return targetSideNow();   // ... and the target before it
   if ($("faceMove").checked && Math.abs(S.vel[0]) > 0.01) return S.vel[0] < 0 ? -1 : 1;
   return +$("facing").value;
@@ -3948,14 +3949,15 @@ function buildActionProps(d) {
   s = sec(d, "Movement", "a-move", "Whether the fighter stands still while doing this action or can keep moving.", "act");
   if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
   else {
-    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"], ["leap", "Leap onto target"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
-      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target.";
-    if (cfg.movement === "leap") buildLeapProps(s, cfg);
+    field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"], ["leap", "Leap onto target"],
+      ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind.";
+    if (isTravelMove(cfg.movement)) buildTravelProps(s, cfg);
     if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = Math.max(0, Math.min(100, v)); save(); resetSim(S.t); }, 0, 100, 5)).title =
       "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
     if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
       "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
-    if (cfg.movement !== "leap") note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
+    if (!isTravelMove(cfg.movement)) note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
   buildCharFxProps(d);
@@ -6454,7 +6456,8 @@ function moveFigure() {
 // _leap_step, same maths): before Start frame the figure stands facing the
 // target; at it the target's spot is locked and the figure arcs there,
 // arriving as Land frame starts, placed so the hit point is on that spot.
-function isLeap() { return !!(C && S.action && S.react !== "retreat" && FXK.actionKind(S.action) !== "locomotion" && cfgOf(S.action).movement === "leap"); }
+function isTravelMove(m) { return FXK.TRAVEL_MOVES.indexOf(m) >= 0; }
+function isLeap() { return !!(C && S.action && S.react !== "retreat" && FXK.actionKind(S.action) !== "locomotion" && isTravelMove(cfgOf(S.action).movement)); }
 function leapFrames(cfg) {
   var lp = cfg.leap || {}, n = frames();
   var f0 = Math.max(0, Math.round(+lp.start_frame || 0)), f1 = Math.round(lp.land_frame == null ? -1 : +lp.land_frame);
@@ -6463,7 +6466,7 @@ function leapFrames(cfg) {
 }
 // Where the hit lands relative to the figure (game px, current facing).
 function leapHitOffset(cfg, land) {
-  var lp = cfg.leap || {}, f = facing(), ps = viewScale();
+  var lp = cfg.leap || {}, f = S.leapFace || facing(), ps = viewScale();
   if (Array.isArray(lp.hit_px) && lp.hit_px.length >= 2) return [(+lp.hit_px[0] || 0) * ps * f, (+lp.hit_px[1] || 0) * ps];
   var rel = function (name) {
     if (!name || name === "figure" || name === "target" || /^set:/.test(name)) return [0, 0];
@@ -6483,38 +6486,115 @@ function leapHitOffset(cfg, land) {
   return [a[0] + (+off[0] || 0) * ps * f, a[1] + (+off[1] || 0) * ps];
 }
 function leapStep(cfg) {
-  var fr = leapFrames(cfg), fm = frameMs(), t = S.t * FXK.TICK_MS;   // time into this pass before this tick
-  if (S.leap && (S.leap.cycle !== (S.cycle || 0) || t < S.leap.t0)) S.leap = null;   // a new pass: leap again
+  var fr = leapFrames(cfg), fm = frameMs(), t = S.t * FXK.TICK_MS, move = cfg.movement;   // time into this pass before this tick
+  if (S.leap && (S.leap.cycle !== (S.cycle || 0) || t < S.leap.t0)) S.leap = null;   // a new pass: travel again
   if (!S.leap) {
     if (t < fr[0] * fm) return;
     var dx = S.target[0] - S.figX, lp = cfg.leap || {}, lf = FXK.leapFrac(lp, Math.hypot(dx, S.target[1] - S.figY));
-    S.leap = {face: Math.abs(dx) > 0.001 ? (dx < 0 ? -1 : 1) : facing(), cycle: S.cycle || 0, sx: S.figX, sy: S.figY,
-              t0: fr[0] * fm, t1: fr[1] * fm, h: FXK.leapHeight(lp, lf) * viewScale(), frac: lf, dmg: FXK.leapDamage(lp, lf), done: false};
-    var o = leapHitOffset(cfg, fr[1]);
-    S.leap.ex = S.target[0] - o[0]; S.leap.ey = S.target[1] - o[1];
+    var face0 = Math.abs(dx) > 0.001 ? (dx < 0 ? -1 : 1) : facing(), hitF = fr[1], tturn = null;
+    if (move === "hit_retreat") {
+      var ft = Math.round(lp.turn_frame == null ? -1 : +lp.turn_frame);
+      ft = ft < 0 ? Math.floor((fr[0] + fr[1]) / 2) : (fr[1] - fr[0] > 1 ? Math.max(fr[0] + 1, Math.min(fr[1] - 1, ft)) : fr[1]);
+      tturn = ft * fm; if (!lp.flip) hitF = ft;
+    }
+    var keep = S.leapFace; S.leapFace = null;
+    var pl = FXK.travelPlan(move, lp, S.figX, S.figY, S.target[0], S.target[1], viewScale(), face0,
+      function (f) { S.leapFace = f; var o = leapHitOffset(cfg, hitF); S.leapFace = keep; return o; }, fr[0] * fm, fr[1] * fm, tturn);
+    S.leapFace = keep;
+    if (move === "leap") pl.hop = FXK.leapHeight(lp, lf) * viewScale();
+    S.leap = {face: pl.face, endFace: pl.face, cycle: S.cycle || 0, t0: fr[0] * fm, plan: pl, h: pl.hop, frac: lf,
+              dmg: move === "leap" ? FXK.leapDamage(lp, lf) : null, done: false, move: move};
   }
   var L = S.leap;
   if (L.done) return;
-  var u = Math.max(0, Math.min(1, (t + FXK.TICK_MS - L.t0) / Math.max(1, L.t1 - L.t0)));
-  S.figX = L.sx + (L.ex - L.sx) * u;
-  S.figY = L.sy + (L.ey - L.sy) * u - L.h * 4 * u * (1 - u);
-  if (u >= 1) L.done = true;
+  var a = FXK.travelAt(L.plan, t + FXK.TICK_MS);
+  S.figX = a.x; S.figY = a.y - a.lift;
+  L.face = a.face === "travel" && !a.done && Math.abs(a.dx) > 0.3 ? (a.dx < 0 ? -1 : 1) : L.endFace;
+  if (a.done) { L.face = L.endFace; L.done = true; }
 }
 // Stage guide: the arc from where it took off to where it lands.
 function drawLeapGuide(g, z) {
   var L = S.leap; if (!L) return;
   g.save();
   g.strokeStyle = "rgba(240,190,90,.6)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 4 / z]);
-  g.beginPath();
-  for (var i = 0; i <= 24; i++) {
-    var u = i / 24, x = L.sx + (L.ex - L.sx) * u, y = L.sy + (L.ey - L.sy) * u - L.h * 4 * u * (1 - u);
-    if (i) g.lineTo(x, y); else g.moveTo(x, y);
-  }
-  g.stroke(); g.setLineDash([]);
-  g.beginPath(); g.arc(L.ex, L.ey, 4 / z, 0, 6.2832); g.stroke();
+  L.plan.legs.forEach(function (lg) {
+    var n = 48; g.beginPath();
+    for (var i = 0; i <= n; i++) {
+      var tt = lg.t0 + (lg.t1 - lg.t0) * i / n, a = FXK.travelAt({legs: [lg], hop: L.plan.hop}, tt);
+      if (i) g.lineTo(a.x, a.y - a.lift); else g.moveTo(a.x, a.y - a.lift);
+    }
+    g.stroke();
+  });
+  g.setLineDash([]);
+  var hit = FXK.travelAt(L.plan, L.plan.hit_t), end = FXK.travelAt(L.plan, L.plan.legs[L.plan.legs.length - 1].t1);
+  g.beginPath(); g.arc(hit.x, hit.y, 4 / z, 0, 6.2832); g.stroke();
   g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
-  g.fillText("lands" + (L.dmg != null ? " \u2014 " + L.dmg + " dmg" : ""), L.ex, L.ey - 8 / z);
+  g.fillText((L.move === "leap" ? "lands" : "hits") + (L.dmg != null ? " \u2014 " + L.dmg + " dmg" : ""), hit.x, hit.y - 8 / z);
+  if (Math.hypot(end.x - hit.x, end.y - hit.y) > 2) { g.beginPath(); g.arc(end.x, end.y, 3 / z, 0, 6.2832); g.stroke(); g.fillText("ends", end.x, end.y - 8 / z); }
   g.restore();
+}
+// Settings of every travel movement (leap / arc / hit_retreat / zigzag /
+// flank; all on cfg.leap, laser/travel.py).
+var TRAVEL_NOTES = {
+  arc: "Runs to the target on a curve: Radius = how far it swings out sideways, Curve = 0 a smooth C, higher swings out past the target and hooks back in.",
+  hit_retreat: "Runs in to the target (the hit lands as the Turn frame starts), then out along the Return angle for the Retreat distance, arriving as the Arrive frame starts. Flip: out first, then in (the hit lands at the Arrive frame).",
+  zigzag: "Zigs left and right at the Zig angle off the line to the target, then a last zag in. Turn style: Sharp corners, Smooth (rounded, Turn strength = how round) or Inertia (carries on past each corner then swings into the next zig, Turn strength = how far).",
+  flank: "Runs straight on the feint (Feint angle + = toward the Side, - = the other way), then sweeps round the target on the Side to end behind it, facing it."
+};
+function travelNum(s, lp, label, key, lo, hi, stepv, tip, redo) {
+  field(s, label, inp("n", lp[key], function (v) { lp[key] = Math.max(lo, Math.min(hi, +v || 0)); redo(); }, lo, hi, stepv)).title = tip;
+}
+function buildTravelProps(s, cfg) {
+  var lp = cfg.leap, m = cfg.movement, n = frames(), fr = leapFrames(cfg);
+  var redo = function () { save(); buildProps(); resetSim(S.t); };
+  if (m === "leap") buildLeapProps(s, cfg);
+  else {
+    field(s, "Start frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.max(0, Math.min(Math.max(0, n - 1), Math.round(v) || 0)); redo(); }, 0, Math.max(0, n - 1), 1)).title =
+      "The frame it sets off: the target's spot is locked here and the route is planned. Before it, it stands facing the target.";
+    field(s, "Arrive frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+      "It reaches the end of its route as this frame starts. The route is stretched to fit between Start and Arrive.";
+    if (m === "hit_retreat") field(s, "Turn frame (-1 = halfway)", inp("n", lp.turn_frame, function (v) { lp.turn_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+      "Where the in-leg ends and the out-leg starts. Not flipped: the hit lands on the target as this frame starts - put the hit FX here.";
+  }
+  travelNum(s, lp, "Distance from target px", "dist_px", -2000, 2000, 5,
+    "0 = the hit point lands on the target. Negative = it stops this far short; positive = it carries on this far past (along its final direction of travel).", redo);
+  if (m !== "leap") {
+    field(s, "Side", inp([["left", "Left"], ["right", "Right"], ["random", "Random each time"]], lp.side, function (v) { lp.side = v; redo(); })).title =
+      "Which side of the line to the target it curves / breaks to, as the fighter sees it. Random picks again each time.";
+    travelNum(s, lp, "Hop height px", "hop_px", 0, 1000, 5, "0 = it runs along the ground. Above 0: the body hops this high along the route (each leg for Attack & retreat).", redo);
+  }
+  if (m === "arc") {
+    travelNum(s, lp, "Radius px", "arc_radius_px", 0, 2000, 5, "How far the route swings out sideways from the straight line (game px at 100 %).", redo);
+    travelNum(s, lp, "Curve %", "arc_curve_pct", 0, 100, 5, "0 = a symmetric C. Higher = it swings out past the target and hooks back in to it.", redo);
+  } else if (m === "hit_retreat") {
+    travelNum(s, lp, "Retreat distance px", "retreat_px", 0, 3000, 10, "How far the out-leg goes (game px at 100 %).", redo);
+    travelNum(s, lp, "Return angle deg", "return_angle_deg", -180, 180, 5, "0 = straight back the way it came. + turns the retreat toward the Side, - the other way (90 = sideways).", redo);
+    field(s, "Flip (out, then in)", inp("chk", lp.flip, function (v) { lp.flip = v; redo(); })).title =
+      "On: it backs out first (Retreat distance at the Return angle), then runs in for the hit as the Arrive frame starts.";
+  } else if (m === "zigzag") {
+    travelNum(s, lp, "Number of zigs", "zig_count", 1, 20, 1, "How many angled zigs before the last zag into the target.", redo);
+    travelNum(s, lp, "Zig length px", "zig_len_px", 0, 2000, 5, "Length of each zig (game px at 100 %). Shortened if the zigs would reach past the target.", redo);
+    travelNum(s, lp, "Zig angle deg", "zig_angle_deg", 5, 85, 5, "How far each zig turns off the line to the target (45 = the usual zig-zag).", redo);
+    field(s, "Turn style", inp([["sharp", "Sharp"], ["smooth", "Smooth"], ["inertia", "Inertia"]], lp.zig_turn, function (v) { lp.zig_turn = v; redo(); })).title =
+      "Sharp: hard corners. Smooth: rounded corners. Inertia: carries on past each corner, then swings into the next zig.";
+    if (lp.zig_turn !== "sharp") travelNum(s, lp, "Turn strength %", "zig_turn_pct", 0, 100, 5, "Smooth: how round the corners are. Inertia: how far it carries on past each corner.", redo);
+  } else if (m === "flank") {
+    travelNum(s, lp, "Feint length px", "fake_len_px", 0, 3000, 10, "How far the opening straight run goes (game px at 100 %).", redo);
+    travelNum(s, lp, "Feint angle deg", "fake_angle_deg", -180, 180, 5, "Direction of the feint off the line to the target: + toward the Side, - the other way, 0 = straight at it.", redo);
+    travelNum(s, lp, "Flank radius px", "flank_radius_px", 4, 2000, 5, "How wide it sweeps round the target (game px at 100 %).", redo);
+  }
+  if (m !== "leap") {
+    var custom = Array.isArray(lp.hit_px);
+    field(s, "Hit point", inp([["auto", "Auto (damage FX, else weapon tip)"], ["custom", "Custom offset"]], custom ? "custom" : "auto", function (v) {
+      lp.hit_px = v === "custom" ? (custom ? lp.hit_px : [0, 0]) : null; redo(); })).title =
+      "What lands on the target. Auto: this action's Deals-damage FX starting nearest the hit frame (its anchor + offset), else the weapon tip on that frame, else the body. Custom: an offset from the body (x forward).";
+    if (custom) {
+      field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, -500, 500, 1));
+      field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, -500, 500, 1));
+    }
+    note(s, TRAVEL_NOTES[m] + " Sets off on frame " + fr[0] + " and arrives as frame " + fr[1] + (fr[1] >= n ? " (the end)" : "") + " starts — " +
+      Math.round((fr[1] - fr[0]) * frameMs()) + " ms. Preview: drag the target; the dashed line shows the route. In the game the target is the nearest enemy (Solo: the cursor); a target that moves after it sets off can dodge it.");
+  }
 }
 function buildLeapProps(s, cfg) {
   var lp = cfg.leap, n = frames(), fr = leapFrames(cfg);
