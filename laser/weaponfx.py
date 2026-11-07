@@ -22,6 +22,18 @@ Two modes (params.w_mode):
   hold        the weapon simply appears in the anchor's hand in its ready
               pose and stays for Hold ticks: animate it with keyframes
 
+INSTANT styles (Oathkeeper & Oblivion) skip the materialise intro: the
+sequence starts on the effect's first tick, the blades half transparent
+(POP_A) and solid after POP_IN ticks, while a flash of stars shows them
+appearing (STAR_T).
+
+w_blade     "both" (default) / "first" / "second": which weapon slot this
+            effect draws and hits with, so a two-blade weapon can be a group
+            of one effect per blade.  Events (flashes, cuts, bursts) belong
+            to one slot: the weapon's `own` list (per event), else tip1 ->
+            the second slot and everything else -> the first; shots go with
+            the slot that fires them.
+
 Weapon controls (all numbers, so every one can be keyframed — fxkit KEY
 rules; FX Studio's weapon panel):
 
@@ -88,6 +100,11 @@ STYLES = ("buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "sciss
 HU = 10.0            # pose unit (px at size 1): where the hand holds the weapon
 SUMMON = 8           # ticks the weapon takes to materialise
 DISMISS = 12         # ticks it takes to dissolve
+INSTANT = ("oath_oblivion",)   # styles with no materialise intro: the move starts on tick 0
+POP_A = 0.5          # instant styles: opacity on tick 0 ...
+POP_IN = 5           # ... rising to solid over this many ticks
+STAR_T = 14          # instant styles: ticks the flash of stars lasts
+STAR_N = 9           # stars per blade (times density)
 FOCAL = 4.0          # camera distance, times the weapon length (perspective strength)
 THICK_K = 0.5        # side-wall depth, times the half-width
 TRAIL_N = 6          # ticks of swept trail behind a swinging blade
@@ -394,7 +411,7 @@ WEAPONS = {
                                    (0.7, 0.6, -1.6, 0, 405, 360, 0, 1.0, 1), (1.0, 0.5, -1.4, 0, 395, 360, 0, 1.0, 3)),
                                   ((0.0, -0.2, 0.6, 0, 60, 0, 0, 1.0, 3), (0.45, 0.3, 1.4, 0, -300, -180, 0, 1.0, 3),
                                    (0.7, 0.6, 1.6, 0, -405, -360, 0, 1.0, 1), (1.0, 0.5, 1.4, 0, -395, -360, 0, 1.0, 3))),
-                          events=((0.7, "xflash", "mid", 1.3, 0),), fire=()),
+                          events=((0.7, "xflash", "mid", 1.3, 0),), fire=(), own=(0,)),
     "crescent_scythe": dict(models=("crescent_scythe",), beats=5, aim=False, trail="swept", shot="",
                             tracks=(((0.0, -0.4, -0.3, 0, -100, 0, 0, 1.0, 3), (0.15, -0.2, -0.4, 0, -100, 0, 40, 1.0, 3),
                                      (0.55, 0.2, -0.3, 0, 260, 0, 50, 1.0, 0), (0.75, 0.9, 0.0, 0, 390, 0, 0, 1.1, 1),
@@ -514,11 +531,11 @@ WEAPONS = {
 #                 closing with both at once in an X (one down, one up)
 SEQS = {
     "oath_oblivion": {
-        "pierce_chop": dict(models=("oathkeeper", "oblivion"), beats=6, aim=True, trail="swept", shot="", tracks=(((0, 0, -0.3, 0, -60, 0, 0, 1, 3), (0.18, -0.5, -1, 0, -150, 0, 0, 1, 3), (0.4, -0.4, -1.2, 0.3, -165, 15, 0, 1, 3), (0.58, 0.3, -0.6, 0.8, 50, 30, 0, 1.08, 2), (0.66, 0.4, -0.3, 0.8, 72, 30, 0, 1, 1), (0.85, 0.1, 0, 0.3, 85, 0, 0, 1, 3), (1, 0, -0.3, 0, -40, 0, 0, 1, 3)), ((0, 0.1, 0.3, 0, 30, 0, 0, 1, 3), (0.18, -0.6, 0.6, 0, 5, 0, 0, 1, 3), (0.32, 0.2, 0.2, 1, 0, 0, 0, 1.08, 2), (0.42, 0.2, 0.2, 1, 0, 0, 0, 1.08, 0), (0.55, -0.3, 0.7, 0.45, 25, 0, 0, 1, 1), (0.8, 0, 0.6, 0.2, 40, 0, 0, 1, 3), (1, 0.1, 0.4, 0, 30, 0, 0, 1, 3))), events=((0.32, "burst", "tip1", 0.9, 0), (0.58, "cuts", "target", 3, 0)), fire=()),
-        "ricochet": dict(models=("oathkeeper", "oblivion"), beats=8, aim=True, trail="ghost", shot="", tracks=(((0, 0, -0.3, 0, -50, 0, 0, 1, 3), (0.16, -0.2, -0.5, 0, -40, 0, 0, 1, 3), (0.4, 0, 0.6, 0.35, 150, 0, 0, 1, 3), (0.55, 0, 0.7, 0.7, 160, 0, 0, 1, 3), (0.62, 0.3, -0.4, 0.85, -60, 40, 0, 1.1, 2), (0.7, 0.3, -0.7, 0.8, -82, 40, 0, 1.05, 1), (0.92, 0, -0.4, 0.2, -50, 0, 0, 1, 3), (1, 0, -0.3, 0, -50, 0, 0, 1, 3)), ((0, 0.1, 0.4, 0, 30, 0, 0, 1, 3), (0.08, -0.6, 0.2, 0, 160, 0, 0, 1, 3), (0.16, 0.4, -0.6, 0.15, 300, 0, 0, 1, 1), (0.32, 0, -6, 0.8, 480, 0, 0, 1, 0), (0.46, 0, -3, 1.5, 660, 0, 0, 1, 0), (0.56, 0, 1, 1.25, 840, 0, 0, 1, 0), (0.62, 0, 0, 0.95, 900, 0, 0, 1.05, 0), (0.8, 0, 4.5, 0.5, 1080, 0, 0, 1, 0), (0.92, 0.1, 0.4, 0, 1110, 0, 0, 1, 1), (1, 0.1, 0.4, 0, 1110, 0, 0, 1, 3))), events=((0.62, "cuts", "target", 2, 0), (0.63, "burst", "tip0", 1.0, 0)), fire=()),
-        "shadow_step": dict(models=("oathkeeper", "oblivion"), beats=6, aim=True, trail="ghost", shot="", tracks=(((0, 0.2, -0.3, 0, 110, 0, 0, 1, 3), (0.12, -0.2, 0, 0, 115, 0, 0, 1, 3), (0.15, -0.2, 0, 0, 115, 0, 0, 1, 0), (0.17, -0.2, 0, 0, 115, 0, 0, 0, 0), (0.25, 0, -1.4, 1.3, 95, 0, 0, 0, 0), (0.27, 0, -1.4, 1.3, 95, 0, 0, 1, 0), (0.32, 0, -1.6, 1.25, 95, 0, 0, 1, 1), (0.38, -0.3, 0.2, 1.1, 95, 0, 0, 1.1, 2), (0.5, 0, -0.6, 1.25, 110, 0, 0, 1, 1), (0.66, 0, -0.4, 1.25, 110, 0, 0, 1, 3), (0.68, 0, -0.4, 1.25, 110, 0, 0, 0, 0), (0.76, 0.2, -0.3, 0, 110, 0, 0, 0, 0), (0.78, 0.2, -0.3, 0, 110, 0, 0, 1, 0), (1, 0.2, -0.3, 0, 110, 0, 0, 1, 3)), ((0, -0.1, 0.4, 0, 120, 0, 0, 1, 3), (0.12, -0.4, 0.5, 0, 125, 0, 0, 1, 3), (0.15, -0.4, 0.5, 0, 125, 0, 0, 1, 0), (0.17, -0.4, 0.5, 0, 125, 0, 0, 0, 0), (0.25, 0.2, 0.3, 1.35, 230, 0, 0, 0, 0), (0.27, 0.2, 0.3, 1.35, 230, 0, 0, 1, 0), (0.42, 0.3, 0.1, 1.35, 235, 0, 0, 1, 3), (0.5, 0, 0, 1.3, 130, 30, 0, 1.1, 2), (0.58, -0.1, 0.1, 1.3, 115, 30, 0, 1, 1), (0.66, -0.1, 0.2, 1.3, 120, 0, 0, 1, 3), (0.68, -0.1, 0.2, 1.3, 120, 0, 0, 0, 0), (0.76, -0.1, 0.4, 0, 120, 0, 0, 0, 0), (0.78, -0.1, 0.4, 0, 120, 0, 0, 1, 0), (1, -0.1, 0.4, 0, 120, 0, 0, 1, 3))), events=((0.16, "blink", "tip0", 1.0, 0), (0.16, "blink", "tip1", 1.0, 0), (0.26, "blink", "tip0", 1.0, 0), (0.26, "blink", "tip1", 1.0, 0), (0.38, "cuts", "target", 2, 0), (0.5, "cuts", "target", 3, 0), (0.67, "blink", "tip0", 1.0, 0), (0.67, "blink", "tip1", 1.0, 0), (0.77, "blink", "tip0", 1.0, 0), (0.77, "blink", "tip1", 1.0, 0)), fire=()),
-        "satellite": dict(models=("oathkeeper", "oblivion"), beats=7, aim=False, trail="ghost", shot="", tracks=(((0, 0, -0.3, 0, -50, 0, 0, 1, 3), (0.12, -0.6, 0.4, 0, 170, 0, 40, 1, 3), (0.3, 0.9, 0.5, 0, 10, 0, 50, 1.05, 2), (0.38, 1, 0.4, 0, -5, 0, 30, 1, 1), (0.5, 0.2, 0.8, 0, 120, 0, 0, 1, 3), (0.6, 0.8, -0.6, 0, -70, 30, 0, 1.08, 2), (0.68, 0.7, -0.9, 0, -90, 30, 0, 1.05, 1), (1, 0, -0.3, 0, -50, 0, 0, 1, 3)), ((0, 0.1, 0.4, 0, 30, 0, 0, 1, 3), (0.06, 0.6, 0, 0, -20, 0, 0, 1, 1), (0.12, 3.889, -3.889, 0, -125, 0, 0, 1, 1), (0.203, 0, -5.5, 0, -170, 0, 0, 1, 0), (0.285, -3.889, -3.889, 0, -215, 0, 0, 1, 0), (0.367, -5.5, 0, 0, -260, 0, 0, 1, 0), (0.45, -3.889, 3.889, 0, -305, 0, 0, 1, 0), (0.532, 0, 5.5, 0, -350, 0, 0, 1, 0), (0.615, 3.889, 3.889, 0, -395, 0, 0, 1, 0), (0.698, 5.5, 0, 0, -440, 0, 0, 1, 0), (0.78, 3.889, -3.889, 0, -485, 0, 0, 1, 0), (0.88, 0.6, 0.3, 0, -690, 0, 0, 1, 1), (1, 0.1, 0.4, 0, -690, 0, 0, 1, 3))), events=((0.3, "burst", "tip0", 0.7, 0), (0.6, "burst", "tip0", 0.8, 0), (0.7, "burst", "tip1", 1.1, 0)), fire=()),
-        "starburst": dict(models=("oathkeeper", "oblivion"), beats=9, aim=True, trail="swept", shot="", tracks=(((0, 0, -0.3, 0, -60, 0, 0, 1, 3), (0.06, -0.2, -0.8, 0.4, -130, 0, 0, 1, 3), (0.14, 0.5, 0, 0.6, 45, 0, 0, 1.05, 2), (0.2, 0.4, 0.3, 0.6, 70, 0, 0, 1, 1), (0.34, 0, 0.6, 0.7, 140, 0, 0, 1, 3), (0.42, 0.5, -0.6, 0.8, -60, 0, 0, 1.05, 2), (0.5, 0.4, -0.9, 0.8, -85, 0, 0, 1, 1), (0.62, 0.1, -1.3, 0.85, -100, 0, 0, 1, 3), (0.7, 0.6, 0.2, 0.9, 80, 20, 0, 1.08, 2), (0.76, 0.5, 0.4, 0.9, 95, 20, 0, 1, 1), (0.82, -0.1, -0.8, 0.95, -140, 0, 0, 1, 3), (0.88, 0.5, -0.1, 1, 40, 0, 0, 1.1, 2), (1, 0.1, -0.3, 0, -40, 0, 0, 1, 3)), ((0, 0, 0.4, 0, 40, 0, 0, 1, 3), (0.14, -0.5, 0.5, 0.6, 170, 0, 0, 1, 3), (0.28, 0.8, 0.6, 0.7, -5, 0, 45, 1.05, 2), (0.34, 0.9, 0.5, 0.7, -15, 0, 30, 1, 1), (0.48, -0.5, 0.2, 0.75, 0, 0, 0, 1, 3), (0.56, 0.3, 0.1, 1, 0, 0, 0, 1.1, 2), (0.62, 0.3, 0.1, 1, 0, 0, 0, 1.1, 0), (0.74, -0.2, 0.9, 0.9, 140, 0, 0, 1, 3), (0.82, -0.1, 0.9, 0.95, 150, 0, 0, 1, 3), (0.88, 0.5, -0.2, 1, -40, 0, 0, 1.1, 2), (1, 0.1, 0.4, 0, 40, 0, 0, 1, 3))), events=((0.14, "cuts", "target", 2, 0), (0.28, "cuts", "target", 2, 0), (0.42, "cuts", "target", 2, 0), (0.56, "burst", "tip1", 0.9, 0), (0.7, "cuts", "target", 2, 0), (0.88, "xflash", "target", 1.4, 0)), fire=()),
+        "pierce_chop": dict(models=("oathkeeper", "oblivion"), beats=6, aim=True, trail="swept", shot="", tracks=(((0, 0, -0.3, 0, -60, 0, 0, 1, 3), (0.18, -0.5, -1, 0, -150, 0, 0, 1, 3), (0.4, -0.4, -1.2, 0.3, -165, 15, 0, 1, 3), (0.58, 0.3, -0.6, 0.8, 50, 30, 0, 1.08, 2), (0.66, 0.4, -0.3, 0.8, 72, 30, 0, 1, 1), (0.85, 0.1, 0, 0.3, 85, 0, 0, 1, 3), (1, 0, -0.3, 0, -40, 0, 0, 1, 3)), ((0, 0.1, 0.3, 0, 30, 0, 0, 1, 3), (0.18, -0.6, 0.6, 0, 5, 0, 0, 1, 3), (0.32, 0.2, 0.2, 1, 0, 0, 0, 1.08, 2), (0.42, 0.2, 0.2, 1, 0, 0, 0, 1.08, 0), (0.55, -0.3, 0.7, 0.45, 25, 0, 0, 1, 1), (0.8, 0, 0.6, 0.2, 40, 0, 0, 1, 3), (1, 0.1, 0.4, 0, 30, 0, 0, 1, 3))), events=((0.32, "burst", "tip1", 0.9, 0), (0.58, "cuts", "target", 3, 0)), fire=(), own=(1, 0)),
+        "ricochet": dict(models=("oathkeeper", "oblivion"), beats=8, aim=True, trail="ghost", shot="", tracks=(((0, 0, -0.3, 0, -50, 0, 0, 1, 3), (0.16, -0.2, -0.5, 0, -40, 0, 0, 1, 3), (0.4, 0, 0.6, 0.35, 150, 0, 0, 1, 3), (0.55, 0, 0.7, 0.7, 160, 0, 0, 1, 3), (0.62, 0.3, -0.4, 0.85, -60, 40, 0, 1.1, 2), (0.7, 0.3, -0.7, 0.8, -82, 40, 0, 1.05, 1), (0.92, 0, -0.4, 0.2, -50, 0, 0, 1, 3), (1, 0, -0.3, 0, -50, 0, 0, 1, 3)), ((0, 0.1, 0.4, 0, 30, 0, 0, 1, 3), (0.08, -0.6, 0.2, 0, 160, 0, 0, 1, 3), (0.16, 0.4, -0.6, 0.15, 300, 0, 0, 1, 1), (0.32, 0, -6, 0.8, 480, 0, 0, 1, 0), (0.46, 0, -3, 1.5, 660, 0, 0, 1, 0), (0.56, 0, 1, 1.25, 840, 0, 0, 1, 0), (0.62, 0, 0, 0.95, 900, 0, 0, 1.05, 0), (0.8, 0, 4.5, 0.5, 1080, 0, 0, 1, 0), (0.92, 0.1, 0.4, 0, 1110, 0, 0, 1, 1), (1, 0.1, 0.4, 0, 1110, 0, 0, 1, 3))), events=((0.62, "cuts", "target", 2, 0), (0.63, "burst", "tip0", 1.0, 0)), fire=(), own=(1, 0)),
+        "shadow_step": dict(models=("oathkeeper", "oblivion"), beats=6, aim=True, trail="ghost", shot="", tracks=(((0, 0.2, -0.3, 0, 110, 0, 0, 1, 3), (0.12, -0.2, 0, 0, 115, 0, 0, 1, 3), (0.15, -0.2, 0, 0, 115, 0, 0, 1, 0), (0.17, -0.2, 0, 0, 115, 0, 0, 0, 0), (0.25, 0, -1.4, 1.3, 95, 0, 0, 0, 0), (0.27, 0, -1.4, 1.3, 95, 0, 0, 1, 0), (0.32, 0, -1.6, 1.25, 95, 0, 0, 1, 1), (0.38, -0.3, 0.2, 1.1, 95, 0, 0, 1.1, 2), (0.5, 0, -0.6, 1.25, 110, 0, 0, 1, 1), (0.66, 0, -0.4, 1.25, 110, 0, 0, 1, 3), (0.68, 0, -0.4, 1.25, 110, 0, 0, 0, 0), (0.76, 0.2, -0.3, 0, 110, 0, 0, 0, 0), (0.78, 0.2, -0.3, 0, 110, 0, 0, 1, 0), (1, 0.2, -0.3, 0, 110, 0, 0, 1, 3)), ((0, -0.1, 0.4, 0, 120, 0, 0, 1, 3), (0.12, -0.4, 0.5, 0, 125, 0, 0, 1, 3), (0.15, -0.4, 0.5, 0, 125, 0, 0, 1, 0), (0.17, -0.4, 0.5, 0, 125, 0, 0, 0, 0), (0.25, 0.2, 0.3, 1.35, 230, 0, 0, 0, 0), (0.27, 0.2, 0.3, 1.35, 230, 0, 0, 1, 0), (0.42, 0.3, 0.1, 1.35, 235, 0, 0, 1, 3), (0.5, 0, 0, 1.3, 130, 30, 0, 1.1, 2), (0.58, -0.1, 0.1, 1.3, 115, 30, 0, 1, 1), (0.66, -0.1, 0.2, 1.3, 120, 0, 0, 1, 3), (0.68, -0.1, 0.2, 1.3, 120, 0, 0, 0, 0), (0.76, -0.1, 0.4, 0, 120, 0, 0, 0, 0), (0.78, -0.1, 0.4, 0, 120, 0, 0, 1, 0), (1, -0.1, 0.4, 0, 120, 0, 0, 1, 3))), events=((0.16, "blink", "tip0", 1.0, 0), (0.16, "blink", "tip1", 1.0, 0), (0.26, "blink", "tip0", 1.0, 0), (0.26, "blink", "tip1", 1.0, 0), (0.38, "cuts", "target", 2, 0), (0.5, "cuts", "target", 3, 0), (0.67, "blink", "tip0", 1.0, 0), (0.67, "blink", "tip1", 1.0, 0), (0.77, "blink", "tip0", 1.0, 0), (0.77, "blink", "tip1", 1.0, 0)), fire=(), own=(0, 1, 0, 1, 0, 1, 0, 1, 0, 1)),
+        "satellite": dict(models=("oathkeeper", "oblivion"), beats=7, aim=False, trail="ghost", shot="", tracks=(((0, 0, -0.3, 0, -50, 0, 0, 1, 3), (0.12, -0.6, 0.4, 0, 170, 0, 40, 1, 3), (0.3, 0.9, 0.5, 0, 10, 0, 50, 1.05, 2), (0.38, 1, 0.4, 0, -5, 0, 30, 1, 1), (0.5, 0.2, 0.8, 0, 120, 0, 0, 1, 3), (0.6, 0.8, -0.6, 0, -70, 30, 0, 1.08, 2), (0.68, 0.7, -0.9, 0, -90, 30, 0, 1.05, 1), (1, 0, -0.3, 0, -50, 0, 0, 1, 3)), ((0, 0.1, 0.4, 0, 30, 0, 0, 1, 3), (0.06, 0.6, 0, 0, -20, 0, 0, 1, 1), (0.12, 3.889, -3.889, 0, -125, 0, 0, 1, 1), (0.203, 0, -5.5, 0, -170, 0, 0, 1, 0), (0.285, -3.889, -3.889, 0, -215, 0, 0, 1, 0), (0.367, -5.5, 0, 0, -260, 0, 0, 1, 0), (0.45, -3.889, 3.889, 0, -305, 0, 0, 1, 0), (0.532, 0, 5.5, 0, -350, 0, 0, 1, 0), (0.615, 3.889, 3.889, 0, -395, 0, 0, 1, 0), (0.698, 5.5, 0, 0, -440, 0, 0, 1, 0), (0.78, 3.889, -3.889, 0, -485, 0, 0, 1, 0), (0.88, 0.6, 0.3, 0, -690, 0, 0, 1, 1), (1, 0.1, 0.4, 0, -690, 0, 0, 1, 3))), events=((0.3, "burst", "tip0", 0.7, 0), (0.6, "burst", "tip0", 0.8, 0), (0.7, "burst", "tip1", 1.1, 0)), fire=(), own=(0, 0, 1)),
+        "starburst": dict(models=("oathkeeper", "oblivion"), beats=9, aim=True, trail="swept", shot="", tracks=(((0, 0, -0.3, 0, -60, 0, 0, 1, 3), (0.06, -0.2, -0.8, 0.4, -130, 0, 0, 1, 3), (0.14, 0.5, 0, 0.6, 45, 0, 0, 1.05, 2), (0.2, 0.4, 0.3, 0.6, 70, 0, 0, 1, 1), (0.34, 0, 0.6, 0.7, 140, 0, 0, 1, 3), (0.42, 0.5, -0.6, 0.8, -60, 0, 0, 1.05, 2), (0.5, 0.4, -0.9, 0.8, -85, 0, 0, 1, 1), (0.62, 0.1, -1.3, 0.85, -100, 0, 0, 1, 3), (0.7, 0.6, 0.2, 0.9, 80, 20, 0, 1.08, 2), (0.76, 0.5, 0.4, 0.9, 95, 20, 0, 1, 1), (0.82, -0.1, -0.8, 0.95, -140, 0, 0, 1, 3), (0.88, 0.5, -0.1, 1, 40, 0, 0, 1.1, 2), (1, 0.1, -0.3, 0, -40, 0, 0, 1, 3)), ((0, 0, 0.4, 0, 40, 0, 0, 1, 3), (0.14, -0.5, 0.5, 0.6, 170, 0, 0, 1, 3), (0.28, 0.8, 0.6, 0.7, -5, 0, 45, 1.05, 2), (0.34, 0.9, 0.5, 0.7, -15, 0, 30, 1, 1), (0.48, -0.5, 0.2, 0.75, 0, 0, 0, 1, 3), (0.56, 0.3, 0.1, 1, 0, 0, 0, 1.1, 2), (0.62, 0.3, 0.1, 1, 0, 0, 0, 1.1, 0), (0.74, -0.2, 0.9, 0.9, 140, 0, 0, 1, 3), (0.82, -0.1, 0.9, 0.95, 150, 0, 0, 1, 3), (0.88, 0.5, -0.2, 1, -40, 0, 0, 1.1, 2), (1, 0.1, 0.4, 0, 40, 0, 0, 1, 3))), events=((0.14, "cuts", "target", 2, 0), (0.28, "cuts", "target", 2, 0), (0.42, "cuts", "target", 2, 0), (0.56, "burst", "tip1", 0.9, 0), (0.7, "cuts", "target", 2, 0), (0.88, "xflash", "target", 1.4, 0)), fire=(), own=(0, 1, 0, 1, 0, 0)),
     },
 }
 
@@ -541,6 +558,38 @@ def _sig(P):
     return P.get("w_mode") != "hold"
 
 
+def _instant(P):
+    return S._style(P) in INSTANT
+
+
+def _summon(P):
+    """Ticks before the sequence starts: the materialise intro (0 for INSTANT styles)."""
+    return 0 if _instant(P) else SUMMON
+
+
+def _blades(P):
+    """The weapon slots this effect draws and hits with (w_blade)."""
+    n = len(_w(P)["models"])
+    b = P.get("w_blade")
+    if b == "first":
+        return (0,)
+    if b == "second" and n > 1:
+        return (1,)
+    return tuple(range(n))
+
+
+def _ev_own(w, n, e):
+    """The slot event n belongs to."""
+    own = w.get("own")
+    if own is not None and n < len(own):
+        return own[n]
+    return 1 if (e[2] == "tip1" and len(w["models"]) > 1) else 0
+
+
+def _ev_on(P, w, n, e):
+    return _ev_own(w, n, e) in _blades(P)
+
+
 def _move(P):
     """Ticks the signature sequence lasts."""
     return _w(P)["beats"] * max(1, F.trunc(float(P.get("swing_ticks") or 6)))
@@ -551,7 +600,7 @@ def _hold(P):
 
 
 def _tick_of(P, t):
-    return SUMMON + F.jround(t * _move(P))
+    return _summon(P) + F.jround(t * _move(P))
 
 
 def _shot_flight(P):
@@ -566,13 +615,14 @@ def _shot_flight(P):
 def active_ticks(P):
     """The weapon's life: the hit window (and how long it stays)."""
     if not _sig(P):
-        return SUMMON + max(1, _hold(P))
+        return _summon(P) + max(1, _hold(P))
     w = _w(P)
-    n = SUMMON + _move(P) + _hold(P)
+    n = _summon(P) + _move(P) + _hold(P)
     for f in w["fire"]:
-        n = max(n, _tick_of(P, f[0]) + _shot_flight(P) + 1)
-    for e in w["events"]:
-        if EVT_R[e[1]] > 0:
+        if f[1] in _blades(P):
+            n = max(n, _tick_of(P, f[0]) + _shot_flight(P) + 1)
+    for i, e in enumerate(w["events"]):
+        if EVT_R[e[1]] > 0 and _ev_on(P, w, i, e):
             n = max(n, _tick_of(P, e[0]) + EVT_HIT + (24 if e[1] == "runes" else 0) + 1)
     return n
 
@@ -582,12 +632,23 @@ def total_ticks(P):
 
 
 def _phase(P, life, tick):
-    """(u through the sequence, materialise 0..1, fade 1..0) at tick."""
-    ap = min(1.0, tick / float(SUMMON))
+    """(u through the sequence, materialise 0..1, fade 1..0) at tick.
+    INSTANT styles are fully there (full size) from tick 0; their opacity
+    is _alpha's."""
+    sm = _summon(P)
+    ap = 1.0 if sm <= 0 else min(1.0, tick / float(sm))
     fd = 1.0 if tick < life else max(0.0, 1.0 - (tick - life) / float(DISMISS))
-    if not _sig(P) or tick < SUMMON:
+    if not _sig(P) or tick < sm:
         return 0.0, ap, fd
-    return min(1.0, (tick - SUMMON) / float(_move(P))), ap, fd
+    return min(1.0, (tick - sm) / float(_move(P))), ap, fd
+
+
+def _alpha(P, ap, tick):
+    """Opacity from the materialise phase: INSTANT styles start at POP_A on
+    tick 0 and are solid after POP_IN ticks."""
+    if _instant(P):
+        return POP_A + (1.0 - POP_A) * S.ease_out3(min(1.0, max(0.0, tick) / float(POP_IN)))
+    return S.ease_out3(ap)
 
 
 def _ease(e, k):
@@ -872,7 +933,7 @@ def draw_layer(inst, ps, layer):
         return layer
     if S._style(P) not in WEAPONS:
         return layer
-    return "back" if xf(inst, ps, 0, inst.age).zp > BEHIND_Z else layer
+    return "back" if xf(inst, ps, _blades(P)[0], inst.age).zp > BEHIND_Z else layer
 
 
 def _seg(o):
@@ -945,10 +1006,12 @@ def _shots(inst, ps):
     if not _sig(P):
         return []
     out = []
+    on = _blades(P)
     for i, f in enumerate(_w(P)["fire"]):
         if _tick_of(P, f[0]) > inst.age:
             break
-        out.append(Shot(inst, ps, i, f))
+        if f[1] in on:
+            out.append(Shot(inst, ps, i, f))
     return out
 
 
@@ -976,7 +1039,8 @@ def live_points(inst, ps):
 def _blade_live(inst, P):
     if not _sig(P):
         return inst.age < inst.life
-    return SUMMON <= inst.age <= SUMMON + _move(P)
+    sm = _summon(P)
+    return sm <= inst.age <= sm + _move(P)
 
 
 def hit(inst, tx, ty, hr, ps):
@@ -986,7 +1050,7 @@ def hit(inst, tx, ty, hr, ps):
     w = _w(P)
     t = inst.age
     if _blade_live(inst, P):
-        for sl in range(_slots(P)):
+        for sl in _blades(P):
             o = xf(inst, ps, sl, t)
             if not o.m["blade"] or abs(o.K) < 0.05:
                 continue
@@ -995,9 +1059,9 @@ def hit(inst, tx, ty, hr, ps):
                 return True
     if not _sig(P):
         return False
-    for e in w["events"]:
+    for n, e in enumerate(w["events"]):
         R = EVT_R[e[1]]
-        if R <= 0:
+        if R <= 0 or not _ev_on(P, w, n, e):
             continue
         te = _tick_of(P, e[0])
         if e[1] == "runes":
@@ -1028,7 +1092,7 @@ def body(inst, ps):
     P = inst.fx["params"]
     if inst.age >= inst.life or not _blade_live(inst, P):
         return None
-    o = xf(inst, ps, 0, inst.age)
+    o = xf(inst, ps, _blades(P)[0], inst.age)
     if not o.m["blade"] or abs(o.K) < 0.05:
         return None
     x0, y0, x1, y1, hw = _seg(o)
@@ -1106,6 +1170,43 @@ def _draw_weapon(pen, o, c, a, ps, tick):
         pen.glow(gx, gy, 6 * ps * abs(o.K), S.HOT, st * 0.7)
 
 
+def _draw_pop(pen, inst, o, c, ps, t, sl):
+    """INSTANT styles: the blade is there at once, and a flash of four-point
+    stars bursts off it as it appears (a quick white flash first)."""
+    if t < 0 or t >= STAR_T:
+        return
+    x0, y0, x1, y1, _hw = _seg(o)
+    if t < 3:
+        q = t / 3.0
+        pen.glow((x0 + x1) * 0.5, (y0 + y1) * 0.5, (14 + 10 * q) * ps, S.HOT, 230 * (1 - q))
+    hot = S.mix(c, S.HOT, 0.6)
+    n = max(3, F.jround(STAR_N * float(inst.fx["params"].get("density") or 1)))
+    for j in range(n):
+        r = S.rng_for(inst.seed, j + 17 * sl, 59)
+        t0 = r.uniform(0, 4)
+        life = r.uniform(7, STAR_T - 4)
+        u = r()
+        an = r.uniform(0, math.pi * 2)
+        dist = r.uniform(4, 16)
+        size = r.uniform(4, 9)
+        rot = r.uniform(0, math.pi * 0.5)
+        k = t - t0
+        if k < 0 or k >= life:
+            continue
+        q = k / life
+        d = dist * ps * S.ease_out3(q)
+        px = x0 + (x1 - x0) * u + math.cos(an) * d
+        py = y0 + (y1 - y0) * u + math.sin(an) * d
+        env = S.ease_out3(min(1.0, q / 0.25)) * (1 - q)
+        sz = size * ps * env
+        if sz <= 0.2:
+            continue
+        al = 255 * min(1.0, (1 - q) * 1.6)
+        pen.glow(px, py, sz * 1.1, c, 150 * (1 - q))
+        _spikes(pen, px, py, rot + q * 0.8, 4, sz, sz * 0.22, hot, al)
+        pen.glow(px, py, sz * 0.35 + 0.5, S.HOT, al)
+
+
 def _draw_summon(pen, inst, o, c, ps, t):
     """Light rushes in and a scan line runs up the blade as it appears."""
     if t >= SUMMON:
@@ -1149,8 +1250,8 @@ def _draw_trail(pen, inst, ps, c, sl, t):
     """A swept ribbon between where the tip and the middle of the blade
     were over the last TRAIL_N ticks."""
     P = inst.fx["params"]
-    t0 = float(SUMMON)
-    t1 = float(SUMMON + _move(P))
+    t0 = float(_summon(P))
+    t1 = float(_summon(P) + _move(P))
     if t < t0 or t > t1 + TRAIL_N:
         return
     pts = []
@@ -1173,11 +1274,12 @@ def _draw_trail(pen, inst, ps, c, sl, t):
 def _draw_ghosts(pen, inst, ps, c, sl, t):
     """Afterimages: the blade's outline where it was a few ticks ago."""
     P = inst.fx["params"]
-    if t < SUMMON or t > SUMMON + _move(P) + 6:
+    sm = _summon(P)
+    if t < sm or t > sm + _move(P) + 6:
         return
     for k in (2, 4, 6):
         tt = t - k
-        if tt < SUMMON:
+        if tt < sm:
             continue
         o = xf(inst, ps, sl, tt)
         near = -1.0 if o.nz > 0 else 1.0
@@ -1395,7 +1497,7 @@ def _ev_charge(pen, inst, c, ps, x, y, a, dur, k, salt):
 def _ev_petals(pen, inst, ps, c, te, t, salt):
     P = inst.fx["params"]
     life = EVT_LIFE["petals"]
-    t1 = SUMMON + _move(P)
+    t1 = _summon(P) + _move(P)
     dens = float(P.get("density") or 1)
     pen.add(False)
     tau = max(te, t - life + 1)
@@ -1474,7 +1576,10 @@ def _draw_events(pen, inst, ps, c, t):
     P = inst.fx["params"]
     if not _sig(P):
         return
-    for n, e in enumerate(_w(P)["events"]):
+    w = _w(P)
+    for n, e in enumerate(w["events"]):
+        if not _ev_on(P, w, n, e):
+            continue
         kind = e[1]
         te = _tick_of(P, e[0])
         a = t - te
@@ -1636,26 +1741,30 @@ def draw(pen, inst, host, ps):
     c, _bright, _deep = S._colours(inst, host)
     w = _w(P)
     u, ap, fd = _phase(P, inst.life, t)
-    a = S.ease_out3(ap) * fd
+    a = _alpha(P, ap, t) * fd
     pen.add(True)
     _draw_events(pen, inst, ps, c, t)
-    xfs = [xf(inst, ps, sl, t) for sl in range(_slots(P))]
+    on = _blades(P)
+    xfs = {sl: xf(inst, ps, sl, t) for sl in on}
     if _sig(P):
-        for sl in range(_slots(P)):
+        for sl in on:
             if not xfs[sl].m["blade"]:
                 continue
             if w["trail"] == "swept":
                 _draw_trail(pen, inst, ps, c, sl, t)
             elif w["trail"] == "ghost":
                 _draw_ghosts(pen, inst, ps, c, sl, t)
-    for sl in range(_slots(P)):
+    for sl in on:
         o = xfs[sl]
         if fd > 0:
             _draw_weapon(pen, o, c, a, ps, t)
             if w["models"][sl] == "pulse_bow":
                 _draw_bow(pen, inst, o, c, a, ps, t)
         pen.add(True)
-        _draw_summon(pen, inst, o, c, ps, t)
+        if _instant(P):
+            _draw_pop(pen, inst, o, c, ps, t, sl)
+        else:
+            _draw_summon(pen, inst, o, c, ps, t)
         _draw_dismiss(pen, inst, o, c, ps, t)
     pen.add(True)
     _draw_shots(pen, inst, ps, c, t)
