@@ -4362,13 +4362,59 @@ function camWire(g, cam, v, figs, battle, SW, SH, P) {
 // Live preview: a 1920x1080 "screen" scaled into the canvas.  The desktop
 // behind the overlay and the HUD stay still (as in the game); the arena,
 // fighters and hit sparks are drawn through the camera.
+// Big ball (laser/ballwarp.py): redraw the scene canvas `src` bent onto the
+// ball.  The game uses one projective cell per wedge; a 2D canvas has no
+// projective transform, so each cell is two affine triangles here.
+function camBall(g, src, geo, K, c) {
+  // The preview canvas is ~half the game's width: half the cells look the same.
+  var cols = Math.max(8, Math.ceil((c.planet_ball_cols | 0) / 2)), bands = c.planet_ball_bands | 0;
+  var px = geo[0], R = geo[2], top = geo[3], rref = geo[4], yBot = geo[6], sw = geo[7];
+  if (yBot - top < 1) return;
+  var xLo = Math.max(0, px - Math.PI / 2 * rref), xHi = Math.min(sw, px + Math.PI / 2 * rref);
+  if (xHi - xLo < 1) return;
+  function tri(s0, s1, s2, d0, d1, d2) {
+    // Affine map: source triangle (screen px) -> dest triangle (screen px), then x K.
+    var ax = s1[0] - s0[0], ay = s1[1] - s0[1], bx = s2[0] - s0[0], by = s2[1] - s0[1];
+    var det = ax * by - ay * bx; if (Math.abs(det) < 1e-9) return;
+    var ux = d1[0] - d0[0], uy = d1[1] - d0[1], vx = d2[0] - d0[0], vy = d2[1] - d0[1];
+    var a = (ux * by - vx * ay) / det, cc = (vx * ax - ux * bx) / det;
+    var b = (uy * by - vy * ay) / det, d = (vy * ax - uy * bx) / det;
+    var e = d0[0] - a * s0[0] - cc * s0[1], f = d0[1] - b * s0[0] - d * s0[1];
+    // Clip to the dest triangle, grown ~1 preview px so cells overlap (no seams).
+    var mx = (d0[0] + d1[0] + d2[0]) / 3, my = (d0[1] + d1[1] + d2[1]) / 3;
+    function grow(q) { var dx = q[0] - mx, dy = q[1] - my, l = Math.hypot(dx, dy) || 1, k = 1 + 1.2 / (K * l); return [(mx + dx * k) * K, (my + dy * k) * K]; }
+    var p0 = grow(d0), p1 = grow(d1), p2 = grow(d2);
+    g.save();
+    g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.clip();
+    g.setTransform(a * K, b * K, cc * K, d * K, e * K, f * K);
+    var x0 = Math.min(s0[0], s1[0], s2[0]) - 2, y0 = Math.min(s0[1], s1[1], s2[1]) - 2;
+    var x1 = Math.max(s0[0], s1[0], s2[0]) + 2, y1 = Math.max(s0[1], s1[1], s2[1]) + 2;
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(src.width / K, x1); y1 = Math.min(src.height / K, y1);
+    if (x1 > x0 && y1 > y0) g.drawImage(src, x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K, x0, y0, x1 - x0, y1 - y0);
+    g.restore();
+  }
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  for (var j = 0; j < bands; j++) {
+    var ya = top + (yBot - top) * j / bands, yb = top + (yBot - top) * (j + 1) / bands;
+    for (var i = 0; i < cols; i++) {
+      var xa = xLo + (xHi - xLo) * i / cols, xb = xLo + (xHi - xLo) * (i + 1) / cols;
+      var A = [xa, ya], B = [xb, ya], C = [xb, yb], D = [xa, yb];
+      var mA = CAMERA.ballMap(geo, xa, ya), mB = CAMERA.ballMap(geo, xb, ya), mC = CAMERA.ballMap(geo, xb, yb), mD = CAMERA.ballMap(geo, xa, yb);
+      tri(A, B, C, mA, mB, mC); tri(A, C, D, mA, mC, mD);
+    }
+  }
+  g.restore();
+}
 function camPreview(parent) {
   var wrap = document.createElement("div"); wrap.className = "wpv";
   var cv = document.createElement("canvas"); cv.width = 1120; cv.height = 630; cv.style.aspectRatio = "16/9"; wrap.appendChild(cv);
   var cap = document.createElement("div"); cap.className = "wpvcap"; wrap.appendChild(cap);
   var row = document.createElement("div"); row.className = "row"; wrap.appendChild(row);
   parent.appendChild(wrap);
-  var g = cv.getContext("2d"), W = cv.width, H = cv.height, SW = 1920, SH = 1080, K = W / SW;
+  var g0 = cv.getContext("2d"), g = g0, W = cv.width, H = cv.height, SW = 1920, SH = 1080, K = W / SW;
+  // Big ball: the camera'd scene is drawn here first, then bent onto g0.
+  var bcv = document.createElement("canvas"); bcv.width = W; bcv.height = H;
+  var bg = bcv.getContext("2d");
   var cam = new CAMERA.Cam(SW, SH, CAMCFG);
   var battle = lsGet("pbfxstudio.v1.camera.battle") !== false;
   var n = 0, hs = 0, figs = [], sparks = [], acc = 0, last = performance.now(), kb = null;
@@ -4470,6 +4516,8 @@ function camPreview(parent) {
     g.fillRect(W * 0.06, H * 0.1, W * 0.38, H * 0.5); g.fillRect(W * 0.52, H * 0.18, W * 0.4, H * 0.6);
     // The scene, through the camera.
     var v = cam.view();
+    var geo = cam.ballGeo(v);
+    if (geo) { g = bg; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); }
     g.save(); g.scale(K, K); cam.apply(g, v);
     V = v;
     function line(x0, y0, x1, y1) { var a = P(x0, y0), b = P(x1, y1); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
@@ -4500,11 +4548,12 @@ function camPreview(parent) {
     g.globalAlpha = 1;
     if (CAMCFG.wireframe) camWire(g, cam, v, figs.filter(function (f) { return !f.down; }), battle, SW, SH, P);
     g.restore();
-    // The HUD: never zooms or shakes.
+    if (geo) { g = g0; camBall(g0, bcv, geo, K, CAMCFG); }
+    // The HUD: never zooms or shakes (or bends).
     g.fillStyle = "#ff6b6b"; g.fillRect(18, 16, 260, 16);
     if (battle) { g.fillStyle = "#6bb8ff"; g.fillRect(W - 278, 16, 260, 16); }
     g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "bold 26px Consolas, monospace";
-    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°" + (cam.planetOn() ? "  PLANET" : "  depth " + v[6].toFixed(2)) + "  trauma " + cam.trauma.toFixed(2) +
+    g.fillText((battle ? "Battle" : "Solo") + "  zoom " + v[2].toFixed(2) + "×  tilt " + v[3].toFixed(1) + "°" + (cam.planetOn() ? (geo ? "  BALL" : "  PLANET") : "  depth " + v[6].toFixed(2)) + "  trauma " + cam.trauma.toFixed(2) +
       (cam.shot ? "  " + cam.shot.kind.toUpperCase() : "") + (hs > 0 ? "  HIT-STOP" : "") + (slowT > 0 ? "  SLOW-MO" : "") + (koQuit > 0 ? "  KO HOLD" : ""), 18, H - 18);
     requestAnimationFrame(frame);
   }
