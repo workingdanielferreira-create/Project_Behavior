@@ -195,7 +195,7 @@ var CAM_GROUPS = [
     ["planet_horizon_deg", "Horizon angle (°)", "How far round the sphere the horizon sits. 90 = a full quarter turn (strongest falloff and squash at the rim).", 1],
     ["planet_far", "Size at horizon ×", "Distance factor at the horizon (1 on the anchor).", 0.01],
     ["planet_squash", "Rim squash", "How much the world layers are flattened along the line to the anchor at the horizon. 0 = none.", 0.01],
-    ["planet_ball", "Big ball", "The fight happens on top of a big ball (game only, not shown in this preview): the whole scene - fighters, FX, bullets, terrain, dust - is bent onto the ball. One curved horizon arc above the fight, nothing drawn past it, and things off to the side drop down the curve and lean outward. Drawing only: hits and walls are unchanged; the HUD stays flat."],
+    ["planet_ball", "Big ball", "The fight happens on top of a big ball (shown in the preview above too): the whole scene - fighters, FX, bullets, terrain, dust - is bent onto the ball. One curved horizon arc above the fight, nothing drawn past it, and things off to the side drop down the curve and lean outward. Drawing only: hits and walls are unchanged; the HUD stays flat."],
     ["planet_ball_radius_frac", "Ball radius (× width)", "Radius of the horizon arc, as a share of the screen width. Smaller = a rounder, tighter ball.", 0.05],
     ["planet_ball_top_frac", "Horizon height (× height)", "Where the top of the ball's horizon sits on screen, as a share of the screen height (0 = the very top).", 0.01],
     ["planet_ball_cols", "Curve cells across", "How many slices the bend is made of across the screen. More = smoother curve, slower.", 1],
@@ -486,10 +486,33 @@ Cam.prototype.apply = function (g, v) {
   g.translate(-v[0], -v[1]);
 };
 
+// Big ball (laser/ballwarp.py BallWarp.setup / _map): this frame's ball in
+// screen px, or null when off.  [px, py, R, top, rref, cy, yBot, sw, sh]
+Cam.prototype.ballGeo = function (v) {
+  var c = this.cfg;
+  if (!(c.planet_ball && this.planetOn())) return null;
+  var sw = this.sw, sh = this.sh, R = Math.max(16, c.planet_ball_radius_frac * sw), top = c.planet_ball_top_frac * sh;
+  var px = sw * 0.5, py = sh * 0.6;
+  if (this.anc) {
+    // Camera.world_to_screen (no depth: the planet replaces it).
+    var r = (v[3] || 0) * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+    var dx = (this.anc[0] - v[0]) * v[2], dy = (this.anc[1] - v[1]) * v[2];
+    px = sw / 2 + v[4] + dx * cs - dy * sn; py = sh / 2 + v[5] + dx * sn + dy * cs;
+  }
+  py = Math.max(top + 1, Math.min(sh, py));
+  var rref = Math.max(0.3 * R, R - (py - top));
+  return [px, py, R, top, rref, top + R, Math.min(sh, top + 0.97 * R), sw, sh];
+};
+// A screen point -> where the ball draws it.
+function ballMap(geo, x, y) {
+  var r = geo[2] - (y - geo[3]), phi = (x - geo[0]) / geo[4];
+  return [geo[0] + r * Math.sin(phi), geo[5] - r * Math.cos(phi)];
+}
+
 window.CAMERA = {
   FORMAT: CAM_FORMAT, DEFAULTS: CAM_DEFAULTS, RANGES: CAM_RANGES, GROUPS: CAM_GROUPS, SHOTS: CAM_SHOTS,
   WIRE_KEYS: CAM_WIRE_KEYS, WIRE_EXTRA: CAM_WIRE_EXTRA, ellU: ellU,
   idle: camIdle, IDLE_CONTROLLERS: CAM_IDLE_CONTROLLERS,
-  TICK_MS: TICK_MS, normalize: normalize, Cam: Cam
+  TICK_MS: TICK_MS, normalize: normalize, Cam: Cam, ballMap: ballMap
 };
 })();
