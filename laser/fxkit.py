@@ -211,6 +211,12 @@ PARAM_DEFAULTS = {
     # on screen (degrees), w_side "front" / "behind" = which side of the
     # fighter the blade passes; w_blade "both" / "first" / "second" = which
     # weapon slot this effect draws and hits with (one effect per blade).
+    # Positioning (every weapon): w_grip = where along it the hand holds it
+    # (weapon lengths), w_flip_at "anchor" / "grip" = the flips' pivot,
+    # w_move / w_turn = % of the move's own travel / swing, w_aim "auto" /
+    # "always" / "never", w_follow "off" / "position" / "position_angle" =
+    # the grip rides its hand (w_hand1 / w_hand2 "right" / "left"), and
+    # w_b1_* / w_b2_* = each blade's own offset px (x, y) and angle (ang).
     # ext_*: the blade extension's movement while it is out (swordfx._ext_frame):
     # ext_pivot = where on its centre line it turns (0 = base, 0.5 = middle,
     # 1 = tip); ext_spin = degrees per tick, ext_sweep = total degrees (with
@@ -238,7 +244,10 @@ PARAM_DEFAULTS = {
                       density=1.0, rotation_deg=0, lightning=False, lightning_rate=1.5,
                       aura_burst=True, aura_debris=True, aura_surges=True, aura_cracks=False, aura_part="all",
                       gap_px=18, w_mode="signature", w_scale=1, w_flip_x=1, w_flip_y=1, w_yaw=0, w_pitch=0, w_spin=0,
-                      w_depth=0, w_weight=0, w_plane=0, w_plane_roll=0, w_side="front", w_blade="both", ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
+                      w_depth=0, w_weight=0, w_plane=0, w_plane_roll=0, w_side="front", w_blade="both",
+                      w_grip=0, w_flip_at="anchor", w_move=100, w_turn=100, w_aim="auto", w_follow="off",
+                      w_hand1="right", w_hand2="left", w_b1_x=0, w_b1_y=0, w_b1_ang=0, w_b2_x=0, w_b2_y=0, w_b2_ang=0,
+                      ext_pivot=0, ext_spin=0, ext_sweep=0, ext_spin_dir="clockwise", ext_slide=0,
                       ext_slide_deg=0, hitstop=False, hitstop_ticks=4, kb_dir="aim", kb_angle_deg=0,
                       impact_frame="off", impact_frame_r=90, kick_sweep="high_low", axe_dir="screen_down",
                       axe_crater="contact", spin_mode="centered", spin_turns=2, spin_vertical=False, rise_dir="screen_up", kick_angle_deg=0,
@@ -1259,7 +1268,7 @@ class Inst:
                  "lodge", "mk", "ma", "run", "tgt", "cap", "bgrow",
                  "tq_f", "tq_m", "tq_o", "tq_hits", "tq_cut", "tq_path", "tq_ki", "tq_kd", "tq_off", "tq_imp",
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end", "tq_hs",
-                 "w_dg", "w_arm",
+                 "w_dg", "w_arm", "w_hand",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
                  "bd_m", "bd_stuck", "tq_bd")
 

@@ -195,13 +195,18 @@ function at(lst, k) { return lst[Math.max(0, Math.min(Math.trunc(k), lst.length 
 function XF() {}
 XF.prototype.pt = function (u, v, t) {
   t = t || 0;
-  var x3 = u * this.L, y3 = v * this.W * this.cy - t * this.sy * this.tk, z3 = v * this.W * this.sy + t * this.cy * this.tk;
+  var x3 = (u - this.gu) * this.L, y3 = v * this.W * this.cy - t * this.sy * this.tk, z3 = v * this.W * this.sy + t * this.cy * this.tk;
   var x4 = x3 * this.cp - z3 * this.sp, z4 = x3 * this.sp + z3 * this.cp;
   var s = this.Fc / Math.max(this.Fc * 0.25, this.Fc * (1 + this.dz) + z4);
   var wx = x4 * s * this.K, wy = y3 * s * this.K;
-  var lx = this.px + wx * this.ca - wy * this.sa, ly = this.py + wx * this.sa + wy * this.ca;
+  var dx = wx * this.ca - wy * this.sa, dy = wx * this.sa + wy * this.ca;
+  if (this.fa) {
+    // Flip pivot grip: the flips mirror the weapon in place round its grip
+    var g0 = this.fr.d(this.px, this.py), gg = this.fr.d(dx, dy);
+    return [this.fr.ox + g0[0] + gg[0] * this.fx_, this.fr.oy + g0[1] + gg[1] * this.fy_];
+  }
   // the flips mirror on screen round the anchor (left / right, up / down)
-  var g = this.fr.d(lx, ly);
+  var g = this.fr.d(this.px + dx, this.py + dy);
   return [this.fr.ox + g[0] * this.fx_, this.fr.oy + g[1] * this.fy_];
 };
 // Local angle (degrees) from the anchor to the target at tick, held within
@@ -247,27 +252,84 @@ function armAt(inst, tick) {
   if (b == null || f <= 0) return a;
   return a + wrap(b - a) * f;
 }
+var HANDS = {right: ["haR", "wtip"], left: ["haL", "wtip2"]};   // w_hand1 / w_hand2: [hand, weapon tip]
+function num(P, k, d) { var v = P[k]; return v == null || v === "" ? (d || 0) : +v; }
+function bk(slot) { return slot >= 1 ? "w_b2_" : "w_b1_"; }   // the per-blade key prefix
+function follow(P) { return P.w_follow === "position" || P.w_follow === "position_angle" ? P.w_follow : "off"; }
+// Whether the blade turns toward the target (w_aim).
+function aimOn(P, w) { return P.w_aim === "always" ? true : P.w_aim === "never" ? false : !!w.aim; }
+// Follow hand: both hands this tick, local to the effect's anchor ->
+// [[x, y, angle or null] right, ... left] (null for a hand the rig does not
+// have); null when Follow hand is off.  laser/weaponfx.py hand_rec.
+function handRec(inst, host) {
+  var P = inst.fx.params;
+  if (!host || follow(P) === "off" || !WEAPONS[L_().style(P)]) return null;
+  var fr = new (L_().Frame)(0, 0, inst.tq_f, inst.tq_m), fg = host.anchor("figure"), out = [];
+  ["right", "left"].forEach(function (nm) {
+    var p0 = host.anchor(HANDS[nm][0]);
+    if (p0[0] === fg[0] && p0[1] === fg[1]) { out.push(null); return; }
+    var dx = p0[0] - inst.x, dy = p0[1] - inst.y;
+    var lx = dx * fr.fx + dy * fr.fy, ly = dx * fr.vx + dy * fr.vy;
+    var p1 = host.anchor(HANDS[nm][1]), ex = p1[0] - p0[0], ey = p1[1] - p0[1], a = null;
+    if (!(p1[0] === fg[0] && p1[1] === fg[1]) && Math.hypot(ex, ey) >= 1) a = Math.atan2(ex * fr.vx + ey * fr.vy, ex * fr.fx + ey * fr.fy) / L_().D;
+    out.push([lx, ly, a]);
+  });
+  return out;
+}
+// Follow hand: [x, y local px, angle or null] of the hand blade `slot`
+// follows at tick (fractional ticks interpolate), or null.
+function handAt(inst, P, slot, tick) {
+  var H = inst.w_hand;
+  if (!H || !H.length || follow(P) === "off") return null;
+  var hk = slot >= 1 ? "w_hand2" : "w_hand1", hv = P[hk] || (slot >= 1 ? "left" : "right");
+  var hi = hv === "left" ? 1 : 0;
+  var k = Math.max(0, Math.min(Math.trunc(tick), H.length - 1)), a = H[k] ? H[k][hi] : null;
+  if (a == null) return null;
+  var b = k + 1 < H.length && H[k + 1] ? H[k + 1][hi] : null, f = tick - Math.trunc(tick);
+  if (b == null || f <= 0) return a;
+  var ang = a[2];
+  if (a[2] != null && b[2] != null) ang = a[2] + wrap(b[2] - a[2]) * f;
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, ang];
+}
+// Local px the grip is moved by: the followed hand + the blade's offset.
+function gripOff(inst, P, slot, tick, ps) {
+  var k = bk(slot), gx = num(P, k + "x") * ps, gy = num(P, k + "y") * ps, hd = handAt(inst, P, slot, tick);
+  if (hd) { gx += hd[0]; gy += hd[1]; }
+  return [gx, gy];
+}
 // The slot's pose at tick before weight and swing plane:
 // [x, y, r, ang, yaw, pitch, scale, aim angle, target distance].
+// w_move / w_turn scale the move's own travel / swing; w_aim decides the turn
+// toward the target; Follow hand (position + angle) lays the blade along its
+// hand's weapon line; the blade's own angle goes on top.  laser/weaponfx.py _pose.
 function pose(inst, P, w, slot, tick) {
   var ph = phase(P, inst.life, tick), rows = w.tracks[slot];
   var q = sig(P) ? track(rows, ph[0]) : rows[0].slice(1, 8);
-  var x = q[0], y = q[1], ang = q[3];
-  var ad = w.aim ? aimAng(inst, tick) : [0, 0];
+  var mv = num(P, "w_move", 100) / 100, tn = num(P, "w_turn", 100) / 100;
+  var x = q[0] * mv, y = q[1] * mv, r = q[2] * mv, ang = q[3] * tn;
+  var on = aimOn(P, w);
+  var ad = (on || w.aim) ? aimAng(inst, tick) : [0, 0];
+  if (!on) ad = [0, ad[1]];
+  var hd = follow(P) === "position_angle" ? handAt(inst, P, slot, tick) : null;
+  var hand = hd ? hd[2] : null;
   var arm = sig(P) ? null : armAt(inst, tick);
-  if (arm == null) {
-    if (!sig(P)) y += Math.sin(tick * 0.12) * 0.15;
-    ang += ad[0];
-  } else {
+  if (!sig(P) && hand != null) arm = hand;
+  if (arm != null) {
     x = y = 0;      // the grip in the hand, along the rig's own blade line
     ang = arm;
+  } else if (hand != null) {
+    ang += hand;    // the move's swing on top of the hand's own blade line
+  } else {
+    if (!sig(P)) y += Math.sin(tick * 0.12) * 0.15 * mv;
+    ang += ad[0];
   }
+  ang += num(P, bk(slot) + "ang");
   if (w.shot) {
     var kick = recoil(w, P, slot, tick);
     ang -= 9 * kick;
     x -= 0.25 * kick;
   }
-  return [x, y, q[2], ang, q[4], q[5], q[6], ad[0], ad[1]];
+  return [x, y, r, ang, q[4], q[5], q[6], ad[0], ad[1]];
 }
 function weight(P) { return Math.max(0, Math.min(1, +P.w_weight || 0)); }
 function flipSign(v) { return v != null && +v < 0 ? -1 : 1; }
@@ -293,9 +355,17 @@ function drag(inst, ps, slot, tick) {
   var w0 = 2 * Math.PI * (DRAG_HZ[0] + (DRAG_HZ[1] - DRAG_HZ[0]) * wt) * FXK().TICK_MS / 1000;
   var ze = DRAG_ZETA[0] + (DRAG_ZETA[1] - DRAG_ZETA[0]) * wt;
   var lim = DRAG_MAX * L.D, amax = GRIP_ACC_MAX * Lp;
+  var fa = P.w_flip_at === "grip";
   function grip(k) {   // the hand in the weapon's own (unflipped) frame, px
-    var q = pose(inst, P, w, slot, k), p = inst.tq_path[k], px = p[0] * sx, py = p[1] * sy;
-    return [[px * fr.fx + py * fr.fy + q[0] * HU * ps * s0 * Gs, px * fr.vx + py * fr.vy + q[1] * HU * ps * s0 * Gs], q[3]];
+    var q = pose(inst, P, w, slot, k), go = gripOff(inst, P, slot, k, ps), p = inst.tq_path[k];
+    var lx = q[0] * HU * ps * s0 * Gs + go[0], ly = q[1] * HU * ps * s0 * Gs + go[1], px, py;
+    if (fa) {   // Flip pivot grip: the grip itself is not mirrored on screen
+      var d = fr.d(lx, ly);
+      px = (p[0] + d[0]) * sx; py = (p[1] + d[1]) * sy;
+      return [[px * fr.fx + py * fr.fy, px * fr.vx + py * fr.vy], q[3]];
+    }
+    px = p[0] * sx; py = p[1] * sy;
+    return [[px * fr.fx + py * fr.fy + lx, px * fr.vx + py * fr.vy + ly], q[3]];
   }
   if (!c) {
     var r0 = grip(0), T0 = r0[1] * L.D;
@@ -364,14 +434,17 @@ function xf(inst, ps, slot, tick) {
   var s0 = 1 / (1 + dz);
   var K = sc * Gs * (0.75 + 0.25 * L.easeOut3(ap));
   o.K = K;
+  o.gu = num(P, "w_grip");
+  o.fa = P.w_flip_at === "grip";
   var hx = x * HU * ps, hy = y * HU * ps;
-  if (r > 0 && w.aim) {
+  if (r > 0 && (w.aim || aimOn(P, w))) {
     // reach toward the target: the blade tip lands on it at r = 1
-    var reach = Math.max(0, Math.min(dist, (+P.radius || 0) * ps) - md.hit[2] * Lp * K);
+    var reach = Math.max(0, Math.min(dist, (+P.radius || 0) * ps) - (md.hit[2] - o.gu) * Lp * K);
     hx += Math.cos(aa * L.D) * reach * r;
     hy += Math.sin(aa * L.D) * reach * r;
   }
-  o.px = hx * s0 * Gs; o.py = hy * s0 * Gs;
+  var go = gripOff(inst, P, slot, tick, ps);
+  o.px = hx * s0 * Gs + go[0]; o.py = hy * s0 * Gs + go[1];
   o.fx_ = P.w_flip_x != null ? +P.w_flip_x : 1;
   o.fy_ = P.w_flip_y != null ? +P.w_flip_y : 1;
   o.nz = o.cy * o.cp;
@@ -1049,5 +1122,5 @@ function draw(pen, inst, host, ps) {
 
 G.WEAPONFX = {STYLES: STYLES, WEAPONS: WEAPONS, SEQS: SEQS, sequences: sequences, MODELS: MODELS, draw: draw, hit: hit, body: body, onHit: onHit,
               activeTicks: activeTicks, totalTicks: totalTicks, fires: fires, livePoints: livePoints,
-              armAng: armAng, drawLayer: drawLayer};
+              armAng: armAng, handRec: handRec, drawLayer: drawLayer};
 })(window);
