@@ -13197,7 +13197,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13238,7 +13255,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13249,7 +13283,7 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "leap",
+   "movement": "hit_retreat",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
@@ -13258,7 +13292,7 @@
     "cooldown_ms": 6000,
     "blinks": []
    },
-   "attack_px": 1800,
+   "attack_px": 300,
    "time": {
     "enabled": false,
     "start_frame": 0,
@@ -13271,7 +13305,7 @@
    },
    "leap": {
     "start_frame": 0,
-    "land_frame": -1,
+    "land_frame": 2,
     "height_px": 0,
     "hit_px": null,
     "height_max_px": null,
@@ -13279,7 +13313,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": -10,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 185,
+    "arc_curve_pct": 100,
+    "turn_frame": -1,
+    "retreat_px": 160,
+    "return_angle_deg": 145,
+    "flip": false,
+    "zig_count": 5,
+    "zig_angle_deg": 25,
+    "zig_len_px": 195,
+    "zig_turn": "inertia",
+    "zig_turn_pct": 100,
+    "fake_angle_deg": -15,
+    "fake_len_px": 220,
+    "flank_radius_px": 194
    },
    "attack_gap_ms": 50
   },
@@ -13320,7 +13371,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13349,20 +13417,9 @@
    "anim_loops": 1,
    "back_stop_pct": 50,
    "blink": {
-    "enabled": true,
+    "enabled": false,
     "cooldown_ms": 1000,
-    "blinks": [
-     {
-      "start_frame": 32,
-      "end_frame": 32,
-      "anchor": "self",
-      "direction": "away",
-      "angle_deg": 0,
-      "proximity_px": 705,
-      "flash": true,
-      "mirror": false
-     }
-    ]
+    "blinks": []
    },
    "attack_px": 0,
    "time": {
@@ -13391,7 +13448,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13457,7 +13531,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13479,7 +13570,7 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": true,
-   "movement": "back",
+   "movement": "move",
    "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 100,
@@ -13502,14 +13593,31 @@
    "leap": {
     "start_frame": 0,
     "land_frame": -1,
-    "height_px": 40,
+    "height_px": 85,
     "hit_px": null,
     "height_max_px": null,
     "dist_min_px": 300,
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "random",
+    "hop_px": 0,
+    "arc_radius_px": 320,
+    "arc_curve_pct": 100,
+    "turn_frame": -1,
+    "retreat_px": 250,
+    "return_angle_deg": 125,
+    "flip": true,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "attack_gap_ms": 350
   },
@@ -13535,7 +13643,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "blink": {
     "blinks": [],
@@ -13566,14 +13691,14 @@
    "conditions": [
     {
      "type": "attacks_made",
-     "count": 3,
+     "count": 4,
      "not": false
     }
    ],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "stand",
+   "movement": "leap",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
@@ -13588,7 +13713,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "blink": {
     "blinks": [
@@ -13625,8 +13767,8 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "stand",
-   "move_speed_pct": 100,
+   "movement": "back",
+   "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 80,
    "attack_px": 0,
@@ -13640,7 +13782,24 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100
    },
    "blink": {
     "blinks": [],
@@ -15629,7 +15788,7 @@
     "jitter": 4.050000144642862,
     "grow_ticks": 3,
     "detach_ticks": 0,
-    "tip_fade": 0,
+    "tip_fade": 0.6,
     "pos_scale": true
    },
    "keys": [],
@@ -15730,7 +15889,7 @@
     "jitter": 0,
     "grow_ticks": 3,
     "detach_ticks": 0,
-    "tip_fade": 0.05,
+    "tip_fade": 0,
     "pos_scale": true
    },
    "keys": [],
@@ -15745,8 +15904,8 @@
    "end_frame": 54,
    "continuous": true,
    "offset": [
-    36.5,
-    0.9000000321428583
+    37.5,
+    4.5
    ],
    "layer": "front",
    "emit": {
@@ -16562,7 +16721,7 @@
    },
    "color": {
     "mode": "gradient",
-    "c1": "#4dc2f5",
+    "c1": "#f3aaaa",
     "c2": "#ff9d00",
     "lut_index": 128,
     "lut_index2": 128,
@@ -16691,14 +16850,16 @@
      "frame": 16,
      "ease": "inout",
      "set": {
-      "color.c1": "#4dc2f5"
-     }
-    },
-    {
-     "frame": 18,
-     "ease": "inout",
-     "set": {
-      "params.length": 63
+      "color.c1": "#decc02",
+      "params.length": 166,
+      "params.thickness": 10.5,
+      "params.span": 200,
+      "params.swing_ticks": 17,
+      "params.hold_ticks": 296,
+      "params.radius": 8.5,
+      "params.density": 4,
+      "offset.1": 0,
+      "offset.0": 0.5
      }
     },
     {
@@ -16707,7 +16868,11 @@
      "set": {
       "params.length": 11,
       "params.thickness": 4,
-      "params.radius": 1
+      "params.radius": 1,
+      "color.c1": "#ffec1a",
+      "color.c2": "#b77b1a",
+      "offset.0": 0,
+      "offset.1": 0
      }
     }
    ]
@@ -18319,7 +18484,7 @@
     "hitstop_ticks": 5,
     "shake": true,
     "shake_px": 9,
-    "squash": true,
+    "squash": false,
     "squash_amt": 0.4,
     "rotation_deg": 0,
     "lightning": false,
@@ -18351,11 +18516,11 @@
     "kb_angle_deg": 0,
     "impact_frame": "full",
     "impact_frame_r": 90,
-    "fx_motion": "gritty",
+    "fx_motion": "off",
     "motion_smear": true,
     "motion_arcs": true,
     "fx_impact": "energy",
-    "fx_env": "gritty",
+    "fx_env": "off",
     "shake_ticks": 8,
     "squash_ticks": 6,
     "squash_flash": true,
@@ -18453,12 +18618,12 @@
     "start_fraction": 0
    },
    "params": {
-    "style": "thrust_kick",
-    "radius": 11,
-    "thickness": 26,
-    "length": 65,
+    "style": "impact_punch",
+    "radius": 9,
+    "thickness": 12,
+    "length": 60,
     "swing_ticks": 4,
-    "hold_ticks": 4,
+    "hold_ticks": 3,
     "density": 1,
     "kb_dir": "tangent",
     "span": 169,
@@ -18497,13 +18662,13 @@
     "fx_motion": "energy",
     "motion_smear": true,
     "motion_arcs": true,
-    "fx_impact": "gritty",
-    "fx_env": "gritty",
+    "fx_impact": "energy",
+    "fx_env": "off",
     "shake": true,
     "shake_px": 6,
     "shake_ticks": 8,
-    "squash": false,
-    "squash_amt": 0.8,
+    "squash": true,
+    "squash_amt": 0.25,
     "squash_ticks": 20,
     "squash_flash": true,
     "kick_sweep": "high_low",
@@ -18753,9 +18918,9 @@
    "show_gauge": true,
    "form_a": {
     "name": "Base",
-    "speed_pct": 100,
-    "damage_pct": 100,
-    "taken_pct": 100,
+    "speed_pct": 80,
+    "damage_pct": 80,
+    "taken_pct": 120,
     "palette": true,
     "body": "#f05400",
     "accent": "#000000",
@@ -18768,10 +18933,10 @@
     "name": "SSJ",
     "speed_pct": 200,
     "damage_pct": 200,
-    "taken_pct": 80,
+    "taken_pct": 100,
     "palette": true,
     "body": "#f0c800",
-    "accent": "#000000",
+    "accent": "#e28503",
     "aura": false,
     "aura_color": "#ff3a3a",
     "fx": "",
@@ -18787,10 +18952,10 @@
     "name": "SSJ God",
     "speed_pct": 300,
     "damage_pct": 300,
-    "taken_pct": 50,
+    "taken_pct": 80,
     "palette": true,
     "body": "#ff0000",
-    "accent": "#000000",
+    "accent": "#ef790b",
     "aura": false,
     "aura_color": "#3aff7a",
     "fx": "",
@@ -19286,7 +19451,8 @@
       "duration_ms": 1000
      }
     }
-   }
+   },
+   "speed_fx_anim": false
   },
   "summoner": {
    "summons": [

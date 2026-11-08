@@ -8724,7 +8724,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 20,
+    "damage": 200,
     "pierce": true,
     "rehit_ticks": 6,
     "knockback": 500,
