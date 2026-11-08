@@ -286,6 +286,7 @@ def on_tick(inst, host=None):
     strikefx.hitstop_step(inst, host)
     kickfx.hitstop_step(inst, host)
     gunfx.track_step(inst, host)
+    powerfx.met_step(inst, inst.ps or 1.0)
 
 
 def _record_outline(inst, host):

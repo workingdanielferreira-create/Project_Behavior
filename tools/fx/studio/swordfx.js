@@ -140,6 +140,7 @@ function onTick(inst, host) {
   if (STRIKE()) { STRIKE().trackStep(inst, host); STRIKE().hitstopStep(inst, host); }
   if (KICK()) KICK().hitstopStep(inst, host);
   if (GUN()) GUN().trackStep(inst, host);
+  if (POWER() && POWER().metStep) POWER().metStep(inst, inst.ps || 1);
 }
 function Frame(ox, oy, f, m) { this.ox = ox; this.oy = oy; this.fx = f[0]; this.fy = f[1]; this.vx = -f[1] * m; this.vy = f[0] * m; }
 Frame.prototype.w = function (x, y) { return [this.ox + x * this.fx + y * this.vx, this.oy + x * this.fy + y * this.vy]; };

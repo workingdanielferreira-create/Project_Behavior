@@ -21,7 +21,7 @@ var AURA_SLOT = 4, AURA_BOLT_LIFE = 6;
 var AURA_BOLT_FLICKER = [1.0, 0.35, 1.0, 0.7, 0.3, 0.15];
 var BOLT = [150, 205, 255], ROCK = [78, 66, 54], CRACK = [26, 20, 18];
 var RS_SPEED = 8.0, RS_SPIN = [0.04, 0.55], RS_GROW = 9, RS_SHRINK = 12, RS_FADE = 18;
-var MET_FALL = 30, MET_LOB = 0.22, MET_GROW_DRAG = 0.12, MET_BLAST_HIT = 8, MET_BLAST_LIFE = 44;
+var MET_FALL = 30, MET_GROW_DRAG = 0.12, MET_BLAST_HIT = 8, MET_BLAST_LIFE = 44;
 var DUST = [110, 98, 84];
 var GH_FLOAT = 16, GH_OUT = 3.2, GH_DRAG = 0.86, GH_SPEED = 6.5, GH_ACCEL = 0.35, GH_TURN = 0.16, GH_FAN = 55.0, GH_ARRIVE = 1.2;
 var GH_BLAST_LIFE = 30;
@@ -610,15 +610,21 @@ function drawRasen(pen, inst, host, ps) {
 }
 
 // ================================================================ gigantic meteor
-// [phase, x, y, R]: phase 0 charge, 1 fall, 2 drag, 3 blast (x, y = where).
+// Ticks the orb keeps its start size after the charge before it grows
+// (small_ticks, at most the drop's length - 1).  powerfx.py _met_small.
+function metSmall(P) { return Math.max(0, Math.min(MET_FALL - 1, ti(P, "small_ticks"))); }
+// [phase, x, y, R]: phase 0 charge, 1 drop, 2 drag, 3 blast (x, y = where).
 function metState(inst, ps, t) {
   var P = inst.fx.params, L = L_(), Tc = ti(P, "swing_ticks", 1), Th = ti(P, "hold_ticks", 1);
   var r0 = +P.radius * ps, r1 = +P.thickness * ps, p;
   if (t <= Tc) { p = at(inst.tq_path, t); return [0, p[0], p[1], r0 * (0.4 + 0.6 * L.easeOut3(t / Tc))]; }
   var o = at(inst.tq_path, Tc), tg = at(inst.tq_tp, Tc), ex = tg[0], ey = tg[1] - 0.45 * r1;
   if (t <= Tc + MET_FALL) {
-    var u = (t - Tc) / MET_FALL, k = Math.pow(u, 1.6), lob = MET_LOB * hyp(ex - o[0], ey - o[1]) * Math.sin(PI * u);
-    return [1, o[0] + (ex - o[0]) * k, o[1] + (ey - o[1]) * k - lob, r0 + (r1 - r0) * Math.pow(u, 0.9)];
+    // Straight down the line onto the target, speeding up (no lob); small
+    // for small_ticks, then grows to its landing size by the time it lands.
+    var u = (t - Tc) / MET_FALL, k = Math.pow(u, 1.6), sm = metSmall(P);
+    var g = Math.max(0, (t - Tc - sm) / (MET_FALL - sm));
+    return [1, o[0] + (ex - o[0]) * k, o[1] + (ey - o[1]) * k, r0 + (r1 - r0) * Math.pow(g, 0.9)];
   }
   var Ld = +P.length * ps;
   if (t <= Tc + MET_FALL + Th) {
@@ -626,6 +632,17 @@ function metState(inst, ps, t) {
     return [2, ex, ey + Ld * smooth(v), r1 * (1 + MET_GROW_DRAG * v)];
   }
   return [3, ex, ey + Ld, r1 * (1 + MET_GROW_DRAG)];
+}
+// Each tick (SWORDFX onTick): when the orb explodes, record the blast in
+// tq_ki like a ki orb going off (the game's Dust & Air crater reads it).
+// powerfx.py met_step.
+function metStep(inst, ps) {
+  var P = inst.fx.params;
+  if (P.style !== "gigantic_meteor" || !inst.tq_ki || inst.tq_ki[0]) return;
+  var tb = ti(P, "swing_ticks", 1) + MET_FALL + ti(P, "hold_ticks", 1);
+  if (inst.age < tb) return;
+  var s = metState(inst, ps, tb + 1);
+  inst.tq_ki[0] = [tb, s[1], s[2]];
 }
 function metHit(inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
@@ -662,26 +679,9 @@ function drawMeteor(pen, inst, host, ps) {
   var cs = L.colours(inst, host), c = cs[0], bright = cs[1];
   var Tc = ti(P, "swing_ticks", 1), Th = ti(P, "hold_ticks", 1), dens = +P.density || 1;
   var s = metState(inst, ps, t), ph = s[0], x = s[1], y = s[2], R = s[3], tb = Tc + MET_FALL + Th;
-  // 1: dust thrown up along the trench while it drags (painted normally, under the light)
-  if (t > Tc + MET_FALL) {
-    pen.add(false);
-    var nP = Math.max(0, Math.round(2 * dens));
-    for (var b = Tc + MET_FALL; b <= Math.min(t, tb); b += 2) {
-      var a0 = t - b;
-      if (a0 >= 30) continue;
-      var bs = metState(inst, ps, b), bx = bs[1], by = bs[2], bR = bs[3];
-      for (j = 0; j < nP; j++) {
-        r = L.rngFor(inst.seed, b, 421 + j);
-        var side = j % 2 === 0 ? -1 : 1;
-        var dpx = bx + side * bR * r.uniform(0.6, 1.05) + side * a0 * r.uniform(0.3, 0.9) * ps;
-        var dpy = by + bR * 0.6 - a0 * r.uniform(0.4, 1.0) * ps, dq = a0 / 30;
-        pen.glow(dpx, dpy, bR * r.uniform(0.35, 0.6) * (0.5 + dq), DUST, 120 * Math.pow(1 - dq, 1.5) * Math.min(1, a0 / 3), 0.6);
-      }
-    }
-  }
   pen.add(true);
   if (ph === 0) {
-    // 2: charge — rings compressing into the orb, energy drawn in
+    // 1: charge — rings compressing into the orb, energy drawn in
     var g = t / Tc;
     for (j = 0; j < 3; j++) {
       u = frac(t / 12 + j / 3);
@@ -700,31 +700,11 @@ function drawMeteor(pen, inst, host, ps) {
     return;
   }
   if (ph === 1 || ph === 2) {
-    if (ph === 1) {
-      // 3: falling — streaks behind it
-      var pv = metState(inst, ps, t - 1), dx = x - pv[1], dy = y - pv[2], d = hyp(dx, dy) || 1, ux = dx / d, uy = dy / d;
-      for (j = 0; j < 7; j++) {
-        r = L.rngFor(inst.seed, j, 441);
-        var off = r.uniform(-0.9, 0.9) * R, ln = r.uniform(1, 2.2) * R;
-        var sx = x - ux * R * 0.6 - uy * off, sy = y - uy * R * 0.6 + ux * off;
-        pen.line(sx, sy, sx - ux * ln, sy - uy * ln, L.mix(c, HOT, 0.3), 110, 1.6 * ps);
-      }
-    } else {
-      // 4: dragging — the glowing trench it gouges, sparks off the leading edge
-      var st0 = metState(inst, ps, Tc + MET_FALL);
-      pen.line(st0[1], st0[2] + R * 0.6, x, y + R * 0.6, c, 90, R * 0.8);
-      pen.line(st0[1], st0[2] + R * 0.6, x, y + R * 0.6, HOT, 140, 2 * ps);
-      for (j = 0; j < Math.max(0, Math.round(4 * dens)); j++) {
-        r = L.rngFor(inst.seed, t, 451 + j);
-        var ea = PI / 2 + r.uniform(-1.4, 1.4), v = r.uniform(3, 8) * ps;
-        var lx = x + Math.cos(ea) * R * 0.9, ly = y + Math.sin(ea) * R * 0.9;
-        pen.line(lx, ly, lx + Math.cos(ea) * v * 2, ly + Math.sin(ea) * v * 2 - 2 * ps, L.mix(HOT, c, 0.4), 220, 1.4 * ps);
-      }
-    }
+    // 2: the orb itself while it drops and sinks (no streaks, no trench)
     metOrb(pen, inst, x, y, R, c, bright, t, ps);
     return;
   }
-  // 5: the blast — flash, fireball, ground shock, a pillar of light, debris
+  // 3: the blast — flash, fireball, ground shock, a pillar of light, debris
   var a = t - tb;
   if (a >= MET_BLAST_LIFE) return;
   var q = a / MET_BLAST_LIFE, e = L.easeOut3(a / 12), B = R;
@@ -1170,6 +1150,6 @@ function draw(pen, inst, host, ps) {
   else drawBlackhole(pen, inst, host, ps);
 }
 
-G.POWERFX = {STYLES: STYLES, PULL_STYLES: PULL_STYLES, AURA_N: AURA_N, outlineFromAlpha: outlineFromAlpha, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
+G.POWERFX = {STYLES: STYLES, metStep: metStep, PULL_STYLES: PULL_STYLES, AURA_N: AURA_N, outlineFromAlpha: outlineFromAlpha, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
              hit: hit, body: body, beam: beam, onHit: onHit, draw: draw};
 })(window);

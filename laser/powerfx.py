@@ -23,11 +23,13 @@ Styles (params.style):
                    needle cuts that keeps hitting (Pierce + Re-hit) until it
                    collapses.
   gigantic_meteor  Gigantic Meteor (Broly): a small, dense orb gathers over
-                   the anchor with rings compressing into it, then drops on
-                   the target, growing as it falls; anything under it is
-                   caught and dragged down with it (Grip, a real pull in
-                   Battle), ground into the trench it gouges while it keeps
-                   hitting, until it explodes in a towering blast.
+                   the anchor with rings compressing into it, then drops
+                   straight onto the target (no lob), staying small for
+                   small_ticks and then growing as it falls; anything under
+                   it is caught and dragged down with it (Grip, a real pull
+                   in Battle) while it keeps hitting, until it explodes in a
+                   towering blast.  Only the explosion marks the ground
+                   (Dust & Air crater + pillar blast, via tq_ki: met_step).
   ghost_kamikaze   Super Ghost Kamikaze Attack (Gotenks): grinning ghosts
                    puff out of the anchor one after another, hover a moment
                    with a bob, then chase the target and blow up on contact
@@ -58,7 +60,9 @@ Parameters (the technique's own, reused; see TECH_STYLE_DEFAULTS):
                    hold_ticks = explosion time
   gigantic_meteor  radius = orb radius at launch, thickness = radius when it
                    lands, length = how far it drags down (px), span = grip
-                   (0-100 %), swing_ticks = charge, hold_ticks = drag time
+                   (0-100 %), swing_ticks = charge, hold_ticks = drag time,
+                   small_ticks = ticks it stays at radius after the charge
+                   before it grows (0..MET_FALL - 1)
   ghost_kamikaze   radius = ghost size, thickness = blast radius, length =
                    range, span = bob (px), swing_ticks = ticks between ghosts,
                    hold_ticks = release time
@@ -128,7 +132,6 @@ RS_SHRINK = 12
 RS_FADE = 18
 
 MET_FALL = 30
-MET_LOB = 0.22               # the drop's lob, times its distance
 MET_GROW_DRAG = 0.12         # extra growth while it drags
 MET_BLAST_HIT = 8
 MET_BLAST_LIFE = 44
@@ -1058,8 +1061,14 @@ def _draw_rasen(pen, inst, host, ps):
 
 
 # ================================================================ gigantic meteor
+def _met_small(P):
+    """Ticks the orb keeps its start size after the charge before it grows
+    (small_ticks, at most the drop's length - 1)."""
+    return max(0, min(MET_FALL - 1, _ti(P, "small_ticks")))
+
+
 def _met_state(inst, ps, t):
-    """(phase, x, y, R): phase 0 charge, 1 fall, 2 drag, 3 blast (x, y = where)."""
+    """(phase, x, y, R): phase 0 charge, 1 drop, 2 drag, 3 blast (x, y = where)."""
     P = inst.fx["params"]
     Tc = _ti(P, "swing_ticks", 1)
     Th = _ti(P, "hold_ticks", 1)
@@ -1071,15 +1080,34 @@ def _met_state(inst, ps, t):
     tx, ty = _at(inst.tq_tp, Tc)
     ex, ey = tx, ty - 0.45 * r1
     if t <= Tc + MET_FALL:
+        # Straight down the line onto the target, speeding up (no lob); it
+        # stays at its start size for small_ticks, then grows to its landing
+        # size by the time it lands.
         u = (t - Tc) / float(MET_FALL)
         k = u ** 1.6
-        lob = MET_LOB * _hyp(ex - x0, ey - y0) * math.sin(math.pi * u)
-        return 1, x0 + (ex - x0) * k, y0 + (ey - y0) * k - lob, r0 + (r1 - r0) * u ** 0.9
+        sm = _met_small(P)
+        g = max(0.0, (t - Tc - sm) / float(MET_FALL - sm))
+        return 1, x0 + (ex - x0) * k, y0 + (ey - y0) * k, r0 + (r1 - r0) * g ** 0.9
     Ld = float(P["length"]) * ps
     if t <= Tc + MET_FALL + Th:
         v = (t - Tc - MET_FALL) / float(Th)
         return 2, ex, ey + Ld * _smooth(v), r1 * (1 + MET_GROW_DRAG * v)
     return 3, ex, ey + Ld, r1 * (1 + MET_GROW_DRAG)
+
+
+def met_step(inst, ps):
+    """Each tick (swordfx.on_tick): when the orb explodes, record the blast in
+    tq_ki like a ki orb going off, so Dust & Air (worldfx.scan_blasts) breaks
+    pillars and leaves its crater there - only then, never while it charges,
+    drops or drags."""
+    P = inst.fx["params"]
+    if S._style(P) != "gigantic_meteor" or 0 in inst.tq_ki:
+        return
+    tb = _ti(P, "swing_ticks", 1) + MET_FALL + _ti(P, "hold_ticks", 1)
+    if inst.age < tb:
+        return
+    _ph, x, y, _r = _met_state(inst, ps, tb + 1)
+    inst.tq_ki[0] = (tb, x, y)
 
 
 def _met_hit(inst, tx, ty, hr, ps):
@@ -1125,25 +1153,9 @@ def _draw_meteor(pen, inst, host, ps):
     dens = float(P.get("density") or 1)
     ph, x, y, R = _met_state(inst, ps, t)
     tb = Tc + MET_FALL + Th
-    # 1: dust thrown up along the trench while it drags (painted normally, under the light)
-    if t > Tc + MET_FALL:
-        pen.add(False)
-        n_p = max(0, F.jround(2 * dens))
-        for b in range(Tc + MET_FALL, min(t, tb) + 1, 2):
-            a = t - b
-            if a >= 30:
-                continue
-            _p, bx, by, bR = _met_state(inst, ps, b)
-            for j in range(n_p):
-                r = S.rng_for(inst.seed, b, 421 + j)
-                side = -1 if j % 2 == 0 else 1
-                px = bx + side * bR * r.uniform(0.6, 1.05) + side * a * r.uniform(0.3, 0.9) * ps
-                py = by + bR * 0.6 - a * r.uniform(0.4, 1.0) * ps
-                q = a / 30.0
-                pen.glow(px, py, bR * r.uniform(0.35, 0.6) * (0.5 + q), DUST, 120 * (1 - q) ** 1.5 * min(1.0, a / 3.0), 0.6)
     pen.add(True)
     if ph == 0:
-        # 2: charge — rings compressing into the orb, energy drawn in
+        # 1: charge - rings compressing into the orb, energy drawn in
         g = t / float(Tc)
         for j in range(3):
             u = S.frac(t / 12.0 + j / 3.0)
@@ -1161,33 +1173,10 @@ def _draw_meteor(pen, inst, host, ps):
         _met_orb(pen, inst, x, y, R, c, bright, t, ps)
         return
     if ph in (1, 2):
-        if ph == 1:
-            # 3: falling — streaks behind it
-            _p, px, py, _r = _met_state(inst, ps, t - 1)
-            dx, dy = x - px, y - py
-            d = _hyp(dx, dy) or 1.0
-            ux, uy = dx / d, dy / d
-            for j in range(7):
-                r = S.rng_for(inst.seed, j, 441)
-                off = r.uniform(-0.9, 0.9) * R
-                ln = r.uniform(1.0, 2.2) * R
-                sx, sy = x - ux * R * 0.6 - uy * off, y - uy * R * 0.6 + ux * off
-                pen.line(sx, sy, sx - ux * ln, sy - uy * ln, S.mix(c, S.HOT, 0.3), 110, 1.6 * ps)
-        else:
-            # 4: dragging — the glowing trench it gouges, sparks off the leading edge
-            _p, sx, sy, _r = _met_state(inst, ps, Tc + MET_FALL)
-            pen.line(sx, sy + R * 0.6, x, y + R * 0.6, c, 90, R * 0.8)
-            pen.line(sx, sy + R * 0.6, x, y + R * 0.6, S.HOT, 140, 2.0 * ps)
-            for j in range(max(0, F.jround(4 * dens))):
-                r = S.rng_for(inst.seed, t, 451 + j)
-                an = math.pi / 2 + r.uniform(-1.4, 1.4)
-                v = r.uniform(3, 8) * ps
-                lx, ly = x + math.cos(an) * R * 0.9, y + math.sin(an) * R * 0.9
-                pen.line(lx, ly, lx + math.cos(an) * v * 2, ly + math.sin(an) * v * 2 - 2 * ps, S.mix(S.HOT, c, 0.4), 220,
-                         1.4 * ps)
+        # 2: the orb itself while it drops and sinks (no streaks, no trench)
         _met_orb(pen, inst, x, y, R, c, bright, t, ps)
         return
-    # 5: the blast — flash, fireball, ground shock, a pillar of light, debris
+    # 3: the blast - flash, fireball, ground shock, a pillar of light, debris
     a = t - tb
     if a >= MET_BLAST_LIFE:
         return
