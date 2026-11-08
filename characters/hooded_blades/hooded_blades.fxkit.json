@@ -26907,10 +26907,10 @@
    ],
    "motion": {
     "kind": "static",
-    "aim": "target",
-    "angle_deg": 0,
+    "aim": "angle",
+    "angle_deg": 90,
     "aim_offset_deg": 0,
-    "speed": 8,
+    "speed": 0,
     "turn_deg": 6,
     "amplitude": 55,
     "freq": 0.18,
@@ -26972,13 +26972,14 @@
     "count": 0
    },
    "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
+    "deals_damage": true,
+    "damage": 20,
+    "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 0,
+    "knockback": 8,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 0
    },
    "intercept": {
     "enabled": false,
@@ -27008,6 +27009,37 @@
       "params.radius": 16.5,
       "params.stretch": 11.2,
       "params.trail_len": 1
+     }
+    },
+    {
+     "frame": 13,
+     "ease": "linear",
+     "set": {
+      "motion.speed": 0
+     }
+    },
+    {
+     "frame": 14,
+     "ease": "linear",
+     "set": {
+      "motion.kind": "travel",
+      "motion.aim": "away",
+      "motion.speed": 0,
+      "battle.armed": 0
+     }
+    },
+    {
+     "frame": 15,
+     "ease": "linear",
+     "set": {
+      "battle.armed": 1
+     }
+    },
+    {
+     "frame": 16,
+     "ease": "in",
+     "set": {
+      "motion.speed": 16
      }
     }
    ]

@@ -371,8 +371,11 @@ COLOR_DEFAULTS = dict(mode="palette", lut_index=128, lut_index2=128, lut_offset=
 # defences can stop this effect.  Block = defend action, special stance,
 # parry stance, Intercept block / destroy; deflect = Intercept deflect.  Off =
 # that defence ignores it and the hit lands.
+# armed (keyable number, FXK.BATTLE_DEFAULTS): 1 = it can hit, 0 = it can't
+# yet / any more (>= 0.5 counts as on).  Key it to gate the hits to part of
+# the effect's life (e.g. blades that only cut once they scatter).
 BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0, knockback=0,
-                       blockable=True, deflectable=True)
+                       blockable=True, deflectable=True, armed=1)
 # Intercept settings (fx.intercept): the auto-projectile tracker, mirrors
 # FXK.INTERCEPT_DEFAULTS.  Only for projectiles (travel, homing or zigzag
 # motion): an enemy projectile within `radius` px is chased (up to
@@ -777,7 +780,7 @@ def _keyable(v, path=None):
 # in-between), and instances already alive switch with it (motion_switch):
 # an orbit keyed to travel launches from where it is.  FXK.KEY_CHOICES.
 KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
-               "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]}
+               "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"]}
 
 
 def normalize_keys(fx):
@@ -1275,6 +1278,12 @@ def aim_dir(fx, host, x, y):
     m, f = fx["motion"], fx_facing(fx, host)
     if m["aim"] == "target":
         return norm(host.target[0] - x, host.target[1] - y)
+    if m["aim"] == "away":
+        # Straight away from the fighter: the line from its position through
+        # (x, y) (a blade passes its pommel end, away_point); on it = facing.
+        o = host.anchor("figure")
+        dx, dy = x - o[0], y - o[1]
+        return norm(dx, dy) if dx * dx + dy * dy > 1e-6 else [float(f), 0.0]
     if m["aim"] == "angle":
         v = [math.cos(m["angle_deg"] * D) * f, math.sin(m["angle_deg"] * D)]
     elif m["aim"] == "weapon":
@@ -1469,7 +1478,8 @@ def motion_switch(inst, host):
         return False
     ps = inst.ps or 1.0
     if m["kind"] in MOVERS:
-        d = aim_dir(fx, host, inst.x, inst.y)
+        ax, ay = away_point(inst, host)
+        d = aim_dir(fx, host, ax, ay)
         at = (inst.x, inst.y)
         if frm not in MOVERS and inst.tgt is not None:
             # Each particle blade: it launches from where it is drawn, along
@@ -1502,6 +1512,18 @@ def motion_switch(inst, host):
         v = turn_by([inst.x - c[0], inst.y - c[1]], -body_deg(fx, host, c))
         inst.orbitA = math.atan2(v[1] / max(1e-6, m["orbit_ry"] * hs), v[0] / max(1e-6, m["orbit_rx"] * hs * inst.flip)) / D
     return False
+
+
+def away_point(inst, host):
+    """The point Aim "away" measures from the fighter: a blade's pommel end
+    (where a hanging blade meets the ground), anything else its position.
+    fxkit.js awayPoint."""
+    fx = inst.fx
+    if fx["motion"]["aim"] == "away" and fx["prim"] == "sprite" and fx["params"].get("shape") == "blade":
+        bx, by, ba = blade_pose(inst, host_scale(host))
+        n = blade_length(fx["params"], host_scale(host))
+        return bx - math.cos(ba) * n, by - math.sin(ba) * n
+    return inst.x, inst.y
 
 
 def move_inst(inst, host):
@@ -2561,7 +2583,7 @@ def resolve_hits(inst, host, ps):
     (a hit particle is removed instead)."""
     b = inst.fx["battle"]
     hurts = host.hurts
-    if not b["deals_damage"] or not hurts or inst.dead or inst.lodge is not None:
+    if not b["deals_damage"] or float(b.get("armed", 1)) < 0.5 or not hurts or inst.dead or inst.lodge is not None:
         return
     now = inst.age
     if inst.fx["prim"] == "pulse":

@@ -302,7 +302,7 @@ function bladeFollow(inst, hurts, ps) {
 var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon", "technique"];
 var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "boomerang", "orbit", "path"];
 var RETURN_STYLES = ["curve", "reverse", "flip"];
-var AIMS = ["target", "facing", "angle", "weapon"];
+var AIMS = ["target", "facing", "angle", "weapon", "away"];
 // Default params per primitive = the engine constants of the effect it came from.
 var PARAM_DEFAULTS = {
   ribbon: {max_points: 50, min_dist: 2, decay: 2, taper: true, w_tail: 1, w_head: 5, alpha: 220, head_glow_r: 1, head_dot_r: 1},
@@ -464,8 +464,11 @@ var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offs
 // effect.  Block = its defend action, special stance, parry stance and
 // Intercept "block" / "destroy"; deflect = Intercept "deflect" (and parry
 // ricochets).  Off = that defence ignores the effect and the hit lands.
+// armed (keyable number): 1 = it can hit, 0 = it can't yet / any more
+// (>= 0.5 counts as on).  Key it to gate the hits to part of the effect's
+// life (e.g. blades that only cut once they scatter).
 var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_ticks: 0, knockback: 0,
-  blockable: true, deflectable: true};
+  blockable: true, deflectable: true, armed: 1};
 // Intercept settings (fx.intercept): the auto-projectile tracker.  Only for
 // projectiles (travel, homing or zigzag motion).  When an enemy projectile
 // comes within `radius` px the shot steers at it (up to `turn_deg` per tick,
@@ -1550,7 +1553,7 @@ function keyableValue(v) { return (typeof v === "number" && isFinite(v)) || (typ
 // in-between), and instances already alive switch with it (motionSwitch):
 // an orbit keyed to travel launches from where it is.
 var KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
-  "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]};
+  "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"]};
 function keyableAt(path, v) { return keyableValue(v) || (KEY_CHOICES[path] ? KEY_CHOICES[path].indexOf(v) >= 0 : false); }
 function getPath(fx, path) {
   var i = path.indexOf("."), a = i < 0 ? path : path.slice(0, i), b = i < 0 ? null : path.slice(i + 1);
@@ -1626,6 +1629,10 @@ function fxAt(fx, tf) {
 function aimDir(fx, host, x, y) {
   var m = fx.motion, f = fxFacing(fx, host), dx, dy;
   if (m.aim === "target") return norm(host.target[0] - x, host.target[1] - y);   // tracks the target, never turned
+  if (m.aim === "away") {   // straight away from the fighter through (x, y) (a blade passes its pommel end, awayPoint)
+    var o = host.anchor("figure"), ax = x - o[0], ay = y - o[1];
+    return ax * ax + ay * ay > 1e-6 ? norm(ax, ay) : [f, 0];
+  }
   if (m.aim === "angle") { dx = Math.cos(m.angle_deg * D) * f; dy = Math.sin(m.angle_deg * D); }
   else if (m.aim === "weapon") { dx = Math.sin(host.wang * D) * f; dy = -Math.cos(host.wang * D); }
   else { dx = f; dy = 0; }
@@ -2773,7 +2780,7 @@ function canHit(b, obj, now) { return b.rehit_ticks > 0 ? now - obj.lastHit >= b
 // the instance (a hit particle is removed instead).
 function resolveHits(inst, host, ps) {
   var b = inst.fx.battle, hurt = host.hurt;
-  if (!b.deals_damage || !hurt || inst.dead || inst.lodge) return;
+  if (!b.deals_damage || !((b.armed == null ? 1 : +b.armed) >= 0.5) || !hurt || inst.dead || inst.lodge) return;
   var now = inst.age;
   if (inst.fx.prim === "pulse") {
     // Each ring hits once, when its edge sweeps over the target (this tick's
@@ -2839,13 +2846,24 @@ function drawInst(g, inst, host, ps) {
 // attached / static it stops.  Returns true when an always-on instance
 // launched (its set is spent).  laser/fxkit.py motion_switch.
 var LAUNCH_LIFE = 220;
+// The point Aim "away" measures from the fighter: a blade's pommel end (where
+// a hanging blade meets the ground), anything else its position.
+// laser/fxkit.py away_point.
+function awayPoint(inst, host) {
+  var fx = inst.fx;
+  if (fx.motion.aim === "away" && fx.prim === "sprite" && fx.params.shape === "blade") {
+    var hs = hostScale(host), bp = bladePose(inst, hs), n = bladeLength(fx.params, hs);
+    return [bp[0] - Math.cos(bp[2]) * n, bp[1] - Math.sin(bp[2]) * n];
+  }
+  return [inst.x, inst.y];
+}
 function motionSwitch(inst, host) {
   var fx = inst.fx, m = fx.motion, from = inst.mk, wasCont = !!inst.cont;
   inst.mk = m.kind; inst.ma = m.aim;
   if (inst.free || inst.lodge || fx.prim === "weapon" || inst.age >= inst.life) return false;
   var ps = inst.ps || 1;
   if (MOVERS[m.kind]) {
-    var d = aimDir(fx, host, inst.x, inst.y), at = [inst.x, inst.y];
+    var ap = awayPoint(inst, host), d = aimDir(fx, host, ap[0], ap[1]), at = [inst.x, inst.y];
     if (!MOVERS[from] && inst.tgt) {
       // Each particle blade: it launches from where it is drawn, along where
       // it points (bladePose).
