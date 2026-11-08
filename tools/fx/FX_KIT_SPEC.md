@@ -306,6 +306,7 @@ a default.
 | `travel` | `speed` px/tick along the aim | `Projectile` |
 | `homing` | travel, steering up to `turn_deg`/tick toward the target | `HomingProjectile` |
 | `zigzag` | travel plus a lateral sine weave (`amplitude`, `freq`) | `ZigzagProjectile.update` |
+| `boomerang` | travel along the aim (target / facing / angle) for `out_px`, then back to the sender (its `figure` anchor, live) and caught (ends) when a step passes within `catch_px`. `return_style`: `curve` = homing U-turn (`turn_deg`/tick, +0.5 deg/tick more each tick back), `reverse` = brakes over the last 25% of `out_px`, stops, speeds back up straight at the sender, `flip` = snaps round and flies straight back. Hits reset at the turn (the way back can hit again; Pierce still decides whether a hit ends it) | FX Kit extension (`boomerang_step` / `boomerangStep`) |
 | `orbit` | circles the anchor (`orbit_rx`, `orbit_ry`, `orbit_deg`/tick; `orbit_dir` `clockwise`\|`anticlockwise` as seen on screen, Flip mirrors it; a negative `orbit_deg` still reverses it) | petals |
 | `path` | travels along the path `motion.path` from where it spawns (see 3b) | FX Kit extension |
 
@@ -343,7 +344,7 @@ An effect can animate its numbers and custom colours over the action
 - Keyable: every number and every `#rrggbb` colour in `params`, `motion`,
   `emit`, `color`, `battle` and `intercept`, plus `offset.0`, `offset.1` and
   `life_ticks`. Three choices are keyable too (`KEY_CHOICES`): `motion.kind`
-  (`attached`, `static`, `orbit`, `travel`, `homing`, `zigzag`), `motion.aim`
+  (`attached`, `static`, `orbit`, `travel`, `homing`, `zigzag`, `boomerang`), `motion.aim`
   and `motion.orbit_dir`. A choice has no in-between: it holds, then switches
   at its key. Other choices and toggles aren't keyable.
 - **Motion switches** (`motionSwitch` / `motion_switch`): when a keyed

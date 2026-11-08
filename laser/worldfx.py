@@ -1856,7 +1856,7 @@ class WorldFx:
         if fxd.get("prim") == "technique":
             from . import swordfx
             return swordfx._style(fxd["params"]) == "crescent_wave"
-        return fxd.get("prim") == "arc" and (fxd.get("motion") or {}).get("kind") in ("travel", "homing", "zigzag", "path")
+        return fxd.get("prim") == "arc" and (fxd.get("motion") or {}).get("kind") in ("travel", "homing", "zigzag", "boomerang", "path")
 
     def scan_ground_fx(self, world):
         """Beams dealing more than beam_min_damage gouge a trench under their

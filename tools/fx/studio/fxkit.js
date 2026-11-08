@@ -300,7 +300,8 @@ function bladeFollow(inst, hurts, ps) {
 
 // ---------------------------------------------------------------- schema
 var PRIMS = ["ribbon", "arc", "beam", "sprite", "particles", "glow", "pulse", "ghost", "weapon", "technique"];
-var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "orbit", "path"];
+var MOTIONS = ["attached", "static", "travel", "homing", "zigzag", "boomerang", "orbit", "path"];
+var RETURN_STYLES = ["curve", "reverse", "flip"];
 var AIMS = ["target", "facing", "angle", "weapon"];
 // Default params per primitive = the engine constants of the effect it came from.
 var PARAM_DEFAULTS = {
@@ -442,7 +443,16 @@ var TECH_STYLE_DEFAULTS = {
   void_sniper: {length: 70, thickness: 3.5, radius: 520, span: 0, swing_ticks: 8, hold_ticks: 8}
 };
 var MOTION_DEFAULTS = {kind: "attached", aim: "target", angle_deg: 0, aim_offset_deg: 0, speed: 8,
-  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: ""};
+  turn_deg: 6, amplitude: 55, freq: 0.18, orbit_rx: 46, orbit_ry: 46, orbit_deg: 1.12, orbit_dir: "clockwise", path: "",
+  out_px: 260, return_style: "curve", catch_px: 28};
+// Boomerang motion (boomerangStep): flies out along its Aim for out_px, then
+// back to the sender (its "figure" anchor), caught (ends) within catch_px.
+// return_style: curve = homing U-turn (Turn deg/tick, +BOOMERANG_TURN_GROW
+// deg/tick on the way back), reverse = brakes over the last BOOMERANG_BRAKE
+// of the way out then speeds back up at the sender, flip = snaps round.  The
+// way back is a fresh hit.  laser/fxkit.py boomerang_step.
+var BOOMERANG_BRAKE = 0.25, BOOMERANG_TURN_GROW = 0.5, BOOMERANG_MIN_STEP = 0.05;
+var MOVERS = {travel: 1, homing: 1, zigzag: 1, boomerang: 1};
 // orbit_dir: which way an orbit spins on screen, clockwise or anticlockwise (Flip mirrors it, like the rest of the effect).
 function orbitStep(m) { return (+m.orbit_deg || 0) * (m.orbit_dir === "anticlockwise" ? -1 : 1); }
 var COLOR_DEFAULTS = {mode: "palette", lut_index: 128, lut_index2: 128, lut_offset: 0, flow_speed: 0.008,
@@ -1338,7 +1348,7 @@ var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "hea
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
   pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"],
   technique: ["radius", "thickness", "length"]};
-var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry"];
+var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry", "out_px", "catch_px"];
 var SCALE_INTERCEPT = ["radius", "contact"];
 function rescaleEffects(effects, lib, r) {
   if (Math.abs(r - 1) < 1e-6) return;
@@ -1472,7 +1482,7 @@ function keyableValue(v) { return (typeof v === "number" && isFinite(v)) || (typ
 // Choice settings keys can switch: the value holds until the next key (no
 // in-between), and instances already alive switch with it (motionSwitch):
 // an orbit keyed to travel launches from where it is.
-var KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag"],
+var KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
   "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]};
 function keyableAt(path, v) { return keyableValue(v) || (KEY_CHOICES[path] ? KEY_CHOICES[path].indexOf(v) >= 0 : false); }
 function getPath(fx, path) {
@@ -1783,7 +1793,8 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   var inst = {fx: fx, x: p[0], y: p[1], px: p[0], py: p[1], vx: 0, vy: 0, dir: dir, age: 0, life: life,
     seed: seed >>> 0, r: rng(seed), flow: 0, ended: false, dead: false, hist: [], trail: [], parts: [],
     ghosts: [], acc: 0, facing: ef, flip: flipSign(fx, ef), orbitA: 0, phase: 0, zx: 0, zy: 0,
-    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host), tgt: aimTarget(fx, host)};
+    hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host), tgt: aimTarget(fx, host),
+    bm: 0, bmD: 0, bmV: 0, bmT: 0};   // boomerang: 0 out / 1 back, px flown out, speed back (reverse), ticks back
   var ps = inst.ps;   // the figure's size when fired: what is launched keeps it
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
@@ -1793,7 +1804,7 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     inst.path = libFind(host, "paths", m.path);
     if (inst.path) { inst.pl = pathLine(inst.path); inst.po = p.slice(); inst.pm = pathMatrix(inst.path, {facing: ef}, dir, bodyDeg(fx, host, p)); }
   }
-  if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") { inst.vx = dir[0] * spd * ps; inst.vy = dir[1] * spd * ps; }
+  if (MOVERS[m.kind]) { inst.vx = dir[0] * spd * ps; inst.vy = dir[1] * spd * ps; }
   if (m.kind === "zigzag") {   // ZigzagProjectile.__init__
     var pr = spd > 0.001 ? [-dir[1] * inst.side, dir[0] * inst.side] : [0, inst.side];
     inst.zx = pr[0] * m.amplitude * ps; inst.zy = pr[1] * m.amplitude * ps;
@@ -1841,7 +1852,7 @@ function moveInst(inst, host) {
     inst.vx = inst.x - inst.px; inst.vy = inst.y - inst.py;   // beams / trails read the travel speed
     return;
   }
-  if ((m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") && !inst.free) {
+  if (MOVERS[m.kind] && !inst.free) {
     // Keyframed speed: an instance in flight follows it (its direction is kept).
     var ns = +m.speed || 0;
     if (ns !== inst.spd) {
@@ -1867,12 +1878,14 @@ function moveInst(inst, host) {
     var lat = Math.sin(inst.phase) * m.freq;
     inst.x += inst.vx + inst.zx * lat; inst.y += inst.vy + inst.zy * lat;
     inst.phase += m.freq;
+  } else if (m.kind === "boomerang") {
+    boomerangStep(inst, host);
   } else if (m.kind === "orbit") {
     var c = anchorPos(fx, host, inst);
     inst.orbitA += orbitStep(m);
     var op2 = orbitPos(inst, host, c); inst.x = op2[0]; inst.y = op2[1];
   }
-  if (m.kind === "travel" || m.kind === "homing" || m.kind === "zigzag") {
+  if (MOVERS[m.kind]) {
     var mdx = inst.x - inst.px, mdy = inst.y - inst.py;
     if (mdx * mdx + mdy * mdy > 1e-6) inst.dir = norm(mdx, mdy);
   } else if (fx.prim === "beam") {
@@ -1881,6 +1894,64 @@ function moveInst(inst, host) {
     var d = aimDir(fx, host, inst.x, inst.y);
     inst.dir = m.aim_offset_deg ? rot(d, m.aim_offset_deg * turnSign(fx, host, d, [inst.x, inst.y])) : d;
   }
+}
+
+function wrapPi(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
+// Boomerang motion, one tick: out along its heading until out_px is flown,
+// then back to the sender's live position in its return_style; caught (ends,
+// like a blocked shot) once this tick's step passes within catch_px of the
+// sender.  The turn resets the hits.  laser/fxkit.py boomerang_step.
+function boomerangStep(inst, host) {
+  var m = inst.fx.motion, ps = inst.ps || 1, spd = Math.max(0, +inst.spd || 0) * ps;
+  var style = m.return_style || "curve", out = Math.max(0, +m.out_px || 0) * ps, brake = out * BOOMERANG_BRAKE;
+  var cs = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
+  var h = cs > 1e-6 ? [inst.vx / cs, inst.vy / cs] : [inst.dir[0], inst.dir[1]], v, s, dx, dy, dl;
+  if (!inst.bm) {
+    v = spd; var step = v;
+    if (style === "reverse") {
+      var left = Math.max(0, out - (inst.bmD || 0));
+      if (brake > 1e-6 && left < brake) v = spd * Math.max(BOOMERANG_MIN_STEP, Math.sqrt(left / brake));
+      step = Math.min(v, left);
+    }
+    inst.x += h[0] * step; inst.y += h[1] * step; inst.bmD = (inst.bmD || 0) + step;
+    inst.vx = h[0] * v; inst.vy = h[1] * v;
+    if (inst.bmD >= out - 1e-6) {   // the turn: the way back is a fresh throw for hits
+      inst.bm = 1; inst.bmT = 0; inst.bmV = style === "reverse" ? 0 : spd;
+      inst.hits = 0; inst.lastHit = -1e9; inst.hit_targets = null;
+      if (style === "flip") {
+        s = host.anchor("figure"); dx = s[0] - inst.x; dy = s[1] - inst.y; dl = Math.sqrt(dx * dx + dy * dy);
+        if (dl > 1e-6) { inst.vx = dx / dl * spd; inst.vy = dy / dl * spd; }
+      }
+    }
+    return;
+  }
+  inst.bmT = (inst.bmT || 0) + 1;
+  s = host.anchor("figure");
+  var sx = +s[0], sy = +s[1];
+  dx = sx - inst.x; dy = sy - inst.y; dl = Math.sqrt(dx * dx + dy * dy);
+  if (style === "curve") {
+    v = spd;
+    var cur = Math.atan2(h[1], h[0]);
+    if (dl > 1e-6) {
+      var lim = ((+m.turn_deg || 0) + BOOMERANG_TURN_GROW * inst.bmT) * D;
+      cur += Math.max(-lim, Math.min(lim, wrapPi(Math.atan2(dy, dx) - cur)));
+    }
+    h = [Math.cos(cur), Math.sin(cur)];
+  } else {
+    if (style === "reverse") {
+      var acc = brake > 1e-6 ? spd * spd / (2 * brake) : spd;
+      inst.bmV = Math.min(spd, (inst.bmV || 0) + acc); v = inst.bmV;
+    } else v = spd;
+    if (dl > 1e-6) h = [dx / dl, dy / dl];
+  }
+  var nx = inst.x + h[0] * v, ny = inst.y + h[1] * v;
+  // Caught: this tick's step passes within catch_px of the sender.
+  var ex = nx - inst.x, ey = ny - inst.y, el = ex * ex + ey * ey;
+  var t = el > 1e-9 ? Math.max(0, Math.min(1, (dx * ex + dy * ey) / el)) : 0;
+  var cx = inst.x + ex * t - sx, cy = inst.y + ey * t - sy;
+  inst.x = nx; inst.y = ny; inst.vx = h[0] * v; inst.vy = h[1] * v;
+  var rc = Math.max(0, +m.catch_px || 0) * ps;
+  if (cx * cx + cy * cy <= rc * rc) inst.age = Math.max(inst.age, inst.life);
 }
 
 function emitParticles(inst, fx, host, n) {
@@ -1923,7 +1994,7 @@ function emitParticles(inst, fx, host, n) {
 var DEFLECT_FAN_DEG = 15;   // with deflect "both", the two fly apart this far either side
 var GUARD_MODES = ["block", "deflect", "destroy", "absorb"];
 var GUARD_MIN_BOUNCE_DEG = 20;   // a guard-deflected shot leaves the surface at least this steeply
-var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag"];
+var INTERCEPT_MOTIONS = ["travel", "homing", "zigzag", "boomerang"];
 function isGuard(fx) { return fx.prim === "ribbon" && INTERCEPT_MOTIONS.indexOf(fx.motion.kind) < 0; }
 // A ki barrage: every orb it fires is its own tracker (STRIKEFX.trackStep),
 // so the technique never moves itself.  laser/fxkit.py is_ki_tracker.
@@ -2694,13 +2765,12 @@ function drawInst(g, inst, host, ps) {
 // frames.  frameMs = duration_ms / frame count (the engine plays Rig Forge
 // keyframes at exactly this rate).
 // A key switched an alive instance's motion (or aim): it changes from where
-// it is.  Into travel / homing / zigzag it launches along its Aim at the
+// it is.  Into travel / homing / zigzag / boomerang it launches along its Aim at the
 // keyed Speed; coming off the fighter (from attached / static / orbit) it is
 // a shot from then on, living Life ticks from the launch (0 = LAUNCH_LIFE).
 // Into orbit it carries on round its anchor from its own angle; into
 // attached / static it stops.  Returns true when an always-on instance
 // launched (its set is spent).  laser/fxkit.py motion_switch.
-var MOVERS = {travel: 1, homing: 1, zigzag: 1};
 var LAUNCH_LIFE = 220;
 function motionSwitch(inst, host) {
   var fx = inst.fx, m = fx.motion, from = inst.mk, wasCont = !!inst.cont;
@@ -2724,6 +2794,7 @@ function motionSwitch(inst, host) {
       var pr = spd > 0.001 ? [-d[1] * inst.side, d[0] * inst.side] : [0, inst.side];
       inst.zx = pr[0] * m.amplitude * ps; inst.zy = pr[1] * m.amplitude * ps; inst.phase = 0;
     }
+    if (m.kind === "boomerang" && from !== "boomerang") { inst.bm = 0; inst.bmD = 0; inst.bmV = 0; inst.bmT = 0; }   // a fresh throw from here
     if (!MOVERS[from]) {
       inst.cont = false; inst.open = false; inst.trail = [];
       inst.life = inst.age + (fx.life_ticks > 0 ? fx.life_ticks : LAUNCH_LIFE);
@@ -2902,7 +2973,7 @@ function instLayer(inst, ps) {
 function bodyBound(inst) { var fx = inst.fx; return fx.motion.kind === "attached" || fx.motion.kind === "orbit" || fx.prim === "weapon"; }
 
 G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb: hexRgb,
-  PRIMS: PRIMS, MOTIONS: MOTIONS, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
+  PRIMS: PRIMS, MOTIONS: MOTIONS, RETURN_STYLES: RETURN_STYLES, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
