@@ -1955,6 +1955,8 @@ function buildProps() {
       field(s, "Pierce (keeps going)", inp("chk", bt.pierce, function (v) { bt.pierce = v; changed(); }));
       field(s, "Re-hit every N ticks (0 = once)", inp("n", bt.rehit_ticks, function (v) { bt.rehit_ticks = Math.max(0, Math.round(v)); changed(); }, 0, 600, 1));
       field(s, "Knockback px", inp("n", bt.knockback, function (v) { bt.knockback = Math.max(0, v); changed(); }, 0, 200, 0.5));
+      field(s, "Armed (1 = hits, 0 = can't)", inp("n", bt.armed == null ? 1 : bt.armed, function (v) { bt.armed = v >= 0.5 ? 1 : 0; changed(); }, 0, 1, 1)).title =
+        "1: it can hit. 0: it can't (yet / any more). Key it (◆) to gate the hits to part of the effect's life, e.g. 0 while blades hang, 1 once they scatter.";
       field(s, "Blockable", inp("chk", bt.blockable, function (v) { bt.blockable = v; changed(); })).title =
         "On: the other fighter's blocks stop it (defend action, special stance, parry stance, Intercept block / destroy). Off: blocks ignore it and the hit lands.";
       field(s, "Deflectable", inp("chk", bt.deflectable, function (v) { bt.deflectable = v; changed(); })).title =
