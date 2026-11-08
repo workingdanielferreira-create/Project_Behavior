@@ -334,9 +334,10 @@ var PARAM_DEFAULTS = {
   // technique clockwise (0-360), mirrored with the facing.  lightning /
   // lightning_rate: the Super Saiyan aura's SSJ2 sparks (on/off, per second);
   // aura_burst / aura_debris / aura_surges / aura_cracks: its power-up burst,
-  // rising rocks, flare-ups and ground cracks.
+  // rising rocks, flare-ups and ground cracks.  small_ticks: the gigantic
+  // meteor's ticks at its start size after the charge before it grows.
   technique: {style: "rising_slash", radius: 40, span: 160, thickness: 12, length: 300, swing_ticks: 6, hold_ticks: 18,
-    density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
+    density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5, small_ticks: 0,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
     gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0, w_weight: 0, w_plane: 0, w_plane_roll: 0, w_side: "front", w_blade: "both",
     w_grip: 0, w_flip_at: "anchor", w_move: 100, w_turn: 100, w_aim: "auto", w_follow: "off", w_hand1: "right", w_hand2: "left",
@@ -404,7 +405,7 @@ var TECH_STYLE_DEFAULTS = {
   ssj_aura: {radius: 6, span: 100, thickness: 5, length: 22, swing_ticks: 14, hold_ticks: 300, lightning: true,
     lightning_rate: 2, aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: true},
   rasen_shuriken: {radius: 10, span: 46, thickness: 110, length: 420, swing_ticks: 40, hold_ticks: 50},
-  gigantic_meteor: {radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70},
+  gigantic_meteor: {radius: 8, span: 100, thickness: 70, length: 160, swing_ticks: 30, hold_ticks: 70, small_ticks: 0},
   ghost_kamikaze: {radius: 9, span: 14, thickness: 34, length: 600, swing_ticks: 8, hold_ticks: 40},
   serious_punch: {radius: 10, thickness: 150, length: 900, swing_ticks: 30, hold_ticks: 22},
   black_hole: {radius: 20, span: 160, thickness: 24, length: 260, swing_ticks: 22, hold_ticks: 150},
