@@ -413,7 +413,7 @@ var host = {
   // The fighter's body outline on the stage: n world points round the frame
   // on show (POWERFX.outlineFromAlpha, placed the way drawFrame draws it).
   outline: function (n) {
-    var img = act().images[frameAt(S.t)];
+    var img = bfSubImg() || act().images[frameAt(S.t)];
     if (!img || !img.naturalWidth) return null;
     var loc = outlineOf(img, n);
     if (!loc) return null;
@@ -4000,8 +4000,8 @@ function buildActionProps(d) {
   if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
   else {
     field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"], ["leap", "Leap onto target"],
-      ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
-      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind.";
+      ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"], ["back_forth", "Back & forth"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind. Back & forth: dashes between 2-6 points round the target (own ms per dash, loops, other actions at the points / during the dashes), with an optional final strike.";
     if (isTravelMove(cfg.movement)) buildTravelProps(s, cfg);
     if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = Math.max(0, Math.min(100, v)); save(); resetSim(S.t); }, 0, 100, 5)).title =
       "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
@@ -5258,6 +5258,8 @@ function step(allowWrap) {
   var effs = dash && dashOver() ? [] : playEffects();
   // Blinked out: the FX carry on as normal (laser/blink.py).
   var opts = {continuous: S.react === "retreat" ? !dashOver() : (!lastPass || $("loop").checked) && !!cfgOf(S.action).fx_continuous};
+  var bfHold = bfHoldTick();
+  if (bfHold != null && S.t >= bfHold) opts.hold = true;   // Back & forth: the held frame fires nothing new
   // Character FX: always on, on their own lane (laser/fxkit.py
   // FxDriver._character_tick); blinked out = nothing new fires.
   var cl = charLane(), ceffs = cl.effs, ctimed = cl.timed.map(function (x) { return x[0]; });
@@ -5279,6 +5281,8 @@ function step(allowWrap) {
   // World Clash: the fighter's FX against the dummies' FX (laser/clash.py).
   clashStep();
   S.t += 1;
+  bfHold = bfHoldTick();
+  if (bfHold != null) S.t = Math.min(S.t, bfHold);   // Back & forth: hold the frame before Arrive until the route ends
   // Stats: time since the action's first frame (across animation loops) and
   // the path the figure has walked.
   S.el = (S.el || 0) + 1;
@@ -6536,8 +6540,8 @@ function leapHitOffset(cfg, land) {
   return [a[0] + (+off[0] || 0) * ps * f, a[1] + (+off[1] || 0) * ps];
 }
 function leapStep(cfg) {
-  var fr = leapFrames(cfg), fm = frameMs(), t = S.t * FXK.TICK_MS, move = cfg.movement;   // time into this pass before this tick
-  if (S.leap && (S.leap.cycle !== (S.cycle || 0) || t < S.leap.t0)) S.leap = null;   // a new pass: travel again
+  var fr = leapFrames(cfg), fm = frameMs(), t = S.t * FXK.TICK_MS, move = cfg.movement, bf = move === "back_forth";   // time into this pass before this tick
+  if (S.leap && (S.leap.cycle !== (S.cycle || 0) || (!bf && t < S.leap.t0))) S.leap = null;   // a new pass: travel again
   if (!S.leap) {
     if (t < fr[0] * fm) return;
     var dx = S.target[0] - S.figX, lp = cfg.leap || {}, lf = FXK.leapFrac(lp, Math.hypot(dx, S.target[1] - S.figY));
@@ -6549,18 +6553,55 @@ function leapStep(cfg) {
     }
     var keep = S.leapFace; S.leapFace = null;
     var pl = FXK.travelPlan(move, lp, S.figX, S.figY, S.target[0], S.target[1], viewScale(), face0,
-      function (f) { S.leapFace = f; var o = leapHitOffset(cfg, hitF); S.leapFace = keep; return o; }, fr[0] * fm, fr[1] * fm, tturn);
+      function (f) { S.leapFace = f; var o = leapHitOffset(cfg, hitF); S.leapFace = keep; return o; }, fr[0] * fm, fr[1] * fm, tturn, null,
+      bf ? bfActMs() : null);
     S.leapFace = keep;
     if (move === "leap") pl.hop = FXK.leapHeight(lp, lf) * viewScale();
     S.leap = {face: pl.face, endFace: pl.face, cycle: S.cycle || 0, t0: fr[0] * fm, plan: pl, h: pl.hop, frac: lf,
-              dmg: move === "leap" ? FXK.leapDamage(lp, lf) : null, done: false, move: move};
+              dmg: move === "leap" ? FXK.leapDamage(lp, lf) : null, done: false, move: move, rt: t, sub: null};
   }
   var L = S.leap;
   if (L.done) return;
-  var a = FXK.travelAt(L.plan, t + FXK.TICK_MS);
+  var tt = (bf ? L.rt : t) + FXK.TICK_MS, a = FXK.travelAt(L.plan, tt);
   S.figX = a.x; S.figY = a.y - a.lift;
-  L.face = a.face === "travel" && !a.done && Math.abs(a.dx) > 0.3 ? (a.dx < 0 ? -1 : 1) : L.endFace;
-  if (a.done) { L.face = L.endFace; L.done = true; }
+  if (a.face === "travel" && !a.done && Math.abs(a.dx) > 0.3) L.face = a.dx < 0 ? -1 : 1;
+  else if (a.face === "target" && !a.done) { var tdx = (L.plan.tx == null ? a.x : L.plan.tx) - a.x; if (Math.abs(tdx) > 0.3) L.face = tdx < 0 ? -1 : 1; }
+  else L.face = L.endFace;
+  if (bf) {
+    L.rt = tt;
+    var la = FXK.travelLegAt(L.plan, tt), lg = la[1], A = lg.act ? C.actions[lg.act] : null;
+    if (A && A.images.length && !a.done) {
+      var n2 = A.images.length, idx = lg.fit ? Math.floor(la[2] * n2) : Math.floor((tt - lg.t0) / Math.max(1, A.frame_ms));
+      L.sub = {action: lg.act, frame: Math.max(0, Math.min(n2 - 1, idx))};
+    } else L.sub = null;
+  }
+  if (a.done) { L.face = L.endFace; L.done = true; L.sub = null; }
+}
+// Back & forth (laser/actions.py _bf_act_ms): how long an inserted action
+// plays (its frames x frame_ms), 0 when it has no frames or is still on its
+// own cooldown from earlier in this route (the preview starts every
+// cooldown ready).
+function bfActMs() {
+  var sim = {};
+  return function (an, at) {
+    var A = an ? C.actions[an] : null;
+    if (!A || !A.images.length) return 0;
+    if (sim[an] != null && at < sim[an]) return 0;
+    sim[an] = at + Math.max(0, +(cfgOf(an).cooldown_ms) || 0);
+    return A.images.length * Math.max(1, A.frame_ms);
+  };
+}
+// Back & forth: the last tick of the frame before Arrive while the route
+// runs (the action holds it), else null.
+function bfHoldTick() {
+  if (!S.leap || S.leap.done || S.leap.move !== "back_forth") return null;
+  var fr = leapFrames(cfgOf(S.action));
+  return Math.max(0, Math.ceil(fr[1] * frameMs() / FXK.TICK_MS) - 1);
+}
+// Back & forth: the inserted action's frame on show (null = this action's).
+function bfSubImg() {
+  var sb = S.leap && S.leap.sub, A = sb ? C.actions[sb.action] : null;
+  return A ? A.images[sb.frame] || null : null;
 }
 // Stage guide: the arc from where it took off to where it lands.
 function drawLeapGuide(g, z) {
@@ -6579,6 +6620,21 @@ function drawLeapGuide(g, z) {
   var hit = FXK.travelAt(L.plan, L.plan.hit_t), end = FXK.travelAt(L.plan, L.plan.legs[L.plan.legs.length - 1].t1);
   g.beginPath(); g.arc(hit.x, hit.y, 4 / z, 0, 6.2832); g.stroke();
   g.fillStyle = "rgba(240,190,90,.95)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  if (L.move === "back_forth") {   // the points (numbered) and where other actions play
+    var lpb = cfgOf(S.action).leap || {}, seen = {};
+    L.plan.legs.forEach(function (lg) {
+      var q = lg.pts[lg.pts.length - 1], key = Math.round(q[0]) + "," + Math.round(q[1]);
+      if (lg.act) {
+        var m = lg.pts[0][0] === q[0] && lg.pts[0][1] === q[1] ? q : [(lg.pts[0][0] + q[0]) / 2, (lg.pts[0][1] + q[1]) / 2];
+        g.fillText("\u25B6 " + lg.act, m[0], m[1] + 14 / z);
+      }
+      if (!seen[key]) { seen[key] = 1; g.beginPath(); g.arc(q[0], q[1], 2.5 / z, 0, 6.2832); g.fill(); }
+    });
+    FXK.bfPoints(lpb).forEach(function (p, i) {
+      var leg = L.plan.legs.filter(function (lg) { return lg.pidx === i; })[0];
+      if (leg) g.fillText(String(i + 1), leg.pts[leg.pts.length - 1][0], leg.pts[leg.pts.length - 1][1] - 6 / z);
+    });
+  }
   g.fillText((L.move === "leap" ? "lands" : "hits") + (L.dmg != null ? " \u2014 " + L.dmg + " dmg" : ""), hit.x, hit.y - 8 / z);
   if (Math.hypot(end.x - hit.x, end.y - hit.y) > 2) { g.beginPath(); g.arc(end.x, end.y, 3 / z, 0, 6.2832); g.stroke(); g.fillText("ends", end.x, end.y - 8 / z); }
   g.restore();
@@ -6589,7 +6645,8 @@ var TRAVEL_NOTES = {
   arc: "Runs to the target on a curve: Radius = how far it swings out sideways, Curve = 0 a smooth C, higher swings out past the target and hooks back in.",
   hit_retreat: "Runs in to the target (the hit lands as the Turn frame starts), then out along the Return angle for the Retreat distance, arriving as the Arrive frame starts. Flip: out first, then in (the hit lands at the Arrive frame).",
   zigzag: "Zigs left and right at the Zig angle off the line to the target, then a last zag in. Turn style: Sharp corners, Smooth (rounded, Turn strength = how round) or Inertia (carries on past each corner then swings into the next zig, Turn strength = how far).",
-  flank: "Runs straight on the feint (Feint angle + = toward the Side, - = the other way), then sweeps round the target on the Side to end behind it, facing it."
+  flank: "Runs straight on the feint (Feint angle + = toward the Side, - = the other way), then sweeps round the target on the Side to end behind it, facing it.",
+  back_forth: "Dashes between its points round the target (locked where the target stood at Start frame) in the chosen order, Loops times, each dash on its own ms. The action plays its frames up to the one before Arrive and holds it until the route ends; other actions picked on a point play there (at the point / during the dash into it) and are skipped while on cooldown. Final strike: a last dash onto the target, the hit as the Arrive frame starts."
 };
 function travelNum(s, lp, label, key, lo, hi, stepv, tip, redo) {
   field(s, label, inp("n", lp[key], function (v) { lp[key] = Math.max(lo, Math.min(hi, +v || 0)); redo(); }, lo, hi, stepv)).title = tip;
@@ -6628,6 +6685,8 @@ function buildTravelProps(s, cfg) {
     field(s, "Turn style", inp([["sharp", "Sharp"], ["smooth", "Smooth"], ["inertia", "Inertia"]], lp.zig_turn, function (v) { lp.zig_turn = v; redo(); })).title =
       "Sharp: hard corners. Smooth: rounded corners. Inertia: carries on past each corner, then swings into the next zig.";
     if (lp.zig_turn !== "sharp") travelNum(s, lp, "Turn strength %", "zig_turn_pct", 0, 100, 5, "Smooth: how round the corners are. Inertia: how far it carries on past each corner.", redo);
+  } else if (m === "back_forth") {
+    buildBackForthProps(s, lp, redo);
   } else if (m === "flank") {
     travelNum(s, lp, "Feint length px", "fake_len_px", 0, 3000, 10, "How far the opening straight run goes (game px at 100 %).", redo);
     travelNum(s, lp, "Feint angle deg", "fake_angle_deg", -180, 180, 5, "Direction of the feint off the line to the target: + toward the Side, - the other way, 0 = straight at it.", redo);
@@ -6644,6 +6703,50 @@ function buildTravelProps(s, cfg) {
     }
     note(s, TRAVEL_NOTES[m] + " Sets off on frame " + fr[0] + " and arrives as frame " + fr[1] + (fr[1] >= n ? " (the end)" : "") + " starts — " +
       Math.round((fr[1] - fr[0]) * frameMs()) + " ms. Preview: drag the target; the dashed line shows the route. In the game the target is the nearest enemy (Solo: the cursor); a target that moves after it sets off can dodge it.");
+  }
+}
+// Back & forth settings (laser/travel.py back_forth, all on cfg.leap).
+function buildBackForthProps(s, lp, redo) {
+  if (!Array.isArray(lp.bf_points) || lp.bf_points.length < 2) lp.bf_points = FXK.bfPoints(lp);
+  var pts = lp.bf_points, acts = [["", "(none)"]].concat(Object.keys(C.actions).map(function (k) { return [k, k]; }));
+  field(s, "Order", inp([["pingpong", "Ping-pong (1\u2192N\u21921)"], ["circuit", "Circuit (1\u2192N, back to 1)"], ["custom", "Custom sequence"]], lp.bf_order || "pingpong",
+    function (v) { lp.bf_order = v; redo(); })).title =
+    "Ping-pong: out through the points and back again. Circuit: round the points and back to the first. Custom: your own sequence of point numbers.";
+  if (lp.bf_order === "custom") field(s, "Sequence", inp("text", lp.bf_seq || "", function (v) { lp.bf_seq = v; save(); resetSim(S.t); })).title =
+    "Point numbers in the order it dashes to them, e.g. \"1 2 1 3 2\" (ping-pong within point-to-point, any mix). Repeats each loop. Numbers past the last point are ignored; empty = ping-pong.";
+  travelNum(s, lp, "Loops", "bf_loops", 1, 50, 1, "How many times it runs the order (a loop that starts where the last ended doesn't dash on the spot).", redo);
+  travelNum(s, lp, "First dash ms", "bf_entry_ms", 0, 10000, 10, "The dash from where it stands to the first point.", redo);
+  travelNum(s, lp, "Forward dash ms", "bf_fwd_ms", 0, 10000, 10, "Each dash to a higher-numbered point (unless that point sets its own Dash ms).", redo);
+  travelNum(s, lp, "Return dash ms", "bf_ret_ms", 0, 10000, 10, "Each dash to a lower-numbered (or the same) point (unless that point sets its own Dash ms).", redo);
+  field(s, "Facing", inp([["target", "Always faces the target"], ["travel", "Faces the way it dashes"]], lp.bf_face || "target", function (v) { lp.bf_face = v; redo(); })).title =
+    "Which way the fighter faces while it dashes between the points.";
+  field(s, "Final strike", inp("chk", lp.bf_strike !== false, function (v) { lp.bf_strike = v; redo(); })).title =
+    "On: after the last point it dashes onto the target (Distance from target applies) and the hit lands as the Arrive frame starts. Off: it ends on the last point.";
+  if (lp.bf_strike !== false) travelNum(s, lp, "Strike dash ms", "bf_strike_ms", 0, 10000, 10, "How long the final dash onto the target takes.", redo);
+  pts.forEach(function (p, i) {
+    var h = document.createElement("div"); h.className = "bfhead"; h.style.cssText = "margin:8px 0 2px;font-weight:bold;opacity:.85"; h.textContent = "Point " + (i + 1); s.appendChild(h);
+    var num = function (label, key, lo, hi, st, tip) {
+      field(s, label, inp("n", p[key] == null ? 0 : p[key], function (v) { p[key] = Math.max(lo, Math.min(hi, +v || 0)); redo(); }, lo, hi, st)).title = tip;
+    };
+    num("Distance px", "dist_px", 0, 3000, 5, "How far this point is from the target (game px at 100 %).");
+    num("Angle deg", "angle_deg", -180, 180, 5, "Where round the target: 0 = on the fighter's side, 180 = behind the target, + toward the Side, - the other way.");
+    num("Dash ms (0 = default)", "ms", 0, 10000, 10, "How long the dash INTO this point takes. 0 = First / Forward / Return dash ms.");
+    num("Pause ms", "pause_ms", 0, 10000, 10, "How long it waits on this point (after its At-point action) before the next dash.");
+    field(s, "At-point action", inp(acts, p.act || "", function (v) { p.act = v; redo(); })).title =
+      "Another action played once each time it reaches this point (its frames and FX, damage included), then it dashes on. Skipped while that action is on cooldown; playing it starts its cooldown.";
+    field(s, "Dash action", inp(acts, p.dash_act || "", function (v) { p.dash_act = v; redo(); })).title =
+      "Another action played during each dash INTO this point (frames + FX). Skipped while on cooldown; playing it starts its cooldown.";
+    if (p.dash_act) field(s, "Fit to dash", inp("chk", p.dash_fit !== false, function (v) { p.dash_fit = v; redo(); })).title =
+      "On: the dash action's frames are stretched / squeezed over the dash. Off: they play at their own speed (held on the last frame, or cut when the dash ends).";
+    if (pts.length > 2) {
+      var del = document.createElement("button"); del.textContent = "Remove point " + (i + 1);
+      del.onclick = function () { pts.splice(i, 1); redo(); }; s.appendChild(del);
+    }
+  });
+  if (pts.length < FXK.BF_MAX_POINTS) {
+    var add = document.createElement("button"); add.textContent = "+ Add point";
+    add.onclick = function () { var last = pts[pts.length - 1] || {}; pts.push({dist_px: +last.dist_px || 150, angle_deg: Math.max(-180, Math.min(180, (+last.angle_deg || 0) + 60)), ms: 0, pause_ms: 0, act: "", dash_act: "", dash_fit: true}); redo(); };
+    s.appendChild(add);
   }
 }
 function buildLeapProps(s, cfg) {
@@ -6775,7 +6878,7 @@ function draw() {
     var amp = S.shake[2] * S.shake[0] / Math.max(1, S.shake[1]);
     g.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
   }
-  var ps = viewScale(), fr = frameAt(S.t), img = act().images[fr];
+  var ps = viewScale(), fr = frameAt(S.t), img = bfSubImg() || act().images[fr];
   if ($("lightbg").checked) { g.save(); g.translate(S.figX, S.figY); g.rotate(aimDeg() * Math.PI / 180); g.fillStyle = "rgba(235,238,244,.9)"; var k = imgScale() * ps; g.fillRect(-C.origin[0] * k, -C.origin[1] * k, img.naturalWidth * k, img.naturalHeight * k); g.restore(); }
   var gone = blinkGone();
   // Character FX (cplayer): their body FX hide while blinked out.

@@ -30,6 +30,11 @@ was set up there (pack.action_settings):
     along their own routes between the same frames (laser/travel.py); every
     travel movement takes leap.dist_px (distance from target: - short,
     + past it along the final direction of travel).
+  * Movement "back_forth" dashes between 2-6 points round the target on
+    its own ms clock (laser/travel.py); the frame before the Arrive frame
+    holds until the route ends.  Its points can insert other actions (at
+    the point / during the dash in): their frames + FX play in place of
+    this action's, skipped while on cooldown, starting their cooldown.
   * Aim (pack.aim): the fighter always faces the target and its frame turns
     so the normal attack's barrel (from -> to anchor) points at it.
   * everything else (attack_special, ultimate, defend, ...) — plays when its
@@ -178,7 +183,7 @@ class ActionRunner:
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
                  "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg", "gap_until",
-                 "cd_born", "cd_start", "cd_end", "cd_idle", "player")
+                 "cd_born", "cd_start", "cd_end", "cd_idle", "player", "fx_resume")
 
     def __init__(self):
         self.playing = None
@@ -242,6 +247,10 @@ class ActionRunner:
         self.leap_dmg = None
         # Player control chain positions (laser/player.py PlayerState).
         self.player = None
+        # Back & forth route (laser/travel.py): the action that is coming back
+        # on screen after an inserted action — the FX driver resumes it
+        # instead of replaying its FX (fxkit.FxDriver.update).
+        self.fx_resume = None
 
     # ------------------------------------------------------------ events
     def note_damage(self, amount=0.0):
@@ -442,9 +451,11 @@ class ActionRunner:
     def _finish(self, fig, now):
         name = self.playing
         self.playing = None
+        sub = self.leap.get("sub") if self.leap is not None else None
         self._leap_settle(fig)
+        self.fx_resume = None
         c = fig.combat
-        if c.action_anim == name:
+        if c.action_anim == name or (sub and c.action_anim == sub):
             c.action_anim = None
             c.action_idx = 0
         self.history.append(name)
@@ -730,7 +741,7 @@ class ActionRunner:
                 elif cfg.get("movement") in _TRAVEL_MOVES and not (fig.motion.bouncing or fig.motion.bounce_ending):
                     rooted = True
                     fig.render.is_moving = False
-                    self._leap_step(fig, name, cfg, n, fm, tx, ty)
+                    self._leap_step(fig, name, cfg, n, fm, tx, ty, now)
                 elif cfg.get("movement") == "move":
                     pct = max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0
                     if self.base_speed is None:
@@ -774,15 +785,18 @@ class ActionRunner:
         return self.playing == "defend"
 
     # ------------------------------------------------------------ travel
-    def _leap_step(self, fig, name, cfg, n, fm, tx, ty):
-        """Travel movements (leap / arc / hit_retreat / zigzag / flank,
-        laser/travel.py), one tick (the action's frames carry the pose; this
-        carries the body).  Before leap.start_frame: stand facing the
-        target.  At it: lock the target's spot and plan the route.  Until
-        leap.land_frame starts: travel it.  After: stay put.  Each loop
-        travels anew."""
+    def _leap_step(self, fig, name, cfg, n, fm, tx, ty, now=0):
+        """Travel movements (leap / arc / hit_retreat / zigzag / flank /
+        back_forth, laser/travel.py), one tick (the action's frames carry
+        the pose; this carries the body).  Before leap.start_frame: stand
+        facing the target.  At it: lock the target's spot and plan the
+        route.  Until leap.land_frame starts: travel it.  After: stay put.
+        Each loop travels anew.  back_forth runs on its own ms clock
+        (st["rt"]): the frame before the Arrive frame holds until the route
+        ends, and its inserted actions show in place of this one."""
         from . import travel as _travel
         move = cfg.get("movement")
+        bf = move == "back_forth"
         lp = cfg.get("leap") or {}
         f0 = max(0, int(lp.get("start_frame") or 0))
         f1 = int(lp.get("land_frame") if lp.get("land_frame") is not None else -1)
@@ -791,7 +805,7 @@ class ActionRunner:
         f1 = max(f0 + 1, f1)
         t = self.elapsed - TICK_MS          # time into this loop before this tick
         st = self.leap
-        if st is not None and t < st["t0"]:
+        if st is not None and (st.get("loop") != self.loops_left if bf else t < st["t0"]):
             st = self.leap = None           # a new loop: travel again
         if st is None:
             if t < f0 * fm:
@@ -813,9 +827,10 @@ class ActionRunner:
                 tturn = ft * fm
                 if not lp.get("flip"):
                     hit_f = ft
+            act_ms = self._bf_act_ms(fig, now, t) if bf else None
             pl = _travel.plan(move, lp, fig.x, fig.y, tx, ty, fig._position_scale(), -1.0 if left else 1.0,
                               lambda face: _leap_hit_offset(fig, name, cfg, hit_f, face, ps),
-                              f0 * fm, f1 * fm, tturn)
+                              f0 * fm, f1 * fm, tturn, act_ms=act_ms)
             if move == "leap":
                 frac = _leap_frac(lp, ((tx - fig.x) ** 2 + (ty - fig.y) ** 2) ** 0.5)
                 pl["hop"] = _leap_height(lp, frac) * fig._position_scale()
@@ -827,10 +842,12 @@ class ActionRunner:
             else:
                 self.leap_dmg = None
             st = self.leap = dict(plan=pl, t0=f0 * fm, h=pl["hop"], gy=fig.y, done=False,
-                                  left=pl["face"] < 0, sw=float(sw), sh=float(sh))
+                                  left=pl["face"] < 0, sw=float(sw), sh=float(sh),
+                                  rt=t, loop=self.loops_left, sub=None, booked=set())
         if st["done"]:
             return
-        x, gy, lift, dx, fmode, done = _travel.at(st["plan"], t + TICK_MS)
+        tt = (st["rt"] if bf else t) + TICK_MS
+        x, gy, lift, dx, fmode, done = _travel.at(st["plan"], tt)
         x = max(0.0, min(st["sw"], x))
         gy = max(0.0, min(st["sh"], gy))
         fig.transform.x = x
@@ -838,12 +855,78 @@ class ActionRunner:
         st["gy"] = gy
         if fmode == "travel" and not done and abs(dx) > 0.3:
             fig.transform.facing_left = dx < 0
+        elif fmode == "target" and not done:
+            ddx = st["plan"].get("tx", x) - x
+            if abs(ddx) > 0.3:
+                fig.transform.facing_left = ddx < 0
         else:
             fig.transform.facing_left = st["left"]
         fig.render.is_moving = move != "leap" and not done
+        if bf:
+            st["rt"] = tt
+            self._bf_show(fig, name, st, tt, now)
+            if not done:
+                # Hold the frame before the Arrive frame until the route ends.
+                self.elapsed = min(self.elapsed, f1 * fm - 0.5)
         if done:
             fig.transform.facing_left = st["left"]
             st["done"] = True
+            if bf and st.get("sub"):
+                c = fig.combat
+                c.action_anim, c.action_idx = name, max(0, min(n - 1, int(self.elapsed // fm)))
+                st["sub"] = None
+
+    def _bf_act_ms(self, fig, now, t_plan):
+        """Back & forth planning: act_ms(action, at_ms) -> how long that
+        inserted action plays (its frames x frame_ms) if it has frames and
+        is off cooldown at that moment of the route, else 0.  Each one it
+        allows is booked on a scratch copy of the cooldowns, so the same
+        action again later in the route waits out its own cooldown."""
+        from . import unique as _uq
+        cd0 = _uq.cd_now(fig, now)
+        sim = {}
+
+        def act_ms(an, at_ms):
+            ex = fig.render.bundle.extra.get(an)
+            if not an or not ex or not ex[0]:
+                return 0.0
+            n2, fm2 = self._frames(fig, an)
+            if n2 <= 0:
+                return 0.0
+            at_cd = cd0 + (at_ms - t_plan) / TICK_MS
+            if at_cd < sim.get(an, self.cooldown_until.get(an, -10 ** 9)):
+                return 0.0
+            sim[an] = at_cd + float(_cfg(fig, an).get("cooldown_ms") or 0) / TICK_MS
+            return n2 * fm2
+        return act_ms
+
+    def _bf_show(self, fig, name, st, tt, now):
+        """Back & forth: while the route is on a leg with an inserted action,
+        show that action's frame (its FX play off it, fxkit.FxDriver) and,
+        the first tick of the leg, start its cooldown."""
+        from . import travel as _travel
+        from . import unique as _uq
+        i, lg, u = _travel.leg_at(st["plan"], tt)
+        an = lg.get("act")
+        c = fig.combat
+        if not an or an not in fig.render.bundle.extra:
+            st["sub"] = None
+            self.fx_resume = name
+            return
+        n2, fm2 = self._frames(fig, an)
+        if i not in st["booked"]:
+            st["booked"].add(i)
+            cd = float(_cfg(fig, an).get("cooldown_ms") or 0)
+            self.cooldown_until[an] = max(self.cooldown_until.get(an, -10 ** 9),
+                                          _uq.cd_now(fig, now) + int(cd / TICK_MS))
+        if lg.get("fit"):
+            idx = int(u * n2)
+        else:
+            idx = int((tt - lg["t0"]) // fm2)
+        c.action_anim = an
+        c.action_idx = max(0, min(n2 - 1, idx))
+        st["sub"] = an
+        self.fx_resume = name
 
     def _leap_settle(self, fig):
         """The action ended (or was cut) mid-air: drop straight to the ground

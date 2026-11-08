@@ -20,6 +20,23 @@ and leap.land_frame (all settings live on action_settings[action].leap):
   flank        fake_len_px straight at fake_angle_deg (+ = toward `side`,
                - = the other way), then round the target flank_radius_px out
                on `side`, ending behind it facing it
+  back_forth   dashes between 2-6 points round the target (Daniel
+               2026-11-08), in REAL ms (not fitted to the frames: the action
+               holds the frame before the Arrive frame until the route ends).
+               bf_points = [{dist_px, angle_deg, ms, pause_ms, act, dash_act,
+               dash_fit}]: dist_px from the target, angle_deg round it (0 =
+               on the fighter's side, 180 = behind the target, + toward
+               `side`).  bf_order pingpong (1..N..1) / circuit (1..N,1) /
+               custom (bf_seq, point numbers like "1 2 1 3"), bf_loops times.
+               A dash to a higher-numbered point takes bf_fwd_ms, to a lower
+               (or the same) one bf_ret_ms, the first dash in bf_entry_ms;
+               a point's own ms > 0 overrides the dash into it.  At each
+               point: its `act` (another action, played once) then pause_ms.
+               dash_act = another action played during the dash into the
+               point (dash_fit = its frames stretched over the dash).
+               bf_strike: a last dash (bf_strike_ms) onto the target (dist_px
+               applies), the hit as the Arrive frame starts.  bf_face target
+               (faces the target the whole time) / travel
 
 Every movement: dist_px = distance from target along the final direction of
 travel (0 = the hit point lands on the target, - = short, + = past it);
@@ -30,8 +47,11 @@ at 100 %, times the fighter's position scale when it takes off.
 import math
 import random
 
-TRAVEL_MOVES = ("leap", "arc", "hit_retreat", "zigzag", "flank")
+TRAVEL_MOVES = ("leap", "arc", "hit_retreat", "zigzag", "flank", "back_forth")
 ZIG_TURNS = ("sharp", "smooth", "inertia")
+BF_ORDERS = ("pingpong", "circuit", "custom")
+BF_MAX_POINTS = 6
+BF_MAX_LOOPS = 50
 SIDES = ("left", "right", "random")
 _SAMPLES = 40          # points per curve piece
 
@@ -170,13 +190,110 @@ def _face_of(dx, fallback):
     return (-1.0 if dx < 0 else 1.0) if abs(dx) > 0.15 else fallback
 
 
+def bf_points(lp):
+    """The back & forth points (2..6), each filled with its defaults."""
+    pts = lp.get("bf_points")
+    if not isinstance(pts, list):
+        pts = []
+    out = []
+    for p in pts[:BF_MAX_POINTS]:
+        p = p if isinstance(p, dict) else {}
+        out.append(dict(dist_px=_num(p, "dist_px", 150), angle_deg=_num(p, "angle_deg", 0),
+                        ms=max(0.0, _num(p, "ms", 0)), pause_ms=max(0.0, _num(p, "pause_ms", 0)),
+                        act=p.get("act") or "", dash_act=p.get("dash_act") or "",
+                        dash_fit=p.get("dash_fit", True) is not False))
+    while len(out) < 2:
+        out.append(dict(dist_px=150.0, angle_deg=0.0 if not out else 180.0, ms=0.0, pause_ms=0.0,
+                        act="", dash_act="", dash_fit=True))
+    return out
+
+
+def bf_sequence(lp, n):
+    """Point indices (0-based) the route visits, every loop chained (a loop
+    that starts where the last one ended doesn't dash on the spot)."""
+    order = lp.get("bf_order") or "pingpong"
+    if order == "custom":
+        one = []
+        for tok in str(lp.get("bf_seq") or "").replace(",", " ").split():
+            try:
+                k = int(float(tok)) - 1
+            except ValueError:
+                continue
+            if 0 <= k < n:
+                one.append(k)
+        if not one:
+            order = "pingpong"
+    if order == "circuit":
+        one = list(range(n)) + [0]
+    elif order != "custom":
+        one = list(range(n)) + list(range(n - 2, -1, -1))
+    loops = max(1, min(BF_MAX_LOOPS, int(round(_num(lp, "bf_loops", 1)))))
+    seq = []
+    for _ in range(loops):
+        seq += one[1:] if seq and one and seq[-1] == one[0] else one
+    return seq
+
+
+def _back_forth(lp, s, sx, sy, tx, ty, ps, face0, aim, hop, t0, act_ms):
+    fx, fy, _d = _unit(tx - sx, ty - sy, face0)
+    bx, by = -fx, -fy                       # from the target back toward the fighter
+    lx, ly = _left(fx, fy)
+    lx, ly = lx * s, ly * s
+    pts = bf_points(lp)
+    spots = []
+    for p in pts:
+        a = math.radians(p["angle_deg"])
+        d = max(0.0, p["dist_px"]) * ps
+        spots.append((tx + d * (bx * math.cos(a) + lx * math.sin(a)),
+                      ty + d * (by * math.cos(a) + ly * math.sin(a))))
+    fmode = "travel" if lp.get("bf_face") == "travel" else "target"
+    fwd = max(0.0, _num(lp, "bf_fwd_ms", 250))
+    ret = max(0.0, _num(lp, "bf_ret_ms", 250))
+    ent = max(0.0, _num(lp, "bf_entry_ms", 200))
+    ok = act_ms or (lambda _n, _t: 0.0)
+    legs, t, cur, prev = [], float(t0), (sx, sy), None
+    for k in bf_sequence(lp, len(pts)):
+        p, q = pts[k], spots[k]
+        ms = p["ms"] if p["ms"] > 0 else (ent if prev is None else fwd if k > prev else ret)
+        ms = max(1.0, ms)
+        lg = dict(pts=[cur, q], t0=t, t1=t + ms, face=fmode, pidx=k)
+        if p["dash_act"] and ok(p["dash_act"], t) > 0:
+            lg["act"], lg["fit"] = p["dash_act"], p["dash_fit"]
+        legs.append(lg)
+        t += ms
+        if p["act"]:
+            am = ok(p["act"], t)
+            if am > 0:
+                legs.append(dict(pts=[q, q], t0=t, t1=t + am, face="target", hop=False, act=p["act"], fit=False))
+                t += am
+        if p["pause_ms"] > 0:
+            legs.append(dict(pts=[q, q], t0=t, t1=t + p["pause_ms"], face="target", hop=False))
+            t += p["pause_ms"]
+        cur, prev = q, k
+    if lp.get("bf_strike", True) is not False:
+        dx, dy, _ = _unit(tx - cur[0], ty - cur[1], face0)
+        ex, ey, f = aim(dx, dy)
+        ms = max(1.0, _num(lp, "bf_strike_ms", 200))
+        legs.append(dict(pts=[cur, (ex, ey)], t0=t, t1=t + ms, face="lock"))
+        t += ms
+    else:
+        f = _face_of(tx - cur[0], face0)
+    if not legs:
+        legs.append(dict(pts=[(sx, sy), (sx, sy)], t0=t, t1=t + 1.0, face="lock", hop=False))
+    return dict(legs=legs, face=f, hop=hop, hit_t=t, tx=tx, ty=ty)
+
+
 # ------------------------------------------------------------ plan
-def plan(move, lp, sx, sy, tx, ty, ps, face0, hit_off, t0, t1, tturn=None, rnd=None):
+def plan(move, lp, sx, sy, tx, ty, ps, face0, hit_off, t0, t1, tturn=None, rnd=None, act_ms=None):
     """The path for one take-off.  face0 = facing at take-off (+1 right / -1
     left), hit_off(face) -> (ox, oy) where the hit lands relative to the body,
     t0/t1 = take-off / arrival ms, tturn = attack & retreat turn ms.  Returns
     a dict: legs = [{pts, t0, t1, face}] (face "travel" = faces the way it
-    moves, "lock" = holds `face`), face = facing at the hit, hop = hop px."""
+    moves, "lock" = holds `face`, "target" = faces the locked target spot
+    tx, ty), face = facing at the hit, hop = hop px.  back_forth only:
+    act_ms(action, at_ms) -> how long that inserted action plays (ms) if it
+    can play then, else 0 (missing / on cooldown: skipped); its legs may
+    carry act / fit / hop=False."""
     s = side_sign(lp, rnd)
     dist = _num(lp, "dist_px", 0) * ps
     hop = max(0.0, _num(lp, "hop_px", 0)) * ps
@@ -186,6 +303,9 @@ def plan(move, lp, sx, sy, tx, ty, ps, face0, hit_off, t0, t1, tturn=None, rnd=N
         f = _face_of(dx, _face_of(tx - sx, face0))
         ox, oy = hit_off(f)
         return tx - ox + dx * dist, ty - oy + dy * dist, f
+
+    if move == "back_forth":
+        return _back_forth(lp, s, sx, sy, tx, ty, ps, face0, aim, hop, t0, act_ms)
 
     if move == "hit_retreat":
         if tturn is None:
@@ -255,10 +375,19 @@ def at(pl, t):
         if t < lg["t1"] or i == len(legs) - 1:
             u = max(0.0, min(1.0, (t - lg["t0"]) / max(1.0, lg["t1"] - lg["t0"])))
             x, y, dx, _dy = _along(lg["pts"], u)
-            lift = pl["hop"] * 4.0 * u * (1.0 - u)
+            lift = pl["hop"] * 4.0 * u * (1.0 - u) if lg.get("hop", True) else 0.0
             return x, y, lift, dx, lg["face"], (i == len(legs) - 1 and u >= 1.0)
     lg = legs[-1]
     return lg["pts"][-1][0], lg["pts"][-1][1], 0.0, 0.0, lg["face"], True
+
+
+def leg_at(pl, t):
+    """(index, leg, u 0..1) of the leg the route is on at ms t."""
+    legs = pl["legs"]
+    for i, lg in enumerate(legs):
+        if t < lg["t1"] or i == len(legs) - 1:
+            return i, lg, max(0.0, min(1.0, (t - lg["t0"]) / max(1.0, lg["t1"] - lg["t0"])))
+    return len(legs) - 1, legs[-1], 1.0
 
 
 def guide(pl):
