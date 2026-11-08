@@ -670,19 +670,21 @@ function leapFrac(lp, dist) {
   return Math.max(0, Math.min(1, (dist - lo) / (hi - lo)));
 }
 function leapHeight(lp, f) {
-  var h0 = Math.max(0, +lp.height_px || 0);
-  return lp.height_max_px == null ? h0 : h0 + (Math.max(0, +lp.height_max_px || 0) - h0) * f;
+  var h0 = +lp.height_px || 0;
+  return lp.height_max_px == null ? h0 : h0 + ((+lp.height_max_px || 0) - h0) * f;
 }
 function leapDamage(lp, f) {
   if (lp.damage_mode !== "range") return null;
   var d0 = +lp.damage_min || 0, d1 = +lp.damage_max || 0;
-  return Math.round(Math.max(0, d0 + (d1 - d0) * f) * 100) / 100;
+  return Math.round((d0 + (d1 - d0) * f) * 100) / 100;
 }
 // ---------------------------------------------------------------- travel
 // Travel movements (laser/travel.py, same maths): the route from take-off to
 // the target for "leap" / "arc" / "hit_retreat" / "zigzag" / "flank".
 var TRAVEL_MOVES = ["leap", "arc", "hit_retreat", "zigzag", "flank", "back_forth"];
-var BF_ORDERS = ["pingpong", "circuit", "custom"], BF_MAX_POINTS = 6, BF_MAX_LOOPS = 50;
+// No setting value is limited (Daniel 2026-11-08); the only guards keep time
+// running forward (laser/travel.py).
+var BF_ORDERS = ["pingpong", "circuit", "custom"];
 var TRAVEL_SAMPLES = 40;
 function _tUnit(x, y, fx) { var d = Math.hypot(x, y); return d < 1e-6 ? [fx == null ? 1 : fx, 0, 0] : [x / d, y / d, d]; }
 function _tNum(lp, k, d) { var v = lp[k]; v = v == null ? d : +v; return isFinite(v) ? v : d; }
@@ -702,7 +704,7 @@ function _tQuad(p0, p1, p2, n) {
 function travelSide(lp, rnd) { var s = lp.side || "left"; return s === "random" ? ((rnd || Math.random)() < 0.5 ? 1 : -1) : s === "right" ? -1 : 1; }
 function _tArc(lp, s, sx, sy, px, py, ps) {
   var u = _tUnit(px - sx, py - sy), fx = u[0], fy = u[1], D = u[2], lx = fy * s, ly = -fx * s;
-  var R = Math.max(0, _tNum(lp, "arc_radius_px", 120)) * ps, h = Math.max(0, Math.min(100, _tNum(lp, "arc_curve_pct", 0))) / 100, k = 4 / 3;
+  var R = _tNum(lp, "arc_radius_px", 120) * ps, h = _tNum(lp, "arc_curve_pct", 0) / 100, k = 4 / 3;
   var p1 = [sx + fx * D * (1 / 3 + 0.5 * h) + lx * k * R * (1 - 0.5 * h), sy + fy * D * (1 / 3 + 0.5 * h) + ly * k * R * (1 - 0.5 * h)];
   var p2 = [sx + fx * D * (2 / 3 + 0.9 * h) + lx * k * R, sy + fy * D * (2 / 3 + 0.9 * h) + ly * k * R];
   return [[sx, sy]].concat(_tCubic([sx, sy], p1, p2, [px, py]));
@@ -724,19 +726,18 @@ function _tCorners(verts, style, k) {
 }
 function _tZig(lp, s, sx, sy, px, py, ps) {
   var u = _tUnit(px - sx, py - sy), fx = u[0], fy = u[1], D = u[2], lx = fy * s, ly = -fx * s;
-  var n = Math.max(1, Math.min(20, Math.round(_tNum(lp, "zig_count", 3))));
-  var th = Math.max(5, Math.min(85, _tNum(lp, "zig_angle_deg", 45))) * Math.PI / 180;
-  var L = Math.max(0, _tNum(lp, "zig_len_px", 120)) * ps, fwd = L * Math.cos(th) * (n - 0.5);
-  if (fwd > 0.85 * D && fwd > 1e-6) L *= 0.85 * D / fwd;
+  var n = Math.round(_tNum(lp, "zig_count", 3));
+  var th = _tNum(lp, "zig_angle_deg", 45) * Math.PI / 180;
+  var L = _tNum(lp, "zig_len_px", 120) * ps;
   var w = L * Math.sin(th) / 2, verts = [[sx, sy]], a = L * Math.cos(th) / 2;
   for (var i = 0; i < n; i++) { var b = i % 2 === 0 ? w : -w; verts.push([sx + fx * a + lx * b, sy + fy * a + ly * b]); a += L * Math.cos(th); }
   verts.push([px, py]);
-  return _tCorners(verts, lp.zig_turn || "sharp", Math.max(0, Math.min(100, _tNum(lp, "zig_turn_pct", 50))) / 100);
+  return _tCorners(verts, lp.zig_turn || "sharp", _tNum(lp, "zig_turn_pct", 50) / 100);
 }
 function _tFlank(lp, s, sx, sy, tx, ty, px, py, ps) {
   var u = _tUnit(tx - sx, ty - sy), fx = u[0], fy = u[1], lx = fy * s, ly = -fx * s;
   var a = _tNum(lp, "fake_angle_deg", -20) * Math.PI / 180, dx = fx * Math.cos(a) + lx * Math.sin(a), dy = fy * Math.cos(a) + ly * Math.sin(a);
-  var fl = Math.max(0, _tNum(lp, "fake_len_px", 120)) * ps, R = Math.max(4, _tNum(lp, "flank_radius_px", 100) * ps);
+  var fl = _tNum(lp, "fake_len_px", 120) * ps, R = _tNum(lp, "flank_radius_px", 100) * ps;
   var F = [sx + dx * fl, sy + dy * fl], M = [tx + lx * R, ty + ly * R], k1 = Math.hypot(M[0] - F[0], M[1] - F[1]) / 3;
   return [[sx, sy], F].concat(_tCubic(F, [F[0] + dx * k1, F[1] + dy * k1], [M[0] - fx * k1, M[1] - fy * k1], M),
     _tCubic(M, [M[0] + fx * R * 1.3, M[1] + fy * R * 1.3], [px + fx * R * 1.3, py + fy * R * 1.3], [px, py]));
@@ -752,13 +753,13 @@ function _tFace(dx, fb) { return Math.abs(dx) > 0.15 ? (dx < 0 ? -1 : 1) : fb; }
 // take-off / arrival ms, tturn = attack & retreat turn ms.
 // Back & forth (laser/travel.py bf_points / bf_sequence / _back_forth).
 function bfPoints(lp) {
-  var src = Array.isArray(lp.bf_points) ? lp.bf_points.slice(0, BF_MAX_POINTS) : [], out = [];
+  var src = Array.isArray(lp.bf_points) ? lp.bf_points : [], out = [];
   src.forEach(function (p) {
     p = p && typeof p === "object" ? p : {};
-    out.push({dist_px: _tNum(p, "dist_px", 150), angle_deg: _tNum(p, "angle_deg", 0), ms: Math.max(0, _tNum(p, "ms", 0)),
-      pause_ms: Math.max(0, _tNum(p, "pause_ms", 0)), act: p.act || "", dash_act: p.dash_act || "", dash_fit: p.dash_fit !== false});
+    out.push({dist_px: _tNum(p, "dist_px", 150), angle_deg: _tNum(p, "angle_deg", 0), ms: _tNum(p, "ms", 0),
+      pause_ms: _tNum(p, "pause_ms", 0), act: p.act || "", dash_act: p.dash_act || "", dash_fit: p.dash_fit !== false});
   });
-  while (out.length < 2) out.push({dist_px: 150, angle_deg: out.length ? 180 : 0, ms: 0, pause_ms: 0, act: "", dash_act: "", dash_fit: true});
+  while (out.length < 2 && !src.length) out.push({dist_px: 150, angle_deg: out.length ? 180 : 0, ms: 0, pause_ms: 0, act: "", dash_act: "", dash_fit: true});
   return out;
 }
 function bfSequence(lp, n) {
@@ -770,18 +771,18 @@ function bfSequence(lp, n) {
   }
   if (order === "circuit") { one = []; for (i = 0; i < n; i++) one.push(i); one.push(0); }
   else if (order !== "custom") { one = []; for (i = 0; i < n; i++) one.push(i); for (i = n - 2; i >= 0; i--) one.push(i); }
-  var loops = Math.max(1, Math.min(BF_MAX_LOOPS, Math.round(_tNum(lp, "bf_loops", 1)))), seq = [];
+  var loops = Math.round(_tNum(lp, "bf_loops", 1)), seq = [];
   for (var L = 0; L < loops; L++) seq = seq.concat(seq.length && one.length && seq[seq.length - 1] === one[0] ? one.slice(1) : one);
   return seq;
 }
 function _tBackForth(lp, s, sx, sy, tx, ty, ps, face0, aim, hop, t0, actMs) {
   var u = _tUnit(tx - sx, ty - sy, face0), fx = u[0], fy = u[1], bx = -fx, by = -fy, lx = fy * s, ly = -fx * s;
   var pts = bfPoints(lp), spots = pts.map(function (p) {
-    var a = p.angle_deg * Math.PI / 180, d = Math.max(0, p.dist_px) * ps;
+    var a = p.angle_deg * Math.PI / 180, d = p.dist_px * ps;
     return [tx + d * (bx * Math.cos(a) + lx * Math.sin(a)), ty + d * (by * Math.cos(a) + ly * Math.sin(a))];
   });
   var fmode = lp.bf_face === "travel" ? "travel" : "target";
-  var fwd = Math.max(0, _tNum(lp, "bf_fwd_ms", 250)), ret = Math.max(0, _tNum(lp, "bf_ret_ms", 250)), ent = Math.max(0, _tNum(lp, "bf_entry_ms", 200));
+  var fwd = _tNum(lp, "bf_fwd_ms", 250), ret = _tNum(lp, "bf_ret_ms", 250), ent = _tNum(lp, "bf_entry_ms", 200);
   var ok = actMs || function () { return 0; }, legs = [], t = t0, cur = [sx, sy], prev = null, f;
   bfSequence(lp, pts.length).forEach(function (k) {
     var p = pts[k], q = spots[k], ms = p.ms > 0 ? p.ms : (prev === null ? ent : k > prev ? fwd : ret);
@@ -803,7 +804,7 @@ function _tBackForth(lp, s, sx, sy, tx, ty, ps, face0, aim, hop, t0, actMs) {
 // back_forth only: actMs(action, atMs) -> ms that inserted action plays then
 // (0 = skipped); its legs may carry act / fit / hop:false; face "target".
 function travelPlan(move, lp, sx, sy, tx, ty, ps, face0, hitOff, t0, t1, tturn, rnd, actMs) {
-  var s = travelSide(lp, rnd), dist = _tNum(lp, "dist_px", 0) * ps, hop = Math.max(0, _tNum(lp, "hop_px", 0)) * ps;
+  var s = travelSide(lp, rnd), dist = _tNum(lp, "dist_px", 0) * ps, hop = _tNum(lp, "hop_px", 0) * ps;
   var u = _tUnit(tx - sx, ty - sy, face0), fx = u[0], fy = u[1];
   var aim = function (dx, dy) { var f = _tFace(dx, _tFace(tx - sx, face0)), o = hitOff(f); return [tx - o[0] + dx * dist, ty - o[1] + dy * dist, f]; };
   var E, pts;
@@ -812,7 +813,7 @@ function travelPlan(move, lp, sx, sy, tx, ty, ps, face0, hitOff, t0, t1, tturn, 
     if (tturn == null) tturn = (t0 + t1) / 2;
     tturn = t1 - t0 > 2 ? Math.max(t0 + 1, Math.min(t1 - 1, tturn)) : (t0 + t1) / 2;
     var lx = fy, ly = -fx, a = _tNum(lp, "return_angle_deg", 0) * Math.PI / 180;
-    var rx = -fx * Math.cos(a) + s * lx * Math.sin(a), ry = -fy * Math.cos(a) + s * ly * Math.sin(a), rl = Math.max(0, _tNum(lp, "retreat_px", 150)) * ps;
+    var rx = -fx * Math.cos(a) + s * lx * Math.sin(a), ry = -fy * Math.cos(a) + s * ly * Math.sin(a), rl = _tNum(lp, "retreat_px", 150) * ps;
     if (lp.flip) {
       var r0 = [sx + rx * rl, sy + ry * rl], d = _tUnit(tx - r0[0], ty - r0[1], face0);
       E = aim(d[0], d[1]);
@@ -3044,7 +3045,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
   INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
-  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, TRAVEL_MOVES: TRAVEL_MOVES, travelPlan: travelPlan, travelAt: travelAt, travelGuide: travelGuide, travelLegAt: travelLegAt, bfPoints: bfPoints, bfSequence: bfSequence, BF_ORDERS: BF_ORDERS, BF_MAX_POINTS: BF_MAX_POINTS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
+  ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, TRAVEL_MOVES: TRAVEL_MOVES, travelPlan: travelPlan, travelAt: travelAt, travelGuide: travelGuide, travelLegAt: travelLegAt, bfPoints: bfPoints, bfSequence: bfSequence, BF_ORDERS: BF_ORDERS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,
   UNIQUE_TYPES: UNIQUE_TYPES, UNIQUE_DEFAULTS: UNIQUE_DEFAULTS, normalizeUnique: normalizeUnique,
   SUMMON_CONSTRUCTS: SUMMON_CONSTRUCTS, SUMMON_DEFAULTS: SUMMON_DEFAULTS, SUMMON_MAX: SUMMON_MAX,
