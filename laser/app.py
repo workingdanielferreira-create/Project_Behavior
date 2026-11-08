@@ -960,7 +960,7 @@ class World:
                         fxd = inst.fx
                         if (fxd["battle"]["deals_damage"]
                                 and not inst.dead and inst.age < inst.life and inst.lodge is None
-                                and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                                and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
                                 and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                             shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
                                                     "fx", inst,

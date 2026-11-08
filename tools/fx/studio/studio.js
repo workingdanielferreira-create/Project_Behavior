@@ -1687,10 +1687,14 @@ var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],
   freq: ["Zigzag freq rad/tick", 0, 2, 0.01], orbit_rx: ["Orbit radius X", 0, 400, 1], orbit_ry: ["Orbit radius Y", 0, 400, 1], orbit_deg: ["Orbit speed °/tick", -30, 30, 0.02],
-  orbit_dir: ["Orbit direction", ["clockwise", "anticlockwise"]]
+  orbit_dir: ["Orbit direction", ["clockwise", "anticlockwise"]],
+  out_px: ["Out distance px", 0, 2000, 1],
+  return_style: ["Return", [["curve", "Curve back (homing U-turn)"], ["reverse", "Slow, stop, reverse"], ["flip", "Instant flip"]]],
+  catch_px: ["Catch radius px", 0, 200, 1]
 };
 var MOTION_KEYS = {attached: [], static: [], path: ["aim", "angle_deg", "aim_offset_deg"], travel: ["aim", "angle_deg", "aim_offset_deg", "speed"],
   homing: ["aim", "angle_deg", "aim_offset_deg", "speed", "turn_deg"], zigzag: ["aim", "angle_deg", "aim_offset_deg", "speed", "amplitude", "freq"],
+  boomerang: ["aim", "angle_deg", "aim_offset_deg", "speed", "out_px", "return_style", "turn_deg", "catch_px"],
   orbit: ["orbit_rx", "orbit_ry", "orbit_dir", "orbit_deg"]};
 function field(parent, label, input) { var w = document.createElement("div"); w.className = "f"; var l = document.createElement("label"); l.textContent = label; w.appendChild(l); w.appendChild(input); parent.appendChild(w); return input; }
 function inp(kind, val, onch, a, b, st) {
@@ -2019,7 +2023,7 @@ function buildProps() {
   }
 
   if (fx.prim !== "weapon") {
-    s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags, orbits or follows a path.");
+    s = sec(d, "Motion", "motion", "How it moves after it appears: stays attached, stays put, travels, homes, zigzags, boomerangs, orbits or follows a path.");
     field(s, MOTION_UI.kind[0], inp(MOTION_UI.kind[1], fx.motion.kind, function (v) { fx.motion.kind = v; changed(true); }));
     note(s, "Motion, Aim and Orbit direction can be keyed (◆): they switch at the key, and copies already playing change from where they are. " +
       "Orbit → travel launches each copy along its Aim at the keyed Speed, living Life ticks from the launch (0 = " + FXK.LAUNCH_LIFE + "); travel → orbit picks the orbit up from where it is.");
@@ -2031,9 +2035,13 @@ function buildProps() {
       else if (!pth) note(s, "Pick a path; until then it stays where it appears.");
       else note(s, "Runs start to end in " + pth.ticks + " ticks, " + (pth.orient === "aim" ? "turned toward the aim" : "mirrored with the facing") + (pth.follow ? ", riding along with the fighter" : "") + "; at the end it " + ({stop: "stops", loop: "starts over", "continue": "carries on straight"})[pth.end] + ".");
     }
+    if (fx.motion.kind === "boomerang") note(s, "Boomerang: flies out along its Aim (target, facing or a fixed angle) for Out distance, then comes back to the fighter who threw it and is caught (ends) within Catch radius. " +
+      "Return: Curve back = a homing U-turn (Turn °/tick, tightening on the way back), Slow, stop, reverse = brakes over the last quarter of the way out then speeds straight back, Instant flip = snaps round and flies straight back. " +
+      "The way back can hit again (hits reset at the turn). Turn Pierce on in Battle, or its first hit ends it. If Life runs out first it ends where it is.");
     MOTION_KEYS[fx.motion.kind].forEach(function (k) {
       var u = MOTION_UI[k];
       if (k === "angle_deg" && fx.motion.aim !== "angle") return;
+      if (k === "turn_deg" && fx.motion.kind === "boomerang" && fx.motion.return_style !== "curve") return;
       field(s, u[0], Array.isArray(u[1]) ? inp(u[1], fx.motion[k], function (v) { fx.motion[k] = v; changed(true); })
         : inp("n", fx.motion[k], function (v) { fx.motion[k] = v; changed(); }, u[1], u[2], u[3]));
     });
@@ -5406,7 +5414,7 @@ function drawBlink(g, z, img) {
 // ricochets: red when they now hurt their owner, grey when harmless.  Their FX clash with the fighter's
 // FX by the World Clash rules (see world clash below).
 var TEST_SHOT_SPEED = 4, TEST_SHOT_LIFE = 120, RICOCHET_LIFE = 60;
-var SHOT_MOTIONS = ["travel", "homing", "zigzag", "path"], SHOT_SKIP = ["weapon", "ghost", "particles", "pulse"];   // laser/app.py enemy_shots
+var SHOT_MOTIONS = ["travel", "homing", "zigzag", "boomerang", "path"], SHOT_SKIP = ["weapon", "ghost", "particles", "pulse"];   // laser/app.py enemy_shots
 var DUMMY_GROUPS = ["Gunfire", "Weapons", "Power techniques", "Ki & strikes", "Kicks", "Sword techniques", "Sword combos"];
 var DUMMY_DEFAULTS = {name: "", attack: "none", every_ms: 1000, delay_ms: 0, aim: "fighter", angle_deg: 180, spread_deg: 0,
   hp: 0, respawn: true, respawn_ms: 3000, move: "still", move_px: 80, move_speed: 60, x: 0, y: 0};

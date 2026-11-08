@@ -717,7 +717,7 @@ class Terrain:
                         continue
                     if inst.bd_stuck:
                         continue          # stuck on a block: _stuck_step
-                    if (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                    if (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
                             and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                         b = fxkit.inst_body(inst)
                         hw = b[4] if b[4] > 0 else 8.0 * (inst.ps or 1.0)
@@ -840,7 +840,7 @@ class Terrain:
                     bt = fxd["battle"]
                     if not bt["deals_damage"] or inst.dead or inst.age >= inst.life:
                         continue
-                    if swordfx.shoots(inst) or (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                    if swordfx.shoots(inst) or (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
                                                 and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
                         continue          # a projectile: _projectiles
                     b = fxkit.inst_body(inst)

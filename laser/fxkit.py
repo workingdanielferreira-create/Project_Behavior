@@ -338,7 +338,22 @@ TECH_STYLE_DEFAULTS = {
     "void_sniper": dict(length=70, thickness=3.5, radius=520, span=0, swing_ticks=8, hold_ticks=8),
 }
 MOTION_DEFAULTS = dict(kind="attached", aim="target", angle_deg=0, aim_offset_deg=0, speed=8, turn_deg=6, amplitude=55,
-                       freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="")
+                       freq=0.18, orbit_rx=46, orbit_ry=46, orbit_deg=1.12, orbit_dir="clockwise", path="",
+                       out_px=260, return_style="curve", catch_px=28)
+# Boomerang motion (boomerang_step): flies out along its Aim (target / facing
+# / angle) for out_px, then comes back to the sender (its "figure" anchor) and
+# is caught (ends) within catch_px.  return_style: "curve" = a homing U-turn
+# (Turn deg/tick, growing BOOMERANG_TURN_GROW deg/tick on the way back so it
+# can never circle the sender for ever), "reverse" = brakes to a stop over the
+# last BOOMERANG_BRAKE of the way out, then speeds back up straight at the
+# sender, "flip" = snaps round at the turn and flies straight back.  The way
+# back starts a fresh hit (hits / re-hit clocks reset).
+RETURN_STYLES = ["curve", "reverse", "flip"]
+BOOMERANG_BRAKE = 0.25
+BOOMERANG_TURN_GROW = 0.5
+BOOMERANG_MIN_STEP = 0.05
+MOVERS = ("travel", "homing", "zigzag", "boomerang")
+LAUNCH_LIFE = 220
 
 
 def orbit_step(m):
@@ -680,7 +695,7 @@ _SCALE_PARAMS = {
     "weapon": ("width",),
     "technique": ("radius", "thickness", "length"),
 }
-_SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry")
+_SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry", "out_px", "catch_px")
 _SCALE_INTERCEPT = ("radius", "contact")
 
 
@@ -752,7 +767,7 @@ def _keyable(v, path=None):
 # Choice settings keys can switch: the value holds until the next key (no
 # in-between), and instances already alive switch with it (motion_switch):
 # an orbit keyed to travel launches from where it is.  FXK.KEY_CHOICES.
-KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag"],
+KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
                "motion.aim": ["target", "facing", "angle", "weapon"], "motion.orbit_dir": ["clockwise", "anticlockwise"]}
 
 
@@ -1270,7 +1285,7 @@ class Inst:
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end", "tq_hs",
                  "w_dg", "w_arm", "w_hand",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
-                 "bd_m", "bd_stuck", "tq_bd")
+                 "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t")
 
     def __init__(self):
         self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
@@ -1282,6 +1297,12 @@ class Inst:
         self.bd_m = 1.0
         self.tq_bd = {}
         self.bd_stuck = False
+        # Boomerang motion (boomerang_step): 0 flying out / 1 coming back,
+        # px flown out, speed on the way back ("reverse"), ticks on the way back.
+        self.bm = 0
+        self.bm_d = 0.0
+        self.bm_v = 0.0
+        self.bm_t = 0
         # Unique ability Ricochet (laser/unique.py): bounces left (None = not
         # read yet), no-rebounce window, damage kept after the bounces so far.
         self.ua_rb = None
@@ -1382,7 +1403,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
             inst.pl = path_line(inst.path)
             inst.po = list(p)
             inst.pm = path_matrix(inst.path, host, d, body_deg(fx, host, p), ef)
-    if m["kind"] in ("travel", "homing", "zigzag"):
+    if m["kind"] in MOVERS:
         inst.vx, inst.vy = d[0] * spd * ps, d[1] * spd * ps
     if m["kind"] == "zigzag":
         pr = [-d[1] * side, d[0] * side] if spd > 0.001 else [0, side]
@@ -1421,13 +1442,11 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     return inst
 
 
-MOVERS = ("travel", "homing", "zigzag")
-LAUNCH_LIFE = 220
 
 
 def motion_switch(inst, host):
     """A key switched an alive instance's motion (or aim): it changes from
-    where it is (FXK motionSwitch).  Into travel / homing / zigzag it launches
+    where it is (FXK motionSwitch).  Into travel / homing / zigzag / boomerang it launches
     along its Aim at the keyed Speed; coming off the fighter (from attached /
     static / orbit) it is a shot from then on, living Life ticks from the
     launch (0 = LAUNCH_LIFE).  Into orbit it carries on round its anchor from
@@ -1460,6 +1479,8 @@ def motion_switch(inst, host):
             pr = (-d[1] * side, d[0] * side) if spd > 0.001 else (0.0, side)
             inst.zx, inst.zy = pr[0] * m["amplitude"] * ps, pr[1] * m["amplitude"] * ps
             inst.phase = 0.0
+        if m["kind"] == "boomerang" and frm != "boomerang":   # a fresh throw from here
+            inst.bm, inst.bm_d, inst.bm_v, inst.bm_t = 0, 0.0, 0.0, 0
         if frm not in MOVERS:
             inst.cont = inst.open = False
             inst.trail = []
@@ -1487,7 +1508,7 @@ def move_inst(inst, host):
         path_step(inst, host)
         inst.vx, inst.vy = inst.x - inst.px, inst.y - inst.py
         return
-    if m["kind"] in ("travel", "homing", "zigzag") and not inst.free:
+    if m["kind"] in MOVERS and not inst.free:
         # Keyframed speed: an instance in flight follows it (direction kept).
         ns = float(m["speed"] or 0)
         if ns != inst.spd:
@@ -1524,17 +1545,99 @@ def move_inst(inst, host):
         inst.x += inst.vx + inst.zx * lat
         inst.y += inst.vy + inst.zy * lat
         inst.phase += m["freq"]
+    elif m["kind"] == "boomerang":
+        boomerang_step(inst, host)
     elif m["kind"] == "orbit":
         c = anchor_pos(fx, host, inst.ep)
         inst.orbitA += orbit_step(m)
         inst.x, inst.y = orbit_pos(inst, host, c)
-    if m["kind"] in ("travel", "homing", "zigzag"):
+    if m["kind"] in MOVERS:
         mdx, mdy = inst.x - inst.px, inst.y - inst.py
         if mdx * mdx + mdy * mdy > 1e-6:
             inst.dir = norm(mdx, mdy)
     elif fx["prim"] == "beam":
         d = aim_dir(fx, host, inst.x, inst.y)
         inst.dir = rot(d, m["aim_offset_deg"] * turn_sign(fx, host, d, (inst.x, inst.y))) if m["aim_offset_deg"] else d
+
+
+def _wrap_pi(a):
+    while a > math.pi:
+        a -= 2 * math.pi
+    while a < -math.pi:
+        a += 2 * math.pi
+    return a
+
+
+def boomerang_step(inst, host):
+    """Boomerang motion, one tick (FXK boomerangStep): out along its heading
+    until out_px is flown, then back to the sender's live position (its
+    "figure" anchor) in the effect's return_style; caught (ends, like a
+    blocked shot) once this tick's step passes within catch_px of the sender.
+    The turn resets the hits so the way back can hit again."""
+    m = inst.fx["motion"]
+    ps = inst.ps or 1.0
+    spd = max(0.0, float(inst.spd or 0)) * ps
+    style = m.get("return_style") or "curve"
+    out = max(0.0, float(m.get("out_px") or 0)) * ps
+    brake = out * BOOMERANG_BRAKE
+    cs = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+    h = (inst.vx / cs, inst.vy / cs) if cs > 1e-6 else (inst.dir[0], inst.dir[1])
+    if inst.bm == 0:
+        v = spd
+        step = v
+        if style == "reverse":
+            left = max(0.0, out - inst.bm_d)
+            if brake > 1e-6 and left < brake:
+                v = spd * max(BOOMERANG_MIN_STEP, math.sqrt(left / brake))
+            step = min(v, left)
+        inst.x += h[0] * step
+        inst.y += h[1] * step
+        inst.bm_d += step
+        inst.vx, inst.vy = h[0] * v, h[1] * v
+        if inst.bm_d >= out - 1e-6:
+            # The turn: the way back is a fresh throw for hits.
+            inst.bm, inst.bm_t = 1, 0
+            inst.bm_v = 0.0 if style == "reverse" else spd
+            inst.hits, inst.last_hit, inst.hit_targets = 0, -1e9, None
+            if style == "flip":
+                s = host.anchor("figure")
+                dx, dy = s[0] - inst.x, s[1] - inst.y
+                dl = math.sqrt(dx * dx + dy * dy)
+                if dl > 1e-6:
+                    inst.vx, inst.vy = dx / dl * spd, dy / dl * spd
+        return
+    inst.bm_t += 1
+    s = host.anchor("figure")
+    sx, sy = float(s[0]), float(s[1])
+    dx, dy = sx - inst.x, sy - inst.y
+    dl = math.sqrt(dx * dx + dy * dy)
+    if style == "curve":
+        v = spd
+        cur = math.atan2(h[1], h[0])
+        if dl > 1e-6:
+            lim = (float(m.get("turn_deg") or 0) + BOOMERANG_TURN_GROW * inst.bm_t) * D
+            cur += max(-lim, min(lim, _wrap_pi(math.atan2(dy, dx) - cur)))
+        h = (math.cos(cur), math.sin(cur))
+    else:
+        if style == "reverse":
+            acc = spd * spd / (2.0 * brake) if brake > 1e-6 else spd
+            inst.bm_v = min(spd, inst.bm_v + acc)
+            v = inst.bm_v
+        else:
+            v = spd
+        if dl > 1e-6:
+            h = (dx / dl, dy / dl)
+    nx, ny = inst.x + h[0] * v, inst.y + h[1] * v
+    # Caught: this tick's step passes within catch_px of the sender.
+    ex, ey = nx - inst.x, ny - inst.y
+    el = ex * ex + ey * ey
+    t = max(0.0, min(1.0, (dx * ex + dy * ey) / el)) if el > 1e-9 else 0.0
+    cx, cy = inst.x + ex * t - sx, inst.y + ey * t - sy
+    inst.x, inst.y = nx, ny
+    inst.vx, inst.vy = h[0] * v, h[1] * v
+    rc = max(0.0, float(m.get("catch_px") or 0)) * ps
+    if cx * cx + cy * cy <= rc * rc:
+        inst.age = max(inst.age, inst.life)
 
 
 # ---------------------------------------------------------------- intercept
@@ -1557,7 +1660,7 @@ def move_inst(inst, host):
 # ribbon's surface (mirrored across the head segment, speed kept), and the
 # ribbon itself carries on either way.
 DEFLECT_FAN_DEG = 15   # with deflect "both", the two fly apart this far either side
-INTERCEPT_MOTIONS = ("travel", "homing", "zigzag")
+INTERCEPT_MOTIONS = ("travel", "homing", "zigzag", "boomerang")
 GUARD_MODES = ("block", "deflect", "destroy", "absorb")
 
 

@@ -1599,7 +1599,7 @@ def _inst_cfg(inst, host):
     fx = inst.fx
     if fx["prim"] in _RC_PRIMS_OFF:
         return None
-    if not (inst.free or fx["motion"]["kind"] in ("travel", "homing", "zigzag")):
+    if not (inst.free or fx["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang")):
         return None
     if inst.ua_rb is None:
         P = _of(getattr(host, "fig", None), "ricochet")
@@ -2589,7 +2589,7 @@ def _domain_world(world, si, owner, P):
                 for inst in drv.player.insts + drv.clane[0].insts + drv.stack_insts():
                     fxd = inst.fx
                     if (fxd["battle"]["deals_damage"] and not inst.dead and inst.age < inst.life
-                            and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "path")
+                            and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
                             and fxd["prim"] not in _RC_PRIMS_OFF):
                         inst.age = max(inst.age, inst.life)
         if R["gravity"] and P["gravity_px"] > 0:
@@ -2825,7 +2825,7 @@ def proj_step(proj, world):
 def _inst_blocked(inst, world):
     fx = inst.fx
     if (not fx["battle"]["deals_damage"] or fx["prim"] in _RC_PRIMS_OFF
-            or not (inst.free or fx["motion"]["kind"] in ("travel", "homing", "zigzag", "path"))):
+            or not (inst.free or fx["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path"))):
         return False
     for s in _blocking(world, getattr(world, "side_idx", 0), True):
         d, _nx, _ny = s.dist(inst.x, inst.y)
