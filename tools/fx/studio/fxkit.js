@@ -1151,6 +1151,22 @@ var RETREAT_DEFAULTS = {enabled: false, mode: "avoid", angle_deg: 180, curve_deg
 // every_ms count from the last retreat start, since_action "" from the last
 // retreat end.  projectile_count counts enemy shots only.
 var RETREAT_CONDITIONS = CONDITION_TYPES;
+// States (FX file "states", laser/fxkit.py normalize_state): the trigger
+// action starting opens the State for duration_ms (refresh: a new trigger
+// resets the timer); while open, each start of a ticked action plays the
+// borrowed fx + the "@state:<id>" slot once from where the fighter stood,
+// on the trigger action's timing, at most once per cooldown_ms.
+var STATE_DEFAULTS = {id: "", name: "", enabled: true, trigger_action: "ultimate", duration_ms: 10000,
+  refresh: true, actions: [], fx: "", cooldown_ms: 1000};
+function normalizeState(st, i) {
+  st = fill(st && typeof st === "object" ? st : {}, STATE_DEFAULTS);
+  st.id = String(st.id || ("st" + ((i || 0) + 1)));
+  st.name = String(st.name || ""); st.enabled = !!st.enabled; st.refresh = !!st.refresh;
+  st.trigger_action = String(st.trigger_action || ""); st.fx = String(st.fx || "");
+  st.actions = (Array.isArray(st.actions) ? st.actions : []).filter(function (a) { return typeof a === "string" && a; });
+  ["duration_ms", "cooldown_ms"].forEach(function (k) { var v = +st[k]; st[k] = isFinite(v) ? Math.max(0, v) : STATE_DEFAULTS[k]; });
+  return st;
+}
 function normalizeRetreat(a) {
   a = fill(a || {}, RETREAT_DEFAULTS);
   a.conditions = (a.conditions || []).filter(function (c) { return c && RETREAT_CONDITIONS[c.type]; })
@@ -3070,6 +3086,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   normalizeSummon: normalizeSummon, normalizeSummoner: normalizeSummoner,
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
+  STATE_DEFAULTS: STATE_DEFAULTS, normalizeState: normalizeState,
   DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, normalizeDodge: normalizeDodge,
   TARGET_DEFAULTS: TARGET_DEFAULTS, TARGET_MODES: TARGET_MODES, TARGET_BASIC: TARGET_BASIC, normalizeTargeting: normalizeTargeting,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,

@@ -594,6 +594,34 @@ STACK_KEY = "@stack"
 # attack_normal timing (FxDriver._stack_tick, alongside the summon's
 # borrowed "fx").
 SUMMON_KEY = "@summon:"
+# "@state:<id>": a State's own FX slot (FX Studio: Triggered reactions >
+# States).  A State (fxkit "states") opens when its trigger action starts and
+# lasts duration_ms (a new trigger resets the timer when refresh is on).
+# While it is open, each start of one of its ticked "actions" plays the
+# borrowed "fx" + this slot's FX once, from the spot the fighter stood on
+# (anchors = that spot, facing the target), on the trigger action's timing,
+# at most once per cooldown_ms (FxDriver._state_tick -> _stack_tick).
+STATE_KEY = "@state:"
+STATE_DEFAULTS = dict(id="", name="", enabled=True, trigger_action="ultimate", duration_ms=10000,
+                      refresh=True, actions=[], fx="", cooldown_ms=1000)
+
+
+def normalize_state(st, i=0):
+    """One State (fxkit "states" entry) — FXK.normalizeState."""
+    st = _fill(dict(st or {}), STATE_DEFAULTS)
+    st["id"] = str(st.get("id") or "st%d" % (i + 1))
+    st["name"] = str(st.get("name") or "")
+    st["enabled"] = bool(st.get("enabled"))
+    st["refresh"] = bool(st.get("refresh"))
+    st["trigger_action"] = str(st.get("trigger_action") or "")
+    st["fx"] = str(st.get("fx") or "")
+    st["actions"] = [str(a) for a in (st.get("actions") or []) if isinstance(a, str) and a]
+    for k in ("duration_ms", "cooldown_ms"):
+        try:
+            st[k] = max(0.0, float(st.get(k) or 0))
+        except (TypeError, ValueError):
+            st[k] = float(STATE_DEFAULTS[k])
+    return st
 
 
 def normalize_blink_step(b):
@@ -3540,6 +3568,7 @@ class CharacterFx:
                 c = dict(e, always_on=False, continuous=True, cycles=dict(CYCLE_DEFAULTS))
                 self.character_timed.append((c, max(1, jround(ms / TICK_MS))))
             self.character_own.append(c if ms > 0 else e)
+        self.states = [normalize_state(st, i) for i, st in enumerate(fxk.get("states") or []) if isinstance(st, dict)]
         self.aim = _fill(dict(fxk.get("aim") or {}), AIM_DEFAULTS)
         self.aim_ref = None
         self.aim_from = None
@@ -3959,8 +3988,12 @@ class FxDriver:
         self.cclock = 0   # Character FX frequency timer (ticks since fielded)
         # Basic Stacks - FX: one entry per orb fired, [lanes (borrowed fx,
         # "@stack"), its _OrbHost (x, y)], until its FX have played once
-        # and finished (_stack_tick).
+        # and finished (_stack_tick).  States (_state_tick) add their
+        # follow-ups here too: [lanes, spot, host, (borrow, slot, timing action)].
         self.slanes = []
+        # States: id -> ticks left open / ticks until the next follow-up may fire.
+        self.st_left = {}
+        self.st_cd = {}
 
     def _time_for(self, action):
         n, fm = self.cfx.timing.get(action, (1, 100.0))
@@ -3982,9 +4015,11 @@ class FxDriver:
         n, fm = self._time_for(action)
         f0 = jround(frame * fm / TICK_MS)
         f1 = max(f0, jround((frame + 1) * fm / TICK_MS) - 1)
+        started = None   # the action that started this tick (States: _state_tick)
         if hold in ("freeze", "time") and action == self.action:
             self.t_prev = self.t
         elif action != self.action:
+            started = action
             self.action, self.cycle = action, 0
             self.t, self.t_prev = f0, -1
             # Back & forth (laser/actions.py _bf_show): the route's own action
@@ -3993,6 +4028,7 @@ class FxDriver:
             if getattr(getattr(fig, "act", None), "fx_resume", None) == action:
                 self.t_prev = f0
         elif frame < self.frame:
+            started = action
             self.cycle += 1
             self.t, self.t_prev = f0, -1
         else:
@@ -4045,6 +4081,7 @@ class FxDriver:
         self._dodge_tick(fig, world, host, hold, frozen)
         self._transform_tick(fig, host, hold, frozen)
         gone = self._character_tick(fig, host, hold, frozen)
+        self._state_tick(fig, started, hold, frozen)
         self._stack_tick(fig, world, hold, frozen)
         if hold and hold != "time":
             # Blinked out: the body-bound FX land no hits.
@@ -4156,6 +4193,43 @@ class FxDriver:
             self.cclock += 1
         return gone
 
+    def _state_tick(self, fig, started, hold, frozen=False):
+        """States (fxkit "states", STATE_KEY): the trigger action starting
+        opens the State for duration_ms (refresh: a new trigger resets it);
+        while open, each start of a ticked action queues one follow-up —
+        the borrowed fx + the "@state:<id>" slot, played once from where the
+        fighter stands (_stack_tick, _OrbHost) — at most once per
+        cooldown_ms.  The timers stop while Time control / freeze hold the
+        fighter; nothing fires while it is held or blinked out."""
+        sts = self.cfx.states
+        if not sts:
+            return
+        pause = frozen or hold in ("freeze", "time")
+        for st in sts:
+            sid = st["id"]
+            if not pause:
+                if self.st_left.get(sid, 0) > 0:
+                    self.st_left[sid] -= 1
+                if self.st_cd.get(sid, 0) > 0:
+                    self.st_cd[sid] -= 1
+            if not st["enabled"] or started is None or hold:
+                continue
+            if started == st["trigger_action"] and (st["refresh"] or self.st_left.get(sid, 0) <= 0):
+                self.st_left[sid] = max(1, jround(st["duration_ms"] / TICK_MS))
+            if self.st_left.get(sid, 0) <= 0 or started not in st["actions"] or self.st_cd.get(sid, 0) > 0:
+                continue
+            slot = STATE_KEY + sid
+            if not (st["fx"] or self.cfx.by_action.get(slot)):
+                continue
+            timing = st["trigger_action"] if st["trigger_action"] in self.cfx.timing else self.action
+            self.slanes.append([[[Player(), False, 0, -1], [Player(), False, 0, -1]], (fig.x, fig.y), None,
+                                (st["fx"], slot, timing)])
+            self.st_cd[sid] = jround(st["cooldown_ms"] / TICK_MS)
+
+    def state_left_ms(self, sid):
+        """ms left on State sid (0 = closed)."""
+        return max(0, self.st_left.get(sid, 0)) * TICK_MS
+
     def _stack_tick(self, fig, world, hold, frozen=False):
         """Basic Stacks - FX (laser/unique.py take_stack_fires): each orb a
         normal attack fires plays the borrowed effect / group and the FX
@@ -4181,7 +4255,7 @@ class FxDriver:
             lanes, (x, y), _h, own = entry
             jobs = stack_jobs if own is None else (
                 self.cfx.retreat_effects(own[0]) if own[0] else ([], None),
-                (self.cfx.retreat_effects("slot:" + own[1])[0], host_act))
+                (self.cfx.retreat_effects("slot:" + own[1])[0], own[2] if len(own) > 2 else host_act))
             host = _OrbHost(self, fig, world, x, y)
             entry[2] = host
             live = False

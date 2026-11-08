@@ -19,7 +19,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
   entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}), worldPhysics: {},
-  unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}),
+  unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}), states: [], stId: null,
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
 var player = new FXK.Player(), cplayer = new FXK.Player(), lut = FXK.buildLut([[255, 255, 255], [63, 176, 234]]);
@@ -147,6 +147,14 @@ function imgScale() { return C.k || TARGET_HEAD_PX / Math.max(1, C.headPx); }   
 // each time it acts (laser/summoner.py), built on the attack_normal frames.
 // S.react = "summon", S.smId = the summon's id.
 var RETREAT_KEY = "@retreat", BLINK_KEY = "@blink:", CHAR_KEY = "@character", TRANS_KEY = "@transform:", FORM_KEY = "@form:", STACK_KEY = "@stack", SUMMON_KEY = "@summon:";
+// "@state:<id>": a State's own FX slot (FX file "states", laser/fxkit.py
+// FxDriver._state_tick), built on the State's trigger action frames.
+// S.react = "state", S.stId = the State's id.
+var STATE_KEY = "@state:";
+function states() { return S.states || []; }
+function stateOf(id) { return states().filter(function (st) { return st.id === id; })[0] || null; }
+function stateLabel(id) { var st = stateOf(id), i = states().indexOf(st); return "State " + (i >= 0 ? i + 1 : "?") + (st ? (st.name ? " · " + st.name : "") : " (removed)"); }
+function stateHost(id) { var st = stateOf(id); return st && C.actions[st.trigger_action] ? st.trigger_action : stackHost(); }
 function retreatHost() { return C.actions.run ? "run" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
 function stackHost() { return C.actions.attack_normal ? "attack_normal" : C.actions.idle ? "idle" : Object.keys(C.actions)[0]; }
 function transHost(pair) {
@@ -158,7 +166,7 @@ function formName(l) { var F = S.unique.dual_form["form_" + l]; return (F && F.n
 function transLabel(pair) { return pair.length === 1 ? "Form FX · " + formName(pair) : "Transform " + formName(pair[0]) + " → " + formName(pair[2]); }
 function charHost() { return C.actions[S.action] ? S.action : Object.keys(C.actions)[0]; }
 function trKey(pair) { return (pair.length === 1 ? FORM_KEY : TRANS_KEY) + pair; }
-function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.react === "stack" ? STACK_KEY : S.react === "summon" ? SUMMON_KEY + S.smId : S.action; }
+function fxKey() { return S.react === "retreat" ? RETREAT_KEY : S.react === "blink" ? BLINK_KEY + S.action : S.react === "character" ? CHAR_KEY : S.react === "transform" ? trKey(S.trPair) : S.react === "stack" ? STACK_KEY : S.react === "summon" ? SUMMON_KEY + S.smId : S.react === "state" ? STATE_KEY + S.stId : S.action; }
 // The summons of the Summoner ability, and one by id.
 function summons() { return (S.unique.summoner && S.unique.summoner.summons) || []; }
 function summonOf(id) { return summons().filter(function (e) { return e.id === id; })[0] || null; }
@@ -166,12 +174,13 @@ function summonLabel(id) {
   var E = summonOf(id), i = summons().indexOf(E);
   return "Summon " + (i >= 0 ? i + 1 : "?") + (E ? " · " + (E.name || SM_INFO[E.construct][0]) : " (removed)");
 }
-function hostOf(key) { return key === RETREAT_KEY ? retreatHost() : key === STACK_KEY || key.indexOf(SUMMON_KEY) === 0 ? stackHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
-function fxKeyLabel(key) { return key === RETREAT_KEY ? "Tactical retreat" : key === STACK_KEY ? "Basic Stacks orb" : key.indexOf(SUMMON_KEY) === 0 ? summonLabel(key.slice(SUMMON_KEY.length)) : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
+function hostOf(key) { return key.indexOf(STATE_KEY) === 0 ? stateHost(key.slice(STATE_KEY.length)) : key === RETREAT_KEY ? retreatHost() : key === STACK_KEY || key.indexOf(SUMMON_KEY) === 0 ? stackHost() : key === CHAR_KEY || key.indexOf(FORM_KEY) === 0 ? charHost() : key.indexOf(BLINK_KEY) === 0 ? key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transHost(key.slice(TRANS_KEY.length)) : key; }
+function fxKeyLabel(key) { return key.indexOf(STATE_KEY) === 0 ? stateLabel(key.slice(STATE_KEY.length)) : key === RETREAT_KEY ? "Tactical retreat" : key === STACK_KEY ? "Basic Stacks orb" : key.indexOf(SUMMON_KEY) === 0 ? summonLabel(key.slice(SUMMON_KEY.length)) : key === CHAR_KEY ? "Character FX" : key.indexOf(BLINK_KEY) === 0 ? "Blink · " + key.slice(BLINK_KEY.length) : key.indexOf(TRANS_KEY) === 0 ? transLabel(key.slice(TRANS_KEY.length)) : key.indexOf(FORM_KEY) === 0 ? transLabel(key.slice(FORM_KEY.length)) : key; }
 function selectKey(key) {
   var tr = key.indexOf(TRANS_KEY) === 0 || key.indexOf(FORM_KEY) === 0;
-  S.react = key === RETREAT_KEY ? "retreat" : key === STACK_KEY ? "stack" : key.indexOf(SUMMON_KEY) === 0 ? "summon" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
+  S.react = key === RETREAT_KEY ? "retreat" : key === STACK_KEY ? "stack" : key.indexOf(SUMMON_KEY) === 0 ? "summon" : key.indexOf(STATE_KEY) === 0 ? "state" : key === CHAR_KEY ? "character" : key.indexOf(BLINK_KEY) === 0 ? "blink" : tr ? "transform" : null;
   if (S.react === "summon") S.smId = key.slice(SUMMON_KEY.length);
+  if (S.react === "state") S.stId = key.slice(STATE_KEY.length);
   if (tr) S.trPair = key.slice(key.indexOf(TRANS_KEY) === 0 ? TRANS_KEY.length : FORM_KEY.length);
   S.action = hostOf(key); if (S.react === "blink") S.blinkAct = S.action;
 }
@@ -193,7 +202,8 @@ function fxKeyOptions() {
   return acts.map(function (a) { return [a, a]; }).concat([[CHAR_KEY, "✦ Character FX"], [RETREAT_KEY, "⚡ Tactical retreat"]],
     acts.map(function (a) { return [BLINK_KEY + a, "⚡ Blink · " + a]; }),
     transSlots().map(function (p) { return [trKey(p), "⚡ " + transLabel(p)]; }), [[STACK_KEY, "⚡ Basic Stacks orb"]],
-    summons().map(function (E) { return [SUMMON_KEY + E.id, "⚡ " + summonLabel(E.id)]; }));
+    summons().map(function (E) { return [SUMMON_KEY + E.id, "⚡ " + summonLabel(E.id)]; }),
+    states().map(function (st) { return [STATE_KEY + st.id, "⚡ " + stateLabel(st.id)]; }));
 }
 function charEffects() { return S.effects.filter(function (e) { return e.action === CHAR_KEY; }); }
 // Character FX with a frequency (char_every_ms > 0) play their whole sequence
@@ -217,7 +227,7 @@ function actionEffects() { var k = fxKey(); return S.effects.filter(function (e)
 // does while Blink is on; always while editing the Blink reaction), or the
 // Tactical retreat's.
 function playEffects() {
-  if (S.react === "retreat" || S.react === "transform" || S.react === "stack" || S.react === "summon") return actionEffects();   // a transition / orb shows only the action's animation + its own FX
+  if (S.react === "retreat" || S.react === "transform" || S.react === "stack" || S.react === "summon" || S.react === "state") return actionEffects();   // a transition / orb shows only the action's animation + its own FX
   var a = S.action, bk = BLINK_KEY + a, withBlink = S.react === "blink" || cfgOf(a).blink.enabled;   // Character FX: cplayer
   return S.effects.filter(function (e) { return e.action === a || (withBlink && e.action === bk); });
 }
@@ -248,6 +258,7 @@ var DOC = [
   ["targeting", "targeting", function (v) { return FXK.normalizeTargeting(clone(v || {})); }],
   ["worldPhysics", "world_physics", function (v) { return WORLDFX.normalizeOverride(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
+  ["states", "states", function (v) { return (Array.isArray(v) ? v : []).map(function (st, i) { return FXK.normalizeState(clone(st), i); }); }],
   ["moveStyle", "movement_style", function (v) { return MOVESTYLE.normalize(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
@@ -256,7 +267,7 @@ function docIn(src) { DOC.forEach(function (f) { S[f[0]] = f[2](src[f[1]]); }); 
 function docCopy(key) { var f = DOC.filter(function (d) { return d[1] === key; })[0]; return f[2](S[f[0]]); }
 function persist() {
   var o = docOut();
-  o.action = S.action; o.react = S.react; o.tr_pair = S.trPair; o.sm_id = S.smId; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
+  o.action = S.action; o.react = S.react; o.tr_pair = S.trPair; o.sm_id = S.smId; o.st_id = S.stId; o.scale = imgScale(); o.img_head = C.headPx; o.img_origin = C.origin; o.saved_at = Date.now();
   lsSet(LS_PROJECT + C.name, o);
 }
 
@@ -599,13 +610,16 @@ function finishOpen(man, acts, pack, name, local) {
     setTimeout(function () { toast("Sized to game scale (stands " + FXK.STAND_HEIGHT_PX + " px): FX scaled ×" + ratio.toFixed(2) + " to keep their placement. Save FX to folder to keep it.", 6000); }, 1200);
   }
   S.action = (local && names.indexOf(local.action) >= 0) ? local.action : names.indexOf("attack_normal") >= 0 ? "attack_normal" : names[0];
-  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform" || local.react === "stack" || local.react === "summon") ? local.react : null;
+  S.react = local && (local.react === "retreat" || local.react === "blink" || local.react === "character" || local.react === "transform" || local.react === "stack" || local.react === "summon" || local.react === "state") ? local.react : null;
   S.smId = local && typeof local.sm_id === "string" ? local.sm_id : null;
   if (S.react === "summon" && !summonOf(S.smId)) S.react = null;
+  S.stId = local && typeof local.st_id === "string" ? local.st_id : null;
+  if (S.react === "state" && !stateOf(S.stId)) S.react = null;
   S.trPair = local && typeof local.tr_pair === "string" && transSlots().indexOf(local.tr_pair) >= 0 ? local.tr_pair : transPairs()[0];
   if (S.react === "retreat") S.action = retreatHost();
   if (S.react === "transform") S.action = slotHost(S.trPair);
   if (S.react === "stack" || S.react === "summon") S.action = stackHost();
+  if (S.react === "state") S.action = stateHost(S.stId);
   S.blinkAct = S.react === "blink" ? S.action : null;
   S.sel = null; S.selGroup = null; S.multi = []; S.selAnchor = null; S.geo = null; S.geoPlace = false; S.figX = 0; S.figY = 0;
   $("charname").textContent = C.display + "  (" + name + ")" + (man ? "" : "  — no character.json: timing 100 ms/frame, head 58 px");
@@ -947,17 +961,20 @@ function buildActions() {
   var nTr = S.effects.filter(function (e) { return e.action.indexOf(TRANS_KEY) === 0 || e.action.indexOf(FORM_KEY) === 0; }).length;
   var nSt = S.effects.filter(function (e) { return e.action === STACK_KEY; }).length;
   var nSm = S.effects.filter(function (e) { return e.action.indexOf(SUMMON_KEY) === 0; }).length;
+  var nSs = S.effects.filter(function (e) { return e.action.indexOf(STATE_KEY) === 0; }).length, nSOn = states().filter(function (st) { return st.enabled; }).length;
   [["retreat", "⚡ Tactical retreat", S.retreat.enabled, nRt ? nRt + " fx" : ""],
    ["blink", "⚡ Blink", nOn > 0, (nOn ? nOn + " on" : "") + (nOn && nBk ? " · " : "") + (nBk ? nBk + " fx" : "")],
    ["transform", "⚡ Transformations", S.unique.type === "dual_form", nTr ? nTr + " fx" : ""],
    ["stack", "⚡ Basic Stacks - FX", S.unique.type === "basic_stacks", nSt ? nSt + " fx" : ""],
-   ["summon", "⚡ Summoner constructs", S.unique.type === "summoner", nSm ? nSm + " fx" : ""]].forEach(function (r) {
+   ["summon", "⚡ Summoner constructs", S.unique.type === "summoner", nSm ? nSm + " fx" : ""],
+   ["state", "⚡ States", nSOn > 0, (nSOn ? nSOn + " on" : "") + (nSOn && nSs ? " · " : "") + (nSs ? nSs + " fx" : "")]].forEach(function (r) {
     var el = document.createElement("div"); el.className = (S.react === r[0] ? "sel" : "") + (r[2] ? "" : " off");
     el.innerHTML = '<span class="n"></span><span class="m"></span>';
     el.querySelector(".n").textContent = r[1];
     el.querySelector(".m").textContent = r[2] ? r[3] : "(off)" + (r[3] ? " · " + r[3] : "");
     el.title = r[0] === "retreat" ? "The Tactical retreat dash: build FX that play for the whole dash (on the " + retreatHost() + " frames) and preview the dash."
       : r[0] === "stack" ? "Basic Stacks - FX: the orb's own FX slot, built on the " + stackHost() + " frames. In the game each orb a normal attack fires plays these FX (and the borrowed FX) once, launched from the orb at the enemy."
+      : r[0] === "state" ? "States: timed modes an action opens (e.g. the ultimate) for a set time. While one is open, every ticked action it lists also plays its follow-up FX once (borrowed FX + its own FX slot), from where the fighter stood, on the trigger action's timing, at most once per cooldown."
       : r[0] === "summon" ? "Summoner: each summon has its own FX slot, built on the " + stackHost() + " frames. In the game its constructs play these FX (and the summon's borrowed FX) once every time they act, launched from the construct at the enemy."
       : r[0] === "transform" ? "Transformations: each form has its own FX slot (its Character FX while in that form) and each form pair a transition FX slot, built on its transition action's frames. In the game the action plays only its animation during the transition; these FX (and the borrowed FX) play with it."
       : "An action's Blink: pick the action at the top of its settings, build FX that play over that action while its Blink is on, and preview the blink.";
@@ -969,7 +986,10 @@ function openReaction(kind) {
   if (!reactOwns()) S.lastAct = S.action;   // Blink opens on the action you were on
   if (kind === "retreat") S.action = retreatHost();
   else if (kind === "stack") S.action = stackHost();
-  else if (kind === "summon") {
+  else if (kind === "state") {
+    if (!stateOf(S.stId)) S.stId = states().length ? states()[0].id : null;
+    S.action = stateHost(S.stId);
+  } else if (kind === "summon") {
     if (!summonOf(S.smId)) S.smId = summons().length ? summons()[0].id : null;
     S.action = stackHost();
   } else if (kind === "transform") {
@@ -3277,14 +3297,15 @@ function slotFxField(s, obj, key, label, help) {
     obj.fx = v; save();
   }));
   fe.style.minWidth = "0"; fe.style.width = "100%"; fe.title = help;
-  var stack = key === STACK_KEY, smn = key.indexOf(SUMMON_KEY) === 0,
-    pair = stack || smn ? "" : key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
+  var stack = key === STACK_KEY, smn = key.indexOf(SUMMON_KEY) === 0, stt = key.indexOf(STATE_KEY) === 0,
+    pair = stack || smn || stt ? "" : key.slice(key.indexOf(FORM_KEY) === 0 ? FORM_KEY.length : TRANS_KEY.length);
   var own = S.effects.filter(function (e) { return e.action === key; }), grs = S.groups.filter(function (gr) { return gr.action === key; });
   var row = document.createElement("div"); row.className = "row";
   var b = document.createElement("button");
   b.textContent = (S.react && fxKey() === key) ? "Own FX slot: " + own.length + " fx (open)" : "Edit own FX slot (" + own.length + " fx" + (grs.length ? ", " + grs.length + " group" + (grs.length > 1 ? "s" : "") : "") + ")";
-  b.title = "Open it under Actions > Triggered reactions > " + (stack ? "Basic Stacks - FX" : smn ? "Summoner constructs" : "Transformations") + ": build or add FX there. They always play with it, alongside the borrowed FX.";
+  b.title = "Open it under Actions > Triggered reactions > " + (stack ? "Basic Stacks - FX" : smn ? "Summoner constructs" : stt ? "States" : "Transformations") + ": build or add FX there. They always play with it, alongside the borrowed FX.";
   b.onclick = stack ? function () { openReaction("stack"); }
+    : stt ? function () { S.stId = key.slice(STATE_KEY.length); openReaction("state"); }
     : smn ? function () { S.smId = key.slice(SUMMON_KEY.length); openReaction("summon"); }
     : function () { if (S.react !== "transform") S.lastAct = S.action; S.trPair = pair; openReaction("transform"); };
   row.appendChild(b); s.appendChild(row);
@@ -3691,6 +3712,74 @@ function uaBasicStacks(d, P) {
   uaChk(s, "Show orbs", P, "show_orbs", "Off: the orbs are invisible (they still fire).", true);
   if (P.show_orbs) field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); }));
 }
+// Right panel for States (Triggered reactions): pick / add / remove a State,
+// its trigger, time, cooldown, the actions that fire it and its FX.
+function buildStateProps(d, n) {
+  var L = states(), st = stateOf(S.stId);
+  banner(d, "act", "Triggered reaction", "⚡ States",
+    "A State opens when its trigger action starts and lasts a set time. While it is open, every ticked action also plays the State's FX once: from the spot the fighter stood on when the action started (they stay there if it moves), facing the target, on the trigger action's frames (" + S.action + "). Solo and Battle alike.");
+  var s = sec(d, "State", "r-state", "Which State you are working on. A character can have several.", "act");
+  if (L.length) {
+    var ps = field(s, "State", inp(L.map(function (x) { return [x.id, stateLabel(x.id) + (x.enabled ? "" : "  (off)") + (S.effects.some(function (e) { return e.action === STATE_KEY + x.id; }) ? "  ✦ fx" : "")]; }), S.stId,
+      function (v) { S.stId = v; S.action = stateHost(v); setSel(); rebuild(); resetSim(0); save(); }));
+    ps.style.minWidth = "0"; ps.style.width = "100%";
+  } else note(s, "No States yet.");
+  var row = document.createElement("div"); row.className = "row";
+  var add = document.createElement("button"); add.textContent = "+ Add State";
+  add.onclick = function () {
+    var id; do { id = "st" + Math.random().toString(36).slice(2, 8); } while (stateOf(id));
+    var acts = Object.keys(C.actions);
+    S.states = L.concat([FXK.normalizeState({id: id, trigger_action: C.actions.ultimate ? "ultimate" : acts[0],
+      actions: acts.filter(function (k) { return FXK.actionKind(k) !== "locomotion" && k.indexOf("attack") === 0; })}, L.length)]);
+    S.stId = id; S.action = stateHost(id); setSel(); rebuild(); resetSim(0); save();
+  };
+  row.appendChild(add);
+  if (st) {
+    var del = document.createElement("button"); del.textContent = "Delete State";
+    del.title = "Removes this State and the FX in its own slot (Undo brings them back).";
+    del.onclick = function () {
+      ask("Delete " + stateLabel(st.id) + " and its own FX slot?", {ok: "Delete"}, function (ok) {
+        if (!ok) return;
+        var key = STATE_KEY + st.id;
+        S.effects = S.effects.filter(function (e) { return e.action !== key; });
+        S.groups = S.groups.filter(function (gr) { return gr.action !== key; });
+        S.states = L.filter(function (x) { return x !== st; }); pruneGroups();
+        S.stId = S.states.length ? S.states[0].id : null;
+        if (!S.stId) { S.react = null; S.action = C.actions[S.lastAct] ? S.lastAct : Object.keys(C.actions)[0]; } else S.action = stateHost(S.stId);
+        setSel(); rebuild(); resetSim(0); save();
+      });
+    };
+    row.appendChild(del);
+  }
+  s.appendChild(row);
+  if (!st) return;
+  field(s, "Name", inp("text", st.name, function (v) { st.name = v.trim(); save(); buildActions(); }));
+  uaChk(s, "On", st, "enabled", "Off: the State never opens in the game (its settings and FX are kept).");
+  var acts = Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; });
+  var opts = acts.map(function (k) { return [k, k]; });
+  if (st.trigger_action && acts.indexOf(st.trigger_action) < 0) opts.push([st.trigger_action, st.trigger_action + " (missing)"]);
+  var tr = field(s, "Opens when it starts", inp(opts, st.trigger_action, function (v) { st.trigger_action = v; S.action = stateHost(st.id); save(); rebuild(); resetSim(0); }));
+  tr.style.minWidth = "0"; tr.style.width = "100%";
+  tr.title = "The action that opens the State the moment it starts. Its frames also time the State's FX (keys and frames are read on its timing).";
+  uaNum(s, "Lasts ms", st, "duration_ms", 0, 600000, 100, "How long the State stays open after the trigger action starts.");
+  uaChk(s, "Refresh on re-trigger", st, "refresh", "On: the trigger action starting again while the State is open resets it to the full time. Off: it is ignored until the State closes.");
+  uaNum(s, "Cooldown ms", st, "cooldown_ms", 0, 600000, 50, "Minimum time between two follow-ups. 0 = every ticked action fires one.");
+  var f = sec(d, "Fires on", "r-state-acts", "While the State is open, each of these actions starting plays the State's FX once.", "act");
+  acts.forEach(function (k) {
+    field(f, k, inp("chk", st.actions.indexOf(k) >= 0, function (v) {
+      st.actions = st.actions.filter(function (a) { return a !== k; });
+      if (v) st.actions.push(k);
+      save();
+    }));
+  });
+  var x = sec(d, "State FX", "r-state-fx", "What each follow-up plays.", "act");
+  slotFxField(x, st, STATE_KEY + st.id, stateLabel(st.id),
+    "Borrowed: an effect or a whole group (▣) from an action, played with this State's own FX slot (it keeps playing on its own action too). ＋ Library: copies a group / preset into this State's own FX slot.");
+  note(x, (n ? n + " effect" + (n > 1 ? "s" : "") + " in this State's own slot." : "Nothing in this State's own slot: add effects under Effects on the left, or borrow one in FX above.") +
+    " The stage previews the slot's FX over " + S.action + "'s animation; the State's timer, cooldown and triggers run in the game only.");
+  buildCharFxProps(d);
+  buildCharScaleProps(d);
+}
 // Right panel for the Basic Stacks orb's own FX slot (Triggered reactions).
 function buildStackProps(d, n) {
   var on = S.unique.type === "basic_stacks";
@@ -3966,6 +4055,7 @@ function buildReactionProps(d) {
   if (S.react === "transform") { buildTransformProps(d, n); return; }
   if (S.react === "stack") { buildStackProps(d, n); return; }
   if (S.react === "summon") { buildSummonProps(d, n); return; }
+  if (S.react === "state") { buildStateProps(d, n); return; }
   var acts = Object.keys(C.actions), a = S.action, on = cfgOf(a).blink.enabled;
   banner(d, "act", "Triggered reaction", "⚡ Blink · " + a, "FX added here play over " + a + "'s frames, alongside its own FX, whenever it plays with Blink on. Select an effect on the left or on the timeline to edit it.");
   var s2 = sec(d, "Blink of", "r-blink", "Which action's Blink you are working on. Each action has its own.", "act");

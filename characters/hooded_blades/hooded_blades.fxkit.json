@@ -27986,5 +27986,25 @@
     }
    }
   ]
- }
+ },
+ "states": [
+  {
+   "id": "st1",
+   "name": "Ethereal Blades",
+   "enabled": true,
+   "trigger_action": "ultimate",
+   "duration_ms": 10000,
+   "refresh": true,
+   "actions": [
+    "attack_normal",
+    "attack_normal_2",
+    "attack_normal_3",
+    "attack_normal_4",
+    "attack_normal_5",
+    "attack_special"
+   ],
+   "fx": "fx:Emw8d4epx16",
+   "cooldown_ms": 1000
+  }
+ ]
 }
