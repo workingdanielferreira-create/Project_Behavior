@@ -64,6 +64,34 @@ rules; FX Studio's weapon panel):
               shrinks and the weapon draws behind the fighter while it is
               round the far side, BEHIND_Z)
 
+Positioning — the weapon as a character's own weapon (every weapon; the
+numbers keyframe like the rest):
+
+  w_grip      where along the weapon the hand holds it, weapon lengths (0 =
+              as modelled, 0.5 = the middle, 1 = the tip, - = past the
+              pommel): the grip sits on the hand / anchor and the blade
+              turns, tilts and (Flip pivot grip) flips round it
+  w_flip_at   "anchor" (default): the flips mirror the weapon and its whole
+              move on screen round the anchor; "grip": they mirror the
+              weapon in place round its own grip (its move is not mirrored)
+  w_move      % of the move's own travel (pose x / y and reach) applied
+              (100 = as made, 0 = the grip stays where it is put)
+  w_turn      % of the move's own swing angle applied (0 = the blade keeps
+              the angle it is given: aim + blade angle + hand)
+  w_aim       "auto" (as the move was made) / "always" (turn toward the
+              target) / "never" (ignore where the target is; reaches go
+              straight forward)
+  w_follow    "off" / "position" (the grip rides the blade's hand, the move
+              on top) / "position_angle" (and the blade lies along that
+              hand's own weapon line, hand -> wtip / wtip2, the move's swing
+              on top instead of the aim).  Recorded per tick (hand_rec)
+  w_hand1 / w_hand2   "right" (haR -> wtip) / "left" (haL -> wtip2): the hand
+              blade 1 / blade 2 follows (defaults right / left)
+  w_b1_x, w_b1_y, w_b1_ang   blade 1 (the first slot): grip offset px (x
+              forward, mirrors with the facing; y down) and angle (degrees,
+              clockwise) on top of everything else
+  w_b2_x, w_b2_y, w_b2_ang   the same for blade 2 (two-blade weapons)
+
 Hold mode follows the arm: the weapon lies along the rig's own blade line,
 hand -> wtip of the frame on show (haL -> wtip2 when the effect is anchored
 on haL), its grip on the hand.  A rig without that tip keeps the ready pose.
@@ -683,20 +711,25 @@ class XF:
     """One weapon slot at one moment: model (u, v) -> world, through the
     yaw / pitch / perspective camera, the pose, the size and the flips."""
     __slots__ = ("fr", "px", "py", "ca", "sa", "cy", "sy", "cp", "sp", "K", "L", "W", "Fc", "dz", "fx_", "fy_",
-                 "nz", "tk", "Y", "Pt", "m", "zp")
+                 "nz", "tk", "Y", "Pt", "m", "zp", "gu", "fa")
 
     def pt(self, u, v, t=0.0):
-        x3 = u * self.L
+        x3 = (u - self.gu) * self.L          # the grip point (w_grip) on the hand
         y3 = v * self.W * self.cy - t * self.sy * self.tk
         z3 = v * self.W * self.sy + t * self.cy * self.tk
         x4 = x3 * self.cp - z3 * self.sp
         z4 = x3 * self.sp + z3 * self.cp
         s = self.Fc / max(self.Fc * 0.25, self.Fc * (1 + self.dz) + z4)
         wx, wy = x4 * s * self.K, y3 * s * self.K
-        lx = self.px + wx * self.ca - wy * self.sa
-        ly = self.py + wx * self.sa + wy * self.ca
+        dx = wx * self.ca - wy * self.sa
+        dy = wx * self.sa + wy * self.ca
+        if self.fa:
+            # Flip pivot grip: the flips mirror the weapon in place round its grip
+            g0 = self.fr.d(self.px, self.py)
+            g = self.fr.d(dx, dy)
+            return self.fr.ox + g0[0] + g[0] * self.fx_, self.fr.oy + g0[1] + g[1] * self.fy_
         # the flips mirror on screen round the anchor (left / right, up / down)
-        g = self.fr.d(lx, ly)
+        g = self.fr.d(self.px + dx, self.py + dy)
         return self.fr.ox + g[0] * self.fx_, self.fr.oy + g[1] * self.fy_
 
 
@@ -766,21 +799,125 @@ def _arm_at(inst, tick):
     return a + _wrap(b - a) * f
 
 
+HANDS = dict(right=("haR", "wtip"), left=("haL", "wtip2"))   # w_hand1 / w_hand2: (hand, weapon tip)
+
+
+def _num(P, k, d=0.0):
+    v = P.get(k)
+    return d if v is None or v == "" else float(v)
+
+
+def _bk(slot):
+    """The per-blade key prefix of a slot (w_b1_ / w_b2_)."""
+    return "w_b2_" if slot >= 1 else "w_b1_"
+
+
+def _follow(P):
+    f = P.get("w_follow")
+    return f if f in ("position", "position_angle") else "off"
+
+
+def _aim_on(P, w):
+    """Whether the blade turns toward the target (w_aim)."""
+    a = P.get("w_aim")
+    if a == "always":
+        return True
+    if a == "never":
+        return False
+    return bool(w["aim"])
+
+
+def hand_rec(inst, host):
+    """Follow hand: both hands this tick, local to the effect's anchor ->
+    ((x, y, angle or None) right, ... left) — None for a hand the rig does
+    not have; None when Follow hand is off.  The angle is the hand -> weapon
+    tip line of the frame on show.  Recorded every tick (swordfx on_spawn /
+    on_tick)."""
+    P = inst.fx["params"]
+    if host is None or _follow(P) == "off" or S._style(P) not in WEAPONS:
+        return None
+    fr = S.Frame(0.0, 0.0, inst.tq_f, inst.tq_m)
+    fg = host.anchor("figure")
+    out = []
+    for nm in ("right", "left"):
+        g, t = HANDS[nm]
+        p0 = host.anchor(g)
+        if p0[0] == fg[0] and p0[1] == fg[1]:
+            out.append(None)
+            continue
+        dx, dy = p0[0] - inst.x, p0[1] - inst.y
+        lx, ly = dx * fr.fx + dy * fr.fy, dx * fr.vx + dy * fr.vy
+        p1 = host.anchor(t)
+        ex, ey = p1[0] - p0[0], p1[1] - p0[1]
+        a = None
+        if not (p1[0] == fg[0] and p1[1] == fg[1]) and math.hypot(ex, ey) >= 1.0:
+            a = math.atan2(ex * fr.vx + ey * fr.vy, ex * fr.fx + ey * fr.fy) / S.D
+        out.append((lx, ly, a))
+    return tuple(out)
+
+
+def _hand_at(inst, P, slot, tick):
+    """Follow hand: (x, y local px, angle or None) of the hand blade `slot`
+    follows at tick (fractional ticks interpolate), or None."""
+    H = getattr(inst, "w_hand", None)
+    if not H or _follow(P) == "off":
+        return None
+    hv = P.get("w_hand2" if slot >= 1 else "w_hand1") or ("left" if slot >= 1 else "right")
+    hi = 1 if hv == "left" else 0
+    k = max(0, min(F.trunc(tick), len(H) - 1))
+    a = H[k][hi] if H[k] else None
+    if a is None:
+        return None
+    b = H[k + 1][hi] if k + 1 < len(H) and H[k + 1] else None
+    f = tick - F.trunc(tick)
+    if b is None or f <= 0:
+        return a
+    ang = a[2]
+    if a[2] is not None and b[2] is not None:
+        ang = a[2] + _wrap(b[2] - a[2]) * f
+    return a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, ang
+
+
+def _grip_off(inst, P, slot, tick, ps):
+    """Local px the grip is moved by: the followed hand + the blade's offset."""
+    k = _bk(slot)
+    gx, gy = _num(P, k + "x") * ps, _num(P, k + "y") * ps
+    hd = _hand_at(inst, P, slot, tick)
+    if hd is not None:
+        gx, gy = gx + hd[0], gy + hd[1]
+    return gx, gy
+
+
 def _pose(inst, P, w, slot, tick):
     """The slot's pose at tick before weight and swing plane:
-    (x, y, r, ang, yaw, pitch, scale, aim angle, target distance)."""
+    (x, y, r, ang, yaw, pitch, scale, aim angle, target distance).
+    w_move / w_turn scale the move's own travel / swing; w_aim decides the
+    turn toward the target; Follow hand (position + angle) lays the blade
+    along its hand's weapon line; the blade's own angle goes on top."""
     u, _ap, _fd = _phase(P, inst.life, tick)
     rows = w["tracks"][slot]
     x, y, r, ang, yaw, pitch, sc = _track(rows, u) if _sig(P) else list(rows[0][1:8])
-    aa, dist = (_aim_ang(inst, tick) if w["aim"] else (0.0, 0.0))
+    mv, tn = _num(P, "w_move", 100.0) / 100.0, _num(P, "w_turn", 100.0) / 100.0
+    x, y, r, ang = x * mv, y * mv, r * mv, ang * tn
+    on = _aim_on(P, w)
+    aa, dist = (_aim_ang(inst, tick) if (on or w["aim"]) else (0.0, 0.0))
+    if not on:
+        aa = 0.0
+    hd = _hand_at(inst, P, slot, tick) if _follow(P) == "position_angle" else None
+    hand = hd[2] if hd is not None else None
     arm = None if _sig(P) else _arm_at(inst, tick)
-    if arm is None:
-        if not _sig(P):
-            y += math.sin(tick * 0.12) * 0.15
-        ang += aa
-    else:
+    if not _sig(P) and hand is not None:
+        arm = hand
+    if arm is not None:
         x = y = 0.0      # the grip in the hand, along the rig's own blade line
         ang = arm
+    elif hand is not None:
+        ang += hand      # the move's swing on top of the hand's own blade line
+    else:
+        if not _sig(P):
+            y += math.sin(tick * 0.12) * 0.15 * mv
+        ang += aa
+    ang += _num(P, _bk(slot) + "ang")
     if w["shot"]:
         kick = _recoil(w, P, slot, tick)
         ang -= 9.0 * kick
@@ -824,13 +961,21 @@ def _drag(inst, ps, slot, tick):
     lim = DRAG_MAX * S.D
     amax = GRIP_ACC_MAX * Lp
 
+    fa = P.get("w_flip_at") == "grip"
+
     def grip(k):
         # the hand in the weapon's own (unflipped) frame, px
         q = _pose(inst, P, w, slot, k)
+        gx, gy = _grip_off(inst, P, slot, k, ps)
+        lx, ly = q[0] * HU * ps * s0 * G + gx, q[1] * HU * ps * s0 * G + gy
         px, py = inst.tq_path[k]
+        if fa:
+            # Flip pivot grip: the grip itself is not mirrored on screen
+            d = fr.d(lx, ly)
+            px, py = (px + d[0]) * sx, (py + d[1]) * sy
+            return (px * fr.fx + py * fr.fy, px * fr.vx + py * fr.vy), q[3]
         px, py = px * sx, py * sy
-        return (px * fr.fx + py * fr.fy + q[0] * HU * ps * s0 * G,
-                px * fr.vx + py * fr.vy + q[1] * HU * ps * s0 * G), q[3]
+        return (px * fr.fx + py * fr.fy + lx, px * fr.vx + py * fr.vy + ly), q[3]
 
     if c is None:
         g0, a0 = grip(0)
@@ -911,13 +1056,16 @@ def xf(inst, ps, slot, tick):
     s0 = 1.0 / (1.0 + dz)
     K = sc * G * (0.75 + 0.25 * S.ease_out3(ap))
     o.K = K
+    o.gu = _num(P, "w_grip")
+    o.fa = P.get("w_flip_at") == "grip"
     hx, hy = x * HU * ps, y * HU * ps
-    if r > 0 and w["aim"]:
+    if r > 0 and (w["aim"] or _aim_on(P, w)):
         # reach toward the target: the blade tip lands on it at r = 1
-        reach = max(0.0, min(dist, float(P.get("radius") or 0) * ps) - md["hit"][2] * L * K)
+        reach = max(0.0, min(dist, float(P.get("radius") or 0) * ps) - (md["hit"][2] - o.gu) * L * K)
         hx += math.cos(aa * S.D) * reach * r
         hy += math.sin(aa * S.D) * reach * r
-    o.px, o.py = hx * s0 * G, hy * s0 * G
+    gx, gy = _grip_off(inst, P, slot, tick, ps)
+    o.px, o.py = hx * s0 * G + gx, hy * s0 * G + gy
     o.fx_ = float(P.get("w_flip_x") if P.get("w_flip_x") is not None else 1)
     o.fy_ = float(P.get("w_flip_y") if P.get("w_flip_y") is not None else 1)
     o.nz = o.cy * o.cp

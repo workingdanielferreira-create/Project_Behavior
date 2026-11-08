@@ -266,6 +266,7 @@ def on_spawn(inst, host):
     inst.tq_tp = [tuple(host.target)]   # where the target was, per tick
     inst.w_dg = None               # weapon weight: its spring, per slot (weaponfx._drag)
     inst.w_arm = [weaponfx.arm_ang(inst, host)] if st in weaponfx.STYLES else []   # Hold: the rig's blade angle, per tick
+    inst.w_hand = [weaponfx.hand_rec(inst, host)] if st in weaponfx.STYLES else []   # Follow hand: both hands, per tick
     powerfx.on_spawn(inst, host)
     _record_outline(inst, host)
     inst.life = active_ticks(fx["params"])
@@ -279,6 +280,7 @@ def on_tick(inst, host=None):
     inst.tq_tp.append(tuple(host.target) if host is not None else inst.tq_tp[-1])
     if _style(inst.fx["params"]) in weaponfx.STYLES:
         inst.w_arm.append(weaponfx.arm_ang(inst, host))
+        inst.w_hand.append(weaponfx.hand_rec(inst, host))
     _record_outline(inst, host)
     strikefx.track_step(inst, host)
     strikefx.hitstop_step(inst, host)

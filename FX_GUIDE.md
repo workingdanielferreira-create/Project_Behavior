@@ -740,6 +740,25 @@ Studio's "Weapons" group. Test dummies can attack with them too.
   near end grows) / **behind** (passes round the back, far end shrinks, and
   a front-layer weapon draws behind the fighter past `BEHIND_Z`). Hits,
   clashes and trails follow the blade as drawn.
+- **Positioning — as a character's own weapon (every weapon, both modes):**
+  `w_grip` = where along it the hand holds it (weapon lengths: 0 = as
+  modelled, 0.5 = middle, 1 = tip, − = past the pommel; the blade turns /
+  tilts / flips round it). `w_flip_at` **anchor** (flips mirror the weapon
+  and its whole move round the anchor, as before) / **grip** (flip in place
+  round its own grip; the move is not mirrored). `w_move` / `w_turn` = % of
+  the move's own travel (pose x/y + reach) / swing angle (0 = the blade stays
+  where / at the angle you put it). `w_aim` **auto** / **always** /
+  **never** (never: target direction ignored, reaches go straight forward).
+  `w_follow` **off** / **position** (each blade's grip rides its hand every
+  tick, move on top) / **position_angle** (also lies along that hand's
+  weapon line, hand → `wtip` / `wtip2`, swing on top instead of the aim);
+  `w_hand1` / `w_hand2` **right** (`haR`) / **left** (`haL`), recorded per
+  tick (`weaponfx.hand_rec` → `inst.w_hand`). `w_b1_x` / `w_b1_y` /
+  `w_b1_ang` and `w_b2_*` = each blade's own grip offset px (x forward,
+  mirrors with the facing; y down) and angle ° on top of everything (180 =
+  reverse grip). Studio hides the blade-2 rows on single-blade weapons and
+  names them Oathkeeper / Oblivion on `oath_oblivion`. All defaults = the
+  old look.
 - **Signature sequences** (`WEAPONS`): per weapon slot a keyed pose track
   `(t, x, y, reach, angle, yaw, pitch, scale, ease)` over `beats × Swing
   ticks`, timed events (`slam`, `cuts`, `xflash`, `snip`, `pillar`, `runes`,

@@ -338,6 +338,8 @@ var PARAM_DEFAULTS = {
     density: 1, rotation_deg: 0, lightning: false, lightning_rate: 1.5,
     aura_burst: true, aura_debris: true, aura_surges: true, aura_cracks: false, aura_part: "all",
     gap_px: 18, w_mode: "signature", w_scale: 1, w_flip_x: 1, w_flip_y: 1, w_yaw: 0, w_pitch: 0, w_spin: 0, w_depth: 0, w_weight: 0, w_plane: 0, w_plane_roll: 0, w_side: "front", w_blade: "both",
+    w_grip: 0, w_flip_at: "anchor", w_move: 100, w_turn: 100, w_aim: "auto", w_follow: "off", w_hand1: "right", w_hand2: "left",
+    w_b1_x: 0, w_b1_y: 0, w_b1_ang: 0, w_b2_x: 0, w_b2_y: 0, w_b2_ang: 0,
     ext_pivot: 0, ext_spin: 0, ext_sweep: 0, ext_spin_dir: "clockwise", ext_slide: 0, ext_slide_deg: 0,
     // Strike hit options (STRIKEFX HIT_OPTION_STYLES): hitstop freezes the
     // world hitstop_ticks when it lands (no opponent: as it whiffs); kb_dir

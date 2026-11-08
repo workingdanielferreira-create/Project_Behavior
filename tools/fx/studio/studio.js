@@ -1434,6 +1434,12 @@ var PARAM_UI = {
     ["w_weight", "Weight", 0, 1, 0.05], ["w_plane", "Swing plane tilt °", 0, 90, 1],
     ["w_plane_roll", "Swing plane roll °", -90, 90, 1], ["w_side", "Swing side", ["front", "behind"]],
     ["w_blade", "Blade", ["both", "first", "second"]],
+    ["w_grip", "Grip point (weapon lengths)", -0.5, 1, 0.05], ["w_flip_at", "Flip pivot", ["anchor", "grip"]],
+    ["w_move", "Move travel %", 0, 200, 5], ["w_turn", "Move swing %", 0, 200, 5],
+    ["w_aim", "Aim at target", ["auto", "always", "never"]], ["w_follow", "Follow hand", ["off", "position", "position_angle"]],
+    ["w_hand1", "Blade 1 hand", ["right", "left"]], ["w_hand2", "Blade 2 hand", ["right", "left"]],
+    ["w_b1_x", "Blade 1 X px", -400, 400, 1], ["w_b1_y", "Blade 1 Y px", -400, 400, 1], ["w_b1_ang", "Blade 1 angle °", -360, 360, 1],
+    ["w_b2_x", "Blade 2 X px", -400, 400, 1], ["w_b2_y", "Blade 2 Y px", -400, 400, 1], ["w_b2_ang", "Blade 2 angle °", -360, 360, 1],
     // blade extension only: its movement while it is out (laser/swordfx.py _ext_frame)
     ["ext_pivot", "Blade pivot (0 = base, 0.5 = middle, 1 = tip)", 0, 1, 0.05],
     ["ext_spin", "Blade spin °/tick (0 = use sweep)", 0, 90, 0.5],
@@ -1602,7 +1608,23 @@ var POWER_UI = {
     ["w_plane", "Swing plane tilt °", 0, 90, 1, "Tilts the swing out of the screen. 0 = it swings flat on the screen; 90 = a horizontal swing: the blade shrinks as it points at (or away from) the camera and stretches out again toward the target, with perspective."],
     ["w_plane_roll", "Swing plane roll °", -90, 90, 1, "Turns the swing plane on screen, for diagonal swings."],
     ["w_side", "Swing side", ["front", "behind"], 0, 0, "Which side of the fighter the blade passes when the swing plane is tilted. Front: between the fighter and the camera (its near end grows). Behind: round the back (its far end shrinks, and a front-layer weapon draws behind the fighter while it is round the far side)."],
-    ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the weapon and its whole sequence (clockwise, mirrors with the facing)."]];
+    ["rotation_deg", "Rotation °", 0, 360, 5, "Turns the weapon and its whole sequence (clockwise, mirrors with the facing)."],
+    // Positioning: use it as the character's own weapon (laser/weaponfx.py w_grip … w_b2_ang)
+    ["w_grip", "Grip point", -0.5, 1, 0.05, "Where along the weapon the hand holds it, in weapon lengths: 0 = as drawn (its grip), 0.5 = the middle, 1 = the tip, negative = past the pommel. The grip sits on the hand / anchor, and the weapon turns, tilts and (Flip pivot: grip) flips round it."],
+    ["w_flip_at", "Flip pivot", [["anchor", "Anchor (mirror the whole move)"], ["grip", "Grip (flip in place)"]], 0, 0, "Anchor: Flip X / Flip Y mirror the weapon and its whole move on screen round the anchor (it jumps to the other side). Grip: they mirror only the weapon itself, in place round its grip — where it is and how it moves stay the same."],
+    ["w_move", "Move travel %", 0, 200, 5, "How much of the move's own travel is used (where the move carries the grip, and how far it reaches toward the target). 100 = as made, 0 = the grip stays exactly where you put it (anchor / hand + blade offset)."],
+    ["w_turn", "Move swing %", 0, 200, 5, "How much of the move's own swing angle is used. 100 = as made, 0 = the blade keeps the angle you give it (aim + blade angle + hand) and only the rest of the move plays."],
+    ["w_aim", "Aim at target", [["auto", "Auto (as the move was made)"], ["always", "Always"], ["never", "Never"]], 0, 0, "Auto: the moves that aim turn toward the target, the rest don't. Always: every move turns toward the target. Never: the target's direction is ignored — the blade keeps the angle you give it and reaching moves go straight forward."],
+    ["w_follow", "Follow hand", [["off", "Off"], ["position", "Position"], ["position_angle", "Position + angle"]], 0, 0, "Off: the weapon is placed round the effect's anchor. Position: each blade's grip rides its hand (Blade hand) every tick, the move playing on top. Position + angle: it also lies along that hand's own weapon line on the frame on show (hand → wtip / wtip2), the move's swing on top instead of the aim. A rig without that hand (or tip) falls back to the anchor (or the aim)."],
+    ["w_hand1", "Blade 1 hand", [["right", "Right (haR → wtip)"], ["left", "Left (haL → wtip2)"]], 0, 0, "The hand blade 1 follows when Follow hand is on."],
+    ["w_hand2", "Blade 2 hand", [["right", "Right (haR → wtip)"], ["left", "Left (haL → wtip2)"]], 0, 0, "The hand blade 2 follows when Follow hand is on."],
+    ["w_b1_x", "Blade 1 X px", -400, 400, 1, "Moves blade 1's grip forward (+) / back (−), px; mirrors with the facing. On top of the anchor, hand and move."],
+    ["w_b1_y", "Blade 1 Y px", -400, 400, 1, "Moves blade 1's grip down (+) / up (−), px."],
+    ["w_b1_ang", "Blade 1 angle °", -360, 360, 1, "Turns blade 1 round its grip, clockwise, on top of the move (180 = reverse grip). Mirrors with the facing."],
+    ["w_b2_x", "Blade 2 X px", -400, 400, 1, "Moves blade 2's grip forward (+) / back (−), px; mirrors with the facing."],
+    ["w_b2_y", "Blade 2 Y px", -400, 400, 1, "Moves blade 2's grip down (+) / up (−), px."],
+    ["w_b2_ang", "Blade 2 angle °", -360, 360, 1, "Turns blade 2 round its grip, clockwise, on top of the move (180 = reverse grip)."]];
+  var TWO = ["w_hand2", "w_b2_x", "w_b2_y", "w_b2_ang"];   // two-blade weapons only
   var HIT = " Its blade hits while the sequence plays (Hold mode: while held), and every flash, slam or burst hits where it goes off: give it Pierce and a Re-hit of 1–2.";
   var GUN = " Each shot hits once: give it Pierce and a short Re-hit (2). Use Motion attached, Aim target: shots aim at the target.";
   function wpn(name, tip, extra) {
@@ -1627,6 +1649,15 @@ var POWER_UI = {
   // One effect per blade (the group presets): which keyblade this effect is (laser/weaponfx.py w_blade).
   POWER_UI.oath_oblivion.rows.splice(1, 0, ["w_blade", "Blade", [["both", "Both blades"], ["first", "Oathkeeper only"], ["second", "Oblivion only"]], 0, 0,
     "Both: one effect plays both keyblades. Oathkeeper only / Oblivion only: this effect draws and hits with just that blade, so the pair can be a group of two effects (the 'one FX per blade' presets) and each blade moved, recoloured, resized or timed on its own. Each flash, cut or burst belongs to the blade landing it (the closing X flashes go with Oathkeeper). The blades start straight away: half transparent on the first tick, solid a few ticks later, with a flash of stars as they appear."]);
+  // Oathkeeper & Oblivion: blade 1 = Oathkeeper, blade 2 = Oblivion.
+  // (copies: the COMMON rows are shared by every weapon panel)
+  POWER_UI.oath_oblivion.rows = POWER_UI.oath_oblivion.rows.map(function (r) {
+    if (!/^w_(b[12]_|hand[12])/.test(r[0])) return r;
+    r = r.slice();
+    r[1] = r[1].replace("Blade 1", "Oathkeeper").replace("Blade 2", "Oblivion");
+    r[5] = r[5].replace("blade 1", "Oathkeeper").replace("blade 2", "Oblivion");
+    return r;
+  });
   POWER_UI.crescent_scythe = wpn("Crescent scythe", "A great red-and-black scythe: a full spin round the body, tilted in 3D, shedding rose petals, then a reaping hook forward with a burst." + HIT);
   POWER_UI.scissor_blade = wpn("Scissor Blade", "A red half-scissor blade: it splits into giant open scissors, reaches for the target and snaps shut — a snip flash where it closes." + HIT, REACH);
   POWER_UI.gungnir = wpn("Gungnir", "A golden spear with glowing runes: it charges, is drawn back, then hurled — spiralling in 3D — and a pillar of light erupts where it lands." + HIT, REACH);
@@ -1645,6 +1676,12 @@ var POWER_UI = {
   POWER_UI.nodachi = wpn("Nodachi (Ronin)", "A long blade in a black lacquered scabbard: a still moment, then an instant iaido draw — one long cut opens across the target." + HIT);
   POWER_UI.void_sniper = wpn("Void sniper rifle", "A long black-and-violet sniper rifle: void energy gathers at the muzzle, then one thin rail line fires to the end of its range and hits along its whole line, and the void implodes on the target and pops." + GUN, RANGE);
   POWER_UI.earth_cleaver = wpn("Earth cleaver (Thear)", "A massive chipped cleaver taken in both hands and slammed down: the ground cracks and rocks fly." + HIT);
+  // Single-blade weapons: no blade 2 rows (laser/weaponfx.py WEAPONS models).
+  if (window.WEAPONFX) WEAPONFX.STYLES.forEach(function (st) {
+    var w = WEAPONFX.WEAPONS[st];
+    if (POWER_UI[st] && w && w.models.length < 2)
+      POWER_UI[st].rows = POWER_UI[st].rows.filter(function (r) { return TWO.indexOf(r[0]) < 0; });
+  });
 })();
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
