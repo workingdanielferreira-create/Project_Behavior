@@ -728,7 +728,7 @@ class ActionRunner:
                         if self.base_speed is None:
                             self.base_speed = fig.motion.speed
                         sf = _combat.position_speed_scale(fig.x, fig.y, fig.screen_w, fig.screen_h)
-                        step = self.base_speed * max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0 * sf
+                        step = self.base_speed * float(cfg.get("move_speed_pct") or 0) / 100.0 * sf
                         fig.transform.x += bx / d * step
                         fig.transform.y += by / d * step
                         fig.render.is_moving = True
@@ -743,7 +743,7 @@ class ActionRunner:
                     fig.render.is_moving = False
                     self._leap_step(fig, name, cfg, n, fm, tx, ty, now)
                 elif cfg.get("movement") == "move":
-                    pct = max(0.0, float(cfg.get("move_speed_pct") or 0)) / 100.0
+                    pct = float(cfg.get("move_speed_pct") or 0) / 100.0
                     if self.base_speed is None:
                         self.base_speed = fig.motion.speed
                     fig.motion.speed = self.base_speed * pct
@@ -836,7 +836,7 @@ class ActionRunner:
                 pl["hop"] = _leap_height(lp, frac) * fig._position_scale()
                 if lp.get("damage_mode") == "range":
                     d0, d1 = float(lp.get("damage_min") or 0), float(lp.get("damage_max") or 0)
-                    self.leap_dmg = (name, round(max(0.0, d0 + (d1 - d0) * frac), 2))
+                    self.leap_dmg = (name, round(d0 + (d1 - d0) * frac, 2))
                 else:
                     self.leap_dmg = None
             else:
@@ -953,11 +953,11 @@ def _leap_frac(lp, dist):
 def _leap_height(lp, frac):
     """Arc height (game px at 100 %): height_px, or with height_max_px set,
     height_px .. height_max_px by frac."""
-    h0 = max(0.0, float(lp.get("height_px") or 0))
+    h0 = float(lp.get("height_px") or 0)
     h1 = lp.get("height_max_px")
     if h1 is None:
         return h0
-    return h0 + (max(0.0, float(h1 or 0)) - h0) * frac
+    return h0 + (float(h1 or 0) - h0) * frac
 
 
 def leap_damage(fig, action):

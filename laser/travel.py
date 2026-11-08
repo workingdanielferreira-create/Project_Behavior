@@ -15,7 +15,8 @@ and leap.land_frame (all settings live on action_settings[action].leap):
                The in-leg ends as turn_frame starts (-1 = halfway); `flip`
                runs it out first, then in (the hit at land_frame)
   zigzag       zig_count zigs of zig_len_px at +-zig_angle_deg off the line to
-               the target, then a last zag in; zig_turn sharp / smooth /
+               the target (never shortened: long zigs carry on past it),
+               then a last zag in; zig_turn sharp / smooth /
                inertia (zig_turn_pct = how round / how far it overshoots)
   flank        fake_len_px straight at fake_angle_deg (+ = toward `side`,
                - = the other way), then round the target flank_radius_px out
@@ -38,6 +39,11 @@ and leap.land_frame (all settings live on action_settings[action].leap):
                applies), the hit as the Arrive frame starts.  bf_face target
                (faces the target the whole time) / travel
 
+No setting value is limited (Daniel 2026-11-08): any number, negatives
+included, is used as typed.  The only guards keep time running forward
+(a dash / strike takes at least 1 ms, a negative pause is no pause, the
+attack & retreat turn sits between take-off and arrival).
+
 Every movement: dist_px = distance from target along the final direction of
 travel (0 = the hit point lands on the target, - = short, + = past it);
 side = left / right / random (relative to the line to the target); hop_px =
@@ -50,8 +56,7 @@ import random
 TRAVEL_MOVES = ("leap", "arc", "hit_retreat", "zigzag", "flank", "back_forth")
 ZIG_TURNS = ("sharp", "smooth", "inertia")
 BF_ORDERS = ("pingpong", "circuit", "custom")
-BF_MAX_POINTS = 6
-BF_MAX_LOOPS = 50
+
 SIDES = ("left", "right", "random")
 _SAMPLES = 40          # points per curve piece
 
@@ -105,8 +110,8 @@ def _arc(lp, s, sx, sy, px, py, ps):
     fx, fy, D = _unit(px - sx, py - sy)
     lx, ly = _left(fx, fy)
     lx, ly = lx * s, ly * s
-    R = max(0.0, _num(lp, "arc_radius_px", 120)) * ps
-    h = max(0.0, min(100.0, _num(lp, "arc_curve_pct", 0))) / 100.0
+    R = _num(lp, "arc_radius_px", 120) * ps
+    h = _num(lp, "arc_curve_pct", 0) / 100.0
     k = 4.0 / 3.0
     p1 = (sx + fx * D * (1 / 3.0 + 0.5 * h) + lx * k * R * (1 - 0.5 * h),
           sy + fy * D * (1 / 3.0 + 0.5 * h) + ly * k * R * (1 - 0.5 * h))
@@ -141,12 +146,9 @@ def _zigzag(lp, s, sx, sy, px, py, ps):
     fx, fy, D = _unit(px - sx, py - sy)
     lx, ly = _left(fx, fy)
     lx, ly = lx * s, ly * s
-    n = max(1, min(20, int(round(_num(lp, "zig_count", 3)))))
-    th = math.radians(max(5.0, min(85.0, _num(lp, "zig_angle_deg", 45))))
-    L = max(0.0, _num(lp, "zig_len_px", 120)) * ps
-    fwd = L * math.cos(th) * (n - 0.5)
-    if fwd > 0.85 * D and fwd > 1e-6:
-        L *= 0.85 * D / fwd
+    n = int(round(_num(lp, "zig_count", 3)))
+    th = math.radians(_num(lp, "zig_angle_deg", 45))
+    L = _num(lp, "zig_len_px", 120) * ps
     w = L * math.sin(th) / 2.0
     verts = [(sx, sy)]
     a = L * math.cos(th) / 2.0
@@ -156,7 +158,7 @@ def _zigzag(lp, s, sx, sy, px, py, ps):
         a += L * math.cos(th)
     verts.append((px, py))
     st = lp.get("zig_turn") or "sharp"
-    return _corners(verts, st, max(0.0, min(100.0, _num(lp, "zig_turn_pct", 50))) / 100.0)
+    return _corners(verts, st, _num(lp, "zig_turn_pct", 50) / 100.0)
 
 
 def _flank(lp, s, sx, sy, tx, ty, px, py, ps):
@@ -165,8 +167,8 @@ def _flank(lp, s, sx, sy, tx, ty, px, py, ps):
     lx, ly = lx * s, ly * s
     a = math.radians(_num(lp, "fake_angle_deg", -20))
     dx, dy = fx * math.cos(a) + lx * math.sin(a), fy * math.cos(a) + ly * math.sin(a)
-    fl = max(0.0, _num(lp, "fake_len_px", 120)) * ps
-    R = max(4.0, _num(lp, "flank_radius_px", 100) * ps)
+    fl = _num(lp, "fake_len_px", 120) * ps
+    R = _num(lp, "flank_radius_px", 100) * ps
     F = (sx + dx * fl, sy + dy * fl)
     M = (tx + lx * R, ty + ly * R)
     k1 = math.hypot(M[0] - F[0], M[1] - F[1]) / 3.0
@@ -191,18 +193,19 @@ def _face_of(dx, fallback):
 
 
 def bf_points(lp):
-    """The back & forth points (2..6), each filled with its defaults."""
+    """The back & forth points (any number; none set = the 2 defaults),
+    each filled with its defaults."""
     pts = lp.get("bf_points")
     if not isinstance(pts, list):
         pts = []
     out = []
-    for p in pts[:BF_MAX_POINTS]:
+    for p in pts:
         p = p if isinstance(p, dict) else {}
         out.append(dict(dist_px=_num(p, "dist_px", 150), angle_deg=_num(p, "angle_deg", 0),
-                        ms=max(0.0, _num(p, "ms", 0)), pause_ms=max(0.0, _num(p, "pause_ms", 0)),
+                        ms=_num(p, "ms", 0), pause_ms=_num(p, "pause_ms", 0),
                         act=p.get("act") or "", dash_act=p.get("dash_act") or "",
                         dash_fit=p.get("dash_fit", True) is not False))
-    while len(out) < 2:
+    while len(out) < 2 and not pts:
         out.append(dict(dist_px=150.0, angle_deg=0.0 if not out else 180.0, ms=0.0, pause_ms=0.0,
                         act="", dash_act="", dash_fit=True))
     return out
@@ -227,7 +230,7 @@ def bf_sequence(lp, n):
         one = list(range(n)) + [0]
     elif order != "custom":
         one = list(range(n)) + list(range(n - 2, -1, -1))
-    loops = max(1, min(BF_MAX_LOOPS, int(round(_num(lp, "bf_loops", 1)))))
+    loops = int(round(_num(lp, "bf_loops", 1)))
     seq = []
     for _ in range(loops):
         seq += one[1:] if seq and one and seq[-1] == one[0] else one
@@ -243,19 +246,19 @@ def _back_forth(lp, s, sx, sy, tx, ty, ps, face0, aim, hop, t0, act_ms):
     spots = []
     for p in pts:
         a = math.radians(p["angle_deg"])
-        d = max(0.0, p["dist_px"]) * ps
+        d = p["dist_px"] * ps
         spots.append((tx + d * (bx * math.cos(a) + lx * math.sin(a)),
                       ty + d * (by * math.cos(a) + ly * math.sin(a))))
     fmode = "travel" if lp.get("bf_face") == "travel" else "target"
-    fwd = max(0.0, _num(lp, "bf_fwd_ms", 250))
-    ret = max(0.0, _num(lp, "bf_ret_ms", 250))
-    ent = max(0.0, _num(lp, "bf_entry_ms", 200))
+    fwd = _num(lp, "bf_fwd_ms", 250)
+    ret = _num(lp, "bf_ret_ms", 250)
+    ent = _num(lp, "bf_entry_ms", 200)
     ok = act_ms or (lambda _n, _t: 0.0)
     legs, t, cur, prev = [], float(t0), (sx, sy), None
     for k in bf_sequence(lp, len(pts)):
         p, q = pts[k], spots[k]
         ms = p["ms"] if p["ms"] > 0 else (ent if prev is None else fwd if k > prev else ret)
-        ms = max(1.0, ms)
+        ms = max(1.0, ms)               # time only runs forward (a dash takes at least 1 ms)
         lg = dict(pts=[cur, q], t0=t, t1=t + ms, face=fmode, pidx=k)
         if p["dash_act"] and ok(p["dash_act"], t) > 0:
             lg["act"], lg["fit"] = p["dash_act"], p["dash_fit"]
@@ -296,7 +299,7 @@ def plan(move, lp, sx, sy, tx, ty, ps, face0, hit_off, t0, t1, tturn=None, rnd=N
     carry act / fit / hop=False."""
     s = side_sign(lp, rnd)
     dist = _num(lp, "dist_px", 0) * ps
-    hop = max(0.0, _num(lp, "hop_px", 0)) * ps
+    hop = _num(lp, "hop_px", 0) * ps
     fx, fy, _d = _unit(tx - sx, ty - sy, face0)
 
     def aim(dx, dy):
@@ -314,7 +317,7 @@ def plan(move, lp, sx, sy, tx, ty, ps, face0, hit_off, t0, t1, tturn=None, rnd=N
         lx, ly = _left(fx, fy)
         a = math.radians(_num(lp, "return_angle_deg", 0))
         rx, ry = -fx * math.cos(a) + s * lx * math.sin(a), -fy * math.cos(a) + s * ly * math.sin(a)
-        rl = max(0.0, _num(lp, "retreat_px", 150)) * ps
+        rl = _num(lp, "retreat_px", 150) * ps
         if lp.get("flip"):
             r0 = (sx + rx * rl, sy + ry * rl)
             dx, dy, _ = _unit(tx - r0[0], ty - r0[1], face0)

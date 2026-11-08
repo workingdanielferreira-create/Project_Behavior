@@ -4003,9 +4003,9 @@ function buildActionProps(d) {
       ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"], ["back_forth", "Back & forth"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
       "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind. Back & forth: dashes between 2-6 points round the target (own ms per dash, loops, other actions at the points / during the dashes), with an optional final strike.";
     if (isTravelMove(cfg.movement)) buildTravelProps(s, cfg);
-    if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = Math.max(0, Math.min(100, v)); save(); resetSim(S.t); }, 0, 100, 5)).title =
+    if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = v; save(); resetSim(S.t); }, null, null, 5)).title =
       "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
-    if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = Math.max(0, Math.min(300, v)); save(); resetSim(S.t); }, 0, 300, 5)).title =
+    if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = v; save(); resetSim(S.t); }, null, null, 5)).title =
       "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
     if (!isTravelMove(cfg.movement)) note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
@@ -6648,19 +6648,21 @@ var TRAVEL_NOTES = {
   flank: "Runs straight on the feint (Feint angle + = toward the Side, - = the other way), then sweeps round the target on the Side to end behind it, facing it.",
   back_forth: "Dashes between its points round the target (locked where the target stood at Start frame) in the chosen order, Loops times, each dash on its own ms. The action plays its frames up to the one before Arrive and holds it until the route ends; other actions picked on a point play there (at the point / during the dash into it) and are skipped while on cooldown. Final strike: a last dash onto the target, the hit as the Arrive frame starts."
 };
+// No value limits on Movement settings (Daniel 2026-11-08): lo / hi are
+// unused, kept so the calls read as before.
 function travelNum(s, lp, label, key, lo, hi, stepv, tip, redo) {
-  field(s, label, inp("n", lp[key], function (v) { lp[key] = Math.max(lo, Math.min(hi, +v || 0)); redo(); }, lo, hi, stepv)).title = tip;
+  field(s, label, inp("n", lp[key], function (v) { lp[key] = +v || 0; redo(); }, null, null, stepv)).title = tip;
 }
 function buildTravelProps(s, cfg) {
   var lp = cfg.leap, m = cfg.movement, n = frames(), fr = leapFrames(cfg);
   var redo = function () { save(); buildProps(); resetSim(S.t); };
   if (m === "leap") buildLeapProps(s, cfg);
   else {
-    field(s, "Start frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.max(0, Math.min(Math.max(0, n - 1), Math.round(v) || 0)); redo(); }, 0, Math.max(0, n - 1), 1)).title =
+    field(s, "Start frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.round(v) || 0; redo(); }, null, null, 1)).title =
       "The frame it sets off: the target's spot is locked here and the route is planned. Before it, it stands facing the target.";
-    field(s, "Arrive frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+    field(s, "Arrive frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.round(v); redo(); }, null, null, 1)).title =
       "It reaches the end of its route as this frame starts. The route is stretched to fit between Start and Arrive.";
-    if (m === "hit_retreat") field(s, "Turn frame (-1 = halfway)", inp("n", lp.turn_frame, function (v) { lp.turn_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+    if (m === "hit_retreat") field(s, "Turn frame (-1 = halfway)", inp("n", lp.turn_frame, function (v) { lp.turn_frame = Math.round(v); redo(); }, null, null, 1)).title =
       "Where the in-leg ends and the out-leg starts. Not flipped: the hit lands on the target as this frame starts - put the hit FX here.";
   }
   travelNum(s, lp, "Distance from target px", "dist_px", -2000, 2000, 5,
@@ -6680,7 +6682,7 @@ function buildTravelProps(s, cfg) {
       "On: it backs out first (Retreat distance at the Return angle), then runs in for the hit as the Arrive frame starts.";
   } else if (m === "zigzag") {
     travelNum(s, lp, "Number of zigs", "zig_count", 1, 20, 1, "How many angled zigs before the last zag into the target.", redo);
-    travelNum(s, lp, "Zig length px", "zig_len_px", 0, 2000, 5, "Length of each zig (game px at 100 %). Shortened if the zigs would reach past the target.", redo);
+    travelNum(s, lp, "Zig length px", "zig_len_px", 0, 2000, 5, "Length of each zig (game px at 100 %). Never shortened: long zigs carry on past the target before the last zag.", redo);
     travelNum(s, lp, "Zig angle deg", "zig_angle_deg", 5, 85, 5, "How far each zig turns off the line to the target (45 = the usual zig-zag).", redo);
     field(s, "Turn style", inp([["sharp", "Sharp"], ["smooth", "Smooth"], ["inertia", "Inertia"]], lp.zig_turn, function (v) { lp.zig_turn = v; redo(); })).title =
       "Sharp: hard corners. Smooth: rounded corners. Inertia: carries on past each corner, then swings into the next zig.";
@@ -6698,8 +6700,8 @@ function buildTravelProps(s, cfg) {
       lp.hit_px = v === "custom" ? (custom ? lp.hit_px : [0, 0]) : null; redo(); })).title =
       "What lands on the target. Auto: this action's Deals-damage FX starting nearest the hit frame (its anchor + offset), else the weapon tip on that frame, else the body. Custom: an offset from the body (x forward).";
     if (custom) {
-      field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, -500, 500, 1));
-      field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, -500, 500, 1));
+      field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, null, null, 1));
+      field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, null, null, 1));
     }
     note(s, TRAVEL_NOTES[m] + " Sets off on frame " + fr[0] + " and arrives as frame " + fr[1] + (fr[1] >= n ? " (the end)" : "") + " starts — " +
       Math.round((fr[1] - fr[0]) * frameMs()) + " ms. Preview: drag the target; the dashed line shows the route. In the game the target is the nearest enemy (Solo: the cursor); a target that moves after it sets off can dodge it.");
@@ -6726,7 +6728,7 @@ function buildBackForthProps(s, lp, redo) {
   pts.forEach(function (p, i) {
     var h = document.createElement("div"); h.className = "bfhead"; h.style.cssText = "margin:8px 0 2px;font-weight:bold;opacity:.85"; h.textContent = "Point " + (i + 1); s.appendChild(h);
     var num = function (label, key, lo, hi, st, tip) {
-      field(s, label, inp("n", p[key] == null ? 0 : p[key], function (v) { p[key] = Math.max(lo, Math.min(hi, +v || 0)); redo(); }, lo, hi, st)).title = tip;
+      field(s, label, inp("n", p[key] == null ? 0 : p[key], function (v) { p[key] = +v || 0; redo(); }, null, null, st)).title = tip;
     };
     num("Distance px", "dist_px", 0, 3000, 5, "How far this point is from the target (game px at 100 %).");
     num("Angle deg", "angle_deg", -180, 180, 5, "Where round the target: 0 = on the fighter's side, 180 = behind the target, + toward the Side, - the other way.");
@@ -6738,43 +6740,43 @@ function buildBackForthProps(s, lp, redo) {
       "Another action played during each dash INTO this point (frames + FX). Skipped while on cooldown; playing it starts its cooldown.";
     if (p.dash_act) field(s, "Fit to dash", inp("chk", p.dash_fit !== false, function (v) { p.dash_fit = v; redo(); })).title =
       "On: the dash action's frames are stretched / squeezed over the dash. Off: they play at their own speed (held on the last frame, or cut when the dash ends).";
-    if (pts.length > 2) {
+    if (pts.length > 1) {
       var del = document.createElement("button"); del.textContent = "Remove point " + (i + 1);
       del.onclick = function () { pts.splice(i, 1); redo(); }; s.appendChild(del);
     }
   });
-  if (pts.length < FXK.BF_MAX_POINTS) {
+  {
     var add = document.createElement("button"); add.textContent = "+ Add point";
-    add.onclick = function () { var last = pts[pts.length - 1] || {}; pts.push({dist_px: +last.dist_px || 150, angle_deg: Math.max(-180, Math.min(180, (+last.angle_deg || 0) + 60)), ms: 0, pause_ms: 0, act: "", dash_act: "", dash_fit: true}); redo(); };
+    add.onclick = function () { var last = pts[pts.length - 1] || {}; pts.push({dist_px: +last.dist_px || 150, angle_deg: (+last.angle_deg || 0) + 60, ms: 0, pause_ms: 0, act: "", dash_act: "", dash_fit: true}); redo(); };
     s.appendChild(add);
   }
 }
 function buildLeapProps(s, cfg) {
   var lp = cfg.leap, n = frames(), fr = leapFrames(cfg);
   var redo = function () { save(); buildProps(); resetSim(S.t); };
-  field(s, "Take-off frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.max(0, Math.min(Math.max(0, n - 1), Math.round(v) || 0)); redo(); }, 0, Math.max(0, n - 1), 1)).title =
+  field(s, "Take-off frame", inp("n", lp.start_frame, function (v) { lp.start_frame = Math.round(v) || 0; redo(); }, null, null, 1)).title =
     "The frame it leaves the ground: the target's spot is locked here and the jump starts. Before it, it stands facing the target.";
-  field(s, "Land frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.max(-1, Math.min(n, Math.round(v))); redo(); }, -1, n, 1)).title =
+  field(s, "Land frame (-1 = last)", inp("n", lp.land_frame, function (v) { lp.land_frame = Math.round(v); redo(); }, null, null, 1)).title =
     "It touches down as this frame starts, with its hit point on the locked spot. Put the landing hit FX on this frame (or the next).";
   var ranged = lp.height_max_px != null;
   field(s, "Arc height", inp([["fixed", "Fixed"], ["range", "Range (by jump distance)"]], ranged ? "range" : "fixed", function (v) {
-    lp.height_max_px = v === "range" ? (ranged ? lp.height_max_px : (Math.max(0, +lp.height_px || 0) * 2 || 80)) : null; redo(); })).title =
+    lp.height_max_px = v === "range" ? (ranged ? lp.height_max_px : ((+lp.height_px || 0) * 2 || 80)) : null; redo(); })).title =
     "Fixed: every leap arcs the same height. Range: the farther the target, the higher the arc - Arc height min at Distance for min or closer, Arc height max at Distance for max or farther, in proportion between.";
-  field(s, ranged ? "Arc height min px" : "Arc height px", inp("n", lp.height_px, function (v) { lp.height_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
+  field(s, ranged ? "Arc height min px" : "Arc height px", inp("n", lp.height_px, function (v) { lp.height_px = v; redo(); }, null, null, 5)).title =
     "How high the body arcs at the middle of the jump, game px at 100 % (0 = a flat glide; the frames show their own jump on top).";
-  if (ranged) field(s, "Arc height max px", inp("n", lp.height_max_px, function (v) { lp.height_max_px = Math.max(0, Math.min(1000, v)); redo(); }, 0, 1000, 5)).title =
+  if (ranged) field(s, "Arc height max px", inp("n", lp.height_max_px, function (v) { lp.height_max_px = v; redo(); }, null, null, 5)).title =
     "The arc height for a jump at Distance for max or farther.";
   var dRange = lp.damage_mode === "range";
   field(s, "Leap damage", inp([["fixed", "Fixed (each FX's own damage)"], ["range", "Range (by arc height)"]], dRange ? "range" : "fixed", function (v) { lp.damage_mode = v; redo(); })).title =
     "Fixed: the action's FX deal the damage set on each of them. Range: every Deals-damage FX of this action deals Damage at min arc on the lowest arc up to Damage at max arc on the highest, for that leap.";
   if (dRange) {
-    field(s, "Damage at min arc", inp("n", lp.damage_min, function (v) { lp.damage_min = Math.max(0, Math.min(9999, v)); redo(); }, 0, 9999, 1));
-    field(s, "Damage at max arc", inp("n", lp.damage_max, function (v) { lp.damage_max = Math.max(0, Math.min(9999, v)); redo(); }, 0, 9999, 1));
+    field(s, "Damage at min arc", inp("n", lp.damage_min, function (v) { lp.damage_min = v; redo(); }, null, null, 1));
+    field(s, "Damage at max arc", inp("n", lp.damage_max, function (v) { lp.damage_max = v; redo(); }, null, null, 1));
   }
   if (ranged || dRange) {
-    field(s, "Distance for min px", inp("n", lp.dist_min_px, function (v) { lp.dist_min_px = Math.max(0, Math.min(5000, v)); redo(); }, 0, 5000, 10)).title =
+    field(s, "Distance for min px", inp("n", lp.dist_min_px, function (v) { lp.dist_min_px = v; redo(); }, null, null, 10)).title =
       "Target this close or closer at take-off: the lowest arc and damage. Usually your trigger distance.";
-    field(s, "Distance for max px", inp("n", lp.dist_max_px, function (v) { lp.dist_max_px = Math.max(0, Math.min(5000, v)); redo(); }, 0, 5000, 10)).title =
+    field(s, "Distance for max px", inp("n", lp.dist_max_px, function (v) { lp.dist_max_px = v; redo(); }, null, null, 10)).title =
       "Target this far or farther at take-off: the highest arc and damage.";
     var dNow = Math.hypot(S.target[0] - (S.leap ? S.leap.sx : S.figX), S.target[1] - (S.leap ? S.leap.sy : S.figY)), fNow = FXK.leapFrac(lp, dNow);
     note(s, (ranged ? "Arc: " + Math.round(lp.height_px) + " px at " + Math.round(lp.dist_min_px) + " px or closer \u2192 " + Math.round(lp.height_max_px) + " px at " + Math.round(lp.dist_max_px) + " px or farther. " : "") +
@@ -6786,8 +6788,8 @@ function buildLeapProps(s, cfg) {
     lp.hit_px = v === "custom" ? (custom ? lp.hit_px : [0, 0]) : null; redo(); })).title =
     "What lands on the target. Auto: this action's Deals-damage FX starting nearest the land frame (its anchor + offset), else the weapon tip on that frame, else the body. Custom: an offset from the body (x forward).";
   if (custom) {
-    field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, -500, 500, 1));
-    field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, -500, 500, 1));
+    field(s, "Hit point x (forward)", inp("n", lp.hit_px[0], function (v) { lp.hit_px[0] = v; redo(); }, null, null, 1));
+    field(s, "Hit point y (down)", inp("n", lp.hit_px[1], function (v) { lp.hit_px[1] = v; redo(); }, null, null, 1));
   }
   note(s, "Leaves the ground on frame " + fr[0] + " and lands as frame " + fr[1] + (fr[1] >= n ? " (the end)" : "") + " starts — " +
     Math.round((fr[1] - fr[0]) * frameMs()) + " ms in the air. Preview: drag the target; the dashed arc shows the jump. In the game the target is the nearest enemy (Solo: the cursor); a target that moves after take-off can dodge it.");
