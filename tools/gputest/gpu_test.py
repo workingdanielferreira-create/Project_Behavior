@@ -52,6 +52,12 @@ STAGES = (
     ("B2 game-like load batched + warp", 500, "atlas", 570, True),
     ("D  10,000 batched glows + warp", 10000, "atlas", 570, True),
     ("E  40,000 batched glows", 40000, "atlas", 0, False),
+    # Step 1 of the move ("hybrid"): today's QPainter code still paints the
+    # layers (two that get the ball warp + one flat, like the game's ground /
+    # air / standing things), each is uploaded to the graphics card, and the
+    # card does the warp and shows the frame.  Two ways of uploading:
+    ("H1 painter layers, GPU warp (write)", 500, "hy_write", 570, True),
+    ("H2 painter layers, GPU warp (image)", 500, "hy_image", 570, True),
 )
 CPU_STAGES = (0, 1, 2)     # stages repeated with QPainter on the CPU
 CPU_FRAMES = 25
@@ -111,6 +117,23 @@ def warp_grid(w, h):
     ys = [py * j / WARP_BANDS for j in range(WARP_BANDS + 1)] + [float(h)]
     xs = [w * i / float(WARP_COLS) for i in range(WARP_COLS + 1)]
     return xs, ys, bend
+
+
+def qt_content(p, gl, pl):
+    """The glows + polygons with QPainter, the way the game paints today."""
+    from PyQt5.QtCore import QPointF, Qt
+    from PyQt5.QtGui import QBrush, QColor, QPainter, QPolygonF, QRadialGradient
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    p.setPen(Qt.NoPen)
+    for pts, c in pl:
+        p.setBrush(QColor(c[0], c[1], c[2], 150))
+        p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in pts]))
+    for x, y, r, c in gl:
+        g = QRadialGradient(x, y, r)
+        g.setColorAt(0.0, QColor(c[0], c[1], c[2], 255))
+        g.setColorAt(1.0, QColor(c[0], c[1], c[2], 0))
+        p.setBrush(QBrush(g))
+        p.drawEllipse(QPointF(x, y), r, r)
 
 
 # ---------------------------------------------------------------- GL bits
@@ -212,24 +235,6 @@ class GpuTest:
         self.layers = [skia.Surface.MakeRenderTarget(self.ctx, skia.Budgeted.kNo, ii) for _ in range(2)]
         if None in self.layers:
             raise RuntimeError("Skia could not create an offscreen GPU layer")
-        # The warp reads each layer straight from its texture.  (v1 took a
-        # snapshot of the layer every frame, which cost hundreds of ms and
-        # made the warp stages look far slower than they are.)
-        self.layer_paints = None
-        try:
-            lp = []
-            for layer in self.layers:
-                bt = layer.getBackendTexture(skia.Surface.kFlushRead_BackendHandleAccess)
-                im = skia.Image.MakeFromTexture(self.ctx, bt, skia.kBottomLeft_GrSurfaceOrigin,
-                                                skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType, None)
-                p = skia.Paint()
-                p.setShader(im.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp,
-                                          skia.SamplingOptions(skia.FilterMode.kLinear)))
-                lp.append((p, im))
-            self.layer_paints = lp
-        except Exception as e:
-            say("  (direct layer textures not available: %s - using snapshots, the warp will be slow)" % e)
-
         self.plus = skia.Paint(AntiAlias=True, BlendMode=skia.BlendMode.kPlus)
         self.plus_flat = skia.Paint(AntiAlias=True, BlendMode=skia.BlendMode.kPlus)
         self.sampling = skia.SamplingOptions(skia.FilterMode.kLinear)
@@ -242,6 +247,7 @@ class GpuTest:
         self._make_warp()
 
         self.stage = -1
+        self.checked = []
         self.results = []
         self.checks = None
         self.frame = 0
@@ -262,20 +268,71 @@ class GpuTest:
         self.atlas_rect = skia.Rect.MakeWH(64, 64)
 
     def _make_warp(self):
+        """The ball warp as image cells (source rect -> bent rect), the way
+        the game's laser/ballwarp.py does it.  Each layer is drawn with
+        drawImageRect, which samples the layer's texture on the card.
+        (v1 / v2 went through an image SHADER instead: v1 was very slow and
+        v2 was fast only because it kept showing an old copy of the layer.)"""
         skia = self.skia
         xs, ys, bend = warp_grid(self.w, self.h)
-        pos, tex, idx = [], [], []
-        nx = len(xs)
-        for y in ys:
-            for x in xs:
-                bx, by = bend(x, y)
-                pos.append(skia.Point(bx, by))
-                tex.append(skia.Point(x, y))
+        self.cells = []
         for j in range(len(ys) - 1):
-            for i in range(nx - 1):
-                a = j * nx + i
-                idx += [a, a + 1, a + nx, a + 1, a + nx + 1, a + nx]
-        self.warp = skia.Vertices(skia.Vertices.kTriangles_VertexMode, pos, tex, None, idx)
+            for i in range(len(xs) - 1):
+                x0, y0, x1, y1 = xs[i], ys[j], xs[i + 1], ys[j + 1]
+                # Affine cell: the matrix that carries three of the cell's
+                # corners onto their bent positions (the fourth follows
+                # closely on a 48 x 9 grid), so neighbours join up.
+                ax, ay = bend(x0, y0)
+                bx, by = bend(x1, y0)
+                cx, cy = bend(x0, y1)
+                a = (bx - ax) / (x1 - x0)
+                b = (by - ay) / (x1 - x0)
+                c = (cx - ax) / (y1 - y0)
+                d = (cy - ay) / (y1 - y0)
+                m = skia.Matrix.MakeAll(a, c, ax - a * x0 - c * y0,
+                                        b, d, ay - b * x0 - d * y0, 0, 0, 1)
+                r = skia.Rect.MakeLTRB(x0 - 0.5, y0 - 0.5, x1 + 0.5, y1 + 0.5)   # hide seams
+                self.cells.append((m, r))
+
+    def _warp(self, canvas, img):
+        smp = self.sampling
+        draw, setm = canvas.drawImageRect, canvas.setMatrix
+        for m, r in self.cells:
+            setm(m)
+            draw(img, r, r, smp)
+        canvas.resetMatrix()
+
+    def _lit(self):
+        """How many sample points of the window are not empty (HUD excluded)."""
+        skia = self.skia
+        if getattr(self, "_probe", None) is None:
+            self._probe = skia.Bitmap()
+            self._probe.allocPixels(skia.ImageInfo.MakeN32Premul(self.w, self.h))
+        self.ctx.flushAndSubmit()
+        if not self.surface.readPixels(self._probe.pixmap(), 0, 0):
+            return -1
+        get = self._probe.getColor
+        return sum(1 for x in range(20, self.w - 20, 48) for y in range(140, self.h - 20, 48) if get(x, y))
+
+    def _verify(self):
+        """Is this stage really drawing the CURRENT frame?  Draw it, then draw
+        an empty frame: the first must show things and the second nothing."""
+        try:
+            self.flush_s = self.paint_s = self.upload_s = 0.0
+            keep, keep_b = self.frames, self.batches
+            self._draw(hud=False)
+            full = self._lit()
+            self.frames = [([], [])] * FRAME_SETS
+            self.batches = [([], [], [])] * FRAME_SETS if keep_b is not None else None
+            self._draw(hud=False)
+            empty = self._lit()
+            self.frames, self.batches = keep, keep_b
+            if full < 0 or empty < 0:
+                return None
+            return full > 0 and empty == 0
+        except Exception as e:
+            say("  (could not check the drawing: %s: %s)" % (type(e).__name__, e))
+            return None
 
     # -- stages
     def _next_stage(self):
@@ -283,6 +340,10 @@ class GpuTest:
         if self.stage >= len(STAGES):
             return
         name, glows, how, polys, warp = STAGES[self.stage]
+        if how.startswith("hy_") and not self._hybrid_setup():
+            self.results.append(None)          # no PyQt5: nothing to measure
+            self.checked.append(None)
+            return self._next_stage()
         say("  running %s ..." % name)
         self.frames = build_frames(self.w, self.h, glows, polys)
         self.batches = None
@@ -293,10 +354,77 @@ class GpuTest:
                 xf = [skia.RSXform(r / 32.0, 0.0, x - r, y - r) for (x, y, r, _c) in gl]
                 col = [skia.Color(c[0], c[1], c[2], 255) for (_x, _y, _r, c) in gl]
                 self.batches.append((xf, [self.atlas_rect] * len(gl), col))
+        self.checked.append(self._verify())
         self.times = []
         self.py_ms = 0.0
+        self.paint_ms = 0.0
+        self.upload_ms = 0.0
         self.count = 0
         self.t_stage = None
+
+    def _hybrid_setup(self):
+        """Three screen-sized QImages (what QPainter draws into), a skia view
+        of each one's pixels (no copy), and three GPU layers to upload to."""
+        if getattr(self, "hy", None) is not None:
+            return bool(self.hy)
+        self.hy = {}
+        try:
+            from PyQt5.QtGui import QImage
+            skia = self.skia
+            info = skia.ImageInfo.Make(self.w, self.h, skia.kBGRA_8888_ColorType, skia.kPremul_AlphaType)
+            imgs, pix, surfs, keep = [], [], [], []
+            for _ in range(3):
+                q = QImage(self.w, self.h, QImage.Format_ARGB32_Premultiplied)
+                ptr = q.bits()
+                ptr.setsize(q.byteCount())
+                imgs.append(q)
+                pix.append(skia.Pixmap(info, ptr, q.bytesPerLine()))
+                keep.append(ptr)
+                s = skia.Surface.MakeRenderTarget(self.ctx, skia.Budgeted.kNo,
+                                                  skia.ImageInfo.MakeN32Premul(self.w, self.h), 0,
+                                                  skia.kTopLeft_GrSurfaceOrigin)
+                surfs.append(s)
+            self.hy = dict(imgs=imgs, pix=pix, surfs=surfs, keep=keep)
+        except Exception as e:
+            say("  (hybrid stages skipped: %s: %s)" % (type(e).__name__, e))
+            self.hy = {}
+        return bool(self.hy)
+
+    def _draw_hybrid(self, canvas, k, how):
+        from PyQt5.QtGui import QPainter
+        skia, hy = self.skia, self.hy
+        gl, pl = self.frames[k]
+        pc = time.perf_counter
+        for part in range(3):
+            q = hy["imgs"][part]
+            ta = pc()
+            q.fill(0)
+            p = QPainter(q)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            qt_content(p, gl[part::3], pl[part::3])
+            p.end()
+            tb = pc()
+            self.paint_s += tb - ta
+            if how == "hy_write":
+                # into a layer that lives on the card, then drawn from there
+                s = hy["surfs"][part]
+                s.writePixels(hy["pix"][part], 0, 0)
+                s.flushAndSubmit()
+                if self.gl is not None:
+                    self.gl.glFinish()
+                self.upload_s += pc() - tb
+                img = s.makeImageSnapshot()
+            else:
+                # an image over the painter's own pixels: Skia uploads it when
+                # it draws (the upload time then shows under "warp + show")
+                img = skia.Image.MakeFromRaster(hy["pix"][part])
+            if part < 2:
+                self._warp(canvas, img)        # ground / air: bent onto the ball
+            else:
+                canvas.drawImage(img, 0, 0)    # standing things: flat
+        if how == "hy_image":
+            self.ctx.flushAndSubmit()      # the pixels must be used before the next repaint
 
     def _content(self, canvas, k, part=None):
         """The glows + polygons of frame k (part 0 / 1 = the half that goes
@@ -335,28 +463,27 @@ class GpuTest:
             p = self._pp = self.skia.Paint(BlendMode=self.skia.BlendMode.kPlus)
         return p
 
-    def _draw(self):
+    def _draw(self, hud=True):
         skia = self.skia
         canvas = self.surface.getCanvas()
         canvas.clear(skia.ColorTRANSPARENT)
         k = self.frame % FRAME_SETS
-        if STAGES[self.stage][4]:
+        how = STAGES[self.stage][2]
+        if how.startswith("hy_"):
+            self._draw_hybrid(canvas, k, how)
+        elif STAGES[self.stage][4]:
             for part, layer in enumerate(self.layers):
                 lc = layer.getCanvas()
                 lc.clear(skia.ColorTRANSPARENT)
                 self._content(lc, k, part)
-                if self.layer_paints is not None:
-                    tf = time.perf_counter()
-                    layer.flushAndSubmit()     # graphics-card work, not Python's
-                    self.flush_s += time.perf_counter() - tf
-                    canvas.drawVertices(self.warp, self.layer_paints[part][0])
-                else:
-                    img = layer.makeImageSnapshot()
-                    wp = skia.Paint()
-                    wp.setShader(img.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp, self.sampling))
-                    canvas.drawVertices(self.warp, wp)
+                tf = time.perf_counter()
+                layer.flushAndSubmit()         # graphics-card work, not Python's
+                self.flush_s += time.perf_counter() - tf
+                self._warp(canvas, layer.makeImageSnapshot())
         else:
             self._content(canvas, k)
+        if not hud:
+            return
         # HUD: border (shows the overlay covers the screen) + status
         sw, sh = self.screen
         canvas.drawRect(skia.Rect.MakeLTRB(2, 2, self.w - 2, min(self.h, sh) - 2), self.edge)
@@ -374,7 +501,7 @@ class GpuTest:
         if self.stopped or glfw.window_should_close(self.window) or self.stage >= len(STAGES):
             return False
         t0 = time.perf_counter()
-        self.flush_s = 0.0
+        self.flush_s = self.paint_s = self.upload_s = 0.0
         self._draw()                   # Python issuing the draw calls
         t1 = time.perf_counter()
         self.ctx.flushAndSubmit()      # Skia + the graphics card doing them
@@ -392,11 +519,14 @@ class GpuTest:
         elif self.count > WARMUP_FRAMES:
             self.times.append(dt)
             self.py_ms += (t1 - t0 - self.flush_s) * 1000.0
+            self.paint_ms += self.paint_s * 1000.0
+            self.upload_ms += self.upload_s * 1000.0
             if len(self.times) % 20 == 0:
                 m = sum(self.times[-20:]) / 20.0
                 self.hud = "%s:  %.1f ms a frame  (%.0f fps)" % (STAGES[self.stage][0], m, 1000.0 / m)
             if time.perf_counter() - self.t_stage >= MEASURE_S:
-                self.results.append(stats(self.times) + (self.py_ms / len(self.times),))
+                n = float(len(self.times))
+                self.results.append(stats(self.times) + (self.py_ms / n, self.paint_ms / n, self.upload_ms / n))
                 self._next_stage()
         return True
 
@@ -426,18 +556,7 @@ def cpu_baseline(w, h, done):
             cells.append((QRectF(x0, y0, x1 - x0 + 1, y1 - y0 + 1),
                           QRectF(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j])))
 
-    def content(p, gl, pl):
-        p.setCompositionMode(QPainter.CompositionMode_Plus)
-        p.setPen(Qt.NoPen)
-        for pts, c in pl:
-            p.setBrush(QColor(c[0], c[1], c[2], 150))
-            p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in pts]))
-        for x, y, r, c in gl:
-            g = QRadialGradient(x, y, r)
-            g.setColorAt(0.0, QColor(c[0], c[1], c[2], 255))
-            g.setColorAt(1.0, QColor(c[0], c[1], c[2], 0))
-            p.setBrush(QBrush(g))
-            p.drawEllipse(QPointF(x, y), r, r)
+    content = qt_content
 
     out = []
     for si in CPU_STAGES:
@@ -479,7 +598,7 @@ def report(test, gpu, cpu, qt_ok, qt_note):
     software = any(s in renderer.lower() for s in SOFTWARE)
     say()
     say("=" * 72)
-    say("PROJECT BEHAVIOR - GPU OVERLAY TEST RESULT (test v2)")
+    say("PROJECT BEHAVIOR - GPU OVERLAY TEST RESULT (test v3)")
     say("=" * 72)
     say("Machine      : %s %s, Python %s" % (platform.system(), platform.release(), platform.python_version()))
     say("Screen       : %d x %d   (drawing surface %d x %d)" % (test.screen + (test.w, test.h)))
@@ -497,18 +616,32 @@ def report(test, gpu, cpu, qt_ok, qt_note):
     say("Frame time (the game needs 16 ms or less; lower is better)")
     say("  %-34s %-22s %s" % ("load", "GPU canvas (Skia)", "CPU (QPainter, today)"))
     for i, (name, _g, _h, _p, _w) in enumerate(STAGES):
-        g = "%6.1f ms  %5.0f fps" % (gpu[i][0], gpu[i][2]) if i < len(gpu) else "not run"
+        g = "%6.1f ms  %5.0f fps" % (gpu[i][0], gpu[i][2]) if i < len(gpu) and gpu[i] else "not run"
         c = ""
         if i in CPU_STAGES:
             j = CPU_STAGES.index(i)
             c = "%6.1f ms  %5.0f fps" % (cpu[j][0], cpu[j][2]) if j < len(cpu) else "not run"
         say("  %-34s %-22s %s" % (name, g, c))
-    say("  (95th percentile, GPU: %s ms)" % ", ".join("%.1f" % r[1] for r in gpu))
+    say("  (95th percentile, GPU: %s ms)" % ", ".join("%.1f" % r[1] if r else "-" for r in gpu))
+    marks = {True: "yes", False: "NO", None: "not checked"}
+    say("  drawing checked (each stage shows the live frame): %s"
+        % ", ".join("%s %s" % (STAGES[i][0].split()[0], marks[c]) for i, c in enumerate(test.checked)))
     say()
     say("Where the GPU canvas frame goes")
     say("  %-34s %-22s %s" % ("load", "Python sending draws", "Skia + graphics card"))
     for i, r in enumerate(gpu):
-        say("  %-34s %6.1f ms %s %6.1f ms" % (STAGES[i][0], r[3], " " * 12, r[0] - r[3]))
+        if r and not STAGES[i][2].startswith("hy_"):
+            say("  %-34s %6.1f ms %s %6.1f ms" % (STAGES[i][0], r[3], " " * 12, r[0] - r[3]))
+    hyb = [(i, r) for i, r in enumerate(gpu) if r and STAGES[i][2].startswith("hy_")]
+    if hyb:
+        say()
+        say("Hybrid (step 1): QPainter paints 3 screen-sized layers, the card warps + shows them")
+        say("  %-38s %-10s %-12s %-12s %-12s" % ("way of uploading", "total", "QPainter", "upload", "warp + show"))
+        for i, r in hyb:
+            up = "%6.1f ms" % r[5] if STAGES[i][2] == "hy_write" else "(in next)"
+            say("  %-38s %6.1f ms  %6.1f ms   %-12s %6.1f ms" % (STAGES[i][0], r[0], r[4], up, r[0] - r[4] - r[5]))
+        if len(cpu) > 1:
+            say("  compare: the same load all on the CPU today (stage B) = %.1f ms" % cpu[1][0])
     say()
     ok_overlay = bool(test.checks) and all(test.checks.get(k) for k in ("see-through", "click-through", "always on top"))
     verdict = "INCOMPLETE - the test was stopped before stage B finished"
@@ -518,6 +651,8 @@ def report(test, gpu, cpu, qt_ok, qt_note):
             verdict = "FAIL - OpenGL is running in software here, so a GPU canvas would not help"
         elif not ok_overlay:
             verdict = "FAIL - the overlay window is missing a feature (see above)"
+        elif False in test.checked:
+            verdict = "INVALID - a stage did not draw the live frame, its time means nothing"
         elif b <= 8.0:
             verdict = "PASS - the game-like load with the ball warp takes %.1f ms" % b
         elif b <= 16.0:
