@@ -47,6 +47,9 @@ from .palette import lut_for_index, lut_for_mode, LUT_BLUE, LUT_PINK
 # Fade is applied with painter opacity instead of re-building gradients.
 # ---------------------------------------------------------------------------
 _DOT_SPRITES = {}
+# Real-time clock (Overlay._safe_tick): most simulation ticks run for one
+# timer call to make up for a slow frame.
+CATCHUP_MAX = 4
 
 
 def _dot_sprite(hue, rad):
@@ -1355,10 +1358,35 @@ class Overlay(QWidget):
         self._timer.start(config.TICK_MS)
 
     def _safe_tick(self):
-        try:
-            self._tick()
-        except Exception as e:
-            action_log.crash("_tick", e)
+        """Real-time clock (Daniel 2026-11-09): the QTimer only asks for a
+        tick every TICK_MS; when a frame takes longer (big FX drawn near the
+        bottom of the screen, heavy blasts), the simulation runs the ticks
+        it missed so animations, FX and fighters keep standard speed
+        wherever they are.  At most CATCHUP_MAX ticks per timer call; a
+        longer stall is dropped instead of snowballing.  One repaint per
+        call (QWidget.update coalesces).  Solo and Battle alike."""
+        now = time.perf_counter()
+        last = getattr(self, "_rt_last", None)
+        self._rt_last = now
+        if last is None:
+            steps = 1
+            self._rt_acc = 0.0
+        else:
+            tm = float(config.TICK_MS)
+            self._rt_acc = getattr(self, "_rt_acc", 0.0) + (now - last) * 1000.0
+            # Round to the nearest tick so timer jitter never drops a tick.
+            steps = int((self._rt_acc + tm * 0.5) // tm)
+            self._rt_acc -= steps * tm
+            if steps > CATCHUP_MAX:
+                steps = CATCHUP_MAX
+                self._rt_acc = 0.0
+        for _ in range(steps):
+            try:
+                self._tick()
+            except Exception as e:
+                action_log.crash("_tick", e)
+            if self.world.quitting:
+                break
 
     def _tick(self):
         w = self.world

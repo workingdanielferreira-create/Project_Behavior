@@ -84,6 +84,9 @@ SILHOUETTE_ALPHA = 0.80
 
 TICK_S = config.TICK_MS / 1000.0
 MAX_TRIES = 40
+# Rolling world: a fighter that moved less than this (px) since last tick is
+# standing still and rides a world that is already rolling (Terrain._ride).
+RIDE_STILL_PX = 0.5
 
 
 def _wf():
@@ -1021,6 +1024,54 @@ class Terrain:
         self.marks = live
 
     # ---- rolling world
+    @staticmethod
+    def _roll_cap(figs, ax, ay):
+        """Most the roll may move per tick (px): the slowest fielded
+        fighter's base speed at the anchor's pace.  None = no fighters."""
+        if not figs:
+            return None
+        from . import speedband, combat
+        f0 = figs[0]
+        slow = min(speedband.base_speed(f) for f in figs)
+        sf = combat.position_speed_scale(ax, ay, f0.screen_w, f0.screen_h)
+        return max(0.0, slow * sf)
+
+    def _ride(self, world, figs, vx, vy):
+        """Fighters standing still (no move of their own since last tick: no
+        walk, leap, blink or knockback - an idle pose or a rooted attack) are
+        carried by a world that is ALREADY rolling, with everything attached
+        to them.  A fighter that started the roll and then stands still is
+        carried away from the edge zone with it, so the roll eases off to
+        nothing as it brings it to where the roll has no more influence.
+        Puppet (F11) and freeze (F10) are left alone.  Solo and Battle."""
+        last = getattr(self, "ride_last", None)
+        if last is None:
+            last = self.ride_last = {}
+        puppet = world.puppet_fig() if hasattr(world, "puppet_fig") else None
+        frozen = bool(getattr(world, "freeze_fighters", False))
+        sb = getattr(world, "speedband", None)
+        seen = {}
+        for f in figs:
+            t = f.transform
+            prev = last.get(id(f))
+            m = f.motion
+            still = (prev is not None and math.hypot(t.x - prev[0], t.y - prev[1]) < RIDE_STILL_PX
+                     and not (m.bouncing or m.bounce_ending))
+            if (vx or vy) and still and f is not puppet and not frozen:
+                t.x += vx
+                t.y += vy
+                try:
+                    from . import motion as _motion
+                    _motion.check_walls(f)
+                except Exception:
+                    pass
+                # The barrier's live speed must not count the ride as running.
+                st = sb.figs.get(id(f)) if sb is not None else None
+                if st is not None:
+                    st.lx, st.ly = t.x, t.y
+            seen[id(f)] = (t.x, t.y)
+        self.ride_last = seen
+
     def roll(self, world, figs):
         """Section roll: the world anchor in the outer zone of the screen rolls
         the world the other way (fighters stay put): pillars, rubble, craters,
@@ -1055,6 +1106,17 @@ class Terrain:
                     ty += by
             except Exception:
                 pass
+            # The world is as slow as its slowest fighter (Daniel 2026-11-09):
+            # the roll (barrier boost included) never goes faster than the
+            # slowest fielded fighter's BASE speed (its movement stat, paced
+            # for where the anchor is), so a faster fighter cannot drag the
+            # world along; only when every fighter is faster can it roll faster.
+            cap = self._roll_cap(figs, ax, ay)
+            tl = math.hypot(tx, ty)
+            if cap is not None and tl > cap:
+                k = cap / tl if tl > 1e-9 else 0.0
+                tx *= k
+                ty *= k
         e = 1.0 if Rl["ease_ms"] <= 0 else min(1.0, config.TICK_MS / float(Rl["ease_ms"]))
         vx = self.roll_v[0] + (tx - self.roll_v[0]) * e
         vy = self.roll_v[1] + (ty - self.roll_v[1]) * e
@@ -1063,6 +1125,8 @@ class Terrain:
         if abs(vy) < 0.01:
             vy = 0.0
         self.roll_v = (vx, vy)
+        # Fighters standing still ride a world that is already rolling.
+        self._ride(world, figs, vx, vy)
         if not (vx or vy):
             return
         for p in self.pillars:
