@@ -49,6 +49,7 @@ STAGES = (
     ("A  game-like load, no warp", 500, "naive", 570, False),
     ("B  game-like load + ball warp", 500, "naive", 570, True),
     ("C  4x glows + ball warp", 2000, "naive", 570, True),
+    ("B2 game-like load batched + warp", 500, "atlas", 570, True),
     ("D  10,000 batched glows + warp", 10000, "atlas", 570, True),
     ("E  40,000 batched glows", 40000, "atlas", 0, False),
 )
@@ -211,6 +212,23 @@ class GpuTest:
         self.layers = [skia.Surface.MakeRenderTarget(self.ctx, skia.Budgeted.kNo, ii) for _ in range(2)]
         if None in self.layers:
             raise RuntimeError("Skia could not create an offscreen GPU layer")
+        # The warp reads each layer straight from its texture.  (v1 took a
+        # snapshot of the layer every frame, which cost hundreds of ms and
+        # made the warp stages look far slower than they are.)
+        self.layer_paints = None
+        try:
+            lp = []
+            for layer in self.layers:
+                bt = layer.getBackendTexture(skia.Surface.kFlushRead_BackendHandleAccess)
+                im = skia.Image.MakeFromTexture(self.ctx, bt, skia.kBottomLeft_GrSurfaceOrigin,
+                                                skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType, None)
+                p = skia.Paint()
+                p.setShader(im.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp,
+                                          skia.SamplingOptions(skia.FilterMode.kLinear)))
+                lp.append((p, im))
+            self.layer_paints = lp
+        except Exception as e:
+            say("  (direct layer textures not available: %s - using snapshots, the warp will be slow)" % e)
 
         self.plus = skia.Paint(AntiAlias=True, BlendMode=skia.BlendMode.kPlus)
         self.plus_flat = skia.Paint(AntiAlias=True, BlendMode=skia.BlendMode.kPlus)
@@ -276,6 +294,7 @@ class GpuTest:
                 col = [skia.Color(c[0], c[1], c[2], 255) for (_x, _y, _r, c) in gl]
                 self.batches.append((xf, [self.atlas_rect] * len(gl), col))
         self.times = []
+        self.py_ms = 0.0
         self.count = 0
         self.t_stage = None
 
@@ -326,10 +345,16 @@ class GpuTest:
                 lc = layer.getCanvas()
                 lc.clear(skia.ColorTRANSPARENT)
                 self._content(lc, k, part)
-                img = layer.makeImageSnapshot()
-                wp = skia.Paint()
-                wp.setShader(img.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp, self.sampling))
-                canvas.drawVertices(self.warp, wp)
+                if self.layer_paints is not None:
+                    tf = time.perf_counter()
+                    layer.flushAndSubmit()     # graphics-card work, not Python's
+                    self.flush_s += time.perf_counter() - tf
+                    canvas.drawVertices(self.warp, self.layer_paints[part][0])
+                else:
+                    img = layer.makeImageSnapshot()
+                    wp = skia.Paint()
+                    wp.setShader(img.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp, self.sampling))
+                    canvas.drawVertices(self.warp, wp)
         else:
             self._content(canvas, k)
         # HUD: border (shows the overlay covers the screen) + status
@@ -341,7 +366,6 @@ class GpuTest:
         canvas.drawString(self.hud, 34, 80, self.font, self.text)
         canvas.drawString("stage %d of %d   (closes by itself)" % (self.stage + 1, len(STAGES)),
                           34, 106, self.font, self.text)
-        self.ctx.flushAndSubmit()
 
     def step(self):
         """One frame.  False once every stage has run."""
@@ -350,11 +374,15 @@ class GpuTest:
         if self.stopped or glfw.window_should_close(self.window) or self.stage >= len(STAGES):
             return False
         t0 = time.perf_counter()
-        self._draw()
+        self.flush_s = 0.0
+        self._draw()                   # Python issuing the draw calls
+        t1 = time.perf_counter()
+        self.ctx.flushAndSubmit()      # Skia + the graphics card doing them
         if self.gl is not None:
             self.gl.glFinish()         # wait for the GPU: honest frame time
         glfw.swap_buffers(self.window)
-        dt = (time.perf_counter() - t0) * 1000.0
+        t2 = time.perf_counter()
+        dt = (t2 - t0) * 1000.0
         self.frame += 1
         self.count += 1
         if self.checks is None and self.frame == 10:
@@ -363,11 +391,12 @@ class GpuTest:
             self.t_stage = time.perf_counter()
         elif self.count > WARMUP_FRAMES:
             self.times.append(dt)
+            self.py_ms += (t1 - t0 - self.flush_s) * 1000.0
             if len(self.times) % 20 == 0:
                 m = sum(self.times[-20:]) / 20.0
                 self.hud = "%s:  %.1f ms a frame  (%.0f fps)" % (STAGES[self.stage][0], m, 1000.0 / m)
             if time.perf_counter() - self.t_stage >= MEASURE_S:
-                self.results.append(stats(self.times))
+                self.results.append(stats(self.times) + (self.py_ms / len(self.times),))
                 self._next_stage()
         return True
 
@@ -450,7 +479,7 @@ def report(test, gpu, cpu, qt_ok, qt_note):
     software = any(s in renderer.lower() for s in SOFTWARE)
     say()
     say("=" * 72)
-    say("PROJECT BEHAVIOR - GPU OVERLAY TEST RESULT")
+    say("PROJECT BEHAVIOR - GPU OVERLAY TEST RESULT (test v2)")
     say("=" * 72)
     say("Machine      : %s %s, Python %s" % (platform.system(), platform.release(), platform.python_version()))
     say("Screen       : %d x %d   (drawing surface %d x %d)" % (test.screen + (test.w, test.h)))
@@ -475,6 +504,11 @@ def report(test, gpu, cpu, qt_ok, qt_note):
             c = "%6.1f ms  %5.0f fps" % (cpu[j][0], cpu[j][2]) if j < len(cpu) else "not run"
         say("  %-34s %-22s %s" % (name, g, c))
     say("  (95th percentile, GPU: %s ms)" % ", ".join("%.1f" % r[1] for r in gpu))
+    say()
+    say("Where the GPU canvas frame goes")
+    say("  %-34s %-22s %s" % ("load", "Python sending draws", "Skia + graphics card"))
+    for i, r in enumerate(gpu):
+        say("  %-34s %6.1f ms %s %6.1f ms" % (STAGES[i][0], r[3], " " * 12, r[0] - r[3]))
     say()
     ok_overlay = bool(test.checks) and all(test.checks.get(k) for k in ("see-through", "click-through", "always on top"))
     verdict = "INCOMPLETE - the test was stopped before stage B finished"
