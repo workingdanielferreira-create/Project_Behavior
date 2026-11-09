@@ -19,3 +19,6 @@ laser_cursor_log.txt
 
 # Start-menu roster (laser/roster.py) — each player's own setup, never commit.
 roster.json
+
+# GPU overlay test output (tools/gputest/gpu_test.py) — local only.
+gpu_test_result.txt
