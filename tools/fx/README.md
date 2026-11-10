@@ -211,7 +211,18 @@ timing.
   blades**: a sword formation for a 30-frame action — six swords rise over the
   fighter, three rows of upright swords close in round the target and circle
   it, swords rain down six lanes and lodge in it, then a giant blade drops and
-  lodges). The first groups rebuild the game's
+  lodges; and six sequences built from the blade, each for a 30-frame action:
+  **Blink Chain** (four swords thrown in a zigzag with a blink flash after each,
+  afterimages, a final diagonal slash; pair with Movement Zigzag), **Strobe
+  Stabs** (swords flash in round the target at random angles, stab and vanish,
+  faster and faster), **Vigil Escort** (a ring of swords circles the fighter;
+  two orbiting guard ribbons deflect enemy shots), **Sword River** (a school of
+  swords streams under the feet with a current trail, afterimages and spray,
+  chipping what it passes; a movement / retreat FX), **The Unseen Duelist**
+  (swords assemble into a see-through swordsman past the target that cuts back
+  at it four times, then falls apart) and **Sheath of Heaven** (every sword
+  merges into one colossal blade that cuts down and splits the ground; its
+  21 HP ground beam leaves a trench when over `ground_fx.beam_min_damage`)). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets); saving a name you already have

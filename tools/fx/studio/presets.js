@@ -14,6 +14,25 @@
  */
 (function (G) {
 "use strict";
+// Ethereal blade sprite params (the "Ethereal blade" preset's look), with
+// overrides.  Used by the Ethereal sequence presets below.
+function eBlade(over) {
+  var p = {shape: "blade", radius: 1.6, stretch: 8, hot: true, halo: false, fade: false, trail_len: 0, glow: 100, glow_size: 85,
+           lodge_ms: 0, blade_orient: "motion", blade_angle_deg: 90};
+  for (var k in over) if (Object.prototype.hasOwnProperty.call(over, k)) p[k] = over[k];
+  return p;
+}
+// Seeded 0..1 random (mulberry32) so a preset is the same every time it is added.
+function eRng(seed) {
+  var a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    var t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 G.FX_PRESETS = [
   {name: "Laser trail", group: "Trails", desc: "TrailComponent: TRAIL_LEN 50, W 1→5, flow 0.008, glow/dot 1",
    effects: [{prim: "ribbon", name: "Laser trail", tag: "trail", anchor: "figure", offset: [-8, 6],   // TRAIL_BACK / TRAIL_DOWN
@@ -1024,6 +1043,213 @@ G.FX_PRESETS = [
       params: {mode: "burst", count: 40, angle_deg: -90, spread_deg: 200, speed_min: 80, speed_max: 320, gravity: 260, drag: 0.93,
                size_min: 1, size_max: 2.5, size_over_life: "shrink", life_min_ms: 250, life_max_ms: 700}}
    ])},
+
+  // ---------------------------------------------------------------- Ethereal sequences
+  // Built from the Ethereal blade for a 30-frame action.  FX only: every part
+  // runs on what the engine already does.  Flip is on wherever the sequence
+  // has a side, so it mirrors toward the target.
+
+  // Blink Chain: four swords thrown in a zigzag (alternating ±32° off the
+  // line to the target), a blink flash where the fighter lands after each
+  // one, afterimages the whole way, and a final diagonal slash.  Pair it with
+  // the action's Movement "While doing it" = Zigzag (zig_count 4) so the
+  // fighter itself zigzags.
+  {name: "Blink Chain", group: "Ethereal", desc: "Throw a sword, blink, throw the next: four swords zigzag at the target with a blink flash after each and afterimages throughout, ending in a slash (frames 0-30; pair with Movement Zigzag)",
+   effects: [
+     {prim: "ghost", name: "Blink afterimages", tag: "blade", anchor: "figure", layer: "behind", start_frame: 0, end_frame: 28, motion: {kind: "attached"},
+      color: {mode: "solid", c1: "#a9c1ff"}, params: {interval: 1, ghost_life: 16, alpha: 140, max: 16}}
+   ].concat([0, 1, 2, 3].map(function (i) {
+     return {prim: "sprite", name: "Thrown sword " + (i + 1), tag: "blade", anchor: "figure", offset: [0, -20], start_frame: i * 6, life_ticks: 10,
+       flip: {enabled: true, facing: 1}, follow_dir: true, blend: "additive",
+       battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 2},
+       motion: {kind: "travel", aim: "angle", angle_deg: i % 2 ? 32 : -32, speed: 16}, color: {mode: "solid", c1: "#c4d3ff"},
+       params: eBlade({radius: 1.8, stretch: 9, trail_len: 5})};
+   })).concat([0, 1, 2, 3].map(function (i) {
+     return {prim: "glow", name: "Blink flash " + (i + 1), tag: "blade", anchor: "figure", start_frame: i * 6 + 5, life_ticks: 8, motion: {kind: "static"}, blend: "additive",
+       color: {mode: "solid", c1: "#d4e0ff"}, params: {r_start: 6, r_end: 34, a_center: 230, a_mid: 90, mid: 0.4, core_r: 4, fade: "out", pulse_hz: 0}};
+   })).concat([
+     {prim: "technique", name: "Chain finisher", tag: "slash", anchor: "figure", start_frame: 24, blend: "additive", flip: {enabled: true, facing: 1},
+      battle: {deals_damage: true, damage: 3, pierce: true, rehit_ticks: 0, knockback: 12},
+      motion: {kind: "attached", aim: "target"}, color: {mode: "solid", c1: "#b8ccff"},
+      params: {style: "diagonal_slash", radius: 60, span: 120, thickness: 13, swing_ticks: 5, density: 1}},
+     {prim: "particles", name: "Finisher shards", tag: "blade", anchor: "target", start_frame: 25, life_ticks: 1, motion: {kind: "static"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+      params: {mode: "burst", count: 26, angle_deg: -90, spread_deg: 360, speed_min: 90, speed_max: 300, gravity: 120, drag: 0.92,
+               size_min: 1, size_max: 2.4, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 520}}
+   ])},
+
+  // Strobe Stabs: single swords flash in on a ring 50-66 px round the target
+  // at seeded random angles, stab inward and vanish (Pierce, so they never
+  // lodge).  The gap between stabs shrinks ×0.8 each time (4 frames → three
+  // a frame), and a glint stream and a pulsing glow on the target build with it.
+  {name: "Strobe Stabs", group: "Ethereal", desc: "Swords flash in round the target at random angles, stab and vanish, faster and faster until it is a blur of stabs from every direction (frames 0-30)",
+   effects: (function () {
+     var rnd = eRng(1402), out = [], f = 0, gap = 4, n = 0;
+     while (f <= 29) {
+       var a = rnd() * 360, r = 50 + rnd() * 16, ar = a * Math.PI / 180;
+       out.push({prim: "sprite", name: "Strobe stab " + (++n), tag: "blade", anchor: "target",
+         offset: [Math.round(Math.cos(ar) * r), Math.round(Math.sin(ar) * r * 0.8)], start_frame: Math.floor(f), life_ticks: 7, blend: "additive",
+         battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 1},
+         motion: {kind: "travel", aim: "angle", angle_deg: Math.round(a + 180) % 360, speed: 9}, color: {mode: "solid", c1: n % 3 ? "#c4d3ff" : "#ffffff"},
+         params: eBlade({radius: 1.5, stretch: 9, trail_len: 3, fade: true})});
+       f += gap; gap = Math.max(0.34, gap * 0.8);
+     }
+     return [
+       {prim: "glow", name: "Strobe pressure", tag: "blade", anchor: "target", start_frame: 0, end_frame: 30, motion: {kind: "attached"}, layer: "behind", blend: "additive",
+        color: {mode: "solid", c1: "#4f6dff"}, params: {r_start: 18, r_end: 22, a_center: 40, a_mid: 16, mid: 0.45, core_r: 0, fade: "none", pulse_hz: 2},
+        keys: [{frame: 28, ease: "in", set: {"params.r_start": 34, "params.r_end": 46, "params.a_center": 140, "params.pulse_hz": 9}}]},
+       {prim: "particles", name: "Strobe glints", tag: "blade", anchor: "target", start_frame: 0, end_frame: 30, motion: {kind: "attached"}, blend: "additive",
+        color: {mode: "gradient", c1: "#ffffff", c2: "#9fb6ff"},
+        params: {mode: "stream", rate_per_s: 20, angle_deg: 0, spread_deg: 360, speed_min: 30, speed_max: 160, gravity: 0, drag: 0.88,
+                 size_min: 1, size_max: 2.2, size_over_life: "shrink", life_min_ms: 90, life_max_ms: 200},
+        keys: [{frame: 28, ease: "in", set: {"params.rate_per_s": 220}}]}
+     ].concat(out);
+   })()},
+
+  // Vigil Escort: a ring of eight swords circles the fighter, and two
+  // guarding ribbons ride the same orbit (a ribbon with Intercept on is a
+  // guard): any enemy shot crossing a guard head is deflected away harmlessly.
+  // It guards the fighter it is on; tick ∞ Always on for a standing escort.
+  // (Guarding the tag partner / carrying over on a switch / half strength
+  // with no partner need engine support.)
+  {name: "Vigil Escort", group: "Ethereal", desc: "A ring of swords circles the fighter and flicks enemy shots away (two orbiting guard ribbons deflect anything that crosses them; visual ring of eight swords)",
+   effects: [
+     {prim: "glow", name: "Vigil ward", tag: "blade", anchor: "figure", motion: {kind: "attached"}, layer: "behind", blend: "additive",
+      color: {mode: "solid", c1: "#4f6dff"}, params: {r_start: 30, r_end: 34, a_center: 40, a_mid: 18, mid: 0.5, core_r: 0, fade: "none", pulse_hz: 1.5}},
+     {prim: "sprite", name: "Vigil ring", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 8}, blend: "additive",
+      motion: {kind: "orbit", orbit_rx: 46, orbit_ry: 16, orbit_deg: 3, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#b8ccff"},
+      params: eBlade({radius: 1.5, stretch: 7, hot: false, glow: 80, glow_size: 80})},
+     {prim: "ribbon", name: "Vigil guard", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 2}, blend: "additive",
+      motion: {kind: "orbit", orbit_rx: 46, orbit_ry: 16, orbit_deg: 3, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#c4d3ff"},
+      intercept: {enabled: true, radius: 90, turn_deg: 10, contact: 14, mode: "deflect", deflect_who: "enemy", hurts_owner: false},
+      params: {max_points: 10, min_dist: 2, decay: 3, taper: true, w_tail: 1, w_head: 4, alpha: 170, head_glow_r: 3, head_dot_r: 1}}
+   ]},
+
+  // Sword River: a school of swords streams round under the fighter's feet
+  // (two flat orbits at different speeds), a current ribbon trails behind,
+  // afterimages, and spray off the river.  The swords chip what they pass
+  // through (1 HP, re-hit every 30 ticks).  For a Movement / Tactical retreat
+  // FX: lasts as long as the action plays.  Feet offset +28: move it to suit
+  // the character.
+  {name: "Sword River", group: "Ethereal", desc: "Swords flow like a school of fish under the fighter's feet as it moves, with a current trail, afterimages and spray; light chip damage to anything it passes through (movement / retreat FX)",
+   effects: [
+     {prim: "sprite", name: "River school", tag: "blade", anchor: "figure", offset: [0, 28], emit: {count: 12}, blend: "additive",
+      battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 30, knockback: 2},
+      motion: {kind: "orbit", orbit_rx: 42, orbit_ry: 6, orbit_deg: 7, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#c4d3ff"},
+      params: eBlade({radius: 1.3, stretch: 7, trail_len: 4})},
+     {prim: "sprite", name: "River undertow", tag: "blade", anchor: "figure", offset: [0, 32], emit: {count: 8}, blend: "additive",
+      motion: {kind: "orbit", orbit_rx: 30, orbit_ry: 4, orbit_deg: 5, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#9fb6ff"},
+      params: eBlade({radius: 1.1, stretch: 6, hot: false, glow: 70, trail_len: 3})},
+     {prim: "ribbon", name: "River current", tag: "trail", anchor: "figure", offset: [0, 30], motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+      params: {max_points: 30, min_dist: 3, decay: 2, taper: true, w_tail: 1, w_head: 8, alpha: 170, head_glow_r: 6, head_dot_r: 2}},
+     {prim: "ghost", name: "River afterimages", tag: "blade", anchor: "figure", layer: "behind", motion: {kind: "attached"},
+      color: {mode: "solid", c1: "#a9c1ff"}, params: {interval: 2, ghost_life: 12, alpha: 110, max: 10}},
+     {prim: "particles", name: "River spray", tag: "blade", anchor: "figure", offset: [0, 32], motion: {kind: "attached"}, blend: "additive",
+      color: {mode: "gradient", c1: "#ffffff", c2: "#9fb6ff"},
+      params: {mode: "stream", rate_per_s: 60, angle_deg: -90, spread_deg: 160, speed_min: 20, speed_max: 90, gravity: 140, drag: 0.94,
+               size_min: 0.8, size_max: 1.8, size_over_life: "shrink", life_min_ms: 160, life_max_ms: 380}}
+   ]},
+
+  // The Unseen Duelist: eleven swords fly in from scattered spots and lock
+  // into a see-through swordsman standing on the FAR side of the target
+  // (frames 0-8), it cuts four times from there (frames 10-24) so the hits
+  // come from the other side than the caster, then falls apart (26-30).
+  // Flip on: +x is toward the target's side, so the duelist stands 56 px past
+  // the target facing back (-x); its cuts are turned 180° (rotation_deg) so
+  // they swing back at the target.  Anchored to the target, it follows it.
+  // (A real summon - its own HP, AI and timer - needs engine support.)
+  {name: "The Unseen Duelist", group: "Ethereal", desc: "Swords assemble into a see-through swordsman on the far side of the target, which cuts four times from there and then falls apart into loose swords (frames 0-30)",
+   effects: (function () {
+     var flip = {enabled: true, facing: 1}, bx = 56, rnd = eRng(909);
+     // [tip x, tip y, blade angle °, radius, stretch]: the duelist faces -x (back at the target)
+     var parts = [
+       ["Duelist head L", 3, -54, 100, 1.3, 4], ["Duelist head R", -3, -54, 80, 1.3, 4],
+       ["Duelist torso L", 4, -20, 88, 1.6, 9], ["Duelist torso R", -4, -20, 92, 1.6, 9],
+       ["Duelist back arm", 18, -30, 55, 1.3, 6], ["Duelist sword arm", -14, -34, 145, 1.3, 6],
+       ["Duelist blade", -46, -40, 188, 2, 11],
+       ["Duelist leg L", 10, 4, 75, 1.4, 8], ["Duelist leg R", -10, 4, 105, 1.4, 8],
+       ["Duelist hip L", 6, -6, 80, 1.2, 5], ["Duelist hip R", -6, -6, 100, 1.2, 5]];
+     var pieces = parts.map(function (p, i) {
+       var sx = bx + p[1] + Math.round((rnd() - 0.5) * 240), sy = p[2] - 40 - Math.round(rnd() * 140);
+       return {prim: "sprite", name: p[0], tag: "blade", anchor: "target", offset: [sx, sy], start_frame: 0, end_frame: 30, flip: flip, blend: "additive",
+         motion: {kind: "attached"}, color: {mode: "solid", c1: i === 6 ? "#d4e0ff" : "#9fb6ff"},
+         params: eBlade({radius: p[4], stretch: p[5], hot: i === 6, glow: 60, glow_size: 70, blade_orient: "angle", blade_angle_deg: p[3]}),
+         keys: [{frame: 8, ease: "strong_out", set: {"offset.0": bx + p[1], "offset.1": p[2]}},
+                {frame: 26, ease: "linear", set: {"offset.0": bx + p[1], "offset.1": p[2]}},
+                {frame: 30, ease: "strong_in", set: {"offset.0": bx + p[1] + Math.round((rnd() - 0.5) * 60), "offset.1": 34}}]};
+     });
+     function cut(name, f, style, radius, span) {
+       return {prim: "technique", name: name, tag: "slash", anchor: "target", offset: [bx - 16, -24], start_frame: f, blend: "additive", flip: flip,
+         battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 6},
+         motion: {kind: "attached", aim: "angle", angle_deg: 0}, color: {mode: "solid", c1: "#b8ccff"},
+         params: {style: style, radius: radius, span: span, thickness: 11, swing_ticks: 5, density: 1, rotation_deg: 180}};
+     }
+     return [
+       {prim: "glow", name: "Duelist presence", tag: "blade", anchor: "target", offset: [bx, -26], start_frame: 6, end_frame: 26, flip: flip, layer: "behind",
+        motion: {kind: "attached"}, blend: "additive", color: {mode: "solid", c1: "#4f6dff"},
+        params: {r_start: 26, r_end: 34, a_center: 36, a_mid: 14, mid: 0.5, core_r: 0, fade: "none", pulse_hz: 2}}
+     ].concat(pieces).concat([
+       cut("Duelist cut 1", 10, "diagonal_slash", 50, 110),
+       cut("Duelist cut 2", 15, "horizontal_sweep", 60, 70),
+       cut("Duelist cut 3", 20, "rising_slash", 44, 150),
+       cut("Duelist cut 4", 24, "overhead_slash", 50, 150),
+       {prim: "particles", name: "Duelist breaks apart", tag: "blade", anchor: "target", offset: [bx, -26], start_frame: 26, life_ticks: 1, flip: flip,
+        motion: {kind: "static"}, blend: "additive", color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+        params: {mode: "burst", count: 30, angle_deg: -90, spread_deg: 220, speed_min: 60, speed_max: 220, gravity: 260, drag: 0.93,
+                 size_min: 1, size_max: 2.2, size_over_life: "shrink", life_min_ms: 260, life_max_ms: 640}}
+     ]);
+   })()},
+
+  // Sheath of Heaven: sixteen swords fly in from all over and merge 220 px
+  // above the target (frames 0-10), one colossal blade (360 px) grows up into
+  // the sky (10-16) and cuts straight down (18-22, Pierce), the ground splits along a
+  // beam laid flat at the target's feet (21-, 21 HP: a beam dealing more than
+  // Dust & Air ground_fx beam_min_damage leaves a trench - 20 in this repo's
+  // world_physics.json, 30 by default), with a flash, a flat shock ring and
+  // shards.  On an action named "ultimate" the camera plays its cinematic
+  // ultimate shot by itself.  (Breaking every pillar it crosses and scaling
+  // with the swords left on the field need engine support.)
+  {name: "Sheath of Heaven", group: "Ethereal", desc: "Every sword flies back and merges into one colossal blade across the sky, which cuts straight down and splits the ground in a long trench (frames 0-30; put it on the ultimate)",
+   effects: (function () {
+     var rnd = eRng(77), top = -220, swords = [];
+     for (var i = 0; i < 16; i++) {
+       var sx = Math.round((rnd() - 0.5) * 800), sy = -40 - Math.round(rnd() * 260);
+       swords.push({prim: "sprite", name: "Returning sword " + (i + 1), tag: "blade", anchor: "target", offset: [sx, sy], start_frame: 0, end_frame: 10 + (i % 3),
+         blend: "additive", motion: {kind: "attached"}, color: {mode: "solid", c1: i % 4 ? "#b8ccff" : "#ffffff"},
+         params: eBlade({radius: 1.6, stretch: 8, trail_len: 6}),
+         keys: [{frame: 10 + (i % 3), ease: "strong_in", set: {"offset.0": 0, "offset.1": top}}]});
+     }
+     return [
+       {prim: "glow", name: "Merging light", tag: "blade", anchor: "target", offset: [0, top], start_frame: 4, end_frame: 18, motion: {kind: "attached"}, blend: "additive",
+        color: {mode: "solid", c1: "#9fb6ff"}, params: {r_start: 6, r_end: 12, a_center: 120, a_mid: 50, mid: 0.4, core_r: 3, fade: "none", pulse_hz: 3},
+        keys: [{frame: 12, ease: "out", set: {"params.r_start": 40, "params.r_end": 80, "params.a_center": 230}}]}
+     ].concat(swords).concat([
+       {prim: "sprite", name: "Colossal blade", tag: "blade", anchor: "target", offset: [0, top], start_frame: 10, end_frame: 26, blend: "additive",
+        battle: {deals_damage: true, damage: 6, pierce: true, rehit_ticks: 0, knockback: 20},
+        motion: {kind: "attached"}, color: {mode: "solid", c1: "#d4e0ff"},
+        params: eBlade({radius: 6, stretch: 4, trail_len: 8, glow: 140, glow_size: 110, blade_orient: "angle", blade_angle_deg: 90}),
+        keys: [{frame: 16, ease: "strong_out", set: {"params.stretch": 30}},
+               {frame: 18, ease: "linear", set: {"offset.1": top}},
+               {frame: 22, ease: "strong_in", set: {"offset.1": 20}}]},
+       {prim: "technique", name: "Heaven's cut", tag: "slash", anchor: "target", offset: [0, -40], start_frame: 20, blend: "additive",
+        motion: {kind: "attached", aim: "angle", angle_deg: 0}, color: {mode: "solid", c1: "#d4e0ff"},
+        params: {style: "overhead_slash", radius: 120, span: 150, thickness: 20, swing_ticks: 4, density: 1}},
+       {prim: "beam", name: "Ground split", tag: "beam", anchor: "target", offset: [-260, 28], start_frame: 21, life_ticks: 50, blend: "additive",
+        battle: {deals_damage: true, damage: 21, pierce: true, rehit_ticks: 0, knockback: 0},
+        motion: {kind: "static", aim: "angle", angle_deg: 0}, color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+        params: {length: 520, w_start0: 3, w_start1: 5, w_end0: 3, w_end1: 5, segments: 12, glow: 10, glow_color: "", pulse_hz: 0, jitter: 0, grow_ticks: 10, tip_fade: 0.15}},
+       {prim: "glow", name: "Cut flash", tag: "blade", anchor: "target", start_frame: 22, life_ticks: 18, motion: {kind: "static"}, blend: "additive",
+        color: {mode: "solid", c1: "#ffffff"}, params: {r_start: 14, r_end: 90, a_center: 255, a_mid: 110, mid: 0.35, core_r: 10, fade: "out", pulse_hz: 0}},
+       {prim: "pulse", name: "Ground shock", tag: "blade", anchor: "target", offset: [0, 28], start_frame: 22, life_ticks: 30, motion: {kind: "static"}, blend: "additive",
+        color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+        params: {r_start: 10, r_end: 220, width: 8, width_end: 1, expand_ms: 420, rings: 2, gap_ms: 90, ease: "out", fade: "out", glow: 10, stretch_x: 1, stretch_y: 0.3}},
+       {prim: "particles", name: "Sky shards", tag: "blade", anchor: "target", offset: [0, 20], start_frame: 22, life_ticks: 1, motion: {kind: "static"}, blend: "additive",
+        color: {mode: "gradient", c1: "#ffffff", c2: "#6c8bff"},
+        params: {mode: "burst", count: 60, angle_deg: -90, spread_deg: 150, speed_min: 120, speed_max: 460, gravity: 320, drag: 0.93,
+                 size_min: 1, size_max: 3, size_over_life: "shrink", life_min_ms: 300, life_max_ms: 800}}
+     ]);
+   })()},
 
   // Clash explosions — FX Kit approximations of laser/clashfx.py's ten
   // baselines (the in-game library blends BOTH sides' colours; here side A is
