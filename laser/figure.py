@@ -13,6 +13,7 @@ from . import config
 from . import combat as _combat
 from . import unique as _unique
 from . import speedband as _speedband
+from . import escort as _escort
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
@@ -280,6 +281,7 @@ class Figure:
         # Overlay._paint_abs_layer, under / over ALL characters.)
         if self.fx is not None:
             self.fx.draw(p, self, "behind")
+        _escort.draw(p, self, "behind")   # escort FX guarding this fighter (laser/escort.py)
 
         # --- Unique ability overlays (rage aura, riposte stance ring,
         # phase-shift charges, form aura, shield, structures, domain tint,
@@ -356,6 +358,7 @@ class Figure:
         # --- FX Studio effects (fxkit), "front" layer ---
         if self.fx is not None:
             self.fx.draw(p, self, "front")
+        _escort.draw(p, self, "front")
 
         if self.combat.crescents:
             cpen = QPen()

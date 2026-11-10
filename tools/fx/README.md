@@ -254,6 +254,14 @@ timing.
   can't be intercepted. **Lodge ms** 0 = it ends on the hit like any shot.
   Hits only happen where damage is dealt, so lodging shows in Battle (and in
   the Studio preview), not in Solo, where nothing takes damage.
+- **Escort (ally).** Under each effect: **Escort ally** makes it leave the
+  caster once cast and guard the caster's tag pair's on-field fighter — the
+  caster while it is in, the incoming partner after a Switch — for **Escort
+  ms**, outliving the action and the caster being benched. With no standing
+  tag partner (Solo, a single fighter) it guards the caster with its
+  Intercept Contact cut to **No-partner Contact %** (50 = half the catch
+  reach); the stage previews that case. Pair it with an Intercept guard
+  ribbon to catch enemy shots (preset **Vigil Escort**).
 - **Orbit direction.** An effect with orbit motion has **Orbit direction**:
   clockwise or anticlockwise as seen on screen (Flip mirrors it, like the rest
   of the effect). **Orbit speed °/tick** sets how fast.

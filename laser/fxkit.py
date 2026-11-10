@@ -405,6 +405,13 @@ BATTLE_DEFAULTS = dict(deals_damage=False, damage=1, pierce=False, rehit_ticks=0
 INTERCEPT_DEFAULTS = dict(enabled=False, radius=90, turn_deg=10, contact=10, mode="block", deflect_who="enemy",
                           hurts_owner=False, drag=False, drag_pct=100, drag_deg=90, drag_every=10)
 INTERCEPT_MODES = ("block", "deflect", "destroy", "absorb")
+# Escort (fx.escort, laser/escort.py): the effect's copies leave the caster
+# and guard an ally - the caster's tag pair's on-field fighter, so after a
+# Switch they carry over to the incoming partner - for `ms`, wherever that
+# fighter is (they outlive the action and the caster being benched).  With
+# no standing tag partner (Solo or a single fighter) they guard the caster
+# and their guard / tracker Contact is cut to solo_contact_pct %.
+ESCORT_DEFAULTS = dict(enabled=False, ms=6000, solo_contact_pct=50)
 ABSORB_STEP = 0.05      # absorb: +5% of the original size per projectile swallowed...
 ABSORB_MAX = 2.0        # ...up to 200%
 ABSORB_LEAD_KB = 300.0  # absorb only swallows a projectile it out-knocks by more than this
@@ -703,6 +710,7 @@ def normalize(fx):
     fx["intercept"] = _fill(dict(fx.get("intercept") or {}), INTERCEPT_DEFAULTS)
     if fx["intercept"]["mode"] not in INTERCEPT_MODES:
         fx["intercept"]["mode"] = INTERCEPT_DEFAULTS["mode"]
+    fx["escort"] = _fill(dict(fx.get("escort") or {}), ESCORT_DEFAULTS)
     fx["flip"] = _fill(dict(fx.get("flip") or {}), FLIP_DEFAULTS)
     fx["flip"]["facing"] = -1 if float(fx["flip"]["facing"] or 1) < 0 else 1
     fx["follow_dir"] = bool(fx.get("follow_dir"))
@@ -1331,7 +1339,7 @@ class Inst:
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end", "tq_hs",
                  "w_dg", "w_arm", "w_hand",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
-                 "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t")
+                 "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k")
 
     def __init__(self):
         self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
@@ -1343,6 +1351,9 @@ class Inst:
         self.bd_m = 1.0
         self.tq_bd = {}
         self.bd_stuck = False
+        # Escort (laser/escort.py): guard / tracker Contact multiplier (1 =
+        # full strength; solo_contact_pct / 100 with no tag partner).
+        self.esc_k = 1.0
         # Boomerang motion (boomerang_step): 0 flying out / 1 coming back,
         # px flown out, speed on the way back ("reverse"), ticks on the way back.
         self.bm = 0
@@ -2125,7 +2136,7 @@ def intercept_step(inst, host):
         return False
     ic = fx["intercept"]
     mode = ic.get("mode")
-    contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
+    contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps * inst.esc_k
     cb = getattr(host, "on_intercept", None)
     hit = _contact_shot(inst, host, contact, mode)
     if hit is not None:
@@ -2205,7 +2216,7 @@ def guard_step(inst, host):
     mode = ic.get("mode")
     if mode not in GUARD_MODES:
         mode = "block"
-    contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps
+    contact = max(0.0, float(ic.get("contact") or 0)) * inst.ps * inst.esc_k
     head = (inst.px, inst.py, inst.x, inst.y)
     cb = getattr(host, "on_intercept", None)
     kb = inst_knockback(inst)
@@ -3951,6 +3962,39 @@ def _deflected_copy(src, vel, hurts_owner):
     return q
 
 
+def aim_for(fig, world):
+    """(target, hurt circles) for FX played around `fig` (FxDriver.update,
+    laser/escort.py)."""
+    # Target and hurt circles: the nearest opposing fighter in Battle
+    # (its snapshot position), the cursor in Solo (no damage there).
+    hurts = []
+    if world.battle_mode and world.partner_figures:
+        best = None
+        pgone = getattr(world, "partner_gone", None) or []
+        pscale = getattr(world, "partner_scale", None) or []
+        for idx, pf in enumerate(world.partner_figures):
+            d = (pf[0] - fig.x) ** 2 + (pf[1] - fig.y) ** 2
+            if best is None or d < best[0]:
+                best = (d, pf)
+            if idx < len(pgone) and pgone[idx]:
+                continue    # blinked out: nothing can hit it
+            bs = pscale[idx] if idx < len(pscale) else 1.0   # its character scale
+            hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS) * bs, (pf[0], pf[1])))
+        target = (best[1][0], best[1][1])
+        # Its chosen target (FX Studio Targeting, laser/targeting.py).
+        ti = world.target_index(fig) if hasattr(world, "target_index") else -1
+        if 0 <= ti < len(world.partner_figures):
+            target = tuple(world.partner_figures[ti][:2])
+        # A Black Ox Effigy taunting this fighter (laser/summoner.py).
+        from . import unique as _uq
+        taunt = _uq.taunt_point(world, fig.x, fig.y)
+        if taunt is not None:
+            target = taunt
+    else:
+        target = tuple(world.cursor)
+    return target, hurts
+
+
 class FxDriver:
     """Per-figure FX playback for an image character with an FX file."""
 
@@ -4035,34 +4079,7 @@ class FxDriver:
             self.t_prev = self.t
             self.t = min(max(self.t + 1, f0), f1)
         self.frame = frame
-        # Target and hurt circles: the nearest opposing fighter in Battle
-        # (its snapshot position), the cursor in Solo (no damage there).
-        hurts = []
-        if world.battle_mode and world.partner_figures:
-            best = None
-            pgone = getattr(world, "partner_gone", None) or []
-            pscale = getattr(world, "partner_scale", None) or []
-            for idx, pf in enumerate(world.partner_figures):
-                d = (pf[0] - fig.x) ** 2 + (pf[1] - fig.y) ** 2
-                if best is None or d < best[0]:
-                    best = (d, pf)
-                if idx < len(pgone) and pgone[idx]:
-                    continue    # blinked out: nothing can hit it
-                bs = pscale[idx] if idx < len(pscale) else 1.0   # its character scale
-                hurts.append((pf[0], pf[1], float(config.PROJ_HIT_RADIUS) * bs, (pf[0], pf[1])))
-            self.target = (best[1][0], best[1][1])
-            # Its chosen target (FX Studio Targeting, laser/targeting.py).
-            ti = world.target_index(fig) if hasattr(world, "target_index") else -1
-            if 0 <= ti < len(world.partner_figures):
-                self.target = tuple(world.partner_figures[ti][:2])
-            # A Black Ox Effigy taunting this fighter (laser/summoner.py).
-            from . import unique as _uq
-            taunt = _uq.taunt_point(world, fig.x, fig.y)
-            if taunt is not None:
-                self.target = taunt
-        else:
-            self.target = tuple(world.cursor)
-        self.hurts = hurts
+        self.target, self.hurts = aim_for(fig, world)
         host = _Host(self, fig, world)
         self.host = host
         cfg = self.cfx.settings.get(action) or normalize_action({})
@@ -4345,16 +4362,23 @@ def update_figure(fig, world, hold=None, frozen=False):
     """CombatSystem hook: tick this figure's FX (no-op without an FX file).
     hold: see FxDriver.update (FX Studio blink / Time control).
     frozen: Time control stopped this figure's FX this step."""
+    from . import escort as _escort
     cfx = character_fx(fig.mode)
     drv = getattr(fig, "fx", None)
     if cfx is None:
         if drv is not None:
             fig.fx = None
+        _escort.tick(fig, world, frozen)   # escorts guarding a fighter with no FX file
         return
     if drv is None or drv.cfx is not cfx:
         drv = FxDriver(cfx)
         fig.fx = drv
     drv.update(fig, world, hold, frozen)
+    # Escort FX (fx.escort): this tick's new copies leave the caster's lanes
+    # for a world escort, then every escort guarding this fighter ticks
+    # (in this side's pass, so its guards catch this side's enemy shots).
+    _escort.adopt(fig, world, drv)
+    _escort.tick(fig, world, frozen)
     hits = drv.take_hits()
     if hits and world.battle_mode:
         world.queue_fx_hits(hits)
