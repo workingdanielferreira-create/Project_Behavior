@@ -30,6 +30,7 @@ from . import camera as _camera
 from .prebattle import PreBattleMenu
 from . import roster as _roster
 from . import tag as _tag
+from . import escort as _escort
 from . import hpbars
 from . import targeting as _targeting
 from . import platform_win as win
@@ -254,6 +255,9 @@ class World:
         # Tag pairs (laser/tag.py) are rebuilt from it by apply_roster.
         self.slots = _roster.load(assets.dir, modes.ordered_modes())
         self.tag_pairs = []
+        # Escort FX (laser/escort.py): effects guarding an ally, outliving
+        # their action and the caster being benched.
+        self.escorts = []
         self.apply_roster(reset=True)
         if not any(s.figures for s in self.sides):
             self.slots = _roster.default_slots(modes.ordered_modes())
@@ -418,6 +422,7 @@ class World:
             # Destructible terrain (laser/terrain.py): a fresh round re-raises
             # the pillars and clears the rubble.
             terrain.reset(self)
+            _escort.reset(self)
         old = list(getattr(self, "slots", None) or [])
         old_figs = [s.fig for s in old if s.fig is not None]
         if slots is not None:
@@ -1472,6 +1477,12 @@ class Overlay(QWidget):
             _tag.step(w)
         except Exception as e:
             action_log.crash("tag", e)
+        # Escort FX (laser/escort.py): who each escort guards after the
+        # Switch (the pair's on-field fighter, else the caster).
+        try:
+            _escort.step(w)
+        except Exception as e:
+            action_log.crash("escort", e)
         w.refresh_battle()
         # FX Studio Time control: each figure's body / FX time scale this
         # tick (None = no time effect running anywhere).
@@ -1697,6 +1708,7 @@ class Overlay(QWidget):
         for fig in self.world.all_figures():
             if fig.fx is not None:
                 fig.fx.draw(p, fig, layer)
+            _escort.draw(p, fig, layer)   # escort FX guarding it (laser/escort.py)
 
     def _paint_ball(self, p, cam):
         """A normal frame on the big ball (laser/ballwarp.py), three passes:

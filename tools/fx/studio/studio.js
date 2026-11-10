@@ -2138,6 +2138,23 @@ function buildProps() {
       if (fx.prim !== "particles") dragFields(s, fx, I);
     }
 
+    // Escort (laser/escort.py): the effect leaves the caster and guards an ally.
+    if (fx.prim !== "weapon") {
+      s = sec(d, "Escort", "escort", "Escort ally: once cast, this effect leaves the caster and guards its tag partner — whichever of the pair is on the field — for Escort ms, carrying over on a Switch.");
+      var E = fx.escort;
+      field(s, "Escort ally", inp("chk", E.enabled, function (v) { E.enabled = v; changed(true); })).title =
+        "On: in the game every copy of this effect, once cast, is handed to an escort that guards the caster's tag pair's ON-FIELD fighter: the caster while it is in, the incoming partner after a Switch (also a KO switch). " +
+        "It stays on that fighter (its anchor is the fighter's centre; Offset still applies) and aims at that fighter's target, for Escort ms, even after the action ends or the caster is benched. " +
+        "With no standing tag partner (Solo, a single fighter, partner KO'd) it guards the caster at reduced Contact.";
+      if (E.enabled) {
+        field(s, "Escort ms", inp("n", E.ms, function (v) { E.ms = Math.max(0, v); changed(); }, 0, 600000, 100)).title =
+          "How long each copy lives once cast, wherever it is. It also ends early if no one is left to guard.";
+        field(s, "No-partner Contact %", inp("n", E.solo_contact_pct, function (v) { E.solo_contact_pct = Math.max(0, v); changed(); }, 0, 100, 1)).title =
+          "Guard / tracker Contact (Intercept) with no tag partner, as % of the full Contact: 50 = half the catch reach.";
+        note(s, "Stage preview = the no-partner case (the Studio has no tag partner): it plays on the fighter for Escort ms at No-partner Contact %. Give it an Intercept guard (a ribbon with Intercept on) to catch enemy shots.");
+      }
+    }
+
     s = sec(d, "Flip & direction", "flip", "Flip: mirror left \u2194 right to whichever side the target is on. Follow direction: turn toward the target at any angle.");
     var F = fx.flip;
     if (fgr) note(s, "Shared by every effect in group \"" + fgr.name + "\", so the group mirrors and turns as one piece.");

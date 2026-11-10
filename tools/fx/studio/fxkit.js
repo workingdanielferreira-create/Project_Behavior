@@ -493,6 +493,13 @@ var BATTLE_DEFAULTS = {deals_damage: false, damage: 1, pierce: false, rehit_tick
 var INTERCEPT_DEFAULTS = {enabled: false, radius: 90, turn_deg: 10, contact: 10, mode: "block",
   deflect_who: "enemy", hurts_owner: false, drag: false, drag_pct: 100, drag_deg: 90, drag_every: 10};
 var INTERCEPT_MODES = ["block", "deflect", "destroy", "absorb"];
+// Escort (fx.escort, laser/escort.py): the effect's copies leave the caster
+// and guard an ally - the caster's tag pair's on-field fighter, carried over
+// on a Switch - for `ms`, outliving the action.  With no standing tag
+// partner they guard the caster with guard / tracker Contact cut to
+// solo_contact_pct %.  The Studio has no tag partner, so it previews that:
+// on the fighter, for ms, at solo_contact_pct % Contact.
+var ESCORT_DEFAULTS = {enabled: false, ms: 6000, solo_contact_pct: 50};
 // absorb: an enemy projectile this one out-knocks by MORE than
 // ABSORB_LEAD_KB is swallowed (gone, no blast) and this one grows
 // ABSORB_STEP (size, hit size, blast, damage, knockback) up to ABSORB_MAX;
@@ -1519,6 +1526,7 @@ function normalize(fx) {
   fx.battle = fill(fx.battle || {}, BATTLE_DEFAULTS);
   fx.intercept = fill(fx.intercept || {}, INTERCEPT_DEFAULTS);
   if (INTERCEPT_MODES.indexOf(fx.intercept.mode) < 0) fx.intercept.mode = INTERCEPT_DEFAULTS.mode;
+  fx.escort = fill(fx.escort || {}, ESCORT_DEFAULTS);
   fx.flip = fill(fx.flip || {}, FLIP_DEFAULTS);
   fx.flip.facing = +fx.flip.facing < 0 ? -1 : 1;
   fx.follow_dir = !!fx.follow_dir;
@@ -2284,7 +2292,7 @@ function interceptStep(inst, host) {
   if (inst.free) { straightStep(inst); return true; }   // deflected: flies straight on
   var fx = inst.fx;
   if (!interceptOn(fx) || isGuard(fx) || isKiTracker(fx)) return false;
-  var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips;
+  var I = fx.intercept, ips = inst.ps || 1, contact = Math.max(0, +I.contact || 0) * ips * (inst.escK == null ? 1 : inst.escK);
   var hit = contactShot(inst, host, contact, I.mode);
   if (hit) {
     hit.dead = true;
@@ -2335,7 +2343,7 @@ function guardReflect(inst, s) {
 // counts too).  laser/fxkit.py guard_step.
 function guardStep(inst, host) {
   var I = inst.fx.intercept, mode = GUARD_MODES.indexOf(I.mode) >= 0 ? I.mode : "block";
-  var contact = Math.max(0, +I.contact || 0) * (inst.ps || 1), head = [inst.px, inst.py, inst.x, inst.y];
+  var contact = Math.max(0, +I.contact || 0) * (inst.ps || 1) * (inst.escK == null ? 1 : inst.escK), head = [inst.px, inst.py, inst.x, inst.y];
   var shots = host.shots || [], kb = instKnockback(inst);
   for (var i = 0; i < shots.length; i++) {
     var s = shots[i]; if (s.dead || shotGone(s) || !shotTakes(s, mode, kb)) continue;
@@ -2982,6 +2990,11 @@ Player.prototype.tick = function (effects, host, t, frames, frameMs, opts) {
       inst.src = j.fx; inst.t0 = t0; inst.fms = j.fms;
       if (j.tag === "cont") { inst.cont = true; inst.win = inst.life; inst.life = Infinity; }
       else { inst.open = j.tag === "open"; inst.run = j.tag === "run"; }
+      if (j.fx.escort && j.fx.escort.enabled) {   // Escort: lives ms, at the no-partner Contact (laser/escort.py adopt)
+        inst.cont = inst.open = inst.run = false;
+        inst.life = Math.max(1, Math.round((+j.fx.escort.ms || 0) / TICK_MS));
+        inst.escK = Math.max(0, +j.fx.escort.solo_contact_pct) / 100;
+      }
       self.insts.push(inst);
     }
   }
@@ -3077,7 +3090,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   PRIMS: PRIMS, MOTIONS: MOTIONS, RETURN_STYLES: RETURN_STYLES, AIMS: AIMS, PARAM_DEFAULTS: PARAM_DEFAULTS,
   TECH_STYLES: TECH_STYLES, TECH_STYLE_DEFAULTS: TECH_STYLE_DEFAULTS, segDist: segDist, colorPair: colorPair,
   MOTION_DEFAULTS: MOTION_DEFAULTS, COLOR_DEFAULTS: COLOR_DEFAULTS, BATTLE_DEFAULTS: BATTLE_DEFAULTS,
-  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
+  INTERCEPT_DEFAULTS: INTERCEPT_DEFAULTS, ESCORT_DEFAULTS: ESCORT_DEFAULTS, FLIP_DEFAULTS: FLIP_DEFAULTS, flipSign: flipSign, fxFacing: fxFacing, shotNearest: shotNearest, bodyDeg: bodyDeg, placeDeg: placeDeg, rot: rot, turnBy: turnBy, INTERCEPT_MODES: INTERCEPT_MODES, canIntercept: canIntercept, interceptOn: interceptOn, isGuard: isGuard, isKiTracker: isKiTracker, orbContact: orbContact, orbNearest: orbNearest, deflectVels: deflectVels, guardOn: guardOn, isChargedBlast: isChargedBlast, dragOn: dragOn, dragFront: dragFront, instKnockback: instKnockback, absorbGrow: absorbGrow, absorbBeats: absorbBeats, ABSORB_STEP: ABSORB_STEP, ABSORB_MAX: ABSORB_MAX, ABSORB_LEAD_KB: ABSORB_LEAD_KB, GUARD_MODES: GUARD_MODES, instBody: instBody, fxKnockback: fxKnockback, beamReach: beamReach, arcSegs: arcSegs, lifeT: lifeT,
   newEffect: newEffect, normalize: normalize, normalizeEntrySet: normalizeEntrySet, normalizePath: normalizePath,
   ENTRY_DEFAULTS: ENTRY_DEFAULTS, ENTRY_ORDERS: ENTRY_ORDERS, PATH_DEFAULTS: PATH_DEFAULTS, pathLine: pathLine, pathAt: pathAt, pathMatrix: pathMatrix, pathWorldPoints: pathWorldPoints, pathLegs: pathLegs, pathPos: pathPos, pathAnchorPos: pathAnchorPos, pathAnchored: pathAnchored, canContinue: canContinue, isContinuous: isContinuous, CONDITION_TYPES: CONDITION_TYPES, ACTION_DEFAULTS: ACTION_DEFAULTS, LEAP_DEFAULTS: LEAP_DEFAULTS, leapFrac: leapFrac, leapHeight: leapHeight, leapDamage: leapDamage, TRAVEL_MOVES: TRAVEL_MOVES, travelPlan: travelPlan, travelAt: travelAt, travelGuide: travelGuide, travelLegAt: travelLegAt, bfPoints: bfPoints, bfSequence: bfSequence, BF_ORDERS: BF_ORDERS, AIM_DEFAULTS: AIM_DEFAULTS, normalizeAim: normalizeAim, aimAngle: aimAngle,
   DAMAGED_DEFAULTS: DAMAGED_DEFAULTS, normalizeDamaged: normalizeDamaged,

@@ -33,6 +33,8 @@ function eRng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+// Vigil Escort's escort settings (fx.escort, laser/escort.py).
+var VIGIL = {enabled: true, ms: 6000, solo_contact_pct: 50};
 G.FX_PRESETS = [
   {name: "Laser trail", group: "Trails", desc: "TrailComponent: TRAIL_LEN 50, W 1→5, flow 0.008, glow/dot 1",
    effects: [{prim: "ribbon", name: "Laser trail", tag: "trail", anchor: "figure", offset: [-8, 6],   // TRAIL_BACK / TRAIL_DOWN
@@ -1106,20 +1108,21 @@ G.FX_PRESETS = [
      ].concat(out);
    })()},
 
-  // Vigil Escort: a ring of eight swords circles the fighter, and two
-  // guarding ribbons ride the same orbit (a ribbon with Intercept on is a
-  // guard): any enemy shot crossing a guard head is deflected away harmlessly.
-  // It guards the fighter it is on; tick ∞ Always on for a standing escort.
-  // (Guarding the tag partner / carrying over on a switch / half strength
-  // with no partner need engine support.)
-  {name: "Vigil Escort", group: "Ethereal", desc: "A ring of swords circles the fighter and flicks enemy shots away (two orbiting guard ribbons deflect anything that crosses them; visual ring of eight swords)",
+  // Vigil Escort: a ring of eight swords and two guarding ribbons on the
+  // same orbit (a ribbon with Intercept on is a guard: any enemy shot
+  // crossing a guard head is deflected away harmlessly).  Every part is an
+  // Escort (laser/escort.py): for 6 s it guards the caster's tag pair's
+  // on-field fighter and carries over to the incoming partner on a Switch;
+  // with no tag partner it guards the caster at half Contact.  Put it on
+  // switch_out and the swords leave the caster for the partner.
+  {name: "Vigil Escort", group: "Ethereal", desc: "A ring of swords guards the tag partner on the field for 6 s (carried over on a Switch) and flicks enemy shots away; with no partner it guards the caster at half catch reach",
    effects: [
-     {prim: "glow", name: "Vigil ward", tag: "blade", anchor: "figure", motion: {kind: "attached"}, layer: "behind", blend: "additive",
+     {prim: "glow", name: "Vigil ward", tag: "blade", anchor: "figure", motion: {kind: "attached"}, layer: "behind", blend: "additive", escort: VIGIL,
       color: {mode: "solid", c1: "#4f6dff"}, params: {r_start: 30, r_end: 34, a_center: 40, a_mid: 18, mid: 0.5, core_r: 0, fade: "none", pulse_hz: 1.5}},
-     {prim: "sprite", name: "Vigil ring", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 8}, blend: "additive",
+     {prim: "sprite", name: "Vigil ring", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 8}, blend: "additive", escort: VIGIL,
       motion: {kind: "orbit", orbit_rx: 46, orbit_ry: 16, orbit_deg: 3, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#b8ccff"},
       params: eBlade({radius: 1.5, stretch: 7, hot: false, glow: 80, glow_size: 80})},
-     {prim: "ribbon", name: "Vigil guard", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 2}, blend: "additive",
+     {prim: "ribbon", name: "Vigil guard", tag: "blade", anchor: "figure", offset: [0, -24], emit: {count: 2}, blend: "additive", escort: VIGIL,
       motion: {kind: "orbit", orbit_rx: 46, orbit_ry: 16, orbit_deg: 3, orbit_dir: "clockwise"}, color: {mode: "solid", c1: "#c4d3ff"},
       intercept: {enabled: true, radius: 90, turn_deg: 10, contact: 14, mode: "deflect", deflect_who: "enemy", hurts_owner: false},
       params: {max_points: 10, min_dist: 2, decay: 3, taper: true, w_tail: 1, w_head: 4, alpha: 170, head_glow_r: 3, head_dot_r: 1}}

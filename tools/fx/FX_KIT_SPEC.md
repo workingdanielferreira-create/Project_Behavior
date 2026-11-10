@@ -974,6 +974,39 @@ FX Studio shows it as the **Intercept** section.
 - **Parity:** `fxkit.js interceptStep` and `fxkit.py intercept_step` produce
   identical positions and events.
 
+## 5c-2. Escort (`escort`) — guard an ally
+
+```json
+"escort": {"enabled": false, "ms": 6000, "solo_contact_pct": 50}
+```
+
+Any effect but `weapon`. FX Studio shows it as the **Escort** section.
+
+- **Who.** Once cast, every copy of the effect leaves the caster and is
+  handed to a world escort (`laser/escort.py`) that guards the caster's tag
+  pair's **on-field** fighter: the caster while it is in, the incoming
+  partner after a Switch (a KO switch too). Placed on that fighter (every
+  anchor = its centre, the effect's Offset still applied), aiming at that
+  fighter's target, in the caster's colours, drawn with that fighter.
+- **How long.** Each copy lives `ms` from the cast, wherever it is: it
+  outlives the action and the caster being benched. It ends early when no
+  one is left to guard (the guarded fighter down with no partner to take
+  over, or off the field / roster). Not reset by the action replaying:
+  every cast is its own escort.
+- **No partner** (Solo, a single fighter, partner KO'd): it guards the
+  caster with guard / tracker Contact (§5c) cut to `solo_contact_pct` %
+  (`Inst.esc_k` / `inst.escK`). Solo and Battle run the same rule.
+- **Hits** its copies land go to the guarded fighter's side (the caster's
+  team), with the caster's damage multipliers; interceptions are applied at
+  the source as usual (`_Host.on_intercept`), deflected copies stay with the
+  escort.
+- **Engine:** `fxkit.update_figure` → `escort.adopt` (that tick's new copies
+  leave the caster's lanes; `life = age + ms`, not open / continuous) and
+  `escort.tick` (escorts guarding the fighter being updated, in its side's
+  pass); `escort.step` once per tick after `tag.step` re-picks the guarded
+  fighter. **Studio preview** = the no-partner case: on the fighter, for
+  `ms`, at `solo_contact_pct` % Contact (`Player` spawnJob).
+
 ## 5d. Flip (`flip`) and Follow direction (`follow_dir`)
 
 Every effect except the weapon hitbox. FX Studio shows both in the **Flip &
