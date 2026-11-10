@@ -53,6 +53,11 @@ and lean outward by atan2(cos lat sin lon, 1 + sin lat).
 The ground layers are painted into offscreen images and redrawn as
 planet_ball_cols x planet_ball_bands affine cells (bands spread over the
 bending latitudes; the flat part and below the row are one band each).
+Only cells whose source holds something are redrawn (an exact zero-bytes
+test per 16-row block), plus every later cell whose screen box overlaps one
+of them (Source-mode overlaps), and only the boxes drawn last frame are
+cleared: empty ground costs nothing and the picture is byte-identical to
+redrawing every cell.
 Drawing only: hit tests, walls, targeting and the battle snapshots stay in
 plain screen coordinates.  The mouse cursor is mapped back (unwarp ->
 Camera.screen_to_world).  The HUD is drawn after it, flat.  Solo + Battle.
@@ -63,6 +68,8 @@ import math
 _HALF_PI = math.pi * 0.5
 LAT_MAX = math.radians(89.0)     # cells stop just short of the pole
 D_MIN = 0.02                     # smallest band depth (a near-flat world)
+CONTENT_ROWS = 16                # device rows per block of the empty-space test
+CELL_MARGIN = 14.0               # px round a cell's source checked for content (> any pad, 12)
 
 
 class BallWarp:
@@ -73,7 +80,10 @@ class BallWarp:
         self.head = 0           # px of room painted above the screen (ground reaches the pole)
         self._key = None
         self._cells = []
+        self._prep = None       # (dpr, per-cell paint data) for _cells
         self._imgs = {}
+        self._dirty = {}        # image key -> device box drawn since its last clear (None = unknown)
+        self._zeros = {}        # bytes-per-line -> a block of zero bytes (empty-row test)
 
     # --- per frame ----------------------------------------------------
     def setup(self, cam, sw, sh):
@@ -246,24 +256,87 @@ class BallWarp:
     def image(self, w, h, dpr, slot=0):
         """A reused offscreen image (cleared); one per slot (ground / air),
         head px taller than the screen: paint into it translated down by
-        self.head (the room above the screen)."""
+        self.head (the room above the screen).  Only the part that held
+        something last frame is cleared (the rest is still transparent)."""
         return self._img(("src", slot), w, h + self.head, dpr)
 
     def _img(self, key, w, h, dpr):
-        from PyQt5.QtGui import QImage
-        from PyQt5.QtCore import Qt
+        """A reused image for key, transparent on return.  A fresh one is
+        filled; a reused one has only its last dirty box cleared
+        (self._dirty[key], device px: whatever was drawn into it since)."""
+        from PyQt5.QtGui import QImage, QPainter
+        from PyQt5.QtCore import Qt, QRect
         iw, ih = max(1, int(round(w * dpr))), max(1, int(round(h * dpr)))
         img = self._imgs.get(key)
         if img is None or img.width() != iw or img.height() != ih:
             img = QImage(iw, ih, QImage.Format_ARGB32_Premultiplied)
             self._imgs[key] = img
-        img.setDevicePixelRatio(dpr)
-        img.fill(Qt.transparent)
+            img.setDevicePixelRatio(dpr)
+            img.fill(Qt.transparent)
+        else:
+            img.setDevicePixelRatio(dpr)
+            box = self._dirty.get(key, ())
+            if box is None:
+                img.fill(Qt.transparent)
+            elif box:
+                q = QPainter(img)
+                q.setCompositionMode(QPainter.CompositionMode_Clear)
+                q.resetTransform()
+                q.fillRect(QRect(box[0], box[1], box[2] - box[0], box[3] - box[1]), Qt.transparent)
+                q.end()
+        # Unknown until scanned / drawn: clear it all next time.
+        self._dirty[key] = None
         return img
+
+    def _content(self, img):
+        """Where the layer image holds anything: per CONTENT_ROWS-row block
+        of device rows, (x_lo, x_hi) device px of the painted pixels, or
+        None when the block is empty.  Exact: a transparent premultiplied
+        pixel is all zero bytes, so whole blocks and rows are compared
+        against zeros (memcmp) and only rows with something in them are
+        measured.  Also returns the bounding box for the next clear."""
+        bpl, ih = img.bytesPerLine(), img.height()
+        ptr = img.constBits()
+        ptr.setsize(bpl * ih)
+        data = ptr.asstring()
+        n = CONTENT_ROWS
+        bz = self._zeros.get(bpl)
+        if bz is None:
+            bz = self._zeros[bpl] = bytes(bpl * n)
+        rz = bz[:bpl]
+        blocks = []
+        x0 = y0 = 1 << 30
+        x1 = y1 = -1
+        for b0 in range(0, ih, n):
+            a, e = b0 * bpl, min(ih, b0 + n) * bpl
+            if data[a:e] == bz[:e - a]:
+                blocks.append(None)
+                continue
+            lo, hi = bpl, 0
+            for r in range(a, e, bpl):
+                row = data[r:r + bpl]
+                if row == rz:
+                    continue
+                y = r // bpl
+                if y < y0:
+                    y0 = y
+                y1 = y
+                lo = min(lo, bpl - len(row.lstrip(b"\0")))
+                hi = max(hi, len(row.rstrip(b"\0")))
+            lo, hi = lo // 4, (hi + 3) // 4
+            blocks.append((lo, hi))
+            x0, x1 = min(x0, lo), max(x1, hi)
+        box = (x0, y0, x1, y1 + 1) if y1 >= 0 else ()
+        return blocks, box
 
     def paint(self, p, img, cfg, dpr, slot=0):
         """Draw a ground image bent onto the ball through QPainter p (whose
-        transform is the plain screen)."""
+        transform is the plain screen).  Only cells whose source (with a
+        margin wider than any cell's pad) holds something are redrawn, only
+        the box drawn last time is cleared and only the box drawn now is
+        put on screen: empty ground costs nothing, and the picture is the
+        same as redrawing every cell (an empty cell only writes
+        transparent pixels where its neighbours would write the same)."""
         from PyQt5.QtCore import QRectF
         from PyQt5.QtGui import QPainter
         if self.geo is None:
@@ -273,8 +346,37 @@ class BallWarp:
         if key != self._key:
             self._cells = self._build(cols, bands)
             self._key = key
+            self._prep = None
+        hd = self.head
+        if self._prep is None or self._prep[0] != dpr:
+            # Per cell: transform, dest rect, source rect (device px), the
+            # source's device box grown by CELL_MARGIN, and its screen bounds.
+            m = CELL_MARGIN * dpr + 2.0
+            prep = []
+            for t, r in self._cells:
+                src = QRectF(r.x() * dpr, (r.y() + hd) * dpr, r.width() * dpr, r.height() * dpr)
+                bx0 = int(math.floor(src.x() - m))
+                by0 = int(math.floor(src.y() - m))
+                bx1 = int(math.ceil(src.x() + src.width() + m))
+                by1 = int(math.ceil(src.y() + src.height() + m))
+                d = t.mapRect(r)
+                prep.append((t, r, src, bx0, by0, bx1, by1,
+                             d.x(), d.y(), d.x() + d.width(), d.y() + d.height()))
+            # Top of each band's screen boxes (for the overlap search).
+            bands_y = [min(c[8] for c in prep[j:j + cols]) for j in range(0, len(prep), cols)]
+            self._prep = (dpr, prep, bands_y)
+        blocks, box = self._content(img)
+        self._dirty[("src", slot)] = box
         sw, sh = self.geo[6], self.geo[7]
-        out = self._img(("out", slot), sw, sh, dpr)
+        okey = ("out", slot)
+        out = self._img(okey, sw, sh, dpr)
+        if not box:
+            self._dirty[okey] = ()
+            return
+        n = CONTENT_ROWS
+        nb = len(blocks)
+        ux0 = uy0 = 1e18
+        ux1 = uy1 = -1e18
         q = QPainter(out)
         try:
             # Hard cell edges + Source mode: overlapping cells replace each
@@ -282,11 +384,59 @@ class BallWarp:
             q.setCompositionMode(QPainter.CompositionMode_Source)
             q.setRenderHint(QPainter.Antialiasing, False)
             q.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            hd = self.head
-            for t, r in self._cells:
+            prep = self._prep[1]
+            # Cells whose source holds something ...
+            hits = [False] * len(prep)
+            for k, c in enumerate(prep):
+                bx0, by0, bx1, by1 = c[3], c[4], c[5], c[6]
+                for bi in range(max(0, by0 // n), min(nb, by1 // n + 1)):
+                    ext = blocks[bi]
+                    if ext is not None and ext[0] < bx1 and ext[1] > bx0:
+                        hits[k] = True
+                        break
+            # ... plus every LATER cell whose screen box overlaps one of
+            # them: drawn after it, an empty cell writes transparent pixels
+            # over the overlap (Source mode), so it is redrawn too and the
+            # picture stays exactly the full redraw.  Earlier cells are
+            # painted over by the content cell anyway.  Bands run top down,
+            # so the search stops at the first band entirely below the cell
+            # (near the pole, where columns pinch together, it reaches far).
+            draw = hits[:]
+            bands_y = self._prep[2]
+            nband = len(bands_y)
+            for k, h in enumerate(hits):
+                if not h:
+                    continue
+                c = prep[k]
+                ax0, ay0, ax1, ay1 = c[7], c[8], c[9], c[10]
+                j = k // cols
+                while j < nband and bands_y[j] <= ay1:
+                    for kk in range(max(k + 1, j * cols), min(len(prep), (j + 1) * cols)):
+                        if draw[kk]:
+                            continue
+                        e = prep[kk]
+                        if e[7] < ax1 and e[9] > ax0 and e[8] < ay1 and e[10] > ay0:
+                            draw[kk] = True
+                    j += 1
+            for k, (t, r, src, _bx0, _by0, _bx1, _by1, dx0, dy0, dx1, dy1) in enumerate(prep):
+                if not draw[k]:
+                    continue
                 q.setTransform(t)
-                q.drawImage(r, img, QRectF(r.x() * dpr, (r.y() + hd) * dpr,
-                                           r.width() * dpr, r.height() * dpr))
+                q.drawImage(r, img, src)
+                ux0, uy0 = min(ux0, dx0), min(uy0, dy0)
+                ux1, uy1 = max(ux1, dx1), max(uy1, dy1)
         finally:
             q.end()
-        p.drawImage(QRectF(0.0, 0.0, sw, sh), out)
+        if ux1 < ux0:
+            self._dirty[okey] = ()
+            return
+        # The screen box drawn (logical px, clipped, whole device px).
+        ux0, uy0 = max(0.0, math.floor(ux0 * dpr) / dpr), max(0.0, math.floor(uy0 * dpr) / dpr)
+        ux1, uy1 = min(sw, math.ceil(ux1 * dpr) / dpr), min(sh, math.ceil(uy1 * dpr) / dpr)
+        if ux1 <= ux0 or uy1 <= uy0:
+            self._dirty[okey] = ()
+            return
+        self._dirty[okey] = (int(round(ux0 * dpr)), int(round(uy0 * dpr)),
+                             int(round(ux1 * dpr)), int(round(uy1 * dpr)))
+        rect = QRectF(ux0, uy0, ux1 - ux0, uy1 - uy0)
+        p.drawImage(rect, out, QRectF(ux0 * dpr, uy0 * dpr, (ux1 - ux0) * dpr, (uy1 - uy0) * dpr))
