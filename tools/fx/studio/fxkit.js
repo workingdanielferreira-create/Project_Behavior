@@ -291,7 +291,9 @@ function bladeLodge(inst, hx, hy, hr, ps) {
 }
 // Each tick a lodged blade follows the hurt circle nearest where its target
 // last was (within 200 px x scale); with none (target gone) it stays put.
+// A blade planted in the ground (bladePlant) never moves.
 function bladeFollow(inst, hurts, ps) {
+  if (inst.lodge.g) { inst.px = inst.x; inst.py = inst.y; return; }
   var lg = inst.lodge, best = null, bd = 200 * ps * 200 * ps;
   hurts.forEach(function (q) { var dx = q[0] - lg.hx, dy = q[1] - lg.hy, d = dx * dx + dy * dy; if (d <= bd) { bd = d; best = q; } });
   if (best) { lg.hx = best[0]; lg.hy = best[1]; }
@@ -311,8 +313,14 @@ var PARAM_DEFAULTS = {
   beam: {length: 200, w_start0: 6, w_start1: 6, w_end0: 2, w_end1: 2, segments: 1, glow: 0, glow_color: "", pulse_hz: 0, jitter: 0, detach_ticks: 0, grow_ticks: 0, tip_fade: 0, pos_scale: false},
   // Blade only: lodge_ms = how long a non-piercing blade stays stuck in the target it hits (0 = it ends on the hit);
   // blade_orient motion = the tip points where it moves, angle = it holds blade_angle_deg (0 = right, 90 = down; Flip mirrors it).
+  // Anime blade extras (blade only, all off by default; see bladeExtrasStep): spawn_style portal = a ripple portal pops
+  // open and the blade slides out of it tip-first over spawn_ms (Gate of Babylon), flash = it flashes into being; no hits
+  // while spawning.  flare = a lens-flare head and a tracer while it flies, bigger the instant it launches.  plant_on
+  // target / figure = it sticks upright in the ground plant_px below that anchor (fixed at spawn) when it comes down to it,
+  // for plant_ms.
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100, lodge_ms: 1500,
-           blade_orient: "motion", blade_angle_deg: 90},
+           blade_orient: "motion", blade_angle_deg: 90,
+           spawn_style: "none", spawn_ms: 300, flare: false, plant_on: "off", plant_px: 28, plant_ms: 2500},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
   // Radial pulse: rings that expand from r_start to r_end over expand_ms
@@ -1437,7 +1445,7 @@ function moveFactor(name, cfg) {
 // distance multiplied by the ratio (laser/fxkit.py rescale_effects).
 var STAND_HEIGHT_PX = 28;
 var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"], arc: ["radius", "width", "back", "lead"],
-  beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius"],
+  beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius", "plant_px"],
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
   pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"],
   technique: ["radius", "thickness", "length"]};
@@ -1577,7 +1585,9 @@ function keyableValue(v) { return (typeof v === "number" && isFinite(v)) || (typ
 // in-between), and instances already alive switch with it (motionSwitch):
 // an orbit keyed to travel launches from where it is.
 var KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
-  "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"]};
+  "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"],
+  // A blade held at an angle can be keyed to point along its flight (wing fan -> aim -> launch, the Ethereal presets).
+  "params.blade_orient": ["motion", "angle"]};
 function keyableAt(path, v) { return keyableValue(v) || (KEY_CHOICES[path] ? KEY_CHOICES[path].indexOf(v) >= 0 : false); }
 function getPath(fx, path) {
   var i = path.indexOf("."), a = i < 0 ? path : path.slice(0, i), b = i < 0 ? null : path.slice(i + 1);
@@ -1894,6 +1904,9 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
     hits: 0, lastHit: -1e9, ep: ep == null ? null : ep, ps: hostScale(host), tgt: aimTarget(fx, host),
     bm: 0, bmD: 0, bmV: 0, bmT: 0};   // boomerang: 0 out / 1 back, px flown out, speed back (reverse), ticks back
   var ps = inst.ps;   // the figure's size when fired: what is launched keeps it
+  // Anime blade extras (bladeExtrasStep): portal spot (null = not placed) and the age it launched from it (-1 = still
+  // in it), ticks in flight for the flare (-1 = not flying), ground line y for planting (null = off).
+  inst.spX = null; inst.spY = null; inst.spT = -1; inst.flT = -1; inst.plantY = bladePlantY(fx, host, ps);
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
   var spd = +m.speed || 0;
@@ -2365,6 +2378,7 @@ function tickInst(inst, host) {
   else if (active) {
     if (fx.prim === "sprite" || fx.prim === "beam") { inst.trail.push([inst.x, inst.y]); if (inst.trail.length > Math.max(0, trunc(P.trail_len || 0))) inst.trail.shift(); }
     if (!interceptStep(inst, host)) moveInst(inst, host);
+    bladeExtrasStep(inst, host);   // portal / flare / planting (blades only)
   }
   inst.flow = (inst.flow + (+fx.color.flow_speed || 0)) % 1;
   if (fx.prim === "ribbon") {   // TrailComponent.update (path_follow = False)
@@ -2563,12 +2577,158 @@ DRAW.beam = function (g, inst, host, ps) {   // RichBeamProjectile.draw
     g.strokeStyle = rgba(col, 235 * b.am * q[6]); g.lineWidth = Math.max(1, w); line(g, q[0], q[1], q[2], q[3]);
   });
 };
+// ---------------------------------------------------------------- anime blade extras
+// Daniel 2026-11-10, after Gilgamesh's Gate of Babylon (UBW ep. 24) and Ye Shunguang's sword formation (ZZZ).  Blade
+// params spawn_style / spawn_ms, flare, plant_on / plant_px / plant_ms (all off by default).  laser/fxkit.py has the
+// same maths (blade_extras_step, _draw_portal ...).
+var BLADE_PORTAL_CLOSE_MS = 240, BLADE_PORTAL_IDLE_MS = 600, BLADE_FLARE_BURST_TICKS = 5, BLADE_PLANT_DEPTH = [0.18, 0.3];
+function easeOut2(u) { u = Math.max(0, Math.min(1, u)); return 1 - (1 - u) * (1 - u); }
+// 0..1 through a blade's spawn-in (1 = done, or no spawn-in).
+function bladeSpawnU(inst) {
+  var P = inst.fx.params;
+  if (inst.fx.prim !== "sprite" || P.shape !== "blade" || (P.spawn_style || "none") === "none") return 1;
+  var ms = +P.spawn_ms || 0;
+  return ms <= 0 ? 1 : Math.max(0, Math.min(1, inst.age * TICK_MS / ms));
+}
+// The ground line a planting blade sticks into: plant_px below the target / the fighter when it is spawned (null = never).
+function bladePlantY(fx, host, ps) {
+  var P = fx.params;
+  if (fx.prim !== "sprite" || P.shape !== "blade" || (P.plant_on || "off") === "off" || !(+P.plant_ms > 0)) return null;
+  var o = P.plant_on === "target" ? host.target : host.anchor("figure");
+  return +o[1] + (+P.plant_px || 0) * ps;
+}
+// A falling blade reached its ground line: it sticks in upright (turned up to BLADE_LODGE_JITTER_DEG, sunk
+// BLADE_PLANT_DEPTH of its length), never moves, deals no more damage and fades over the last 300 ms of plant_ms.
+function bladePlant(inst, bx, by, a, ps) {
+  var P = inst.fx.params;
+  a += inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D;
+  var ux = Math.cos(a), uy = Math.sin(a), depth = bladeLength(P, ps) * inst.r.uniform(BLADE_PLANT_DEPTH[0], BLADE_PLANT_DEPTH[1]);
+  var ex = bx, ey = inst.plantY;
+  if (uy > 0.05) { var t = (by - inst.plantY) / uy; ex = bx - ux * t; ey = by - uy * t; }   // back to the ground line
+  var tx = ex + ux * depth, ty = ey + uy * depth, n = Math.max(1, Math.round((+P.plant_ms || 0) / TICK_MS));
+  inst.lodge = {a: a, ox: 0, oy: 0, hx: tx, hy: ty, depth: depth, n: n, g: true};
+  inst.x = tx; inst.y = ty; inst.px = tx; inst.py = ty; inst.vx = 0; inst.vy = 0; inst.trail = [];
+  inst.life = inst.age + n;
+}
+// One tick after the blade moved: its portal spot (follows the pommel until it launches, then stays and closes), ticks
+// in flight (flare) and planting.
+function bladeExtrasStep(inst, host) {
+  var fx = inst.fx, P = fx.params;
+  if (fx.prim !== "sprite" || P.shape !== "blade" || inst.lodge) return;
+  var ps = inst.ps || 1, moving = inst.vx * inst.vx + inst.vy * inst.vy > 0.25, bp;
+  if (P.flare) inst.flT = moving ? (inst.flT >= 0 ? inst.flT + 1 : 0) : -1;
+  if (P.spawn_style === "portal" && inst.spT < 0) {
+    if (!moving || inst.spX == null) {
+      bp = bladePose(inst, ps); var L = bladeLength(P, ps);
+      inst.spX = bp[0] - Math.cos(bp[2]) * L; inst.spY = bp[1] - Math.sin(bp[2]) * L;
+    }
+    if (moving) inst.spT = inst.age;
+  }
+  if (inst.plantY != null && inst.vy > 0.01) {
+    bp = bladePose(inst, ps);
+    if (bp[1] >= inst.plantY) bladePlant(inst, bp[0], bp[1], bp[2], ps);
+  }
+}
+function softDisc(g, cx, cy, r, stops) { if (r <= 0.05) return; g.fillStyle = radial(g, cx, cy, r, stops); g.beginPath(); g.ellipse(cx, cy, r, r, 0, 0, 6.283185307179586); g.fill(); }
+function ringAt(g, x, y, r, col, w) { if (r <= 0) return; g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.ellipse(x, y, r, r, 0, 0, 6.283185307179586); g.stroke(); }
+// A four-point glint (cross of two thin soft ellipses) of radius r.
+function starAt(g, x, y, r, c, a) {
+  if (r <= 0.2 || a <= 1) return;
+  [[1, 0.12], [0.12, 1]].forEach(function (k) {
+    g.save(); g.translate(x, y); g.scale(k[0], k[1]);
+    softDisc(g, 0, 0, r, [[0, rgba([255, 255, 255], Math.min(255, a))], [0.45, rgba(c, a * 0.5)], [1, rgba(c, 0)]]);
+    g.restore();
+  });
+  softDisc(g, x, y, r * 0.3, [[0, rgba([255, 255, 255], Math.min(255, a))], [1, rgba(c, 0)]]);
+}
+function lighter(c) { return [trunc(c[0] + (255 - c[0]) * 0.55), trunc(c[1] + (255 - c[1]) * 0.55), trunc(c[2] + (255 - c[2]) * 0.55)]; }
+// The ripple portal a portal-spawned blade comes out of: pops open small, swells (1.25 x) and throws ripple rings while
+// the blade slides out, settles to a small bright mouth with slow ripples while the blade hangs in it, and closes over
+// BLADE_PORTAL_CLOSE_MS once the blade launches.
+function drawPortal(g, inst, c, ps) {
+  var P = inst.fx.params;
+  if (P.spawn_style !== "portal" || inst.spX == null) return;
+  var rad = Math.max(0.5, +P.radius), R = Math.max(rad * 4.5, bladeLength(P, 1) * 0.3) * ps, u = bladeSpawnU(inst);
+  var rings = [], disc, a, i, ph;
+  if (inst.spT >= 0) {
+    var k = 1 - (inst.age - inst.spT) * TICK_MS / BLADE_PORTAL_CLOSE_MS;
+    if (k <= 0) return;
+    disc = (u >= 1 ? 0.55 : 1.25 - 0.7 * easeOut2((u - 0.3) / 0.7)) * R * k; a = k;
+  } else if (u < 0.3) {
+    var e = u / 0.3; disc = R * (0.2 + 1.05 * easeOut2(e)); a = e;
+  } else if (u < 1) {
+    disc = R * (1.25 - 0.7 * easeOut2((u - 0.3) / 0.7)); a = 1;
+    for (i = 0; i < 3; i++) { ph = ((u - 0.3) / 0.7 * 1.5 + i / 3) % 1; rings.push([disc * (0.6 + 0.9 * ph), 1 - ph]); }
+  } else {
+    disc = R * 0.55; a = 1;
+    var t = inst.age * TICK_MS / BLADE_PORTAL_IDLE_MS;
+    for (i = 0; i < 2; i++) { ph = (t + i / 2) % 1; rings.push([disc * (0.8 + 0.8 * ph), 0.6 * (1 - ph)]); }
+  }
+  var lt = lighter(c), x = inst.spX, y = inst.spY;
+  softDisc(g, x, y, disc, [[0, rgba([255, 255, 255], 230 * a)], [0.35, rgba(lt, 170 * a)], [0.7, rgba(c, 90 * a)], [1, rgba(c, 0)]]);
+  g.lineCap = "round";
+  ringAt(g, x, y, disc * 0.9, rgba(lt, 200 * a), Math.max(1, rad * 0.5 * ps));
+  rings.forEach(function (q) { ringAt(g, x, y, q[0], rgba(c, 160 * q[1] * a), Math.max(1, rad * 0.35 * ps)); });
+}
+// How hard a flaring blade's flare burns: 1 the instant it launches, easing to 0 over BLADE_FLARE_BURST_TICKS (null = none).
+function flareK(inst) {
+  if (!inst.fx.params.flare || !(inst.flT >= 0) || inst.lodge) return null;
+  return Math.max(0, 1 - inst.flT / BLADE_FLARE_BURST_TICKS);
+}
+// A flaring blade's tracer: a soft wide streak and a hot core from mid-blade back along its flight, longer the faster.
+function drawTracer(g, inst, c, ps, bx, by, ba) {
+  if (flareK(inst) == null) return;
+  var P = inst.fx.params, rad = Math.max(0.5, +P.radius) * ps, L = bladeLength(P, ps);
+  var T = L * 1.2 + Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) * 4, ux = Math.cos(ba), uy = Math.sin(ba);
+  var sx = bx - ux * L * 0.5, sy = by - uy * L * 0.5, ex = sx - ux * T, ey = sy - uy * T;
+  g.lineCap = "round";
+  [[rad * 2.4, 70], [rad * 0.8, 210]].forEach(function (q) {
+    var lg = g.createLinearGradient(sx, sy, ex, ey);
+    lg.addColorStop(0, rgba(c, q[1])); lg.addColorStop(1, rgba(c, 0));
+    g.strokeStyle = lg; g.lineWidth = Math.max(1, q[0]);
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.stroke();
+  });
+}
+// A flaring blade's head: an anamorphic (screen-horizontal) lens streak and a round hot core on its tip.
+function drawFlareHead(g, inst, c, ps, bx, by) {
+  var burst = flareK(inst);
+  if (burst == null) return;
+  var rad = Math.max(0.5, +inst.fx.params.radius) * ps, F = rad * (7 + 10 * burst);
+  g.save(); g.translate(bx, by); g.scale(1, 0.12);
+  softDisc(g, 0, 0, F, [[0, rgba([255, 255, 255], 220)], [0.4, rgba(c, 120)], [1, rgba(c, 0)]]);
+  g.restore();
+  var cr = rad * (2.2 + 2.5 * burst);
+  softDisc(g, bx, by, cr, [[0, rgba([255, 255, 255], 245)], [0.5, rgba(c, 170)], [1, rgba(c, 0)]]);
+}
+// Inside the blade's frame (tip at 0, pointing +x, sprite units): the spawn-in.  portal = it slides out tip-first
+// through the plane of its pommel (clipped there); flash = it fades in growing along its length from its middle.
+// Returns false while nothing of it shows yet.
+function bladeSpawnXform(g, inst, P, k) {
+  var u = bladeSpawnU(inst);
+  if (u >= 1) return true;
+  var Lr = bladeLength(P, 1);
+  if (P.spawn_style === "portal") {
+    var s = easeOut2((u - 0.25) / 0.75);
+    if (s <= 0) return false;
+    g.beginPath(); g.rect(-Lr, -k.cv.height, Lr + k.cv.width, k.cv.height * 2); g.clip();
+    g.translate(-(1 - s) * Lr, 0);
+    return true;
+  }
+  var e = easeOut2(u);
+  g.globalAlpha *= e;
+  g.translate(-Lr / 2, 0); g.scale(0.35 + 0.65 * e, 1); g.translate(Lr / 2, 0);
+  return true;
+}
 DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   var fx = inst.fx, P = fx.params, fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1;
   if (inst.age >= inst.life) return;
   if (inst.lodge) { drawLodged(g, inst, host, ps); return; }
   var c = colorPair(fx, host.lut)[0].map(trunc), hx = trunc(inst.x), hy = trunc(inst.y), bp = null;
-  if (P.shape === "blade") { bp = bladePose(inst, ps); hx = trunc(bp[0]); hy = trunc(bp[1]); }   // Each in place turns it on its own centre
+  if (P.shape === "blade") {   // Each in place turns it on its own centre
+    bp = bladePose(inst, ps); hx = trunc(bp[0]); hy = trunc(bp[1]);
+    drawPortal(g, inst, c, ps);   // behind the blade
+    drawTracer(g, inst, c, ps, bp[0], bp[1], bp[2]);
+  }
   var pts = inst.trail, n = pts.length;
   g.lineCap = "round";
   for (var i = 1; i < n; i++) {
@@ -2581,7 +2741,7 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   if (P.shape === "blade") {
     var k = bladeSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(bp[2]); g.scale(ps, ps); g.globalAlpha *= fade;
-    blitBlade(g, k, P);
+    if (bladeSpawnXform(g, inst, P, k)) blitBlade(g, k, P);
   } else if (P.shape === "bolt" && spd2 > 0.0001 && P.stretch > 1.001) {
     var b = boltSprite(c[0], c[1], c[2], P.radius, P.stretch, !!P.hot, P.glow, P.glow_size);
     g.rotate(Math.atan2(inst.vy, inst.vx)); g.scale(ps, ps); g.globalAlpha *= fade;
@@ -2596,6 +2756,14 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
     g.drawImage(s.cv, -s.half, -s.half);
   }
   g.restore();
+  if (P.shape === "blade") {
+    drawFlareHead(g, inst, c, ps, bp[0], bp[1]);
+    var su = bladeSpawnU(inst);
+    if (su < 1 && P.spawn_style === "flash") {   // the flash it appears in, mid-blade
+      var BL = bladeLength(P, ps);
+      starAt(g, bp[0] - Math.cos(bp[2]) * BL / 2, bp[1] - Math.sin(bp[2]) * BL / 2, Math.max(0.5, +P.radius) * ps * 9 * (1 - su), c, 255 * (1 - su) * fade);
+    }
+  }
   if (P.halo) {   // homing flair: pulsing ring
     var ha = trunc((110 + 70 * Math.sin(inst.age * 0.5)) * fade);
     if (ha > 4) { var ihr = trunc(P.radius * 3.6 * ps); g.strokeStyle = rgba(c, ha); g.lineWidth = 1.4;
@@ -2776,7 +2944,7 @@ HIT.sprite = function (inst, tx, ty, hr, ps) {
   if (inst.age >= inst.life) return false;
   var P = inst.fx.params;
   if (P.shape === "blade") {   // the whole blade, tip to pommel, half-width wide
-    if (inst.lodge) return false;
+    if (inst.lodge || bladeSpawnU(inst) < 1) return false;
     var L = bladeLength(P, ps), bp = bladePose(inst, ps), a = bp[2];
     return segDist(tx, ty, bp[0], bp[1], bp[0] - Math.cos(a) * L, bp[1] - Math.sin(a) * L) <= hr + Math.max(0.5, +P.radius) * ps;
   }

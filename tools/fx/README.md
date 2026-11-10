@@ -206,23 +206,38 @@ timing.
   **Holy** (Radiant beam, Halo burst), **Ice & wind** (Ice shards, Frost
   nova, Wind blades, Cyclone), **Earth & poison** (Quake, Toxic cloud),
   **Arcane & cosmic** (Arcane missiles, Rune circle, Meteor, Starfall),
-  **Energy** (Charged laser) and **Ethereal** (**Ethereal blade**: one still
-  sword of light, visual only, to build your own blade FX from; **Ethereal
-  blades**: a sword formation for a 30-frame action — six swords rise over the
-  fighter, three rows of upright swords close in round the target and circle
-  it, swords rain down six lanes and lodge in it, then a giant blade drops and
-  lodges; and six sequences built from the blade, each for a 30-frame action:
-  **Blink Chain** (four swords thrown in a zigzag with a blink flash after each,
+  **Energy** (Charged laser) and **Ethereal** (anime pass, after Gilgamesh's
+  Gate of Babylon and Ye Shunguang; all built for a 30-frame action unless
+  noted). **Ethereal blade**: one sword of light that flashes into being,
+  visual only, to build your own blade FX from. **Ethereal blades**: a fan of
+  eight swords flashes in behind the shoulder; one by one each swings round to
+  aim and fires with a flare and lodges in the target; then a giant blade
+  slides out of a portal over the target, drops through it and plants in the
+  ground with a shock ring. **Blink Chain** (four swords flash into the hand
+  and are thrown in a zigzag with flares, a blink flash after each,
   afterimages, a final diagonal slash; pair with Movement Zigzag), **Strobe
-  Stabs** (swords flash in round the target at random angles, stab and vanish,
-  faster and faster), **Vigil Escort** (a ring of swords circles the fighter;
-  two orbiting guard ribbons deflect enemy shots), **Sword River** (a school of
-  swords streams under the feet with a current trail, afterimages and spray,
-  chipping what it passes; a movement / retreat FX), **The Unseen Duelist**
-  (swords assemble into a see-through swordsman past the target that cuts back
-  at it four times, then falls apart) and **Sheath of Heaven** (every sword
-  merges into one colossal blade that cuts down and splits the ground; its
-  21 HP ground beam leaves a trench when over `ground_fx.beam_min_damage`)). The first groups rebuild the game's
+  Stabs** (swords flash in round the target at random angles, stab with a
+  flare and vanish, faster and faster), **Vigil Escort** (a ring of swords
+  flashes in and circles the fighter; two orbiting guard ribbons deflect enemy
+  shots), **Sword River** (a school of swords streams under the feet with a
+  current trail, afterimages and spray, chipping what it passes; a movement /
+  retreat FX), **The Unseen Duelist** (swords flash in and assemble into a
+  see-through swordsman past the target that cuts back at it four times, then
+  falls apart), **Sheath of Heaven** (every sword merges into one colossal
+  blade that cuts down and splits the ground; its 21 HP ground beam leaves a
+  trench when over `ground_fx.beam_min_damage`), and five new ones: **Gate of
+  the Treasury** (ripple portals pop open behind the fighter, a sword slides
+  out of each and hangs aimed at the target, then they fire one or two at a
+  time with lens flares; a big blade fires last), **Thousand-Blade Vortex** (a
+  point of light bursts over the fighter, three swirling rings of swords close
+  round the target and converge on it ring by ring; for the ultimate),
+  **Sword Graveyard** (swords drop out of portals over the target one or two
+  at a time, cut through it and plant upright round it as a sword field for
+  3 s), **Crossing Judgement** (two pairs of swords cross through the target
+  in an X and plant beyond it, then a giant X of blades flashes in on it) and
+  **Phantom Edge Rush** (swords flash into being in the fighter's wake as it
+  dashes, hang aimed at the target, then all fire; pair with a Movement
+  travel)). The first groups rebuild the game's
   existing effects with their `config.py` numbers; the special abilities use
   keyframes. Every preset effect carries its FX tag. **Save as preset** keeps
   your own (listed under ★ Your presets); saving a name you already have
@@ -254,6 +269,22 @@ timing.
   can't be intercepted. **Lodge ms** 0 = it ends on the hit like any shot.
   Hits only happen where damage is dealt, so lodging shows in Battle (and in
   the Studio preview), not in Solo, where nothing takes damage.
+- **Anime blade extras** (blade only, all off by default; Daniel
+  2026-11-10). **Blade appears** = portal: a ripple portal pops open behind
+  the blade's pommel, swells and throws rings while the blade slides out of it
+  tip-first over **Appear ms**, then settles to a bright mouth while the blade
+  hangs there and closes once it launches (keep the blade still while it
+  appears — static / attached — and launch it with a key). = flash: it flashes
+  into being with a four-point glint, growing along its length. No hits while
+  it appears. **Lens flare + tracer** = while it flies, a screen-horizontal
+  lens streak and a hot core on its tip plus a tracer behind it, bigger the
+  instant it launches. **Plants in the ground below** = target / figure: when
+  it comes down to the ground line **Ground below that anchor px** under that
+  anchor (fixed when it spawns) it sticks in upright (up to 10° off, a fifth
+  to a third of it sunk) for **Planted ms**, deals no more damage and fades
+  over the last 300 ms. Keys can now switch **Blade points** (motion / angle),
+  so a blade held at a wing angle can swing round to aim and then fly
+  pointing along its flight (the Ethereal presets' aim-then-fire).
 - **Escort (ally).** Under each effect: **Escort ally** makes it leave the
   caster once cast and guard the caster's tag pair's on-field fighter — the
   caster while it is in, the incoming partner after a Switch — for **Escort
