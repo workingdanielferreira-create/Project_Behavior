@@ -174,8 +174,16 @@ PARAM_DEFAULTS = {
     # target it hits (0 = it ends on the hit); blade_orient motion = the tip
     # points where it moves, angle = it holds blade_angle_deg (0 = right,
     # 90 = down; Flip mirrors it).
+    # Anime blade extras (blade only, all off by default; see blade_extras_step):
+    # spawn_style portal = a ripple portal pops open and the blade slides out
+    # of it tip-first over spawn_ms (Gate of Babylon), flash = it flashes into
+    # being; no hits while spawning.  flare = a lens-flare head and a tracer
+    # while it flies, bigger the instant it launches.  plant_on target / figure
+    # = it sticks upright in the ground plant_px below that anchor (fixed at
+    # spawn) when it comes down to it, for plant_ms.
     "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100,
-                   lodge_ms=1500, blade_orient="motion", blade_angle_deg=90),
+                   lodge_ms=1500, blade_orient="motion", blade_angle_deg=90,
+                   spawn_style="none", spawn_ms=300, flare=False, plant_on="off", plant_px=28, plant_ms=2500),
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
@@ -735,7 +743,7 @@ _SCALE_PARAMS = {
     "ribbon": ("min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"),
     "arc": ("radius", "width", "back", "lead"),
     "beam": ("length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"),
-    "sprite": ("radius",),
+    "sprite": ("radius", "plant_px"),
     "particles": ("speed_min", "speed_max", "gravity", "size_min", "size_max"),
     "glow": ("r_start", "r_end", "core_r"),
     "pulse": ("r_start", "r_end", "width", "width_end", "glow"),
@@ -816,7 +824,10 @@ def _keyable(v, path=None):
 # in-between), and instances already alive switch with it (motion_switch):
 # an orbit keyed to travel launches from where it is.  FXK.KEY_CHOICES.
 KEY_CHOICES = {"motion.kind": ["attached", "static", "orbit", "travel", "homing", "zigzag", "boomerang"],
-               "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"]}
+               "motion.aim": ["target", "facing", "angle", "weapon", "away"], "motion.orbit_dir": ["clockwise", "anticlockwise"],
+               # A blade held at an angle can be keyed to point along its flight
+               # (wing fan -> aim -> launch, the Ethereal presets).
+               "params.blade_orient": ["motion", "angle"]}
 
 
 def normalize_keys(fx):
@@ -1339,9 +1350,18 @@ class Inst:
                  "tq_tp", "tq_det", "tq_gh", "tq_sil", "tq_lk", "tq_pic", "tq_rw", "tq_rw_end", "tq_hs",
                  "w_dg", "w_arm", "w_hand",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
-                 "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k")
+                 "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k",
+                 "sp_x", "sp_y", "sp_t", "fl_t", "plant_y")
 
     def __init__(self):
+        # Anime blade extras (blade_extras_step): the portal's spot (None =
+        # not placed yet) and the age it launched from it (-1 = still in it),
+        # ticks in flight for the flare (-1 = not flying), ground line y for
+        # planting (None = off).
+        self.sp_x = self.sp_y = None
+        self.sp_t = -1
+        self.fl_t = -1
+        self.plant_y = None
         self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
         self.tq_grow = {}      # a technique's shots grown by absorbing: index -> growth
@@ -1454,6 +1474,7 @@ def spawn(fx, host, window_ticks, seed, idx, n, ep):
     ps = host_scale(host) * _unique.fx_size_mult(getattr(host, "fig", None))
     inst.ps = ps     # the figure's size when fired: what is launched keeps it
     inst.spd = spd   # keyframed speed: move_inst rescales the velocity when it changes
+    inst.plant_y = blade_plant_y(fx, host, ps)
     if m["kind"] == "path":
         inst.path = lib_find(host, "paths", m.get("path"))
         if inst.path:
@@ -2253,6 +2274,7 @@ def tick_inst(inst, host):
         if not intercept_step(inst, host):
             move_inst(inst, host)
             _unique.inst_step(inst, host)   # Ricochet: walls / enemy shots
+        blade_extras_step(inst, host)       # portal / flare / planting (blades only)
         if fx["prim"] == "beam" and inst.bgrow is None and P.get("pos_scale"):
             beam_grow_plan(inst, host)
     inst.flow = (inst.flow + float(fx["color"].get("flow_speed") or 0)) % 1
@@ -2591,7 +2613,7 @@ def _hit_shape(inst, tx, ty, hr, ps, host):
         if inst.age >= inst.life:
             return False
         if P["shape"] == "blade":   # the whole blade, tip to pommel, half-width wide
-            if inst.lodge is not None:
+            if inst.lodge is not None or blade_spawn_u(inst) < 1.0:
                 return False
             L = blade_length(P, ps)
             bx, by, a = blade_pose(inst, ps)
@@ -3059,8 +3081,12 @@ def blade_lodge(inst, hx, hy, hr, ps):
 def blade_follow(inst, hurts, ps):
     """Each tick a lodged blade follows the hurt circle nearest where its
     target last was (within 200 px x scale); with none (target gone or
-    blinked out) it stays put.  fxkit.js bladeFollow."""
+    blinked out) it stays put.  A blade planted in the ground (blade_plant)
+    never moves.  fxkit.js bladeFollow."""
     lg = inst.lodge
+    if lg.get("g"):
+        inst.px, inst.py = inst.x, inst.y
+        return
     best, bd = None, (200 * ps) ** 2
     for q in hurts:
         dx, dy = q[0] - lg["hx"], q[1] - lg["hy"]
@@ -3105,6 +3131,237 @@ def _draw_lodged(p, inst, host, ps):
     p.drawEllipse(int(ex - er), int(ey - er), int(er * 2), int(er * 2))
 
 
+# ---------------------------------------------------------------- anime blade extras
+# Daniel 2026-11-10, after Gilgamesh's Gate of Babylon (UBW ep. 24) and Ye
+# Shunguang's sword formation (ZZZ).  Blade params spawn_style / spawn_ms,
+# flare, plant_on / plant_px / plant_ms (all off by default, so older FX are
+# unchanged).  fxkit.js has the same maths (bladeExtrasStep, drawPortal ...).
+BLADE_PORTAL_CLOSE_MS, BLADE_PORTAL_IDLE_MS, BLADE_FLARE_BURST_TICKS = 240, 600, 5
+BLADE_PLANT_DEPTH = (0.18, 0.3)   # share of the blade sunk into the ground
+
+
+def _ease_out2(u):
+    u = max(0.0, min(1.0, u))
+    return 1 - (1 - u) * (1 - u)
+
+
+def blade_spawn_u(inst):
+    """0..1 through a blade's spawn-in (1 = done, or no spawn-in)."""
+    P = inst.fx["params"]
+    if inst.fx["prim"] != "sprite" or P.get("shape") != "blade" or P.get("spawn_style", "none") == "none":
+        return 1.0
+    ms = float(P.get("spawn_ms") or 0)
+    if ms <= 0:
+        return 1.0
+    return max(0.0, min(1.0, inst.age * TICK_MS / ms))
+
+
+def blade_plant_y(fx, host, ps):
+    """The ground line a planting blade sticks into: plant_px below the
+    target / the fighter when it is spawned (None = it never plants)."""
+    P = fx["params"]
+    if fx["prim"] != "sprite" or P.get("shape") != "blade" or P.get("plant_on", "off") == "off" \
+            or float(P.get("plant_ms") or 0) <= 0:
+        return None
+    o = host.target if P["plant_on"] == "target" else host.anchor("figure")
+    return float(o[1]) + float(P.get("plant_px") or 0) * ps
+
+
+def blade_plant(inst, bx, by, a, ps):
+    """A falling blade reached its ground line: it sticks in upright (turned
+    up to BLADE_LODGE_JITTER_DEG, sunk BLADE_PLANT_DEPTH of its length),
+    never moves, deals no more damage and fades out over the last 300 ms of
+    plant_ms.  Drawn like a lodged blade (_draw_lodged).  fxkit.js bladePlant."""
+    P = inst.fx["params"]
+    a += inst.r.uniform(-BLADE_LODGE_JITTER_DEG, BLADE_LODGE_JITTER_DEG) * D
+    ux, uy = math.cos(a), math.sin(a)
+    depth = blade_length(P, ps) * inst.r.uniform(BLADE_PLANT_DEPTH[0], BLADE_PLANT_DEPTH[1])
+    if uy > 0.05:   # back along the blade to where it crosses the ground line
+        t = (by - inst.plant_y) / uy
+        ex, ey = bx - ux * t, by - uy * t
+    else:
+        ex, ey = bx, inst.plant_y
+    tx, ty = ex + ux * depth, ey + uy * depth
+    n = max(1, _js_round(float(P.get("plant_ms") or 0) / TICK_MS))
+    inst.lodge = {"a": a, "ox": 0.0, "oy": 0.0, "hx": tx, "hy": ty, "depth": depth, "n": n, "g": True}
+    inst.x = inst.px = tx
+    inst.y = inst.py = ty
+    inst.vx = inst.vy = 0.0
+    inst.trail = []
+    inst.life = inst.age + n
+
+
+def blade_extras_step(inst, host):
+    """One tick of the anime blade extras, after the blade moved: where its
+    portal is (it follows the blade's pommel until the blade launches, then
+    stays and closes), how long it has been flying (flare), and planting.
+    fxkit.js bladeExtrasStep."""
+    fx = inst.fx
+    P = fx["params"]
+    if fx["prim"] != "sprite" or P.get("shape") != "blade" or inst.lodge is not None:
+        return
+    ps = inst.ps or 1.0
+    moving = inst.vx * inst.vx + inst.vy * inst.vy > 0.25
+    if P.get("flare"):
+        inst.fl_t = (inst.fl_t + 1 if inst.fl_t >= 0 else 0) if moving else -1
+    if P.get("spawn_style") == "portal" and inst.sp_t < 0:
+        if not moving or inst.sp_x is None:
+            bx, by, a = blade_pose(inst, ps)
+            L = blade_length(P, ps)
+            inst.sp_x, inst.sp_y = bx - math.cos(a) * L, by - math.sin(a) * L
+        if moving:
+            inst.sp_t = inst.age
+    if inst.plant_y is not None and inst.vy > 0.01:
+        bx, by, a = blade_pose(inst, ps)
+        if by >= inst.plant_y:
+            blade_plant(inst, bx, by, a, ps)
+
+
+def _soft_disc(p, cx, cy, r, stops):
+    if r <= 0.05:
+        return
+    g = QRadialGradient(cx, cy, r)
+    for at, col in stops:
+        g.setColorAt(at, col)
+    p.setPen(Qt.NoPen)
+    p.setBrush(g)
+    p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+    p.setBrush(Qt.NoBrush)
+
+
+def _star(p, x, y, r, c, a):
+    """A four-point glint (cross of two thin soft ellipses) of radius r."""
+    if r <= 0.2 or a <= 1:
+        return
+    for kx, ky in ((1.0, 0.12), (0.12, 1.0)):
+        p.save()
+        p.translate(x, y)
+        p.scale(kx, ky)
+        _soft_disc(p, 0.0, 0.0, r, [(0.0, QColor(255, 255, 255, trunc(min(255, a)))), (0.45, qcolor(c, a * 0.5)), (1.0, qcolor(c, 0))])
+        p.restore()
+    _soft_disc(p, x, y, r * 0.3, [(0.0, QColor(255, 255, 255, trunc(min(255, a)))), (1.0, qcolor(c, 0))])
+
+
+def _lighter(c):
+    return (trunc(c[0] + (255 - c[0]) * 0.55), trunc(c[1] + (255 - c[1]) * 0.55), trunc(c[2] + (255 - c[2]) * 0.55))
+
+
+def _draw_portal(p, inst, c, ps):
+    """The ripple portal a portal-spawned blade comes out of (fxkit.js
+    drawPortal): it pops open small, swells (to 1.25 x its size) and throws
+    ripple rings while the blade slides out, settles to a small bright mouth
+    with slow ripples while the blade hangs in it, and closes over
+    BLADE_PORTAL_CLOSE_MS once the blade launches."""
+    P = inst.fx["params"]
+    if P.get("spawn_style") != "portal" or inst.sp_x is None:
+        return
+    rad = max(0.5, float(P["radius"]))
+    R = max(rad * 4.5, blade_length(P, 1.0) * 0.3) * ps
+    u = blade_spawn_u(inst)
+    rings = []
+    if inst.sp_t >= 0:
+        k = 1 - (inst.age - inst.sp_t) * TICK_MS / BLADE_PORTAL_CLOSE_MS
+        if k <= 0:
+            return
+        disc, a = (0.55 if u >= 1 else 1.25 - 0.7 * _ease_out2((u - 0.3) / 0.7)) * R * k, k
+    elif u < 0.3:
+        e = u / 0.3
+        disc, a = R * (0.2 + 1.05 * _ease_out2(e)), e
+    elif u < 1:
+        disc, a = R * (1.25 - 0.7 * _ease_out2((u - 0.3) / 0.7)), 1.0
+        for i in range(3):
+            ph = ((u - 0.3) / 0.7 * 1.5 + i / 3.0) % 1.0
+            rings.append((disc * (0.6 + 0.9 * ph), 1 - ph))
+    else:
+        disc, a = R * 0.55, 1.0
+        t = inst.age * TICK_MS / BLADE_PORTAL_IDLE_MS
+        for i in range(2):
+            ph = (t + i / 2.0) % 1.0
+            rings.append((disc * (0.8 + 0.8 * ph), 0.6 * (1 - ph)))
+    lt = _lighter(c)
+    x, y = inst.sp_x, inst.sp_y
+    _soft_disc(p, x, y, disc, [(0.0, QColor(255, 255, 255, trunc(230 * a))), (0.35, qcolor(lt, 170 * a)),
+                               (0.7, qcolor(c, 90 * a)), (1.0, qcolor(c, 0))])
+    p.setBrush(Qt.NoBrush)
+    p.setPen(_pen(qcolor(lt, 200 * a), max(1.0, rad * 0.5 * ps)))
+    p.drawEllipse(QPointF(x, y), disc * 0.9, disc * 0.9)
+    for rr, ra in rings:
+        p.setPen(_pen(qcolor(c, 160 * ra * a), max(1.0, rad * 0.35 * ps)))
+        p.drawEllipse(QPointF(x, y), rr, rr)
+
+
+def _flare_k(inst):
+    """How hard a flaring blade's flare burns: 1 the instant it launches,
+    easing to 0 over BLADE_FLARE_BURST_TICKS (None = no flare now)."""
+    P = inst.fx["params"]
+    if not P.get("flare") or inst.fl_t < 0 or inst.lodge is not None:
+        return None
+    return max(0.0, 1 - inst.fl_t / float(BLADE_FLARE_BURST_TICKS))
+
+
+def _draw_tracer(p, inst, c, ps, bx, by, ba):
+    """A flaring blade's tracer: a soft wide streak and a hot core line from
+    mid-blade back along its flight, longer the faster it goes."""
+    if _flare_k(inst) is None:
+        return
+    P = inst.fx["params"]
+    rad = max(0.5, float(P["radius"])) * ps
+    L = blade_length(P, ps)
+    T = L * 1.2 + math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) * 4
+    ux, uy = math.cos(ba), math.sin(ba)
+    sx, sy = bx - ux * L * 0.5, by - uy * L * 0.5
+    ex, ey = sx - ux * T, sy - uy * T
+    for w, al in ((rad * 2.4, 70), (rad * 0.8, 210)):
+        g = QLinearGradient(sx, sy, ex, ey)
+        g.setColorAt(0.0, qcolor(c, al))
+        g.setColorAt(1.0, qcolor(c, 0))
+        pen = QPen(QBrush(g), max(1.0, w))
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.drawLine(QPointF(sx, sy), QPointF(ex, ey))
+
+
+def _draw_flare_head(p, inst, c, ps, bx, by):
+    """A flaring blade's head: an anamorphic (screen-horizontal) lens streak
+    and a round hot core on its tip, bigger the instant it launches."""
+    burst = _flare_k(inst)
+    if burst is None:
+        return
+    rad = max(0.5, float(inst.fx["params"]["radius"])) * ps
+    F = rad * (7 + 10 * burst)
+    p.save()
+    p.translate(bx, by)
+    p.scale(1.0, 0.12)
+    _soft_disc(p, 0.0, 0.0, F, [(0.0, QColor(255, 255, 255, 220)), (0.4, qcolor(c, 120)), (1.0, qcolor(c, 0))])
+    p.restore()
+    cr = rad * (2.2 + 2.5 * burst)
+    _soft_disc(p, bx, by, cr, [(0.0, QColor(255, 255, 255, 245)), (0.5, qcolor(c, 170)), (1.0, qcolor(c, 0))])
+
+
+def _blade_spawn_xform(p, inst, P, pm):
+    """Inside the blade's frame (tip at 0, pointing +x, sprite units): the
+    spawn-in.  portal = it slides out tip-first through the plane of its
+    pommel (clipped there); flash = it fades in growing along its length
+    from its middle.  Returns False while nothing of it shows yet."""
+    u = blade_spawn_u(inst)
+    if u >= 1:
+        return True
+    Lr = blade_length(P, 1.0)
+    if P.get("spawn_style") == "portal":
+        k = _ease_out2((u - 0.25) / 0.75)
+        if k <= 0:
+            return False
+        p.setClipRect(QRectF(-Lr, -pm.height(), Lr + pm.width(), pm.height() * 2), Qt.IntersectClip)
+        p.translate(-(1 - k) * Lr, 0)
+        return True
+    e = _ease_out2(u)
+    p.setOpacity(p.opacity() * e)
+    p.translate(-Lr / 2, 0)
+    p.scale(0.35 + 0.65 * e, 1.0)
+    p.translate(Lr / 2, 0)
+    return True
+
+
 def _draw_sprite(p, inst, host, ps):
     from . import combat as _combat
     fx, P = inst.fx, inst.fx["params"]
@@ -3119,6 +3376,8 @@ def _draw_sprite(p, inst, host, ps):
     if P["shape"] == "blade":   # Each in place turns it on its own centre (blade_pose)
         bx, by, ba = blade_pose(inst, ps)
         hx, hy = trunc(bx), trunc(by)
+        _draw_portal(p, inst, c, ps)                # behind the blade
+        _draw_tracer(p, inst, c, ps, bx, by, ba)
     pts, n = inst.trail, len(inst.trail)
     for i in range(1, n):
         t = i / n
@@ -3133,7 +3392,8 @@ def _draw_sprite(p, inst, host, ps):
                                          P.get("glow", 100), P.get("glow_size", 100))
         p.rotate(math.degrees(ba))
         p.scale(ps, ps)
-        _blit_blade(p, pm, tip_x, half_h, P)
+        if _blade_spawn_xform(p, inst, P, pm):
+            _blit_blade(p, pm, tip_x, half_h, P)
     elif P["shape"] == "bolt" and spd2 > 0.0001 and P["stretch"] > 1.001:
         pm, head_x, half_h = _combat.bolt_sprite(c[0], c[1], c[2], P["radius"], P["stretch"], bool(P["hot"]),
                                                      P.get("glow", 100), P.get("glow_size", 100))
@@ -3150,6 +3410,13 @@ def _draw_sprite(p, inst, host, ps):
         p.scale(ps, ps)
         p.drawPixmap(-half, -half, pm)
     p.restore()
+    if P["shape"] == "blade":
+        _draw_flare_head(p, inst, c, ps, bx, by)
+        u = blade_spawn_u(inst)
+        if u < 1 and P.get("spawn_style") == "flash":   # the flash it appears in, mid-blade
+            L = blade_length(P, ps)
+            _star(p, bx - math.cos(ba) * L / 2, by - math.sin(ba) * L / 2,
+                  max(0.5, float(P["radius"])) * ps * 9 * (1 - u), c, 255 * (1 - u) * fade)
     if P["halo"]:
         ha = trunc((110 + 70 * math.sin(inst.age * 0.5)) * fade)
         if ha > 4:
