@@ -44,6 +44,19 @@ its body-bound FX (attached / orbit / weapon) stay visible and still hit.
 Its action and animation keep running hidden, so the frames tick on to
 end_frame.
 
+Blade hop (Daniel 2026-11-11, laser/bladehop.py): anchor "blade" lands on
+one of the fighter's hop blades, blade_pick newest (the latest launched) /
+behind (past the target from the fighter) / nearest (to the fighter), at
+proximity_px in `direction` from it (0 = on it), and the blade's hop_arrive
+plays (catch / stay / shatter); with none on the field it lands as anchor
+"target".  trigger: frames = as above; passes / stops = within the blink's
+frames, it vanishes once the newest launched hop blade has gone past its
+target / has hung or planted; delay = delay_ms after its frames start;
+in_range = once one of the fighter's hop blades is within range_px.  An
+event blink reappears gone_ms after it vanished (or when its frames end),
+and runs once per pass.  The Blade hop chain borrows the same vanish /
+reappear (hop_vanish / hop_reappear; `ext` marks it).
+
 point() gives where each blink of the playing action vanishes / lands
 (FX paths pin their points to these: laser/fxkit.py path_anchor_pos).
 Once a blink of this pass has happened, its real spots; until then, where
@@ -86,7 +99,7 @@ def _active_index(fig, cfg, action, frame):
 
 class BlinkState:
     __slots__ = ("gone", "x0", "y0", "cfg", "action", "ready_at", "play", "idx", "cooldown_ms",
-                 "marks", "mplay", "mframe", "rolls")
+                 "marks", "mplay", "mframe", "rolls", "ext", "gone_at", "wstart", "chain")
 
     def __init__(self):
         self.gone = False
@@ -102,6 +115,10 @@ class BlinkState:
         self.mplay = None     # the play the marks belong to
         self.mframe = -1      # the frame last seen (a lower one = a new pass)
         self.rolls = {}       # index -> its random-direction angle (radians), until it lands
+        self.ext = False      # gone for the Blade hop chain (laser/bladehop.py), not a listed blink
+        self.gone_at = 0      # tick it vanished (event blinks reappear gone_ms later)
+        self.wstart = {}      # (play, index) -> tick its frames started (delay trigger)
+        self.chain = None     # bladehop.Chain of the playing action
 
 
 def _play_key(fig, action):
@@ -149,9 +166,11 @@ def _may_vanish(fig, st, action, i, now):
     return st.play == _play_key(fig, action) and st.action == action and i > st.idx
 
 
-def _vanish(fig, st, cfg, action, i, cooldown_ms):
+def _vanish(fig, st, cfg, action, i, cooldown_ms, now=0):
     from . import combat
     st.gone = True
+    st.ext = False
+    st.gone_at = now
     st.cfg = cfg
     st.cooldown_ms = cooldown_ms
     st.action = action
@@ -230,6 +249,10 @@ def _landing(fig, st, cfg, world, x0=None, y0=None, i=None):
         a = math.atan2(uy, ux * mx) + math.radians(float(cfg.get("angle_deg") or 0))
         dx, dy = math.cos(a) * mx, math.sin(a)
     ax, ay = (tx, ty) if cfg.get("anchor") == "target" else (x0, y0)
+    if cfg.get("anchor") == "blade":
+        from . import bladehop
+        b = bladehop.pick(fig, world, cfg.get("blade_pick") or "newest")
+        ax, ay = bladehop.spot(b) if b is not None else (tx, ty)
     prox = max(0.0, float(cfg.get("proximity_px") or 0)) * fig.mode.body_scale()   # character scale
     nx, ny = ax + dx * prox, ay + dy * prox
     nx = max(MARGIN_PX, min(fig.screen_w - MARGIN_PX, nx))
@@ -246,6 +269,9 @@ _SCREEN_DIRS = {"above": (0.0, -1.0), "below": (0.0, 1.0),       # screen y grow
 def _reappear(fig, st, world):
     cfg = st.cfg or {}
     nx, ny, tx = _landing(fig, st, cfg, world)
+    if cfg.get("anchor") == "blade":   # the blade landed on plays its hop_arrive
+        from . import bladehop
+        bladehop.arrive(fig, world, bladehop.pick(fig, world, cfg.get("blade_pick") or "newest"))
     t = fig.transform
     t.x, t.y = nx, ny
     if tx < nx - 0.001:
@@ -281,6 +307,14 @@ def tick(fig, world):
             _reappear(fig, st, world)
         return False
     action, frame = fxkit.current_action(fig)
+    now = world.global_tick
+    if st is not None and st.gone and st.ext:
+        # Gone for the Blade hop chain: it brings the fighter back; if its
+        # action was cut off meanwhile, back where it vanished.
+        if action == st.action:
+            return True
+        from . import bladehop
+        bladehop.abandon(fig, world)
     cfg = config_for(fig, action)
     i = _active_index(fig, cfg, action, frame) if cfg is not None else -1
     if st is None:
@@ -289,17 +323,95 @@ def tick(fig, world):
         st = BlinkState()
         fig.blink = st
     if st.gone:
-        if i == st.idx and action == st.action:
+        b = st.cfg or {}
+        ev = (b.get("trigger") or "frames") != "frames"
+        if i == st.idx and action == st.action and not (ev and now - st.gone_at >= _ticks(b.get("gone_ms"))):
             st.mframe = frame
             return True
         _reappear(fig, st, world)
         # The next blink's frames may start right away: vanish again below.
     _new_pass(fig, st, action, frame)
     if (i >= 0 and fig.transform.init and _can_start(fig)
-            and _may_vanish(fig, st, action, i, world.global_tick)):
-        _vanish(fig, st, cfg["blinks"][i], action, i, cfg.get("cooldown_ms"))
+            and _may_vanish(fig, st, action, i, now) and _event_ok(fig, st, world, cfg["blinks"][i], action, i, now)):
+        _vanish(fig, st, cfg["blinks"][i], action, i, cfg.get("cooldown_ms"), now)
         return True
     return False
+
+
+def _ticks(ms):
+    return max(1, int(round(float(ms or 0) / config.TICK_MS)))
+
+
+def _event_ok(fig, st, world, b, action, i, now):
+    """Blink i may vanish now by its trigger (frames: always).  An event
+    blink runs once per pass."""
+    trig = b.get("trigger") or "frames"
+    if trig == "frames":
+        return True
+    key = (_play_key(fig, action), i)
+    if st.mplay == key[0] and (st.marks.get(i) or (None, None))[1] is not None:
+        return False   # already blinked this pass
+    if key not in st.wstart:
+        st.wstart = {k: v for k, v in st.wstart.items() if k[0] == key[0]}
+        st.wstart[key] = now
+    from . import bladehop
+    if trig == "delay":
+        return now - st.wstart[key] >= _ticks(b.get("delay_ms"))
+    if trig == "in_range":
+        return bladehop.near(fig, float(b.get("range_px") or 0))
+    nb = bladehop.pick(fig, world, "newest")
+    if nb is None or not nb.hop_l:
+        return False
+    if trig == "stops":
+        return nb.hop_stopped or bladehop.planted(nb)
+    return nb.hop_passed   # "passes"
+
+
+def hop_vanish(fig, world, action):
+    """The Blade hop chain takes the fighter out (laser/bladehop.py): gone
+    like a blink (afterimage + flash), until hop_reappear."""
+    from . import combat
+    st = fig.blink
+    if st is None:
+        st = BlinkState()
+        fig.blink = st
+    if st.gone:
+        return
+    st.gone = True
+    st.ext = True
+    st.cfg = None
+    st.action = action
+    st.gone_at = world.global_tick
+    st.x0, st.y0 = fig.x, fig.y
+    m, c = fig.motion, fig.combat
+    m.bouncing = m.bounce_ending = False
+    m.bounce_vx = m.bounce_vy = 0.0
+    m.shove_vx = m.shove_vy = 0.0
+    c.dashing = c.rebounding = c.slashing = False
+    combat.spawn_afterimage(fig)
+    c.blink_fx_pending.append((fig.x, fig.y, fig.x, fig.y))
+
+
+def hop_reappear(fig, world, x, y):
+    """The Blade hop chain brings the fighter back at (x, y), facing the
+    target, with the blink flash."""
+    from . import retreat
+    st = fig.blink
+    if st is None:
+        return
+    nx = max(MARGIN_PX, min(fig.screen_w - MARGIN_PX, x))
+    ny = max(MARGIN_PX, min(fig.screen_h - MARGIN_PX, y))
+    t = fig.transform
+    t.x, t.y = nx, ny
+    tx, _ty, _f = retreat._target(world, fig)
+    if tx < nx - 0.001:
+        t.facing_left = True
+    elif tx > nx + 0.001:
+        t.facing_left = False
+    fig.trail.clear()
+    st.gone = False
+    st.ext = False
+    fig.combat.blink_fx_pending.append((nx, ny, nx, ny))
 
 
 def _new_pass(fig, st, action, frame):

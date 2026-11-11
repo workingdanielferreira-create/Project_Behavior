@@ -238,6 +238,7 @@ function bladeAngle(inst) {
   var P = inst.fx.params;
   if (P.blade_orient === "angle") { var fa = (+P.blade_angle_deg || 0) * D; return inst.flip < 0 ? Math.PI - fa : fa; }
   if (inst.vx * inst.vx + inst.vy * inst.vy > 0.0001) return Math.atan2(inst.vy, inst.vx);
+  if (inst.hopA != null) return inst.hopA;   // a hop blade that stopped (hang) keeps pointing the way it flew
   var dx = inst.x - inst.px, dy = inst.y - inst.py;
   if (dx * dx + dy * dy > 1e-6) return Math.atan2(dy, dx);
   return Math.PI / 2;
@@ -320,7 +321,14 @@ var PARAM_DEFAULTS = {
   // for plant_ms.
   sprite: {shape: "orb", radius: 3, stretch: 1, hot: false, halo: false, fade: true, trail_len: 5, glow: 100, glow_size: 100, lodge_ms: 1500,
            blade_orient: "motion", blade_angle_deg: 90,
-           spawn_style: "none", spawn_ms: 300, flare: false, plant_on: "off", plant_px: 28, plant_ms: 2500},
+           spawn_style: "none", spawn_ms: 300, flare: false, plant_on: "off", plant_px: 28, plant_ms: 2500,
+           // Blade hop (blade only; laser/bladehop.py): hop = a hop beacon its fighter can blink to (Blink anchor "blade",
+           // the Blade hop chain), counted by the hop_* conditions.  hop_spread_deg = seeded random turn at launch.
+           // hop_after (once hop_past_px past the target it was launched at): hang (brakes, hangs hop_hold_ms) / plant
+           // (dives into the ground under the target) / fly.  hop_arrive (its fighter lands on it): catch / stay / shatter.
+           // laser_trail = tapered laser trail points behind it while it flies (0 = none).
+           hop: false, hop_spread_deg: 0, hop_after: "fly", hop_past_px: 90, hop_hold_ms: 2500, hop_arrive: "catch",
+           laser_trail: 0},
   particles: {mode: "burst", count: 12, rate_per_s: 60, angle_deg: 0, spread_deg: 30, speed_min: 50, speed_max: 150, gravity: 0, drag: 1, size_min: 3, size_max: 3, size_over_life: "shrink", life_min_ms: 200, life_max_ms: 400},
   glow: {r_start: 6, r_end: 6, a_center: 140, a_mid: 60, mid: 0.4, core_r: 0, fade: "out", pulse_hz: 0},
   // Radial pulse: rings that expand from r_start to r_end over expand_ms
@@ -630,7 +638,10 @@ var CONDITION_TYPES = {
   idle_for:      {ms: 1000},                           // no action playing for at least ms
   chance:        {pct_s: 30},                          // random: pct % chance per second
   // actions
-  action_triggered: {who: "target", action: "", ms: 300} // own / the target's `action` ("" = any) started within the last ms (0 = this tick)
+  action_triggered: {who: "target", action: "", ms: 300}, // own / the target's `action` ("" = any) started within the last ms (0 = this tick)
+  // Blade hop (laser/bladehop.py)
+  hop_blades:    {count: 1, which: "field"},           // at least count own hop blades of a kind (field / thrown / any) are out
+  hop_blade_near: {px: 60}                             // one of own hop blades is within px
 };
 var CONDITION_COMMON = {not: false};
 // fx_continuous: when the action loops (idle, run, a held action), effects
@@ -1284,9 +1295,29 @@ function normalizeTargeting(a) {
 // the action's Blink stays off this long (the action still plays, without
 // vanishing or its Blink FX); the later blinks of the same pass still run.
 var BLINK_DEFAULTS = {enabled: false, cooldown_ms: 0, blinks: []};
+// Blade hop (laser/blink.py, laser/bladehop.py): anchor "blade" lands on a hop blade picked by blade_pick; trigger
+// frames = vanish at start_frame, else on that event inside the blink's frames (delay_ms / range_px), back gone_ms later.
 var BLINK_STEP_DEFAULTS = {start_frame: 0, end_frame: -1, anchor: "target", direction: "behind", angle_deg: 0,
-  mirror: false, proximity_px: 60, flash: true};
-var BLINK_ANCHORS = ["target", "self"];
+  mirror: false, proximity_px: 60, flash: true,
+  blade_pick: "newest", trigger: "frames", delay_ms: 150, range_px: 60, gone_ms: 50};
+var BLINK_ANCHORS = ["target", "self", "blade"];
+var BLINK_PICKS = ["newest", "behind", "nearest"];
+var BLINK_TRIGGERS = ["frames", "passes", "stops", "delay", "in_range"];
+// The action's Blade hop chain (action_settings[action].hop, laser/bladehop.py).
+var HOP_DEFAULTS = {enabled: false, source: "mix", field_pick: "nearest", max_throws: 0, speed: 26, damage: 2,
+  knockback: 4, spread_deg: 35, laser_trail: 14, after: "hang", past_px: 110, hold_ms: 1500,
+  arrive: "catch", blink_on: "passes", delay_ms: 120, gone_ms: 40, land_pick: "newest",
+  gap_start_ms: 380, gap_end_ms: 60, finisher: ""};
+var HOP_SOURCES = ["mix", "recall", "ground", "blink"], HOP_FIELD_PICKS = ["nearest", "farthest", "random"],
+  HOP_AFTERS = ["hang", "plant", "fly"], HOP_ARRIVALS = ["catch", "stay", "shatter"], HOP_BLINK_ONS = ["passes", "stops", "delay"];
+function normalizeHop(h) {
+  h = fill(h || {}, HOP_DEFAULTS);
+  h.enabled = !!h.enabled;
+  [["source", HOP_SOURCES], ["field_pick", HOP_FIELD_PICKS], ["after", HOP_AFTERS], ["arrive", HOP_ARRIVALS],
+   ["blink_on", HOP_BLINK_ONS], ["land_pick", BLINK_PICKS]].forEach(function (q) { if (q[1].indexOf(h[q[0]]) < 0) h[q[0]] = HOP_DEFAULTS[q[0]]; });
+  h.finisher = String(h.finisher || "");
+  return h;
+}
 var BLINK_DIRECTIONS = ["behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
   "below_left", "below_right", "random", "angle"];
 var BLINK_SCREEN_DIRS = {above: [0, -1], below: [0, 1], above_left: [-Math.SQRT1_2, -Math.SQRT1_2],
@@ -1296,6 +1327,8 @@ function normalizeBlinkStep(b) {
   b = fill(b || {}, BLINK_STEP_DEFAULTS);
   if (BLINK_ANCHORS.indexOf(b.anchor) < 0) b.anchor = BLINK_STEP_DEFAULTS.anchor;
   if (BLINK_DIRECTIONS.indexOf(b.direction) < 0) b.direction = BLINK_STEP_DEFAULTS.direction;
+  if (BLINK_PICKS.indexOf(b.blade_pick) < 0) b.blade_pick = BLINK_STEP_DEFAULTS.blade_pick;
+  if (BLINK_TRIGGERS.indexOf(b.trigger) < 0) b.trigger = BLINK_STEP_DEFAULTS.trigger;
   b.start_frame = Math.max(0, Math.round(+b.start_frame || 0));
   b.end_frame = Math.round(+b.end_frame);
   if (!(b.end_frame >= -1)) b.end_frame = -1;
@@ -1382,7 +1415,8 @@ function blinkActive(b, fr, frames) { return blinkIndex(b, fr, frames) >= 0; }
 // Landing spot of one blink b (an entry of `blinks`): from = where the fighter vanished, target = [x, y],
 // tface = the target's facing (1 / -1) or null (no facing), facing = the
 // fighter's (a fallback when it stands on the target), rnd = 0..1 (random).
-function blinkLanding(b, from, target, tface, facing, rnd) {
+// bladeSpot = where the picked hop blade is (anchor "blade"; null = none out: as the target).
+function blinkLanding(b, from, target, tface, facing, rnd, bladeSpot) {
   var lx = target[0] - from[0], ly = target[1] - from[1], d = Math.hypot(lx, ly), ux, uy, dx, dy;
   if (d > 0.001) { ux = lx / d; uy = ly / d; } else { ux = facing < 0 ? -1 : 1; uy = 0; }
   if (b.direction === "toward") { dx = ux; dy = uy; }
@@ -1398,8 +1432,39 @@ function blinkLanding(b, from, target, tface, facing, rnd) {
     var mx = b.mirror && lx < -0.001 ? -1 : 1;   // laser/blink.py _landing
     var a = Math.atan2(uy, ux * mx) + (+b.angle_deg || 0) * D; dx = Math.cos(a) * mx; dy = Math.sin(a);
   }
-  var an = b.anchor === "target" ? target : from, prox = Math.max(0, +b.proximity_px || 0);
+  var an = b.anchor === "target" ? target : b.anchor === "blade" ? (bladeSpot || target) : from, prox = Math.max(0, +b.proximity_px || 0);
   return [an[0] + dx * prox, an[1] + dy * prox];
+}
+// Blade hop beacons among `insts` and the one a blink lands on (laser/bladehop.py is_beacon / spot / pick).
+function hopIsBeacon(inst) {
+  var fx = inst.fx, P = fx.params;
+  if (fx.prim !== "sprite" || P.shape !== "blade" || !P.hop || inst.dead || inst.age >= inst.life || inst.hopUsed) return false;
+  return !inst.lodge || !!inst.lodge.g;
+}
+function hopSpot(inst) {
+  var P = inst.fx.params, ps = inst.ps || 1;
+  if (inst.lodge && inst.lodge.g) {
+    var lg = inst.lodge;
+    return [inst.x - Math.cos(lg.a) * lg.depth, inst.y - Math.sin(lg.a) * lg.depth - (+P.plant_px || 0) * ps];
+  }
+  var bp = bladePose(inst, ps), h = bladeLength(P, ps) / 2;
+  return [bp[0] - Math.cos(bp[2]) * h, bp[1] - Math.sin(bp[2]) * h];
+}
+function hopPick(insts, mode, fig, target) {
+  var bs = insts.filter(hopIsBeacon);
+  if (!bs.length) return null;
+  var d2 = function (p, q) { return (p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]); };
+  var best = function (L, f) { return L.reduce(function (m, b) { return m == null || f(b) < f(m) ? b : m; }, null); };
+  if (mode === "newest") {
+    var flown = bs.filter(function (b) { return b.hopL; });
+    return flown.length ? best(flown, function (b) { return -b.hopLt; }) : best(bs, function (b) { return b.age; });
+  }
+  if (mode === "behind") {
+    var lx = target[0] - fig[0], ly = target[1] - fig[1];
+    var back = bs.filter(function (b) { var p = hopSpot(b); return (p[0] - target[0]) * lx + (p[1] - target[1]) * ly > 0; });
+    return best(back.length ? back : bs, function (b) { return d2(hopSpot(b), target); });
+  }
+  return best(bs, function (b) { return d2(hopSpot(b), fig); });
 }
 // ref = {dir: [x, y] unit, from: [x, y]} fallback barrel (image px, right facing);
 // pa / pb = this frame's from / to anchors (image px) or null; origin, k =
@@ -1445,7 +1510,7 @@ function moveFactor(name, cfg) {
 // distance multiplied by the ratio (laser/fxkit.py rescale_effects).
 var STAND_HEIGHT_PX = 28;
 var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"], arc: ["radius", "width", "back", "lead"],
-  beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius", "plant_px"],
+  beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius", "plant_px", "hop_past_px"],
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
   pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"],
   technique: ["radius", "thickness", "length"]};
@@ -1482,6 +1547,7 @@ function normalizeAction(cfg) {
   cfg.leap = fill(cfg.leap || {}, LEAP_DEFAULTS);
   cfg.blink = normalizeBlink(cfg.blink);
   cfg.time = normalizeTime(cfg.time);
+  cfg.hop = normalizeHop(cfg.hop);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return cfg;
@@ -1907,6 +1973,11 @@ function spawn(fx, host, windowTicks, seed, idx, n, ep) {
   // Anime blade extras (bladeExtrasStep): portal spot (null = not placed) and the age it launched from it (-1 = still
   // in it), ticks in flight for the flare (-1 = not flying), ground line y for planting (null = off).
   inst.spX = null; inst.spY = null; inst.spT = -1; inst.flT = -1; inst.plantY = bladePlantY(fx, host, ps);
+  // Blade hop (hopFlightStep, laser/bladehop.py): launched, launch order, target spot + unit flight direction at
+  // launch, passed the target, stopped, plant dive, held angle, recalled / thrown / used by the hop chain, laser trail.
+  inst.hopL = false; inst.hopLt = 0; inst.hopTx = 0; inst.hopTy = 0; inst.hopDx = 1; inst.hopDy = 0;
+  inst.hopPassed = false; inst.hopStopped = false; inst.hopDv = false; inst.hopA = null;
+  inst.hopRc = false; inst.hopTh = false; inst.hopUsed = false; inst.lt = [];
   // Arc / zigzag side of its line: flipped with the facing, kept up / down.
   inst.side = inst.flip * ts * ef;
   var spd = +m.speed || 0;
@@ -2624,9 +2695,77 @@ function bladeExtrasStep(inst, host) {
     }
     if (moving) inst.spT = inst.age;
   }
+  if (P.hop) hopFlightStep(inst, host, P, ps, moving);
+  var ltN = Math.max(0, trunc(+P.laser_trail || 0));
+  if (ltN > 0) {
+    if (moving) inst.lt.push([inst.x, inst.y]); else if (inst.lt.length) inst.lt.shift();   // stopped: the trail runs out
+    while (inst.lt.length > ltN) inst.lt.shift();
+  }
   if (inst.plantY != null && inst.vy > 0.01) {
     bp = bladePose(inst, ps);
     if (bp[1] >= inst.plantY) bladePlant(inst, bp[0], bp[1], bp[2], ps);
+  }
+}
+// Blade hop flight (laser/fxkit.py _hop_flight_step).  First tick it moves (not while recalled) = its launch: notes
+// the target spot and turns a seeded random angle up to hop_spread_deg.  hop_past_px past that spot: hang = brakes
+// (HOP_BRAKE a tick) and stops holding its angle for hop_hold_ms; plant = dives HOP_DIVE_DEG down and plants plant_px
+// under the target; fly = carries on.
+var HOP_BRAKE = 0.45, HOP_STOP_SPEED = 0.8, HOP_DIVE_DEG = 70, HOP_SEQ = [0];
+// A spread throw curves back in (HOP_HOME_K of the angle left a tick, at least HOP_HOME_MIN_DEG) until past the target.
+var HOP_HOME_K = 0.35, HOP_HOME_MIN_DEG = 3;
+function hopFlightStep(inst, host, P, ps, moving) {
+  if (inst.hopRc || inst.hopStopped) return;
+  if (moving && !inst.hopL) {
+    inst.hopL = true; HOP_SEQ[0] += 1; inst.hopLt = HOP_SEQ[0];
+    inst.hopTx = +host.target[0]; inst.hopTy = +host.target[1];
+    var s = +P.hop_spread_deg || 0;
+    if (s > 0) {
+      var a = inst.r.uniform(-s, s) * D, c = Math.cos(a), sn = Math.sin(a), vx = inst.vx;
+      inst.vx = vx * c - inst.vy * sn; inst.vy = vx * sn + inst.vy * c;
+    }
+    var sp = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) || 1;
+    inst.hopDx = inst.vx / sp; inst.hopDy = inst.vy / sp; inst.dir = [inst.hopDx, inst.hopDy];
+  }
+  if (!inst.hopL) return;
+  if (moving && !inst.hopPassed && (+P.hop_spread_deg || 0) > 0) {   // curve back in through the target
+    var tx = +host.target[0], ty = +host.target[1], cur = Math.atan2(inst.vy, inst.vx);
+    var da = Math.atan2(ty - inst.y, tx - inst.x) - cur;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    var lim = Math.max(HOP_HOME_MIN_DEG * D, Math.abs(da) * HOP_HOME_K), sp0 = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy);
+    cur += Math.max(-lim, Math.min(lim, da));
+    inst.vx = Math.cos(cur) * sp0; inst.vy = Math.sin(cur) * sp0;
+    inst.hopDx = Math.cos(cur); inst.hopDy = Math.sin(cur); inst.hopTx = tx; inst.hopTy = ty; inst.dir = [inst.hopDx, inst.hopDy];
+  }
+  var along = (inst.x - inst.hopTx) * inst.hopDx + (inst.y - inst.hopTy) * inst.hopDy;
+  if (along > 0) inst.hopPassed = true;
+  var after = P.hop_after || "fly";
+  if (along < (+P.hop_past_px || 0) * ps) return;
+  if (after === "hang" && moving) {
+    inst.vx *= HOP_BRAKE; inst.vy *= HOP_BRAKE;
+    if (inst.vx * inst.vx + inst.vy * inst.vy < HOP_STOP_SPEED * HOP_STOP_SPEED) {
+      inst.hopA = Math.atan2(inst.hopDy, inst.hopDx); inst.vx = 0; inst.vy = 0; inst.hopStopped = true;
+      inst.life = inst.age + Math.max(1, Math.round((+P.hop_hold_ms || 0) / TICK_MS));
+    }
+  } else if (after === "plant" && !inst.hopDv) {
+    inst.hopDv = true;
+    var sp2 = Math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy), sx = inst.hopDx >= 0 ? 1 : -1;
+    inst.vx = sx * Math.cos(HOP_DIVE_DEG * D) * sp2; inst.vy = Math.sin(HOP_DIVE_DEG * D) * sp2;
+    if (inst.plantY == null) inst.plantY = inst.hopTy + (+P.plant_px || 0) * ps;
+  }
+}
+// A blade's laser trail (laser_trail points): tapered glow ribbon + white-hot core.  laser/fxkit.py _draw_laser_trail.
+function drawLaserTrail(g, inst, c, ps) {
+  var pts = inst.lt || [], n = pts.length;
+  if (n < 2) return;
+  var w = Math.max(1, +inst.fx.params.radius * 2.2) * ps, lt = lighter(c);
+  g.lineCap = "round";
+  for (var i = 1; i < n; i++) {
+    var t = i / (n - 1);
+    g.strokeStyle = rgba(c, 150 * t); g.lineWidth = Math.max(1, w * (0.25 + 0.75 * t));
+    line(g, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    g.strokeStyle = rgba(lt, 235 * t); g.lineWidth = Math.max(1, w * 0.35 * t);
+    line(g, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
   }
 }
 function softDisc(g, cx, cy, r, stops) { if (r <= 0.05) return; g.fillStyle = radial(g, cx, cy, r, stops); g.beginPath(); g.ellipse(cx, cy, r, r, 0, 0, 6.283185307179586); g.fill(); }
@@ -2727,6 +2866,7 @@ DRAW.sprite = function (g, inst, host, ps) {   // Projectile.draw
   if (P.shape === "blade") {   // Each in place turns it on its own centre
     bp = bladePose(inst, ps); hx = trunc(bp[0]); hy = trunc(bp[1]);
     drawPortal(g, inst, c, ps);   // behind the blade
+    drawLaserTrail(g, inst, c, ps);
     drawTracer(g, inst, c, ps, bp[0], bp[1], bp[2]);
   }
   var pts = inst.trail, n = pts.length;
@@ -3274,8 +3414,12 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,
   TIME_DEFAULTS: TIME_DEFAULTS, TIME_SCOPES: TIME_SCOPES, TIME_SPEED_MAX: TIME_SPEED_MAX, normalizeTime: normalizeTime, timeSpeed: timeSpeed,
   blinkActive: blinkActive, blinkLanding: blinkLanding, bodyBound: bodyBound,
+  hopIsBeacon: hopIsBeacon, hopSpot: hopSpot, hopPick: hopPick,
   STAND_HEIGHT_PX: STAND_HEIGHT_PX, rescaleEffects: rescaleEffects, standHeight: standHeight,
   EASES: EASES, ease: ease, fxAt: fxAt, sampleKey: sampleKey, keyPaths: keyPaths, isKeyable: isKeyable, getPath: getPath, normalizeKeys: normalizeKeys,
   KEY_CHOICES: KEY_CHOICES, CYCLE_DEFAULTS: CYCLE_DEFAULTS, CYCLE_MAX_RUNS: CYCLE_MAX_RUNS, isAlwaysOn: isAlwaysOn, LAUNCH_LIFE: LAUNCH_LIFE,
-  actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite};
+  actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite,
+  HOP_DEFAULTS: HOP_DEFAULTS, HOP_SOURCES: HOP_SOURCES, HOP_FIELD_PICKS: HOP_FIELD_PICKS, HOP_AFTERS: HOP_AFTERS,
+  HOP_ARRIVALS: HOP_ARRIVALS, HOP_BLINK_ONS: HOP_BLINK_ONS, BLINK_PICKS: BLINK_PICKS, BLINK_TRIGGERS: BLINK_TRIGGERS,
+  normalizeHop: normalizeHop};
 })(window);

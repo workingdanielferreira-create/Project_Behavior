@@ -1412,7 +1412,11 @@ var PARAM_UI = {
     ["spawn_style", "Blade appears (none / portal / flash)", ["none", "portal", "flash"]], ["spawn_ms", "Appear ms (blade)", 0, 3000, 10],
     ["flare", "Lens flare + tracer in flight (blade)", "chk"],
     ["plant_on", "Plants in the ground below (blade)", ["off", "target", "figure"]], ["plant_px", "Ground below that anchor px", -200, 400, 1],
-    ["plant_ms", "Planted ms (blade)", 0, 20000, 50]],
+    ["plant_ms", "Planted ms (blade)", 0, 20000, 50],
+    ["hop", "Blade hop beacon (fighter can blink to it)", "chk"], ["hop_spread_deg", "Hop: random throw angle ± ° at launch", 0, 180, 1],
+    ["hop_after", "Hop: after passing the target", ["hang", "plant", "fly"]], ["hop_past_px", "Hop: how far past the target px", -400, 2000, 1],
+    ["hop_hold_ms", "Hop: hang time ms", 0, 20000, 50], ["hop_arrive", "Hop: when the fighter lands on it", ["catch", "stay", "shatter"]],
+    ["laser_trail", "Laser trail points (blade)", 0, 80, 1]],
   particles: [["mode", "Mode", ["burst", "stream"]], ["count", "Burst count", 1, 400, 1], ["rate_per_s", "Stream /s", 1, 600, 1],
     ["angle_deg", "Angle °", -180, 180, 1], ["spread_deg", "Spread °", 0, 360, 1], ["speed_min", "Speed min px/s", 0, 2000, 5],
     ["speed_max", "Speed max px/s", 0, 2000, 5], ["gravity", "Gravity px/s²", -2000, 2000, 10], ["drag", "Drag /tick", 0.5, 1, 0.01],
@@ -1968,7 +1972,7 @@ function buildProps() {
   s = sec(d, "Purpose", "purpose", "Whether it damages the target where it touches, and how hard.");
   var bt = fx.battle;
   if (fx.prim === "ghost") note(s, "Afterimages are visual only.");
-  if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots. Blade appears: portal = a ripple portal opens behind its pommel and it slides out tip-first over Appear ms, hangs in the portal's bright mouth and the portal closes when it launches (keep it still while it appears, launch it with a key); flash = it flashes into being with a glint. No hits while it appears. Lens flare + tracer: a lens streak on its tip and a tracer behind it while it flies, bigger the instant it launches. Plants in the ground below (target / figure): when it comes down to the ground line Ground below that anchor px under that anchor (fixed when it spawns) it sticks in upright for Planted ms and deals no more damage. Keys can switch Blade points, so a blade held at an angle can swing round to aim and then fly along its flight.");
+  if (fx.prim === "sprite" && fx.params.shape === "blade") note(s, "Blade: a sword of light, Radius wide (half-width) and 2 × Radius × Stretch long (tip to pommel), its tip at the effect's position. It points where it is moving (travel, orbit) and straight down when still, or, with Blade points = angle, holds Blade angle ° (Flip mirrors it); it hits along its whole length. Without Pierce, a blade that hits lodges in the target at the angle it struck: it stays stuck there, following the target, for Lodge ms (fading over the last 300 ms) and deals no more damage. Lodge ms 0 = it ends on the hit like other shots. Blade appears: portal = a ripple portal opens behind its pommel and it slides out tip-first over Appear ms, hangs in the portal's bright mouth and the portal closes when it launches (keep it still while it appears, launch it with a key); flash = it flashes into being with a glint. No hits while it appears. Lens flare + tracer: a lens streak on its tip and a tracer behind it while it flies, bigger the instant it launches. Plants in the ground below (target / figure): when it comes down to the ground line Ground below that anchor px under that anchor (fixed when it spawns) it sticks in upright for Planted ms and deals no more damage. Keys can switch Blade points, so a blade held at an angle can swing round to aim and then fly along its flight. Blade hop: a hop beacon is a blade its fighter can blink to (Blink landing 'At a hop blade') and that the Blade hop chain and the hop trigger conditions count. When it launches it turns a random angle up to the ± setting; once it is the set distance past the target it was launched at it hangs there (pointing the way it flew, for the hang time), dives into the ground under the target, or flies on. When its fighter lands on it, it is caught (vanishes into the hand), stays as a beacon, or shatters. Laser trail: a tapered laser trail behind it while it flies.");
   if (fx.prim === "technique" && !POWER_UI[fx.params.style]) note(s, "Technique: a hand-drawn FX (the same renderer as the game, laser/swordfx.py and laser/strikefx.py). Rising slash / Horizontal sweep / Diagonal slash: a crescent of light that swings round the anchor (use Motion attached, anchor figure, Flip on so it cuts toward the target's side); it hits along the visible blade for Swing ticks + 2 ticks. Crescent wave: a travelling crescent with a dark core and flames (use Motion travel, Aim target); it hits for Hold ticks of flight, then shatters. Blade extension: an energy blade that charges, shoots out of the anchor along the Aim (use anchor wtip, Motion attached), stays out for Hold ticks and retracts; it hits along its length. Its Blade pivot / spin / sweep turn it round a point on its centre line while it is out, and Blade slide moves it along an axis (both can combine; the anchor still carries it). Forward thrust: a lunge stab, a narrow tapered spear of light that drives out of the anchor along the Aim in Swing ticks (use anchor wtip, Motion attached, Aim target), stays out for Hold ticks with an air-pressure ring at full reach, then snaps back; it hits along its length (Length = reach, Thickness = half-width at the base). Overhead slash: a vertical chop from above the head straight down to the feet, bulging forward in front of the fighter (use Motion attached, anchor figure, Flip on). Forward sweep: a flat sweep seen edge-on, from beside the fighter out round the front at full reach. Combos (triple, cross, flurry, launcher, backhand): a chain of cuts, each with its own direction, position, size and start; each cut lands once, so give them Pierce and Re-hit 1. Every slash hit leaves a slash flash on the target. Ki barrage: rapid-fire ki blasts from the anchor along the Aim (use Motion attached, Aim target); every shot differs in size, tint, spread, speed, range and curve, detonates where it hits or at the end of its range, and each can hit once (give it Pierce and a short Re-hit). Impact punch: the fist drives out along the Aim and lands; a whiff bursts smaller at full reach. Kicks (roundhouse, thrust, axe, spinning, rising; laser/kickfx.py): use Motion attached, anchor figure, Aim target. A short wind-up, then the foot kicks over Swing ticks (held Hold ticks, then fades); it hits along the lower leg. Radius = fist / foot size, Thickness = how far the air strokes spread, Length = reach, Span = arc sweep °. Roundhouse: an arc round the hip meeting the aim halfway (sweep high → low or low → high). Thrust kick: straight along the aim. Axe kick: comes down onto the point Length along the aim (screen-down, along the aim or a custom Kick direction °), its crater at the contact point or under the target's feet. Spinning kick: Spin turns full circles ending on the aim — centred (a wind vortex round the body), travelling forward, or spinning then lunging. Rising kick: a launcher rising through the aim point (up and forward, square to the aim, straight up or a custom Kick direction °). What the punch and kicks paint is split into three parts, each Off or one of three looks — Ink (anime: white shapes with ink outlines redrawn on twos, focus lines), Energy (light: hot cores, pressure bursts, rays and sparks spilling forward, shock rings) or Gritty (physical: dust, distortion rings, debris, little glow): Motion FX = smear frames (afterimages of the forearm / shin along its real path up to contact, gone on the hit), air strokes along the path and the fist / foot; Impact FX = the hit, laid along the way the limb moved (kicks bigger); Environment FX = push-off dust under the fighter, a ground wave under the target, the axe crater, the rising kick-up, the spinning vortex. Hit weight: Hit-stop freezes the world for Hit-stop ticks when it lands (with no opponent — Solo, or every dummy down — as it whiffs), once per strike; Screen shake shakes the stage with it; Target squash squashes the target along the blow for Squash ticks and can flash it white (Battle; here: the target marker). Knockback direction aim / tangent (the way the fist / foot moves) / custom (Knockback angle ° from the strike); Impact frame off / local (a white flash with ink focus lines inside the radius, then the inverse) / full (the whole overlay — it flashes the entire screen). The technique keeps its own timeline, so Life is ignored; Palette colour = the palette's most vivid colour.");
   if (fx.prim === "pulse") note(s, "Radial pulse: each ring grows from Radius start to Radius end over Expand ms. With Deals damage on, every ring hits each target once as its edge sweeps over it and knocks it outward from the centre (Pierce / Re-hit don't apply). Rings 0 = a new ring every gap for as long as the effect lasts. Stretch X / Y (1 = round) pull the rings into ellipses tilted by Tilt °, like an orbit's radius X / Y; hits follow the stretched shape.");
   else {
@@ -2328,7 +2332,12 @@ var COND_META = {
     help: "A random roll: this % chance per second while the other conditions hold (100 = always)."},
   // actions
   action_triggered: {group: "Actions", label: "own / enemy action triggered", prev: [],
-    help: "This fighter (own) or the target (enemy) started the named action within the time window (0 ms = only on the tick it starts). Empty action = any action. Built-in fighters count a dash / slash as attack_normal, a parry as defend and their ultimates as ultimate. Battle only for the enemy (the Solo cursor never acts)."}
+    help: "This fighter (own) or the target (enemy) started the named action within the time window (0 ms = only on the tick it starts). Empty action = any action. Built-in fighters count a dash / slash as attack_normal, a parry as defend and their ultimates as ultimate. Battle only for the enemy (the Solo cursor never acts)."},
+  // Blade hop
+  hop_blades: {group: "Blade hop", label: "own hop blades out ≥ count", prev: [],
+    help: "At least Count of this fighter's hop blades (blade FX with Blade hop beacon on) are out. Field = planted in the ground or standing still (e.g. Sword Graveyard's swords, not yet thrown); thrown = launched ones in flight or hanging; any = both. Use it to start a Blade hop chain action while the field holds blades. Judged in the game (and Solo) only."},
+  hop_blade_near: {group: "Blade hop", label: "own hop blade within px", prev: [],
+    help: "One of this fighter's hop blades is within the distance (game px at 100 % character scale): the fighter walked or blinked up to it. Use it to trigger a follow-up action (e.g. a throw). Judged in the game (and Solo) only."}
 };
 var COND_GROUPS = [], COND_LABEL = {}, COND_HELP = {}, PREV_USES = {};
 Object.keys(COND_META).forEach(function (k) {
@@ -2340,7 +2349,8 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
   min_px: ["From px", 0, 2000, 5], max_px: ["To px", 0, 2000, 5], px_s: ["Speed px/s", 0, 5000, 5],
   hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
   tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
-  dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"], who: ["Whose action", "who"]};
+  dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"], who: ["Whose action", "who"],
+  which: ["Which hop blades", "which"]};
 // Preview-only state for the conditions the stage can't show (not saved).
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
@@ -2404,6 +2414,7 @@ function condField(box, c, k, ownLabel, listId) {
   if (u[1] === "tags") return field(box, u[0], tagsInput(c, k, listId));
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
   if (u[1] === "who") return field(box, u[0], inp([["target", "the enemy (target)"], ["self", "own (this fighter)"]], c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "which") return field(box, u[0], inp([["field", "field (planted / standing)"], ["thrown", "thrown (launched)"], ["any", "any"]], c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "action" && c.type === "action_triggered") {   // any action name: own, or the enemy's (unknown here)
     var names = {attack_normal: 1, attack_special: 1, ultimate: 1, defend: 1};
     Object.keys(C.actions).forEach(function (a) { if (FXK.actionKind(a) !== "locomotion") names[a] = 1; });
@@ -3939,8 +3950,16 @@ function buildBlinkProps(d) {
         + (prev && FXK.blinkEnd(prev, n) + 1 === b.start_frame ? " Starts right as blink " + i + " reappears: it hops straight on." : ""));
     }
     if (prev && b.start_frame <= FXK.blinkEnd(prev, n)) note(t, "Its frames overlap blink " + i + "'s, which takes those frames: set its vanish frame to " + (FXK.blinkEnd(prev, n) + 1) + " or later.");
-    field(t, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"]], b.anchor, function (v) { b.anchor = v; ch(); })).title =
-      "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from (for a later blink, where the one before it landed).";
+    field(t, "Vanish when", inp([["frames", "its vanish frame"], ["passes", "my newest blade passes the target"], ["stops", "my newest blade stops (hangs / plants)"],
+      ["delay", "a delay after its frames start"], ["in_range", "I'm in range of one of my hop blades"]], b.trigger, function (v) { b.trigger = v; ch(); })).title =
+      "Its vanish frame: as usual. The others (Blade hop) wait inside this blink's frames for the event, vanish then, come back 'Gone ms' later and run once per pass: the newest launched hop blade has gone past its target / has hung or planted; a delay after the vanish frame; or one of this fighter's hop blades is within range. Make the blink's frames long enough for the event to happen.";
+    if (b.trigger === "delay") field(t, "Delay ms", inp("n", b.delay_ms, function (v) { b.delay_ms = Math.max(0, v); ch(); }, 0, 20000, 10)).title = "How long after its vanish frame it vanishes.";
+    if (b.trigger === "in_range") field(t, "Range px", inp("n", b.range_px, function (v) { b.range_px = Math.max(0, v); ch(); }, 0, 2000, 5)).title = "How close one of its hop blades must be (game px at 100 % character scale).";
+    if (b.trigger !== "frames") field(t, "Gone ms", inp("n", b.gone_ms, function (v) { b.gone_ms = Math.max(0, v); ch(); }, 0, 5000, 10)).title = "How long it stays gone once the event made it vanish.";
+    field(t, "Reappear near", inp([["target", "the target"], ["self", "where it vanished"], ["blade", "one of my hop blades"]], b.anchor, function (v) { b.anchor = v; ch(); })).title =
+      "What the distance below is measured from. The target: where the target is when it reappears. Where it vanished: the spot it disappeared from (for a later blink, where the one before it landed). One of my hop blades (Blade hop): one of this fighter's blades with Blade hop beacon on (picked below); the blade then plays its 'when the fighter lands on it' (catch / stay / shatter). With none out it lands as for the target. Use Distance 0 to land right on it.";
+    if (b.anchor === "blade") field(t, "Which blade", inp([["newest", "the newest thrown"], ["behind", "the one behind the target"], ["nearest", "the nearest to me"]], b.blade_pick, function (v) { b.blade_pick = v; ch(); })).title =
+      "The newest thrown: the hop blade launched most recently. Behind the target: the one on the far side of the target from the fighter, nearest the target. Nearest to me: the closest one to the fighter.";
     field(t, "Side", inp(BLINK_SIDE_LABEL, b.direction, function (v) { b.direction = v; ch(); })).title =
       "Which way from that point it lands. Behind / in front: the far / near side of the target, left / right (in Battle, the target's back / front). Toward / away: along the line from where it vanished to the target. Above / below and the diagonals: straight up / down or at 45°, left / right on screen (not the facing). Fixed angle: the angle below.";
     if (b.direction === "angle") field(t, "Angle °", inp("n", b.angle_deg, function (v) { b.angle_deg = Math.max(-180, Math.min(180, v)); ch(); }, -180, 180, 5)).title =
@@ -3965,6 +3984,43 @@ function buildBlinkProps(d) {
   field(s, "Blink cooldown ms", inp("n", bk.cooldown_ms, function (v) { bk.cooldown_ms = Math.max(0, Math.min(60000, v)); save(); }, 0, 60000, 50)).title =
     "Shared by all the blinks of this action. After a blink reappears, how long before this action can blink again; the rest of the same pass still blinks. Until then the action still plays when it triggers, just without vanishing (and without its Blink FX). 0 = blinks every time.";
   note(s, "While gone: invisible, takes no hits, doesn't move. It moves too fast to see, so its FX carry on as normal: they keep firing on the frames, and body FX (attached, orbit, weapon) stay visible and still hit. Path points can be pinned to each blink's vanish / landing spot (Paths: the pin next to each point). On the stage: the dashed outline is where it vanished, the numbered green rings where each blink will land. Drag the target to move the landing spots.");
+}
+// ------------------------------------------------------------ blade hop chain
+// Blade hop chain (action_settings[action].hop; laser/bladehop.py): while this
+// action plays it throws every field hop blade at the target, blinking after
+// each, faster and faster, then plays the finisher.  Game only (the stage
+// doesn't play the chain).
+function buildHopProps(d) {
+  var a = S.action, h = cfgOf(a).hop;
+  if (FXK.actionKind(a) === "locomotion") return;
+  var s = sec(d, "Blade hop chain (this action)", "a-hop",
+    "Throws every 'field' hop blade on the field (blade FX with Blade hop beacon on that are planted or standing still, e.g. Sword Graveyard's swords) through the target, one by one, blinking after each throw, faster and faster; the animation loops until the last one, then the finisher plays. Game only: the stage doesn't play the chain.", "act");
+  var ch = function () { save(); buildProps(); };
+  field(s, "On", inp("chk", h.enabled, function (v) { h.enabled = v; ch(); })).title = "Run the Blade hop chain while this action plays. Start the action with the 'own hop blades out ≥ count' condition.";
+  if (!h.enabled) { note(s, "Off. Tip: lay a field first (e.g. the Sword Graveyard preset with Blade hop beacon on), then give this action the condition 'own hop blades out ≥ 1 (field)'."); return; }
+  var num = function (k, label, lo, hi, st, tip) { field(s, label, inp("n", h[k], function (v) { h[k] = Math.max(lo, Math.min(hi, +v || 0)); save(); }, lo, hi, st)).title = tip; };
+  var pick = function (k, label, opts, tip) { field(s, label, inp(opts, h[k], function (v) { h[k] = v; ch(); })).title = tip; };
+  pick("source", "How each blade is taken", [["mix", "mix (random each throw)"], ["recall", "recalled to the hand"], ["ground", "fired from where it stands"], ["blink", "blink onto it, then throw"]],
+    "Recalled: the field blade rips out and streaks to the hand, then is thrown. Fired from where it stands: it launches straight at the target from the ground. Blink onto it: the fighter blinks onto the blade, pulls it out and throws it. Mix: a seeded random one of the three each throw.");
+  pick("field_pick", "Which field blade next", [["nearest", "nearest to me"], ["farthest", "farthest from me"], ["random", "random"]], "The order the field blades are used in.");
+  num("max_throws", "Max throws (0 = all)", 0, 999, 1, "Stop after this many throws; 0 = throw every field blade.");
+  num("speed", "Throw speed px/tick", 1, 200, 1, "How fast each thrown blade flies (game px per tick at 100 %).");
+  num("damage", "Damage per throw", 0, 9999, 1, "Each thrown blade pierces the target and deals this once (Battle).");
+  num("knockback", "Knockback per throw", 0, 200, 1, "Knockback of each throw.");
+  num("spread_deg", "Random throw angle ± °", 0, 180, 1, "Each throw comes in at a seeded random angle up to this off the line to the target, so every pass crosses at a new angle.");
+  num("laser_trail", "Laser trail points", 0, 80, 1, "The laser trail behind each thrown blade (0 = none).");
+  pick("after", "After passing the target", [["hang", "hang in the air"], ["plant", "plant in the ground"], ["fly", "keep flying"]], "What each thrown blade does once it is the distance below past the target.");
+  num("past_px", "How far past the target px", -400, 2000, 5, "Where it hangs / dives (game px at 100 %).");
+  if (h.after === "hang") num("hold_ms", "Hang time ms", 0, 20000, 50, "How long a hanging blade waits.");
+  pick("arrive", "When I land on it", [["catch", "catch it"], ["stay", "it stays"], ["shatter", "it shatters"]], "Catch: it vanishes into the hand. Stays: it stays out as a hop blade. Shatters: it bursts into shards.");
+  pick("blink_on", "Blink after the throw when", [["passes", "it passes the target"], ["stops", "it stops (hangs / plants)"], ["delay", "a delay"]], "When the fighter blinks after each throw.");
+  if (h.blink_on === "delay") num("delay_ms", "Delay ms", 0, 10000, 10, "Time from the throw to the blink.");
+  pick("land_pick", "Land on", [["newest", "the blade just thrown"], ["behind", "the blade behind the target"], ["nearest", "the nearest blade"]], "Which hop blade the fighter blinks to after each throw.");
+  num("gone_ms", "Gone ms per blink", 0, 2000, 5, "How long it is invisible on each blink.");
+  num("gap_start_ms", "Gap before the 2nd throw ms", 0, 10000, 10, "Pause after landing before the next throw, at the start of the chain.");
+  num("gap_end_ms", "Gap before the last throw ms", 0, 10000, 10, "The same pause at the end: lower than the start = the chain speeds up throw by throw.");
+  field(s, "Finisher", inp([["", "— none —"]].concat(Object.keys(C.actions).filter(function (k) { return k !== a; })), h.finisher, function (v) { h.finisher = v; save(); })).title =
+    "The action played the moment the last blade has been thrown (it starts straight away, whatever its own conditions).";
 }
 // ------------------------------------------------------------ time control
 // Time control (action_settings[action].time; laser/timefx.py): while this
@@ -4126,6 +4182,7 @@ function buildActionProps(d) {
   buildCharFxProps(d);
   buildCharScaleProps(d);
   buildBlinkProps(d);
+  buildHopProps(d);
   buildTimeProps(d);
   buildAimProps(d);
   buildDamagedProps(d);
@@ -5485,7 +5542,9 @@ function blinkPointAt(i, which) {
 // landing agree.
 function blinkLandingFrom(i, from) {
   var st = cfgOf(S.action).blink.blinks[i]; if (!st) return from;
-  return FXK.blinkLanding(scaledBlink(st), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17 + i * 104729).uniform(0, 1));
+  var hb = st.anchor === "blade" ? FXK.hopPick(player.insts.concat(cplayer.insts), st.blade_pick, [S.figX, S.figY], S.target) : null;   // Blade hop
+  return FXK.blinkLanding(scaledBlink(st), from, S.target, null, facing(), FXK.rng((S.cycle || 0) * 7919 + 17 + i * 104729).uniform(0, 1),
+    hb ? FXK.hopSpot(hb) : null);
 }
 function drawBlink(g, z, img) {
   var b = cfgOf(S.action).blink; if (!b.enabled) return;

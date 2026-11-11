@@ -285,6 +285,27 @@ timing.
   over the last 300 ms. Keys can now switch **Blade points** (motion / angle),
   so a blade held at a wing angle can swing round to aim and then fly
   pointing along its flight (the Ethereal presets' aim-then-fire).
+- **Blade hop** (blade only, Daniel 2026-11-11; `laser/bladehop.py`).
+  **Blade hop beacon** makes a blade one its fighter can teleport to.
+  Per blade: **random throw angle ±°** (each launch comes in at a seeded
+  random angle and curves back in so it still cuts through the target),
+  **after passing the target** hang (brakes and hangs, pointing the way it
+  flew, for the hang time) / plant (dives into the ground under the target)
+  / fly, **how far past the target**, **when the fighter lands on it** catch
+  / stay / shatter, and a **laser trail** behind it in flight. Blinks gain
+  **Reappear near: one of my hop blades** (newest thrown / behind the target
+  / nearest to me) and **Vanish when**: its vanish frame, my newest blade
+  passes the target, it stops (hangs / plants), a delay, or I'm in range of
+  one of my hop blades (event blinks come back after **Gone ms** and run once
+  per pass). Two trigger conditions: **own hop blades out ≥ count** (field /
+  thrown / any) and **own hop blade within px**. The **Blade hop chain**
+  (Action settings) throws every field hop blade (planted or standing, e.g.
+  Sword Graveyard's swords) through the target one by one — each taken by
+  recall / fired from where it stands / blink onto it / mix — blinks onto
+  each thrown blade, speeds up from the first gap to the last, then plays
+  the **Finisher** action. hooded_blades: ultimate lays Sword Graveyard,
+  attack_special (trigger: own hop blades out ≥ 1) throws the field. The
+  chain runs in the game only (Solo and Battle), not on the Studio stage.
 - **Escort (ally).** Under each effect: **Escort ally** makes it leave the
   caster once cast and guard the caster's tag pair's on-field fighter — the
   caster while it is in, the incoming partner after a Switch — for **Escort
