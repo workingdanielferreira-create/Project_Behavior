@@ -1053,7 +1053,7 @@ G.FX_PRESETS = [
        battle: {deals_damage: true, damage: 3, pierce: false, rehit_ticks: 0, knockback: 3},
        motion: {kind: "attached", aim: "target", speed: 20}, color: {mode: "solid", c1: i % 3 ? "#b8ccff" : "#d4e0ff"},
        params: eBlade({radius: 1.5, stretch: 8, trail_len: 3, lodge_ms: 1200, blade_orient: "angle", blade_angle_deg: w.deg,
-                       spawn_style: "flash", spawn_ms: 220, flare: true}),
+                       spawn_style: "flash", spawn_ms: 220, flare: true, hop: true}),
        keys: eAimFire(8 + Math.round(i * 1.5), w.deg)};
    })).concat([
      {prim: "sprite", name: "Heaven-cleaving blade", tag: "blade", anchor: "target", offset: [0, -150], start_frame: 18, end_frame: 30, blend: "additive",
@@ -1061,7 +1061,7 @@ G.FX_PRESETS = [
       battle: {deals_damage: true, damage: 10, pierce: true, rehit_ticks: 0, knockback: 16},
       motion: {kind: "static", aim: "angle", angle_deg: 90, speed: 24}, color: {mode: "solid", c1: "#d4e0ff"},
       params: eBlade({radius: 5, stretch: 14, trail_len: 0, glow: 120, glow_size: 100, blade_orient: "angle", blade_angle_deg: 90,
-                      spawn_style: "portal", spawn_ms: 350, flare: true, plant_on: "target", plant_px: 28, plant_ms: 2200}),
+                      spawn_style: "portal", spawn_ms: 350, flare: true, plant_on: "target", plant_px: 28, plant_ms: 2200, hop: true}),
       keys: [{frame: 25, ease: "linear", set: {"motion.kind": "travel"}}]},
      {prim: "glow", name: "Impact flash", tag: "blade", anchor: "target", start_frame: 26, life_ticks: 18, motion: {kind: "static"}, blend: "additive",
       color: {mode: "solid", c1: "#9fb6ff"}, params: {r_start: 10, r_end: 70, a_center: 230, a_mid: 90, mid: 0.35, core_r: 8, fade: "out", pulse_hz: 0}},
@@ -1088,7 +1088,7 @@ G.FX_PRESETS = [
        flip: {enabled: true, facing: 1}, follow_dir: true, blend: "additive",
        battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 2},
        motion: {kind: "travel", aim: "angle", angle_deg: i % 2 ? 32 : -32, speed: 16}, color: {mode: "solid", c1: "#c4d3ff"},
-       params: eBlade({radius: 1.8, stretch: 9, trail_len: 3, spawn_style: "flash", spawn_ms: 80, flare: true})};
+       params: eBlade({radius: 1.8, stretch: 9, trail_len: 3, spawn_style: "flash", spawn_ms: 80, flare: true, hop: true})};
    })).concat([0, 1, 2, 3].map(function (i) {
      return {prim: "glow", name: "Blink flash " + (i + 1), tag: "blade", anchor: "figure", start_frame: i * 6 + 5, life_ticks: 8, motion: {kind: "static"}, blend: "additive",
        color: {mode: "solid", c1: "#d4e0ff"}, params: {r_start: 6, r_end: 34, a_center: 230, a_mid: 90, mid: 0.4, core_r: 4, fade: "out", pulse_hz: 0}};
@@ -1299,14 +1299,14 @@ G.FX_PRESETS = [
          flip: flip, follow_each: true, blend: "additive",
          battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2},
          motion: {kind: "static", aim: "target", speed: 26}, color: {mode: "solid", c1: i % 4 ? "#c4d3ff" : "#ffffff"},
-         params: eBlade({radius: 1.5, stretch: 9, trail_len: 0, lodge_ms: 900, spawn_style: "portal", spawn_ms: 320, flare: true}),
+         params: eBlade({radius: 1.5, stretch: 9, trail_len: 0, lodge_ms: 900, spawn_style: "portal", spawn_ms: 320, flare: true, hop: true}),
          keys: [{frame: 10 + Math.floor(i / 2) * 2 + (i % 2), ease: "linear", set: {"motion.kind": "travel"}}]});
      }
      out.push({prim: "sprite", name: "Treasury great blade", tag: "blade", anchor: "figure", offset: [-60, -110], start_frame: 12, end_frame: 30,
        flip: flip, follow_each: true, blend: "additive",
        battle: {deals_damage: true, damage: 3, pierce: false, rehit_ticks: 0, knockback: 12},
        motion: {kind: "static", aim: "target", speed: 28}, color: {mode: "solid", c1: "#d4e0ff"},
-       params: eBlade({radius: 3.2, stretch: 12, trail_len: 0, glow: 120, lodge_ms: 1400, spawn_style: "portal", spawn_ms: 420, flare: true}),
+       params: eBlade({radius: 3.2, stretch: 12, trail_len: 0, glow: 120, lodge_ms: 1400, spawn_style: "portal", spawn_ms: 420, flare: true, hop: true}),
        keys: [{frame: 26, ease: "linear", set: {"motion.kind": "travel"}}]});
      return [
        {prim: "glow", name: "Treasury presence", tag: "blade", anchor: "figure", offset: [-40, -70], start_frame: 0, end_frame: 28, flip: flip, layer: "behind",
@@ -1335,7 +1335,7 @@ G.FX_PRESETS = [
        battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2},
        motion: {kind: "orbit", aim: "target", speed: 16, orbit_rx: 150, orbit_ry: 30, orbit_deg: 5 - i, orbit_dir: row[2]},
        color: {mode: "solid", c1: i === 1 ? "#d4e0ff" : "#b8ccff"},
-       params: eBlade({radius: 1.5, stretch: 8, trail_len: 4, lodge_ms: 1000, spawn_style: "flash", spawn_ms: 240, flare: true}),
+       params: eBlade({radius: 1.5, stretch: 8, trail_len: 4, lodge_ms: 1000, spawn_style: "flash", spawn_ms: 240, flare: true, hop: true}),
        keys: [{frame: 12, ease: "strong_out", set: {"motion.orbit_rx": 70, "motion.orbit_ry": 16}},
               {frame: row[3], ease: "linear", set: {"motion.kind": "travel"}}]};
    })).concat([
@@ -1351,14 +1351,17 @@ G.FX_PRESETS = [
   // high over the target, one or two a frame (2-14); each sword slides out
   // point-down (tilted up to 12°), hangs a beat, then drops (6 frames after
   // its portal) with a flare, cutting through the target (Pierce) and
-  // planting upright in the ground round it, where it stays 3 s.  The
+  // planting upright in the ground round it, where it stays 10 s.  The
   // ground glows under the field as it fills and flares at frame 24.
   // Field size (Daniel 2026-11-11, 3x the first version, same 16 swords,
   // same sword size): 660 px wide; portals spread over a 120 px band of sky;
   // each sword has its own depth in the field, its ground line up to 60 px
   // nearer (lower on screen) or farther (higher) than the target's feet, and
   // its portal shifted by the same depth so every column drops alike.
-  {name: "Sword Graveyard", group: "Ethereal", desc: "Portals open over the target and swords drop out of them one or two at a time, cutting through it and planting upright in a wide, deep sword field round it that stays for 3 s (frames 0-30)",
+  // Blade hop (Daniel 2026-11-11): every sword is a hop beacon, so a Blade hop
+  // chain action can then throw them all (hooded_blades: ultimate lays the
+  // field, attack_special throws it, laser/bladehop.py).
+  {name: "Sword Graveyard", group: "Ethereal", desc: "Portals open over the target and swords drop out of them one or two at a time, cutting through it and planting upright in a wide, deep sword field round it that stays for 10 s - hop blades a Blade hop chain can throw (frames 0-30)",
    effects: (function () {
      var rnd = eRng(3131), out = [], flip = {enabled: true, facing: 1};
      for (var i = 0; i < 16; i++) {
@@ -1369,7 +1372,8 @@ G.FX_PRESETS = [
          battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 1},
          motion: {kind: "static", aim: "angle", angle_deg: 90 + tilt, speed: 18}, color: {mode: "solid", c1: i % 5 ? "#c4d3ff" : "#ffffff"},
          params: eBlade({radius: 1.6, stretch: 9, trail_len: 0, blade_orient: "angle", blade_angle_deg: 90 + tilt,
-                         spawn_style: "portal", spawn_ms: 260, flare: true, plant_on: "target", plant_px: 28 + depth, plant_ms: 3000}),
+                         spawn_style: "portal", spawn_ms: 260, flare: true, plant_on: "target", plant_px: 28 + depth, plant_ms: 10000,
+                         hop: true, hop_after: "fly"}),
          keys: [{frame: f + 6, ease: "linear", set: {"motion.kind": "travel"}}]});
      }
      return [
@@ -1396,7 +1400,7 @@ G.FX_PRESETS = [
        battle: {deals_damage: true, damage: 2, pierce: true, rehit_ticks: 0, knockback: 6},
        motion: {kind: "static", aim: "target", speed: 22}, color: {mode: "solid", c1: "#d4e0ff"},
        params: eBlade({radius: 2.2, stretch: 10, trail_len: 0, spawn_style: "flash", spawn_ms: 200, flare: true,
-                       plant_on: "target", plant_px: 28, plant_ms: 1800}),
+                       plant_on: "target", plant_px: 28, plant_ms: 1800, hop: true}),
        keys: [{frame: c[3], ease: "linear", set: {"motion.kind": "travel"}}]};
    }).concat([45, 135].map(function (deg, i) {
      // the blade's centre sits on the target: its tip half a blade (2 x 3.5 x 12 / 2 = 42 px) along deg
@@ -1430,7 +1434,7 @@ G.FX_PRESETS = [
        flip: {enabled: true, facing: 1}, follow_each: true, blend: "additive",
        battle: {deals_damage: true, damage: 1, pierce: false, rehit_ticks: 0, knockback: 2},
        motion: {kind: "static", aim: "target", speed: 24}, color: {mode: "solid", c1: i % 3 ? "#c4d3ff" : "#ffffff"},
-       params: eBlade({radius: 1.6, stretch: 8, trail_len: 0, lodge_ms: 1000, spawn_style: "flash", spawn_ms: 160, flare: true}),
+       params: eBlade({radius: 1.6, stretch: 8, trail_len: 0, lodge_ms: 1000, spawn_style: "flash", spawn_ms: 160, flare: true, hop: true}),
        keys: [{frame: 18 + Math.floor(i / 2), ease: "linear", set: {"motion.kind": "travel"}}]};
    })).concat([
      {prim: "glow", name: "Rush release", tag: "blade", anchor: "figure", start_frame: 18, life_ticks: 12, motion: {kind: "static"}, blend: "additive",

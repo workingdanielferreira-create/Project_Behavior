@@ -451,8 +451,10 @@ class CombatSystem(System):
             if _gone:
                 _bx, _by = fig.transform.x, fig.transform.y
             _rooted = actions.update(fig, world) if _img else False
-            if _gone:
-                fig.transform.x, fig.transform.y = _bx, _by   # gone = doesn't move
+            if _gone and blink.gone(fig):
+                # gone = doesn't move (unless the Blade hop chain brought it
+                # back somewhere else during the action update: laser/bladehop.py)
+                fig.transform.x, fig.transform.y = _bx, _by
             # FX Studio Time control: start / advance / end this figure's
             # own time effect (it never slows the caster itself).
             timefx.update_caster(fig, world)

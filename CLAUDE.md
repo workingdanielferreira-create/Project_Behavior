@@ -45,6 +45,7 @@ laser/worldscale.py
 laser/terrain.py
 laser/player.py
 laser/speedband.py
+laser/bladehop.py
 ```
 
 ## Mandatory Session Rules
@@ -137,6 +138,7 @@ laser/speedband.py
 - Blade sprite extras (`laser/fxkit.py` `blade_extras_step` / `_draw_portal` / `_draw_tracer` / `_draw_flare_head` / `_blade_spawn_xform`, mirrored in fxkit.js `bladeExtrasStep` etc.; params all off by default): `spawn_style` none / portal (Gate of Babylon ripple portal at the pommel, blade slides out tip-first over `spawn_ms`, portal follows the pommel until the blade launches then closes over `BLADE_PORTAL_CLOSE_MS`) / flash (glint + grow-in); no hits while spawning (`blade_spawn_u` < 1). `flare` = lens streak + tracer while moving (`inst.fl_t`, burst over `BLADE_FLARE_BURST_TICKS`). `plant_on` target / figure + `plant_px` (in SCALE_PARAMS) + `plant_ms`: ground line fixed at spawn (`inst.plant_y`), a falling blade sticks in via `blade_plant` (lodge with `g: True`, never follows)
 - `params.blade_orient` is in KEY_CHOICES: wing-angle blades key `blade_angle_deg` round to 0, then `blade_orient` motion + `motion.kind` travel (presets.js `eAimFire`, `eWing`). Hanging-then-fire blades: motion static + `follow_each` (tip at the target), key `motion.kind` travel
 - FX Studio Ethereal group: 8 reworked + Gate of the Treasury, Thousand-Blade Vortex, Sword Graveyard, Crossing Judgement, Phantom Edge Rush. Presets only (character FX files untouched); icy blue-white
+- Blade hop (`laser/bladehop.py`, Daniel 2026-11-11): blade params `hop` / `hop_spread_deg` (launch turn, then curves back in through the target: `HOP_HOME_K`) / `hop_after` hang / plant / fly + `hop_past_px` / `hop_hold_ms` / `hop_arrive` catch / stay / shatter / `laser_trail` (fxkit `_hop_flight_step`, `_draw_laser_trail`; JS `hopFlightStep`). Beacons = live hop blades in the fighter's FX players (`bladehop.beacons`), "field" = planted or still and not chain-thrown; picks newest / behind / nearest (`bladehop.pick`, JS `FXK.hopPick` for the Studio blink preview). Blink step: `anchor` "blade" + `blade_pick`, `trigger` frames / passes / stops / delay / in_range (+ `delay_ms`, `range_px`, `gone_ms`; `blink._event_ok`). Conditions `hop_blades` (count, which) / `hop_blade_near` (px). Chain = `action_settings[a].hop` (`HOP_DEFAULTS`): `bladehop.step` from `ActionRunner.update` (animation loops while `holding`), fighter vanishes / reappears via `blink.hop_vanish` / `hop_reappear` (`BlinkState.ext`; chain state on `BlinkState.chain`); CombatSystem only restores a gone fighter's spot if it is STILL gone after the action update. hooded_blades: ultimate = Sword Graveyard (16 hop swords, planted 10 s), attack_special = chain (movement stand, its old FX disabled), finisher TBD
 
 ### Rendering
 - LUT assignment on mode switch: `cycle_mode` must explicitly update `fig.lut` and `fig.trail.lut` after `set_mode()`
@@ -150,6 +152,14 @@ laser/speedband.py
 curl .../contents/laser/combat.py?ref={commit_sha}
 ```
 Use against a known-good commit hash to retrieve prior versions for diffing.
+
+## How Daniel Wants FX Designed (his guidance, 2026-11-11 — read before any FX work)
+- **Dynamic = chaotic control, like a flame.** A fire looks like "the same thing" but every second is new: ever-changing, unpredictable flickers, complete chaos with imperfect control. Fights and FX must feel like that — fluid, never a steady beat, never two passes alike. Seeded randomness in angles / timing / spots, uneven rhythm, acceleration; avoid symmetric, evenly spaced, metronome patterns
+- **Aim for "to the viewer, that looks insane"**: blistering speed, teleports, blades crossing at new angles every pass. Epic and exciting over safe and tidy
+- **Don't hold back.** Bring the bold ideas forward instead of a cautious minimum; Daniel would rather trim an ambitious version than coax a timid one
+- **Build on a foundation step by step**: get the base right (e.g. the scattered sword field), then layer the mechanics that make it exciting on top of it
+- **Make choices settings, not hard-coded picks**: when there are several good behaviours (which blade to hop to, what a blade does after a pierce, what happens on arrival), expose them all as per-effect / per-blink dropdowns
+- Examples are examples: a "5-hit combo" in a request illustrates the idea; ask what the real end goal is (for Sword Graveyard: throw EVERY field blade, blinking after each, then an epic heavy finisher)
 
 ## Communication Style
 - Daniel communicates corrections directly and tersely — implement precisely as specified

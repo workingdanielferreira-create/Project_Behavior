@@ -97,7 +97,15 @@ CONDITION_TYPES = {
     "after_actions": dict(sequence=""), "since_action": dict(action="", ms=2000.0),
     "every_ms": dict(ms=3000.0), "idle_for": dict(ms=1000.0), "chance": dict(pct_s=30.0),
     "action_triggered": dict(who="target", action="", ms=300.0),
+    # Blade hop (laser/bladehop.py): at least `count` of this fighter's hop
+    # blades of a kind (field / thrown / any) are out; one is within px.
+    "hop_blades": dict(count=1, which="field"), "hop_blade_near": dict(px=60.0),
 }
+
+
+def _bh_holding(fig, name):
+    from . import bladehop
+    return bladehop.holding(fig, name)
 
 
 def is_image(fig):
@@ -358,6 +366,12 @@ class ActionRunner:
         if t == "chance":
             p = max(0.0, min(100.0, float(cond.get("pct_s", 30)))) / 100.0
             return self.rng.random() < 1.0 - (1.0 - p) ** (TICK_MS / 1000.0)
+        if t == "hop_blades":
+            from . import bladehop
+            return bladehop.count(fig, str(cond.get("which") or "field")) >= int(cond.get("count", 1))
+        if t == "hop_blade_near":
+            from . import bladehop
+            return bladehop.near(fig, float(cond.get("px", 60)))
         if t == "action_triggered":
             info = ctx.get("own_action") if cond.get("who") == "self" else ctx.get("tgt_action")
             if not info or not info[0]:
@@ -692,10 +706,26 @@ class ActionRunner:
         aiming = bool(cfx is not None and cfx.aim.get("enabled") and cfx.aim_ref is not None)
 
         rooted = False
+        # Blade hop chain (laser/bladehop.py, action_settings[action].hop):
+        # throws every field hop blade, blinking after each; when it is done
+        # the action ends and its finisher plays.  Same in Solo and Battle.
+        if self.playing is not None:
+            from . import bladehop as _bh
+            hcfg = _bh.config_for(fig, self.playing)
+            if hcfg is not None and _bh.step(fig, world, self.playing, now):
+                fin = str(hcfg.get("finisher") or "")
+                self._finish(fig, now)
+                if (fin and fin in (fig.mode.character.get("actions") or {})
+                        and fin in fig.render.bundle.extra):
+                    self._start(fig, fin, ctx, now)
         if self.playing is not None:
             name = self.playing
             n, fm = self._frames(fig, name)
             frame = int(self.elapsed // fm)
+            if frame >= n and _bh_holding(fig, name):
+                # The chain still runs: the animation loops on.
+                self.elapsed -= n * fm
+                frame = int(self.elapsed // fm)
             if frame >= n:
                 self.loops_left -= 1
                 if self.loops_left > 0:

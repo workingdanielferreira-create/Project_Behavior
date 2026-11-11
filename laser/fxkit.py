@@ -181,9 +181,23 @@ PARAM_DEFAULTS = {
     # while it flies, bigger the instant it launches.  plant_on target / figure
     # = it sticks upright in the ground plant_px below that anchor (fixed at
     # spawn) when it comes down to it, for plant_ms.
+    # Blade hop (blade only, Daniel 2026-11-11; laser/bladehop.py): hop = the
+    # blade is a hop beacon its fighter can blink to (Blink anchor "blade",
+    # the Blade hop chain) and the hop_* trigger conditions count it.
+    # hop_spread_deg = the moment it launches its flight turns a seeded random
+    # angle up to this either way.  hop_after = what it does once it has gone
+    # hop_past_px past the target it was launched at: hang (brakes hard and
+    # hangs there, pointing the way it flew, for hop_hold_ms), plant (dives
+    # steeply into the ground under the target and plants) or fly (carries
+    # on).  hop_arrive = what happens when its fighter lands on it: catch
+    # (it vanishes into the hand), stay (stays as a beacon) or shatter (bursts
+    # into shards).  laser_trail = a tapered laser trail this many points long
+    # behind it while it flies (0 = none).
     "sprite": dict(shape="orb", radius=3, stretch=1, hot=False, halo=False, fade=True, trail_len=5, glow=100, glow_size=100,
                    lodge_ms=1500, blade_orient="motion", blade_angle_deg=90,
-                   spawn_style="none", spawn_ms=300, flare=False, plant_on="off", plant_px=28, plant_ms=2500),
+                   spawn_style="none", spawn_ms=300, flare=False, plant_on="off", plant_px=28, plant_ms=2500,
+                   hop=False, hop_spread_deg=0, hop_after="fly", hop_past_px=90, hop_hold_ms=2500, hop_arrive="catch",
+                   laser_trail=0),
     "particles": dict(mode="burst", count=12, rate_per_s=60, angle_deg=0, spread_deg=30, speed_min=50, speed_max=150, gravity=0,
                       drag=1, size_min=3, size_max=3, size_over_life="shrink", life_min_ms=200, life_max_ms=400),
     "glow": dict(r_start=6, r_end=6, a_center=140, a_mid=60, mid=0.4, core_r=0, fade="out", pulse_hz=0),
@@ -567,9 +581,28 @@ LEAP_DEFAULTS = dict(start_frame=0, land_frame=-1, height_px=40.0, hit_px=None,
 # has passed (meanwhile it plays without vanishing); the later blinks of the
 # same pass still run.  Run by laser/blink.py.
 BLINK_DEFAULTS = dict(enabled=False, cooldown_ms=0.0, blinks=[])
+# Blade hop (laser/blink.py, laser/bladehop.py): anchor "blade" lands on a hop
+# blade picked by blade_pick (BLINK_PICKS); trigger (BLINK_TRIGGERS) frames =
+# vanish at start_frame, else on that event inside the blink's frames
+# (delay_ms after they start, range_px for in_range), back gone_ms later.
 BLINK_STEP_DEFAULTS = dict(start_frame=0, end_frame=-1, anchor="target", direction="behind", angle_deg=0.0,
-                           mirror=False, proximity_px=60.0, flash=True)
-BLINK_ANCHORS = ("target", "self")
+                           mirror=False, proximity_px=60.0, flash=True,
+                           blade_pick="newest", trigger="frames", delay_ms=150.0, range_px=60.0, gone_ms=50.0)
+BLINK_ANCHORS = ("target", "self", "blade")
+BLINK_PICKS = ("newest", "behind", "nearest")
+BLINK_TRIGGERS = ("frames", "passes", "stops", "delay", "in_range")
+# The action's Blade hop chain (action_settings[action].hop, laser/bladehop.py
+# documents every field): throw each field hop blade at the target, blink
+# after it, accelerating, then play `finisher`.
+HOP_DEFAULTS = dict(enabled=False, source="mix", field_pick="nearest", max_throws=0, speed=26.0, damage=2.0,
+                    knockback=4.0, spread_deg=35.0, laser_trail=14.0, after="hang", past_px=110.0, hold_ms=1500.0,
+                    arrive="catch", blink_on="passes", delay_ms=120.0, gone_ms=40.0, land_pick="newest",
+                    gap_start_ms=380.0, gap_end_ms=60.0, finisher="")
+HOP_SOURCES = ("mix", "recall", "ground", "blink")
+HOP_FIELD_PICKS = ("nearest", "farthest", "random")
+HOP_AFTERS = ("hang", "plant", "fly")
+HOP_ARRIVALS = ("catch", "stay", "shatter")
+HOP_BLINK_ONS = ("passes", "stops", "delay")
 BLINK_DIRECTIONS = ("behind", "front", "toward", "away", "above", "below", "above_left", "above_right",
                     "below_left", "below_right", "random", "angle")
 # The action's Time control (action_settings[action].time, FXK.TIME_DEFAULTS):
@@ -645,6 +678,10 @@ def normalize_blink_step(b):
         b["anchor"] = BLINK_STEP_DEFAULTS["anchor"]
     if b.get("direction") not in BLINK_DIRECTIONS:
         b["direction"] = BLINK_STEP_DEFAULTS["direction"]
+    if b.get("blade_pick") not in BLINK_PICKS:
+        b["blade_pick"] = BLINK_STEP_DEFAULTS["blade_pick"]
+    if b.get("trigger") not in BLINK_TRIGGERS:
+        b["trigger"] = BLINK_STEP_DEFAULTS["trigger"]
     try:
         b["start_frame"] = max(0, jround(float(b.get("start_frame") or 0)))
     except (TypeError, ValueError):
@@ -743,7 +780,7 @@ _SCALE_PARAMS = {
     "ribbon": ("min_dist", "w_tail", "w_head", "head_glow_r", "head_dot_r"),
     "arc": ("radius", "width", "back", "lead"),
     "beam": ("length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"),
-    "sprite": ("radius", "plant_px"),
+    "sprite": ("radius", "plant_px", "hop_past_px"),
     "particles": ("speed_min", "speed_max", "gravity", "size_min", "size_max"),
     "glow": ("r_start", "r_end", "core_r"),
     "pulse": ("r_start", "r_end", "width", "width_end", "glow"),
@@ -1000,7 +1037,20 @@ def normalize_action(cfg):
     cfg["leap"] = _fill(dict(cfg.get("leap") or {}), LEAP_DEFAULTS)
     cfg["blink"] = normalize_blink(cfg.get("blink"))
     cfg["time"] = normalize_time(cfg.get("time"))
+    cfg["hop"] = normalize_hop(cfg.get("hop"))
     return cfg
+
+
+def normalize_hop(h):
+    """An action's Blade hop chain (FXK.normalizeHop)."""
+    h = _fill(dict(h or {}), HOP_DEFAULTS)
+    h["enabled"] = bool(h.get("enabled"))
+    for k, ok in (("source", HOP_SOURCES), ("field_pick", HOP_FIELD_PICKS), ("after", HOP_AFTERS),
+                  ("arrive", HOP_ARRIVALS), ("blink_on", HOP_BLINK_ONS), ("land_pick", BLINK_PICKS)):
+        if h.get(k) not in ok:
+            h[k] = HOP_DEFAULTS[k]
+    h["finisher"] = str(h.get("finisher") or "")
+    return h
 
 
 def normalize_entry_set(e):
@@ -1351,7 +1401,9 @@ class Inst:
                  "w_dg", "w_arm", "w_hand",
                  "ua_rb", "ua_cd", "ua_dm", "ua_rw", "ua_t", "ab_g", "tq_grow", "drag", "drag_orb",
                  "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k",
-                 "sp_x", "sp_y", "sp_t", "fl_t", "plant_y")
+                 "sp_x", "sp_y", "sp_t", "fl_t", "plant_y",
+                 "hop_l", "hop_lt", "hop_tx", "hop_ty", "hop_dx", "hop_dy", "hop_passed", "hop_stopped", "hop_dv",
+                 "hop_a", "hop_rc", "hop_th", "hop_used", "lt")
 
     def __init__(self):
         # Anime blade extras (blade_extras_step): the portal's spot (None =
@@ -1362,6 +1414,20 @@ class Inst:
         self.sp_t = -1
         self.fl_t = -1
         self.plant_y = None
+        # Blade hop (blade_extras_step, laser/bladehop.py): launched yet, its
+        # launch order (newest = highest), the target spot and unit flight
+        # direction at launch, gone past the target, stopped (hanging),
+        # turned into its plant dive, the angle it holds once stopped, being
+        # recalled to the hand (the hop chain steers it), thrown by the hop
+        # chain, used up by the chain, and its laser trail points.
+        self.hop_l = False
+        self.hop_lt = 0
+        self.hop_tx = self.hop_ty = 0.0
+        self.hop_dx, self.hop_dy = 1.0, 0.0
+        self.hop_passed = self.hop_stopped = self.hop_dv = False
+        self.hop_a = None
+        self.hop_rc = self.hop_th = self.hop_used = False
+        self.lt = []
         self.hit_targets = None   # AOE: hurt slot -> [hits, last_hit] (resolve_hits)
         self.ab_g = 1.0        # absorb growth (1 = as fired, ABSORB_MAX at most): absorb_grow
         self.tq_grow = {}      # a technique's shots grown by absorbing: index -> growth
@@ -3004,6 +3070,8 @@ def blade_angle(inst):
         return math.pi - fa if inst.flip < 0 else fa
     if inst.vx * inst.vx + inst.vy * inst.vy > 0.0001:
         return math.atan2(inst.vy, inst.vx)
+    if inst.hop_a is not None:   # a hop blade that stopped (hop_after hang) keeps pointing the way it flew
+        return inst.hop_a
     dx, dy = inst.x - inst.px, inst.y - inst.py
     if dx * dx + dy * dy > 1e-6:
         return math.atan2(dy, dx)
@@ -3211,10 +3279,111 @@ def blade_extras_step(inst, host):
             inst.sp_x, inst.sp_y = bx - math.cos(a) * L, by - math.sin(a) * L
         if moving:
             inst.sp_t = inst.age
+    if P.get("hop"):
+        _hop_flight_step(inst, host, P, ps, moving)
+    lt_n = max(0, trunc(float(P.get("laser_trail") or 0)))
+    if lt_n > 0:
+        if moving:
+            inst.lt.append((inst.x, inst.y))
+        elif inst.lt:
+            inst.lt.pop(0)   # it stopped: the trail runs out behind it
+        while len(inst.lt) > lt_n:
+            inst.lt.pop(0)
     if inst.plant_y is not None and inst.vy > 0.01:
         bx, by, a = blade_pose(inst, ps)
         if by >= inst.plant_y:
             blade_plant(inst, bx, by, a, ps)
+
+
+# Blade hop flight (Daniel 2026-11-11).  HOP_BRAKE = speed kept per tick
+# while a hang blade brakes; it stops below HOP_STOP_SPEED px/tick.
+# HOP_DIVE_DEG = how steeply a plant blade dives (from level).
+HOP_BRAKE, HOP_STOP_SPEED, HOP_DIVE_DEG = 0.45, 0.8, 70.0
+# A spread throw curves back in: each tick it turns toward the target by
+# HOP_HOME_K of the angle left (at least HOP_HOME_MIN_DEG), so it arcs in from
+# its random angle and still cuts through the target.
+HOP_HOME_K, HOP_HOME_MIN_DEG = 0.35, 3.0
+_HOP_SEQ = [0]   # launch counter: a newer launch has a higher hop_lt
+
+
+def _hop_flight_step(inst, host, P, ps, moving):
+    """A hop blade in flight (fxkit.js hopFlightStep).  The first tick it
+    moves (not while the hop chain recalls it to the hand) is its launch: it
+    notes the target spot and turns its flight a seeded random angle up to
+    hop_spread_deg either way.  Once it is hop_past_px past that spot along
+    its flight, hop_after: hang = brakes (HOP_BRAKE a tick) and stops,
+    holding its angle, for hop_hold_ms; plant = dives HOP_DIVE_DEG down the
+    way it was going and plants on the ground line under the target
+    (plant_px below it); fly = carries on.  With a spread, until it is past
+    the target it curves back in on it (HOP_HOME_K), following the target,
+    so every throw arcs in from a new angle and still cuts through."""
+    if inst.hop_rc or inst.hop_stopped:
+        return
+    if moving and not inst.hop_l:
+        inst.hop_l = True
+        _HOP_SEQ[0] += 1
+        inst.hop_lt = _HOP_SEQ[0]
+        inst.hop_tx, inst.hop_ty = float(host.target[0]), float(host.target[1])
+        s = float(P.get("hop_spread_deg") or 0)
+        if s > 0:
+            a = inst.r.uniform(-s, s) * D
+            c, sn = math.cos(a), math.sin(a)
+            inst.vx, inst.vy = inst.vx * c - inst.vy * sn, inst.vx * sn + inst.vy * c
+        sp = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy) or 1.0
+        inst.hop_dx, inst.hop_dy = inst.vx / sp, inst.vy / sp
+        inst.dir = [inst.hop_dx, inst.hop_dy]
+    if not inst.hop_l:
+        return
+    if moving and not inst.hop_passed and float(P.get("hop_spread_deg") or 0) > 0:
+        tx, ty = float(host.target[0]), float(host.target[1])
+        cur = math.atan2(inst.vy, inst.vx)
+        da = _wrap_pi(math.atan2(ty - inst.y, tx - inst.x) - cur)
+        lim = max(HOP_HOME_MIN_DEG * D, abs(da) * HOP_HOME_K)
+        cur += max(-lim, min(lim, da))
+        sp = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+        inst.vx, inst.vy = math.cos(cur) * sp, math.sin(cur) * sp
+        inst.hop_dx, inst.hop_dy = math.cos(cur), math.sin(cur)
+        inst.hop_tx, inst.hop_ty = tx, ty
+        inst.dir = [inst.hop_dx, inst.hop_dy]
+    along = (inst.x - inst.hop_tx) * inst.hop_dx + (inst.y - inst.hop_ty) * inst.hop_dy
+    if along > 0:
+        inst.hop_passed = True
+    after = P.get("hop_after") or "fly"
+    if along < float(P.get("hop_past_px") or 0) * ps:
+        return
+    if after == "hang" and moving:
+        inst.vx *= HOP_BRAKE
+        inst.vy *= HOP_BRAKE
+        if inst.vx * inst.vx + inst.vy * inst.vy < HOP_STOP_SPEED * HOP_STOP_SPEED:
+            inst.hop_a = math.atan2(inst.hop_dy, inst.hop_dx)
+            inst.vx = inst.vy = 0.0
+            inst.hop_stopped = True
+            inst.life = inst.age + max(1, _js_round(float(P.get("hop_hold_ms") or 0) / TICK_MS))
+    elif after == "plant" and not inst.hop_dv:
+        inst.hop_dv = True
+        sp = math.sqrt(inst.vx * inst.vx + inst.vy * inst.vy)
+        sx = 1.0 if inst.hop_dx >= 0 else -1.0
+        inst.vx, inst.vy = sx * math.cos(HOP_DIVE_DEG * D) * sp, math.sin(HOP_DIVE_DEG * D) * sp
+        if inst.plant_y is None:
+            inst.plant_y = inst.hop_ty + float(P.get("plant_px") or 0) * ps
+
+
+def _draw_laser_trail(p, inst, c, ps):
+    """A blade's laser trail (laser_trail points): a tapered glow ribbon and
+    a white-hot core, thin at the tail, the blade's width at its head.
+    fxkit.js drawLaserTrail."""
+    pts = inst.lt
+    n = len(pts)
+    if n < 2:
+        return
+    w = max(1.0, float(inst.fx["params"]["radius"]) * 2.2) * ps
+    lt = _lighter(c)
+    for i in range(1, n):
+        t = i / float(n - 1)
+        p.setPen(_pen(qcolor(c, 150 * t), max(1.0, w * (0.25 + 0.75 * t))))
+        _line(p, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1])
+        p.setPen(_pen(qcolor(lt, 235 * t), max(1.0, w * 0.35 * t)))
+        _line(p, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1])
 
 
 def _soft_disc(p, cx, cy, r, stops):
@@ -3377,6 +3546,7 @@ def _draw_sprite(p, inst, host, ps):
         bx, by, ba = blade_pose(inst, ps)
         hx, hy = trunc(bx), trunc(by)
         _draw_portal(p, inst, c, ps)                # behind the blade
+        _draw_laser_trail(p, inst, c, ps)
         _draw_tracer(p, inst, c, ps, bx, by, ba)
     pts, n = inst.trail, len(inst.trail)
     for i in range(1, n):
