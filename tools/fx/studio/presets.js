@@ -1353,17 +1353,23 @@ G.FX_PRESETS = [
   // its portal) with a flare, cutting through the target (Pierce) and
   // planting upright in the ground round it, where it stays 3 s.  The
   // ground glows under the field as it fills and flares at frame 24.
-  {name: "Sword Graveyard", group: "Ethereal", desc: "Portals open over the target and swords drop out of them one or two at a time, cutting through it and planting upright in the ground round it as a sword field that stays for 3 s (frames 0-30)",
+  // Field size (Daniel 2026-11-11, 3x the first version, same 16 swords,
+  // same sword size): 660 px wide; portals spread over a 120 px band of sky;
+  // each sword has its own depth in the field, its ground line up to 60 px
+  // nearer (lower on screen) or farther (higher) than the target's feet, and
+  // its portal shifted by the same depth so every column drops alike.
+  {name: "Sword Graveyard", group: "Ethereal", desc: "Portals open over the target and swords drop out of them one or two at a time, cutting through it and planting upright in a wide, deep sword field round it that stays for 3 s (frames 0-30)",
    effects: (function () {
      var rnd = eRng(3131), out = [], flip = {enabled: true, facing: 1};
      for (var i = 0; i < 16; i++) {
-       var x = Math.round((rnd() - 0.5) * 220), y = -150 - Math.round(rnd() * 40), tilt = Math.round((rnd() - 0.5) * 24), f = 2 + Math.floor(i * 0.8);
+       var x = Math.round((rnd() - 0.5) * 660), sky = Math.round(rnd() * 120), tilt = Math.round((rnd() - 0.5) * 24), f = 2 + Math.floor(i * 0.8);
+       var depth = Math.round((rnd() - 0.5) * 120), y = -150 - sky + depth;   // depth: + nearer (lower), - farther (higher)
        out.push({prim: "sprite", name: "Grave sword " + (i + 1), tag: "blade", anchor: "target", offset: [x, y], start_frame: f, end_frame: 30,
          flip: flip, blend: "additive",
          battle: {deals_damage: true, damage: 1, pierce: true, rehit_ticks: 0, knockback: 1},
          motion: {kind: "static", aim: "angle", angle_deg: 90 + tilt, speed: 18}, color: {mode: "solid", c1: i % 5 ? "#c4d3ff" : "#ffffff"},
          params: eBlade({radius: 1.6, stretch: 9, trail_len: 0, blade_orient: "angle", blade_angle_deg: 90 + tilt,
-                         spawn_style: "portal", spawn_ms: 260, flare: true, plant_on: "target", plant_px: 28, plant_ms: 3000}),
+                         spawn_style: "portal", spawn_ms: 260, flare: true, plant_on: "target", plant_px: 28 + depth, plant_ms: 3000}),
          keys: [{frame: f + 6, ease: "linear", set: {"motion.kind": "travel"}}]});
      }
      return [
