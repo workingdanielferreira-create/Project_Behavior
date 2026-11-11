@@ -15,6 +15,7 @@ from . import dodge as _dodge
 from . import unique as _unique
 from . import movestyle as _movestyle
 from . import dmgnum as _dmgnum
+from . import battlestats as _bstats
 
 
 # ---------------------------------------------------------------------------
@@ -257,15 +258,19 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
         # otherwise it feeds the special meter.  No-ops for characters
         # without `special_stance`.
         if _combat.special_blocks_hit(fig):
+            _bstats.on_negated(world, fig)
             return False
         # Image characters: a hit landing while `defend` plays is blocked.
         if _actions.blocks_hit(fig):
+            _bstats.on_negated(world, fig)
             return False
         # Unique ability (laser/unique.py): Phase Shift teleports away /
         # Riposte counters — the hit is nullified.
         if not _ua_checked and _unique.intercept(fig, world, amount):
+            _bstats.on_negated(world, fig)
             return False
     elif not _ua_checked and _unique.intercept(fig, world, amount, unblockable=True):
+        _bstats.on_negated(world, fig)
         return False   # Phase Shift dodges unblockable hits too
     # Domain Expansion "damage heals": inside its own domain a hit heals.
     if _unique.heals_instead(fig, amount):
@@ -275,7 +280,10 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     if _tm != 1.0:
         amount = amount * _tm
     # Aegis: the shield soaks the hit before HP.
+    _pre_absorb = amount
     amount = _unique.absorb(fig, world, amount, kind)
+    if _pre_absorb > amount:
+        _bstats.on_absorbed(world, fig, _pre_absorb - max(0.0, amount))
     if amount <= 0:
         return False
     _actions.note_damage(fig, amount)
@@ -283,9 +291,13 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     p = fig.personality
     note_impact_taken(fig)
     was_above_runner = p.hp > int(p.max_hp * config.ULTIMATE_HP_THRESHOLD)
+    _hp_before = p.hp
     p.hp -= amount
     # Floating combined damage number (laser/dmgnum.py), Solo & Battle.
     _dmgnum.note(world, fig, amount, _dmgnum.fig_rgb(fig))
+    # Post-battle stats (laser/battlestats.py), Solo & Battle.  Overkill
+    # past 0 HP isn't counted.
+    _bstats.on_damage(world, fig, min(amount, max(0.0, _hp_before)), kind, killed=p.hp <= 0)
     cd = damage_cooldown_ticks(fig)
     if cd > 0 and world is not None:
         p.dmg_immune_until = world.global_tick + cd
@@ -388,13 +400,16 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         return
     # Special-stance hold: the hit is blocked — no knockback, no damage.
     if _combat.special_blocks_hit(fig):
+        _bstats.on_negated(world, fig)
         return
     if _actions.blocks_hit(fig):   # image character defending
+        _bstats.on_negated(world, fig)
         return
     # Unique ability (Phase Shift / Riposte): nullified — no knockback, no
     # damage.  Asked once here; apply_hp_damage below skips asking again.
     # Returns True so the caller lets the bullet fly on (no burst).
     if _unique.intercept(fig, world, amount):
+        _bstats.on_negated(world, fig)
         return True
     p = fig.personality
     m = fig.motion

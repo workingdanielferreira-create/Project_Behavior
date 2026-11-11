@@ -22,6 +22,7 @@ from . import config, modes, systems, ai, action_log, combat, actions, fxkit, bl
 from . import swordfx
 from . import hitfx, strikefx
 from . import dmgnum
+from . import battlestats
 from . import worldfx
 from . import terrain
 from . import speedband
@@ -216,6 +217,13 @@ class World:
         # aged in _paint.  F6 previews the next variation at the cursor.
         self.clash_fx = []
         self.damage_numbers = []            # dmgnum.DamageNumber — combined hit totals
+        # Post-battle stats (laser/battlestats.py) + the results window
+        # (laser/statsscreen.py): stats_requested = "end" (a team wiped /
+        # Solo's final KO) or "live" (Ctrl+Shift+,); stats_open pauses the
+        # game like the start menu.  Solo and Battle alike.
+        self.stats = battlestats.Stats()
+        self.stats_requested = None
+        self.stats_open = False
         self.clash_preview_idx = 0
 
         # Input bookkeeping
@@ -418,6 +426,12 @@ class World:
         stays in its slot (its HP bar reads KO) but is not fielded again
         until its slot changes or the roster is reset."""
         now = self.global_tick
+        # Post-battle stats (laser/battlestats.py): a fresh round, or a new
+        # roster from the start menu after a finished fight, starts a new
+        # sheet.  Slot cycle keys mid-fight keep counting.
+        _bs = getattr(self, "stats", None)
+        if _bs is not None and (reset or (_bs.over and slots is not None)):
+            _bs.reset(self)
         if reset:
             # Destructible terrain (laser/terrain.py): a fresh round re-raises
             # the pillars and clears the rubble.
@@ -809,13 +823,16 @@ class World:
             if fig not in self._dead:
                 self._dead.append(fig)
             self._ko_cinematic(fig)
-        elif self.ko_quit_ticks <= 0:
+        elif self.ko_quit_ticks <= 0 and not self.stats.solo_end:
             # Solo's final KO: hold on the fallen fighter (KO shot on),
-            # then the run ends (Overlay._tick counts ko_quit_ticks down).
+            # then the run is over and the results window opens
+            # (laser/statsscreen.py: Rematch / Character select / Quit).
+            # Overlay._tick counts ko_quit_ticks down.
+            self.stats.solo_over(self)
             if self.camera_shot("ko", fig=fig):
                 self.ko_quit_ticks = self.camera.ko_hold_ticks()
             else:
-                self.request_quit()
+                self.stats_requested = "end"
 
     def _ko_cinematic(self, fig):
         """KO shot (laser/camera.py) on the fallen fighter plus the KO
@@ -1066,6 +1083,7 @@ class World:
                 if blockable and (ef.combat.parrying or actions.blocks_hit(ef)):
                     if not inst.fx["battle"]["pierce"]:
                         inst.age = max(inst.age, inst.life)
+                    battlestats.on_negated(self, ef)
                     continue
                 # Unique ability (Phase Shift / Riposte) before anything else:
                 # a nullified hit counts as no landed hit for the attacker, no
@@ -1083,6 +1101,8 @@ class World:
                 if owner is not None:
                     actions.note_landed(owner, dmg)
                 _targeting.note_hit(ef, owner)
+                # Post-battle stats: credit the FX's own action.
+                battlestats.note_source(self, ef, owner, inst.fx.get("action"))
                 # Anti-knockback (FX Studio Damaged): at or above the hit's
                 # knockback, the hit still takes HP but neither knocks back
                 # nor counts toward the fighter's `defend` conditions.
@@ -1112,12 +1132,17 @@ class World:
             if not chits or not self.battle_mode:
                 continue
             by_id = {id(ef): ef for ef in self.sides[1 - i].figures}
+            # Post-battle stats: the crescents belong to this side's fighter
+            # whose ultimate is out.
+            _cown = next((f for f in side.figures if f.combat.ult_crescents), None)
             for (tid, dmg) in chits:
                 ef = by_id.get(tid)
                 if ef is None or blink.gone(ef) or dodge.untouchable(ef, self.global_tick):
                     continue
                 if ai.damage_immune(ef, self):
                     continue
+                if _cown is not None:
+                    battlestats.note_source(self, ef, _cown, "ultimate")
                 ai.apply_hp_damage(ef, self, dmg, kind="melee")
         # Deliver FX Studio pulls (gigantic meteor, black hole) from last
         # tick: the opposing fighters inside a pull field are drawn toward
@@ -1164,6 +1189,8 @@ class World:
                 if f.combat.hit_pending:
                     f.combat.hit_pending = False
                     if not self.battle_mode:
+                        # Solo: the landed slash reached the cursor (stats).
+                        battlestats.cursor_hit(self, f, 1, actions.current_action_name(f) or "attack_normal")
                         continue
                     # Image characters take a landed dash-slash's HP here: a
                     # plain body bump never costs them HP (CollisionSystem),
@@ -1422,6 +1449,16 @@ class Overlay(QWidget):
             self.update()
             return
 
+        # --- RESULTS WINDOW (laser/statsscreen.py): a team wiped / Solo's
+        # final KO ("end") or Ctrl+Shift+, ("live").  Full pause like the
+        # start menu; the frozen fight stays on screen behind it. ---
+        if w.stats_requested and not w.stats_open:
+            kind, w.stats_requested = w.stats_requested, None
+            self._open_stats(kind)
+        if w.stats_open:
+            self.update()
+            return
+
         # --- Hit weight: target squash counts down ---
         w.step_hit_weight()
 
@@ -1446,7 +1483,7 @@ class Overlay(QWidget):
         if w.ko_quit_ticks > 0:
             w.ko_quit_ticks -= 1
             if w.ko_quit_ticks <= 0:
-                w.request_quit()
+                w.stats_requested = "end"     # results window (laser/statsscreen.py)
             self.update()
             return
 
@@ -1547,6 +1584,13 @@ class Overlay(QWidget):
             worldfx.step(w)
         except Exception as e:
             action_log.crash("worldfx", e)
+        # Post-battle stats (laser/battlestats.py): distance / speed / action
+        # / HP sampling and the end-of-battle check.  Read-only, once per
+        # tick after everything moved; Solo and Battle alike.
+        try:
+            w.stats.step(w)
+        except Exception as e:
+            action_log.crash("battlestats", e)
 
         w.global_tick += 1
         self.update()
@@ -1590,10 +1634,64 @@ class Overlay(QWidget):
             w.notice = ("Start menu: could not apply the roster (see the action log)", 240)
         if w.prebattle.open:
             w.prebattle.toggle()
+        # Solo's run ended and the menu was cancelled: nothing left to
+        # fight, so the results window comes back (Rematch / Quit there).
+        if slots is None and w.stats.solo_end:
+            w.stats_requested = "end"
+
+    def _open_stats(self, kind):
+        """Pause the game and show the results window (laser/statsscreen.py).
+        kind "end": the fight is over (a team wiped / Solo's final KO);
+        "live": opened mid-fight with Ctrl+Shift+,."""
+        w = self.world
+        if getattr(self, "_stats_win", None) is not None:
+            self._stats_win.raise_()
+            self._stats_win.activateWindow()
+            return
+        try:
+            from .statsscreen import StatsWindow
+            w.stats_open = True
+            self._stats_win = StatsWindow(w, kind, self._stats_done)
+            self._stats_win.show()
+            self._stats_win.raise_()
+            self._stats_win.activateWindow()
+        except Exception as e:
+            action_log.crash("stats window", e)
+            self._stats_win = None
+            w.stats_open = False
+            if kind == "end" and w.stats.solo_end:
+                w.request_quit()     # the old Solo ending, if the window fails
+
+    def _stats_done(self, choice):
+        """Results window button: "resume" (Keep watching), "rematch",
+        "select" (start menu) or "quit".  Runs from a Qt slot, so anything
+        that goes wrong is logged instead of aborting PyQt5."""
+        w = self.world
+        self._stats_win = None
+        w.stats_open = False
+        try:
+            if choice == "quit":
+                w.request_quit()
+                return
+            if choice == "rematch":
+                w.ko_quit_ticks = 0
+                w.slowmo_ticks = 0
+                w.apply_roster(reset=True)
+                action_log.log("ROSTER", "rematch (results window)")
+            elif choice == "select":
+                w.ko_quit_ticks = 0
+                w.slowmo_ticks = 0
+                w.start_menu_requested = True
+            self.input.swallow_held(w)
+        except Exception as e:
+            action_log.crash("stats window", e)
+            w.notice = ("Results window: could not apply that (see the action log)", 240)
 
     def _shutdown(self):
         if getattr(self, "_start_menu", None) is not None:
             self._start_menu.close_silently()
+        if getattr(self, "_stats_win", None) is not None:
+            self._stats_win.close_silently()
         QApplication.quit()
 
     def paintEvent(self, _):
