@@ -141,6 +141,9 @@ def note_hit(fig, attacker):
     """`attacker` (an enemy Figure, or None) just landed a hit on fig."""
     if attacker is not None and fig is not None:
         fig.last_hit_by = id(attacker)
+        # Post-battle stats (laser/battlestats.py): who this hit belongs to.
+        from . import battlestats as _bstats
+        _bstats.note_attacker(fig, attacker)
 
 
 def nearest_index(world, fx, fy):

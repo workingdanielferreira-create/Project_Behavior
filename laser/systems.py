@@ -19,6 +19,7 @@ import random
 from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting, player
 from . import platform_win as win
 from . import action_log
+from . import battlestats
 
 
 
@@ -88,6 +89,10 @@ class InputSystem(System):
         # must not also play it here).
         if world.prebattle.open:
             return
+        # The results window (laser/statsscreen.py) is open: paused, its
+        # buttons / keys decide what happens next.
+        if getattr(world, "stats_open", False):
+            return
 
         if self._pressed(win.VK_F9):
             world.runner_on = not world.runner_on
@@ -123,6 +128,12 @@ class InputSystem(System):
         shift = win.key_down(win.VK_SHIFT)
         if self._pressed(win.VK_PERIOD) and ctrl and shift and not alt:
             world.start_menu_requested = True
+            world.ctrl_used = True
+        # Ctrl+Shift+, (Ctrl+'<'): the battle stats window mid-fight
+        # (laser/statsscreen.py) — the game pauses until it closes.  Same in
+        # Solo and Battle.
+        if self._pressed(win.VK_COMMA) and ctrl and shift and not alt:
+            world.stats_requested = "live"
             world.ctrl_used = True
 
         # Ctrl+0: toggle the roster lock.  While locked, every key that
@@ -789,6 +800,7 @@ class ProjectileSystem(System):
                     if ddx * ddx + ddy * ddy <= proj.hit_r_sq:
                         world.collision_dots.append([proj.x, proj.y, 0])
                         unique.note_landed(proj.owner, getattr(proj, "damage", 1.0))   # Dual Form / Domain gauges, Basic Stacks
+                        battlestats.cursor_bullet(world, proj)   # Solo: post-battle stats
                         # Ricochet: bounces off the cursor instead of dying.
                         if not proj.pierce and not unique.proj_off_point(
                                 proj, cx, cy, proj.hit_r_sq ** 0.5):

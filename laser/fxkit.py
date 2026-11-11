@@ -2801,6 +2801,44 @@ def resolve_hits(inst, host, ps):
             inst.age = max(inst.age, inst.life)
 
 
+def solo_cursor_probe(inst, host, ps):
+    """Solo post-battle stats (laser/battlestats.py): the cursor has no HP and
+    no hurt circle, so FX never "hit" it.  This asks, read-only, whether a
+    damaging effect overlaps the cursor this tick and credits its owner once
+    per instance (again every Re-hit interval).  The effect itself is not
+    touched: it flies on, nothing ends, no hit-stop."""
+    world = getattr(host, "world", None)
+    st = getattr(world, "stats", None)
+    if st is None or getattr(world, "battle_mode", False) or st.battle_seen:
+        return
+    b = inst.fx.get("battle") or {}
+    if not b.get("deals_damage") or float(b.get("armed", 1)) < 0.5 or inst.dead or inst.lodge is not None:
+        return
+    try:
+        cx, cy = world.cursor
+        hr = float(config.PROJ_HIT_RADIUS)
+        prim = inst.fx["prim"]
+        if prim == "pulse":
+            d = math.hypot(cx - inst.x, cy - inst.y)
+            hit = any(abs(d - r) <= w / 2 + hr for (_k, r, w, _a) in pulse_rings(inst, ps))
+        elif prim == "particles":
+            hit = any(math.hypot(q["x"] - cx, q["y"] - cy) <= hr + max(0.5, q["s0"]) / 2
+                      for q in inst.parts)
+        else:
+            hit = _hit_shape(inst, cx, cy, hr, ps, host)
+        if not hit or not st.probe_hit(inst, world.global_tick, int(b.get("rehit_ticks") or 0)):
+            return
+        from . import battlestats as _bstats
+        from . import actions as _actions
+        dmg = float(b.get("damage") or 0) * float(getattr(inst, "ab_g", 1.0) or 1.0) * _unique.out_mult(host.fig)
+        act = inst.fx.get("action")
+        if not act or str(act).startswith("@"):
+            act = _actions.current_action_name(host.fig) or "FX"
+        _bstats.cursor_hit(world, host.fig, dmg, act)
+    except Exception:
+        return
+
+
 # ---------------------------------------------------------------- drawing (QPainter)
 def _pen(color, width):
     pen = QPen(color)
@@ -3886,6 +3924,8 @@ class Player:
                 self.spent.append(inst.src)
             tick_inst(inst, host)
             resolve_hits(inst, host, ps)
+            if getattr(host, "solo", False):
+                solo_cursor_probe(inst, host, ps)
         self.insts = [i for i in self.insts if not i.dead]
 
     def _step_run(self, r, host):
