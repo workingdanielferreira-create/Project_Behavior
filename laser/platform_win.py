@@ -39,6 +39,7 @@ VK_3     = 0x33            # default slot C key (laser/roster.py)
 VK_4     = 0x34            # default slot D key (laser/roster.py)
 VK_PERIOD = 0xBE           # VK_OEM_PERIOD: the '.' / '>' key
 VK_COMMA  = 0xBC           # VK_OEM_COMMA: Ctrl+Shift+, = battle stats (laser/statsscreen.py)
+VK_LBUTTON = 0x01          # left mouse button: HUD action buttons (laser/hudclick.py)
 
 _BELOW_NORMAL = 0x00004000
 
@@ -68,3 +69,45 @@ def lower_process_priority():
         _kernel32.SetPriorityClass(_kernel32.GetCurrentProcess(), _BELOW_NORMAL)
     except OSError:
         pass
+
+
+# Window click-through (laser/hudclick.py) ---------------------------------
+_GWL_EXSTYLE = -20
+_WS_EX_TRANSPARENT = 0x00000020
+_WS_EX_NOACTIVATE = 0x08000000
+
+
+def _exstyle(hwnd, add=0, remove=0):
+    """Add / remove extended window style bits; True when it worked."""
+    if _user32 is None or not hwnd:
+        return False
+    try:
+        get = getattr(_user32, "GetWindowLongPtrW", None) or _user32.GetWindowLongW
+        put = getattr(_user32, "SetWindowLongPtrW", None) or _user32.SetWindowLongW
+        get.restype = ctypes.c_ssize_t
+        get.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        put.restype = ctypes.c_ssize_t
+        put.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+        h = ctypes.c_void_p(int(hwnd))
+        old = get(h, _GWL_EXSTYLE)
+        new = (old | add) & ~remove
+        if new != old:
+            put(h, _GWL_EXSTYLE, new)
+        return True
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
+def set_click_through(hwnd, on):
+    """on = the window ignores the mouse (clicks reach the desktop below);
+    off = it takes the click.  The overlay is only made clickable while
+    the cursor is over a HUD button."""
+    if on:
+        return _exstyle(hwnd, add=_WS_EX_TRANSPARENT)
+    return _exstyle(hwnd, remove=_WS_EX_TRANSPARENT)
+
+
+def set_no_activate(hwnd):
+    """Clicking the window never takes keyboard focus from the app the
+    player was using."""
+    return _exstyle(hwnd, add=_WS_EX_NOACTIVATE)
