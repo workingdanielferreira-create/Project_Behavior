@@ -191,7 +191,7 @@ class ActionRunner:
                  "idle_since", "own_track", "tgt_track", "last_hp", "hp_drops", "landed", "cursor_facing_left",
                  "rng", "ctx", "ctx_tick", "was_attacking", "forced", "forced_until", "forced_root",
                  "next_resisted", "resisted_hp", "resisted_drops", "defend_tags", "leap", "leap_dmg", "gap_until",
-                 "cd_born", "cd_start", "cd_end", "cd_idle", "player", "fx_resume")
+                 "cd_born", "cd_start", "cd_end", "cd_idle", "player", "fx_resume", "manual")
 
     def __init__(self):
         self.playing = None
@@ -255,6 +255,9 @@ class ActionRunner:
         self.leap_dmg = None
         # Player control chain positions (laser/player.py PlayerState).
         self.player = None
+        # HUD click (laser/actionbar.py): (action, expiry tick) waiting to
+        # start, or None.
+        self.manual = None
         # Back & forth route (laser/travel.py): the action that is coming back
         # on screen after an inserted action — the FX driver resumes it
         # instead of replaying its FX (fxkit.FxDriver.update).
@@ -653,6 +656,24 @@ class ActionRunner:
             if self.playing == self.forced:
                 self._finish(fig, now)
             self.forced = None
+
+        # HUD click (laser/actionbar.py, Daniel 2026-11-12): a clicked ready
+        # action starts now, skipping its trigger conditions and Attack
+        # mode; its cooldown starts as usual.  It cuts into idle / run or a
+        # normal attack, waits (up to MANUAL_WAIT_MS) for another triggered
+        # or forced action to end; the AI keeps running around it.  Solo
+        # and Battle alike.
+        if self.manual is not None:
+            name, until = self.manual
+            if now > until or name not in fig.render.bundle.extra:
+                self.manual = None
+            elif self.cooldown_until.get(name, -10 ** 9) > _unique.cd_now(fig, now):
+                self.manual = None
+            elif self.forced is None and (self.playing is None or _kind(self.playing) != "triggered"):
+                if self.playing is not None:
+                    self._finish(fig, now)
+                self.manual = None
+                self._start(fig, name, ctx, now)
 
         # Player control (F4, laser/player.py): the keyboard picks the
         # actions; nothing starts on its own (the Dodge, laser/dodge.py,
@@ -1196,6 +1217,34 @@ def force_special(fig, world):
         r.forced = None
     p = fig.personality
     r._start(fig, "attack_special", {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)}, now)
+    return True
+
+
+MANUAL_WAIT_MS = 600     # a HUD click waits this long for a busy fighter
+
+
+def manual_left_ms(fig, world, name):
+    """ms until `name` is off cooldown (0 = ready), on the fighter's
+    cooldown clock (unique.cd_now: bench time left out, Berserker rage)."""
+    r = getattr(fig, "act", None)
+    if r is None:
+        return 0.0
+    until = r.cooldown_until.get(name)
+    if until is None:
+        return 0.0
+    return max(0.0, (until - _unique.cd_now(fig, world.global_tick)) * TICK_MS)
+
+
+def request_manual(fig, world, name):
+    """HUD click (laser/actionbar.py): queue `name` for this fighter.  Ready
+    only: False when it is still cooling down or the fighter can't play
+    it."""
+    r = runner(fig)
+    if r is None or not name or name not in fig.render.bundle.extra:
+        return False
+    if manual_left_ms(fig, world, name) > 0:
+        return False
+    r.manual = (name, world.global_tick + int(MANUAL_WAIT_MS / TICK_MS))
     return True
 
 

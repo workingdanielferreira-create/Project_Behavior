@@ -33,6 +33,7 @@ from . import roster as _roster
 from . import tag as _tag
 from . import escort as _escort
 from . import hpbars
+from .hudclick import HudClick
 from . import targeting as _targeting
 from . import platform_win as win
 from .assets import AssetLibrary
@@ -164,6 +165,12 @@ class World:
         # Cursor + tick
         self.cursor = (screen_w // 2, screen_h // 2)
         self.global_tick = 0
+        # HUD action buttons (laser/hpbars.py Ready Gate, laser/hudclick.py):
+        # painted rects + keys, the key under the cursor, press feedback.
+        self.hud_buttons = []
+        self.hud_hover = None
+        self.hud_fx = {}
+        self._hud_tip = None
 
         # Battle state — bound per-side views of the opposing side.
         self.battle_mode = False
@@ -1384,6 +1391,10 @@ class Overlay(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.showFullScreen()
+        # Hover-to-click HUD buttons (laser/hudclick.py): the window stays
+        # click-through except while the cursor is over one.
+        self.hud_click = HudClick()
+        self.hud_click.attach(self)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._safe_tick)
@@ -1426,6 +1437,10 @@ class Overlay(QWidget):
         # The real cursor mapped through the camera's last view, so a fighter
         # sent "to the cursor" is DRAWN under it (identity at 1.0x).
         w.cursor = w.camera.screen_to_world(pos.x(), pos.y())
+        try:
+            self.hud_click.step(self, w)
+        except Exception as e:
+            action_log.crash("hudclick", e)
 
         try:
             self.input.update(w)
@@ -2074,46 +2089,14 @@ class Overlay(QWidget):
             self._paint_hud(p)
 
     def _paint_hud(self, p):
-        """The HUD: team HP bars, HP readout, notice (never camera'd or
+        """The HUD: team cards + Ready Gate, notice (never camera'd or
         bent by the big ball)."""
         w = self.world
 
-        # --- Team HP bars — Team 1 top-left, Team 2 top-right (laser/hpbars.py) ---
+        # --- Team HUD cards + Ready Gate — Team 1 bottom-left, Team 2
+        # bottom-right (laser/hpbars.py).  The old bottom-right HP readout
+        # is gone (Daniel 2026-11-12). ---
         hpbars.draw(p, w)
-
-        # --- HP readout — bottom-right, one entry per figure (both sides) ---
-        _hp_rows = [(si, fig) for si, s in enumerate(w.sides)
-                    for fig in s.figures if not unique.is_clone(fig)]
-        if _hp_rows:
-            p.setFont(self._hp_font)
-            fm = p.fontMetrics()
-            line_h = fm.height() + 4
-            base_y = w.screen_h - config.HP_DISPLAY_MARGIN_B
-            _battle = w.battle_mode
-            for idx, (side_i, fig) in enumerate(_hp_rows):
-                hp_val = fig.personality.hp
-                max_hp = fig.personality.max_hp
-                label = (f"P{side_i + 1} {hp_val} HP" if _battle
-                         else f"{hp_val} HP")
-                # A Rig Forge character without its FX Studio file plays with
-                # no FX at all — say so instead of failing silently.
-                _ch = getattr(fig.mode, "character", None) or {}
-                if _ch.get("_package") and not _ch.get("_fxkit"):
-                    label += "  (no FX file)"
-                text_w = fm.horizontalAdvance(label)
-                _hp_offset = 0 if fig.mode.uses_melee() else 70
-                draw_x = w.screen_w - text_w - config.HP_DISPLAY_MARGIN_R - _hp_offset
-                draw_y = base_y - idx * line_h
-                # Pick colour from the figure's lut midpoint
-                r2, g2, b2 = fig.lut[128]
-                # Dim text slightly when low HP (below 25 %)
-                alpha = 255 if hp_val > max_hp * 0.25 else 160
-                # Glow pass (offset shadow for neon feel)
-                p.setPen(QColor(r2, g2, b2, max(30, alpha // 4)))
-                p.drawText(draw_x - 1, draw_y + 1, label)
-                # Main text
-                p.setPen(QColor(r2, g2, b2, alpha))
-                p.drawText(draw_x, draw_y, label)
 
         # --- On-screen notice (F5 reload result, Switch, ...) — top
         # centre, clear of the team HP bars in the corners ---
