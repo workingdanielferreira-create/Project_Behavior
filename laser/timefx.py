@@ -327,6 +327,8 @@ def run_side(world, pipeline):
                     system.update(world)
                 except Exception as e:
                     action_log.crash(type(system).__name__, e)
+                from . import perf as _perf
+                _perf.lap("time:" + type(system).__name__)
                 if world.quitting:
                     return False
             world.projectiles = held + world.projectiles
