@@ -123,6 +123,7 @@ PUNISH_OWN_MS = 700      # openings within this long of its own last landed hit 
 PUNISH_FROM = ("neutral", "wait", "feint", "reset")   # intents a punish can cut in from
 PUNISH_CD_MS = 1500      # after a punish ends, the next one waits this long
 WHIFF_MS = 500           # an enemy attack that ended is a whiff only if it hit nothing of ours this recently
+PRESSURE_STALL_MS = 1500 # pressure / punish with no attack started for this long -> reset (target kept just out of reach)
 TOKEN_HOLD_TICKS = 3     # a token not refreshed for this long is free again
 CALLOUT_MS = 1500        # callouts kept on the board this long
 LOW_PCT = 0.15           # momentum decay per second
@@ -445,7 +446,7 @@ class TempoState:
     __slots__ = ("intent", "since", "until", "rng", "string_n", "string_done", "seen_attacks",
                  "seen_end", "momentum", "orbit_dir", "sway_ph", "sway_ms", "feint_kind",
                  "feint_bit", "open_seen", "reset_ang", "wait_style", "tid", "token", "role",
-                 "best_string", "last_hp_drop", "far_ticks", "stamp", "last_landed", "punish_ready")
+                 "best_string", "last_hp_drop", "far_ticks", "stamp", "last_landed", "punish_ready", "last_start")
 
     def __init__(self):
         self.intent = "neutral"
@@ -474,6 +475,7 @@ class TempoState:
         self.stamp = None              # tick of the last think()
         self.last_landed = -10 ** 9    # tick it last landed a hit (its own openings don't count)
         self.punish_ready = 0          # no new punish before this tick
+        self.last_start = 0            # tick its last attack started (pressure stall check)
 
 
 def state(fig):
@@ -640,6 +642,8 @@ def think(fig, world, runner, ctx, now):
     # Attacks started / ended since last tick.
     started = runner.attack_count - st.seen_attacks
     st.seen_attacks = runner.attack_count
+    if started > 0 or runner.playing is not None:
+        st.last_start = now
     ended = runner.last_attack_end != st.seen_end
     st.seen_end = runner.last_attack_end
     # Openings: a fresh one can be punished once.  Not one its own hits just
@@ -709,7 +713,8 @@ def think(fig, world, runner, ctx, now):
         if it == "punish" and now >= st.until:
             st.punish_ready = now + _ticks(PUNISH_CD_MS)
             _enter(fig, world, st, cfg, "pressure", now, I, burst)
-        elif (st.string_done >= st.string_n and runner.playing is None) or st.far_ticks > _ticks(600) or recent >= 2:
+        elif ((st.string_done >= st.string_n and runner.playing is None) or st.far_ticks > _ticks(600) or recent >= 2
+              or now - max(st.last_start, st.since) > _ticks(PRESSURE_STALL_MS)):
             _enter(fig, world, st, cfg, "reset", now, I, burst)
     elif it == "reset":
         if now >= st.until:

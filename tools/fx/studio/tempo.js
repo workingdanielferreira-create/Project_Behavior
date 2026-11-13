@@ -61,7 +61,7 @@ var TEMPO_PRESETS = {
 };
 var ROLE_WAIT = {vanguard: "circle", flanker: "flank", support: "zone", controller: "circle"};
 var OPEN_MS = 260, STRING_BURST_BONUS = 2, PUNISH_OWN_MS = 700;
-var PUNISH_FROM = ["neutral", "wait", "feint", "reset"], PUNISH_CD_MS = 1500, WHIFF_MS = 500;
+var PUNISH_FROM = ["neutral", "wait", "feint", "reset"], PUNISH_CD_MS = 1500, WHIFF_MS = 500, PRESSURE_STALL_MS = 1500;
 
 function normalize(raw) {
   raw = raw && typeof raw === "object" ? raw : {};
@@ -107,7 +107,7 @@ function Fighter(name, team, cfg, x, y, rng, color) {
   this.sway_ph = rng.uni(0, 6.28); this.sway_ms = rng.uni(900, 2200); this.feint_kind = "dash_in";
   this.feint_bit = false; this.open_seen = false; this.reset_ang = 0; this.wait_style = "circle";
   this.atk_until = -1; this.atk_end = -1e9; this.gap_until = 0; this.daze = 0; this.kbx = 0; this.kby = 0;
-  this.last_landed = -1e9; this.punish_ready = 0; this.role = "striker"; this.flash = 0; this.target = null; this.far = 0; this.hits_at = [];
+  this.last_landed = -1e9; this.punish_ready = 0; this.last_start = 0; this.role = "striker"; this.flash = 0; this.target = null; this.far = 0; this.hits_at = [];
   this.reach = 70; this.speed = 2.6; this.label = "";
 }
 Fighter.prototype.aggr = function () { return this.cfg.aggression_pct / 100 * (1 + this.cfg.momentum_pct / 100 * this.momentum); };
@@ -209,7 +209,8 @@ Sim.prototype.think = function (f) {
     f.far = dist > f.reach * 2.5 ? f.far + 1 : 0;
     var recent = f.hits_at.filter(function (t) { return now - t <= ticks(500); }).length;
     if (it === "punish" && now >= f.until) { f.punish_ready = now + ticks(PUNISH_CD_MS); this.enter(f, "pressure"); }
-    else if ((f.string_done >= f.string_n && f.atk_until < now) || f.far > ticks(600) || recent >= 2) this.enter(f, "reset");
+    else if ((f.string_done >= f.string_n && f.atk_until < now) || f.far > ticks(600) || recent >= 2 ||
+             now - Math.max(f.last_start, f.since) > ticks(PRESSURE_STALL_MS)) this.enter(f, "reset");
   } else if (it === "reset" && now >= f.until) this.enter(f, "neutral");
   if (f.melee && ["engage", "pressure", "punish"].indexOf(f.intent) >= 0) {
     if (this.tokenFree(f)) this.board[f.team][f.name] = now;
@@ -218,7 +219,7 @@ Sim.prototype.think = function (f) {
   // attack: only in attack intents (ranged keep zoning while waiting)
   var may = ["engage", "pressure", "punish"].indexOf(f.intent) >= 0 || (f.intent === "wait" && !f.melee);
   if (may && f.atk_until < now && now >= f.gap_until && dist <= f.reach && f.daze <= 0) {
-    f.atk_until = now + ticks(300);
+    f.atk_until = now + ticks(300); f.last_start = now;
     if (f.intent === "engage") { this.enter(f, "pressure"); }
     f.string_done++;
     f.swing = true;
