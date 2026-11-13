@@ -36,6 +36,7 @@ from . import hpbars
 from .hudclick import HudClick
 from . import targeting as _targeting
 from . import tempo as _tempo
+from . import perf as _perf
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -659,6 +660,8 @@ class World:
         # token).  None = the usual movement below.
         _tpt = _tempo.move_target(fig, self)
         if _tpt is not None:
+            if fig.motion.style is not None:
+                fig.motion.style.live = False   # the intent moves it this tick, not the style
             return _tpt
         # Movement style (laser/movestyle.py): the character's own patterns
         # and phases.  Same target in both modes (nearest enemy in Battle,
@@ -1443,6 +1446,7 @@ class Overlay(QWidget):
             if steps > CATCHUP_MAX:
                 steps = CATCHUP_MAX
                 self._rt_acc = 0.0
+        _perf.call(steps)
         for _ in range(steps):
             try:
                 self._tick()
@@ -1538,10 +1542,13 @@ class Overlay(QWidget):
         # feel of two fighters thinking for themselves.
         # Clash interaction (laser/clash.py): opposing FX that touch play
         # their clash rule before the sides read each other's snapshots.
+        _perf.tick()
+        _perf.begin()
         try:
             clash.step(w)
         except Exception as e:
             action_log.crash("clash", e)
+        _perf.lap("clash")
         unique.world_tick(w)   # Mirror Legion copies join / dissolve
         # Tag pairs (laser/tag.py): Switch in / out, KO cover.  Before the
         # snapshots, so both sides see the fighter now on the field.
@@ -1555,7 +1562,9 @@ class Overlay(QWidget):
             _escort.step(w)
         except Exception as e:
             action_log.crash("escort", e)
+        _perf.lap("unique+tag+escort")
         w.refresh_battle()
+        _perf.lap("snapshots")
         # FX Studio Time control: each figure's body / FX time scale this
         # tick (None = no time effect running anywhere).
         time_plan = timefx.plan(w)
@@ -1579,6 +1588,7 @@ class Overlay(QWidget):
                     system.update(w)
                 except Exception as e:
                     action_log.crash(type(system).__name__, e)
+                _perf.lap(type(system).__name__)
                 if w.quitting:
                     self._shutdown()
                     return
@@ -1600,10 +1610,12 @@ class Overlay(QWidget):
         # from the slowest fighter's base speed, each fighter's own band, and
         # the barrier holding fighters by live speed.  After both sides and
         # the puppet, before terrain (whose roll reads the barrier's pull).
+        _perf.lap("timefx/puppet")
         try:
             speedband.step(w)
         except Exception as e:
             action_log.crash("speedband", e)
+        _perf.lap("speedband")
         # Destructible terrain (laser/terrain.py, Dust & Air "Rock pillars" /
         # "Rubble & boulders"): pillars block / repel fighters and stop
         # projectiles like the screen walls do; once per tick after BOTH
@@ -1612,6 +1624,7 @@ class Overlay(QWidget):
             terrain.step(w)
         except Exception as e:
             action_log.crash("terrain", e)
+        _perf.lap("terrain")
         # World physics (laser/worldfx.py, FX Studio "World Physics"): the
         # dust and air the arena kicks up.  Once per tick after BOTH sides
         # moved; it only reads the fighters, so Solo and Battle match.
@@ -1619,6 +1632,7 @@ class Overlay(QWidget):
             worldfx.step(w)
         except Exception as e:
             action_log.crash("worldfx", e)
+        _perf.lap("worldfx")
         # Post-battle stats (laser/battlestats.py): distance / speed / action
         # / HP sampling and the end-of-battle check.  Read-only, once per
         # tick after everything moved; Solo and Battle alike.
@@ -1626,6 +1640,7 @@ class Overlay(QWidget):
             w.stats.step(w)
         except Exception as e:
             action_log.crash("battlestats", e)
+        _perf.lap("stats")
         # Fight rhythm director (laser/tempo.py): the world's intensity
         # (calm / build / burst) from this tick's distance, hits, counters,
         # HP swings and quiet spells.  Fighters read it next tick.
@@ -1633,6 +1648,7 @@ class Overlay(QWidget):
             _tempo.step(w)
         except Exception as e:
             action_log.crash("tempo", e)
+        _perf.lap("tempo director")
 
         w.global_tick += 1
         self.update()
@@ -1816,6 +1832,7 @@ class Overlay(QWidget):
             self._paint_scene(p)
         p.end()
         _v = cam._view
+        _perf.frame(w, (time.perf_counter() - _t0) * 1000.0)
         cam.note_paint((time.perf_counter() - _t0) * 1000.0,
                        _v is not None and _v[6] > 1e-4)
         if cam.suspend_note:
