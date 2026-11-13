@@ -53,8 +53,8 @@ and lean outward by atan2(cos lat sin lon, 1 + sin lat).
 The ground layers are painted into offscreen images and redrawn as
 planet_ball_cols x planet_ball_bands affine cells (bands spread over the
 bending latitudes; the flat part and below the row are one band each).
-Only cells whose source holds something are redrawn (an exact zero-bytes
-test per 16-row block), plus every later cell whose screen box overlaps one
+Only cells whose source holds something are redrawn (a zero-bytes test per
+16-row block on a 1-bit mask Qt builds of the painted pixels), plus every later cell whose screen box overlaps one
 of them (Source-mode overlaps), and only the boxes drawn last frame are
 cleared: empty ground costs nothing and the picture is byte-identical to
 redrawing every cell.
@@ -291,18 +291,39 @@ class BallWarp:
     def _content(self, img):
         """Where the layer image holds anything: per CONTENT_ROWS-row block
         of device rows, (x_lo, x_hi) device px of the painted pixels, or
-        None when the block is empty.  Exact: a transparent premultiplied
-        pixel is all zero bytes, so whole blocks and rows are compared
-        against zeros (memcmp) and only rows with something in them are
-        measured.  Also returns the bounding box for the next clear."""
-        bpl, ih = img.bytesPerLine(), img.height()
-        ptr = img.constBits()
+        None when the block is empty; plus the bounding box for the next
+        clear.  Qt builds a 1-bit mask of every pixel that isn't fully
+        transparent in C++ (createMaskFromColor; a transparent premultiplied
+        pixel is exactly 0x00000000), so the byte scan below runs on 1/32 of
+        the data (Daniel 2026-11-13: the full-image scan cost ~5-9 ms a
+        frame).  Rows and empty blocks are exact; x extents are rounded OUT
+        to whole mask bytes (8 px), never smaller than the painted pixels:
+        a wider extent only redraws a cell that would also be drawn by a
+        full redraw, so the picture is unchanged."""
+        from PyQt5.QtCore import Qt
+        iw = img.width()
+        m = img.createMaskFromColor(0x00000000, Qt.MaskOutColor)   # MonoLSB: bit set = painted
+        bpl, ih = m.bytesPerLine(), m.height()
+        ptr = m.constBits()
         ptr.setsize(bpl * ih)
         data = ptr.asstring()
+        vb = (iw + 7) // 8                  # mask bytes holding real pixels per row
+        if vb < bpl or iw % 8:
+            # Row padding and the spare bits of the last byte hold leftovers:
+            # zero them so they never read as painted.
+            data = bytearray(data)
+            if iw % 8:
+                keep = (1 << (iw % 8)) - 1      # MonoLSB: pixel 0 = bit 0
+                data[vb - 1::bpl] = data[vb - 1::bpl].translate(bytes(b & keep for b in range(256)))
+            z = bytes(ih)
+            for j in range(vb, bpl):
+                data[j::bpl] = z
+            data = bytes(data)
         n = CONTENT_ROWS
-        bz = self._zeros.get(bpl)
+        key = ("mask", bpl)
+        bz = self._zeros.get(key)
         if bz is None:
-            bz = self._zeros[bpl] = bytes(bpl * n)
+            bz = self._zeros[key] = bytes(bpl * n)
         rz = bz[:bpl]
         blocks = []
         x0 = y0 = 1 << 30
@@ -323,7 +344,7 @@ class BallWarp:
                 y1 = y
                 lo = min(lo, bpl - len(row.lstrip(b"\0")))
                 hi = max(hi, len(row.rstrip(b"\0")))
-            lo, hi = lo // 4, (hi + 3) // 4
+            lo, hi = lo * 8, min(iw, hi * 8)
             blocks.append((lo, hi))
             x0, x1 = min(x0, lo), max(x1, hi)
         box = (x0, y0, x1, y1 + 1) if y1 >= 0 else ()

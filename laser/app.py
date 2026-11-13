@@ -1912,7 +1912,7 @@ class Overlay(QWidget):
                     return ball.stand_transform(sx, sy)
                 return ball.stand_transform(sx, sy, speedband.fig_depth(w, fig), sq)
             w.ball_obj = hook
-            _perf.pbegin()
+            _t_obj = time.perf_counter()
             try:
                 p.save()
                 p.setRenderHint(QPainter.Antialiasing)
@@ -1922,7 +1922,7 @@ class Overlay(QWidget):
             finally:
                 w.ball_obj = None
                 speedband.objects(None, None)
-                _perf.plap("paint:objects")
+                _perf.add("paint:objects", (time.perf_counter() - _t_obj) * 1000.0)
             bent("air", 1)
         finally:
             speedband.paint_end()
@@ -1971,7 +1971,9 @@ class Overlay(QWidget):
             terrain.paint_back(p, w, pillars=False)
         if L_obj:
             # Pillars no fighter stands behind.
+            _perf.pbegin()
             terrain.paint_back(p, w, ground=False)
+            _perf.plap("paint:pillars")
             base = p.transform()
             if getattr(w, "ball_obj", None) is not None:
                 # Speed band: travelling FX stand at their own spot
@@ -1982,9 +1984,11 @@ class Overlay(QWidget):
                 speedband.observe(fig)
                 fig.draw(p, self._pen, body=bodies)
                 p.setTransform(base)
+                _perf.plap("paint:" + getattr(fig.mode, "key", "?") + " body")
             speedband.observe(None)
             # Pillars with a fighter behind them are drawn over it.
             terrain.paint_front(p, w, silhouettes=bodies)
+            _perf.plap("paint:pillars")
             # HP-threshold stationary clones (glowing-orb marker + orbiting sphere).
             hook = getattr(w, "ball_obj", None)
             for clone in w.all_clones():
