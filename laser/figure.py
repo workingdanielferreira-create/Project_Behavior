@@ -29,7 +29,8 @@ class Figure:
     __slots__ = ("transform", "motion", "trail", "render", "combat",
                  "personality", "mode", "lut", "index",
                  "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
-                 "bench_since", "bench_ticks", "tgt", "last_hit_by", "hit_squash")
+                 "bench_since", "bench_ticks", "tgt", "last_hit_by", "hit_squash",
+                 "tempo")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -71,6 +72,8 @@ class Figure:
         # id() of the enemy that last hit it ("last attacker").
         self.tgt = None
         self.last_hit_by = None
+        # Fight rhythm (laser/tempo.py): its TempoState, made on first use.
+        self.tempo = None
         # Strike hit weight (laser/hitfx.py): [ticks left, total, dx, dy,
         # amount, flash] while squashed by a punch / kick; None otherwise.
         self.hit_squash = None
