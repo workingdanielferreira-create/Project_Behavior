@@ -8,7 +8,9 @@ Per report: frames painted per second, sim ticks per second, timer calls
 that had to catch up (ran 2+ ticks), average / worst ms of the paint and of
 every tick section (clash, tag, snapshots, each pipeline system, speedband,
 terrain, worldfx, stats, tempo), live FX instances, fighters and their
-Fight rhythm intent.
+Fight rhythm intent.  "paint:*" = the parts of PAINT (big ball: ground
+drawn / bent onto the ball, standing objects, air drawn / bent, HUD);
+"time:*" = pipeline systems run inside Time-control sub-passes.
 """
 
 import os
@@ -50,6 +52,20 @@ def lap(name):
 
 def add(name, ms):
     _add(name, ms)
+
+
+# Paint has its own lap clock (it runs outside the tick).
+_pt = [0.0]
+
+
+def pbegin():
+    _pt[0] = time.perf_counter()
+
+
+def plap(name):
+    now = time.perf_counter()
+    _add(name, (now - _pt[0]) * 1000.0)
+    _pt[0] = now
 
 
 def tick():
@@ -96,8 +112,14 @@ def _report(world, el):
             st = getattr(f, "tempo", None)
             it = st.intent if (st is not None and tempo.config_for(f) is not None) else "-"
             figs.append("%s:%s" % (getattr(f.mode, "key", "?"), it))
-    lines = ["%s  fps %.1f  ticks/s %.1f  catch-up calls %d/%d  fx %d  [%s]" % (
-        time.strftime("%H:%M:%S"), _frames[0] / el, _ticks[0] / el, _catchup[0], _calls[0], nfx, ", ".join(figs))]
+    cam = getattr(world, "camera", None)
+    cc = getattr(cam, "cfg", None) or {}
+    view = "screen %dx%d  ball %s  planet %s  wireframe %s" % (
+        int(getattr(world, "screen_w", 0)), int(getattr(world, "screen_h", 0)),
+        "on" if cc.get("planet_ball") else "off", "on" if cc.get("planet") else "off",
+        "on" if cc.get("wireframe") else "off")
+    lines = ["%s  fps %.1f  ticks/s %.1f  catch-up calls %d/%d  fx %d  [%s]  %s" % (
+        time.strftime("%H:%M:%S"), _frames[0] / el, _ticks[0] / el, _catchup[0], _calls[0], nfx, ", ".join(figs), view)]
     for name, (tot, n, worst) in sorted(_sec.items(), key=lambda kv: -kv[1][0]):
         lines.append("    %-22s avg %7.3f ms  worst %7.2f ms  x%d" % (name, tot / max(1, n), worst, n))
     with open(_path[0], "a", encoding="utf-8") as fh:

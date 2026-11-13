@@ -1827,9 +1827,13 @@ class Overlay(QWidget):
             # spot on the ball, never clipped; the air layers (bullets,
             # sparks, front FX, wireframe) are bent over them; the HUD flat.
             self._paint_ball(p, cam)
+            _perf.pbegin()
             self._paint_hud(p)
+            _perf.plap("paint:hud")
         else:
+            _perf.pbegin()
             self._paint_scene(p)
+            _perf.plap("paint:flat scene")
         p.end()
         _v = cam._view
         _perf.frame(w, (time.perf_counter() - _t0) * 1000.0)
@@ -1876,6 +1880,7 @@ class Overlay(QWidget):
         dpr = self.devicePixelRatioF()
 
         def bent(layer, slot):
+            _perf.pbegin()
             img = ball.image(self.width(), self.height(), dpr, slot)
             qp = QPainter(img)
             qp.setRenderHint(QPainter.Antialiasing)
@@ -1885,7 +1890,9 @@ class Overlay(QWidget):
                 self._paint_scene(qp, hud=False, wire=True, layer=layer)
             finally:
                 qp.end()
+            _perf.plap("paint:" + layer + " drawn")
             ball.paint(p, img, cam.cfg, dpr, slot)
+            _perf.plap("paint:" + layer + " bent")
 
         # Speed band (laser/speedband.py): every layer is drawn with the
         # world's band (the slowest fighter's); fighters, their travelling FX
@@ -1905,6 +1912,7 @@ class Overlay(QWidget):
                     return ball.stand_transform(sx, sy)
                 return ball.stand_transform(sx, sy, speedband.fig_depth(w, fig), sq)
             w.ball_obj = hook
+            _perf.pbegin()
             try:
                 p.save()
                 p.setRenderHint(QPainter.Antialiasing)
@@ -1914,6 +1922,7 @@ class Overlay(QWidget):
             finally:
                 w.ball_obj = None
                 speedband.objects(None, None)
+                _perf.plap("paint:objects")
             bent("air", 1)
         finally:
             speedband.paint_end()
