@@ -803,17 +803,28 @@ def speed_mult(fig):
     return 1.0
 
 
+COMMIT_INTENTS = ("engage", "pressure", "punish")
+
+
 def moves(fig):
-    """Does the intent drive this fighter's movement (Battle)?"""
+    """Does the intent drive this fighter's movement (Battle)?  "auto": a
+    character without a Movement style always; WITH one, the style does the
+    footwork (neutral / wait / reset / fake retreat) and the intent takes
+    over once it commits (engage / pressure / punish / a dash-in feint) so
+    it actually gets in to attack (Daniel 2026-11-13: styled fighters only
+    shadowed each other and never attacked)."""
     cfg = _cfg(fig)
-    if cfg is None or getattr(fig, "tempo", None) is None:
+    st = getattr(fig, "tempo", None)
+    if cfg is None or st is None:
         return False
     if cfg["movement"] == "always":
         return True
     if cfg["movement"] == "speed_only":
         return False
     from . import movestyle
-    return movestyle.cfg(fig) is None
+    if movestyle.cfg(fig) is None:
+        return True
+    return st.intent in COMMIT_INTENTS or (st.intent == "feint" and st.feint_kind == "dash_in")
 
 
 def move_target(fig, world):
