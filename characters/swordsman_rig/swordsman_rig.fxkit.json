@@ -8392,7 +8392,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8409,7 +8455,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "run": {
    "logic": "any",
@@ -8433,7 +8501,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8450,7 +8564,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "attack_normal": {
    "logic": "any",
@@ -8474,7 +8610,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8491,7 +8673,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 1000,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "defend": {
    "logic": "any",
@@ -8515,7 +8719,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8532,7 +8782,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "attack_special": {
    "logic": "any",
@@ -8556,7 +8828,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8573,7 +8891,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "ultimate": {
    "logic": "any",
@@ -8597,7 +8937,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8614,7 +9000,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "impact": {
    "logic": "any",
@@ -8638,7 +9046,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -8655,7 +9109,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   }
  },
  "entry_sets": [],
@@ -8726,10 +9202,11 @@
     "deals_damage": true,
     "damage": 200,
     "pierce": true,
-    "rehit_ticks": 6,
+    "rehit_ticks": 0,
     "knockback": 500,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "static",
@@ -8744,7 +9221,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -8758,8 +9238,8 @@
    },
    "params": {
     "style": "earth_cleaver",
-    "length": 58,
-    "thickness": 11.5,
+    "length": 38,
+    "thickness": 1.5,
     "radius": 0,
     "span": 0,
     "swing_ticks": 25,
@@ -8819,7 +9299,23 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emw2daywe1",
    "action": "attack_normal",
@@ -8831,8 +9327,8 @@
    "always_on": false,
    "char_every_ms": 0,
    "offset": [
-    -7,
-    -52
+    0,
+    -38.5
    ],
    "layer": "front",
    "emit": {
@@ -8859,7 +9355,12 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   }
  ],
  "groups": [],
@@ -9517,7 +10018,8 @@
      }
     }
    },
-   "actions": {}
+   "actions": {},
+   "speed_fx_anim": false
   },
   "summoner": {
    "summons": [
@@ -9839,6 +10341,7 @@
    "color": "#7fd4ff"
   }
  },
+ "states": [],
  "movement_style": {
   "enabled": false,
   "select": "priority",

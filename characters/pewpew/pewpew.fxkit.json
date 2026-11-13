@@ -11398,7 +11398,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11414,7 +11460,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "run": {
    "logic": "any",
@@ -11438,7 +11485,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11454,23 +11547,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_normal": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [
-    {
-     "type": "target_within",
-     "px": 600,
-     "not": false
-    }
-   ],
+   "conditions": [],
    "chain_next": "attack_normal_2",
    "chain_reset_ms": 0,
    "fx_continuous": false,
    "movement": "move",
-   "move_speed_pct": 300,
+   "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
    "attack_px": 610,
@@ -11484,7 +11572,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11500,7 +11634,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "defend": {
    "logic": "any",
@@ -11524,7 +11659,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11540,7 +11721,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_special": {
    "logic": "any",
@@ -11564,7 +11746,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11580,7 +11808,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "ultimate": {
    "logic": "any",
@@ -11623,7 +11852,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11639,23 +11914,18 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "skate_back_fire": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [
-    {
-     "type": "target_beyond",
-     "px": 200,
-     "not": false
-    }
-   ],
+   "conditions": [],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
    "movement": "back",
-   "move_speed_pct": 300,
+   "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 100,
    "attack_px": 0,
@@ -11669,7 +11939,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11685,7 +12001,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   },
   "attack_normal_2": {
    "logic": "any",
@@ -11693,7 +12010,7 @@
    "conditions": [
     {
      "type": "target_within",
-     "px": 300,
+     "px": 100,
      "not": false
     }
    ],
@@ -11715,7 +12032,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -11731,7 +12094,8 @@
     "keys": [],
     "logic": "any",
     "conditions": []
-   }
+   },
+   "attack_gap_ms": 350
   }
  },
  "entry_sets": [
@@ -11835,18 +12199,17 @@
   "enabled": false,
   "mode": "avoid",
   "angle_deg": 180,
-  "curve_deg_s": 0,
-  "speed_pct": 1000,
-  "proximity_px": 75,
-  "avoid_duration_ms": 1000,
+  "curve_deg_s": 30,
+  "speed_pct": 1300,
+  "proximity_px": 40,
+  "avoid_duration_ms": 100,
   "reengage_duration_ms": 2000,
   "cooldown_ms": 0,
   "logic": "any",
   "conditions": [
    {
-    "type": "fx_near",
-    "tags": "",
-    "px": 60,
+    "type": "target_within",
+    "px": 200,
     "not": false
    }
   ],
@@ -11874,12 +12237,7 @@
   "counter_delay_ms": 0,
   "counter_range_px": 0,
   "logic": "any",
-  "conditions": [
-   {
-    "type": "bullet_deflected",
-    "not": false
-   }
-  ],
+  "conditions": [],
   "fx": ""
  },
  "character_scale": 0.5,
@@ -11926,7 +12284,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -11956,7 +12317,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -12021,7 +12383,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -12051,7 +12416,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -12087,7 +12453,8 @@
     "rehit_ticks": 0,
     "knockback": 2,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -12102,7 +12469,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -12119,8 +12489,8 @@
     "radius": 5,
     "thickness": 5,
     "span": 0,
-    "length": 1000,
-    "swing_ticks": 24,
+    "length": 4000,
+    "swing_ticks": 12,
     "hold_ticks": 1,
     "density": 1,
     "rotation_deg": 0,
@@ -12174,7 +12544,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvau20m57",
    "action": "attack_normal",
@@ -12233,7 +12622,8 @@
     "rehit_ticks": 0,
     "knockback": 2,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -12248,7 +12638,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -12265,8 +12658,8 @@
     "radius": 3.5,
     "thickness": 5,
     "span": 0,
-    "length": 1000,
-    "swing_ticks": 24,
+    "length": 4000,
+    "swing_ticks": 12,
     "hold_ticks": 1,
     "density": 1,
     "rotation_deg": 0,
@@ -12320,7 +12713,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvau3w0w8",
    "action": "attack_normal",
@@ -12377,24 +12789,28 @@
     "damage": 30,
     "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 2,
+    "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
-    "kind": "attached",
+    "kind": "homing",
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
+    "speed": 10,
+    "turn_deg": 26.5,
     "amplitude": 55,
     "freq": 0.18,
     "orbit_rx": 46,
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -12408,12 +12824,12 @@
    },
    "params": {
     "style": "magnum",
-    "radius": 5,
+    "radius": 2,
     "thickness": 26,
     "span": 0,
-    "length": 980,
-    "swing_ticks": 54,
-    "hold_ticks": 52,
+    "length": 4000,
+    "swing_ticks": 11,
+    "hold_ticks": 12,
     "density": 1,
     "rotation_deg": 0,
     "lightning": false,
@@ -12466,7 +12882,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvau6czp9",
    "action": "skate_back_fire",
@@ -12508,152 +12943,6 @@
     "drag_deg": 90,
     "drag_every": 10
    },
-   "follow_dir": false,
-   "follow_each": true,
-   "keys": []
-  },
-  {
-   "prim": "technique",
-   "name": "Gun-kata dual pistols copy",
-   "tag": "projectile",
-   "anchor": "haL",
-   "blend": "additive",
-   "battle": {
-    "deals_damage": true,
-    "damage": 30,
-    "pierce": true,
-    "rehit_ticks": 0,
-    "knockback": 2,
-    "blockable": true,
-    "deflectable": true
-   },
-   "motion": {
-    "kind": "homing",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 10,
-    "turn_deg": 26.5,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ff0000",
-    "c2": "#ac210c",
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "drill_bullet",
-    "radius": 1.5,
-    "thickness": 12,
-    "span": 0,
-    "length": 1020,
-    "swing_ticks": 24,
-    "hold_ticks": 24,
-    "density": 1,
-    "rotation_deg": 0,
-    "lightning": false,
-    "lightning_rate": 1.5,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": false,
-    "aura_part": "all",
-    "gap_px": 6,
-    "w_mode": "signature",
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0,
-    "ext_pivot": 0,
-    "ext_spin": 0,
-    "ext_sweep": 0,
-    "ext_spin_dir": "clockwise",
-    "ext_slide": 0,
-    "ext_slide_deg": 0,
-    "w_weight": 0,
-    "w_plane": 0,
-    "w_plane_roll": 0,
-    "w_side": "front",
-    "hitstop": false,
-    "hitstop_ticks": 4,
-    "kb_dir": "aim",
-    "kb_angle_deg": 0,
-    "impact_frame": "off",
-    "impact_frame_r": 90,
-    "fx_motion": "ink",
-    "motion_smear": true,
-    "motion_arcs": true,
-    "fx_impact": "ink",
-    "fx_env": "ink",
-    "shake": false,
-    "shake_px": 6,
-    "shake_ticks": 8,
-    "squash": false,
-    "squash_amt": 0.3,
-    "squash_ticks": 6,
-    "squash_flash": true,
-    "kick_sweep": "high_low",
-    "axe_dir": "screen_down",
-    "axe_crater": "contact",
-    "spin_mode": "centered",
-    "spin_turns": 2,
-    "rise_dir": "screen_up",
-    "kick_angle_deg": 0
-   },
-   "id": "Emvau7rlh10",
-   "action": "skate_back_fire",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "enabled": true,
-   "start_frame": 2,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": true,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    13.5,
-    2.5
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 20,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
    "follow_dir": true,
    "follow_each": true,
    "keys": []
@@ -12671,7 +12960,8 @@
     "rehit_ticks": 1,
     "knockback": 6,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "homing",
@@ -12686,7 +12976,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -12758,7 +13051,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvbgt1qf48",
    "action": "ultimate",
@@ -12826,7 +13138,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": "Tmvbn5lwb61d"
+    "path": "Tmvbn5lwb61d",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -12880,7 +13195,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": true,
@@ -12912,7 +13228,8 @@
     "rehit_ticks": 1,
     "knockback": 6,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "homing",
@@ -12927,7 +13244,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -12999,7 +13319,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emvcddazd1",
    "action": "ultimate",
@@ -13053,12 +13392,13 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 5,
+    "damage": 50,
     "pierce": true,
     "rehit_ticks": 3,
     "knockback": 100,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -13073,7 +13413,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -13145,7 +13488,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emve0tns61",
    "action": "attack_normal_2",
@@ -13199,12 +13561,13 @@
    "blend": "additive",
    "battle": {
     "deals_damage": true,
-    "damage": 5,
+    "damage": 50,
     "pierce": true,
     "rehit_ticks": 3,
     "knockback": 100,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -13219,7 +13582,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -13291,7 +13657,26 @@
     "spin_mode": "centered",
     "spin_turns": 2,
     "rise_dir": "screen_up",
-    "kick_angle_deg": 0
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
    },
    "id": "Emve0v6k22",
    "action": "attack_normal_2",
@@ -13313,6 +13698,175 @@
    "layer": "front",
    "emit": {
     "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Gun-kata dual pistols copy",
+   "tag": "projectile",
+   "anchor": "haR",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 30,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 0,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "homing",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 10,
+    "turn_deg": 26.5,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#f00000",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "magnum",
+    "radius": 2,
+    "thickness": 26,
+    "span": 0,
+    "length": 4000,
+    "swing_ticks": 12,
+    "hold_ticks": 11,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 7,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "spin_vertical": false,
+    "flip_h": false,
+    "flip_v": false
+   },
+   "id": "Emw916tti4",
+   "action": "skate_back_fire",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 1,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": true,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    -9
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 20,
     "count": 1,
     "fan_deg": 0
    },
@@ -13362,6 +13916,7 @@
   "team_pct": 50,
   "rules": []
  },
+ "world_physics": {},
  "unique_ability": {
   "type": "rewind_bullets",
   "mirror_legion": {
@@ -13414,7 +13969,12 @@
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
    "invuln_ms": 50,
-   "show_charges": false
+   "show_charges": false,
+   "state": false,
+   "state_ms": 3000,
+   "logic": "any",
+   "conditions": [],
+   "show_state": true
   },
   "ricochet": {
    "bounces": 3,
@@ -13987,7 +14547,8 @@
      }
     }
    },
-   "actions": {}
+   "actions": {},
+   "speed_fx_anim": false
   },
   "summoner": {
    "summons": [
@@ -14093,7 +14654,7 @@
   "rewind_bullets": {
    "trigger": "recall",
    "delay_ms": 100,
-   "recall_every_ms": 500,
+   "recall_every_ms": 1000,
    "return_speed_pct": 150,
    "return_damage_pct": 125,
    "pass_fx": true,
@@ -14178,10 +14739,89 @@
    "color": "#7fd4ff"
   }
  },
+ "states": [],
  "movement_style": {
-  "enabled": true,
+  "enabled": false,
   "select": "priority",
   "daze": false,
-  "phases": []
+  "phases": [
+   {
+    "name": "circle in close",
+    "pattern": "orbit",
+    "hold_min_ms": 900,
+    "hold_max_ms": 1600,
+    "weight": 1,
+    "params": {
+     "radius_px": 130,
+     "direction": "alternate",
+     "swap_ms_min": 1500,
+     "swap_ms_max": 3500,
+     "lead_deg": 30,
+     "wobble_pct": 0,
+     "wobble_ms": 2400
+    },
+    "modifiers": {
+     "speed_pct": 100,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 0,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "target",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 200,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0,
+     "enemy": "any"
+    }
+   },
+   {
+    "name": "close in",
+    "pattern": "chase",
+    "hold_min_ms": 0,
+    "hold_max_ms": 0,
+    "weight": 1,
+    "params": {
+     "stop_px": 0,
+     "overshoot_px": 0
+    },
+    "modifiers": {
+     "speed_pct": 100,
+     "pulse_pct": 0,
+     "pulse_ms": 1000,
+     "inertia_pct": 0,
+     "weave_deg": 0,
+     "weave_ms": 1600,
+     "jitter_px": 0,
+     "jitter_ms": 400,
+     "pause_every_ms": 0,
+     "pause_ms": 300,
+     "face": "travel",
+     "wall_avoid": true
+    },
+    "when": {
+     "dist_min_px": 0,
+     "dist_max_px": 0,
+     "hp_min_pct": 0,
+     "hp_max_pct": 100,
+     "hit_taken_ms": 0,
+     "hit_landed_ms": 0,
+     "attacking": "any",
+     "fight_ms": 0,
+     "enemy": "any"
+    }
+   }
+  ]
  }
 }

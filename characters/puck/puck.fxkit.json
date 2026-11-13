@@ -48,12 +48,12 @@
    "frames": 23
   },
   "switch_in": {
-   "frame_ms": 42.857,
-   "frames": 14
+   "frame_ms": 45.455,
+   "frames": 11
   },
   "switch_out": {
-   "frame_ms": 75,
-   "frames": 4
+   "frame_ms": 42.857,
+   "frames": 7
   }
  },
  "palette_lut": {
@@ -11337,18 +11337,6 @@
      89.96
     ],
     [
-     101.65,
-     89.96
-    ],
-    [
-     101.65,
-     89.96
-    ],
-    [
-     101.65,
-     89.96
-    ],
-    [
      113.78,
      82.43
     ],
@@ -11390,18 +11378,6 @@
     ]
    ],
    "chest": [
-    [
-     116.27,
-     81.35
-    ],
-    [
-     116.27,
-     81.35
-    ],
-    [
-     116.27,
-     81.35
-    ],
     [
      116.27,
      81.35
@@ -11453,18 +11429,6 @@
      78.08
     ],
     [
-     129.76,
-     78.08
-    ],
-    [
-     129.76,
-     78.08
-    ],
-    [
-     129.76,
-     78.08
-    ],
-    [
      125.38,
      57.01
     ],
@@ -11506,18 +11470,6 @@
     ]
    ],
    "head": [
-    [
-     142.35,
-     69.93
-    ],
-    [
-     142.35,
-     69.93
-    ],
-    [
-     142.35,
-     69.93
-    ],
     [
      138.77,
      66.09
@@ -11569,18 +11521,6 @@
      79.23
     ],
     [
-     129.76,
-     79.23
-    ],
-    [
-     129.76,
-     79.23
-    ],
-    [
-     129.76,
-     79.23
-    ],
-    [
      125.38,
      58.16
     ],
@@ -11622,18 +11562,6 @@
     ]
    ],
    "shL": [
-    [
-     132.99,
-     82.24
-    ],
-    [
-     132.99,
-     82.24
-    ],
-    [
-     132.99,
-     82.24
-    ],
     [
      132.99,
      82.24
@@ -11685,18 +11613,6 @@
      73.47
     ],
     [
-     126.52,
-     73.47
-    ],
-    [
-     126.52,
-     73.47
-    ],
-    [
-     126.52,
-     73.47
-    ],
-    [
      121.05,
      52.74
     ],
@@ -11738,18 +11654,6 @@
     ]
    ],
    "elL": [
-    [
-     142.78,
-     95.05
-    ],
-    [
-     142.78,
-     95.05
-    ],
-    [
-     142.78,
-     95.05
-    ],
     [
      147.16,
      89.93
@@ -11797,18 +11701,6 @@
    ],
    "elR": [
     [
-     106.47,
-     69.09
-    ],
-    [
-     106.47,
-     69.09
-    ],
-    [
-     106.47,
-     69.09
-    ],
-    [
      120.68,
      93.14
     ],
@@ -11854,18 +11746,6 @@
     ]
    ],
    "haL": [
-    [
-     150.59,
-     85.74
-    ],
-    [
-     150.59,
-     85.74
-    ],
-    [
-     150.59,
-     85.74
-    ],
     [
      159.29,
      89.1
@@ -11913,18 +11793,6 @@
    ],
    "haR": [
     [
-     96.41,
-     81.17
-    ],
-    [
-     96.41,
-     81.17
-    ],
-    [
-     96.41,
-     81.17
-    ],
-    [
      136.21,
      90.75
     ],
@@ -11970,18 +11838,6 @@
     ]
    ],
    "hpL": [
-    [
-     97.61,
-     89.5
-    ],
-    [
-     97.61,
-     89.5
-    ],
-    [
-     97.61,
-     89.5
-    ],
     [
      97.61,
      89.5
@@ -12033,18 +11889,6 @@
      89.62
     ],
     [
-     101.08,
-     89.62
-    ],
-    [
-     101.08,
-     89.62
-    ],
-    [
-     101.08,
-     89.62
-    ],
-    [
      113.13,
      83.49
     ],
@@ -12086,18 +11930,6 @@
     ]
    ],
    "knL": [
-    [
-     108.96,
-     115.99
-    ],
-    [
-     108.96,
-     115.99
-    ],
-    [
-     108.96,
-     115.99
-    ],
     [
      115.01,
      112.47
@@ -12149,18 +11981,6 @@
      107.09
     ],
     [
-     76.05,
-     107.09
-    ],
-    [
-     76.05,
-     107.09
-    ],
-    [
-     76.05,
-     107.09
-    ],
-    [
      105.9,
      109.48
     ],
@@ -12202,18 +12022,6 @@
     ]
    ],
    "ftL": [
-    [
-     79.91,
-     117.9
-    ],
-    [
-     79.91,
-     117.9
-    ],
-    [
-     79.91,
-     117.9
-    ],
     [
      87.28,
      121.33
@@ -12265,18 +12073,6 @@
      110.97
     ],
     [
-     47.72,
-     110.97
-    ],
-    [
-     47.72,
-     110.97
-    ],
-    [
-     47.72,
-     110.97
-    ],
-    [
      79.07,
      103.93
     ],
@@ -12318,18 +12114,6 @@
     ]
    ],
    "wtip": [
-    [
-     96.41,
-     81.17
-    ],
-    [
-     96.41,
-     81.17
-    ],
-    [
-     96.41,
-     81.17
-    ],
     [
      136.21,
      90.75
@@ -12377,18 +12161,6 @@
    ],
    "wtip2": [
     [
-     150.59,
-     85.74
-    ],
-    [
-     150.59,
-     85.74
-    ],
-    [
-     150.59,
-     85.74
-    ],
-    [
      159.29,
      89.1
     ],
@@ -12434,18 +12206,6 @@
     ]
    ],
    "root": [
-    [
-     142.35,
-     42.24
-    ],
-    [
-     142.35,
-     42.24
-    ],
-    [
-     142.35,
-     42.24
-    ],
     [
      138.77,
      38.4
@@ -12493,18 +12253,6 @@
    ],
    "xl1": [
     [
-     137.14,
-     64.63
-    ],
-    [
-     137.14,
-     64.63
-    ],
-    [
-     137.14,
-     64.63
-    ],
-    [
      132.04,
      62.91
     ],
@@ -12550,18 +12298,6 @@
     ]
    ],
    "xl2": [
-    [
-     143.07,
-     54.83
-    ],
-    [
-     143.07,
-     54.83
-    ],
-    [
-     143.07,
-     54.83
-    ],
     [
      134.23,
      51.66
@@ -12609,18 +12345,6 @@
    ],
    "xl3": [
     [
-     162.38,
-     54.95
-    ],
-    [
-     162.38,
-     54.95
-    ],
-    [
-     162.38,
-     54.95
-    ],
-    [
      152.39,
      45.11
     ],
@@ -12666,18 +12390,6 @@
     ]
    ],
    "xl4": [
-    [
-     163.33,
-     67.1
-    ],
-    [
-     163.33,
-     67.1
-    ],
-    [
-     163.33,
-     67.1
-    ],
     [
      157.47,
      56.18
@@ -12727,434 +12439,722 @@
   "switch_out": {
    "hip": [
     [
-     113.78,
-     82.43
+     98.77,
+     132.42
     ],
     [
-     113.78,
-     82.43
+     96.58,
+     122.5
     ],
     [
-     97.73,
-     77.04
+     95.49,
+     124.41
     ],
     [
-     97.73,
-     77.04
+     92.25,
+     130.12
+    ],
+    [
+     89,
+     135.83
+    ],
+    [
+     87.92,
+     137.73
+    ],
+    [
+     88.27,
+     133
     ]
    ],
    "chest": [
     [
-     118.07,
-     67.45
+     105.79,
+     118.51
     ],
     [
-     118.07,
-     67.45
+     101.18,
+     107.61
     ],
     [
-     102.01,
-     62.06
+     98.09,
+     109.04
     ],
     [
-     102.01,
-     62.06
+     88.7,
+     114.94
+    ],
+    [
+     79.86,
+     123.21
+    ],
+    [
+     77.19,
+     126.43
+    ],
+    [
+     86.75,
+     117.49
     ]
    ],
    "neck": [
     [
-     125.38,
-     57.01
+     104.13,
+     105.87
     ],
     [
-     125.38,
-     57.01
+     108.79,
+     97.39
     ],
     [
-     109.33,
-     51.62
+     104.56,
+     98.06
     ],
     [
-     109.33,
-     51.62
+     91.36,
+     102.48
+    ],
+    [
+     78.43,
+     110.54
+    ],
+    [
+     74.42,
+     113.99
+    ],
+    [
+     80.94,
+     106.14
     ]
    ],
    "head": [
     [
-     129.61,
-     42.62
+     97.53,
+     92.4
     ],
     [
-     129.61,
-     42.62
+     122.16,
+     90.59
     ],
     [
-     113.56,
-     37.23
+     116.87,
+     89.49
     ],
     [
-     113.56,
-     37.23
+     99.2,
+     89.69
+    ],
+    [
+     80.49,
+     95.68
+    ],
+    [
+     74.41,
+     98.99
+    ],
+    [
+     72.73,
+     93.59
     ]
    ],
    "shB": [
     [
-     125.38,
-     58.16
+     104.13,
+     107.03
     ],
     [
-     125.38,
-     58.16
+     108.79,
+     98.54
     ],
     [
-     109.33,
-     52.77
+     104.56,
+     99.21
     ],
     [
-     109.33,
-     52.77
+     91.36,
+     103.63
+    ],
+    [
+     78.43,
+     111.7
+    ],
+    [
+     74.42,
+     115.14
+    ],
+    [
+     80.94,
+     107.3
     ]
    ],
    "shL": [
     [
-     128.46,
-     57.76
+     95.36,
+     110.6
     ],
     [
-     128.46,
-     57.76
+     105.56,
+     86.08
     ],
     [
-     105.98,
-     48.97
+     101.14,
+     89.58
     ],
     [
-     105.98,
-     48.97
+     87.38,
+     102.48
+    ],
+    [
+     73.89,
+     119.02
+    ],
+    [
+     69.69,
+     125.3
+    ],
+    [
+     94.21,
+     106.84
     ]
    ],
    "shR": [
     [
-     121.05,
-     52.74
+     110.7,
+     102.99
     ],
     [
-     121.05,
-     52.74
+     101.29,
+     109.15
     ],
     [
-     104.99,
-     47.35
+     99.03,
+     108.84
     ],
     [
-     104.99,
-     47.35
+     91.76,
+     110.32
+    ],
+    [
+     84.77,
+     115.45
+    ],
+    [
+     82.72,
+     117.91
+    ],
+    [
+     77.25,
+     110.07
     ]
    ],
    "elL": [
     [
-     136.99,
-     73.02
+     78.03,
+     112.92
     ],
     [
-     136.99,
-     73.02
+     119.89,
+     76.07
     ],
     [
-     88.52,
-     48.14
+     110.9,
+     75.07
     ],
     [
-     88.52,
-     48.14
+     78.78,
+     87.25
+    ],
+    [
+     56.43,
+     119.89
+    ],
+    [
+     53.71,
+     132.4
+    ],
+    [
+     111.65,
+     105.65
     ]
    ],
    "elR": [
     [
-     131.27,
-     70.85
+     92.82,
+     92.37
     ],
     [
-     131.27,
-     70.85
+     115.69,
+     124.16
     ],
     [
-     117.95,
-     63.62
+     107.37,
+     127.9
     ],
     [
-     117.95,
-     63.62
+     79.22,
+     126.92
+    ],
+    [
+     64.16,
+     112.63
+    ],
+    [
+     64.36,
+     108.14
+    ],
+    [
+     66.31,
+     127.76
     ]
    ],
    "haL": [
     [
-     139.32,
-     59.74
+     80.53,
+     99.66
     ],
     [
-     139.32,
-     59.74
+     133.08,
+     78.89
     ],
     [
-     90.23,
-     61.52
+     124.03,
+     71.97
     ],
     [
-     90.23,
-     61.52
+     78.93,
+     73.77
+    ],
+    [
+     43.37,
+     116.5
+    ],
+    [
+     40.46,
+     134.93
+    ],
+    [
+     125.11,
+     104.74
     ]
    ],
    "haR": [
     [
-     142.07,
-     59.74
+     82.01,
+     103.47
     ],
     [
-     142.07,
-     59.74
+     129.91,
+     117.99
     ],
     [
-     132.36,
-     69.32
+     122.83,
+     126.96
     ],
     [
-     132.36,
-     69.32
+     87.81,
+     139.81
+    ],
+    [
+     57.32,
+     126.54
+    ],
+    [
+     53.19,
+     118.88
+    ],
+    [
+     81.65,
+     129.98
     ]
    ],
    "hpL": [
     [
-     113.27,
-     84.96
+     98.25,
+     134.95
     ],
     [
-     113.27,
-     84.96
+     100.85,
+     129.19
     ],
     [
-     97.21,
-     79.57
+     99.16,
+     131.21
     ],
     [
-     97.21,
-     79.57
+     94.1,
+     137.27
+    ],
+    [
+     89.03,
+     143.33
+    ],
+    [
+     87.35,
+     145.35
+    ],
+    [
+     96.58,
+     134.15
     ]
    ],
    "hpR": [
     [
-     113.13,
-     83.49
+     98.12,
+     133.48
     ],
     [
-     113.13,
-     83.49
+     95.88,
+     121.69
     ],
     [
-     97.08,
-     78.1
+     96.01,
+     123.18
     ],
     [
-     97.08,
-     78.1
+     96.4,
+     127.64
+    ],
+    [
+     96.79,
+     132.09
+    ],
+    [
+     96.92,
+     133.58
+    ],
+    [
+     85.5,
+     139.69
     ]
    ],
    "knL": [
     [
-     123.13,
-     108.49
+     118.51,
+     150.47
     ],
     [
-     123.13,
-     108.49
+     103.63,
+     154.56
     ],
     [
-     110.46,
-     101.38
+     103.38,
+     156.38
     ],
     [
-     110.46,
-     101.38
+     102.52,
+     161.35
+    ],
+    [
+     101.43,
+     165.63
+    ],
+    [
+     100.99,
+     166.91
+    ],
+    [
+     121.8,
+     130.33
     ]
    ],
    "knR": [
     [
-     105.9,
-     109.48
+     73.36,
+     122.75
     ],
     [
-     105.9,
-     109.48
+     85.13,
+     119.62
     ],
     [
-     120.47,
-     91.53
+     85.16,
+     116.45
     ],
     [
-     120.47,
-     91.53
+     97.85,
+     109.45
+    ],
+    [
+     118.66,
+     122.93
+    ],
+    [
+     122.44,
+     132.76
+    ],
+    [
+     76.59,
+     163.62
     ]
    ],
    "ftL": [
     [
-     130.72,
-     134.7
+     140.17,
+     167.06
     ],
     [
-     130.72,
-     134.7
+     84.93,
+     174.43
     ],
     [
-     124.64,
-     124.69
+     82.36,
+     173.78
     ],
     [
-     124.64,
-     124.69
+     76.62,
+     169.92
+    ],
+    [
+     74.18,
+     164.19
+    ],
+    [
+     74.13,
+     162.1
+    ],
+    [
+     109.17,
+     154.52
     ]
    ],
    "ftR": [
     [
-     79.07,
-     103.93
+     50.89,
+     138.43
     ],
     [
-     79.07,
-     103.93
+     58.01,
+     123.53
     ],
     [
-     108.19,
-     116.02
+     58.7,
+     109.31
     ],
     [
-     108.19,
-     116.02
+     95.45,
+     82.16
+    ],
+    [
+     143.47,
+     111.29
+    ],
+    [
+     149.83,
+     131.89
+    ],
+    [
+     74.01,
+     136.34
     ]
    ],
    "wtip": [
     [
-     142.07,
-     59.74
+     82.01,
+     103.47
     ],
     [
-     142.07,
-     59.74
+     129.91,
+     117.99
     ],
     [
-     132.36,
-     69.32
+     122.83,
+     126.96
     ],
     [
-     132.36,
-     69.32
+     87.81,
+     139.81
+    ],
+    [
+     57.32,
+     126.54
+    ],
+    [
+     53.19,
+     118.88
+    ],
+    [
+     81.65,
+     129.98
     ]
    ],
    "wtip2": [
     [
-     139.32,
-     59.74
+     80.53,
+     99.66
     ],
     [
-     139.32,
-     59.74
+     133.08,
+     78.89
     ],
     [
-     90.23,
-     61.52
+     124.03,
+     71.97
     ],
     [
-     90.23,
-     61.52
+     78.93,
+     73.77
+    ],
+    [
+     43.37,
+     116.5
+    ],
+    [
+     40.46,
+     134.93
+    ],
+    [
+     125.11,
+     104.74
     ]
    ],
    "root": [
     [
-     129.61,
-     14.93
+     97.53,
+     64.71
     ],
     [
-     129.61,
-     14.93
+     122.16,
+     62.9
     ],
     [
-     113.56,
-     9.54
+     116.87,
+     61.8
     ],
     [
-     113.56,
-     9.54
+     99.2,
+     62
+    ],
+    [
+     80.49,
+     67.99
+    ],
+    [
+     74.41,
+     71.3
+    ],
+    [
+     72.73,
+     65.9
     ]
    ],
    "xl1": [
     [
-     122.2,
-     42
+     91.03,
+     88.78
     ],
     [
-     122.2,
-     42
+     114.72,
+     90.84
     ],
     [
-     106.14,
-     36.61
+     109.44,
+     89.86
     ],
     [
-     106.14,
-     36.61
+     91.8,
+     90.4
+    ],
+    [
+     73.12,
+     96.74
+    ],
+    [
+     67.07,
+     100.16
+    ],
+    [
+     66.66,
+     89.29
     ]
    ],
    "xl2": [
     [
-     120.29,
-     30.7
+     93.96,
+     77.7
     ],
     [
-     120.29,
-     30.7
+     111.52,
+     79.84
     ],
     [
-     104.24,
-     25.31
+     106.07,
+     78.91
     ],
     [
-     104.24,
-     25.31
+     87.92,
+     79.62
+    ],
+    [
+     68.75,
+     86.15
+    ],
+    [
+     62.53,
+     89.64
+    ],
+    [
+     70.77,
+     78.59
     ]
    ],
    "xl3": [
     [
-     135,
-     18.19
+     112.51,
+     72.36
     ],
     [
-     135,
-     18.19
+     124.67,
+     65.71
     ],
     [
-     118.95,
-     12.8
+     119,
+     64.57
     ],
     [
-     118.95,
-     12.8
+     100.16,
+     64.7
+    ],
+    [
+     80.29,
+     70.67
+    ],
+    [
+     73.83,
+     73.98
+    ],
+    [
+     89.8,
+     75.3
     ]
    ],
    "xl4": [
     [
-     143.65,
-     26.78
+     116.86,
+     83.75
     ],
     [
-     143.65,
-     26.78
+     134.26,
+     73.22
     ],
     [
-     127.6,
-     21.39
+     128.7,
+     71.94
     ],
     [
-     127.6,
-     21.39
+     110.2,
+     71.61
+    ],
+    [
+     90.64,
+     77.11
+    ],
+    [
+     84.27,
+     80.26
+    ],
+    [
+     92.88,
+     87.09
     ]
    ]
   }
@@ -13214,9 +13214,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "run": {
    "logic": "any",
@@ -13272,9 +13323,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "attack_normal": {
    "logic": "any",
@@ -13330,9 +13432,60 @@
     "zig_turn_pct": 100,
     "fake_angle_deg": -15,
     "fake_len_px": 220,
-    "flank_radius_px": 194
+    "flank_radius_px": 194,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 50
+   "attack_gap_ms": 50,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "defend": {
    "logic": "all",
@@ -13388,9 +13541,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "attack_special": {
    "logic": "any",
@@ -13465,9 +13669,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "ultimate": {
    "logic": "any",
@@ -13548,9 +13803,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "attack_special_2": {
    "logic": "any",
@@ -13617,9 +13923,60 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "transform": {
    "logic": "any",
@@ -13660,7 +14017,36 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -13683,7 +14069,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "switch_in": {
    "logic": "any",
@@ -13730,7 +14138,36 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [
@@ -13742,7 +14179,12 @@
       "angle_deg": 0,
       "mirror": false,
       "proximity_px": 60,
-      "flash": true
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
      }
     ],
     "enabled": true,
@@ -13758,7 +14200,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   },
   "switch_out": {
    "logic": "any",
@@ -13767,14 +14231,14 @@
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "back",
+   "movement": "hit_retreat",
    "move_speed_pct": 300,
    "anim_loops": 1,
    "back_stop_pct": 80,
    "attack_px": 0,
    "leap": {
     "start_frame": 0,
-    "land_frame": -1,
+    "land_frame": 6,
     "height_px": 40,
     "hit_px": null,
     "height_max_px": null,
@@ -13788,8 +14252,8 @@
     "hop_px": 0,
     "arc_radius_px": 120,
     "arc_curve_pct": 0,
-    "turn_frame": -1,
-    "retreat_px": 150,
+    "turn_frame": 5,
+    "retreat_px": 280,
     "return_angle_deg": 0,
     "flip": false,
     "zig_count": 3,
@@ -13799,7 +14263,36 @@
     "zig_turn_pct": 50,
     "fake_angle_deg": -20,
     "fake_len_px": 120,
-    "flank_radius_px": 100
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 1,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": false,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -13816,7 +14309,29 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   }
   }
  },
  "entry_sets": [
@@ -13986,7 +14501,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -14067,7 +14585,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14090,7 +14609,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "glow",
@@ -14111,7 +14635,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "layer": "behind",
    "blend": "additive",
@@ -14190,7 +14717,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14213,7 +14741,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "particles",
@@ -14234,7 +14767,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -14313,7 +14849,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14336,7 +14873,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -14359,7 +14901,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14443,7 +14988,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14466,7 +15012,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -14489,7 +15040,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14573,7 +15127,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14596,7 +15151,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -14619,7 +15179,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14703,7 +15266,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14726,7 +15290,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -14749,7 +15318,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14833,7 +15405,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14856,7 +15429,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -14879,7 +15457,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14963,7 +15544,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14986,7 +15568,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15009,7 +15596,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -15093,7 +15683,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15116,7 +15707,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15139,7 +15735,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -15223,7 +15822,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15246,7 +15846,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15269,7 +15874,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -15353,7 +15961,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15376,7 +15985,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15399,7 +16013,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -15483,7 +16100,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15506,7 +16124,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15529,7 +16152,10 @@
     "orbit_ry": 43.955610500066776,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -15613,7 +16239,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15636,7 +16263,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "glow",
@@ -15658,7 +16290,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -15709,7 +16344,8 @@
     "rehit_ticks": 0,
     "knockback": 100,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15731,7 +16367,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15748,7 +16389,8 @@
     "rehit_ticks": 10,
     "knockback": 500,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "motion": {
     "kind": "travel",
@@ -15763,7 +16405,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15832,7 +16477,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -15849,7 +16499,8 @@
     "rehit_ticks": 1,
     "knockback": 500,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "motion": {
     "kind": "travel",
@@ -15864,7 +16515,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15933,7 +16587,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "ribbon",
@@ -15957,7 +16616,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -16005,7 +16667,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16028,7 +16691,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "glow",
@@ -16049,7 +16717,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -16133,7 +16804,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16155,7 +16827,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Emussp5dm40",
@@ -16193,7 +16870,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16228,7 +16908,8 @@
     "rehit_ticks": 2,
     "knockback": 119.5,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": true,
@@ -16255,7 +16936,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Emust3zbs1",
@@ -16293,7 +16979,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16328,7 +17017,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16355,7 +17045,12 @@
     "count": 0
    },
    "follow_each": false,
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -16370,7 +17065,8 @@
     "rehit_ticks": 7,
     "knockback": 10,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -16385,7 +17081,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -16460,7 +17159,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -16504,7 +17219,12 @@
    "follow_dir": true,
    "follow_each": true,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -16526,7 +17246,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16601,7 +17324,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emvcmil3y1",
    "action": "transform",
@@ -16637,7 +17376,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16695,7 +17435,12 @@
       "params.hold_ticks": 91
      }
     }
-   ]
+   ],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -16717,7 +17462,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16792,7 +17540,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emvcmil3y2",
    "action": "transform",
@@ -16828,7 +17592,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16875,7 +17640,12 @@
       "offset.1": 0
      }
     }
-   ]
+   ],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -16897,7 +17667,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16972,7 +17745,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emvcmil3y6",
    "action": "transform",
@@ -17008,7 +17797,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17025,7 +17815,12 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17047,7 +17842,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17122,7 +17920,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -17155,7 +17969,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17210,7 +18025,12 @@
    ],
    "id": "Emvcoomxl1",
    "action": "@transform:b>c",
-   "group": "Gmvcoomxk1"
+   "group": "Gmvcoomxk1",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17232,7 +18052,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17307,7 +18130,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -17340,7 +18179,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17383,7 +18223,12 @@
    ],
    "id": "Emvcoomxl2",
    "action": "@transform:b>c",
-   "group": "Gmvcoomxk1"
+   "group": "Gmvcoomxk1",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17405,7 +18250,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17480,7 +18328,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -17513,7 +18377,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17533,7 +18398,12 @@
    "keys": [],
    "id": "Emvcoomxl3",
    "action": "@transform:b>c",
-   "group": "Gmvcoomxk1"
+   "group": "Gmvcoomxk1",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17555,7 +18425,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17630,7 +18503,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -17663,7 +18552,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17710,7 +18600,12 @@
    ],
    "id": "Emvcoqssx4",
    "action": "@transform:a>b",
-   "group": "Gmvcoqssx2"
+   "group": "Gmvcoqssx2",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17732,7 +18627,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17807,7 +18705,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -17840,7 +18754,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17882,7 +18797,12 @@
    ],
    "id": "Emvcoqssx5",
    "action": "@transform:a>b",
-   "group": "Gmvcoqssx2"
+   "group": "Gmvcoqssx2",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -17904,7 +18824,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17979,7 +18902,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -18012,7 +18951,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18032,7 +18972,12 @@
    "keys": [],
    "id": "Emvcoqssx6",
    "action": "@transform:a>b",
-   "group": "Gmvcoqssx2"
+   "group": "Gmvcoqssx2",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -18054,7 +18999,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18129,7 +19077,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -18162,7 +19126,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18181,7 +19146,12 @@
    "follow_each": false,
    "keys": [],
    "id": "Emvd0cpp71",
-   "action": "@form:c"
+   "action": "@form:c",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -18203,7 +19173,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18278,7 +19251,23 @@
     "squash_flash": true,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "flip": {
     "enabled": false,
@@ -18311,7 +19300,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18331,7 +19321,12 @@
    "keys": [],
    "id": "Emvd0ykgz6",
    "action": "@form:b",
-   "group": "Gmvd0ykgy1"
+   "group": "Gmvd0ykgy1",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "ribbon",
@@ -18355,7 +19350,10 @@
     "orbit_ry": 41.40000147857148,
     "orbit_deg": 1.12,
     "path": "",
-    "orbit_dir": "clockwise"
+    "orbit_dir": "clockwise",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18401,7 +19399,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18426,7 +19425,12 @@
    "follow_each": false,
    "char_every_ms": 0,
    "id": "Emvd1f10j1",
-   "action": "@form:c"
+   "action": "@form:c",
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -18441,7 +19445,8 @@
     "rehit_ticks": 0,
     "knockback": 1000,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -18456,7 +19461,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18531,7 +19539,23 @@
     "kick_angle_deg": 0,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emvvmemub7",
    "action": "switch_in",
@@ -18575,7 +19599,12 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -18590,7 +19619,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -18605,7 +19635,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -18680,7 +19713,23 @@
     "kick_angle_deg": 0,
     "flip_h": false,
     "flip_v": false,
-    "spin_vertical": false
+    "spin_vertical": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0
    },
    "id": "Emvvmvvpf9",
    "action": "attack_normal",
@@ -18724,6 +19773,185 @@
    },
    "follow_dir": true,
    "follow_each": true,
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
+  },
+  {
+   "prim": "technique",
+   "name": "Roundhouse kick",
+   "tag": "energy",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 30,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 1600,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "spinning_kick",
+    "radius": 10,
+    "span": 140,
+    "thickness": 14,
+    "length": 65,
+    "swing_ticks": 4,
+    "hold_ticks": 7,
+    "density": 1,
+    "kb_dir": "tangent",
+    "kick_sweep": "high_low",
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "small_ticks": 0,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": true,
+    "hitstop_ticks": 5,
+    "kb_angle_deg": 0,
+    "impact_frame": "local",
+    "impact_frame_r": 35,
+    "fx_motion": "energy",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "energy",
+    "fx_env": "off",
+    "shake": true,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": true,
+    "squash_amt": 0.4,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false
+   },
+   "id": "Emwc1g7hf1",
+   "action": "switch_out",
+   "flip": {
+    "enabled": false,
+    "facing": -1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "follow_dir": false,
+   "follow_each": false,
    "keys": []
   }
  ],
@@ -19643,6 +20871,7 @@
    "color": "#7fd4ff"
   }
  },
+ "states": [],
  "movement_style": {
   "enabled": true,
   "select": "priority",
