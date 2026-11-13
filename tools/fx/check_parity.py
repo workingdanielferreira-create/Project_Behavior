@@ -151,7 +151,7 @@ TEMPO_TABLES = (("TEMPO_DEFAULTS", "DEFAULTS"), ("TEMPO_RANGES", "RANGES"), ("TE
                 ("TEMPO_INTENTS", "INTENTS"), ("TEMPO_PHASES", "PHASES"), ("TEMPO_ENUMS", "ENUMS"),
                 ("ROLE_WAIT", "ROLE_WAIT"), ("OPEN_MS", "OPEN_MS"), ("STRING_BURST_BONUS", "STRING_BURST_BONUS"),
                 ("PUNISH_OWN_MS", "PUNISH_OWN_MS"), ("PUNISH_FROM", "PUNISH_FROM"), ("PUNISH_CD_MS", "PUNISH_CD_MS"),
-                ("WHIFF_MS", "WHIFF_MS"))
+                ("WHIFF_MS", "WHIFF_MS"), ("PRESSURE_STALL_MS", "PRESSURE_STALL_MS"))
 
 
 # ---------------------------------------------------------------- compare
