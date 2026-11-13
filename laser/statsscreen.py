@@ -237,6 +237,11 @@ class Card(QFrame):
             kv("Healed", n(st.healed))
         kv("Lowest HP", "%s  (%d%%)" % (n(st.low_hp), int(round(_pct(st.low_hp, st.max_hp)))))
         kv("Dodges", str(st.dodges))
+        if st.feints or st.engages or st.punishes:
+            sec("RHYTHM")
+            kv("Engages / feints / punishes", "%d / %d / %d" % (st.engages, st.feints, st.punishes),
+               "Fight rhythm: bursts in, fakes, and snaps onto an open enemy")
+            kv("Longest pressure string", "%d attacks" % st.best_string)
         sec("MOVEMENT")
         sw = float(getattr(world, "screen_w", 1920) or 1920)
         kv("Distance travelled", "%s px" % n(st.distance))

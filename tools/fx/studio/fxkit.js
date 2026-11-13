@@ -641,7 +641,17 @@ var CONDITION_TYPES = {
   action_triggered: {who: "target", action: "", ms: 300}, // own / the target's `action` ("" = any) started within the last ms (0 = this tick)
   // Blade hop (laser/bladehop.py)
   hop_blades:    {count: 1, which: "field"},           // at least count own hop blades of a kind (field / thrown / any) are out
-  hop_blade_near: {px: 60}                             // one of own hop blades is within px
+  hop_blade_near: {px: 60},                            // one of own hop blades is within px
+  // Fight rhythm (laser/tempo.py)
+  tempo_intent:  {intent: "engage"},                   // own Fight rhythm intent is this one
+  director_phase: {phase: "burst"},                    // the fight director is calm / building / bursting
+  director_above: {pct: 60},                           // the director's intensity is at least pct %
+  has_token:     {},                                   // holds a melee attack token on its target (ranged: always)
+  target_open:   {},                                   // the target is recovering from an attack / dazed / knocked back
+  partner_intent: {intent: "pressure"},                // a team-mate is in this Fight rhythm intent
+  partner_within: {px: 200},                           // a team-mate is within px
+  partner_hp_below: {pct: 40},                         // a team-mate's HP is at or below pct %
+  outnumbered:   {}                                    // its team has fewer fighters standing than the enemy's
 };
 var CONDITION_COMMON = {not: false};
 // fx_continuous: when the action loops (idle, run, a held action), effects

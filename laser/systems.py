@@ -16,7 +16,7 @@ paintEvent (see app.py).
 import math
 import random
 
-from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting, player
+from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge, blink, timefx, clash, unique, targeting, player, tempo
 from . import platform_win as win
 from . import action_log
 from . import battlestats
@@ -379,8 +379,16 @@ class MotionSystem(System):
                     _solo = ("ranged", max(config.SOLO_ORBIT_MIN_PX,
                                            actions.attack_range(fig, "attack_normal")))
                 cx, cy = world.cursor
-                hit = motion.update(fig, cx, cy, world.collision_on,
-                                    False, False, solo=_solo)
+                # Fight rhythm (laser/tempo.py): the intent scales the pace
+                # (bursts in, punishes); the Solo default movement stays.
+                _tk = tempo.speed_mult(fig)
+                _sp = fig.motion.speed
+                fig.motion.speed = _sp * _tk
+                try:
+                    hit = motion.update(fig, cx, cy, world.collision_on,
+                                        False, False, solo=_solo)
+                finally:
+                    fig.motion.speed = _sp
                 if hit is not None:
                     world.collision_dots.append([hit[0], hit[1], 0])
                     # Solo mode cursor bounce costs 1 HP — unless parrying
@@ -413,7 +421,18 @@ class MotionSystem(System):
             # stopping at their formation offset (actions.chase_offset).
             # Battle only from here on (Solo continued above).
             _off = actions.chase_offset(fig, world)
-            motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
+            # Fight rhythm (laser/tempo.py): an intent-driven fighter goes to
+            # its exact point (no formation offset); the intent scales the
+            # pace either way.
+            if tempo.moves(fig):
+                _off = (0.0, 0.0)
+            _tk = tempo.speed_mult(fig)
+            _sp = fig.motion.speed
+            fig.motion.speed = _sp * _tk
+            try:
+                motion.update(fig, tx_motion, ty_motion, False, False, False, offset=_off)
+            finally:
+                fig.motion.speed = _sp
         for fig in world.figures:
             # Body shove (CollisionSystem): slid apart from a fighter it ran
             # into, whatever moved it this tick — no stagger.  Blinked out or

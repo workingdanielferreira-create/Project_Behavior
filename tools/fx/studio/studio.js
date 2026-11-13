@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}), worldPhysics: {},
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}), rhythm: TEMPO.normalize({}), worldPhysics: {},
   unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}), states: [], stId: null,
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
@@ -260,6 +260,7 @@ var DOC = [
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
   ["states", "states", function (v) { return (Array.isArray(v) ? v : []).map(function (st, i) { return FXK.normalizeState(clone(st), i); }); }],
   ["moveStyle", "movement_style", function (v) { return MOVESTYLE.normalize(clone(v || {})); }],
+  ["rhythm", "fight_rhythm", function (v) { return TEMPO.normalize(clone(v || {})); }],
   ["charScale", "character_scale", clampCharScale]
 ];
 function docOut() { var o = {}; DOC.forEach(function (f) { o[f[1]] = S[f[0]]; }); return o; }
@@ -2337,7 +2338,26 @@ var COND_META = {
   hop_blades: {group: "Blade hop", label: "own hop blades out ≥ count", prev: [],
     help: "At least Count of this fighter's hop blades (blade FX with Blade hop beacon on) are out. Field = planted in the ground or standing still (e.g. Sword Graveyard's swords, not yet thrown); thrown = launched ones in flight or hanging; any = both. Use it to start a Blade hop chain action while the field holds blades. Judged in the game (and Solo) only."},
   hop_blade_near: {group: "Blade hop", label: "own hop blade within px", prev: [],
-    help: "One of this fighter's hop blades is within the distance (game px at 100 % character scale): the fighter walked or blinked up to it. Use it to trigger a follow-up action (e.g. a throw). Judged in the game (and Solo) only."}
+    help: "One of this fighter's hop blades is within the distance (game px at 100 % character scale): the fighter walked or blinked up to it. Use it to trigger a follow-up action (e.g. a throw). Judged in the game (and Solo) only."},
+  // Fight rhythm (laser/tempo.py)
+  tempo_intent: {group: "Fight rhythm & team", label: "own rhythm intent is", prev: [],
+    help: "This character's Fight rhythm intent is the chosen one: neutral (spacing), feint, engage (burst in), pressure (attack string), punish (target open), reset (backing off) or wait (no melee token free). Needs Fight rhythm on. Judged in the game only."},
+  director_phase: {group: "Fight rhythm & team", label: "director phase is", prev: [],
+    help: "The fight director (Dust & Air \"Fight director\") is calm, building or bursting. Use burst for the big moves. Judged in the game only."},
+  director_above: {group: "Fight rhythm & team", label: "director intensity at least %", prev: [],
+    help: "The fight director's intensity is at least this %. Judged in the game only."},
+  has_token: {group: "Fight rhythm & team", label: "holds a melee attack token", prev: [],
+    help: "This fighter holds one of its team's melee attack tokens on its target (Dust & Air \"Team play\"). Ranged fighters always pass. Judged in the game only."},
+  target_open: {group: "Fight rhythm & team", label: "target is open (recovering / dazed)", prev: [],
+    help: "The target just finished an attack (whiffed or not), is dazed or is being knocked back: a punish window. Battle only. Judged in the game only."},
+  partner_intent: {group: "Fight rhythm & team", label: "a team-mate's rhythm intent is", prev: [],
+    help: "A team-mate (same team) is in this Fight rhythm intent right now, e.g. pressure: join in, or wait: take over. Judged in the game only."},
+  partner_within: {group: "Fight rhythm & team", label: "a team-mate within px", prev: [],
+    help: "A team-mate is this close (game px). Judged in the game only."},
+  partner_hp_below: {group: "Fight rhythm & team", label: "a team-mate's HP at or below %", prev: [],
+    help: "A team-mate is at or below this HP %. Judged in the game only."},
+  outnumbered: {group: "Fight rhythm & team", label: "outnumbered", prev: [],
+    help: "Its team has fewer fighters on the field than the enemy team. Battle only. Judged in the game only."}
 };
 var COND_GROUPS = [], COND_LABEL = {}, COND_HELP = {}, PREV_USES = {};
 Object.keys(COND_META).forEach(function (k) {
@@ -2350,7 +2370,7 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
   hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
   tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
   dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"], who: ["Whose action", "who"],
-  which: ["Which hop blades", "which"]};
+  which: ["Which hop blades", "which"], intent: ["Intent", "intent"], phase: ["Director phase", "phase"]};
 // Preview-only state for the conditions the stage can't show (not saved).
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
@@ -2415,6 +2435,9 @@ function condField(box, c, k, ownLabel, listId) {
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
   if (u[1] === "who") return field(box, u[0], inp([["target", "the enemy (target)"], ["self", "own (this fighter)"]], c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "which") return field(box, u[0], inp([["field", "field (planted / standing)"], ["thrown", "thrown (launched)"], ["any", "any"]], c[k], function (v) { c[k] = v; save(); }));
+  if (k === "pct" && c.type === "director_above") return field(box, "Intensity %", inp("n", c[k], function (v) { c[k] = Math.max(0, Math.min(100, v)); save(); }, 0, 100, 1));
+  if (u[1] === "intent") return field(box, u[0], inp(TEMPO.INTENTS.map(function (x) { return [x, x]; }), c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "phase") return field(box, u[0], inp(TEMPO.PHASES.map(function (x) { return [x, x]; }), c[k], function (v) { c[k] = v; save(); }));
   if (u[1] === "action" && c.type === "action_triggered") {   // any action name: own, or the enemy's (unknown here)
     var names = {attack_normal: 1, attack_special: 1, ultimate: 1, defend: 1};
     Object.keys(C.actions).forEach(function (a) { if (FXK.actionKind(a) !== "locomotion") names[a] = 1; });
@@ -2771,6 +2794,97 @@ function buildTargetingProps(d) {
   add.onclick = function () { tg.rules.push(FXK.normalizeTargeting({rules: [{}]}).rules[0]); ch(); };
   rs.appendChild(add);
 }
+// Character-level Fight rhythm (pack.fight_rhythm, laser/tempo.py; tables
+// and preview sim in tempo.js), shown under every action's settings: the
+// tempo of its fights (neutral / feint / engage / pressure / punish / reset /
+// wait), a temperament preset, its team role, and a live sparring preview
+// with the fight director's intensity.
+var RH_PRESET_LABEL = {custom: "Custom", berserker: "Berserker (short neutral, long strings)", duelist: "Duelist (balanced footsies)",
+  trickster: "Trickster (feints)", counter: "Counter-puncher (waits, punishes)", sniper: "Sniper (spacing at range)"};
+var RH_FIELDS = [
+  ["Neutral (spacing)", [["neutral_ms_min", "Neutral min ms", "Shortest neutral spell before it commits (feint or engage). The director's heat and aggression shorten it."],
+    ["neutral_ms_max", "Neutral max ms", "Longest neutral spell. Spells are drawn unevenly between min and max so no two match."],
+    ["spacing_px", "Spacing px", "In neutral it holds this far outside its attack reach (negative = inside)."],
+    ["sway_px", "Sway px", "How far it steps in and out while spacing."]]],
+  ["Feints", [["feint_pct", "Feint chance %", "Chance a neutral spell ends in a feint instead of an engage (more as the director heats up)."],
+    ["feint_kind", "Feint", "Dash in = dashes in and cuts away; fake retreat = backs off then dives in; mixed = either, seeded."],
+    ["feint_ms", "Feint ms", "How long a feint lasts. An enemy that attacks / dodges into it gets punished."]]],
+  ["Engage & pressure", [["engage_speed_pct", "Engage speed %", "Speed while bursting in for the opener."],
+    ["engage_ms_max", "Engage give-up ms", "No attack started by then: it resets."],
+    ["string_min", "String min attacks", "Attacks in one pressure string: a random count between min and max (+2 in a director burst)."],
+    ["string_max", "String max attacks", ""],
+    ["gap_start_ms", "First gap ms", "The gap between attacks at the start of a string..."],
+    ["gap_end_ms", "Last gap ms", "...shrinking to this by the end (accelerando)."],
+    ["gap_jitter_pct", "Gap jitter %", "Random spread on every gap, so strings never run on a beat."],
+    ["pressure_speed_pct", "Pressure speed %", "Speed while pressuring."]]],
+  ["Punish", [["punish_pct", "Punish chance %", "Chance it snaps onto an open enemy (just finished an attack, dazed, knocked back) or one that bit on a feint."],
+    ["punish_range_px", "Punish range px", "Only openings this close count."],
+    ["punish_ms", "Punish ms", "How long the punish lasts (near-zero gaps), then pressure goes on."],
+    ["punish_speed_pct", "Punish speed %", "Speed snapping in."]]],
+  ["Reset", [["reset_ms_min", "Reset min ms", "After a string it backs off and breathes for a random time between min and max (halved in a burst)."],
+    ["reset_ms_max", "Reset max ms", ""],
+    ["reset_px", "Reset distance px", "How far it backs off (at a seeded angle)."]]],
+  ["Personality", [["aggression_pct", "Aggression %", "Higher = shorter neutral, more opportunistic engages."],
+    ["momentum_pct", "Momentum %", "How much landing hits raises (and taking hits lowers) its aggression."],
+    ["director_pct", "Follows director %", "How strongly the fight director's intensity bends its timing (0 = ignores it)."]]]
+];
+var RHP = {canvas: null, sim: null, running: false, last: 0, acc: 0, dummy: "duelist", mate: false, tokens: 1};
+function rhRestart() {
+  RHP.sim = new TEMPO.Sim(TEMPO.normalize(Object.assign({}, S.rhythm, {enabled: true})), TEMPO.presetValues(RHP.dummy),
+    {mate: RHP.mate, tokens: RHP.tokens, seed: 1 + Math.floor(Math.random() * 1e6), director: PHYS.director});
+}
+function rhLoop(t) {
+  if (!RHP.canvas || !RHP.canvas.isConnected) { RHP.running = false; return; }
+  if (!RHP.sim) rhRestart();
+  var dt = RHP.last ? Math.min(100, t - RHP.last) : 16; RHP.last = t; RHP.acc += dt;
+  while (RHP.acc >= 16) { RHP.sim.step(); RHP.acc -= 16; }
+  RHP.sim.draw(RHP.canvas);
+  requestAnimationFrame(rhLoop);
+}
+function buildRhythmProps(d) {
+  var s = sec(d, "Fight rhythm (whole character)", "a-rhythm", "", "act");
+  var rh = S.rhythm, ch = function () { save(); rhRestart(); buildProps(); }, soft = function () { save(); rhRestart(); };
+  field(s, "Fight rhythm", inp("chk", rh.enabled, function (v) { rh.enabled = v; ch(); })).title =
+    "On: the character fights on a rhythm (Solo and Battle): it spaces out in neutral, feints, bursts in, runs uneven pressure strings, punishes openings and resets, and plays with its team (roles, melee attack tokens). Normal attacks only start while engaging / pressuring / punishing. Off: it attacks whenever it can, as before.";
+  if (!rh.enabled) return;
+  field(s, "Temperament", inp(TEMPO.ENUMS.preset.map(function (p) { return [p, RH_PRESET_LABEL[p]]; }), rh.preset, function (v) {
+    S.rhythm = TEMPO.presetValues(v, rh); ch();
+  })).title = "Picking one writes its settings below (you can tweak them after; the name stays as a label).";
+  field(s, "Team role", inp(TEMPO.ENUMS.role.map(function (r) { return [r, r === "auto" ? "Auto (by team order)" : r]; }), rh.role, function (v) { rh.role = v; soft(); })).title =
+    "Striker gets melee tokens first, vanguard next; flanker waits behind the target, support / controller zone or circle. Auto: ranged = support, melee in team order striker, flanker, vanguard, controller.";
+  field(s, "Moves by intent", inp([["auto", "Auto (only without a Movement style)"], ["always", "Always"], ["speed_only", "Speed only"]], rh.movement, function (v) { rh.movement = v; save(); })).title =
+    "Battle: Auto = a character without a Movement style moves by its intent (spacing, feints, bursts in, resets); with a style the style moves it (use its phases' \"Fight rhythm intent\" condition). Always = the intent always moves it. Speed only = just the speed changes. Solo keeps the Solo default movement either way.";
+  field(s, "Waiting (no token)", inp([["mixed", "Mixed (by role, seeded)"], ["flank", "Flank (behind the target)"], ["circle", "Circle at mid range"], ["zone", "Zone (hold range)"]], rh.wait_style, function (v) { rh.wait_style = v; soft(); })).title =
+    "What it does while its team already has every melee token on the target (Dust & Air \"Team play\"). Ranged fighters keep shooting meanwhile.";
+  field(s, "Gate triggered actions", inp("chk", rh.gate_triggered, function (v) { rh.gate_triggered = v; save(); })).title =
+    "On: specials / ultimates / other triggered actions also only start while engaging / pressuring / punishing. Defend is never gated. Off: they trigger by their own conditions as before.";
+  RH_FIELDS.forEach(function (grp) {
+    var b = sec(s, grp[0], "a-rh-" + grp[0], "", "act");
+    grp[1].forEach(function (f) {
+      var k = f[0], e;
+      if (TEMPO.ENUMS[k]) e = inp(TEMPO.ENUMS[k].map(function (o) { return [o, o.replace("_", " ")]; }), rh[k], function (v) { rh[k] = v; rh.preset = "custom"; soft(); });
+      else {
+        var r = TEMPO.RANGES[k] || [-1e9, 1e9];
+        e = inp("n", rh[k], function (v) { rh[k] = Math.max(r[0], Math.min(r[1], v)); rh.preset = "custom"; soft(); }, r[0], r[1], /_ms/.test(k) ? 50 : /_pct$/.test(k) ? 5 : 1);
+      }
+      field(b, f[1], e).title = f[2];
+    });
+  });
+  // Live preview
+  var pv = sec(s, "Preview (sparring)", "a-rh-prev", "", "act");
+  var cv = document.createElement("canvas"); cv.width = 720; cv.height = 380; cv.style.width = "100%"; cv.style.background = "#11141a";
+  pv.appendChild(cv); RHP.canvas = cv;
+  field(pv, "Sparring dummy", inp(TEMPO.ENUMS.preset.filter(function (p) { return p !== "custom"; }).map(function (p) { return [p, RH_PRESET_LABEL[p]]; }), RHP.dummy,
+    function (v) { RHP.dummy = v; rhRestart(); })).title = "The red dummy's temperament.";
+  field(pv, "Team-mate (2 v 1)", inp("chk", RHP.mate, function (v) { RHP.mate = v; rhRestart(); })).title =
+    "Add a second fighter with these settings on your team, to see melee tokens and waiting.";
+  field(pv, "Melee tokens", inp("n", RHP.tokens, function (v) { RHP.tokens = Math.max(0, Math.min(8, Math.round(v))); rhRestart(); }, 0, 8, 1)).title =
+    "Preview only (the game uses Dust & Air \"Team play\"): how many of your team may melee the dummy at once (0 = no limit).";
+  var rr = document.createElement("div"); rr.className = "row";
+  var rb = document.createElement("button"); rb.textContent = "↻ Restart"; rb.onclick = rhRestart; rr.appendChild(rb); pv.appendChild(rr);
+  rhRestart();
+  if (!RHP.running) { RHP.running = true; RHP.last = 0; requestAnimationFrame(rhLoop); }
+}
 // Character-level Movement style (pack.movement_style, laser/movestyle.py;
 // the patterns and preview sim live in movestyle.js), shown under every
 // action's settings.  Phases of movement patterns + modifiers + conditions.
@@ -2836,7 +2950,9 @@ var MS_FIELD = {stop_px: ["Stop px", "How far short of the target it stops (0 = 
   hit_taken_ms: ["Hit taken within ms", "Only within this long after being hit (0 = ignore)."],
   hit_landed_ms: ["Hit landed within ms", "Only within this long after landing a hit (0 = ignore)."],
   attacking: ["Attacking", "Only while attacking (yes), only while not (no), or either."], fight_ms: ["Fight running ≥ ms", "Only once the fight has run this long."],
-  enemy: ["Enemy fights", "Only while the target fights in melee, only while it doesn't (ranged), or either. In Solo the cursor counts as melee."]};
+  enemy: ["Enemy fights", "Only while the target fights in melee, only while it doesn't (ranged), or either. In Solo the cursor counts as melee."],
+  tempo: ["Fight rhythm intent", "Only while the character's Fight rhythm intent is this one (neutral spacing, feint, engage burst, pressure string, punish, reset, wait for a token). Needs Fight rhythm on. any = always."],
+  director: ["Director phase", "Only while the fight director is calm, building or bursting (Dust & Air \"Fight director\"). any = always."]};
 // Ready-made styles: Add replaces the phase list.
 var MS_PRESETS = {
   duelist: {label: "Duelist (circle, then strike)", select: "priority", phases: [
@@ -4113,6 +4229,7 @@ function buildReactionProps(d) {
     buildTargetingProps(d);
     buildWorldPhysicsCharProps(d);
     buildMoveStyleProps(d);
+    buildRhythmProps(d);
     return;
   }
   if (S.react === "retreat") {
@@ -4190,6 +4307,7 @@ function buildActionProps(d) {
   buildDodgeProps(d);
   buildTargetingProps(d);
   buildMoveStyleProps(d);
+  buildRhythmProps(d);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack distance", "a-range", "How close the target must be for this attack to start.", "act");
@@ -5264,7 +5382,7 @@ function buildWorldPhysicsCharProps(d) {
     return {world: w, over: wp, sec: function (n) { return wp[n] || w[n]; }};
   });
   WORLDFX.SECTIONS.forEach(function (name) {
-    if (name === "ground" || name === "pillars" || name === "roll") return;     // the ground, pillars and the roll are the world's alone
+    if (name === "ground" || name === "pillars" || name === "roll" || name === "director" || name === "team") return;     // the ground, pillars, the roll, the director and team play are the world's alone
     var own = !!wp[name];
     field(s, "Own " + WORLDFX.TITLES[name], inp("chk", own, function (v) {
       if (v) wp[name] = WORLDFX.normalizeSection(name, clone(PHYS[name])); else delete wp[name];

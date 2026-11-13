@@ -35,6 +35,7 @@ from . import escort as _escort
 from . import hpbars
 from .hudclick import HudClick
 from . import targeting as _targeting
+from . import tempo as _tempo
 from . import platform_win as win
 from .assets import AssetLibrary
 from .figure import Figure
@@ -113,6 +114,9 @@ class SideState:
         self.partner_ids = []       # per partner_figures entry: id() of that figure, and
         self.partner_hp = []        # (hp, max_hp), and the id() of ITS target
         self.partner_target = []    # (FX Studio Targeting, laser/targeting.py)
+        self.partner_open = []      # per partner_figures entry: open to a punish (laser/tempo.py:
+                                    # 1 dazed / knocked back, 2 recovering from an attack, 0 no)
+        self.squad = None           # this side's (team's) squad board (laser/tempo.py)
         self.fx_hits = []           # FX Studio hits this side landed this tick,
                                     # delivered to the opponent by refresh_battle
         self.fx_pulls = []          # FX Studio pull fields this tick (meteor /
@@ -350,7 +354,7 @@ class World:
         pkgs = _chars._find_packages(root)
         for key, _rel, _man, _fx in pkgs:
             m = modes.MODE_REGISTRY.get(key)
-            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg", "_target_cfg",
+            for attr in ("_fxkit_cache", "_combo_cfg", "_retreat_cfg", "_dodge_cfg", "_target_cfg", "_tempo_cfg",
                          "_ua_cfg", "_glide_cache", "_wphys_cfg"):
                 if m is not None and hasattr(m, attr):
                     try:
@@ -444,6 +448,9 @@ class World:
             # the pillars and clears the rubble.
             terrain.reset(self)
             _escort.reset(self)
+            # Fight rhythm (laser/tempo.py): fresh squad boards, director
+            # and intents.
+            _tempo.reset_world(self)
         old = list(getattr(self, "slots", None) or [])
         old_figs = [s.fig for s in old if s.fig is not None]
         if slots is not None:
@@ -646,6 +653,13 @@ class World:
 
     def movement_target(self, fig):
         """Where this figure moves toward this tick."""
+        # Fight rhythm (laser/tempo.py): in Battle a fighter without a
+        # movement style (movement "auto") or with movement "always" moves
+        # by its intent (spacing, feints, bursts in, resets, waiting for a
+        # token).  None = the usual movement below.
+        _tpt = _tempo.move_target(fig, self)
+        if _tpt is not None:
+            return _tpt
         # Movement style (laser/movestyle.py): the character's own patterns
         # and phases.  Same target in both modes (nearest enemy in Battle,
         # the cursor in Solo); None = no style / no phase passes, so the old
@@ -875,6 +889,7 @@ class World:
         self.partner_ids = s.partner_ids
         self.partner_hp = s.partner_hp
         self.partner_target = s.partner_target
+        self.partner_open = s.partner_open
         self.enemy_projs = s.enemy_projs
         self.clones = s.clones
         self.hpt_beam_ticks = s.hpt_beam_ticks
@@ -938,6 +953,10 @@ class World:
                                    for f in other.figures if f.transform.init]
                 side.partner_target = [getattr(getattr(f, "tgt", None), "target_id", None)
                                        for f in other.figures if f.transform.init]
+                # Fight rhythm (laser/tempo.py): is that enemy open to a
+                # punish (recovering from an attack / dazed / knocked back).
+                side.partner_open = [_tempo.open_state(f, self.global_tick)
+                                     for f in other.figures if f.transform.init]
                 # Everything the opponent has out that can hurt, read by the
                 # fx_near / projectile_count action conditions:
                 # (x, y, tags, airborne).  tags is a tuple; an FX Studio
@@ -1057,6 +1076,7 @@ class World:
                 side.partner_ids = []
                 side.partner_hp = []
                 side.partner_target = []
+                side.partner_open = []
                 side.enemy_fx = []
                 side.enemy_shots = []
                 side.round_refs = {}
@@ -1606,6 +1626,13 @@ class Overlay(QWidget):
             w.stats.step(w)
         except Exception as e:
             action_log.crash("battlestats", e)
+        # Fight rhythm director (laser/tempo.py): the world's intensity
+        # (calm / build / burst) from this tick's distance, hits, counters,
+        # HP swings and quiet spells.  Fighters read it next tick.
+        try:
+            _tempo.step(w)
+        except Exception as e:
+            action_log.crash("tempo", e)
 
         w.global_tick += 1
         self.update()

@@ -270,6 +270,7 @@ WIRE_KEYS = [
     "pillars.enabled", "pillars.count", "pillars.respawn_s", "pillars.radius_x_px", "pillars.radius_y_px",
     "pillars.clear_x_px", "pillars.clear_y_px", "pillars.gap_x_px", "pillars.gap_y_px",
     "pillars.width", "pillars.height", "pillars.hp", "pillars.multi_chance",
+    "wire_tempo", "director.enabled", "team.enabled",
 ]
 DEPTH_SLOW_FRAMES = 120   # ~2 s of over-budget frames before depth turns off
 DEPTH_MAX = 0.6     # total perspective strength cap (keeps w > 0 everywhere)

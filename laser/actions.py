@@ -71,6 +71,7 @@ import re
 from . import config
 from . import unique as _unique
 from . import movestyle as _movestyle
+from . import tempo as _tempo
 from .travel import TRAVEL_MOVES as _TRAVEL_MOVES
 
 TICK_MS = config.TICK_MS
@@ -100,6 +101,12 @@ CONDITION_TYPES = {
     # Blade hop (laser/bladehop.py): at least `count` of this fighter's hop
     # blades of a kind (field / thrown / any) are out; one is within px.
     "hop_blades": dict(count=1, which="field"), "hop_blade_near": dict(px=60.0),
+    # Fight rhythm (laser/tempo.py): own intent, the world director, the
+    # squad board (melee attack token, team-mates), an open target.
+    "tempo_intent": dict(intent="engage"), "director_phase": dict(phase="burst"),
+    "director_above": dict(pct=60.0), "has_token": {}, "target_open": {},
+    "partner_intent": dict(intent="pressure"), "partner_within": dict(px=200.0),
+    "partner_hp_below": dict(pct=40.0), "outnumbered": {},
 }
 
 
@@ -375,6 +382,9 @@ class ActionRunner:
         if t == "hop_blade_near":
             from . import bladehop
             return bladehop.near(fig, float(cond.get("px", 60)))
+        if t in _tempo.COND_TYPES:
+            w = ctx.get("world")
+            return w is not None and _tempo.cond_true(fig, w, t, cond, ctx)
         if t == "action_triggered":
             info = ctx.get("own_action") if cond.get("who") == "self" else ctx.get("tgt_action")
             if not info or not info[0]:
@@ -606,7 +616,8 @@ class ActionRunner:
                "own_speed": own_speed, "tgt_speed": tgt_speed, "tgt_state": tgt_state,
                "tgt_facing_left": tgt_facing_left, "landed": self.landed,
                "own_action": action_info(fig, now),
-               "tgt_action": (tuple(tgt_state[3:5]) if tgt_state and len(tgt_state) >= 5 else None)}
+               "tgt_action": (tuple(tgt_state[3:5]) if tgt_state and len(tgt_state) >= 5 else None),
+               "world": world}
         self.ctx = ctx
         self.ctx_tick = now
         return ctx
@@ -682,7 +693,13 @@ class ActionRunner:
         if _pf is not None and _pf is fig:
             from . import player as _player
             _player.runner_tick(self, fig, world, ctx, now)
+            # Fight rhythm (laser/tempo.py): no tempo of its own, but it is
+            # on its team's squad board and takes a melee attack token.
+            _tempo.note_player(fig, world, ctx, now)
         else:
+            # Fight rhythm (laser/tempo.py): advance the intent; it gates
+            # normal attacks (and, if set, triggered actions) below.
+            _tempo.think(fig, world, self, ctx, now)
             # Attack mode (Alt+Up) gates attacking exactly as it gates the
             # built-in fighters; defend is always allowed.
             armed = bool(getattr(world, "shoot_mode", True))
@@ -699,6 +716,8 @@ class ActionRunner:
                         continue
                     if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
                         continue
+                    if not _tempo.allows_triggered(fig, name):
+                        continue
                     if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                         self._finish(fig, now)
                         self._start(fig, name, ctx, now)
@@ -714,10 +733,12 @@ class ActionRunner:
                         continue
                     if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
                         continue
+                    if not _tempo.allows_triggered(fig, name):
+                        continue
                     if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                         if self._start(fig, name, ctx, now):
                             break
-                if self.playing is None and armed:
+                if self.playing is None and armed and _tempo.allows_attack(fig):
                     atk = self._attack_choice(fig, ctx, now)
                     if atk:
                         self._start(fig, atk, ctx, now)

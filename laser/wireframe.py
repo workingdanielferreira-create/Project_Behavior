@@ -392,6 +392,80 @@ def _band(d, world, figs, sw, sh):
         d.label(f.transform.x + 12 / d.z, f.transform.y - 30 / d.z, txt, RED)
 
 
+# ------------------------------------------------------------ fight rhythm
+INTENT_RGB = {"neutral": (200, 200, 200), "feint": (255, 160, 64), "engage": (255, 225, 77),
+              "pressure": (255, 70, 60), "punish": (255, 95, 210), "reset": (79, 209, 255),
+              "wait": (125, 255, 106), "player": (255, 255, 255)}
+PHASE_RGB = {"calm": (79, 209, 255), "build": (255, 225, 77), "burst": (255, 70, 60)}
+
+
+def _tempo(d, world, figs):
+    """Fight rhythm (laser/tempo.py): the director bar, each fighter's intent
+    / role / string, and lines from melee token holders to their targets."""
+    from . import tempo
+    dr = getattr(world, "director", None)
+    if dr is not None and d.on("director.enabled"):
+        c = tempo._world_cfg("director")
+        if not c.get("enabled", True):
+            d.status("fight director OFF", RED)
+        else:
+            n = int(round(dr.intensity * 20))
+            bar = "#" * n + "." * (20 - n)
+            d.status("director [%s] %3d%%  %s" % (bar, int(round(dr.intensity * 100)), dr.phase.upper()),
+                     PHASE_RGB.get(dr.phase, CYAN))
+    now = getattr(world, "global_tick", 0)
+    by_id = {id(f): f for f in figs}
+    if d.on("team.enabled"):
+        for i, side in enumerate(getattr(world, "sides", ()) or ()):
+            sq = getattr(side, "squad", None)
+            if sq is None:
+                continue
+            used = 0
+            for tid, held in sq.tokens.items():
+                tgt = by_id.get(tid)
+                for fid, tk in held.items():
+                    if now - tk > tempo.TOKEN_HOLD_TICKS:
+                        continue
+                    used += 1
+                    f = by_id.get(fid)
+                    if f is None:
+                        continue
+                    d.p.setPen(_pen(YELLOW, 200, 1.5, dash=True))
+                    if tgt is not None:
+                        d.line(f.x, f.y, tgt.x, tgt.y)
+                    else:
+                        cx, cy = getattr(world, "cursor", (f.x, f.y))
+                        d.line(f.x, f.y, cx, cy)
+            if side.figures:
+                cap = sq.cap(i)
+                d.status("team %d tokens in use: %d  (limit %s per target)" % (i + 1, used, cap if cap else "none"),
+                         YELLOW)
+    if not d.on("wire_tempo"):
+        return
+    for f in figs:
+        st = getattr(f, "tempo", None)
+        cfg = tempo.config_for(f)
+        side = tempo.side_of(world, f)
+        sq = tempo.squad(world, side)
+        if st is not None and cfg is not None:
+            it = st.intent
+            extra = ""
+            if it in ("engage", "pressure", "punish"):
+                extra = " %d/%d" % (st.string_done, st.string_n)
+            elif it == "wait":
+                extra = " (%s)" % st.wait_style
+            elif it == "feint":
+                extra = " (%s)" % st.feint_kind.replace("_", " ")
+            tok = " T" if (st.token and f.mode.uses_melee()) else ""
+            text = "%s%s  %s%s  m%+.1f" % (it.upper(), extra, st.role, tok, st.momentum)
+        elif sq is not None and sq.roles.get(id(f)) == "player":
+            it, text = "player", "PLAYER (token" + (" held)" if any(id(f) in h for h in sq.tokens.values()) else " free)")
+        else:
+            continue
+        h = 60.0 * f.mode.body_scale() * combat.position_scale(f.x, f.y, world.screen_w, world.screen_h)
+        d.label(f.x - 40.0 / d.z, f.y - h - 18.0 / d.z, text, INTENT_RGB.get(it, CYAN))
+
+
 # ------------------------------------------------------------ camera & boulders
 def _camera(d, world, figs, cam, view, sw, sh):
     p = d.p
@@ -539,5 +613,6 @@ def paint(p, world):
         _boulders(d, world, figs, sw, sh)
         _anchor(d, world, figs, cam, view, sw, sh)
         _camera(d, world, figs, cam, view, sw, sh)
+        _tempo(d, world, figs)
     finally:
         p.restore()

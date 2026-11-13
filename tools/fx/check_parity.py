@@ -147,6 +147,13 @@ class PyTables:
         raise ValueError("not a plain literal: " + ast.dump(n)[:80])
 
 
+TEMPO_TABLES = (("TEMPO_DEFAULTS", "DEFAULTS"), ("TEMPO_RANGES", "RANGES"), ("TEMPO_PRESETS", "PRESETS"),
+                ("TEMPO_INTENTS", "INTENTS"), ("TEMPO_PHASES", "PHASES"), ("TEMPO_ENUMS", "ENUMS"),
+                ("ROLE_WAIT", "ROLE_WAIT"), ("OPEN_MS", "OPEN_MS"), ("STRING_BURST_BONUS", "STRING_BURST_BONUS"),
+                ("PUNISH_OWN_MS", "PUNISH_OWN_MS"), ("PUNISH_FROM", "PUNISH_FROM"), ("PUNISH_CD_MS", "PUNISH_CD_MS"),
+                ("WHIFF_MS", "WHIFF_MS"))
+
+
 # ---------------------------------------------------------------- compare
 def _norm(v):
     if isinstance(v, bool) or v is None or isinstance(v, str):
@@ -324,6 +331,12 @@ def main():
         diff(mv_js.get(name), mv_py.get(name), "movestyle " + name, out)
     for name, py_name in (("TICK_MS", "TICK_MS"), ("WALL_ZONE", "WALL_ZONE"), ("WALL_PUSH", "WALL_PUSH")):
         diff(mv_js.get(name), cfg.get(py_name), "movestyle " + name + " (config)", out)
+
+    # Fight rhythm (laser/tempo.py <-> tools/fx/studio/tempo.js).
+    tp_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "tempo.js"))
+    tp_py = PyTables(os.path.join(ROOT, "laser", "tempo.py"))
+    for js_name, py_name in TEMPO_TABLES:
+        diff(tp_js.get(js_name), tp_py.get(py_name), "tempo " + py_name, out)
 
     # Constants the Studio's previews copy from the game.
     diff(js.get("STAND_HEIGHT_PX"), cfg.get("IMAGE_STAND_HEIGHT_PX"), "STAND_HEIGHT_PX", out)
