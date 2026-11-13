@@ -179,6 +179,12 @@ class FighterStats:
         self.low_hp = self.hp
         self.dodges = 0
         self.vanishes = 0
+        # Fight rhythm (laser/tempo.py): feints / engages / punishes started
+        # and the longest pressure string (attacks in one engage).
+        self.feints = 0
+        self.engages = 0
+        self.punishes = 0
+        self.best_string = 0
         # Movement
         self.distance = 0.0
         self.kb_distance = 0.0

@@ -18,7 +18,11 @@ var ENUMS = {direction: ["cw", "ccw", "alternate"],
   strafe: ["cw", "ccw", "alternate", "none"],
   axis: ["line", "horizontal", "vertical"],
   flow: ["in_out", "in", "out"],
-  mode: ["mirror", "copy"]};
+  mode: ["mirror", "copy"],
+  // Fight rhythm (laser/tempo.py): the phase runs only in this intent /
+  // director phase ("any" = always).
+  tempo: ["any", "neutral", "feint", "engage", "pressure", "punish", "reset", "wait"],
+  director: ["any", "calm", "build", "burst"]};
 var SIGNED = ["angle_deg", "retreat_angle_deg", "lead_deg", "carve_deg"];
 
 var PATTERN_DEFAULTS = {
@@ -49,7 +53,8 @@ var MODIFIER_DEFAULTS = {speed_pct: 100, pulse_pct: 0, pulse_ms: 1000, inertia_p
   weave_deg: 0, weave_ms: 1600, jitter_px: 0, jitter_ms: 400,
   pause_every_ms: 0, pause_ms: 300, face: "travel", wall_avoid: true};
 var WHEN_DEFAULTS = {dist_min_px: 0, dist_max_px: 0, hp_min_pct: 0, hp_max_pct: 100,
-  hit_taken_ms: 0, hit_landed_ms: 0, attacking: "any", fight_ms: 0, enemy: "any"};
+  hit_taken_ms: 0, hit_landed_ms: 0, attacking: "any", fight_ms: 0, enemy: "any",
+  tempo: "any", director: "any"};
 var PHASE_DEFAULTS = {name: "", pattern: "chase", hold_min_ms: 0, hold_max_ms: 0, weight: 1};
 var DEFAULTS = {enabled: false, select: "priority", daze: true, phases: []};
 
@@ -300,6 +305,10 @@ Sim.prototype.passes = function (w, d, bs) {
   if (w.attacking !== "any") { var on = st.tick - st.attack_tick <= ticks(ATTACK_LINGER_MS); if (on !== (w.attacking === "yes")) return false; }
   if (w.fight_ms > 0 && st.tick < ticks(w.fight_ms)) return false;
   if (w.enemy !== "any" && (f.enemy_melee !== false) !== (w.enemy === "melee")) return false;
+  // Fight rhythm: the preview passes its own intent / director phase in
+  // (f.tempo / f.director, laser/tempo.py); without them the phase passes.
+  if (w.tempo && w.tempo !== "any" && f.tempo && f.tempo !== w.tempo) return false;
+  if (w.director && w.director !== "any" && f.director && f.director !== w.director) return false;
   return true;
 };
 Sim.prototype.choose = function (d, bs) {

@@ -58,7 +58,7 @@ FILE = "world_physics.json"     # in characters/
 # style has its own deep-edit section smoke_<style> (shading & colour, life
 # animation, motion).  Characters can override any of these sections.
 SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"]
-SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
+SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "director", "team", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"]
 # ---- Pressure spiral (Daniel 2026-11-01): the pulse ring every Dust & Air event
 # throws.  Seen end-on it is a circle; turned side-on it is a spring.  It can
 # split into 2-6 parts (flat, like a broken circle) and twist into a helix laid
@@ -129,6 +129,17 @@ DEFAULTS = {
     # every chip_ms.  terrain.py.
     "boulder_impact": {"enabled": True, "speed_keep_pct": 50, "damage_keep_pct": 50, "chip_ms": 250,
                        "fighters": True},
+    # Fight director (Daniel 2026-11-13, laser/tempo.py, world only): the
+    # world's intensity 0..1 (calm / build / burst) that every Fight rhythm
+    # fighter reads.  Pushed up by closing distance, hits, counters, HP
+    # swings, low HP, KOs and quiet spells; decays back to calm by itself.
+    "director": {"enabled": True, "decay_pct_s": 12, "close_px": 260, "close_pct_s": 10, "hit_pct": 3,
+                 "damage_pct": 60, "counter_pct": 5, "hp_swing_pct": 50, "low_hp_at": 30, "low_hp_pct_s": 6,
+                 "ko_pct": 45, "idle_after_s": 2.5, "idle_pct_s": 5, "build_at": 35, "burst_at": 80,
+                 "burst_jitter_pct": 12, "burst_s_min": 2.5, "burst_s_max": 4.5, "after_burst_pct": 8},
+    # Team play (laser/tempo.py squad board, world only): melee attack
+    # tokens per team (0 = no limit) and the player's token reach.
+    "team": {"enabled": True, "tokens_team1": 2, "tokens_team2": 2, "token_range_pct": 160},
     "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                  "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                  "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -192,6 +203,12 @@ RANGES = {
     "roll": {"max_speed": [0, 5000], "zone_x_frac": [0.05, 0.5], "zone_y_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
              "margin_px": [0, 600]},
     "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
+    "director": {"decay_pct_s": [0, 100], "close_px": [0, 3000], "close_pct_s": [0, 200], "hit_pct": [0, 100],
+                 "damage_pct": [0, 500], "counter_pct": [0, 100], "hp_swing_pct": [0, 500], "low_hp_at": [0, 100],
+                 "low_hp_pct_s": [0, 100], "ko_pct": [0, 100], "idle_after_s": [0, 60], "idle_pct_s": [0, 100],
+                 "build_at": [0, 100], "burst_at": [1, 100], "burst_jitter_pct": [0, 50], "burst_s_min": [0.2, 30],
+                 "burst_s_max": [0.2, 30], "after_burst_pct": [0, 100]},
+    "team": {"tokens_team1": [0, 8], "tokens_team2": [0, 8], "token_range_pct": [50, 1000]},
     "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline":
                  [0, 8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                  "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],

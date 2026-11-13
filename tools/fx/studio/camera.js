@@ -86,12 +86,16 @@ var CAM_WIRE_KEYS = [
   "roll.spawn_ahead_px", "roll.margin_px",
   "pillars.enabled", "pillars.count", "pillars.respawn_s", "pillars.radius_x_px", "pillars.radius_y_px",
   "pillars.clear_x_px", "pillars.clear_y_px", "pillars.gap_x_px", "pillars.gap_y_px",
-  "pillars.width", "pillars.height", "pillars.hp", "pillars.multi_chance"
+  "pillars.width", "pillars.height", "pillars.hp", "pillars.multi_chance",
+  "wire_tempo", "director.enabled", "team.enabled"
 ];
 // The Wireframe group's own rows: the two wireframe-only parts, then the Dust
 // & Air settings it draws (also ticked beside them on the Dust & Air page).
 var CAM_WIRE_EXTRA = [
   ["wire_grid", "Plain grid & border", "The plain scene grid and the screen border (cyan): the camera's zoom / tilt warp shows on it."],
+  ["wire_tempo", "Fight rhythm: intents", "Each Fight rhythm fighter's intent (NEUTRAL / FEINT / ENGAGE / PRESSURE / PUNISH / RESET / WAIT), role and string count above its head (game only)."],
+  ["director.enabled", "Fight director: bar", "The director's intensity bar and phase (CALM / BUILD / BURST) in the status lines (game only)."],
+  ["team.enabled", "Team play: tokens", "A line from each melee attack token holder to its target, and the team's tokens in use (game only)."],
   ["wire_view", "View box", "The green box of what the camera sees now, with its zoom."],
   ["roll.enabled", "Roll: off notice", "Rolling world (Dust & Air): the \"rolling world OFF\" status line."],
   ["roll.max_speed", "Roll: direction arrow", "Rolling world: the live roll direction / speed arrow and the max speed in the zone labels."],

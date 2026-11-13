@@ -81,7 +81,11 @@ ENUMS = {"direction": ["cw", "ccw", "alternate"],
          "strafe": ["cw", "ccw", "alternate", "none"],
          "axis": ["line", "horizontal", "vertical"],
          "flow": ["in_out", "in", "out"],
-         "mode": ["mirror", "copy"]}
+         "mode": ["mirror", "copy"],
+         # Fight rhythm (laser/tempo.py): the phase runs only in this
+         # intent / director phase ("any" = always).
+         "tempo": ["any", "neutral", "feint", "engage", "pressure", "punish", "reset", "wait"],
+         "director": ["any", "calm", "build", "burst"]}
 # Settings that may be negative (degrees).
 SIGNED = ["angle_deg", "retreat_angle_deg", "lead_deg", "carve_deg"]
 
@@ -126,7 +130,8 @@ MODIFIER_DEFAULTS = dict(speed_pct=100, pulse_pct=0, pulse_ms=1000, inertia_pct=
 # ranged = only while the target fights in melee / doesn't (the cursor in
 # Solo counts as melee: it hits by touching).
 WHEN_DEFAULTS = dict(dist_min_px=0, dist_max_px=0, hp_min_pct=0, hp_max_pct=100,
-                     hit_taken_ms=0, hit_landed_ms=0, attacking="any", fight_ms=0, enemy="any")
+                     hit_taken_ms=0, hit_landed_ms=0, attacking="any", fight_ms=0, enemy="any",
+                     tempo="any", director="any")
 PHASE_DEFAULTS = dict(name="", pattern="chase", hold_min_ms=0, hold_max_ms=0, weight=1)
 # daze: after a knockback settles it wanders dazed for a moment (as the old
 # battle movement does), then the style resumes.
@@ -315,6 +320,13 @@ def _passes(fig, st, when, d, bs):
         return False
     if when["enemy"] != "any" and st.enemy_melee != (when["enemy"] == "melee"):
         return False
+    # Fight rhythm (laser/tempo.py): own intent / the director's phase.
+    if when.get("tempo", "any") != "any" or when.get("director", "any") != "any":
+        from . import tempo as _tempo
+        if when.get("tempo", "any") != "any" and _tempo.intent_of(fig) != when["tempo"]:
+            return False
+        if when.get("director", "any") != "any" and _tempo.CURRENT["phase"] != when["director"]:
+            return False
     return True
 
 

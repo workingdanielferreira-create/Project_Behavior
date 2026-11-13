@@ -23,7 +23,7 @@
 "use strict";
 var WP_FORMAT = "pb_world_physics";
 var WP_SMOKE_STYLES = ["cel", "billow", "ink", "swirl", "flat", "ring", "stepped"];
-var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
+var WP_SECTIONS = ["ground", "dash", "jump", "slam", "clash", "blast", "sonic", "spiral", "pillars", "rubble", "ground_fx", "roll", "boulder_impact", "director", "team", "smoke_cel", "smoke_billow", "smoke_ink", "smoke_swirl", "smoke_flat", "smoke_ring", "smoke_stepped"];
 var SPIRAL_MODES = ["whole", "parts_together", "parts_in_turn"];
 var SPIRAL_DIRS = ["left_to_right", "right_to_left", "creation", "reverse_creation"];
 var WP_DEFAULTS = {
@@ -66,6 +66,17 @@ var WP_DEFAULTS = {
            "spawn_ahead_px": 320, "margin_px": 60},
   "boulder_impact": {"enabled": true, "speed_keep_pct": 50, "damage_keep_pct": 50, "chip_ms": 250,
                      "fighters": true},
+  // Fight director (Daniel 2026-11-13, laser/tempo.py, world only): the
+  // world's intensity 0..1 (calm / build / burst) that every Fight rhythm
+  // fighter reads.  Pushed up by closing distance, hits, counters, HP
+  // swings, low HP, KOs and quiet spells; decays back to calm by itself.
+  "director": {"enabled": true, "decay_pct_s": 12, "close_px": 260, "close_pct_s": 10, "hit_pct": 3,
+               "damage_pct": 60, "counter_pct": 5, "hp_swing_pct": 50, "low_hp_at": 30, "low_hp_pct_s": 6,
+               "ko_pct": 45, "idle_after_s": 2.5, "idle_pct_s": 5, "build_at": 35, "burst_at": 80,
+               "burst_jitter_pct": 12, "burst_s_min": 2.5, "burst_s_max": 4.5, "after_burst_pct": 8},
+  // Team play (laser/tempo.py squad board, world only): melee attack
+  // tokens per team (0 = no limit) and the player's token reach.
+  "team": {"enabled": true, "tokens_team1": 2, "tokens_team2": 2, "token_range_pct": 160},
   "smoke_cel": {"tones": 3, "shadow": 30, "light": 50, "light_dir": 225, "outline": 2.0, "ink": "#1b1712",
                "tint": "#ffffff", "tint_mix": 0, "opacity": 100, "grow": 2.0, "grow_at": 0.6, "shrink":
                "steps", "steps": 3, "hold": 1, "fade": 0, "life_pct": 100, "rise": 12, "tau_pct": 100,
@@ -126,6 +137,12 @@ var WP_RANGES = {
   "roll": {"max_speed": [0, 5000], "zone_x_frac": [0.05, 0.5], "zone_y_frac": [0.05, 0.5], "ease_ms": [0, 5000], "spawn_ahead_px": [0, 3000],
            "margin_px": [0, 600]},
   "boulder_impact": {"speed_keep_pct": [0, 100], "damage_keep_pct": [0, 100], "chip_ms": [16, 5000]},
+  "director": {"decay_pct_s": [0, 100], "close_px": [0, 3000], "close_pct_s": [0, 200], "hit_pct": [0, 100],
+               "damage_pct": [0, 500], "counter_pct": [0, 100], "hp_swing_pct": [0, 500], "low_hp_at": [0, 100],
+               "low_hp_pct_s": [0, 100], "ko_pct": [0, 100], "idle_after_s": [0, 60], "idle_pct_s": [0, 100],
+               "build_at": [0, 100], "burst_at": [1, 100], "burst_jitter_pct": [0, 50], "burst_s_min": [0.2, 30],
+               "burst_s_max": [0.2, 30], "after_burst_pct": [0, 100]},
+  "team": {"tokens_team1": [0, 8], "tokens_team2": [0, 8], "token_range_pct": [50, 1000]},
   "smoke_cel": {"tones": [1, 3], "shadow": [0, 100], "light": [0, 100], "light_dir": [0, 360], "outline": [0,
                8], "tint_mix": [0, 100], "opacity": [5, 100], "grow": [0.5, 5], "grow_at": [0.05, 0.95],
                "steps": [1, 8], "hold": [1, 4], "fade": [0, 100], "life_pct": [10, 400], "rise": [-60, 60],
@@ -318,6 +335,29 @@ var WP_FIELDS = {
            ["ease_ms", "Ease (ms)", "How long the roll takes to speed up / slow down."],
            ["spawn_ahead_px", "New pillars: spread (px)", "New pillars rise this far (at most) beyond the edge, so they come in at different times."],
            ["margin_px", "Off-screen margin (px)", "How far past the edge a pillar rolls before it is gone."]],
+  director: [["enabled", "On", "The fight director (Solo and Battle): one intensity for the whole fight that every Fight rhythm fighter reads (FX Studio \"Fight rhythm\" on a character). Calm = spacing and setups, build = more engages, burst = longer strings, shorter gaps and resets. It never picks moves. Off = always calm."],
+           ["decay_pct_s", "Cool down % / s", "How fast the intensity falls back toward calm on its own."],
+           ["close_px", "Close range px", "Fighters nearer than this (Solo: a fighter and the cursor) heat the fight up, more the closer they are."],
+           ["close_pct_s", "Closeness heat % / s", "Intensity per second at point-blank range."],
+           ["hit_pct", "Per hit %", "Intensity added by every landed hit."],
+           ["damage_pct", "Per damage %", "Intensity added per one fighter's worth of HP dealt (big hits heat it more)."],
+           ["counter_pct", "Per counter %", "Intensity added by every dodge, parry or negated hit."],
+           ["hp_swing_pct", "HP swing %", "Intensity added per one fighter's worth of HP lost (a big HP drop spikes it)."],
+           ["low_hp_at", "Low HP at %", "While any fighter is at or below this HP %..."],
+           ["low_hp_pct_s", "Low HP heat % / s", "...the intensity keeps rising this fast."],
+           ["ko_pct", "Per KO %", "Intensity added by a KO."],
+           ["idle_after_s", "Quiet after s", "No hits or counters for this long counts as a quiet spell..."],
+           ["idle_pct_s", "Quiet tension % / s", "...during which tension builds by itself, so a burst always comes eventually."],
+           ["build_at", "Build at %", "Intensity from which the phase is BUILD (below = CALM)."],
+           ["burst_at", "Burst at %", "Intensity that sets off a BURST."],
+           ["burst_jitter_pct", "Burst threshold jitter %", "Each cycle's burst threshold moves by up to this much, so bursts never come on a beat."],
+           ["burst_s_min", "Burst lasts min s", "A burst lasts a random time between min and max."],
+           ["burst_s_max", "Burst lasts max s", ""],
+           ["after_burst_pct", "After a burst %", "The intensity right after a burst ends (back to calm)."]],
+  team: [["enabled", "On", "Team play (Battle, and Solo with several Team 1 fighters): each team shares a squad board (roles, intents, callouts) and melee attack tokens. Fight rhythm fighters without a token wait (flank / circle / zone) instead of piling in. Off = no token limit."],
+         ["tokens_team1", "Team 1 melee tokens", "How many Team 1 fighters may melee the same target at once (0 = no limit). Ranged attacks never need one."],
+         ["tokens_team2", "Team 2 melee tokens", "How many Team 2 fighters may melee the same target at once (0 = no limit)."],
+         ["token_range_pct", "Player token reach %", "The player-controlled fighter (F4) holds a token while its target is within this % of its normal attack range."]],
   boulder_impact: [["enabled", "On", "Boulders and the blocks of multi-part boulders slow what hits them (Solo and Battle). Every block or boulder a fighter or an effect collides with cuts its speed (and an effect's damage) at that moment. An effect keeps the reduced damage for the rest of its life; the next attack starts at full damage again."],
            ["speed_keep_pct", "Speed kept per collision %", "50 = half the speed it had when it hit. A projectile / travelling effect that breaks the block flies on this slowly; a knockback slide that breaks it slides on this slowly; one that doesn't break it bounces off this slowly."],
            ["damage_keep_pct", "Damage kept per collision %", "50 = half the damage it had when it hit. The break check uses the damage BEFORE the cut. An effect left under the block's break damage is stuck there until its life ends."],
@@ -387,7 +427,8 @@ WP_SMOKE_STYLES.forEach(function (st) { WP_FIELDS["smoke_" + st] = SMOKE_FIELDS;
 var WP_TITLES = {ground: "Ground & dust", dash: "Dash / fast movement", jump: "Jump take-off & landing",
   slam: "Knockback slams", clash: "Clashes", blast: "Energy blasts", sonic: "Sound barrier", spiral: "Pressure spiral (pulse rings)",
   pillars: "Rock pillars (destructible)", rubble: "Rubble & boulders", ground_fx: "FX on the ground",
-  roll: "Rolling world", boulder_impact: "Boulder impact"};
+  roll: "Rolling world", boulder_impact: "Boulder impact",
+  director: "Fight director (rhythm)", team: "Team play (attack tokens)"};
 WP_SMOKE_STYLES.forEach(function (st) { WP_TITLES["smoke_" + st] = "Smoke: " + WP_STYLE_TITLES[st]; });
 
 var TICK_MS = 16, TICK_S = TICK_MS / 1000;
