@@ -49,7 +49,8 @@ of a fight.  Three parts, Solo and Battle alike:
     through the per-tick snapshots (partner_open is the one new field: the
     enemy is recovering / dazed), so the two sides stay independent.
 
-Stats: feints / punishes / engages / longest string (laser/battlestats.py).
+Director heat: hits / damage / taken / KOs / negated hits counted by
+laser/battlestats.py (count), dodges edge-detected in Director.step.
 Wireframe: intent labels, token lines, the director bar (laser/wireframe.py).
 Studio port + live preview: tools/fx/studio/tempo.js (check_parity.py).
 """
@@ -219,7 +220,11 @@ class Director:
         self.burst_left = 0
         self.rng = random.Random()
         self.burst_at = None          # this cycle's (jittered) burst threshold
-        self.last = None              # last totals read from the stats sheet
+        # This tick's hits, damage dealt, dodges + negated hits, damage taken
+        # and KOs, fed by laser/battlestats.py (count) and the dodge edges
+        # below; drained every step.
+        self.tot = [0.0, 0.0, 0.0, 0.0, 0.0]
+        self.dodging = set()          # id(fig) untouchable last tick (dodge edges)
         self.quiet = 0                # ticks since the last hit
         self.alive = 0                # fighters standing last tick
         self.history = []             # recent intensity samples (wireframe sparkline)
@@ -232,6 +237,7 @@ class Director:
     def step(self, world):
         c = _world_cfg("director")
         if not c.get("enabled", True):
+            self.tot = [0.0, 0.0, 0.0, 0.0, 0.0]
             self.intensity, self.phase, self.burst_left = 0.0, "calm", 0
             CURRENT["phase"], CURRENT["intensity"] = "calm", 0.0
             return
@@ -240,24 +246,27 @@ class Director:
         dt = TICK_MS / 1000.0
         figs = [f for s in getattr(world, "sides", ()) for f in s.figures
                 if getattr(f.transform, "init", False)]
-        # Totals from the post-battle stats sheet (laser/battlestats.py):
-        # hits, damage, dodges + negated hits, damage taken, KOs.
-        tot = [0.0, 0.0, 0.0, 0.0, 0.0]
+        # This tick's hits, damage, dodges + negated hits, damage taken, KOs.
+        d, self.tot = self.tot, [0.0, 0.0, 0.0, 0.0, 0.0]
+        now = int(getattr(world, "global_tick", 0) or 0)
+        dodging = set()
+        try:
+            from . import dodge as _dodge
+            for f in figs:
+                ua = getattr(f, "ua", None)
+                if ua is not None and getattr(ua, "clone_of", None) is not None:
+                    continue
+                if _dodge.untouchable(f, now):
+                    dodging.add(id(f))
+                    if id(f) not in self.dodging:
+                        d[2] += 1
+        except Exception:
+            pass
+        self.dodging = dodging
         maxhp = []
-        st = getattr(world, "stats", None)
-        for fs in (getattr(st, "fighters", None) or {}).values():
-            tot[0] += fs.hits
-            tot[1] += fs.dealt
-            tot[2] += fs.dodges + fs.blocked
-            tot[3] += fs.taken
-            tot[4] += fs.kos
         for f in figs:
             maxhp.append(float(max(1, f.personality.max_hp)))
         ref = (sum(maxhp) / len(maxhp)) if maxhp else 100.0
-        if self.last is None or any(t < l for t, l in zip(tot, self.last)):
-            self.last = list(tot)          # first read / the sheet was reset
-        d = [t - l for t, l in zip(tot, self.last)]
-        self.last = list(tot)
         add = 0.0
         add += d[0] * float(c["hit_pct"]) / 100.0
         add += d[1] / ref * float(c["damage_pct"]) / 100.0
@@ -446,7 +455,7 @@ class TempoState:
     __slots__ = ("intent", "since", "until", "rng", "string_n", "string_done", "seen_attacks",
                  "seen_end", "momentum", "orbit_dir", "sway_ph", "sway_ms", "feint_kind",
                  "feint_bit", "open_seen", "reset_ang", "wait_style", "tid", "token", "role",
-                 "best_string", "last_hp_drop", "far_ticks", "stamp", "last_landed", "punish_ready", "last_start")
+                 "last_hp_drop", "far_ticks", "stamp", "last_landed", "punish_ready", "last_start")
 
     def __init__(self):
         self.intent = "neutral"
@@ -469,7 +478,6 @@ class TempoState:
         self.tid = None                # id() of its target (Battle)
         self.token = False
         self.role = "striker"
-        self.best_string = 0
         self.last_hp_drop = None
         self.far_ticks = 0
         self.stamp = None              # tick of the last think()
@@ -504,23 +512,11 @@ def _rand_ms(st, lo, hi, k=1.0):
     return _ticks(max(0.0, (lo + (hi - lo) * u) * k))
 
 
-def _stats(world, fig):
-    s = getattr(world, "stats", None)
-    if s is None:
-        return None
-    try:
-        return s.record(fig, world)
-    except Exception:
-        return None
-
-
 def _enter(fig, world, st, cfg, intent, now, I, burst):
     """Switch to `intent` and roll its timing."""
-    prev = st.intent
     st.intent = intent
     st.since = now
     sq = squad(world, side_of(world, fig))
-    fs = None
     if intent == "neutral" or intent == "wait":
         # Shorter as the director heats up; much shorter in a burst.
         k = (1.0 - 0.6 * I) * (0.45 if burst else 1.0) / max(0.25, _aggr(st, cfg))
@@ -534,7 +530,6 @@ def _enter(fig, world, st, cfg, intent, now, I, burst):
         st.feint_kind = kind
         st.feint_bit = False
         st.until = now + _rand_ms(st, cfg["feint_ms"] * 0.7, cfg["feint_ms"] * 1.3)
-        fs = "feints"
     elif intent == "engage":
         st.until = now + _ticks(cfg["engage_ms_max"])
         lo, hi = int(cfg["string_min"]), int(cfg["string_max"])
@@ -542,29 +537,18 @@ def _enter(fig, world, st, cfg, intent, now, I, burst):
             lo, hi = hi, lo
         st.string_n = st.rng.randint(lo, hi) + (STRING_BURST_BONUS if burst else 0)
         st.string_done = 0
-        fs = "engages"
     elif intent == "punish":
         st.until = now + _rand_ms(st, cfg["punish_ms"] * 0.8, cfg["punish_ms"] * 1.2)
         st.open_seen = True
         if st.string_n - st.string_done < 2:
             st.string_n = st.string_done + 2 + st.rng.randint(0, 2)
-        fs = "punishes"
     elif intent == "reset":
         k = 0.5 if burst else 1.0
         st.until = now + _rand_ms(st, cfg["reset_ms_min"], cfg["reset_ms_max"], k)
         st.reset_ang = st.rng.uniform(-0.8, 0.8)
         st.orbit_dir = -st.orbit_dir if st.rng.random() < 0.5 else st.orbit_dir
-        if prev in ("pressure", "punish", "engage"):
-            st.best_string = max(st.best_string, st.string_done)
-            s = _stats(world, fig)
-            if s is not None:
-                s.best_string = max(getattr(s, "best_string", 0), st.string_done)
     elif intent == "pressure":
         st.until = now + _ticks(8000)
-    if fs is not None:
-        s = _stats(world, fig)
-        if s is not None:
-            setattr(s, fs, getattr(s, fs, 0) + 1)
     if sq is not None:
         sq.note(fig, intent, now)
         if intent in ("engage", "punish", "feint"):
@@ -909,6 +893,14 @@ def reset_world(world):
         for f in s.figures:
             if getattr(f, "tempo", None) is not None:
                 f.tempo = None
+
+
+def count(world, i, v=1.0):
+    """Director heat feed (laser/battlestats.py): i = 0 hits, 1 damage
+    dealt, 2 negated hits, 3 damage taken, 4 KOs."""
+    d = getattr(world, "director", None)
+    if d is not None:
+        d.tot[i] += v
 
 
 def step(world):

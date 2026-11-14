@@ -280,10 +280,7 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     if _tm != 1.0:
         amount = amount * _tm
     # Aegis: the shield soaks the hit before HP.
-    _pre_absorb = amount
     amount = _unique.absorb(fig, world, amount, kind)
-    if _pre_absorb > amount:
-        _bstats.on_absorbed(world, fig, _pre_absorb - max(0.0, amount))
     if amount <= 0:
         return False
     _actions.note_damage(fig, amount)

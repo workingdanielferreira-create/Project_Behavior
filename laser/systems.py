@@ -129,12 +129,6 @@ class InputSystem(System):
         if self._pressed(win.VK_PERIOD) and ctrl and shift and not alt:
             world.start_menu_requested = True
             world.ctrl_used = True
-        # Ctrl+Shift+, (Ctrl+'<'): the battle stats window mid-fight
-        # (laser/statsscreen.py) — the game pauses until it closes.  Same in
-        # Solo and Battle.
-        if self._pressed(win.VK_COMMA) and ctrl and shift and not alt:
-            world.stats_requested = "live"
-            world.ctrl_used = True
 
         # Ctrl+0: toggle the roster lock.  While locked, every key that
         # adds, removes or swaps a fighter (slot cycle keys, F7/F8) is

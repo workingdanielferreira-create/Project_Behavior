@@ -229,10 +229,10 @@ class World:
         # aged in _paint.  F6 previews the next variation at the cursor.
         self.clash_fx = []
         self.damage_numbers = []            # dmgnum.DamageNumber — combined hit totals
-        # Post-battle stats (laser/battlestats.py) + the results window
-        # (laser/statsscreen.py): stats_requested = "end" (a team wiped /
-        # Solo's final KO) or "live" (Ctrl+Shift+,); stats_open pauses the
-        # game like the start menu.  Solo and Battle alike.
+        # Post-battle damage-by-action sheet (laser/battlestats.py) + the
+        # results window (laser/statsscreen.py): stats_requested = "end" (a
+        # team wiped / Solo's final KO); stats_open pauses the game like the
+        # start menu.  Solo and Battle alike.
         self.stats = battlestats.Stats()
         self.stats_requested = None
         self.stats_open = False
@@ -1489,8 +1489,8 @@ class Overlay(QWidget):
             return
 
         # --- RESULTS WINDOW (laser/statsscreen.py): a team wiped / Solo's
-        # final KO ("end") or Ctrl+Shift+, ("live").  Full pause like the
-        # start menu; the frozen fight stays on screen behind it. ---
+        # final KO.  Full pause like the start menu; the frozen fight stays
+        # on screen behind it. ---
         if w.stats_requested and not w.stats_open:
             kind, w.stats_requested = w.stats_requested, None
             self._open_stats(kind)
@@ -1633,9 +1633,8 @@ class Overlay(QWidget):
         except Exception as e:
             action_log.crash("worldfx", e)
         _perf.lap("worldfx")
-        # Post-battle stats (laser/battlestats.py): distance / speed / action
-        # / HP sampling and the end-of-battle check.  Read-only, once per
-        # tick after everything moved; Solo and Battle alike.
+        # Post-battle stats (laser/battlestats.py): the end-of-battle check.
+        # Read-only, once per tick after everything moved; Solo and Battle.
         try:
             w.stats.step(w)
         except Exception as e:
@@ -1699,8 +1698,7 @@ class Overlay(QWidget):
 
     def _open_stats(self, kind):
         """Pause the game and show the results window (laser/statsscreen.py).
-        kind "end": the fight is over (a team wiped / Solo's final KO);
-        "live": opened mid-fight with Ctrl+Shift+,."""
+        kind "end": the fight is over (a team wiped / Solo's final KO)."""
         w = self.world
         if getattr(self, "_stats_win", None) is not None:
             self._stats_win.raise_()
