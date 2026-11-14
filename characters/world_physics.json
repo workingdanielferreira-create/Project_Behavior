@@ -212,7 +212,7 @@
   "margin_px": 60
  },
  "boulder_impact": {
-  "enabled": true,
+  "enabled": false,
   "speed_keep_pct": 0,
   "damage_keep_pct": 30,
   "chip_ms": 250,

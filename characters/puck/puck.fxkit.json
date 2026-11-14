@@ -20910,7 +20910,9 @@
      "hit_landed_ms": 0,
      "attacking": "any",
      "fight_ms": 0,
-     "enemy": "any"
+     "enemy": "any",
+     "tempo": "any",
+     "director": "any"
     }
    },
    {
@@ -20950,9 +20952,44 @@
      "hit_landed_ms": 0,
      "attacking": "any",
      "fight_ms": 0,
-     "enemy": "any"
+     "enemy": "any",
+     "tempo": "any",
+     "director": "any"
     }
    }
   ]
+ },
+ "fight_rhythm": {
+  "enabled": true,
+  "preset": "duelist",
+  "role": "auto",
+  "movement": "auto",
+  "wait_style": "mixed",
+  "neutral_ms_min": 700,
+  "neutral_ms_max": 2200,
+  "spacing_px": 60,
+  "sway_px": 40,
+  "feint_pct": 25,
+  "feint_kind": "mixed",
+  "feint_ms": 380,
+  "engage_speed_pct": 175,
+  "engage_ms_max": 1400,
+  "string_min": 2,
+  "string_max": 5,
+  "gap_start_ms": 380,
+  "gap_end_ms": 80,
+  "gap_jitter_pct": 35,
+  "pressure_speed_pct": 115,
+  "punish_pct": 70,
+  "punish_range_px": 280,
+  "punish_ms": 900,
+  "punish_speed_pct": 230,
+  "reset_ms_min": 350,
+  "reset_ms_max": 1100,
+  "reset_px": 220,
+  "director_pct": 100,
+  "aggression_pct": 100,
+  "momentum_pct": 35,
+  "gate_triggered": false
  }
 }
