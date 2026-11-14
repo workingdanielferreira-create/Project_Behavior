@@ -29,6 +29,7 @@ var CAM_DEFAULTS = {
   "speed_min": 0.40, "speed_max": 1.00,
   "planet": true, "planet_reach_x_frac": 0.6, "planet_reach_y_frac": 0.6, "planet_horizon_deg": 80.0, "planet_far": 0.15, "planet_squash": 0.85,
   "planet_ball": true, "planet_ball_radius_frac": 3.0, "planet_ball_top_frac": 0.15, "planet_ball_horizon_size": 0.02, "planet_ball_cols": 48, "planet_ball_bands": 8,
+  "planet_ball_ground_res": 0.5, "planet_ball_air_res": 0.5,
   "band": true, "band_speed_slow": 1.5, "band_speed_fast": 5.0, "band_depth_slow": 0.25, "band_ease_s": 1.0, "band_fig_squash": 0.5,
   "barrier": true, "barrier_rx_frac": 0.75, "barrier_ry_frac": 1.0, "barrier_depth_slow": 0.15, "barrier_depth_fast": 0.45,
   "barrier_speed_lo": 1.0, "barrier_speed_hi": 8.0, "barrier_return_s": 0.6, "barrier_roll": 2.0,
@@ -58,6 +59,7 @@ var CAM_RANGES = {
   "planet_ball_radius_frac": [0.2, 5.0], "planet_ball_top_frac": [0.0, 0.9],
   "planet_ball_horizon_size": [0.0, 1.0],
   "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32],
+  "planet_ball_ground_res": [0.25, 1.0], "planet_ball_air_res": [0.25, 1.0],
   "band_speed_slow": [0.0, 20.0], "band_speed_fast": [0.0, 20.0], "band_depth_slow": [0.02, 1.0],
   "band_ease_s": [0.02, 5.0], "band_fig_squash": [0.0, 0.95],
   "barrier_rx_frac": [0.2, 2.0], "barrier_ry_frac": [0.2, 2.0],
@@ -215,7 +217,9 @@ var CAM_GROUPS = [
     ["planet_ball_top_frac", "Horizon height (× height)", "Where the top of the horizon (the ball's pole) sits on screen, as a share of the screen height (0 = the very top).", 0.01],
     ["planet_ball_horizon_size", "Size at horizon ×", "How big boulders, fighters and their FX are drawn on the horizon (1 = full size). They grow smoothly to full size on the fight's row.", 0.01],
     ["planet_ball_cols", "Curve cells across", "How many slices the bend is made of across the screen. More = smoother curve, slower.", 1],
-    ["planet_ball_bands", "Curve cells up", "How many slices from the fight row up to the horizon. More = a smoother squeeze into the horizon, slower.", 1]
+    ["planet_ball_bands", "Curve cells up", "How many slices from the fight row up to the horizon. More = a smoother squeeze into the horizon, slower.", 1],
+    ["planet_ball_ground_res", "Ground resolution ×", "The ground (dust, rocks, rings, craters, trenches, rubble) is drawn and bent onto the ball at this share of the screen's resolution, then scaled up. Lower = much faster (0.5 = about 5x cheaper bend), slightly softer ground. Fighters, boulders and the HUD stay full sharpness. Game only (this preview is always full resolution).", 0.05],
+    ["planet_ball_air_res", "Air resolution ×", "Same for the air layer over the fighters: bullets, sparks, booms, damage numbers, absolute-front FX. Lower = faster, softer bullets and numbers. Game only.", 0.05]
   ]],
   ["Speed band & barrier", [
     ["band", "Speed band", "How far the big ball's bend reaches down the screen follows the fighters' speeds (their base movement stat). The world (ground, boulders, rubble, dust) is seen by the SLOWEST fighter: slow = the ground stays flat and big, only the very top bends (horizon high, off the top when very slow); fast = today's full ball. Each fighter, and the FX it fires that travel (bullets, crescents, travel / homing / zigzag FX), uses its own speed: a fast fighter shrinks and squashes toward the horizon while the slow fighter's ground stays as it is, so it looks like it covers huge ground. Near the fight row every band matches, so fighters meet at the same size. Movement pace is unchanged (drawing only). Needs Big ball. This preview always shows the full ball (no fighters' speeds here)."],
@@ -240,7 +244,7 @@ var CAM_GROUPS = [
 // matching rule names the reason.  [controller test, reason, keys]
 var CAM_DEPTH_KEYS = ["depth", "depth_base", "depth_gain", "depth_shot", "depth_budget_ms"];
 var CAM_DSCALE_KEYS = ["dscale_near", "dscale_far", "dscale_far_x_frac", "dscale_far_y_frac", "dscale_curve"];
-var CAM_BALL_KEYS = ["planet_ball_radius_frac", "planet_ball_top_frac", "planet_ball_horizon_size", "planet_ball_cols", "planet_ball_bands"];
+var CAM_BALL_KEYS = ["planet_ball_radius_frac", "planet_ball_top_frac", "planet_ball_horizon_size", "planet_ball_cols", "planet_ball_bands", "planet_ball_ground_res", "planet_ball_air_res"];
 var CAM_BAND_KEYS = ["band_speed_slow", "band_speed_fast", "band_depth_slow", "band_ease_s", "band_fig_squash"];
 var CAM_BARRIER_KEYS = ["barrier_rx_frac", "barrier_ry_frac", "barrier_depth_slow", "barrier_depth_fast",
   "barrier_speed_lo", "barrier_speed_hi", "barrier_return_s", "barrier_roll"];

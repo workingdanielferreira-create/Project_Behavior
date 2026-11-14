@@ -58,6 +58,12 @@ Only cells whose source holds something are redrawn (a zero-bytes test per
 of them (Source-mode overlaps), and only the boxes drawn last frame are
 cleared: empty ground costs nothing and the picture is byte-identical to
 redrawing every cell.
+Layer resolution (Daniel 2026-11-14, big-ball fps): the ground and air
+layers are drawn and bent at planet_ball_ground_res / planet_ball_air_res
+of the screen's resolution (passed in as a smaller dpr) and the bent result
+is scaled up onto the screen in one smooth blit.  Cost falls with the pixel
+count (1920x1200 bend: 100% 17 ms, 50% 3.3 ms); fighters, boulders and the
+HUD are drawn separately at full sharpness.
 Drawing only: hit tests, walls, targeting and the battle snapshots stay in
 plain screen coordinates.  The mouse cursor is mapped back (unwarp ->
 Camera.screen_to_world).  The HUD is drawn after it, flat.  Solo + Battle.
@@ -72,6 +78,19 @@ CONTENT_ROWS = 16                # device rows per block of the empty-space test
 CELL_MARGIN = 14.0               # px round a cell's source checked for content (> any pad, 12)
 
 
+def fit_painter(q, dpr):
+    """Scale painter q (just begun on one of BallWarp's images) so logical
+    px land on the image at `dpr` device px each.  Qt only applies an
+    image's device pixel ratio above 1.0, so a reduced-resolution layer
+    (dpr below 1, see planet_ball_ground_res) needs the rest applied here;
+    returns that extra scale (1.0 when Qt already applied it all)."""
+    have = q.deviceTransform().m11() or 1.0
+    extra = dpr / have
+    if abs(extra - 1.0) > 1e-6:
+        q.scale(extra, extra)
+    return extra
+
+
 class BallWarp:
 
     def __init__(self):
@@ -80,7 +99,7 @@ class BallWarp:
         self.head = 0           # px of room painted above the screen (ground reaches the pole)
         self._key = None
         self._cells = []
-        self._prep = None       # (dpr, per-cell paint data) for _cells
+        self._prep = {}         # dpr -> (per-cell paint data, band tops) for _cells
         self._imgs = {}
         self._dirty = {}        # image key -> device box drawn since its last clear (None = unknown)
         self._zeros = {}        # bytes-per-line -> a block of zero bytes (empty-row test)
@@ -367,9 +386,10 @@ class BallWarp:
         if key != self._key:
             self._cells = self._build(cols, bands)
             self._key = key
-            self._prep = None
+            self._prep = {}
         hd = self.head
-        if self._prep is None or self._prep[0] != dpr:
+        pr = self._prep.get(dpr)
+        if pr is None:
             # Per cell: transform, dest rect, source rect (device px), the
             # source's device box grown by CELL_MARGIN, and its screen bounds.
             m = CELL_MARGIN * dpr + 2.0
@@ -385,7 +405,7 @@ class BallWarp:
                              d.x(), d.y(), d.x() + d.width(), d.y() + d.height()))
             # Top of each band's screen boxes (for the overlap search).
             bands_y = [min(c[8] for c in prep[j:j + cols]) for j in range(0, len(prep), cols)]
-            self._prep = (dpr, prep, bands_y)
+            pr = self._prep[dpr] = (prep, bands_y)
         blocks, box = self._content(img)
         self._dirty[("src", slot)] = box
         sw, sh = self.geo[6], self.geo[7]
@@ -400,12 +420,18 @@ class BallWarp:
         ux1 = uy1 = -1e18
         q = QPainter(out)
         try:
+            # Reduced-resolution layer: the cells' screen-space transforms
+            # need the part of dpr Qt does not apply (fit_painter).
+            from PyQt5.QtGui import QTransform
+            have = q.deviceTransform().m11() or 1.0
+            extra = dpr / have
+            S = QTransform.fromScale(extra, extra) if abs(extra - 1.0) > 1e-6 else None
             # Hard cell edges + Source mode: overlapping cells replace each
             # other instead of stacking see-through pixels (no seams).
             q.setCompositionMode(QPainter.CompositionMode_Source)
             q.setRenderHint(QPainter.Antialiasing, False)
             q.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            prep = self._prep[1]
+            prep = pr[0]
             # Cells whose source holds something ...
             hits = [False] * len(prep)
             for k, c in enumerate(prep):
@@ -423,7 +449,7 @@ class BallWarp:
             # so the search stops at the first band entirely below the cell
             # (near the pole, where columns pinch together, it reaches far).
             draw = hits[:]
-            bands_y = self._prep[2]
+            bands_y = pr[1]
             nband = len(bands_y)
             for k, h in enumerate(hits):
                 if not h:
@@ -442,7 +468,7 @@ class BallWarp:
             for k, (t, r, src, _bx0, _by0, _bx1, _by1, dx0, dy0, dx1, dy1) in enumerate(prep):
                 if not draw[k]:
                     continue
-                q.setTransform(t)
+                q.setTransform(t * S if S is not None else t)
                 q.drawImage(r, img, src)
                 ux0, uy0 = min(ux0, dx0), min(uy0, dy0)
                 ux1, uy1 = max(ux1, dx1), max(uy1, dy1)

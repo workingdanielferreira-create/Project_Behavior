@@ -192,6 +192,8 @@ DEFAULTS = {
     "planet_ball_horizon_size": 0.02,  # size of standing things at the horizon (1 = full)
     "planet_ball_cols": 48,  # warp cells across (more = smoother curve, slower)
     "planet_ball_bands": 8,  # warp cells from the fight row up to the horizon
+    "planet_ball_ground_res": 0.5,  # ground layer drawn + bent at this x screen resolution (lower = faster, softer)
+    "planet_ball_air_res": 0.5,     # air layer (bullets, sparks, numbers, front FX) likewise
     # Speed band + speed barrier (laser/speedband.py; needs the big ball)
     "band": True,            # on = how far the bend reaches follows the fighters' base speeds
     "band_speed_slow": 1.5,  # base speed (px/tick) at / below which the band is thinnest
@@ -240,6 +242,7 @@ RANGES = {
     "planet_ball_radius_frac": [0.2, 5.0], "planet_ball_top_frac": [0.0, 0.9],
     "planet_ball_horizon_size": [0.0, 1.0],
     "planet_ball_cols": [16, 192], "planet_ball_bands": [2, 32],
+    "planet_ball_ground_res": [0.25, 1.0], "planet_ball_air_res": [0.25, 1.0],
     "band_speed_slow": [0.0, 20.0], "band_speed_fast": [0.0, 20.0], "band_depth_slow": [0.02, 1.0],
     "band_ease_s": [0.02, 5.0], "band_fig_squash": [0.0, 0.95],
     "barrier_rx_frac": [0.2, 2.0], "barrier_ry_frac": [0.2, 2.0],
