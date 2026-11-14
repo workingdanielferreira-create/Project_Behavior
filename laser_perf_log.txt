@@ -2970,3 +2970,573 @@
     paint:hooded_blades body avg   1.556 ms  worst    6.96 ms  x138
     paint:ground drawn     avg   0.457 ms  worst    1.08 ms  x46
     paint:pillars          avg   0.018 ms  worst    0.41 ms  x92
+17:30:20  fps 0.1  ticks/s 0.0  catch-up calls 0/0  fx 0  [puck:-, hooded_blades:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 685.789 ms  worst  685.79 ms  x1
+    paint:hud              avg 645.176 ms  worst  645.18 ms  x1
+    paint:ground bent      avg  32.469 ms  worst   32.47 ms  x1
+    paint:ground drawn     avg   2.833 ms  worst    2.83 ms  x1
+    paint:air bent         avg   2.176 ms  worst    2.18 ms  x1
+    paint:objects          avg   1.582 ms  worst    1.58 ms  x1
+    paint:air drawn        avg   1.324 ms  worst    1.32 ms  x1
+    paint:puck body        avg   0.356 ms  worst    0.84 ms  x3
+    paint:hooded_blades body avg   0.102 ms  worst    0.21 ms  x3
+    paint:pillars          avg   0.059 ms  worst    0.11 ms  x2
+    paint:puck fx          avg   0.005 ms  worst    0.01 ms  x2
+    paint:hooded_blades fx avg   0.003 ms  worst    0.00 ms  x2
+17:30:25  fps 4.8  ticks/s 12.2  catch-up calls 47/246  fx 0  [puck:engage, hooded_blades:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  30.238 ms  worst   47.33 ms  x24
+    paint:ground bent      avg  23.256 ms  worst   38.92 ms  x24
+    paint:objects          avg   2.433 ms  worst    3.42 ms  x24
+    unique+tag+escort      avg   0.881 ms  worst   49.97 ms  x61
+    time:CombatSystem      avg   0.416 ms  worst    1.15 ms  x122
+    paint:hooded_blades body avg   0.442 ms  worst    1.94 ms  x75
+    paint:hud              avg   1.350 ms  worst    3.11 ms  x24
+    paint:air bent         avg   1.202 ms  worst    1.99 ms  x24
+    paint:ground drawn     avg   0.922 ms  worst    1.97 ms  x24
+    paint:air drawn        avg   0.892 ms  worst    1.65 ms  x24
+    paint:puck body        avg   0.216 ms  worst    0.85 ms  x75
+    time:MotionSystem      avg   0.114 ms  worst    0.49 ms  x122
+    worldfx                avg   0.145 ms  worst    0.39 ms  x61
+    snapshots              avg   0.097 ms  worst    0.20 ms  x61
+    terrain                avg   0.081 ms  worst    0.17 ms  x61
+    speedband              avg   0.063 ms  worst    0.10 ms  x61
+    clash                  avg   0.047 ms  worst    0.32 ms  x61
+    tempo director         avg   0.038 ms  worst    0.12 ms  x61
+    time:CollisionSystem   avg   0.016 ms  worst    0.04 ms  x122
+    paint:pillars          avg   0.040 ms  worst    0.22 ms  x50
+    paint:puck fx          avg   0.027 ms  worst    0.05 ms  x50
+    paint:hooded_blades fx avg   0.019 ms  worst    0.04 ms  x50
+    time:ProjectileSystem  avg   0.007 ms  worst    0.01 ms  x122
+    timefx/puppet          avg   0.008 ms  worst    0.03 ms  x61
+    stats                  avg   0.006 ms  worst    0.04 ms  x61
+17:30:30  fps 10.5  ticks/s 51.3  catch-up calls 65/98  fx 4  [puck:reset, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  61.070 ms  worst  128.78 ms  x54
+    paint:ground bent      avg  43.322 ms  worst  106.50 ms  x54
+    time:CombatSystem      avg   1.815 ms  worst  477.38 ms  x528
+    paint:objects          avg   8.721 ms  worst   47.18 ms  x54
+    paint:hooded_blades fx avg   2.218 ms  worst   33.00 ms  x108
+    paint:hud              avg   2.460 ms  worst    5.49 ms  x54
+    paint:ground drawn     avg   2.102 ms  worst    4.21 ms  x54
+    paint:air bent         avg   2.101 ms  worst    3.44 ms  x54
+    paint:air drawn        avg   2.033 ms  worst    3.99 ms  x54
+    time:MotionSystem      avg   0.177 ms  worst    1.25 ms  x528
+    paint:hooded_blades body avg   0.549 ms  worst    3.11 ms  x162
+    paint:puck fx          avg   0.665 ms  worst   15.99 ms  x108
+    worldfx                avg   0.261 ms  worst    0.97 ms  x264
+    snapshots              avg   0.175 ms  worst    0.70 ms  x264
+    paint:puck body        avg   0.253 ms  worst    1.54 ms  x162
+    terrain                avg   0.135 ms  worst    0.42 ms  x264
+    clash                  avg   0.118 ms  worst    1.03 ms  x264
+    speedband              avg   0.115 ms  worst    0.59 ms  x264
+    unique+tag+escort      avg   0.111 ms  worst    0.49 ms  x264
+    time:ProjectileSystem  avg   0.036 ms  worst    0.26 ms  x528
+    tempo director         avg   0.068 ms  worst    0.48 ms  x264
+    time:CollisionSystem   avg   0.031 ms  worst    0.25 ms  x528
+    paint:pillars          avg   0.064 ms  worst    0.20 ms  x108
+    timefx/puppet          avg   0.014 ms  worst    0.06 ms  x264
+    stats                  avg   0.011 ms  worst    0.14 ms  x264
+17:30:35  fps 10.8  ticks/s 53.5  catch-up calls 58/107  fx 2  [puck:neutral, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  65.957 ms  worst   98.88 ms  x55
+    paint:ground bent      avg  40.096 ms  worst   50.59 ms  x55
+    paint:objects          avg  10.730 ms  worst   37.06 ms  x55
+    time:CombatSystem      avg   1.073 ms  worst    6.35 ms  x544
+    paint:hooded_blades fx avg   3.611 ms  worst   31.76 ms  x110
+    paint:air drawn        avg   5.941 ms  worst   13.78 ms  x55
+    paint:air bent         avg   4.150 ms  worst    9.43 ms  x55
+    paint:hud              avg   2.526 ms  worst   10.11 ms  x55
+    paint:ground drawn     avg   2.173 ms  worst    3.69 ms  x55
+    paint:puck fx          avg   0.836 ms  worst   12.29 ms  x110
+    time:MotionSystem      avg   0.155 ms  worst    1.00 ms  x544
+    worldfx                avg   0.264 ms  worst    1.21 ms  x272
+    snapshots              avg   0.181 ms  worst    0.67 ms  x272
+    clash                  avg   0.171 ms  worst    0.75 ms  x272
+    paint:hooded_blades body avg   0.255 ms  worst    1.99 ms  x165
+    terrain                avg   0.143 ms  worst    0.55 ms  x272
+    speedband              avg   0.115 ms  worst    0.52 ms  x272
+    unique+tag+escort      avg   0.108 ms  worst    0.42 ms  x272
+    paint:puck body        avg   0.165 ms  worst    0.89 ms  x165
+    time:ProjectileSystem  avg   0.045 ms  worst    0.32 ms  x544
+    tempo director         avg   0.063 ms  worst    0.26 ms  x272
+    time:CollisionSystem   avg   0.031 ms  worst    0.43 ms  x544
+    paint:pillars          avg   0.068 ms  worst    0.29 ms  x110
+    timefx/puppet          avg   0.014 ms  worst    0.08 ms  x272
+    stats                  avg   0.010 ms  worst    0.05 ms  x272
+17:30:40  fps 13.2  ticks/s 53.8  catch-up calls 76/118  fx 3  [puck:neutral, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  54.550 ms  worst  127.59 ms  x67
+    paint:ground bent      avg  29.590 ms  worst   72.35 ms  x67
+    paint:objects          avg   8.960 ms  worst   43.64 ms  x67
+    time:CombatSystem      avg   1.050 ms  worst   15.46 ms  x544
+    paint:air drawn        avg   6.865 ms  worst   17.30 ms  x67
+    paint:hooded_blades fx avg   2.587 ms  worst   36.05 ms  x134
+    paint:air bent         avg   4.214 ms  worst   10.84 ms  x67
+    paint:puck fx          avg   1.333 ms  worst   13.62 ms  x134
+    paint:hud              avg   2.440 ms  worst   19.77 ms  x67
+    paint:ground drawn     avg   2.262 ms  worst    9.94 ms  x67
+    clash                  avg   0.337 ms  worst    2.25 ms  x272
+    time:MotionSystem      avg   0.168 ms  worst    9.33 ms  x544
+    snapshots              avg   0.328 ms  worst    1.02 ms  x272
+    worldfx                avg   0.210 ms  worst    1.29 ms  x272
+    paint:hooded_blades body avg   0.155 ms  worst    1.24 ms  x201
+    terrain                avg   0.113 ms  worst    1.17 ms  x272
+    speedband              avg   0.083 ms  worst    0.41 ms  x272
+    unique+tag+escort      avg   0.082 ms  worst    0.64 ms  x272
+    paint:puck body        avg   0.099 ms  worst    0.43 ms  x201
+    time:ProjectileSystem  avg   0.033 ms  worst    0.31 ms  x544
+    time:CollisionSystem   avg   0.025 ms  worst    0.80 ms  x544
+    tempo director         avg   0.047 ms  worst    0.15 ms  x272
+    paint:pillars          avg   0.043 ms  worst    0.19 ms  x134
+    timefx/puppet          avg   0.011 ms  worst    0.05 ms  x272
+    stats                  avg   0.008 ms  worst    0.06 ms  x272
+17:30:45  fps 8.0  ticks/s 43.3  catch-up calls 57/81  fx 2  [puck:neutral, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  87.592 ms  worst  143.67 ms  x41
+    paint:ground bent      avg  47.701 ms  worst   98.42 ms  x41
+    time:CombatSystem      avg   1.534 ms  worst   21.31 ms  x444
+    paint:objects          avg  14.280 ms  worst   55.76 ms  x41
+    paint:air drawn        avg  11.079 ms  worst   17.89 ms  x41
+    paint:hooded_blades fx avg   4.953 ms  worst   41.14 ms  x82
+    paint:air bent         avg   6.491 ms  worst   12.69 ms  x41
+    paint:hud              avg   3.861 ms  worst   11.83 ms  x41
+    paint:ground drawn     avg   3.772 ms  worst    7.25 ms  x41
+    paint:puck fx          avg   1.085 ms  worst   12.37 ms  x82
+    clash                  avg   0.376 ms  worst    5.00 ms  x222
+    time:MotionSystem      avg   0.175 ms  worst    3.10 ms  x444
+    worldfx                avg   0.325 ms  worst    2.18 ms  x222
+    snapshots              avg   0.310 ms  worst    4.43 ms  x222
+    terrain                avg   0.183 ms  worst    4.10 ms  x222
+    speedband              avg   0.156 ms  worst    5.27 ms  x222
+    paint:hooded_blades body avg   0.267 ms  worst    1.66 ms  x123
+    time:ProjectileSystem  avg   0.067 ms  worst    2.94 ms  x444
+    time:CollisionSystem   avg   0.063 ms  worst    7.43 ms  x444
+    unique+tag+escort      avg   0.123 ms  worst    0.66 ms  x222
+    paint:puck body        avg   0.214 ms  worst    3.14 ms  x123
+    tempo director         avg   0.075 ms  worst    0.21 ms  x222
+    paint:pillars          avg   0.081 ms  worst    0.46 ms  x82
+    timefx/puppet          avg   0.018 ms  worst    0.05 ms  x222
+    stats                  avg   0.013 ms  worst    0.12 ms  x222
+17:30:50  fps 7.0  ticks/s 38.0  catch-up calls 48/70  fx 6  [puck:reset, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 103.227 ms  worst  334.72 ms  x35
+    paint:ground bent      avg  44.610 ms  worst   58.29 ms  x35
+    paint:objects          avg  40.835 ms  worst  239.74 ms  x35
+    paint:puck fx          avg  10.353 ms  worst  184.40 ms  x70
+    time:CombatSystem      avg   1.754 ms  worst   10.26 ms  x382
+    paint:hooded_blades fx avg   9.098 ms  worst   54.10 ms  x70
+    paint:air drawn        avg   6.612 ms  worst   24.80 ms  x35
+    paint:air bent         avg   4.029 ms  worst   13.66 ms  x35
+    paint:hud              avg   3.578 ms  worst   10.19 ms  x35
+    paint:ground drawn     avg   3.158 ms  worst    5.51 ms  x35
+    clash                  avg   0.470 ms  worst    2.98 ms  x191
+    worldfx                avg   0.338 ms  worst    1.78 ms  x191
+    snapshots              avg   0.330 ms  worst    1.48 ms  x191
+    time:MotionSystem      avg   0.115 ms  worst    0.52 ms  x382
+    terrain                avg   0.178 ms  worst    0.60 ms  x191
+    paint:hooded_blades body avg   0.261 ms  worst    1.20 ms  x105
+    speedband              avg   0.134 ms  worst    0.51 ms  x191
+    unique+tag+escort      avg   0.125 ms  worst    0.36 ms  x191
+    time:ProjectileSystem  avg   0.055 ms  worst    0.32 ms  x382
+    paint:puck body        avg   0.182 ms  worst    0.65 ms  x105
+    tempo director         avg   0.078 ms  worst    0.31 ms  x191
+    time:CollisionSystem   avg   0.037 ms  worst    0.27 ms  x382
+    paint:pillars          avg   0.083 ms  worst    0.36 ms  x70
+    timefx/puppet          avg   0.021 ms  worst    0.22 ms  x191
+    stats                  avg   0.013 ms  worst    0.05 ms  x191
+17:30:55  fps 3.9  ticks/s 22.7  catch-up calls 37/40  fx 2  [puck:engage, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 212.744 ms  worst  282.57 ms  x20
+    paint:objects          avg 133.086 ms  worst  193.85 ms  x20
+    paint:puck fx          avg  61.245 ms  worst  183.63 ms  x40
+    paint:ground bent      avg  45.888 ms  worst   51.51 ms  x20
+    time:CombatSystem      avg   2.066 ms  worst   13.22 ms  x234
+    paint:air drawn        avg  17.220 ms  worst   25.15 ms  x20
+    paint:air bent         avg   8.471 ms  worst   12.47 ms  x20
+    paint:hooded_blades fx avg   4.140 ms  worst   36.21 ms  x40
+    paint:hud              avg   4.078 ms  worst    7.81 ms  x20
+    paint:ground drawn     avg   3.635 ms  worst    5.48 ms  x20
+    snapshots              avg   0.431 ms  worst    1.41 ms  x117
+    clash                  avg   0.399 ms  worst    1.45 ms  x117
+    worldfx                avg   0.341 ms  worst    0.84 ms  x117
+    terrain                avg   0.178 ms  worst    0.66 ms  x117
+    paint:hooded_blades body avg   0.314 ms  worst    1.77 ms  x60
+    paint:puck body        avg   0.272 ms  worst    1.07 ms  x60
+    speedband              avg   0.139 ms  worst    0.57 ms  x117
+    unique+tag+escort      avg   0.124 ms  worst    0.34 ms  x117
+    time:ProjectileSystem  avg   0.043 ms  worst    0.39 ms  x234
+    tempo director         avg   0.074 ms  worst    0.29 ms  x117
+    time:CollisionSystem   avg   0.036 ms  worst    0.37 ms  x234
+    time:MotionSystem      avg   0.036 ms  worst    0.18 ms  x234
+    paint:pillars          avg   0.069 ms  worst    0.18 ms  x40
+    timefx/puppet          avg   0.017 ms  worst    0.08 ms  x117
+    stats                  avg   0.012 ms  worst    0.06 ms  x117
+17:31:00  fps 5.9  ticks/s 32.6  catch-up calls 48/59  fx 2  [puck:engage, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 133.680 ms  worst  230.69 ms  x30
+    paint:objects          avg  83.016 ms  worst  155.62 ms  x30
+    paint:puck fx          avg  38.576 ms  worst  143.42 ms  x60
+    paint:ground bent      avg  29.354 ms  worst   52.60 ms  x30
+    time:CombatSystem      avg   1.812 ms  worst   13.05 ms  x335
+    paint:air drawn        avg   8.789 ms  worst   16.35 ms  x30
+    paint:air bent         avg   7.225 ms  worst   12.75 ms  x30
+    paint:hooded_blades fx avg   1.759 ms  worst   23.98 ms  x60
+    paint:hud              avg   2.511 ms  worst    6.49 ms  x30
+    paint:ground drawn     avg   2.439 ms  worst    6.12 ms  x30
+    worldfx                avg   0.321 ms  worst    0.90 ms  x167
+    clash                  avg   0.272 ms  worst    1.45 ms  x167
+    paint:puck body        avg   0.360 ms  worst    1.50 ms  x90
+    snapshots              avg   0.192 ms  worst    0.70 ms  x167
+    terrain                avg   0.154 ms  worst    0.42 ms  x167
+    paint:hooded_blades body avg   0.236 ms  worst    2.14 ms  x90
+    time:MotionSystem      avg   0.062 ms  worst    1.76 ms  x335
+    speedband              avg   0.119 ms  worst    0.41 ms  x167
+    unique+tag+escort      avg   0.116 ms  worst    0.34 ms  x167
+    time:ProjectileSystem  avg   0.039 ms  worst    0.16 ms  x335
+    tempo director         avg   0.075 ms  worst    0.55 ms  x167
+    time:CollisionSystem   avg   0.028 ms  worst    0.24 ms  x334
+    paint:pillars          avg   0.061 ms  worst    0.16 ms  x60
+    timefx/puppet          avg   0.014 ms  worst    0.08 ms  x167
+    stats                  avg   0.011 ms  worst    0.03 ms  x167
+17:31:06  fps 4.9  ticks/s 30.2  catch-up calls 47/50  fx 16  [puck:feint, hooded_blades:reset]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 145.712 ms  worst  197.44 ms  x25
+    paint:objects          avg  61.506 ms  worst  101.03 ms  x25
+    paint:ground bent      avg  52.186 ms  worst   77.21 ms  x25
+    paint:puck fx          avg  25.484 ms  worst   59.69 ms  x50
+    time:CombatSystem      avg   2.955 ms  worst   11.75 ms  x317
+    paint:air drawn        avg  12.430 ms  worst   25.75 ms  x25
+    paint:air bent         avg   9.775 ms  worst   21.40 ms  x25
+    paint:hooded_blades fx avg   4.036 ms  worst   37.81 ms  x50
+    paint:ground drawn     avg   5.144 ms  worst   10.87 ms  x25
+    paint:hud              avg   4.336 ms  worst   11.53 ms  x25
+    clash                  avg   0.462 ms  worst    2.64 ms  x154
+    worldfx                avg   0.368 ms  worst    1.36 ms  x154
+    snapshots              avg   0.228 ms  worst    0.67 ms  x154
+    time:MotionSystem      avg   0.096 ms  worst    0.56 ms  x317
+    terrain                avg   0.179 ms  worst    0.56 ms  x154
+    paint:hooded_blades body avg   0.327 ms  worst    1.83 ms  x75
+    paint:puck body        avg   0.302 ms  worst    1.18 ms  x75
+    unique+tag+escort      avg   0.124 ms  worst    0.45 ms  x154
+    speedband              avg   0.121 ms  worst    0.39 ms  x154
+    time:ProjectileSystem  avg   0.054 ms  worst    0.32 ms  x317
+    tempo director         avg   0.071 ms  worst    0.24 ms  x154
+    time:CollisionSystem   avg   0.035 ms  worst    0.26 ms  x308
+    paint:pillars          avg   0.067 ms  worst    0.22 ms  x50
+    timefx/puppet          avg   0.018 ms  worst    0.19 ms  x154
+    stats                  avg   0.012 ms  worst    0.16 ms  x154
+17:31:11  fps 5.0  ticks/s 30.2  catch-up calls 49/50  fx 19  [puck:engage, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 146.845 ms  worst  221.23 ms  x25
+    paint:ground bent      avg  54.366 ms  worst  118.37 ms  x25
+    paint:objects          avg  49.770 ms  worst   71.31 ms  x25
+    paint:puck fx          avg  17.305 ms  worst   30.07 ms  x50
+    time:CombatSystem      avg   2.216 ms  worst   12.17 ms  x352
+    paint:air drawn        avg  17.651 ms  worst   25.25 ms  x25
+    paint:air bent         avg  14.085 ms  worst   20.52 ms  x25
+    paint:hooded_blades fx avg   6.229 ms  worst   27.00 ms  x50
+    paint:hud              avg   5.820 ms  worst    8.72 ms  x25
+    paint:ground drawn     avg   4.766 ms  worst    6.43 ms  x25
+    clash                  avg   0.699 ms  worst    2.19 ms  x152
+    snapshots              avg   0.496 ms  worst    1.53 ms  x152
+    worldfx                avg   0.342 ms  worst    1.05 ms  x152
+    paint:hooded_blades body avg   0.445 ms  worst    1.43 ms  x75
+    time:MotionSystem      avg   0.086 ms  worst    0.64 ms  x352
+    terrain                avg   0.169 ms  worst    0.33 ms  x152
+    speedband              avg   0.127 ms  worst    1.51 ms  x152
+    paint:puck body        avg   0.256 ms  worst    0.84 ms  x75
+    unique+tag+escort      avg   0.120 ms  worst    0.38 ms  x152
+    time:ProjectileSystem  avg   0.046 ms  worst    0.17 ms  x352
+    tempo director         avg   0.068 ms  worst    0.22 ms  x152
+    time:CollisionSystem   avg   0.033 ms  worst    0.17 ms  x304
+    paint:pillars          avg   0.078 ms  worst    0.37 ms  x50
+    timefx/puppet          avg   0.015 ms  worst    0.04 ms  x152
+    stats                  avg   0.013 ms  worst    0.22 ms  x152
+17:31:16  fps 4.6  ticks/s 27.7  catch-up calls 46/46  fx 5  [puck:pressure, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 165.159 ms  worst  235.09 ms  x23
+    paint:ground bent      avg  56.641 ms  worst   70.32 ms  x23
+    paint:objects          avg  55.080 ms  worst  109.62 ms  x23
+    paint:puck fx          avg  16.787 ms  worst   33.76 ms  x46
+    time:CombatSystem      avg   1.940 ms  worst    9.27 ms  x357
+    paint:air drawn        avg  24.006 ms  worst   32.28 ms  x23
+    paint:hooded_blades fx avg   9.296 ms  worst   48.15 ms  x46
+    paint:air bent         avg  18.266 ms  worst   33.04 ms  x23
+    paint:ground drawn     avg   5.696 ms  worst    7.33 ms  x23
+    paint:hud              avg   5.110 ms  worst   10.98 ms  x23
+    clash                  avg   0.741 ms  worst    2.40 ms  x140
+    snapshots              avg   0.476 ms  worst    1.57 ms  x140
+    worldfx                avg   0.355 ms  worst    0.74 ms  x140
+    paint:hooded_blades body avg   0.509 ms  worst    2.00 ms  x69
+    time:MotionSystem      avg   0.089 ms  worst    0.64 ms  x357
+    terrain                avg   0.184 ms  worst    0.52 ms  x140
+    speedband              avg   0.132 ms  worst    0.86 ms  x140
+    time:ProjectileSystem  avg   0.051 ms  worst    0.65 ms  x357
+    paint:puck body        avg   0.260 ms  worst    1.05 ms  x69
+    unique+tag+escort      avg   0.122 ms  worst    0.28 ms  x140
+    tempo director         avg   0.071 ms  worst    0.23 ms  x140
+    time:CollisionSystem   avg   0.033 ms  worst    0.20 ms  x280
+    paint:pillars          avg   0.071 ms  worst    0.24 ms  x46
+    timefx/puppet          avg   0.018 ms  worst    0.20 ms  x140
+    stats                  avg   0.014 ms  worst    0.28 ms  x140
+17:31:21  fps 6.4  ticks/s 33.9  catch-up calls 42/66  fx 19  [puck:pressure, hooded_blades:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 120.581 ms  worst  163.25 ms  x33
+    paint:ground bent      avg  52.558 ms  worst   66.50 ms  x33
+    paint:objects          avg  33.888 ms  worst   59.16 ms  x33
+    paint:puck fx          avg  13.778 ms  worst   34.74 ms  x66
+    time:CombatSystem      avg   0.967 ms  worst    8.75 ms  x600
+    paint:air bent         avg  12.555 ms  worst   23.55 ms  x33
+    paint:air drawn        avg  12.254 ms  worst   19.69 ms  x33
+    paint:ground drawn     avg   4.871 ms  worst    8.46 ms  x33
+    paint:hud              avg   4.097 ms  worst    6.74 ms  x33
+    paint:hooded_blades fx avg   1.923 ms  worst   29.62 ms  x66
+    worldfx                avg   0.324 ms  worst    0.70 ms  x174
+    snapshots              avg   0.292 ms  worst    1.73 ms  x174
+    terrain                avg   0.208 ms  worst    0.93 ms  x174
+    paint:hooded_blades body avg   0.354 ms  worst    2.34 ms  x99
+    clash                  avg   0.200 ms  worst    0.86 ms  x174
+    time:MotionSystem      avg   0.052 ms  worst    0.63 ms  x600
+    paint:puck body        avg   0.272 ms  worst    1.14 ms  x99
+    time:ProjectileSystem  avg   0.040 ms  worst    0.44 ms  x600
+    speedband              avg   0.121 ms  worst    0.35 ms  x174
+    unique+tag+escort      avg   0.110 ms  worst    0.22 ms  x174
+    tempo director         avg   0.068 ms  worst    0.27 ms  x174
+    time:CollisionSystem   avg   0.029 ms  worst    0.32 ms  x348
+    paint:pillars          avg   0.070 ms  worst    0.34 ms  x66
+    timefx/puppet          avg   0.015 ms  worst    0.13 ms  x174
+    stats                  avg   0.012 ms  worst    0.12 ms  x174
+17:31:26  fps 2.6  ticks/s 19.3  catch-up calls 26/26  fx 27  [puck:engage, hooded_blades:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 272.965 ms  worst  379.50 ms  x13
+    paint:objects          avg 144.788 ms  worst  223.22 ms  x13
+    paint:hooded_blades fx avg  47.694 ms  worst  171.12 ms  x26
+    time:CombatSystem      avg   1.745 ms  worst    9.11 ms  x490
+    paint:ground bent      avg  58.805 ms  worst   75.78 ms  x13
+    paint:puck fx          avg  20.936 ms  worst   33.77 ms  x26
+    paint:air drawn        avg  35.992 ms  worst   52.12 ms  x13
+    clash                  avg   3.379 ms  worst   12.11 ms  x98
+    paint:air bent         avg  18.547 ms  worst   24.01 ms  x13
+    paint:ground drawn     avg   7.288 ms  worst    9.79 ms  x13
+    paint:hud              avg   7.165 ms  worst   10.56 ms  x13
+    paint:hooded_blades body avg   1.853 ms  worst   13.19 ms  x39
+    worldfx                avg   0.536 ms  worst    1.24 ms  x98
+    snapshots              avg   0.381 ms  worst    0.92 ms  x98
+    terrain                avg   0.229 ms  worst    0.73 ms  x98
+    time:ProjectileSystem  avg   0.045 ms  worst    0.77 ms  x490
+    time:MotionSystem      avg   0.039 ms  worst    0.77 ms  x490
+    paint:puck body        avg   0.449 ms  worst    1.04 ms  x39
+    time:CollisionSystem   avg   0.086 ms  worst    0.75 ms  x196
+    unique+tag+escort      avg   0.133 ms  worst    0.65 ms  x98
+    speedband              avg   0.122 ms  worst    0.32 ms  x98
+    tempo director         avg   0.069 ms  worst    0.13 ms  x98
+    paint:pillars          avg   0.087 ms  worst    0.34 ms  x26
+    timefx/puppet          avg   0.016 ms  worst    0.03 ms  x98
+    stats                  avg   0.012 ms  worst    0.06 ms  x98
+17:31:31  fps 2.5  ticks/s 16.8  catch-up calls 26/26  fx 15  [puck:neutral, hooded_blades:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 322.248 ms  worst  411.56 ms  x13
+    paint:objects          avg 186.640 ms  worst  251.97 ms  x13
+    paint:hooded_blades fx avg  56.190 ms  worst  193.81 ms  x26
+    paint:ground bent      avg  60.601 ms  worst   69.18 ms  x13
+    paint:puck fx          avg  30.111 ms  worst   72.21 ms  x26
+    time:CombatSystem      avg   1.941 ms  worst    8.17 ms  x300
+    paint:air drawn        avg  42.091 ms  worst   56.99 ms  x13
+    paint:air bent         avg  18.928 ms  worst   25.57 ms  x13
+    paint:hooded_blades body avg   3.814 ms  worst   19.68 ms  x39
+    clash                  avg   1.529 ms  worst    2.95 ms  x87
+    paint:hud              avg   7.512 ms  worst    9.33 ms  x13
+    paint:ground drawn     avg   6.145 ms  worst    9.66 ms  x13
+    worldfx                avg   0.456 ms  worst    1.19 ms  x87
+    snapshots              avg   0.376 ms  worst    0.85 ms  x87
+    paint:puck body        avg   0.649 ms  worst    1.38 ms  x39
+    time:CollisionSystem   avg   0.097 ms  worst    0.33 ms  x174
+    terrain                avg   0.163 ms  worst    0.44 ms  x87
+    time:ProjectileSystem  avg   0.044 ms  worst    0.59 ms  x300
+    unique+tag+escort      avg   0.129 ms  worst    0.46 ms  x87
+    time:MotionSystem      avg   0.037 ms  worst    0.81 ms  x300
+    speedband              avg   0.119 ms  worst    0.26 ms  x87
+    tempo director         avg   0.067 ms  worst    0.11 ms  x87
+    paint:pillars          avg   0.081 ms  worst    0.27 ms  x26
+    timefx/puppet          avg   0.017 ms  worst    0.07 ms  x87
+    stats                  avg   0.011 ms  worst    0.02 ms  x87
+17:31:36  fps 3.2  ticks/s 22.2  catch-up calls 34/34  fx 10  [puck:punish, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 224.334 ms  worst  334.64 ms  x17
+    paint:objects          avg 146.911 ms  worst  232.92 ms  x17
+    paint:puck fx          avg  41.820 ms  worst  108.38 ms  x34
+    paint:hooded_blades fx avg  27.734 ms  worst  130.92 ms  x34
+    time:CombatSystem      avg   1.971 ms  worst    8.92 ms  x450
+    paint:ground bent      avg  40.311 ms  worst   65.18 ms  x17
+    paint:air drawn        avg  15.090 ms  worst   34.21 ms  x17
+    clash                  avg   1.719 ms  worst    6.94 ms  x117
+    paint:air bent         avg  11.301 ms  worst   16.81 ms  x17
+    paint:hud              avg   5.889 ms  worst    8.56 ms  x17
+    paint:hooded_blades body avg   1.658 ms  worst   10.52 ms  x51
+    paint:ground drawn     avg   4.502 ms  worst    6.34 ms  x17
+    worldfx                avg   0.411 ms  worst    0.75 ms  x117
+    snapshots              avg   0.346 ms  worst    1.14 ms  x117
+    paint:puck body        avg   0.753 ms  worst    1.70 ms  x51
+    time:MotionSystem      avg   0.063 ms  worst    0.70 ms  x450
+    time:CollisionSystem   avg   0.097 ms  worst    1.09 ms  x234
+    time:ProjectileSystem  avg   0.043 ms  worst    0.50 ms  x450
+    terrain                avg   0.159 ms  worst    0.28 ms  x117
+    unique+tag+escort      avg   0.124 ms  worst    0.24 ms  x117
+    speedband              avg   0.118 ms  worst    0.25 ms  x117
+    tempo director         avg   0.068 ms  worst    0.22 ms  x117
+    paint:pillars          avg   0.066 ms  worst    0.19 ms  x34
+    timefx/puppet          avg   0.018 ms  worst    0.09 ms  x117
+    stats                  avg   0.011 ms  worst    0.04 ms  x117
+17:31:41  fps 2.3  ticks/s 18.4  catch-up calls 24/24  fx 27  [puck:engage, hooded_blades:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 289.509 ms  worst  342.01 ms  x12
+    paint:objects          avg 182.377 ms  worst  236.32 ms  x12
+    time:CombatSystem      avg   2.539 ms  worst   15.49 ms  x424
+    paint:hooded_blades fx avg  39.945 ms  worst  115.95 ms  x24
+    paint:puck fx          avg  39.283 ms  worst   56.09 ms  x24
+    paint:ground bent      avg  50.659 ms  worst   56.44 ms  x12
+    paint:air drawn        avg  26.293 ms  worst   37.91 ms  x12
+    paint:hooded_blades body avg   5.875 ms  worst   31.48 ms  x36
+    paint:air bent         avg  17.312 ms  worst   36.73 ms  x12
+    clash                  avg   2.186 ms  worst    4.30 ms  x95
+    snapshots              avg   1.213 ms  worst    2.19 ms  x95
+    paint:hud              avg   7.226 ms  worst    9.47 ms  x12
+    paint:puck body        avg   1.912 ms  worst   10.32 ms  x36
+    paint:ground drawn     avg   5.279 ms  worst    8.52 ms  x12
+    worldfx                avg   0.524 ms  worst    0.91 ms  x95
+    time:MotionSystem      avg   0.069 ms  worst    0.30 ms  x424
+    time:ProjectileSystem  avg   0.044 ms  worst    0.25 ms  x424
+    terrain                avg   0.163 ms  worst    0.31 ms  x95
+    time:CollisionSystem   avg   0.074 ms  worst    0.71 ms  x190
+    speedband              avg   0.128 ms  worst    0.62 ms  x95
+    unique+tag+escort      avg   0.126 ms  worst    0.26 ms  x95
+    tempo director         avg   0.074 ms  worst    0.40 ms  x95
+    timefx/puppet          avg   0.018 ms  worst    0.13 ms  x95
+    paint:pillars          avg   0.066 ms  worst    0.12 ms  x24
+    stats                  avg   0.013 ms  worst    0.05 ms  x95
+17:31:47  fps 3.7  ticks/s 22.0  catch-up calls 34/37  fx 3  [puck:reset]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 212.473 ms  worst  363.53 ms  x19
+    paint:objects          avg 128.833 ms  worst  254.65 ms  x19
+    paint:puck fx          avg  25.629 ms  worst   52.47 ms  x38
+    paint:hooded_blades fx avg  26.066 ms  worst  100.72 ms  x36
+    paint:ground bent      avg  46.313 ms  worst   62.01 ms  x19
+    time:CombatSystem      avg   1.689 ms  worst    7.06 ms  x364
+    paint:hooded_blades body avg   7.285 ms  worst   36.77 ms  x54
+    paint:air drawn        avg  16.875 ms  worst   23.81 ms  x19
+    paint:air bent         avg  11.782 ms  worst   28.28 ms  x19
+    paint:puck body        avg   2.316 ms  worst   10.52 ms  x57
+    paint:ground drawn     avg   4.784 ms  worst    7.30 ms  x19
+    clash                  avg   0.773 ms  worst    2.17 ms  x112
+    snapshots              avg   0.627 ms  worst    2.08 ms  x112
+    paint:hud              avg   3.556 ms  worst   15.58 ms  x19
+    worldfx                avg   0.486 ms  worst    2.30 ms  x112
+    terrain                avg   0.134 ms  worst    0.38 ms  x112
+    time:MotionSystem      avg   0.039 ms  worst    0.34 ms  x364
+    unique+tag+escort      avg   0.115 ms  worst    0.51 ms  x112
+    time:ProjectileSystem  avg   0.034 ms  worst    0.26 ms  x364
+    speedband              avg   0.107 ms  worst    0.29 ms  x112
+    tempo director         avg   0.070 ms  worst    0.25 ms  x112
+    time:CollisionSystem   avg   0.033 ms  worst    0.15 ms  x223
+    paint:pillars          avg   0.061 ms  worst    0.13 ms  x38
+    timefx/puppet          avg   0.015 ms  worst    0.03 ms  x112
+    stats                  avg   0.012 ms  worst    0.04 ms  x112
+17:31:52  fps 10.0  ticks/s 19.9  catch-up calls 43/65  fx 1  [puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  84.128 ms  worst  198.55 ms  x50
+    paint:ground bent      avg  37.491 ms  worst  132.73 ms  x50
+    paint:objects          avg  25.014 ms  worst   58.05 ms  x50
+    paint:puck fx          avg  11.480 ms  worst   36.85 ms  x100
+    paint:air drawn        avg   8.789 ms  worst   41.90 ms  x50
+    paint:air bent         avg   6.376 ms  worst   18.46 ms  x50
+    time:CombatSystem      avg   1.673 ms  worst    6.69 ms  x100
+    paint:ground drawn     avg   3.278 ms  worst    7.53 ms  x50
+    paint:hud              avg   2.864 ms  worst    5.51 ms  x50
+    paint:puck body        avg   0.528 ms  worst    2.07 ms  x150
+    worldfx                avg   0.221 ms  worst    1.08 ms  x100
+    terrain                avg   0.147 ms  worst    0.40 ms  x100
+    speedband              avg   0.085 ms  worst    0.51 ms  x100
+    unique+tag+escort      avg   0.082 ms  worst    0.22 ms  x100
+    tempo director         avg   0.056 ms  worst    0.25 ms  x100
+    paint:pillars          avg   0.053 ms  worst    0.18 ms  x100
+    time:MotionSystem      avg   0.049 ms  worst    0.25 ms  x100
+    time:ProjectileSystem  avg   0.035 ms  worst    0.11 ms  x100
+    clash                  avg   0.029 ms  worst    0.80 ms  x100
+    snapshots              avg   0.027 ms  worst    0.20 ms  x100
+    timefx/puppet          avg   0.021 ms  worst    0.10 ms  x100
+    stats                  avg   0.010 ms  worst    0.04 ms  x100
+    time:CollisionSystem   avg   0.009 ms  worst    0.02 ms  x100
+17:31:57  fps 42.2  ticks/s 0.0  catch-up calls 93/224  fx 1  [puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  18.123 ms  worst   30.20 ms  x212
+    paint:objects          avg  11.942 ms  worst   20.33 ms  x212
+    paint:puck fx          avg   5.136 ms  worst   10.54 ms  x424
+    paint:ground drawn     avg   1.481 ms  worst    3.67 ms  x212
+    paint:ground bent      avg   1.324 ms  worst    2.64 ms  x212
+    paint:air bent         avg   1.318 ms  worst    2.61 ms  x212
+    paint:puck body        avg   0.432 ms  worst    2.24 ms  x636
+    paint:hud              avg   1.084 ms  worst    2.72 ms  x212
+    paint:air drawn        avg   0.712 ms  worst    2.51 ms  x212
+    paint:pillars          avg   0.043 ms  worst    0.23 ms  x424
+17:32:02  fps 29.5  ticks/s 0.0  catch-up calls 140/156  fx 1  [puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  27.282 ms  worst   48.40 ms  x148
+    paint:objects          avg  18.117 ms  worst   34.47 ms  x148
+    paint:puck fx          avg   7.776 ms  worst   18.19 ms  x296
+    paint:ground drawn     avg   2.072 ms  worst    3.03 ms  x148
+    paint:puck body        avg   0.681 ms  worst    4.00 ms  x444
+    paint:air bent         avg   2.004 ms  worst    4.97 ms  x148
+    paint:ground bent      avg   1.970 ms  worst    2.87 ms  x148
+    paint:hud              avg   1.643 ms  worst    6.05 ms  x148
+    paint:air drawn        avg   1.103 ms  worst    6.46 ms  x148
+    paint:pillars          avg   0.064 ms  worst    0.33 ms  x296
+17:32:07  fps 30.6  ticks/s 0.0  catch-up calls 146/155  fx 1  [puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  26.451 ms  worst   40.98 ms  x153
+    paint:objects          avg  17.396 ms  worst   26.07 ms  x153
+    paint:puck fx          avg   7.491 ms  worst   15.55 ms  x306
+    paint:ground drawn     avg   2.023 ms  worst    4.08 ms  x153
+    paint:ground bent      avg   1.990 ms  worst   13.54 ms  x153
+    paint:air bent         avg   1.990 ms  worst    3.14 ms  x153
+    paint:puck body        avg   0.638 ms  worst    2.91 ms  x459
+    paint:hud              avg   1.630 ms  worst    5.22 ms  x153
+    paint:air drawn        avg   1.056 ms  worst    3.04 ms  x153
+    paint:pillars          avg   0.059 ms  worst    0.34 ms  x306
+17:32:18  fps 22.2  ticks/s 0.4  catch-up calls 198/416  fx 1  [puff:-, hooded_blades:neutral]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  12.427 ms  worst  175.39 ms  x246
+    paint:objects          avg   7.698 ms  worst   21.53 ms  x246
+    paint:puck fx          avg   3.307 ms  worst   10.16 ms  x492
+    paint:hud              avg   1.125 ms  worst  110.08 ms  x246
+    paint:ground bent      avg   1.105 ms  worst   43.77 ms  x246
+    paint:ground drawn     avg   0.953 ms  worst    2.90 ms  x246
+    paint:air bent         avg   0.898 ms  worst    2.39 ms  x246
+    paint:puck body        avg   0.282 ms  worst    2.94 ms  x738
+    paint:air drawn        avg   0.482 ms  worst    9.22 ms  x246
+    CombatSystem           avg   1.961 ms  worst   10.34 ms  x8
+    paint:pillars          avg   0.027 ms  worst    0.21 ms  x494
+    paint:puff fx          avg   1.372 ms  worst    2.67 ms  x2
+    paint:puff body        avg   0.857 ms  worst    2.30 ms  x3
+    MotionSystem           avg   0.151 ms  worst    0.34 ms  x8
+    worldfx                avg   0.265 ms  worst    0.27 ms  x4
+    paint:hooded_blades body avg   0.328 ms  worst    0.84 ms  x3
+    snapshots              avg   0.155 ms  worst    0.22 ms  x4
+    terrain                avg   0.140 ms  worst    0.15 ms  x4
+    unique+tag+escort      avg   0.134 ms  worst    0.22 ms  x4
+    speedband              avg   0.119 ms  worst    0.14 ms  x4
+    clash                  avg   0.077 ms  worst    0.10 ms  x4
+    ProjectileSystem       avg   0.034 ms  worst    0.04 ms  x8
+    tempo director         avg   0.068 ms  worst    0.09 ms  x4
+    CollisionSystem        avg   0.021 ms  worst    0.03 ms  x8
+    stats                  avg   0.017 ms  worst    0.04 ms  x4
+    paint:hooded_blades fx avg   0.023 ms  worst    0.03 ms  x2
+    timefx/puppet          avg   0.009 ms  worst    0.01 ms  x4
+17:32:23  fps 6.2  ticks/s 27.9  catch-up calls 32/63  fx 5  [puff:-, hooded_blades:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 136.576 ms  worst  175.90 ms  x32
+    paint:objects          avg  48.096 ms  worst   96.28 ms  x32
+    paint:ground bent      avg  43.772 ms  worst   60.08 ms  x32
+    paint:air drawn        avg  20.909 ms  worst   30.28 ms  x32
+    paint:puff body        avg   6.821 ms  worst   33.17 ms  x96
+    paint:air bent         avg  16.157 ms  worst   27.13 ms  x32
+    paint:puff fx          avg   6.619 ms  worst   30.88 ms  x64
+    paint:hooded_blades fx avg   4.481 ms  worst   26.69 ms  x64
+    time:CombatSystem      avg   0.996 ms  worst    2.99 ms  x283
+    paint:hud              avg   4.889 ms  worst   10.80 ms  x32
+    paint:hooded_blades body avg   1.626 ms  worst   10.58 ms  x96
+    paint:ground drawn     avg   2.401 ms  worst    3.42 ms  x32
+    clash                  avg   0.356 ms  worst    1.59 ms  x143
+    worldfx                avg   0.276 ms  worst    1.50 ms  x143
+    snapshots              avg   0.203 ms  worst    0.73 ms  x143
+    terrain                avg   0.155 ms  worst    2.36 ms  x143
+    unique+tag+escort      avg   0.106 ms  worst    0.20 ms  x143
+    speedband              avg   0.104 ms  worst    0.41 ms  x143
+    time:ProjectileSystem  avg   0.044 ms  worst    0.38 ms  x283
+    time:CollisionSystem   avg   0.037 ms  worst    0.59 ms  x282
+    time:MotionSystem      avg   0.035 ms  worst    0.25 ms  x283
+    tempo director         avg   0.062 ms  worst    0.24 ms  x143
+    paint:pillars          avg   0.071 ms  worst    0.27 ms  x64
+    CombatSystem           avg   0.960 ms  worst    1.77 ms  x4
+    timefx/puppet          avg   0.013 ms  worst    0.03 ms  x143
+    stats                  avg   0.010 ms  worst    0.02 ms  x143
+    MotionSystem           avg   0.142 ms  worst    0.26 ms  x4
+    ProjectileSystem       avg   0.038 ms  worst    0.04 ms  x4
+    CollisionSystem        avg   0.024 ms  worst    0.03 ms  x4

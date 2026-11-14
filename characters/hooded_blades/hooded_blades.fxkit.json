@@ -23481,7 +23481,21 @@
   "defend": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [],
+   "conditions": [
+    {
+     "type": "action_triggered",
+     "who": "target",
+     "action": "ultimate",
+     "ms": 300,
+     "not": false
+    },
+    {
+     "type": "damage_taken",
+     "hp": 500,
+     "ms": 1000,
+     "not": false
+    }
+   ],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
@@ -23550,14 +23564,30 @@
     "bf_face": "target"
    },
    "blink": {
-    "blinks": [],
-    "enabled": false,
-    "cooldown_ms": 0
+    "blinks": [
+     {
+      "start_frame": 0,
+      "end_frame": 22,
+      "anchor": "target",
+      "direction": "behind",
+      "angle_deg": 0,
+      "mirror": false,
+      "proximity_px": 235,
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
+     }
+    ],
+    "enabled": true,
+    "cooldown_ms": 1000
    },
    "time": {
     "enabled": false,
     "start_frame": 0,
-    "end_frame": -1,
+    "end_frame": 15,
     "scope": "enemy_fighters",
     "speed": 0,
     "keys": [],
@@ -24575,7 +24605,7 @@
     "radius": 160,
     "span": 0,
     "swing_ticks": 3,
-    "hold_ticks": 10,
+    "hold_ticks": 0,
     "density": 1,
     "w_mode": "satellite",
     "w_blade": "both",
@@ -24748,8 +24778,8 @@
     "thickness": 4,
     "radius": 160,
     "span": 0,
-    "swing_ticks": 5,
-    "hold_ticks": 10,
+    "swing_ticks": 3,
+    "hold_ticks": 0,
     "density": 1,
     "w_mode": "pierce_chop",
     "w_blade": "both",
@@ -24826,7 +24856,7 @@
    "id": "Emw78ww7f1",
    "action": "attack_normal_4",
    "enabled": true,
-   "start_frame": 0,
+   "start_frame": 2,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
@@ -24880,10 +24910,10 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 30,
+    "damage": 20,
     "pierce": true,
     "rehit_ticks": 1,
-    "knockback": 8,
+    "knockback": 12,
     "blockable": true,
     "deflectable": true,
     "armed": 1
@@ -24922,8 +24952,8 @@
     "thickness": 4,
     "radius": 160,
     "span": 0,
-    "swing_ticks": 5,
-    "hold_ticks": 10,
+    "swing_ticks": 2,
+    "hold_ticks": 0,
     "density": 1,
     "w_mode": "signature",
     "w_blade": "both",
@@ -25096,8 +25126,8 @@
     "thickness": 4,
     "radius": 195,
     "span": 0,
-    "swing_ticks": 9,
-    "hold_ticks": 10,
+    "swing_ticks": 3,
+    "hold_ticks": 0,
     "density": 1,
     "w_mode": "signature",
     "w_blade": "both",
@@ -25270,8 +25300,8 @@
     "thickness": 4,
     "radius": 160,
     "span": 0,
-    "swing_ticks": 9,
-    "hold_ticks": 10,
+    "swing_ticks": 4,
+    "hold_ticks": 0,
     "density": 1,
     "w_mode": "pierce_chop",
     "w_blade": "both",
@@ -25348,7 +25378,7 @@
    "id": "Emw8bw6n25",
    "action": "attack_normal_3",
    "enabled": true,
-   "start_frame": 0,
+   "start_frame": 2,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
