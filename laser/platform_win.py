@@ -38,7 +38,6 @@ VK_2     = 0x32
 VK_3     = 0x33            # default slot C key (laser/roster.py)
 VK_4     = 0x34            # default slot D key (laser/roster.py)
 VK_PERIOD = 0xBE           # VK_OEM_PERIOD: the '.' / '>' key
-VK_COMMA  = 0xBC           # VK_OEM_COMMA: Ctrl+Shift+, = battle stats (laser/statsscreen.py)
 VK_LBUTTON = 0x01          # left mouse button: HUD action buttons (laser/hudclick.py)
 
 _BELOW_NORMAL = 0x00004000
