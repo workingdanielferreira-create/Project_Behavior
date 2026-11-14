@@ -3961,13 +3961,28 @@ class Player:
                 # travels stands at its own spot with its owner's band and
                 # takes the size of its own spot, instead of riding the
                 # owner's feet.  No-op otherwise.
+                # A travelling beam stands at its BASE (the tail, the end
+                # by the hand), not at its flying head: bent about the head,
+                # the head's lean / size swung the whole beam and its base
+                # slid off the hand as the head flew out (Puck's special).
                 old = None
                 if inst.fx["motion"]["kind"] in MOVERS:
-                    old = _speedband.travel_at(p, inst.x, inst.y, getattr(host, "fig", None),
+                    sx, sy = travel_spot(inst, ps)
+                    old = _speedband.travel_at(p, sx, sy, getattr(host, "fig", None),
                                                None if (inst.fx.get("params") or {}).get("pos_scale") else ps)
                 draw_inst(p, inst, host, ps)
                 if old is not None:
                     p.setTransform(old)
+
+
+def travel_spot(inst, ps):
+    """Where a travelling FX stands on the big ball (speedband.travel_at):
+    its own spot, except a beam, which stands at its base (tail)."""
+    if inst.fx["prim"] == "beam":
+        hx, hy, ux, uy, reach = beam_reach(inst, ps)
+        if reach > 0:
+            return hx - ux * reach, hy - uy * reach
+    return inst.x, inst.y
 
 
 def inst_layer(inst, ps):
