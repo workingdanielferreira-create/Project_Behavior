@@ -122,5 +122,7 @@ def _report(world, el):
         time.strftime("%H:%M:%S"), _frames[0] / el, _ticks[0] / el, _catchup[0], _calls[0], nfx, ", ".join(figs), view)]
     for name, (tot, n, worst) in sorted(_sec.items(), key=lambda kv: -kv[1][0]):
         lines.append("    %-22s avg %7.3f ms  worst %7.2f ms  x%d" % (name, tot / max(1, n), worst, n))
-    with open(_path[0], "a", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
+    # Written by action_log's background thread: a direct append here froze
+    # the game ~17 s whenever Windows held the file (Daniel 2026-11-14).
+    from . import action_log
+    action_log.append(_path[0], "\n".join(lines) + "\n")
