@@ -26,6 +26,7 @@ from . import battlestats
 from . import worldfx
 from . import terrain
 from . import speedband
+from . import ballwarp
 from . import wireframe
 from . import camera as _camera
 from .prebattle import PreBattleMenu
@@ -1877,19 +1878,27 @@ class Overlay(QWidget):
         ball = cam.ball
         dpr = self.devicePixelRatioF()
 
+        # Layer resolution (laser/ballwarp.py): each bent layer is drawn and
+        # bent at its own share of the screen resolution (a smaller dpr),
+        # then scaled up in one smooth blit.  Objects stay full sharpness.
+        _res = {0: cam.cfg.get("planet_ball_ground_res", 1.0),
+                1: cam.cfg.get("planet_ball_air_res", 1.0)}
+
         def bent(layer, slot):
             _perf.pbegin()
-            img = ball.image(self.width(), self.height(), dpr, slot)
+            ldpr = dpr * max(0.25, min(1.0, float(_res.get(slot, 1.0) or 1.0)))
+            img = ball.image(self.width(), self.height(), ldpr, slot)
             qp = QPainter(img)
             qp.setRenderHint(QPainter.Antialiasing)
             qp.setRenderHint(QPainter.SmoothPixmapTransform)
+            ballwarp.fit_painter(qp, ldpr)   # reduced-resolution layer (Qt skips dpr < 1)
             qp.translate(0, ball.head)       # room above the screen: the ground reaches the horizon
             try:
                 self._paint_scene(qp, hud=False, wire=True, layer=layer)
             finally:
                 qp.end()
             _perf.plap("paint:" + layer + " drawn")
-            ball.paint(p, img, cam.cfg, dpr, slot)
+            ball.paint(p, img, cam.cfg, ldpr, slot)
             _perf.plap("paint:" + layer + " bent")
 
         # Speed band (laser/speedband.py): every layer is drawn with the
