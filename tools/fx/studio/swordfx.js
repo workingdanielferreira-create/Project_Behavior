@@ -43,6 +43,7 @@ var POWER = function () { return G.POWERFX; };
 var GUN = function () { return G.GUNFX; };
 var WEAPON = function () { return G.WEAPONFX; };
 var CRESCENT = function () { return G.CRESCENTFX; };
+var SLASHLINE = function () { return G.SLASHLINE; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -65,6 +66,7 @@ function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
 function isGun(st) { return GUN() && GUN().STYLES.indexOf(st) >= 0; }
 function isWeapon(st) { return WEAPON() && WEAPON().STYLES.indexOf(st) >= 0; }
 function isCrescent(st) { return CRESCENT() && CRESCENT().STYLES.indexOf(st) >= 0; }
+function isSlashLine(st) { return SLASHLINE() && SLASHLINE().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
@@ -76,6 +78,7 @@ function activeTicks(P) {
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
   if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
   if (isCrescent(st)) return CRESCENT().activeTicks(P);
+  if (isSlashLine(st)) return SLASHLINE().activeTicks(P);
   if (isStrike(st)) return STRIKE().activeTicks(P);
   if (isKick(st)) return KICK().activeTicks(P);
   if (isPower(st)) return POWER().activeTicks(P);
@@ -89,6 +92,7 @@ function totalTicks(P) {
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
   if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
   if (isCrescent(st)) return CRESCENT().totalTicks(P);
+  if (isSlashLine(st)) return SLASHLINE().totalTicks(P);
   if (isStrike(st)) return STRIKE().totalTicks(P);
   if (isKick(st)) return KICK().totalTicks(P);
   if (isPower(st)) return POWER().totalTicks(P);
@@ -101,7 +105,7 @@ function totalTicks(P) {
 function onSpawn(inst, host) {
   // Slashes and weapons are laid out round the fighter's facing (turned by
   // Follow direction); the rest along the aim.
-  var fx = inst.fx, st = style(fx.params), f, slash = CUTS[st] !== undefined || isWeapon(st);
+  var fx = inst.fx, st = style(fx.params), f, slash = CUTS[st] !== undefined || isWeapon(st) || isSlashLine(st);
   if (slash) f = FXK().turnBy([inst.facing, 0], FXK().bodyDeg(fx, host, [inst.x, inst.y]));
   else f = inst.dir.slice();
   var n = hyp(f[0], f[1]) || 1;
@@ -125,6 +129,7 @@ function onSpawn(inst, host) {
   inst.w_arm = isWeapon(st) ? [WEAPON().armAng(inst, host)] : [];   // Hold: the rig's blade angle, per tick
   inst.w_hand = isWeapon(st) ? [WEAPON().handRec(inst, host)] : [];   // Follow hand: both hands, per tick
   if (POWER()) POWER().onSpawn(inst, host);
+  if (isSlashLine(st)) SLASHLINE().onSpawn(inst, host);
   recordOutline(inst, host);
   inst.life = activeTicks(fx.params);
 }
@@ -362,6 +367,7 @@ function hit(inst, tx, ty, hr, ps) {
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
   if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
   if (isCrescent(st)) return CRESCENT().hit(inst, tx, ty, hr, ps);
+  if (isSlashLine(st)) return SLASHLINE().hit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   if (isKick(st)) return KICK().hit(inst, tx, ty, hr, ps);
   if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
@@ -417,6 +423,7 @@ function body(inst, ps) {
   if (st === "blade_extension") return extBody(inst, ps);
   if (st === "forward_thrust") return thrBody(inst, ps);
   if (isCrescent(st)) return CRESCENT().body(inst, ps);
+  if (isSlashLine(st)) return SLASHLINE().body(inst, ps);
   if (isStrike(st)) return STRIKE().body(inst, ps);
   if (isKick(st)) return KICK().body(inst, ps);
   if (isPower(st) || isGun(st)) return null;
@@ -946,6 +953,7 @@ function draw(g, inst, host, ps) {
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
   else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
   else if (isCrescent(st)) CRESCENT().draw(pen, inst, host, ps);
+  else if (isSlashLine(st)) SLASHLINE().draw(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else if (isKick(st)) KICK().draw(pen, inst, host, ps);
   else if (isPower(st)) POWER().draw(pen, inst, host, ps);

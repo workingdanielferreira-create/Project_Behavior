@@ -387,7 +387,11 @@ var PARAM_DEFAULTS = {
     // the splitting moon bursts, ground_px = the ground below the effect
     // (ground drag / moonfall), spin_deg = returning moon's spin per tick,
     // scatter_path fan / converge / wild, fall_angle_deg = moonfall's lean.
-    moons: 5, weaves: 2, split_pct: 45, ground_px: 30, spin_deg: 34, scatter_path: "fan", fall_angle_deg: 18}
+    moons: 5, weaves: 2, split_pct: 45, ground_px: 30, spin_deg: 34, scatter_path: "fan", fall_angle_deg: 18,
+    // Straight slash (slashline.js): cut_deg = the way the blade travels
+    // (local, 0 = forward, -90 = up), curve_pct 0 = straight .. 100 = half
+    // circle (negative = the other way), slash_from start / end / centre.
+    cut_deg: -30, curve_pct: 25, slash_from: "start"}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -402,8 +406,11 @@ var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "cresce
   "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis",
   "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
   "void_sniper",
-  "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall"];
+  "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall",
+  "straight_slash"];
 var TECH_STYLE_DEFAULTS = {
+  // One cut you lay out yourself (slashline.js): its middle is the anchor point.
+  straight_slash: {length: 240, thickness: 12, swing_ticks: 5, hold_ticks: 8, cut_deg: -30, curve_pct: 25, slash_from: "start"},
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
   diagonal_slash: {radius: 60, span: 110, thickness: 12, swing_ticks: 6},
