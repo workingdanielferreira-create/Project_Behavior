@@ -2708,7 +2708,7 @@ function buildRetreatProps(d) {
 // Its conditions are the action trigger conditions; "this action" = the dodge.
 function buildDodgeProps(d) {
   var s = sec(d, "Dodge (whole character)", "a-dodge",
-    "React to incoming enemy projectiles (built-in bullets and FX Studio shots) by sidestepping, blinking and / or playing an action.", "act");
+    "React to incoming enemy projectiles (built-in bullets and FX Studio shots) or any damaging FX by sidestepping, blinking, playing an action or parrying.", "act");
   var dg = S.dodge, ch = function () { save(); buildProps(); };
   var num = function (label, key, lo, hi, step, help) {
     field(s, label, inp("n", dg[key], function (v) { dg[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
@@ -2719,18 +2719,29 @@ function buildDodgeProps(d) {
   var acts = [["", "— none —"]].concat(Object.keys(C.actions).map(function (k) { return [k, k]; }));
   // --- How
   field(s, "Style", inp([["sidestep", "Sidestep"], ["blink", "Blink (teleport)"], ["action", "Play an action"],
-    ["sidestep_action", "Sidestep + action"], ["blink_action", "Blink + action"]], dg.style, function (v) { dg.style = v; ch(); })).title =
-    "Sidestep: a fast physical step out of the projectile's way. Blink: an instant teleport to the same spot (crackle and afterimages). Play an action: plays the action below; its own Movement and its own Blink (Blink (this action)) carry the fighter. The + styles do both at once.";
-  var withAct = dg.style.indexOf("action") >= 0, moves = dg.style !== "action";
+    ["sidestep_action", "Sidestep + action"], ["blink_action", "Blink + action"], ["parry", "Parry (deflect)"]], dg.style, function (v) { dg.style = v; ch(); })).title =
+    "Sidestep: a fast physical step out of the projectile's way. Blink: an instant teleport to the same spot (crackle and afterimages). Play an action: plays the action below; its own Movement and its own Blink (Blink (this action)) carry the fighter. The + styles do both at once. Parry: stands its ground, plays the action below and deflects / reflects / destroys whatever reaches it during the parry window.";
+  var parry = dg.style === "parry";
+  var withAct = dg.style.indexOf("action") >= 0 || parry, moves = dg.style !== "action" && !parry;
   if (withAct) {
     if (dg.action && !C.actions[dg.action]) acts.push([dg.action, dg.action + " (missing)"]);
-    field(s, "Dodge action", inp(acts, dg.action, function (v) { dg.action = v; save(); })).title =
+    field(s, parry ? "Parry action" : "Dodge action", inp(acts, dg.action, function (v) { dg.action = v; save(); })).title = parry ?
+      "Optional: the action played when it parries (e.g. a sword swing). It starts at once, skipping its own conditions and cooldown; give it no conditions so it never plays by itself. The parry window opens as it starts." :
       "The action played when it dodges (e.g. a Rig Forge \"Dodge · roll\"). It starts at once, skipping its own conditions and cooldown; give it no conditions so it never plays by itself. If it has a Blink (this action), that Blink runs too.";
   }
+  if (parry) {
+    field(s, "Parry result", inp([["deflect", "Deflect (knocked aside)"], ["reflect", "Reflect (back at the attacker)"], ["destroy", "Destroy (cancelled)"]], dg.parry_result,
+      function (v) { dg.parry_result = v; save(); })).title =
+      "Deflect: the shot is knocked aside, mirrored off the fighter at a new angle each time. Reflect: sent straight back at the attacker (a bullet's shooter, else its target). Destroy: it just vanishes. Deflect / Reflect need the effect's Deflectable on, Destroy needs Blockable on (gun / ki bullets: their effect's flags; sniper rails can't be parried). A non-travelling FX (All FX: a melee slash, a blast ...) is cancelled whatever the result.";
+    num("Parry window ms", "parry_window_ms", 0, 10000, 10, "How long the parry stays open once it starts: everything that reaches it in this time is parried.");
+    num("Parry reach px", "parry_reach_px", 0, 2000, 5, "A shot / FX this close to the fighter during the window is parried (game px at 100 % character scale; the shot's next 2 ticks of path count).");
+    if (dg.parry_result !== "destroy") field(s, "Parried shots hurt", inp("chk", dg.parry_hurts, function (v) { dg.parry_hurts = v; save(); })).title =
+      "On: a deflected / reflected shot keeps its damage and can hit the other side. Off: it flies off harmless (visual only).";
+  }
   // --- What it reacts to
-  field(s, "React to", inp([["all", "All projectiles"], ["bullets", "Bullets only"], ["fx", "FX Studio projectiles only"]], dg.react_to,
+  field(s, "React to", inp([["all", "All projectiles"], ["bullets", "Bullets only"], ["fx", "FX Studio projectiles only"], ["all_fx", "All FX (every damaging FX + bullets)"]], dg.react_to,
     function (v) { dg.react_to = v; save(); })).title =
-    "Which enemy projectiles make it dodge. FX Studio projectiles = any travelling effect with Deals damage (thrown blades, sword rain, homing / zigzag / path shots ...) and every bullet in flight of a gun or ki barrage technique.";
+    "Which enemy projectiles make it dodge. FX Studio projectiles = any travelling effect with Deals damage (thrown blades, sword rain, homing / zigzag / path shots ...) and every bullet in flight of a gun or ki barrage technique. All FX = all projectiles plus EVERY other enemy effect with Deals damage, whatever its motion or type (melee slashes, blasts, pulses, weapons, ghosts, particles); those count by distance alone (Incoming only doesn't apply to them).";
   num("Trigger distance px", "trigger_px", 0, 2000, 5, "A projectile this close (game px at 100 % character scale) makes it dodge.");
   field(s, "Incoming only", inp("chk", dg.incoming_only, function (v) { dg.incoming_only = v; save(); })).title =
     "On: only projectiles heading toward the fighter count. Off: any projectile inside the trigger distance.";
@@ -2753,7 +2764,8 @@ function buildDodgeProps(d) {
   // --- Safety
   field(s, "Invulnerable while dodging", inp("chk", dg.invulnerable, function (v) { dg.invulnerable = v; ch(); })).title =
     "On: while it dodges (the sidestep, the dodge action, plus the time below) shots and FX pass through it and nothing damages or knocks it back.";
-  num("Extra dodge time ms", "invuln_ms", 0, 5000, 10, "How long the dodge lasts after the movement ends (a blink lasts only this long): invulnerability and the Dodge FX keep going for this long.");
+  num("Extra dodge time ms", "invuln_ms", 0, 5000, 10, parry ? "How long the dodge lasts after the parry window closes: invulnerability and the Dodge FX keep going for this long." :
+    "How long the dodge lasts after the movement ends (a blink lasts only this long): invulnerability and the Dodge FX keep going for this long.");
   // --- Counter
   field(s, "Counter action", inp(acts, dg.counter_action, function (v) { dg.counter_action = v; ch(); })).title =
     "Optional: an action played right after the dodge (and its action) ends, e.g. attack_normal or attack_special. It skips its own conditions and cooldown, and needs Attack mode on.";
@@ -5906,7 +5918,7 @@ function buildDummyFx(d) {
 function dummyReset() {
   if (!S.dummies.length) loadDummies();
   S.target = S.home.slice();
-  S.fvel = [0, 0]; S.fprev = [S.figX, S.figY]; S.taken = 0; S.thits = []; S.allShots = [];
+  S.fvel = [0, 0]; S.fprev = [S.figX, S.figY]; S.taken = 0; S.thits = []; S.allShots = []; S.areaShots = [];
   S.dsim = S.dummies.map(function (d, i) {
     var ds = {clock: 0, pos: dummyHome(i), aim: [S.figX, S.figY], hp: d.hp, down: false, backAt: 0, volley: 0, spread: 0,
       flash: -99, player: new FXK.Player(), fx: buildDummyFx(d)};
@@ -5982,14 +5994,16 @@ function stepDummies(nMove, nFire) {
   // ki bullet in flight as a threat-only shot (retreat steering, dodges;
   // never blockable or deflectable, so intercepts leave them alone, all but
   // ki barrage orbs, which go by the effect's own flags: rblock / rdeflect).
-  var fxShots = [];
+  var fxShots = [], areaShots = [];
   S.dsim.forEach(function (ds) {
     ds.player.insts.forEach(function (inst) {
       var fx = inst.fx, b = fx.battle || {};
       if (inst.dead || !b.deals_damage || inst.lodge) return;
-      if (SHOT_MOTIONS.indexOf(fx.motion.kind) >= 0 && inst.age < inst.life && SHOT_SKIP.indexOf(fx.prim) < 0)
-        fxShots.push({x: inst.x, y: inst.y, vx: inst.x - inst.px, vy: inst.y - inst.py, dead: false, kind: "fx", ref: inst,
-          blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: FXK.instKnockback(inst), body: FXK.instBody(inst)});
+      var sh = {x: inst.x, y: inst.y, vx: inst.x - inst.px, vy: inst.y - inst.py, dead: false, kind: "fx", ref: inst,
+          blockable: b.blockable !== false, deflectable: b.deflectable !== false, knockback: FXK.instKnockback(inst), body: FXK.instBody(inst)};
+      if (SHOT_MOTIONS.indexOf(fx.motion.kind) >= 0 && inst.age < inst.life && SHOT_SKIP.indexOf(fx.prim) < 0) fxShots.push(sh);
+      // Every other damaging FX (melee slashes, blasts ...): Dodge "All FX" only (laser/app.py enemy_area).
+      else if (inst.age < inst.life && !SWORDFX.shoots(inst)) { sh.area = true; areaShots.push(sh); }
       if (SWORDFX.shoots(inst)) SWORDFX.livePoints(inst, inst.ps || 1).forEach(function (r) {
         fxShots.push({x: r[1], y: r[2], vx: r[3], vy: r[4], dead: false, kind: "fx", ref: inst, round: r[0],
           blockable: false, deflectable: false, knockback: FXK.instKnockback(inst, r[0]), threat: true,
@@ -6006,6 +6020,7 @@ function stepDummies(nMove, nFire) {
     });
   });
   S.allShots = S.shots.concat(fxShots);
+  S.areaShots = areaShots;
   S.ricochets = (S.ricochets || []).filter(function (q) { return q.age < RICOCHET_LIFE; });
   S.ricochets.forEach(function (q) { q.trail.push([q.x, q.y]); if (q.trail.length > 6) q.trail.shift(); q.x += q.vx; q.y += q.vy; q.age += 1; });
   S.bursts = (S.bursts || []).filter(function (q) { return q.age < 14; });
@@ -6654,6 +6669,9 @@ buildDummies();
 // rolled once per projectile (chance_pct), cooldown_ms between dodges.
 // Sidestep: distance_px at speed_pct % of 20 px/tick; blink: an instant jump;
 // action styles only mark the moment (the action itself is game-only).
+// Parry: the window's reach ring; shots in it are deflected / reflected /
+// destroyed like an Intercept takes them (reflect aims at the target dummy).
+// React to "All FX" adds the dummies' other damaging FX (S.areaShots).
 // Conditions are game-only (taken as met).  With Invulnerable on the dummies'
 // attacks pass through it while it dodges (+ invuln_ms).
 var DODGE_SPEED = 20, DODGE_LOOKAHEAD = 2;   // laser/config.py DODGE_SPEED, dodge.LOOKAHEAD_TICKS
@@ -6664,7 +6682,7 @@ function dodgeClamp() {
   S.figX = Math.max(-DODGE_AREA[0], Math.min(DODGE_AREA[0], S.figX));
   S.figY = Math.max(-DODGE_AREA[1], Math.min(DODGE_AREA[1], S.figY));
 }
-function dodgeReset() { S.dg = {clock: 0, moving: false, vx: 0, vy: 0, budget: 0, cdUntil: 0, holdUntil: -1, seen: [], flip: false, n: 0, at: -99}; }
+function dodgeReset() { S.dg = {clock: 0, moving: false, vx: 0, vy: 0, budget: 0, cdUntil: 0, holdUntil: -1, parryUntil: -1, parries: 0, seen: [], flip: false, n: 0, at: -99}; }
 function dodgeTicks(ms) { return Math.max(0, Math.round((+ms || 0) / FXK.TICK_MS)); }
 function shotId(s) { return [s.ref || s, s.round == null ? -1 : s.round]; }
 function dodgeSeen(s) { var k = shotId(s); return S.dg.seen.some(function (q) { return q[0] === k[0] && q[1] === k[1]; }); }
@@ -6672,12 +6690,25 @@ function dodgeUntouchable() {
   var cfg = S.dodge, dg = S.dg;
   return !!(cfg && cfg.enabled && cfg.invulnerable && dg && (dg.moving || dg.clock <= dg.holdUntil));
 }
+// Parry (dodge._parryable): the dummies' plain shots stand in for built-in
+// bullets (blockable and deflectable); FX by their own flags (FXK.orbTakes).
+function dodgeParryMode(cfg) { return cfg.parry_result === "destroy" ? "block" : "deflect"; }
+function dodgeParryable(s, cfg) {
+  if (s.dead || FXK.shotGone(s)) return false;
+  return s.kind !== "fx" ? true : FXK.orbTakes(s, dodgeParryMode(cfg));
+}
 function dodgeThreat(cfg) {   // dodge._threat
-  var want = cfg.react_to, reach = Math.max(0, +cfg.trigger_px || 0) * charScale(), r2 = reach * reach, best = null;
+  var want = cfg.react_to, parry = cfg.style === "parry", reach = Math.max(0, +cfg.trigger_px || 0) * charScale(), r2 = reach * reach, best = null;
+  if (want === "all_fx") (S.areaShots || []).forEach(function (s) {   // other damaging FX: distance alone
+    if (s.dead || dodgeSeen(s) || (parry && !dodgeParryable(s, cfg))) return;
+    var gap = FXK.shotNearest(s, S.figX, S.figY)[2];
+    if (gap <= reach && (!best || gap * gap < best[0])) best = [gap * gap, s];
+  });
   (S.allShots || []).forEach(function (s) {
     if (s.dead || dodgeSeen(s)) return;
     var bullet = s.kind !== "fx";   // the dummies' plain shots stand in for built-in bullets
     if ((want === "bullets" && !bullet) || (want === "fx" && bullet)) return;
+    if (parry && !dodgeParryable(s, cfg)) return;
     var b = s.body;
     if (b && (b[0] !== b[2] || b[1] !== b[3])) {   // a beam: its body sweeping across the fighter
       var gap = FXK.shotNearest(s, S.figX, S.figY)[2];
@@ -6712,6 +6743,49 @@ function dodgeDir(cfg, s) {   // dodge._direction
   }
   return sd;
 }
+var PARRY_JITTER_DEG = 25, PARRY_MIN_SPEED = 8;   // dodge.PARRY_JITTER_DEG / PARRY_MIN_SPEED
+function dodgeParryVel(cfg, s) {   // dodge._parry_vel (reflect aims at the target dummy)
+  var dg = S.dg, spd = Math.max(PARRY_MIN_SPEED, Math.hypot(s.vx, s.vy));
+  if (cfg.parry_result === "reflect") {
+    var dx = S.target[0] - s.x, dy = S.target[1] - s.y, d = Math.hypot(dx, dy);
+    if (d < 1e-6) { dx = -s.vx; dy = -s.vy; d = Math.hypot(dx, dy) || 1; }
+    return [dx / d * spd, dy / d * spd];
+  }
+  var nx = s.x - S.figX, ny = s.y - S.figY, nl = Math.hypot(nx, ny);
+  if (nl < 1e-6) { nx = -s.vx; ny = -s.vy; nl = Math.hypot(nx, ny); }
+  if (nl < 1e-6) { nx = 1; ny = 0; nl = 1; }
+  nx /= nl; ny /= nl;
+  var vn = s.vx * nx + s.vy * ny, ox, oy;
+  if (vn < 0) { ox = s.vx - 2 * vn * nx; oy = s.vy - 2 * vn * ny; } else { ox = nx; oy = ny; }
+  var a = (FXK.rng(dg.parries * 6007 + 13)() * 2 - 1) * PARRY_JITTER_DEG * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+  var rx = ox * ca - oy * sa, ry = ox * sa + oy * ca, rl = Math.hypot(rx, ry) || 1;
+  return [rx / rl * spd, ry / rl * spd];
+}
+function dodgeParryGap(s) {   // dodge._parry_gap
+  var b = s.body;
+  if (b && (b[0] !== b[2] || b[1] !== b[3])) return FXK.shotNearest(s, S.figX, S.figY)[2];
+  var dx = s.x - S.figX, dy = s.y - S.figY, mx = s.vx * DODGE_LOOKAHEAD, my = s.vy * DODGE_LOOKAHEAD, mm = mx * mx + my * my;
+  var k = mm > 1e-9 ? Math.max(0, Math.min(1, -(dx * mx + dy * my) / mm)) : 0;
+  return Math.hypot(dx + mx * k, dy + my * k);
+}
+// While the parry window is open (dodge._parry_step): every shot / FX within
+// parry_reach_px is parried through the Intercept path (host.onIntercept);
+// a non-travelling FX is cancelled.
+function dodgeParryStep(cfg) {
+  var dg = S.dg, want = cfg.react_to, reach = Math.max(0, +cfg.parry_reach_px || 0) * charScale(), mode = dodgeParryMode(cfg);
+  var cands = (S.allShots || []).filter(function (s) {
+    var bullet = s.kind !== "fx";
+    return !((want === "bullets" && !bullet) || (want === "fx" && bullet));
+  });
+  if (want === "all_fx") cands = cands.concat(S.areaShots || []);
+  cands.forEach(function (s) {
+    if (!dodgeParryable(s, cfg) || dodgeParryGap(s) > reach) return;
+    dg.seen.push(shotId(s)); if (dg.seen.length > 400) dg.seen.shift();
+    dg.parries += 1;
+    if (s.area) { s.dead = true; s.ref.age = Math.max(s.ref.age, s.ref.life); s.ref.dead = true; S.bursts.push({x: s.x, y: s.y, age: 0, mode: "block"}); return; }
+    host.onIntercept(null, s, mode, mode === "deflect" ? dodgeParryVel(cfg, s) : null, !!cfg.parry_hurts);
+  });
+}
 function dodgeMove() {
   var dg = S.dg, st = Math.hypot(dg.vx, dg.vy), k = st > 1e-6 ? Math.min(1, dg.budget / st) : 0;
   S.figX += dg.vx * k; S.figY += dg.vy * k; dodgeClamp(); dg.budget -= st;
@@ -6723,6 +6797,7 @@ function dodgeStep() {
   var cfg = S.dodge, dg = S.dg; if (!cfg || !cfg.enabled || !dg) return false;
   dg.clock += 1;
   if (dg.moving) return dodgeMove();
+  if (dg.clock < dg.parryUntil && !blinkGone()) dodgeParryStep(cfg);
   if (blinkGone() || dg.clock < dg.cdUntil) return false;
   var s = dodgeThreat(cfg); if (!s) return false;
   dg.seen.push(shotId(s)); if (dg.seen.length > 400) dg.seen.shift();
@@ -6730,6 +6805,12 @@ function dodgeStep() {
   if (pct < 100 && FXK.rng(dg.clock * 104729 + 7)() * 100 >= pct) return false;
   dg.cdUntil = dg.clock + dodgeTicks(cfg.cooldown_ms); dg.n += 1; dg.at = S.t;
   var dist = Math.max(0, +cfg.distance_px || 0) * charScale(), sty = cfg.style;
+  if (sty === "parry") {
+    dg.parryUntil = dg.clock + Math.max(1, dodgeTicks(cfg.parry_window_ms));
+    dg.holdUntil = dg.parryUntil + dodgeTicks(cfg.invuln_ms);
+    dodgeParryStep(cfg);
+    return false;
+  }
   if ((sty === "sidestep" || sty === "sidestep_action") && dist > 0) {
     var d = dodgeDir(cfg, s), spd = DODGE_SPEED * Math.max(1, +cfg.speed_pct || 0) / 100;
     dg.moving = true; dg.vx = d[0] * spd; dg.vy = d[1] * spd; dg.budget = dist; dg.holdUntil = -1;
@@ -6741,11 +6822,16 @@ function dodgeStep() {
 }
 function drawDodge(g, z) {
   var dg = S.dg; if (!dg || !S.dodge || !S.dodge.enabled) return;
+  var parry = S.dodge.style === "parry";
+  if (parry && dg.clock < dg.parryUntil) {   // the open parry window: its reach ring
+    g.save(); g.strokeStyle = "rgba(255,214,102,0.8)"; g.lineWidth = 1.5 / z; g.setLineDash([4 / z, 3 / z]);
+    g.beginPath(); g.arc(S.figX, S.figY, Math.max(0, +S.dodge.parry_reach_px || 0) * charScale(), 0, 6.2832); g.stroke(); g.restore();
+  }
   var age = S.t - dg.at; if (age < 0 || age > 12) return;
-  g.save(); g.strokeStyle = "rgba(125,224,168," + (1 - age / 12) + ")"; g.lineWidth = 2 / z;
+  g.save(); g.strokeStyle = parry ? "rgba(255,214,102," + (1 - age / 12) + ")" : "rgba(125,224,168," + (1 - age / 12) + ")"; g.lineWidth = 2 / z;
   g.beginPath(); g.arc(S.figX, S.figY, hurtR() + 4 + age, 0, 6.2832); g.stroke();
   g.fillStyle = g.strokeStyle; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
-  g.fillText("dodge", S.figX, S.figY - hurtR() - 10 - age * 0.5); g.restore();
+  g.fillText(parry ? "parry" : "dodge", S.figX, S.figY - hurtR() - 10 - age * 0.5); g.restore();
 }
 // ------------------------------------------------------------ direction sim
 // The figure travels at "move" px/tick toward "dir" degrees (0 right, 90

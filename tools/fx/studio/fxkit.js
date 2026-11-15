@@ -1245,21 +1245,31 @@ function normalizeRetreat(a) {
 // target (negative = away).  While it lasts (+ invuln_ms) `fx` plays and, with
 // invulnerable, nothing hits it.  counter_action plays counter_delay_ms after
 // it ends when the target is within counter_range_px (0 = any).
+// react_to "all_fx" = "all" plus every other enemy FX with Deals damage
+// (melee slashes, blasts, pulses ...; distance only).  style "parry": stands
+// its ground, plays `action` and for parry_window_ms parries every shot / FX
+// within parry_reach_px: parry_result deflect / reflect / destroy (respects
+// the effect's Deflectable / Blockable; a non-travelling FX is cancelled),
+// parry_hurts = a deflected / reflected one damages the other side.
 var DODGE_DEFAULTS = {enabled: false, style: "sidestep", action: "", react_to: "all",
   trigger_px: 90, incoming_only: true, chance_pct: 100, cooldown_ms: 300,
   distance_px: 108, speed_pct: 100, side: "open", angle_deg: 0,
   flash: true, afterimages: true, during_attacks: true,
   invulnerable: false, invuln_ms: 150,
+  parry_result: "deflect", parry_window_ms: 250, parry_reach_px: 60,
+  parry_hurts: true,
   counter_action: "", counter_delay_ms: 0, counter_range_px: 0,
   logic: "any", conditions: [], fx: ""};
-var DODGE_STYLES = ["sidestep", "blink", "action", "sidestep_action", "blink_action"];
+var DODGE_STYLES = ["sidestep", "blink", "action", "sidestep_action", "blink_action", "parry"];
 var DODGE_SIDES = ["open", "random", "alternate"];
-var DODGE_REACT_TO = ["all", "bullets", "fx"];
+var DODGE_REACT_TO = ["all", "bullets", "fx", "all_fx"];
+var DODGE_PARRY_RESULTS = ["deflect", "reflect", "destroy"];
 function normalizeDodge(a) {
   a = fill(a || {}, DODGE_DEFAULTS);
   if (DODGE_STYLES.indexOf(a.style) < 0) a.style = DODGE_DEFAULTS.style;
   if (DODGE_SIDES.indexOf(a.side) < 0) a.side = DODGE_DEFAULTS.side;
   if (DODGE_REACT_TO.indexOf(a.react_to) < 0) a.react_to = DODGE_DEFAULTS.react_to;
+  if (DODGE_PARRY_RESULTS.indexOf(a.parry_result) < 0) a.parry_result = DODGE_DEFAULTS.parry_result;
   a.conditions = (a.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return a;
@@ -3443,7 +3453,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   STATE_DEFAULTS: STATE_DEFAULTS, normalizeState: normalizeState,
-  DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, normalizeDodge: normalizeDodge,
+  DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, DODGE_PARRY_RESULTS: DODGE_PARRY_RESULTS, normalizeDodge: normalizeDodge, orbTakes: orbTakes, shotGone: shotGone,
   TARGET_DEFAULTS: TARGET_DEFAULTS, TARGET_MODES: TARGET_MODES, TARGET_BASIC: TARGET_BASIC, normalizeTargeting: normalizeTargeting,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
   normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,

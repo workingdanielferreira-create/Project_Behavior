@@ -9,7 +9,11 @@ runs through the action runner, so that dodge could never move them).
 What it reacts to (react_to): enemy projectiles in the side's snapshot
 (world.enemy_shots) — "bullets" = the built-in bullets, "fx" = FX Studio
 projectiles (thrown blades, sword rain, homing / zigzag / path shots ...
-anything with Deals damage that travels), "all" = both.  A projectile
+anything with Deals damage that travels), "all" = both, "all_fx" = both
+plus EVERY other enemy FX with Deals damage, whatever its motion or type
+(static / attached melee slashes, blasts, pulses, weapons, ghosts,
+particles: world.enemy_area, built by World.refresh_battle).  Those are
+judged by distance alone (incoming_only is skipped for them).  A projectile
 triggers it once it comes within trigger_px (times the character scale),
 heading at the fighter when incoming_only is on.  The check looks
 LOOKAHEAD_TICKS ahead along the projectile's path: the snapshot it reads
@@ -38,6 +42,22 @@ style — how it gets out of the way:
                     roll"); its own Movement and its own Blink (FX Studio
                     "Blink (this action)") carry the fighter
   sidestep_action / blink_action   both at once
+  parry             stands its ground and deflects instead: plays `action`
+                    (if set, e.g. a sword swing) and opens a parry window of
+                    parry_window_ms; every enemy shot / FX that comes within
+                    parry_reach_px (x character scale; a shot's next
+                    LOOKAHEAD_TICKS of path count) during it is parried, at
+                    its source (the same code FX Studio Intercepts use):
+                    parry_result "deflect" = knocked aside (mirrored off the
+                    fighter, seeded jitter), "reflect" = sent back at the
+                    fighter's target, "destroy" = cancelled.  A deflected /
+                    reflected one damages the other side when parry_hurts.
+                    The effect's own flags are respected: deflect / reflect
+                    need Deflectable, destroy needs Blockable (gun / ki
+                    rounds: their effect's flags; sniper rails never), and
+                    only a parryable threat starts a parry.  A non-travelling
+                    FX ("all_fx": a melee slash, a blast ...) is cancelled
+                    whatever the result (it has nothing to fly back with).
 Direction (sidestep / blink): side = "open" (away from the projectile's
 line, like the built-in dodge), "random" or "alternate" (left, right, ...),
 then turned angle_deg toward the target (negative = away from it).
@@ -65,19 +85,24 @@ from . import config
 from .actions import CONDITION_TYPES as CONDITIONS
 from . import unique as _unique
 
-STYLES = ("sidestep", "blink", "action", "sidestep_action", "blink_action")
+STYLES = ("sidestep", "blink", "action", "sidestep_action", "blink_action", "parry")
 SIDES = ("open", "random", "alternate")
-REACT_TO = ("all", "bullets", "fx")
+REACT_TO = ("all", "bullets", "fx", "all_fx")
+PARRY_RESULTS = ("deflect", "reflect", "destroy")
 DEFAULTS = dict(enabled=False, style="sidestep", action="", react_to="all",
                 trigger_px=90.0, incoming_only=True, chance_pct=100.0, cooldown_ms=300.0,
                 distance_px=108.0, speed_pct=100.0, side="open", angle_deg=0.0,
                 flash=True, afterimages=True, during_attacks=True,
                 invulnerable=False, invuln_ms=150.0,
+                parry_result="deflect", parry_window_ms=250.0, parry_reach_px=60.0,
+                parry_hurts=True,
                 counter_action="", counter_delay_ms=0.0, counter_range_px=0.0,
                 logic="any", conditions=[], fx="")
 KEY = "@dodge"            # the dodge's name in the condition tracker
 MARGIN_PX = 20.0          # keep the fighter this far inside the screen
 LOOKAHEAD_TICKS = 2       # stale snapshot + the shot's own move before it hits
+PARRY_JITTER_DEG = 25.0   # a deflect leaves at a new angle every time (seeded)
+PARRY_MIN_SPEED = 8.0     # px/tick a parried shot leaves with at least
 
 
 def normalize(cfg):
@@ -91,6 +116,8 @@ def normalize(cfg):
         out["side"] = DEFAULTS["side"]
     if out["react_to"] not in REACT_TO:
         out["react_to"] = DEFAULTS["react_to"]
+    if out["parry_result"] not in PARRY_RESULTS:
+        out["parry_result"] = DEFAULTS["parry_result"]
     conds = []
     for c in out.get("conditions") or []:
         t = (c or {}).get("type")
@@ -123,9 +150,12 @@ def config_for(fig):
 
 class DodgeState:
     __slots__ = ("moving", "vx", "vy", "budget", "hold_until", "act", "act_started",
-                 "cooldown_until", "seen", "flip", "counter", "counter_at", "ticks")
+                 "cooldown_until", "seen", "flip", "counter", "counter_at", "ticks",
+                 "parry_until", "parries")
 
     def __init__(self):
+        self.parry_until = -1     # tick the parry window closes
+        self.parries = 0          # parries made (seeds the deflect jitter)
         self.moving = False
         self.vx = self.vy = 0.0
         self.budget = 0.0
@@ -208,19 +238,45 @@ def _cond_met(fig, r, c, ctx, world):
     return (not v) if c.get("not") else v
 
 
-def _threat(fig, world, cfg, st, shots):
-    """The nearest projectile that should make fig dodge now, or None."""
+def _parry_mode(cfg):
+    return "block" if cfg.get("parry_result") == "destroy" else "deflect"
+
+
+def _parryable(s, cfg):
+    """Shot s can be parried with cfg's result: not already taken, and the
+    effect's own Deflectable / Blockable allow it (fxkit.orb_takes: gun / ki
+    rounds by their effect's flags, sniper rails never)."""
+    from . import fxkit
+    if s.dead or fxkit._shot_gone(s):
+        return False
+    return fxkit.orb_takes(s, _parry_mode(cfg))
+
+
+def _threat(fig, world, cfg, st, shots, area=()):
+    """The nearest projectile (or, "all_fx", other damaging FX in `area`)
+    that should make fig dodge now, or None.  A parry only reacts to what it
+    can parry."""
     from . import fxkit
     want = cfg.get("react_to")
+    parry = cfg.get("style") == "parry"
     reach = max(0.0, float(cfg.get("trigger_px") or 0)) * fig.mode.body_scale()
     r2 = reach * reach
     best = None
+    if want == "all_fx":
+        for s in area:
+            if s.dead or id(s.ref) in st.seen or (parry and not _parryable(s, cfg)):
+                continue
+            gap = fxkit.shot_nearest(s, fig.x, fig.y)[2]   # distance alone (beams: whole line)
+            if gap <= reach and (best is None or gap * gap < best[0]):
+                best = (gap * gap, s)
     for s in shots:
         if s.dead or id(s.ref) in st.seen:
             continue
         if want == "bullets" and s.kind != "bullet":
             continue
         if want == "fx" and s.kind != "fx":
+            continue
+        if parry and not _parryable(s, cfg):
             continue
         b = s.body
         if b[0] != b[2] or b[1] != b[3]:
@@ -307,11 +363,16 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
     st.counter = bool(cfg.get("counter_action")) and not _retreating(fig)   # no counter mid-retreat
     st.counter_at = None
     r.mark_fired(fig, KEY, cfg, ctx, now)
-    if style in ("action", "sidestep_action", "blink_action") and cfg.get("action"):
+    if style in ("action", "sidestep_action", "blink_action", "parry") and cfg.get("action"):
         if actions.force_action(fig, world, cfg["action"]):
             st.act, st.act_started = cfg["action"], now
     dist = max(0.0, float(cfg.get("distance_px") or 0)) * fig.mode.body_scale()
-    if style in ("sidestep", "sidestep_action") and dist > 0:
+    if style == "parry":
+        # Stands its ground: the parry window opens now (it may take the
+        # very shot that triggered it this same tick, _parry_step).
+        st.parry_until = now + max(1, _ticks(cfg.get("parry_window_ms")))
+        st.hold_until = st.parry_until + _ticks(cfg.get("invuln_ms"))
+    elif style in ("sidestep", "sidestep_action") and dist > 0:
         sx, sy = _direction(fig, world, cfg, st, s)
         spd = config.DODGE_SPEED * max(1.0, float(cfg.get("speed_pct") or 0)) / 100.0
         _stop_melee(fig)
@@ -340,6 +401,111 @@ def _start(fig, world, cfg, st, s, r, ctx, now):
 def _retreating(fig):
     rt = getattr(fig, "retreat", None)
     return rt is not None and rt.active
+
+
+def _parry_vel(fig, world, cfg, st, s):
+    """Where a parried shot flies off: reflect = back at the attacker (a
+    bullet's shooter, else fig's target), deflect = mirrored off the
+    fighter, turned a seeded new angle each time.  Speed kept (at least
+    PARRY_MIN_SPEED)."""
+    from . import retreat
+    spd = max(PARRY_MIN_SPEED, math.hypot(s.vx, s.vy))
+    if cfg.get("parry_result") == "reflect":
+        own = getattr(s.ref, "owner", None) if s.kind == "bullet" else None
+        if own is not None and hasattr(own, "x") and hasattr(own, "y"):
+            tx, ty = own.x, own.y
+        else:
+            tx, ty, _f = retreat._target(world, fig)
+        dx, dy = tx - s.x, ty - s.y
+        d = math.hypot(dx, dy)
+        if d < 1e-6:
+            dx, dy, d = -s.vx, -s.vy, math.hypot(s.vx, s.vy) or 1.0
+        return [dx / d * spd, dy / d * spd]
+    nx, ny = s.x - fig.x, s.y - fig.y
+    nl = math.hypot(nx, ny)
+    if nl < 1e-6:
+        nx, ny, nl = -s.vx, -s.vy, math.hypot(s.vx, s.vy)
+    if nl < 1e-6:
+        nx, ny, nl = 1.0, 0.0, 1.0
+    nx, ny = nx / nl, ny / nl
+    vn = s.vx * nx + s.vy * ny
+    if vn < 0:      # coming in: mirror it off the fighter
+        ox, oy = s.vx - 2.0 * vn * nx, s.vy - 2.0 * vn * ny
+    else:           # standing / already leaving: straight out
+        ox, oy = nx, ny
+    a = math.radians(fig.personality.rng.uniform(-PARRY_JITTER_DEG, PARRY_JITTER_DEG))
+    ca, sa = math.cos(a), math.sin(a)
+    ox, oy = ox * ca - oy * sa, ox * sa + oy * ca
+    ol = math.hypot(ox, oy) or 1.0
+    return [ox / ol * spd, oy / ol * spd]
+
+
+def _parry_gap(fig, s):
+    """Distance from fig to shot s over its next LOOKAHEAD_TICKS (a beam:
+    its whole line)."""
+    from . import fxkit
+    b = s.body
+    if b[0] != b[2] or b[1] != b[3]:
+        return fxkit.shot_nearest(s, fig.x, fig.y)[2]
+    dx, dy = s.x - fig.x, s.y - fig.y
+    mx, my = s.vx * LOOKAHEAD_TICKS, s.vy * LOOKAHEAD_TICKS
+    mm = mx * mx + my * my
+    k = max(0.0, min(1.0, -(dx * mx + dy * my) / mm)) if mm > 1e-9 else 0.0
+    return math.hypot(dx + mx * k, dy + my * k)
+
+
+def _parry_step(fig, world, cfg, st, shots, area):
+    """While the parry window is open: parry every shot / FX within
+    parry_reach_px, at its source (fxkit._Host.on_intercept, the Intercept
+    path).  A non-travelling FX (area) is cancelled."""
+    from . import fxkit, timefx, blink, action_log
+    if timefx.frozen(fig) or blink.gone(fig):
+        return
+    want = cfg.get("react_to")
+    reach = max(0.0, float(cfg.get("parry_reach_px") or 0)) * fig.mode.body_scale()
+    mode = _parry_mode(cfg)
+    hurts = bool(cfg.get("parry_hurts"))
+    host = None
+    cands = [(s, False) for s in shots
+             if not (want == "bullets" and s.kind != "bullet") and not (want == "fx" and s.kind != "fx")]
+    if want == "all_fx":
+        cands += [(s, True) for s in area]
+    for s, still in cands:
+        if not _parryable(s, cfg) or _parry_gap(fig, s) > reach:
+            continue
+        s.dead = True
+        st.seen.add(id(s.ref))
+        st.parries += 1
+        if still:
+            # A melee slash / blast has nothing to fly back with: cancelled.
+            s.ref.age = max(s.ref.age, s.ref.life)
+            s.ref.dead = True
+            dots = getattr(world, "collision_dots", None)
+            if dots is not None:
+                dots.append([s.x, s.y, 0])
+        else:
+            drv = getattr(fig, "fx", None)
+            if drv is not None and host is None:
+                host = fxkit._Host(drv, fig, world)
+            vel = _parry_vel(fig, world, cfg, st, s) if mode == "deflect" else None
+            if host is not None:
+                host.on_intercept(None, s, mode, vel, hurts)
+            else:
+                _kill_at_source(s)
+        action_log.log("COMBAT", f"parry {cfg.get('parry_result')} shot={s.kind}{' (fx)' if still else ''} "
+                                 f"at=({fig.x:.0f},{fig.y:.0f})")
+
+
+def _kill_at_source(s):
+    """Fallback with no FX driver: the shot just ends."""
+    from . import combat, fxkit
+    if isinstance(s.ref, fxkit.RoundRef):
+        s.ref.stop(s.x, s.y)
+    elif s.kind == "bullet":
+        combat.kill_projectile(s.ref)
+    else:
+        s.ref.age = max(s.ref.age, s.ref.life)
+        s.ref.dead = True
 
 
 def _move(fig, world, cfg, st, now):
@@ -408,11 +574,14 @@ def tick(fig, world):
             st.counter_at = None
             _counter(fig, world, cfg)
     shots = getattr(world, "enemy_shots", None) or []
+    area = (getattr(world, "enemy_area", None) or []) if cfg.get("react_to") == "all_fx" else []
     if st.seen:
-        st.seen &= {id(s.ref) for s in shots}   # forget projectiles that are gone
-    if not shots or _unique.cd_now(fig, now) < st.cooldown_until or not _can_start(fig, cfg):
+        st.seen &= {id(s.ref) for s in shots} | {id(s.ref) for s in area}   # forget projectiles that are gone
+    if now < st.parry_until:
+        _parry_step(fig, world, cfg, st, shots, area)
+    if (not shots and not area) or _unique.cd_now(fig, now) < st.cooldown_until or not _can_start(fig, cfg):
         return False
-    s = _threat(fig, world, cfg, st, shots)
+    s = _threat(fig, world, cfg, st, shots, area)
     if s is None:
         return False
     conds = cfg.get("conditions") or []
@@ -425,6 +594,8 @@ def tick(fig, world):
     if pct < 100.0 and fig.personality.rng.random() * 100.0 >= pct:
         return False
     _start(fig, world, cfg, st, s, r, ctx, now)
+    if now < st.parry_until:
+        _parry_step(fig, world, cfg, st, shots, area)
     return _move(fig, world, cfg, st, now) if st.moving else False
 
 
