@@ -3338,9 +3338,44 @@ function uaRiposte(d, P) {
   uaNum(s, "At least damage", P, "base_damage", 0, 1000, 1, "...but never less than this.");
   uaNum(s, "Knockback px", P, "knockback_px", 0, 600, 5, "How far the counter knocks the attacker back.");
   field(s, "Colour", inp("color", P.color, function (v) { P.color = v; save(); })).title = "Stance ring, counter flash and bolt colour.";
+  uaRiposteActions(d, P);
   s = sec(d, "Timing", "ua-rp-time", "Recovery around each counter.", "act");
   uaNum(s, "Cooldown ms", P, "cooldown_ms", 0, 60000, 100, "No counter (and no new stance) until this long after the last one.");
   uaNum(s, "Invincible ms", P, "invuln_ms", 0, 5000, 50, "No damage or knockback for this long after countering.");
+}
+// Riposte counter actions: each row = an action + its own conditions (ANY /
+// ALL).  On a counter the first row whose conditions pass plays; otherwise
+// the rows with no conditions take turns.  Replaces the bolt.
+function uaRiposteActions(d, P) {
+  var s = sec(d, "Counter actions", "ua-rp-acts", "Optional: actions played as the counter-strike instead of the bolt.", "act");
+  var acts = [["", "— none —"]].concat(Object.keys(C.actions).filter(function (k) { return FXK.actionKind(k) !== "locomotion"; }).map(function (k) { return [k, k]; }));
+  var ch = function () { save(); buildProps(); };
+  P.counters.forEach(function (R, i) {
+    var box = sec(s, "Counter " + (i + 1) + ": " + (R.action || "— none —") + (R.conditions.length ? "" : " (rotation)"), "ua-rp-act", "", "act");
+    var opts = acts.slice();
+    if (R.action && !C.actions[R.action]) opts.push([R.action, R.action + " (missing)"]);
+    var ae = field(box, "Action", inp(opts, R.action, function (v) { R.action = v; ch(); }));
+    ae.style.minWidth = "0"; ae.style.width = "100%";
+    ae.title = "Played at once when a hit is countered (skipping its own conditions and cooldown), with all its FX and damage. Blink strike still blinks in front of the attacker first. Give it no trigger conditions of its own if it should only play as a counter.";
+    field(box, "Conditions logic", inp([["any", "ANY condition is met"], ["all", "ALL conditions are met"]], R.logic, function (v) { R.logic = v; save(); })).title =
+      "How this counter's conditions combine. No conditions = it joins the rotation.";
+    conditionList(box, function () { return P.counters[i].conditions; }, {key: "ua-rp-cond", listId: "fxTagListRP" + i, ownLabel: "— last counter —",
+      helpOf: function (t) { return COND_HELP[t]; }, onChange: ch,
+      make: function (t) { return FXK.normalizeUnique({type: "riposte", riposte: {counters: [{conditions: [{type: t}]}]}}).riposte.counters[0].conditions[0]; }});
+    var row = document.createElement("div"); row.className = "row";
+    var up = document.createElement("button"); up.textContent = "↑"; up.title = "Move up (conditioned counters are checked top to bottom)"; up.disabled = i === 0;
+    up.onclick = function () { P.counters.splice(i - 1, 0, P.counters.splice(i, 1)[0]); ch(); };
+    var dup = document.createElement("button"); dup.textContent = "Duplicate";
+    dup.onclick = function () { P.counters.splice(i + 1, 0, clone(R)); ch(); };
+    var rm = document.createElement("button"); rm.textContent = "Remove counter";
+    rm.onclick = function () { P.counters.splice(i, 1); ch(); };
+    row.appendChild(up); row.appendChild(dup); row.appendChild(rm); box.appendChild(row);
+  });
+  var row = document.createElement("div"); row.className = "row";
+  var add = document.createElement("button"); add.textContent = "+ Counter action";
+  add.onclick = function () { P.counters.push({action: "", logic: "any", conditions: []}); ch(); };
+  row.appendChild(add); s.appendChild(row);
+  note(s, "Which one plays: counters WITH conditions are checked top to bottom against the attacker landing the hit (as \"enemy\"); the first that passes plays. If none pass, the counters with NO conditions take turns (1, 2, 3, 1 ...). Nothing eligible (or no counters) = the bolt above. \"This action\" in a condition = the last counter. An action's own FX decide its damage; Damage % / At least / Knockback apply to the bolt only.");
 }
 var DF_FORMS = "abcdef";
 function dfLetters(P) { return DF_FORMS.slice(0, Math.max(2, Math.min(6, P.forms || 2))); }

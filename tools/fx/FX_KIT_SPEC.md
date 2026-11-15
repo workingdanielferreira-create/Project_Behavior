@@ -571,7 +571,10 @@ deflected) bounce off screen edges, fighters (the hit still lands) and enemy
 shots, with speed / damage kept per bounce, mirror / seek / wobble angles and
 (bullets only) splits. `riposte`: a hit inside the timed counter stance (or by
 chance) is cancelled and answered with a fast counter bolt, optionally after
-blinking in front of the attacker. Phase Shift and Riposte never stop an
+blinking in front of the attacker. Riposte `counters` = [{`action`, `logic`
+any/all, `conditions`}]: on a counter the first row whose conditions pass
+(read against the attacker) plays that action instead of the bolt; else the
+rows with no conditions take turns; none eligible = the bolt. Phase Shift and Riposte never stop an
 unblockable (`blockable: false`) hit.
 `dual_form`: two forms (`form_a` starts, `form_b`), each with its own
 `speed_pct` / `damage_pct` / `taken_pct`, optional palette (`body` + `accent`

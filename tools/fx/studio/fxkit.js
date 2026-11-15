@@ -951,7 +951,10 @@ var UNIQUE_DEFAULTS = {
     keep_speed_pct: 100, keep_damage_pct: 100, angle: "reflect", random_deg: 25, split: 0, split_deg: 20, sparks: true},
   riposte: {mode: "stance", stance_every_ms: 3000, stance_ms: 600, chance_pct: 25,
     counter_mult_pct: 150, base_damage: 5, counter: "strike", knockback_px: 60,
-    cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a"},
+    cooldown_ms: 1500, invuln_ms: 250, color: "#ffd34a",
+    // Counter actions: [{action, logic, conditions}]; conditioned rows win in
+    // order, else the rows with no conditions take turns; replaces the bolt.
+    counters: []},
   // Shown as "Transformations" (the key stays dual_form so older files load).
   dual_form: {trigger: "gauge", gauge_hits: 12, every_ms: 8000, hp_thresholds: "60,30", combo_hits: 4, combo_window_ms: 1500,
     cooldown_ms: 2000, buff_ms: 2000, buff_speed_pct: 30, buff_damage_pct: 30, transition_fx: true, show_gauge: true,
@@ -1094,6 +1097,14 @@ function normalizeUnique(a) {
     .filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   if (a.phase_shift.logic !== "all") a.phase_shift.logic = "any";
+  a.riposte.counters = (Array.isArray(a.riposte.counters) ? a.riposte.counters : [])
+    .filter(function (r) { return r && typeof r === "object"; })
+    .map(function (r) {
+      return {action: String(r.action || ""), logic: r.logic === "all" ? "all" : "any",
+        conditions: (Array.isArray(r.conditions) ? r.conditions : [])
+          .filter(function (c) { return c && CONDITION_TYPES[c.type]; })
+          .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); })};
+    });
   // nested settings blocks are filled key by key too
   [["dual_form", "form_a"], ["dual_form", "form_b"], ["dual_form", "form_c"], ["dual_form", "form_d"],
    ["dual_form", "form_e"], ["dual_form", "form_f"], ["aegis", "blocks"], ["phantom_swap", "targets"],

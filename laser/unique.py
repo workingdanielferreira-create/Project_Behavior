@@ -124,7 +124,12 @@ DEFAULTS = {
         stance_every_ms=3000, stance_ms=600, chance_pct=25.0,
         counter_mult_pct=150.0, base_damage=5.0,
         counter="strike",            # strike | blink_strike
-        knockback_px=60.0, cooldown_ms=1500, invuln_ms=250, color="#ffd34a"),
+        knockback_px=60.0, cooldown_ms=1500, invuln_ms=250, color="#ffd34a",
+        # Counter actions (Daniel 2026-11-15): [{action, logic, conditions}].
+        # On a counter, the first row whose conditions pass (read against the
+        # attacker) plays; else the rows WITHOUT conditions take turns.  The
+        # action replaces the bolt; empty / nothing eligible = the bolt.
+        counters=[]),
     "dual_form": dict(               # shown as "Transformations" (key kept for old files)
         trigger="gauge",             # gauge | timer | hp_below | combo
         gauge_hits=12,               # gauge: hits landed + taken that fill it
@@ -394,6 +399,15 @@ def _norm(kind, raw):
         out["conditions"] = _norm_conds(out.get("conditions"))
         if out["logic"] not in ("any", "all"):
             out["logic"] = "any"
+    if kind == "riposte":
+        rows = []
+        for c in out.get("counters") or []:
+            if not isinstance(c, dict):
+                continue
+            rows.append(dict(action=str(c.get("action") or ""),
+                             logic="all" if c.get("logic") == "all" else "any",
+                             conditions=_norm_conds(c.get("conditions"))))
+        out["counters"] = rows
     return out
 
 
@@ -467,7 +481,7 @@ def _hp_pct(fig):
 class UAState:
     __slots__ = ("shots", "sparks", "legion_fired", "legion_cd", "legion_timer", "hits",
                  "charges", "recharge", "spawn", "stance_left", "stance_timer",
-                 "riposte_cd", "flash", "flash_rgb", "ps_left", "ps_on",
+                 "riposte_cd", "rp_rot", "flash", "flash_rgb", "ps_left", "ps_on",
                  "clones", "pending", "clone_of", "clone_left", "clone_P",
                  # every figure
                  "t", "landed", "stun_left", "cd_ahead",
@@ -514,6 +528,7 @@ class UAState:
         self.stance_left = 0
         self.stance_timer = 0
         self.riposte_cd = 0
+        self.rp_rot = 0          # Riposte: next counter action in the no-condition rotation
         self.flash = 0
         self.flash_rgb = (255, 255, 255)
         self.clones = []         # owner: its live Mirror Legion copies / constructs
@@ -1433,14 +1448,28 @@ def _riposte(fig, world, amount, P):
     st.stance_timer = 0
     st.riposte_cd = _ticks(P["cooldown_ms"])
     _protect(fig, world, P["invuln_ms"])
+    picked = _rp_pick(fig, world, st, P)
     x, y = fig.transform.x, fig.transform.y
-    ex, ey = _nearest(_enemy_points(fig, world), x, y) or (x + 1.0, y)
+    att = _ps_attacker(fig, world)
+    if att is not None:
+        ex, ey = att.transform.x, att.transform.y
+    else:
+        ex, ey = _nearest(_enemy_points(fig, world), x, y) or (x + 1.0, y)
     if P["counter"] == "blink_strike":
         dx, dy = x - ex, y - ey
         d = math.hypot(dx, dy) or 1.0
         _warp(fig, ex + dx / d * 45.0, ey + dy / d * 45.0)
         x, y = fig.transform.x, fig.transform.y
     rgb = _rgb(P["color"], (255, 211, 74))
+    if picked:
+        from . import actions
+        if abs(ex - x) > 0.001:
+            fig.transform.facing_left = ex < x
+        if actions.force_action(fig, world, picked):
+            _burst(st.sparks, x, y, rgb, n=14, spd=(1.5, 5.0), rng=rng)
+            st.flash = 12
+            st.flash_rgb = rgb
+            return True
     dx, dy = ex - x, ey - y
     d = math.hypot(dx, dy) or 1.0
     spd = config.PROJ_SPEED * 1.6
@@ -1456,6 +1485,45 @@ def _riposte(fig, world, amount, P):
     st.flash = 12
     st.flash_rgb = rgb
     return True
+
+
+RP_KEY = "@riposte"   # the counter in the condition tracker ("this action")
+
+
+def _rp_pick(fig, world, st, P):
+    """The counter action to play, or "" (= the bolt).  Rows with conditions
+    are checked in order against the attacker landing the hit (as "enemy");
+    the first that passes wins.  Otherwise the rows with no conditions take
+    turns.  Rows whose action this character doesn't have are skipped."""
+    rows = P.get("counters") or []
+    if not rows or world is None:
+        return ""
+    bundle = getattr(getattr(fig, "render", None), "bundle", None)
+    extra = getattr(bundle, "extra", None) or {}
+    rows = [c for c in rows if c["action"] and c["action"] in extra]
+    if not rows:
+        return ""
+    r = getattr(fig, "act", None)
+    ctx = getattr(r, "ctx", None) if r is not None else None
+    if ctx is not None:
+        from . import actions
+        att = _ps_attacker(fig, world)
+        if att is not None:
+            ctx = dict(ctx)
+            info = actions.action_info(att, world.global_tick)
+            ctx["tgt_action"] = info if info[0] else None
+        for c in rows:
+            if c["conditions"] and r._conds_pass(fig, RP_KEY, c, ctx):
+                r.mark_fired(fig, RP_KEY, c, ctx, world.global_tick)
+                return c["action"]
+    free = [c for c in rows if not c["conditions"]]
+    if not free:
+        return ""
+    c = free[st.rp_rot % len(free)]
+    st.rp_rot += 1
+    if r is not None and ctx is not None:
+        r.mark_fired(fig, RP_KEY, c, ctx, world.global_tick)
+    return c["action"]
 
 
 # ------------------------------------------------------------ Ricochet
