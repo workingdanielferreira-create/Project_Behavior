@@ -24208,8 +24208,8 @@
     "delay_ms": 120,
     "gone_ms": 40,
     "land_pick": "behind",
-    "gap_start_ms": 640,
-    "gap_end_ms": 60,
+    "gap_start_ms": 480,
+    "gap_end_ms": 40,
     "finisher": "switch_out"
    }
   }
@@ -24562,7 +24562,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 30,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 8,
     "knockback": 8,
@@ -24736,7 +24736,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 30,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 8,
     "knockback": 8,
@@ -24910,7 +24910,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 20,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 1,
     "knockback": 12,
@@ -25084,7 +25084,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 20,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 8,
     "knockback": 9,
@@ -25258,7 +25258,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 30,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 8,
     "knockback": 8,
@@ -27054,7 +27054,8 @@
      "frame": 8,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27182,7 +27183,8 @@
      "frame": 8,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27310,7 +27312,8 @@
      "frame": 9,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27438,7 +27441,8 @@
      "frame": 10,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27566,7 +27570,8 @@
      "frame": 11,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27694,7 +27699,8 @@
      "frame": 12,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27822,7 +27828,8 @@
      "frame": 12,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -27950,7 +27957,8 @@
      "frame": 13,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28078,7 +28086,8 @@
      "frame": 14,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28206,7 +28215,8 @@
      "frame": 15,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28334,7 +28344,8 @@
      "frame": 16,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28462,7 +28473,8 @@
      "frame": 16,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28590,7 +28602,8 @@
      "frame": 17,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28718,7 +28731,8 @@
      "frame": 18,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28846,7 +28860,8 @@
      "frame": 19,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -28974,7 +28989,8 @@
      "frame": 20,
      "ease": "linear",
      "set": {
-      "motion.kind": "travel"
+      "motion.kind": "travel",
+      "battle.damage": 10
      }
     }
    ],
@@ -29137,12 +29153,12 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 20,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 1,
     "knockback": 8,
     "blockable": true,
-    "deflectable": true,
+    "deflectable": false,
     "armed": 1
    },
    "motion": {
@@ -29204,7 +29220,7 @@
     "w_weight": 0,
     "w_plane": 0,
     "w_plane_roll": 0,
-    "w_side": "behind",
+    "w_side": "front",
     "w_grip": 0,
     "w_flip_at": "anchor",
     "w_move": 100,
@@ -30178,7 +30194,10 @@
     "attack_normal_3",
     "attack_normal_4",
     "attack_normal_5",
-    "attack_special"
+    "attack_special",
+    "attack_special_2",
+    "switch_in",
+    "switch_out"
    ],
    "name": "Xi-scatter",
    "enabled": true,
