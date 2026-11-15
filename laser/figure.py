@@ -290,7 +290,7 @@ class Figure:
         _escort.draw(p, self, "behind")   # escort FX guarding this fighter (laser/escort.py)
         _perf.plap("paint:" + _pk + " fx")
 
-        # --- Unique ability overlays (rage aura, riposte stance ring,
+        # --- Unique ability overlays (rage aura, riposte stance echoes,
         # phase-shift charges, form aura, shield, structures, domain tint,
         # stun, nullified-hit flash) ---
         if not gone:
