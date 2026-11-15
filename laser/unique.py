@@ -2981,6 +2981,49 @@ def draw_construct(fig, p):
     return True
 
 
+RP_ECHOES = 3              # Riposte stance: jittering afterimage echoes
+RP_ECHO_ALPHA = 150        # peak opacity 0-255
+RP_ECHO_PX = (1.5, 4.5)    # offset from the body, sprite px (scaled with the fighter)
+
+
+def _riposte_echoes(fig, p, x, y, tk, rgb, pscale):
+    """Riposte stance indicator (Daniel 2026-11-15, replaces the ring):
+    RP_ECHOES tinted silhouettes of the current pose flicker round the body.
+    Each echo jumps to a new seeded offset on its own uneven beat (3-6
+    ticks) and fades over it, so no two flickers line up.  Drawn behind
+    the sprite with the sprite's own size / tilt / squash."""
+    frame = fig._current_frame()
+    if frame is None:
+        return
+    from . import combat
+    pm = combat.silhouette(frame, rgb)
+    sx, sy = -pm.width() // 2, -pm.height() // 2
+    base = id(fig) & 0xFFFFF
+    p.save()
+    p.translate(x, y)
+    fig._squash(p)
+    if fig.aim is not None:
+        p.rotate(fig.aim)
+    elif fig.motion.rotate:
+        p.rotate(fig.transform.angle)
+    if pscale != 1.0:
+        p.scale(pscale, pscale)
+    for i in range(RP_ECHOES):
+        period = 3 + (base * 7 + i * 13) % 4
+        t = tk + (base + i * 5) % period
+        slot, ph = divmod(t, period)
+        rng = random.Random(base * 1009 + i * 7919 + slot * 104729)
+        a = rng.uniform(0.0, 2.0 * math.pi)
+        d = rng.uniform(*RP_ECHO_PX)
+        alpha = RP_ECHO_ALPHA * rng.uniform(0.55, 1.0) * (1.0 - ph / float(period))
+        if alpha < 4:
+            continue
+        p.setOpacity(alpha / 255.0)
+        p.drawPixmap(round(math.cos(a) * d) + sx, round(math.sin(a) * d) + sy, pm)
+    p.setOpacity(1.0)
+    p.restore()
+
+
 def draw(fig, p, pscale=1.0):
     """Ability overlays around the figure (drawn behind the sprite)."""
     st = getattr(fig, "ua", None)
@@ -3031,10 +3074,7 @@ def draw(fig, p, pscale=1.0):
             p.setBrush(QBrush(grad))
             p.drawEllipse(QPointF(x, y), rr, rr)
     if kind == "riposte" and st is not None and st.stance_left > 0:
-        r, g, b = _rgb(P["color"], (255, 211, 74))
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(QColor(r, g, b, 200), 2.5 * pscale))
-        p.drawEllipse(QPointF(x, y), R * 1.15, R * 1.15)
+        _riposte_echoes(fig, p, x, y, tk, _rgb(P["color"], (255, 211, 74)), pscale)
     if kind == "phase_shift" and P["state"] and P["show_state"] and st is not None and st.ps_on:
         r, g, b = fig.lut[200]
         p.setBrush(Qt.NoBrush)
