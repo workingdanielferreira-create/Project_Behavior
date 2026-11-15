@@ -264,6 +264,12 @@ def main():
     kk_py = PyTables(os.path.join(ROOT, "laser", "kickfx.py"))
     for name in ("STYLES", "ARC_STYLES", "WIND", "RETRACT", "RISE_REACH", "CONTACT", "HEAVY"):
         diff(kk_js.get(name), kk_py.get(name), "kickfx " + name, out)
+    # ... the other crescent waves' constants (laser/crescentfx.py).
+    cr_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "crescentfx.js"))
+    cr_py = PyTables(os.path.join(ROOT, "laser", "crescentfx.py"))
+    for name in ("STYLES", "GROUND_STYLES", "SCATTER_PATHS", "ARC_DEG", "CX", "EMBER_LIFE", "SHARD_LIFE", "FALL_WIND",
+                 "FALL_SLAM", "DRAG_MIN_X", "MAX_MOONS"):
+        diff(cr_js.get(name), cr_py.get(name), "crescentfx " + name, out)
     # ... the strike FX partitions the punch and kicks paint (laser/hitfx.py).
     hf_js = JsTables(os.path.join(ROOT, "tools", "fx", "studio", "hitfx.js"))
     hf_py = PyTables(os.path.join(ROOT, "laser", "hitfx.py"))

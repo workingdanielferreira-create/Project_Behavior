@@ -1871,8 +1871,10 @@ class WorldFx:
     def _is_crescent(inst):
         fxd = inst.fx
         if fxd.get("prim") == "technique":
-            from . import swordfx
-            return swordfx._style(fxd["params"]) == "crescent_wave"
+            from . import swordfx, crescentfx
+            st = swordfx._style(fxd["params"])
+            # (the ground drag and the moonfall mark the ground their own way: _crescent_ground)
+            return st == "crescent_wave" or (st in crescentfx.STYLES and st not in crescentfx.GROUND_STYLES)
         return fxd.get("prim") == "arc" and (fxd.get("motion") or {}).get("kind") in ("travel", "homing", "zigzag", "boomerang", "path")
 
     def scan_ground_fx(self, world):
@@ -1881,7 +1883,7 @@ class WorldFx:
         trail from that head - the same logic as a fighter's sound-barrier
         trail; crescents of crescent_min_damage or more streak the ground.
         Solo and Battle share this."""
-        from . import terrain, fxkit
+        from . import terrain, fxkit, crescentfx
         seen = set()
         for fig in world.all_figures():
             drv = getattr(fig, "fx", None)
@@ -1898,6 +1900,23 @@ class WorldFx:
                 for inst in pl.insts:
                     fxd = inst.fx
                     bt = fxd.get("battle") or {}
+                    if crescentfx.on_ground(inst):
+                        # Ground-drag crescent / moonfall: the ground is theirs
+                        # whatever their damage (a trench under the fin, a
+                        # crater where the moon lands).
+                        if inst.dead or inst.age >= inst.life:
+                            continue
+                        k = id(inst)
+                        rec = self.gfx.get(k)
+                        if rec is None or rec[0] is not inst:
+                            rec = self.gfx[k] = [inst, 0.0, None, None, 0]
+                        seen.add(k)
+                        rec[4] += 1
+                        try:
+                            self._crescent_ground(world, fig, G, inst, rec, crescentfx, terrain)
+                        except Exception:
+                            pass
+                        continue
                     if not bt.get("deals_damage") or inst.dead or inst.age >= inst.life:
                         continue
                     dmg = float(bt.get("damage") or 0.0)
@@ -1928,6 +1947,54 @@ class WorldFx:
             if rec[3] is not None:
                 rec[3].live = False      # the beam is gone: its spring dissolves
             terrain.end_mark(world, ("gfx", k))
+
+    def _crescent_ground(self, world, fig, G, inst, rec, crescentfx, terrain):
+        """Ground-drag crescent: its base ploughs a trench exactly where the
+        fin stands (crescentfx.ground_point), dragging rocks and dust the way
+        it travels, and leaves a crater where it ends.  Moonfall: a crater,
+        rocks and a ring of dust where it lands.  Sizes follow the spot's
+        position scale like every ground mark.  Solo and Battle share this."""
+        P = inst.fx["params"]
+        ps = inst.ps or 1.0
+        sw, sh = self.sw, self.sh
+        gx, gy = crescentfx.ground_point(inst, ps)
+        if not (-40 < gx < sw + 40 and -40 < gy < sh + 40):
+            return
+        # What is drawn at this spot is sized by the spot (speedband.travel_at):
+        # the ground work takes the same size.
+        k = self.ps(gx, gy) / max(1e-3, ps) if crescentfx.swordfx_style(P) == "crescent_drag" else 1.0
+        R, W = float(P["radius"]) * ps * k, float(P["thickness"]) * ps * k
+        sl = cfg(fig, "slam")
+        key = ("gfx", id(inst))
+        if crescentfx.swordfx_style(P) == "crescent_fall":
+            if inst.age != crescentfx.impact_tick(P):
+                return
+            rx = max(8.0, min(220.0, 0.75 * R * G["orb_crater"] / 100.0))
+            terrain.note_crater(world, gx, gy, rx, G["mark_s"], G["fade_s"])
+            self.use(fig, sl)
+            self.debris(gx, gy, "rock", 12, 1.6, _rgb(sl["rock_color"]), elev=(40.0, 75.0), spd=(3.0, 8.0), size=(2.0, 5.5))
+            self.puffs(gx, gy, 14, 3.2, _rgb(sl["color"]), 1.3, 900, up=(0.05, 0.6))
+            return
+        ux, uy = getattr(inst, "dir", (1.0, 0.0))
+        az = math.degrees(math.atan2(uy, ux))
+        if G["beam_trench"]:
+            w = max(3.0, min(60.0, 0.7 * W)) * G["trench_width"] / 100.0
+            terrain.note_mark(world, key, gx, gy, "trench", w, G)
+        if inst.age >= inst.life - 1:
+            # Where it ends: the ploughed ground heaves up.
+            rx = max(6.0, min(160.0, 0.3 * R * G["orb_crater"] / 100.0))
+            terrain.note_crater(world, gx, gy, rx, G["mark_s"], G["fade_s"])
+            self.use(fig, sl)
+            self.debris(gx, gy, "rock", 8, 1.2, _rgb(sl["rock_color"]), az=az, spread=200.0, elev=(40.0, 72.0),
+                        spd=(2.5, 7.0), size=(2.0, 4.5))
+            self.puffs(gx, gy, 8, 2.4, _rgb(sl["color"]), 1.1, 800, up=(0.05, 0.6))
+            return
+        if G["beam_debris"] and rec[4] % 2 == 1:
+            # Dragged along: rocks and dust thrown ahead, the way it travels.
+            self.use(fig, sl)
+            self.debris(gx, gy, "rock", 2, 0.8, _rgb(sl["rock_color"]), az=az, spread=100.0,
+                        elev=(30.0, 62.0), spd=(2.5, 6.5), size=(1.5, 3.8))
+            self.puffs(gx, gy, 2, 1.8, _rgb(sl["color"]), 0.9, 700, az=az, spread=70.0, up=(0.05, 0.45))
 
     def _ground_mark(self, world, fig, G, inst, rec, kind, fxkit, terrain):
         off = rec[1]

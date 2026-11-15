@@ -15,6 +15,11 @@ Styles (params.style, fxkit.TECH_STYLES):
                     rim, dark core, flames licking off its back, embers
                     falling behind it, shock rings and a gouge along its path;
                     shatters into shards when it ends
+  crescent_drag, crescent_helix, crescent_scatter, crescent_return,
+  crescent_split, crescent_fall
+                    more crescent waves (laser/crescentfx.py): ground drag,
+                    twin helix, barrage, returning moon, splitting moon,
+                    moonfall
   blade_extension   an energy blade that charges at the sword tip, shoots out
                     along the aim, holds with ripples and crackle running up
                     it, then retracts in a trail of sparkle dust; it can spin
@@ -196,6 +201,8 @@ def active_ticks(P):
         return EXT_CHARGE + EXT_EXTEND + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + EXT_RETRACT
     if st == "forward_thrust":
         return THR_WIND + _swing(P) + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + THR_RETRACT
+    if st in crescentfx.STYLES:
+        return crescentfx.active_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
     if st in kickfx.STYLES:
@@ -218,6 +225,8 @@ def total_ticks(P):
         return active_ticks(P) + EXT_DUST
     if st == "forward_thrust":
         return active_ticks(P) + THR_FADE
+    if st in crescentfx.STYLES:
+        return crescentfx.total_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
     if st in kickfx.STYLES:
@@ -654,6 +663,8 @@ def hit(inst, tx, ty, hr, ps):
         return _ext_hit(inst, tx, ty, hr, ps)
     if st == "forward_thrust":
         return _thr_hit(inst, tx, ty, hr, ps)
+    if st in crescentfx.STYLES:
+        return crescentfx.hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
     if st in kickfx.STYLES:
@@ -771,6 +782,8 @@ def body(inst, ps):
         return _ext_body(inst, ps)
     if st == "forward_thrust":
         return _thr_body(inst, ps)
+    if st in crescentfx.STYLES:
+        return crescentfx.body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
     if st in kickfx.STYLES:
@@ -1447,6 +1460,8 @@ def draw(p, inst, host, ps):
         _draw_extension(pen, inst, host, ps)
     elif st == "forward_thrust":
         _draw_thrust(pen, inst, host, ps)
+    elif st in crescentfx.STYLES:
+        crescentfx.draw(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
     elif st in kickfx.STYLES:
@@ -1470,3 +1485,4 @@ from . import kickfx  # noqa: E402
 from . import powerfx  # noqa: E402
 from . import gunfx  # noqa: E402
 from . import weaponfx  # noqa: E402
+from . import crescentfx  # noqa: E402
