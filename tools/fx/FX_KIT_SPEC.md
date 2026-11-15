@@ -62,7 +62,8 @@ these characters; it plays the PNGs.
   "dodge": {"enabled": false, "style": "sidestep", "action": "", "react_to": "all", "trigger_px": 90,
             "incoming_only": true, "chance_pct": 100, "cooldown_ms": 300, "distance_px": 108, "speed_pct": 100,
             "side": "open", "angle_deg": 0, "flash": true, "afterimages": true, "during_attacks": true,
-            "invulnerable": false, "invuln_ms": 150, "counter_action": "", "counter_delay_ms": 0,
+            "invulnerable": false, "invuln_ms": 150, "parry_result": "deflect", "parry_window_ms": 250,
+            "parry_reach_px": 60, "parry_hurts": true, "counter_action": "", "counter_delay_ms": 0,
             "counter_range_px": 0, "logic": "any", "conditions": [], "fx": ""},
   "movement_style": {"enabled": false, "select": "priority", "daze": true,
                      "phases": [{"name": "circle", "pattern": "orbit", "hold_min_ms": 0, "hold_max_ms": 0, "weight": 1,
@@ -683,7 +684,9 @@ plays nothing.
 **Dodge (`dodge`, whole character; `laser/dodge.py`).** An enemy projectile
 (`react_to`: `"bullets"` = built-in bullets, `"fx"` = FX Studio projectiles —
 travelling effects with Deals damage, and each bullet in flight of a gun or
-ki-barrage technique —, `"all"`) within `trigger_px` (times
+ki-barrage technique —, `"all"`, `"all_fx"` = `"all"` plus every other enemy
+effect with Deals damage whatever its motion or type — melee slashes, blasts,
+pulses, weapons, ghosts, particles —, judged by distance alone) within `trigger_px` (times
 the character scale), heading at the fighter when `incoming_only`, makes it
 dodge; the check looks 2 ticks ahead along the projectile's path, so a fast
 shot is seen before the tick it hits. A beam counts along its whole drawn
@@ -704,7 +707,17 @@ made mid-retreat skips its `counter_action`.
 the built-in dodge speed, 20 px/tick), `"blink"` (instant teleport to the same
 spot, crackle + afterimages when `flash`), `"action"` (plays `action`, skipping
 its conditions and cooldown; its own Movement and Blink carry the fighter), or
-`"sidestep_action"` / `"blink_action"` (both). Direction: `side` `"open"` (away
+`"sidestep_action"` / `"blink_action"` (both), or `"parry"` (stands its ground,
+plays `action` if set and opens a `parry_window_ms` window: every shot / FX
+within `parry_reach_px` (times the character scale, 2 ticks of path ahead) is
+parried at its source like an Intercept — `parry_result` `"deflect"` knocked
+aside (mirrored off the fighter, a seeded new angle each time), `"reflect"`
+sent back at the attacker / target, `"destroy"` cancelled; `parry_hurts` = a
+deflected / reflected one can damage the other side. The effect's own flags
+count: deflect / reflect need Deflectable, destroy needs Blockable (gun / ki
+rounds: their effect's flags, sniper rails never); only a parryable threat
+starts a parry. A non-travelling FX is cancelled whatever the result.
+`invuln_ms` runs after the window). Direction: `side` `"open"` (away
 from the projectile's line), `"random"` or `"alternate"`, square to its path,
 then turned `angle_deg` toward the target (negative = away).
 The dodge lasts for the sidestep, the dodge action, plus `invuln_ms` (a blink

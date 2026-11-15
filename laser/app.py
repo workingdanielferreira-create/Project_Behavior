@@ -104,7 +104,10 @@ class SideState:
         self.enemy_fx = []          # opponent's live damaging FX, bullets, crescents, petals, clones: (x, y, tags, airborne)
         self.enemy_shots = []       # opponent's projectiles as fxkit.Shot, for the
                                     # FX Studio auto-projectile tracker (Intercept)
-        self.round_refs = {}        # (id(inst), bullet index) -> fxkit.RoundRef, kept
+        self.enemy_area = []        # opponent's OTHER damaging FX (not travelling: melee
+                                    # slashes, blasts, pulses ...) as fxkit.Shot; only
+                                    # Dodge "All FX" reads them (laser/dodge.py)
+        self.round_refs = {}       # (id(inst), bullet index) -> fxkit.RoundRef, kept
                                     # across ticks so each gun / ki bullet keeps its identity
         self.partner_image = []     # per partner_figures entry: is it an image character
         self.partner_facing = []    # per partner_figures entry: facing_left (tactical retreat)
@@ -184,6 +187,7 @@ class World:
         self.enemy_projs = []
         self.enemy_fx = []
         self.enemy_shots = []
+        self.enemy_area = []
         self.partner_image = []
         self.partner_facing = []
         self.partner_gone = []
@@ -884,6 +888,7 @@ class World:
         self.partner_figures = s.partner_figures
         self.enemy_fx = s.enemy_fx
         self.enemy_shots = s.enemy_shots
+        self.enemy_area = s.enemy_area
         self.partner_image = s.partner_image
         self.partner_facing = s.partner_facing
         self.partner_gone = s.partner_gone
@@ -1007,22 +1012,32 @@ class World:
                 # Each keeps its live object so an interception acts on it
                 # at its source (kill_projectile / ending the instance).
                 shots = []
+                # Every OTHER live damaging FX (static / attached melee
+                # slashes, blasts, pulses, weapons, ghosts, particles ...):
+                # Dodge "All FX" only (laser/dodge.py).  A gun / ki technique
+                # itself is left out: its bullets are the threat (rounds).
+                area = []
                 for f in other.figures:
                     drv = getattr(f, "fx", None)
                     if drv is None:
                         continue
                     for inst in drv.player.insts + drv.clane[0].insts + drv.stack_insts():
                         fxd = inst.fx
-                        if (fxd["battle"]["deals_damage"]
-                                and not inst.dead and inst.age < inst.life and inst.lodge is None
-                                and fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
+                        if not (fxd["battle"]["deals_damage"]
+                                and not inst.dead and inst.age < inst.life and inst.lodge is None):
+                            continue
+                        sh = fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
+                                        "fx", inst,
+                                        blockable=fxd["battle"].get("blockable", True),
+                                        deflectable=fxd["battle"].get("deflectable", True),
+                                        knockback=fxkit.inst_knockback(inst),
+                                        body=fxkit.inst_body(inst))
+                        if (fxd["motion"]["kind"] in ("travel", "homing", "zigzag", "boomerang", "path")
                                 and fxd["prim"] not in ("weapon", "ghost", "particles", "pulse")):
-                            shots.append(fxkit.Shot(inst.x, inst.y, inst.x - inst.px, inst.y - inst.py,
-                                                    "fx", inst,
-                                                    blockable=fxd["battle"].get("blockable", True),
-                                                    deflectable=fxd["battle"].get("deflectable", True),
-                                                    knockback=fxkit.inst_knockback(inst),
-                                                    body=fxkit.inst_body(inst)))
+                            shots.append(sh)
+                        elif not swordfx.shoots(inst):
+                            area.append(sh)
+                side.enemy_area = area
                 shots.extend(fxkit.Shot(pr.x, pr.y, pr.vx, pr.vy, "bullet", pr)
                              for pr in other.projectiles if pr.alive and pr.hit_r_sq > 0.0)
                 # Gun / ki bullets: threat-only shots (retreat steering, Dodge,
@@ -1083,6 +1098,7 @@ class World:
                 side.partner_open = []
                 side.enemy_fx = []
                 side.enemy_shots = []
+                side.enemy_area = []
                 side.round_refs = {}
                 side.enemy_projs = []
                 side.intercepted_bullets.clear()

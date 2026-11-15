@@ -315,7 +315,7 @@ def main():
     # Dodge (laser/dodge.py).
     dg = PyTables(PY["dodge"], {"config": cfg})
     diff(js.get("DODGE_DEFAULTS"), dg.get("DEFAULTS"), "DODGE_DEFAULTS", out)
-    for name in ("STYLES", "SIDES", "REACT_TO"):
+    for name in ("STYLES", "SIDES", "REACT_TO", "PARRY_RESULTS"):
         diff(js.get("DODGE_" + name), list(dg.get(name)), "DODGE_" + name, out)
     # Unique Abilities (laser/unique.py).
     ua = PyTables(os.path.join(ROOT, "laser", "unique.py"), {"config": cfg})
