@@ -8,7 +8,8 @@
  * laser/swordfx.py for what each one paints).  Ki barrage / impact punch
  * live in strikefx.js, the power techniques (Super Saiyan aura, rasen-
  * shuriken, gigantic meteor, ghost kamikaze, serious punch, black hole) in
- * powerfx.js.
+ * powerfx.js, the other crescent waves (ground drag, twin helix, barrage,
+ * returning moon, splitting moon, moonfall) in crescentfx.js.
  */
 (function (G) {
 "use strict";
@@ -41,6 +42,7 @@ var KICK = function () { return G.KICKFX; };
 var POWER = function () { return G.POWERFX; };
 var GUN = function () { return G.GUNFX; };
 var WEAPON = function () { return G.WEAPONFX; };
+var CRESCENT = function () { return G.CRESCENTFX; };
 
 // ---------------------------------------------------------------- maths
 function cl(u) { return u < 0 ? 0 : u > 1 ? 1 : u; }
@@ -62,6 +64,7 @@ function isKick(st) { return KICK() && KICK().STYLES.indexOf(st) >= 0; }
 function isPower(st) { return POWER() && POWER().STYLES.indexOf(st) >= 0; }
 function isGun(st) { return GUN() && GUN().STYLES.indexOf(st) >= 0; }
 function isWeapon(st) { return WEAPON() && WEAPON().STYLES.indexOf(st) >= 0; }
+function isCrescent(st) { return CRESCENT() && CRESCENT().STYLES.indexOf(st) >= 0; }
 function swing(P) { return Math.max(2, Math.trunc(+P.swing_ticks || 6)); }
 function fadeT(P) { return Math.max(6, Math.round(1.6 * swing(P))); }
 function holdT(P) { return Math.max(0, Math.trunc(+P.hold_ticks || 0)); }
@@ -72,6 +75,7 @@ function activeTicks(P) {
   if (st === "crescent_wave") return Math.max(1, Math.trunc(+P.hold_ticks || 48));
   if (st === "blade_extension") return EXT_CHARGE + EXT_EXTEND + holdT(P) + EXT_RETRACT;
   if (st === "forward_thrust") return THR_WIND + swing(P) + holdT(P) + THR_RETRACT;
+  if (isCrescent(st)) return CRESCENT().activeTicks(P);
   if (isStrike(st)) return STRIKE().activeTicks(P);
   if (isKick(st)) return KICK().activeTicks(P);
   if (isPower(st)) return POWER().activeTicks(P);
@@ -84,6 +88,7 @@ function totalTicks(P) {
   if (st === "crescent_wave") return activeTicks(P) + WAVE_EMBER_LIFE;
   if (st === "blade_extension") return activeTicks(P) + EXT_DUST;
   if (st === "forward_thrust") return activeTicks(P) + THR_FADE;
+  if (isCrescent(st)) return CRESCENT().totalTicks(P);
   if (isStrike(st)) return STRIKE().totalTicks(P);
   if (isKick(st)) return KICK().totalTicks(P);
   if (isPower(st)) return POWER().totalTicks(P);
@@ -356,6 +361,7 @@ function hit(inst, tx, ty, hr, ps) {
   if (st === "crescent_wave") return waveHit(inst, tx, ty, hr, ps);
   if (st === "blade_extension") return extHit(inst, tx, ty, hr, ps);
   if (st === "forward_thrust") return thrHit(inst, tx, ty, hr, ps);
+  if (isCrescent(st)) return CRESCENT().hit(inst, tx, ty, hr, ps);
   if (isStrike(st)) return STRIKE().hit(inst, tx, ty, hr, ps);
   if (isKick(st)) return KICK().hit(inst, tx, ty, hr, ps);
   if (isPower(st)) return POWER().hit(inst, tx, ty, hr, ps);
@@ -410,6 +416,7 @@ function body(inst, ps) {
   if (st === "crescent_wave") return waveBody(inst, ps);
   if (st === "blade_extension") return extBody(inst, ps);
   if (st === "forward_thrust") return thrBody(inst, ps);
+  if (isCrescent(st)) return CRESCENT().body(inst, ps);
   if (isStrike(st)) return STRIKE().body(inst, ps);
   if (isKick(st)) return KICK().body(inst, ps);
   if (isPower(st) || isGun(st)) return null;
@@ -938,6 +945,7 @@ function draw(g, inst, host, ps) {
   if (st === "crescent_wave") drawWave(pen, inst, host, ps);
   else if (st === "blade_extension") drawExtension(pen, inst, host, ps);
   else if (st === "forward_thrust") drawThrust(pen, inst, host, ps);
+  else if (isCrescent(st)) CRESCENT().draw(pen, inst, host, ps);
   else if (isStrike(st)) STRIKE().draw(pen, inst, host, ps);
   else if (isKick(st)) KICK().draw(pen, inst, host, ps);
   else if (isPower(st)) POWER().draw(pen, inst, host, ps);
@@ -952,5 +960,5 @@ G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shot
              vivid: vivid, CUTS: CUTS,
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,
-                   hitMarks: hitMarks, HOT: HOT, BLACK: BLACK, D: D}};
+                   hitMarks: hitMarks, flame: flame, HOT: HOT, BLACK: BLACK, D: D}};
 })(window);

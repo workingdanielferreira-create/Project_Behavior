@@ -1441,7 +1441,8 @@ var PARAM_UI = {
     "thunder_bullet", "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
     "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram",
     "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
-    "void_sniper"]],
+    "void_sniper",
+    "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1507,8 +1508,15 @@ var PARAM_UI = {
     ["kick_angle_deg", "Kick direction ° (custom: from the aim, clockwise)", -180, 180, 5],
     // punch, ki barrage and kicks (STRIKEFX.FLIP_STYLES): mirror the animation in place
     ["flip_h", "Flip animation horizontally (front ↔ back, stays in place)", "chk"],
-    ["flip_v", "Flip animation vertically (top ↔ bottom, stays in place)", "chk"]]
+    ["flip_v", "Flip animation vertically (top ↔ bottom, stays in place)", "chk"],
+    // crescent waves only (laser/crescentfx.py): shown in their own panels (POWER_UI)
+    ["moons", "Crescents", 1, 12, 1], ["weaves", "Crossings before the target", 0.25, 12, 0.25],
+    ["split_pct", "Splits at % of the way", 0, 100, 1], ["ground_px", "Ground below px", -200, 400, 1],
+    ["spin_deg", "Spin ° per tick", -180, 180, 1], ["scatter_path", "Flight", ["fan", "converge", "wild"]],
+    ["fall_angle_deg", "Fall lean °", -80, 80, 1]]
 };
+// Crescent wave settings: PARAM_UI keys shown only in the crescent panels.
+var CRESCENT_KEYS = ["moons", "weaves", "split_pct", "ground_px", "spin_deg", "scatter_path", "fall_angle_deg"];
 // Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
 var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r",
   "fx_motion", "motion_smear", "motion_arcs", "fx_impact", "fx_env", "shake", "shake_px", "shake_ticks",
@@ -1712,6 +1720,50 @@ var POWER_UI = {
     if (POWER_UI[st] && w && w.models.length < 2)
       POWER_UI[st].rows = POWER_UI[st].rows.filter(function (r) { return TWO.indexOf(r[0]) < 0; });
   });
+})();
+// Crescent waves (laser/crescentfx.py): each one's own panel.
+(function () {
+  var SIZE = ["radius", "Crescent size", 4, 400, 1, "Radius of the crescent, px (half its height from tip to tip)."];
+  var THICK = ["thickness", "Blade thickness", 1, 200, 1, "How thick the blade is at its widest, px."];
+  var FLY = ["hold_ticks", "Flight ticks", 1, 600, 1, "How long it flies (and can hit) before it shatters. Distance = Motion speed × this."];
+  var DENS = ["density", "Embers & sparks ×", 0, 4, 0.1, "Amount of embers, sparks and chips."];
+  var TURN = ["rotation_deg", "Turn °", 0, 360, 5, "Turns the whole technique clockwise (mirrors with the facing)."];
+  var GROUND = ["ground_px", "Ground below px", -200, 400, 1, "How far below the effect's start point the ground is (30 = a fighter's feet below its centre). The base sits here, and the world's trench / crater are laid exactly here."];
+  var TRAVEL = " Use anchor figure, Motion travel, Aim target.";
+  POWER_UI.crescent_drag = {name: "Ground-drag crescent",
+    tip: "A fin: the upper half of a crescent standing on the ground, its base ploughing along it — wind streaks tear off its back, sparks and chips fly from the contact point. Always upright; it foreshortens when it runs up or down the screen. In the game the world reacts under it (Dust & Air → FX on the ground): a trench under the base, rocks and dust thrown the way it travels, a crater where it ends. Its size follows its spot on the world like every travelling FX." + TRAVEL,
+    rows: [SIZE, THICK, FLY, GROUND, DENS]};
+  POWER_UI.crescent_helix = {name: "Twin helix crescents",
+    tip: "Crescents weaving round each other on one line, the one in front bigger; a glint every time they cross, and the last crossing lands on the target." + TRAVEL,
+    rows: [SIZE, THICK, FLY, ["moons", "Crescents", 2, 6, 1, "How many crescents weave (2 = a double helix)."],
+      ["span", "Weave width px", 0, 300, 1, "How far each crescent swings to the side of the line."],
+      ["weaves", "Crossings before the target", 0.25, 12, 0.25, "How many times they cross on the way to where the target stood. The last one is on the target."],
+      DENS, TURN]};
+  POWER_UI.crescent_scatter = {name: "Crescent barrage",
+    tip: "A barrage of smaller crescents thrown at uneven moments and uneven angles, never twice the same; the last one out is the heavy one." + TRAVEL + " Give it Pierce and a short Re-hit so every crescent can hit.",
+    rows: [SIZE, THICK, ["moons", "Crescents", 1, 12, 1, "How many crescents are thrown."],
+      ["span", "Cone °", 0, 360, 1, "The cone the crescents are spread over, degrees."],
+      ["swing_ticks", "Ticks between throws", 2, 60, 1, "Average gap between two throws (the real gaps are uneven)."],
+      ["hold_ticks", "Flight ticks (each)", 1, 600, 1, "How long each crescent flies before it shatters."],
+      ["scatter_path", "Flight", [["fan", "Fan out (straight)"], ["converge", "Curve back in on the target"], ["wild", "Wild (weaving)"]], 0, 0,
+        "Fan: each flies straight at its own angle. Converge: they swing out and curve back in to where the target stood. Wild: each weaves its own way."],
+      DENS, TURN]};
+  POWER_UI.crescent_return = {name: "Returning moon",
+    tip: "A spinning crescent. Use anchor figure, Motion boomerang, Aim target: it flies out past the target (Out px), comes round and cuts again on the way back, and shatters when it is caught. Give it Pierce.",
+    rows: [SIZE, THICK, ["hold_ticks", "Longest flight ticks", 1, 1200, 1, "It shatters after this long even if it was not caught."],
+      ["spin_deg", "Spin ° per tick", -180, 180, 1, "How fast it spins (negative = the other way)."], DENS, TURN]};
+  POWER_UI.crescent_split = {name: "Splitting moon",
+    tip: "One big crescent that bursts part of the way to the target into smaller ones: they fan out, curve back in, cross on the target and fan out again behind it." + TRAVEL + " Give it Pierce and a short Re-hit so every crescent can hit.",
+    rows: [SIZE, THICK, FLY, ["moons", "Crescents after the split", 1, 12, 1, "How many it bursts into."],
+      ["split_pct", "Splits at % of the way", 0, 100, 1, "Where it bursts, as a share of the distance to where the target stood."],
+      ["span", "Fan width px", 0, 400, 1, "How far the outermost crescents swing out to the side."], DENS, TURN]};
+  POWER_UI.crescent_fall = {name: "Moonfall",
+    tip: "The spot is marked on the ground, then a giant crescent drops out of the sky onto it and slams: a pillar of light, ground shock rings, shards thrown up. In the game the world adds the crater, rocks and dust (Dust & Air → FX on the ground). Use anchor target, Motion static. It hits round the spot as it lands, and the blade keeps cutting while it stands.",
+    rows: [SIZE, THICK, ["length", "Drop height px", 0, 2000, 5, "How high above the ground it appears."],
+      ["swing_ticks", "Fall ticks", 2, 120, 1, "How long the drop takes (it accelerates all the way down)."],
+      ["hold_ticks", "Stands for ticks", 0, 600, 1, "How long the blade stays planted before it shatters."],
+      ["fall_angle_deg", "Fall lean °", -80, 80, 1, "0 = straight down; positive = it comes down leaning along the aim."],
+      GROUND, DENS]};
 })();
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
@@ -2213,7 +2265,8 @@ function buildProps() {
     // A power technique shows only the style picker here; its own panel follows.
     if (pw && k !== "style") return;
     if (fx.prim === "technique" && (k === "lightning" || k === "lightning_rate" || k.indexOf("aura_") === 0 || k === "gap_px" ||
-        k.indexOf("w_") === 0 || (k.indexOf("ext_") === 0 && fx.params.style !== "blade_extension"))) return;
+        k.indexOf("w_") === 0 || CRESCENT_KEYS.indexOf(k) >= 0 ||
+        (k.indexOf("ext_") === 0 && fx.params.style !== "blade_extension"))) return;
     if (fx.prim === "technique" && HIT_OPTION_KEYS.indexOf(k) >= 0 &&
         (!G_STRIKE() || G_STRIKE().HIT_OPTION_STYLES.indexOf(fx.params.style) < 0 ||
          (k === "hitstop_ticks" && !fx.params.hitstop) || (k === "kb_angle_deg" && fx.params.kb_dir !== "custom") ||

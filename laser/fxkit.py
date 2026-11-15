@@ -277,7 +277,14 @@ PARAM_DEFAULTS = {
                       axe_crater="contact", spin_mode="centered", spin_turns=2, spin_vertical=False, rise_dir="screen_up", kick_angle_deg=0,
                       flip_h=False, flip_v=False, fx_motion="ink", motion_smear=True, motion_arcs=True, fx_impact="ink", fx_env="ink",
                       shake=False, shake_px=6, shake_ticks=8, squash=False, squash_amt=0.3, squash_ticks=6,
-                      squash_flash=True),
+                      squash_flash=True,
+                      # crescent waves (laser/crescentfx.py): moons = how many blades (helix /
+                      # barrage / split), weaves = helix crossings before the target, split_pct =
+                      # where the splitting moon bursts, ground_px = the ground below the effect
+                      # (ground drag / moonfall), spin_deg = returning moon's spin per tick,
+                      # scatter_path fan / converge / wild, fall_angle_deg = moonfall's lean.
+                      moons=5, weaves=2, split_pct=45, ground_px=30, spin_deg=34, scatter_path="fan",
+                      fall_angle_deg=18),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -291,12 +298,23 @@ TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_w
                "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir",
                "light_pistols", "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff",
                "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
-               "nodachi", "earth_cleaver", "void_sniper"]
+               "nodachi", "earth_cleaver", "void_sniper",
+               "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split",
+               "crescent_fall"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
     "diagonal_slash": dict(radius=60, span=110, thickness=12, swing_ticks=6),
     "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
+    # More crescent waves (laser/crescentfx.py)
+    "crescent_drag": dict(radius=80, thickness=46, hold_ticks=48, ground_px=30),
+    "crescent_helix": dict(radius=34, thickness=18, hold_ticks=52, span=55, moons=2, weaves=2),
+    "crescent_scatter": dict(radius=36, thickness=16, hold_ticks=40, span=70, swing_ticks=4, moons=6,
+                             scatter_path="fan"),
+    "crescent_return": dict(radius=38, thickness=20, hold_ticks=110, spin_deg=34),
+    "crescent_split": dict(radius=52, thickness=26, hold_ticks=52, span=110, moons=5, split_pct=45),
+    "crescent_fall": dict(radius=95, thickness=44, hold_ticks=10, swing_ticks=9, length=420, ground_px=30,
+                          fall_angle_deg=18),
     "blade_extension": dict(length=300, thickness=6, hold_ticks=18),
     "forward_sweep": dict(radius=85, span=200, thickness=12, swing_ticks=7),
     "forward_thrust": dict(length=130, thickness=7, swing_ticks=4, hold_ticks=4),
@@ -786,7 +804,7 @@ _SCALE_PARAMS = {
     "pulse": ("r_start", "r_end", "width", "width_end", "glow"),
     "ghost": (),
     "weapon": ("width",),
-    "technique": ("radius", "thickness", "length"),
+    "technique": ("radius", "thickness", "length", "ground_px"),
 }
 _SCALE_MOTION = ("speed", "amplitude", "orbit_rx", "orbit_ry", "out_px", "catch_px")
 _SCALE_INTERCEPT = ("radius", "contact")
@@ -3982,6 +4000,8 @@ def travel_spot(inst, ps):
         hx, hy, ux, uy, reach = beam_reach(inst, ps)
         if reach > 0:
             return hx - ux * reach, hy - uy * reach
+    if swordfx.crescentfx.on_ground(inst):
+        return swordfx.crescentfx.ground_point(inst, ps)   # the fin stands (and is sized) at its base
     return inst.x, inst.y
 
 

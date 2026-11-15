@@ -381,7 +381,13 @@ var PARAM_DEFAULTS = {
     rise_dir: "screen_up", kick_angle_deg: 0,
     // Animation flips (STRIKEFX.FLIP_STYLES: punch, ki barrage, kicks):
     // flip_h / flip_v mirror the animation in place, never its placement.
-    flip_h: false, flip_v: false}
+    flip_h: false, flip_v: false,
+    // Crescent waves (crescentfx.js): moons = how many blades (helix / barrage
+    // / split), weaves = helix crossings before the target, split_pct = where
+    // the splitting moon bursts, ground_px = the ground below the effect
+    // (ground drag / moonfall), spin_deg = returning moon's spin per tick,
+    // scatter_path fan / converge / wild, fall_angle_deg = moonfall's lean.
+    moons: 5, weaves: 2, split_pct: 45, ground_px: 30, spin_deg: 34, scatter_path: "fan", fall_angle_deg: 18}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -395,12 +401,20 @@ var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "cresce
   "buster_sword", "masamune", "oath_oblivion", "crescent_scythe", "scissor_blade", "gungnir", "light_pistols",
   "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis",
   "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
-  "void_sniper"];
+  "void_sniper",
+  "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall"];
 var TECH_STYLE_DEFAULTS = {
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
   diagonal_slash: {radius: 60, span: 110, thickness: 12, swing_ticks: 6},
   crescent_wave: {radius: 40, thickness: 22, hold_ticks: 48},
+  // More crescent waves (crescentfx.js)
+  crescent_drag: {radius: 80, thickness: 46, hold_ticks: 48, ground_px: 30},
+  crescent_helix: {radius: 34, thickness: 18, hold_ticks: 52, span: 55, moons: 2, weaves: 2},
+  crescent_scatter: {radius: 36, thickness: 16, hold_ticks: 40, span: 70, swing_ticks: 4, moons: 6, scatter_path: "fan"},
+  crescent_return: {radius: 38, thickness: 20, hold_ticks: 110, spin_deg: 34},
+  crescent_split: {radius: 52, thickness: 26, hold_ticks: 52, span: 110, moons: 5, split_pct: 45},
+  crescent_fall: {radius: 95, thickness: 44, hold_ticks: 10, swing_ticks: 9, length: 420, ground_px: 30, fall_angle_deg: 18},
   blade_extension: {length: 300, thickness: 6, hold_ticks: 18},
   forward_sweep: {radius: 85, span: 200, thickness: 12, swing_ticks: 7},
   forward_thrust: {length: 130, thickness: 7, swing_ticks: 4, hold_ticks: 4},
@@ -1523,7 +1537,7 @@ var SCALE_PARAMS = {ribbon: ["min_dist", "w_tail", "w_head", "head_glow_r", "hea
   beam: ["length", "w_start0", "w_start1", "w_end0", "w_end1", "glow", "jitter"], sprite: ["radius", "plant_px", "hop_past_px"],
   particles: ["speed_min", "speed_max", "gravity", "size_min", "size_max"], glow: ["r_start", "r_end", "core_r"],
   pulse: ["r_start", "r_end", "width", "width_end", "glow"], ghost: [], weapon: ["width"],
-  technique: ["radius", "thickness", "length"]};
+  technique: ["radius", "thickness", "length", "ground_px"]};
 var SCALE_MOTION = ["speed", "amplitude", "orbit_rx", "orbit_ry", "out_px", "catch_px"];
 var SCALE_INTERCEPT = ["radius", "contact"];
 function rescaleEffects(effects, lib, r) {

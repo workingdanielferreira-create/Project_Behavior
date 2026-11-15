@@ -463,7 +463,13 @@ Hand-drawn sword FX at the clash-explosion standard, used through the FX Kit
 primitive `technique` (FX Studio presets: **Sword techniques**). `params.style`
 picks one: `rising_slash`, `horizontal_sweep`, `diagonal_slash` (filled
 crescents of light that swing round the anchor), `crescent_wave` (a travelling
-slash beam with a dark core and flames), `blade_extension` (an energy blade
+slash beam with a dark core and flames), the other crescent waves
+(`laser/crescentfx.py`: `crescent_drag` a fin ploughing along the ground — the
+world lays the trench, rocks, dust and end crater under it; `crescent_helix`
+crescents weaving round each other; `crescent_scatter` an uneven barrage;
+`crescent_return` a spinning crescent for Motion boomerang; `crescent_split`
+one that bursts into several; `crescent_fall` a giant crescent dropped on the
+target, crater by the world), `blade_extension` (an energy blade
 that charges, shoots out of the sword tip, holds and retracts; Blade pivot /
 spin / sweep turn it round a point on its centre line and Blade slide moves it
 along an axis while it is out),
