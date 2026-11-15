@@ -18945,7 +18945,7 @@
    },
    "leap": {
     "start_frame": 0,
-    "land_frame": 2,
+    "land_frame": 8,
     "height_px": 0,
     "hit_px": null,
     "height_max_px": null,
@@ -18959,7 +18959,7 @@
     "hop_px": 0,
     "arc_radius_px": 185,
     "arc_curve_pct": 100,
-    "turn_frame": -1,
+    "turn_frame": 3,
     "retreat_px": 160,
     "return_angle_deg": 145,
     "flip": false,
@@ -19898,15 +19898,7 @@
   "attack_normal_2": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [
-    {
-     "type": "action_triggered",
-     "who": "self",
-     "action": "attack_normal_3",
-     "ms": 300,
-     "not": false
-    }
-   ],
+   "conditions": [],
    "chain_next": "attack_normal_3",
    "chain_reset_ms": 100,
    "fx_continuous": false,
@@ -20031,13 +20023,7 @@
   "attack_normal_3": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [
-    {
-     "type": "partner_intent",
-     "intent": "engage",
-     "not": false
-    }
-   ],
+   "conditions": [],
    "chain_next": "attack_normal_4",
    "chain_reset_ms": 100,
    "fx_continuous": false,
@@ -20163,7 +20149,7 @@
    "logic": "any",
    "cooldown_ms": 0,
    "conditions": [],
-   "chain_next": "attack_normal_3",
+   "chain_next": "attack_normal",
    "chain_reset_ms": 100,
    "fx_continuous": false,
    "movement": "stand",
