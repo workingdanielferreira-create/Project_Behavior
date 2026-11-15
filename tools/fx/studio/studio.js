@@ -1442,7 +1442,8 @@ var PARAM_UI = {
     "crimson_fang", "arc_carbine", "void_cannon", "phase_kunai", "astral_staff", "phantom_greatsword", "neon_uzis", "halo_chakram",
     "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
     "void_sniper",
-    "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall"]],
+    "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall",
+    "straight_slash"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1513,10 +1514,14 @@ var PARAM_UI = {
     ["moons", "Crescents", 1, 12, 1], ["weaves", "Crossings before the target", 0.25, 12, 0.25],
     ["split_pct", "Splits at % of the way", 0, 100, 1], ["ground_px", "Ground below px", -200, 400, 1],
     ["spin_deg", "Spin ° per tick", -180, 180, 1], ["scatter_path", "Flight", ["fan", "converge", "wild"]],
-    ["fall_angle_deg", "Fall lean °", -80, 80, 1]]
+    ["fall_angle_deg", "Fall lean °", -80, 80, 1],
+    // straight slash only (laser/slashline.py): shown in its own panel (POWER_UI)
+    ["cut_deg", "Cut angle °", null, null, 1], ["curve_pct", "Curve %", null, null, 1],
+    ["slash_from", "Slash from", ["start", "end", "centre"]]]
 };
 // Crescent wave settings: PARAM_UI keys shown only in the crescent panels.
-var CRESCENT_KEYS = ["moons", "weaves", "split_pct", "ground_px", "spin_deg", "scatter_path", "fall_angle_deg"];
+var CRESCENT_KEYS = ["moons", "weaves", "split_pct", "ground_px", "spin_deg", "scatter_path", "fall_angle_deg",
+  "cut_deg", "curve_pct", "slash_from"];   // (+ the straight slash's, shown in its own panel)
 // Strike hit options: PARAM_UI keys shown only for STRIKEFX.HIT_OPTION_STYLES.
 var HIT_OPTION_KEYS = ["hitstop", "hitstop_ticks", "kb_dir", "kb_angle_deg", "impact_frame", "impact_frame_r",
   "fx_motion", "motion_smear", "motion_arcs", "fx_impact", "fx_env", "shake", "shake_px", "shake_ticks",
@@ -1765,6 +1770,19 @@ var POWER_UI = {
       ["fall_angle_deg", "Fall lean °", -80, 80, 1, "0 = straight down; positive = it comes down leaning along the aim."],
       GROUND, DENS]};
 })();
+// Straight slash (laser/slashline.py): its own panel.
+POWER_UI.straight_slash = {name: "Straight slash",
+  tip: "One sword cut you lay out yourself. Its MIDDLE is the anchor point: whatever its angle, length or curve, the halfway point of the blade sits exactly on the anchor (+ offset), so anchor target puts the middle of the cut on the target every time. Use Motion attached (or static) with anchor target to land it on the enemy, or anchor figure to cut round the fighter. In the game its size starts as the caster's and then follows the world's scale at its own spot (like the kamehameha's head), and on the big ball it stands upright at its own middle. It hits along the visible blade while it swings + 2 ticks.",
+  rows: [["cut_deg", "Cut angle °", null, null, 1, "The way the blade travels along the cut, degrees: 0 = forward, -90 = up, 90 = down, 180 = backward, -30 = a rising diagonal. Mirrors with the facing; Follow direction and Turn turn it too."],
+    ["length", "Length px", null, null, 5, "How long the cut is, end to end."],
+    ["curve_pct", "Curve %", null, null, 1, "0 = a dead-straight line, 100 = a half circle, more = past a half circle. Negative bends it the other way."],
+    ["slash_from", "Slash from", [["start", "One end to the other"], ["end", "The other way round"], ["centre", "From the middle outward"]], 0, 0,
+      "Where the blade starts: from one end to the other, the reverse, or opening from the middle out to both ends."],
+    ["thickness", "Blade width px", null, null, 0.5, "How wide the blade is at its widest (it tapers to points at both ends)."],
+    ["swing_ticks", "Swing ticks", 1, null, 1, "How long the blade takes to cross the whole cut. It hits for this + 2 ticks."],
+    ["hold_ticks", "Hangs for ticks", 0, null, 1, "How long the finished cut hangs in the air before it fades (drawing only)."],
+    ["density", "Sparks ×", 0, null, 0.1, "Amount of sparks thrown off the blade."],
+    ["rotation_deg", "Turn °", 0, 360, 5, "Turns the whole cut clockwise round its middle (mirrors with the facing)."]]};
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],

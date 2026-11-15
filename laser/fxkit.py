@@ -284,7 +284,11 @@ PARAM_DEFAULTS = {
                       # (ground drag / moonfall), spin_deg = returning moon's spin per tick,
                       # scatter_path fan / converge / wild, fall_angle_deg = moonfall's lean.
                       moons=5, weaves=2, split_pct=45, ground_px=30, spin_deg=34, scatter_path="fan",
-                      fall_angle_deg=18),
+                      fall_angle_deg=18,
+                      # straight slash (laser/slashline.py): cut_deg = the way the blade
+                      # travels (local, 0 = forward, -90 = up), curve_pct 0 = straight ..
+                      # 100 = half circle (negative = the other way), slash_from start / end / centre.
+                      cut_deg=-30, curve_pct=25, slash_from="start"),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -300,11 +304,14 @@ TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_w
                "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
                "nodachi", "earth_cleaver", "void_sniper",
                "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split",
-               "crescent_fall"]
+               "crescent_fall", "straight_slash"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
     "diagonal_slash": dict(radius=60, span=110, thickness=12, swing_ticks=6),
+    # One cut you lay out yourself (laser/slashline.py): its middle is the anchor point.
+    "straight_slash": dict(length=240, thickness=12, swing_ticks=5, hold_ticks=8, cut_deg=-30, curve_pct=25,
+                           slash_from="start"),
     "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
     # More crescent waves (laser/crescentfx.py)
     "crescent_drag": dict(radius=80, thickness=46, hold_ticks=48, ground_px=30),
@@ -1421,7 +1428,7 @@ class Inst:
                  "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k",
                  "sp_x", "sp_y", "sp_t", "fl_t", "plant_y",
                  "hop_l", "hop_lt", "hop_tx", "hop_ty", "hop_dx", "hop_dy", "hop_passed", "hop_stopped", "hop_dv",
-                 "hop_a", "hop_rc", "hop_th", "hop_used", "lt")
+                 "hop_a", "hop_rc", "hop_th", "hop_used", "lt", "sl_sc")
 
     def __init__(self):
         # Anime blade extras (blade_extras_step): the portal's spot (None =
@@ -3983,11 +3990,15 @@ class Player:
                 # by the hand), not at its flying head: bent about the head,
                 # the head's lean / size swung the whole beam and its base
                 # slid off the hand as the head flew out (Puck's special).
+                # The straight slash stands at its own middle whatever its
+                # Motion (swordfx.stands_own): anchored on the target it is
+                # drawn where it hits, not bent about the caster's feet.
                 old = None
-                if inst.fx["motion"]["kind"] in MOVERS:
+                if inst.fx["motion"]["kind"] in MOVERS or swordfx.stands_own(inst):
                     sx, sy = travel_spot(inst, ps)
                     old = _speedband.travel_at(p, sx, sy, getattr(host, "fig", None),
-                                               None if (inst.fx.get("params") or {}).get("pos_scale") else ps)
+                                               None if ((inst.fx.get("params") or {}).get("pos_scale")
+                                                        or swordfx.stands_own(inst)) else ps)
                 draw_inst(p, inst, host, ps)
                 if old is not None:
                     p.setTransform(old)

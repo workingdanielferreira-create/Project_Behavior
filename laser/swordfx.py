@@ -20,6 +20,10 @@ Styles (params.style, fxkit.TECH_STYLES):
                     more crescent waves (laser/crescentfx.py): ground drag,
                     twin helix, barrage, returning moon, splitting moon,
                     moonfall
+  straight_slash    one cut you lay out yourself (laser/slashline.py): angle,
+                    length, curve (straight .. half circle), which end it
+                    starts from; its MIDDLE is the anchor point, so anchored
+                    on the target it always lands on the target
   blade_extension   an energy blade that charges at the sword tip, shoots out
                     along the aim, holds with ripples and crackle running up
                     it, then retracts in a trail of sparkle dust; it can spin
@@ -203,6 +207,8 @@ def active_ticks(P):
         return THR_WIND + _swing(P) + max(0, F.trunc(float(P.get("hold_ticks") or 0))) + THR_RETRACT
     if st in crescentfx.STYLES:
         return crescentfx.active_ticks(P)
+    if st in slashline.STYLES:
+        return slashline.active_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
     if st in kickfx.STYLES:
@@ -227,6 +233,8 @@ def total_ticks(P):
         return active_ticks(P) + THR_FADE
     if st in crescentfx.STYLES:
         return crescentfx.total_ticks(P)
+    if st in slashline.STYLES:
+        return slashline.total_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
     if st in kickfx.STYLES:
@@ -247,7 +255,7 @@ def on_spawn(inst, host):
     st = _style(fx["params"])
     # Slashes and weapons are laid out round the fighter's facing (turned
     # by Follow direction); the rest along the aim.
-    lay = st in CUTS or st in weaponfx.STYLES
+    lay = st in CUTS or st in weaponfx.STYLES or st in slashline.STYLES
     if lay:
         ef = inst.facing
         f = F.turn_by([float(ef), 0.0], F.body_deg(fx, host, (inst.x, inst.y)))
@@ -277,6 +285,8 @@ def on_spawn(inst, host):
     inst.w_arm = [weaponfx.arm_ang(inst, host)] if st in weaponfx.STYLES else []   # Hold: the rig's blade angle, per tick
     inst.w_hand = [weaponfx.hand_rec(inst, host)] if st in weaponfx.STYLES else []   # Follow hand: both hands, per tick
     powerfx.on_spawn(inst, host)
+    if st in slashline.STYLES:
+        slashline.on_spawn(inst, host)
     _record_outline(inst, host)
     inst.life = active_ticks(fx["params"])
 
@@ -665,6 +675,8 @@ def hit(inst, tx, ty, hr, ps):
         return _thr_hit(inst, tx, ty, hr, ps)
     if st in crescentfx.STYLES:
         return crescentfx.hit(inst, tx, ty, hr, ps)
+    if st in slashline.STYLES:
+        return slashline.hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
     if st in kickfx.STYLES:
@@ -784,6 +796,8 @@ def body(inst, ps):
         return _thr_body(inst, ps)
     if st in crescentfx.STYLES:
         return crescentfx.body(inst, ps)
+    if st in slashline.STYLES:
+        return slashline.body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
     if st in kickfx.STYLES:
@@ -1462,6 +1476,8 @@ def draw(p, inst, host, ps):
         _draw_thrust(pen, inst, host, ps)
     elif st in crescentfx.STYLES:
         crescentfx.draw(pen, inst, host, ps)
+    elif st in slashline.STYLES:
+        slashline.draw(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
     elif st in kickfx.STYLES:
@@ -1486,3 +1502,12 @@ from . import powerfx  # noqa: E402
 from . import gunfx  # noqa: E402
 from . import weaponfx  # noqa: E402
 from . import crescentfx  # noqa: E402
+from . import slashline  # noqa: E402
+
+
+def stands_own(inst):
+    """A technique that stands upright at its own spot on the big ball
+    (fxkit CharacterFx.draw -> speedband.travel_at) whatever its Motion:
+    the straight slash (laser/slashline.py), so a cut anchored on the target
+    is drawn where it hits, not bent about the caster's feet."""
+    return inst.fx.get("prim") == "technique" and _style(inst.fx["params"]) in slashline.STYLES
