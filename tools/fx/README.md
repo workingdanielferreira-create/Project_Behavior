@@ -34,6 +34,20 @@ game's `characters` folder; a `<name>` sub-folder is created. Chrome and Edge
 write the files straight into the folder. Other browsers download them for you
 to move there.
 
+## Fighter Painter
+
+Open `painter.html` straight from disk (Chrome / Edge). **Open characters
+folder…** and pick the game's `characters` folder, then a character (Rig
+Forge characters: they store every frame's joints). Paint or splash on one
+frame (Brush, Splash, Part fill, Eraser, Picker; *Show anatomy* colours the
+body parts). Every frame of every action is repainted by following the
+bones; the Preview card plays any action with the paint. Paint more frames
+when a part is hidden in the first one. **Save to characters folder** writes
+a NEW character (`<name>_skin1/`: repainted frames, renamed character.json
+and FX file, `painter.json` to repaint later); the original is never touched.
+Other browsers: *Load folder* + **Download .zip**, unzipped into `characters`.
+Press F5 in the game.
+
 ## FX Studio
 
 Open `studio/fx_studio.html` straight from disk. **Open character folder…**
