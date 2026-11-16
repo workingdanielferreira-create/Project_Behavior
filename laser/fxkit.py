@@ -1399,7 +1399,15 @@ def path_step(inst, host):
 def aim_dir(fx, host, x, y):
     m, f = fx["motion"], fx_facing(fx, host)
     if m["aim"] == "target":
-        return norm(host.target[0] - x, host.target[1] - y)
+        dx, dy = host.target[0] - x, host.target[1] - y
+        if dx * dx + dy * dy > 1e-6:
+            return norm(dx, dy)
+        # Spawned ON the target (anchor "target", no offset, e.g. a Moonfall):
+        # aim from the fighter through the target, so a hit pushes the victim
+        # AWAY from the caster (norm(0, 0) used to give screen-right always).
+        o = host.anchor("figure")
+        dx, dy = host.target[0] - o[0], host.target[1] - o[1]
+        return norm(dx, dy) if dx * dx + dy * dy > 1e-6 else [float(f), 0.0]
     if m["aim"] == "away":
         # Straight away from the fighter: the line from its position through
         # (x, y) (a blade passes its pommel end, away_point); on it = facing.
