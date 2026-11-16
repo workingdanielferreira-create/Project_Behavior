@@ -1780,7 +1780,14 @@ function fxAt(fx, tf) {
 //   host.lut          -> 256-entry palette LUT
 function aimDir(fx, host, x, y) {
   var m = fx.motion, f = fxFacing(fx, host), dx, dy;
-  if (m.aim === "target") return norm(host.target[0] - x, host.target[1] - y);   // tracks the target, never turned
+  if (m.aim === "target") {   // tracks the target, never turned
+    dx = host.target[0] - x; dy = host.target[1] - y;
+    if (dx * dx + dy * dy > 1e-6) return norm(dx, dy);
+    // Spawned ON the target (anchor "target", no offset): aim from the fighter
+    // through the target, so a hit pushes the victim away from the caster.
+    var o0 = host.anchor("figure"), tx = host.target[0] - o0[0], ty = host.target[1] - o0[1];
+    return tx * tx + ty * ty > 1e-6 ? norm(tx, ty) : [f, 0];
+  }
   if (m.aim === "away") {   // straight away from the fighter through (x, y) (a blade passes its pommel end, awayPoint)
     var o = host.anchor("figure"), ax = x - o[0], ay = y - o[1];
     return ax * ax + ay * ay > 1e-6 ? norm(ax, ay) : [f, 0];
