@@ -276,7 +276,7 @@ class World:
         self.prebattle = PreBattleMenu()
 
         # The start menu's roster (laser/roster.py, saved in roster.json):
-        # four slots, each a character + team + single / tag + hotkeys.
+        # 4-8 slots, each a character + team + single / tag + hotkeys.
         # Tag pairs (laser/tag.py) are rebuilt from it by apply_roster.
         self.slots = _roster.load(assets.dir, modes.ordered_modes())
         self.tag_pairs = []
@@ -463,7 +463,9 @@ class World:
             new = [s.copy() for s in slots]
             for s in new:
                 s.fig = None
-                o = old[s.index] if s.index < len(old) else None
+                # Matched by `src` (its live index when the start menu
+                # copied it): removing a slot moves the later ones up.
+                o = old[s.src] if 0 <= s.src < len(old) else None
                 if (not reset and o is not None and o.fig is not None
                         and o.char == s.char and o.team == s.team):
                     s.fig = o.fig
@@ -524,6 +526,8 @@ class World:
         self.projectiles = self.sides[self.side_idx].projectiles
         self.clones = self.sides[self.side_idx].clones
         self._bindings = _roster.bindings(self.slots)
+        for s in self.slots:
+            s.src = s.index
 
     def slot_bindings(self):
         """{vk: [(ctrl, shift, alt, slot_index, action), ...]}."""

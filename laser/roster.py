@@ -1,9 +1,11 @@
 """
-Roster — the four fighter slots the start menu (laser/startmenu.py) sets up.
+Roster — the fighter slots the start menu (laser/startmenu.py) sets up:
+four by default (A-D); "+ Add fighter" adds more, up to MAX_SLOTS (E-H),
+and an added slot can be removed again (the later ones move up a letter).
 
 Each slot holds one character (or none), the team it fights for (Team 1 /
-Team 2 — any split of the four slots: 1v1, 2v2, 1v3, 3v1, ...; a battle
-needs a fighter on each team, 4v0 is Solo with four fighters), its battle
+Team 2 — any split of the slots: 1v1, 2v2, 1v3, 3v1, 4v4, ...; a battle
+needs a fighter on each team, all on one team is Solo), its battle
 state ("single", or "tag" linked to one partner slot) and its own hotkeys:
 
     cycle     field / cycle / retire this slot's character (was 1/2/3/4)
@@ -30,10 +32,12 @@ read the same slots.
 import json
 import os
 
-SLOT_COUNT = 4
+MIN_SLOTS = 4             # A-D are always there
+MAX_SLOTS = 8             # "+ Add fighter" in the start menu, up to E-H
+SLOT_COUNT = MIN_SLOTS    # the default roster's size
 TEAM_COUNT = 2
-TEAM_SIZE = 4             # any split of the 4 slots
-SLOT_NAMES = ("A", "B", "C", "D")
+TEAM_SIZE = MAX_SLOTS     # any split of the slots
+SLOT_NAMES = ("A", "B", "C", "D", "E", "F", "G", "H")
 KEY_ACTIONS = ("cycle", "ultimate", "special", "tag")
 KEY_LABELS = {"cycle": "Field / cycle", "ultimate": "Ultimate",
               "special": "Special", "tag": "Tag in"}
@@ -124,15 +128,19 @@ def default_keys(i):
 
 class Slot:
     """One start-menu slot.  `fig` is the live Figure while the slot is
-    filled (on the field or on the tag bench), else None."""
+    filled (on the field or on the tag bench), else None.  `src` = the
+    slot's index in the live roster when the start menu copied it (removing
+    a slot moves the later ones up, so World.apply_roster matches kept
+    fighters by `src`, not by the new index); -1 = a slot added in the menu."""
 
-    __slots__ = ("index", "char", "team", "link", "keys", "pick", "fig")
+    __slots__ = ("index", "char", "team", "link", "keys", "pick", "fig", "src")
 
     def __init__(self, index, char=None, team=0, link=None, keys=None, pick=0):
         self.index = index
+        self.src = index
         self.char = char or None
         self.team = 1 if int(team or 0) == 1 else 0
-        self.link = int(link) if link is not None and 0 <= int(link) < SLOT_COUNT and int(link) != index else None
+        self.link = int(link) if link is not None and 0 <= int(link) < MAX_SLOTS and int(link) != index else None
         k = default_keys(index)
         for a in KEY_ACTIONS:
             if keys and a in keys:
@@ -157,6 +165,7 @@ class Slot:
     def copy(self):
         s = Slot(self.index, self.char, self.team, self.link, self.keys, self.pick)
         s.fig = self.fig
+        s.src = self.src
         return s
 
 
@@ -184,7 +193,7 @@ def load(root, order):
     except (OSError, ValueError, AttributeError):
         return default_slots(order)
     slots = []
-    for i in range(SLOT_COUNT):
+    for i in range(max(MIN_SLOTS, min(MAX_SLOTS, len(raw)))):
         d = raw[i] if i < len(raw) and isinstance(raw[i], dict) else {}
         ch = d.get("char")
         if ch not in order:
@@ -237,10 +246,61 @@ def team_slots(slots, team):
 def unlink(slots, s):
     """Break s's tag link (its partner goes back to Single too)."""
     if s.link is not None:
-        o = slots[s.link]
-        if o.link == s.index:
+        o = slots[s.link] if 0 <= s.link < len(slots) else None
+        if o is not None and o.link == s.index:
             o.link = None
         s.link = None
+
+
+def add_slot(slots):
+    """Append the next slot (E, F, ...; team alternating like A-D).  The
+    new Slot, or None at MAX_SLOTS."""
+    if len(slots) >= MAX_SLOTS:
+        return None
+    s = Slot(len(slots), team=len(slots) % 2)
+    s.src = -1
+    # Default keys use the slot's number; after a removal that number can
+    # still be held by the slot that moved up, so take the first free one.
+    used = {k for o in slots for k in o.keys.values() if k}
+    for n in [s.index] + list(range(9)):
+        k = default_keys(n)
+        if not used.intersection(k.values()):
+            s.keys = k
+            break
+    else:
+        s.keys = {a: "" for a in KEY_ACTIONS}
+    slots.append(s)
+    return s
+
+
+def remove_slot(slots, i):
+    """Remove slot i (only while more than MIN_SLOTS remain).  Later slots
+    move up a letter and links are re-pointed; each keeps its hotkeys and
+    `src`.  True when removed."""
+    if len(slots) <= MIN_SLOTS or not (0 <= i < len(slots)):
+        return False
+    unlink(slots, slots[i])
+    del slots[i]
+    remap = {}
+    for n, s in enumerate(slots):
+        remap[s.index] = n
+    for s in slots:
+        s.index = remap[s.index]
+    for s in slots:
+        if s.link is not None:
+            s.link = remap.get(s.link)
+    clean_links(slots)
+    renumber(slots)
+    return True
+
+
+def clear_all(slots):
+    """Start menu "Clear all": every slot empty, every tag link broken.
+    Teams, hotkeys and the number of slots stay."""
+    for s in slots:
+        s.link = None
+        s.char = None
+        s.pick = 0
 
 
 def link(slots, a, b):
@@ -256,6 +316,9 @@ def clean_links(slots, can_tag=None):
     for s in slots:
         if s.link is None:
             continue
+        if not (0 <= s.link < len(slots)):
+            s.link = None
+            continue
         o = slots[s.link]
         if (not s.char or not o.char or o.link != s.index or o.team != s.team
                 or (can_tag is not None and not (can_tag(s.char) and can_tag(o.char)))):
@@ -267,7 +330,7 @@ def tag_pairs(slots, can_tag):
     (by the earlier pick).  Index in this list = the pair's colour."""
     out = []
     for s in sorted((x for x in slots if x.char), key=lambda x: (x.pick, x.index)):
-        if s.link is None or any(s in p for p in out):
+        if s.link is None or any(s in p for p in out) or not (0 <= s.link < len(slots)):
             continue
         o = slots[s.link]
         if (o.char and o.link == s.index and o.team == s.team
@@ -295,7 +358,7 @@ def validate(slots, can_tag):
     for s in slots:
         if s.char and s.tag and not can_tag(s.char):
             errs.append("Slot %s: only Rig Forge characters can be set to Tag." % s.name)
-        elif s.tag and s.char and slots[s.link].team != s.team:
+        elif s.tag and s.char and 0 <= s.link < len(slots) and slots[s.link].team != s.team:
             errs.append("Slot %s and its Tag partner %s are on different teams."
                         % (s.name, slots[s.link].name))
     seen = {}

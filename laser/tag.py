@@ -68,7 +68,9 @@ class TagPair:
         return (self.on, self.off)
 
     def same_link(self, a, b):
-        return {self.on.index, self.off.index} == {a.index, b.index}
+        # `src` = the slot's index before a start-menu slot removal
+        # (roster.remove_slot) moved it up; World.apply_roster resets it.
+        return {self.on.index, self.off.index} == {a.src, b.src}
 
 
 def build_pairs(world, slots, old_pairs):
@@ -80,7 +82,7 @@ def build_pairs(world, slots, old_pairs):
     for a, b in _roster.tag_pairs(slots, can_tag):
         old = next((p for p in old_pairs if p.same_link(a, b)), None)
         if old is not None:
-            on = a if old.on.index == a.index else b
+            on = a if old.on.index == a.src else b
             off = b if on is a else a
             p = TagPair(a.team, on, off)
             p.cooldown_until = old.cooldown_until
