@@ -8,7 +8,10 @@ the old on-overlay corner panels: the overlay itself is click-through, so
 the menu is an ordinary window you can click.
 
 Left: every registered character (built-ins and Rig Forge packages) as a
-card.  Right: the four roster slots (laser/roster.py).  Click a slot, then a
+card.  Right: the roster slots (laser/roster.py): A-D always, "+ Add
+fighter" adds E-H (roster.MAX_SLOTS) and an added slot has its own Remove
+button; "Clear all" empties every slot (teams, hotkeys and the number of
+slots stay).  Click a slot, then a
 character card, to put that character in it — the slot gets the next
 selection number, which orders the HP bars and the fielding.  Per slot:
 
@@ -19,7 +22,7 @@ selection number, which orders the HP bars and the fielding.  Per slot:
                switches to Tag, joins the team, and both borders take the
                pair's colour.  The pair swaps in and out with the Switch
                action (laser/tag.py)
-  * Teams      any split of the four slots (1v1, 2v2, 1v3, 3v1 ...)
+  * Teams      any split of the slots (1v1, 2v2, 1v3, 3v1, 4v4 ...)
   * Hotkeys    Field / cycle, Ultimate, Special and Tag in — click a key
                box and press the combo (Esc cancels, Delete / Backspace
                clears it)
@@ -71,6 +74,11 @@ QPushButton#Primary:disabled { background: #253029; border: 1px solid #33443a; }
 QComboBox QAbstractItemView { background: #252d38; selection-background-color: #3a4553; }
 QScrollArea { border: none; background: #12161c; }
 QWidget#Grid { background: #12161c; }
+QScrollBar:vertical { background: #12161c; width: 10px; margin: 0; }
+QScrollBar::handle:vertical { background: #3a4553; border-radius: 4px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: #ffe600; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
 """
 
 
@@ -231,6 +239,12 @@ class SlotPanel(QFrame):
         row.addWidget(self.state)
         row.addStretch(1)
         row.addWidget(self.clear)
+        # Added slots (E-H) can be removed again (roster.remove_slot).
+        if slot.index >= _roster.MIN_SLOTS:
+            self.remove = QPushButton("Remove")
+            self.remove.setToolTip("Remove this slot (the later slots move up a letter).")
+            self.remove.clicked.connect(lambda: self.menu.remove_slot(self.slot.index))
+            row.addWidget(self.remove)
         col.addLayout(row)
         top.addLayout(col, 1)
         lay.addLayout(top)
@@ -384,16 +398,38 @@ class StartMenu(QWidget):
         scroll.viewport().setStyleSheet("background: #12161c;")
         scroll.setMinimumWidth(4 * 140 + 24)
         body.addWidget(scroll, 1)
-        # Slots
+        # Slots: a header row (count, + Add fighter, Clear all) over a
+        # scrolling column of slot panels (4 by default, up to MAX_SLOTS).
         right = QVBoxLayout()
         right.setSpacing(8)
+        head = QHBoxLayout()
+        self.count_lbl = QLabel()
+        self.count_lbl.setObjectName("Sub")
+        self.add_btn = QPushButton("+ Add fighter")
+        self.add_btn.setToolTip("Add another slot (up to %d)." % _roster.MAX_SLOTS)
+        self.add_btn.clicked.connect(self.add_slot)
+        self.clear_all_btn = QPushButton("Clear all")
+        self.clear_all_btn.setToolTip("Empty every slot and break every Tag link.  "
+                                      "Teams, hotkeys and the number of slots stay.")
+        self.clear_all_btn.clicked.connect(self.clear_all)
+        head.addWidget(self.count_lbl)
+        head.addStretch(1)
+        head.addWidget(self.add_btn)
+        head.addWidget(self.clear_all_btn)
+        right.addLayout(head)
+        self.slot_host = QWidget()
+        self.slot_host.setObjectName("Grid")
+        self.slot_host.setAttribute(Qt.WA_StyledBackground, True)
+        self.slot_lay = QVBoxLayout(self.slot_host)
+        self.slot_lay.setContentsMargins(0, 0, 4, 0)
+        self.slot_lay.setSpacing(8)
+        self.slot_scroll = QScrollArea()
+        self.slot_scroll.setWidgetResizable(True)
+        self.slot_scroll.setWidget(self.slot_host)
+        self.slot_scroll.viewport().setStyleSheet("background: #12161c;")
+        right.addWidget(self.slot_scroll, 1)
         self.panels = []
-        for s in self.slots:
-            pn = SlotPanel(self, s)
-            pn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-            self.panels.append(pn)
-            right.addWidget(pn)
-        right.addStretch(1)
+        self._build_panels()
         body.addLayout(right, 1)
         root.addLayout(body, 1)
 
@@ -426,7 +462,52 @@ class StartMenu(QWidget):
                   scr.y() + max(0, (scr.height() - self.height()) // 2))
         self.changed()
 
+    def _build_panels(self):
+        """(Re)build one SlotPanel per slot (after a slot is added / removed)."""
+        for pn in self.panels:
+            self.slot_lay.removeWidget(pn)
+            pn.setParent(None)
+            pn.deleteLater()
+        while self.slot_lay.count():
+            self.slot_lay.takeAt(0)
+        self.panels = []
+        for s in self.slots:
+            pn = SlotPanel(self, s)
+            pn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            self.panels.append(pn)
+            self.slot_lay.addWidget(pn)
+        self.slot_lay.addStretch(1)
+
     # --- model -------------------------------------------------------------
+    def add_slot(self):
+        s = _roster.add_slot(self.slots)
+        if s is None:
+            self.flash = "At most %d fighters." % _roster.MAX_SLOTS
+            self.changed()
+            return
+        self.selected = s.index
+        self._build_panels()
+        self.changed()
+        self.slot_scroll.ensureWidgetVisible(self.panels[-1])
+
+    def remove_slot(self, i):
+        if self.linking is not None:
+            self.linking = None
+        if not _roster.remove_slot(self.slots, i):
+            return
+        if self.selected >= len(self.slots) or self.selected == i:
+            self.selected = min(i, len(self.slots) - 1)
+        elif self.selected > i:
+            self.selected -= 1
+        self._build_panels()
+        self.changed()
+
+    def clear_all(self):
+        _roster.clear_all(self.slots)
+        self.linking = None
+        self.selected = 0
+        self.changed()
+
     def select(self, i):
         self.selected = i
         for pn in self.panels:
@@ -510,6 +591,11 @@ class StartMenu(QWidget):
             errs = ["Pick slot %s's Tag partner first." % self.slots[self.linking].name] + errs
         msg = errs + ([self.flash] if self.flash else [])
         self.flash = ""
+        n = sum(1 for s in self.slots if s.char)
+        self.count_lbl.setText("FIGHTERS  %d picked  -  %d / %d slots"
+                               % (n, len(self.slots), _roster.MAX_SLOTS))
+        self.add_btn.setEnabled(len(self.slots) < _roster.MAX_SLOTS)
+        self.clear_all_btn.setEnabled(any(s.char or s.link is not None for s in self.slots))
         self.errors.setText("\n".join(msg))
         self.start_btn.setEnabled(not errs)
         self.reset_btn.setEnabled(not errs)
