@@ -16,7 +16,10 @@ character card, to put that character in it — the slot gets the next
 selection number, which orders the HP bars and the fielding.  Per slot:
 
   * Team       Team 1 or Team 2
-  * State      Single (fights alone) or Tag (Rig Forge characters only):
+  * State      Single (fights alone), Trio (Rig Forge: click two
+               team-mates, click order = rotation order; Rotation dropdown
+               1 > 2 > 3 / ping-pong / healthiest / random), or Tag (Rig
+               Forge characters only):
                choosing Tag asks for the partner — click its slot (or a
                character card, which fills an empty slot); the partner
                switches to Tag, joins the team, and both borders take the
@@ -231,12 +234,19 @@ class SlotPanel(QFrame):
         self.team.addItems(["Team 1", "Team 2"])
         self.team.currentIndexChanged.connect(self._team)
         self.state = QComboBox()
-        self.state.addItems(["Single", "Tag"])
+        self.state.addItems(["Single", "Tag", "Trio"])
         self.state.currentIndexChanged.connect(self._state)
+        # Trio rotation (roster.ROTATIONS): shown on trio slots only.
+        self.rot = QComboBox()
+        for r in _roster.ROTATIONS:
+            self.rot.addItem(_roster.ROTATION_LABELS[r], r)
+        self.rot.setToolTip("Who each Switch brings in.")
+        self.rot.currentIndexChanged.connect(self._rot)
         self.clear = QPushButton("Clear")
         self.clear.clicked.connect(self._clear)
         row.addWidget(self.team)
         row.addWidget(self.state)
+        row.addWidget(self.rot)
         row.addStretch(1)
         row.addWidget(self.clear)
         # Added slots (E-H) can be removed again (roster.remove_slot).
@@ -275,27 +285,36 @@ class SlotPanel(QFrame):
         if self.menu.loading:
             return
         self.slot.team = i
-        # A tag partner moves with it, so the pair stays together.
+        # A tag partner / trio moves with it, so the group stays together.
         if self.slot.link is not None:
             self.menu.slots[self.slot.link].team = i
+        for o in _roster.trio_members(self.menu.slots, self.slot) or ():
+            o.team = i
+        self.menu.changed()
+
+    def _rot(self, i):
+        if self.menu.loading:
+            return
+        _roster.set_rotation(self.menu.slots, self.slot, self.rot.itemData(i))
         self.menu.changed()
 
     def _state(self, i):
         if self.menu.loading:
             return
-        if i == 1:
-            # Tag: pick the partner next (another slot, or a character card).
-            self.menu.start_linking(self.slot.index)
+        if i in (1, 2):
+            # Tag: pick the partner next; Trio: the next two team-mates, in
+            # rotation order (slots, or character cards).
+            self.menu.start_linking(self.slot.index, "trio" if i == 2 else "tag")
         else:
             _roster.unlink(self.menu.slots, self.slot)
             if self.menu.linking == self.slot.index:
-                self.menu.linking = None
+                self.menu._cancel_link()
         self.menu.changed()
 
     def _clear(self):
         _roster.unlink(self.menu.slots, self.slot)
         if self.menu.linking == self.slot.index:
-            self.menu.linking = None
+            self.menu._cancel_link()
         self.slot.char = None
         self.slot.pick = 0
         self.menu.select(self.slot.index)
@@ -313,7 +332,7 @@ class SlotPanel(QFrame):
         # Linked tag partners share a border colour (roster.PAIR_COLORS);
         # the slot waiting for its partner blinks in the selection yellow.
         k = _roster.pair_index(m.slots, s, _tag.can_tag)
-        if m.linking == s.index:
+        if m.linking is not None and s.index in m.link_buf:
             self.setStyleSheet("QFrame#Slot { border: 3px dashed #ffe600; }")
         elif k >= 0:
             c = _roster.PAIR_COLORS[k % len(_roster.PAIR_COLORS)]
@@ -330,9 +349,13 @@ class SlotPanel(QFrame):
         self.thumb.setPixmap(char_pixmap(m.assets, s.char, SLOT_THUMB) if s.char else QPixmap())
         self.team.setCurrentIndex(s.team)
         taggable = bool(s.char) and _tag.can_tag(s.char)
-        self.state.setCurrentIndex(1 if (s.tag or m.linking == s.index) else 0)
+        pending = m.linking == s.index
+        trio = s.trio is not None or (pending and m.link_mode == "trio")
+        self.state.setCurrentIndex(2 if trio else (1 if (s.tag or pending) else 0))
         self.state.setEnabled(taggable)
-        self.state.setToolTip("" if taggable else "Only Rig Forge characters can Tag.")
+        self.state.setToolTip("" if taggable else "Only Rig Forge characters can Tag / Trio.")
+        self.rot.setVisible(s.trio is not None)
+        self.rot.setCurrentIndex(max(0, _roster.ROTATIONS.index(s.rot) if s.rot in _roster.ROTATIONS else 0))
         self.clear.setEnabled(bool(s.char))
         for a, b in self.keybtn.items():
             b.combo = s.keys.get(a) or ""
@@ -357,7 +380,9 @@ class StartMenu(QWidget):
         for s in self.slots:
             s.fig = None
         self.selected = next((s.index for s in self.slots if not s.char), 0)
-        self.linking = None      # slot index waiting for its Tag partner
+        self.linking = None      # slot index waiting for its Tag partner / Trio mates
+        self.link_mode = "tag"   # "tag" | "trio"
+        self.link_buf = []       # slots picked so far (trio: rotation order)
         self.flash = ""          # one-off message under the slots
 
         root = QVBoxLayout(self)
@@ -492,7 +517,7 @@ class StartMenu(QWidget):
 
     def remove_slot(self, i):
         if self.linking is not None:
-            self.linking = None
+            self._cancel_link()
         if not _roster.remove_slot(self.slots, i):
             return
         if self.selected >= len(self.slots) or self.selected == i:
@@ -504,7 +529,7 @@ class StartMenu(QWidget):
 
     def clear_all(self):
         _roster.clear_all(self.slots)
-        self.linking = None
+        self._cancel_link()
         self.selected = 0
         self.changed()
 
@@ -513,30 +538,49 @@ class StartMenu(QWidget):
         for pn in self.panels:
             pn.refresh()
 
-    def start_linking(self, i):
-        """Slot i was set to Tag: the next slot clicked (or character card,
-        which fills an empty slot) becomes its partner."""
+    def start_linking(self, i, mode="tag"):
+        """Slot i was set to Tag / Trio: the next slot clicked (or character
+        card, which fills an empty slot) becomes its partner; a Trio takes
+        two, and the click order is the rotation order (i is 1st)."""
         _roster.unlink(self.slots, self.slots[i])
         self.linking = i
+        self.link_mode = mode
+        self.link_buf = [i]
         self.selected = i
+
+    def _cancel_link(self):
+        self.linking = None
+        self.link_buf = []
 
     def _finish_link(self, j):
         a, b = self.slots[self.linking], self.slots[j]
-        self.linking = None
+        if j in self.link_buf:
+            return
         if not b.char or not _tag.can_tag(b.char):
-            self.flash = "Slot %s can't tag: %s." % (
-                b.name, "it is empty" if not b.char else "only Rig Forge characters can Tag")
+            self.flash = "Slot %s can't %s: %s." % (
+                b.name, "join a Trio" if self.link_mode == "trio" else "tag",
+                "it is empty" if not b.char else "only Rig Forge characters can")
+            self._cancel_link()
             return
         b.team = a.team              # the partner joins its team
+        if self.link_mode == "trio":
+            self.link_buf.append(j)
+            if len(self.link_buf) < 3:
+                return               # waiting for the third
+            members = [self.slots[k] for k in self.link_buf]
+            self._cancel_link()
+            _roster.make_trio(self.slots, members, a.rot)
+            return
+        self._cancel_link()
         _roster.link(self.slots, a, b)
 
     def slot_clicked(self, i):
-        if self.linking is not None and i != self.linking:
+        if self.linking is not None and i not in self.link_buf:
             self._finish_link(i)
             self.changed()
             return
         if self.linking == i:
-            self.linking = None      # clicked itself again: cancel
+            self._cancel_link()      # clicked itself again: cancel
         self.select(i)
 
     def pick_char(self, key):
@@ -544,7 +588,7 @@ class StartMenu(QWidget):
             # Linking: the card goes into the first empty slot as the partner.
             empty = next((o for o in self.slots if not o.char), None)
             if empty is None:
-                self.flash = "No empty slot for a partner - click a filled slot instead."
+                self.flash = "No empty slot for a team-mate - click a filled slot (or + Add fighter)."
                 self.changed()
                 return
             empty.char = key
@@ -565,9 +609,25 @@ class StartMenu(QWidget):
 
     def slot_info(self, s):
         if self.linking == s.index:
+            if self.link_mode == "trio":
+                return ("Trio: click team-mate %d of 2 (a slot, or a character card).  Click order = "
+                        "rotation order.  Click this slot again to cancel." % len(self.link_buf))
             return "Tag: click the slot (or a character card) to tag with.  Click this slot again to cancel."
+        if self.linking is not None and s.index in self.link_buf:
+            return "Trio: picked as #%d of 3." % (self.link_buf.index(s.index) + 1)
         if not s.char:
             return "Empty.  Select this slot and click a character."
+        ms = _roster.trio_members(self.slots, s)
+        if ms is not None:
+            n = ms.index(s) + 1
+            order = " > ".join(m.name for m in ms)
+            txt = "Trio #%d of 3 (rotation %s, %s).  %s  Click its benched HP card in game to tag it in." % (
+                n, order, _roster.ROTATION_LABELS[s.rot],
+                "Starts on the field." if n == 1 else "Starts on the bench.")
+            miss = [a for a in ("switch_in", "switch_out") if not has_action(self.assets, s.char, a)]
+            if miss:
+                txt += "  No %s animation (Rig Forge) - skipped." % " / ".join(miss)
+            return txt
         if not s.tag:
             return "Single: fights on its own."
         o = self.slots[s.link]
@@ -583,19 +643,20 @@ class StartMenu(QWidget):
         _roster.renumber(self.slots)
         _roster.clean_links(self.slots, _tag.can_tag)
         if self.linking is not None and not self.slots[self.linking].char:
-            self.linking = None
+            self._cancel_link()
         for pn in self.panels:
             pn.refresh()
         errs = _roster.validate(self.slots, _tag.can_tag)
         if self.linking is not None:
-            errs = ["Pick slot %s's Tag partner first." % self.slots[self.linking].name] + errs
+            errs = ["Pick slot %s's %s first." % (self.slots[self.linking].name,
+                    "Trio team-mates" if self.link_mode == "trio" else "Tag partner")] + errs
         msg = errs + ([self.flash] if self.flash else [])
         self.flash = ""
         n = sum(1 for s in self.slots if s.char)
         self.count_lbl.setText("FIGHTERS  %d picked  -  %d / %d slots"
                                % (n, len(self.slots), _roster.MAX_SLOTS))
         self.add_btn.setEnabled(len(self.slots) < _roster.MAX_SLOTS)
-        self.clear_all_btn.setEnabled(any(s.char or s.link is not None for s in self.slots))
+        self.clear_all_btn.setEnabled(any(s.char or s.grouped for s in self.slots))
         self.errors.setText("\n".join(msg))
         self.start_btn.setEnabled(not errs)
         self.reset_btn.setEnabled(not errs)

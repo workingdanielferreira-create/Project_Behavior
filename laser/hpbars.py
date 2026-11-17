@@ -225,9 +225,12 @@ def draw(p, world):
             live.add(id(s.fig))
             _card(p, world, s, x0, y, h, right, status, ents, clickable, now, team)
         for k, pr in enumerate(pairs):
-            if pr is not None and pr.team == team and pr.on.index in boxes and pr.off.index in boxes:
+            if pr is None or pr.team != team:
+                continue
+            bs = [boxes[m.index] for m in pr.members if m.index in boxes]
+            if len(bs) >= 2:
                 col = _roster.PAIR_COLORS[k % len(_roster.PAIR_COLORS)]
-                _link(p, x0, boxes[pr.on.index], boxes[pr.off.index], right, col, k)
+                _link(p, x0, bs, right, col, k)
     _tooltip(p, world)
     p.restore()
     for d in (_lag, _prev_hp, _hit_t):
@@ -293,7 +296,8 @@ def _card(p, world, s, x0, y, h, right, status, ents, clickable, now, team=0):
     if ch.get("_package") and not ch.get("_fxkit"):
         note = ("NO FX FILE", WARN_COL)
     elif _tag.partner_of(world, s) is not None and not ko:
-        note = ("TAG", actionbar.pair_color(world, s))
+        grp = _tag.group_of(world, s)
+        note = ("TRIO" if grp is not None and grp.trio else "TAG", actionbar.pair_color(world, s))
     n_ready = sum(1 for e in ents if e.state == "ready")
     sig = (status, h, right, int(round(hp)), int(round(mx)), round(frac, 4), round(lag, 4),
            round(hit, 3), round(shake, 2), tuple(fig.lut[128]), note, s.pick, s.name, _name(fig),
@@ -307,6 +311,8 @@ def _card(p, world, s, x0, y, h, right, status, ents, clickable, now, team=0):
         base = tuple(fig.lut[128])
         X = (lambda d: x0 + CARD_W - d) if right else (lambda d: x0 + d)
         _gate(p, world, s, X, shake, y + TOP_H, right, base, ents, clickable, now, still=False)
+    if bench and _tag.group_of(world, s) is not None:
+        _bench_click(p, world, s, x0, y, h, right, clickable, now)
 
 
 def _card_still(p, world, s, fig, x0, y, h, right, status, ents, hp, mx, frac, lag, hit, shake, note):
@@ -435,6 +441,32 @@ def _card_still(p, world, s, fig, x0, y, h, right, status, ents, hp, mx, frac, l
 
     if ents:
         _gate(p, world, s, X, shake, y + TOP_H, right, base, ents, False, 0.0, still=True)
+
+
+def _bench_click(p, world, s, x0, y, h, right, clickable, now):
+    """A benched tag pair / trio member's card is a button (Daniel
+    2026-11-17): click = Tag that fighter in (actionbar.fire "tag_in").
+    Hover ring, hint and press flash are live (not in the card cache)."""
+    key = (s.index, "tag_in")
+    r = QRectF(x0, y, CARD_W, h)
+    fx = world.hud_fx.get(key) if hasattr(world, "hud_fx") else None
+    if fx is not None:
+        k = 1.0 - (now - fx[0]) / PRESS_S
+        if k > 0:
+            col = QColor(255, 70, 60, int(255 * k)) if fx[1] == "deny" else QColor(255, 255, 255, int(200 * k))
+            p.setPen(QPen(col, 3.0))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(r.adjusted(2, 2, -2, -2))
+        else:
+            world.hud_fx.pop(key, None)
+    if getattr(world, "hud_hover", None) == key:
+        p.setPen(QPen(QColor(255, 255, 255), 2.0))
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(r.adjusted(1, 1, -1, -1))
+        _text(p, "CLICK: TAG IN", (x0 + 14) if right else (x0 + CARD_W - 14), y - 6, "small",
+              QColor(255, 255, 255, 230), right=not right)
+    if clickable and s.fig is not None and s.fig.personality.hp > 0:
+        world.hud_buttons.append((r, key))
 
 
 def _bench_body(p, world, fig, s, X, dx, y, right, base, frac):
@@ -637,9 +669,10 @@ def _tooltip(p, world):
     _text(p, l2, x + 9, y + 34, "small", QColor(88, 214, 141) if e.state == "ready" else QColor(255, 255, 255, 170), shadow=False)
 
 
-def _link(p, x0, box_a, box_b, right, col, k):
-    """Tag-pair bracket in the pair's colour on the screen-edge side of the
-    two cards (a second pair on the team sits one step further out)."""
+def _link(p, x0, boxes, right, col, k):
+    """Tag-pair / trio bracket in the group's colour on the screen-edge side
+    of its cards (a second group on the team sits one step further out); a
+    tick at every member's card."""
     pen = QPen(_q(col, 220))
     pen.setWidthF(2.5)
     p.setPen(pen)
@@ -647,9 +680,8 @@ def _link(p, x0, box_a, box_b, right, col, k):
     off = 8 + 6 * (k % 2)
     ex = x0 + CARD_W + off if right else x0 - off
     hx = ex - 6 if right else ex + 6
-    ya = box_a[0] + box_a[1] / 2.0
-    yb = box_b[0] + box_b[1] / 2.0
-    y0, y1 = min(ya, yb), max(ya, yb)
-    p.drawLine(QPointF(hx, y0), QPointF(ex, y0))
+    ys = [b[0] + b[1] / 2.0 for b in boxes]
+    y0, y1 = min(ys), max(ys)
     p.drawLine(QPointF(ex, y0), QPointF(ex, y1))
-    p.drawLine(QPointF(ex, y1), QPointF(hx, y1))
+    for yy in ys:
+        p.drawLine(QPointF(hx, yy), QPointF(ex, yy))

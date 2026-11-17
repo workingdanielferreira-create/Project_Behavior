@@ -78,11 +78,11 @@ def entries(world, slot, status):
                              left, max(total, left), st))
     pr = _pair_of(world, slot)
     if pr is not None and not frozen:
-        other = pr.off if pr.on is slot else pr.on
         left = max(0.0, (pr.cooldown_until - world.global_tick) * TICK_MS)
         on_fig = pr.on.fig
         total = float(actions._cfg(on_fig, "switch_in").get("cooldown_ms") or 0) if on_fig is not None else 0.0
-        down = other.fig is None or other.fig.personality.hp <= 0
+        # Blocked once nobody on the bench (pair partner / trio) can come in.
+        down = not any(m.fig is not None and m.fig.personality.hp > 0 for m in pr.benched())
         st = "blocked" if down else ("cool" if left > 0 or pr.phase != "idle" else "ready")
         out.append(Entry((slot.index, "switch"), "switch", "TAG", "tag", left, max(total, left), st))
     return out
@@ -107,17 +107,19 @@ def fire(world, key):
     accepted (queued); False = not ready (the icon shakes)."""
     idx, name = key
     s = _slot(world, idx)
+    if name == "tag_in":
+        # A click on a benched tag pair / trio member's HP card: bring
+        # THAT fighter in (laser/tag.py; the rotation carries on from it).
+        if s is None or s.fig is None or tag.status(world, s) != "bench":
+            return False
+        return tag.request(world, idx)
     if s is None or s.fig is None or tag.status(world, s) != "on":
         return False
     if name == "switch":
         pr = _pair_of(world, s)
-        if pr is None or pr.on is not s or pr.phase != "idle" or world.global_tick < pr.cooldown_until:
+        if pr is None or pr.on is not s:
             return False
-        off = pr.off.fig
-        if off is None or off.personality.hp <= 0:
-            return False
-        tag.request(world, pr.off.index)
-        return True
+        return tag.request_next(world, pr)
     return actions.request_manual(s.fig, world, name)
 
 
