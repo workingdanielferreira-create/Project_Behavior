@@ -13,6 +13,11 @@ state ("single", or "tag" linked to one partner slot) and its own hotkeys:
     special   force this fighter's attack_special          (was Ctrl+Shift+1..4)
     tag       Switch this fighter in from the bench        (tag pairs only)
 
+Trio (Daniel 2026-11-17): State "Trio" links THREE team-mates (`trio` =
+the three slot indices in rotation order, the order they were linked, on
+all three; `rot` = rotation mode, ROTATIONS).  One fights, two wait on the
+bench; each Switch brings in the next one by the rotation (laser/tag.py).
+
 Tag links are explicit: setting a slot to Tag in the start menu asks for
 its partner, and clicking that team-mate's slot links the two (`link` =
 the partner's slot index, on both).  A linked pair (laser/tag.py) has one
@@ -39,6 +44,11 @@ TEAM_COUNT = 2
 TEAM_SIZE = MAX_SLOTS     # any split of the slots
 SLOT_NAMES = ("A", "B", "C", "D", "E", "F", "G", "H")
 KEY_ACTIONS = ("cycle", "ultimate", "special", "tag")
+# Trio rotation modes (who a Switch brings in): the start menu's Rotation
+# dropdown on trio slots, saved per trio.
+ROTATIONS = ("cycle", "pingpong", "healthiest", "random")
+ROTATION_LABELS = {"cycle": "1 > 2 > 3 > 1", "pingpong": "Ping-pong 1 > 2 > 3 > 2",
+                   "healthiest": "Healthiest benched", "random": "Random benched"}
 KEY_LABELS = {"cycle": "Field / cycle", "ultimate": "Ultimate",
               "special": "Special", "tag": "Tag in"}
 FILE_NAME = "roster.json"
@@ -120,6 +130,17 @@ def normalize_combo(text):
     return combo_name(c[3], c[0], c[1], c[2]) if c else ""
 
 
+def _trio_tuple(trio, index):
+    """A valid trio = 3 distinct slot indices including `index`; else None."""
+    try:
+        t = tuple(int(v) for v in trio)
+    except (TypeError, ValueError):
+        return None
+    if len(t) != 3 or len(set(t)) != 3 or index not in t or not all(0 <= v < MAX_SLOTS for v in t):
+        return None
+    return t
+
+
 def default_keys(i):
     n = str(i + 1)
     return {"cycle": n, "ultimate": "Ctrl+" + n, "special": "Ctrl+Shift+" + n,
@@ -133,14 +154,18 @@ class Slot:
     a slot moves the later ones up, so World.apply_roster matches kept
     fighters by `src`, not by the new index); -1 = a slot added in the menu."""
 
-    __slots__ = ("index", "char", "team", "link", "keys", "pick", "fig", "src")
+    __slots__ = ("index", "char", "team", "link", "keys", "pick", "fig", "src", "trio", "rot")
 
-    def __init__(self, index, char=None, team=0, link=None, keys=None, pick=0):
+    def __init__(self, index, char=None, team=0, link=None, keys=None, pick=0, trio=None, rot="cycle"):
         self.index = index
         self.src = index
         self.char = char or None
         self.team = 1 if int(team or 0) == 1 else 0
         self.link = int(link) if link is not None and 0 <= int(link) < MAX_SLOTS and int(link) != index else None
+        self.trio = _trio_tuple(trio, index)
+        self.rot = rot if rot in ROTATIONS else "cycle"
+        if self.trio is not None:
+            self.link = None
         k = default_keys(index)
         for a in KEY_ACTIONS:
             if keys and a in keys:
@@ -158,12 +183,18 @@ class Slot:
         """Set to Tag (linked to a partner slot)."""
         return self.link is not None
 
+    @property
+    def grouped(self):
+        """In a tag pair or a trio."""
+        return self.link is not None or self.trio is not None
+
     def to_dict(self):
         return {"char": self.char, "team": self.team, "link": self.link,
-                "keys": dict(self.keys), "pick": self.pick}
+                "keys": dict(self.keys), "pick": self.pick,
+                "trio": list(self.trio) if self.trio else None, "rot": self.rot}
 
     def copy(self):
-        s = Slot(self.index, self.char, self.team, self.link, self.keys, self.pick)
+        s = Slot(self.index, self.char, self.team, self.link, self.keys, self.pick, self.trio, self.rot)
         s.fig = self.fig
         s.src = self.src
         return s
@@ -199,7 +230,7 @@ def load(root, order):
         if ch not in order:
             ch = None
         slots.append(Slot(i, ch, d.get("team", i % 2), d.get("link"), d.get("keys"),
-                          d.get("pick") if ch else 0))
+                          d.get("pick") if ch else 0, d.get("trio"), d.get("rot", "cycle")))
     # Older roster.json: "tag": true on two team-mates = linked.
     if not any("link" in (d or {}) for d in raw if isinstance(d, dict)):
         for t in range(TEAM_COUNT):
@@ -244,12 +275,45 @@ def team_slots(slots, team):
 
 
 def unlink(slots, s):
-    """Break s's tag link (its partner goes back to Single too)."""
+    """Break s's tag link (its partner goes back to Single too); a trio
+    member breaks the whole trio (all three go back to Single)."""
+    if s.trio is not None:
+        for i in s.trio:
+            if 0 <= i < len(slots) and slots[i] is not s and slots[i].trio == s.trio:
+                slots[i].trio = None
+        s.trio = None
     if s.link is not None:
         o = slots[s.link] if 0 <= s.link < len(slots) else None
         if o is not None and o.link == s.index:
             o.link = None
         s.link = None
+
+
+def make_trio(slots, members, rot="cycle"):
+    """Link three slots as a trio, rotation order = `members` order (each
+    loses any older link / trio)."""
+    for m in members:
+        unlink(slots, m)
+    t = tuple(m.index for m in members)
+    for m in members:
+        m.trio = t
+        m.rot = rot if rot in ROTATIONS else "cycle"
+
+
+def set_rotation(slots, s, rot):
+    """A trio's rotation mode (set on all three)."""
+    if s.trio is None or rot not in ROTATIONS:
+        return
+    for i in s.trio:
+        if 0 <= i < len(slots):
+            slots[i].rot = rot
+
+
+def trio_members(slots, s):
+    """s's trio as Slots in rotation order, or None."""
+    if s.trio is None or not all(0 <= i < len(slots) for i in s.trio):
+        return None
+    return [slots[i] for i in s.trio]
 
 
 def add_slot(slots):
@@ -289,6 +353,9 @@ def remove_slot(slots, i):
     for s in slots:
         if s.link is not None:
             s.link = remap.get(s.link)
+        if s.trio is not None:
+            t = tuple(remap.get(i) for i in s.trio)
+            s.trio = t if None not in t else None
     clean_links(slots)
     renumber(slots)
     return True
@@ -299,6 +366,7 @@ def clear_all(slots):
     Teams, hotkeys and the number of slots stay."""
     for s in slots:
         s.link = None
+        s.trio = None
         s.char = None
         s.pick = 0
 
@@ -314,6 +382,11 @@ def clean_links(slots, can_tag=None):
     """Drop links that no longer hold: an empty slot, team-mates no more,
     a one-sided link, or (with can_tag) a character that can't tag."""
     for s in slots:
+        if s.trio is not None:
+            ms = trio_members(slots, s)
+            if (ms is None or any(m.trio != s.trio or not m.char or m.team != s.team for m in ms)
+                    or (can_tag is not None and not all(can_tag(m.char) for m in ms))):
+                unlink(slots, s)
         if s.link is None:
             continue
         if not (0 <= s.link < len(slots)):
@@ -339,8 +412,30 @@ def tag_pairs(slots, can_tag):
     return out
 
 
+def trios(slots, can_tag):
+    """Every valid trio as its 3 Slots in rotation order."""
+    out = []
+    for s in sorted((x for x in slots if x.char), key=lambda x: (x.pick, x.index)):
+        if s.trio is None or any(s in t for t in out):
+            continue
+        ms = trio_members(slots, s)
+        if (ms is not None and all(m.trio == s.trio and m.char and m.team == s.team
+                                   and can_tag(m.char) for m in ms)):
+            out.append(tuple(ms))
+    return out
+
+
+def tag_groups(slots, can_tag):
+    """Every tag pair (first pick, second pick) and trio (rotation order),
+    ordered by their earliest pick.  Index in this list = the group's
+    colour (PAIR_COLORS)."""
+    gs = list(tag_pairs(slots, can_tag)) + trios(slots, can_tag)
+    gs.sort(key=lambda g: min((m.pick, m.index) for m in g))
+    return gs
+
+
 def pair_index(slots, s, can_tag):
-    for n, p in enumerate(tag_pairs(slots, can_tag)):
+    for n, p in enumerate(tag_groups(slots, can_tag)):
         if s in p:
             return n
     return -1
@@ -361,6 +456,8 @@ def validate(slots, can_tag):
         elif s.tag and s.char and 0 <= s.link < len(slots) and slots[s.link].team != s.team:
             errs.append("Slot %s and its Tag partner %s are on different teams."
                         % (s.name, slots[s.link].name))
+        elif s.trio is not None and s.char and not can_tag(s.char):
+            errs.append("Slot %s: only Rig Forge characters can be in a Trio." % s.name)
     seen = {}
     for s in slots:
         for a in KEY_ACTIONS:

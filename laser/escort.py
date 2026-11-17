@@ -52,7 +52,7 @@ def _fielded(world, fig):
 
 def _pair_of(world, fig):
     for p in getattr(world, "tag_pairs", ()) or ():
-        if p is not None and (p.on.fig is fig or p.off.fig is fig):
+        if p is not None and any(m.fig is fig for m in p.members):
             return p
     return None
 
@@ -62,13 +62,13 @@ def guard_for(world, caster):
     (None, False) when there is no one to guard."""
     p = _pair_of(world, caster)
     if p is not None:
-        on, off = p.on.fig, p.off.fig
+        on = p.on.fig
         if not _fielded(world, on):
             return None, False
-        partner = off if on is caster else on
         if on is not caster:
             return on, True     # carried over to the partner
-        return on, partner is not None and partner.personality.hp > 0
+        # Full strength while a team-mate on the bench is still standing.
+        return on, any(m.fig is not None and m.fig.personality.hp > 0 for m in p.benched())
     if not _fielded(world, caster):
         return None, False
     return caster, False

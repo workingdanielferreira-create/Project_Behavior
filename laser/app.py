@@ -500,7 +500,8 @@ class World:
         self.tag_pairs = _tag.build_pairs(self, self.slots, [] if reset else
                                           (getattr(self, "tag_pairs", None) or []))
         slot_figs = [s.fig for s in self.slots if s.fig is not None]
-        benched = [p.off.fig for p in self.tag_pairs]
+        # Tag pairs / trios: everyone but the on-field member waits benched.
+        benched = [m.fig for p in self.tag_pairs for m in p.benched()]
         for t, side in enumerate(self.sides):
             ordered = _roster.team_slots(self.slots, t)
             field = [s.fig for s in ordered
@@ -509,7 +510,8 @@ class World:
                 _tag.unbench(f, now)
             for p in self.tag_pairs:
                 if p.team == t:
-                    _tag.bench(p.off.fig, now)
+                    for m in p.benched():
+                        _tag.bench(m.fig, now)
             # F7 extras (no slot) stay; Mirror Legion copies ride at the end.
             extras = [f for f in side.figures if not unique.is_clone(f)
                       and not any(f is g for g in slot_figs)]
