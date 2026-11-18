@@ -20,6 +20,9 @@ Styles (params.style, fxkit.TECH_STYLES):
                     more crescent waves (laser/crescentfx.py): ground drag,
                     twin helix, barrage, returning moon, splitting moon,
                     moonfall
+  aegis_wall, mirror_kata, chain_bastion, repulse_nova, sanctuary_tether,
+  lotus_mend        defender FX (laser/defendfx.py): attached, each blocks /
+                    deflects / intercepts / knocks back / shields / heals
   straight_slash    one cut you lay out yourself (laser/slashline.py): angle,
                     length, curve (straight .. half circle), which end it
                     starts from; its MIDDLE is the anchor point, so anchored
@@ -209,6 +212,8 @@ def active_ticks(P):
         return crescentfx.active_ticks(P)
     if st in slashline.STYLES:
         return slashline.active_ticks(P)
+    if st in defendfx.STYLES:
+        return defendfx.active_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.active_ticks(P)
     if st in kickfx.STYLES:
@@ -235,6 +240,8 @@ def total_ticks(P):
         return crescentfx.total_ticks(P)
     if st in slashline.STYLES:
         return slashline.total_ticks(P)
+    if st in defendfx.STYLES:
+        return defendfx.total_ticks(P)
     if st in strikefx.STYLES:
         return strikefx.total_ticks(P)
     if st in kickfx.STYLES:
@@ -289,6 +296,8 @@ def on_spawn(inst, host):
         slashline.on_spawn(inst, host)
     _record_outline(inst, host)
     inst.life = active_ticks(fx["params"])
+    if st in defendfx.STYLES:
+        defendfx.on_spawn(inst, host)   # defender FX: own state, ally pick (none = skipped)
 
 
 def on_tick(inst, host=None):
@@ -306,6 +315,8 @@ def on_tick(inst, host=None):
     kickfx.hitstop_step(inst, host)
     gunfx.track_step(inst, host)
     powerfx.met_step(inst, inst.ps or 1.0)
+    if host is not None and _style(inst.fx["params"]) in defendfx.STYLES:
+        defendfx.step(inst, host)       # defender FX: block / deflect / chains / nova / barrier / heal
 
 
 def _record_outline(inst, host):
@@ -677,6 +688,8 @@ def hit(inst, tx, ty, hr, ps):
         return crescentfx.hit(inst, tx, ty, hr, ps)
     if st in slashline.STYLES:
         return slashline.hit(inst, tx, ty, hr, ps)
+    if st in defendfx.STYLES:
+        return defendfx.hit(inst, tx, ty, hr, ps)
     if st in strikefx.STYLES:
         return strikefx.hit(inst, tx, ty, hr, ps)
     if st in kickfx.STYLES:
@@ -798,6 +811,8 @@ def body(inst, ps):
         return crescentfx.body(inst, ps)
     if st in slashline.STYLES:
         return slashline.body(inst, ps)
+    if st in defendfx.STYLES:
+        return defendfx.body(inst, ps)
     if st in strikefx.STYLES:
         return strikefx.body(inst, ps)
     if st in kickfx.STYLES:
@@ -830,15 +845,18 @@ def on_hit(inst, x, y, ps=1.0):
     inst.tq_hits.append((float(x), float(y), inst.age))
 
 
-def hit_dir(inst):
-    """Which way a landed technique pushes the target: the aim, except
-    for the strikes' and kicks' own Knockback direction (strikefx / kickfx
-    hit_dir)."""
+def hit_dir(inst, x=None, y=None):
+    """Which way a landed technique pushes the target at (x, y): the aim,
+    except for the strikes' and kicks' own Knockback direction (strikefx /
+    kickfx hit_dir) and the defender FX (defendfx.hit_dir: the nova pushes
+    straight out, chains pull in)."""
     st = _style(inst.fx["params"])
     if st in strikefx.STYLES:
         return strikefx.hit_dir(inst)
     if st in kickfx.STYLES:
         return kickfx.hit_dir(inst)
+    if st in defendfx.STYLES:
+        return defendfx.hit_dir(inst, x, y)
     return inst.dir
 
 
@@ -1478,6 +1496,8 @@ def draw(p, inst, host, ps):
         crescentfx.draw(pen, inst, host, ps)
     elif st in slashline.STYLES:
         slashline.draw(pen, inst, host, ps)
+    elif st in defendfx.STYLES:
+        defendfx.draw(pen, inst, host, ps)
     elif st in strikefx.STYLES:
         strikefx.draw(pen, inst, host, ps)
     elif st in kickfx.STYLES:
@@ -1503,11 +1523,16 @@ from . import gunfx  # noqa: E402
 from . import weaponfx  # noqa: E402
 from . import crescentfx  # noqa: E402
 from . import slashline  # noqa: E402
+from . import defendfx  # noqa: E402
 
 
 def stands_own(inst):
     """A technique that stands upright at its own spot on the big ball
     (fxkit CharacterFx.draw -> speedband.travel_at) whatever its Motion:
     the straight slash (laser/slashline.py), so a cut anchored on the target
-    is drawn where it hits, not bent about the caster's feet."""
-    return inst.fx.get("prim") == "technique" and _style(inst.fx["params"]) in slashline.STYLES
+    is drawn where it hits, not bent about the caster's feet; and the
+    defender FX that stand on a team-mate (defendfx.ALLY_STYLES)."""
+    if inst.fx.get("prim") != "technique":
+        return False
+    st = _style(inst.fx["params"])
+    return st in slashline.STYLES or st in defendfx.ALLY_STYLES

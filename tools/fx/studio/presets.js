@@ -1757,7 +1757,44 @@ G.FX_PRESETS = [
      {"prim": "pulse", "name": "Burst 6L ring", "tag": "slam", "anchor": "ftL", "start_frame": 51, "life_ticks": 40, "motion": {"kind": "static"}, "flip": {"enabled": false, "facing": 1}, "offset": [-360, 0], "blend": "additive", "color": {"mode": "solid", "c1": "#ffc470"}, "params": {"r_start": 6, "r_end": 33.14, "width": 5, "width_end": 2, "expand_ms": 240, "rings": 1, "gap_ms": 120, "ease": "out", "fade": "out", "glow": 10, "fill_alpha": 0, "stretch_x": 1, "stretch_y": 0.32, "tilt_deg": 0}, "battle": {"deals_damage": true, "damage": 12, "pierce": true, "rehit_ticks": 0, "knockback": 10, "blockable": false, "deflectable": false}},
      {"prim": "particles", "name": "Burst 6L column", "tag": "slam", "anchor": "ftL", "start_frame": 51, "life_ticks": 1, "motion": {"kind": "static"}, "flip": {"enabled": false, "facing": 1}, "offset": [-360, 0], "blend": "normal", "color": {"mode": "gradient", "c1": "#ffe9a8", "c2": "#d0621e"}, "params": {"mode": "burst", "count": 6, "angle_deg": -90, "spread_deg": 7, "speed_min": 595.2, "speed_max": 976.5, "gravity": -8, "drag": 0.968, "size_min": 17.290000000000003, "size_max": 32.592, "size_over_life": "grow", "life_min_ms": 450, "life_max_ms": 800}},
      {"prim": "particles", "name": "Burst 6L rocks", "tag": "slam", "anchor": "ftL", "start_frame": 51, "life_ticks": 1, "motion": {"kind": "static"}, "flip": {"enabled": false, "facing": 1}, "offset": [-360, 0], "blend": "normal", "color": {"mode": "gradient", "c1": "#e0832a", "c2": "#6b3a18"}, "params": {"mode": "burst", "count": 4, "angle_deg": -90, "spread_deg": 100, "speed_min": 59.40000000000002, "speed_max": 154.44000000000005, "gravity": 640, "drag": 0.99, "size_min": 2.0196000000000005, "size_max": 5.346000000000002, "size_over_life": "none", "life_min_ms": 700, "life_max_ms": 1200}},
-     {"prim": "particles", "name": "Run streaks", "tag": "slam", "anchor": "ftL", "start_frame": 47, "life_ticks": 1, "motion": {"kind": "static"}, "flip": {"enabled": false, "facing": 1}, "offset": [0, 0], "blend": "additive", "color": {"mode": "gradient", "c1": "#ffffff", "c2": "#9aa4b0"}, "params": {"mode": "burst", "count": 14, "angle_deg": -90, "spread_deg": 170, "speed_min": 520, "speed_max": 950, "gravity": 0, "drag": 1.0, "size_min": 1.0, "size_max": 2.2, "size_over_life": "shrink", "life_min_ms": 160, "life_max_ms": 320}}]}
+     {"prim": "particles", "name": "Run streaks", "tag": "slam", "anchor": "ftL", "start_frame": 47, "life_ticks": 1, "motion": {"kind": "static"}, "flip": {"enabled": false, "facing": 1}, "offset": [0, 0], "blend": "additive", "color": {"mode": "gradient", "c1": "#ffffff", "c2": "#9aa4b0"}, "params": {"mode": "burst", "count": 14, "angle_deg": -90, "spread_deg": 170, "speed_min": 520, "speed_max": 950, "gravity": 0, "drag": 1.0, "size_min": 1.0, "size_max": 2.2, "size_over_life": "shrink", "life_min_ms": 160, "life_max_ms": 320}}]},
+  // ---------------------------------------------------------------- defender FX
+  // Attached techniques that ARE the defender doing the work (laser/defendfx.py
+  // + defendfx.js): each one blocks / deflects / intercepts / knocks back /
+  // shields or heals by itself, no Defend type needed on the action.
+  {name: "Aegis wall", group: "Defender", desc: "Block: a curved wall of hexagonal energy cells snaps up in front of the body and turns to face the target. Enemy shots crossing it are blocked at their source, direct hits from the front lose 70 %, enemy melee FX in front are cancelled. Cells ripple, crack and re-light where hits land; after 120 damage it shatters",
+   effects: [{prim: "technique", name: "Aegis wall", tag: "defend", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: false, damage: 0, pierce: true, rehit_ticks: 0, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#7fe3ff", c2: "#2a7bff"},
+     params: {style: "aegis_wall", radius: 26, length: 14, swing_ticks: 8, hold_ticks: 70, df_reduce_pct: 70, df_hp: 120, df_area: true}}]},
+  {name: "Mirror kata", group: "Defender", desc: "Deflect / reflect: crescent blades of light whirl round the body on a tilted ring at a surging, never-steady speed; every enemy shot entering the ring is batted away (or sent back at the target / destroyed) with a mirror-rune flash and a streak",
+   effects: [{prim: "technique", name: "Mirror kata", tag: "defend", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: false, damage: 0, pierce: true, rehit_ticks: 0, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#eef0ff", c2: "#9a6bff"},
+     params: {style: "mirror_kata", radius: 28, thickness: 7, swing_ticks: 6, hold_ticks: 70, moons: 3, spin_deg: 19,
+              df_result: "deflect", df_hurts: true, df_area: false}}]},
+  {name: "Chain bastion", group: "Defender", desc: "Intercept: spectral chains coil out of a sigil behind the shoulder and lash out at every enemy shot inside 180 px, catching it as the spear-tip lands; they also lash enemies in reach and yank them in",
+   effects: [{prim: "technique", name: "Chain bastion", tag: "defend", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: true, damage: 6, pierce: true, rehit_ticks: 30, knockback: 14},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ffd36b", c2: "#c77a1a"},
+     params: {style: "chain_bastion", length: 180, swing_ticks: 8, hold_ticks: 100, moons: 3, df_result: "destroy",
+              df_hurts: true, df_enemies: true, df_pull: true}}]},
+  {name: "Repulse nova", group: "Defender", desc: "Knockback: the fighter plants, energy rushes in round a ground glyph, then a dome shockwave bursts out — every enemy it sweeps is hit once and thrown straight out from the centre, shots inside it are destroyed, the screen shakes, cracks and dust",
+   effects: [{prim: "technique", name: "Repulse nova", tag: "defend", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: true, damage: 8, pierce: true, rehit_ticks: 0, knockback: 24},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#d4efff", c2: "#5a8cff"},
+     params: {style: "repulse_nova", radius: 120, swing_ticks: 14, hold_ticks: 14, ground_px: 14, df_area: true}}]},
+  {name: "Sanctuary tether", group: "Defender", desc: "Barrier an ally (Battle): a twisting tether of light runs to the team-mate under threat and a dome rises round it — shots entering it are blocked, hits on the team-mate lose 60 %, after 150 damage it shatters. Does nothing in Solo",
+   effects: [{prim: "technique", name: "Sanctuary tether", tag: "defend", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: false, damage: 0, pierce: true, rehit_ticks: 0, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#fff2b8", c2: "#ffc04d"},
+     params: {style: "sanctuary_tether", radius: 24, swing_ticks: 10, hold_ticks: 150, ground_px: 14, df_reduce_pct: 60, df_hp: 150,
+              df_pick: "threatened", df_area: true}}]},
+  {name: "Lotus mend", group: "Defender", desc: "Heal an ally (Battle): petals stream from the fighter into the team-mate with the lowest HP while a lotus sigil blooms under it; 30 HP flows in over two seconds with heal rings running up its body. Does nothing in Solo",
+   effects: [{prim: "technique", name: "Lotus mend", tag: "heal", anchor: "figure", blend: "additive", flip: {enabled: false, facing: 1},
+     battle: {deals_damage: false, damage: 0, pierce: true, rehit_ticks: 0, knockback: 0},
+     motion: {kind: "attached", aim: "target"}, color: {mode: "gradient", c1: "#ff9ad5", c2: "#6dffc8"},
+     params: {style: "lotus_mend", radius: 24, swing_ticks: 12, hold_ticks: 120, ground_px: 14, df_pick: "lowest_hp", df_heal: 30}}]}
 ];
 // Built-in entry-set and path presets (Paths & entry points panel).  kind
 // "set" items are entry sets, "path" items paths, in the shapes

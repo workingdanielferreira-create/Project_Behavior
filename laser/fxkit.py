@@ -288,7 +288,15 @@ PARAM_DEFAULTS = {
                       # straight slash (laser/slashline.py): cut_deg = the way the blade
                       # travels (local, 0 = forward, -90 = up), curve_pct 0 = straight ..
                       # 100 = half circle (negative = the other way), slash_from start / end / centre.
-                      cut_deg=-30, curve_pct=25, slash_from="start"),
+                      cut_deg=-30, curve_pct=25, slash_from="start",
+                      # defender FX (laser/defendfx.py): df_reduce_pct = direct hits cut while
+                      # the wall / dome stands, df_hp = damage it takes before it shatters
+                      # (0 = never), df_result destroy / deflect / reflect, df_hurts = sent-off
+                      # shots hurt, df_area = also cancels enemy melee / area FX, df_enemies =
+                      # chains lash enemies too, df_pull = chains pull them in, df_pick =
+                      # threatened / lowest_hp / nearest team-mate, df_heal = HP healed.
+                      df_reduce_pct=70, df_hp=0, df_result="destroy", df_hurts=True, df_area=True,
+                      df_enemies=True, df_pull=True, df_pick="lowest_hp", df_heal=30),
 }
 # Each technique style's own shape (FX Studio applies it when the style is
 # picked): FXK.TECH_STYLE_DEFAULTS mirrors it.
@@ -304,7 +312,8 @@ TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "crescent_w
                "phantom_greatsword", "neon_uzis", "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver",
                "nodachi", "earth_cleaver", "void_sniper",
                "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split",
-               "crescent_fall", "straight_slash"]
+               "crescent_fall", "straight_slash",
+               "aegis_wall", "mirror_kata", "chain_bastion", "repulse_nova", "sanctuary_tether", "lotus_mend"]
 TECH_STYLE_DEFAULTS = {
     "rising_slash": dict(radius=40, span=160, thickness=12, swing_ticks=6),
     "horizontal_sweep": dict(radius=100, span=70, thickness=11, swing_ticks=7),
@@ -312,6 +321,16 @@ TECH_STYLE_DEFAULTS = {
     # One cut you lay out yourself (laser/slashline.py): its middle is the anchor point.
     "straight_slash": dict(length=240, thickness=12, swing_ticks=5, hold_ticks=8, cut_deg=-30, curve_pct=25,
                            slash_from="start"),
+    # Defender FX (laser/defendfx.py): attached, each one does its own defending.
+    "aegis_wall": dict(radius=26, length=14, swing_ticks=8, hold_ticks=70, df_reduce_pct=70, df_hp=120, df_area=True),
+    "mirror_kata": dict(radius=28, thickness=7, swing_ticks=6, hold_ticks=70, moons=3, spin_deg=19,
+                        df_result="deflect", df_area=False),
+    "chain_bastion": dict(length=180, swing_ticks=8, hold_ticks=100, moons=3, df_result="destroy",
+                          df_enemies=True, df_pull=True),
+    "repulse_nova": dict(radius=120, swing_ticks=14, hold_ticks=14, ground_px=14, df_area=True),
+    "sanctuary_tether": dict(radius=24, swing_ticks=10, hold_ticks=150, ground_px=14, df_reduce_pct=60, df_hp=150,
+                             df_pick="threatened", df_area=True),
+    "lotus_mend": dict(radius=24, swing_ticks=12, hold_ticks=120, ground_px=14, df_pick="lowest_hp", df_heal=30),
     "crescent_wave": dict(radius=40, thickness=22, hold_ticks=48),
     # More crescent waves (laser/crescentfx.py)
     "crescent_drag": dict(radius=80, thickness=46, hold_ticks=48, ground_px=30),
@@ -1440,7 +1459,7 @@ class Inst:
                  "bd_m", "bd_stuck", "tq_bd", "bm", "bm_d", "bm_v", "bm_t", "esc_k",
                  "sp_x", "sp_y", "sp_t", "fl_t", "plant_y",
                  "hop_l", "hop_lt", "hop_tx", "hop_ty", "hop_dx", "hop_dy", "hop_passed", "hop_stopped", "hop_dv",
-                 "hop_a", "hop_rc", "hop_th", "hop_used", "lt", "sl_sc")
+                 "hop_a", "hop_rc", "hop_th", "hop_used", "lt", "sl_sc", "df")
 
     def __init__(self):
         # Anime blade extras (blade_extras_step): the portal's spot (None =
@@ -1448,6 +1467,7 @@ class Inst:
         # ticks in flight for the flare (-1 = not flying), ground line y for
         # planting (None = off).
         self.sp_x = self.sp_y = None
+        self.df = None   # defender FX state (laser/defendfx.py), set on spawn
         self.sp_t = -1
         self.fl_t = -1
         self.plant_y = None
@@ -2822,7 +2842,7 @@ def resolve_hits(inst, host, ps):
         inst.last_hit = now
         g = hit_mult(inst, hx, hy, ps)    # grown by absorbing
         rw = swordfx.gunfx.rewind_mult(inst, hx, hy, ps) if inst.fx["prim"] == "technique" else 1.0
-        d = swordfx.hit_dir(inst) if inst.fx["prim"] == "technique" else inst.dir
+        d = swordfx.hit_dir(inst, hx, hy) if inst.fx["prim"] == "technique" else inst.dir
         host.on_hit(inst, b["damage"] * g * rw, d[0], d[1], b["knockback"] * g, key)
         if inst.fx["prim"] == "technique":
             swordfx.on_hit(inst, hx, hy, ps)   # its slash flash on the target
