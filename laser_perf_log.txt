@@ -3540,3 +3540,1006 @@
     MotionSystem           avg   0.142 ms  worst    0.26 ms  x4
     ProjectileSystem       avg   0.038 ms  worst    0.04 ms  x4
     CollisionSystem        avg   0.024 ms  worst    0.03 ms  x4
+01:07:13  fps 0.1  ticks/s 0.0  catch-up calls 0/0  fx 0  [puck:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 2642.677 ms  worst 2642.68 ms  x1
+    paint:hud              avg 2620.101 ms  worst 2620.10 ms  x1
+    paint:ground bent      avg  17.633 ms  worst   17.63 ms  x1
+    paint:ground drawn     avg   1.526 ms  worst    1.53 ms  x1
+    paint:air bent         avg   1.402 ms  worst    1.40 ms  x1
+    paint:objects          avg   1.186 ms  worst    1.19 ms  x1
+    paint:air drawn        avg   0.692 ms  worst    0.69 ms  x1
+    paint:puck body        avg   0.206 ms  worst    0.48 ms  x3
+    paint:sueko body       avg   0.151 ms  worst    0.36 ms  x3
+    paint:pillars          avg   0.032 ms  worst    0.06 ms  x2
+    paint:puck fx          avg   0.003 ms  worst    0.00 ms  x2
+    paint:sueko fx         avg   0.002 ms  worst    0.00 ms  x2
+01:08:24  fps 0.0  ticks/s 0.1  catch-up calls 65/4319  fx 0  [sueko:-, puck:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  43.129 ms  worst   43.13 ms  x1
+    unique+tag+escort      avg   8.274 ms  worst   41.15 ms  x5
+    paint:hud              avg  18.859 ms  worst   18.86 ms  x1
+    paint:ground bent      avg  18.027 ms  worst   18.03 ms  x1
+    time:CombatSystem      avg   0.734 ms  worst    1.35 ms  x5
+    paint:ground drawn     avg   2.323 ms  worst    2.32 ms  x1
+    paint:air drawn        avg   1.417 ms  worst    1.42 ms  x1
+    paint:air bent         avg   1.356 ms  worst    1.36 ms  x1
+    paint:objects          avg   0.993 ms  worst    0.99 ms  x1
+    worldfx                avg   0.159 ms  worst    0.35 ms  x5
+    terrain                avg   0.130 ms  worst    0.30 ms  x5
+    time:MotionSystem      avg   0.095 ms  worst    0.15 ms  x5
+    paint:sueko body       avg   0.065 ms  worst    0.26 ms  x6
+    paint:puck body        avg   0.060 ms  worst    0.21 ms  x6
+    tempo director         avg   0.060 ms  worst    0.17 ms  x5
+    speedband              avg   0.055 ms  worst    0.08 ms  x5
+    paint:pillars          avg   0.037 ms  worst    0.09 ms  x4
+    clash                  avg   0.022 ms  worst    0.05 ms  x5
+    stats                  avg   0.022 ms  worst    0.05 ms  x5
+    snapshots              avg   0.016 ms  worst    0.03 ms  x5
+    timefx/puppet          avg   0.013 ms  worst    0.02 ms  x5
+    paint:sueko fx         avg   0.012 ms  worst    0.03 ms  x4
+    time:ProjectileSystem  avg   0.007 ms  worst    0.01 ms  x5
+    time:CollisionSystem   avg   0.006 ms  worst    0.01 ms  x5
+    paint:puck fx          avg   0.005 ms  worst    0.01 ms  x4
+01:08:29  fps 31.9  ticks/s 57.8  catch-up calls 126/192  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  25.792 ms  worst   55.31 ms  x160
+    paint:ground bent      avg  17.852 ms  worst   43.79 ms  x160
+    paint:objects          avg   3.645 ms  worst   13.53 ms  x160
+    paint:puck fx          avg   0.721 ms  worst   11.27 ms  x320
+    time:CombatSystem      avg   0.709 ms  worst   14.94 ms  x290
+    paint:ground drawn     avg   1.228 ms  worst    3.55 ms  x160
+    paint:air drawn        avg   1.185 ms  worst    3.03 ms  x160
+    paint:air bent         avg   0.971 ms  worst    2.56 ms  x160
+    paint:sueko body       avg   0.268 ms  worst    2.94 ms  x480
+    paint:puck body        avg   0.256 ms  worst    2.93 ms  x480
+    paint:hud              avg   0.755 ms  worst    1.99 ms  x160
+    paint:sueko fx         avg   0.193 ms  worst    9.89 ms  x320
+    worldfx                avg   0.122 ms  worst    0.89 ms  x290
+    terrain                avg   0.068 ms  worst    0.45 ms  x290
+    time:MotionSystem      avg   0.060 ms  worst    0.31 ms  x290
+    speedband              avg   0.052 ms  worst    0.24 ms  x290
+    unique+tag+escort      avg   0.052 ms  worst    0.24 ms  x290
+    paint:pillars          avg   0.032 ms  worst    0.17 ms  x320
+    tempo director         avg   0.033 ms  worst    0.25 ms  x290
+    stats                  avg   0.017 ms  worst    0.27 ms  x290
+    snapshots              avg   0.016 ms  worst    0.22 ms  x290
+    time:ProjectileSystem  avg   0.016 ms  worst    0.08 ms  x290
+    timefx/puppet          avg   0.013 ms  worst    0.07 ms  x290
+    clash                  avg   0.013 ms  worst    0.09 ms  x290
+    time:CollisionSystem   avg   0.006 ms  worst    0.11 ms  x290
+01:08:34  fps 8.0  ticks/s 19.9  catch-up calls 51/245  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  35.507 ms  worst   67.81 ms  x40
+    paint:ground bent      avg  19.124 ms  worst   49.62 ms  x40
+    paint:objects          avg   8.258 ms  worst   32.91 ms  x40
+    paint:sueko fx         avg   2.657 ms  worst   26.30 ms  x82
+    paint:air drawn        avg   3.590 ms  worst   11.10 ms  x40
+    time:CombatSystem      avg   0.426 ms  worst    1.55 ms  x170
+    paint:air bent         avg   1.752 ms  worst    5.42 ms  x40
+    paint:puck fx          avg   0.750 ms  worst    8.94 ms  x82
+    paint:ground drawn     avg   1.505 ms  worst    2.65 ms  x40
+    paint:hud              avg   1.140 ms  worst    5.86 ms  x40
+    paint:sueko body       avg   0.186 ms  worst    1.50 ms  x123
+    paint:puck body        avg   0.158 ms  worst    1.62 ms  x123
+    worldfx                avg   0.117 ms  worst    0.41 ms  x100
+    time:MotionSystem      avg   0.066 ms  worst    0.41 ms  x170
+    snapshots              avg   0.068 ms  worst    0.28 ms  x100
+    terrain                avg   0.061 ms  worst    0.20 ms  x100
+    speedband              avg   0.045 ms  worst    0.12 ms  x100
+    unique+tag+escort      avg   0.045 ms  worst    0.17 ms  x100
+    clash                  avg   0.043 ms  worst    0.18 ms  x100
+    time:ProjectileSystem  avg   0.018 ms  worst    0.07 ms  x170
+    paint:pillars          avg   0.033 ms  worst    0.13 ms  x82
+    tempo director         avg   0.026 ms  worst    0.07 ms  x100
+    time:CollisionSystem   avg   0.010 ms  worst    0.03 ms  x170
+    timefx/puppet          avg   0.010 ms  worst    0.03 ms  x100
+    stats                  avg   0.007 ms  worst    0.08 ms  x100
+01:08:39  fps 24.1  ticks/s 58.9  catch-up calls 114/158  fx 4  [sueko:-, puck:neutral]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  33.830 ms  worst   84.10 ms  x121
+    paint:ground bent      avg  18.592 ms  worst   68.08 ms  x121
+    paint:air drawn        avg   4.770 ms  worst   12.38 ms  x121
+    paint:objects          avg   4.686 ms  worst   31.02 ms  x121
+    paint:air bent         avg   3.091 ms  worst    9.15 ms  x121
+    paint:sueko fx         avg   1.510 ms  worst   27.31 ms  x242
+    time:CombatSystem      avg   0.453 ms  worst    1.48 ms  x592
+    paint:ground drawn     avg   1.407 ms  worst    3.78 ms  x121
+    paint:hud              avg   1.116 ms  worst    5.92 ms  x121
+    paint:puck fx          avg   0.457 ms  worst    9.20 ms  x242
+    time:MotionSystem      avg   0.071 ms  worst    0.36 ms  x592
+    worldfx                avg   0.139 ms  worst    0.49 ms  x296
+    paint:sueko body       avg   0.093 ms  worst    0.78 ms  x363
+    snapshots              avg   0.114 ms  worst    0.50 ms  x296
+    paint:puck body        avg   0.080 ms  worst    1.54 ms  x363
+    clash                  avg   0.080 ms  worst    1.22 ms  x296
+    terrain                avg   0.073 ms  worst    0.26 ms  x296
+    unique+tag+escort      avg   0.059 ms  worst    1.30 ms  x296
+    speedband              avg   0.057 ms  worst    0.22 ms  x296
+    time:ProjectileSystem  avg   0.021 ms  worst    0.12 ms  x592
+    tempo director         avg   0.031 ms  worst    0.12 ms  x296
+    time:CollisionSystem   avg   0.015 ms  worst    0.12 ms  x592
+    paint:pillars          avg   0.028 ms  worst    0.16 ms  x242
+    timefx/puppet          avg   0.013 ms  worst    0.10 ms  x296
+    stats                  avg   0.005 ms  worst    0.04 ms  x296
+01:08:44  fps 20.6  ticks/s 54.0  catch-up calls 99/127  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  41.016 ms  worst  116.07 ms  x103
+    paint:ground bent      avg  20.233 ms  worst   52.76 ms  x103
+    paint:objects          avg   7.927 ms  worst   57.41 ms  x103
+    paint:air drawn        avg   5.076 ms  worst   20.71 ms  x103
+    paint:air bent         avg   3.620 ms  worst   10.84 ms  x103
+    paint:sueko fx         avg   1.441 ms  worst   41.83 ms  x206
+    paint:puck fx          avg   1.428 ms  worst   16.20 ms  x206
+    paint:ground drawn     avg   2.705 ms  worst   14.06 ms  x103
+    time:CombatSystem      avg   0.433 ms  worst    2.03 ms  x540
+    paint:hud              avg   1.311 ms  worst    6.42 ms  x103
+    paint:puck body        avg   0.340 ms  worst    2.81 ms  x309
+    paint:sueko body       avg   0.309 ms  worst    3.99 ms  x309
+    snapshots              avg   0.146 ms  worst    0.88 ms  x270
+    worldfx                avg   0.120 ms  worst    0.37 ms  x270
+    time:MotionSystem      avg   0.059 ms  worst    0.43 ms  x540
+    clash                  avg   0.088 ms  worst    0.82 ms  x270
+    terrain                avg   0.067 ms  worst    0.26 ms  x270
+    speedband              avg   0.052 ms  worst    0.40 ms  x270
+    unique+tag+escort      avg   0.046 ms  worst    0.27 ms  x270
+    time:ProjectileSystem  avg   0.020 ms  worst    0.33 ms  x540
+    tempo director         avg   0.028 ms  worst    0.25 ms  x270
+    time:CollisionSystem   avg   0.013 ms  worst    0.12 ms  x540
+    paint:pillars          avg   0.029 ms  worst    0.14 ms  x206
+    timefx/puppet          avg   0.010 ms  worst    0.05 ms  x270
+    stats                  avg   0.004 ms  worst    0.02 ms  x270
+01:08:49  fps 24.7  ticks/s 58.3  catch-up calls 117/160  fx 3  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  33.208 ms  worst   64.37 ms  x124
+    paint:ground bent      avg  18.394 ms  worst   47.26 ms  x124
+    paint:objects          avg   5.121 ms  worst   31.00 ms  x124
+    paint:air drawn        avg   4.225 ms  worst   10.09 ms  x124
+    paint:air bent         avg   2.805 ms  worst    7.04 ms  x124
+    paint:sueko fx         avg   1.275 ms  worst   26.67 ms  x248
+    time:CombatSystem      avg   0.443 ms  worst    1.90 ms  x584
+    paint:puck fx          avg   0.787 ms  worst   12.95 ms  x248
+    paint:ground drawn     avg   1.447 ms  worst    3.52 ms  x124
+    paint:hud              avg   1.056 ms  worst    6.55 ms  x124
+    paint:sueko body       avg   0.140 ms  worst    1.46 ms  x372
+    paint:puck body        avg   0.114 ms  worst    1.34 ms  x372
+    time:MotionSystem      avg   0.069 ms  worst    0.47 ms  x584
+    worldfx                avg   0.131 ms  worst    0.69 ms  x292
+    snapshots              avg   0.097 ms  worst    0.98 ms  x292
+    terrain                avg   0.065 ms  worst    0.30 ms  x292
+    speedband              avg   0.054 ms  worst    0.21 ms  x292
+    clash                  avg   0.053 ms  worst    0.35 ms  x292
+    unique+tag+escort      avg   0.051 ms  worst    0.21 ms  x292
+    time:ProjectileSystem  avg   0.023 ms  worst    0.27 ms  x584
+    tempo director         avg   0.031 ms  worst    0.18 ms  x292
+    time:CollisionSystem   avg   0.015 ms  worst    0.14 ms  x584
+    paint:pillars          avg   0.030 ms  worst    0.20 ms  x248
+    timefx/puppet          avg   0.012 ms  worst    0.13 ms  x292
+    stats                  avg   0.005 ms  worst    0.03 ms  x292
+01:08:54  fps 26.5  ticks/s 57.7  catch-up calls 124/163  fx 3  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  31.460 ms  worst   60.98 ms  x133
+    paint:ground bent      avg  16.933 ms  worst   32.45 ms  x133
+    paint:objects          avg   5.411 ms  worst   35.25 ms  x133
+    paint:air drawn        avg   4.096 ms  worst   10.52 ms  x133
+    paint:sueko fx         avg   1.536 ms  worst   29.10 ms  x266
+    paint:air bent         avg   2.490 ms  worst    5.73 ms  x133
+    time:CombatSystem      avg   0.380 ms  worst    1.35 ms  x578
+    paint:puck fx          avg   0.749 ms  worst   13.60 ms  x266
+    paint:ground drawn     avg   1.400 ms  worst    3.61 ms  x133
+    paint:hud              avg   0.987 ms  worst    5.05 ms  x133
+    paint:sueko body       avg   0.120 ms  worst    1.64 ms  x399
+    paint:puck body        avg   0.084 ms  worst    0.66 ms  x399
+    time:MotionSystem      avg   0.057 ms  worst    0.33 ms  x578
+    worldfx                avg   0.111 ms  worst    0.37 ms  x289
+    snapshots              avg   0.086 ms  worst    0.41 ms  x289
+    terrain                avg   0.057 ms  worst    0.17 ms  x289
+    clash                  avg   0.050 ms  worst    0.32 ms  x289
+    speedband              avg   0.048 ms  worst    0.28 ms  x289
+    unique+tag+escort      avg   0.046 ms  worst    0.28 ms  x289
+    time:ProjectileSystem  avg   0.018 ms  worst    0.14 ms  x578
+    tempo director         avg   0.026 ms  worst    0.16 ms  x289
+    paint:pillars          avg   0.028 ms  worst    0.30 ms  x266
+    time:CollisionSystem   avg   0.012 ms  worst    0.07 ms  x578
+    timefx/puppet          avg   0.010 ms  worst    0.05 ms  x289
+    stats                  avg   0.005 ms  worst    0.03 ms  x289
+01:08:59  fps 23.5  ticks/s 55.8  catch-up calls 109/153  fx 1  [sueko:-, puck:reset]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  35.215 ms  worst   77.52 ms  x118
+    paint:ground bent      avg  18.404 ms  worst   53.85 ms  x118
+    paint:objects          avg   7.106 ms  worst   24.09 ms  x118
+    paint:sueko fx         avg   2.109 ms  worst   22.00 ms  x236
+    paint:air drawn        avg   3.912 ms  worst    7.37 ms  x118
+    paint:air bent         avg   2.847 ms  worst    5.36 ms  x118
+    time:CombatSystem      avg   0.454 ms  worst    2.57 ms  x560
+    paint:puck fx          avg   0.991 ms  worst   13.67 ms  x236
+    paint:ground drawn     avg   1.453 ms  worst    3.65 ms  x118
+    paint:hud              avg   1.329 ms  worst    5.36 ms  x118
+    paint:sueko body       avg   0.129 ms  worst    1.69 ms  x354
+    worldfx                avg   0.134 ms  worst    2.14 ms  x280
+    paint:puck body        avg   0.091 ms  worst    0.72 ms  x354
+    snapshots              avg   0.101 ms  worst    0.49 ms  x280
+    time:MotionSystem      avg   0.039 ms  worst    0.50 ms  x560
+    terrain                avg   0.065 ms  worst    0.26 ms  x280
+    clash                  avg   0.057 ms  worst    0.31 ms  x280
+    speedband              avg   0.052 ms  worst    0.20 ms  x280
+    unique+tag+escort      avg   0.052 ms  worst    0.39 ms  x280
+    time:ProjectileSystem  avg   0.021 ms  worst    0.39 ms  x560
+    tempo director         avg   0.028 ms  worst    0.11 ms  x280
+    time:CollisionSystem   avg   0.013 ms  worst    0.10 ms  x560
+    paint:pillars          avg   0.031 ms  worst    0.21 ms  x236
+    timefx/puppet          avg   0.012 ms  worst    0.31 ms  x280
+    stats                  avg   0.005 ms  worst    0.04 ms  x280
+01:09:04  fps 23.2  ticks/s 56.9  catch-up calls 109/153  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  35.541 ms  worst   66.15 ms  x116
+    paint:ground bent      avg  17.891 ms  worst   47.95 ms  x116
+    paint:objects          avg   6.251 ms  worst   27.90 ms  x116
+    paint:air drawn        avg   5.459 ms  worst   14.43 ms  x116
+    paint:sueko fx         avg   2.019 ms  worst   26.11 ms  x232
+    paint:air bent         avg   3.250 ms  worst    7.72 ms  x116
+    time:CombatSystem      avg   0.472 ms  worst    1.53 ms  x570
+    paint:puck fx          avg   0.710 ms  worst   13.27 ms  x232
+    paint:ground drawn     avg   1.291 ms  worst    3.75 ms  x116
+    paint:hud              avg   1.236 ms  worst    7.45 ms  x116
+    worldfx                avg   0.139 ms  worst    0.43 ms  x285
+    paint:sueko body       avg   0.108 ms  worst    1.12 ms  x348
+    snapshots              avg   0.105 ms  worst    0.52 ms  x285
+    time:MotionSystem      avg   0.052 ms  worst    0.37 ms  x570
+    paint:puck body        avg   0.077 ms  worst    0.55 ms  x348
+    terrain                avg   0.074 ms  worst    0.59 ms  x285
+    speedband              avg   0.059 ms  worst    0.31 ms  x285
+    clash                  avg   0.058 ms  worst    0.22 ms  x285
+    unique+tag+escort      avg   0.056 ms  worst    0.68 ms  x285
+    time:ProjectileSystem  avg   0.022 ms  worst    0.28 ms  x570
+    tempo director         avg   0.032 ms  worst    0.29 ms  x285
+    time:CollisionSystem   avg   0.014 ms  worst    0.08 ms  x570
+    paint:pillars          avg   0.030 ms  worst    0.17 ms  x232
+    timefx/puppet          avg   0.012 ms  worst    0.09 ms  x285
+    stats                  avg   0.006 ms  worst    0.13 ms  x285
+01:09:09  fps 24.4  ticks/s 58.5  catch-up calls 116/149  fx 2  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  33.360 ms  worst   67.77 ms  x122
+    paint:ground bent      avg  19.079 ms  worst   52.69 ms  x122
+    paint:air drawn        avg   4.349 ms  worst    9.29 ms  x122
+    paint:objects          avg   4.311 ms  worst   15.83 ms  x122
+    paint:air bent         avg   2.842 ms  worst    8.45 ms  x122
+    paint:sueko fx         avg   1.214 ms  worst   14.73 ms  x244
+    time:CombatSystem      avg   0.468 ms  worst    1.55 ms  x586
+    paint:ground drawn     avg   1.524 ms  worst    3.51 ms  x122
+    paint:puck fx          avg   0.567 ms  worst    8.39 ms  x244
+    paint:hud              avg   1.095 ms  worst    4.74 ms  x122
+    time:MotionSystem      avg   0.079 ms  worst    1.20 ms  x586
+    worldfx                avg   0.137 ms  worst    0.47 ms  x293
+    paint:sueko body       avg   0.096 ms  worst    1.38 ms  x366
+    snapshots              avg   0.101 ms  worst    0.37 ms  x293
+    paint:puck body        avg   0.076 ms  worst    0.53 ms  x366
+    terrain                avg   0.072 ms  worst    0.29 ms  x293
+    speedband              avg   0.059 ms  worst    0.24 ms  x293
+    unique+tag+escort      avg   0.056 ms  worst    0.41 ms  x293
+    clash                  avg   0.053 ms  worst    0.25 ms  x293
+    time:ProjectileSystem  avg   0.022 ms  worst    0.19 ms  x586
+    tempo director         avg   0.032 ms  worst    0.16 ms  x293
+    time:CollisionSystem   avg   0.016 ms  worst    0.24 ms  x586
+    paint:pillars          avg   0.029 ms  worst    0.12 ms  x244
+    timefx/puppet          avg   0.013 ms  worst    0.12 ms  x293
+    stats                  avg   0.005 ms  worst    0.05 ms  x293
+01:09:14  fps 22.8  ticks/s 57.3  catch-up calls 114/147  fx 0  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  36.168 ms  worst   63.59 ms  x114
+    paint:ground bent      avg  19.186 ms  worst   36.97 ms  x114
+    paint:objects          avg   6.467 ms  worst   33.51 ms  x114
+    paint:air drawn        avg   4.581 ms  worst    9.78 ms  x114
+    paint:sueko fx         avg   2.136 ms  worst   25.63 ms  x228
+    paint:air bent         avg   2.893 ms  worst    9.43 ms  x114
+    time:CombatSystem      avg   0.471 ms  worst    4.70 ms  x574
+    paint:ground drawn     avg   1.603 ms  worst    3.50 ms  x114
+    paint:puck fx          avg   0.659 ms  worst    9.46 ms  x228
+    paint:hud              avg   1.278 ms  worst    5.97 ms  x114
+    worldfx                avg   0.137 ms  worst    0.71 ms  x287
+    paint:sueko body       avg   0.115 ms  worst    0.99 ms  x342
+    paint:puck body        avg   0.091 ms  worst    0.49 ms  x342
+    snapshots              avg   0.096 ms  worst    0.50 ms  x287
+    time:MotionSystem      avg   0.045 ms  worst    0.37 ms  x574
+    terrain                avg   0.070 ms  worst    0.26 ms  x287
+    clash                  avg   0.058 ms  worst    0.20 ms  x287
+    speedband              avg   0.057 ms  worst    0.20 ms  x287
+    unique+tag+escort      avg   0.051 ms  worst    0.23 ms  x287
+    time:ProjectileSystem  avg   0.020 ms  worst    0.17 ms  x574
+    tempo director         avg   0.030 ms  worst    0.15 ms  x287
+    time:CollisionSystem   avg   0.014 ms  worst    0.08 ms  x574
+    paint:pillars          avg   0.033 ms  worst    0.17 ms  x228
+    timefx/puppet          avg   0.011 ms  worst    0.07 ms  x287
+    stats                  avg   0.005 ms  worst    0.03 ms  x287
+01:09:19  fps 19.5  ticks/s 57.3  catch-up calls 93/141  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  41.514 ms  worst  121.89 ms  x99
+    paint:objects          avg  17.604 ms  worst   78.66 ms  x99
+    paint:sueko fx         avg   8.076 ms  worst   54.13 ms  x198
+    paint:ground bent      avg  15.191 ms  worst   60.05 ms  x99
+    paint:air drawn        avg   4.228 ms  worst   18.61 ms  x99
+    time:CombatSystem      avg   0.680 ms  worst    6.05 ms  x582
+    paint:air bent         avg   2.530 ms  worst    8.48 ms  x99
+    paint:hud              avg   0.959 ms  worst    4.76 ms  x99
+    paint:ground drawn     avg   0.847 ms  worst    2.91 ms  x99
+    paint:puck fx          avg   0.370 ms  worst    9.71 ms  x198
+    worldfx                avg   0.136 ms  worst    0.79 ms  x291
+    clash                  avg   0.092 ms  worst    0.42 ms  x291
+    snapshots              avg   0.091 ms  worst    0.36 ms  x291
+    paint:sueko body       avg   0.089 ms  worst    0.62 ms  x297
+    time:MotionSystem      avg   0.039 ms  worst    0.39 ms  x582
+    paint:puck body        avg   0.075 ms  worst    0.65 ms  x297
+    terrain                avg   0.066 ms  worst    0.20 ms  x291
+    unique+tag+escort      avg   0.054 ms  worst    0.28 ms  x291
+    speedband              avg   0.052 ms  worst    0.22 ms  x291
+    time:ProjectileSystem  avg   0.019 ms  worst    0.49 ms  x582
+    tempo director         avg   0.031 ms  worst    0.19 ms  x291
+    time:CollisionSystem   avg   0.013 ms  worst    0.20 ms  x582
+    paint:pillars          avg   0.027 ms  worst    0.16 ms  x198
+    timefx/puppet          avg   0.009 ms  worst    0.04 ms  x291
+    stats                  avg   0.006 ms  worst    0.06 ms  x291
+01:09:24  fps 15.7  ticks/s 54.2  catch-up calls 79/113  fx 0  [sueko:-, puck:reset]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  53.236 ms  worst  101.59 ms  x79
+    paint:ground bent      avg  19.903 ms  worst   49.47 ms  x79
+    paint:objects          avg  18.959 ms  worst   52.79 ms  x79
+    paint:sueko fx         avg   7.637 ms  worst   35.72 ms  x158
+    paint:air drawn        avg   6.945 ms  worst   23.64 ms  x79
+    time:CombatSystem      avg   0.563 ms  worst    2.66 ms  x546
+    paint:air bent         avg   3.416 ms  worst    8.01 ms  x79
+    paint:puck fx          avg   1.318 ms  worst   20.50 ms  x158
+    paint:ground drawn     avg   2.447 ms  worst    6.66 ms  x79
+    paint:hud              avg   1.413 ms  worst    4.97 ms  x79
+    snapshots              avg   0.164 ms  worst    0.70 ms  x273
+    paint:sueko body       avg   0.155 ms  worst    2.78 ms  x237
+    clash                  avg   0.133 ms  worst    0.92 ms  x273
+    worldfx                avg   0.132 ms  worst    0.79 ms  x273
+    time:MotionSystem      avg   0.064 ms  worst    0.36 ms  x546
+    paint:puck body        avg   0.108 ms  worst    1.28 ms  x237
+    terrain                avg   0.068 ms  worst    0.45 ms  x273
+    speedband              avg   0.051 ms  worst    0.19 ms  x273
+    unique+tag+escort      avg   0.049 ms  worst    0.16 ms  x273
+    time:ProjectileSystem  avg   0.020 ms  worst    0.14 ms  x546
+    tempo director         avg   0.030 ms  worst    0.41 ms  x273
+    time:CollisionSystem   avg   0.014 ms  worst    0.18 ms  x546
+    paint:pillars          avg   0.032 ms  worst    0.25 ms  x158
+    timefx/puppet          avg   0.011 ms  worst    0.13 ms  x273
+    stats                  avg   0.006 ms  worst    0.20 ms  x273
+01:09:29  fps 12.1  ticks/s 44.0  catch-up calls 61/95  fx 1  [sueko:-, puck:pressure]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  70.593 ms  worst  138.66 ms  x61
+    paint:objects          avg  40.255 ms  worst  102.43 ms  x61
+    paint:puck fx          avg  14.179 ms  worst   89.81 ms  x122
+    paint:ground bent      avg  18.202 ms  worst   35.33 ms  x61
+    paint:sueko fx         avg   5.212 ms  worst   24.79 ms  x122
+    paint:air drawn        avg   6.431 ms  worst   15.35 ms  x61
+    time:CombatSystem      avg   0.712 ms  worst    4.91 ms  x444
+    paint:air bent         avg   3.244 ms  worst   22.23 ms  x61
+    paint:ground drawn     avg   1.214 ms  worst    2.64 ms  x61
+    paint:hud              avg   1.087 ms  worst    5.86 ms  x61
+    paint:puck body        avg   0.243 ms  worst    2.20 ms  x183
+    worldfx                avg   0.176 ms  worst    8.31 ms  x222
+    paint:sueko body       avg   0.168 ms  worst    1.81 ms  x183
+    clash                  avg   0.096 ms  worst    0.40 ms  x222
+    snapshots              avg   0.084 ms  worst    0.32 ms  x222
+    time:MotionSystem      avg   0.038 ms  worst    0.36 ms  x444
+    terrain                avg   0.069 ms  worst    0.22 ms  x222
+    speedband              avg   0.051 ms  worst    0.14 ms  x222
+    unique+tag+escort      avg   0.049 ms  worst    0.29 ms  x222
+    tempo director         avg   0.041 ms  worst    2.41 ms  x222
+    time:ProjectileSystem  avg   0.018 ms  worst    0.17 ms  x444
+    time:CollisionSystem   avg   0.014 ms  worst    0.13 ms  x444
+    paint:pillars          avg   0.030 ms  worst    0.10 ms  x122
+    timefx/puppet          avg   0.010 ms  worst    0.05 ms  x222
+    stats                  avg   0.005 ms  worst    0.03 ms  x222
+01:09:34  fps 9.9  ticks/s 44.7  catch-up calls 50/81  fx 0  [sueko:-, puck:feint]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  86.957 ms  worst  154.44 ms  x50
+    paint:objects          avg  50.426 ms  worst  122.40 ms  x50
+    paint:puck fx          avg  14.850 ms  worst   91.74 ms  x100
+    paint:ground bent      avg  22.459 ms  worst   33.45 ms  x50
+    paint:sueko fx         avg   9.400 ms  worst   31.28 ms  x100
+    time:CombatSystem      avg   0.794 ms  worst    6.47 ms  x454
+    paint:air drawn        avg   5.933 ms  worst   10.26 ms  x50
+    paint:air bent         avg   3.356 ms  worst    8.54 ms  x50
+    paint:hud              avg   2.467 ms  worst    6.77 ms  x50
+    paint:ground drawn     avg   2.145 ms  worst    6.01 ms  x50
+    paint:sueko body       avg   0.309 ms  worst    1.73 ms  x150
+    paint:puck body        avg   0.245 ms  worst    1.98 ms  x150
+    worldfx                avg   0.144 ms  worst    0.91 ms  x227
+    clash                  avg   0.138 ms  worst    1.19 ms  x227
+    snapshots              avg   0.093 ms  worst    0.44 ms  x227
+    terrain                avg   0.071 ms  worst    0.55 ms  x227
+    speedband              avg   0.051 ms  worst    0.18 ms  x227
+    time:MotionSystem      avg   0.025 ms  worst    0.25 ms  x454
+    unique+tag+escort      avg   0.048 ms  worst    0.27 ms  x227
+    time:ProjectileSystem  avg   0.017 ms  worst    0.42 ms  x454
+    tempo director         avg   0.030 ms  worst    0.20 ms  x227
+    time:CollisionSystem   avg   0.014 ms  worst    0.19 ms  x454
+    paint:pillars          avg   0.034 ms  worst    0.22 ms  x100
+    timefx/puppet          avg   0.009 ms  worst    0.03 ms  x227
+    stats                  avg   0.005 ms  worst    0.06 ms  x227
+01:09:39  fps 11.3  ticks/s 42.1  catch-up calls 59/89  fx 2  [sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  76.255 ms  worst  141.38 ms  x57
+    paint:objects          avg  46.582 ms  worst   85.81 ms  x57
+    paint:sueko fx         avg  15.275 ms  worst   50.69 ms  x114
+    paint:ground bent      avg  18.699 ms  worst   55.21 ms  x57
+    paint:puck fx          avg   9.306 ms  worst   32.34 ms  x90
+    time:CombatSystem      avg   0.824 ms  worst   30.66 ms  x412
+    paint:air drawn        avg   4.223 ms  worst   11.39 ms  x57
+    paint:air bent         avg   3.236 ms  worst   10.31 ms  x57
+    paint:hud              avg   1.745 ms  worst    8.83 ms  x57
+    paint:ground drawn     avg   1.601 ms  worst    5.94 ms  x57
+    paint:sueko body       avg   0.184 ms  worst    1.92 ms  x171
+    paint:puck body        avg   0.230 ms  worst    2.03 ms  x135
+    worldfx                avg   0.137 ms  worst    0.57 ms  x212
+    clash                  avg   0.119 ms  worst    1.02 ms  x212
+    snapshots              avg   0.086 ms  worst    0.33 ms  x212
+    terrain                avg   0.063 ms  worst    0.27 ms  x212
+    speedband              avg   0.050 ms  worst    0.18 ms  x212
+    unique+tag+escort      avg   0.049 ms  worst    0.24 ms  x212
+    time:ProjectileSystem  avg   0.015 ms  worst    0.10 ms  x412
+    time:MotionSystem      avg   0.015 ms  worst    0.13 ms  x412
+    tempo director         avg   0.028 ms  worst    0.15 ms  x212
+    time:CollisionSystem   avg   0.013 ms  worst    0.11 ms  x412
+    paint:pillars          avg   0.029 ms  worst    0.11 ms  x114
+    timefx/puppet          avg   0.008 ms  worst    0.09 ms  x212
+    stats                  avg   0.005 ms  worst    0.06 ms  x212
+01:09:44  fps 44.7  ticks/s 17.8  catch-up calls 29/235  fx 0  [sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  12.985 ms  worst   73.76 ms  x224
+    paint:objects          avg   7.104 ms  worst   47.21 ms  x224
+    paint:sueko fx         avg   3.353 ms  worst   36.20 ms  x448
+    paint:ground bent      avg   2.496 ms  worst   24.43 ms  x224
+    paint:air drawn        avg   0.936 ms  worst   10.24 ms  x224
+    paint:ground drawn     avg   0.877 ms  worst    3.60 ms  x224
+    paint:air bent         avg   0.834 ms  worst    6.99 ms  x224
+    paint:hud              avg   0.571 ms  worst    4.75 ms  x224
+    time:CombatSystem      avg   0.791 ms  worst    4.33 ms  x89
+    paint:sueko body       avg   0.062 ms  worst    0.54 ms  x672
+    paint:pillars          avg   0.022 ms  worst    0.23 ms  x448
+    worldfx                avg   0.096 ms  worst    0.38 ms  x89
+    terrain                avg   0.049 ms  worst    0.15 ms  x89
+    time:MotionSystem      avg   0.041 ms  worst    0.56 ms  x89
+    unique+tag+escort      avg   0.040 ms  worst    0.13 ms  x89
+    speedband              avg   0.038 ms  worst    0.12 ms  x89
+    tempo director         avg   0.028 ms  worst    0.14 ms  x89
+    clash                  avg   0.023 ms  worst    1.12 ms  x89
+    time:ProjectileSystem  avg   0.018 ms  worst    0.08 ms  x89
+    snapshots              avg   0.013 ms  worst    0.05 ms  x89
+    timefx/puppet          avg   0.011 ms  worst    0.07 ms  x89
+    time:CollisionSystem   avg   0.005 ms  worst    0.02 ms  x89
+    stats                  avg   0.005 ms  worst    0.01 ms  x89
+01:10:50  fps 0.7  ticks/s 0.0  catch-up calls 87/4045  fx 2  [swordsman_rig:-, swordsman_rig:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  14.637 ms  worst  357.28 ms  x47
+    paint:hud              avg   6.982 ms  worst  312.57 ms  x47
+    paint:objects          avg   4.281 ms  worst    9.24 ms  x47
+    paint:sueko fx         avg   1.898 ms  worst    8.50 ms  x94
+    paint:ground bent      avg   1.178 ms  worst   17.68 ms  x47
+    paint:ground drawn     avg   0.792 ms  worst    2.42 ms  x47
+    paint:air bent         avg   0.635 ms  worst    1.48 ms  x47
+    paint:air drawn        avg   0.616 ms  worst   14.68 ms  x47
+    paint:sueko body       avg   0.057 ms  worst    0.38 ms  x141
+    paint:swordsman_rig fx avg   1.626 ms  worst    4.42 ms  x4
+    paint:swordsman_rig body avg   0.372 ms  worst    1.22 ms  x6
+    paint:pillars          avg   0.019 ms  worst    0.13 ms  x96
+    CombatSystem           avg   0.404 ms  worst    0.82 ms  x4
+    unique+tag+escort      avg   0.609 ms  worst    1.12 ms  x2
+    terrain                avg   0.129 ms  worst    0.21 ms  x2
+    worldfx                avg   0.127 ms  worst    0.13 ms  x2
+    snapshots              avg   0.114 ms  worst    0.12 ms  x2
+    tempo director         avg   0.060 ms  worst    0.10 ms  x2
+    speedband              avg   0.050 ms  worst    0.06 ms  x2
+    MotionSystem           avg   0.020 ms  worst    0.04 ms  x4
+    clash                  avg   0.032 ms  worst    0.03 ms  x2
+    ProjectileSystem       avg   0.011 ms  worst    0.02 ms  x4
+    stats                  avg   0.010 ms  worst    0.02 ms  x2
+    CollisionSystem        avg   0.005 ms  worst    0.01 ms  x4
+    timefx/puppet          avg   0.002 ms  worst    0.00 ms  x2
+01:10:55  fps 29.8  ticks/s 62.2  catch-up calls 109/175  fx 0  [swordsman_rig:-, swordsman_rig:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  26.983 ms  worst  102.45 ms  x149
+    paint:ground bent      avg  14.501 ms  worst   83.10 ms  x149
+    paint:objects          avg   5.237 ms  worst   20.98 ms  x149
+    paint:air bent         avg   3.555 ms  worst   11.16 ms  x149
+    paint:swordsman_rig body avg   0.564 ms  worst    4.95 ms  x894
+    paint:air drawn        avg   1.959 ms  worst   12.14 ms  x149
+    paint:swordsman_rig fx avg   0.401 ms  worst    7.61 ms  x596
+    CombatSystem           avg   0.285 ms  worst    1.19 ms  x622
+    paint:hud              avg   0.918 ms  worst    2.58 ms  x149
+    paint:ground drawn     avg   0.656 ms  worst    4.39 ms  x149
+    unique+tag+escort      avg   0.182 ms  worst    0.68 ms  x311
+    worldfx                avg   0.129 ms  worst    0.50 ms  x311
+    clash                  avg   0.099 ms  worst    0.65 ms  x311
+    snapshots              avg   0.089 ms  worst    0.37 ms  x311
+    terrain                avg   0.071 ms  worst    0.25 ms  x311
+    speedband              avg   0.055 ms  worst    0.19 ms  x311
+    MotionSystem           avg   0.025 ms  worst    0.26 ms  x622
+    ProjectileSystem       avg   0.019 ms  worst    0.24 ms  x622
+    paint:pillars          avg   0.032 ms  worst    0.27 ms  x298
+    tempo director         avg   0.029 ms  worst    0.10 ms  x311
+    CollisionSystem        avg   0.011 ms  worst    0.11 ms  x622
+    stats                  avg   0.006 ms  worst    0.10 ms  x311
+    timefx/puppet          avg   0.003 ms  worst    0.02 ms  x311
+01:11:50  fps 0.9  ticks/s 2.2  catch-up calls 718/2680  fx 3  [hooded_blades:neutral, puff:-, thear_copy:-, puck:engage]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  36.663 ms  worst  301.21 ms  x50
+    paint:ground bent      avg  18.363 ms  worst   28.22 ms  x50
+    paint:objects          avg   6.772 ms  worst   13.52 ms  x50
+    paint:hud              avg   6.396 ms  worst  263.99 ms  x50
+    paint:swordsman_rig body avg   0.681 ms  worst    2.92 ms  x300
+    paint:air bent         avg   3.384 ms  worst   11.88 ms  x50
+    paint:swordsman_rig fx avg   0.589 ms  worst    6.16 ms  x200
+    CombatSystem           avg   0.323 ms  worst    1.04 ms  x236
+    paint:air drawn        avg   0.986 ms  worst    4.27 ms  x50
+    time:CombatSystem      avg   9.565 ms  worst   32.82 ms  x4
+    paint:ground drawn     avg   0.574 ms  worst    2.95 ms  x50
+    unique+tag+escort      avg   0.200 ms  worst    1.05 ms  x120
+    worldfx                avg   0.137 ms  worst    0.42 ms  x120
+    clash                  avg   0.114 ms  worst    0.54 ms  x120
+    MotionSystem           avg   0.052 ms  worst    0.59 ms  x236
+    snapshots              avg   0.103 ms  worst    0.27 ms  x120
+    terrain                avg   0.078 ms  worst    0.24 ms  x120
+    speedband              avg   0.066 ms  worst    0.51 ms  x120
+    ProjectileSystem       avg   0.021 ms  worst    0.10 ms  x236
+    tempo director         avg   0.032 ms  worst    0.12 ms  x120
+    paint:pillars          avg   0.034 ms  worst    0.14 ms  x102
+    CollisionSystem        avg   0.012 ms  worst    0.06 ms  x236
+    paint:thear_copy body  avg   0.675 ms  worst    1.96 ms  x3
+    paint:puff fx          avg   0.864 ms  worst    1.68 ms  x2
+    paint:puff body        avg   0.559 ms  worst    1.60 ms  x3
+    paint:hooded_blades body avg   0.269 ms  worst    0.73 ms  x3
+    stats                  avg   0.006 ms  worst    0.05 ms  x120
+    time:MotionSystem      avg   0.161 ms  worst    0.35 ms  x4
+    timefx/puppet          avg   0.004 ms  worst    0.05 ms  x120
+    paint:puck body        avg   0.087 ms  worst    0.21 ms  x3
+    time:ProjectileSystem  avg   0.025 ms  worst    0.04 ms  x4
+    paint:thear_copy fx    avg   0.039 ms  worst    0.05 ms  x2
+    paint:hooded_blades fx avg   0.022 ms  worst    0.02 ms  x2
+    time:CollisionSystem   avg   0.011 ms  worst    0.02 ms  x4
+    paint:puck fx          avg   0.009 ms  worst    0.01 ms  x2
+01:11:55  fps 10.3  ticks/s 36.3  catch-up calls 54/84  fx 15  [sync:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  81.541 ms  worst  152.63 ms  x52
+    paint:objects          avg  28.462 ms  worst   84.07 ms  x52
+    paint:ground bent      avg  19.077 ms  worst   48.64 ms  x52
+    paint:air drawn        avg  14.148 ms  worst   27.94 ms  x52
+    paint:air bent         avg  10.824 ms  worst   34.96 ms  x52
+    paint:hud              avg   7.122 ms  worst   35.33 ms  x52
+    paint:puff fx          avg   3.356 ms  worst   29.86 ms  x104
+    time:CombatSystem      avg   0.905 ms  worst    3.03 ms  x366
+    paint:thear_copy fx    avg   2.927 ms  worst   30.74 ms  x104
+    paint:sync fx          avg   5.246 ms  worst   60.79 ms  x58
+    paint:puck fx          avg   3.181 ms  worst   22.54 ms  x44
+    paint:thear_copy body  avg   0.743 ms  worst    9.14 ms  x156
+    paint:puff body        avg   0.629 ms  worst    4.79 ms  x156
+    paint:ground drawn     avg   1.740 ms  worst    3.45 ms  x52
+    paint:hooded_blades fx avg   1.401 ms  worst   20.46 ms  x46
+    clash                  avg   0.224 ms  worst    0.95 ms  x183
+    worldfx                avg   0.221 ms  worst    0.95 ms  x183
+    unique+tag+escort      avg   0.198 ms  worst    1.23 ms  x183
+    time:MotionSystem      avg   0.089 ms  worst    0.69 ms  x366
+    snapshots              avg   0.176 ms  worst    0.68 ms  x183
+    paint:sync body        avg   0.316 ms  worst    1.94 ms  x87
+    paint:hooded_blades body avg   0.296 ms  worst    2.45 ms  x69
+    paint:puck body        avg   0.264 ms  worst    3.09 ms  x66
+    paint:sueko fx         avg   0.290 ms  worst    3.36 ms  x60
+    terrain                avg   0.084 ms  worst    0.37 ms  x183
+    speedband              avg   0.071 ms  worst    0.26 ms  x183
+    time:ProjectileSystem  avg   0.026 ms  worst    0.19 ms  x366
+    time:CollisionSystem   avg   0.023 ms  worst    0.22 ms  x366
+    paint:sueko body       avg   0.095 ms  worst    1.09 ms  x90
+    tempo director         avg   0.038 ms  worst    0.54 ms  x183
+    paint:pillars          avg   0.029 ms  worst    0.10 ms  x104
+    timefx/puppet          avg   0.009 ms  worst    0.03 ms  x183
+    stats                  avg   0.005 ms  worst    0.10 ms  x183
+01:12:00  fps 11.5  ticks/s 43.8  catch-up calls 62/94  fx 19  [sync:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  71.362 ms  worst  193.62 ms  x58
+    paint:objects          avg  23.119 ms  worst  143.88 ms  x58
+    paint:ground bent      avg  17.369 ms  worst   29.41 ms  x58
+    paint:air drawn        avg  15.126 ms  worst   34.86 ms  x58
+    paint:air bent         avg   9.317 ms  worst   23.88 ms  x58
+    paint:sync fx          avg   3.951 ms  worst  120.82 ms  x116
+    time:CombatSystem      avg   0.783 ms  worst    4.16 ms  x452
+    paint:hud              avg   4.679 ms  worst   12.65 ms  x58
+    paint:puff fx          avg   2.244 ms  worst   14.21 ms  x116
+    paint:thear_copy fx    avg   1.837 ms  worst   14.83 ms  x116
+    paint:thear_copy body  avg   1.134 ms  worst   21.12 ms  x174
+    paint:puff body        avg   0.674 ms  worst   12.19 ms  x174
+    paint:ground drawn     avg   1.607 ms  worst    3.48 ms  x58
+    time:MotionSystem      avg   0.124 ms  worst    0.69 ms  x452
+    unique+tag+escort      avg   0.241 ms  worst    0.73 ms  x220
+    paint:sync body        avg   0.270 ms  worst    3.30 ms  x174
+    clash                  avg   0.194 ms  worst    1.70 ms  x220
+    worldfx                avg   0.192 ms  worst    0.69 ms  x220
+    snapshots              avg   0.148 ms  worst    0.52 ms  x220
+    paint:sueko body       avg   0.154 ms  worst    1.91 ms  x174
+    terrain                avg   0.084 ms  worst    0.48 ms  x220
+    speedband              avg   0.067 ms  worst    0.41 ms  x220
+    time:ProjectileSystem  avg   0.026 ms  worst    0.49 ms  x452
+    time:CollisionSystem   avg   0.024 ms  worst    0.28 ms  x440
+    tempo director         avg   0.034 ms  worst    0.20 ms  x220
+    paint:sueko fx         avg   0.046 ms  worst    1.46 ms  x116
+    paint:pillars          avg   0.029 ms  worst    0.22 ms  x116
+    timefx/puppet          avg   0.007 ms  worst    0.06 ms  x220
+    stats                  avg   0.005 ms  worst    0.02 ms  x220
+01:12:05  fps 13.2  ticks/s 50.7  catch-up calls 68/109  fx 8  [sync:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  60.571 ms  worst  146.58 ms  x67
+    paint:objects          avg  20.564 ms  worst   88.43 ms  x67
+    paint:ground bent      avg  15.783 ms  worst   32.89 ms  x67
+    paint:air drawn        avg  11.660 ms  worst   38.54 ms  x67
+    time:CombatSystem      avg   0.861 ms  worst    6.39 ms  x543
+    paint:air bent         avg   6.857 ms  worst   20.34 ms  x67
+    paint:puff fx          avg   2.883 ms  worst   31.90 ms  x134
+    paint:hud              avg   4.074 ms  worst   10.10 ms  x67
+    paint:sueko fx         avg   1.851 ms  worst   26.53 ms  x134
+    paint:hooded_blades fx avg   1.658 ms  worst   16.67 ms  x118
+    paint:thear_copy fx    avg   1.410 ms  worst   12.58 ms  x134
+    paint:thear_copy body  avg   0.662 ms  worst    8.23 ms  x201
+    paint:puff body        avg   0.540 ms  worst   13.72 ms  x201
+    paint:ground drawn     avg   1.483 ms  worst    3.37 ms  x67
+    clash                  avg   0.286 ms  worst    1.99 ms  x257
+    paint:sueko body       avg   0.288 ms  worst    3.51 ms  x201
+    unique+tag+escort      avg   0.207 ms  worst    1.45 ms  x257
+    worldfx                avg   0.185 ms  worst    1.05 ms  x257
+    time:MotionSystem      avg   0.065 ms  worst    0.82 ms  x543
+    snapshots              avg   0.131 ms  worst    0.92 ms  x257
+    paint:hooded_blades body avg   0.183 ms  worst    2.42 ms  x177
+    terrain                avg   0.072 ms  worst    0.48 ms  x257
+    speedband              avg   0.057 ms  worst    0.42 ms  x257
+    paint:sync body        avg   0.569 ms  worst    5.06 ms  x24
+    time:ProjectileSystem  avg   0.021 ms  worst    0.33 ms  x543
+    time:CollisionSystem   avg   0.019 ms  worst    0.28 ms  x514
+    tempo director         avg   0.030 ms  worst    0.18 ms  x257
+    paint:pillars          avg   0.026 ms  worst    0.15 ms  x134
+    timefx/puppet          avg   0.006 ms  worst    0.11 ms  x257
+    stats                  avg   0.004 ms  worst    0.02 ms  x257
+    paint:sync fx          avg   0.016 ms  worst    0.04 ms  x16
+01:12:10  fps 12.6  ticks/s 50.2  catch-up calls 69/106  fx 8  [sync:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  62.106 ms  worst  128.11 ms  x63
+    paint:ground bent      avg  19.749 ms  worst   48.50 ms  x63
+    paint:objects          avg  14.515 ms  worst   52.09 ms  x63
+    paint:air drawn        avg  13.127 ms  worst   30.30 ms  x63
+    paint:air bent         avg   9.556 ms  worst   24.54 ms  x63
+    time:CombatSystem      avg   0.810 ms  worst    4.96 ms  x549
+    paint:hud              avg   3.575 ms  worst    9.47 ms  x63
+    paint:puff fx          avg   1.685 ms  worst   18.12 ms  x126
+    paint:sueko fx         avg   1.276 ms  worst   20.59 ms  x126
+    paint:thear_copy body  avg   0.693 ms  worst   12.81 ms  x189
+    paint:thear_copy fx    avg   0.943 ms  worst   24.15 ms  x126
+    paint:sync fx          avg   0.817 ms  worst   15.30 ms  x126
+    paint:ground drawn     avg   1.406 ms  worst    3.83 ms  x63
+    paint:puff body        avg   0.440 ms  worst    7.70 ms  x189
+    time:MotionSystem      avg   0.129 ms  worst    0.83 ms  x549
+    clash                  avg   0.270 ms  worst    1.78 ms  x251
+    unique+tag+escort      avg   0.257 ms  worst    0.74 ms  x251
+    worldfx                avg   0.230 ms  worst    1.12 ms  x251
+    paint:sync body        avg   0.284 ms  worst    5.31 ms  x189
+    snapshots              avg   0.166 ms  worst    1.02 ms  x251
+    paint:sueko body       avg   0.200 ms  worst    3.63 ms  x189
+    terrain                avg   0.094 ms  worst    0.40 ms  x251
+    speedband              avg   0.083 ms  worst    0.64 ms  x251
+    time:ProjectileSystem  avg   0.029 ms  worst    0.31 ms  x549
+    time:CollisionSystem   avg   0.028 ms  worst    0.59 ms  x502
+    tempo director         avg   0.039 ms  worst    0.22 ms  x251
+    paint:pillars          avg   0.028 ms  worst    0.11 ms  x126
+    timefx/puppet          avg   0.008 ms  worst    0.05 ms  x251
+    stats                  avg   0.005 ms  worst    0.04 ms  x251
+01:12:15  fps 13.8  ticks/s 47.6  catch-up calls 73/114  fx 12  [sync:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  57.183 ms  worst  123.14 ms  x70
+    paint:ground bent      avg  16.466 ms  worst   31.54 ms  x70
+    paint:objects          avg  14.058 ms  worst   50.84 ms  x70
+    paint:air drawn        avg  12.477 ms  worst   34.98 ms  x70
+    paint:air bent         avg   7.031 ms  worst   13.44 ms  x70
+    time:CombatSystem      avg   0.847 ms  worst    5.38 ms  x565
+    paint:hud              avg   4.685 ms  worst   13.12 ms  x70
+    paint:puff fx          avg   1.362 ms  worst   20.36 ms  x186
+    paint:hooded_blades fx avg   2.512 ms  worst   21.60 ms  x82
+    paint:thear_copy fx    avg   1.222 ms  worst   25.90 ms  x140
+    paint:ground drawn     avg   2.313 ms  worst   10.79 ms  x70
+    paint:sueko fx         avg   0.992 ms  worst   21.25 ms  x140
+    paint:thear_copy body  avg   0.484 ms  worst    7.34 ms  x210
+    clash                  avg   0.317 ms  worst    2.00 ms  x242
+    unique+tag+escort      avg   0.222 ms  worst    1.38 ms  x242
+    worldfx                avg   0.210 ms  worst    1.03 ms  x242
+    time:MotionSystem      avg   0.083 ms  worst    0.64 ms  x565
+    snapshots              avg   0.174 ms  worst    0.88 ms  x242
+    paint:puff body        avg   0.145 ms  worst    1.40 ms  x279
+    paint:sueko body       avg   0.143 ms  worst    1.10 ms  x210
+    terrain                avg   0.082 ms  worst    0.27 ms  x242
+    paint:hooded_blades body avg   0.153 ms  worst    1.44 ms  x123
+    speedband              avg   0.066 ms  worst    0.40 ms  x242
+    time:ProjectileSystem  avg   0.023 ms  worst    0.20 ms  x565
+    time:CollisionSystem   avg   0.026 ms  worst    0.29 ms  x484
+    paint:sync body        avg   0.106 ms  worst    0.75 ms  x87
+    tempo director         avg   0.034 ms  worst    0.16 ms  x242
+    paint:pillars          avg   0.024 ms  worst    0.12 ms  x140
+    timefx/puppet          avg   0.006 ms  worst    0.07 ms  x242
+    stats                  avg   0.005 ms  worst    0.08 ms  x242
+    paint:sync fx          avg   0.012 ms  worst    0.05 ms  x58
+01:12:20  fps 12.8  ticks/s 46.3  catch-up calls 65/108  fx 4  [sync:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  62.033 ms  worst  121.18 ms  x64
+    paint:ground bent      avg  17.794 ms  worst   79.51 ms  x64
+    paint:objects          avg  16.112 ms  worst   45.64 ms  x64
+    paint:air drawn        avg  13.535 ms  worst   29.61 ms  x64
+    paint:air bent         avg   8.037 ms  worst   19.14 ms  x64
+    time:CombatSystem      avg   0.793 ms  worst    6.77 ms  x565
+    paint:puff fx          avg   1.240 ms  worst   14.24 ms  x256
+    paint:sync fx          avg   2.137 ms  worst   33.81 ms  x128
+    paint:hud              avg   4.191 ms  worst    9.75 ms  x64
+    paint:thear_copy fx    avg   1.151 ms  worst   11.62 ms  x128
+    paint:ground drawn     avg   2.207 ms  worst    8.74 ms  x64
+    paint:thear_copy body  avg   0.501 ms  worst    2.69 ms  x192
+    paint:sueko fx         avg   0.547 ms  worst    6.72 ms  x128
+    clash                  avg   0.275 ms  worst    1.39 ms  x232
+    paint:puff body        avg   0.162 ms  worst    1.65 ms  x384
+    worldfx                avg   0.236 ms  worst    1.32 ms  x232
+    time:MotionSystem      avg   0.078 ms  worst    0.61 ms  x565
+    unique+tag+escort      avg   0.190 ms  worst    0.66 ms  x232
+    snapshots              avg   0.176 ms  worst    0.62 ms  x232
+    paint:sueko body       avg   0.193 ms  worst    1.50 ms  x192
+    terrain                avg   0.095 ms  worst    0.62 ms  x232
+    speedband              avg   0.076 ms  worst    0.25 ms  x232
+    paint:sync body        avg   0.074 ms  worst    0.63 ms  x192
+    time:CollisionSystem   avg   0.027 ms  worst    0.27 ms  x464
+    time:ProjectileSystem  avg   0.022 ms  worst    0.14 ms  x565
+    tempo director         avg   0.037 ms  worst    0.17 ms  x232
+    paint:pillars          avg   0.028 ms  worst    0.29 ms  x128
+    timefx/puppet          avg   0.007 ms  worst    0.05 ms  x232
+    stats                  avg   0.005 ms  worst    0.03 ms  x232
+01:12:26  fps 11.7  ticks/s 44.9  catch-up calls 58/102  fx 11  [hooded_blades:pressure, puff:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  68.993 ms  worst  138.71 ms  x59
+    paint:objects          avg  35.311 ms  worst   98.09 ms  x59
+    paint:puff fx          avg   3.113 ms  worst   77.96 ms  x328
+    paint:ground bent      avg  14.862 ms  worst   36.15 ms  x59
+    time:CombatSystem      avg   0.878 ms  worst    7.52 ms  x576
+    paint:sueko fx         avg   4.260 ms  worst   24.92 ms  x118
+    paint:air drawn        avg   8.102 ms  worst   19.85 ms  x59
+    paint:air bent         avg   5.843 ms  worst   13.90 ms  x59
+    paint:hud              avg   3.897 ms  worst   20.43 ms  x59
+    paint:puff body        avg   0.317 ms  worst    9.14 ms  x492
+    paint:hooded_blades fx avg   2.712 ms  worst   15.33 ms  x56
+    paint:thear_copy fx    avg   0.957 ms  worst   13.15 ms  x118
+    paint:thear_copy body  avg   0.328 ms  worst    2.11 ms  x177
+    worldfx                avg   0.230 ms  worst    0.77 ms  x227
+    paint:ground drawn     avg   0.844 ms  worst    3.39 ms  x59
+    clash                  avg   0.219 ms  worst    0.84 ms  x227
+    paint:sueko body       avg   0.230 ms  worst    1.60 ms  x177
+    snapshots              avg   0.175 ms  worst    0.76 ms  x227
+    unique+tag+escort      avg   0.110 ms  worst    0.54 ms  x227
+    paint:hooded_blades body avg   0.275 ms  worst    2.18 ms  x84
+    time:MotionSystem      avg   0.038 ms  worst    0.70 ms  x576
+    terrain                avg   0.088 ms  worst    0.42 ms  x227
+    speedband              avg   0.078 ms  worst    0.36 ms  x227
+    time:CollisionSystem   avg   0.028 ms  worst    0.25 ms  x454
+    tempo director         avg   0.038 ms  worst    0.42 ms  x227
+    time:ProjectileSystem  avg   0.014 ms  worst    0.18 ms  x576
+    paint:sync body        avg   0.045 ms  worst    0.17 ms  x93
+    paint:pillars          avg   0.027 ms  worst    0.17 ms  x118
+    timefx/puppet          avg   0.006 ms  worst    0.02 ms  x227
+    stats                  avg   0.005 ms  worst    0.13 ms  x227
+    paint:sync fx          avg   0.013 ms  worst    0.04 ms  x62
+01:12:31  fps 6.9  ticks/s 31.1  catch-up calls 49/66  fx 10  [sync:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 114.927 ms  worst  211.35 ms  x35
+    paint:objects          avg  47.679 ms  worst   90.40 ms  x35
+    paint:air drawn        avg  23.876 ms  worst   52.08 ms  x35
+    paint:ground bent      avg  18.950 ms  worst   28.86 ms  x35
+    paint:sueko fx         avg   8.383 ms  worst   26.45 ms  x70
+    time:CombatSystem      avg   1.288 ms  worst    7.56 ms  x438
+    paint:puff fx          avg   2.376 ms  worst   24.70 ms  x196
+    paint:air bent         avg   9.589 ms  worst   23.64 ms  x35
+    paint:sync fx          avg   5.022 ms  worst   41.33 ms  x58
+    paint:ground drawn     avg   7.707 ms  worst   22.02 ms  x35
+    paint:hud              avg   6.974 ms  worst   17.73 ms  x35
+    clash                  avg   0.663 ms  worst    3.94 ms  x158
+    paint:puff body        avg   0.325 ms  worst    4.73 ms  x294
+    paint:thear_copy body  avg   0.705 ms  worst   10.74 ms  x105
+    paint:thear_copy fx    avg   1.047 ms  worst   17.35 ms  x70
+    snapshots              avg   0.332 ms  worst    1.43 ms  x158
+    worldfx                avg   0.294 ms  worst    1.06 ms  x158
+    paint:sueko body       avg   0.312 ms  worst    1.81 ms  x105
+    unique+tag+escort      avg   0.203 ms  worst    0.73 ms  x158
+    time:MotionSystem      avg   0.067 ms  worst    0.63 ms  x438
+    paint:sync body        avg   0.260 ms  worst    2.22 ms  x87
+    terrain                avg   0.111 ms  worst    0.53 ms  x158
+    paint:hooded_blades fx avg   1.312 ms  worst    7.10 ms  x12
+    speedband              avg   0.083 ms  worst    0.45 ms  x158
+    time:ProjectileSystem  avg   0.026 ms  worst    0.61 ms  x438
+    time:CollisionSystem   avg   0.035 ms  worst    0.25 ms  x316
+    tempo director         avg   0.039 ms  worst    0.15 ms  x158
+    paint:hooded_blades body avg   0.189 ms  worst    0.88 ms  x18
+    paint:pillars          avg   0.029 ms  worst    0.19 ms  x70
+    timefx/puppet          avg   0.010 ms  worst    0.07 ms  x158
+    stats                  avg   0.005 ms  worst    0.04 ms  x158
+01:12:36  fps 8.4  ticks/s 34.2  catch-up calls 48/77  fx 7  [sync:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg  96.482 ms  worst  172.90 ms  x42
+    paint:objects          avg  30.503 ms  worst   78.29 ms  x42
+    paint:ground bent      avg  22.388 ms  worst   47.34 ms  x42
+    paint:air drawn        avg  17.526 ms  worst   53.11 ms  x42
+    paint:sueko fx         avg   5.533 ms  worst   19.94 ms  x84
+    paint:ground drawn     avg  10.627 ms  worst   27.34 ms  x42
+    paint:puff fx          avg   2.624 ms  worst   26.00 ms  x168
+    time:CombatSystem      avg   0.921 ms  worst    5.61 ms  x456
+    paint:air bent         avg   9.143 ms  worst   21.65 ms  x42
+    paint:hud              avg   6.150 ms  worst   15.69 ms  x42
+    paint:thear_copy body  avg   1.177 ms  worst   11.46 ms  x126
+    paint:puff body        avg   0.548 ms  worst    7.12 ms  x252
+    clash                  avg   0.577 ms  worst    4.09 ms  x171
+    snapshots              avg   0.465 ms  worst    1.72 ms  x171
+    paint:sueko body       avg   0.347 ms  worst    1.87 ms  x126
+    unique+tag+escort      avg   0.246 ms  worst    0.75 ms  x171
+    worldfx                avg   0.240 ms  worst    0.82 ms  x171
+    paint:sync body        avg   0.245 ms  worst    3.14 ms  x126
+    terrain                avg   0.152 ms  worst    0.50 ms  x171
+    time:MotionSystem      avg   0.032 ms  worst    0.35 ms  x456
+    speedband              avg   0.077 ms  worst    0.28 ms  x171
+    time:CollisionSystem   avg   0.030 ms  worst    0.21 ms  x342
+    time:ProjectileSystem  avg   0.015 ms  worst    0.33 ms  x456
+    tempo director         avg   0.037 ms  worst    0.20 ms  x171
+    paint:thear_copy fx    avg   0.034 ms  worst    0.58 ms  x84
+    paint:pillars          avg   0.030 ms  worst    0.15 ms  x84
+    paint:sync fx          avg   0.027 ms  worst    0.33 ms  x84
+    timefx/puppet          avg   0.006 ms  worst    0.06 ms  x171
+    stats                  avg   0.005 ms  worst    0.03 ms  x171
+01:12:41  fps 7.2  ticks/s 23.6  catch-up calls 42/64  fx 27  [hooded_blades:pressure, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 116.092 ms  worst  220.46 ms  x37
+    paint:objects          avg  57.391 ms  worst  158.47 ms  x37
+    paint:ground bent      avg  21.179 ms  worst   42.27 ms  x37
+    paint:air drawn        avg  20.952 ms  worst   45.36 ms  x37
+    paint:thear_copy fx    avg   9.473 ms  worst   59.89 ms  x74
+    paint:sueko fx         avg   8.976 ms  worst   34.76 ms  x74
+    time:CombatSystem      avg   1.068 ms  worst    5.47 ms  x419
+    paint:sync fx          avg   7.633 ms  worst   53.45 ms  x44
+    paint:air bent         avg   7.679 ms  worst   17.03 ms  x37
+    paint:hud              avg   6.802 ms  worst   21.44 ms  x37
+    paint:puff fx          avg   1.216 ms  worst   10.02 ms  x148
+    paint:thear_copy body  avg   1.235 ms  worst   14.04 ms  x111
+    paint:ground drawn     avg   1.912 ms  worst    4.53 ms  x37
+    clash                  avg   0.374 ms  worst    2.92 ms  x121
+    worldfx                avg   0.297 ms  worst    1.08 ms  x121
+    snapshots              avg   0.277 ms  worst    1.67 ms  x121
+    paint:sueko body       avg   0.299 ms  worst    2.48 ms  x111
+    paint:puff body        avg   0.147 ms  worst    2.04 ms  x222
+    unique+tag+escort      avg   0.231 ms  worst    0.97 ms  x121
+    time:MotionSystem      avg   0.046 ms  worst    0.76 ms  x419
+    paint:sync body        avg   0.263 ms  worst    2.04 ms  x66
+    terrain                avg   0.106 ms  worst    0.87 ms  x121
+    speedband              avg   0.084 ms  worst    0.36 ms  x121
+    time:ProjectileSystem  avg   0.022 ms  worst    0.32 ms  x419
+    time:CollisionSystem   avg   0.038 ms  worst    0.36 ms  x242
+    paint:hooded_blades fx avg   0.247 ms  worst    3.54 ms  x30
+    paint:hooded_blades body avg   0.130 ms  worst    0.91 ms  x45
+    tempo director         avg   0.041 ms  worst    0.19 ms  x121
+    paint:pillars          avg   0.032 ms  worst    0.18 ms  x74
+    timefx/puppet          avg   0.012 ms  worst    0.15 ms  x121
+    stats                  avg   0.005 ms  worst    0.03 ms  x121
+01:12:46  fps 7.0  ticks/s 32.5  catch-up calls 53/69  fx 11  [hooded_blades:neutral, puff:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 107.549 ms  worst  247.21 ms  x36
+    paint:objects          avg  42.229 ms  worst  173.32 ms  x36
+    paint:air drawn        avg  25.737 ms  worst   34.11 ms  x36
+    paint:ground bent      avg  20.442 ms  worst   27.52 ms  x36
+    time:CombatSystem      avg   1.001 ms  worst    5.17 ms  x690
+    paint:puff fx          avg   3.911 ms  worst  117.07 ms  x168
+    paint:air bent         avg  10.781 ms  worst   17.81 ms  x36
+    paint:sueko fx         avg   4.600 ms  worst   15.42 ms  x72
+    paint:hud              avg   6.122 ms  worst   11.81 ms  x36
+    paint:hooded_blades fx avg   2.271 ms  worst   13.95 ms  x72
+    clash                  avg   0.635 ms  worst    1.99 ms  x166
+    paint:thear_copy body  avg   0.967 ms  worst    9.30 ms  x108
+    paint:thear_copy fx    avg   1.333 ms  worst   21.31 ms  x72
+    paint:puff body        avg   0.363 ms  worst    7.21 ms  x252
+    paint:ground drawn     avg   2.056 ms  worst    3.76 ms  x36
+    snapshots              avg   0.384 ms  worst    1.49 ms  x166
+    worldfx                avg   0.316 ms  worst    0.96 ms  x166
+    unique+tag+escort      avg   0.258 ms  worst    0.79 ms  x166
+    time:MotionSystem      avg   0.061 ms  worst    0.47 ms  x690
+    paint:sueko body       avg   0.335 ms  worst    1.28 ms  x108
+    paint:hooded_blades body avg   0.289 ms  worst    2.62 ms  x108
+    terrain                avg   0.101 ms  worst    0.46 ms  x166
+    time:ProjectileSystem  avg   0.021 ms  worst    0.21 ms  x690
+    speedband              avg   0.087 ms  worst    0.30 ms  x166
+    time:CollisionSystem   avg   0.037 ms  worst    0.18 ms  x332
+    tempo director         avg   0.047 ms  worst    0.17 ms  x166
+    paint:pillars          avg   0.039 ms  worst    0.18 ms  x72
+    timefx/puppet          avg   0.014 ms  worst    0.07 ms  x166
+    stats                  avg   0.007 ms  worst    0.07 ms  x166
+01:12:51  fps 3.8  ticks/s 20.4  catch-up calls 36/38  fx 18  [hooded_blades:pressure, puff:-, puff:-, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 203.774 ms  worst  324.01 ms  x19
+    paint:objects          avg 111.143 ms  worst  233.16 ms  x19
+    paint:puff fx          avg  10.977 ms  worst  163.00 ms  x114
+    time:CombatSystem      avg   1.335 ms  worst    7.29 ms  x511
+    paint:air drawn        avg  35.081 ms  worst   42.13 ms  x19
+    paint:ground bent      avg  29.635 ms  worst   46.04 ms  x19
+    paint:sueko fx         avg  10.440 ms  worst   27.10 ms  x38
+    paint:air bent         avg  15.327 ms  worst   23.89 ms  x19
+    paint:hud              avg  10.508 ms  worst   16.56 ms  x19
+    paint:hooded_blades fx avg   4.085 ms  worst   23.25 ms  x38
+    paint:puff body        avg   0.856 ms  worst    8.65 ms  x171
+    clash                  avg   1.169 ms  worst    2.23 ms  x103
+    paint:thear_copy body  avg   1.783 ms  worst   15.45 ms  x57
+    snapshots              avg   0.825 ms  worst    1.56 ms  x103
+    worldfx                avg   0.464 ms  worst    0.91 ms  x103
+    unique+tag+escort      avg   0.369 ms  worst    0.64 ms  x103
+    paint:ground drawn     avg   1.838 ms  worst    2.74 ms  x19
+    paint:sueko body       avg   0.544 ms  worst    2.20 ms  x57
+    time:MotionSystem      avg   0.050 ms  worst    0.88 ms  x511
+    paint:hooded_blades body avg   0.335 ms  worst    4.17 ms  x57
+    terrain                avg   0.153 ms  worst    0.59 ms  x103
+    time:CollisionSystem   avg   0.068 ms  worst    0.33 ms  x206
+    speedband              avg   0.133 ms  worst    0.32 ms  x103
+    time:ProjectileSystem  avg   0.021 ms  worst    0.21 ms  x511
+    tempo director         avg   0.063 ms  worst    0.21 ms  x103
+    paint:thear_copy fx    avg   0.091 ms  worst    0.73 ms  x38
+    paint:pillars          avg   0.046 ms  worst    0.16 ms  x38
+    timefx/puppet          avg   0.013 ms  worst    0.11 ms  x103
+    stats                  avg   0.008 ms  worst    0.02 ms  x103
+01:12:56  fps 4.1  ticks/s 25.0  catch-up calls 41/42  fx 15  [hooded_blades:neutral, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 180.429 ms  worst  283.77 ms  x21
+    paint:objects          avg  73.226 ms  worst  154.77 ms  x21
+    paint:air drawn        avg  40.678 ms  worst   56.79 ms  x21
+    time:CombatSystem      avg   1.222 ms  worst    6.64 ms  x660
+    paint:ground bent      avg  35.646 ms  worst   43.85 ms  x21
+    paint:sueko fx         avg  14.805 ms  worst   35.59 ms  x42
+    paint:puff fx          avg   5.832 ms  worst   45.88 ms  x66
+    paint:air bent         avg  15.742 ms  worst   20.89 ms  x21
+    paint:hud              avg  11.225 ms  worst   19.20 ms  x21
+    paint:thear_copy fx    avg   4.777 ms  worst   25.90 ms  x42
+    paint:hooded_blades fx avg   2.886 ms  worst   19.52 ms  x42
+    paint:ground drawn     avg   3.662 ms  worst    7.85 ms  x21
+    clash                  avg   0.576 ms  worst    2.39 ms  x128
+    paint:thear_copy body  avg   1.122 ms  worst    3.52 ms  x63
+    snapshots              avg   0.545 ms  worst    1.92 ms  x128
+    worldfx                avg   0.443 ms  worst    1.34 ms  x128
+    paint:puff body        avg   0.570 ms  worst    4.48 ms  x99
+    time:MotionSystem      avg   0.076 ms  worst    0.53 ms  x660
+    paint:sueko body       avg   0.745 ms  worst    7.12 ms  x63
+    paint:hooded_blades body avg   0.405 ms  worst    1.41 ms  x63
+    terrain                avg   0.186 ms  worst    1.39 ms  x128
+    time:ProjectileSystem  avg   0.033 ms  worst    0.24 ms  x660
+    unique+tag+escort      avg   0.158 ms  worst    0.44 ms  x128
+    speedband              avg   0.140 ms  worst    0.59 ms  x128
+    time:CollisionSystem   avg   0.045 ms  worst    0.35 ms  x256
+    tempo director         avg   0.070 ms  worst    0.22 ms  x128
+    timefx/puppet          avg   0.022 ms  worst    0.13 ms  x128
+    paint:pillars          avg   0.053 ms  worst    0.13 ms  x42
+    stats                  avg   0.009 ms  worst    0.03 ms  x128
+01:13:01  fps 4.8  ticks/s 28.6  catch-up calls 45/48  fx 9  [hooded_blades:engage, puff:-, thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 153.972 ms  worst  210.32 ms  x24
+    paint:objects          avg  64.511 ms  worst  105.19 ms  x24
+    paint:sueko fx         avg  21.451 ms  worst   61.70 ms  x48
+    paint:ground bent      avg  36.369 ms  worst   44.45 ms  x24
+    time:CombatSystem      avg   0.944 ms  worst    9.11 ms  x861
+    paint:air drawn        avg  26.072 ms  worst   47.36 ms  x24
+    paint:air bent         avg  12.540 ms  worst   23.22 ms  x24
+    paint:hud              avg  10.087 ms  worst   19.41 ms  x24
+    paint:thear_copy fx    avg   4.302 ms  worst   28.58 ms  x48
+    paint:ground drawn     avg   4.114 ms  worst    6.84 ms  x24
+    paint:thear_copy body  avg   1.186 ms  worst    4.33 ms  x72
+    paint:puff fx          avg   1.662 ms  worst   16.93 ms  x48
+    paint:sueko body       avg   0.833 ms  worst    3.78 ms  x72
+    time:MotionSystem      avg   0.066 ms  worst    0.45 ms  x861
+    worldfx                avg   0.394 ms  worst    1.36 ms  x143
+    paint:puff body        avg   0.727 ms  worst    8.31 ms  x72
+    clash                  avg   0.352 ms  worst    1.33 ms  x143
+    snapshots              avg   0.311 ms  worst    0.96 ms  x143
+    time:ProjectileSystem  avg   0.032 ms  worst    0.29 ms  x861
+    paint:hooded_blades body avg   0.313 ms  worst    2.35 ms  x72
+    terrain                avg   0.156 ms  worst    0.63 ms  x143
+    unique+tag+escort      avg   0.153 ms  worst    0.46 ms  x143
+    speedband              avg   0.121 ms  worst    0.42 ms  x143
+    time:CollisionSystem   avg   0.036 ms  worst    0.30 ms  x286
+    tempo director         avg   0.069 ms  worst    0.61 ms  x143
+    timefx/puppet          avg   0.023 ms  worst    0.12 ms  x143
+    paint:pillars          avg   0.058 ms  worst    0.21 ms  x48
+    paint:hooded_blades fx avg   0.027 ms  worst    0.06 ms  x48
+    stats                  avg   0.009 ms  worst    0.04 ms  x143
+01:13:06  fps 5.4  ticks/s 17.3  catch-up calls 33/47  fx 6  [thear_copy:-, sueko:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 157.625 ms  worst  241.91 ms  x27
+    paint:objects          avg  80.386 ms  worst  140.06 ms  x27
+    paint:sueko fx         avg  29.210 ms  worst   71.84 ms  x54
+    paint:ground bent      avg  27.934 ms  worst   66.89 ms  x27
+    paint:air drawn        avg  25.033 ms  worst   32.17 ms  x27
+    time:CombatSystem      avg   0.895 ms  worst    5.60 ms  x493
+    paint:air bent         avg  12.658 ms  worst   19.97 ms  x27
+    paint:hud              avg   9.799 ms  worst   18.01 ms  x27
+    paint:thear_copy fx    avg   3.276 ms  worst   17.48 ms  x54
+    paint:thear_copy body  avg   1.174 ms  worst    4.66 ms  x81
+    paint:sueko body       avg   1.172 ms  worst    6.59 ms  x81
+    paint:puff fx          avg   5.470 ms  worst   24.40 ms  x14
+    paint:hooded_blades fx avg   5.277 ms  worst   16.36 ms  x14
+    paint:puff body        avg   2.283 ms  worst   19.11 ms  x21
+    paint:ground drawn     avg   1.581 ms  worst    2.67 ms  x27
+    clash                  avg   0.425 ms  worst    2.08 ms  x87
+    worldfx                avg   0.304 ms  worst    0.78 ms  x87
+    snapshots              avg   0.262 ms  worst    1.33 ms  x87
+    time:MotionSystem      avg   0.038 ms  worst    0.27 ms  x493
+    paint:hooded_blades body avg   0.881 ms  worst    3.63 ms  x21
+    unique+tag+escort      avg   0.144 ms  worst    0.43 ms  x87
+    time:ProjectileSystem  avg   0.025 ms  worst    0.14 ms  x493
+    terrain                avg   0.113 ms  worst    0.31 ms  x87
+    speedband              avg   0.091 ms  worst    0.43 ms  x87
+    time:CollisionSystem   avg   0.043 ms  worst    0.29 ms  x124
+    tempo director         avg   0.052 ms  worst    0.54 ms  x87
+    paint:pillars          avg   0.041 ms  worst    0.15 ms  x54
+    timefx/puppet          avg   0.018 ms  worst    0.09 ms  x87
+    stats                  avg   0.008 ms  worst    0.03 ms  x87

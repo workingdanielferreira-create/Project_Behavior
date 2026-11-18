@@ -19975,7 +19975,22 @@
       "direction": "above",
       "angle_deg": 0,
       "mirror": false,
-      "proximity_px": 60,
+      "proximity_px": 150,
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
+     },
+     {
+      "start_frame": 10,
+      "end_frame": 10,
+      "anchor": "target",
+      "direction": "above",
+      "angle_deg": 0,
+      "mirror": false,
+      "proximity_px": 175,
       "flash": true,
       "blade_pick": "newest",
       "trigger": "frames",
@@ -20100,7 +20115,7 @@
       "direction": "below",
       "angle_deg": 0,
       "mirror": false,
-      "proximity_px": 60,
+      "proximity_px": 180,
       "flash": true,
       "blade_pick": "newest",
       "trigger": "frames",
@@ -20415,7 +20430,11 @@
     "not": false
    }
   ],
-  "fx": ""
+  "fx": "",
+  "parry_result": "deflect",
+  "parry_window_ms": 250,
+  "parry_reach_px": 60,
+  "parry_hurts": true
  },
  "character_scale": 0.5,
  "effects": [
@@ -23112,7 +23131,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emv0uor4o5",
    "action": "attack_special_2",
@@ -23277,7 +23306,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emvcmil3y1",
    "action": "transform",
@@ -23493,7 +23532,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emvcmil3y2",
    "action": "transform",
@@ -23698,7 +23747,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emvcmil3y6",
    "action": "transform",
@@ -23873,7 +23932,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -24083,7 +24152,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -24281,7 +24360,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -24456,7 +24545,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -24658,7 +24757,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -24855,7 +24964,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -25030,7 +25149,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -25204,7 +25333,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "flip": {
     "enabled": false,
@@ -25492,7 +25631,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emvvmemub7",
    "action": "switch_in",
@@ -25666,7 +25815,17 @@
     "w_b1_ang": 0,
     "w_b2_x": 0,
     "w_b2_y": 0,
-    "w_b2_ang": 0
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emvvmvvpf9",
    "action": "attack_normal",
@@ -25840,7 +25999,17 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emwc1g7hf1",
    "action": "switch_out",
@@ -25912,7 +26081,7 @@
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 11.4,
+    "speed": 200,
     "turn_deg": 6,
     "amplitude": 55,
     "freq": 0.18,
@@ -26014,7 +26183,17 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emwfv350f3",
    "action": "attack_normal_3",
@@ -26031,7 +26210,7 @@
    "char_every_ms": 0,
    "offset": [
     0,
-    0
+    -97.5
    ],
    "layer": "front",
    "emit": {
@@ -26051,7 +26230,7 @@
     "mode": "block",
     "deflect_who": "enemy",
     "hurts_owner": false,
-    "drag": false,
+    "drag": true,
     "drag_pct": 100,
     "drag_deg": 90,
     "drag_every": 10
@@ -26076,7 +26255,7 @@
     "damage": 30,
     "pierce": true,
     "rehit_ticks": 0,
-    "knockback": 3400,
+    "knockback": 1000,
     "blockable": true,
     "deflectable": true,
     "armed": 1
@@ -26086,7 +26265,7 @@
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 10.4,
+    "speed": 150,
     "turn_deg": 6,
     "amplitude": 55,
     "freq": 0.18,
@@ -26111,7 +26290,7 @@
    },
    "params": {
     "style": "impact_punch",
-    "radius": 9,
+    "radius": 1,
     "thickness": 12,
     "length": 60,
     "swing_ticks": 4,
@@ -26188,7 +26367,17 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emwfvhgcm4",
    "action": "attack_normal_2",
@@ -26225,7 +26414,7 @@
     "mode": "block",
     "deflect_who": "enemy",
     "hurts_owner": false,
-    "drag": false,
+    "drag": true,
     "drag_pct": 100,
     "drag_deg": 90,
     "drag_every": 10
@@ -26260,7 +26449,7 @@
     "aim": "target",
     "angle_deg": 0,
     "aim_offset_deg": 0,
-    "speed": 11.8,
+    "speed": 200,
     "turn_deg": 6,
     "amplitude": 55,
     "freq": 0.18,
@@ -26362,7 +26551,17 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
    },
    "id": "Emwfwb6145",
    "action": "attack_normal_4",
@@ -26378,7 +26577,7 @@
    "always_on": false,
    "char_every_ms": 0,
    "offset": [
-    0,
+    -150,
     0
    ],
    "layer": "front",
@@ -26399,7 +26598,7 @@
     "mode": "block",
     "deflect_who": "enemy",
     "hurts_owner": false,
-    "drag": false,
+    "drag": true,
     "drag_pct": 100,
     "drag_deg": 90,
     "drag_every": 10
@@ -26588,7 +26787,8 @@
    "knockback_px": 600,
    "cooldown_ms": 1500,
    "invuln_ms": 250,
-   "color": "#ffd34a"
+   "color": "#ffd34a",
+   "counters": []
   },
   "dual_form": {
    "trigger": "hp_below",

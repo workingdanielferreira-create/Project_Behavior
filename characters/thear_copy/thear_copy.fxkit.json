@@ -13573,7 +13573,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "run": {
@@ -13613,7 +13682,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "attack_normal": {
@@ -13653,7 +13791,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "attack_normal_2": {
@@ -13693,7 +13900,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "attack_normal_3": {
@@ -13733,7 +14009,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "attack_special": {
@@ -13775,8 +14120,8 @@
     "conditions": []
    },
    "leap": {
-    "start_frame": 0,
-    "land_frame": -1,
+    "start_frame": 2,
+    "land_frame": 10,
     "height_px": 145,
     "hit_px": null,
     "height_max_px": 400,
@@ -13784,7 +14129,76 @@
     "dist_max_px": 2000,
     "damage_mode": "range",
     "damage_min": 5,
-    "damage_max": 200
+    "damage_max": 200,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "ultimate": {
@@ -13843,7 +14257,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   },
   "defend": {
@@ -13893,7 +14376,76 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
    }
   }
  },
@@ -13947,7 +14499,11 @@
   "counter_range_px": 0,
   "logic": "any",
   "conditions": [],
-  "fx": ""
+  "fx": "",
+  "parry_result": "deflect",
+  "parry_window_ms": 250,
+  "parry_reach_px": 60,
+  "parry_hurts": true
  },
  "character_scale": 1.2,
  "effects": [
@@ -13992,7 +14548,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -14027,7 +14586,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14049,7 +14609,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear002",
@@ -14092,7 +14657,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -14127,7 +14695,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14149,7 +14718,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear003",
@@ -14192,7 +14766,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -14227,7 +14804,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14249,14 +14827,19 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear004",
    "name": "Cleaver hitbox",
    "action": "attack_normal",
    "prim": "weapon",
-   "enabled": true,
+   "enabled": false,
    "tag": "cleaver",
    "start_frame": 4,
    "end_frame": 6,
@@ -14292,7 +14875,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -14315,7 +14901,8 @@
     "rehit_ticks": 0,
     "knockback": 10,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14337,7 +14924,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear005",
@@ -14380,7 +14972,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -14415,7 +15010,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14437,395 +15033,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
-  },
-  {
-   "id": "Ethear006",
-   "name": "Drag furrow",
-   "action": "attack_normal_2",
-   "prim": "particles",
-   "enabled": true,
-   "tag": "dust",
-   "start_frame": 2,
-   "end_frame": 6,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "anchor": "wtip",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "behind",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
+   "char_every_ms": 0,
+   "escort": {
     "enabled": false,
-    "count": 0
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#c9b89a",
-    "c2": "#5e5446",
-    "start_fraction": 0
-   },
-   "params": {
-    "mode": "stream",
-    "count": 12,
-    "rate_per_s": 40,
-    "angle_deg": -120,
-    "spread_deg": 40,
-    "speed_min": 8,
-    "speed_max": 25,
-    "gravity": 30,
-    "drag": 0.9,
-    "size_min": 0.8,
-    "size_max": 1.8,
-    "size_over_life": "grow",
-    "life_min_ms": 300,
-    "life_max_ms": 600
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "char_every_ms": 0
-  },
-  {
-   "id": "Ethear007",
-   "name": "Cleaver hitbox",
-   "action": "attack_normal_2",
-   "prim": "weapon",
-   "enabled": true,
-   "tag": "cleaver",
-   "start_frame": 7,
-   "end_frame": 11,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "anchor": "haR",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "to_anchor": "wtip",
-    "width": 4
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 4,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 12,
-    "blockable": true,
-    "deflectable": false
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "char_every_ms": 0
-  },
-  {
-   "id": "Ethear008",
-   "name": "Dust",
-   "action": "attack_normal_2",
-   "prim": "particles",
-   "enabled": true,
-   "tag": "dust",
-   "start_frame": 8,
-   "end_frame": 8,
-   "life_ticks": 90,
-   "continuous": false,
-   "always_on": false,
-   "anchor": "wtip",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "behind",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "motion": {
-    "kind": "static",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#c9b89a",
-    "c2": "#5e5446",
-    "start_fraction": 0
-   },
-   "params": {
-    "mode": "burst",
-    "count": 12,
-    "rate_per_s": 60,
-    "angle_deg": -60,
-    "spread_deg": 70,
-    "speed_min": 30,
-    "speed_max": 90,
-    "gravity": 120,
-    "drag": 0.9,
-    "size_min": 2.6,
-    "size_max": 5.5,
-    "size_over_life": "grow",
-    "life_min_ms": 400,
-    "life_max_ms": 800
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "char_every_ms": 0
-  },
-  {
-   "id": "Ethear009",
-   "name": "Rock chips",
-   "action": "attack_normal_2",
-   "prim": "particles",
-   "enabled": true,
-   "tag": "debris",
-   "start_frame": 8,
-   "end_frame": 8,
-   "life_ticks": 90,
-   "continuous": false,
-   "always_on": false,
-   "anchor": "wtip",
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "motion": {
-    "kind": "static",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "gradient",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c1": "#4a4540",
-    "c2": "#1d1b19",
-    "start_fraction": 0
-   },
-   "params": {
-    "mode": "burst",
-    "count": 7,
-    "rate_per_s": 60,
-    "angle_deg": -70,
-    "spread_deg": 60,
-    "speed_min": 90,
-    "speed_max": 200,
-    "gravity": 700,
-    "drag": 1,
-    "size_min": 0.7,
-    "size_max": 1.4,
-    "size_over_life": "none",
-    "life_min_ms": 500,
-    "life_max_ms": 900
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "char_every_ms": 0
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear010",
@@ -14868,7 +15081,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -14893,7 +15109,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -14915,7 +15132,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear011",
@@ -14958,7 +15180,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -14993,7 +15218,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15015,7 +15241,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear012",
@@ -15058,7 +15289,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -15081,7 +15315,8 @@
     "rehit_ticks": 0,
     "knockback": 30,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15103,7 +15338,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear013",
@@ -15146,7 +15386,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15175,7 +15418,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15197,7 +15441,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear014",
@@ -15240,7 +15489,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15275,7 +15527,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15297,7 +15550,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear015",
@@ -15340,7 +15598,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15375,7 +15636,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15397,7 +15659,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear016",
@@ -15440,7 +15707,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15469,7 +15739,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15491,7 +15762,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear017",
@@ -15534,7 +15810,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15569,7 +15848,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15591,7 +15871,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear018",
@@ -15634,7 +15919,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15669,7 +15957,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15691,7 +15980,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear019",
@@ -15734,7 +16028,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -15757,7 +16054,8 @@
     "rehit_ticks": 0,
     "knockback": 26,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15779,7 +16077,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear020",
@@ -15822,7 +16125,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15857,7 +16163,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15879,7 +16186,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear021",
@@ -15922,7 +16234,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -15957,7 +16272,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -15979,7 +16295,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear022",
@@ -16022,7 +16343,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16052,7 +16376,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16074,7 +16399,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear023",
@@ -16117,7 +16447,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16146,7 +16479,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16168,7 +16502,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear024",
@@ -16211,7 +16550,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16240,7 +16582,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16262,7 +16605,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear025",
@@ -16305,7 +16653,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16340,7 +16691,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16362,7 +16714,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear026",
@@ -16405,7 +16762,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16440,7 +16800,8 @@
     "rehit_ticks": 0,
     "knockback": 40,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16462,7 +16823,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear027",
@@ -16505,7 +16871,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16540,7 +16909,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16562,7 +16932,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear028",
@@ -16605,7 +16980,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16640,7 +17018,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16662,7 +17041,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear029",
@@ -16705,7 +17089,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16740,7 +17127,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16762,7 +17150,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear030",
@@ -16805,7 +17198,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16840,7 +17236,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16862,7 +17259,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear031",
@@ -16905,7 +17307,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -16940,7 +17345,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -16962,7 +17368,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear032",
@@ -17005,7 +17416,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17040,7 +17454,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17062,7 +17477,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear033",
@@ -17105,7 +17525,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17140,7 +17563,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17162,7 +17586,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear034",
@@ -17205,7 +17634,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17234,7 +17666,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17280,7 +17713,12 @@
      }
     }
    ],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear035",
@@ -17323,7 +17761,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17358,7 +17799,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17388,7 +17830,12 @@
      }
     }
    ],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear036",
@@ -17431,7 +17878,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17466,7 +17916,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17497,7 +17948,12 @@
      }
     }
    ],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear037",
@@ -17540,7 +17996,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17575,7 +18034,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17597,7 +18057,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear038",
@@ -17640,7 +18105,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17669,7 +18137,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17691,7 +18160,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear039",
@@ -17734,7 +18208,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17769,7 +18246,8 @@
     "rehit_ticks": 0,
     "knockback": 20,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17791,7 +18269,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear040",
@@ -17834,7 +18317,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17869,7 +18355,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17891,7 +18378,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear041",
@@ -17934,7 +18426,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -17969,7 +18464,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -17991,7 +18487,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear042",
@@ -18034,7 +18535,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18069,7 +18573,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18091,7 +18596,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear043",
@@ -18134,7 +18644,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -18159,7 +18672,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18181,7 +18695,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear044",
@@ -18224,7 +18743,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18254,7 +18776,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18276,7 +18799,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear045",
@@ -18319,7 +18847,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18354,7 +18885,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18376,7 +18908,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear046",
@@ -18419,7 +18956,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18448,7 +18988,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18470,7 +19011,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear047",
@@ -18513,7 +19059,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18543,7 +19092,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18565,7 +19115,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear048",
@@ -18608,7 +19163,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "solid",
@@ -18633,7 +19191,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18655,7 +19214,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear049",
@@ -18698,7 +19262,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18733,7 +19300,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18755,7 +19323,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear050",
@@ -18798,7 +19371,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18827,7 +19403,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18849,7 +19426,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear051",
@@ -18892,7 +19474,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -18927,7 +19512,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -18949,7 +19535,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear052",
@@ -18992,7 +19583,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19027,7 +19621,8 @@
     "rehit_ticks": 0,
     "knockback": 70,
     "blockable": true,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19049,7 +19644,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear053",
@@ -19092,7 +19692,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19127,7 +19730,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19149,7 +19753,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear054",
@@ -19192,7 +19801,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19227,7 +19839,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19249,7 +19862,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear055",
@@ -19292,7 +19910,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19327,7 +19948,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19349,7 +19971,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear056",
@@ -19392,7 +20019,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19427,7 +20057,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19449,7 +20080,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear057",
@@ -19492,7 +20128,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19527,7 +20166,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19549,7 +20189,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear058",
@@ -19592,7 +20237,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19627,7 +20275,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19649,7 +20298,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear059",
@@ -19692,7 +20346,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19727,7 +20384,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19749,7 +20407,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear060",
@@ -19792,7 +20455,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19827,7 +20493,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19849,7 +20516,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear061",
@@ -19892,7 +20564,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -19927,7 +20602,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -19949,7 +20625,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear062",
@@ -19992,7 +20673,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20027,7 +20711,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20049,7 +20734,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear063",
@@ -20092,7 +20782,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20127,7 +20820,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20149,7 +20843,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear064",
@@ -20192,7 +20891,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20227,7 +20929,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20249,7 +20952,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear065",
@@ -20292,7 +21000,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20327,7 +21038,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20349,7 +21061,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear066",
@@ -20392,7 +21109,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20427,7 +21147,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20449,7 +21170,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear067",
@@ -20492,7 +21218,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20527,7 +21256,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20549,7 +21279,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear068",
@@ -20592,7 +21327,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20627,7 +21365,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20649,7 +21388,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear069",
@@ -20692,7 +21436,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20721,7 +21468,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20743,7 +21491,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear070",
@@ -20786,7 +21539,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20821,7 +21577,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20843,7 +21600,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear071",
@@ -20886,7 +21648,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -20921,7 +21686,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -20943,7 +21709,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear072",
@@ -20986,7 +21757,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -21021,7 +21795,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21043,7 +21818,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear073",
@@ -21086,7 +21866,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -21121,7 +21904,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21143,7 +21927,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear074",
@@ -21186,7 +21975,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -21221,7 +22013,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21243,7 +22036,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Ethear075",
@@ -21286,7 +22084,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -21316,7 +22117,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21338,7 +22140,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "beam",
@@ -21363,7 +22170,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -21387,10 +22197,10 @@
     "pulse_hz": 0,
     "jitter": 2,
     "grow_ticks": 6,
-    "tip_fade": 0.6,
+    "tip_fade": 1,
     "glow_color": "",
     "detach_ticks": 1260,
-    "pos_scale": false
+    "pos_scale": true
    },
    "id": "Emv5s3trh3",
    "action": "ultimate",
@@ -21420,7 +22230,8 @@
     "rehit_ticks": 0,
     "knockback": 500,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21438,7 +22249,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "particles",
@@ -21459,7 +22275,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "blend": "additive",
    "color": {
@@ -21520,7 +22339,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21538,7 +22358,12 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "id": "Emv5ss3ki8",
@@ -21581,7 +22406,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -21596,16 +22424,16 @@
    "params": {
     "mode": "burst",
     "count": 27,
-    "rate_per_s": 59,
-    "angle_deg": -360,
-    "spread_deg": 292,
-    "speed_min": 90,
-    "speed_max": 225,
-    "gravity": -740,
+    "rate_per_s": 57,
+    "angle_deg": 180,
+    "spread_deg": 336,
+    "speed_min": 30,
+    "speed_max": 205,
+    "gravity": -340,
     "drag": 1,
     "size_min": 2,
-    "size_max": 80,
-    "size_over_life": "grow",
+    "size_max": 43,
+    "size_over_life": "shrink",
     "life_min_ms": 500,
     "life_max_ms": 2000
    },
@@ -21616,7 +22444,8 @@
     "rehit_ticks": 0,
     "knockback": 0,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "intercept": {
     "enabled": false,
@@ -21632,13 +22461,18 @@
     "drag_every": 10
    },
    "flip": {
-    "enabled": false,
+    "enabled": true,
     "facing": 1
    },
-   "follow_dir": false,
-   "follow_each": false,
+   "follow_dir": true,
+   "follow_each": true,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "ribbon",
@@ -21658,7 +22492,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -21715,7 +22552,8 @@
     "rehit_ticks": 0,
     "knockback": 1000,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": true,
@@ -21733,7 +22571,12 @@
    "follow_dir": true,
    "follow_each": true,
    "keys": [],
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "ribbon",
@@ -21753,7 +22596,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -21808,102 +22654,8 @@
     "rehit_ticks": 0,
     "knockback": 1000,
     "blockable": false,
-    "deflectable": false
-   },
-   "intercept": {
-    "enabled": true,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 21,
-    "mode": "deflect",
-    "deflect_who": "enemy",
-    "hurts_owner": true,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": true,
-   "follow_each": true,
-   "keys": [],
-   "id": "Emv5w1wsv2",
-   "action": "attack_normal_2",
-   "char_every_ms": 0
-  },
-  {
-   "prim": "ribbon",
-   "name": "Blade trail",
-   "tag": "trail",
-   "anchor": "wtip",
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": ""
-   },
-   "color": {
-    "mode": "palette",
-    "flow_speed": 0.008,
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "c1": "#ffffff",
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "max_points": 36,
-    "min_dist": 6.5,
-    "decay": 20,
-    "taper": true,
-    "w_tail": 10,
-    "w_head": 0,
-    "alpha": 249,
-    "head_glow_r": 4,
-    "head_dot_r": 2
-   },
-   "flip": {
-    "enabled": true,
-    "facing": -1
-   },
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": true,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "blend": "normal",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": true,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 5,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 1000,
-    "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": true,
@@ -21923,7 +22675,12 @@
    "keys": [],
    "id": "Emv5w1yhk3",
    "action": "attack_normal_3",
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "ribbon",
@@ -21943,7 +22700,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -21998,7 +22758,8 @@
     "rehit_ticks": 0,
     "knockback": 1000,
     "blockable": false,
-    "deflectable": false
+    "deflectable": false,
+    "armed": 1
    },
    "intercept": {
     "enabled": true,
@@ -22018,11 +22779,407 @@
    "keys": [],
    "id": "Emv5w25jt4",
    "action": "ultimate",
-   "char_every_ms": 0
+   "char_every_ms": 0,
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
+  },
+  {
+   "prim": "technique",
+   "name": "Earth cleaver (Thear)",
+   "tag": "slash",
+   "anchor": "haR",
+   "blend": "normal",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 30,
+    "pierce": true,
+    "rehit_ticks": 1,
+    "knockback": 16,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffe6c8",
+    "c2": "#ff7a1e",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "earth_cleaver",
+    "length": 58,
+    "thickness": 12,
+    "radius": 0,
+    "span": 0,
+    "swing_ticks": 7,
+    "hold_ticks": 10,
+    "density": 1,
+    "w_mode": "signature",
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "small_ticks": 0,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_scale": 0.6,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0.2,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "w_blade": "both",
+    "w_grip": -0.05,
+    "w_flip_at": "grip",
+    "w_move": 60,
+    "w_turn": 100,
+    "w_aim": "never",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": -59,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
+   },
+   "id": "Emwjushgd1",
+   "action": "attack_normal",
+   "enabled": true,
+   "start_frame": 1,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Earth cleaver (Thear)",
+   "tag": "slash",
+   "anchor": "figure",
+   "blend": "normal",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 30,
+    "pierce": true,
+    "rehit_ticks": 1,
+    "knockback": 16,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "earth_cleaver",
+    "length": 58,
+    "thickness": 12,
+    "radius": 0,
+    "span": 0,
+    "swing_ticks": 3,
+    "hold_ticks": 10,
+    "density": 1,
+    "w_mode": "signature",
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "small_ticks": 0,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_scale": 0.6,
+    "w_flip_x": 1,
+    "w_flip_y": -1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 33,
+    "w_b1_y": 7,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start"
+   },
+   "id": "Emwjv7jm64",
+   "action": "attack_normal_2",
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": []
   }
  ],
  "groups": [],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "targeting": {
+  "enabled": false,
+  "mode": "nearest",
+  "hp_basis": "pct",
+  "fallback": "nearest",
+  "weights": {
+   "closeness": 100,
+   "low_hp": 0,
+   "attacking": 0,
+   "targets_me": 0,
+   "melee": 0,
+   "ranged": 0
+  },
+  "min_hold_ms": 0,
+  "switch_margin_pct": 0,
+  "min_range_px": 0,
+  "max_range_px": 0,
+  "ignore_blinked": true,
+  "team": "none",
+  "team_pct": 50,
+  "rules": []
+ },
+ "world_physics": {},
  "unique_ability": {
   "type": "berserker",
   "mirror_legion": {
@@ -22046,14 +23203,14 @@
   "berserker": {
    "start_lost_pct": 0,
    "max_lost_pct": 90,
-   "max_bonus_pct": 500,
-   "curve": "linear",
+   "max_bonus_pct": 700,
+   "curve": "exponential",
    "steps": 5,
    "damage_bonus_pct": 55,
    "damage_taken_pct": 0,
    "speed_fx": true,
    "aura": true,
-   "aura_color": "#ff2a2a"
+   "aura_color": "#472300"
   },
   "phase_shift": {
    "trigger": "every_hit",
@@ -22076,7 +23233,12 @@
    "fixed_x_pct": 50,
    "fixed_y_pct": 50,
    "invuln_ms": 300,
-   "show_charges": true
+   "show_charges": true,
+   "state": false,
+   "state_ms": 3000,
+   "logic": "any",
+   "conditions": [],
+   "show_state": true
   },
   "ricochet": {
    "bounces": 3,
@@ -22103,7 +23265,8 @@
    "knockback_px": 60,
    "cooldown_ms": 1500,
    "invuln_ms": 250,
-   "color": "#ffd34a"
+   "color": "#ffd34a",
+   "counters": []
   },
   "dual_form": {
    "trigger": "gauge",
@@ -22649,7 +23812,8 @@
      }
     }
    },
-   "actions": {}
+   "actions": {},
+   "speed_fx_anim": false
   },
   "summoner": {
    "summons": [
@@ -22840,10 +24004,44 @@
    "color": "#7fd4ff"
   }
  },
+ "states": [],
  "movement_style": {
   "enabled": false,
   "select": "priority",
   "daze": true,
   "phases": []
+ },
+ "fight_rhythm": {
+  "enabled": false,
+  "preset": "duelist",
+  "role": "auto",
+  "movement": "auto",
+  "wait_style": "mixed",
+  "neutral_ms_min": 700,
+  "neutral_ms_max": 2200,
+  "spacing_px": 60,
+  "sway_px": 40,
+  "feint_pct": 25,
+  "feint_kind": "mixed",
+  "feint_ms": 380,
+  "engage_speed_pct": 175,
+  "engage_ms_max": 1400,
+  "string_min": 2,
+  "string_max": 5,
+  "gap_start_ms": 380,
+  "gap_end_ms": 80,
+  "gap_jitter_pct": 35,
+  "pressure_speed_pct": 115,
+  "punish_pct": 70,
+  "punish_range_px": 280,
+  "punish_ms": 900,
+  "punish_speed_pct": 230,
+  "reset_ms_min": 350,
+  "reset_ms_max": 1100,
+  "reset_px": 220,
+  "director_pct": 100,
+  "aggression_pct": 100,
+  "momentum_pct": 35,
+  "gate_triggered": false
  }
 }
