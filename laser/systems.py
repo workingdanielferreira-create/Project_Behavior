@@ -20,6 +20,7 @@ from . import motion, modes, config, combat, ai, fxkit, actions, retreat, dodge,
 from . import platform_win as win
 from . import action_log
 from . import battlestats
+from . import guard
 
 
 
@@ -556,6 +557,10 @@ class CombatSystem(System):
             if clash.duel_tick(fig, world):
                 fig.combat.acted = True
                 continue
+            # --- Ally support (laser/guard.py): guard bar refill / break,
+            # the typed defend's catches (deflect / reflect / cover) and
+            # cover footwork.  Same in Solo and Battle. ---
+            guard.tick(fig, world)
             # --- Dodge (FX Studio pack.dodge, laser/dodge.py): reacts to
             # incoming enemy projectiles (bullets and FX Studio shots);
             # while its sidestep runs it owns the figure's movement.  Solo

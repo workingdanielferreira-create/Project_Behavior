@@ -1063,6 +1063,10 @@ def normalize_action(cfg):
     cfg["blink"] = normalize_blink(cfg.get("blink"))
     cfg["time"] = normalize_time(cfg.get("time"))
     cfg["hop"] = normalize_hop(cfg.get("hop"))
+    # Ally support (laser/guard.py): defend type + Dash to ally settings.
+    from . import guard as _guard
+    cfg["defend"] = _guard.normalize_defend(cfg.get("defend"))
+    cfg["ally"] = _guard.normalize_ally(cfg.get("ally"))
     return cfg
 
 

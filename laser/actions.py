@@ -107,6 +107,10 @@ CONDITION_TYPES = {
     "director_above": dict(pct=60.0), "has_token": {}, "target_open": {},
     "partner_intent": dict(intent="pressure"), "partner_within": dict(px=200.0),
     "partner_hp_below": dict(pct=40.0), "outnumbered": {},
+    # Ally support (laser/guard.py): a team-mate (at most max_px away, 0 =
+    # any) has a threat of kind `by` (fx / enemy / fx_or_enemy / ally / any)
+    # within px; remembers it for Movement "ally_dash" and cover.
+    "ally_threatened": dict(px=120.0, by="fx_or_enemy", max_px=600.0),
 }
 
 
@@ -385,6 +389,9 @@ class ActionRunner:
         if t in _tempo.COND_TYPES:
             w = ctx.get("world")
             return w is not None and _tempo.cond_true(fig, w, t, cond, ctx)
+        if t == "ally_threatened":
+            from . import guard as _guard
+            return _guard.cond_ally_threatened(fig, ctx.get("world"), cond)
         if t == "action_triggered":
             info = ctx.get("own_action") if cond.get("who") == "self" else ctx.get("tgt_action")
             if not info or not info[0]:
@@ -680,6 +687,8 @@ class ActionRunner:
                 self.manual = None
             elif self.cooldown_until.get(name, -10 ** 9) > _unique.cd_now(fig, now):
                 self.manual = None
+            elif not _guard_allows(fig, name):   # guard broken (laser/guard.py)
+                self.manual = None
             elif self.forced is None and (self.playing is None or _kind(self.playing) != "triggered"):
                 if self.playing is not None:
                     self._finish(fig, now)
@@ -718,6 +727,8 @@ class ActionRunner:
                         continue
                     if not _tempo.allows_triggered(fig, name):
                         continue
+                    if not _guard_allows(fig, name):   # guard broken: no defends (laser/guard.py)
+                        continue
                     if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                         self._finish(fig, now)
                         self._start(fig, name, ctx, now)
@@ -734,6 +745,8 @@ class ActionRunner:
                     if not _unique.clone_allows(fig, name):   # Mirror Legion copy: ticked actions only
                         continue
                     if not _tempo.allows_triggered(fig, name):
+                        continue
+                    if not _guard_allows(fig, name):   # guard broken: no defends (laser/guard.py)
                         continue
                     if name in fig.render.bundle.extra and self._triggered(fig, name, ctx, now):
                         if self._start(fig, name, ctx, now):
@@ -814,6 +827,19 @@ class ActionRunner:
                     rooted = True
                     fig.render.is_moving = False
                     self._leap_step(fig, name, cfg, n, fm, tx, ty, now)
+                elif cfg.get("movement") == "ally_dash" and not (fig.motion.bouncing or fig.motion.bounce_ending):
+                    # Ally support (laser/guard.py): dash to the threatened
+                    # team-mate, the action holding its frame until it
+                    # arrives; then it plays (its defend type switches on).
+                    rooted = True
+                    fig.render.is_moving = False
+                    from . import guard as _guard
+                    if self.base_speed is None:
+                        self.base_speed = fig.motion.speed
+                    if _guard.dash_step(fig, world, self, name, now):
+                        hf = int(_guard.ally_cfg(fig, name).get("hold_frame") or 0)
+                        self.elapsed = min(max(0, hf), n - 1) * fm
+                        c.action_idx = min(max(0, hf), n - 1)
                 elif cfg.get("movement") == "move":
                     pct = float(cfg.get("move_speed_pct") or 0) / 100.0
                     if self.base_speed is None:
@@ -1288,10 +1314,20 @@ def force_action(fig, world, name):
     return r._start(fig, name, {"hp_pct": 100.0 * p.hp / max(1e-6, p.max_hp)}, now)
 
 
+def _guard_allows(fig, name):
+    from . import guard as _guard
+    return _guard.allows(fig, name)
+
+
 def blocks_hit(fig):
-    """True while this fighter's `defend` action plays: the hit is blocked."""
+    """True while this fighter's `defend` action plays: the hit is blocked.
+    A `defend` given an Ally support defend type (laser/guard.py) is handled
+    there instead (block %, absorb, ...)."""
     r = getattr(fig, "act", None)
-    return bool(r is not None and r.blocking())
+    if not (r is not None and r.blocking()):
+        return False
+    from . import guard as _guard
+    return _guard.defend_cfg(fig, r.playing) is None
 
 
 def note_fx_hit(fig, tag):
@@ -1342,7 +1378,8 @@ def target_state(fig, now=0):
     r = getattr(fig, "act", None)
     if r is not None and r.playing:
         attacking = attacking or r.playing.startswith("attack") or r.playing == "ultimate"
-    defending = bool(c.parrying) or blocks_hit(fig)
+    from . import guard as _guard
+    defending = bool(c.parrying) or blocks_hit(fig) or _guard.defending(fig)
     name, start = action_info(fig, now)
     return (hp, attacking, defending, name, start)
 
