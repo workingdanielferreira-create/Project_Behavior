@@ -20,8 +20,8 @@
    "frames": 6
   },
   "run": {
-   "frame_ms": 42.222,
-   "frames": 18
+   "frame_ms": 250,
+   "frames": 6
   },
   "attack_normal": {
    "frame_ms": 200,
@@ -653,72 +653,24 @@
      336.97
     ],
     [
-     241.46,
-     337.06
-    ],
-    [
-     240.84,
-     337.28
-    ],
-    [
      240.6,
      337.37
     ],
     [
      240.6,
-     337.32
-    ],
-    [
-     240.6,
-     337.21
-    ],
-    [
-     240.6,
      337.17
-    ],
-    [
-     240.8,
-     337.32
-    ],
-    [
-     241.3,
-     337.71
     ],
     [
      241.5,
      337.87
     ],
     [
-     241.41,
-     337.71
-    ],
-    [
-     241.19,
-     337.32
-    ],
-    [
      241.1,
-     337.17
-    ],
-    [
-     241.19,
-     337.17
-    ],
-    [
-     241.41,
      337.17
     ],
     [
      241.5,
      337.17
-    ],
-    [
-     241.54,
-     337.12
-    ],
-    [
-     241.66,
-     337.01
     ]
    ],
    "chest": [
@@ -727,72 +679,24 @@
      312.86
     ],
     [
-     242.72,
-     312.94
-    ],
-    [
-     242.11,
-     313.17
-    ],
-    [
      241.87,
      313.26
-    ],
-    [
-     241.87,
-     313.21
-    ],
-    [
-     241.87,
-     313.1
     ],
     [
      241.88,
      313.06
     ],
     [
-     242.08,
-     313.21
-    ],
-    [
-     242.58,
-     313.6
-    ],
-    [
      242.78,
      313.76
-    ],
-    [
-     242.69,
-     313.6
-    ],
-    [
-     242.46,
-     313.21
     ],
     [
      242.38,
      313.06
     ],
     [
-     242.47,
-     313.06
-    ],
-    [
-     242.69,
-     313.06
-    ],
-    [
      242.78,
      313.06
-    ],
-    [
-     242.82,
-     313.01
-    ],
-    [
-     242.93,
-     312.9
     ]
    ],
    "neck": [
@@ -801,72 +705,24 @@
      294.56
     ],
     [
-     250.17,
-     294.64
-    ],
-    [
-     249.56,
-     294.87
-    ],
-    [
      249.31,
      294.96
     ],
     [
-     249.32,
-     294.91
-    ],
-    [
-     249.33,
-     294.8
-    ],
-    [
      249.33,
      294.76
-    ],
-    [
-     249.53,
-     294.92
-    ],
-    [
-     250.03,
-     295.31
     ],
     [
      250.23,
      295.46
     ],
     [
-     250.14,
-     295.31
-    ],
-    [
-     249.92,
-     294.92
-    ],
-    [
      249.83,
      294.76
     ],
     [
-     249.92,
-     294.76
-    ],
-    [
-     250.16,
-     294.77
-    ],
-    [
      250.25,
      294.77
-    ],
-    [
-     250.29,
-     294.72
-    ],
-    [
-     250.38,
-     294.6
     ]
    ],
    "head": [
@@ -875,72 +731,24 @@
      278.74
     ],
     [
-     261.57,
-     278.82
-    ],
-    [
-     260.96,
-     279.05
-    ],
-    [
      260.71,
      279.14
     ],
     [
-     260.72,
-     279.09
-    ],
-    [
-     260.74,
-     278.99
-    ],
-    [
      260.74,
      278.95
-    ],
-    [
-     260.94,
-     279.1
-    ],
-    [
-     261.44,
-     279.49
     ],
     [
      261.64,
      279.65
     ],
     [
-     261.55,
-     279.49
-    ],
-    [
-     261.33,
-     279.1
-    ],
-    [
      261.24,
      278.95
     ],
     [
-     261.34,
-     278.95
-    ],
-    [
-     261.58,
-     278.96
-    ],
-    [
      261.67,
      278.96
-    ],
-    [
-     261.7,
-     278.91
-    ],
-    [
-     261.78,
-     278.79
     ]
    ],
    "shB": [
@@ -949,72 +757,24 @@
      295.56
     ],
     [
-     250.17,
-     295.64
-    ],
-    [
-     249.56,
-     295.87
-    ],
-    [
      249.31,
      295.96
     ],
     [
-     249.32,
-     295.91
-    ],
-    [
-     249.33,
-     295.8
-    ],
-    [
      249.33,
      295.76
-    ],
-    [
-     249.53,
-     295.92
-    ],
-    [
-     250.03,
-     296.31
     ],
     [
      250.23,
      296.46
     ],
     [
-     250.14,
-     296.31
-    ],
-    [
-     249.92,
-     295.92
-    ],
-    [
      249.83,
      295.76
     ],
     [
-     249.92,
-     295.76
-    ],
-    [
-     250.16,
-     295.77
-    ],
-    [
      250.25,
      295.77
-    ],
-    [
-     250.29,
-     295.72
-    ],
-    [
-     250.38,
-     295.6
     ]
    ],
    "shL": [
@@ -1023,72 +783,24 @@
      294.16
     ],
     [
-     258.17,
-     294.24
-    ],
-    [
-     257.56,
-     294.47
-    ],
-    [
      257.31,
      294.56
     ],
     [
-     257.32,
-     294.51
-    ],
-    [
-     257.33,
-     294.4
-    ],
-    [
      257.33,
      294.36
-    ],
-    [
-     257.53,
-     294.52
-    ],
-    [
-     258.03,
-     294.91
     ],
     [
      258.23,
      295.06
     ],
     [
-     258.14,
-     294.91
-    ],
-    [
-     257.92,
-     294.52
-    ],
-    [
      257.83,
      294.36
     ],
     [
-     257.92,
-     294.36
-    ],
-    [
-     258.16,
-     294.37
-    ],
-    [
      258.25,
      294.37
-    ],
-    [
-     258.29,
-     294.32
-    ],
-    [
-     258.38,
-     294.2
     ]
    ],
    "shR": [
@@ -1097,72 +809,24 @@
      291.76
     ],
     [
-     246.07,
-     291.84
-    ],
-    [
-     245.46,
-     292.07
-    ],
-    [
      245.21,
      292.16
     ],
     [
-     245.22,
-     292.11
-    ],
-    [
-     245.23,
-     292
-    ],
-    [
      245.23,
      291.96
-    ],
-    [
-     245.43,
-     292.12
-    ],
-    [
-     245.93,
-     292.51
     ],
     [
      246.13,
      292.66
     ],
     [
-     246.04,
-     292.51
-    ],
-    [
-     245.82,
-     292.12
-    ],
-    [
      245.73,
      291.96
     ],
     [
-     245.82,
-     291.96
-    ],
-    [
-     246.06,
-     291.97
-    ],
-    [
      246.15,
      291.97
-    ],
-    [
-     246.19,
-     291.92
-    ],
-    [
-     246.28,
-     291.8
     ]
    ],
    "elL": [
@@ -1171,72 +835,24 @@
      305.46
     ],
     [
-     288.37,
-     305.54
-    ],
-    [
-     287.76,
-     305.77
-    ],
-    [
      287.52,
      305.86
-    ],
-    [
-     287.52,
-     305.81
-    ],
-    [
-     287.53,
-     305.7
     ],
     [
      287.54,
      305.66
     ],
     [
-     287.74,
-     305.82
-    ],
-    [
-     288.24,
-     306.21
-    ],
-    [
      288.44,
      306.36
-    ],
-    [
-     288.35,
-     306.21
-    ],
-    [
-     288.13,
-     305.82
     ],
     [
      288.04,
      305.66
     ],
     [
-     288.13,
-     305.66
-    ],
-    [
-     288.36,
-     305.66
-    ],
-    [
      288.46,
      305.67
-    ],
-    [
-     288.49,
-     305.62
-    ],
-    [
-     288.58,
-     305.5
     ]
    ],
    "elR": [
@@ -1245,72 +861,24 @@
      299.65
     ],
     [
-     234.31,
-     299.74
-    ],
-    [
-     233.7,
-     299.96
-    ],
-    [
      233.46,
      300.05
-    ],
-    [
-     233.46,
-     300.01
-    ],
-    [
-     233.47,
-     299.9
     ],
     [
      233.48,
      299.86
     ],
     [
-     233.68,
-     300.01
-    ],
-    [
-     234.18,
-     300.4
-    ],
-    [
      234.38,
      300.56
-    ],
-    [
-     234.29,
-     300.4
-    ],
-    [
-     234.07,
-     300.01
     ],
     [
      233.98,
      299.86
     ],
     [
-     234.07,
-     299.86
-    ],
-    [
-     234.31,
-     299.86
-    ],
-    [
      234.4,
      299.86
-    ],
-    [
-     234.43,
-     299.82
-    ],
-    [
-     234.52,
-     299.7
     ]
    ],
    "haL": [
@@ -1319,72 +887,24 @@
      292.97
     ],
     [
-     312.65,
-     293.06
-    ],
-    [
-     312.04,
-     293.28
-    ],
-    [
      311.79,
      293.37
     ],
     [
-     311.8,
-     293.32
-    ],
-    [
-     311.81,
-     293.22
-    ],
-    [
      311.81,
      293.17
-    ],
-    [
-     312.01,
-     293.33
-    ],
-    [
-     312.51,
-     293.72
     ],
     [
      312.71,
      293.87
     ],
     [
-     312.63,
-     293.72
-    ],
-    [
-     312.4,
-     293.33
-    ],
-    [
      312.31,
      293.17
     ],
     [
-     312.41,
-     293.17
-    ],
-    [
-     312.64,
-     293.18
-    ],
-    [
      312.73,
      293.18
-    ],
-    [
-     312.77,
-     293.13
-    ],
-    [
-     312.86,
-     293.01
     ]
    ],
    "haR": [
@@ -1393,72 +913,24 @@
      297.21
     ],
     [
-     264.21,
-     297.3
-    ],
-    [
-     263.6,
-     297.52
-    ],
-    [
      263.36,
      297.61
-    ],
-    [
-     263.36,
-     297.57
-    ],
-    [
-     263.37,
-     297.46
     ],
     [
      263.38,
      297.42
     ],
     [
-     263.58,
-     297.57
-    ],
-    [
-     264.08,
-     297.96
-    ],
-    [
      264.28,
      298.12
-    ],
-    [
-     264.19,
-     297.96
-    ],
-    [
-     263.97,
-     297.57
     ],
     [
      263.88,
      297.42
     ],
     [
-     263.97,
-     297.42
-    ],
-    [
-     264.21,
-     297.42
-    ],
-    [
      264.3,
      297.42
-    ],
-    [
-     264.33,
-     297.37
-    ],
-    [
-     264.42,
-     297.26
     ]
    ],
    "hpL": [
@@ -1467,72 +939,24 @@
      340.17
     ],
     [
-     240.86,
-     340.26
-    ],
-    [
-     240.24,
-     340.48
-    ],
-    [
      240,
      340.57
     ],
     [
      240,
-     340.52
-    ],
-    [
-     240,
-     340.41
-    ],
-    [
-     240,
      340.37
-    ],
-    [
-     240.2,
-     340.52
-    ],
-    [
-     240.7,
-     340.91
     ],
     [
      240.9,
      341.07
     ],
     [
-     240.81,
-     340.91
-    ],
-    [
-     240.59,
-     340.52
-    ],
-    [
      240.5,
-     340.37
-    ],
-    [
-     240.59,
-     340.37
-    ],
-    [
-     240.81,
      340.37
     ],
     [
      240.9,
      340.37
-    ],
-    [
-     240.94,
-     340.32
-    ],
-    [
-     241.06,
-     340.21
     ]
    ],
    "hpR": [
@@ -1541,72 +965,24 @@
      340.67
     ],
     [
-     241.96,
-     340.76
-    ],
-    [
-     241.34,
-     340.98
-    ],
-    [
      241.1,
      341.07
     ],
     [
      241.1,
-     341.02
-    ],
-    [
-     241.1,
-     340.91
-    ],
-    [
-     241.1,
      340.87
-    ],
-    [
-     241.3,
-     341.02
-    ],
-    [
-     241.8,
-     341.41
     ],
     [
      242,
      341.57
     ],
     [
-     241.91,
-     341.41
-    ],
-    [
-     241.69,
-     341.02
-    ],
-    [
      241.6,
-     340.87
-    ],
-    [
-     241.69,
-     340.87
-    ],
-    [
-     241.91,
      340.87
     ],
     [
      242,
      340.87
-    ],
-    [
-     242.04,
-     340.82
-    ],
-    [
-     242.16,
-     340.71
     ]
    ],
    "knL": [
@@ -1615,72 +991,24 @@
      376.5
     ],
     [
-     252.08,
-     376.56
-    ],
-    [
-     251.71,
-     376.71
-    ],
-    [
      251.57,
      376.77
-    ],
-    [
-     251.23,
-     376.83
-    ],
-    [
-     250.4,
-     376.96
     ],
     [
      250.07,
      377.01
     ],
     [
-     249.47,
-     377.37
-    ],
-    [
-     247.98,
-     378.21
-    ],
-    [
      247.37,
      378.51
-    ],
-    [
-     250.15,
-     377.75
-    ],
-    [
-     256.8,
-     374.89
     ],
     [
      259.3,
      373.39
     ],
     [
-     259.46,
-     373.35
-    ],
-    [
-     259.86,
-     373.25
-    ],
-    [
      260.02,
      373.21
-    ],
-    [
-     258.36,
-     374.1
-    ],
-    [
-     254.03,
-     375.93
     ]
    ],
    "knR": [
@@ -1689,72 +1017,24 @@
      377.82
     ],
     [
-     251.59,
-     377.52
-    ],
-    [
-     255.01,
-     376.44
-    ],
-    [
      256.34,
      375.88
-    ],
-    [
-     257.03,
-     375.52
-    ],
-    [
-     258.73,
-     374.58
     ],
     [
      259.4,
      374.17
     ],
     [
-     258.47,
-     374.92
-    ],
-    [
-     256.07,
-     376.63
-    ],
-    [
      255.08,
      377.24
-    ],
-    [
-     254.88,
-     377.13
-    ],
-    [
-     254.37,
-     376.85
     ],
     [
      254.17,
      376.73
     ],
     [
-     253.35,
-     377.04
-    ],
-    [
-     251.26,
-     377.7
-    ],
-    [
      250.42,
      377.92
-    ],
-    [
-     250.37,
-     377.9
-    ],
-    [
-     250.24,
-     377.84
     ]
    ],
    "ftL": [
@@ -1763,72 +1043,24 @@
      412.5
     ],
     [
-     250.67,
-     412.53
-    ],
-    [
-     248.18,
-     412.53
-    ],
-    [
      247.18,
      412.5
-    ],
-    [
-     245.36,
-     412.34
-    ],
-    [
-     240.86,
-     411.68
     ],
     [
      239.09,
      411.3
     ],
     [
-     237.2,
-     411.22
-    ],
-    [
-     232.54,
-     410.73
-    ],
-    [
      230.71,
      410.42
-    ],
-    [
-     232.34,
-     409.04
-    ],
-    [
-     236.25,
-     404.45
     ],
     [
      237.7,
      402.19
     ],
     [
-     241.09,
-     404.31
-    ],
-    [
-     250.43,
-     407.99
-    ],
-    [
      254.39,
      408.76
-    ],
-    [
-     253.85,
-     409.81
-    ],
-    [
-     252.34,
-     411.89
     ]
    ],
    "ftR": [
@@ -1837,72 +1069,24 @@
      409.3
     ],
     [
-     234.01,
-     408.93
-    ],
-    [
-     237.13,
-     407.68
-    ],
-    [
      238.33,
      407.05
-    ],
-    [
-     242.75,
-     408.57
-    ],
-    [
-     254.48,
-     410.33
     ],
     [
      259.31,
      410.17
     ],
     [
-     256.97,
-     410.89
-    ],
-    [
-     251.06,
-     412.28
-    ],
-    [
      248.68,
      412.67
-    ],
-    [
-     247.56,
-     412.38
-    ],
-    [
-     244.79,
-     411.55
     ],
     [
      243.69,
      411.17
     ],
     [
-     241.91,
-     411.17
-    ],
-    [
-     237.46,
-     410.95
-    ],
-    [
      235.69,
      410.77
-    ],
-    [
-     235.02,
-     410.47
-    ],
-    [
-     233.37,
-     409.65
     ]
    ],
    "wtip": [
@@ -1911,72 +1095,24 @@
      291.65
     ],
     [
-     396.24,
-     291.74
-    ],
-    [
-     395.62,
-     291.97
-    ],
-    [
      395.38,
      292.05
-    ],
-    [
-     395.38,
-     292.01
-    ],
-    [
-     395.39,
-     291.9
     ],
     [
      395.4,
      291.86
     ],
     [
-     395.6,
-     292.02
-    ],
-    [
-     396.1,
-     292.4
-    ],
-    [
      396.3,
      292.56
-    ],
-    [
-     396.21,
-     292.4
-    ],
-    [
-     395.99,
-     292.02
     ],
     [
      395.9,
      291.86
     ],
     [
-     395.99,
-     291.86
-    ],
-    [
-     396.23,
-     291.86
-    ],
-    [
      396.32,
      291.87
-    ],
-    [
-     396.35,
-     291.82
-    ],
-    [
-     396.44,
-     291.7
     ]
    ],
    "wtip2": [
@@ -1985,72 +1121,24 @@
      292.97
     ],
     [
-     312.65,
-     293.06
-    ],
-    [
-     312.04,
-     293.28
-    ],
-    [
      311.79,
      293.37
     ],
     [
-     311.8,
-     293.32
-    ],
-    [
-     311.81,
-     293.22
-    ],
-    [
      311.81,
      293.17
-    ],
-    [
-     312.01,
-     293.33
-    ],
-    [
-     312.51,
-     293.72
     ],
     [
      312.71,
      293.87
     ],
     [
-     312.63,
-     293.72
-    ],
-    [
-     312.4,
-     293.33
-    ],
-    [
      312.31,
      293.17
     ],
     [
-     312.41,
-     293.17
-    ],
-    [
-     312.64,
-     293.18
-    ],
-    [
      312.73,
      293.18
-    ],
-    [
-     312.77,
-     293.13
-    ],
-    [
-     312.86,
-     293.01
     ]
    ],
    "root": [
@@ -2059,72 +1147,24 @@
      242.74
     ],
     [
-     261.57,
-     242.82
-    ],
-    [
-     260.96,
-     243.05
-    ],
-    [
      260.71,
      243.14
     ],
     [
-     260.72,
-     243.09
-    ],
-    [
-     260.74,
-     242.99
-    ],
-    [
      260.74,
      242.95
-    ],
-    [
-     260.94,
-     243.1
-    ],
-    [
-     261.44,
-     243.49
     ],
     [
      261.64,
      243.65
     ],
     [
-     261.55,
-     243.49
-    ],
-    [
-     261.33,
-     243.1
-    ],
-    [
      261.24,
      242.95
     ],
     [
-     261.34,
-     242.95
-    ],
-    [
-     261.58,
-     242.96
-    ],
-    [
      261.67,
      242.96
-    ],
-    [
-     261.7,
-     242.91
-    ],
-    [
-     261.78,
-     242.79
     ]
    ],
    "xl1": [
@@ -2133,72 +1173,24 @@
      412.13
     ],
     [
-     254.57,
-     412.26
-    ],
-    [
-     252.08,
-     412.49
-    ],
-    [
      251.08,
      412.55
-    ],
-    [
-     249.26,
-     412.55
-    ],
-    [
-     244.72,
-     412.29
     ],
     [
      242.91,
      412.07
     ],
     [
-     240.99,
-     412.14
-    ],
-    [
-     236.23,
-     412.01
-    ],
-    [
      234.35,
      411.84
-    ],
-    [
-     235.92,
-     410.58
-    ],
-    [
-     239.67,
-     406.31
     ],
     [
      241.06,
      404.17
     ],
     [
-     244.64,
-     405.92
-    ],
-    [
-     254.28,
-     408.59
-    ],
-    [
      258.28,
      408.95
-    ],
-    [
-     257.75,
-     409.88
-    ],
-    [
-     256.23,
-     411.65
     ]
    ],
    "xl2": [
@@ -2207,72 +1199,24 @@
      412.18
     ],
     [
-     236.4,
-     411.82
-    ],
-    [
-     239.49,
-     410.59
-    ],
-    [
      240.69,
      409.97
-    ],
-    [
-     245.42,
-     411.2
-    ],
-    [
-     257.79,
-     412.08
     ],
     [
      262.8,
      411.53
     ],
     [
-     260.41,
-     412.39
-    ],
-    [
-     254.34,
-     414.1
-    ],
-    [
      251.89,
      414.62
-    ],
-    [
-     250.72,
-     414.41
-    ],
-    [
-     247.8,
-     413.78
     ],
     [
      246.64,
      413.48
     ],
     [
-     244.79,
-     413.56
-    ],
-    [
-     240.17,
-     413.54
-    ],
-    [
      238.33,
      413.44
-    ],
-    [
-     237.61,
-     413.18
-    ],
-    [
-     235.83,
-     412.48
     ]
    ]
   },
@@ -6532,7 +5476,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [
@@ -6544,7 +5534,12 @@
       "angle_deg": 0,
       "mirror": false,
       "proximity_px": 500,
-      "flash": true
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
      }
     ],
     "enabled": true,
@@ -6560,7 +5555,52 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
   },
   "run": {
    "logic": "any",
@@ -6584,7 +5624,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [
@@ -6596,7 +5682,12 @@
       "angle_deg": 0,
       "mirror": false,
       "proximity_px": 1000,
-      "flash": true
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
      }
     ],
     "enabled": true,
@@ -6612,7 +5703,52 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
   },
   "attack_normal": {
    "logic": "any",
@@ -6636,7 +5772,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [
@@ -6648,7 +5830,12 @@
       "angle_deg": 0,
       "mirror": false,
       "proximity_px": 600,
-      "flash": true
+      "flash": true,
+      "blade_pick": "newest",
+      "trigger": "frames",
+      "delay_ms": 150,
+      "range_px": 60,
+      "gone_ms": 50
      }
     ],
     "enabled": true,
@@ -6664,7 +5851,52 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 50,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
   },
   "defend": {
    "logic": "any",
@@ -6688,7 +5920,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -6705,56 +5983,60 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
   },
   "attack_special": {
    "logic": "any",
    "cooldown_ms": 0,
-   "conditions": [],
-   "chain_next": "",
-   "chain_reset_ms": 1000,
-   "fx_continuous": false,
-   "movement": "stand",
-   "move_speed_pct": 100,
-   "anim_loops": 1,
-   "back_stop_pct": 80,
-   "attack_px": 0,
-   "leap": {
-    "start_frame": 0,
-    "land_frame": -1,
-    "height_px": 40,
-    "hit_px": null,
-    "height_max_px": null,
-    "dist_min_px": 300,
-    "dist_max_px": 900,
-    "damage_mode": "fixed",
-    "damage_min": 5,
-    "damage_max": 20
-   },
-   "blink": {
-    "blinks": [],
-    "enabled": false,
-    "cooldown_ms": 0
-   },
-   "time": {
-    "enabled": false,
-    "start_frame": 0,
-    "end_frame": -1,
-    "scope": "enemy_fighters",
-    "speed": 0,
-    "keys": [],
-    "logic": "any",
-    "conditions": []
-   },
-   "attack_gap_ms": 350
-  },
-  "ultimate": {
-   "logic": "any",
-   "cooldown_ms": 0,
    "conditions": [
     {
-     "type": "every_ms",
-     "ms": 6000,
+     "type": "target_beyond",
+     "px": 1200,
      "not": false
     }
    ],
@@ -6776,7 +6058,53 @@
     "dist_max_px": 900,
     "damage_mode": "fixed",
     "damage_min": 5,
-    "damage_max": 20
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
    },
    "blink": {
     "blinks": [],
@@ -6793,7 +6121,190 @@
     "logic": "any",
     "conditions": []
    },
-   "attack_gap_ms": 350
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
+  },
+  "ultimate": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [
+    {
+     "type": "target_within",
+     "px": 80,
+     "not": false
+    }
+   ],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   },
+   "attack_gap_ms": 350,
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   },
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   }
   }
  },
  "entry_sets": [],
@@ -6846,9 +6357,13 @@
   "counter_range_px": 0,
   "logic": "any",
   "conditions": [],
-  "fx": ""
+  "fx": "",
+  "parry_result": "deflect",
+  "parry_window_ms": 250,
+  "parry_reach_px": 60,
+  "parry_hurts": true
  },
- "character_scale": 1,
+ "character_scale": 0.7,
  "effects": [
   {
    "prim": "technique",
@@ -6863,7 +6378,8 @@
     "rehit_ticks": 0,
     "knockback": 16,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -6878,7 +6394,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -6893,11 +6412,11 @@
    "params": {
     "style": "sniper_rail",
     "radius": 1,
-    "thickness": 20,
+    "thickness": 30,
     "span": 0,
     "length": 2020,
-    "swing_ticks": 125,
-    "hold_ticks": 24,
+    "swing_ticks": 77,
+    "hold_ticks": 30,
     "density": 1,
     "rotation_deg": 0,
     "lightning": false,
@@ -6953,7 +6472,42 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emvee5ti52",
    "action": "attack_normal",
@@ -6997,7 +6551,12 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -7016,7 +6575,8 @@
     "rehit_ticks": 2,
     "knockback": 2000,
     "blockable": false,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -7031,7 +6591,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "palette",
@@ -7106,7 +6669,42 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emveexux11",
    "action": "ultimate",
@@ -7146,7 +6744,12 @@
    },
    "follow_dir": true,
    "follow_each": true,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
   },
   {
    "prim": "technique",
@@ -7161,7 +6764,8 @@
     "rehit_ticks": 0,
     "knockback": 1000,
     "blockable": true,
-    "deflectable": true
+    "deflectable": true,
+    "armed": 1
    },
    "motion": {
     "kind": "attached",
@@ -7176,7 +6780,10 @@
     "orbit_ry": 46,
     "orbit_deg": 1.12,
     "orbit_dir": "clockwise",
-    "path": ""
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
    },
    "color": {
     "mode": "gradient",
@@ -7251,7 +6858,42 @@
     "rise_dir": "screen_up",
     "kick_angle_deg": 0,
     "flip_h": false,
-    "flip_v": false
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emvef852l1",
    "action": "@stack",
@@ -7295,11 +6937,609 @@
    },
    "follow_dir": false,
    "follow_each": false,
-   "keys": []
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   }
+  },
+  {
+   "prim": "technique",
+   "name": "Sniper rail shot",
+   "tag": "projectile",
+   "anchor": "wtip",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 150,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 16,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#e9e2ff",
+    "c2": "#8a5cff",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "sniper_rail",
+    "radius": 1,
+    "thickness": 30,
+    "span": 0,
+    "length": 3020,
+    "swing_ticks": 77,
+    "hold_ticks": 30,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
+   },
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 0,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "id": "Emwmoc88p2",
+   "action": "attack_special"
+  },
+  {
+   "prim": "technique",
+   "name": "Sniper rail shot copy",
+   "tag": "projectile",
+   "anchor": "wtip",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 150,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 16,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#e9e2ff",
+    "c2": "#8a5cff",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "sniper_rail",
+    "radius": 1,
+    "thickness": 30,
+    "span": 0,
+    "length": 3020,
+    "swing_ticks": 77,
+    "hold_ticks": 30,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
+   },
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 1,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "id": "Emwmoccu03",
+   "action": "attack_special"
+  },
+  {
+   "prim": "technique",
+   "name": "Sniper rail shot copy copy",
+   "tag": "projectile",
+   "anchor": "wtip",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 150,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 16,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#e9e2ff",
+    "c2": "#8a5cff",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "sniper_rail",
+    "radius": 1,
+    "thickness": 30,
+    "span": 0,
+    "length": 3020,
+    "swing_ticks": 77,
+    "hold_ticks": 30,
+    "density": 1,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "small_ticks": 0,
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
+   },
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 2,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "follow_dir": true,
+   "follow_each": true,
+   "keys": [],
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "id": "Emwmocdi04",
+   "action": "attack_special"
   }
  ],
  "groups": [],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "guard": {
+  "enabled": false,
+  "max": 100,
+  "regen_per_s": 22,
+  "regen_delay_ms": 1200,
+  "open_drain_pct": 0,
+  "lockout_ms": 2500,
+  "break_action": "defend_recovery",
+  "refill_on_break_pct": 30,
+  "show": "not_full",
+  "width_pct": 70,
+  "height_pct": 7,
+  "offset_pct": 3
+ },
  "targeting": {
   "enabled": false,
   "mode": "nearest",
@@ -7407,7 +7647,8 @@
    "knockback_px": 60,
    "cooldown_ms": 1500,
    "invuln_ms": 250,
-   "color": "#ffd34a"
+   "color": "#ffd34a",
+   "counters": []
   },
   "dual_form": {
    "trigger": "gauge",
@@ -7953,7 +8194,8 @@
      }
     }
    },
-   "actions": {}
+   "actions": {},
+   "speed_fx_anim": false
   },
   "summoner": {
    "summons": [
@@ -8131,10 +8373,10 @@
   },
   "basic_stacks": {
    "gain": "hits_landed",
-   "every_hits": 10,
+   "every_hits": 3,
    "every_damage": 20,
    "every_attacks": 5,
-   "max_orbs": 3,
+   "max_orbs": 5,
    "use": "all_keep",
    "fx": "",
    "orbit_px": 55,
@@ -8144,6 +8386,7 @@
    "color": "#7fd4ff"
   }
  },
+ "states": [],
  "movement_style": {
   "enabled": true,
   "select": "priority",
@@ -8184,7 +8427,9 @@
      "hit_landed_ms": 0,
      "attacking": "any",
      "fight_ms": 0,
-     "enemy": "any"
+     "enemy": "any",
+     "tempo": "any",
+     "director": "any"
     }
    },
    {
@@ -8223,9 +8468,44 @@
      "hit_landed_ms": 0,
      "attacking": "any",
      "fight_ms": 0,
-     "enemy": "any"
+     "enemy": "any",
+     "tempo": "any",
+     "director": "any"
     }
    }
   ]
+ },
+ "fight_rhythm": {
+  "enabled": false,
+  "preset": "sniper",
+  "role": "controller",
+  "movement": "auto",
+  "wait_style": "zone",
+  "neutral_ms_min": 900,
+  "neutral_ms_max": 2400,
+  "spacing_px": 220,
+  "sway_px": 40,
+  "feint_pct": 25,
+  "feint_kind": "mixed",
+  "feint_ms": 380,
+  "engage_speed_pct": 130,
+  "engage_ms_max": 1400,
+  "string_min": 3,
+  "string_max": 6,
+  "gap_start_ms": 300,
+  "gap_end_ms": 140,
+  "gap_jitter_pct": 35,
+  "pressure_speed_pct": 115,
+  "punish_pct": 40,
+  "punish_range_px": 280,
+  "punish_ms": 900,
+  "punish_speed_pct": 230,
+  "reset_ms_min": 350,
+  "reset_ms_max": 1100,
+  "reset_px": 320,
+  "director_pct": 100,
+  "aggression_pct": 100,
+  "momentum_pct": 35,
+  "gate_triggered": false
  }
 }
