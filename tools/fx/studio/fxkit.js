@@ -672,7 +672,9 @@ var CONDITION_TYPES = {
   partner_intent: {intent: "pressure"},                // a team-mate is in this Fight rhythm intent
   partner_within: {px: 200},                           // a team-mate is within px
   partner_hp_below: {pct: 40},                         // a team-mate's HP is at or below pct %
-  outnumbered:   {}                                    // its team has fewer fighters standing than the enemy's
+  outnumbered:   {},                                   // its team has fewer fighters standing than the enemy's
+  // Ally support (laser/guard.py): a team-mate (at most max_px away, 0 = any) has a threat of kind `by` within px
+  ally_threatened: {px: 120, by: "fx_or_enemy", max_px: 600}
 };
 var CONDITION_COMMON = {not: false};
 // fx_continuous: when the action loops (idle, run, a held action), effects
@@ -1271,6 +1273,47 @@ var DODGE_STYLES = ["sidestep", "blink", "action", "sidestep_action", "blink_act
 var DODGE_SIDES = ["open", "random", "alternate"];
 var DODGE_REACT_TO = ["all", "bullets", "fx", "all_fx"];
 var DODGE_PARRY_RESULTS = ["deflect", "reflect", "destroy"];
+// Ally support (laser/guard.py, Daniel 2026-11-18): per triggered action a
+// defend type (action_settings[a].defend) and the "Dash to ally" Movement
+// settings (action_settings[a].ally); per character the guard bar
+// (pack.guard).  Mirrors guard.DEFEND_DEFAULTS / ALLY_DASH_DEFAULTS /
+// GUARD_DEFAULTS.
+var DEFEND_TYPES = ["", "block", "deflect", "reflect", "absorb", "cover"];
+var THREAT_BY = ["fx", "enemy", "fx_or_enemy", "ally", "any"];
+var DASH_PLACES = ["between", "beside", "onto"];
+var GUARD_SHOW = ["not_full", "always", "defending"];
+var DEFEND_DEFAULTS = {type: "", radius_px: 0, reduce_pct: 70, kb_keep_pct: 0, drain_pct: 100,
+  hurts: true, counter_pct: 50, absorb_pct: 100, heal_pct: 50, share_pct: 0,
+  cover_px: 46, follow: true, follow_speed_pct: 180};
+var ALLY_DASH_DEFAULTS = {speed_pct: 320, place: "between", stop_px: 46, max_ms: 900, hold_frame: 0, afterimages: true};
+var GUARD_DEFAULTS = {enabled: true, max: 100, regen_per_s: 22, regen_delay_ms: 1200, open_drain_pct: 0,
+  lockout_ms: 2500, break_action: "defend_recovery", refill_on_break_pct: 30, show: "not_full",
+  width_pct: 70, height_pct: 7, offset_pct: 3};
+function _gNum(d, k, def) { var v = +d[k]; d[k] = isFinite(v) ? Math.max(0, v) : def[k]; }
+function normalizeDefend(d) {
+  d = fill(d || {}, DEFEND_DEFAULTS);
+  if (DEFEND_TYPES.indexOf(d.type) < 0) d.type = "";
+  ["radius_px", "reduce_pct", "kb_keep_pct", "drain_pct", "counter_pct", "absorb_pct", "heal_pct", "share_pct", "cover_px", "follow_speed_pct"]
+    .forEach(function (k) { _gNum(d, k, DEFEND_DEFAULTS); });
+  d.hurts = !!d.hurts; d.follow = !!d.follow; delete d._n;
+  return d;
+}
+function normalizeAllyDash(d) {
+  d = fill(d || {}, ALLY_DASH_DEFAULTS);
+  if (DASH_PLACES.indexOf(d.place) < 0) d.place = "between";
+  ["speed_pct", "stop_px", "max_ms", "hold_frame"].forEach(function (k) { _gNum(d, k, ALLY_DASH_DEFAULTS); });
+  d.hold_frame = Math.round(d.hold_frame); d.afterimages = !!d.afterimages; delete d._n;
+  return d;
+}
+function normalizeGuard(d) {
+  d = fill(d || {}, GUARD_DEFAULTS);
+  if (GUARD_SHOW.indexOf(d.show) < 0) d.show = "not_full";
+  ["max", "regen_per_s", "regen_delay_ms", "open_drain_pct", "lockout_ms", "refill_on_break_pct", "width_pct", "height_pct"]
+    .forEach(function (k) { _gNum(d, k, GUARD_DEFAULTS); });
+  d.offset_pct = isFinite(+d.offset_pct) ? +d.offset_pct : GUARD_DEFAULTS.offset_pct;
+  d.max = Math.max(1, d.max); d.enabled = !!d.enabled; d.break_action = String(d.break_action || "");
+  return d;
+}
 function normalizeDodge(a) {
   a = fill(a || {}, DODGE_DEFAULTS);
   if (DODGE_STYLES.indexOf(a.style) < 0) a.style = DODGE_DEFAULTS.style;
@@ -1600,6 +1643,8 @@ function normalizeAction(cfg) {
   cfg.blink = normalizeBlink(cfg.blink);
   cfg.time = normalizeTime(cfg.time);
   cfg.hop = normalizeHop(cfg.hop);
+  cfg.defend = normalizeDefend(cfg.defend);
+  cfg.ally = normalizeAllyDash(cfg.ally);
   cfg.conditions = (cfg.conditions || []).filter(function (c) { return c && CONDITION_TYPES[c.type]; })
     .map(function (c) { return fill(fill(c, CONDITION_TYPES[c.type]), CONDITION_COMMON); });
   return cfg;
@@ -3467,7 +3512,10 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   CLASH_SLOTS: CLASH_SLOTS, CLASH_FX: CLASH_FX, MIN_TICKS: MIN_TICKS, WORLD_CLASH_FORMAT: WORLD_CLASH_FORMAT, normalizeWorldClash: normalizeWorldClash,
   RETREAT_DEFAULTS: RETREAT_DEFAULTS, RETREAT_CONDITIONS: RETREAT_CONDITIONS, normalizeRetreat: normalizeRetreat,
   STATE_DEFAULTS: STATE_DEFAULTS, normalizeState: normalizeState,
-  DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, DODGE_PARRY_RESULTS: DODGE_PARRY_RESULTS, normalizeDodge: normalizeDodge, orbTakes: orbTakes, shotGone: shotGone,
+  DODGE_DEFAULTS: DODGE_DEFAULTS, DODGE_STYLES: DODGE_STYLES, DODGE_SIDES: DODGE_SIDES, DODGE_REACT_TO: DODGE_REACT_TO, DODGE_PARRY_RESULTS: DODGE_PARRY_RESULTS, normalizeDodge: normalizeDodge,
+  DEFEND_TYPES: DEFEND_TYPES, THREAT_BY: THREAT_BY, DASH_PLACES: DASH_PLACES, GUARD_SHOW: GUARD_SHOW,
+  DEFEND_DEFAULTS: DEFEND_DEFAULTS, ALLY_DASH_DEFAULTS: ALLY_DASH_DEFAULTS, GUARD_DEFAULTS: GUARD_DEFAULTS,
+  normalizeDefend: normalizeDefend, normalizeAllyDash: normalizeAllyDash, normalizeGuard: normalizeGuard, orbTakes: orbTakes, shotGone: shotGone,
   TARGET_DEFAULTS: TARGET_DEFAULTS, TARGET_MODES: TARGET_MODES, TARGET_BASIC: TARGET_BASIC, normalizeTargeting: normalizeTargeting,
   BLINK_DEFAULTS: BLINK_DEFAULTS, BLINK_STEP_DEFAULTS: BLINK_STEP_DEFAULTS, BLINK_ANCHORS: BLINK_ANCHORS, BLINK_DIRECTIONS: BLINK_DIRECTIONS,
   normalizeBlink: normalizeBlink, normalizeBlinkStep: normalizeBlinkStep, blinkIndex: blinkIndex, blinkEnd: blinkEnd,

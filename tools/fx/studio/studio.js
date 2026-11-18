@@ -18,7 +18,7 @@ var FRAME_RE = /^(.+)_(\d+)\.png$/i;
 // C = the loaded character package; S = editor state.
 var C = null;
 var S = {effects: [], groups: [], multi: [], selGroup: null, anchors: {}, labels: {}, actionCfg: {}, action: null, react: null, charScale: 1, blinkAct: null, lastAct: null, dash: null, sel: null, selAnchor: null, place: false,
-  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), targeting: FXK.normalizeTargeting({}), rhythm: TEMPO.normalize({}), worldPhysics: {},
+  entries: [], paths: [], geo: null, geoPlace: false, aim: FXK.normalizeAim({}), damaged: FXK.normalizeDamaged({}), retreat: FXK.normalizeRetreat({}), dodge: FXK.normalizeDodge({}), guard: FXK.normalizeGuard({}), targeting: FXK.normalizeTargeting({}), rhythm: TEMPO.normalize({}), worldPhysics: {},
   unique: FXK.normalizeUnique({}), uaPage: null, moveStyle: MOVESTYLE.normalize({}), states: [], stId: null,
   t: 0, playing: false, target: [60, 0], home: [60, 0], dummies: [], dsel: 0, pan: [0, 0], figX: 0, figY: 0, vel: [0, 0], walkDir: 1, hits: [], dealt: 0, dir: null,
   time: null, tacc: {own: 0, efx: 0, eb: 0}};
@@ -255,6 +255,7 @@ var DOC = [
   ["damaged", "damaged", function (v) { return FXK.normalizeDamaged(clone(v || {})); }],
   ["retreat", "retreat", function (v) { return FXK.normalizeRetreat(clone(v || {})); }],
   ["dodge", "dodge", function (v) { return FXK.normalizeDodge(clone(v || {})); }],
+  ["guard", "guard", function (v) { return FXK.normalizeGuard(clone(v || {})); }],
   ["targeting", "targeting", function (v) { return FXK.normalizeTargeting(clone(v || {})); }],
   ["worldPhysics", "world_physics", function (v) { return WORLDFX.normalizeOverride(clone(v || {})); }],
   ["unique", "unique_ability", function (v) { return FXK.normalizeUnique(clone(v || {})); }],
@@ -2428,7 +2429,10 @@ var COND_META = {
   partner_hp_below: {group: "Fight rhythm & team", label: "a team-mate's HP at or below %", prev: [],
     help: "A team-mate is at or below this HP %. Judged in the game only."},
   outnumbered: {group: "Fight rhythm & team", label: "outnumbered", prev: [],
-    help: "Its team has fewer fighters on the field than the enemy team. Battle only. Judged in the game only."}
+    help: "Its team has fewer fighters on the field than the enemy team. Battle only. Judged in the game only."},
+  // Ally support (laser/guard.py)
+  ally_threatened: {group: "Ally support", label: "a team-mate is threatened", prev: [],
+    help: "A team-mate (not this fighter) has a threat within Distance px: an enemy FX / shot, an enemy fighter (Solo: the cursor), either, another team-mate, or any of them (Threat). Only team-mates at most Max distance px from this fighter count (0 = any). The most threatened one is remembered: Movement \"Dash to ally\" dashes to it and a cover defend guards it. Judged in the game only."}
 };
 var COND_GROUPS = [], COND_LABEL = {}, COND_HELP = {}, PREV_USES = {};
 Object.keys(COND_META).forEach(function (k) {
@@ -2441,7 +2445,7 @@ var COND_FIELDS = {pct: ["HP %", 1, 100, 1], count: ["Count", 1, 200, 1], px: ["
   hp: ["HP lost", 1, 10000, 1], ms: ["Time ms", 0, 60000, 50], pct_s: ["Chance %/s", 0, 100, 1],
   tags: ["Tags (comma, empty = any)", "tags"], sequence: ["Actions in order", "sequence"], action: ["Action", "action"],
   dir: ["Target faces", "dir"], repeat: ["Repeat on cooldown", "chk"], who: ["Whose action", "who"],
-  which: ["Which hop blades", "which"], intent: ["Intent", "intent"], phase: ["Director phase", "phase"]};
+  which: ["Which hop blades", "which"], by: ["Threat", "by"], intent: ["Intent", "intent"], phase: ["Director phase", "phase"]};
 // Preview-only state for the conditions the stage can't show (not saved).
 var PREV = {hp: 100, thp: 100, tface: "toward", tatk: false, tdef: false, own: -1, tspeed: 0, attacks: 0, hits: 0, hplost: 0,
   landed: false, hitOn: false, hitTag: "", nearOn: false, nearTag: "", nearPx: 100, proj: 0, deflected: false, history: "",
@@ -2505,6 +2509,8 @@ function condField(box, c, k, ownLabel, listId) {
   if (u[1] === "tags") return field(box, u[0], tagsInput(c, k, listId));
   if (u[1] === "sequence") return field(box, u[0], sequenceEditor(c));
   if (u[1] === "who") return field(box, u[0], inp([["target", "the enemy (target)"], ["self", "own (this fighter)"]], c[k], function (v) { c[k] = v; save(); }));
+  if (u[1] === "by") return field(box, u[0], inp([["fx", "enemy FX / shot"], ["enemy", "enemy fighter"], ["fx_or_enemy", "enemy FX or fighter"], ["ally", "another team-mate"], ["any", "any of these"]], c[k], function (v) { c[k] = v; save(); }));
+  if (k === "max_px" && c.type === "ally_threatened") return field(box, "Max distance px (0 = any)", inp("n", c[k], function (v) { c[k] = Math.max(0, Math.min(5000, v)); save(); }, 0, 5000, 10));
   if (u[1] === "which") return field(box, u[0], inp([["field", "field (planted / standing)"], ["thrown", "thrown (launched)"], ["any", "any"]], c[k], function (v) { c[k] = v; save(); }));
   if (k === "pct" && c.type === "director_above") return field(box, "Intensity %", inp("n", c[k], function (v) { c[k] = Math.max(0, Math.min(100, v)); save(); }, 0, 100, 1));
   if (u[1] === "intent") return field(box, u[0], inp(TEMPO.INTENTS.map(function (x) { return [x, x]; }), c[k], function (v) { c[k] = v; save(); }));
@@ -2721,6 +2727,89 @@ function buildRetreatProps(d) {
     make: function (t) { return FXK.normalizeRetreat({conditions: [{type: t}]}).conditions[0]; }});
   note(s, "Same conditions as action triggers. Where one says \"this action\", it means the retreat: attack / hit counts and Every N ms run from the last retreat start.");
   if (!rt.conditions.length) note(s, "No conditions: it retreats on incoming harm alone, when an enemy projectile (a beam along its whole length) or damaging FX comes within the proximity.");
+}
+// ------------------------------------------------------------ Ally support
+// laser/guard.py (Daniel 2026-11-18).  Per triggered action: a defend type
+// (action_settings[a].defend) and the "Dash to ally" Movement settings
+// (action_settings[a].ally).  Per character: the guard bar (pack.guard).
+// The stage shows the selected action's guard circle.
+var DEFEND_TYPE_LABEL = {"": "— none (not a defend) —", block: "Block (reduce damage)", deflect: "Deflect (hit FX away)",
+  reflect: "Reflect / counter (send FX back)", absorb: "Absorb (heal from damage)", cover: "Cover (stand between ally and threat)"};
+function buildDefendProps(d, a, cfg) {
+  var df = cfg.defend = FXK.normalizeDefend(cfg.defend), ch = function () { save(); buildProps(); };
+  var s = sec(d, "Defend type (Ally support)", "a-defend",
+    "Makes this action a defend: while it plays (with Dash to ally: once it arrives) it guards a circle round the fighter, protecting it and the team-mates inside. Every defended hit drains the Guard bar.", "act");
+  var num = function (label, key, lo, hi, step, help) {
+    field(s, label, inp("n", df[key], function (v) { df[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
+  };
+  field(s, "Defend type", inp(FXK.DEFEND_TYPES.map(function (t) { return [t, DEFEND_TYPE_LABEL[t]]; }), df.type, function (v) { df.type = v; ch(); })).title =
+    "Block: hits lose Reduce %. Deflect: enemy shots / FX entering the circle are knocked aside at their source (a melee slash / blast is cancelled). Reflect / counter: they fly back at whoever fired them, and a hit that still lands is blocked and Counter % of it is dealt back to the attacker. Absorb: Absorb % of every hit is soaked and Heal % of that heals. Cover: stands between the covered team-mate and the threat nearest to it, catching every shot / FX entering its circle (body block only: hits that land on the team-mate itself are not redirected). One type per action: add more defend_* actions in Rig Forge for more types.";
+  if (!df.type) {
+    note(s, a === "defend" ? "No type: `defend` keeps its old behaviour (every blockable hit on this fighter is blocked outright, no guard bar drain)." : "No type: this action is not a defend.");
+    return;
+  }
+  num("Guard radius px (0 = body)", "radius_px", 0, 3000, 5, "The guarded circle (game px at 100 % character scale). Team-mates standing inside it are protected too; shots / FX entering it are caught by Deflect / Reflect / Cover. 0 = the fighter's own body only.");
+  if (df.type !== "absorb") num("Reduce damage %", "reduce_pct", 0, 100, 5, df.type === "cover" ? "Damage of every caught shot the fighter itself takes is cut by this % (100 = none)." :
+    df.type === "block" ? "Damage of every protected hit is cut by this % (100 = blocked outright)." : "Hits it can't deflect / reflect (melee, contact, effects that aren't Deflectable) are cut by this %.");
+  if (df.type !== "absorb") num("Knockback kept %", "kb_keep_pct", 0, 1000, 5, "Knockback of a protected hit, as a % of normal (0 = not moved).");
+  num("Guard drain %", "drain_pct", 0, 1000, 5, "Every defended hit / caught shot drains the guard bar by its damage x this %. Lower = more resistant.");
+  if (df.type === "deflect" || df.type === "reflect") field(s, "Sent-off shots hurt", inp("chk", df.hurts, function (v) { df.hurts = v; save(); })).title =
+    "On: a deflected / reflected shot keeps its damage and can hit the enemy side. Off: it flies off harmless. Shots need the effect's Deflectable on.";
+  if (df.type === "reflect") num("Counter %", "counter_pct", 0, 1000, 5, "A hit that still lands (melee, contact, a shot it couldn't send back) deals this % of its damage back to the attacker. 0 = no counter.");
+  if (df.type === "absorb") {
+    num("Absorb %", "absorb_pct", 0, 100, 5, "This % of every protected hit is soaked (damage and knockback); the rest lands.");
+    num("Heal %", "heal_pct", 0, 1000, 5, "This % of what was soaked heals (never past max HP).");
+    num("Share to ally %", "share_pct", 0, 100, 5, "This % of the heal goes to the team-mate protected (the one hit, else the one it dashed to); the rest heals the defender.");
+  }
+  if (df.type === "cover") {
+    num("Cover distance px", "cover_px", 0, 2000, 5, "How far from the covered team-mate it stands, toward that team-mate's nearest threat.");
+    field(s, "Follow while covering", inp("chk", df.follow, function (v) { df.follow = v; ch(); })).title =
+      "On: re-places itself every tick as the team-mate and the threat move. Off: holds where it arrived.";
+    if (df.follow) num("Follow speed %", "follow_speed_pct", 0, 2000, 10, "Footwork speed while covering, as a % of normal speed.");
+  }
+  note(s, "Give it trigger conditions below (e.g. \"a team-mate is threatened\" with Movement Dash to ally, or \"enemy FX within px\" to defend itself). While the guard is broken no defend action can start. Judged in the game only; the stage shows this action's guard circle (dashed blue).");
+}
+function buildAllyDashProps(s, cfg) {
+  var al = cfg.ally = FXK.normalizeAllyDash(cfg.ally);
+  var num = function (label, key, lo, hi, step, help) {
+    field(s, label, inp("n", al[key], function (v) { al[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
+  };
+  field(s, "Arrive", inp([["between", "Between ally and its threat"], ["beside", "Beside the ally"], ["onto", "Onto the ally"]], al.place, function (v) { al.place = v; save(); })).title =
+    "Where it dashes to: in front of the team-mate toward its nearest threat (enemy FX or fighter), beside it (on the side it comes from), or onto its spot.";
+  num("Dash speed %", "speed_pct", 1, 5000, 10, "Dash speed as a % of normal speed.");
+  num("Stop distance px", "stop_px", 0, 2000, 5, "How far from the team-mate it stops (game px at 100 % character scale).");
+  num("Max dash ms", "max_ms", 0, 10000, 50, "The dash gives up after this long and the action plays where it is.");
+  num("Hold frame", "hold_frame", 0, 999, 1, "The action's frame shown while it dashes (0 = the first); the rest play once it arrives.");
+  field(s, "Afterimages", inp("chk", al.afterimages, function (v) { al.afterimages = v; save(); })).title = "Speed afterimages along the dash.";
+  note(s, "Needs a team-mate: the one an \"a team-mate is threatened\" condition picked, else the one with the nearest threat. No team-mate = it plays in place. The defend type switches on as it arrives. Judged in the game only (the stage plays the action in place).");
+}
+function buildGuardProps(d) {
+  var g = S.guard = FXK.normalizeGuard(S.guard), ch = function () { save(); buildProps(); };
+  var typed = Object.keys(C.actions).filter(function (k) { return FXK.normalizeDefend((cfgOf(k) || {}).defend).type; });
+  var s = sec(d, "Guard bar (whole character)", "a-guard",
+    "A bar under the feet that every defended hit drains. At 0 it breaks: the defend is cut, a stagger plays and no defend can start for a while.", "act");
+  var num = function (label, key, lo, hi, step, help) {
+    field(s, label, inp("n", g[key], function (v) { g[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
+  };
+  field(s, "Guard bar", inp("chk", g.enabled, function (v) { g.enabled = v; ch(); })).title =
+    "On: the guard bar runs (only for characters with a Defend type on some action). Off: defends never break.";
+  if (!typed.length) note(s, "No action has a Defend type yet (Action settings > Defend type): there is no guard bar.");
+  if (!g.enabled) return;
+  num("Guard max", "max", 1, 100000, 5, "Full guard. Defended hits drain their damage x the action's Guard drain %.");
+  num("Refill per s", "regen_per_s", 0, 100000, 1, "Guard refilled per second once no hit has drained it for the delay below.");
+  num("Refill delay ms", "regen_delay_ms", 0, 60000, 50, "No refill until this long after the last drain.");
+  num("Open hits drain %", "open_drain_pct", 0, 1000, 5, "Hits taken while NOT defending drain this % of their damage too (0 = only defended hits drain it).");
+  num("Lockout ms", "lockout_ms", 0, 60000, 50, "After a break no defend action (any with a Defend type, or named defend*) can start for this long.");
+  var acts = [["", "— none —"]].concat(Object.keys(C.actions).map(function (k) { return [k, k]; }));
+  if (g.break_action && !C.actions[g.break_action]) acts.push([g.break_action, g.break_action + " (missing)"]);
+  field(s, "Break stagger action", inp(acts, g.break_action, function (v) { g.break_action = v; save(); })).title =
+    "Played when the guard breaks (e.g. defend_recovery): the fighter is open to hits while it plays. Give it no conditions so it never plays by itself.";
+  num("Refill on recover %", "refill_on_break_pct", 0, 100, 5, "When the lockout ends the bar starts from this % of max.");
+  field(s, "Show", inp([["not_full", "When not full or defending"], ["always", "Always"], ["defending", "Only while defending / broken"]], g.show, function (v) { g.show = v; save(); })).title =
+    "When the bar under the feet is drawn.";
+  num("Bar width %", "width_pct", 5, 500, 5, "Bar width as a % of the body's height on screen (grows and shrinks with the sprite).");
+  num("Bar thickness %", "height_pct", 1, 100, 1, "Bar thickness as a % of the body's height.");
+  num("Below feet %", "offset_pct", -100, 100, 1, "Gap between the feet and the bar, as a % of the body's height (negative = up over the feet).");
 }
 // Character-level Dodge (pack.dodge, laser/dodge.py), shown under every action's settings.
 // Its conditions are the action trigger conditions; "this action" = the dodge.
@@ -4344,6 +4433,7 @@ function buildReactionProps(d) {
     buildDamagedProps(d);
     buildRetreatProps(d);
     buildDodgeProps(d);
+    buildGuardProps(d);
     buildTargetingProps(d);
     buildWorldPhysicsCharProps(d);
     buildMoveStyleProps(d);
@@ -4404,14 +4494,15 @@ function buildActionProps(d) {
   if (kind === "locomotion") note(s, a === "idle" ? "Idle always stands still." : "Run always moves; it is the moving action.");
   else {
     field(s, "While doing it", inp([["stand", "Stand still"], ["move", "Keep moving"], ["back", "Move back from target"], ["leap", "Leap onto target"],
-      ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"], ["back_forth", "Back & forth"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
-      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind. Back & forth: dashes between 2-6 points round the target (own ms per dash, loops, other actions at the points / during the dashes), with an optional final strike.";
+      ["arc", "Arc to target"], ["hit_retreat", "Attack & retreat"], ["zigzag", "Zig-zag to target"], ["flank", "Fakeout to flank"], ["back_forth", "Back & forth"], ["ally_dash", "Dash to ally"]], cfg.movement, function (v) { cfg.movement = v; save(); buildProps(); resetSim(S.t); })).title =
+      "Stand still: the fighter stops in place for the whole action. Keep moving: it can keep moving while the action plays. Move back from target: it retreats straight away from the target, then holds. Leap onto target: it jumps from where it is and lands its hit on the target. Arc to target: a curved run onto the target. Attack & retreat: in to the target and back out (or out then in). Zig-zag to target: angled zigs left and right into the target. Fakeout to flank: a straight feint, then round the target to hit it from behind. Back & forth: dashes between 2-6 points round the target (own ms per dash, loops, other actions at the points / during the dashes), with an optional final strike. Dash to ally (Ally support): dashes to the team-mate an \"a team-mate is threatened\" condition picked, holding a frame until it arrives, then plays the action.";
     if (isTravelMove(cfg.movement)) buildTravelProps(s, cfg);
+    if (cfg.movement === "ally_dash") buildAllyDashProps(s, cfg);
     if (cfg.movement === "back") field(s, "Stop at % of action", inp("n", cfg.back_stop_pct, function (v) { cfg.back_stop_pct = v; save(); resetSim(S.t); }, null, null, 5)).title =
       "The retreat stops once this much of the whole action (all its animation loops) has played; it stands still for the rest.";
     if (cfg.movement === "move" || cfg.movement === "back") field(s, "Move speed %", inp("n", cfg.move_speed_pct, function (v) { cfg.move_speed_pct = v; save(); resetSim(S.t); }, null, null, 5)).title =
       "How fast it moves during this action, as a % of its normal speed (100 = full speed, 50 = half).";
-    if (!isTravelMove(cfg.movement)) note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
+    if (!isTravelMove(cfg.movement) && cfg.movement !== "ally_dash") note(s, cfg.movement === "back" ? "Preview: the figure backs away from the target (drag the target) at this % of the sim's move speed (2 px/tick when move is 0), stopping at " + cfg.back_stop_pct + "% of the action."
       : "Preview it with the direction sim below the stage (set move above 0): " + (cfg.movement === "move" ? "the figure keeps travelling while this action plays." : "the figure holds still while this action plays."));
   }
   buildCharFxProps(d);
@@ -4423,9 +4514,11 @@ function buildActionProps(d) {
   buildDamagedProps(d);
   buildRetreatProps(d);
   buildDodgeProps(d);
+  buildGuardProps(d);
   buildTargetingProps(d);
   buildMoveStyleProps(d);
   buildRhythmProps(d);
+  if (kind === "triggered" && a !== CLASH_ACTION) buildDefendProps(d, a, cfg);
   if (kind === "locomotion") return;
   if (kind === "attack") {
     s = sec(d, "Attack distance", "a-range", "How close the target must be for this attack to start.", "act");
@@ -6838,7 +6931,19 @@ function dodgeStep() {
   dg.holdUntil = dg.clock + dodgeTicks(cfg.invuln_ms);
   return false;
 }
+// Ally support (laser/guard.py): the selected action's guard circle while
+// it has a Defend type (0 radius = the body, guard.BODY_PX).
+function drawGuardRing(g, z) {
+  if (!C || !C.actions[S.action] || FXK.actionKind(S.action) !== "triggered") return;
+  var df = FXK.normalizeDefend((cfgOf(S.action) || {}).defend); if (!df.type) return;
+  var r = (+df.radius_px > 0 ? +df.radius_px : 34) * charScale();
+  g.save(); g.strokeStyle = "rgba(90,200,255,0.75)"; g.fillStyle = "rgba(90,200,255,0.07)"; g.lineWidth = 1.5 / z; g.setLineDash([6 / z, 4 / z]);
+  g.beginPath(); g.arc(S.figX, S.figY, r, 0, 6.2832); g.fill(); g.stroke();
+  g.setLineDash([]); g.fillStyle = "rgba(90,200,255,0.9)"; g.font = (10 / z) + "px sans-serif"; g.textAlign = "center";
+  g.fillText("guard: " + df.type, S.figX, S.figY - r - 4 / z); g.restore();
+}
 function drawDodge(g, z) {
+  drawGuardRing(g, z);
   var dg = S.dg; if (!dg || !S.dodge || !S.dodge.enabled) return;
   var parry = S.dodge.style === "parry";
   if (parry && dg.clock < dg.parryUntil) {   // the open parry window: its reach ring

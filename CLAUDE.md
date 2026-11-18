@@ -53,6 +53,7 @@ laser/battlestats.py
 laser/statsscreen.py
 laser/tempo.py
 laser/perf.py
+laser/guard.py
 ```
 
 ## Mandatory Session Rules
@@ -149,6 +150,13 @@ laser/perf.py
 - Swordsman ultimate triggers at HP thresholds (70%, 50%, 30%) tracked via `sword_ult_fired_thresholds` set
 - Runner: 100 HP, ultimate triggers at 30% HP with survival teleport; shoot cycle is CONE→ZIGZAG→HOMING twice per second
 - Knockback immunity: Runner cycles vulnerable (3 hits) → immune (10 hits) indefinitely
+
+### Ally Support: Defend Types, Guard Bar, Dash to Ally (Daniel 2026-11-18, first on `tough`)
+- `laser/guard.py`, Solo + Battle. Per triggered action `action_settings[a].defend` (`DEFEND_DEFAULTS`, Studio "Defend type (Ally support)"): ONE `type` per action — block (reduce_pct, kb_keep_pct) / deflect / reflect (+ counter_pct back at `last_hit_by`) / absorb (absorb_pct soaked, heal_pct of it heals, share_pct of the heal to the protected team-mate) / cover (stands `cover_px` from the covered team-mate toward its nearest threat, `follow`; catches shots in its circle, takes them minus reduce_pct; BODY BLOCK ONLY: hits landing on the team-mate are never redirected). Guard circle = `radius_px` x body scale (0 = body, `BODY_PX`); team-mates inside are protected (cover excepted). Deflect / reflect / cover catches reuse the dodge parry path (`fxkit._Host.on_intercept`, `orb_takes` flags, still FX cancelled)
+- Hit hooks: `ai.apply_hp_damage` -> `guard.on_hit` (after the legacy block; unblockable hits skip it), `ai.battle_hit` + app.py FX delivery scale knockback by `guard.kb_mult`. `actions.blocks_hit` = legacy full block ONLY for an untyped `defend`. Snapshot `defending` includes `guard.defending`
+- Guard bar `pack.guard` (`GUARD_DEFAULTS`, Studio "Guard bar (whole character)"; on when any action has a type): defended hits drain damage x the action's `drain_pct`, `open_drain_pct` for undefended hits; refills `regen_per_s` after `regen_delay_ms`. At 0 -> `guard.tick` cuts the defend, `force_action(break_action)` (tough: defend_recovery) as a stagger, no defend action (typed or named defend*) starts for `lockout_ms` (`guard.allows` in the trigger loops + manual HUD path), then refills from `refill_on_break_pct`. `Figure.guard` (GuardState, in `__slots__`); `guard.tick` runs in CombatSystem just before `dodge.tick`. Drawn in `Figure.draw` after the body: sized from the frame's opaque box (`_body_box`, QRegion of the mask, cached by cacheKey), centred on the feet (bottom 20 %), `width_pct` / `height_pct` / `offset_pct` of body height; show not_full / always / defending
+- Condition `ally_threatened` (px, by fx / enemy / fx_or_enemy / ally / any, max_px; Solo enemy = cursor) remembers the team-mate (`GuardState.ally`, `cand_tick`). Movement `ally_dash` (`action_settings[a].ally`, `ALLY_DASH_DEFAULTS`: speed_pct, place between / beside / onto, stop_px, max_ms, hold_frame, afterimages) in `ActionRunner.update` via `guard.dash_step`: only dashes to a team-mate picked within `FRESH_TICKS` (else plays in place); holds `hold_frame` until it arrives; the defend type is OFF until arrival
+- `characters/tough/tough.fxkit.json` = starter setup (defend = block r110 + ally_dash on ally_threatened / fx_near; defend_reflect = reflect r90; defend_recovery = break stagger). Studio overwrites it on save. Parity of the four tables checked by hand (check_parity.py still crashes earlier)
 
 ### Dodge: Parry & All FX (Daniel 2026-11-15)
 - `laser/dodge.py` (Studio "Dodge (whole character)", `pack.dodge`): style `parry` stands its ground, plays `action` (optional) and opens a `parry_window_ms` window; every shot / FX within `parry_reach_px` (x body scale, `LOOKAHEAD_TICKS` of path) is parried at its source through `fxkit._Host.on_intercept` (the Intercept path): `parry_result` deflect (mirrored off the fighter + seeded `PARRY_JITTER_DEG`) / reflect (bullet's shooter, else `retreat._target`) / destroy; `parry_hurts` = a deflected / reflected shot keeps its damage. Respects the effect's flags (`fxkit.orb_takes`: deflect/reflect need Deflectable, destroy Blockable; rails never); only a parryable threat starts a parry. `invuln_ms` runs after the window

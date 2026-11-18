@@ -1,0 +1,136 @@
+{
+ "format": "pb_fxkit",
+ "version": 2,
+ "tick_ms": 16,
+ "character": "tough",
+ "timing": {
+  "idle": {
+   "frame_ms": 83.333,
+   "frames": 6
+  },
+  "run": {
+   "frame_ms": 43.333,
+   "frames": 12
+  },
+  "attack_normal": {
+   "frame_ms": 85.714,
+   "frames": 7
+  },
+  "defend": {
+   "frame_ms": 40,
+   "frames": 15
+  },
+  "attack_special": {
+   "frame_ms": 17,
+   "frames": 61
+  },
+  "ultimate": {
+   "frame_ms": 180,
+   "frames": 4
+  },
+  "defend_reflect": {
+   "frame_ms": 35.294,
+   "frames": 17
+  },
+  "defend_recovery": {
+   "frame_ms": 83.333,
+   "frames": 18
+  }
+ },
+ "action_settings": {
+  "defend": {
+   "logic": "any",
+   "cooldown_ms": 1400,
+   "conditions": [
+    {
+     "type": "ally_threatened",
+     "not": false,
+     "px": 140,
+     "by": "fx_or_enemy",
+     "max_px": 700
+    },
+    {
+     "type": "fx_near",
+     "not": false,
+     "tags": "",
+     "px": 90
+    }
+   ],
+   "movement": "ally_dash",
+   "ally": {
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true
+   },
+   "defend": {
+    "type": "block",
+    "radius_px": 110,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   }
+  },
+  "defend_reflect": {
+   "logic": "any",
+   "cooldown_ms": 2500,
+   "conditions": [
+    {
+     "type": "fx_near",
+     "not": false,
+     "tags": "",
+     "px": 120
+    }
+   ],
+   "movement": "stand",
+   "defend": {
+    "type": "reflect",
+    "radius_px": 90,
+    "reduce_pct": 50,
+    "kb_keep_pct": 0,
+    "drain_pct": 60,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180
+   }
+  },
+  "defend_recovery": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "movement": "stand"
+  }
+ },
+ "guard": {
+  "enabled": true,
+  "max": 100,
+  "regen_per_s": 22,
+  "regen_delay_ms": 1200,
+  "open_drain_pct": 0,
+  "lockout_ms": 2500,
+  "break_action": "defend_recovery",
+  "refill_on_break_pct": 30,
+  "show": "not_full",
+  "width_pct": 70,
+  "height_pct": 7,
+  "offset_pct": 3
+ },
+ "effects": [],
+ "groups": [],
+ "note": "Starter Ally support setup (laser/guard.py). Open the tough folder in FX Studio to edit and add FX; Studio overwrites this file when you save."
+}

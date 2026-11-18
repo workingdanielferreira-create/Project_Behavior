@@ -16,6 +16,7 @@ from . import unique as _unique
 from . import movestyle as _movestyle
 from . import dmgnum as _dmgnum
 from . import battlestats as _bstats
+from . import guard as _guard
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +265,13 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
         if _actions.blocks_hit(fig):
             _bstats.on_negated(world, fig)
             return False
+        # Ally support (laser/guard.py): a typed defend (its own, or a
+        # team-mate's guard circle it stands in) blocks / absorbs part of it
+        # and drains the defender's guard bar.
+        amount = _guard.on_hit(fig, world, amount, kind)
+        if amount <= 0:
+            _bstats.on_negated(world, fig)
+            return False
         # Unique ability (laser/unique.py): Phase Shift teleports away /
         # Riposte counters — the hit is nullified.
         if not _ua_checked and _unique.intercept(fig, world, amount):
@@ -410,6 +418,11 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
         return True
     p = fig.personality
     m = fig.motion
+    # Ally support (laser/guard.py): a typed defend keeps only part of the
+    # knockback (the damage itself is cut in apply_hp_damage below).
+    _kbm = _guard.kb_mult(fig, world) if world is not None else 1.0
+    if _kbm <= 0.0:
+        no_knockback = True
 
     # --- Shooter knockback cycling ---
     if fig.mode.can_shoot() and not fig.mode.uses_melee():
@@ -443,7 +456,7 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     else:
         p.hit_power = min(config.HIT_POWER_MAX, p.hit_power + config.HIT_POWER_STEP)
         scale = p.hit_power / speed
-    nvx, nvy = proj_vx * scale, proj_vy * scale
+    nvx, nvy = proj_vx * scale * _kbm, proj_vy * scale * _kbm
     if m.bouncing:
         m.bounce_vx += nvx * 0.5      # already airborne — add impulse
         m.bounce_vy += nvy * 0.5

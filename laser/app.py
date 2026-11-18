@@ -23,6 +23,7 @@ from . import swordfx
 from . import hitfx, strikefx
 from . import dmgnum
 from . import battlestats
+from . import guard
 from . import worldfx
 from . import terrain
 from . import speedband
@@ -1166,6 +1167,10 @@ class World:
                     ai.apply_hp_damage(ef, self, dmg, unblockable=not blockable, _ua_checked=True, kind="fx")
                     if resisted:
                         actions.clear_resisted(ef)
+                if kb > 0 and blockable:
+                    # Ally support (laser/guard.py): a typed defend keeps
+                    # only part of the knockback.
+                    kb *= guard.kb_mult(ef, self)
                 if kb > 0 and not resisted:
                     # A new hit restarts the slide for its full distance.
                     spd = kb * (1.0 - config.BOUNCE_FRICTION)

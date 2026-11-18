@@ -14,6 +14,7 @@ from . import combat as _combat
 from . import unique as _unique
 from . import speedband as _speedband
 from . import escort as _escort
+from . import guard as _guard
 from . import perf as _perf
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
@@ -31,7 +32,7 @@ class Figure:
                  "personality", "mode", "lut", "index",
                  "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
                  "bench_since", "bench_ticks", "tgt", "last_hit_by", "hit_squash",
-                 "tempo")
+                 "tempo", "guard")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -75,6 +76,9 @@ class Figure:
         self.last_hit_by = None
         # Fight rhythm (laser/tempo.py): its TempoState, made on first use.
         self.tempo = None
+        # Ally support (laser/guard.py): its GuardState (guard bar, dash to
+        # an ally), made on first use.
+        self.guard = None
         # Strike hit weight (laser/hitfx.py): [ticks left, total, dx, dy,
         # amount, flash] while squashed by a punch / kick; None otherwise.
         self.hit_squash = None
@@ -361,6 +365,8 @@ class Figure:
             p.restore()
             if _ga is not None:
                 p.setOpacity(1.0)
+            # Guard bar under the feet (laser/guard.py, ally support).
+            _guard.draw(p, self, pscale)
 
         # --- FX Studio effects (fxkit), "front" layer ---
         _perf.plap("paint:" + _pk + " body")
