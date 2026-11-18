@@ -1444,7 +1444,7 @@ var PARAM_UI = {
     "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
     "void_sniper",
     "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall",
-    "straight_slash"]],
+    "straight_slash", "aegis_wall", "mirror_kata", "chain_bastion", "repulse_nova", "sanctuary_tether", "lotus_mend"]],
     ["radius", "Radius (slash / wave; ki shot; fist)", 1, 400, 1],
     ["span", "Slash span ° (ki: spread °)", 0, 300, 1],
     ["thickness", "Thickness (blade / thrust: half-width; ki: blast radius; punch: streak width)", 1, 80, 0.5],
@@ -1784,6 +1784,48 @@ POWER_UI.straight_slash = {name: "Straight slash",
     ["hold_ticks", "Hangs for ticks", 0, null, 1, "How long the finished cut hangs in the air before it fades (drawing only)."],
     ["density", "Sparks ×", 0, null, 0.1, "Amount of sparks thrown off the blade."],
     ["rotation_deg", "Turn °", 0, 360, 5, "Turns the whole cut clockwise round its middle (mirrors with the facing)."]]};
+// Defender FX (laser/defendfx.py): attached techniques that ARE the defender
+// doing the work — each blocks / deflects / intercepts / knocks back / shields
+// or heals by itself.  Their own panels.
+(function () {
+  var USE = " Use anchor figure, Motion attached (it rides the fighter), blend additive. Each one does its own defending: it needs no Defend type on the action.";
+  var LIFE = [["swing_ticks", "Rise ticks", 1, null, 1, "How long it takes to form."], ["hold_ticks", "Stands for ticks", 0, null, 1, "How long it stands once formed, then fades."]];
+  var REDUCE = ["df_reduce_pct", "Direct hits cut %", 0, 100, 1, "While it stands, a direct hit (melee, contact, an FX that lands) loses this much. Game only."];
+  var HP = ["df_hp", "Breaks after damage", 0, null, 1, "It shatters into shards once it has stopped this much damage (shots it blocked + the part of direct hits it cut). 0 = never breaks."];
+  var AREA = ["df_area", "Also cancels melee / area FX", "chk", 0, 0, "On: enemy FX that don't travel (melee slashes, blasts, pulses) inside it are cancelled at their source too. Game only (the Studio's dummies have none)."];
+  var RESULT = ["df_result", "Caught shots", [["destroy", "Destroy"], ["deflect", "Deflect (bounce off)"], ["reflect", "Reflect (back at the target)"]], 0, 0,
+    "What happens to an enemy shot it catches. Deflect / reflect need the shot's Deflectable on, destroy its Blockable."];
+  var HURTS = ["df_hurts", "Sent-off shots hurt", "chk", 0, 0, "Deflected / reflected shots keep their damage and can hit whoever they fly into on the other side."];
+  var PICK = ["df_pick", "Team-mate", [["threatened", "The one under threat (else lowest HP)"], ["lowest_hp", "Lowest HP %"], ["nearest", "Nearest"]], 0, 0,
+    "Which team-mate it works on, picked when it starts. Threatened = the one its fighter's ally_threatened condition picked."];
+  var GROUND = ["ground_px", "Ground below px", null, null, 1, "How far below the body centre the ground is (the sigil / dome base)."];
+  var SOLO = " Battle only: in Solo (no team-mate) it does nothing. The Studio previews it on a stand-in team-mate behind the fighter (faint ring).";
+  POWER_UI.aegis_wall = {name: "Aegis wall (block)",
+    tip: "A curved wall of hexagonal energy cells snaps up in front of the body, turning to face the target. Enemy shots crossing it are blocked at their source; direct hits from the front lose Direct hits cut %. Cells ripple, crack and re-light where hits land; past Breaks after damage the wall shatters into shards." + USE,
+    rows: [["radius", "Wall half-height px", 4, null, 1, "Half the wall's height."], ["length", "Distance in front px", null, null, 1, "How far in front of the anchor the wall stands."],
+      REDUCE, HP, AREA].concat(LIFE)};
+  POWER_UI.mirror_kata = {name: "Mirror kata (deflect / reflect)",
+    tip: "Crescent blades of light whirl round the body on a tilted ring at a surging, never-steady speed. Every enemy shot entering the ring is caught: deflected off it, reflected back at the target, or destroyed. Each catch flashes a mirror rune and a streak along its new path." + USE,
+    rows: [["radius", "Ring radius px", 4, null, 1, "How far from the body the blades whirl."], ["moons", "Blades", 1, 12, 1, "How many blades whirl round (unevenly spaced)."],
+      ["spin_deg", "Spin °/tick", null, null, 1, "Base spin speed; surges speed it up and slow it down. Negative = the other way."],
+      ["thickness", "Blade width px", 1, null, 0.5, "How fat each crescent blade is."], RESULT, HURTS, AREA].concat(LIFE)};
+  POWER_UI.chain_bastion = {name: "Chain bastion (intercept)",
+    tip: "Spectral chains coil out of a sigil behind the shoulder. Any enemy shot inside Reach is lashed by a free chain and caught as the spear-tip lands. With Lash enemies on, chains also strike enemies in reach (it hits with its Battle damage) and pull them in or shove them away." + USE,
+    rows: [["length", "Reach px", 0, null, 5, "How far the chains reach from the fighter."], ["moons", "Chains", 1, 12, 1, "How many chains: each one lashes one target at a time."],
+      RESULT, HURTS, ["df_enemies", "Lash enemies too", "chk", 0, 0, "On: chains also lash enemies inside Reach (once every half second each), dealing the effect's Battle damage."],
+      ["df_pull", "Pull them in", "chk", 0, 0, "On: a lashed enemy is knocked TOWARD the fighter (Battle knockback). Off: shoved away."]].concat(LIFE)};
+  POWER_UI.repulse_nova = {name: "Repulse nova (knockback)",
+    tip: "The fighter plants: energy rushes in round a ground glyph (Charge ticks), then a dome shockwave bursts out to Radius over Burst ticks. Every enemy it sweeps is hit once (Battle damage) and knocked straight OUT from the centre (Battle knockback); enemy shots inside it are destroyed; the screen shakes, cracks spread, dust rolls off the edge." + USE + " Give it Pierce on.",
+    rows: [["radius", "Radius px", 4, null, 1, "How far the shockwave reaches."], ["swing_ticks", "Charge ticks", 1, null, 1, "How long it gathers before it bursts."],
+      ["hold_ticks", "Burst ticks", 1, null, 1, "How long the shockwave takes to reach full radius."], GROUND, AREA]};
+  POWER_UI.sanctuary_tether = {name: "Sanctuary tether (barrier an ally)",
+    tip: "A twisting tether of light runs from the fighter to a team-mate and a dome of light rises round it: enemy shots entering the dome are blocked, hits on that team-mate lose Direct hits cut %, and past Breaks after damage the dome shatters." + USE + SOLO,
+    rows: [["radius", "Dome radius px", 4, null, 1, "Half the dome's width (it is taller than wide)."], GROUND, PICK, REDUCE, HP, AREA].concat(LIFE)};
+  POWER_UI.lotus_mend = {name: "Lotus mend (heal an ally)",
+    tip: "Petals stream from the fighter into a team-mate while a lotus sigil blooms under it: Heal HP flows in over Stands for ticks, with heal rings running up its body. Two colours look best (petals mix both)." + USE + SOLO,
+    rows: [["df_heal", "Heal HP", 0, null, 1, "HP healed in total, spread over Stands for ticks (never past the team-mate's max). Game only."],
+      ["radius", "Sigil radius px", 4, null, 1, "Size of the lotus under the team-mate."], GROUND, PICK].concat(LIFE)};
+})();
 var MOTION_UI = {
   kind: ["Motion", FXK.MOTIONS], aim: ["Aim", FXK.AIMS], angle_deg: ["Aim angle °", -180, 180, 1], aim_offset_deg: ["Aim offset °", -180, 180, 1],
   speed: ["Speed px/tick", 0, 80, 0.1], turn_deg: ["Turn °/tick", 0, 45, 0.5], amplitude: ["Zigzag amplitude", 0, 300, 1],

@@ -269,6 +269,10 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
         # team-mate's guard circle it stands in) blocks / absorbs part of it
         # and drains the defender's guard bar.
         amount = _guard.on_hit(fig, world, amount, kind)
+        # Defender FX (laser/defendfx.py): its own aegis wall facing the
+        # attacker / a team-mate's sanctuary dome round it cuts the hit.
+        from . import defendfx as _defendfx
+        amount = _defendfx.on_hit(fig, world, amount, kind)
         if amount <= 0:
             _bstats.on_negated(world, fig)
             return False

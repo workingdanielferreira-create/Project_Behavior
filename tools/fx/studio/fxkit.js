@@ -391,7 +391,15 @@ var PARAM_DEFAULTS = {
     // Straight slash (slashline.js): cut_deg = the way the blade travels
     // (local, 0 = forward, -90 = up), curve_pct 0 = straight .. 100 = half
     // circle (negative = the other way), slash_from start / end / centre.
-    cut_deg: -30, curve_pct: 25, slash_from: "start"}
+    cut_deg: -30, curve_pct: 25, slash_from: "start",
+    // Defender FX (defendfx.js): df_reduce_pct = direct hits cut while the
+    // wall / dome stands, df_hp = damage it takes before it shatters (0 =
+    // never), df_result destroy / deflect / reflect, df_hurts = sent-off shots
+    // hurt, df_area = also cancels enemy melee / area FX, df_enemies = chains
+    // lash enemies too, df_pull = chains pull them in, df_pick = threatened /
+    // lowest_hp / nearest team-mate, df_heal = HP healed.
+    df_reduce_pct: 70, df_hp: 0, df_result: "destroy", df_hurts: true, df_area: true,
+    df_enemies: true, df_pull: true, df_pick: "lowest_hp", df_heal: 30}
 };
 // Each technique style's own shape (applied when the style is picked);
 // laser/fxkit.py TECH_STYLE_DEFAULTS mirrors it.
@@ -407,10 +415,18 @@ var TECH_STYLES = ["rising_slash", "horizontal_sweep", "diagonal_slash", "cresce
   "halo_chakram", "wisp_rapier", "pulse_bow", "rune_reaver", "nodachi", "earth_cleaver",
   "void_sniper",
   "crescent_drag", "crescent_helix", "crescent_scatter", "crescent_return", "crescent_split", "crescent_fall",
-  "straight_slash"];
+  "straight_slash",
+  "aegis_wall", "mirror_kata", "chain_bastion", "repulse_nova", "sanctuary_tether", "lotus_mend"];
 var TECH_STYLE_DEFAULTS = {
   // One cut you lay out yourself (slashline.js): its middle is the anchor point.
   straight_slash: {length: 240, thickness: 12, swing_ticks: 5, hold_ticks: 8, cut_deg: -30, curve_pct: 25, slash_from: "start"},
+  // Defender FX (defendfx.js): attached, each one does its own defending.
+  aegis_wall: {radius: 26, length: 14, swing_ticks: 8, hold_ticks: 70, df_reduce_pct: 70, df_hp: 120, df_area: true},
+  mirror_kata: {radius: 28, thickness: 7, swing_ticks: 6, hold_ticks: 70, moons: 3, spin_deg: 19, df_result: "deflect", df_area: false},
+  chain_bastion: {length: 180, swing_ticks: 8, hold_ticks: 100, moons: 3, df_result: "destroy", df_enemies: true, df_pull: true},
+  repulse_nova: {radius: 120, swing_ticks: 14, hold_ticks: 14, ground_px: 14, df_area: true},
+  sanctuary_tether: {radius: 24, swing_ticks: 10, hold_ticks: 150, ground_px: 14, df_reduce_pct: 60, df_hp: 150, df_pick: "threatened", df_area: true},
+  lotus_mend: {radius: 24, swing_ticks: 12, hold_ticks: 120, ground_px: 14, df_pick: "lowest_hp", df_heal: 30},
   rising_slash: {radius: 40, span: 160, thickness: 12, swing_ticks: 6},
   horizontal_sweep: {radius: 100, span: 70, thickness: 11, swing_ticks: 7},
   diagonal_slash: {radius: 60, span: 110, thickness: 12, swing_ticks: 6},
@@ -3250,7 +3266,7 @@ function resolveHits(inst, host, ps) {
   if (!canHit(b, inst, now) || !HIT[inst.fx.prim](inst, hurt.x, hurt.y, hurt.r, ps, host)) return;
   inst.hits += 1; inst.lastHit = now;
   var gm = hitMult(inst, hurt.x, hurt.y, ps);   // grown by absorbing
-  var hd = inst.fx.prim === "technique" ? G.SWORDFX.hitDir(inst) : inst.dir;
+  var hd = inst.fx.prim === "technique" ? G.SWORDFX.hitDir(inst, hurt.x, hurt.y) : inst.dir;
   if (host.onHit) host.onHit(inst, b.damage * gm, hd[0], hd[1], b.knockback * gm);
   if (inst.fx.prim === "technique") {
     G.SWORDFX.onHit(inst, hurt.x, hurt.y, ps);   // its slash flash on the target
