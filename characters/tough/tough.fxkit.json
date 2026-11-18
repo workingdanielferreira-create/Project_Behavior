@@ -17230,7 +17230,8 @@
     "stop_px": 46,
     "max_ms": 900,
     "hold_frame": 0,
-    "afterimages": true
+    "afterimages": true,
+    "travel": "dash"
    },
    "defend": {
     "type": "block",
@@ -17353,12 +17354,20 @@
   },
   "attack_special": {
    "logic": "any",
-   "cooldown_ms": 0,
-   "conditions": [],
+   "cooldown_ms": 4000,
+   "conditions": [
+    {
+     "type": "ally_threatened",
+     "px": 140,
+     "by": "fx",
+     "max_px": 1400,
+     "not": false
+    }
+   ],
    "chain_next": "",
    "chain_reset_ms": 1000,
    "fx_continuous": false,
-   "movement": "stand",
+   "movement": "ally_dash",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
@@ -17460,27 +17469,31 @@
     "finisher": ""
    },
    "defend": {
-    "type": "",
-    "radius_px": 0,
+    "type": "reflect",
+    "radius_px": 110,
     "reduce_pct": 70,
     "kb_keep_pct": 0,
-    "drain_pct": 100,
+    "drain_pct": 60,
     "hurts": true,
-    "counter_pct": 50,
+    "counter_pct": 100,
     "absorb_pct": 100,
     "heal_pct": 50,
     "share_pct": 0,
     "cover_px": 46,
     "follow": true,
-    "follow_speed_pct": 180
+    "follow_speed_pct": 180,
+    "beam_turn": true
    },
    "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
     "speed_pct": 320,
     "place": "between",
     "stop_px": 46,
     "max_ms": 900,
     "hold_frame": 0,
-    "afterimages": true
+    "afterimages": true,
+    "push_px": 80
    }
   },
   "ultimate": {
@@ -17620,7 +17633,8 @@
     "stop_px": 46,
     "max_ms": 900,
     "hold_frame": 0,
-    "afterimages": true
+    "afterimages": true,
+    "travel": "dash"
    }
   },
   "defend_reflect": {

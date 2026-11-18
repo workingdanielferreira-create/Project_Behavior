@@ -49,7 +49,19 @@ enemy FX / enemy / another team-mate, the team-mate at most max_px from the
 fighter) remembers the most threatened team-mate; Movement "ally_dash"
 (action_settings[a].ally, ALLY_DASH_DEFAULTS) dashes to it (between it and
 its threat, or beside it), the action holding hold_frame until it arrives,
-then the action plays and its defend type switches on.
+then the action plays and its defend type switches on.  travel "blink"
+(Daniel 2026-11-18) vanishes instead (blink flash + afterimage, untouchable)
+and reappears at that spot after blink_ms; "dash" runs there at speed_pct.
+On arrival push_px > 0 shoves the team-mate straight away from its threat
+(a knockback slide, no damage).
+
+Beam turn (defend beam_turn, deflect / reflect): an enemy BEAM (FX Kit
+beam, serious punch) touching the guard circle is cut where it meets the
+defender and turned around: a copy of it (the clash split half,
+laser/clash.py _half_inst) runs back along its own line at the caster,
+owned by the defender, dealing counter_pct % of its damage (hurts on).  A
+held beam is capped at the contact and burns out like a split one; a
+travelling beam is ended at its source.
 """
 
 import copy
@@ -63,13 +75,15 @@ LOOKAHEAD_TICKS = 2            # same look-ahead as the dodge parry
 DEFEND_TYPES = ("", "block", "deflect", "reflect", "absorb", "cover")
 THREAT_BY = ("fx", "enemy", "fx_or_enemy", "ally", "any")
 DASH_PLACES = ("between", "beside", "onto")
+DASH_TRAVEL = ("blink", "dash")
+BEAM_DEFLECT_DEG = 25.0        # a deflected (not reflected) beam turns back this far off its line
 GUARD_SHOW = ("not_full", "always", "defending")
 
 DEFEND_DEFAULTS = dict(type="", radius_px=0.0, reduce_pct=70.0, kb_keep_pct=0.0, drain_pct=100.0,
                        hurts=True, counter_pct=50.0, absorb_pct=100.0, heal_pct=50.0, share_pct=0.0,
-                       cover_px=46.0, follow=True, follow_speed_pct=180.0)
-ALLY_DASH_DEFAULTS = dict(speed_pct=320.0, place="between", stop_px=46.0, max_ms=900.0,
-                          hold_frame=0, afterimages=True)
+                       cover_px=46.0, follow=True, follow_speed_pct=180.0, beam_turn=False)
+ALLY_DASH_DEFAULTS = dict(travel="blink", blink_ms=80.0, speed_pct=320.0, place="between", stop_px=46.0,
+                          max_ms=900.0, hold_frame=0, afterimages=True, push_px=0.0)
 GUARD_DEFAULTS = dict(enabled=True, max=100.0, regen_per_s=22.0, regen_delay_ms=1200.0,
                       open_drain_pct=0.0, lockout_ms=2500.0, break_action="defend_recovery",
                       refill_on_break_pct=30.0, show="not_full", width_pct=70.0, height_pct=7.0,
@@ -102,6 +116,7 @@ def normalize_defend(d):
               "heal_pct", "share_pct", "cover_px", "follow_speed_pct"):
         _num(d, k, 0.0)
     d["hurts"], d["follow"] = bool(d.get("hurts")), bool(d.get("follow"))
+    d["beam_turn"] = bool(d.get("beam_turn"))
     return d
 
 
@@ -109,7 +124,9 @@ def normalize_ally(d):
     d = _fill(dict(d or {}), ALLY_DASH_DEFAULTS)
     if d.get("place") not in DASH_PLACES:
         d["place"] = "between"
-    for k in ("speed_pct", "stop_px", "max_ms"):
+    if d.get("travel") not in DASH_TRAVEL:
+        d["travel"] = "blink"
+    for k in ("speed_pct", "stop_px", "max_ms", "blink_ms", "push_px"):
         _num(d, k, 0.0)
     d["hold_frame"] = int(_num(d, "hold_frame", 0.0))
     d["afterimages"] = bool(d.get("afterimages"))
@@ -201,7 +218,8 @@ def is_defend_action(fig, name):
 # ---------------------------------------------------------------- state
 class GuardState:
     __slots__ = ("value", "last_drain", "broken", "broken_until", "pending_break", "ally", "threat",
-                 "cand_tick", "dash_key", "dash_t0", "dash_ally", "arrived", "parries", "seen", "flash", "t")
+                 "cand_tick", "dash_key", "dash_t0", "dash_ally", "arrived", "parries", "seen", "flash", "t",
+                 "blinking", "blink_until")
 
     def __init__(self, cfg):
         self.value = float(cfg["max"]) if cfg else 100.0
@@ -220,6 +238,8 @@ class GuardState:
         self.seen = set()
         self.flash = 0            # ticks of hit flash on the bar
         self.t = 0                # world tick of the last guard tick (bar blink)
+        self.blinking = False     # travel "blink": vanished, reappears at blink_until
+        self.blink_until = 0
 
 
 def state(fig):
@@ -533,38 +553,154 @@ def _speed(fig, runner, pct):
 
 
 # ---------------------------------------------------------------- dash
+def _push(fig, world, m, threat, a):
+    """On arrival: shove team-mate m straight away from its threat by
+    push_px (x body scale) as a knockback slide (no damage)."""
+    from . import blink, motion, combat, action_log
+    if a["push_px"] <= 0 or threat is None or m is None or blink.gone(m) or m.personality.hp <= 0:
+        return
+    dx, dy = m.x - threat[0], m.y - threat[1]
+    d = math.hypot(dx, dy)
+    if d < 1e-6:
+        dx, dy, d = m.x - fig.x, m.y - fig.y, math.hypot(m.x - fig.x, m.y - fig.y)
+    if d < 1e-6:
+        return
+    spd = a["push_px"] * m.mode.body_scale() * (1.0 - config.BOUNCE_FRICTION)
+    if motion.launch_knockback(m, dx / d * spd, dy / d * spd, world.global_tick):
+        combat.spawn_afterimage(m)
+        action_log.log("COMBAT", f"guard push ally {a['push_px']:.0f}px at=({m.x:.0f},{m.y:.0f})")
+
+
+def _arrive(fig, world, st, a, m, threat):
+    st.arrived = True
+    if threat is not None:
+        fig.transform.facing_left = threat[0] < fig.x
+    _push(fig, world, m, threat, a)
+
+
 def dash_step(fig, world, runner, name, now):
     """Movement "ally_dash", one tick (from ActionRunner.update).  Returns
-    True while it still dashes: the caller holds the action's frame."""
-    from . import combat
+    True while it still travels: the caller holds the action's frame.
+    travel "blink": vanish on the first tick, reappear at the spot once
+    blink_ms has passed (the spot is worked out then, so it lands on the
+    threat's line as it is now); "dash": run there at speed_pct."""
+    from . import combat, blink
     st = state(fig)
     a = ally_cfg(fig, name)
     if st.dash_key != runner.started:
+        if st.blinking:
+            _blink_back(fig, world, st)
         st.dash_key, st.dash_t0, st.arrived = runner.started, now, False
         st.dash_ally = _support_target(fig, world, fresh=True)[0]
     if st.arrived:
         return False
     m, threat = _support_target(fig, world) if st.dash_ally is not None else (None, None)
-    if m is None or (fig.motion.bouncing or fig.motion.bounce_ending):
+    if m is None or (not st.blinking and (fig.motion.bouncing or fig.motion.bounce_ending)):
+        if st.blinking:
+            _blink_back(fig, world, st)
         st.arrived = True
         return False
     tx, ty = _spot(fig, m, threat, a["place"], a["stop_px"] * fig.mode.body_scale())
+    if a["travel"] == "blink":
+        if not st.blinking:
+            if blink.gone(fig):           # already out by another blink: play in place
+                st.arrived = True
+                return False
+            blink.hop_vanish(fig, world, name)
+            st.blinking = True
+            st.blink_until = now + max(1, _ticks(a["blink_ms"]))
+            return True
+        if now < st.blink_until:
+            fig.render.is_moving = False
+            return True
+        st.blinking = False
+        blink.hop_reappear(fig, world, tx, ty)
+        if a["afterimages"]:
+            combat.spawn_afterimage(fig)
+        _arrive(fig, world, st, a, m, threat)
+        return False
     there = _step_to(fig, tx, ty, _speed(fig, runner, a["speed_pct"]))
     fig.render.is_moving = not there
     if a["afterimages"] and (now - st.dash_t0) % 2 == 0:
         combat.spawn_afterimage(fig)
     if there or now - st.dash_t0 >= max(1, _ticks(a["max_ms"])):
-        st.arrived = True
-        if threat is not None:
-            fig.transform.facing_left = threat[0] < fig.x
+        _arrive(fig, world, st, a, m, threat)
         return False
     return True
 
 
+def _blink_back(fig, world, st):
+    """A blink travel cut short (the action ended / was replaced, or its
+    team-mate is gone): reappear where it vanished."""
+    from . import blink
+    st.blinking = False
+    if blink.gone(fig):
+        bst = fig.blink
+        blink.hop_reappear(fig, world, getattr(bst, "x0", fig.x), getattr(bst, "y0", fig.y))
+
+
 # ---------------------------------------------------------------- tick
-def _catch(fig, world, d, st):
+def _is_beam(s):
+    """Shot s is an FX Kit beam or a beam technique (the serious punch)."""
+    if s.kind != "fx" or s.threat:
+        return False
+    from . import swordfx
+    fx = s.ref.fx
+    if fx["prim"] == "beam":
+        return True
+    return fx["prim"] == "technique" and swordfx.clash_cat(fx["params"]) == "beam"
+
+
+def _turn_beam(fig, world, d, st, s, name):
+    """Beam turn: cut enemy beam s where it meets the defender and send a
+    copy of it back along its own line (reflect; deflect: BEAM_DEFLECT_DEG
+    off it), owned by the defender.  True when it was turned."""
+    from . import clash, fxkit, action_log
+    inst = s.ref
+    drv = getattr(fig, "fx", None)
+    if drv is None:
+        return False
+    bd = clash._inst_body(0, fig, inst, None)
+    if bd is None or bd.cat != "beam" or len(bd.pts) < 2:
+        return False
+    (hx, hy), (tx, ty) = bd.pts[0], bd.pts[1]
+    ux, uy = bd.dir
+    px, py, _g = fxkit.shot_nearest(s, fig.x, fig.y)
+    c = (px, py)
+    back = [-ux, -uy]
+    if d["type"] == "deflect":
+        back = fxkit.rot(back, BEAM_DEFLECT_DEG * (1 if (st.parries % 2) else -1))
+    tech = inst.fx["prim"] == "technique"
+    m = inst.fx["motion"]
+    held = tech or m["kind"] in ("attached", "static", "orbit") or math.hypot(inst.vx, inst.vy) < 1e-4
+    ps = inst.ps or 1.0
+    # Held: it reaches back past the caster's hand; travelling: as long as
+    # the part that had not reached the defender yet.
+    rem = math.hypot(c[0] - tx, c[1] - ty) + 40.0 * ps if held else math.hypot(hx - c[0], hy - c[1])
+    rem = max(rem, 40.0 * ps)
+    q = clash._half_inst(inst, back, c, rem, held, clash._tech_beam_fx(bd, c) if tech else None)
+    bt = q.fx["battle"]
+    bt["deals_damage"] = bool(d["hurts"])
+    bt["damage"] = float(bt.get("damage") or 0.0) * d["counter_pct"] / 100.0
+    q.fx["action"] = name
+    drv.player.insts.append(q)
+    if held:
+        inst.cap = max(0.0, math.hypot(c[0] - tx, c[1] - ty))
+        inst.life = min(inst.life, inst.age + clash.SPLIT_HELD_TICKS)
+    else:
+        inst.age = max(inst.age, inst.life)
+        inst.dead = True
+    dots = getattr(world, "collision_dots", None)
+    if dots is not None:
+        dots.append([c[0], c[1], 0])
+    action_log.log("COMBAT", f"guard beam turn {d['type']} at=({c[0]:.0f},{c[1]:.0f}) held={held}")
+    return True
+
+
+def _catch(fig, world, d, st, name=None):
     """Deflect / reflect / cover: every enemy shot / FX inside the guard
-    circle is taken at its source (the dodge parry path)."""
+    circle is taken at its source (the dodge parry path).  beam_turn
+    (deflect / reflect): a beam is turned around instead (_turn_beam)."""
     from . import fxkit, dodge, retreat, ai, action_log
     t = d["type"]
     reach = _reach(fig, d)
@@ -574,10 +710,18 @@ def _catch(fig, world, d, st):
         st.seen &= {id(s.ref) for s in shots} | {id(s.ref) for s in area}
     host = None
     mode = "block" if t == "cover" else "deflect"
+    turn = d.get("beam_turn") and t in ("deflect", "reflect")
     for s, still in [(s, False) for s in shots] + [(s, True) for s in area]:
         if s.dead or fxkit._shot_gone(s) or id(s.ref) in st.seen:
             continue
         if not fxkit.orb_takes(s, mode) or _gap(s, fig.x, fig.y) > reach:
+            continue
+        if turn and _is_beam(s):
+            if _turn_beam(fig, world, d, st, s, name):
+                s.dead = True
+                st.seen.add(id(s.ref))
+                st.parries += 1
+                drain(fig, world, _shot_damage(s) * d["drain_pct"] / 100.0)
             continue
         s.dead = True
         st.seen.add(id(s.ref))
@@ -621,6 +765,11 @@ def _parry_vel(fig, world, cfg, st, s):
 def tick(fig, world):
     """One tick for every fighter, after the action runner: guard bar
     refill / break, the active defend's catches and cover footwork."""
+    st0 = getattr(fig, "guard", None)
+    if st0 is not None and st0.blinking:
+        r0 = getattr(fig, "act", None)
+        if r0 is None or not r0.playing or r0.started != st0.dash_key:
+            _blink_back(fig, world, st0)
     cfg = config_for(fig)
     if cfg is None:
         return
@@ -664,7 +813,7 @@ def tick(fig, world):
             if threat is not None:
                 fig.transform.facing_left = threat[0] < fig.x
     if d["type"] in ("deflect", "reflect", "cover"):
-        _catch(fig, world, d, st)
+        _catch(fig, world, d, st, a[0])
 
 
 # ---------------------------------------------------------------- draw

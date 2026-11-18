@@ -2797,7 +2797,9 @@ function buildDefendProps(d, a, cfg) {
   num("Guard drain %", "drain_pct", 0, 1000, 5, "Every defended hit / caught shot drains the guard bar by its damage x this %. Lower = more resistant.");
   if (df.type === "deflect" || df.type === "reflect") field(s, "Sent-off shots hurt", inp("chk", df.hurts, function (v) { df.hurts = v; save(); })).title =
     "On: a deflected / reflected shot keeps its damage and can hit the enemy side. Off: it flies off harmless. Shots need the effect's Deflectable on.";
-  if (df.type === "reflect") num("Counter %", "counter_pct", 0, 1000, 5, "A hit that still lands (melee, contact, a shot it couldn't send back) deals this % of its damage back to the attacker. 0 = no counter.");
+  if (df.type === "reflect") num("Counter %", "counter_pct", 0, 1000, 5, "A hit that still lands (melee, contact, a shot it couldn't send back) deals this % of its damage back to the attacker. 0 = no counter. Also the damage of a turned-around beam.");
+  if (df.type === "deflect" || df.type === "reflect") field(s, "Turn beams around", inp("chk", df.beam_turn, function (v) { df.beam_turn = v; save(); })).title =
+    "On: an enemy beam (FX Kit beam, serious punch) touching the circle is cut where it meets the fighter and a copy runs back along its own line at the caster (Deflect: a little off the line), dealing Counter % of its damage when Sent-off shots hurt is on. Off: beams are caught like any other shot / FX. The beam's Deflectable must be on. Game only.";
   if (df.type === "absorb") {
     num("Absorb %", "absorb_pct", 0, 100, 5, "This % of every protected hit is soaked (damage and knockback); the rest lands.");
     num("Heal %", "heal_pct", 0, 1000, 5, "This % of what was soaked heals (never past max HP).");
@@ -2816,13 +2818,19 @@ function buildAllyDashProps(s, cfg) {
   var num = function (label, key, lo, hi, step, help) {
     field(s, label, inp("n", al[key], function (v) { al[key] = Math.max(lo, Math.min(hi, v)); save(); }, lo, hi, step)).title = help;
   };
+  field(s, "Travel", inp([["blink", "Blink (vanish, reappear there)"], ["dash", "Dash (run there)"]], al.travel, function (v) { al.travel = v; save(); buildProps(); })).title =
+    "Blink: vanishes on the first frame (flash + afterimage, can't be hit), reappears at the spot after Blink gone ms, facing the threat. Dash: runs there at Dash speed %.";
   field(s, "Arrive", inp([["between", "Between ally and its threat"], ["beside", "Beside the ally"], ["onto", "Onto the ally"]], al.place, function (v) { al.place = v; save(); })).title =
-    "Where it dashes to: in front of the team-mate toward its nearest threat (enemy FX or fighter), beside it (on the side it comes from), or onto its spot.";
-  num("Dash speed %", "speed_pct", 1, 5000, 10, "Dash speed as a % of normal speed.");
+    "Where it goes: in front of the team-mate toward its nearest threat (enemy FX or fighter), beside it (on the side it comes from), or onto its spot.";
+  if (al.travel === "blink") num("Blink gone ms", "blink_ms", 0, 5000, 10, "How long it stays vanished before it reappears (at least one tick). The spot is worked out as it reappears.");
+  else {
+    num("Dash speed %", "speed_pct", 1, 5000, 10, "Dash speed as a % of normal speed.");
+    num("Max dash ms", "max_ms", 0, 10000, 50, "The dash gives up after this long and the action plays where it is.");
+  }
   num("Stop distance px", "stop_px", 0, 2000, 5, "How far from the team-mate it stops (game px at 100 % character scale).");
-  num("Max dash ms", "max_ms", 0, 10000, 50, "The dash gives up after this long and the action plays where it is.");
-  num("Hold frame", "hold_frame", 0, 999, 1, "The action's frame shown while it dashes (0 = the first); the rest play once it arrives.");
-  field(s, "Afterimages", inp("chk", al.afterimages, function (v) { al.afterimages = v; save(); })).title = "Speed afterimages along the dash.";
+  num("Push ally back px", "push_px", 0, 3000, 5, "On arrival the team-mate is shoved straight away from its threat this far (a knockback slide, no damage; x its character scale). 0 = no push.");
+  num("Hold frame", "hold_frame", 0, 999, 1, "The action's frame shown while it travels (0 = the first); the rest play once it arrives.");
+  field(s, "Afterimages", inp("chk", al.afterimages, function (v) { al.afterimages = v; save(); })).title = "Speed afterimages along the dash / where it reappears.";
   note(s, "Needs a team-mate: the one an \"a team-mate is threatened\" condition picked, else the one with the nearest threat. No team-mate = it plays in place. The defend type switches on as it arrives. Judged in the game only (the stage plays the action in place).");
 }
 function buildGuardProps(d) {
