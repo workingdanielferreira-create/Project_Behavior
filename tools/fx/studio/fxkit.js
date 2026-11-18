@@ -1297,11 +1297,13 @@ var DODGE_PARRY_RESULTS = ["deflect", "reflect", "destroy"];
 var DEFEND_TYPES = ["", "block", "deflect", "reflect", "absorb", "cover"];
 var THREAT_BY = ["fx", "enemy", "fx_or_enemy", "ally", "any"];
 var DASH_PLACES = ["between", "beside", "onto"];
+var DASH_TRAVEL = ["blink", "dash"];
 var GUARD_SHOW = ["not_full", "always", "defending"];
 var DEFEND_DEFAULTS = {type: "", radius_px: 0, reduce_pct: 70, kb_keep_pct: 0, drain_pct: 100,
   hurts: true, counter_pct: 50, absorb_pct: 100, heal_pct: 50, share_pct: 0,
-  cover_px: 46, follow: true, follow_speed_pct: 180};
-var ALLY_DASH_DEFAULTS = {speed_pct: 320, place: "between", stop_px: 46, max_ms: 900, hold_frame: 0, afterimages: true};
+  cover_px: 46, follow: true, follow_speed_pct: 180, beam_turn: false};
+var ALLY_DASH_DEFAULTS = {travel: "blink", blink_ms: 80, speed_pct: 320, place: "between", stop_px: 46, max_ms: 900,
+  hold_frame: 0, afterimages: true, push_px: 0};
 var GUARD_DEFAULTS = {enabled: true, max: 100, regen_per_s: 22, regen_delay_ms: 1200, open_drain_pct: 0,
   lockout_ms: 2500, break_action: "defend_recovery", refill_on_break_pct: 30, show: "not_full",
   width_pct: 70, height_pct: 7, offset_pct: 3};
@@ -1311,13 +1313,14 @@ function normalizeDefend(d) {
   if (DEFEND_TYPES.indexOf(d.type) < 0) d.type = "";
   ["radius_px", "reduce_pct", "kb_keep_pct", "drain_pct", "counter_pct", "absorb_pct", "heal_pct", "share_pct", "cover_px", "follow_speed_pct"]
     .forEach(function (k) { _gNum(d, k, DEFEND_DEFAULTS); });
-  d.hurts = !!d.hurts; d.follow = !!d.follow; delete d._n;
+  d.hurts = !!d.hurts; d.follow = !!d.follow; d.beam_turn = !!d.beam_turn; delete d._n;
   return d;
 }
 function normalizeAllyDash(d) {
   d = fill(d || {}, ALLY_DASH_DEFAULTS);
   if (DASH_PLACES.indexOf(d.place) < 0) d.place = "between";
-  ["speed_pct", "stop_px", "max_ms", "hold_frame"].forEach(function (k) { _gNum(d, k, ALLY_DASH_DEFAULTS); });
+  if (DASH_TRAVEL.indexOf(d.travel) < 0) d.travel = "blink";
+  ["speed_pct", "stop_px", "max_ms", "hold_frame", "blink_ms", "push_px"].forEach(function (k) { _gNum(d, k, ALLY_DASH_DEFAULTS); });
   d.hold_frame = Math.round(d.hold_frame); d.afterimages = !!d.afterimages; delete d._n;
   return d;
 }
