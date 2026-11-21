@@ -30,6 +30,7 @@ from . import speedband
 from . import ballwarp
 from . import wireframe
 from . import camera as _camera
+from . import liveview as _liveview
 from .prebattle import PreBattleMenu
 from . import roster as _roster
 from . import tag as _tag
@@ -211,6 +212,11 @@ class World:
         # so a frozen hit still shakes and punches in.
         self.camera = _camera.Camera(screen_w, screen_h, assets.dir)
         self.ball_obj = None     # big ball: standing-thing transform while painting (Overlay._paint_ball)
+        # Live camera settings (laser/liveview.py, panel laser/liveviewpanel.py,
+        # Ctrl+Alt+C): battle speed, Character focus / Duel cam, backdrop
+        # colour + opacity.  Changed while the fight runs; Solo and Battle.
+        self.live_view = _liveview.LiveView(assets.dir)
+        self.live_panel_requested = False
         # KO slow-mo (camera.json ko_slow / ko_slow_s): for slowmo_ticks
         # real ticks the simulation advances only slowmo_rate of a tick per
         # tick (both sides at once, like hit-stop).  ko_quit_ticks: Solo's
@@ -1502,6 +1508,12 @@ class Overlay(QWidget):
             self._shutdown()
             return
 
+        # --- LIVE CAMERA PANEL (laser/liveviewpanel.py, Ctrl+Alt+C): opens /
+        # closes; the fight keeps running behind it.  Solo and Battle. ---
+        if w.live_panel_requested:
+            w.live_panel_requested = False
+            self._toggle_live_panel()
+
         # --- START MENU (launch with --prebattle, or Ctrl+Shift+.) ---
         if w.start_menu_requested:
             w.start_menu_requested = False
@@ -1526,9 +1538,6 @@ class Overlay(QWidget):
             self.update()
             return
 
-        # --- Hit weight: target squash counts down ---
-        w.step_hit_weight()
-
         # --- Camera (laser/camera.py): follow, punch-in, shake.  Every tick
         # including hit-stop; read-only on the world; Solo and Battle alike.
         try:
@@ -1536,14 +1545,32 @@ class Overlay(QWidget):
         except Exception as e:
             action_log.crash("camera", e)
 
+        # --- BATTLE SPEED (laser/liveview.py, Ctrl+Alt+C panel): the
+        # simulation runs speed x real ticks (10% .. 300%, accumulated like
+        # the KO slow-mo); input, camera easing and the HUD stay real-time.
+        # Solo and Battle.
+        steps = w.live_view.sim_steps()
+        for _ in range(steps):
+            if not self._sim_tick():
+                return
+            if w.stats_requested or w.quitting:
+                break            # results window / quit: no extra fast-forward ticks
+        self.update()
+
+    def _sim_tick(self):
+        """One simulation tick (both sides, world systems, global_tick).
+        False = the game is shutting down."""
+        w = self.world
+        # --- Hit weight: target squash counts down ---
+        w.step_hit_weight()
+
         # --- HIT-STOP: freeze the world for a few ticks on big hits ---
         # Input keeps running; combat, motion, collisions, and bullets all
         # pause — for BOTH sides at once, since they now share one clock.
         # FX (rings, sparks, ghosts) keep animating in paint for punch.
         if w.hitstop_ticks > 0:
             w.hitstop_ticks -= 1
-            self.update()
-            return
+            return True
 
         # --- SOLO FINAL KO: hold the frame for the camera's KO shot, then
         # the run ends (World.on_figure_death). ---
@@ -1551,8 +1578,7 @@ class Overlay(QWidget):
             w.ko_quit_ticks -= 1
             if w.ko_quit_ticks <= 0:
                 w.stats_requested = "end"     # results window (laser/statsscreen.py)
-            self.update()
-            return
+            return True
 
         # --- KO SLOW-MO: the simulation advances slowmo_rate of a tick per
         # real tick (both sides at once); the camera keeps full speed. ---
@@ -1560,8 +1586,7 @@ class Overlay(QWidget):
             w.slowmo_ticks -= 1
             w.slowmo_acc += w.slowmo_rate
             if w.slowmo_acc < 1.0:
-                self.update()
-                return
+                return True
             w.slowmo_acc -= 1.0
 
         # One simulation pass per fielded side.  Snapshots are rebuilt once,
@@ -1608,7 +1633,7 @@ class Overlay(QWidget):
                 # and bullets take their own number of steps (timefx.run_side).
                 if not timefx.run_side(w, self.pipeline):
                     self._shutdown()
-                    return
+                    return False
                 w.unbind_side()
                 continue
             for system in self.pipeline:
@@ -1619,7 +1644,7 @@ class Overlay(QWidget):
                 _perf.lap(type(system).__name__)
                 if w.quitting:
                     self._shutdown()
-                    return
+                    return False
             w.unbind_side()
 
         # F11 puppet: the first-picked fighter glides to the cursor (its AI
@@ -1678,7 +1703,32 @@ class Overlay(QWidget):
         _perf.lap("tempo director")
 
         w.global_tick += 1
-        self.update()
+        return True
+
+    def _toggle_live_panel(self):
+        """Ctrl+Alt+C: show / hide the live camera settings window
+        (laser/liveviewpanel.py).  The game is NOT paused."""
+        pn = getattr(self, "_live_panel", None)
+        if pn is not None:
+            pn.close()
+            self._live_panel = None
+            return
+        try:
+            from .liveviewpanel import LiveViewPanel
+            self._live_panel = LiveViewPanel(self.world, self._live_panel_closed)
+            self._live_panel.show()
+            self._live_panel.raise_()
+            self._live_panel.activateWindow()
+        except Exception as e:
+            action_log.crash("live camera panel", e)
+            self._live_panel = None
+
+    def _live_panel_closed(self):
+        self._live_panel = None
+        try:
+            self.input.swallow_held(self.world)
+        except Exception as e:
+            action_log.crash("live camera panel", e)
 
     def _open_start_menu(self):
         """Pause the game and show the start menu window
@@ -1776,6 +1826,8 @@ class Overlay(QWidget):
             self._start_menu.close_silently()
         if getattr(self, "_stats_win", None) is not None:
             self._stats_win.close_silently()
+        if getattr(self, "_live_panel", None) is not None:
+            self._live_panel.close()
         QApplication.quit()
 
     def paintEvent(self, _):
@@ -1791,6 +1843,13 @@ class Overlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
+        # Live camera backdrop (laser/liveview.py): a flat colour at the
+        # chosen opacity under the whole scene; screen space, never
+        # camera'd or bent.  0% = the see-through overlay.  Solo + Battle.
+        try:
+            w.live_view.paint_bg(p, self.width(), self.height())
+        except Exception as e:
+            action_log.crash("live backdrop", e)
         # Pre-battle menu: every FX that was mid-flight (bullets, clones,
         # trails, rings, sparks, flashes, clash explosions, fighter FX)
         # stays on screen frozen in place.  It is rendered ONCE into a

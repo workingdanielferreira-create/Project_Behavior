@@ -82,6 +82,7 @@ RESERVED = {
     "Ctrl+Q": "follow path", "Ctrl+R": "runaway", "Alt+Up": "attack mode",
     "Alt+Left": "cycle behaviour", "Alt+Right": "cycle behaviour",
     "Ctrl+Shift+.": "start menu", "Ctrl+Alt+Enter": "quit",
+    "Ctrl+Alt+C": "live camera settings",
     # Player control (laser/player.py).
     "F4": "player control", "Up": "player move", "Down": "player move",
     "Left": "player move", "Right": "player move", "Ctrl+Z": "player attack",

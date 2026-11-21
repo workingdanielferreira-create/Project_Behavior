@@ -429,6 +429,7 @@ class Camera:
         self.cx = self.sw / 2.0
         self.cy = self.sh / 2.0
         self.zoom = 1.0
+        self.free = False           # live focus / duel view (laser/liveview.py)
         # Cinematic shot (one at a time) + who was in an ultimate last tick
         self.shot = None
         self._ult_seen = set()
@@ -624,6 +625,19 @@ class Camera:
         """(cx, cy, zoom) the follow-cam wants this tick."""
         c = self.cfg
         cx0, cy0 = self.sw / 2.0, self.sh / 2.0
+        # Live camera settings (laser/liveview.py, Ctrl+Alt+C): Character
+        # focus / Duel cam replace the follow target with a free view (no
+        # on-screen clamp, zoom may go below 1.0x).  Solo and Battle.
+        self.free = False
+        lv = getattr(world, "live_view", None)
+        if lv is not None:
+            try:
+                t = lv.cam_target(world, self.sw, self.sh)
+            except Exception:
+                t = None
+            if t is not None:
+                self.free = True
+                return t
         if not c["follow"]:
             return cx0, cy0, 1.0
         if pts is None:
@@ -721,7 +735,10 @@ class Camera:
         return min(DEPTH_MAX, k), x, y
 
     def _clamp(self, cx, cy, z):
-        """Keep the zoomed view inside the screen (at 1.0x: dead centre)."""
+        """Keep the zoomed view inside the screen (at 1.0x: dead centre).
+        A live Character focus / Duel cam view (self.free) is not clamped."""
+        if getattr(self, "free", False):
+            return cx, cy
         hw = self.sw / (2.0 * z)
         hh = self.sh / (2.0 * z)
         return (min(max(cx, hw), self.sw - hw),

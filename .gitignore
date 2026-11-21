@@ -22,3 +22,6 @@ roster.json
 
 # GPU overlay test output (tools/gputest/gpu_test.py) — local only.
 gpu_test_result.txt
+
+# Live camera settings (laser/liveview.py, Ctrl+Alt+C) — each player's own.
+characters/live_view.json
