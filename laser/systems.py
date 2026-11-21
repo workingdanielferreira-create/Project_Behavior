@@ -131,6 +131,13 @@ class InputSystem(System):
             world.start_menu_requested = True
             world.ctrl_used = True
 
+        # Ctrl+Alt+C: open / close the live camera settings window
+        # (laser/liveviewpanel.py) — battle speed, Character focus / Duel
+        # cam, backdrop.  The fight keeps running.  Solo and Battle.
+        if self._pressed(win.VK_C) and ctrl and alt and not shift:
+            world.live_panel_requested = True
+            world.ctrl_used = True
+
         # Ctrl+0: toggle the roster lock.  While locked, every key that
         # adds, removes or swaps a fighter (slot cycle keys, F7/F8) is
         # ignored, so whatever is on screen stays put.  Ultimate / special /
