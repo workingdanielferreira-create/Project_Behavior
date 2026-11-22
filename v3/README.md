@@ -51,6 +51,7 @@ Settings and teams are saved between sessions.
 | `arena.js` | the arena: floor, sky dome, floating rocks, pillars, rim, stars |
 | `fx.js` | **FX design**: primitives (slash, ring, dome, sparks, dust, star, crack, streak, moons, blades) |
 | `state.js` | world state, timers (`later`, `ms2t`) |
+| `glbody.js` | **.glb body**: parses `data/body.gen.js` once at boot, gives each fighter a skinned copy (toon + ink, kit colour), picks its clip from the fight state |
 | `models.js` | **fighter rigs and models** (`buildBody`) |
 | `movestyle.js` | **movement styles** (FX Studio `movement_style` phases) + intent speed table |
 | `tempo.js` | fight rhythm intents (port of `laser/tempo.py`) |
@@ -75,6 +76,14 @@ use anything declared in the files loaded before it. Code that runs at load
 time has to respect that order; functions called later can reach anything.
 
 ## 3D bodies (spec)
+
+In a fight every fighter wears the test body `characters/ual_swordsman/ual_swordsman.glb` (RIG_SPEC section 8),
+tinted in its kit colour, sword on melee kits only. `tools/build_kits.py` packs it into `data/body.gen.js` (gitignored,
+rebuilt by `run_v3.bat`). A kit whose folder holds its own `<folder>.glb` (today: ronin_copy) keeps its stand-in
+body for now. No `body.gen.js` = stand-ins for everyone. Clips: action -> `attack_normal(_N)` / `attack_special(_N)` /
+`ultimate` / `transform` / `switch_in` / `defend`, stretched to the action's length; stun -> `hit_light` / `hit_heavy` /
+`hit_air` / `knockdown`; K.O. -> `ko`; parry / block -> `parry` / `defend`; snap -> `sprint` (`dodge_back` going
+away); moving -> `run`, still -> `idle`, in the air -> `air_move` / `air`. Missing clips fall back as in `rig_spec.json`.
 
 `RIG_SPEC.md` (+ `rig_spec.json`) is the rig + animation spec for 3D fighters: Mixamo bone
 names, fingers, face set, weapon bones, FX anchor → bone map, clip list with fallbacks, glb export.
