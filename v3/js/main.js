@@ -50,13 +50,13 @@ function newGame(){clearAll();
   sides.forEach((s,si)=>{s.on=0;s.tagCd=0;s.team.forEach((f,i)=>{setOn(f,i===0);f.x=si?W*.54:W*.46;f.y=H*.5+rnd(-60,60);f.face=si?Math.PI:0;enter(f,'neutral');});});
   tick=0;hitstopMs=0;slowmo=0;shake=0;ended=false;Object.assign(director,{I:0,phase:'calm',left:0,at:.8,quiet:0,hits:0,dmg:0,cnt:0,taken:0,ko:0});
   for(const k in metr)metr[k]=[];
-  stats={starts:[0,0],used:[{normal:0,special:0,special2:0,ult:0},{normal:0,special:0,special2:0,ult:0}],snaps:[0,0],dealt:[0,0],kos:[0,0],tags:[0,0],parries:[0,0],perfect:0,inputs:0,pSnaps:0,pChains:0,pSkills:0,pIntents:0,pTags:0,actions:0,t0:0};
+  stats={starts:[0,0],used:[{normal:0,special:0,special2:0,ult:0},{normal:0,special:0,special2:0,ult:0}],snaps:[0,0],dealt:[0,0],kos:[0,0],tags:[0,0],parries:[0,0],perfect:0,inputs:0,pSnaps:0,pChains:0,pSkills:0,pIntents:0,pTags:0,actions:0,t0:0,pParries:0,perfectParries:0};
   sides.forEach(s=>s.team.forEach(f=>{f._ls=0;}));hudFor=-1;
   // Idle pose for the title backdrop: fighters placed, drawn once.
   sides.forEach(s=>s.team.forEach(f=>sync(f,0)));}
 function validTeam(t,def){return [0,1,2].map(i=>(t&&KITS[t[i]])?t[i]:def[i]);}
 function endGame(win){if(ended)return;ended=true;const secs=(tick*DT).toFixed(0);
-  const rows=[['Fight length',secs+' s'],['Your inputs',stats.inputs],['  Snaps · chains · skills',stats.pSnaps+' · '+stats.pChains+' · '+stats.pSkills],['  Intent calls · tags',stats.pIntents+' · '+stats.pTags],['Perfect snaps',stats.perfect],['Parries (you · enemy)',stats.parries[0]+' · '+stats.parries[1]],['Damage dealt (you · enemy)',Math.round(stats.dealt[0])+' · '+Math.round(stats.dealt[1])],['K.O.s (you · enemy)',stats.kos[1]+' · '+stats.kos[0]]];
+  const rows=[['Fight length',secs+' s'],['Your inputs',stats.inputs],['  Snaps · chains · skills',stats.pSnaps+' · '+stats.pChains+' · '+stats.pSkills],['  Intent calls · tags',stats.pIntents+' · '+stats.pTags],['Perfect snaps',stats.perfect],['Your parries · perfect',stats.pParries+' · '+stats.perfectParries],['Parries (you · enemy)',stats.parries[0]+' · '+stats.parries[1]],['Damage dealt (you · enemy)',Math.round(stats.dealt[0])+' · '+Math.round(stats.dealt[1])],['K.O.s (you · enemy)',stats.kos[1]+' · '+stats.kos[0]]];
   setTimeout(()=>Menu.results(win,rows),800);}
 function setPaused(v){if(!running||ended)return;paused=v;if(v)Menu.show('pause');else{Menu.close();host.focus();}}
 function begin(){newGame();running=true;paused=false;Menu.close();host.focus();document.body.classList.add('playing');

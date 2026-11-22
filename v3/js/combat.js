@@ -72,8 +72,10 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   if(t.parry>0&&!isShot&&!unblock){t.parry=0;stun(a,450,'stag');a.lastWhiff=true;fx_ring(t.x,t.y,0xffffff,2.6,.3,1.1);fx_sparks(t.x,t.y,0xffffff,24,8);hitstopMs=Math.max(hitstopMs,(70));shake=Math.max(shake,.4);director.cnt++;
     if(t.side===0||a.side===0)callout('PARRY',t.k.name+' turns it aside',cssc(t.k.fx),.6,true);stats.parries[t.side]++;return false;}
   if(t.parry>0&&isShot&&!unblock){t.parry=0;if(shot){shot.side=t.side;shot.vx*=-1.2;shot.vy*=-1.2;shot.dmg*=1.2;}fx_ring(t.x,t.y,0xffffff,2,.25,1.1);director.cnt++;return false;}
-  let k=1;if(t.block>0&&!unblock){k=.3;fx_ring(t.x,t.y,t.k.fx,1.8,.25,1);director.cnt++;}
-  dmg*=(a.dmgMul||1)*(t.takenMul||1);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>8)t.hurts.shift();t.tp.mom=Math.max(-1,t.tp.mom-.2);
+  // Parry / deflect (parry.js): a perfect parry takes the hit, a normal one cuts damage and knockback.
+  let pk=1,pkb=1;if(!unblock){const pr=parryOnHit(a,t,isShot,shot);if(!pr)return false;pk=pr.k;pkb=pr.kb;}
+  let k=pk;if(t.block>0&&!unblock){k=Math.min(k,.3);fx_ring(t.x,t.y,t.k.fx,1.8,.25,1);director.cnt++;}
+  dmg*=(a.dmgMul||1)*(t.takenMul||1)*parryCounterMult(a,t);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>8)t.hurts.shift();t.tp.mom=Math.max(-1,t.tp.mom-.2);
   a.landedThisAct=true;a.lastLanded=tick;a.tp.mom=Math.min(1,a.tp.mom+.15);
   director.hits++;director.dmg+=dm;director.taken+=dm;director.lastHitTick=tick;metr.hits.push(tick);stats.dealt[a.side]+=dm;
   const wv={L:1,M:2,H:3,B:4}[w]||1;
@@ -92,7 +94,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
     else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch');
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
-  else{t.vx+=dx/dd*(wv>=2?220:110);t.vy+=dy/dd*(wv>=2?220:110);}
+  else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
   if(t.hp<=0)ko(t);return true;}
 function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.snap=null;if(f.act)endAct(f);}
 function perfect(t,a){slowmo=ms2t(320);stats.perfect++;callout('PERFECT SNAP','Dodged on the frame · counter ready','#ffc857',.7);flash(.25);t.tp.mom=1;t.gapUntil=0;stun(a,300,'stag');a.lastWhiff=true;director.cnt++;}
@@ -106,7 +108,7 @@ function shoot(f,vx,vy,dmg,r){const m=new THREE.Mesh(new THREE.SphereGeometry(r,
   m.position.copy(VA(x,y,f.z,1.1));scene.add(m);shots.push({m,x,y,z:f.z,vx,vy,vz,dmg,side:f.side,life:ms2t(1400),owner:f});}
 function stepShots(){for(let i=shots.length-1;i>=0;i--){const s=shots[i];const px=s.x,py=s.y;s.x+=s.vx*DT;s.y+=s.vy*DT;s.z=clamp((s.z||0)+(s.vz||0)*DT,0,ZMAX+200);s.life--;s.m.position.copy(VA(s.x,s.y,s.z,1.1));
   let dead=s.life<=0||s.x<0||s.x>W||s.y<0||s.y>H;const t=sides[1-s.side].team[sides[1-s.side].on];
-  if(!dead&&t&&!t.ko&&t.on&&distSeg(t.x,t.y,px,py,s.x,s.y)<42&&Math.abs((s.z||0)-t.z)<90){const owner=s.owner;if(t.parry>0){damage(owner,t,s.dmg,'L',true,s);}else{damage(owner,t,s.dmg,s.dmg>50?'M':'L',true);dead=true;}}
+  if(!dead&&t&&!t.ko&&t.on&&distSeg(t.x,t.y,px,py,s.x,s.y)<42&&Math.abs((s.z||0)-t.z)<90){const owner=s.owner;if(t.parry>0){damage(owner,t,s.dmg,'L',true,s);}else{damage(owner,t,s.dmg,s.dmg>50?'M':'L',true,s);if(s.redirected)s.redirected=false;else dead=true;}}
   if(dead){scene.remove(s.m);shots.splice(i,1);}}}
 
 /* ---- auto reactions (2D: rare) ---- */

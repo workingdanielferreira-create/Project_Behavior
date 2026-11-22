@@ -63,11 +63,13 @@ function updFighter(f){
   if(!f.snap||f.act){const want=Math.atan2(e.y-f.y,e.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.35;}
   // attacks
   if(!handson&&!(f.side===0&&f.manualNoAttack))tryAttack(f,e,false);
-  autoReact(f,e);}
+  autoReact(f,e);
+  parryTick(f);}   // AI parry roll on incoming shots (parry.js)
 function groundSplat(f){f.stun=Math.max(f.stun,ms2t(800));f.hp=Math.max(0,f.hp-50);fx_crack(f.x,f.y,5);fx_dome(f.x,f.y,0xffc857,4);fx_dust(f.x,f.y,16);shake=Math.max(shake,1);hitstopMs=Math.max(hitstopMs,110);callout('GROUND SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
 // Altitude: every fighter flies. Attack intents close the height gap to the target; neutral / reset spread out
 // vertically; big height changes are 3D snaps; when stunned in the air a fighter falls (launch / spike / splat).
 function updAltitude(f,e){
+  const ceil=gravityStep(f);   // speed gravity (gravity.js): how high its speed lets it fly
   if(tick>=f.zPrefT){f.zPrefT=tick+ms2t(rnd(1200,3500));const r=Math.random();f.zPref=r<.22?0:r<.55?rnd(150,500):rnd(500,ZMAX*(burst()?1:.8));}
   const it=f.tp.intent,d=Math.hypot(f.x-e.x,f.y-e.y);let want;
   if(f.side===0&&f.manualZ!=null)want=f.manualZ;
@@ -77,10 +79,12 @@ function updAltitude(f,e){
   else if(it==='neutral')want=e.z*.5+f.zPref*.5+70*Math.sin(tick*DT*1.7+f.tp.swayPh);
   else want=f.zPref;
   if(!f.k.melee&&it!=='punish')want=Math.max(want,e.z+180);
-  want=clamp(want,0,ZMAX);f.zWant=want;
+  want=clamp(want,0,ZMAX);const rawWant=want;want=Math.min(want,ceil);f.zWant=want;f.zWantRaw=rawWant;
   if(f.snap||f.leap>0)return;
+  if(gravityFall(f))return;
   if(f.stun>0||f.vz>900||f.vz<-900){f.vz-=2600*DT;f.z+=f.vz*DT;if(f.z<=0){if(f.vz<-1500&&f.stun>0)groundSplat(f);f.z=0;f.vz=f.vz<-700?-f.vz*.22:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}return;}
   const dz=want-f.z;const manual=f.side===0&&f.manualZ!=null;
-  if(!manual&&Math.abs(dz)>280&&!f.act&&f.snapCd<=tick&&Math.random()<.25){snapTo(f,f.x+rnd(-80,80),f.y+rnd(-80,80),Math.random()<f.k.blink,false,want);return;}
-  const vmax=f.k.speed*(manual?2.2:1.7)*(f.spdMul||1);f.vz=clamp(dz*7,-vmax,vmax);f.z=clamp(f.z+f.vz*DT,0,ZMAX);}
+  // big height change = a 3D snap (its own speed lets it climb past the walking ceiling; gravity brings it back)
+  if(!manual&&Math.abs(rawWant-f.z)>280&&!f.act&&f.snapCd<=tick&&Math.random()<.25){snapTo(f,f.x+rnd(-80,80),f.y+rnd(-80,80),Math.random()<f.k.blink,false,rawWant);return;}
+  const vmax=f.k.speed*(manual?2.2:1.7)*(f.spdMul||1);f.vz=clamp(dz*7,-vmax,vmax);f.z=clamp(f.z+f.vz*DT,0,Math.max(ceil,0));}
 function wallSplat(f){f.vx=f.vy=0;f.stun=Math.max(f.stun,ms2t(700));f.hp=Math.max(0,f.hp-40);fx_ring(f.x,f.y,0xffc857,3,.35,1);fx_sparks(f.x,f.y,0xffc857,26,8);fx_dust(f.x,f.y,8);shake=Math.max(shake,.7);hitstopMs=Math.max(hitstopMs,(90));callout('WALL SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
