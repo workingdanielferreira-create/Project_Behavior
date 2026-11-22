@@ -158,7 +158,8 @@ recommended next.
 - File: `characters/<name>/<name>.glb`, beside `character.json` and `<name>.fxkit.json`.
 - Format glb, +Y up, selected objects (armature + its meshes).
 - Mesh: apply modifiers, UVs, normals.
-- Skinning on (4 weights per vertex at most). Shape keys on.
+- Skinning on (4 weights per vertex at most). Shape keys on, with "Use Sparse Accessor if better" OFF
+  (`export_try_sparse_sk = False`): three.js r128, which V3 uses, fails on the empty sparse shape keys Blender writes.
 - Animation on, mode **Actions**, always sample, 30 fps.
 - Materials: exported, but the game swaps them for its toon / ink look and keeps the base colour texture.
 

@@ -170,7 +170,7 @@
       "transform": "+Y up",
       "mesh": ["apply modifiers", "UVs", "normals"],
       "skinning": "on, max 4 influences per vertex",
-      "shape_keys": "on",
+      "shape_keys": "on, sparse shape keys OFF (export_try_sparse_sk = False): three.js r128 cannot read them",
       "animation": "on, mode Actions, always sample, 30 fps, no NLA strips muted",
       "materials": "export (the game replaces them with its toon / ink materials, keeping the base colour texture)"
     },

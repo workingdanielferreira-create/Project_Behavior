@@ -1,0 +1,303 @@
+<title>Ronin 3D Test Fighter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: a rig-check bench. Stage (3D view) left, control column right; stacks on phones. */
+:root {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; color-scheme: dark }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; }
+.wrap { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px; padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 820px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; min-height: 420px; height: calc(100vh - 34px); max-height: 900px; }
+@media (max-width: 820px) { .stage { height: 62vh; min-height: 360px; } }
+#view { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; left: 12px; top: 10px; font-family: var(--mono); font-size: 12px; color: var(--muted);
+  pointer-events: none; line-height: 1.5; }
+.hud b { color: var(--fg); font-weight: 500; }
+#tags { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(6px, -50%); font-family: var(--mono); font-size: 11px;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line); padding: 0 4px; border-radius: 3px;
+  white-space: nowrap; opacity: .92; }
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+header h1 { font-family: var(--display); font-size: 22px; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); line-height: 1.45; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex;
+  flex-direction: column; gap: 10px; }
+h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.clips { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.clips button { text-align: left; }
+button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 8px; }
+.row label { flex: 0 0 92px; color: var(--muted); font-size: 12px; }
+.row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.row output { font-family: var(--mono); font-size: 12px; width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.check input { accent-color: var(--accent); }
+.note { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+.note code { font-family: var(--mono); font-size: 11.5px; }
+#status { font-family: var(--mono); font-size: 12px; color: var(--ok); }
+</style>
+
+<div class="wrap">
+  <div class="stage">
+    <canvas id="view" aria-label="3D view of the ronin test fighter"></canvas>
+    <div id="tags"></div>
+    <div class="hud" id="hud">loading…</div>
+  </div>
+  <div class="side">
+    <header>
+      <h1>Ronin 3D test fighter</h1>
+      <p>Built by script in Blender on the V3 rig spec. Drag to orbit, scroll or pinch to zoom.</p>
+    </header>
+    <section aria-labelledby="h-clips">
+      <h2 id="h-clips">Clips · 30 fps</h2>
+      <div class="clips" id="clips"></div>
+      <div class="row"><button id="play" aria-pressed="true" style="flex:0 0 auto">Pause</button>
+        <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Frame"><output id="fr">f0</output></div>
+      <div class="row"><label for="speed">Speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedv">1.00×</output></div>
+    </section>
+    <section aria-labelledby="h-look">
+      <h2 id="h-look">View</h2>
+      <div class="toggles">
+        <label class="check"><input type="checkbox" id="toon" checked> V3 toon + ink</label>
+        <label class="check"><input type="checkbox" id="bones"> Skeleton</label>
+        <label class="check"><input type="checkbox" id="anchors" checked> FX anchors</label>
+        <label class="check"><input type="checkbox" id="labels"> Anchor names</label>
+        <label class="check"><input type="checkbox" id="blink" checked> Auto blink</label>
+        <label class="check"><input type="checkbox" id="turn"> Turntable</label>
+      </div>
+    </section>
+    <section aria-labelledby="h-face">
+      <h2 id="h-face">Face shape keys</h2>
+      <div id="morphs"></div>
+    </section>
+    <section aria-labelledby="h-data">
+      <h2 id="h-data">What's in the file</h2>
+      <p class="note" id="facts"></p>
+      <p class="note">Anchors follow <code>v3/rig_spec.json</code>: <code>haR</code> = RightHand, <code>wtip</code> = WeaponTip_R, <code>chest</code> = middle of Spine2, and so on.</p>
+      <div id="status"></div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+var GLB_B64 = "__GLB__";
+(function () {
+  var canvas = document.getElementById('view'), hud = document.getElementById('hud'), tagsEl = document.getElementById('tags');
+  var css = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+  var renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
+  camera.position.set(-2.4, 1.5, 3.6);
+  var controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(0, 0.9, 0); controls.enableDamping = true; controls.minDistance = 0.6; controls.maxDistance = 12;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 0.6));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-2, 4, 3); scene.add(sun);
+  var grid = new THREE.GridHelper(6, 24, 0x7884a0, 0x7884a0); grid.material.transparent = true; grid.material.opacity = 0.25; scene.add(grid);
+  var disc = new THREE.Mesh(new THREE.CircleGeometry(0.45, 40), new THREE.MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0.18}));
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.002; scene.add(disc);
+  function themeBg() { scene.background = new THREE.Color(css('--stage') || '#dfe3ec'); }
+  themeBg();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeBg); } catch (e) {}
+  new MutationObserver(themeBg).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+
+  var ANCHORS = {root: ['Hips', 'ground'], hip: ['Hips', 'head'], chest: ['Spine2', 'mid'], neck: ['Neck', 'head'],
+    head: ['Head', 'mid'], shL: ['LeftArm', 'head'], shR: ['RightArm', 'head'], shB: ['Spine2', 'tail'],
+    elL: ['LeftForeArm', 'head'], elR: ['RightForeArm', 'head'], haL: ['LeftHand', 'head'], haR: ['RightHand', 'head'],
+    hpL: ['LeftUpLeg', 'head'], hpR: ['RightUpLeg', 'head'], knL: ['LeftLeg', 'head'], knR: ['RightLeg', 'head'],
+    ftL: ['LeftFoot', 'head'], ftR: ['RightFoot', 'head'], wtip: ['WeaponTip_R', 'head'], wtip2: ['WeaponTip_L', 'head']};
+  var CHILD = {Spine2: 'Neck', Head: 'HeadTop_End'};
+
+  var bin = atob(GLB_B64), buf = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  var mixer, actions = {}, current, root, skinned = [], outlines = [], toonMats = [], origMats = [], helper, faceMesh;
+  var anchorDots = {}, anchorTags = {}, clock = new THREE.Clock(), playing = true, speed = 1, nextBlink = 2, blinkT = -1;
+  var grad = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 185, 185, 185, 255, 230, 230, 230, 255]), 3, 1, THREE.RGBAFormat);
+  grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+
+  new THREE.GLTFLoader().parse(buf.buffer, '', function (gltf) {
+    root = gltf.scene; scene.add(root);
+    var tris = 0, bones = 0, morphNames = [];
+    root.traverse(function (o) {
+      if (o.isBone) bones++;
+      if (!o.isSkinnedMesh) return;
+      skinned.push(o);
+      tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+      var hasMorph = !!(o.morphTargetDictionary && Object.keys(o.morphTargetDictionary).length);
+      if (hasMorph) { faceMesh = o; morphNames = Object.keys(o.morphTargetDictionary); }
+      var m = o.material, col = m.color ? m.color.clone() : new THREE.Color(0x888888);
+      var metal = /blade/.test(m.name || '');
+      var toon = new THREE.MeshToonMaterial({color: col, gradientMap: grad, skinning: true, morphTargets: hasMorph,
+        morphNormals: hasMorph && !!(o.geometry.morphAttributes && o.geometry.morphAttributes.normal),
+        emissive: metal ? new THREE.Color(0x223044) : new THREE.Color(0x000000)});
+      if (hasMorph) { toon = m; m.emissive = col.clone().multiplyScalar(0.6); m.roughness = 1; m.metalness = 0; }   // face decals keep the loader's material (r128 toon swap drops them)
+      origMats.push([o, m]); toonMats.push([o, toon]);
+      if (!hasMorph) {
+        var ink = new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide, skinning: true});
+        ink.onBeforeCompile = function (sh) {
+          sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>',
+            'transformed += normalize(objectNormal) * 0.0045;\n#include <project_vertex>');
+        };
+        var g = new THREE.BufferGeometry();
+        if (o.geometry.index) g.setIndex(o.geometry.index);
+        Object.keys(o.geometry.attributes).forEach(function (n) { g.setAttribute(n, o.geometry.attributes[n]); });
+        var out = new THREE.SkinnedMesh(g, ink);
+        out.bind(o.skeleton, o.bindMatrix); out.frustumCulled = false;
+        o.parent.add(out); outlines.push(out);
+      }
+      o.frustumCulled = false;
+    });
+    setToon(true);
+    helper = new THREE.SkeletonHelper(root); helper.visible = false; scene.add(helper);
+    var dotGeo = new THREE.SphereGeometry(0.014, 10, 8);
+    Object.keys(ANCHORS).forEach(function (k) {
+      var isW = /^wtip/.test(k);
+      var dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({color: isW ? 0xff8a3d : 0x3de0ff, depthTest: false}));
+      dot.renderOrder = 10; scene.add(dot); anchorDots[k] = dot;
+      var t = document.createElement('div'); t.className = 'tag'; t.textContent = k; t.hidden = true; tagsEl.appendChild(t); anchorTags[k] = t;
+    });
+    mixer = new THREE.AnimationMixer(root);
+    var order = ['idle', 'run', 'attack_normal', 'attack_special', 'ultimate', 'hit_light', 'ko'];
+    var clipsEl = document.getElementById('clips');
+    gltf.animations.sort(function (a, b) { return order.indexOf(a.name) - order.indexOf(b.name); }).forEach(function (c) {
+      var a = mixer.clipAction(c);
+      var loop = c.name === 'idle' || c.name === 'run';
+      a.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce); a.clampWhenFinished = true;
+      actions[c.name] = a;
+      var b = document.createElement('button'); b.type = 'button'; b.id = 'clip-' + c.name; b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = '<span>' + c.name + '</span><small>' + Math.round(c.duration * 30) + 'f' + (loop ? ' ⟳' : '') + '</small>';
+      b.onclick = function () { play(c.name); };
+      clipsEl.appendChild(b);
+    });
+    var mEl = document.getElementById('morphs');
+    morphNames.forEach(function (n) {
+      var id = 'mk-' + n, r = document.createElement('div'); r.className = 'row';
+      r.innerHTML = '<label for="' + id + '">' + n.replace(/_/g, ' ') + '</label><input id="' + id + '" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output>';
+      var inp = r.querySelector('input'), out = r.querySelector('output');
+      inp.oninput = function () { faceMesh.morphTargetInfluences[faceMesh.morphTargetDictionary[n]] = +inp.value; out.textContent = (+inp.value).toFixed(2); };
+      mEl.appendChild(r);
+    });
+    document.getElementById('facts').innerHTML = 'Bones: <b>' + bones + '</b> · triangles: <b>' + Math.round(tris).toLocaleString() +
+      '</b> · clips: <b>' + gltf.animations.length + '</b> · face shape keys: <b>' + morphNames.length + '</b>.';
+    document.getElementById('status').textContent = 'Loaded ronin_copy.glb (' + (buf.length / 1048576).toFixed(2) + ' MB).';
+    play('idle');
+  }, function (err) { console.error(err && err.stack); hud.textContent = 'Could not load the model: ' + (err && err.message || err); });
+
+  function setToon(on) {
+    (on ? toonMats : origMats).forEach(function (p) { p[0].material = p[1]; });
+    outlines.forEach(function (o) { o.visible = on; });
+  }
+  function play(name) {
+    if (!actions[name]) return;
+    var next = actions[name];
+    next.reset(); next.enabled = true; next.setEffectiveWeight(1);
+    if (current && current !== next) next.crossFadeFrom(current, 0.12, false);
+    next.play(); current = next; playing = true;
+    document.getElementById('play').textContent = 'Pause'; document.getElementById('play').setAttribute('aria-pressed', 'true');
+    document.querySelectorAll('#clips button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.id === 'clip-' + name)); });
+  }
+  document.getElementById('play').onclick = function () {
+    playing = !playing; this.textContent = playing ? 'Pause' : 'Play'; this.setAttribute('aria-pressed', String(playing));
+    if (playing && current && !current.isRunning() && current.loop === THREE.LoopOnce) play(current.getClip().name);
+  };
+  var scrub = document.getElementById('scrub');
+  scrub.oninput = function () {
+    if (!current) return;
+    playing = false; document.getElementById('play').textContent = 'Play'; document.getElementById('play').setAttribute('aria-pressed', 'false');
+    current.paused = false; current.enabled = true; current.setEffectiveWeight(1);
+    current.time = current.getClip().duration * scrub.value / 1000; mixer.update(0);
+  };
+  document.getElementById('speed').oninput = function () { speed = +this.value; document.getElementById('speedv').textContent = speed.toFixed(2) + '×'; };
+  document.getElementById('toon').onchange = function () { setToon(this.checked); };
+  document.getElementById('bones').onchange = function () { if (helper) helper.visible = this.checked; };
+  var showAnch = true, showLab = false, autoBlink = true, turn = false;
+  document.getElementById('anchors').onchange = function () { showAnch = this.checked; };
+  document.getElementById('labels').onchange = function () { showLab = this.checked; };
+  document.getElementById('blink').onchange = function () { autoBlink = this.checked; };
+  document.getElementById('turn').onchange = function () { turn = this.checked; };
+
+  var tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+  function boneByName(n) { return root && (root.getObjectByName(n) || root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n)); }
+  function anchorPos(spec, out) {
+    var b = boneByName(spec[0]); if (!b) return false;
+    b.getWorldPosition(out);
+    if (spec[1] === 'ground') out.y = 0;
+    else if (spec[1] === 'mid' || spec[1] === 'tail') {
+      var c = boneByName(CHILD[spec[0]]) || b.children.filter(function (x) { return x.isBone; })[0];
+      if (c) { c.getWorldPosition(tmpB); if (spec[1] === 'mid') out.lerp(tmpB, 0.5); else out.copy(tmpB); }
+    }
+    return true;
+  }
+  function resize() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
+      renderer.setSize(w, h, false); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+    }
+  }
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  (function loop() {
+    requestAnimationFrame(loop);
+    resize();
+    var dt = Math.min(clock.getDelta(), 0.05);
+    if (mixer && playing) mixer.update(dt * speed);
+    if (turn && root && !reduce) root.rotation.y += dt * 0.6;
+    if (faceMesh && autoBlink && faceMesh.morphTargetDictionary.Blink_L !== undefined) {
+      nextBlink -= dt;
+      if (nextBlink <= 0 && blinkT < 0) { blinkT = 0; nextBlink = 2 + Math.random() * 3; }
+      if (blinkT >= 0) {
+        blinkT += dt; var k = blinkT < 0.07 ? blinkT / 0.07 : Math.max(0, 1 - (blinkT - 0.07) / 0.09);
+        faceMesh.morphTargetInfluences[faceMesh.morphTargetDictionary.Blink_L] = k;
+        faceMesh.morphTargetInfluences[faceMesh.morphTargetDictionary.Blink_R] = k;
+        if (blinkT > 0.16) blinkT = -1;
+      }
+    }
+    controls.update();
+    if (root) {
+      root.updateMatrixWorld(true);
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      Object.keys(anchorDots).forEach(function (k) {
+        var d = anchorDots[k], t = anchorTags[k], ok = anchorPos(ANCHORS[k], tmpA);
+        d.visible = showAnch && ok; d.position.copy(tmpA);
+        if (showAnch && showLab && ok) {
+          var p = tmpA.clone().project(camera);
+          t.hidden = p.z > 1; t.style.left = ((p.x + 1) / 2 * w) + 'px'; t.style.top = ((1 - p.y) / 2 * h) + 'px';
+        } else t.hidden = true;
+      });
+    }
+    if (current) {
+      var clip = current.getClip(), f = Math.round(current.time * 30);
+      document.getElementById('fr').textContent = 'f' + f;
+      if (playing) scrub.value = Math.round(1000 * current.time / Math.max(clip.duration, 1e-6));
+      hud.innerHTML = '<b>' + clip.name + '</b> · f' + f + ' / ' + Math.round(clip.duration * 30) + (playing ? '' : ' · paused');
+    }
+    renderer.render(scene, camera);
+  })();
+})();
+</script>

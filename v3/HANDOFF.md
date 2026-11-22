@@ -44,7 +44,8 @@ Read this first in a new session to pick up the V3 (3D) work where it stopped.
 
 ## Blender plugin
 
-2026-11-22 cloud session: still no Blender tools, no Blender install and no attached computer.
+2026-11-22 cloud session: no Blender plugin tools and no attached computer. Blender is NOT installable on
+Daniel's company laptop (no admin). Use the cloud `bpy` route above instead.
 Daniel added a Blender plugin, but the cloud session could not see it (no connector / plugin / tools
 listed). Run the next session **in the Claude desktop app on the machine where Blender and the
 plugin are installed**, and check that its tools are available before starting.
@@ -76,7 +77,22 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
    fingers, face set (Jaw / eyes + shape keys) and weapon bones required; no hair / cloth chains for
    now; clips = FX Studio actions + locomotion set + hit reactions, each with a fallback.
-2. With the Blender plugin: build one test fighter (Rigify or Mixamo rig) and export a .glb.
+2. **Done (2026-11-22), cloud route** (Daniel can't install Blender on his company laptop):
+   - Blender runs in the cloud session as the `bpy` package (`pip install bpy`, 5.3.0), no UI.
+   - `v3/tools/blender/build_ronin3d.py` builds the ronin_copy test fighter by script: smooth anime-toon
+     body (skin modifier), head, hair, face decals + 7 shape keys, katana; 72 bones on the spec; clips
+     idle, run, attack_normal, attack_special, ultimate, hit_light, ko keyed by script (pose solver aims
+     bones in armature space; weapon hand = blade direction first).
+   - Output `characters/ronin_copy/ronin_copy.glb` (~0.95 MB, 15.8k triangles). `--renders DIR` writes
+     Workbench pose frames (needs `libegl1` / `libgl1` from apt in the container).
+   - Viewer: `v3/tools/blender/viewer_template.html` + `make_viewer.py` (embeds the .glb, three.js r128).
+   - Export gotchas, both fixed in the script: sparse shape keys off (r128 can't read them) and shape key
+     values reset to 0 before export (they exported at 1).
+   - Open question for step 3: in r128, swapping the face (morph) meshes to MeshToonMaterial /
+     MeshBasicMaterial made them disappear; the viewer keeps the loader's material for them. Cause not
+     found yet.
+   - Mixamo route stays open: Daniel downloads FBX in his own browser and uploads them; the cloud session
+     converts them to the spec. Never take his account details.
 3. Build the Rig Forge 3D importer. Swap V3's toon stand-in body for the .glb, driven by the sim's
    action / timing.
 4. Later: 3D FX styles in FX Studio.
