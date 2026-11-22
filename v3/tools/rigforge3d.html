@@ -290,6 +290,22 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     new THREE.LineBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false}));
   axisLine.renderOrder = 1001; axisLine.visible = false; scene.add(axisLine);
   var anchorProxy = new THREE.Object3D(); scene.add(anchorProxy);
+  /* second gizmo, for anchors only: rings that swing the anchor around its bone's pivot (drawn on the anchor,
+     beside the move arrows).  Its free-turn sphere picker is removed so it never fights the arrows. */
+  var tcRot = new THREE.TransformControls(camera, canvas);
+  tcRot.setMode("rotate"); tcRot.setSize(1.15); scene.add(tcRot);
+  tcRot.traverse(function (o) {
+    o.renderOrder = 1000;
+    if (o.name === "E" && o.material && o.material.isLineBasicMaterial) {
+      o.material.color.set(0xffd84a); o.material.opacity = 1; o.material._opacity = 1; o.material._color = o.material.color.clone();
+    }
+  });
+  (function () {
+    var gz = tcRot.children.filter(function (c) { return c.picker; })[0];
+    if (gz && gz.picker && gz.picker.rotate) gz.picker.rotate.children.slice().forEach(function (c) { if (c.name === "XYZE") gz.picker.rotate.remove(c); });
+  })();
+  var rotProxy = new THREE.Object3D(); scene.add(rotProxy);
+  var rotStart = null;   /* {q, w (anchor world), p (pivot world)} while the rings are dragged */
 
   /* ---------------------------------------------------------------- state */
   function freshData() {
@@ -703,17 +719,23 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
   function setSpace(s) {
     S.space = s; $("sLocal").setAttribute("aria-pressed", String(s === "local")); $("sWorld").setAttribute("aria-pressed", String(s === "world"));
-    tc.setSpace(s);
+    if (S.selKind === "anchor") syncGizmo(); else tc.setSpace(s);
   }
   function posable(n) { return S.pivots.indexOf(n) >= 0; }
   function syncGizmo() {
     $("mMove").disabled = !(S.selKind === "anchor" || (S.sel && movable(S.sel)));
-    if (!S.root || S.playing || !S.sel) { tc.detach(); back.visible = false; return; }
+    tcRot.detach();
+    if (!S.root || S.playing || !S.sel || HOLD.dragging) { tc.detach(); back.visible = false; return; }
     if (S.selKind === "anchor") {
+      /* single click on an anchor: move arrows + rings (rings swing it around its bone's pivot) */
       var a = S.data.anchors[S.sel];
       if (!a || a.ground) { tc.detach(); back.visible = false; return; }
       anchorWorld(S.sel, anchorProxy.position); anchorProxy.quaternion.identity(); anchorProxy.updateMatrixWorld();
-      tc.setMode("translate"); tc.setSpace("world"); tc.attach(anchorProxy); back.visible = false;
+      tc.setMode("translate"); tc.setSpace("world"); tc.attach(anchorProxy);
+      rotProxy.position.copy(anchorProxy.position);
+      if (S.space === "local") S.bones[a.bone].getWorldQuaternion(rotProxy.quaternion); else rotProxy.quaternion.identity();
+      rotProxy.updateMatrixWorld();
+      tcRot.setSpace("world"); tcRot.attach(rotProxy); back.visible = true;
       return;
     }
     if (!posable(S.sel)) { tc.detach(); back.visible = false; return; }
@@ -736,11 +758,41 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       buildCard(); buildTree();
     }
   });
+  /* put an anchor at a world point (keeps its "along bone" %, the rest goes into its offset) */
+  function setAnchorWorld(id, world) {
+    var a = S.data.anchors[id], b = S.bones[a.bone];
+    var p = b.worldToLocal(world.clone()), tl = tailLocal(a.bone, new THREE.Vector3()).multiplyScalar(a.t || 0);
+    a.side = p.sub(tl).toArray(); layoutX(); fillAnchorInputs();
+  }
+  function commitAnchorDrag(before) {
+    if (before && before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
+    layoutX(); S.order.forEach(function (n) { rebake(n, true); });
+    buildCard(); buildTree(); syncGizmo();
+  }
+  tcRot.addEventListener("dragging-changed", function (e) {
+    orbit.enabled = !e.value;
+    if (e.value) {
+      var a = S.data.anchors[S.sel];
+      var w0 = new THREE.Vector3();
+      rotStart = {q: rotProxy.quaternion.clone(), w: anchorWorld(S.sel, w0) ? w0 : null,
+        p: S.bones[a.bone].getWorldPosition(new THREE.Vector3()), snap: snap()};
+    } else {
+      axisLine.visible = false;
+      var st = rotStart; rotStart = null;
+      commitAnchorDrag(st && st.snap);
+    }
+  });
+  tcRot.addEventListener("objectChange", function () {
+    if (!rotStart || S.selKind !== "anchor" || !rotStart.w) return;
+    var dq = rotProxy.quaternion.clone().multiply(rotStart.q.clone().invert());
+    var w = rotStart.w.clone().sub(rotStart.p).applyQuaternion(dq).add(rotStart.p);
+    setAnchorWorld(S.sel, w);
+    anchorProxy.position.copy(w); anchorProxy.updateMatrixWorld();
+  });
   tc.addEventListener("objectChange", function () {
     if (S.selKind === "anchor") {
-      var a = S.data.anchors[S.sel], b = S.bones[a.bone];
-      var p = b.worldToLocal(anchorProxy.position.clone()), tl = tailLocal(a.bone, new THREE.Vector3()).multiplyScalar(a.t || 0);
-      a.side = p.sub(tl).toArray(); layoutX(); fillAnchorInputs();
+      setAnchorWorld(S.sel, anchorProxy.position);
+      rotProxy.position.copy(anchorProxy.position); rotProxy.updateMatrixWorld();
       return;
     }
     if (!S.sel) return;
@@ -778,6 +830,67 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var e = (S.data.edits[clip] || {})[bone]; if (!e) return false;
     return (e.rot || []).some(function (k) { return k.f === f; }) || (e.pos || []).some(function (k) { return k.f === f; });
   }
+
+  /* ---------------------------------------------------------------- anchors: click = wheels, hold / drag = reposition
+     Press on an anchor dot: a quick click selects it (move arrows + rings); holding HOLD_MS or moving the mouse
+     while pressed drags it freely in a camera-facing plane at its current depth.  Runs in the capture phase on
+     window, so the camera orbit and the gizmos never see that press. */
+  var HOLD_MS = 250, HOLD = {id: null, x: 0, y: 0, timer: 0, dragging: false, before: null, plane: new THREE.Plane()};
+  var ray = new THREE.Raycaster();
+  function nearAnchor(e) {
+    var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 12;
+    PICKS.forEach(function (p) {
+      if (p.kind !== "anchor") return;
+      var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; }
+    });
+    return best;
+  }
+  function startHoldDrag() {
+    if (HOLD.dragging || !HOLD.id) return;
+    var a = S.data.anchors[HOLD.id]; if (!a) return;
+    HOLD.dragging = true; HOLD.before = snap();
+    if (S.playing) setPlaying(false);
+    S.sel = HOLD.id; S.selKind = "anchor"; S.grip = false;
+    tc.detach(); tcRot.detach(); back.visible = false;
+    var w = new THREE.Vector3(); anchorWorld(HOLD.id, w);
+    HOLD.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), w);
+    HOLD.grab = null; holdDragTo({clientX: HOLD.x, clientY: HOLD.y});   /* grab point = where you pressed */
+    canvas.style.cursor = "grabbing";
+    buildTree(); buildCard(); updatePivotOut();
+  }
+  function holdDragTo(e) {
+    var r = canvas.getBoundingClientRect();
+    var ndc = new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    var hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(HOLD.plane, hit)) return;
+    if (!HOLD.grab) { var w = new THREE.Vector3(); anchorWorld(HOLD.id, w); HOLD.grab = w.sub(hit); }   /* keep the grab offset */
+    setAnchorWorld(HOLD.id, hit.add(HOLD.grab));
+  }
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target !== canvas || e.button !== 0 || !S.root || !$("vAnchors").checked) return;
+    if (tc.axis || tcRot.axis) return;                       /* a wheel / arrow under the cursor wins */
+    var hit = nearAnchor(e); if (!hit) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false;
+    clearTimeout(HOLD.timer); HOLD.timer = setTimeout(startHoldDrag, HOLD_MS);
+  }, true);
+  window.addEventListener("pointermove", function (e) {
+    if (!HOLD.id) {
+      if (e.target === canvas && !e.buttons) canvas.style.cursor = S.root && $("vAnchors").checked && !tc.axis && !tcRot.axis && nearAnchor(e) ? "grab" : "";
+      return;
+    }
+    if (!HOLD.dragging && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 4) { clearTimeout(HOLD.timer); startHoldDrag(); }
+    if (HOLD.dragging) holdDragTo(e);
+  }, true);
+  window.addEventListener("pointerup", function (e) {
+    if (!HOLD.id) return;
+    clearTimeout(HOLD.timer);
+    var id = HOLD.id, dragged = HOLD.dragging, before = HOLD.before;
+    HOLD.id = null; HOLD.dragging = false; HOLD.before = null; canvas.style.cursor = "";
+    e.stopImmediatePropagation();
+    if (dragged) { S.sel = id; S.selKind = "anchor"; commitAnchorDrag(before); status("Moved anchor " + id + ". Click it for the arrows and rings."); }
+    else select("anchor", id);                               /* quick click: the wheels */
+  }, true);
 
   /* ---------------------------------------------------------------- picking on the stage */
   var down = null;
@@ -964,6 +1077,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     h += '<div class="row"><label>Snap to</label><span class="seg"><button id="cS0"' + (hasTail ? "" : " disabled") + '>Start</button><button id="cS5"' + (hasTail ? "" : " disabled") +
       '>Middle</button><button id="cS1"' + (hasTail ? "" : " disabled") + '>End</button><button id="cSG" aria-pressed="' + !!a.ground + '">Ground</button></span></div>';
     h += '<p class="note">Along bone: 0 % = the bone\'s pivot, 100 % = its end. Offset is added on top, in the bone\'s own X / Y / Z. Ground drops the point straight down to the floor.</p>';
+    h += '<p class="note">On the model: <b>click</b> an anchor for its arrows (slide along an axis) and rings (swing it around its bone\'s pivot); <b>press and hold, or press and drag</b>, to move it freely with the mouse. (An anchor sitting exactly on its bone\'s pivot has nothing to swing: move it off first.)</p>';
     h += '<div class="row"><button id="cAddX">+ Bone from this anchor</button>' +
       (a.custom ? '<button id="cDel" class="danger">Remove anchor</button>' : '<button id="cReset">Reset anchor</button>') + "</div>";
     C.innerHTML = h;
@@ -1250,16 +1364,17 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       if (f !== S.frame) { S.frame = f; updateFrames(); }
     }
     orbit.update();
-    var obj = tc.object;
+    var ring = tcRot.object ? tcRot : tc, obj = ring.object;   /* the gizmo whose rings get the backdrop discs */
     if (obj && back.visible) {
       obj.getWorldPosition(wp2);
       var factor = wp2.distanceTo(camera.position) * Math.min(1.9 * Math.tan(Math.PI * camera.fov / 360) / camera.zoom, 7);
-      back.position.copy(wp2); back.quaternion.copy(camera.quaternion); back.scale.setScalar(factor * tc.size / 7);
+      back.position.copy(wp2); back.quaternion.copy(camera.quaternion); back.scale.setScalar(factor * ring.size / 7);
     }
-    if (obj && tc.dragging && tc.getMode() === "rotate" && AX[tc.axis]) {
-      obj.getWorldPosition(wp2);
-      var dir = new THREE.Vector3().fromArray(AX[tc.axis]);
-      if (tc.space === "local") { obj.getWorldQuaternion(wq); dir.applyQuaternion(wq); }
+    var drag = tcRot.dragging ? tcRot : (tc.dragging ? tc : null);
+    if (drag && drag.getMode() === "rotate" && AX[drag.axis]) {
+      obj = drag.object; obj.getWorldPosition(wp2);
+      var dir = new THREE.Vector3().fromArray(AX[drag.axis]);
+      if (drag.space === "local" || drag === tcRot) { obj.getWorldQuaternion(wq); dir.applyQuaternion(wq); }
       axisLine.position.copy(wp2); axisLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
       axisLine.scale.setScalar(wp2.distanceTo(camera.position) * 0.6); axisLine.visible = true;
     } else axisLine.visible = false;
