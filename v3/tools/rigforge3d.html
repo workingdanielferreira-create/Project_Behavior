@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rig Forge 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: a posing bench. Top bar (file), stage + timeline left, control column right; stacks on phones. */
+:root {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c;
+  --key: #e0a21b;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --key: #ffc04a;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --key: #ffc04a;
+  color-scheme: dark }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; }
+.app { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); } }
+.bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar h1 { font-family: var(--display); font-size: 20px; margin: 0 8px 0 0; letter-spacing: -.01em; }
+.bar .file { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+#status { font-family: var(--mono); font-size: 12px; color: var(--ok); margin-left: auto; }
+#status.warn { color: var(--warn); }
+.left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; height: calc(100vh - 190px); min-height: 380px; }
+@media (max-width: 900px) { .stage { height: 60vh; } }
+#view, #over { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#view { touch-action: none; }
+#over { pointer-events: none; }
+.hud { position: absolute; left: 12px; top: 10px; font-family: var(--mono); font-size: 12px; color: var(--muted);
+  pointer-events: none; line-height: 1.5; }
+.hud b { color: var(--fg); font-weight: 500; }
+.drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  color: var(--muted); padding: 24px; line-height: 1.6; }
+.timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex;
+  flex-direction: column; gap: 6px; }
+.tl-row { display: flex; align-items: center; gap: 8px; }
+.frames { flex: 1; min-width: 0; display: flex; height: 26px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden;
+  cursor: pointer; position: relative; }
+.frames span { flex: 1 1 0; min-width: 0; border-right: 1px solid var(--line); position: relative; }
+.frames span:last-child { border-right: 0; }
+.frames span.any::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px;
+  border-radius: 50%; background: var(--muted); }
+.frames span.key::before { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  transform: rotate(45deg); background: var(--key); }
+.frames span.cur { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.tl-row output { font-family: var(--mono); font-size: 12px; width: 82px; text-align: right; font-variant-numeric: tabular-nums; }
+.side { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: auto; max-height: calc(100vh - 70px); }
+@media (max-width: 900px) { .side { max-height: none; } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex;
+  flex-direction: column; gap: 9px; }
+h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+button, select, input[type=text] { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select { min-width: 0; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row > label { flex: 0 0 82px; color: var(--muted); font-size: 12px; }
+.row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.row output { font-family: var(--mono); font-size: 12px; width: 58px; text-align: right; font-variant-numeric: tabular-nums; }
+.grow { flex: 1; min-width: 0; }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 6px 6px 0; }
+.readout { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.readout b { color: var(--fg); font-weight: 500; }
+.axx { color: #d8343f; } .axy { color: #2c9a3c; } .axz { color: #2f5fe0; }
+.list { display: flex; flex-direction: column; gap: 4px; max-height: 210px; overflow: auto; }
+.list button { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
+.list small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.check input { accent-color: var(--accent); }
+.note { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <h1>Rig Forge 3D</h1>
+    <button id="open" class="primary">Open .glb…</button>
+    <button id="save" disabled>Save into .glb</button>
+    <button id="undo" disabled title="Ctrl+Z">Undo</button>
+    <button id="redo" disabled title="Ctrl+Y">Redo</button>
+    <span class="file" id="fileName">No file open</span>
+    <span id="status"></span>
+    <input type="file" id="fileInput" accept=".glb" hidden>
+  </div>
+
+  <div class="left">
+    <div class="stage" id="stage">
+      <canvas id="view" aria-label="3D posing view"></canvas>
+      <canvas id="over"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="drop" id="drop">Open a character's .glb (for example <code>characters/ronin_copy/ronin_copy.glb</code>),<br>or drop it here.</div>
+    </div>
+    <div class="timeline">
+      <div class="tl-row">
+        <button id="play" aria-pressed="false" title="Space">Play</button>
+        <button id="prevKey" title="Previous key of the selected pivot">◆◀</button>
+        <button id="prevF" title=", (comma)">◀</button>
+        <div class="frames" id="frames" role="slider" aria-label="Frame" tabindex="0"></div>
+        <button id="nextF" title=". (full stop)">▶</button>
+        <button id="nextKey" title="Next key of the selected pivot">▶◆</button>
+        <output id="frameOut">f0 / 0</output>
+      </div>
+      <p class="note">◆ = a key on the selected pivot, • = a key on another pivot on that frame. Changing a pivot on a frame sets a key there; the frames in between blend.</p>
+    </div>
+  </div>
+
+  <div class="side">
+    <section aria-labelledby="h-clip">
+      <h2 id="h-clip">Clip</h2>
+      <div class="row"><select id="clip" class="grow" aria-label="Clip"></select></div>
+      <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
+    </section>
+
+    <section aria-labelledby="h-pivot">
+      <h2 id="h-pivot">Pivot</h2>
+      <div class="row"><select id="pivot" class="grow" aria-label="Pivot"></select></div>
+      <div class="row">
+        <span class="seg"><button id="mRot" aria-pressed="true" title="R">Rotate</button><button id="mMove" aria-pressed="false" title="T">Move</button></span>
+        <span class="seg"><button id="sLocal" aria-pressed="true" title="L">Local</button><button id="sWorld" aria-pressed="false" title="L">World</button></span>
+      </div>
+      <div class="readout" id="pivotOut">Click a pivot dot on the model.</div>
+      <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="61" step="1" value="8"><output id="spreadOut">8 f</output></div>
+      <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
+      <div class="row">
+        <button id="delKey" disabled>Delete key here</button>
+        <button id="clearPivot" disabled>Clear pivot in clip</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-anch">
+      <h2 id="h-anch">FX anchors</h2>
+      <div class="list" id="anchorList"></div>
+      <div class="row">
+        <input type="text" id="newName" class="grow" placeholder="new anchor id, e.g. sheath" aria-label="New anchor id">
+        <button id="addAnchor">Add on pivot</button>
+      </div>
+      <div class="row"><button id="resetAnchor" disabled>Reset anchor</button><button id="delAnchor" disabled>Remove anchor</button></div>
+      <p class="note">Select an anchor, then drag its arrows. New anchors sit on the selected pivot. Anchor spots are the same in every clip and frame.</p>
+    </section>
+
+    <section aria-labelledby="h-place">
+      <h2 id="h-place">Model placement</h2>
+      <div class="row"><label for="pScale">Size</label><input id="pScale" type="range" min="0.5" max="2" step="0.01" value="1"><output id="pScaleOut">1.00×</output></div>
+      <div class="row"><label for="pHeight">Height</label><input id="pHeight" type="range" min="-0.3" max="0.3" step="0.005" value="0"><output id="pHeightOut">0.000 m</output></div>
+      <div class="row"><label for="pYaw">Facing</label><input id="pYaw" type="range" min="-180" max="180" step="1" value="0"><output id="pYawOut">0°</output></div>
+    </section>
+
+    <section aria-labelledby="h-view">
+      <h2 id="h-view">View</h2>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="vToon" checked> V3 toon + ink</label>
+        <label class="check"><input type="checkbox" id="vPivots" checked> Pivots</label>
+        <label class="check"><input type="checkbox" id="vFingers"> Finger pivots</label>
+        <label class="check"><input type="checkbox" id="vAnchors" checked> Anchors</label>
+        <label class="check"><input type="checkbox" id="vNames"> Names</label>
+        <label class="check"><input type="checkbox" id="vBones"> Skeleton</label>
+      </div>
+      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd></p>
+    </section>
+  </div>
+</div>
+
+<script src="../lib/three.min.js"></script>
+<script src="../lib/GLTFLoader.js"></script>
+<script src="../lib/GLTFExporter.js"></script>
+<script src="../lib/OrbitControls.js"></script>
+<script src="../lib/TransformControls.js"></script>
+<script>
+/* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig), lets you pose pivots per keyframe with
+   X/Y/Z rotation rings (hips also move), move / add FX anchors and set the model's placement, and saves it all
+   back INTO the .glb:
+     - pose keys are baked into the clips, and the key list is kept in the file's scene extras
+       (pb_rig3d.edits) so reopening the file un-bakes them and you can keep editing;
+     - anchors (bone + offset in that bone's space) and placement go in pb_rig3d.anchors / pb_rig3d.placement. */
+(function () {
+  "use strict";
+  var FPS = 30, WHOLE = 61;
+  var $ = function (id) { return document.getElementById(id); };
+  var css = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+
+  /* built-in anchors (v3/rig_spec.json "anchors.map") */
+  var ANCHOR_SPEC = {root: ["Hips", "ground"], hip: ["Hips", "head"], chest: ["Spine2", "mid"], neck: ["Neck", "head"],
+    head: ["Head", "mid"], shL: ["LeftArm", "head"], shR: ["RightArm", "head"], shB: ["Spine2", "tail"],
+    elL: ["LeftForeArm", "head"], elR: ["RightForeArm", "head"], haL: ["LeftHand", "head"], haR: ["RightHand", "head"],
+    hpL: ["LeftUpLeg", "head"], hpR: ["RightUpLeg", "head"], knL: ["LeftLeg", "head"], knR: ["RightLeg", "head"],
+    ftL: ["LeftFoot", "head"], ftR: ["RightFoot", "head"], wtip: ["WeaponTip_R", "head"], wtip2: ["WeaponTip_L", "head"]};
+  var TAIL_CHILD = {Spine2: "Neck", Head: "HeadTop_End"};
+  var MOVABLE = {Hips: 1};                                   /* pivots that also get move arrows */
+
+  /* ---------------------------------------------------------------- three.js scene */
+  var canvas = $("view"), over = $("over"), octx = over.getContext("2d");
+  var renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(32, 1, 0.02, 100);
+  camera.position.set(-2.2, 1.5, 3.4);
+  var orbit = new THREE.OrbitControls(camera, canvas);
+  orbit.target.set(0, 0.95, 0); orbit.enableDamping = true; orbit.minDistance = 0.3; orbit.maxDistance = 14;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 0.6));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-2, 4, 3); scene.add(sun);
+  var grid = new THREE.GridHelper(6, 24, 0x7884a0, 0x7884a0); grid.material.transparent = true; grid.material.opacity = 0.25; scene.add(grid);
+  var floorDisc = new THREE.Mesh(new THREE.CircleGeometry(0.45, 40), new THREE.MeshBasicMaterial({color: 0, transparent: true, opacity: 0.16}));
+  floorDisc.rotation.x = -Math.PI / 2; floorDisc.position.y = 0.002; scene.add(floorDisc);
+  function themeBg() { scene.background = new THREE.Color(css("--stage") || "#dfe3ec"); }
+  themeBg();
+  try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeBg); } catch (e) {}
+  new MutationObserver(themeBg).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+
+  var place = new THREE.Group(); scene.add(place);          /* model placement preview (never exported) */
+  var grad = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 185, 185, 185, 255, 230, 230, 230, 255]), 3, 1, THREE.RGBAFormat);
+  grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+
+  /* gizmo: three's TransformControls (red / green / blue rings, grey free ring, outer view ring, yellow on hover)
+     plus the backdrop discs and the white axis line of the reference */
+  var tc = new THREE.TransformControls(camera, canvas);
+  tc.setSize(0.9); scene.add(tc);
+  tc.traverse(function (o) {
+    o.renderOrder = 1000;
+    if (o.name === "E" && o.material && o.material.isLineBasicMaterial) {     /* outer view ring: bright yellow, like the reference */
+      o.material.color.set(0xffd84a); o.material.opacity = 1; o.material._opacity = 1; o.material._color = o.material.color.clone();
+    }
+  });
+  var back = new THREE.Group();
+  var darkDisc = new THREE.Mesh(new THREE.CircleGeometry(1.5, 64), new THREE.MeshBasicMaterial({color: 0x101216, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false}));
+  var blueDisc = new THREE.Mesh(new THREE.CircleGeometry(1.0, 64), new THREE.MeshBasicMaterial({color: 0x7cc2ff, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false}));
+  darkDisc.renderOrder = 998; blueDisc.renderOrder = 999;
+  back.add(darkDisc); back.add(blueDisc); back.visible = false; scene.add(back);
+  var axisLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 1)]),
+    new THREE.LineBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false}));
+  axisLine.renderOrder = 1001; axisLine.visible = false; scene.add(axisLine);
+  var anchorProxy = new THREE.Object3D(); scene.add(anchorProxy);
+
+  /* ---------------------------------------------------------------- state */
+  var S = {
+    root: null, fileHandle: null, fileName: "", baseClips: {}, clips: {}, order: [], clip: null,
+    mixer: null, action: null, frame: 0, playing: false, speed: 1,
+    bones: {}, pivots: [], skinned: [], outlines: [], toonMats: [], origMats: [], helper: null,
+    sel: null, selAnchor: null, mode: "rotate", space: "local",
+    data: {version: 1, fade: 8, edits: {}, anchors: {}, placement: {scale: 1, height: 0, yaw: 0}},
+    undo: [], redo: [], dirty: false
+  };
+
+  function status(msg, warn) { var s = $("status"); s.textContent = msg; s.className = warn ? "warn" : ""; }
+  function snap() { return JSON.stringify(S.data); }
+  function pushUndo() { S.undo.push(snap()); if (S.undo.length > 200) S.undo.shift(); S.redo = []; markDirty(); }
+  function markDirty() { S.dirty = true; $("save").disabled = !S.root; uiUndo(); }
+  function uiUndo() { $("undo").disabled = !S.undo.length; $("redo").disabled = !S.redo.length; }
+
+  /* ---------------------------------------------------------------- maths: pose keys */
+  var I = new THREE.Quaternion();
+  function smooth(u) { return u * u * (3 - 2 * u); }
+  function frameCount(clip) { return Math.max(1, Math.round(clip.duration * FPS)); }
+  function keysOf(clipName, bone, kind, make) {
+    var c = S.data.edits[clipName] || (make ? (S.data.edits[clipName] = {}) : null); if (!c) return [];
+    var b = c[bone] || (make ? (c[bone] = {}) : null); if (!b) return [];
+    return b[kind] || (make ? (b[kind] = []) : []);
+  }
+  /* weight curve between keys; fade = frames to blend out before the first / after the last key */
+  function blendAt(keys, f, fade) {
+    if (!keys.length) return null;
+    var i, a, b, u;
+    if (f <= keys[0].f) {
+      a = keys[0]; var w = fade >= WHOLE ? 1 : (fade <= 0 ? (f === a.f ? 1 : 0) : Math.max(0, 1 - (a.f - f) / fade));
+      return {a: null, b: a, u: smooth(w)};
+    }
+    if (f >= keys[keys.length - 1].f) {
+      a = keys[keys.length - 1]; var w2 = fade >= WHOLE ? 1 : (fade <= 0 ? (f === a.f ? 1 : 0) : Math.max(0, 1 - (f - a.f) / fade));
+      return {a: null, b: a, u: smooth(w2)};
+    }
+    for (i = 0; i < keys.length - 1; i++) if (f >= keys[i].f && f <= keys[i + 1].f) { a = keys[i]; b = keys[i + 1]; break; }
+    u = (f - a.f) / Math.max(1, b.f - a.f);
+    return {a: a, b: b, u: smooth(u)};
+  }
+  function rotDelta(keys, f, out) {
+    var r = blendAt(keys, f, S.data.fade); out.copy(I); if (!r) return out;
+    var qa = r.a ? new THREE.Quaternion().fromArray(r.a.q) : I, qb = new THREE.Quaternion().fromArray(r.b.q);
+    return out.copy(qa).slerp(qb, r.u);
+  }
+  function posDelta(keys, f, out) {
+    var r = blendAt(keys, f, S.data.fade); out.set(0, 0, 0); if (!r) return out;
+    var va = r.a ? new THREE.Vector3().fromArray(r.a.v) : new THREE.Vector3(), vb = new THREE.Vector3().fromArray(r.b.v);
+    return out.copy(va).lerp(vb, r.u);
+  }
+  function findTrack(clip, name) { for (var i = 0; i < clip.tracks.length; i++) if (clip.tracks[i].name === name) return clip.tracks[i]; return null; }
+
+  /* base clip + edits -> baked clip (sign = +1 bake, -1 un-bake) */
+  function applyEdits(src, clipName, sign) {
+    var clip = src.clone(), ed = S.data.edits[clipName] || {}, q = new THREE.Quaternion(), d = new THREE.Quaternion(), v = new THREE.Vector3();
+    Object.keys(ed).forEach(function (bone) {
+      var rk = ed[bone].rot || [], pk = ed[bone].pos || [];
+      var tq = findTrack(clip, bone + ".quaternion"), tp = findTrack(clip, bone + ".position");
+      if (tq && rk.length) for (var i = 0; i < tq.times.length; i++) {
+        rotDelta(rk, Math.round(tq.times[i] * FPS), d); if (sign < 0) d.invert();
+        q.fromArray(tq.values, i * 4).multiply(d).normalize().toArray(tq.values, i * 4);
+      }
+      if (tp && pk.length) for (var j = 0; j < tp.times.length; j++) {
+        posDelta(pk, Math.round(tp.times[j] * FPS), v); if (sign < 0) v.negate();
+        tp.values[j * 3] += v.x; tp.values[j * 3 + 1] += v.y; tp.values[j * 3 + 2] += v.z;
+      }
+    });
+    return clip;
+  }
+  function baseRot(clipName, bone, f, out) {
+    var t = findTrack(S.baseClips[clipName], bone + ".quaternion");
+    if (!t) return out.copy(S.bones[bone].userData.restQ);
+    var r = t.createInterpolant().evaluate(f / FPS); return out.fromArray(r);
+  }
+  function basePos(clipName, bone, f, out) {
+    var t = findTrack(S.baseClips[clipName], bone + ".position");
+    if (!t) return out.copy(S.bones[bone].userData.restP);
+    var r = t.createInterpolant().evaluate(f / FPS); return out.fromArray(r);
+  }
+
+  /* ---------------------------------------------------------------- playback */
+  function rebake(name, keepFrame) {
+    var clip = applyEdits(S.baseClips[name], name, 1);
+    clip.name = name;
+    if (S.clips[name] && S.mixer) { S.mixer.uncacheAction(S.clips[name]); S.mixer.uncacheClip(S.clips[name]); }
+    S.clips[name] = clip;
+    if (name === S.clip) setClip(name, keepFrame ? S.frame : 0);
+  }
+  function setClip(name, frame) {
+    if (!S.mixer) return;
+    S.mixer.stopAllAction();
+    S.clip = name; $("clip").value = name;
+    var a = S.mixer.clipAction(S.clips[name]);
+    a.setLoop(THREE.LoopRepeat); a.enabled = true; a.setEffectiveWeight(1); a.play();
+    S.action = a;
+    setFrame(frame || 0);
+    buildFrames();
+  }
+  function setFrame(f) {
+    if (!S.action) return;
+    var n = frameCount(S.clips[S.clip]);
+    S.frame = Math.max(0, Math.min(n, Math.round(f)));
+    S.action.time = S.frame / FPS; S.action.paused = false;
+    S.mixer.update(0);
+    if (!S.playing) S.action.paused = true;
+    syncGizmo(); updateFrames(); updatePivotOut();
+  }
+  function setPlaying(p) {
+    S.playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", String(p));
+    if (S.action) S.action.paused = !p;
+    if (p) { tc.detach(); back.visible = false; } else syncGizmo();
+  }
+
+  /* ---------------------------------------------------------------- load */
+  function loadArrayBuffer(buf, name, handle) {
+    new THREE.GLTFLoader().parse(buf, "", function (gltf) { onLoaded(gltf, name, handle); },
+      function (err) { status("Could not read " + name + ": " + (err && err.message || err), true); });
+  }
+  function clearModel() {
+    tc.detach(); back.visible = false;
+    if (S.root) place.remove(S.root);
+    S.outlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+    if (S.helper) scene.remove(S.helper);
+    S.skinned = []; S.outlines = []; S.toonMats = []; S.origMats = []; S.bones = {}; S.pivots = [];
+    S.baseClips = {}; S.clips = {}; S.order = []; S.sel = null; S.selAnchor = null; S.undo = []; S.redo = [];
+  }
+  function onLoaded(gltf, name, handle) {
+    clearModel();
+    var root = gltf.scene; S.root = root; S.fileName = name; S.fileHandle = handle || null;
+    place.add(root);
+    var ext = (gltf.scene.userData && gltf.scene.userData.pb_rig3d) ||
+              (gltf.parser && gltf.parser.json.scenes && gltf.parser.json.scenes[0] && (gltf.parser.json.scenes[0].extras || {}).pb_rig3d);
+    S.data = {version: 1, fade: 8, edits: {}, anchors: {}, placement: {scale: 1, height: 0, yaw: 0}};
+    if (ext) {
+      S.data.fade = ext.fade != null ? ext.fade : 8;
+      S.data.edits = ext.edits || {}; S.data.anchors = ext.anchors || {};
+      S.data.placement = Object.assign(S.data.placement, ext.placement || {});
+    }
+    root.traverse(function (o) {
+      if (o.isBone) {
+        S.bones[o.name] = o;
+        o.userData.restQ = o.quaternion.clone(); o.userData.restP = o.position.clone();
+      }
+      if (!o.isSkinnedMesh) return;
+      S.skinned.push(o); o.frustumCulled = false;
+      var m = o.material, col = m.color ? m.color.clone() : new THREE.Color(0x888888);
+      var hasMorph = !!(o.morphTargetDictionary && Object.keys(o.morphTargetDictionary).length);
+      var toon;
+      if (hasMorph) toon = m;            /* face decals keep the loader's material (r128 drops them with a toon swap) */
+      else toon = new THREE.MeshToonMaterial({color: col, gradientMap: grad, skinning: true,
+        emissive: /blade/.test(m.name || "") ? new THREE.Color(0x223044) : new THREE.Color(0)});
+      S.origMats.push([o, m]); S.toonMats.push([o, toon]);
+      if (!hasMorph) {
+        var ink = new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide, skinning: true});
+        ink.onBeforeCompile = function (sh) {
+          sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>",
+            "transformed += normalize(objectNormal) * 0.0045;\n#include <project_vertex>");
+        };
+        var g = new THREE.BufferGeometry();
+        if (o.geometry.index) g.setIndex(o.geometry.index);
+        Object.keys(o.geometry.attributes).forEach(function (n) { g.setAttribute(n, o.geometry.attributes[n]); });
+        var out = new THREE.SkinnedMesh(g, ink); out.bind(o.skeleton, o.bindMatrix); out.frustumCulled = false;
+        out.userData.isOutline = true; o.parent.add(out); S.outlines.push(out);
+      }
+    });
+    setToon($("vToon").checked);
+    S.helper = new THREE.SkeletonHelper(root); S.helper.visible = $("vBones").checked; scene.add(S.helper);
+    /* pivots: every bone except end / tip bones */
+    S.pivots = Object.keys(S.bones).filter(function (n) {
+      return !/_End$/.test(n) && !/^WeaponTip_/.test(n) && !/Hand(Thumb|Index|Middle|Ring|Pinky)4$/.test(n);
+    });
+    /* clips: what is in the file is BAKED (base + edits): un-bake to get the base back */
+    S.mixer = new THREE.AnimationMixer(root);
+    var pref = ["idle", "run", "walk", "sprint", "attack_normal", "attack_special", "ultimate", "defend", "dodge", "hit_light", "ko"];
+    gltf.animations.forEach(function (c) {
+      S.baseClips[c.name] = S.data.edits[c.name] ? applyEdits(c, c.name, -1) : c.clone();
+      S.baseClips[c.name].name = c.name;
+    });
+    S.order = Object.keys(S.baseClips).sort(function (a, b) {
+      var ia = pref.indexOf(a), ib = pref.indexOf(b); ia = ia < 0 ? 99 : ia; ib = ib < 0 ? 99 : ib; return ia - ib || (a < b ? -1 : 1);
+    });
+    S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
+    /* anchors: file's, else the spec defaults */
+    initAnchors();
+    $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + n + '">' + n + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
+    buildPivotSelect(); buildAnchorList(); placementToUi(); applyPlacement();
+    $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
+    $("drop").hidden = true; $("fileName").textContent = name + (S.fileHandle ? "" : " (no folder access: Save downloads a copy)");
+    $("save").disabled = false; S.dirty = false; uiUndo();
+    setPlaying(false);
+    setClip(S.order.indexOf("idle") >= 0 ? "idle" : S.order[0], 0);
+    status("Opened " + name + (ext ? " (with saved edits)" : ""));
+  }
+  function initAnchors() {
+    var A = S.data.anchors;
+    Object.keys(ANCHOR_SPEC).forEach(function (id) {
+      if (A[id]) return;
+      var spec = ANCHOR_SPEC[id], bone = S.bones[spec[0]];
+      if (!bone) { if (id === "wtip" && S.bones.RightHandMiddle4) A[id] = {bone: "RightHandMiddle4", off: [0, 0, 0]};
+                   else if (id === "wtip2" && S.bones.LeftHandMiddle4) A[id] = {bone: "LeftHandMiddle4", off: [0, 0, 0]};
+                   return; }
+      var off = [0, 0, 0];
+      if (spec[1] === "mid" || spec[1] === "tail") {
+        var ch = S.bones[TAIL_CHILD[spec[0]]] || bone.children.filter(function (c) { return c.isBone; })[0];
+        if (ch) { var k = spec[1] === "mid" ? 0.5 : 1; off = [ch.position.x * k, ch.position.y * k, ch.position.z * k]; }
+      }
+      A[id] = {bone: spec[0], off: off, ground: spec[1] === "ground" || undefined};
+    });
+  }
+
+  /* ---------------------------------------------------------------- materials / view */
+  function setToon(on) {
+    (on ? S.toonMats : S.origMats).forEach(function (p) { p[0].material = p[1]; });
+    S.outlines.forEach(function (o) { o.visible = on; });
+  }
+  function applyPlacement() {
+    var p = S.data.placement;
+    place.scale.setScalar(p.scale); place.position.y = p.height; place.rotation.y = p.yaw * Math.PI / 180;
+  }
+  function placementToUi() {
+    var p = S.data.placement;
+    $("pScale").value = p.scale; $("pScaleOut").textContent = (+p.scale).toFixed(2) + "×";
+    $("pHeight").value = p.height; $("pHeightOut").textContent = (+p.height).toFixed(3) + " m";
+    $("pYaw").value = p.yaw; $("pYawOut").textContent = Math.round(p.yaw) + "°";
+  }
+
+  /* ---------------------------------------------------------------- selection + gizmo */
+  function buildPivotSelect() {
+    $("pivot").innerHTML = '<option value="">— none —</option>' + S.pivots.map(function (n) { return '<option value="' + n + '">' + n + "</option>"; }).join("");
+  }
+  function selectPivot(name) {
+    S.selAnchor = null; S.sel = name || null; $("pivot").value = name || "";
+    if (S.sel && !MOVABLE[S.sel] && S.mode === "translate") setMode("rotate");
+    $("mMove").disabled = !!S.sel && !MOVABLE[S.sel];
+    if (S.playing) setPlaying(false);
+    syncGizmo(); buildFrames(); updatePivotOut(); buildAnchorList();
+  }
+  function selectAnchor(id) {
+    S.sel = null; S.selAnchor = id || null; $("pivot").value = "";
+    $("mMove").disabled = false;
+    if (S.playing) setPlaying(false);
+    syncGizmo(); buildFrames(); updatePivotOut(); buildAnchorList();
+  }
+  function setMode(m) {
+    S.mode = m; $("mRot").setAttribute("aria-pressed", String(m === "rotate")); $("mMove").setAttribute("aria-pressed", String(m === "translate"));
+    syncGizmo();
+  }
+  function setSpace(s) {
+    S.space = s; $("sLocal").setAttribute("aria-pressed", String(s === "local")); $("sWorld").setAttribute("aria-pressed", String(s === "world"));
+    tc.setSpace(s);
+  }
+  function anchorWorld(id, out) {
+    var a = S.data.anchors[id], b = a && S.bones[a.bone]; if (!b) return false;
+    out.fromArray(a.off); b.localToWorld(out);
+    if (a.ground) { out.y = place.position.y; }
+    return true;
+  }
+  function syncGizmo() {
+    if (!S.root || S.playing) { tc.detach(); back.visible = false; return; }
+    if (S.selAnchor) {
+      var a = S.data.anchors[S.selAnchor];
+      if (!a || a.ground) { tc.detach(); back.visible = false; return; }
+      anchorWorld(S.selAnchor, anchorProxy.position); anchorProxy.quaternion.identity(); anchorProxy.updateMatrixWorld();
+      tc.setMode("translate"); tc.setSpace("world"); tc.attach(anchorProxy); back.visible = false;
+      return;
+    }
+    if (!S.sel) { tc.detach(); back.visible = false; return; }
+    var mode = MOVABLE[S.sel] ? S.mode : "rotate";
+    tc.setMode(mode); tc.setSpace(S.space); tc.attach(S.bones[S.sel]);
+    back.visible = mode === "rotate";
+  }
+
+  var dragStart = null;
+  tc.addEventListener("dragging-changed", function (e) {
+    orbit.enabled = !e.value;
+    if (e.value) { dragStart = snap(); }
+    else {
+      axisLine.visible = false;
+      if (dragStart && dragStart !== snap()) { S.undo.push(dragStart); S.redo = []; markDirty(); }
+      dragStart = null;
+      if (S.sel) { rebake(S.clip, true); }
+      buildAnchorList();
+    }
+  });
+  tc.addEventListener("objectChange", function () {
+    if (S.selAnchor) {
+      var a = S.data.anchors[S.selAnchor], b = S.bones[a.bone];
+      var p = b.worldToLocal(anchorProxy.position.clone()); a.off = [p.x, p.y, p.z];
+      return;
+    }
+    if (!S.sel) return;
+    var bone = S.bones[S.sel], f = S.frame;
+    if (tc.getMode() === "rotate") {
+      var base = baseRot(S.clip, S.sel, f, new THREE.Quaternion());
+      var d = base.clone().invert().multiply(bone.quaternion).normalize();
+      setKey(keysOf(S.clip, S.sel, "rot", true), f, {q: d.toArray()});
+    } else {
+      var bp = basePos(S.clip, S.sel, f, new THREE.Vector3());
+      var dv = bone.position.clone().sub(bp);
+      setKey(keysOf(S.clip, S.sel, "pos", true), f, {v: dv.toArray()});
+    }
+    updatePivotOut();
+  });
+  function setKey(keys, f, val) {
+    for (var i = 0; i < keys.length; i++) if (keys[i].f === f) { Object.assign(keys[i], val); return; }
+    keys.push(Object.assign({f: f}, val)); keys.sort(function (a, b) { return a.f - b.f; });
+  }
+  function hasKey(clip, bone, f) {
+    var e = (S.data.edits[clip] || {})[bone]; if (!e) return false;
+    return (e.rot || []).some(function (k) { return k.f === f; }) || (e.pos || []).some(function (k) { return k.f === f; });
+  }
+
+  /* ---------------------------------------------------------------- picking on the stage */
+  var down = null;
+  canvas.addEventListener("pointerdown", function (e) { down = {x: e.clientX, y: e.clientY, onGizmo: !!tc.axis}; });
+  canvas.addEventListener("pointerup", function (e) {
+    if (!down || down.onGizmo || !S.root) { down = null; return; }
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) { down = null; return; }
+    down = null;
+    var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 14;
+    PICKS.forEach(function (p) { var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; } });
+    if (!best) { if (!tc.axis) { selectPivot(null); } return; }
+    if (best.kind === "pivot") selectPivot(best.id); else selectAnchor(best.id);
+  });
+
+  /* ---------------------------------------------------------------- overlay (pivot dots, anchors, names) */
+  var PICKS = [], tmp = new THREE.Vector3();
+  function project(v, w, h) { tmp.copy(v).project(camera); return {x: (tmp.x + 1) / 2 * w, y: (1 - tmp.y) / 2 * h, z: tmp.z}; }
+  function drawOverlay() {
+    var dpr = renderer.getPixelRatio(), w = canvas.clientWidth, h = canvas.clientHeight;
+    if (over.width !== Math.floor(w * dpr) || over.height !== Math.floor(h * dpr)) { over.width = Math.floor(w * dpr); over.height = Math.floor(h * dpr); }
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0); octx.clearRect(0, 0, w, h); PICKS = [];
+    if (!S.root) return;
+    var showP = $("vPivots").checked, fingers = $("vFingers").checked, showA = $("vAnchors").checked, names = $("vNames").checked;
+    octx.font = "11px 'IBM Plex Mono', Consolas, monospace"; octx.textBaseline = "middle";
+    var wp = new THREE.Vector3();
+    if (showP) S.pivots.forEach(function (n) {
+      var finger = /Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n);
+      if (finger && !fingers && n !== S.sel) return;
+      S.bones[n].getWorldPosition(wp); var p = project(wp, w, h); if (p.z > 1) return;
+      var sel = n === S.sel, keyed = S.data.edits[S.clip] && S.data.edits[S.clip][n];
+      octx.beginPath(); octx.arc(p.x, p.y, sel ? 6 : (finger ? 3 : 4.5), 0, Math.PI * 2);
+      octx.fillStyle = sel ? "#ffd23a" : (keyed ? "#ffb02e" : "rgba(255,255,255,0.92)"); octx.fill();
+      octx.lineWidth = 1.5; octx.strokeStyle = "rgba(10,14,26,0.85)"; octx.stroke();
+      PICKS.push({kind: "pivot", id: n, x: p.x, y: p.y});
+      if (names || sel) label(n, p.x + 8, p.y);
+    });
+    if (showA) Object.keys(S.data.anchors).forEach(function (id) {
+      if (!anchorWorld(id, wp)) return; var p = project(wp, w, h); if (p.z > 1) return;
+      var sel = id === S.selAnchor, a = S.data.anchors[id], s = sel ? 6.5 : 4.5;
+      octx.save(); octx.translate(p.x, p.y); octx.rotate(Math.PI / 4);
+      octx.fillStyle = sel ? "#ffd23a" : (a.custom ? "#ff8a3d" : "#3de0ff"); octx.fillRect(-s / 2, -s / 2, s, s);
+      octx.lineWidth = 1.2; octx.strokeStyle = "rgba(10,14,26,0.85)"; octx.strokeRect(-s / 2, -s / 2, s, s); octx.restore();
+      PICKS.push({kind: "anchor", id: id, x: p.x, y: p.y});
+      if (names || sel) label(id, p.x + 8, p.y);
+    });
+  }
+  function label(t, x, y) {
+    var w = octx.measureText(t).width + 8;
+    octx.fillStyle = "rgba(255,255,255,0.88)"; octx.fillRect(x, y - 8, w, 16);
+    octx.fillStyle = "#141a2b"; octx.fillText(t, x + 4, y);
+  }
+
+  /* ---------------------------------------------------------------- panels */
+  function updatePivotOut() {
+    var o = $("pivotOut");
+    $("delKey").disabled = !(S.sel && hasKey(S.clip, S.sel, S.frame));
+    $("clearPivot").disabled = !(S.sel && S.data.edits[S.clip] && S.data.edits[S.clip][S.sel]);
+    if (S.selAnchor) {
+      var a = S.data.anchors[S.selAnchor];
+      o.innerHTML = "<b>" + S.selAnchor + "</b> on " + a.bone + (a.ground ? " (on the ground, fixed)" : "") +
+        '<br>offset <span class="axx">x ' + a.off[0].toFixed(3) + '</span> <span class="axy">y ' + a.off[1].toFixed(3) + '</span> <span class="axz">z ' + a.off[2].toFixed(3) + "</span> m";
+      return;
+    }
+    if (!S.sel) { o.textContent = "Click a pivot dot on the model."; return; }
+    var d = rotDelta(keysOf(S.clip, S.sel, "rot"), S.frame, new THREE.Quaternion());
+    var e = new THREE.Euler().setFromQuaternion(d, "XYZ"), D = 180 / Math.PI;
+    var s = "<b>" + S.sel + "</b> · change on f" + S.frame + ': <span class="axx">X ' + (e.x * D).toFixed(1) + '°</span> <span class="axy">Y ' +
+      (e.y * D).toFixed(1) + '°</span> <span class="axz">Z ' + (e.z * D).toFixed(1) + "°</span>";
+    if (MOVABLE[S.sel]) {
+      var v = posDelta(keysOf(S.clip, S.sel, "pos"), S.frame, new THREE.Vector3());
+      s += '<br>moved <span class="axx">x ' + v.x.toFixed(3) + '</span> <span class="axy">y ' + v.y.toFixed(3) + '</span> <span class="axz">z ' + v.z.toFixed(3) + "</span> m";
+    }
+    s += hasKey(S.clip, S.sel, S.frame) ? " · ◆ key on this frame" : "";
+    o.innerHTML = s;
+  }
+  function buildFrames() {
+    var box = $("frames"); if (!S.clip) { box.innerHTML = ""; return; }
+    var n = frameCount(S.clips[S.clip]), h = "";
+    for (var i = 0; i <= n; i++) h += "<span data-f=\"" + i + "\"></span>";
+    box.innerHTML = h; updateFrames();
+  }
+  function updateFrames() {
+    var box = $("frames"); if (!S.clip) return;
+    var n = frameCount(S.clips[S.clip]), ed = S.data.edits[S.clip] || {}, any = {}, mine = {};
+    Object.keys(ed).forEach(function (b) {
+      ["rot", "pos"].forEach(function (k) { (ed[b][k] || []).forEach(function (x) { any[x.f] = 1; if (b === S.sel) mine[x.f] = 1; }); });
+    });
+    var kids = box.children;
+    for (var i = 0; i < kids.length; i++) kids[i].className = (i === S.frame ? "cur " : "") + (mine[i] ? "key" : (any[i] ? "any" : ""));
+    $("frameOut").textContent = "f" + S.frame + " / " + n;
+    box.setAttribute("aria-valuenow", S.frame); box.setAttribute("aria-valuemax", n);
+  }
+  function buildAnchorList() {
+    var L = $("anchorList"); if (!S.root) { L.innerHTML = ""; return; }
+    L.innerHTML = "";
+    Object.keys(S.data.anchors).forEach(function (id) {
+      var a = S.data.anchors[id], b = document.createElement("button"); b.type = "button";
+      b.setAttribute("aria-pressed", String(id === S.selAnchor));
+      b.innerHTML = "<span>" + id + "</span><small>" + a.bone + (a.custom ? " · added" : "") + "</small>";
+      b.onclick = function () { selectAnchor(id); };
+      L.appendChild(b);
+    });
+    var sa = S.selAnchor && S.data.anchors[S.selAnchor];
+    $("resetAnchor").disabled = !sa || !!sa.custom || !!sa.ground;
+    $("delAnchor").disabled = !sa || !sa.custom;
+    $("addAnchor").disabled = !S.sel;
+    updatePivotOut();
+  }
+
+  /* ---------------------------------------------------------------- save into the .glb */
+  function bakedClips() { return S.order.map(function (n) { var c = applyEdits(S.baseClips[n], n, 1); c.name = n; return c; }); }
+  function exportGlb(done) {
+    var root = S.root, clips = bakedClips();
+    var wasPlaying = S.playing; setPlaying(false); tc.detach(); back.visible = false;
+    S.origMats.forEach(function (p) { p[0].material = p[1]; });
+    var outl = S.outlines.map(function (o) { var p = o.parent; p.remove(o); return [o, p]; });
+    var infl = S.skinned.map(function (m) { var v = m.morphTargetInfluences ? m.morphTargetInfluences.slice() : null; if (v) m.morphTargetInfluences.fill(0); return v; });
+    S.mixer.stopAllAction();
+    S.skinned.forEach(function (m) { m.skeleton.pose(); });
+    Object.keys(S.bones).forEach(function (n) { var b = S.bones[n]; b.quaternion.copy(b.userData.restQ); b.position.copy(b.userData.restP); });
+    var ex = new THREE.Scene(); ex.name = "Scene";
+    ex.userData = {pb_rig3d: JSON.parse(snap())};
+    var kids = root.children.slice(); kids.forEach(function (k) { ex.add(k); });
+    function restore() {
+      kids.forEach(function (k) { root.add(k); });
+      outl.forEach(function (x) { x[1].add(x[0]); });
+      S.skinned.forEach(function (m, i) { if (infl[i]) for (var j = 0; j < infl[i].length; j++) m.morphTargetInfluences[j] = infl[i][j]; });
+      setToon($("vToon").checked);
+      setClip(S.clip, S.frame); if (wasPlaying) setPlaying(true);
+    }
+    try {
+      new THREE.GLTFExporter().parse(ex, function (result) { restore(); done(result); },
+        {binary: true, animations: clips, onlyVisible: false, truncateDrawRange: false});
+    } catch (err) { restore(); status("Save failed: " + err.message, true); }
+  }
+  function save() {
+    if (!S.root) return;
+    status("Saving…");
+    exportGlb(function (buf) {
+      var blob = new Blob([buf], {type: "model/gltf-binary"}), kb = Math.round(buf.byteLength / 1024);
+      if (S.fileHandle && S.fileHandle.createWritable) {
+        S.fileHandle.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); })
+          .then(function () { S.dirty = false; status("Saved into " + S.fileName + " (" + kb + " KB)"); })
+          .catch(function (e) { status("Could not write " + S.fileName + ": " + e.message, true); });
+        return;
+      }
+      if (inFrame()) { status("This preview can't save files. Use the local tool (Rig Forge 3D.bat) to save into the .glb.", true); return; }
+      try {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = S.fileName || "character.glb";
+        document.body.appendChild(a); a.click(); a.remove();
+        status("Downloaded " + a.download + " (" + kb + " KB). Move it into the character's folder.");
+      } catch (e) { status("Saving needs the local tool (Rig Forge 3D.bat).", true); }
+    });
+  }
+
+  /* ---------------------------------------------------------------- open */
+  function inFrame() { try { return window.self !== window.top; } catch (e) { return true; } }
+  $("open").onclick = function () {
+    if (S.dirty && !window.confirm("Discard unsaved changes?")) return;
+    if (window.showOpenFilePicker && !inFrame()) {
+      window.showOpenFilePicker({id: "pbglb", types: [{description: "glTF binary", accept: {"model/gltf-binary": [".glb"]}}]})
+        .then(function (hs) {
+          var h = hs[0];
+          return (h.requestPermission ? h.requestPermission({mode: "readwrite"}) : Promise.resolve("granted"))
+            .then(function () { return h.getFile(); })
+            .then(function (f) { return f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, h); }); });
+        }).catch(function (e) { if (e && e.name !== "AbortError") status("Could not open: " + e.message, true); });
+    } else $("fileInput").click();
+  };
+  $("fileInput").onchange = function () {
+    var f = this.files[0]; if (!f) return;
+    f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, null); }); this.value = "";
+  };
+  var stage = $("stage");
+  stage.addEventListener("dragover", function (e) { e.preventDefault(); });
+  stage.addEventListener("drop", function (e) {
+    e.preventDefault();
+    var it = e.dataTransfer.items && e.dataTransfer.items[0];
+    if (it && it.getAsFileSystemHandle && !inFrame()) {
+      it.getAsFileSystemHandle().then(function (h) {
+        return h.getFile().then(function (f) { return f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, h); }); });
+      }).catch(function () {});
+      return;
+    }
+    var f = e.dataTransfer.files[0]; if (f) f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, null); });
+  });
+  $("save").onclick = save;
+
+  /* ---------------------------------------------------------------- controls */
+  $("clip").onchange = function () { setClip(this.value, 0); };   /* the selected pivot stays selected */
+  $("play").onclick = function () { setPlaying(!S.playing); };
+  $("speed").oninput = function () { S.speed = +this.value; $("speedOut").textContent = S.speed.toFixed(2) + "×"; };
+  $("prevF").onclick = function () { setPlaying(false); setFrame(S.frame - 1); };
+  $("nextF").onclick = function () { setPlaying(false); setFrame(S.frame + 1); };
+  function keyFrames() {
+    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e) return [];
+    var s = {}; (e.rot || []).concat(e.pos || []).forEach(function (k) { s[k.f] = 1; });
+    return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  }
+  $("prevKey").onclick = function () { var k = keyFrames().filter(function (f) { return f < S.frame; }); if (k.length) { setPlaying(false); setFrame(k[k.length - 1]); } };
+  $("nextKey").onclick = function () { var k = keyFrames().filter(function (f) { return f > S.frame; }); if (k.length) { setPlaying(false); setFrame(k[0]); } };
+  var fr = $("frames"), scrubbing = false;
+  function frameFromEvent(e) { var r = fr.getBoundingClientRect(), n = frameCount(S.clips[S.clip]); return Math.round((e.clientX - r.left) / r.width * (n + 1) - 0.5); }
+  fr.addEventListener("pointerdown", function (e) { if (!S.clip) return; scrubbing = true; fr.setPointerCapture(e.pointerId); setPlaying(false); setFrame(frameFromEvent(e)); });
+  fr.addEventListener("pointermove", function (e) { if (scrubbing) setFrame(frameFromEvent(e)); });
+  fr.addEventListener("pointerup", function () { scrubbing = false; });
+  fr.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { setPlaying(false); setFrame(S.frame - 1); e.preventDefault(); }
+    if (e.key === "ArrowRight") { setPlaying(false); setFrame(S.frame + 1); e.preventDefault(); }
+  });
+  $("pivot").onchange = function () { selectPivot(this.value); };
+  $("mRot").onclick = function () { setMode("rotate"); };
+  $("mMove").onclick = function () { if (S.sel && MOVABLE[S.sel]) setMode("translate"); };
+  $("sLocal").onclick = function () { setSpace("local"); };
+  $("sWorld").onclick = function () { setSpace("world"); };
+  var spreadStart = null;
+  $("spread").addEventListener("pointerdown", function () { spreadStart = snap(); });
+  $("spread").oninput = function () {
+    if (spreadStart === null) spreadStart = snap();
+    S.data.fade = +this.value; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
+  };
+  $("spread").onchange = function () {
+    if (spreadStart !== null && spreadStart !== snap()) { S.undo.push(spreadStart); S.redo = []; markDirty(); }
+    spreadStart = null; S.order.forEach(function (n) { rebake(n, true); });
+  };
+  $("delKey").onclick = function () {
+    if (!S.sel) return; pushUndo();
+    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e) return;
+    ["rot", "pos"].forEach(function (k) { if (e[k]) e[k] = e[k].filter(function (x) { return x.f !== S.frame; }); });
+    rebake(S.clip, true); updatePivotOut();
+  };
+  $("clearPivot").onclick = function () {
+    if (!S.sel || !S.data.edits[S.clip]) return; pushUndo();
+    delete S.data.edits[S.clip][S.sel]; rebake(S.clip, true); updatePivotOut();
+  };
+  $("addAnchor").onclick = function () {
+    if (!S.sel) { status("Select a pivot to put the anchor on.", true); return; }
+    var id = $("newName").value.trim().replace(/[^A-Za-z0-9_]/g, "");
+    if (!id) { status("Type an anchor id (letters, digits, _).", true); return; }
+    if (S.data.anchors[id]) { status("There is already an anchor called " + id + ".", true); return; }
+    pushUndo(); S.data.anchors[id] = {bone: S.sel, off: [0, 0, 0], custom: true};
+    $("newName").value = ""; selectAnchor(id); status("Added anchor " + id + " on " + S.data.anchors[id].bone + ". Drag its arrows to place it.");
+  };
+  $("resetAnchor").onclick = function () {
+    var id = S.selAnchor; if (!id || !ANCHOR_SPEC[id]) return; pushUndo();
+    delete S.data.anchors[id]; initAnchors(); selectAnchor(id);
+  };
+  $("delAnchor").onclick = function () {
+    var id = S.selAnchor; if (!id || !S.data.anchors[id] || !S.data.anchors[id].custom) return; pushUndo();
+    delete S.data.anchors[id]; selectAnchor(null);
+  };
+  ["pScale", "pHeight", "pYaw"].forEach(function (id) {
+    var el = $(id), start = null;
+    el.addEventListener("pointerdown", function () { start = snap(); });
+    el.oninput = function () {
+      if (start === null) start = snap();
+      var p = S.data.placement;
+      if (id === "pScale") p.scale = +el.value; if (id === "pHeight") p.height = +el.value; if (id === "pYaw") p.yaw = +el.value;
+      placementToUi(); applyPlacement(); syncGizmo();
+    };
+    el.onchange = function () { if (start !== null && start !== snap()) { S.undo.push(start); S.redo = []; markDirty(); } start = null; };
+  });
+  $("vToon").onchange = function () { setToon(this.checked); };
+  $("vBones").onchange = function () { if (S.helper) S.helper.visible = this.checked; };
+  function restoreData(json) {
+    S.data = JSON.parse(json);
+    S.order.forEach(function (n) { rebake(n, true); });
+    placementToUi(); applyPlacement();
+    $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
+    if (S.selAnchor && !S.data.anchors[S.selAnchor]) S.selAnchor = null;
+    buildAnchorList(); buildFrames(); syncGizmo(); updatePivotOut();
+  }
+  function undo() { if (!S.undo.length) return; S.redo.push(snap()); restoreData(S.undo.pop()); markDirty(); }
+  function redo() { if (!S.redo.length) return; S.undo.push(snap()); restoreData(S.redo.pop()); markDirty(); }
+  $("undo").onclick = undo; $("redo").onclick = redo;
+  window.addEventListener("keydown", function (e) {
+    if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== "range" && e.target.type !== "checkbox") return;
+    var k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "s") { e.preventDefault(); save(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (k === "r") setMode("rotate");
+    else if (k === "t") { if (S.selAnchor || (S.sel && MOVABLE[S.sel])) setMode("translate"); }
+    else if (k === "l") setSpace(S.space === "local" ? "world" : "local");
+    else if (k === " ") { e.preventDefault(); setPlaying(!S.playing); }
+    else if (k === ",") { setPlaying(false); setFrame(S.frame - 1); }
+    else if (k === ".") { setPlaying(false); setFrame(S.frame + 1); }
+    else if (k === "escape") selectPivot(null);
+  });
+  window.addEventListener("beforeunload", function (e) { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* ---------------------------------------------------------------- loop */
+  var clock = new THREE.Clock(), wq = new THREE.Quaternion(), wp2 = new THREE.Vector3(), AX = {X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1]};
+  function resize() {
+    var w = canvas.clientWidth, h = canvas.clientHeight, pr = renderer.getPixelRatio();
+    if (canvas.width !== Math.floor(w * pr) || canvas.height !== Math.floor(h * pr)) {
+      renderer.setSize(w, h, false); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+    }
+  }
+  (function loop() {
+    requestAnimationFrame(loop);
+    resize();
+    var dt = Math.min(clock.getDelta(), 0.05);
+    if (S.mixer && S.playing) {
+      S.mixer.update(dt * S.speed);
+      var f = Math.round(S.action.time * FPS);
+      if (f !== S.frame) { S.frame = f; updateFrames(); }
+    }
+    orbit.update();
+    var obj = tc.object;
+    if (obj && back.visible) {
+      obj.getWorldPosition(wp2);
+      var factor = wp2.distanceTo(camera.position) * Math.min(1.9 * Math.tan(Math.PI * camera.fov / 360) / camera.zoom, 7);
+      back.position.copy(wp2); back.quaternion.copy(camera.quaternion); back.scale.setScalar(factor * tc.size / 7);
+    }
+    if (obj && tc.dragging && tc.getMode() === "rotate" && AX[tc.axis]) {
+      obj.getWorldPosition(wp2);
+      var dir = new THREE.Vector3().fromArray(AX[tc.axis]);
+      if (tc.space === "local") { obj.getWorldQuaternion(wq); dir.applyQuaternion(wq); }
+      axisLine.position.copy(wp2); axisLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
+      axisLine.scale.setScalar(wp2.distanceTo(camera.position) * 0.6); axisLine.visible = true;
+    } else axisLine.visible = false;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    var hud = $("hud");
+    if (S.root) hud.innerHTML = "<b>" + S.clip + "</b> · f" + S.frame + " · " + (S.sel ? "pivot <b>" + S.sel + "</b>" : (S.selAnchor ? "anchor <b>" + S.selAnchor + "</b>" : "nothing selected")) + (S.dirty ? " · unsaved" : "");
+    else hud.textContent = "";
+    renderer.render(scene, camera);
+    drawOverlay();
+  })();
+
+  /* embedded model (for the published preview page) */
+  if (window.PB_EMBED_GLB) {
+    var bin = atob(window.PB_EMBED_GLB), buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    loadArrayBuffer(buf.buffer, window.PB_EMBED_NAME || "character.glb", null);
+  }
+  window.__rf3d = S; window.__rf3dView = {camera: camera, orbit: orbit};
+})();
+</script>
+</body>
+</html>
