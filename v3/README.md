@@ -104,7 +104,9 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   press right on another dot. Hips also have move arrows (**Move**, `T`). Each change sets a key on that frame;
   frames in between blend, and **Blend out** sets how far a key fades before the first / after the last key
   (all the way right = the whole clip). **Local / World** (`L`) picks the axes of the rings AND the arrows
-  (anchors too); the readout / HUD / status name the axes in use and say when a bone's own axes line up with
+  (anchors too): **World** = the scene's fixed X / Y / Z wheels whichever way the camera faces, **Local** = the
+  selected bone's own axes as posed. The wheels are full circles (three's half circles spun to face the camera).
+  `v3/lib/TransformControls.js` had the gizmo's space test inverted (it always drew Local); fixed there; the readout / HUD / status name the axes in use and say when a bone's own axes line up with
   World (then the switch looks the same).
 - **Keys** (Daniel 2026-11-22). **◆ Key** (`K`) keys the selected pivot's pose as shown on this frame (also an
   untouched pivot = hold it); **Key whole pose** (`Shift+K`) keys every pivot with keys in the clip. **Delete key**
