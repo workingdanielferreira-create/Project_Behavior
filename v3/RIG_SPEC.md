@@ -219,5 +219,6 @@ skeleton, the UE-mannequin set (`root`, `pelvis`, `spine_01`, `upperarm_l` ...).
 
 `v3/tools/retarget2d.py` builds `characters/<name>/<name>.glb` from the section 8 body plus one clip per 2D action,
 posed from `character.json`'s per-frame joint anchors with depth inferred from bone lengths (details in
-`v3/README.md`, "Animations from the 2D moves"). Done for `puck` (13 clips, no weapon) and `ronin_copy` (12 clips,
-katana). Same skeleton, so Rig Forge 3D opens and edits them like any other body.
+`v3/README.md`, "Animations from the 2D moves"). Done for `puck` (13 clips, no weapon), `ronin_copy` (12 clips,
+katana), `hooded_blades` (14 clips, two blades: adds `Weapon_L` / `WeaponTip_L` + a `blade_L` mesh) and `Sueko`
+(10 clips, no weapon). Same skeleton, so Rig Forge 3D opens and edits them like any other body.

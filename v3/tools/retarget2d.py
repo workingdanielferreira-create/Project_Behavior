@@ -1,6 +1,6 @@
 """2D joint tracks -> 3D clips on the V3 test body (v3/RIG_SPEC.md rig), no Blender needed.
 
-    python v3/tools/retarget2d.py puck ronin_copy        (default: both)
+    python v3/tools/retarget2d.py puck ronin_copy hooded_blades Sueko   (default: all four)
 
 Reads characters/<name>/character.json: every action's frames, frame_ms and per-frame joint anchors
 (hip, chest, neck, head, shL/shR, elL/elR, haL/haR, hpL/hpR, knL/knR, ftL/ftR, wtip; image px, the
@@ -16,7 +16,9 @@ How a 2D pose becomes 3D (Daniel 2026-11-22: "infer depth"):
 - Pelvis and chest turn (yaw) from how far apart the 2D hip / shoulder points are; spine, neck and head
   lean along the 2D hip -> chest -> neck -> head line.
 - A weapon hand turns so the blade (Weapon_R -> WeaponTip_R) points at the 2D weapon tip (wtip).
-  Characters without a weapon (wtip on the hand) get the blade mesh removed.
+  Characters without a weapon (wtip on the hand) get the blade mesh removed. A blade in the far hand too
+  (wtip2 off the hand, e.g. hooded_blades) adds Weapon_L / WeaponTip_L (Weapon_R mirrored) + a blade_L mesh,
+  aimed at wtip2 the same way (Daniel 2026-11-22).
 - Feet stay flat (turned with the pelvis) on the ground and follow the shin when lifted.
 - Hips height follows the 2D hip point above the ground line, scaled by leg length; forward, the hips keep
   their 2D spot over the feet (relative to idle), so clips stay in place (RIG_SPEC 4) and the sim does the travel.
@@ -290,6 +292,8 @@ class Source:
         self.shW = float(max(lengths("shL", "shR").max(), 1e-3)) * 1.15
         self.has_weapon = float(lengths("haR", "wtip").max()) > 4
         self.bladeL = float(lengths("haR", "wtip").max()) if self.has_weapon else 1.0
+        self.has_weapon2 = all("wtip2" in J for J in A.values()) and float(lengths("haL", "wtip2").max()) > 4   # a blade in the far hand too
+        self.blade2L = float(lengths("haL", "wtip2").max()) if self.has_weapon2 else 1.0
         idle = A.get("idle") or next(iter(A.values()))
         self.ground = max(max(idle["ftL"][f][1], idle["ftR"][f][1]) for f in range(len(idle["ftL"])))
         self.hip_over_feet = idle["hip"][0][0] - (idle["ftL"][0][0] + idle["ftR"][0][0]) / 2
@@ -402,21 +406,94 @@ def solve_frame(rig, src, act, f, base_local):
     air2d = max(0.0, src.ground - max(P2("ftL")[1], P2("ftR")[1])) * k
     low = lowest_point(rig, Pd)
     hips_T = hips_T + Wd[hp].T @ np.array([0.0, rig.rest_low + air2d - low, 0.0])
-    # weapon hand: the blade points at the 2D weapon tip
-    if src.has_weapon:
+    # weapon hands: each blade points at its 2D weapon tip (near blade outward to the viewer, far one away)
+    for on, hand, wb, tip, h2, w2, blen, side in (
+            (src.has_weapon, "RightHand", "Weapon_R", "WeaponTip_R", "haR", "wtip", src.bladeL, 1.0),
+            (src.has_weapon2, "LeftHand", "Weapon_L", "WeaponTip_L", "haL", "wtip2", src.blade2L, -1.0)):
+        if not on or wb not in rig.idx:
+            continue
         Wd, Pd = fk_t()
-        ih, iw, it = rig.i("RightHand"), rig.i("Weapon_R"), rig.i("WeaponTip_R")
+        ih, iw, it = rig.i(hand), rig.i(wb), rig.i(tip)
         blade_local = rig.R[iw] @ unit(rig.T[it])
-        d, _ = v3d(P2("wtip") - P2("haR"), src.bladeL, 1.0)
+        d, _ = v3d(P2(w2) - P2(h2), blen, side)
         a = Wd[ih] @ blade_local
-        set_world("RightHand", rot_between(a, d) @ Wd[ih])
+        set_world(hand, rot_between(a, d) @ Wd[ih])
     return local, hips_T
+
+
+def _append(j, b, arr, comp, typ, target=None):
+    """Append an accessor (own bufferView) to an in-memory glb; returns (new bin, accessor index)."""
+    b = bytearray(b)
+    while len(b) % 4:
+        b.append(0)
+    data = np.ascontiguousarray(arr).tobytes()
+    v = {"buffer": 0, "byteOffset": len(b), "byteLength": len(data)}
+    if target:
+        v["target"] = target
+    j["bufferViews"].append(v)
+    b += data
+    a = {"bufferView": len(j["bufferViews"]) - 1, "componentType": comp, "count": int(arr.shape[0]), "type": typ}
+    if typ == "VEC3" and comp == 5126:
+        a["min"] = [float(x) for x in arr.min(0)]
+        a["max"] = [float(x) for x in arr.max(0)]
+    j["accessors"].append(a)
+    return bytes(b), len(j["accessors"]) - 1
+
+
+def add_left_blade(j, b):
+    """Weapon_L + WeaponTip_L on the left hand (Weapon_R mirrored across the body's middle) and a copy of the
+    blade mesh skinned to it (named blade_L, so V3 tints / hides it like the right blade)."""
+    rig = Rig(j, b)
+    N = j["nodes"]
+    iwr, itr, ilh = rig.i("Weapon_R"), rig.i("WeaponTip_R"), rig.i("LeftHand")
+    mir_t = lambda t: [-t[0], t[1], t[2]]
+    mir_q = lambda q: [q[0], -q[1], -q[2], q[3]]
+    wr, tr = N[iwr], N[itr]
+    iwl, itl = len(N), len(N) + 1
+    N.append({"name": "Weapon_L", "translation": mir_t(wr.get("translation", [0, 0, 0])),
+              "rotation": mir_q(wr.get("rotation", [0, 0, 0, 1])), "children": [itl]})
+    N.append({"name": "WeaponTip_L", "translation": mir_t(tr.get("translation", [0, 0, 0])),
+              "rotation": mir_q(tr.get("rotation", [0, 0, 0, 1]))})
+    N[ilh].setdefault("children", []).append(iwl)
+    rig = Rig(j, b)
+    W4 = lambda i: np.block([[rig.restW[i], rig.restP[i].reshape(3, 1)], [np.zeros((1, 3)), np.ones((1, 1))]])
+    move = W4(iwl) @ np.linalg.inv(W4(iwr))
+    skin = j["skins"][0]
+    skin["joints"] += [iwl, itl]
+    jl = len(skin["joints"]) - 2
+    ibm = acc_array(j, b, skin["inverseBindMatrices"]).astype(np.float32)
+    extra = np.array([np.linalg.inv(W4(i)).T.reshape(16) for i in (iwl, itl)], np.float32)   # glTF MAT4 = column-major
+    b, skin["inverseBindMatrices"] = _append(j, b, np.vstack([ibm, extra]), 5126, "MAT4")
+    src_mesh = next(m for m in j["meshes"] if m.get("name") == "blade")
+    prim = src_mesh["primitives"][0]
+    pos = acc_array(j, b, prim["attributes"]["POSITION"]).astype(float)
+    nrm = acc_array(j, b, prim["attributes"]["NORMAL"]).astype(float)
+    pos = (move[:3, :3] @ pos.T).T + move[:3, 3]
+    nrm = (move[:3, :3] @ nrm.T).T
+    n = pos.shape[0]
+    b, ap = _append(j, b, pos.astype(np.float32), 5126, "VEC3", 34962)
+    b, an = _append(j, b, nrm.astype(np.float32), 5126, "VEC3", 34962)
+    joints = np.zeros((n, 4), np.uint16)
+    joints[:, 0] = jl
+    b, aj = _append(j, b, joints, 5123, "VEC4", 34962)
+    wts = np.zeros((n, 4), np.float32)
+    wts[:, 0] = 1
+    b, aw = _append(j, b, wts, 5126, "VEC4", 34962)
+    j["meshes"].append({"name": "blade_L", "primitives": [{"attributes": {"POSITION": ap, "NORMAL": an, "JOINTS_0": aj,
+                                                                        "WEIGHTS_0": aw}, "indices": prim["indices"], "material": prim.get("material", 0)}]})
+    blade_node = next(nd for nd in N if nd.get("name") == "blade")
+    N.append({"name": "blade_L", "mesh": len(j["meshes"]) - 1, "skin": blade_node.get("skin", 0)})
+    armature = next(i for i, nd in enumerate(N) if blade_node is not nd and N.index(blade_node) in nd.get("children", []))
+    N[armature]["children"].append(len(N) - 1)
+    return j, b
 
 
 def build(name):
     j, b = read_glb(BODY)
-    rig = Rig(j, b)
     src = Source(name)
+    if src.has_weapon2:
+        j, b = add_left_blade(j, b)
+    rig = Rig(j, b)
     base_local = grip_pose(rig)
     acts = src.d["actions"]
     clips = {}
@@ -438,7 +515,7 @@ def build(name):
 def write(name, j, b, rig, src, clips):
     out = json.loads(json.dumps(j))
     w = Writer()
-    drop_blade = not src.has_weapon
+    drop_blade = not src.has_weapon      # (blade_L only exists when the far hand holds one)
     # meshes / skins kept (the blade mesh goes for characters without a weapon)
     mesh_map, meshes = {}, []
     for mi, m in enumerate(j["meshes"]):
@@ -510,12 +587,12 @@ def write(name, j, b, rig, src, clips):
     os.replace(path + ".tmp", path)
     own = sorted(clips)
     print("%s: %s (%d KB) - own clips: %s; weapon: %s" % (name, os.path.relpath(path, ROOT), total // 1024,
-                                                          ", ".join(own), "yes" if src.has_weapon else "no (blade removed)"))
+                                                          ", ".join(own), ("two blades" if src.has_weapon2 else "yes") if src.has_weapon else "no (blade removed)"))
     return path
 
 
 def main(argv):
-    names = argv or ["puck", "ronin_copy"]
+    names = argv or ["puck", "ronin_copy", "hooded_blades", "Sueko"]
     for n in names:
         write(n, *build(n))
     return 0

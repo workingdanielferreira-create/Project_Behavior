@@ -79,6 +79,8 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   ronin_copy body; `build_ronin3d.py` can still rebuild that). V3 now puts a kit's own .glb on it
   (`build_kits.py` packs `PB3_BODIES`, `glbody.js` picks per kit and plays an action's own clip by its 2D name).
 - Daniel's choices: ual_swordsman body, ronin_copy as the Ronin source, inferred depth, wired into V3.
+- Then Hooded Blades + Sueko the same way (`hooded_blades.glb`, `Sueko.glb`). Hooded Blades' far-hand blade
+  (wtip2): Daniel chose to add a left blade (`Weapon_L` / `WeaponTip_L` + `blade_L` mesh, only in its own .glb).
 - Not done yet: Puck's hair lines (xl1..4) and 2D stretch / smear (bone scale) have no 3D counterpart.
 
 ## Next steps (agreed direction, not started)
