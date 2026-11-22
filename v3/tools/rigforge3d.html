@@ -244,6 +244,17 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <p class="note">Settings of the tween from this key pose to the next. <b>In-betweens</b>: how many in-between poses it shows on the way (0 = every frame, smooth; 1-3 = choppy anime timing, the pose jumps). <b>Hold</b>: frames the key pose stays still before it moves. <b>Apply to</b> copies this key pose's tween to a range of key poses (numbers as on the cards).</p>
     </section>
 
+    <section aria-labelledby="h-lib">
+      <h2 id="h-lib">Pose + move library</h2>
+      <div class="row"><select id="libCat" class="grow" aria-label="Category"></select><input type="text" id="libQ" class="grow" placeholder="search…" aria-label="Search the library"></div>
+      <div class="acts" id="libList" role="listbox" aria-label="Library"></div>
+      <div class="row"><button id="libApply" class="primary" disabled>Apply</button><button id="libApplyM" disabled>Apply mirrored</button></div>
+      <label class="check"><input type="checkbox" id="libKeepLen" checked> A move keeps this action's length (off: the action takes the move's length)</label>
+      <div class="row"><button id="libSavePose">+ Save pose</button><button id="libSaveMove">+ Save action as move</button><button id="libDel" class="danger" disabled>Delete</button></div>
+      <div class="row"><button id="libExport">Export…</button><button id="libImport">Import…</button><input type="file" id="libFile" accept=".json,application/json" hidden></div>
+      <p class="note">◆ pose = the whole pose on one frame (applied as a key pose on the current frame). ▶ move = a whole action's key poses with their tweens (applied to the current action, replacing its key poses). <b>Body moves</b> = the shared body's own clips (hit reactions, dodges, sword attacks …). Saved on this computer for every character (bone names), Export / Import moves it between computers.</p>
+    </section>
+
     <section aria-labelledby="h-ref">
       <h2 id="h-ref">Reference images</h2>
       <label class="check"><input type="checkbox" id="refShow" checked> Show reference images</label>
@@ -606,9 +617,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   /* file key clip -> still rest base (every frame) + this clip's keys in S.data.edits (leaving ease = the file's
      ease INTO the next key) */
-  function keyClipIn(c, inf) {
+  function keyClipIn(c, inf, into) {
     var n = frameCount(c), times = [], i; for (i = 0; i <= n; i++) times.push(i / FPS);
-    var ed = S.data.edits[c.name] = {}, tracks = [];
+    var ed = S.data.edits[into || c.name] = {}, tracks = [];
     c.tracks.forEach(function (tr) {
       var dot = tr.name.lastIndexOf("."), bn = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1), b = S.bones[bn];
       if (!b || (prop !== "quaternion" && prop !== "position")) { tracks.push(tr.clone()); return; }
@@ -884,7 +895,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function bodyFromBuf(buf, name, done) {
     BODY.buf = buf; BODY.name = name;
-    new THREE.GLTFLoader().parse(buf.slice(0), "", function (g) { g.name = name; done(g); },
+    new THREE.GLTFLoader().parse(buf.slice(0), "", function (g) {
+      g.name = name; BODY.stock = {anims: g.animations, pk: (g.scene.userData && g.scene.userData.pb_keys) || {}}; done(g); },
       function (err) { status("Could not read the body " + name + ": " + (err && err.message || err), true); });
   }
   function askBody(done) {
@@ -1007,6 +1019,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
        own keys on every bone, over a still rest pose, so editing a key pose IS editing the clip and the tweening
        fills the frames in between. Saved back as key poses only. */
     var PK = gltf.pbKeys !== undefined ? gltf.pbKeys : (gltf.scene.userData && gltf.scene.userData.pb_keys) || {};
+    if (!gltf.slim) BODY.stock = {anims: gltf.animations, pk: PK};          /* a full body file: its own clips are the stock moves */
     S.keyMode = {};
     gltf.animations.forEach(function (c) {
       if (PK[c.name] && !(ext && ext.edits && ext.edits[c.name])) {
@@ -1024,7 +1037,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     syncStructure();
     S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
     $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
-    loadCharFiles(name); refLoadAll(name);
+    loadCharFiles(name); refLoadAll(name); if (typeof libBuild === "function") libBuild();
     S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
@@ -3153,6 +3166,161 @@ details.adv[open] > summary { margin-bottom: 6px; }
     camera.position.copy(place.localToWorld(new THREE.Vector3(-4.6, 0.95, 0))); camera.lookAt(t); orbit.update();
     status("Side view (the fighter faces right, like the 2D drawings).");
   };
+
+  /* ---------------------------------------------------------------- pose + move library (original Rig Forge's pose / move library)
+     items: {kind: "pose" | "move", name, cat, ...}. pose: {items {bone: {q, v?}}} = the pose as shown (local values);
+     move: {ms, keys {bone: {rot: [{t 0..1, q (local, absolute), e, st, h}], pos: [{t, v, ...}]}}}. Stored in IndexedDB
+     ("lib"), shared by every character (bone names). Body moves = the shared body's own clips, converted when used. */
+  var LIB = {items: [], sel: null, loaded: false};
+  function libLoad() {
+    chDb("readonly", function (st) { return st.get("lib"); }).then(function (v) { LIB.items = (v && v.items) || []; LIB.loaded = true; libBuild(); })
+      .catch(function () { LIB.loaded = true; libBuild(); });
+  }
+  function libSave() { var v = {items: LIB.items}; chDb("readwrite", function (st) { return st.put(v, "lib"); }).catch(function () {}); }
+  function stockItems() {
+    var st = BODY.stock; if (!st) return [];
+    return st.anims.map(function (c) { return {kind: "move", name: c.name, cat: "Body moves", stock: true, ms: Math.round(c.duration * 1000)}; });
+  }
+  function libAll() { return LIB.items.concat(stockItems()); }
+  function libBuild() {
+    var cats = {}; libAll().forEach(function (it) { cats[it.cat] = 1; });
+    var sel = $("libCat"), cur = sel.value;
+    sel.innerHTML = '<option value="">All categories</option>' + Object.keys(cats).sort().map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + "</option>"; }).join("");
+    sel.value = cats[cur] ? cur : "";
+    var q = $("libQ").value.trim().toLowerCase(), list = libAll().filter(function (it) {
+      return (!sel.value || it.cat === sel.value) && (!q || (it.name + " " + it.cat).toLowerCase().indexOf(q) >= 0);
+    });
+    $("libList").innerHTML = list.length ? list.map(function (it, i) {
+      var id = libId(it);
+      return '<div role="option" tabindex="-1" data-id="' + esc(id) + '" aria-selected="' + (LIB.sel === id) + '"><span>' + (it.kind === "pose" ? "◆ " : "▶ ") + esc(it.name) +
+        '</span><span class="ms">' + esc(it.cat) + (it.kind === "move" ? " · " + (it.ms / 1000).toFixed(2) + " s" : "") + "</span></div>";
+    }).join("") : '<div class="note" style="padding:6px 8px">Nothing here yet: + Save pose / + Save action as move' + (BODY.stock ? "" : " (Body moves show once the shared body is loaded)") + ".</div>";
+    Array.prototype.forEach.call($("libList").querySelectorAll("[role=option]"), function (r) {
+      r.onclick = function () { LIB.sel = r.dataset.id; libBuild(); };
+      r.ondblclick = function () { LIB.sel = r.dataset.id; libApply(false); };
+    });
+    var it = libFind(LIB.sel);
+    $("libApply").disabled = $("libApplyM").disabled = !(it && S.root);
+    $("libDel").disabled = !(it && !it.stock);
+  }
+  function libId(it) { return (it.stock ? "s:" : "u:") + it.kind + ":" + it.name + "|" + it.cat; }
+  function libFind(id) { var r = null; if (!id) return r; libAll().forEach(function (it) { if (libId(it) === id) r = it; }); return r; }
+  function askName(what, def, cat) {
+    var nm = window.prompt(what + " name:", def); if (nm == null || !nm.trim()) return null;
+    var c = window.prompt("Category:", cat); if (c == null) return null;
+    return {name: nm.trim(), cat: c.trim() || cat};
+  }
+  function libPut(it) {
+    LIB.items = LIB.items.filter(function (x) { return !(x.name === it.name && x.cat === it.cat && x.kind === it.kind); });
+    LIB.items.push(it); libSave(); LIB.sel = libId(it); libBuild();
+  }
+  $("libSavePose").onclick = function () {
+    if (!S.root) return;
+    setPlaying(false); setFrame(S.frame);
+    var nm = askName("Pose", S.clip + " f" + S.frame, "My poses"); if (!nm) return;
+    var items = {};
+    S.pivots.forEach(function (n) { var b = S.bones[n]; if (!b) return; items[n] = {q: b.quaternion.toArray()}; if (movable(n)) items[n].v = b.position.toArray(); });
+    libPut({kind: "pose", name: nm.name, cat: nm.cat, items: items});
+    status("Saved the pose “" + nm.name + "” to the library.");
+  };
+  /* the current action as a move (absolute local values, times 0..1) */
+  function moveOf(clip) {
+    var ed = S.data.edits[clip] || {}, N = Math.max(1, frameCount(S.clips[clip])), keys = {};
+    Object.keys(ed).forEach(function (bn) {
+      if (!S.bones[bn]) return; var o = {};
+      (ed[bn].rot || []).forEach(function (k) {
+        var q = baseRot(clip, bn, k.f, new THREE.Quaternion()).multiply(new THREE.Quaternion().fromArray(k.q)).normalize();
+        (o.rot || (o.rot = [])).push({t: k.f / N, q: q.toArray(), e: k.e, st: k.st, h: k.h});
+      });
+      (ed[bn].pos || []).forEach(function (k) {
+        var v = basePos(clip, bn, k.f, new THREE.Vector3()).add(new THREE.Vector3().fromArray(k.v));
+        (o.pos || (o.pos = [])).push({t: k.f / N, v: v.toArray(), e: k.e, st: k.st, h: k.h});
+      });
+      keys[bn] = o;
+    });
+    return {ms: Math.round(N / FPS * 1000), keys: keys};
+  }
+  $("libSaveMove").onclick = function () {
+    if (!S.root || !S.clip) return;
+    var nm = askName("Move", S.clip, "My moves"); if (!nm) return;
+    var m = moveOf(S.clip); m.kind = "move"; m.name = nm.name; m.cat = nm.cat;
+    libPut(m); status("Saved " + S.clip + " as the move “" + nm.name + "” (" + (m.ms / 1000).toFixed(2) + " s).");
+  };
+  function stockMove(name) {
+    var st = BODY.stock, c = null; if (!st) return null;
+    st.anims.forEach(function (a) { if (a.name === name) c = a; });
+    if (!c) return null;
+    if (!st.pk[name]) {                                         /* a frame-by-frame clip: every frame is a key */
+      var tr0 = c.tracks[0], e = []; for (var i = 0; i < tr0.times.length; i++) e.push("linear");
+      st.pk[name] = {e: e};
+    }
+    keyClipIn(c, st.pk[name], "__stock");
+    var ed = S.data.edits.__stock, N = Math.max(1, frameCount(c)), keys = {};
+    delete S.data.edits.__stock;
+    Object.keys(ed).forEach(function (bn) {
+      var b = S.bones[bn]; if (!b) return; var o = {};
+      (ed[bn].rot || []).forEach(function (k) { (o.rot || (o.rot = [])).push({t: k.f / N, q: b.userData.restQ.clone().multiply(new THREE.Quaternion().fromArray(k.q)).toArray(), e: k.e, st: k.st, h: k.h}); });
+      (ed[bn].pos || []).forEach(function (k) { (o.pos || (o.pos = [])).push({t: k.f / N, v: b.userData.restP.clone().add(new THREE.Vector3().fromArray(k.v)).toArray(), e: k.e, st: k.st, h: k.h}); });
+      keys[bn] = o;
+    });
+    return {ms: Math.round(c.duration * 1000), keys: keys};
+  }
+  function libApply(mirror) {
+    var it = libFind(LIB.sel); if (!it || !S.root || !S.clip) return;
+    setPlaying(false);
+    if (it.kind === "pose") {
+      var keep = S.board; S.board = {items: it.items, whole: true, what: "pose “" + it.name + "”", from: "library"};
+      pastePose(!!mirror); S.board = keep; boardOut(); return;
+    }
+    var mv = it.stock ? stockMove(it.name) : it; if (!mv) return;
+    pushUndo();
+    var N = frameCount(S.clips[S.clip]);
+    if (!$("libKeepLen").checked) { N = Math.max(2, Math.round(mv.ms / 1000 * FPS)); S.data.len[S.clip] = N; meta().timing[S.clip] = mv.ms; rebake(S.clip, false); }
+    var ed = {};
+    Object.keys(mv.keys).forEach(function (bn) {
+      if (!S.bones[bn]) return;                                 /* every bone, fingers included (a grip must stay closed) */
+      var o = {}, src = mv.keys[bn];
+      ["rot", "pos"].forEach(function (kind) {
+        var at = {};
+        (src[kind] || []).forEach(function (k) {
+          var f = Math.max(0, Math.min(N, Math.round(k.t * N))), x = {f: f};
+          if (kind === "rot") x.q = baseRot(S.clip, bn, f, new THREE.Quaternion()).invert().multiply(new THREE.Quaternion().fromArray(k.q)).normalize().toArray();
+          else x.v = new THREE.Vector3().fromArray(k.v).sub(basePos(S.clip, bn, f, new THREE.Vector3())).toArray();
+          if (k.e) x.e = k.e; if (k.st) x.st = k.st; if (k.h) x.h = k.h;
+          at[f] = x;
+        });
+        var l = Object.keys(at).map(Number).sort(function (a, b) { return a - b; }).map(function (f) { return at[f]; });
+        if (l.length) o[kind] = l;
+      });
+      if (o.rot || o.pos) ed[bn] = o;
+    });
+    S.data.edits[S.clip] = ed;
+    afterKeys("Applied the move “" + it.name + "” to " + S.clip + ".");
+    if (mirror) eachKeyPose(true, mirrorHere, "Applied “" + it.name + "” mirrored; mirrored");
+    buildActs();
+  }
+  $("libApply").onclick = function () { libApply(false); };
+  $("libApplyM").onclick = function () { libApply(true); };
+  $("libDel").onclick = function () {
+    var it = libFind(LIB.sel); if (!it || it.stock) return;
+    if (!window.confirm("Delete “" + it.name + "” from the library?")) return;
+    LIB.items = LIB.items.filter(function (x) { return x !== it; }); LIB.sel = null; libSave(); libBuild();
+  };
+  $("libCat").onchange = libBuild; $("libQ").oninput = libBuild;
+  $("libExport").onclick = function () {
+    var blob = new Blob([JSON.stringify({format: "pb_rf3d_library", version: 1, items: LIB.items}, null, 1)], {type: "application/json"});
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "rigforge3d_library.json"; document.body.appendChild(a); a.click(); a.remove();
+    status("Exported " + LIB.items.length + " library item" + (LIB.items.length === 1 ? "" : "s") + ".");
+  };
+  $("libImport").onclick = function () { $("libFile").click(); };
+  $("libFile").onchange = function () {
+    var f = this.files[0]; this.value = ""; if (!f) return;
+    f.text().then(function (t) {
+      var d = JSON.parse(t), n = 0; (d.items || []).forEach(function (it) { if (it && it.name && (it.kind === "pose" || it.kind === "move")) { it.cat = it.cat || "Imported"; delete it.stock; libPut(it); n++; } });
+      status("Imported " + n + " library item" + (n === 1 ? "" : "s") + " (same kind + name + category replaced).");
+    }).catch(function (e) { status("Could not import: " + e.message, true); });
+  };
+  libLoad();
 
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
