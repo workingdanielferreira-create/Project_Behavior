@@ -79,8 +79,10 @@ time has to respect that order; functions called later can reach anything.
 
 In a fight every fighter wears the test body `characters/ual_swordsman/ual_swordsman.glb` (RIG_SPEC section 8),
 tinted in its kit colour, sword on melee kits only. `tools/build_kits.py` packs it into `data/body.gen.js` (gitignored,
-rebuilt by `run_v3.bat`). A kit whose folder holds its own `<folder>.glb` (today: ronin_copy) keeps its stand-in
-body for now. No `body.gen.js` = stand-ins for everyone. Clips: action -> `attack_normal(_N)` / `attack_special(_N)` /
+rebuilt by `run_v3.bat`). A kit whose folder holds its own `<folder>.glb` (today: puck, ronin_copy) wears that one
+instead (packed into the same file as `window.PB3_BODIES[folder]`). No `body.gen.js` = stand-ins for everyone.
+Clips: an action whose own clip is in the body (own bodies have one per 2D action, e.g. `attack_normal_basic`) plays it;
+otherwise action -> `attack_normal(_N)` / `attack_special(_N)` /
 `ultimate` / `transform` / `switch_in` / `defend`, stretched to the action's length; stun -> `hit_light` / `hit_heavy` /
 `hit_air` / `knockdown`; K.O. -> `ko`; parry / block -> `parry` / `defend`; snap -> `sprint` (`dodge_back` going
 away); moving -> `run`, still -> `idle`, in the air -> `air_move` / `air`. Missing clips fall back as in `rig_spec.json`.
@@ -91,6 +93,24 @@ names, fingers, face set, weapon bones, FX anchor → bone map, clip list with f
 First 3D test fighter: `characters/ronin_copy/ronin_copy.glb`, built by `tools/blender/build_ronin3d.py`
 (runs on Blender's `bpy` Python package, no Blender UI). `tools/blender/make_viewer.py` makes a
 self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
+
+## Animations from the 2D moves (Puck, Ronin)
+
+`python v3/tools/retarget2d.py [puck ronin_copy]` (numpy only, no Blender) turns a character's 2D animations into 3D
+clips on the ual_swordsman body and writes `characters/<name>/<name>.glb`: one clip per action in its
+`character.json` (same name, one key per 2D frame, frame_ms timing; loops for idle / run). It reads the per-frame
+joint anchors (hip, chest, neck, head, shoulders, elbows, hands, hips, knees, feet, weapon tip):
+
+- 2D x = forward, 2D up = up; the near (R) limbs are on the viewer's side.
+- Depth is inferred (Daniel 2026-11-22): every bone keeps its 3D length; a 2D limb shorter than its rig length swings
+  the rest into depth (upper arm / thigh outward, forearm / shin back toward the shoulder / hip line).
+- Pelvis / chest turn from how far apart the 2D hip / shoulder points are; spine, neck and head follow the 2D line.
+- The blade points at the 2D weapon tip; no weapon (Puck) = blade mesh removed. Hands closed, feet flat, lowest foot
+  on the floor plus the 2D air gap; clips stay in place (the sim moves the fighter).
+- Kept from the body: hit reactions, K.O., dodges, air / jump clips. Its other attack / locomotion clips are dropped so
+  the character's own clips play through the fallbacks; a character with `parry` but no `defend` gets `defend` = parry.
+
+Re-run it after changing a character's 2D animation; touch up the result in Rig Forge 3D (re-running overwrites it).
 
 ## Rig Forge 3D
 
@@ -180,7 +200,7 @@ Rig Forge last saved is what you fight with.
     front of them still apply.
 - **Not ported yet:** unique abilities, states, transformations, blinks, travel movements
   and intercepts.
-- **Bodies:** still 3D toon stand-ins, in the character's palette colours.
+- **Bodies:** the .glb test body (or the kit's own .glb), toon-shaded in the character's palette colours (see 3D bodies).
 
 If `data/kits.gen.js` is missing, the old hand-made stand-in kits in `kits.js` are used.
 

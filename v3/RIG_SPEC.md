@@ -214,3 +214,10 @@ skeleton, the UE-mannequin set (`root`, `pelvis`, `spine_01`, `upperarm_l` ...).
 - Mesh2Motion's rest pose is not byte-identical to Quaternius' (worst bone end ~0.4 units apart),
   but the clips are stored as local rotations and play correctly on the Quaternius body (checked by
   eye in Rig Forge 3D).
+
+## 9. Clips from a character's 2D moves (scripted)
+
+`v3/tools/retarget2d.py` builds `characters/<name>/<name>.glb` from the section 8 body plus one clip per 2D action,
+posed from `character.json`'s per-frame joint anchors with depth inferred from bone lengths (details in
+`v3/README.md`, "Animations from the 2D moves"). Done for `puck` (13 clips, no weapon) and `ronin_copy` (12 clips,
+katana). Same skeleton, so Rig Forge 3D opens and edits them like any other body.
