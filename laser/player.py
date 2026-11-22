@@ -26,8 +26,7 @@ While control is on:
   * Every automatic action (attacks, defend, condition-triggered specials /
     ultimates, tactical retreat, AI movement) is off.  Only the Dodge
     (laser/dodge.py, with its counter action) still runs on its own.
-  * Ctrl+Space = parry / deflect (laser/parry.py).
-  * Ctrl+Shift+Space drops the fighter's HP to 25% of max (never raises it).
+  * Ctrl+Space drops the fighter's HP to 25% of max (never raises it).
   * Ctrl+Shift held = sprint: arrow movement at the character's tactical
     retreat speed_pct (FX Studio), or SPRINT_PCT when it has none, with
     speed-ghost afterimages.  (The retreat's dash / steering is not used.)
@@ -149,7 +148,7 @@ def press(world, kind):
 
 
 def drop_hp(world):
-    """Ctrl+Shift+Space: the player fighter's HP drops to 25% of max."""
+    """Ctrl+Space: the player fighter's HP drops to 25% of max."""
     fig = world.player_fig()
     if fig is None:
         return

@@ -21,7 +21,6 @@ from . import platform_win as win
 from . import action_log
 from . import battlestats
 from . import guard
-from . import parry
 
 
 
@@ -205,8 +204,7 @@ class InputSystem(System):
         # Player control (F4, laser/player.py), Solo and Battle:
         #   arrows      move (none while Alt is held: Alt+arrows keep their jobs)
         #   Ctrl+Z/X/C  next attack_normal / attack_special / ultimate in its chain
-        #   Ctrl+Space  parry / deflect (laser/parry.py)
-        #   Ctrl+Shift+Space  HP drops to 25% (test key)
+        #   Ctrl+Space  HP drops to 25%
         # Edges are read every tick so a key held when control turns on
         # doesn't fire.
         z_edge = self._pressed(win.VK_Z)
@@ -226,12 +224,9 @@ class InputSystem(System):
                 elif c_edge:
                     player.press(world, "ultimate")
                 if sp_edge:
-                    parry.press(world)
+                    player.drop_hp(world)
                 if z_edge or x_edge or c_edge or sp_edge:
                     world.ctrl_used = True
-            elif ctrl and shift and not alt and sp_edge:
-                player.drop_hp(world)
-                world.ctrl_used = True
         world.player_dir = (dx, dy)
         # Ctrl+Shift held (player control only): sprint — the arrow
         # movement runs at player.sprint_mult (the character's tactical
@@ -573,10 +568,6 @@ class CombatSystem(System):
             # the typed defend's catches (deflect / reflect / cover) and
             # cover footwork.  Same in Solo and Battle. ---
             guard.tick(fig, world)
-            # --- Parry / deflect (laser/parry.py): the AI's shot roll, the
-            # perfect window's shot / FX deflect, the AI counter.  Every
-            # fighter, Solo and Battle. ---
-            parry.tick(fig, world)
             # --- Dodge (FX Studio pack.dodge, laser/dodge.py): reacts to
             # incoming enemy projectiles (bullets and FX Studio shots);
             # while its sidestep runs it owns the figure's movement.  Solo
