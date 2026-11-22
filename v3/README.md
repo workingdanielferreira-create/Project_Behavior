@@ -3,6 +3,15 @@
 The 3D game, built on Playtest 2 (*Behavior 3D Playtest v2*), now in its own window.
 Self-contained like `v2/`: nothing outside `v3/` is touched.
 
+## Update
+
+`update_v3.bat` (here) or `Update V3.bat` (game folder) runs `tools/update_v3.py`: downloads the newest
+commit on `main` and writes only the V3 parts that changed — `v3/` (game + Rig Forge 3D), `Rig Forge 3D.bat`,
+`Update V3.bat`, `tools/fx/studio/` (FX runtime V3 uses) and `characters/`. Local edits to `characters/`
+files (e.g. a .glb saved from Rig Forge 3D) are kept, using the same `.sync_state.json` record as
+`update_latest.py`. The 2D game files are left to `update_latest.bat`. Afterwards it asks:
+1 = V3 game, 2 = Rig Forge 3D, Enter = nothing. Installed commit: `.last_update_v3.json`.
+
 ## Run
 
 ```bat
