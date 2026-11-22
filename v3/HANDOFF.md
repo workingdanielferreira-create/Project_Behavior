@@ -125,6 +125,10 @@ Picked: Actions panel (with settable length), Tween panel (in-betweens per key p
 face left, Reference images, Pose + move library, Weapon editor. Not picked: IK solve + arc guides, Character tab +
 PNG / package export. Part 1 done (actions, length, tween, mirror / turn / centre); part 2 done (reference images incl.
 the character's own 2D drawings behind the figure); part 3 done (pose + move library, body moves as stock); part 4 done (weapon editor, built in V3 too).
+Tween panel follow-up (Daniel 2026-11-22): remove tween = "Tween to the next key pose" tick box per key pose + Remove
+tween / Restore (From-To) and Remove all / Restore all, like the 2D "In-between from this keyframe" toggle. Off = ease
+`hold` on every pivot keyed there (still, then a cut; the game already plays hold), the pivot's own ease kept on the key
+as `pe` and given back on Restore (picking an ease drops `pe`).
 
 ## Next steps (agreed direction, not started)
 
