@@ -191,6 +191,17 @@ action's length or the move's; mirrored = every key pose mirrored afterwards). C
 (`pb_rf3d_library` JSON). **Body moves** = the shared body's own clips (hit reactions, dodges, sword attacks …) as stock
 moves. Stored in IndexedDB ("lib"), shared by every character (bone names; fingers included).
 
+**Move pack (weapon combat moves, 2026-11-22).** `characters/ual_swordsman/ual_moves.glb` = the shared body's skeleton +
+library moves as key poses, scene extras `pb_moves` {clip: {name, cat, src}}. Rig Forge 3D lists them under their
+category (read-only, like Body moves; hover = source), read from the connected characters folder by itself (hidden from
+the character dropdown) or picked once with **Load move pack…** (kept in IndexedDB). Not game clips: V3 never loads the
+file. Now: Sword 9, Dual swords 2, Great sword 2, Pistol 11 (Mesh2Motion CC0 mocap via `v3/tools/blender/m2m_moves.py`
++ `v3/tools/move_library.py`; checked against the body's own copy of a Mesh2Motion clip: 2.5 cm). Katana and Ethereal
+swords have no free mocap: they are authored key poses in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
+audit clean) and join the pack only once Daniel approved their stills (`"approved": true`, then
+`python v3/tools/move_library.py -`). Weapon editor shape **pistol** (weapons3d.js: len = barrel, w = slide height,
+handle = grip, guard = trigger guard, curve = grip rake; barrel along the edge side, roll turns it).
+
 **Part 4: weapon editor.** Panel "Weapons": Weapon 1 (right hand) / Weapon 2 (left hand): holds a weapon or not, and
 "Build it here": shape (sword, katana, dagger, greatsword, rapier, cleaver) + length, width, thickness, curve, point,
 guard, handle, grip (slides along the hand's weapon line), roll; copy from the other hand; reset. `v3/js/weapons3d.js`
