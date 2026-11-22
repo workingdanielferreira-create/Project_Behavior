@@ -12,6 +12,13 @@ set "PAGE=%HERE%index.html"
 set "URL=file:///%PAGE:\=/%"
 set "PROFILE=%HERE%.window-profile"
 
+REM Pack the real characters (characters\) into data\kits.gen.js so the game
+REM plays what FX Studio / Rig Forge last saved.
+set "PY=%HERE%..\python.exe"
+if not exist "%PY%" set "PY=python"
+"%PY%" "%HERE%tools\build_kits.py"
+if errorlevel 1 echo Could not rebuild the character kits - using the last packed ones.
+
 set "BROWSER="
 for %%B in (
   "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"

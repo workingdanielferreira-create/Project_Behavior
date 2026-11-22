@@ -36,7 +36,8 @@ Settings and teams are saved between sessions.
 |---|---|
 | `core.js` | constants (arena size, tick, body size), maths helpers |
 | `settings.js` | saved settings (control level, speed, camera, quality, teams) |
-| `kits.js` | character kits: moves, timings, damage, triggers, colours |
+| `kits.js` | stand-in kits (fallback when `data/kits.gen.js` is missing) |
+| `realkits.js` | real kits from `data/kits.gen.js` → V3 kits (actions, triggers, dodge, movement) |
 | `renderer.js` | WebGL renderer, scene, toon / ink / additive materials, 2D→3D mapping (`V`, `VA`) |
 | `arena.js` | the arena: floor, sky dome, floating rocks, pillars, rim, stars |
 | `fx.js` | **FX design**: primitives (slash, ring, dome, sparks, dust, star, crack, streak, moons, blades) |
@@ -48,6 +49,7 @@ Settings and teams are saved between sessions.
 | `motion.js` | drift & snap motion |
 | `gravity.js` | speed gravity: speed sets how high a fighter may fly, gravity pulls it down above that |
 | `combat.js` | actions, triggers, hits, damage, stun, K.O., reactions, tagging, projectiles |
+| `fx2d.js` | real kits' 2D FX: FX Studio's Player per fighter, drawn on camera-facing cards in the 3D scene |
 | `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
@@ -63,7 +65,33 @@ game runs straight from disk (`file://`) without a local server. A file may
 use anything declared in the files loaded before it. Code that runs at load
 time has to respect that order; functions called later can reach anything.
 
-Gameplay is Playtest 2's, plus:
+## Real characters
+
+V3 plays the real characters from `characters/`. On every launch `run_v3.bat` runs
+`tools/build_kits.py` with the repo's own `python.exe`, which packs each character into
+`data/kits.gen.js` (generated, gitignored). A character is packed if its folder has a
+`character.json`, a `*.fxkit.json` and at least one damaging effect. Whatever FX Studio /
+Rig Forge last saved is what you fight with.
+
+- **From the files:** name, palette, max HP, speed, reach, melee / ranged, the action list
+  with each action's length (frames × frame ms), attack chain, cooldowns, trigger conditions
+  (`realkits.js realCond`), dodge and movement style (orbit / chase).
+- **The FX:** played by FX Studio's own runtime (`../tools/fx/studio/fxkit.js` and its style
+  files, loaded unchanged). They keep their 2D look, timing, damage, knockback and re-hits.
+  `fx2d.js` runs one `FXK.Player` per fighter in a 2D space centred on its body, with
+  2D x = camera right, 2D y = camera down, and 28 px = one body.
+  - The enemy sits in that space where it appears from the camera, so shots fly at it and
+    hits land where they touch.
+  - The drawing is painted onto two camera-facing cards in the 3D scene: the 2D "behind"
+    layer just behind the body, "front" just in front. Perspective, fog and anything in
+    front of them still apply.
+- **Not ported yet:** unique abilities, states, transformations, blinks, travel movements
+  and intercepts.
+- **Bodies:** still 3D toon stand-ins, in the character's palette colours.
+
+If `data/kits.gen.js` is missing, the old hand-made stand-in kits in `kits.js` are used.
+
+Gameplay rules are Playtest 2's, plus:
 
 - **Parry / deflect (Ctrl+Space)**, for every fighter. You press it; the AI rolls a chance (Settings > AI parries).
   - **Perfect** (first 130 ms of the window): no damage, no knockback. A melee attacker is staggered and a counter
