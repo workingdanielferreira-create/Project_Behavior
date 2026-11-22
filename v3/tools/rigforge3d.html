@@ -124,6 +124,17 @@ details.adv[open] > summary { margin-bottom: 6px; }
   transform-origin: 50% 50%; image-rendering: auto; }
 .refimg.front { z-index: 3; }
 #view { z-index: 1; } #over { z-index: 2; } .hud, .drop { z-index: 4; }
+/* collapsible menu (Daniel 2026-11-22): every side section folds on its title; the whole menu can hide */
+.side > section > h2.fold { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; margin: -2px 0; padding: 2px 0; }
+.side > section > h2.fold::before { content: "▾"; font-size: 12px; width: 12px; color: var(--muted); transition: transform .12s; }
+.side > section.folded > h2.fold::before { transform: rotate(-90deg); }
+.side > section > h2.fold:hover { color: var(--accent); }
+.side > section > h2.fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.side > section.folded > :not(h2) { display: none !important; }
+.side > section.folded { gap: 0; }
+.menubar { display: flex; gap: 6px; flex-wrap: wrap; }
+.app.nomenu { grid-template-columns: minmax(0, 1fr) 0px; }
+.app.nomenu .side { display: none; }
 /* skeleton tree */
 .tree { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
   font-family: var(--mono); font-size: 12px; }
@@ -150,6 +161,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     <button id="redo" disabled title="Ctrl+Y">Redo</button>
     <span class="file" id="fileName">No file open</span>
     <span id="status"></span>
+    <button id="menuToggle" aria-pressed="false" title="Hide / show the menu on the right (M)">Hide menu</button>
     <button id="pickBody" hidden title="The shared body (characters/ual_swordsman/ual_swordsman.glb, or the final model) that a clips-only character file is shown on">Pick shared body…</button>
     <input type="file" id="fileInput" accept=".glb" hidden>
     <input type="file" id="bodyInput" accept=".glb" hidden>
@@ -201,6 +213,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   </div>
 
   <div class="side">
+    <div class="menubar"><button id="foldAll">Collapse all</button><button id="openAll">Expand all</button></div>
     <section aria-labelledby="h-char">
       <h2 id="h-char">Character</h2>
       <div class="row">
@@ -3402,6 +3415,42 @@ details.adv[open] > summary { margin-bottom: 6px; }
   $("wpShape").onchange = function () { var sh = this.value; wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: sh, grip: c.grip || 0, roll: c.roll || 0}; }); };
   $("wpReset").onclick = function () { wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: c.shape}; }); };
   $("wpCopy").onclick = function () { wpSet(function (W) { var o = W[WP.side === "R" ? "L" : "R"]; W[WP.side] = o == null ? true : JSON.parse(JSON.stringify(o)); }); };
+
+  /* ---------------------------------------------------------------- collapsible menu (Daniel 2026-11-22) */
+  (function () {
+    var KEY = "pbRf3dFolded", DEF = {"h-lim": 1, "h-place": 1, "h-view": 1, "h-wpn": 1, "h-lib": 1, "h-ref": 1};
+    var st; try { st = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { st = null; }
+    st = st || DEF;
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+    var secs = Array.prototype.slice.call(document.querySelectorAll(".side > section"));
+    function set(sec, folded) {
+      var h = sec.querySelector("h2"); sec.classList.toggle("folded", folded);
+      h.setAttribute("aria-expanded", String(!folded)); st[h.id] = folded ? 1 : 0;
+    }
+    secs.forEach(function (sec) {
+      var h = sec.querySelector("h2"); if (!h) return;
+      h.classList.add("fold"); h.tabIndex = 0; h.setAttribute("role", "button");
+      h.title = "Click to fold / unfold";
+      set(sec, !!st[h.id]);
+      h.onclick = function () { set(sec, !sec.classList.contains("folded")); save(); };
+      h.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); h.onclick(); } };
+    });
+    $("foldAll").onclick = function () { secs.forEach(function (s2) { set(s2, true); }); save(); };
+    $("openAll").onclick = function () { secs.forEach(function (s2) { set(s2, false); }); save(); };
+    var app = document.querySelector(".app");
+    function menu(hide) {
+      app.classList.toggle("nomenu", hide); $("menuToggle").textContent = hide ? "Show menu" : "Hide menu";
+      $("menuToggle").setAttribute("aria-pressed", String(hide));
+      try { localStorage.setItem("pbRf3dNoMenu", hide ? "1" : ""); } catch (e) {}
+      if (typeof DOPE !== "undefined") DOPE.sig = "";
+    }
+    var hid = false; try { hid = localStorage.getItem("pbRf3dNoMenu") === "1"; } catch (e) {}
+    menu(hid);
+    $("menuToggle").onclick = function () { menu(!app.classList.contains("nomenu")); };
+    window.addEventListener("keydown", function (e) {
+      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) menu(!app.classList.contains("nomenu"));
+    });
+  })();
 
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
