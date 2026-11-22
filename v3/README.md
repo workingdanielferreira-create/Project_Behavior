@@ -77,10 +77,14 @@ time has to respect that order; functions called later can reach anything.
 
 ## 3D bodies (spec)
 
-In a fight every fighter wears the test body `characters/ual_swordsman/ual_swordsman.glb` (RIG_SPEC section 8),
-tinted in its kit colour, sword on melee kits only. `tools/build_kits.py` packs it into `data/body.gen.js` (gitignored,
-rebuilt by `run_v3.bat`). A kit whose folder holds its own `<folder>.glb` (today: every character with joint data; only plain `ronin` and `nobody`, which have none, still wear the shared body) wears that one
-instead (packed into the same file as `window.PB3_BODIES[folder]`). No `body.gen.js` = stand-ins for everyone.
+In a fight every fighter wears ONE shared body mesh, `characters/ual_swordsman/ual_swordsman.glb` (RIG_SPEC section 8;
+a placeholder until the final model, see RIG_SPEC section 10), tinted in its kit colour. `tools/build_kits.py` packs it
+into `data/body.gen.js` (gitignored, rebuilt by `run_v3.bat`; ~10 MB with every character's clips). A kit whose folder
+holds its own `<folder>.glb` (every character with joint data; only plain `ronin` and `nobody` have none) gets that
+file packed too (`window.PB3_BODIES[folder]`): it holds only a skeleton + that character's clips (no mesh, 0.2-0.5 MB)
+and `pb_body.weapons` {R, L}. `js/retarget.js` puts those clips on the shared body (unchanged while it is the
+placeholder) and `js/glbody.js` merges them with the body's own hit / K.O. / dodge / air clips. Blades show on melee
+kits only, in the hands the character's file names (`blade` right, `blade_L` left). No `body.gen.js` = stand-ins.
 Clips: an action whose own clip is in the body (own bodies have one per 2D action, e.g. `attack_normal_basic`) plays it;
 otherwise action -> `attack_normal(_N)` / `attack_special(_N)` /
 `ultimate` / `transform` / `switch_in` / `defend`, stretched to the action's length; stun -> `hit_light` / `hit_heavy` /
@@ -109,13 +113,22 @@ joint anchors (hip, chest, neck, head, shoulders, elbows, hands, hips, knees, fe
   hand (Hooded Blades, `wtip2`) adds `Weapon_L` / `WeaponTip_L` (Weapon_R mirrored) + a `blade_L` mesh to that
   character's .glb, aimed at `wtip2` the same way. Hands closed, feet flat, lowest foot
   on the floor plus the 2D air gap; clips stay in place (the sim moves the fighter).
-- Kept from the body: hit reactions, K.O., dodges, air / jump clips. Its other attack / locomotion clips are dropped so
-  the character's own clips play through the fallbacks; a character with `parry` but no `defend` gets `defend` = parry.
+- From the body at run time: hit reactions, K.O., dodges, air / jump clips. Its other attack / locomotion clips are left
+  out so the character's own clips play through the fallbacks; a character with `parry` but no `defend` gets
+  `defend` = parry.
 
 Ranged kits (pewpew, sniper ...) keep the hand aimed at their 2D gun tip; V3 hides the blade mesh on non-melee kits.
 Re-run it after changing a character's 2D animation; touch up the result in Rig Forge 3D (re-running overwrites it).
+The character files are clips-only (skeleton + clips, no mesh); `--body new.glb` re-solves every clip exactly on another
+body (RIG_SPEC section 10). The first run also gives the shared body its left blade (`Weapon_L` / `WeaponTip_L` +
+`blade_L`, hidden unless a character holds a second blade).
 
 ## Rig Forge 3D
+
+**Character files are clips-only** (Daniel 2026-11-22). Opening one (no mesh inside) shows its clips on the shared
+body: taken from the connected characters folder (below) when it holds it, else the first time **Pick shared body…** asks for `characters/ual_swordsman/ual_swordsman.glb` (or the final model);
+Edge remembers that file (IndexedDB) for later opens. Clips go through `js/retarget.js`, so another body works too.
+Saving writes back the skeleton + clips + `pb_rig3d` / `pb_body` extras only, never the body's mesh.
 
 `Rig Forge 3D.bat` (repo root) opens `tools/rigforge3d.html` in Edge. Pick a fighter from the **Character**
 dropdown (above Clip): **Characters folder…** once on the repo's `characters` folder lists every .glb in it and

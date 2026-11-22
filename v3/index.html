@@ -32,7 +32,7 @@
 <script src="js/settings.js"></script>   <!-- saved settings -->
 <script src="js/kits.js"></script>       <!-- stand-in kits (used only if data/kits.gen.js is missing) -->
 <script src="data/kits.gen.js"></script> <!-- real kits, packed from characters/ by tools/build_kits.py (run_v3.bat) -->
-<script src="data/body.gen.js"></script> <!-- the test .glb body, packed by tools/build_kits.py (run_v3.bat) -->
+<script src="data/body.gen.js"></script> <!-- the shared .glb body + each kit's clips, packed by tools/build_kits.py (run_v3.bat) -->
 <script src="lib/GLTFLoader.js"></script>
 <!-- FX Studio's own 2D FX runtime, loaded unchanged from tools/fx/studio -->
 <script src="../tools/fx/studio/fxkit.js"></script>
@@ -51,6 +51,7 @@
 <script src="js/arena.js"></script>      <!-- arena / environment -->
 <script src="js/fx.js"></script>         <!-- FX design: primitives (slash, ring, sparks, dust ...) -->
 <script src="js/state.js"></script>      <!-- world state, timers -->
+<script src="js/retarget.js"></script>   <!-- clip retargeting onto whatever humanoid body is loaded -->
 <script src="js/glbody.js"></script>     <!-- .glb fighter body: load, per-fighter copy, clip picking -->
 <script src="js/models.js"></script>     <!-- fighter rigs and models -->
 <script src="js/movestyle.js"></script>  <!-- movement styles -->

@@ -122,7 +122,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     <button id="redo" disabled title="Ctrl+Y">Redo</button>
     <span class="file" id="fileName">No file open</span>
     <span id="status"></span>
+    <button id="pickBody" hidden title="The shared body (characters/ual_swordsman/ual_swordsman.glb, or the final model) that a clips-only character file is shown on">Pick shared body…</button>
     <input type="file" id="fileInput" accept=".glb" hidden>
+    <input type="file" id="bodyInput" accept=".glb" hidden>
   </div>
 
   <div class="left">
@@ -264,6 +266,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 <script src="../lib/GLTFExporter.js"></script>
 <script src="../lib/OrbitControls.js"></script>
 <script src="../lib/TransformControls.js"></script>
+<script src="../js/retarget.js"></script>
 <script>
 /* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig) and saves everything back INTO it, in the
    scene extras pb_rig3d (version 2):
@@ -403,7 +406,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     home: {}, bindWorld: {}, collapsed: {},
     sel: null, selKind: null,             /* selKind: "bone" | "anchor" | "x" */
     mode: "rotate", space: "local", grip: false, allRow: false, board: null,
-    data: freshData(), undo: [], redo: [], dirty: false
+    data: freshData(), undo: [], redo: [], dirty: false,
+    slim: null                            /* clips-only character file: {meta: its pb_body}, shown on the shared body */
   };
 
   function status(msg, warn) { var s = $("status"); s.textContent = msg; s.className = warn ? "warn" : ""; }
@@ -682,9 +686,82 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   /* ---------------------------------------------------------------- load */
   function loadArrayBuffer(buf, name, handle) {
-    new THREE.GLTFLoader().parse(buf, "", function (gltf) { onLoaded(gltf, name, handle); },
-      function (err) { CH.loading = -1; status("Could not read " + name + ": " + (err && err.message || err), true); });
+    new THREE.GLTFLoader().parse(buf, "", function (gltf) {
+      var mesh = false; gltf.scene.traverse(function (o) { if (o.isSkinnedMesh) mesh = true; });
+      if (mesh) { onLoaded(gltf, name, handle); return; }
+      /* clips-only character file (v3/tools/retarget2d.py): show its clips on the shared body, save back clips-only */
+      var ext = (gltf.scene.userData && gltf.scene.userData.pb_rig3d) || null;
+      var meta = (gltf.scene.userData && gltf.scene.userData.pb_body) || {};
+      withBody(meta.body, function (body) {
+        var clips;
+        try { clips = rtClips(gltf.animations, gltf.scene, body.scene); }
+        catch (err) { status("Could not put " + name + "'s clips on the body: " + err.message, true); return; }
+        onLoaded({scene: body.scene, animations: Object.keys(clips).map(function (k) { return clips[k]; }),
+                  pbExt: ext, slim: {meta: meta, body: body.name}}, name, handle);
+      });
+    }, function (err) { CH.loading = -1; status("Could not read " + name + ": " + (err && err.message || err), true); });
   }
+  /* the shared body: picked once, its file handle remembered (IndexedDB) so later opens reuse it */
+  var BODY = {buf: null, name: "", pending: null};
+  function idb(fn) {
+    try {
+      var rq = indexedDB.open("rigforge3d", 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore("h"); };
+      rq.onsuccess = function () { fn(rq.result.transaction("h", "readwrite").objectStore("h")); };
+      rq.onerror = function () { fn(null); };
+    } catch (e) { fn(null); }
+  }
+  function bodyFromBuf(buf, name, done) {
+    BODY.buf = buf; BODY.name = name;
+    new THREE.GLTFLoader().parse(buf.slice(0), "", function (g) { g.name = name; done(g); },
+      function (err) { status("Could not read the body " + name + ": " + (err && err.message || err), true); });
+  }
+  function askBody(done) {
+    BODY.pending = done; $("pickBody").hidden = false;
+    status("This file holds only clips. Pick the shared body (characters/ual_swordsman/ual_swordsman.glb).", true);
+  }
+  function withBody(want, done) {
+    if (BODY.buf) { bodyFromBuf(BODY.buf, BODY.name, done); return; }
+    /* a connected characters folder holds the body: take it from there, no question asked */
+    var hit = chFind(want || "ual_swordsman");
+    if (hit) {
+      (hit.handle ? hit.handle.getFile() : Promise.resolve(hit.file))
+        .then(function (f) { return f.arrayBuffer().then(function (b) { bodyFromBuf(b, f.name, done); }); })
+        .catch(function () { askBody(done); });
+      return;
+    }
+    if (!window.showOpenFilePicker || inFrame()) { askBody(done); return; }
+    idb(function (st) {
+      if (!st) { askBody(done); return; }
+      var rq = st.get("body");
+      rq.onsuccess = function () {
+        var h = rq.result; if (!h) { askBody(done); return; }
+        (h.queryPermission ? h.queryPermission({mode: "read"}) : Promise.resolve("granted")).then(function (p) {
+          return p === "granted" ? p : (h.requestPermission ? h.requestPermission({mode: "read"}) : p);
+        }).then(function (p) {
+          if (p !== "granted") { askBody(done); return; }
+          return h.getFile().then(function (f) { return f.arrayBuffer().then(function (b) { bodyFromBuf(b, f.name, done); }); });
+        }).catch(function () { askBody(done); });
+      };
+      rq.onerror = function () { askBody(done); };
+    });
+  }
+  $("pickBody").onclick = function () {
+    var done = BODY.pending; if (!done) return;
+    if (window.showOpenFilePicker && !inFrame()) {
+      window.showOpenFilePicker({id: "pbbody", types: [{description: "glTF binary", accept: {"model/gltf-binary": [".glb"]}}]})
+        .then(function (hs) {
+          var h = hs[0]; idb(function (st) { if (st) st.put(h, "body"); });
+          return h.getFile().then(function (f) { return f.arrayBuffer().then(function (b) {
+            $("pickBody").hidden = true; BODY.pending = null; bodyFromBuf(b, f.name, done); }); });
+        }).catch(function (e) { if (e && e.name !== "AbortError") status("Could not open: " + e.message, true); });
+    } else $("bodyInput").click();
+  };
+  $("bodyInput").onchange = function () {
+    var f = this.files[0], done = BODY.pending; if (!f || !done) return;
+    f.arrayBuffer().then(function (b) { $("pickBody").hidden = true; BODY.pending = null; bodyFromBuf(b, f.name, done); });
+    this.value = "";
+  };
   function clearModel() {
     tc.detach(); back.visible = false;
     clearGhosts();
@@ -698,8 +775,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   function onLoaded(gltf, name, handle) {
     clearModel();
     var root = gltf.scene; S.root = root; S.fileName = name; S.fileHandle = handle || null;
+    S.slim = gltf.slim || null;
     place.add(root);
-    var ext = (gltf.scene.userData && gltf.scene.userData.pb_rig3d) ||
+    var ext = gltf.pbExt !== undefined ? gltf.pbExt : (gltf.scene.userData && gltf.scene.userData.pb_rig3d) ||
               (gltf.parser && gltf.parser.json.scenes && gltf.parser.json.scenes[0] && (gltf.parser.json.scenes[0].extras || {}).pb_rig3d);
     S.data = freshData();
     if (ext) {
@@ -769,7 +847,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
-    $("drop").hidden = true; $("fileName").textContent = name + (S.fileHandle ? "" : " (no folder access: Save downloads a copy)");
+    $("drop").hidden = true; $("fileName").textContent = name + (S.slim ? " (clips, shown on " + S.slim.body + ")" : "") +
+      (S.fileHandle ? "" : " (no folder access: Save downloads a copy)");
     $("save").disabled = false; S.dirty = false; uiUndo();
     setPlaying(false);
     setClip(S.order.indexOf("idle") >= 0 ? "idle" : S.order[0], 0);
@@ -1965,9 +2044,16 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     Object.keys(S.bones).forEach(function (n) { var b = S.bones[n]; b.quaternion.copy(b.userData.restQ); b.position.copy(b.userData.restP); });
     var ex = new THREE.Scene(); ex.name = "Scene";
     ex.userData = {pb_rig3d: JSON.parse(snap())};
+    /* clips-only character file: save the skeleton + clips, never the shared body's mesh */
+    var cut = [];
+    if (S.slim) {
+      ex.userData.pb_body = S.slim.meta;
+      S.skinned.forEach(function (m) { if (m.parent) { cut.push([m, m.parent]); m.parent.remove(m); } });
+    }
     var kids = root.children.slice(); kids.forEach(function (k) { ex.add(k); });
     function restore() {
       kids.forEach(function (k) { root.add(k); });
+      cut.forEach(function (x) { x[1].add(x[0]); });
       outl.forEach(function (x) { x[1].add(x[0]); });
       S.skinned.forEach(function (m, i) { if (infl[i]) for (var j = 0; j < infl[i].length; j++) m.morphTargetInfluences[j] = infl[i][j]; });
       setToon($("vToon").checked);
@@ -2264,6 +2350,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     });
   }
   function chLast(v) { try { if (v === undefined) return localStorage.getItem("pbRf3dChar") || ""; localStorage.setItem("pbRf3dChar", v); } catch (e) {} return ""; }
+  function chFind(base) {                                  /* the listed .glb called <base>.glb (prefers <base>/<base>.glb) */
+    var best = null, want = String(base).toLowerCase() + ".glb";
+    CH.list.forEach(function (c) {
+      var p = c.rel.toLowerCase().split("/"); if (p[p.length - 1] !== want) return;
+      if (!best || p.length === 2) best = c;
+    });
+    return best;
+  }
   function chLabel(rel) {
     var p = rel.replace(/\.glb$/i, "").split("/");
     return p.length === 2 && p[0] === p[1] ? p[0] : p.join(" / ");      /* <name>/<name>.glb -> name */
