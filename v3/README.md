@@ -181,6 +181,12 @@ from the 2D rig's leg length, ground = the idle feet) and following the camera. 
 see-through) or in front, opacity, size, across / up-down offsets per action, **Side view** button (camera side on, like
 the drawings). Kept in IndexedDB per character file, never in the .glb.
 
+**Part 3: pose + move library.** ◆ poses (the whole pose on a frame, applied as a key pose; mirrored too) and ▶ moves
+(an action's key poses with their tweens, times 0..1; applied to the current action, replacing its key poses, at this
+action's length or the move's; mirrored = every key pose mirrored afterwards). Categories + search, Export / Import
+(`pb_rf3d_library` JSON). **Body moves** = the shared body's own clips (hit reactions, dodges, sword attacks …) as stock
+moves. Stored in IndexedDB ("lib"), shared by every character (bone names; fingers included).
+
 **Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
 every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
 poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):
