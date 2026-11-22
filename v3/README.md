@@ -88,7 +88,9 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   bones (✚) under it; hands start collapsed. Click a row (or a dot on the model) to select it; its card opens
   under the tree.
 - **FX anchors** (card): **Sits on** any bone, **Along bone** 0–100 % (pivot to end), typed X / Y / Z offset
-  on top (or drag the arrows), **Snap to** start / middle / end / ground. **+ Anchor here** on any bone card adds
+  on top, **Snap to** start / middle / end / ground. On the model: **click** an anchor for its move arrows
+  (slide along X / Y / Z) and rings (swing it around its bone's pivot, keeping its distance); **press and hold
+  (0.25 s) or press and drag** to move it freely with the mouse, in a plane facing the camera. **+ Anchor here** on any bone card adds
   your own. Anchor spots are per character, not per frame.
 - **Added bones** (the 2D Rig Forge's added lines): **+ Bone** from a pivot, an anchor or another added bone's
   end; name, **Starts at**, length, rest angle X / Y / Z; posed per keyframe with the rings. Removing one also
