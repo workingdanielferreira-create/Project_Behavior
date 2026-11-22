@@ -72,6 +72,15 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   - Model listed as 1.62 m.
   - No bone names or counts are shown.
 
+## Latest (2026-11-22, later)
+
+- Puck and Ronin (ronin_copy) have 3D animations made from their 2D ones: `v3/tools/retarget2d.py` ->
+  `characters/puck/puck.glb`, `characters/ronin_copy/ronin_copy.glb` (ual_swordsman body, replaces the old bpy-built
+  ronin_copy body; `build_ronin3d.py` can still rebuild that). V3 now puts a kit's own .glb on it
+  (`build_kits.py` packs `PB3_BODIES`, `glbody.js` picks per kit and plays an action's own clip by its 2D name).
+- Daniel's choices: ual_swordsman body, ronin_copy as the Ronin source, inferred depth, wired into V3.
+- Not done yet: Puck's hair lines (xl1..4) and 2D stretch / smear (bone scale) have no 3D counterpart.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
