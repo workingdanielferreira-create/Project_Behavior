@@ -124,10 +124,10 @@ class Auditor:
             x = v[k]
             if k < len(ts) - 1 and ts[k + 1] > ts[k]:
                 a = min(max((t - ts[k]) / (ts[k + 1] - ts[k]), 0), 1)
-                el = keyreduce.track_eases(eases, self.names.get(node, ""), path, len(ts)) if isinstance(eases, dict) \
-                    else (eases if eases and len(eases) == len(ts) else None)
-                if el:
-                    a = keyreduce.ease(el[k + 1], a)
+                if isinstance(eases, dict):
+                    a = keyreduce.seg_u(eases, self.names.get(node, ""), path, ts, k, t)
+                elif eases and len(eases) == len(ts):
+                    a = keyreduce.ease(eases[k + 1], a)
                 x1 = v[k + 1]
                 if path == "rotation":
                     x = keyreduce.slerp(x, x1, a)

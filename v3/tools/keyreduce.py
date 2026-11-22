@@ -185,6 +185,24 @@ def snap_must(times, keep_times):
     return sorted(set(int(np.argmin(np.abs(t - k))) for k in keep_times))
 
 
+def seg_u(info, node_name, path, ts, k, x):
+    """0..1 blend of channel segment k -> k+1 at time x: hold frames, then the in-between steps, then the ease (all
+    stored for the key the segment runs INTO: info b / s / h [track][k+1], or the clip's shared e)."""
+    tn = node_name + (".quaternion" if path == "rotation" else ".position" if path == "translation" else "." + path)
+    n = len(ts)
+    t0, t1 = ts[k], ts[k + 1]
+    hold = ((info.get("h") or {}).get(tn) or [0] * n)[k + 1] if len((info.get("h") or {}).get(tn) or []) == n else 0
+    steps = ((info.get("s") or {}).get(tn) or [0] * n)[k + 1] if len((info.get("s") or {}).get(tn) or []) == n else 0
+    span = t1 - t0
+    h = min(max(0.0, hold / FPS), max(0.0, span - 1.0 / FPS))
+    s = 0.0 if x - t0 < h else (x - t0 - h) / max(1e-9, span - h)
+    s = min(max(s, 0.0), 1.0)
+    if steps and s < 1:
+        s = math.floor(s * (steps + 1)) / (steps + 1)
+    el = track_eases(info, node_name, path, n)
+    return ease(el[k + 1], s) if el else s
+
+
 def track_eases(info, node_name, path, n):
     """The eases of one channel: per track (Rig Forge 3D saves, info["b"]["Bone.quaternion"]) else the clip's shared list."""
     tn = node_name + (".quaternion" if path == "rotation" else ".position" if path == "translation" else "." + path)
@@ -213,10 +231,7 @@ def clip_from_glb(rig, j, b, an):
             k = int(np.clip(np.searchsorted(ts, x, side="right") - 1, 0, len(ts) - 1))
             val = v[k]
             if k < len(ts) - 1 and ts[k + 1] > ts[k]:
-                u = (x - ts[k]) / (ts[k + 1] - ts[k])
-                el = track_eases(info, j["nodes"][node].get("name", ""), path, len(ts))
-                if el:
-                    u = ease(el[k + 1], u)
+                u = seg_u(info, j["nodes"][node].get("name", ""), path, ts, k, x)
                 val = slerp(v[k], v[k + 1], u) if path == "rotation" else v[k] * (1 - u) + v[k + 1] * u
             if path == "rotation":
                 local[node] = r.q2m(val)

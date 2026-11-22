@@ -114,6 +114,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 details.adv > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px 0; }
 details.adv[open] > summary { margin-bottom: 6px; }
 #scrub { accent-color: var(--accent); }
+.acts { max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 12px; }
+.acts [role=option] { display: flex; gap: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.acts [role=option]:hover { background: var(--accent-soft); }
+.acts [role=option][aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.acts .ms { margin-left: auto; color: var(--muted); }
 /* skeleton tree */
 .tree { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
   font-family: var(--mono); font-size: 12px; }
@@ -170,6 +175,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <button id="kpLeft" disabled title="One frame earlier (Shift: 5 frames)">← Move</button>
         <button id="kpRight" disabled title="One frame later (Shift: 5 frames)">Move →</button>
         <button id="kpDel" class="danger" disabled title="Delete this key pose (every pivot's key on this frame)">Delete key pose</button>
+        <button id="kpMirror" disabled title="Mirror this key pose left / right (Shift: every key pose)">Mirror L/R</button>
+        <button id="kpTurn" disabled title="Turn the body round to face the other way on this key pose (Shift: every key pose)">Turn around</button>
+        <button id="kpCentre" disabled title="Put the hips back over the spot between the feet on this key pose (Shift: every key pose)">Centre</button>
         <label for="kpEase" class="readout">Tween to next</label>
         <select id="kpEase" disabled>
           <option value="smooth">◆ Smooth</option><option value="linear">● Linear</option><option value="inout">◇ Strong in and out</option>
@@ -203,9 +211,31 @@ details.adv[open] > summary { margin-bottom: 6px; }
     </section>
 
     <section aria-labelledby="h-clip">
-      <h2 id="h-clip">Clip</h2>
-      <div class="row"><select id="clip" class="grow" aria-label="Clip"></select></div>
+      <h2 id="h-clip">Actions</h2>
+      <div class="acts" id="acts" role="listbox" aria-label="Actions"></div>
+      <select id="clip" aria-label="Clip" hidden></select>
+      <div class="row"><label for="actName">Name</label><input type="text" id="actName" class="grow" spellcheck="false"><button id="actRename">Rename</button></div>
+      <div class="row"><label for="actLen">Length</label><input type="number" id="actLen" min="50" max="20000" step="10"><span class="readout">ms</span><button id="actLenSet" class="primary">Set length</button></div>
+      <div class="readout" id="actLenOut"></div>
+      <div class="row"><label for="actTrig">Trigger</label><input type="text" id="actTrig" class="grow" spellcheck="false"></div>
+      <div class="row"><label for="actCool">Cooldown</label><input type="number" id="actCool" min="0" step="50"><span class="readout">ms</span></div>
+      <div class="row"><button id="actAdd">+ Action</button><button id="actDup">Duplicate</button><button id="actDel" class="danger">Remove</button></div>
       <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
+      <div class="readout" id="charFilesOut">Character files: connect the characters folder to edit length / trigger / cooldown in the game.</div>
+      <p class="note">Length = how long the move plays in the game (V3 plays it for exactly this long). The key poses keep their spacing; its FX timing (FX frames) stretches with it. Trigger / cooldown / length are written into the character's files on Save (needs the characters folder). Add / rename / remove can't be undone.</p>
+    </section>
+
+    <section aria-labelledby="h-tw">
+      <h2 id="h-tw">Tween</h2>
+      <div class="readout" id="twOut">Go to a key pose (click a card in the filmstrip).</div>
+      <div class="row"><label for="twSteps">In-betweens</label><input type="number" id="twSteps" min="0" max="60" step="1" value="0"><span class="readout">0 = smooth</span></div>
+      <div class="row"><label for="twHold">Hold</label><input type="number" id="twHold" min="0" max="600" step="1" value="0"><span class="readout">frames still first</span></div>
+      <div class="row"><label for="twEase">Easing</label><select id="twEase" class="grow">
+        <option value="smooth">◆ Smooth</option><option value="linear">● Linear</option><option value="inout">◇ Strong in and out</option>
+        <option value="in">◀ Ease in</option><option value="out">▶ Ease out</option><option value="snap">➤ Snap</option>
+        <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option></select></div>
+      <div class="row"><label>Apply to</label><span class="readout">key poses</span><input type="number" id="twFrom" min="1" step="1" value="1" aria-label="From key pose"><span class="readout">to</span><input type="number" id="twTo" min="1" step="1" value="1" aria-label="To key pose"><button id="twRange">Apply</button><button id="twAll">All</button></div>
+      <p class="note">Settings of the tween from this key pose to the next. <b>In-betweens</b>: how many in-between poses it shows on the way (0 = every frame, smooth; 1-3 = choppy anime timing, the pose jumps). <b>Hold</b>: frames the key pose stays still before it moves. <b>Apply to</b> copies this key pose's tween to a range of key poses (numbers as on the cards).</p>
     </section>
 
     <section aria-labelledby="h-skel">
@@ -434,7 +464,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
 
   /* ---------------------------------------------------------------- state */
   function freshData() {
-    return {version: 2, fade: 8, edits: {}, anchors: {}, xbones: [], attach: {}, placement: {scale: 1, height: 0, yaw: 0},
+    return {version: 2, fade: 8, edits: {}, len: {}, anchors: {}, xbones: [], attach: {}, placement: {scale: 1, height: 0, yaw: 0},
       limits: JSON.parse(JSON.stringify(HINGE_DEF))};
   }
   var S = {
@@ -492,7 +522,16 @@ details.adv[open] > summary { margin-bottom: 6px; }
       return {a: null, b: a, u: smooth(w2)};
     }
     for (i = 0; i < keys.length - 1; i++) if (f >= keys[i].f && f <= keys[i + 1].f) { a = keys[i]; b = keys[i + 1]; break; }
-    return {a: a, b: b, u: ease(a.e, (f - a.f) / Math.max(1, b.f - a.f))};
+    return {a: a, b: b, u: tweenU(a, b, f)};
+  }
+  /* the blend from key a to key b at frame f: a's hold frames, then its in-between steps (choppy, anime-style: the
+     pose jumps steps+1 times), then its ease. Same maths as v3/js/keytween.js and v3/tools/keyreduce.py. */
+  function tweenU(a, b, f) {
+    var span = Math.max(1, b.f - a.f), h = Math.min(Math.max(0, a.h || 0), span - 1);
+    var s = f - a.f < h ? 0 : (f - a.f - h) / Math.max(1, span - h);
+    s = Math.min(Math.max(s, 0), 1);
+    if (a.st && s < 1) s = Math.floor(s * (a.st + 1)) / (a.st + 1);
+    return ease(a.e, s);
   }
   function rotDelta(keys, f, out) {
     var r = blendAt(keys, f, S.data.fade); out.copy(I); if (!r) return out;
@@ -559,6 +598,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
         else key.v = [V[k * 3] - rp.x, V[k * 3 + 1] - rp.y, V[k * 3 + 2] - rp.z];
         var leave = into && k + 1 < T.length ? into[k + 1] : null;
         if (leave && leave !== "smooth") key.e = leave;
+        var hl = inf.h && inf.h[tr.name], sl = inf.s && inf.s[tr.name];
+        if (hl && hl.length === T.length && k + 1 < T.length && hl[k + 1]) key.h = hl[k + 1];
+        if (sl && sl.length === T.length && k + 1 < T.length && sl[k + 1]) key.st = sl[k + 1];
         if (at[key.f] != null) list[at[key.f]] = key; else { at[key.f] = list.length; list.push(key); }
       }
       var e = ed[bn] || (ed[bn] = {}); e[prop === "quaternion" ? "rot" : "pos"] = list;
@@ -570,7 +612,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   /* this clip's keys -> a key-pose clip for the file: each bone's own key frames (+ the clip ends), values as
      shown here, and the ease INTO each key for v3/js/keytween.js (info.b[track]) */
   function keyClipOut(name) {
-    var base = S.baseClips[name], n = frameCount(base), ed = S.data.edits[name] || {}, info = {b: {}};
+    var base = lenBase(name), n = frameCount(base), ed = S.data.edits[name] || {}, info = {b: {}, h: {}, s: {}};
     var sparse = base.clone();
     sparse.tracks = base.tracks.map(function (tr) {
       var dot = tr.name.lastIndexOf("."), bn = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1);
@@ -579,14 +621,19 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var frames = Object.keys(fs).map(Number).sort(function (a, b) { return a - b; });
       var sz = tr.values.length / tr.times.length, vals = new Float32Array(frames.length * sz);
       for (var i = 0; i < frames.length; i++) for (var c = 0; c < sz; c++) vals[i * sz + c] = tr.values[c];
-      if (kl && kl.length) info.b[tr.name] = frames.map(function (f, i) {
-        if (!i) return "linear";
-        var k = null; kl.forEach(function (x) { if (x.f === frames[i - 1]) k = x; });
-        return k ? (k.e || "smooth") : "smooth";
-      });
+      if (kl && kl.length) {
+        var prevKey = function (i) { var k = null; kl.forEach(function (x) { if (x.f === frames[i - 1]) k = x; }); return k; };
+        info.b[tr.name] = frames.map(function (f, i) { if (!i) return "linear"; var k = prevKey(i); return k ? (k.e || "smooth") : "smooth"; });
+        var hh = frames.map(function (f, i) { var k = i ? prevKey(i) : null; return k && k.h ? k.h : 0; });
+        var ss = frames.map(function (f, i) { var k = i ? prevKey(i) : null; return k && k.st ? k.st : 0; });
+        if (hh.some(Boolean)) info.h[tr.name] = hh;
+        if (ss.some(Boolean)) info.s[tr.name] = ss;
+      }
       return new tr.constructor(tr.name, frames.map(function (f) { return f / FPS; }), vals);
     });
     var out = applyEdits(sparse, name, 1); out.name = name;
+    if (!Object.keys(info.h).length) delete info.h;
+    if (!Object.keys(info.s).length) delete info.s;
     return {clip: out, info: info};
   }
   function constTrack(Type, name, times, val) {
@@ -598,13 +645,13 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function baseRot(clipName, bone, f, out) {
     var x = xDef(bone); if (x) return out.copy(xRestQ(x));
     if (S.data.attach[bone]) return out.fromArray(S.data.attach[bone].quat);
-    var t = findTrack(S.baseClips[clipName], bone + ".quaternion");
+    var t = findTrack(lenBase(clipName), bone + ".quaternion");
     if (!t) return out.copy(S.bones[bone].userData.restQ);
     return out.fromArray(t.createInterpolant().evaluate(f / FPS));
   }
   function basePos(clipName, bone, f, out) {
     if (S.data.attach[bone]) return out.fromArray(S.data.attach[bone].pos);
-    var t = findTrack(S.baseClips[clipName], bone + ".position");
+    var t = findTrack(lenBase(clipName), bone + ".position");
     if (!t) return out.copy(S.bones[bone].userData.restP);
     return out.fromArray(t.createInterpolant().evaluate(f / FPS));
   }
@@ -733,8 +780,23 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
 
   /* ---------------------------------------------------------------- playback */
+  /* the clip's base at the length set in the Actions panel (S.data.len[name] frames; undo-able like the keys):
+     a key-pose clip's still rest base is simply longer / shorter, a frame-by-frame clip is stretched */
+  function lenBase(name) {
+    var base = S.baseClips[name], want = S.data.len && S.data.len[name];
+    if (!base || !want || want === frameCount(base)) return base;
+    var k = want / frameCount(base), out = base.clone(); out.duration = want / FPS;
+    out.tracks = base.tracks.map(function (tr) {
+      if (S.keyMode[name]) {
+        var times = []; for (var i = 0; i <= want; i++) times.push(i / FPS);
+        var sz = tr.values.length / tr.times.length; return constTrack(tr.constructor, tr.name, times, Array.prototype.slice.call(tr.values, 0, sz));
+      }
+      var t = tr.clone(); t.times = t.times.map(function (x) { return x * k; }); return t;
+    });
+    return out;
+  }
   function rebake(name, keepFrame) {
-    var clip = applyEdits(S.baseClips[name], name, 1);
+    var clip = applyEdits(lenBase(name), name, 1);
     clip.name = name;
     if (S.clips[name] && S.mixer) { S.mixer.uncacheAction(S.clips[name]); S.mixer.uncacheClip(S.clips[name]); }
     S.clips[name] = clip;
@@ -753,7 +815,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     a.setLoop(THREE.LoopRepeat); a.enabled = true; a.setEffectiveWeight(1); a.play();
     S.action = a;
     setFrame(frame || 0);
-    buildFrames(); buildTree();
+    buildFrames(); buildTree(); buildActs();
   }
   function setFrame(f) {
     if (!S.action) return;
@@ -940,6 +1002,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     syncStructure();
     S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
     $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
+    loadCharFiles(name);
     S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
@@ -2136,7 +2199,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     S.saveKeys = {};
     return S.order.map(function (n) {
       if (S.keyMode[n]) { var o = keyClipOut(n); S.saveKeys[n] = o.info; return o.clip; }
-      var c = applyEdits(S.baseClips[n], n, 1); c.name = n; return c;
+      var c = applyEdits(lenBase(n), n, 1); c.name = n; return c;
     });
   }
   function exportGlb(done) {
@@ -2150,6 +2213,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var ex = new THREE.Scene(); ex.name = "Scene";
     var rig3d = JSON.parse(snap());
     Object.keys(S.keyMode).forEach(function (n) { delete rig3d.edits[n]; });   /* key clips: the keys ARE the clip */
+    delete rig3d.meta; delete rig3d.len;                                        /* lengths are in the clips, files get the rest */
     ex.userData = {pb_rig3d: rig3d};
     if (Object.keys(S.saveKeys || {}).length) ex.userData.pb_keys = S.saveKeys;
     /* clips-only character file: save the skeleton + clips, never the shared body's mesh */
@@ -2180,7 +2244,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var blob = new Blob([buf], {type: "model/gltf-binary"}), kb = Math.round(buf.byteLength / 1024);
       if (S.fileHandle && S.fileHandle.createWritable) {
         S.fileHandle.createWritable().then(function (w) { return w.write(blob).then(function () { return w.close(); }); })
-          .then(function () { S.dirty = false; status("Saved into " + S.fileName + " (" + kb + " KB)"); })
+          .then(function () { return saveCharFiles().catch(function (e) { status("Saved the .glb, but the character files failed: " + e.message, true); return null; }); })
+          .then(function (extra) { if (extra === null) return; S.dirty = false; status("Saved into " + S.fileName + " (" + kb + " KB)" + (extra || "")); })
           .catch(function (e) { status("Could not write " + S.fileName + ": " + e.message, true); });
         return;
       }
@@ -2504,7 +2569,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function chOpen(i) {
     var c = CH.list[i]; if (!c) return;
-    CH.loading = i;
+    CH.loading = i; S.pendingRel = c.rel;
     var got = c.handle ? c.handle.getFile() : Promise.resolve(c.file);
     got.then(function (f) { return f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, c.handle || null); }); })
       .catch(function (e) { CH.loading = -1; status("Could not open " + c.rel + ": " + e.message, true); charSelSync(S.fileHandle, S.fileName); });
@@ -2632,7 +2697,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var best = null, bd = 1e9;
     Array.prototype.forEach.call($("strip").children, function (b) { var d = Math.abs(+b.dataset.f - f); if (d < bd) { bd = d; best = b; } b.classList.remove("here"); });
     if (best) best.classList.add("here");
-    ["kpDup", "kpLeft", "kpRight", "kpDel", "kpEase"].forEach(function (id) { $(id).disabled = !on; });
+    ["kpDup", "kpLeft", "kpRight", "kpDel", "kpEase", "kpMirror", "kpTurn", "kpCentre"].forEach(function (id) { $(id).disabled = !on; });
+    syncTween();
     $("kpAdd").disabled = !S.clip;
     var e = on ? easeOfAll(f) : null; $("kpEase").value = e || "smooth";
     var sel = Array.prototype.filter.call($("film").children, function (b) { return +b.dataset.f === f; })[0];
@@ -2672,6 +2738,269 @@ details.adv[open] > summary { margin-bottom: 6px; }
   };
   $("scrub").oninput = function () { setPlaying(false); setFrame(+this.value); };
   $("dopeBox").addEventListener("toggle", function () { DOPE.sig = ""; });
+
+  /* ---------------------------------------------------------------- actions panel (Daniel 2026-11-22: from the original Rig Forge)
+     The open character's actions = its clips. Length = how long the move plays in the game: the clip is retimed
+     (S.data.len, key poses keep their spacing) and on Save the character's FX file timing (frames x frame_ms, read by
+     V3) gets frame_ms = length / frames, so its FX keep their frames. Trigger (character.json) and cooldown (FX file
+     action_settings.cooldown_ms) are written on Save too. Pending values live in S.data.meta (undo-able). */
+  var CF = {dir: null, name: "", fx: null, ch: null, dirty: false};
+  function meta() { return S.data.meta || (S.data.meta = {timing: {}, trigger: {}, cool: {}}); }
+  function clipMs(n) { var c = S.clips[n] || lenBase(n); return c ? Math.round(frameCount(c) / FPS * 1000) : 0; }
+  function gameMs(n) {
+    var m = meta().timing[n]; if (m != null) return m;
+    var t = CF.fx && CF.fx.timing && CF.fx.timing[n];
+    return t && t.frames ? Math.round(t.frames * t.frame_ms) : clipMs(n);
+  }
+  function actKeys(n) {
+    var ed = S.data.edits[n] || {}, s2 = {};
+    Object.keys(ed).forEach(function (b) { (ed[b].rot || []).concat(ed[b].pos || []).forEach(function (k) { s2[k.f] = 1; }); });
+    return Object.keys(s2).length;
+  }
+  function buildActs() {
+    var box = $("acts"); if (!box) return;
+    box.innerHTML = S.order.map(function (n) {
+      return '<div role="option" tabindex="-1" data-n="' + esc(n) + '" aria-selected="' + (n === S.clip) + '"><span>' + esc(n) +
+        '</span><span class="ms">' + (gameMs(n) / 1000).toFixed(2) + " s · " + actKeys(n) + " keys</span></div>";
+    }).join("");
+    Array.prototype.forEach.call(box.children, function (r) {
+      r.onclick = function () { setClip(r.dataset.n, 0); };
+      if (r.dataset.n === S.clip && r.scrollIntoView) r.scrollIntoView({block: "nearest"});
+    });
+    syncActFields();
+  }
+  function syncActFields() {
+    var n = S.clip; if (!n) return;
+    $("actName").value = n; $("actLen").value = gameMs(n);
+    var t = CF.fx && CF.fx.timing && CF.fx.timing[n], ms = gameMs(n);
+    $("actLenOut").textContent = (clipMs(n) / 1000).toFixed(3) + " s clip · " + frameCount(S.clips[n]) + " frames at " + FPS + " fps" +
+      (t && t.frames ? " · FX timing " + t.frames + " × " + (ms / t.frames).toFixed(2) + " ms" : (CF.fx ? " · no FX timing (not used by the game yet)" : ""));
+    var tr = meta().trigger[n]; if (tr == null) tr = CF.ch && CF.ch.actions && CF.ch.actions[n] ? CF.ch.actions[n].trigger || "" : "";
+    var co = meta().cool[n]; if (co == null) co = CF.fx && CF.fx.action_settings && CF.fx.action_settings[n] ? +CF.fx.action_settings[n].cooldown_ms || 0 : 0;
+    $("actTrig").value = tr; $("actCool").value = co;
+    var has = !!CF.fx; $("actTrig").disabled = !(CF.ch && CF.ch.actions && CF.ch.actions[n]); $("actCool").disabled = !has;
+    $("charFilesOut").textContent = CF.fx ? "Character files: " + CF.name + "/" + CF.name + ".fxkit.json" + (CF.ch ? " + character.json" : "") + (CF.dirty || Object.keys(meta().timing).length ? " · changes saved on Save" : "") :
+      "Character files: connect the characters folder (Character panel) to edit length / trigger / cooldown in the game.";
+  }
+  async function loadCharFiles(fileName) {
+    CF.dir = null; CF.fx = null; CF.ch = null; CF.dirty = false; CF.name = "";
+    var rel = S.pendingRel || (chFind(String(fileName).replace(/\.glb$/i, "")) || {}).rel; S.pendingRel = null;
+    if (!CH.dir || !rel) { syncActFields(); return; }
+    try {
+      var parts = rel.split("/"), d = CH.dir;
+      for (var i = 0; i < parts.length - 1; i++) d = await d.getDirectoryHandle(parts[i]);
+      var nm = parts[parts.length - 1].replace(/\.glb$/i, "");
+      CF.dir = d; CF.name = nm;
+      try { CF.fx = JSON.parse(await (await (await d.getFileHandle(nm + ".fxkit.json")).getFile()).text()); } catch (e) { CF.fx = null; }
+      try { CF.ch = JSON.parse(await (await (await d.getFileHandle("character.json")).getFile()).text()); } catch (e) { CF.ch = null; }
+    } catch (e) { CF.dir = null; }
+    buildActs();
+  }
+  async function writeJson(name, obj) {
+    var h = await CF.dir.getFileHandle(name, {create: true}), w = await h.createWritable();
+    await w.write(JSON.stringify(obj, null, 1) + "\n"); await w.close();
+  }
+  async function saveCharFiles() {
+    var M = meta(), anyM = Object.keys(M.timing).length || Object.keys(M.trigger).length || Object.keys(M.cool).length;
+    if (!CF.dir || !(CF.dirty || anyM)) return "";
+    if (CF.fx) {
+      CF.fx.timing = CF.fx.timing || {}; CF.fx.action_settings = CF.fx.action_settings || {};
+      Object.keys(M.timing).forEach(function (n) {
+        var t = CF.fx.timing[n] || (CF.fx.timing[n] = {frames: Math.max(1, Math.round(M.timing[n] / (1000 / 60)))});
+        t.frame_ms = Math.round(M.timing[n] / t.frames * 1000) / 1000;
+        var a = CF.ch && CF.ch.actions && CF.ch.actions[n];
+        if (a) { a.frame_ms = t.frame_ms; if (a.duration_ms != null) a.duration_ms = Math.round(M.timing[n]); }
+      });
+      Object.keys(M.cool).forEach(function (n) { (CF.fx.action_settings[n] || (CF.fx.action_settings[n] = {})).cooldown_ms = M.cool[n]; });
+      await writeJson(CF.name + ".fxkit.json", CF.fx);
+    }
+    if (CF.ch) {
+      Object.keys(M.trigger).forEach(function (n) { if (CF.ch.actions && CF.ch.actions[n]) CF.ch.actions[n].trigger = M.trigger[n]; });
+      await writeJson("character.json", CF.ch);
+    }
+    CF.dirty = false; S.data.meta = {timing: {}, trigger: {}, cool: {}};
+    buildActs();
+    return " + " + CF.name + ".fxkit.json" + (CF.ch ? " + character.json" : "");
+  }
+  /* scale every key of a clip to a new length in frames (key poses keep their spacing; two that land on one frame merge) */
+  function scaleKeys(n, newN) {
+    var oldN = frameCount(S.clips[n] || lenBase(n)), k = newN / Math.max(1, oldN), ed = S.data.edits[n] || {};
+    Object.keys(ed).forEach(function (b) {
+      ["rot", "pos"].forEach(function (kind) {
+        var list = ed[b][kind]; if (!list) return;
+        var out = {}; list.forEach(function (x) { var y = JSON.parse(JSON.stringify(x)); y.f = Math.round(x.f * k); if (y.h) y.h = Math.round(y.h * k); out[y.f] = y; });
+        ed[b][kind] = Object.keys(out).map(Number).sort(function (a, c) { return a - c; }).map(function (f) { return out[f]; });
+      });
+    });
+  }
+  function setLength() {
+    var n = S.clip, ms = +$("actLen").value; if (!n) return;
+    if (!(ms >= 50)) { status("Length must be at least 50 ms.", true); return; }
+    var newN = Math.max(2, Math.round(ms / 1000 * FPS));
+    pushUndo();
+    if (newN !== frameCount(S.clips[n])) { scaleKeys(n, newN); S.data.len[n] = newN; }
+    meta().timing[n] = Math.round(ms);
+    rebake(n, false); setFrame(Math.min(S.frame, newN)); buildActs();
+    status(n + " now plays for " + (ms / 1000).toFixed(3) + " s" + (CF.fx ? " (written into the character's files on Save)." : ". Connect the characters folder so the game uses it too."));
+  }
+  function validName(nm) { return /^[A-Za-z0-9_]+$/.test(nm) && S.order.indexOf(nm) < 0; }
+  function forgetUndo(why) { S.undo = []; S.redo = []; uiUndo(); markDirty(); status(why + " (can't be undone; Save to keep it)."); }
+  function renameAct() {
+    var a = S.clip, b = $("actName").value.trim(); if (!a || b === a) return;
+    if (!validName(b)) { status("Name: letters, digits and _ only, not used by another action.", true); $("actName").value = a; return; }
+    S.order[S.order.indexOf(a)] = b;
+    [S.baseClips, S.clips, S.keyMode, S.data.edits, S.data.len, meta().timing, meta().trigger, meta().cool].forEach(function (o) { if (o && a in o) { o[b] = o[a]; delete o[a]; } });
+    if (S.clips[b]) S.clips[b].name = b; if (S.baseClips[b]) S.baseClips[b].name = b;
+    if (CF.fx) {
+      ["timing", "action_settings"].forEach(function (k) { var o = CF.fx[k]; if (o && a in o) { o[b] = o[a]; delete o[a]; } });
+      Object.keys(CF.fx.action_settings || {}).forEach(function (k) { if (CF.fx.action_settings[k].chain_next === a) CF.fx.action_settings[k].chain_next = b; });
+      (CF.fx.effects || []).forEach(function (e) { if (e.action === a) e.action = b; });
+      CF.dirty = true;
+    }
+    if (CF.ch && CF.ch.actions && a in CF.ch.actions) { CF.ch.actions[b] = CF.ch.actions[a]; delete CF.ch.actions[a]; CF.dirty = true; }
+    fillClipSelect(); setClip(b, S.frame); forgetUndo("Renamed " + a + " to " + b);
+  }
+  function fillClipSelect() {
+    $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("");
+    buildActs();
+  }
+  function newActName(base) { var i = 2, nm = base; while (!validName(nm)) nm = base + "_" + (i++); return nm; }
+  function addAct(dup) {
+    if (!S.root || !S.clip) return;
+    var src = S.clip, nm = window.prompt(dup ? "Name of the copy:" : "Name of the new action (letters, digits, _):", newActName(dup ? src + "_copy" : "new_action"));
+    if (nm == null) return; nm = nm.trim();
+    if (!validName(nm)) { status("Name: letters, digits and _ only, not used by another action.", true); return; }
+    var N = dup ? frameCount(S.clips[src]) : Math.round(0.5 * FPS);
+    var keySrc = Object.keys(S.keyMode).filter(function (k) { return S.keyMode[k]; })[0];
+    if (dup) {
+      S.baseClips[nm] = lenBase(src).clone(); S.keyMode[nm] = !!S.keyMode[src];
+      S.data.edits[nm] = JSON.parse(JSON.stringify(S.data.edits[src] || {}));
+    } else {
+      /* a 0.5 s clip holding the pose you see now, as two key poses */
+      setPlaying(false); setFrame(S.frame);
+      var tpl = keySrc ? S.baseClips[keySrc] : lenBase(src), times = [], i;
+      for (i = 0; i <= N; i++) times.push(i / FPS);
+      var ed = {};
+      S.baseClips[nm] = new THREE.AnimationClip(nm, N / FPS, tpl.tracks.filter(function (t) { return /\.(quaternion|position)$/.test(t.name); }).map(function (t) {
+        var dot = t.name.lastIndexOf("."), bn = t.name.slice(0, dot), prop = t.name.slice(dot + 1), b = S.bones[bn];
+        var restV = prop === "quaternion" ? b.userData.restQ.toArray() : b.userData.restP.toArray();
+        var e = ed[bn] || (ed[bn] = {});
+        if (prop === "quaternion") { var q = b.userData.restQ.clone().invert().multiply(b.quaternion).normalize().toArray(); e.rot = [{f: 0, q: q}, {f: N, q: q.slice()}]; }
+        else { var v = b.position.clone().sub(b.userData.restP).toArray(); e.pos = [{f: 0, v: v}, {f: N, v: v.slice()}]; }
+        return constTrack(t.constructor, t.name, times, restV);
+      }));
+      S.keyMode[nm] = true; S.data.edits[nm] = ed;
+    }
+    S.order.push(nm);
+    if (CF.fx) {
+      CF.fx.timing = CF.fx.timing || {};
+      CF.fx.timing[nm] = dup && CF.fx.timing[src] ? JSON.parse(JSON.stringify(CF.fx.timing[src])) : {frames: N, frame_ms: Math.round(1000 / FPS * 1000) / 1000};
+      CF.dirty = true;
+    }
+    rebake(nm, false); fillClipSelect(); setClip(nm, 0);
+    forgetUndo((dup ? "Duplicated " + src + " as " : "Added the action ") + nm);
+  }
+  function removeAct() {
+    var n = S.clip; if (!n || S.order.length < 2) return;
+    if (!window.confirm("Remove the action " + n + " (its clip" + (CF.fx ? " and its FX timing" : "") + ")? Its FX effects stay in the FX file.")) return;
+    S.order.splice(S.order.indexOf(n), 1);
+    [S.baseClips, S.clips, S.keyMode, S.data.edits, S.data.len, meta().timing, meta().trigger, meta().cool].forEach(function (o) { if (o) delete o[n]; });
+    if (CF.fx && CF.fx.timing && n in CF.fx.timing) { delete CF.fx.timing[n]; CF.dirty = true; }
+    fillClipSelect(); setClip(S.order[0], 0); forgetUndo("Removed " + n);
+  }
+  $("actLenSet").onclick = setLength;
+  $("actLen").addEventListener("keydown", function (e) { if (e.key === "Enter") setLength(); });
+  $("actRename").onclick = renameAct;
+  $("actName").addEventListener("keydown", function (e) { if (e.key === "Enter") renameAct(); });
+  $("actAdd").onclick = function () { addAct(false); };
+  $("actDup").onclick = function () { addAct(true); };
+  $("actDel").onclick = removeAct;
+  $("actTrig").onchange = function () { pushUndo(); meta().trigger[S.clip] = this.value; syncActFields(); status("Trigger of " + S.clip + " set (written on Save)."); };
+  $("actCool").onchange = function () { pushUndo(); meta().cool[S.clip] = Math.max(0, +this.value || 0); syncActFields(); status("Cooldown of " + S.clip + " set (written on Save)."); };
+
+  /* ---------------------------------------------------------------- tween panel (from the original Rig Forge) */
+  function tweenOf(f) {                                    /* the key pose's tween: {e, st, h} (first pivot keyed on f) */
+    var ns = framesOnFrame(f); if (!ns.length) return null;
+    var k = keyAt(S.clip, ns[0], f) || {};
+    return {e: easeOfAll(f) || "smooth", st: k.st || 0, h: k.h || 0};
+  }
+  function setTween(f, tw) {
+    framesOnFrame(f).forEach(function (n) {
+      var ed = (S.data.edits[S.clip] || {})[n]; if (!ed) return;
+      ["rot", "pos"].forEach(function (kind) { (ed[kind] || []).forEach(function (x) {
+        if (x.f !== f) return;
+        if (tw.e != null) { if (tw.e === "smooth") delete x.e; else x.e = tw.e; }
+        if (tw.st != null) { if (tw.st) x.st = tw.st; else delete x.st; }
+        if (tw.h != null) { if (tw.h) x.h = tw.h; else delete x.h; }
+      }); });
+    });
+  }
+  function syncTween() {
+    var f = S.frame, keys = poseFrames(), i = keys.indexOf(f), tw = i >= 0 ? tweenOf(f) : null;
+    ["twSteps", "twHold", "twEase", "twFrom", "twTo", "twRange", "twAll"].forEach(function (id) { $(id).disabled = !tw; });
+    $("twOut").textContent = tw ? "Key pose " + (i + 1) + " of " + keys.length + " (f" + f + ")" + (i < keys.length - 1 ? " → key pose " + (i + 2) + " (f" + keys[i + 1] + ", " + (keys[i + 1] - f) + " frames)" : " · the last key pose") :
+      "Go to a key pose (click a card in the filmstrip).";
+    if (!tw) return;
+    if (document.activeElement !== $("twSteps")) $("twSteps").value = tw.st;
+    if (document.activeElement !== $("twHold")) $("twHold").value = tw.h;
+    $("twEase").value = tw.e;
+    $("twFrom").max = $("twTo").max = keys.length;
+    if (+$("twFrom").value > keys.length) $("twFrom").value = 1;
+    if (+$("twTo").value > keys.length || +$("twTo").value < 1) $("twTo").value = keys.length;
+  }
+  function twChange(field, val) {
+    var f = S.frame; if (poseFrames().indexOf(f) < 0) return;
+    var o = {}; o[field] = val; pushUndo(); setTween(f, o); afterKeys("Tween from f" + f + ": " + (field === "st" ? val + " in-between" + (val === 1 ? "" : "s") : field === "h" ? "hold " + val + " frames" : (EASE_TXT[val] || val)) + ".");
+  }
+  $("twSteps").onchange = function () { twChange("st", Math.max(0, Math.min(60, Math.round(+this.value || 0)))); };
+  $("twHold").onchange = function () { twChange("h", Math.max(0, Math.round(+this.value || 0))); };
+  $("twEase").onchange = function () { twChange("e", this.value); };
+  function twApply(from, to) {
+    var keys = poseFrames(), tw = tweenOf(S.frame); if (!tw) return;
+    from = Math.max(1, Math.min(keys.length, from)); to = Math.max(1, Math.min(keys.length, to));
+    if (from > to) { var t = from; from = to; to = t; }
+    pushUndo();
+    for (var i = from - 1; i <= to - 1; i++) setTween(keys[i], {e: tw.e === "mixed" ? null : tw.e, st: tw.st, h: tw.h});
+    afterKeys("Tween copied to key poses " + from + "-" + to + ".");
+  }
+  $("twRange").onclick = function () { twApply(+$("twFrom").value, +$("twTo").value); };
+  $("twAll").onclick = function () { twApply(1, poseFrames().length); };
+
+  /* ---------------------------------------------------------------- mirror / turn around / centre (original Rig Forge's
+     Mirror L/R, face left and Center; Shift = every key pose) */
+  function eachKeyPose(all, fn, what) {
+    var keys = all ? poseFrames() : [S.frame]; if (!keys.length || (!all && poseFrames().indexOf(S.frame) < 0)) return;
+    setPlaying(false); var here = S.frame, keep = S.board, undoLen = S.undo.length;
+    pushUndo();
+    keys.forEach(function (f) { setFrame(f); fn(f); });
+    S.board = keep; boardOut();
+    while (S.undo.length > undoLen + 1) S.undo.pop();          /* one undo step for the whole job */
+    afterKeys(what + (all ? " on every key pose." : " on f" + here + ".")); setFrame(here);
+  }
+  function keyHips(f, q, p) {
+    var b = S.bones.Hips; if (!b) return;
+    setKey(keysOf(S.clip, "Hips", "rot", true), f, {q: baseRot(S.clip, "Hips", f, new THREE.Quaternion()).invert().multiply(q).normalize().toArray()});
+    setKey(keysOf(S.clip, "Hips", "pos", true), f, {v: p.clone().sub(basePos(S.clip, "Hips", f, new THREE.Vector3())).toArray()});
+  }
+  function turnHere(f) {
+    var b = S.bones.Hips; if (!b) return;
+    S.root.updateMatrixWorld(true);
+    var P = b.parent.getWorldQuaternion(new THREE.Quaternion()), Y = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+    var q = P.clone().invert().multiply(Y).multiply(P).multiply(b.quaternion).normalize();
+    var o = S.root.getWorldPosition(new THREE.Vector3()), w = b.getWorldPosition(new THREE.Vector3());
+    w.sub(o).applyQuaternion(Y).add(o);
+    keyHips(f, q, b.parent.worldToLocal(w));
+  }
+  function centreHere(f) {
+    var b = S.bones.Hips; if (!b) return;
+    S.root.updateMatrixWorld(true);
+    var o = S.root.getWorldPosition(new THREE.Vector3()), w = b.getWorldPosition(new THREE.Vector3());
+    w.x = o.x; w.z = o.z; keyHips(f, b.quaternion.clone(), b.parent.worldToLocal(w));
+  }
+  function mirrorHere() { copyPose(true); var u = S.undo.length; pastePose(true); }
+  $("kpMirror").onclick = function (e) { eachKeyPose(e.shiftKey, mirrorHere, "Mirrored left / right"); };
+  $("kpTurn").onclick = function (e) { eachKeyPose(e.shiftKey, turnHere, "Turned around"); };
+  $("kpCentre").onclick = function (e) { eachKeyPose(e.shiftKey, centreHere, "Centred the hips"); };
 
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
