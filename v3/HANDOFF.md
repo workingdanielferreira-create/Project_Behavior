@@ -124,8 +124,7 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 Picked: Actions panel (with settable length), Tween panel (in-betweens per key pose, hold, easing, range), Mirror +
 face left, Reference images, Pose + move library, Weapon editor. Not picked: IK solve + arc guides, Character tab +
 PNG / package export. Part 1 done (actions, length, tween, mirror / turn / centre); part 2 done (reference images incl.
-the character's own 2D drawings behind the figure); part 3 done (pose + move library, body moves as stock).
-Next: weapon editor.
+the character's own 2D drawings behind the figure); part 3 done (pose + move library, body moves as stock); part 4 done (weapon editor, built in V3 too).
 
 ## Next steps (agreed direction, not started)
 

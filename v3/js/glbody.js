@@ -53,9 +53,12 @@ function glbBuild(k,g){const body=glbBodyOf(k);const model=glbClone(body.scene);
   const skinned=[];model.traverse(o=>{if(o.isSkinnedMesh)skinned.push(o);});
   skinned.forEach(o=>{const isBlade=/blade/i.test(o.name)||/blade/i.test(o.material&&o.material.name||'');o.material=isBlade?blade:mat;o.frustumCulled=false;
     if(isBlade){const left=/blade_?L/i.test(o.name),W=body.weapons;  // melee kits only; a character's file says which hands hold one
-      o.visible=!!k.melee&&(W?!!(left?W.L:W.R):!left);}
+      const cw=W?(left?W.L:W.R):!left;o.visible=!!k.melee&&pbwOn(cw)&&!pbwCustom(cw);}   // a custom weapon (weapons3d.js) replaces this blade
     const out=new THREE.SkinnedMesh(o.geometry,inkM);out.bind(o.skeleton,o.bindMatrix);out.frustumCulled=false;out.visible=o.visible;o.parent.add(out);});
   const mixer=new THREE.AnimationMixer(model);
+  if(k.melee&&body.weapons){const inkW=new THREE.MeshToonMaterial({color:0x05070d,side:THREE.BackSide});   // weapons built in the editor
+    inkW.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','transformed += normalize(objectNormal) * 0.006;\n#include <project_vertex>');};
+    pbwAttach(model,body.weapons,{blade:blade,hilt:new THREE.MeshToonMaterial({color:0x2a2f3c,gradientMap:grad}),ink:inkW});}
   return {model,mat,mixer,body,cur:'',curId:null,act:null};}
 
 /* clip fallbacks (v3/rig_spec.json clips) */

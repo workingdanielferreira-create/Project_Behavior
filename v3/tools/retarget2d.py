@@ -617,7 +617,15 @@ def write(name, j, b, rig, src, clips, body=None):
     """characters/<name>/<name>.glb = skeleton + the character's own clips only (no mesh). V3 and Rig Forge 3D
     put them on the shared body; extras pb_body says which body and which blades the character holds."""
     body_name = os.path.splitext(os.path.basename(body or BODY))[0]
-    meta = {"pb_body": {"body": body_name, "weapons": {"R": bool(src.has_weapon), "L": bool(src.has_weapon2)},
+    weapons = {"R": bool(src.has_weapon), "L": bool(src.has_weapon2)}
+    try:                              # weapons set up in Rig Forge 3D's weapon editor survive a rebuild
+        old = (read_glb(os.path.join(CHARS, name, name + ".glb"))[0]["scenes"][0].get("extras") or {}).get("pb_body") or {}
+        for side, cfg in (old.get("weapons") or {}).items():
+            if isinstance(cfg, dict):
+                weapons[side] = cfg
+    except (OSError, KeyError, IndexError, ValueError):
+        pass
+    meta = {"pb_body": {"body": body_name, "weapons": weapons,
                         "source": "v3/tools/retarget2d.py from characters/%s/character.json" % name}}
     import keyreduce                  # every clip is stored as key poses + eases (Daniel 2026-11-22)
     reduced = {}

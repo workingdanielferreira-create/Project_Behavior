@@ -255,6 +255,17 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <p class="note">◆ pose = the whole pose on one frame (applied as a key pose on the current frame). ▶ move = a whole action's key poses with their tweens (applied to the current action, replacing its key poses). <b>Body moves</b> = the shared body's own clips (hit reactions, dodges, sword attacks …). Saved on this computer for every character (bone names), Export / Import moves it between computers.</p>
     </section>
 
+    <section aria-labelledby="h-wpn">
+      <h2 id="h-wpn">Weapons</h2>
+      <div class="row"><span class="seg"><button id="wpR" aria-pressed="true">Weapon 1 · right hand</button><button id="wpL" aria-pressed="false">Weapon 2 · left hand</button></span></div>
+      <label class="check"><input type="checkbox" id="wpOn" checked> Holds a weapon in this hand</label>
+      <label class="check"><input type="checkbox" id="wpCustom"> Build it here (off = the body's own plain blade)</label>
+      <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option></select></div>
+      <div id="wpSliders"></div>
+      <div class="row"><button id="wpCopy">Copy from the other hand</button><button id="wpReset">Reset to the shape</button></div>
+      <p class="note">Saved into the character's .glb (pb_body.weapons) on Save; V3 builds the same weapon in the fighter's hand. Grip slides the weapon along the hand's weapon line, roll turns the edge. The grip spot itself (which bone, where in the palm) is the weapon pivot's grip in the skeleton card.</p>
+    </section>
+
     <section aria-labelledby="h-ref">
       <h2 id="h-ref">Reference images</h2>
       <label class="check"><input type="checkbox" id="refShow" checked> Show reference images</label>
@@ -368,6 +379,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
 <script src="../lib/OrbitControls.js"></script>
 <script src="../lib/TransformControls.js"></script>
 <script src="../js/retarget.js"></script>
+<script src="../js/weapons3d.js"></script>
 <script>
 /* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig) and saves everything back INTO it, in the
    scene extras pb_rig3d (version 2):
@@ -839,6 +851,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     syncStructure();
     S.order.forEach(function (n) { rebake(n, true); });
     buildTree(); buildCard(); syncGizmo(); updatePivotOut();
+    if (typeof wpApply === "function") { wpApply(); wpSync(); }
   }
   function setClip(name, frame) {
     if (!S.mixer) return;
@@ -1001,7 +1014,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
         if (o.geometry.index) g.setIndex(o.geometry.index);
         Object.keys(o.geometry.attributes).forEach(function (n) { g.setAttribute(n, o.geometry.attributes[n]); });
         var out = new THREE.SkinnedMesh(g, ink); out.bind(o.skeleton, o.bindMatrix); out.frustumCulled = false;
-        out.userData.isOutline = true; o.parent.add(out); S.outlines.push(out);
+        out.userData.isOutline = true; out.userData.of = o; o.parent.add(out); S.outlines.push(out);
       }
     });
     WEAPONS.forEach(function (w) {
@@ -1020,6 +1033,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
        fills the frames in between. Saved back as key poses only. */
     var PK = gltf.pbKeys !== undefined ? gltf.pbKeys : (gltf.scene.userData && gltf.scene.userData.pb_keys) || {};
     if (!gltf.slim) BODY.stock = {anims: gltf.animations, pk: PK};          /* a full body file: its own clips are the stock moves */
+    var pbb = gltf.slim ? gltf.slim.meta : (gltf.scene.userData && gltf.scene.userData.pb_body) || {};
+    S.data.weapons = pbb && pbb.weapons ? JSON.parse(JSON.stringify(pbb.weapons)) : {};
+    S.pbBody = gltf.slim ? null : (gltf.scene.userData && gltf.scene.userData.pb_body) || null;
     S.keyMode = {};
     gltf.animations.forEach(function (c) {
       if (PK[c.name] && !(ext && ext.edits && ext.edits[c.name])) {
@@ -1038,6 +1054,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
     $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
     loadCharFiles(name); refLoadAll(name); if (typeof libBuild === "function") libBuild();
+    wpApply(); wpSync();
     S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
@@ -1068,7 +1085,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   /* ---------------------------------------------------------------- materials / view */
   function setToon(on) {
     (on ? S.toonMats : S.origMats).forEach(function (p) { p[0].material = p[1]; });
-    S.outlines.forEach(function (o) { o.visible = on; });
+    S.outlines.forEach(function (o) { o.visible = on && (!o.userData.of || o.userData.of.visible); });
   }
   function applyPlacement() {
     var p = S.data.placement;
@@ -2241,6 +2258,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var root = S.root, clips = bakedClips();
     var wasPlaying = S.playing; setPlaying(false); tc.detach(); back.visible = false;
     S.origMats.forEach(function (p) { p[0].material = p[1]; });
+    pbwDetach(S.root);                                       /* editor-built weapons are rebuilt from pb_body.weapons, never exported */
     var outl = S.outlines.map(function (o) { var p = o.parent; p.remove(o); return [o, p]; });
     var infl = S.skinned.map(function (m) { var v = m.morphTargetInfluences ? m.morphTargetInfluences.slice() : null; if (v) m.morphTargetInfluences.fill(0); return v; });
     S.mixer.stopAllAction();
@@ -2253,7 +2271,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (Object.keys(S.saveKeys || {}).length) ex.userData.pb_keys = S.saveKeys;
     /* clips-only character file: save the skeleton + clips, never the shared body's mesh */
     var cut = [];
+    if (!S.slim && (S.pbBody || Object.keys(S.data.weapons || {}).length)) ex.userData.pb_body = Object.assign({}, S.pbBody || {}, {weapons: S.data.weapons || {}});
+    delete rig3d.weapons;
     if (S.slim) {
+      S.slim.meta.weapons = S.data.weapons || S.slim.meta.weapons;
       ex.userData.pb_body = S.slim.meta;
       S.skinned.forEach(function (m) { if (m.parent) { cut.push([m, m.parent]); m.parent.remove(m); } });
     }
@@ -2263,7 +2284,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       cut.forEach(function (x) { x[1].add(x[0]); });
       outl.forEach(function (x) { x[1].add(x[0]); });
       S.skinned.forEach(function (m, i) { if (infl[i]) for (var j = 0; j < infl[i].length; j++) m.morphTargetInfluences[j] = infl[i][j]; });
-      setToon($("vToon").checked);
+      setToon($("vToon").checked); wpApply();
       setClip(S.clip, S.frame); if (wasPlaying) setPlaying(true);
     }
     try {
@@ -2503,7 +2524,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function updateGhosts() {
     var c = GH.cfg, want = S.root && S.clip && S.clips[S.clip] && c.on ? ghostFrames() : [];
-    var sig = want.length ? [S.root.uuid, JSON.stringify(S.data.xbones), JSON.stringify(S.data.attach), c.before, c.after].join("|") : "";
+    var sig = want.length ? [S.root.uuid, JSON.stringify(S.data.xbones), JSON.stringify(S.data.attach), JSON.stringify(S.data.weapons || null), c.before, c.after].join("|") : "";
     if (sig !== GH.sig) {
       clearGhosts(); GH.sig = sig;
       want.forEach(function (w, i) { GH.list.push(ghostMake(i, w[1], GH_NEAR * Math.pow(GH_FALL, w[2] - 1))); });
@@ -3321,6 +3342,66 @@ details.adv[open] > summary { margin-bottom: 6px; }
     }).catch(function (e) { status("Could not import: " + e.message, true); });
   };
   libLoad();
+
+  /* ---------------------------------------------------------------- weapons (original Rig Forge's weapon editor, in 3D)
+     S.data.weapons = {R, L}: true / false (the body's own blade shown or not) or a weapons3d.js cfg (built here and in
+     V3). Saved into the .glb's pb_body.weapons. Undo-able. */
+  var WP = {side: "R", dragging: false, mats: null};
+  var WP_SLIDERS = [["len", "Length", 0.15, 2.2, 0.01, "m"], ["w", "Width", 0.008, 0.3, 0.002, "m"], ["thick", "Thickness", 0.004, 0.05, 0.001, "m"],
+    ["curve", "Curve", -0.2, 0.2, 0.005, ""], ["tip", "Point", 0, 0.6, 0.01, ""], ["guard", "Guard", 0, 0.5, 0.01, "m"],
+    ["handle", "Handle", 0, 0.6, 0.01, "m"], ["grip", "Grip", -0.5, 0.5, 0.005, "m"], ["roll", "Roll", -180, 180, 1, "°"]];
+  function wpMats() {
+    if (WP.mats) return WP.mats;
+    var ink = new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide});
+    ink.onBeforeCompile = function (sh) { sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>", "transformed += normalize(objectNormal) * 0.004;\n#include <project_vertex>"); };
+    return (WP.mats = {blade: new THREE.MeshToonMaterial({color: 0xe8f4ff, gradientMap: grad, emissive: new THREE.Color(0x223044)}),
+                       hilt: new THREE.MeshToonMaterial({color: 0x2a2f3c, gradientMap: grad}), ink: ink});
+  }
+  function wpApply() {
+    if (!S.root) return;
+    var W = S.data.weapons || {};
+    pbwDetach(S.root);
+    S.skinned.forEach(function (m) {
+      if (!/blade/i.test(m.name)) return;
+      var c = W[/blade_?L/i.test(m.name) ? "L" : "R"]; m.visible = c == null ? true : (pbwOn(c) && !pbwCustom(c));
+    });
+    pbwAttach(S.root, W, wpMats());
+    setToon($("vToon").checked);
+  }
+  function wpCfg() { var W = S.data.weapons || (S.data.weapons = {}); return W[WP.side]; }
+  function wpSync() {
+    var c = wpCfg(), custom = pbwCustom(c), full = custom ? pbwFull(c) : null;
+    $("wpR").setAttribute("aria-pressed", String(WP.side === "R")); $("wpL").setAttribute("aria-pressed", String(WP.side === "L"));
+    $("wpOn").checked = c == null ? true : pbwOn(c); $("wpCustom").checked = custom; $("wpShape").disabled = !custom;
+    if (custom) $("wpShape").value = c.shape;
+    var box = $("wpSliders");
+    if (!box.children.length) box.innerHTML = WP_SLIDERS.map(function (d) {
+      return '<div class="row"><label for="wp_' + d[0] + '">' + d[1] + '</label><input id="wp_' + d[0] + '" type="range" min="' + d[2] + '" max="' + d[3] + '" step="' + d[4] + '"><output id="wp_' + d[0] + 'Out"></output></div>';
+    }).join("");
+    WP_SLIDERS.forEach(function (d) {
+      var el = $("wp_" + d[0]); el.disabled = !custom;
+      var v = full ? (d[0] === "grip" ? full.grip : d[0] === "roll" ? full.roll : full[d[0]]) : 0;
+      if (!WP.dragging) el.value = v;
+      $("wp_" + d[0] + "Out").textContent = custom ? (+v).toFixed(d[4] < 0.01 ? 3 : (d[4] < 1 ? 2 : 0)) + (d[5] ? " " + d[5] : "") : "–";
+      el.oninput = function () {
+        if (!WP.dragging) { pushUndo(); WP.dragging = true; }
+        var cc = wpCfg(); if (!pbwCustom(cc)) return; cc[d[0]] = +this.value; wpApply(); wpSync();
+      };
+      el.onchange = function () { WP.dragging = false; };
+    });
+    $("wpCopy").disabled = !S.root; $("wpReset").disabled = !custom;
+  }
+  function wpSet(fn) { if (!S.root) return; pushUndo(); fn((S.data.weapons || (S.data.weapons = {}))); wpApply(); wpSync(); markDirty(); }
+  $("wpR").onclick = function () { WP.side = "R"; wpSync(); };
+  $("wpL").onclick = function () { WP.side = "L"; wpSync(); };
+  $("wpOn").onchange = function () { var on = this.checked; wpSet(function (W) { var c = W[WP.side]; if (pbwCustom(c)) c.on = on; else W[WP.side] = on; }); };
+  $("wpCustom").onchange = function () {
+    var on = this.checked;
+    wpSet(function (W) { var c = W[WP.side], was = c == null ? true : pbwOn(c); W[WP.side] = on ? {on: was, shape: "sword"} : was; });
+  };
+  $("wpShape").onchange = function () { var sh = this.value; wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: sh, grip: c.grip || 0, roll: c.roll || 0}; }); };
+  $("wpReset").onclick = function () { wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: c.shape}; }); };
+  $("wpCopy").onclick = function () { wpSet(function (W) { var o = W[WP.side === "R" ? "L" : "R"]; W[WP.side] = o == null ? true : JSON.parse(JSON.stringify(o)); }); };
 
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
