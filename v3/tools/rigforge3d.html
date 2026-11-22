@@ -39,7 +39,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--body); font-s
 #status.warn { color: var(--warn); }
 .left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 10px;
-  overflow: hidden; height: calc(100vh - 190px); min-height: 380px; }
+  overflow: hidden; height: calc(100vh - 300px); min-height: 380px; }
 @media (max-width: 900px) { .stage { height: 60vh; } }
 #view, #over { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #view { touch-action: none; }
@@ -52,15 +52,10 @@ body { background: var(--bg); color: var(--fg); font-family: var(--body); font-s
 .timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex;
   flex-direction: column; gap: 6px; }
 .tl-row { display: flex; align-items: center; gap: 8px; }
-.frames { flex: 1; min-width: 0; display: flex; height: 26px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden;
-  cursor: pointer; position: relative; }
-.frames span { flex: 1 1 0; min-width: 0; border-right: 1px solid var(--line); position: relative; }
-.frames span:last-child { border-right: 0; }
-.frames span.any::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px;
-  border-radius: 50%; background: var(--muted); }
-.frames span.key::before { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px;
-  transform: rotate(45deg); background: var(--key); }
-.frames span.cur { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.tl-row .grow { flex: 1; }
+.dope { position: relative; border: 1px solid var(--line); border-radius: 6px; max-height: 190px; overflow-y: auto; overflow-x: hidden; }
+.dope:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#dope { display: block; width: 100%; touch-action: none; }
 .tl-row output { font-family: var(--mono); font-size: 12px; width: 82px; text-align: right; font-variant-numeric: tabular-nums; }
 .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: auto; max-height: calc(100vh - 70px); }
 @media (max-width: 900px) { .side { max-height: none; } }
@@ -141,12 +136,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <button id="play" aria-pressed="false" title="Space">Play</button>
         <button id="prevKey" title="Previous key of the selected pivot">◆◀</button>
         <button id="prevF" title=", (comma)">◀</button>
-        <div class="frames" id="frames" role="slider" aria-label="Frame" tabindex="0"></div>
         <button id="nextF" title=". (full stop)">▶</button>
         <button id="nextKey" title="Next key of the selected pivot">▶◆</button>
         <output id="frameOut">f0 / 0</output>
+        <span class="grow"></span>
+        <button id="tlKey" disabled title="K: key the selected pivot here">◆ Key</button>
       </div>
-      <p class="note">◆ = a key on the selected pivot, • = a key on another pivot on that frame. Changing a pivot on a frame sets a key there; the frames in between blend.</p>
+      <div class="dope" id="dopeWrap" role="slider" aria-label="Frame and keys" tabindex="0"><canvas id="dope"></canvas></div>
+      <p class="note">One row per pivot with keys (+ the selected one); <b>All pivots</b> = every key on that frame. Click a key to go to it, <b>drag</b> it to retime, <b>Alt + drag</b> copies it. Click or drag empty space to scrub. ◆ smooth · ● linear · ◀ ease in · ▶ ease out · ■ hold · ✦ overshoot. Dashes = hold, faint ends = blend out.</p>
     </div>
   </div>
 
@@ -171,12 +168,36 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <span class="seg"><button id="sLocal" aria-pressed="true" title="L">Local</button><button id="sWorld" aria-pressed="false" title="L">World</button></span>
       </div>
       <div class="readout" id="pivotOut">Nothing selected.</div>
-      <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="61" step="1" value="8"><output id="spreadOut">8 f</output></div>
-      <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
       <div class="row">
-        <button id="delKey" disabled>Delete key here</button>
+        <button id="addKey" disabled title="K">◆ Key pivot</button>
+        <button id="addPoseKey" disabled title="Shift+K">◆ Key whole pose</button>
+      </div>
+      <div class="row">
+        <button id="delKey" disabled title="Delete">Delete key</button>
+        <button id="delFrame" disabled title="Shift+Delete">Delete all keys here</button>
         <button id="clearPivot" disabled>Clear pivot in clip</button>
       </div>
+      <div class="row"><label for="ease">Into next key</label><select id="ease" class="grow" disabled>
+        <option value="smooth">◆ Smooth (eases in and out)</option>
+        <option value="linear">● Linear (steady speed)</option>
+        <option value="in">◀ Ease in (slow start, fast end)</option>
+        <option value="out">▶ Ease out (fast start, slow end)</option>
+        <option value="hold">■ Hold (snaps at the next key)</option>
+        <option value="back">✦ Overshoot (passes it, settles back)</option>
+      </select></div>
+      <p class="note">◆ Key = keep the pose you see on this frame (also for a pivot you haven't touched). The ease is how the move LEAVES this key toward the next one; on the All pivots row it sets every key on the frame.</p>
+      <div class="row">
+        <button id="copyPivot" disabled title="Ctrl+C">Copy pivot</button>
+        <button id="copyPose" disabled title="Ctrl+C with nothing selected">Copy whole pose</button>
+      </div>
+      <div class="row">
+        <button id="paste" disabled title="Ctrl+V">Paste</button>
+        <button id="pasteMirror" disabled title="Ctrl+Shift+V">Paste mirrored</button>
+      </div>
+      <div class="readout" id="boardOut">Clipboard empty.</div>
+      <p class="note">Copy takes the pose as you see it on this frame; Paste keys it onto the current frame (any clip), Paste mirrored swaps left / right.</p>
+      <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="61" step="1" value="8"><output id="spreadOut">8 f</output></div>
+      <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
     </section>
 
     <section aria-labelledby="h-lim">
@@ -190,7 +211,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <label class="check"><input type="checkbox" id="limInvLeftLeg"> Flip left knee</label>
         <label class="check"><input type="checkbox" id="limInvRightLeg"> Flip right knee</label>
       </div>
-      <p class="note">0° = straight; + = folding the natural way (elbows toward the front, knees toward the back). Applies while you pose (rings, hand / foot pulls, hip drags); keys already in the file stay as they are until you edit them. Flip = that limb's limit is on the other side.</p>
+      <div class="row"><label for="limCollar">Collarbone</label><input id="limCollar" type="number" min="0" max="180" step="1" value="30" aria-label="Collarbone swing maximum"><span>° max swing</span></div>
+      <p class="note">0° = straight; + = folding the natural way (elbows toward the front, knees toward the back). Applies while you pose (rings, hand / foot pulls, hip drags); keys already in the file stay as they are until you edit them. Flip = that limb's limit is on the other side. Collarbone: pulling a hand, elbow or shoulder dot past its reach swings the collarbone only by the missing bit, never further than this from the clip's own pose (0 = it never helps). Its own rings are not limited.</p>
     </section>
 
     <section aria-labelledby="h-place">
@@ -210,7 +232,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <label class="check"><input type="checkbox" id="vNames"> Names</label>
         <label class="check"><input type="checkbox" id="vBones"> Skeleton</label>
       </div>
-      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> save</p>
+      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>K</kbd> key · <kbd>Shift+K</kbd> key pose · <kbd>Del</kbd> delete key · <kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> (<kbd>Ctrl+Shift+V</kbd> mirrored) · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> save · rings: <kbd>Shift</kbd> = 5° steps</p>
     </section>
   </div>
 </div>
@@ -223,8 +245,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 <script>
 /* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig) and saves everything back INTO it, in the
    scene extras pb_rig3d (version 2):
-     edits    {clip: {bone: {rot: [{f, q}], pos: [{f, v}]}}}  pose keys; q = local change after the base rotation.
-              Baked into the clips on save, un-baked on open.
+     edits    {clip: {bone: {rot: [{f, q, e?}], pos: [{f, v, e?}]}}}  pose keys; q = local change after the base rotation.
+              e = how the move leaves that key toward the next one: smooth (default, left out) / linear / in / out /
+              hold / back (overshoot).  Baked into the clips on save, un-baked on open.
      fade     frames a key's change blends out before the first / after the last key (61 = whole clip).
      anchors  {id: {bone, t, side: [x, y, z], ground?, custom?}}  t = 0..1 from the bone's pivot to its end,
               side = offset on top, in that bone's space (m).  (v1 files stored off = [x, y, z].)
@@ -234,8 +257,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
      attach   {Weapon_R: {bone, pos, quat, home: {bone, pos, quat}}}  weapon grip moved onto another bone (or a
               custom grip spot); its clip tracks become that spot + its keys.
      placement {scale, height, yaw}  whole-model placement in the game.
-     limits   {on, elbow: [min, max], knee: [min, max], inv: {LeftForeArm: true, ...}}  hinge limits (deg, 0 = straight,
-              + = the natural fold) applied while posing; inv flips that limb's side.  Tool-only (never read by the game). */
+     limits   {on, elbow: [min, max], knee: [min, max], inv: {LeftForeArm: true, ...}, collar}  hinge limits (deg, 0 = straight,
+              + = the natural fold) applied while posing; inv flips that limb's side; collar = max collarbone swing (deg)
+              off the clip's own pose when a pull over-reaches.  Tool-only (never read by the game). */
 (function () {
   "use strict";
   var FPS = 30, WHOLE = 61;
@@ -265,7 +289,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   /* hinge joints (elbows, knees): lower bone -> its upper bone, the bone that marks its end, joint type */
   var HINGES = {LeftForeArm: {up: "LeftArm", end: "LeftHand", kind: "elbow"}, RightForeArm: {up: "RightArm", end: "RightHand", kind: "elbow"},
                 LeftLeg: {up: "LeftUpLeg", end: "LeftFoot", kind: "knee"}, RightLeg: {up: "RightUpLeg", end: "RightFoot", kind: "knee"}};
-  var HINGE_DEF = {on: true, elbow: [0, 160], knee: [0, 160], inv: {}};
+  var HINGE_DEF = {on: true, elbow: [0, 160], knee: [0, 160], inv: {}, collar: 30};
   function movable(n) { return n === "Hips" || WEAPONS.indexOf(n) >= 0; }
 
   /* ---------------------------------------------------------------- three.js scene */
@@ -283,7 +307,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   var grid = new THREE.GridHelper(6, 24, 0x7884a0, 0x7884a0); grid.material.transparent = true; grid.material.opacity = 0.25; scene.add(grid);
   var floorDisc = new THREE.Mesh(new THREE.CircleGeometry(0.45, 40), new THREE.MeshBasicMaterial({color: 0, transparent: true, opacity: 0.16}));
   floorDisc.rotation.x = -Math.PI / 2; floorDisc.position.y = 0.002; scene.add(floorDisc);
-  function themeBg() { scene.background = new THREE.Color(css("--stage") || "#dfe3ec"); }
+  function themeBg() { scene.background = new THREE.Color(css("--stage") || "#dfe3ec"); if (typeof DOPE !== "undefined") DOPE.sig = ""; }
   themeBg();
   try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeBg); } catch (e) {}
   new MutationObserver(themeBg).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
@@ -338,7 +362,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     bones: {}, pivots: [], skinned: [], outlines: [], toonMats: [], origMats: [], helper: null,
     home: {}, bindWorld: {}, collapsed: {},
     sel: null, selKind: null,             /* selKind: "bone" | "anchor" | "x" */
-    mode: "rotate", space: "local", grip: false,
+    mode: "rotate", space: "local", grip: false, allRow: false, board: null,
     data: freshData(), undo: [], redo: [], dirty: false
   };
 
@@ -354,6 +378,18 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   /* ---------------------------------------------------------------- maths: pose keys */
   var I = new THREE.Quaternion();
   function smooth(u) { return u * u * (3 - 2 * u); }
+  /* key easing: how a key's move leaves it toward the next key (u 0..1 -> blend; back overshoots past 1) */
+  var EASES = ["smooth", "linear", "in", "out", "hold", "back"];
+  function ease(e, u) {
+    switch (e) {
+      case "linear": return u;
+      case "in": return u * u * u;
+      case "out": var v = 1 - u; return 1 - v * v * v;
+      case "hold": return u >= 1 ? 1 : 0;
+      case "back": var c1 = 1.70158, w = u - 1; return 1 + (c1 + 1) * w * w * w + c1 * w * w;
+      default: return smooth(u);
+    }
+  }
   function frameCount(clip) { return Math.max(1, Math.round(clip.duration * FPS)); }
   function keysOf(clipName, bone, kind, make) {
     var c = S.data.edits[clipName] || (make ? (S.data.edits[clipName] = {}) : null); if (!c) return [];
@@ -372,7 +408,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       return {a: null, b: a, u: smooth(w2)};
     }
     for (i = 0; i < keys.length - 1; i++) if (f >= keys[i].f && f <= keys[i + 1].f) { a = keys[i]; b = keys[i + 1]; break; }
-    return {a: a, b: b, u: smooth((f - a.f) / Math.max(1, b.f - a.f))};
+    return {a: a, b: b, u: ease(a.e, (f - a.f) / Math.max(1, b.f - a.f))};
   }
   function rotDelta(keys, f, out) {
     var r = blendAt(keys, f, S.data.fade); out.copy(I); if (!r) return out;
@@ -730,7 +766,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   /* ---------------------------------------------------------------- selection + gizmo */
   function select(kind, id) {
-    S.selKind = id ? kind : null; S.sel = id || null; S.grip = false;
+    S.selKind = id ? kind : null; S.sel = id || null; S.grip = false; S.allRow = false;
     if (id) expandTo(kind === "anchor" ? (S.data.anchors[id] || {}).bone : id);
     if (S.sel && S.selKind !== "anchor" && !movable(S.sel) && S.mode === "translate") setMode("rotate");
     if (S.playing) setPlaying(false);
@@ -743,7 +779,16 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
   function setSpace(s) {
     S.space = s; $("sLocal").setAttribute("aria-pressed", String(s === "local")); $("sWorld").setAttribute("aria-pressed", String(s === "world"));
-    if (S.selKind === "anchor") syncGizmo(); else tc.setSpace(s);
+    syncGizmo(); updatePivotOut();
+    status("Axes: " + spaceText());
+  }
+  /* what the rings / arrows line up with right now (and whether Local happens to match World) */
+  function spaceText() {
+    if (S.space === "world") return "World (the scene's X / Y / Z)";
+    var n = S.sel && (S.selKind === "anchor" ? (S.data.anchors[S.sel] || {}).bone : S.sel), b = n && S.bones[n];
+    if (!b) return "Local (the selected bone's own X / Y / Z)";
+    var q = b.getWorldQuaternion(new THREE.Quaternion()), same = 2 * Math.acos(Math.min(1, Math.abs(q.w))) < Math.PI / 180;
+    return "Local (" + label(n) + "'s own X / Y / Z" + (same ? ", which line up with World on this bone" : "") + ")";
   }
   function posable(n) { return S.pivots.indexOf(n) >= 0; }
   function syncGizmo() {
@@ -754,12 +799,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       /* single click on an anchor: move arrows + rings (rings swing it around its bone's pivot) */
       var a = S.data.anchors[S.sel];
       if (!a || a.ground) { tc.detach(); back.visible = false; return; }
-      anchorWorld(S.sel, anchorProxy.position); anchorProxy.quaternion.identity(); anchorProxy.updateMatrixWorld();
-      tc.setMode("translate"); tc.setSpace("world"); tc.attach(anchorProxy);
-      rotProxy.position.copy(anchorProxy.position);
-      if (S.space === "local") S.bones[a.bone].getWorldQuaternion(rotProxy.quaternion); else rotProxy.quaternion.identity();
+      /* Local: arrows and rings follow the bone it sits on; World: the scene's axes */
+      anchorWorld(S.sel, anchorProxy.position);
+      if (S.space === "local") S.bones[a.bone].getWorldQuaternion(anchorProxy.quaternion); else anchorProxy.quaternion.identity();
+      anchorProxy.updateMatrixWorld();
+      tc.setMode("translate"); tc.setSpace(S.space); tc.attach(anchorProxy);
+      rotProxy.position.copy(anchorProxy.position); rotProxy.quaternion.copy(anchorProxy.quaternion);
       rotProxy.updateMatrixWorld();
-      tcRot.setSpace("world"); tcRot.attach(rotProxy); back.visible = true;
+      tcRot.setSpace(S.space); tcRot.attach(rotProxy); back.visible = true;
       return;
     }
     if (!posable(S.sel)) { tc.detach(); back.visible = false; return; }
@@ -816,7 +863,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   tc.addEventListener("objectChange", function () {
     if (S.selKind === "anchor") {
       setAnchorWorld(S.sel, anchorProxy.position);
-      rotProxy.position.copy(anchorProxy.position); rotProxy.updateMatrixWorld();
+      rotProxy.position.copy(anchorProxy.position); rotProxy.quaternion.copy(anchorProxy.quaternion); rotProxy.updateMatrixWorld();
       return;
     }
     if (!S.sel) return;
@@ -856,6 +903,70 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     return (e.rot || []).some(function (k) { return k.f === f; }) || (e.pos || []).some(function (k) { return k.f === f; });
   }
 
+  /* ---------------------------------------------------------------- rings: our own drag
+     three's TransformControls turns a ring by how far the mouse moves along ONE fixed direction (ring axis x view),
+     so a ring facing the camera barely reacts (that direction is ~0) and dragging round a ring turns it the wrong
+     way on its far side.  Here the X / Y / Z / view rings follow the mouse round the ring: the pointer is put on the
+     ring's plane and the swept angle about its centre is the turn (any amount, past 180 too).  A ring seen edge-on
+     (no usable plane) turns by dragging along it instead.  Local = the axes the gizmo shows (the bone's own), World
+     = the scene's.  Shift = 5 degree steps.  The gizmo still does its hover highlight, arrows and free-turn ball. */
+  var RING = null, ringPlane = new THREE.Plane();
+  function pointerNdc(e) {
+    var r = canvas.getBoundingClientRect();
+    return {x: (e.clientX - r.left) / r.width * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1, button: e.button};
+  }
+  /* which handle of gizmo g is under the pointer right now (fresh, not the last hover) */
+  function freshAxis(g, e) {
+    if (!g.object || !g.enabled || g.dragging) return null;
+    g.updateMatrixWorld(); g.pointerHover(pointerNdc(e));
+    return g.axis;
+  }
+  function planeHit(e, plane) {
+    var n = pointerNdc(e); ray.setFromCamera(new THREE.Vector2(n.x, n.y), camera);
+    var hit = new THREE.Vector3(); return ray.ray.intersectPlane(plane, hit) ? hit : null;
+  }
+  function gizmoRadius(g, c) {   /* the rings' radius in the world (as TransformControls sizes its gizmo) */
+    return c.distanceTo(camera.position) * Math.min(1.9 * Math.tan(Math.PI * camera.fov / 360) / camera.zoom, 7) * g.size / 7;
+  }
+  function startRing(g, ax, e) {
+    var obj = g.object; obj.updateMatrixWorld(true);
+    var c = obj.getWorldPosition(new THREE.Vector3()), q0 = obj.getWorldQuaternion(new THREE.Quaternion());
+    var eye = camera.position.clone().sub(c).normalize();
+    var a = ax === "E" ? eye.clone() : new THREE.Vector3().fromArray(AX[ax]);
+    if (ax !== "E" && g.space === "local") a.applyQuaternion(q0);
+    a.normalize();
+    var R = {g: g, obj: obj, ax: ax, a: a, c: c, q0: q0, total: 0, last: 0, angle: 0};
+    if (Math.abs(a.dot(eye)) > 0.22) {                    /* ring facing us enough: follow the mouse round it */
+      R.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(a, c);
+      var p = planeHit(e, R.plane);
+      if (p && p.sub(c).lengthSq() > 1e-12) R.v0 = p;
+    }
+    if (!R.v0) {                                          /* edge-on: drag along the ring's line */
+      R.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(eye, c);
+      R.p0 = planeHit(e, R.plane) || c.clone(); R.u = a.clone().cross(eye).normalize(); R.rad = Math.max(gizmoRadius(g, c), 1e-3);
+    }
+    RING = R;
+    g.axis = ax; g.dragging = true;                       /* fires dragging-changed: orbit off, undo snapshot */
+  }
+  function moveRing(e) {
+    var R = RING, ang, p = planeHit(e, R.plane); if (!p) return;
+    if (R.v0) {
+      var v1 = p.sub(R.c); if (v1.lengthSq() < 1e-12) return;
+      var cur = Math.atan2(R.v0.clone().cross(v1).dot(R.a), R.v0.dot(v1)), d = cur - R.last;
+      if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+      R.total += d; R.last = cur; ang = R.total;
+    } else ang = p.sub(R.p0).dot(R.u) / R.rad;
+    if (e.shiftKey) { var st = 5 * Math.PI / 180; ang = Math.round(ang / st) * st; }
+    R.angle = ang;
+    var nq = new THREE.Quaternion().setFromAxisAngle(R.a, ang).multiply(R.q0);
+    R.obj.parent.getWorldQuaternion(qa); R.obj.quaternion.copy(qa.invert().multiply(nq)).normalize(); R.obj.updateMatrixWorld(true);
+    R.g.dispatchEvent({type: "objectChange"});
+  }
+  function endRing() {
+    var g = RING.g; RING = null;
+    g.dragging = false; g.axis = null;                    /* fires dragging-changed: key / commit + undo */
+  }
+
   /* ---------------------------------------------------------------- click = wheels, hold / drag = pull
      Press on a dot on the model.  A quick click selects it (pivot: rings; anchor: move arrows + rings).  Holding
      HOLD_MS or moving the mouse while pressed drags it, in a camera-facing plane at its current depth:
@@ -867,6 +978,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
                  both feet stay planted (arms / legs re-bend with a two-bone solver, like the 2D Rig Forge);
                  Shift + drag the hips moves everything, nothing planted.  Keys go on the current frame.
      Runs in the capture phase on window, so the camera orbit and the gizmos never see that press. */
+  var AX = {X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1]};
   var HOLD_MS = 250, HOLD = {kind: null, id: null, x: 0, y: 0, timer: 0, dragging: false, before: null, plane: new THREE.Plane(), grab: null};
   var ray = new THREE.Raycaster();
   function nearPick(e) {
@@ -907,6 +1019,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var w = new THREE.Vector3(); pointOf(HOLD.kind, HOLD.id, w);
     HOLD.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), w);
     var hit = screenRay(HOLD.x, HOLD.y); HOLD.grab = hit ? w.clone().sub(hit) : new THREE.Vector3();   /* grab point = where you pressed */
+    /* every mouse move re-solves from the pose (and keys) the drag started with: nothing piles up move after move */
+    HOLD.start = {};
+    Object.keys(S.bones).forEach(function (n) { HOLD.start[n] = [S.bones[n].quaternion.clone(), S.bones[n].position.clone()]; });
+    HOLD.edits = JSON.stringify(S.data.edits[S.clip] || null);
     HOLD.plant = null;
     if (HOLD.kind !== "anchor" && HOLD.id === "Hips" && !HOLD.shift) {     /* pelvis drag: plant hands + feet (Shift = no plant) */
       HOLD.plant = {};
@@ -978,6 +1094,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     ["elbow", "knee"].forEach(function (k) {
       if (!Array.isArray(L[k]) || L[k].length !== 2 || !isFinite(L[k][0]) || !isFinite(L[k][1])) L[k] = HINGE_DEF[k].slice();
     });
+    if (!isFinite(L.collar)) L.collar = HINGE_DEF.collar;
     if (!L.inv || typeof L.inv !== "object") L.inv = {};
     return L;
   }
@@ -1032,7 +1149,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var L = limitsOf();
     $("limOn").checked = !!L.on;
     $("limElbowMin").value = L.elbow[0]; $("limElbowMax").value = L.elbow[1];
-    $("limKneeMin").value = L.knee[0]; $("limKneeMax").value = L.knee[1];
+    $("limKneeMin").value = L.knee[0]; $("limKneeMax").value = L.knee[1]; $("limCollar").value = L.collar;
     Object.keys(HINGES).forEach(function (n) { $("limInv" + n).checked = !!L.inv[n]; });
   }
   function keyRot(names) {
@@ -1061,13 +1178,15 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     }
     if (LIMBS[name]) {
       var keyedL = [];
-      if (/Hand$/.test(name)) {                                /* over-reach: the collarbone helps a little */
+      if (/Hand$/.test(name)) {                                /* over-reach: the collarbone helps, just enough, capped */
         var up = S.bones[LIMBS[name][0]], lo = S.bones[LIMBS[name][1]], sh = up.parent;
-        var A = up.getWorldPosition(new THREE.Vector3()), reach = lo.getWorldPosition(new THREE.Vector3()).distanceTo(A) +
-          eff.getWorldPosition(new THREE.Vector3()).distanceTo(lo.getWorldPosition(new THREE.Vector3()));
-        if (sh && /Shoulder$/.test(sh.name) && target.distanceTo(A) > reach * 0.98) {
-          var P = sh.getWorldPosition(new THREE.Vector3());
-          turnWorld(sh, A.clone().sub(P), target.clone().sub(P), 0.3); keyedL.push(sh.name);
+        if (sh && isCollar(sh.name)) {
+          var A = up.getWorldPosition(new THREE.Vector3()), reach = lo.getWorldPosition(new THREE.Vector3()).distanceTo(A) +
+            eff.getWorldPosition(new THREE.Vector3()).distanceTo(lo.getWorldPosition(new THREE.Vector3()));
+          var over = target.distanceTo(A) - reach * 0.98, P = sh.getWorldPosition(new THREE.Vector3());
+          if (over > 0) collarHelp(sh.name, A.clone().sub(P), target.clone().sub(P), over);
+          clampCollar(sh.name);                                /* also pulls an old over-swung collarbone back in */
+          if (movedSinceStart(sh.name)) keyedL.push(sh.name);
         }
       }
       solveLimb(name, target, null);
@@ -1075,32 +1194,87 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       return;
     }
     var chain = chainFor(name); if (!chain.length) return;
-    for (var it = 0; it < 12; it++) {
-      chain.forEach(function (c) {
-        var b = S.bones[c[0]];
-        b.getWorldPosition(vp); eff.getWorldPosition(va); vb.copy(target);
-        turnWorld(b, va.sub(vp), vb.sub(vp), c[1]);
-      });
-      chain.forEach(function (c) { if (HINGES[c[0]]) clampHinge(c[0]); });   /* e.g. a weapon pull bends the elbow */
+    var collar = chain.filter(function (c) { return isCollar(c[0]); })[0], body = chain.filter(function (c) { return !isCollar(c[0]); });
+    if (!body.length && collar) { body = [[collar[0], 1]]; collar = null; }   /* the shoulder dot itself: only the collarbone carries it */
+    function bend() {
+      for (var it = 0; it < 12; it++) {
+        body.forEach(function (c) {
+          var b = S.bones[c[0]];
+          b.getWorldPosition(vp); eff.getWorldPosition(va); vb.copy(target);
+          turnWorld(b, va.sub(vp), vb.sub(vp), c[1]);
+        });
+        body.forEach(function (c) { if (HINGES[c[0]]) clampHinge(c[0]); else if (isCollar(c[0])) clampCollar(c[0]); });
+      }
     }
-    keyRot(chain.map(function (c) { return c[0]; }));
+    if (collar) clampCollar(collar[0]);                         /* an old over-swung collarbone comes back in first */
+    bend();
+    var keyed = body.map(function (c) { return c[0]; });
+    if (collar) {                                              /* e.g. an elbow pull past the upper arm's reach */
+      var miss = eff.getWorldPosition(new THREE.Vector3()).distanceTo(target);
+      if (miss > 1e-3) {
+        var P2 = S.bones[collar[0]].getWorldPosition(new THREE.Vector3());
+        collarHelp(collar[0], eff.getWorldPosition(new THREE.Vector3()).sub(P2), target.clone().sub(P2), miss);
+        bend();
+      }
+      clampCollar(collar[0]);
+      if (movedSinceStart(collar[0])) keyed.push(collar[0]);
+    }
+    keyRot(keyed);
   }
   function holdDragTo(e) {
     var hit = screenRay(e.clientX, e.clientY); if (!hit) return;
     hit.add(HOLD.grab);
-    if (HOLD.kind === "anchor") setAnchorWorld(HOLD.id, hit);
-    else { pullTo(HOLD.id, hit); updatePivotOut(); }
+    if (HOLD.kind === "anchor") { setAnchorWorld(HOLD.id, hit); return; }
+    Object.keys(HOLD.start).forEach(function (n) { var b = S.bones[n]; if (b) { b.quaternion.copy(HOLD.start[n][0]); b.position.copy(HOLD.start[n][1]); } });
+    S.root.updateMatrixWorld(true);
+    var ed = JSON.parse(HOLD.edits); if (ed) S.data.edits[S.clip] = ed; else delete S.data.edits[S.clip];
+    pullTo(HOLD.id, hit); updatePivotOut();
+  }
+  /* ---- collarbone (Daniel 2026-11-22): it only helps a pull that over-reaches, by the missing bit, and never swings
+     more than limits.collar degrees off the clip's own pose on this frame (keys not counted), so the shoulder joint
+     can't be dragged off the body. */
+  function isCollar(n) { return /Shoulder$/.test(n); }
+  function collarDirs(n) {
+    var b = S.bones[n], t = tailLocal(n, new THREE.Vector3()); if (t.lengthSq() < 1e-12) return null;
+    var base = b.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(baseRot(S.clip, n, S.frame, new THREE.Quaternion()));
+    return {base: t.clone().applyQuaternion(base).normalize(), cur: t.clone().applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion())).normalize()};
+  }
+  function clampCollar(n) {
+    var D = collarDirs(n); if (!D) return;
+    var max = Math.max(0, limitsOf().collar) * Math.PI / 180, ang = D.base.angleTo(D.cur);
+    if (ang <= max + 1e-6) return;
+    var part = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(D.base, D.cur), max / ang);
+    turnWorld(S.bones[n], D.cur, D.base.clone().applyQuaternion(part));
+  }
+  /* swing collarbone n so a point at `from` (seen from its pivot) moves toward `to` by about `over` (m), capped */
+  function collarHelp(n, from, to, over) {
+    var full = from.angleTo(to); if (full < 1e-6 || !(limitsOf().collar > 0)) return;
+    turnWorld(S.bones[n], from, to, Math.min(1, over / Math.max(from.length(), 1e-6) / full));
+    clampCollar(n);
+  }
+  function movedSinceStart(n) {
+    var st = HOLD.start && HOLD.start[n]; if (!st) return true;
+    return 1 - Math.abs(st[0].dot(S.bones[n].quaternion)) > 1e-9;
   }
   window.addEventListener("pointerdown", function (e) {
     if (e.target !== canvas || e.button !== 0 || !S.root) return;
-    var hit = nearPick(e); if (!hit) return;
-    /* a wheel / arrow under the cursor wins, except right on a dot (the free-turn sphere covers the selected dot) */
-    if ((tc.axis || tcRot.axis) && !(hit.d < 7 && /^(XYZE|XYZ|E)$/.test(String(tc.axis || tcRot.axis)))) return;
+    var axR = freshAxis(tcRot, e), axT = freshAxis(tc, e), hit = nearPick(e);
+    /* right on ANOTHER dot (not the selected one at the gizmo's centre): the dot wins */
+    var onOther = !!hit && hit.d < 5 && !(hit.id === S.sel && (hit.kind === "anchor") === (S.selKind === "anchor"));
+    var rg = null, ax = null;
+    if (axR && /^[XYZE]$/.test(axR)) { rg = tcRot; ax = axR; }
+    else if (axT && tc.getMode() === "rotate" && /^[XYZE]$/.test(axT)) { rg = tc; ax = axT; }
+    if (rg && !onOther) { e.stopImmediatePropagation(); e.preventDefault(); startRing(rg, ax, e); return; }
+    if (!hit) return;
+    /* arrows / free-turn ball under the cursor: the gizmo, except right on a dot (the ball covers the selected dot) */
+    var axis = axR || axT;
+    if (axis && !onOther && !(hit.d < 7 && /^(XYZE|XYZ)$/.test(String(axis)))) return;
     e.stopImmediatePropagation(); e.preventDefault();
     HOLD.kind = hit.kind; HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false; HOLD.shift = e.shiftKey;
     clearTimeout(HOLD.timer); HOLD.timer = setTimeout(startHoldDrag, HOLD_MS);
   }, true);
   window.addEventListener("pointermove", function (e) {
+    if (RING) { e.stopImmediatePropagation(); moveRing(e); return; }
     if (!HOLD.id) {
       if (e.target === canvas && !e.buttons) canvas.style.cursor = S.root && !tc.axis && !tcRot.axis && nearPick(e) ? "grab" : "";
       return;
@@ -1109,6 +1283,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (HOLD.dragging) holdDragTo(e);
   }, true);
   window.addEventListener("pointerup", function (e) {
+    if (RING) { e.stopImmediatePropagation(); endRing(); return; }
     if (!HOLD.id) return;
     clearTimeout(HOLD.timer);
     var id = HOLD.id, kind = HOLD.kind, dragged = HOLD.dragging, before = HOLD.before;
@@ -1127,14 +1302,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   /* ---------------------------------------------------------------- picking on the stage */
   var down = null;
-  canvas.addEventListener("pointerdown", function (e) { down = {x: e.clientX, y: e.clientY, onGizmo: !!tc.axis}; });
+  canvas.addEventListener("pointerdown", function (e) { down = {x: e.clientX, y: e.clientY, onGizmo: !!(tc.axis || tcRot.axis)}; });
   canvas.addEventListener("pointerup", function (e) {
     if (!down || down.onGizmo || !S.root) { down = null; return; }
     if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) { down = null; return; }
     down = null;
     var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 14;
     PICKS.forEach(function (p) { var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; } });
-    if (!best) { if (!tc.axis) select(null, null); return; }
+    if (!best) { if (!tc.axis && !tcRot.axis) select(null, null); return; }
     select(best.kind, best.id);
   });
 
@@ -1377,15 +1552,26 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
 
   /* ---------------------------------------------------------------- pose-key panel */
+  function keyable() { return !!(S.sel && S.selKind !== "anchor" && posable(S.sel) && !S.grip); }
   function updatePivotOut() {
-    var o = $("pivotOut");
-    var keyable = S.sel && S.selKind !== "anchor" && posable(S.sel);
-    $("delKey").disabled = !(keyable && hasKey(S.clip, S.sel, S.frame));
-    $("clearPivot").disabled = !(keyable && S.data.edits[S.clip] && S.data.edits[S.clip][S.sel]);
+    var o = $("pivotOut"), kb = keyable(), here = framesOnFrame(S.frame);
+    var useAll = S.allRow || !kb;
+    $("addKey").disabled = $("tlKey").disabled = !kb;
+    $("addPoseKey").disabled = !S.root;
+    $("delKey").disabled = !(useAll ? here.length : hasKey(S.clip, S.sel, S.frame));
+    $("delFrame").disabled = !here.length;
+    $("clearPivot").disabled = !(kb && S.data.edits[S.clip] && S.data.edits[S.clip][S.sel]);
+    $("copyPivot").disabled = !kb; $("copyPose").disabled = !S.root;
+    $("paste").disabled = $("pasteMirror").disabled = !(S.root && S.board);
+    var es = $("ease"), cur = useAll ? easeOfAll(S.frame) : (hasKey(S.clip, S.sel, S.frame) ? easeOf(S.clip, S.sel, S.frame) : null);
+    es.disabled = !cur; if (cur) es.value = cur === "mixed" ? "smooth" : cur;
+    es.title = cur === "mixed" ? "The keys on this frame use different eases" : "";
+    var axes = "<br>axes: " + esc(spaceText());
+    if (S.allRow) { o.innerHTML = "<b>All pivots</b> · f" + S.frame + ": " + here.length + " pivot" + (here.length === 1 ? "" : "s") + " keyed here" + axes; return; }
     if (!S.sel) { o.textContent = "Nothing selected."; return; }
-    if (S.selKind === "anchor") { o.textContent = "Anchors are the same in every frame: use their arrows or the card above."; return; }
-    if (!keyable) { o.textContent = S.sel + " is an end bone: no rings. Anchors can sit on it."; return; }
-    if (S.grip) { o.innerHTML = "<b>" + esc(S.sel) + "</b> · editing the grip spot (every clip, no keys)"; return; }
+    if (S.selKind === "anchor") { o.innerHTML = "Anchors are the same in every frame: use their arrows or the card above." + axes; return; }
+    if (!posable(S.sel)) { o.textContent = S.sel + " is an end bone: no rings. Anchors can sit on it."; return; }
+    if (S.grip) { o.innerHTML = "<b>" + esc(S.sel) + "</b> · editing the grip spot (every clip, no keys)" + axes; return; }
     var d = rotDelta(keysOf(S.clip, S.sel, "rot"), S.frame, new THREE.Quaternion());
     var e = new THREE.Euler().setFromQuaternion(d, "XYZ"), D = 180 / Math.PI;
     var s = "<b>" + esc(label(S.sel)) + "</b> · change on f" + S.frame + ': <span class="axx">X ' + (e.x * D).toFixed(1) + '°</span> <span class="axy">Y ' +
@@ -1394,31 +1580,334 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       var v = posDelta(keysOf(S.clip, S.sel, "pos"), S.frame, new THREE.Vector3());
       s += '<br>moved <span class="axx">x ' + v.x.toFixed(3) + '</span> <span class="axy">y ' + v.y.toFixed(3) + '</span> <span class="axz">z ' + v.z.toFixed(3) + "</span> m";
     }
-    s += hasKey(S.clip, S.sel, S.frame) ? " · ◆ key on this frame" : "";
+    s += hasKey(S.clip, S.sel, S.frame) ? " · ◆ key on this frame (" + easeOf(S.clip, S.sel, S.frame) + ")" : "";
     var HF = HINGES[S.sel] && hingeFrame(S.sel);
     if (HF) {
       var LM = limitsOf(), rg = LM[HINGES[S.sel].kind];
       s += "<br>" + HINGES[S.sel].kind + " bend " + HF.deg.toFixed(0) + "° · limit " + (LM.on ? rg[0] + "° to " + rg[1] + "°" + (LM.inv[S.sel] ? " (flipped)" : "") : "off");
     }
-    o.innerHTML = s;
+    if (isCollar(S.sel)) { var CD = collarDirs(S.sel); if (CD) s += "<br>collarbone swing " + (CD.base.angleTo(CD.cur) * 180 / Math.PI).toFixed(0) + "° off the clip's pose (pulls stop at " + limitsOf().collar + "°)"; }
+    o.innerHTML = s + axes;
   }
-  function buildFrames() {
-    var box = $("frames"); if (!S.clip) { box.innerHTML = ""; return; }
-    var n = frameCount(S.clips[S.clip]), h = "";
-    for (var i = 0; i <= n; i++) h += "<span data-f=\"" + i + "\"></span>";
-    box.innerHTML = h; updateFrames();
-  }
+  function buildFrames() { updateFrames(); }
   function updateFrames() {
-    var box = $("frames"); if (!S.clip) return;
-    var n = frameCount(S.clips[S.clip]), ed = S.data.edits[S.clip] || {}, any = {}, mine = {};
-    Object.keys(ed).forEach(function (b) {
-      ["rot", "pos"].forEach(function (k) { (ed[b][k] || []).forEach(function (x) { any[x.f] = 1; if (b === S.sel && S.selKind !== "anchor") mine[x.f] = 1; }); });
-    });
-    var kids = box.children;
-    for (var i = 0; i < kids.length; i++) kids[i].className = (i === S.frame ? "cur " : "") + (mine[i] ? "key" : (any[i] ? "any" : ""));
+    if (!S.clip) return;
+    var n = frameCount(S.clips[S.clip]);
     $("frameOut").textContent = "f" + S.frame + " / " + n;
-    box.setAttribute("aria-valuenow", S.frame); box.setAttribute("aria-valuemax", n);
+    var w = $("dopeWrap"); w.setAttribute("aria-valuenow", S.frame); w.setAttribute("aria-valuemax", n);
   }
+
+  /* ---------------------------------------------------------------- keys: add, delete, ease, retime (Daniel 2026-11-22) */
+  function hasAnyKeys(e) { return !!(e && ((e.rot || []).length || (e.pos || []).length)); }
+  function keyedPivots() {                                   /* pivots with keys in this clip, in skeleton order */
+    var ed = S.data.edits[S.clip] || {};
+    return S.pivots.filter(function (n) { return hasAnyKeys(ed[n]); });
+  }
+  function framesOf(bone) {
+    var e = (S.data.edits[S.clip] || {})[bone], s = {}; if (!e) return [];
+    (e.rot || []).concat(e.pos || []).forEach(function (k) { s[k.f] = 1; });
+    return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  }
+  function framesOnFrame(f) { return keyedPivots().filter(function (n) { return hasKey(S.clip, n, f); }); }
+  function keyAt(clip, bone, f) {
+    var e = (S.data.edits[clip] || {})[bone], r = null; if (!e) return null;
+    (e.rot || []).concat(e.pos || []).some(function (k) { if (k.f === f) { r = k; return true; } return false; });
+    return r;
+  }
+  function easeOf(clip, bone, f) { var k = keyAt(clip, bone, f); return (k && k.e) || "smooth"; }
+  function easeOfAll(f) {
+    var ns = framesOnFrame(f); if (!ns.length) return null;
+    var e0 = easeOf(S.clip, ns[0], f);
+    return ns.every(function (n) { return easeOf(S.clip, n, f) === e0; }) ? e0 : "mixed";
+  }
+  function setEase(names, f, e) {
+    names.forEach(function (n) {
+      var ed = (S.data.edits[S.clip] || {})[n]; if (!ed) return;
+      ["rot", "pos"].forEach(function (k) { (ed[k] || []).forEach(function (x) { if (x.f === f) { if (e === "smooth") delete x.e; else x.e = e; } }); });
+    });
+  }
+  /* key what is shown on this frame (the blended pose) for these pivots */
+  function keyShown(names) {
+    if (S.playing) setPlaying(false);
+    setFrame(S.frame);                                       /* exact pose of this frame */
+    names.forEach(function (n) {
+      if (!S.bones[n] || !posable(n)) return;
+      var b = S.bones[n], base = baseRot(S.clip, n, S.frame, new THREE.Quaternion());
+      setKey(keysOf(S.clip, n, "rot", true), S.frame, {q: base.invert().multiply(b.quaternion).normalize().toArray()});
+      if (movable(n)) setKey(keysOf(S.clip, n, "pos", true), S.frame, {v: b.position.clone().sub(basePos(S.clip, n, S.frame, new THREE.Vector3())).toArray()});
+    });
+  }
+  function tidy(clip) {                                      /* drop empty key lists */
+    var ed = S.data.edits[clip]; if (!ed) return;
+    Object.keys(ed).forEach(function (n) {
+      ["rot", "pos"].forEach(function (k) { if (ed[n][k] && !ed[n][k].length) delete ed[n][k]; });
+      if (!hasAnyKeys(ed[n])) delete ed[n];
+    });
+    if (!Object.keys(ed).length) delete S.data.edits[clip];
+  }
+  function afterKeys(msg) { rebake(S.clip, true); buildTree(); updatePivotOut(); if (msg) status(msg); }
+  function addKey() {
+    if (!keyable()) { status("Select a pivot to key (in the tree or on the model).", true); return; }
+    pushUndo(); keyShown([S.sel]); afterKeys("Keyed " + label(S.sel) + " on f" + S.frame + ".");
+  }
+  function addPoseKey() {
+    var names = keyedPivots(); if (keyable() && names.indexOf(S.sel) < 0) names.push(S.sel);
+    if (!names.length) { status("Nothing is posed in this clip yet: pose a pivot first (or select one and press K).", true); return; }
+    pushUndo(); keyShown(names); afterKeys("Keyed the whole pose (" + names.length + " pivot" + (names.length > 1 ? "s" : "") + ") on f" + S.frame + ".");
+  }
+  function deleteKeys(names, f) {
+    names.forEach(function (n) {
+      var e = (S.data.edits[S.clip] || {})[n]; if (!e) return;
+      ["rot", "pos"].forEach(function (k) { if (e[k]) e[k] = e[k].filter(function (x) { return x.f !== f; }); });
+    });
+    tidy(S.clip);
+  }
+  function delKey(all) {
+    var names = (all || S.allRow || !keyable()) ? framesOnFrame(S.frame) : (hasKey(S.clip, S.sel, S.frame) ? [S.sel] : []);
+    if (!names.length) { status("No key on f" + S.frame + (all || S.allRow || !keyable() ? "." : " for " + label(S.sel) + "."), true); return; }
+    pushUndo(); deleteKeys(names, S.frame);
+    afterKeys("Deleted " + (names.length === 1 ? label(names[0]) + "'s key" : names.length + " keys") + " on f" + S.frame + ".");
+  }
+  /* move (or copy) the keys of these pivots from frame `from` to `to`; a key already on `to` is replaced */
+  function moveKeys(names, from, to, copy) {
+    if (from === to) return;
+    names.forEach(function (n) {
+      var e = (S.data.edits[S.clip] || {})[n]; if (!e) return;
+      ["rot", "pos"].forEach(function (k) {
+        var list = e[k]; if (!list) return;
+        var src = null; list.forEach(function (x) { if (x.f === from) src = x; });
+        if (!src) return;
+        var moved = JSON.parse(JSON.stringify(src)); moved.f = to;
+        e[k] = list.filter(function (x) { return x.f !== to && (copy || x.f !== from); });
+        e[k].push(moved); e[k].sort(function (a, b) { return a.f - b.f; });
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------- copy / paste / mirror
+     The clipboard holds the pose AS SHOWN (each pivot's own rotation, + position for movable ones), so a paste on
+     another frame or clip looks the same there; it is keyed as a change over that clip's own pose.  Mirrored: left
+     <-> right bones swap, and each rotation is mirrored across the body's middle plane (rest-pose frames, so rigs with
+     mirrored bone axes come out right).  A "whole pose" copy holds every pivot; the paste keys only the ones that
+     differ from what that frame already shows (or that already have keys there). */
+  function mirrorName(n) {
+    var m = /Left/.test(n) ? n.replace("Left", "Right") : (/Right/.test(n) ? n.replace("Right", "Left") :
+      (/_L$/.test(n) ? n.replace(/_L$/, "_R") : (/_R$/.test(n) ? n.replace(/_R$/, "_L") : n)));
+    return S.bones[m] ? m : n;
+  }
+  function restFrames() {                                    /* world rest rotations (bone + parent) and the body's left axis */
+    var save = {}, R = {}, P = {};
+    Object.keys(S.bones).forEach(function (n) { var b = S.bones[n]; save[n] = [b.quaternion.clone(), b.position.clone()]; b.quaternion.copy(b.userData.restQ); b.position.copy(b.userData.restP); });
+    S.root.updateMatrixWorld(true);
+    Object.keys(S.bones).forEach(function (n) { R[n] = S.bones[n].getWorldQuaternion(new THREE.Quaternion()); P[n] = S.bones[n].parent.getWorldQuaternion(new THREE.Quaternion()); });
+    function wp(n) { return S.bones[n].getWorldPosition(new THREE.Vector3()); }
+    var left = S.bones.LeftUpLeg && S.bones.RightUpLeg ? wp("LeftUpLeg").sub(wp("RightUpLeg")) :
+      (S.bones.LeftArm && S.bones.RightArm ? wp("LeftArm").sub(wp("RightArm")) : new THREE.Vector3(1, 0, 0).applyQuaternion(S.root.getWorldQuaternion(new THREE.Quaternion())));
+    Object.keys(save).forEach(function (n) { S.bones[n].quaternion.copy(save[n][0]); S.bones[n].position.copy(save[n][1]); });
+    S.root.updateMatrixWorld(true);
+    return {R: R, P: P, n: left.normalize()};
+  }
+  function reflectQ(q, nrm) {                                /* a rotation seen in a mirror (plane normal nrm) */
+    var v = new THREE.Vector3(q.x, q.y, q.z), r = nrm.clone().multiplyScalar(2 * v.dot(nrm)).sub(v);
+    return new THREE.Quaternion(r.x, r.y, r.z, q.w);
+  }
+  function copyPose(whole) {
+    if (!S.root) return;
+    if (!whole && !keyable()) { status("Select a pivot to copy (or use Copy whole pose).", true); return; }
+    if (S.playing) setPlaying(false);
+    setFrame(S.frame);
+    var names = whole ? S.pivots.slice() : [S.sel], items = {};
+    names.forEach(function (n) {
+      var b = S.bones[n]; if (!b) return;
+      items[n] = {q: b.quaternion.toArray()};
+      if (movable(n)) items[n].v = b.position.toArray();
+    });
+    S.board = {items: items, whole: whole, what: whole ? "whole pose" : label(S.sel), from: S.clip + " f" + S.frame};
+    boardOut(); updatePivotOut();
+    status("Copied " + S.board.what + " from " + S.board.from + ".");
+  }
+  function boardOut() {
+    $("boardOut").textContent = S.board ? "Clipboard: " + S.board.what + " (" + S.board.from + ")" : "Clipboard empty.";
+  }
+  function pastePose(mirror) {
+    if (!S.root || !S.board) { status("Copy a pivot or a pose first.", true); return; }
+    if (S.playing) setPlaying(false);
+    setFrame(S.frame);
+    var F = mirror ? restFrames() : null, out = [];
+    Object.keys(S.board.items).forEach(function (n) {
+      var it = S.board.items[n], m = mirror ? mirrorName(n) : n, b = S.bones[m];
+      if (!b || !posable(m)) return;
+      var L = new THREE.Quaternion().fromArray(it.q), pos = it.v ? new THREE.Vector3().fromArray(it.v) : null;
+      if (mirror && F.R[n] && F.R[m]) {
+        /* world change off rest: P_n * L * R_n^-1, mirrored, then back into the target's frame */
+        var Dw = F.P[n].clone().multiply(L).multiply(F.R[n].clone().invert());
+        L = F.P[m].clone().invert().multiply(reflectQ(Dw, F.n)).multiply(F.R[m]).normalize();
+        if (pos) {
+          var w = pos.clone().applyQuaternion(F.P[n]); w.sub(F.n.clone().multiplyScalar(2 * w.dot(F.n)));
+          pos = w.applyQuaternion(F.P[m].clone().invert());
+        }
+      }
+      var same = 1 - Math.abs(L.dot(b.quaternion)) < 1e-8 && (!pos || !movable(m) || pos.distanceTo(b.position) < 1e-6);
+      if (same && !hasKey(S.clip, m, S.frame) && S.board.whole) return;
+      out.push([m, L, pos]);
+    });
+    if (!out.length) { status("Nothing to paste: this frame already shows that pose.", true); return; }
+    pushUndo();
+    out.forEach(function (x) {
+      var m = x[0], base = baseRot(S.clip, m, S.frame, new THREE.Quaternion());
+      setKey(keysOf(S.clip, m, "rot", true), S.frame, {q: base.invert().multiply(x[1]).normalize().toArray()});
+      if (x[2] && movable(m)) setKey(keysOf(S.clip, m, "pos", true), S.frame, {v: x[2].clone().sub(basePos(S.clip, m, S.frame, new THREE.Vector3())).toArray()});
+    });
+    afterKeys("Pasted " + (mirror ? "mirrored " : "") + S.board.what + " on " + S.clip + " f" + S.frame + " (" + out.length + " pivot" + (out.length > 1 ? "s" : "") + " keyed).");
+  }
+
+  /* ---------------------------------------------------------------- dope sheet (timeline canvas)
+     Row 0 = All pivots (every key on a frame), then one row per pivot with keys in this clip (+ the selected pivot).
+     Click a key = go to it (and select its pivot); drag = retime; Alt + drag = copy; empty space = scrub. */
+  var DOPE = {LBL: 116, HEAD: 18, ROW: 18, rows: [], cw: 1, n: 0, sig: "", drag: null, scrub: false};
+  function dopeRows() {
+    var rows = ["*"].concat(keyedPivots());
+    if (keyable() && rows.indexOf(S.sel) < 0) rows.push(S.sel);
+    return rows;
+  }
+  function rowFrames(r) {
+    if (r !== "*") return framesOf(r);
+    var s = {}; keyedPivots().forEach(function (n) { framesOf(n).forEach(function (f) { s[f] = 1; }); });
+    return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  }
+  function rowEase(r, f) { return r === "*" ? easeOfAll(f) : easeOf(S.clip, r, f); }
+  function dopeX(f) { return DOPE.LBL + (f + 0.5) * DOPE.cw; }
+  function drawKeyShape(c, x, y, e, r) {
+    c.beginPath();
+    if (e === "linear") c.arc(x, y, r * 0.8, 0, Math.PI * 2);
+    else if (e === "hold") c.rect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
+    else if (e === "in") { c.moveTo(x - r, y); c.lineTo(x + r * 0.8, y - r); c.lineTo(x + r * 0.8, y + r); c.closePath(); }
+    else if (e === "out") { c.moveTo(x + r, y); c.lineTo(x - r * 0.8, y - r); c.lineTo(x - r * 0.8, y + r); c.closePath(); }
+    else if (e === "back") { for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4, rr = i % 2 ? r * 0.45 : r * 1.1; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); }
+    else { c.moveTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x, y + r); c.lineTo(x - r, y); c.closePath(); }
+    c.fill(); c.stroke();
+  }
+  function drawDope() {
+    var wrap = $("dopeWrap"), cv = $("dope"), c = cv.getContext("2d");
+    if (!S.clip) { cv.style.height = "0px"; return; }
+    var rows = dopeRows(), W = wrap.clientWidth, H = DOPE.HEAD + rows.length * DOPE.ROW, dpr = window.devicePixelRatio || 1;
+    DOPE.rows = rows; DOPE.n = frameCount(S.clips[S.clip]); DOPE.cw = Math.max(1, (W - DOPE.LBL) / (DOPE.n + 1));
+    cv.style.height = H + "px";
+    if (cv.width !== Math.floor(W * dpr) || cv.height !== Math.floor(H * dpr)) { cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr); }
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    var col = {fg: css("--fg"), muted: css("--muted"), line: css("--line"), soft: css("--accent-soft"), acc: css("--accent"), key: css("--key"), panel: css("--panel")};
+    c.font = "11px 'IBM Plex Mono', Consolas, monospace"; c.textBaseline = "middle";
+    /* header ticks */
+    var step = DOPE.cw >= 12 ? 5 : (DOPE.cw >= 5 ? 10 : 20);
+    c.fillStyle = col.muted; c.strokeStyle = col.line; c.lineWidth = 1;
+    for (var f = 0; f <= DOPE.n; f++) {
+      var x = dopeX(f);
+      if (f % step === 0) { c.beginPath(); c.moveTo(x, DOPE.HEAD - 5); c.lineTo(x, DOPE.HEAD); c.stroke(); c.textAlign = "center"; c.fillText(String(f), x, 7); }
+    }
+    c.textAlign = "left"; c.fillText("frame", 6, 7);
+    /* current-frame column */
+    c.fillStyle = col.soft; c.fillRect(dopeX(S.frame) - DOPE.cw / 2, 0, DOPE.cw, H);
+    rows.forEach(function (r, i) {
+      var y = DOPE.HEAD + i * DOPE.ROW, mid = y + DOPE.ROW / 2;
+      var selRow = r === "*" ? S.allRow : (!S.allRow && r === S.sel && S.selKind !== "anchor");
+      if (selRow) { c.fillStyle = col.soft; c.fillRect(0, y, W, DOPE.ROW); c.fillStyle = col.acc; c.fillRect(0, y, 3, DOPE.ROW); }
+      c.strokeStyle = col.line; c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke();
+      c.fillStyle = selRow ? col.acc : (r === "*" ? col.fg : col.muted);
+      var txt = r === "*" ? "All pivots" : label(r);
+      if (c.measureText(txt).width > DOPE.LBL - 12) {
+        while (txt.length > 1 && c.measureText(txt + "…").width > DOPE.LBL - 12) txt = txt.slice(0, -1);
+        txt += "…";
+      }
+      c.fillText(txt, 8, mid);
+      var fs = rowFrames(r);
+      if (fs.length) {
+        /* blend-out ends */
+        var fade = S.data.fade, a0 = fade >= WHOLE ? 0 : Math.max(0, fs[0] - fade), a1 = fade >= WHOLE ? DOPE.n : Math.min(DOPE.n, fs[fs.length - 1] + fade);
+        c.strokeStyle = col.muted; c.globalAlpha = 0.35; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(dopeX(a0), mid); c.lineTo(dopeX(fs[0]), mid); c.moveTo(dopeX(fs[fs.length - 1]), mid); c.lineTo(dopeX(a1), mid); c.stroke();
+        c.globalAlpha = 1;
+        /* segments between keys */
+        for (var k = 0; k < fs.length - 1; k++) {
+          var e = rowEase(r, fs[k]);
+          c.strokeStyle = col.key; c.lineWidth = 2; c.setLineDash(e === "hold" ? [3, 3] : []);
+          c.beginPath(); c.moveTo(dopeX(fs[k]), mid); c.lineTo(dopeX(fs[k + 1]), mid); c.stroke();
+        }
+        c.setLineDash([]);
+        var rad = Math.max(3, Math.min(6, DOPE.cw * 0.45));
+        fs.forEach(function (fk) {
+          var on = selRow && fk === S.frame;
+          c.fillStyle = r === "*" ? col.fg : col.key; c.strokeStyle = on ? col.acc : "rgba(10,14,26,0.85)"; c.lineWidth = on ? 2 : 1;
+          var ee = rowEase(r, fk); drawKeyShape(c, dopeX(fk), mid, ee === "mixed" ? "smooth" : ee, on ? rad + 1 : rad);
+        });
+      }
+    });
+    /* playhead */
+    c.strokeStyle = col.acc; c.lineWidth = 1.5; c.beginPath(); c.moveTo(dopeX(S.frame), 0); c.lineTo(dopeX(S.frame), H); c.stroke();
+  }
+  function dopeSig() {
+    return [S.clip, S.frame, S.sel, S.selKind, S.allRow, S.grip, S.data.fade, $("dopeWrap").clientWidth, window.devicePixelRatio,
+      JSON.stringify(S.data.edits[S.clip] || null), S.pivots.length].join("|");
+  }
+  function dopeHit(e) {
+    var r = $("dope").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    var f = Math.max(0, Math.min(DOPE.n, Math.floor((x - DOPE.LBL) / DOPE.cw)));
+    var ri = Math.floor((y - DOPE.HEAD) / DOPE.ROW), row = ri >= 0 && ri < DOPE.rows.length ? DOPE.rows[ri] : null;
+    var key = null;
+    if (row && x >= DOPE.LBL) {                              /* nearest key in that row, within half a frame or 7 px */
+      var best = Math.max(DOPE.cw / 2, 7);
+      rowFrames(row).forEach(function (fk) { var d = Math.abs(dopeX(fk) - x); if (d <= best) { best = d; key = fk; } });
+    }
+    return {x: x, y: y, f: f, row: row, label: x < DOPE.LBL, head: y < DOPE.HEAD, key: key};
+  }
+  function selectRow(r) {
+    if (r === "*") { S.allRow = true; updatePivotOut(); return; }
+    if (S.sel !== r || S.selKind === "anchor" || S.allRow) select(isX(r) ? "x" : "bone", r);
+  }
+  function dopeNames(row) { return row === "*" ? keyedPivots() : [row]; }
+  (function () {
+    var cv = $("dope"), wrap = $("dopeWrap");
+    cv.addEventListener("pointerdown", function (e) {
+      if (!S.clip || e.button !== 0) return;
+      var h = dopeHit(e); setPlaying(false); wrap.focus({preventScroll: true});
+      if (h.label) { if (h.row) selectRow(h.row); return; }
+      cv.setPointerCapture(e.pointerId);
+      if (h.row && h.key !== null) {
+        selectRow(h.row); setFrame(h.key);
+        DOPE.drag = {row: h.row, from: h.key, to: h.key, copy: e.altKey, base: JSON.stringify(S.data.edits[S.clip] || null), before: snap(), moved: false};
+        return;
+      }
+      if (h.row) selectRow(h.row);
+      DOPE.scrub = true; setFrame(h.f);
+    });
+    cv.addEventListener("pointermove", function (e) {
+      var h = dopeHit(e);
+      if (DOPE.scrub) { setFrame(h.f); return; }
+      if (DOPE.drag) {
+        var D = DOPE.drag; if (h.f === D.to) return;
+        var ed = JSON.parse(D.base); if (ed) S.data.edits[S.clip] = ed; else delete S.data.edits[S.clip];
+        moveKeys(dopeNames(D.row), D.from, h.f, D.copy || e.altKey); tidy(S.clip);
+        D.to = h.f; D.moved = D.to !== D.from;
+        rebake(S.clip, false); setFrame(h.f);
+        return;
+      }
+      cv.style.cursor = h.key !== null && h.row ? "ew-resize" : (h.label ? "pointer" : "");
+    });
+    function end() {
+      if (DOPE.drag) {
+        var D = DOPE.drag; DOPE.drag = null;
+        if (D.moved && D.before !== snap()) {
+          S.undo.push(D.before); S.redo = []; markDirty(); buildTree(); updatePivotOut();
+          status((D.copy ? "Copied " : "Moved ") + (D.row === "*" ? "every key on f" + D.from : label(D.row) + "'s key") + " to f" + D.to + ".");
+        }
+      }
+      DOPE.scrub = false;
+    }
+    cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+    wrap.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft") { setPlaying(false); setFrame(S.frame - 1); e.preventDefault(); }
+      if (e.key === "ArrowRight") { setPlaying(false); setFrame(S.frame + 1); e.preventDefault(); }
+    });
+  })();
 
   /* ---------------------------------------------------------------- save into the .glb */
   function bakedClips() { return S.order.map(function (n) { var c = applyEdits(S.baseClips[n], n, 1); c.name = n; return c; }); }
@@ -1504,22 +1993,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   $("speed").oninput = function () { S.speed = +this.value; $("speedOut").textContent = S.speed.toFixed(2) + "×"; };
   $("prevF").onclick = function () { setPlaying(false); setFrame(S.frame - 1); };
   $("nextF").onclick = function () { setPlaying(false); setFrame(S.frame + 1); };
-  function keyFrames() {
-    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e || S.selKind === "anchor") return [];
-    var s = {}; (e.rot || []).concat(e.pos || []).forEach(function (k) { s[k.f] = 1; });
-    return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  function keyFrames() {                                   /* the selected pivot's keys (All pivots row / nothing: every key) */
+    return (S.allRow || !keyable()) ? rowFrames("*") : framesOf(S.sel);
   }
   $("prevKey").onclick = function () { var k = keyFrames().filter(function (f) { return f < S.frame; }); if (k.length) { setPlaying(false); setFrame(k[k.length - 1]); } };
   $("nextKey").onclick = function () { var k = keyFrames().filter(function (f) { return f > S.frame; }); if (k.length) { setPlaying(false); setFrame(k[0]); } };
-  var fr = $("frames"), scrubbing = false;
-  function frameFromEvent(e) { var r = fr.getBoundingClientRect(), n = frameCount(S.clips[S.clip]); return Math.round((e.clientX - r.left) / r.width * (n + 1) - 0.5); }
-  fr.addEventListener("pointerdown", function (e) { if (!S.clip) return; scrubbing = true; fr.setPointerCapture(e.pointerId); setPlaying(false); setFrame(frameFromEvent(e)); });
-  fr.addEventListener("pointermove", function (e) { if (scrubbing) setFrame(frameFromEvent(e)); });
-  fr.addEventListener("pointerup", function () { scrubbing = false; });
-  fr.addEventListener("keydown", function (e) {
-    if (e.key === "ArrowLeft") { setPlaying(false); setFrame(S.frame - 1); e.preventDefault(); }
-    if (e.key === "ArrowRight") { setPlaying(false); setFrame(S.frame + 1); e.preventDefault(); }
-  });
   $("mRot").onclick = function () { setMode("rotate"); };
   $("mMove").onclick = function () { if (S.selKind === "anchor" || (S.sel && movable(S.sel))) setMode("translate"); };
   $("sLocal").onclick = function () { setSpace("local"); };
@@ -1534,16 +2012,24 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (spreadStart !== null && spreadStart !== snap()) { S.undo.push(spreadStart); S.redo = []; markDirty(); }
     spreadStart = null; S.order.forEach(function (n) { rebake(n, true); });
   };
-  $("delKey").onclick = function () {
-    if (!S.sel) return; pushUndo();
-    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e) return;
-    ["rot", "pos"].forEach(function (k) { if (e[k]) e[k] = e[k].filter(function (x) { return x.f !== S.frame; }); });
-    rebake(S.clip, true); updatePivotOut(); buildTree();
-  };
+  $("addKey").onclick = $("tlKey").onclick = addKey;
+  $("addPoseKey").onclick = addPoseKey;
+  $("delKey").onclick = function () { delKey(false); };
+  $("delFrame").onclick = function () { delKey(true); };
   $("clearPivot").onclick = function () {
     if (!S.sel || !S.data.edits[S.clip]) return; pushUndo();
-    delete S.data.edits[S.clip][S.sel]; rebake(S.clip, true); updatePivotOut(); buildTree();
+    delete S.data.edits[S.clip][S.sel]; tidy(S.clip); afterKeys("Cleared " + label(S.sel) + "'s keys in " + S.clip + ".");
   };
+  $("ease").onchange = function () {
+    var names = (S.allRow || !keyable()) ? framesOnFrame(S.frame) : [S.sel];
+    if (!names.length) return;
+    pushUndo(); setEase(names, S.frame, this.value);
+    afterKeys("f" + S.frame + ": " + (names.length > 1 ? names.length + " keys" : label(names[0])) + " now " + this.options[this.selectedIndex].text.replace(/^\S+ /, "") + " into the next key.");
+  };
+  $("copyPivot").onclick = function () { copyPose(false); };
+  $("copyPose").onclick = function () { copyPose(true); };
+  $("paste").onclick = function () { pastePose(false); };
+  $("pasteMirror").onclick = function () { pastePose(true); };
   ["pScale", "pHeight", "pYaw"].forEach(function (id) {
     var el = $(id), start = null;
     el.addEventListener("pointerdown", function () { start = snap(); });
@@ -1570,6 +2056,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       L[x[1]][x[2]] = Math.max(-180, Math.min(180, v));
     });
   });
+  $("limCollar").onchange = limitsChanged(function (L) {
+    var v = Math.round(+this.value); if (isFinite(v)) L.collar = Math.max(0, Math.min(180, v));
+  });
   Object.keys(HINGES).forEach(function (n) {
     $("limInv" + n).onchange = limitsChanged(function (L) { if (this.checked) L.inv[n] = true; else delete L.inv[n]; });
   });
@@ -1593,6 +2082,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "s") { e.preventDefault(); save(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "c" && S.root && !String(window.getSelection && window.getSelection())) { e.preventDefault(); copyPose(!keyable() || S.allRow); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "v" && S.root) { e.preventDefault(); pastePose(e.shiftKey); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (t.closest && t.closest("#tree") && /^arrow/.test(k)) return;
     if (k === "r") setMode("rotate");
@@ -1602,11 +2093,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     else if (k === ",") { setPlaying(false); setFrame(S.frame - 1); }
     else if (k === ".") { setPlaying(false); setFrame(S.frame + 1); }
     else if (k === "escape") select(null, null);
+    else if (k === "k" && S.root) { if (e.shiftKey) addPoseKey(); else addKey(); }
+    else if ((k === "delete" || k === "backspace") && S.root) { e.preventDefault(); delKey(e.shiftKey); }
   });
+  window.addEventListener("blur", function () { if (RING) endRing(); });
   window.addEventListener("beforeunload", function (e) { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
   /* ---------------------------------------------------------------- loop */
-  var clock = new THREE.Clock(), wq = new THREE.Quaternion(), wp2 = new THREE.Vector3(), AX = {X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1]};
+  var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
   function resize() {
     var w = canvas.clientWidth, h = canvas.clientHeight, pr = renderer.getPixelRatio();
     if (canvas.width !== Math.floor(w * pr) || canvas.height !== Math.floor(h * pr)) {
@@ -1629,21 +2123,20 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       var factor = wp2.distanceTo(camera.position) * Math.min(1.9 * Math.tan(Math.PI * camera.fov / 360) / camera.zoom, 7);
       back.position.copy(wp2); back.quaternion.copy(camera.quaternion); back.scale.setScalar(factor * ring.size / 7);
     }
-    var drag = tcRot.dragging ? tcRot : (tc.dragging ? tc : null);
-    if (drag && drag.getMode() === "rotate" && AX[drag.axis]) {
-      obj = drag.object; obj.getWorldPosition(wp2);
-      var dir = new THREE.Vector3().fromArray(AX[drag.axis]);
-      if (drag.space === "local" || drag === tcRot) { obj.getWorldQuaternion(wq); dir.applyQuaternion(wq); }
-      axisLine.position.copy(wp2); axisLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
-      axisLine.scale.setScalar(wp2.distanceTo(camera.position) * 0.6); axisLine.visible = true;
+    if (RING && RING.ax !== "E") {                          /* the axis being turned about */
+      axisLine.position.copy(RING.c); axisLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), RING.a);
+      axisLine.scale.setScalar(RING.c.distanceTo(camera.position) * 0.6); axisLine.visible = true;
     } else axisLine.visible = false;
     var hud = $("hud");
     if (S.root) hud.innerHTML = "<b>" + esc(S.clip) + "</b> · f" + S.frame + " · " +
       (S.sel ? (S.selKind === "anchor" ? "anchor" : (isX(S.sel) ? "added bone" : "pivot")) + " <b>" + esc(label(S.sel)) + "</b>" + (S.grip ? " · grip spot" : "") : "nothing selected") +
+      " · " + (S.space === "local" ? "Local" : "World") + " axes" +
+      (RING ? " · turning " + (RING.ax === "E" ? "view" : RING.ax) + " <b>" + (RING.angle * 180 / Math.PI).toFixed(1) + "°</b>" : "") +
       (S.dirty ? " · unsaved" : "");
     else hud.textContent = "";
     renderer.render(scene, camera);
     drawOverlay();
+    var sg = dopeSig(); if (sg !== DOPE.sig) { DOPE.sig = sg; drawDope(); }
   })();
 
   /* embedded model (for the published preview page) */
