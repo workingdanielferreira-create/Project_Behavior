@@ -85,9 +85,11 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   blend, and **Blend out** sets how far a key fades before the first / after the last key (all the way
   right = the whole clip). **Local / World** (`L`) picks the ring axes.
 - **Pivots on the model.** Click a pivot dot for its rings. **Press and hold, or press and drag** a pivot to pull
-  the body toward the mouse (keys on that frame): hand / arm pivots bend forearm, upper arm and a little of the
-  collarbone; foot / leg pivots bend shin and thigh; neck / head pivots bend down the neck and spine; fingers
-  their finger; added bones their own chain; Hips moves the whole body.
+  the body toward the mouse (keys on that frame): hand and foot pivots bend their arm / leg with a two-bone
+  solver that keeps the elbow / knee bending the way it already does (the collarbone helps a little when a
+  hand is pulled past its reach); other pivots bend up their chain (neck / head down the spine). **Hips**
+  moves the body through the hierarchy while both hands and both feet stay planted (arms and legs re-bend, the
+  weapon stays put), like the 2D Rig Forge's pelvis drag; **Shift + drag** the hips to move everything.
 - **Skeleton tree.** Every bone in its hierarchy (Hips > Spine > …), with each bone's anchors (◆) and added
   bones (✚) under it. It starts collapsed and opens down to whatever you select. FX anchors are hidden on the
   model unless their card's **Show this FX anchor on the model** is ticked (or **All FX anchors** in View). Click a row (or a dot on the model) to select it; its card opens
