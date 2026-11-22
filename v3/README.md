@@ -70,6 +70,10 @@ time has to respect that order; functions called later can reach anything.
 `RIG_SPEC.md` (+ `rig_spec.json`) is the rig + animation spec for 3D fighters: Mixamo bone
 names, fingers, face set, weapon bones, FX anchor → bone map, clip list with fallbacks, glb export.
 
+First 3D test fighter: `characters/ronin_copy/ronin_copy.glb`, built by `tools/blender/build_ronin3d.py`
+(runs on Blender's `bpy` Python package, no Blender UI). `tools/blender/make_viewer.py` makes a
+self-contained viewer page for any .glb. V3 doesn't load the .glb yet (next step: the Rig Forge 3D importer).
+
 ## Real characters
 
 V3 plays the real characters from `characters/`. On every launch `run_v3.bat` runs
