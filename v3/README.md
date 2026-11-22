@@ -187,6 +187,13 @@ action's length or the move's; mirrored = every key pose mirrored afterwards). C
 (`pb_rf3d_library` JSON). **Body moves** = the shared body's own clips (hit reactions, dodges, sword attacks …) as stock
 moves. Stored in IndexedDB ("lib"), shared by every character (bone names; fingers included).
 
+**Part 4: weapon editor.** Panel "Weapons": Weapon 1 (right hand) / Weapon 2 (left hand): holds a weapon or not, and
+"Build it here": shape (sword, katana, dagger, greatsword, rapier, cleaver) + length, width, thickness, curve, point,
+guard, handle, grip (slides along the hand's weapon line), roll; copy from the other hand; reset. `v3/js/weapons3d.js`
+builds it (child of the Weapon_R / Weapon_L bone, the body's skinned blade hidden) in Rig Forge 3D and in V3
+(glbody.js glbBuild). Saved as `pb_body.weapons` {R, L} (true / false or the cfg); `retarget2d.py` keeps an edited cfg
+when it rebuilds. The original's weight / swing settings drove its 2D blade drag, which V3 doesn't have (not ported).
+
 **Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
 every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
 poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):
