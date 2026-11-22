@@ -186,3 +186,31 @@ recommended next.
 Rigify's deform bones (`DEF-spine`, `DEF-hand.L` ...) don't match these names. Either
 rename / retarget them to the Mixamo names before export, or the importer gets a Rigify name
 table later. Mixamo naming stays the standard.
+
+## 8. Free CC0 route (Quaternius + Mesh2Motion, scripted)
+
+Both libraries are CC0 (public domain, commercial use allowed, no credit required) and share one
+skeleton, the UE-mannequin set (`root`, `pelvis`, `spine_01`, `upperarm_l` ...). Two scripts in
+`tools/blender/` turn them into a fighter on this rig, without the Blender UI
+(`pip install bpy`; Blender 5.3's module needs Python 3.13):
+
+1. Download Quaternius **Universal Animation Library** 1 and 2, Standard (free) editions
+   (quaternius.itch.io), and clone `github.com/Mesh2Motion/mesh2motion-assets`.
+2. `python m2m_bake.py <mesh2motion-assets>/rigs/human m2m_keys.json`: samples Mesh2Motion's
+   human clips (they animate control bones; this reads the deform bones) and resamples 24 -> 30 fps.
+3. `python ual_to_spec.py UAL2_Standard.glb UAL1_Standard.glb out.glb m2m_keys.json`
+   (the files from each pack's `Unreal-Godot/` folder, NOT the `_RM` root-motion ones): renames
+   the bones to Mixamo names, adds `HeadTop_End`, `Jaw`, the eyes and `Weapon_R` / `WeaponTip_R`
+   (blade out the thumb side of the fist) with a plain blade mesh, keeps the clips named in the
+   two scripts' `CLIPS` tables and exports as in section 5.
+
+`characters/ual_swordsman/ual_swordsman.glb` is the result (35 clips, 13.8k triangles, 71 bones,
+1.83 m). Known gaps:
+
+- **No face shape keys** (the mannequin has no face). Add them in Blender to make the body spec-complete.
+- Clips end on a neutral standing pose, and the non-sword clips (run, kicks, power-up ...) don't close
+  the hand round the grip. Trim / fix in Rig Forge 3D.
+- The motion is realistic mocap. The anime feel (holds, snaps, smears) is added on top in Rig Forge 3D.
+- Mesh2Motion's rest pose is not byte-identical to Quaternius' (worst bone end ~0.4 units apart),
+  but the clips are stored as local rotations and play correctly on the Quaternius body (checked by
+  eye in Rig Forge 3D).

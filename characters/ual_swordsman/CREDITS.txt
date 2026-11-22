@@ -1,0 +1,10 @@
+ual_swordsman.glb - V3 test body (v3/RIG_SPEC.md section 8).
+
+Body and clips from:
+- Universal Animation Library 1 + 2 (Standard), by Quaternius - CC0 1.0
+  https://quaternius.com  /  https://quaternius.itch.io
+- Mesh2Motion human animations - CC0 1.0
+  https://github.com/Mesh2Motion/mesh2motion-assets
+
+CC0 needs no credit. This file is kept so the source of the assets is not lost.
+Built by v3/tools/blender/m2m_bake.py + ual_to_spec.py.
