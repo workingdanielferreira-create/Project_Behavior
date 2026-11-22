@@ -65,6 +65,11 @@ game runs straight from disk (`file://`) without a local server. A file may
 use anything declared in the files loaded before it. Code that runs at load
 time has to respect that order; functions called later can reach anything.
 
+## 3D bodies (spec)
+
+`RIG_SPEC.md` (+ `rig_spec.json`) is the rig + animation spec for 3D fighters: Mixamo bone
+names, fingers, face set, weapon bones, FX anchor → bone map, clip list with fallbacks, glb export.
+
 ## Real characters
 
 V3 plays the real characters from `characters/`. On every launch `run_v3.bat` runs
