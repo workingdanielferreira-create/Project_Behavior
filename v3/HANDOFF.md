@@ -119,6 +119,13 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   filmstrip, audit tweens the same way. Characters edited locally in Rig Forge 3D (not pushed) keep their old frame-by-
   frame clips until re-saved / rebuilt (the updater never overwrites local character edits).
 
+## Original Rig Forge features -> Rig Forge 3D (2026-11-22, Daniel picked)
+
+Picked: Actions panel (with settable length), Tween panel (in-betweens per key pose, hold, easing, range), Mirror +
+face left, Reference images, Pose + move library, Weapon editor. Not picked: IK solve + arc guides, Character tab +
+PNG / package export. Part 1 done (actions, length, tween, mirror / turn / centre). Next: reference images (incl. the
+character's own 2D frames behind the figure), pose + move library, weapon editor.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

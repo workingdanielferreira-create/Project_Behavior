@@ -162,6 +162,18 @@ clips are now authored as key poses, one by one, and replace the 2D-guessed ones
 
 ## Rig Forge 3D
 
+**From the original Rig Forge (Daniel 2026-11-22), part 1.** **Actions** panel (replaces the Clip dropdown): every
+action with its length and key count; Name + Rename; **Length (ms) + Set length** = how long the move plays in the game:
+the clip and its key poses are retimed (`S.data.len`, undo-able) and on Save the FX file's `timing[action].frame_ms` =
+length / frames (frames kept, so its FX stay in step; `character.json` `frame_ms` / `duration_ms` follow); Trigger
+(`character.json`), Cooldown (FX `action_settings.cooldown_ms`); **+ Action** (0.5 s, the pose on screen as two key poses,
+FX timing added), **Duplicate**, **Remove** (clip + FX timing; its FX effects stay). Needs the characters folder for
+the file writes; add / rename / remove can't be undone. **Tween** panel per key pose: **In-betweens** (0 = smooth; N =
+the pose jumps N+1 times on the way: choppy anime timing), **Hold** (frames still first), Easing, **Apply to** key poses
+a..b / All; stored per key (`st`, `h`) and in the file as `pb_keys` `s` / `h` per track (V3 keytween.js and
+keyreduce.seg_u play them the same). Filmstrip: **Mirror L/R**, **Turn around** (180 deg on the hips), **Centre** (hips
+over the feet spot); Shift = every key pose, one undo step.
+
 **Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
 every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
 poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):
