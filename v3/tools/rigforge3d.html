@@ -119,6 +119,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
 .acts [role=option]:hover { background: var(--accent-soft); }
 .acts [role=option][aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .acts .ms { margin-left: auto; color: var(--muted); }
+/* reference images (original Rig Forge's reference track) */
+.refimg { position: absolute; left: 50%; top: 50%; max-height: 86%; max-width: none; pointer-events: none; z-index: 0;
+  transform-origin: 50% 50%; image-rendering: auto; }
+.refimg.front { z-index: 3; }
+#view { z-index: 1; } #over { z-index: 2; } .hud, .drop { z-index: 4; }
 /* skeleton tree */
 .tree { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
   font-family: var(--mono); font-size: 12px; }
@@ -152,6 +157,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
 
   <div class="left">
     <div class="stage" id="stage">
+      <img id="refImg" class="refimg" alt="" hidden>
       <canvas id="view" aria-label="3D posing view"></canvas>
       <canvas id="over"></canvas>
       <div class="hud" id="hud"></div>
@@ -236,6 +242,22 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option></select></div>
       <div class="row"><label>Apply to</label><span class="readout">key poses</span><input type="number" id="twFrom" min="1" step="1" value="1" aria-label="From key pose"><span class="readout">to</span><input type="number" id="twTo" min="1" step="1" value="1" aria-label="To key pose"><button id="twRange">Apply</button><button id="twAll">All</button></div>
       <p class="note">Settings of the tween from this key pose to the next. <b>In-betweens</b>: how many in-between poses it shows on the way (0 = every frame, smooth; 1-3 = choppy anime timing, the pose jumps). <b>Hold</b>: frames the key pose stays still before it moves. <b>Apply to</b> copies this key pose's tween to a range of key poses (numbers as on the cards).</p>
+    </section>
+
+    <section aria-labelledby="h-ref">
+      <h2 id="h-ref">Reference images</h2>
+      <label class="check"><input type="checkbox" id="refShow" checked> Show reference images</label>
+      <label class="check"><input type="checkbox" id="ref2d"> Follow the character's 2D drawings (this action)</label>
+      <div class="readout" id="refOut">No reference on this frame.</div>
+      <div class="row"><button id="refLoad">Image for this key pose…</button><button id="refPaste" title="Ctrl+V with an image copied">Paste</button><button id="refDel" class="danger">Remove</button></div>
+      <div class="row"><button id="refAll" title="Every key pose of this action shows this image">Image → all key poses</button><button id="refSide" title="Camera side on, like the 2D drawings">Side view</button></div>
+      <label class="check"><input type="checkbox" id="refFront"> Draw in front of the figure</label>
+      <div class="row"><label for="refOp">Opacity</label><input id="refOp" type="range" min="0.05" max="1" step="0.05" value="0.5"><output id="refOpOut">50%</output></div>
+      <div class="row"><label for="refSize">Size</label><input id="refSize" type="range" min="0.2" max="3" step="0.01" value="1"><output id="refSizeOut">1.00×</output></div>
+      <div class="row"><label for="refX">Across</label><input id="refX" type="range" min="-60" max="60" step="0.5" value="0"><output id="refXOut">0%</output></div>
+      <div class="row"><label for="refY">Up / down</label><input id="refY" type="range" min="-60" max="60" step="0.5" value="0"><output id="refYOut">0%</output></div>
+      <input type="file" id="refFile" accept="image/*" hidden>
+      <p class="note">One image per key pose (shown until the next key pose with its own), or the character's own 2D drawings following the clip (the drawing at the same point of the move). Placement and opacity are per action. Kept on this computer (not in the .glb).</p>
     </section>
 
     <section aria-labelledby="h-skel">
@@ -387,7 +409,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
 
   /* ---------------------------------------------------------------- three.js scene */
   var canvas = $("view"), over = $("over"), octx = over.getContext("2d");
-  var renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true});
+  var renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true, alpha: true});   /* alpha: reference images behind */
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
   var scene = new THREE.Scene();
@@ -1002,7 +1024,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     syncStructure();
     S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
     $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
-    loadCharFiles(name);
+    loadCharFiles(name); refLoadAll(name);
     S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
@@ -2710,7 +2732,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (sig !== FILM.sig) { FILM.sig = sig; FILM.due = performance.now() + 200; }
     var busy = RING || S.playing || tc.dragging || tcRot.dragging;
     if (FILM.due && !busy && performance.now() >= FILM.due) { FILM.due = 0; buildFilm(); }
-    if (S.frame !== FILM.frame) { FILM.frame = S.frame; markFilm(); }
+    if (S.frame !== FILM.frame) { FILM.frame = S.frame; markFilm(); refSync(); }
   }
   function kpMove(d) {
     var f = S.frame, keys = poseFrames(), i = keys.indexOf(f); if (i < 0) return;
@@ -2793,8 +2815,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
       CF.dir = d; CF.name = nm;
       try { CF.fx = JSON.parse(await (await (await d.getFileHandle(nm + ".fxkit.json")).getFile()).text()); } catch (e) { CF.fx = null; }
       try { CF.ch = JSON.parse(await (await (await d.getFileHandle("character.json")).getFile()).text()); } catch (e) { CF.ch = null; }
+      REF.geo = null;
     } catch (e) { CF.dir = null; }
-    buildActs();
+    buildActs(); REF.shown = ""; refSync();
   }
   async function writeJson(name, obj) {
     var h = await CF.dir.getFileHandle(name, {create: true}), w = await h.createWritable();
@@ -3002,6 +3025,135 @@ details.adv[open] > summary { margin-bottom: 6px; }
   $("kpTurn").onclick = function (e) { eachKeyPose(e.shiftKey, turnHere, "Turned around"); };
   $("kpCentre").onclick = function (e) { eachKeyPose(e.shiftKey, centreHere, "Centred the hips"); };
 
+  /* ---------------------------------------------------------------- reference images (original Rig Forge's reference track)
+     Per action: images on key poses (paste / load; shown from that key pose until the next one with an image) and / or
+     "follow the 2D drawings" = the character's own PNG frame at the same point of the move (characters folder needed).
+     Placement {x, y (% of the stage), s, o, front} per action. Kept in IndexedDB per character file, never in the .glb. */
+  var REF = {data: null, key: "", urls: {}, shown: "", saveT: 0};
+  function refData() { return REF.data || (REF.data = {img: {}, xf: {}, follow: {}}); }
+  function refXf() { var d = refData(); return d.xf[S.clip] || (d.xf[S.clip] = {x: 0, y: 0, s: 1, o: 0.5, front: false}); }
+  function refLoadAll(fileName) {
+    REF.key = "ref:" + fileName; REF.data = null; REF.shown = "";
+    chDb("readonly", function (st) { return st.get(REF.key); }).then(function (v) { REF.data = v || null; refSync(); }).catch(function () { refSync(); });
+  }
+  function refStore() {
+    clearTimeout(REF.saveT);
+    REF.saveT = setTimeout(function () { var v = refData(), k = REF.key; chDb("readwrite", function (st) { return st.put(v, k); }).catch(function () {}); }, 300);
+  }
+  async function url2d(png) {
+    if (REF.urls[png]) return REF.urls[png];
+    if (!CF.dir) return null;
+    try { var f = await (await CF.dir.getFileHandle(png)).getFile(); return (REF.urls[png] = URL.createObjectURL(f)); } catch (e) { return null; }
+  }
+  /* which image this frame shows: {src | png, what} */
+  function refPick() {
+    if (!S.clip) return null;
+    var d = refData();
+    if (d.follow[S.clip]) {
+      var fr = CF.ch && CF.ch.actions && CF.ch.actions[S.clip] && CF.ch.actions[S.clip].frames;
+      if (fr && fr.length) {
+        var n = frameCount(S.clips[S.clip]), i = Math.min(fr.length - 1, Math.floor(S.frame / Math.max(1, n) * fr.length));
+        return {png: fr[i], what: "2D drawing " + (i + 1) + " / " + fr.length + " (" + fr[i] + ")"};
+      }
+    }
+    var imgs = d.img[S.clip] || {}, best = null;
+    Object.keys(imgs).map(Number).sort(function (a, b) { return a - b; }).forEach(function (f) { if (f <= S.frame) best = f; });
+    return best == null ? null : {src: imgs[best], what: "image of the key pose on f" + best};
+  }
+  function refSync() {
+    var el = $("refImg"), x = S.clip ? refXf() : null, pick = $("refShow").checked ? refPick() : null, d = refData();
+    if (S.clip) {
+      $("ref2d").checked = !!d.follow[S.clip];
+      $("ref2d").disabled = !(CF.ch && CF.ch.actions && CF.ch.actions[S.clip] && (CF.ch.actions[S.clip].frames || []).length && CF.dir);
+      $("refFront").checked = !!x.front; $("refOp").value = x.o; $("refSize").value = x.s; $("refX").value = x.x; $("refY").value = x.y;
+      $("refOpOut").textContent = Math.round(x.o * 100) + "%"; $("refSizeOut").textContent = (+x.s).toFixed(2) + "×";
+      $("refXOut").textContent = x.x + "%"; $("refYOut").textContent = x.y + "%";
+    }
+    var onKey = poseFrames().indexOf(S.frame) >= 0;
+    $("refLoad").disabled = $("refPaste").disabled = !onKey;
+    $("refDel").disabled = !(S.clip && (d.img[S.clip] || {})[S.frame]);
+    $("refAll").disabled = !(S.clip && (d.img[S.clip] || {})[S.frame]);
+    $("refOut").textContent = pick ? "Showing the " + pick.what + "." : (onKey ? "No reference on this key pose: load or paste one." : "No reference on this frame.");
+    if (!pick) { el.hidden = true; REF.shown = ""; scene.background = new THREE.Color(css("--stage") || "#dfe3ec"); return; }
+    el.style.opacity = x.o; el.classList.toggle("front", !!x.front);
+    REF.fit = !!pick.png;                                    /* 2D drawings stand on the 3D floor at the 3D size (refLayout) */
+    if (!REF.fit) { el.style.left = el.style.top = el.style.width = ""; el.style.maxHeight = "";
+      el.style.transform = "translate(-50%, -50%) translate(" + x.x + "%, " + (-x.y) + "%) scale(" + x.s + ")"; }
+    scene.background = x.front ? new THREE.Color(css("--stage") || "#dfe3ec") : null;   /* behind: the 3D view is see-through */
+    var want = pick.src || "png:" + pick.png;
+    if (REF.shown === want) { el.hidden = false; return; }
+    REF.shown = want;
+    if (pick.src) { el.src = pick.src; el.hidden = false; }
+    else url2d(pick.png).then(function (u) { if (REF.shown !== want) return; if (u) { el.src = u; el.hidden = false; } else el.hidden = true; });
+  }
+  /* the drawings' scale and ground from the character's own 2D rig: px per metre = 2D leg (thigh + shin) / 3D leg,
+     ground = the idle feet, origin across = between the idle feet */
+  function refGeo() {
+    var ch = CF.ch; if (!ch || !ch.anchors) return null;
+    var A = ch.anchors.idle || ch.anchors[Object.keys(ch.anchors)[0]], rig = (ch.rigforge || {}).rig || {}, ppu = +((ch.image || {}).px_per_rig_unit) || 1;
+    if (!A || !A.ftL || !A.ftR) return null;
+    var leg2d = (+rig.th && +rig.sh) ? (+rig.th + +rig.sh) * ppu : Math.hypot(A.hpR[0][0] - A.knR[0][0], A.hpR[0][1] - A.knR[0][1]) + Math.hypot(A.knR[0][0] - A.ftR[0][0], A.knR[0][1] - A.ftR[0][1]);
+    var b = S.bones;
+    var leg3d = 0.83;
+    if (b.RightUpLeg && b.RightLeg && b.RightFoot) leg3d = b.RightLeg.userData.restP.length() + b.RightFoot.userData.restP.length();
+    var gy = -1e9, fx = 0, n = A.ftL.length;
+    for (var i = 0; i < n; i++) gy = Math.max(gy, A.ftL[i][1], A.ftR[i][1]);
+    fx = (A.ftL[0][0] + A.ftR[0][0]) / 2;
+    return {pxm: leg2d / leg3d, gx: fx, gy: gy};
+  }
+  function refLayout() {
+    var el = $("refImg"); if (!REF.fit || el.hidden || !el.naturalWidth || !S.root) return;
+    var g = REF.geo || (REF.geo = refGeo()), x = refXf(); if (!g) return;
+    var st = $("stage"), W = st.clientWidth, H = st.clientHeight;
+    place.updateMatrixWorld(true); S.root.updateMatrixWorld(true);
+    var sc = S.root.getWorldScale(new THREE.Vector3()).y || 1;
+    var o = S.root.getWorldPosition(new THREE.Vector3()), up = o.clone().add(new THREE.Vector3(0, sc, 0));
+    var po = o.clone().project(camera), pu = up.clone().project(camera);
+    var ox = (po.x + 1) / 2 * W, oy = (1 - po.y) / 2 * H, pxPerM = Math.abs(((1 - pu.y) / 2 * H) - oy);
+    var k = pxPerM / g.pxm * x.s;                               /* CSS px per image px */
+    el.style.maxHeight = "none"; el.style.transform = "none";
+    el.style.width = (el.naturalWidth * k) + "px";
+    el.style.left = (ox - g.gx * k + x.x / 100 * W) + "px";
+    el.style.top = (oy - g.gy * k - x.y / 100 * H) + "px";
+  }
+  function refSetImage(dataUrl) {
+    if (!S.clip || poseFrames().indexOf(S.frame) < 0) { status("Go to a key pose first (click a card in the filmstrip).", true); return; }
+    var d = refData(); (d.img[S.clip] || (d.img[S.clip] = {}))[S.frame] = dataUrl; d.follow[S.clip] = false;
+    refStore(); refSync(); status("Reference image set on " + S.clip + " f" + S.frame + ".");
+  }
+  function refFromBlob(blob) { var r = new FileReader(); r.onload = function () { refSetImage(r.result); }; r.readAsDataURL(blob); }
+  $("refLoad").onclick = function () { $("refFile").click(); };
+  $("refFile").onchange = function () { var f = this.files[0]; if (f) refFromBlob(f); this.value = ""; };
+  $("refPaste").onclick = function () {
+    if (!navigator.clipboard || !navigator.clipboard.read) { status("Press Ctrl+V to paste a copied image.", true); return; }
+    navigator.clipboard.read().then(function (items) {
+      for (var i = 0; i < items.length; i++) { var t = items[i].types.filter(function (x) { return /^image\//.test(x); })[0]; if (t) return items[i].getType(t).then(refFromBlob); }
+      status("The clipboard has no image.", true);
+    }).catch(function () { status("Press Ctrl+V to paste a copied image.", true); });
+  };
+  window.addEventListener("paste", function (e) {
+    var it = e.clipboardData && Array.prototype.filter.call(e.clipboardData.items || [], function (x) { return /^image\//.test(x.type); })[0];
+    if (!it || /INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) return;
+    e.preventDefault(); refFromBlob(it.getAsFile());
+  });
+  $("refDel").onclick = function () { var d = refData(); if (d.img[S.clip]) delete d.img[S.clip][S.frame]; refStore(); refSync(); };
+  $("refAll").onclick = function () {
+    var d = refData(), m = d.img[S.clip] || {}, src = m[S.frame]; if (!src) return;
+    poseFrames().forEach(function (f) { m[f] = src; }); refStore(); refSync(); status("Every key pose of " + S.clip + " shows this image.");
+  };
+  $("ref2d").onchange = function () { refData().follow[S.clip] = this.checked; refStore(); REF.shown = ""; refSync(); };
+  $("refShow").onchange = function () { refSync(); };
+  $("refFront").onchange = function () { refXf().front = this.checked; refStore(); refSync(); };
+  [["refOp", "o"], ["refSize", "s"], ["refX", "x"], ["refY", "y"]].forEach(function (p) {
+    $(p[0]).oninput = function () { refXf()[p[1]] = +this.value; refStore(); refSync(); };
+  });
+  $("refSide").onclick = function () {
+    place.updateMatrixWorld(true);
+    var t = place.localToWorld(new THREE.Vector3(0, 0.95, 0)); orbit.target.copy(t);
+    camera.position.copy(place.localToWorld(new THREE.Vector3(-4.6, 0.95, 0))); camera.lookAt(t); orbit.update();
+    status("Side view (the fighter faces right, like the 2D drawings).");
+  };
+
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
   function resize() {
@@ -3041,7 +3193,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     renderer.render(scene, camera);
     drawOverlay();
     var sg = dopeSig(); if (sg !== DOPE.sig) { DOPE.sig = sg; drawDope(); }
-    filmTick();
+    filmTick(); refLayout();
   })();
 
   /* embedded model (for the published preview page) */

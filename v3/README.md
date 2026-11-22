@@ -174,6 +174,13 @@ a..b / All; stored per key (`st`, `h`) and in the file as `pb_keys` `s` / `h` pe
 keyreduce.seg_u play them the same). Filmstrip: **Mirror L/R**, **Turn around** (180 deg on the hips), **Centre** (hips
 over the feet spot); Shift = every key pose, one undo step.
 
+**Part 2: reference images.** Panel "Reference images": an image per key pose (load / paste / Ctrl+V; shown from that
+key pose until the next one with an image; Image → all key poses), or **Follow the character's 2D drawings**: its own
+PNG frame at the same point of the move (characters folder needed), standing on the 3D floor at the 3D size (scale
+from the 2D rig's leg length, ground = the idle feet) and following the camera. Behind (the 3D view turns
+see-through) or in front, opacity, size, across / up-down offsets per action, **Side view** button (camera side on, like
+the drawings). Kept in IndexedDB per character file, never in the .glb.
+
 **Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
 every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
 poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):
