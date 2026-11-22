@@ -31,7 +31,9 @@ function realTriggers(f,e){// 2D: a triggered action fires the tick its conditio
     if(mine&&tr.slot!=='defend'&&tick-(st.fired||0)<ms2t(6000))continue; // Commander: AI only uses one you left unused for 6 s
     if(tr.slot!=='defend'&&(f.act||f.stun>0||f.snap||f.gone>0))continue;
     if(tr.slot==='defend'&&(f.block>0||f.stun>0))continue;
-    if(tr.conds.some(c=>condTrue(f,e,c,st))){st.last=tick;st.fired=tick;return fireTrigger(f,tr,e);}}
+    // real kits: FX Studio conditions (realkits.js realCond), logic any / all; with no conditions = never on its own
+    const ok=f.k.fx2d?(tr.conds.length&&(tr.logic==='all'?tr.conds.every(c=>realCond(f,e,c,st)):tr.conds.some(c=>realCond(f,e,c,st)))):tr.conds.some(c=>condTrue(f,e,c,st));
+    if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);return fireTrigger(f,tr,e);}}
   return false;}
 function tryAttack(f,e,forced){
   if(f.k.real&&!forced&&realTriggers(f,e))return true;
@@ -53,7 +55,7 @@ function tryAttack(f,e,forced){
   if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)+60)return false;
   if(tick-f.lastNormal>ms2t(900))f.ni=0;
   const def=f.k.normals[f.ni%f.k.normals.length];f.ni++;f.lastNormal=tick;startAct(f,def,'normal','N'+f.ni);stats.used[f.side].normal++;return true;}
-function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0)return false;const e=enemyOf(f);
+function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[which].none)return false;const e=enemyOf(f);
   if(f.act&&f.act.kind!=='normal')return false;const cdk=which;if(f.cds[cdk]>tick){return false;}
   if(f.k.real){if(f.act)endAct(f);const def=f.k[which];startAct(f,def,which,which);f.cds[cdk]=tick+ms2t(def.mcd||2500);const st=f.trig[which]||(f.trig[which]={});st.last=tick;st.fired=tick;stats.used[f.side][which]++;if(which==='ult')callout(def.name,f.k.name,cssc(f.k.fx),.9);return true;}
   if(f.act)endAct(f);const def=f.k[which];startAct(f,def,which,which);f.cds[cdk]=tick+ms2t(def.cd);stats.used[f.side][which==='ult'?'ult':which]++;
@@ -113,7 +115,9 @@ function stepShots(){for(let i=shots.length-1;i>=0;i--){const s=shots[i];const p
 
 /* ---- auto reactions (2D: rare) ---- */
 function incomingShot(f,trig){for(const s of shots){if(s.side===f.side)continue;if(Math.abs((s.z||0)-f.z)>160)continue;const dx=f.x-s.x,dy=f.y-s.y,sp=Math.hypot(s.vx,s.vy)||1;const along=(dx*s.vx+dy*s.vy)/sp;if(along<0||along>(trig||300))continue;const perp=Math.abs(dx*s.vy-dy*s.vx)/sp;if(perp<60)return along/sp*1000;}return null;}
-function incoming(f,e){if(!e.act||!e.act.def.hits)return null;const a=e.act;for(const h of a.def.hits){const dt=h[0]-a.t*TICK;if(dt>0&&dt<=150){const d=Math.hypot(f.x-e.x,f.y-e.y);if(h[3]===0||d<=h[3]+40)return dt;}}return null;}
+function incoming(f,e){// real kits: an attack action starting within reach counts as incoming for its first 150 ms
+  if(e.act&&e.act.def.fx2d&&e.act.kind!=='react'){const tm=e.act.t*TICK,d=Math.hypot(f.x-e.x,f.y-e.y);return tm<150&&d<=e.k.reach+80?150-tm:null;}
+  if(!e.act||!e.act.def.hits)return null;const a=e.act;for(const h of a.def.hits){const dt=h[0]-a.t*TICK;if(dt>0&&dt<=150){const d=Math.hypot(f.x-e.x,f.y-e.y);if(h[3]===0||d<=h[3]+40)return dt;}}return null;}
 function autoReact(f,e){const r=f.k.react;const side=r.kind==='sidestep';if(f.reactCd>tick||(f.act&&!(side&&f.act.kind==='normal'))||f.stun>0||f.snap||f.ko)return;let inc=r.shotsOnly?null:incoming(f,e);if(inc==null&&(side||r.kind==='dodge'))inc=incomingShot(f,r.trig);if(inc==null)return;
   if(f.side===0&&level==='handson')return;
   if(Math.random()>r.p)return;f.reactCd=tick+ms2t(r.cd||1400);
@@ -130,6 +134,8 @@ function tagIn(side,idx,kind){const s=sides[side];const out=s.team[s.on];const e
   if(f.k.entrance==='axe'){f.leap=ms2t(300);f.leapFrom=[f.x,f.y];f.leapTo=[tx,ty];later(300,()=>{if(f.ko||!f.on)return;fx_dome(f.x,f.y,f.k.fx,4.5);fx_crack(f.x,f.y,4);fx_dust(f.x,f.y,14);shake=Math.max(shake,.9);flash(.25);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<170)damage(f,e,f.k.entranceDmg||(kind==='rescue'?70:110),f.k.key==='sueko'?'B':'H');});}
   else snapTo(f,tx,ty,f.k.blink>.3,true,e.z);
   if(f.k.entrance==='oath')later(150,()=>{if(f.ko||!f.on)return;runFx(f,'oath',4.2);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<190){damage(f,e,f.k.entranceDmg,'M');later(60,()=>damage(f,e,f.k.entranceDmg,'M'));}});
-  if(!f.k.entrance)later(140,()=>{if(f.ko||!f.on)return;fx_slash(f,4.6,f.k.fx,true);fx_ring(f.x,f.y,f.k.fx,3.5,.35);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<160)damage(f,e,kind==='rescue'?60:90,'M');});
+  // real kits: the character's own switch_in action (its FX play through fx2d.js)
+  if(f.k.switchIn)later(60,()=>{if(f.ko||!f.on)return;startAct(f,f.k.switchIn,'special','switch_in');});
+  else if(!f.k.entrance)later(140,()=>{if(f.ko||!f.on)return;fx_slash(f,4.6,f.k.fx,true);fx_ring(f.x,f.y,f.k.fx,3.5,.35);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<160)damage(f,e,kind==='rescue'?60:90,'M');});
   s.tagCd=tick+ms2t(side===0?3000:7000);stats.tags[side]++;if(side===0||kind==='rescue')callout(kind==='rescue'?'RESCUE':'TAG',f.k.name+' cuts in',cssc(f.k.fx),.7,true);
   if(f.side===0)hudFor=-1;}

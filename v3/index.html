@@ -30,7 +30,21 @@
 <script src="lib/three.min.js"></script>
 <script src="js/core.js"></script>       <!-- constants, maths helpers -->
 <script src="js/settings.js"></script>   <!-- saved settings -->
-<script src="js/kits.js"></script>       <!-- character kits (moves, timings, damage) -->
+<script src="js/kits.js"></script>       <!-- stand-in kits (used only if data/kits.gen.js is missing) -->
+<script src="data/kits.gen.js"></script> <!-- real kits, packed from characters/ by tools/build_kits.py (run_v3.bat) -->
+<!-- FX Studio's own 2D FX runtime, loaded unchanged from tools/fx/studio -->
+<script src="../tools/fx/studio/fxkit.js"></script>
+<script src="../tools/fx/studio/swordfx.js"></script>
+<script src="../tools/fx/studio/hitfx.js"></script>
+<script src="../tools/fx/studio/strikefx.js"></script>
+<script src="../tools/fx/studio/kickfx.js"></script>
+<script src="../tools/fx/studio/powerfx.js"></script>
+<script src="../tools/fx/studio/gunfx.js"></script>
+<script src="../tools/fx/studio/weaponfx.js"></script>
+<script src="../tools/fx/studio/crescentfx.js"></script>
+<script src="../tools/fx/studio/slashline.js"></script>
+<script src="../tools/fx/studio/defendfx.js"></script>
+<script src="js/realkits.js"></script>   <!-- real kits -> V3 kits (actions, triggers, dodge, movement) -->
 <script src="js/renderer.js"></script>   <!-- WebGL renderer, scene, materials, 2D->3D mapping -->
 <script src="js/arena.js"></script>      <!-- arena / environment -->
 <script src="js/fx.js"></script>         <!-- FX design: primitives (slash, ring, sparks, dust ...) -->
@@ -43,6 +57,7 @@
 <script src="js/gravity.js"></script>    <!-- speed gravity: speed sets the flight ceiling -->
 <script src="js/combat.js"></script>     <!-- actions, hits, damage, reactions, tagging, shots -->
 <script src="js/parry.js"></script>      <!-- parry / deflect (Ctrl+Space + AI) -->
+<script src="js/fx2d.js"></script>       <!-- real kits' 2D FX on cards in the 3D scene -->
 <script src="js/fxlib.js"></script>      <!-- FX animation: every action effect -->
 <script src="js/fighter.js"></script>    <!-- per-fighter update, altitude -->
 <script src="js/input.js"></script>      <!-- keyboard commands -->
