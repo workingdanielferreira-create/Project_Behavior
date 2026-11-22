@@ -44,6 +44,7 @@ Read this first in a new session to pick up the V3 (3D) work where it stopped.
 
 ## Blender plugin
 
+2026-11-22 cloud session: still no Blender tools, no Blender install and no attached computer.
 Daniel added a Blender plugin, but the cloud session could not see it (no connector / plugin / tools
 listed). Run the next session **in the Claude desktop app on the machine where Blender and the
 plugin are installed**, and check that its tools are available before starting.
@@ -72,12 +73,9 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 
 ## Next steps (agreed direction, not started)
 
-1. Write the rig + animation spec in `v3/`. It covers:
-   - a humanoid body (Mixamo / Rigify), fingers, a small face set, and chain bones for hair / cloth /
-     tassels;
-   - the action list mapped to FX Studio names (`idle`, `run`, `attack_normal(_N)`, `attack_special`,
-     `ultimate`, `defend`, `switch_in`, dodge);
-   - anchor bone names matching FX Studio anchors.
+1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
+   fingers, face set (Jaw / eyes + shape keys) and weapon bones required; no hair / cloth chains for
+   now; clips = FX Studio actions + locomotion set + hit reactions, each with a fallback.
 2. With the Blender plugin: build one test fighter (Rigify or Mixamo rig) and export a .glb.
 3. Build the Rig Forge 3D importer. Swap V3's toon stand-in body for the .glb, driven by the sim's
    action / timing.

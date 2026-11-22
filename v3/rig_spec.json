@@ -1,0 +1,184 @@
+{
+  "format": "pb_rig_spec",
+  "version": 1,
+  "doc": "Rig + animation spec for V3 3D fighters. Human-readable version: v3/RIG_SPEC.md. Read by the Rig Forge 3D importer and the Blender check script.",
+
+  "units": {
+    "length": "metre",
+    "height_m": [1.5, 2.0],
+    "height_default_m": 1.7,
+    "up": "+Y (glTF)",
+    "forward": "+Z (glTF) = Blender -Y (the character faces the Front view)",
+    "rest_pose": "T-pose or A-pose; arms within 0..45 deg below horizontal",
+    "origin": "between the feet, on the ground (y = 0)",
+    "body_px": 28,
+    "body_px_note": "the game scales the model so its standing height = body_px game px (one body)"
+  },
+
+  "bone_name_prefix": {
+    "accepted": ["mixamorig:", "mixamorig_", "mixamorig", ""],
+    "note": "The importer strips any of these, so a Mixamo rig works with or without its prefix."
+  },
+
+  "bones": {
+    "body": {
+      "required": true,
+      "list": [
+        ["Hips", null],
+        ["Spine", "Hips"],
+        ["Spine1", "Spine"],
+        ["Spine2", "Spine1"],
+        ["Neck", "Spine2"],
+        ["Head", "Neck"],
+        ["HeadTop_End", "Head"],
+        ["LeftShoulder", "Spine2"],
+        ["LeftArm", "LeftShoulder"],
+        ["LeftForeArm", "LeftArm"],
+        ["LeftHand", "LeftForeArm"],
+        ["RightShoulder", "Spine2"],
+        ["RightArm", "RightShoulder"],
+        ["RightForeArm", "RightArm"],
+        ["RightHand", "RightForeArm"],
+        ["LeftUpLeg", "Hips"],
+        ["LeftLeg", "LeftUpLeg"],
+        ["LeftFoot", "LeftLeg"],
+        ["LeftToeBase", "LeftFoot"],
+        ["LeftToe_End", "LeftToeBase"],
+        ["RightUpLeg", "Hips"],
+        ["RightLeg", "RightUpLeg"],
+        ["RightFoot", "RightLeg"],
+        ["RightToeBase", "RightFoot"],
+        ["RightToe_End", "RightToeBase"]
+      ]
+    },
+    "fingers": {
+      "required": true,
+      "pattern": "{Side}Hand{Finger}{N}",
+      "sides": ["Left", "Right"],
+      "fingers": ["Thumb", "Index", "Middle", "Ring", "Pinky"],
+      "segments": [1, 2, 3, 4],
+      "parent": "{Side}Hand for segment 1, else the previous segment",
+      "note": "Segment 4 is the tip end bone (Mixamo exports it). 40 bones in all."
+    },
+    "face": {
+      "required": true,
+      "list": [
+        ["Jaw", "Head"],
+        ["LeftEye", "Head"],
+        ["RightEye", "Head"]
+      ],
+      "shape_keys": {
+        "required": ["Blink_L", "Blink_R", "Mouth_Open"],
+        "optional": ["Brow_Angry", "Brow_Up", "Brow_Sad", "Mouth_Smile", "Mouth_Grit", "Eyes_Wide"],
+        "note": "Mixamo has no face rig: add these in Blender. Shape keys go on the head / body mesh and export as glTF morph targets."
+      }
+    },
+    "weapons": {
+      "required": "when the character has a weapon (wtip used by its FX), else optional",
+      "list": [
+        ["Weapon_R", "RightHand"],
+        ["WeaponTip_R", "Weapon_R"],
+        ["Weapon_L", "LeftHand"],
+        ["WeaponTip_L", "Weapon_L"]
+      ],
+      "note": "Weapon_R = main weapon (grip at the palm), WeaponTip_R at the tip; Weapon_L / WeaponTip_L = second weapon. The weapon mesh is skinned 100% to its Weapon bone. A weapon that changes hands is animated by keying the Weapon bone's Child Of constraint in Blender, then baked."
+    }
+  },
+
+  "anchors": {
+    "note": "FX Studio / Rig Forge anchor ids -> bone (+ where on it). 'head' = bone head (start), 'tail' = bone tail (end), 'mid' = halfway. figure / target are not bones.",
+    "map": {
+      "root":  {"bone": "Hips", "at": "ground", "note": "Hips position dropped to the ground (y = 0)"},
+      "hip":   {"bone": "Hips", "at": "head"},
+      "chest": {"bone": "Spine2", "at": "mid"},
+      "neck":  {"bone": "Neck", "at": "head"},
+      "head":  {"bone": "Head", "at": "mid"},
+      "shL":   {"bone": "LeftArm", "at": "head"},
+      "shR":   {"bone": "RightArm", "at": "head"},
+      "shB":   {"bone": "Spine2", "at": "tail", "note": "back of the shoulders (between both)"},
+      "elL":   {"bone": "LeftForeArm", "at": "head"},
+      "elR":   {"bone": "RightForeArm", "at": "head"},
+      "haL":   {"bone": "LeftHand", "at": "head"},
+      "haR":   {"bone": "RightHand", "at": "head"},
+      "hpL":   {"bone": "LeftUpLeg", "at": "head"},
+      "hpR":   {"bone": "RightUpLeg", "at": "head"},
+      "knL":   {"bone": "LeftLeg", "at": "head"},
+      "knR":   {"bone": "RightLeg", "at": "head"},
+      "ftL":   {"bone": "LeftFoot", "at": "head"},
+      "ftR":   {"bone": "RightFoot", "at": "head"},
+      "wtip":  {"bone": "WeaponTip_R", "at": "head", "fallback": "RightHandMiddle4"},
+      "wtip2": {"bone": "WeaponTip_L", "at": "head", "fallback": "LeftHandMiddle4"},
+      "figure": {"bone": null, "note": "the fighter's position (body centre), not a bone"},
+      "target": {"bone": null, "note": "the enemy, not a bone"}
+    },
+    "legacy_2d_only": ["coat_f", "coat_b", "xl1", "xl2", "xl3", "xl4", "xl5", "xl6"],
+    "legacy_note": "Per-character extra 2D anchors (coat tails, extras). No standard bone; the importer lets you point them at any bone."
+  },
+
+  "clips": {
+    "fps": 30,
+    "naming": "glTF animation name = the game action name below (Blender: one Action per clip, pushed to an NLA track or exported as 'Actions').",
+    "in_place": true,
+    "in_place_note": "The sim moves the fighter. Hips may bob up / down but stay over the origin on X / Z (Mixamo: tick 'In Place').",
+    "events_note": "Hit / release frames are set in the importer (written to character.json), not in Blender.",
+    "actions": [
+      {"name": "idle",              "group": "core",       "loop": true,  "required": true},
+      {"name": "run",               "group": "core",       "loop": true,  "required": true},
+      {"name": "attack_normal",     "group": "core",       "loop": false, "required": true},
+      {"name": "attack_normal_N",   "group": "core",       "loop": false, "required": false, "fallback": "attack_normal", "note": "chain step N = 2..9 (attack_normal_2, _3 ...)"},
+      {"name": "attack_special",    "group": "core",       "loop": false, "required": true},
+      {"name": "attack_special_N",  "group": "core",       "loop": false, "required": false, "fallback": "attack_special"},
+      {"name": "ultimate",          "group": "core",       "loop": false, "required": true},
+      {"name": "ultimate_N",        "group": "core",       "loop": false, "required": false, "fallback": "ultimate"},
+      {"name": "idle_ultimate",     "group": "core",       "loop": true,  "required": false, "fallback": "idle"},
+      {"name": "defend",            "group": "defence",    "loop": false, "required": true},
+      {"name": "defend_reflect",    "group": "defence",    "loop": false, "required": false, "fallback": "defend"},
+      {"name": "defend_recovery",   "group": "defence",    "loop": false, "required": false, "fallback": "stagger", "note": "guard break"},
+      {"name": "parry",             "group": "defence",    "loop": false, "required": false, "fallback": "defend"},
+      {"name": "dodge",             "group": "locomotion", "loop": false, "required": true},
+      {"name": "dodge_back",        "group": "locomotion", "loop": false, "required": false, "fallback": "dodge"},
+      {"name": "dodge_left",        "group": "locomotion", "loop": false, "required": false, "fallback": "dodge"},
+      {"name": "dodge_right",       "group": "locomotion", "loop": false, "required": false, "fallback": "dodge"},
+      {"name": "walk",              "group": "locomotion", "loop": true,  "required": false, "fallback": "run"},
+      {"name": "sprint",            "group": "locomotion", "loop": true,  "required": false, "fallback": "run"},
+      {"name": "dash",              "group": "locomotion", "loop": false, "required": false, "fallback": "dodge", "note": "burst forward (snap / dash-in)"},
+      {"name": "jump",              "group": "locomotion", "loop": false, "required": false, "fallback": "idle"},
+      {"name": "air",               "group": "locomotion", "loop": true,  "required": false, "fallback": "idle", "note": "airborne / flying idle (V3 flight + speed gravity)"},
+      {"name": "air_move",          "group": "locomotion", "loop": true,  "required": false, "fallback": "air"},
+      {"name": "fall",              "group": "locomotion", "loop": true,  "required": false, "fallback": "air"},
+      {"name": "land",              "group": "locomotion", "loop": false, "required": false, "fallback": "idle"},
+      {"name": "turn",              "group": "locomotion", "loop": false, "required": false, "fallback": null, "note": "180 deg turn on the spot; none = instant turn"},
+      {"name": "switch_in",         "group": "tag",        "loop": false, "required": false, "fallback": "dash"},
+      {"name": "switch_out",        "group": "tag",        "loop": false, "required": false, "fallback": "dodge_back"},
+      {"name": "transform",         "group": "state",      "loop": false, "required": false, "fallback": "ultimate"},
+      {"name": "impact",            "group": "hit",        "loop": false, "required": false, "fallback": "hit_light", "note": "kept for FX Studio files that use it"},
+      {"name": "hit_light",         "group": "hit",        "loop": false, "required": true},
+      {"name": "hit_heavy",         "group": "hit",        "loop": false, "required": false, "fallback": "hit_light"},
+      {"name": "hit_air",           "group": "hit",        "loop": false, "required": false, "fallback": "hit_heavy"},
+      {"name": "stagger",           "group": "hit",        "loop": false, "required": false, "fallback": "hit_heavy", "note": "parried / perfect-parry stagger"},
+      {"name": "knockdown",         "group": "hit",        "loop": false, "required": false, "fallback": "hit_heavy"},
+      {"name": "getup",             "group": "hit",        "loop": false, "required": false, "fallback": "idle"},
+      {"name": "ko",                "group": "hit",        "loop": false, "required": true, "note": "ends on the floor, last frame held"}
+    ]
+  },
+
+  "export": {
+    "file": "characters/<name>/<name>.glb",
+    "blender_gltf": {
+      "format": "glb",
+      "include": ["selected objects: armature + its meshes"],
+      "transform": "+Y up",
+      "mesh": ["apply modifiers", "UVs", "normals"],
+      "skinning": "on, max 4 influences per vertex",
+      "shape_keys": "on",
+      "animation": "on, mode Actions, always sample, 30 fps, no NLA strips muted",
+      "materials": "export (the game replaces them with its toon / ink materials, keeping the base colour texture)"
+    },
+    "budget": {
+      "triangles_max": 30000,
+      "bones_max": 100,
+      "textures_max_px": 2048,
+      "note": "V3 draws up to 8 fighters at once in a browser."
+    }
+  }
+}
