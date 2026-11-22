@@ -252,3 +252,10 @@ files).
 
 Checked 2026-11-22: Puck's and Hooded Blades' clips on the old script-built ronin body (other bone axes, other
 proportions) match the placeholder pose for pose.
+
+## 11. Authored key-pose clips (anim3d)
+
+Clips can be authored as key poses in `characters/<name>/<name>.anim3d.json` and baked by `v3/tools/anim3d.py`
+(details in `v3/README.md`, "Authored key-pose clips"). They follow section 4 (names, in place, fallbacks) except the
+rate: **60 fps**, so a strike can snap in one frame. Every clip, authored or not, should pass
+`v3/tools/anim_audit.py` with no hard fault.
