@@ -221,4 +221,5 @@ skeleton, the UE-mannequin set (`root`, `pelvis`, `spine_01`, `upperarm_l` ...).
 posed from `character.json`'s per-frame joint anchors with depth inferred from bone lengths (details in
 `v3/README.md`, "Animations from the 2D moves"). Done for `puck` (13 clips, no weapon), `ronin_copy` (12 clips,
 katana), `hooded_blades` (14 clips, two blades: adds `Weapon_L` / `WeaponTip_L` + a `blade_L` mesh) and `Sueko`
-(10 clips, no weapon). Same skeleton, so Rig Forge 3D opens and edits them like any other body.
+(10 clips, no weapon), then every other character with joint data: new_fighter, pewpew, puff, rapid, sniper, swordsman_rig, sync, thear, thear_copy, tough. `ronin` and `nobody` have no joint
+data and keep the shared body. Same skeleton, so Rig Forge 3D opens and edits them like any other body.
