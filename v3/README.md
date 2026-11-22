@@ -105,6 +105,13 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
 - **Weapon attach** (Weapon_R / Weapon_L card): **Attach to** any bone; the weapon keeps its spot at rest and
   follows that bone. **Edit grip spot** makes the rings / arrows set where it sits on that bone in every clip.
 - **Model placement.** Size, height and facing of the whole model.
+- **Joint limits** (on by default): elbows and knees can't bend backwards. The natural fold side is read
+  from the body at rest (elbows toward the front, knees toward the back) and turns with the upper arm /
+  thigh. Elbow / knee bend range in degrees (default 0 = straight to 160); **Flip** per limb puts its limit
+  on the other side. Applied while you pose (elbow / knee rings stop at the limit, hand / foot pulls and
+  hip drags solve on the natural side, chain pulls such as a weapon pull clamp the elbow); keys already in
+  the file are left as they are until edited. The readout shows the selected elbow / knee's bend. Saved
+  in `pb_rig3d.limits` (tool only).
 - **Save into .glb** (Ctrl+S) writes straight back into the file you opened (Edge; other browsers download a
   copy). The keys are baked into the clips, and the key list, anchors and placement are stored in the file's
   scene extras (`pb_rig3d`), so reopening the file lets you keep editing, delete keys or undo a pivot.

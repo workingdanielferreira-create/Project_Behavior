@@ -179,6 +179,20 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       </div>
     </section>
 
+    <section aria-labelledby="h-lim">
+      <h2 id="h-lim">Joint limits</h2>
+      <label class="check"><input type="checkbox" id="limOn" checked> Elbows and knees can't bend backwards</label>
+      <div class="row"><label for="limElbowMin">Elbow bend</label><input id="limElbowMin" type="number" min="-180" max="180" step="1" value="0" aria-label="Elbow bend minimum"><span>to</span><input id="limElbowMax" type="number" min="-180" max="180" step="1" value="160" aria-label="Elbow bend maximum"><span>°</span></div>
+      <div class="row"><label for="limKneeMin">Knee bend</label><input id="limKneeMin" type="number" min="-180" max="180" step="1" value="0" aria-label="Knee bend minimum"><span>to</span><input id="limKneeMax" type="number" min="-180" max="180" step="1" value="160" aria-label="Knee bend maximum"><span>°</span></div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="limInvLeftForeArm"> Flip left elbow</label>
+        <label class="check"><input type="checkbox" id="limInvRightForeArm"> Flip right elbow</label>
+        <label class="check"><input type="checkbox" id="limInvLeftLeg"> Flip left knee</label>
+        <label class="check"><input type="checkbox" id="limInvRightLeg"> Flip right knee</label>
+      </div>
+      <p class="note">0° = straight; + = folding the natural way (elbows toward the front, knees toward the back). Applies while you pose (rings, hand / foot pulls, hip drags); keys already in the file stay as they are until you edit them. Flip = that limb's limit is on the other side.</p>
+    </section>
+
     <section aria-labelledby="h-place">
       <h2 id="h-place">Model placement</h2>
       <div class="row"><label for="pScale">Size</label><input id="pScale" type="range" min="0.5" max="2" step="0.01" value="1"><output id="pScaleOut">1.00×</output></div>
@@ -219,7 +233,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
               bone it rides on.  Exported as plain nodes, with a rotation track in every clip.
      attach   {Weapon_R: {bone, pos, quat, home: {bone, pos, quat}}}  weapon grip moved onto another bone (or a
               custom grip spot); its clip tracks become that spot + its keys.
-     placement {scale, height, yaw}  whole-model placement in the game. */
+     placement {scale, height, yaw}  whole-model placement in the game.
+     limits   {on, elbow: [min, max], knee: [min, max], inv: {LeftForeArm: true, ...}}  hinge limits (deg, 0 = straight,
+              + = the natural fold) applied while posing; inv flips that limb's side.  Tool-only (never read by the game). */
 (function () {
   "use strict";
   var FPS = 30, WHOLE = 61;
@@ -246,6 +262,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     return null;
   }
   var WEAPONS = ["Weapon_R", "Weapon_L"];
+  /* hinge joints (elbows, knees): lower bone -> its upper bone, the bone that marks its end, joint type */
+  var HINGES = {LeftForeArm: {up: "LeftArm", end: "LeftHand", kind: "elbow"}, RightForeArm: {up: "RightArm", end: "RightHand", kind: "elbow"},
+                LeftLeg: {up: "LeftUpLeg", end: "LeftFoot", kind: "knee"}, RightLeg: {up: "RightUpLeg", end: "RightFoot", kind: "knee"}};
+  var HINGE_DEF = {on: true, elbow: [0, 160], knee: [0, 160], inv: {}};
   function movable(n) { return n === "Hips" || WEAPONS.indexOf(n) >= 0; }
 
   /* ---------------------------------------------------------------- three.js scene */
@@ -309,7 +329,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   /* ---------------------------------------------------------------- state */
   function freshData() {
-    return {version: 2, fade: 8, edits: {}, anchors: {}, xbones: [], attach: {}, placement: {scale: 1, height: 0, yaw: 0}};
+    return {version: 2, fade: 8, edits: {}, anchors: {}, xbones: [], attach: {}, placement: {scale: 1, height: 0, yaw: 0},
+      limits: JSON.parse(JSON.stringify(HINGE_DEF))};
   }
   var S = {
     root: null, fileHandle: null, fileName: "", baseClips: {}, clips: {}, order: [], clip: null,
@@ -609,6 +630,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       S.data.edits = ext.edits || {}; S.data.anchors = ext.anchors || {};
       S.data.xbones = ext.xbones || []; S.data.attach = ext.attach || {};
       S.data.placement = Object.assign(S.data.placement, ext.placement || {});
+      if (ext.limits) S.data.limits = ext.limits;
       /* v1 anchors stored off only */
       Object.keys(S.data.anchors).forEach(function (k) {
         var a = S.data.anchors[k]; if (a.t == null) { a.t = 0; a.side = a.off || [0, 0, 0]; delete a.off; }
@@ -647,6 +669,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       S.home[w] = (S.data.attach[w] && S.data.attach[w].home) ||
         {bone: b.parent.name, pos: b.position.toArray(), quat: b.quaternion.toArray()};
     });
+    setupHinges(); limitsToUi();                                 /* bones are still at rest here */
     setToon($("vToon").checked);
     S.helper = new THREE.SkeletonHelper(root); S.helper.visible = $("vBones").checked; scene.add(S.helper);
     /* clips: what is in the file is BAKED (base + keys): un-bake the keys; added-bone tracks are rebuilt on bake */
@@ -807,6 +830,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       return;
     }
     if (tc.getMode() === "rotate") {
+      if (HINGES[S.sel]) clampHinge(S.sel);                    /* elbow / knee rings stop at the joint limit */
       var base = baseRot(S.clip, S.sel, f, new THREE.Quaternion());
       var d = base.clone().invert().multiply(bone.quaternion).normalize();
       setKey(keysOf(S.clip, S.sel, "rot", true), f, {q: d.toArray()});
@@ -922,6 +946,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (pole.lengthSq() < 1e-10) pole = dir.clone().cross(new THREE.Vector3(0, 1, 0)).cross(dir);
     if (pole.lengthSq() < 1e-10) pole.set(1, 0, 0);
     pole.normalize();
+    /* joint limits: a limb bent the wrong way is solved on its natural side instead.  The pole is where the elbow /
+       knee POINT sticks out = away from the side the forearm / shin folds toward (b), so it must not lean toward b. */
+    var F = limitsOf().on ? hingeFrame(LIMBS[endName][1]) : null;
+    if (F) {
+      var bs = F.b.clone().sub(dir.clone().multiplyScalar(F.b.dot(dir)));
+      if (bs.lengthSq() > 1e-8 && pole.dot(bs) > 0) pole.copy(bs.normalize().negate());
+    }
     var dd = Math.min(Math.max(d, Math.abs(L1 - L2) + 1e-4), L1 + L2 - 1e-4);
     var cosA = Math.min(1, Math.max(-1, (L1 * L1 + dd * dd - L2 * L2) / (2 * L1 * dd)));
     var B2 = A.clone().add(dir.clone().multiplyScalar(L1 * cosA)).add(pole.clone().multiplyScalar(L1 * Math.sqrt(1 - cosA * cosA)));
@@ -929,7 +960,80 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     turnWorld(up, B.clone().sub(A), B2.clone().sub(A));
     B = lo.getWorldPosition(new THREE.Vector3()); C = end.getWorldPosition(new THREE.Vector3());
     turnWorld(lo, C.clone().sub(B), C2.clone().sub(B));
+    clampHinge(LIMBS[endName][1]);                              /* safety: never past the limit */
     if (keepQuat) setWorldQuat(end, keepQuat);
+  }
+
+  /* ---------------------------------------------------------------- joint limits (elbows, knees)
+     An elbow / knee is a hinge.  Its bend side is read from the body at rest: elbows fold toward the front, knees
+     toward the back (front = left x up, left = right hip -> left hip, up = Hips -> Spine).  The side is stored in
+     the UPPER bone's own space, so twisting the upper arm / thigh turns the hinge with it.
+     bend = angle of the forearm / shin off the straight line in the hinge plane, + = toward the bend side; it is kept
+     in S.data.limits[kind] = [min, max] (deg); inv[lower bone] flips that limb's side.  The part of the forearm / shin
+     out of the hinge plane is left as it is.  Applied on edits only (rings, pulls, hip drags): keys already in the
+     file stay as they are until edited. */
+  function limitsOf() {
+    var L = S.data.limits || (S.data.limits = {});
+    if (L.on == null) L.on = true;
+    ["elbow", "knee"].forEach(function (k) {
+      if (!Array.isArray(L[k]) || L[k].length !== 2 || !isFinite(L[k][0]) || !isFinite(L[k][1])) L[k] = HINGE_DEF[k].slice();
+    });
+    if (!L.inv || typeof L.inv !== "object") L.inv = {};
+    return L;
+  }
+  function setupHinges() {
+    S.hinge = {};
+    var bn = S.bones; if (!bn.Hips) return;
+    function wp(n) { return bn[n].getWorldPosition(new THREE.Vector3()); }
+    S.root.updateMatrixWorld(true);
+    var up = bn.Spine ? wp("Spine").sub(wp("Hips")) : new THREE.Vector3(0, 1, 0);
+    var left = bn.LeftUpLeg && bn.RightUpLeg ? wp("LeftUpLeg").sub(wp("RightUpLeg")) :
+               (bn.LeftArm && bn.RightArm ? wp("LeftArm").sub(wp("RightArm")) : null);
+    if (!left || left.lengthSq() < 1e-12 || up.lengthSq() < 1e-12) return;
+    var fwd = left.clone().cross(up).normalize();
+    Object.keys(HINGES).forEach(function (n) {
+      var H = HINGES[n];
+      if (!bn[n] || !bn[H.up] || !bn[H.end] || bn[n].parent !== bn[H.up]) return;
+      var u = wp(n).sub(wp(H.up)); if (u.lengthSq() < 1e-12) return; u.normalize();
+      var b = fwd.clone().multiplyScalar(H.kind === "elbow" ? 1 : -1);
+      b.sub(u.clone().multiplyScalar(b.dot(u)));
+      if (b.lengthSq() < 1e-6) return;                         /* upper bone along the front axis at rest: no side to read */
+      S.hinge[n] = {b: b.normalize().applyQuaternion(bn[H.up].getWorldQuaternion(new THREE.Quaternion()).invert())};
+    });
+  }
+  /* the hinge right now: u upper dir, v lower dir, b bend side, h hinge axis (world, unit), deg = bend */
+  function hingeFrame(n) {
+    var hd = S.hinge && S.hinge[n]; if (!hd) return null;
+    var H = HINGES[n], up = S.bones[H.up], lo = S.bones[n], end = S.bones[H.end];
+    var A = up.getWorldPosition(new THREE.Vector3()), B = lo.getWorldPosition(new THREE.Vector3()), C = end.getWorldPosition(new THREE.Vector3());
+    var u = B.clone().sub(A), v = C.sub(B);
+    if (u.lengthSq() < 1e-12 || v.lengthSq() < 1e-12) return null;
+    u.normalize(); v.normalize();
+    var b = hd.b.clone().applyQuaternion(up.getWorldQuaternion(new THREE.Quaternion()));
+    if (limitsOf().inv[n]) b.negate();
+    b.sub(u.clone().multiplyScalar(b.dot(u))); if (b.lengthSq() < 1e-12) return null; b.normalize();
+    var h = u.clone().cross(b).normalize();
+    return {u: u, v: v, b: b, h: h, deg: Math.atan2(v.dot(b), v.dot(u)) * 180 / Math.PI};
+  }
+  /* turn the lower bone back inside its limit (nearest edge, going round the circle); true if it moved */
+  function clampHinge(n) {
+    var L = limitsOf(); if (!L.on || !HINGES[n]) return false;
+    var F = hingeFrame(n); if (!F) return false;
+    var r = L[HINGES[n].kind], lo = Math.min(r[0], r[1]), hi = Math.max(r[0], r[1]), a = F.deg;
+    if (a >= lo - 1e-3 && a <= hi + 1e-3) return false;
+    var dLo = a < lo ? lo - a : lo + 360 - a, dHi = a > hi ? a - hi : a + 360 - hi;
+    var c = (dLo <= dHi ? lo : hi) * Math.PI / 180;
+    var w = F.v.dot(F.h), k = Math.sqrt(Math.max(0, 1 - w * w));   /* out-of-plane part is kept */
+    var to = F.u.clone().multiplyScalar(Math.cos(c) * k).add(F.b.clone().multiplyScalar(Math.sin(c) * k)).add(F.h.clone().multiplyScalar(w));
+    turnWorld(S.bones[n], F.v, to);
+    return true;
+  }
+  function limitsToUi() {
+    var L = limitsOf();
+    $("limOn").checked = !!L.on;
+    $("limElbowMin").value = L.elbow[0]; $("limElbowMax").value = L.elbow[1];
+    $("limKneeMin").value = L.knee[0]; $("limKneeMax").value = L.knee[1];
+    Object.keys(HINGES).forEach(function (n) { $("limInv" + n).checked = !!L.inv[n]; });
   }
   function keyRot(names) {
     names.forEach(function (n) {
@@ -977,6 +1081,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         b.getWorldPosition(vp); eff.getWorldPosition(va); vb.copy(target);
         turnWorld(b, va.sub(vp), vb.sub(vp), c[1]);
       });
+      chain.forEach(function (c) { if (HINGES[c[0]]) clampHinge(c[0]); });   /* e.g. a weapon pull bends the elbow */
     }
     keyRot(chain.map(function (c) { return c[0]; }));
   }
@@ -1290,6 +1395,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       s += '<br>moved <span class="axx">x ' + v.x.toFixed(3) + '</span> <span class="axy">y ' + v.y.toFixed(3) + '</span> <span class="axz">z ' + v.z.toFixed(3) + "</span> m";
     }
     s += hasKey(S.clip, S.sel, S.frame) ? " · ◆ key on this frame" : "";
+    var HF = HINGES[S.sel] && hingeFrame(S.sel);
+    if (HF) {
+      var LM = limitsOf(), rg = LM[HINGES[S.sel].kind];
+      s += "<br>" + HINGES[S.sel].kind + " bend " + HF.deg.toFixed(0) + "° · limit " + (LM.on ? rg[0] + "° to " + rg[1] + "°" + (LM.inv[S.sel] ? " (flipped)" : "") : "off");
+    }
     o.innerHTML = s;
   }
   function buildFrames() {
@@ -1445,13 +1555,31 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     };
     el.onchange = function () { if (start !== null && start !== snap()) { S.undo.push(start); S.redo = []; markDirty(); } start = null; };
   });
+  /* joint limits: saved with the edits (undoable); they act on the next edit, nothing is re-posed now */
+  function limitsChanged(fn) {
+    return function () {
+      var before = snap(); fn.call(this, limitsOf());
+      if (before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
+      limitsToUi(); updatePivotOut();
+    };
+  }
+  $("limOn").onchange = limitsChanged(function (L) { L.on = this.checked; });
+  [["limElbowMin", "elbow", 0], ["limElbowMax", "elbow", 1], ["limKneeMin", "knee", 0], ["limKneeMax", "knee", 1]].forEach(function (x) {
+    $(x[0]).onchange = limitsChanged(function (L) {
+      var v = Math.round(+this.value); if (!isFinite(v)) return;
+      L[x[1]][x[2]] = Math.max(-180, Math.min(180, v));
+    });
+  });
+  Object.keys(HINGES).forEach(function (n) {
+    $("limInv" + n).onchange = limitsChanged(function (L) { if (this.checked) L.inv[n] = true; else delete L.inv[n]; });
+  });
   $("vToon").onchange = function () { setToon(this.checked); };
   $("vBones").onchange = function () { if (S.helper) S.helper.visible = this.checked; };
   function restoreData(json) {
     S.data = JSON.parse(json);
     if (S.selKind === "anchor" && !S.data.anchors[S.sel]) { S.sel = null; S.selKind = null; }
     if (S.selKind === "x" && !xDef(S.sel)) { S.sel = null; S.selKind = null; }
-    placementToUi(); applyPlacement();
+    placementToUi(); applyPlacement(); limitsToUi();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
     rebuildAll(); buildFrames();
   }
