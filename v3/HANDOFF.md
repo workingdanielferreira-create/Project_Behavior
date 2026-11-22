@@ -81,6 +81,9 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 - Daniel's choices: ual_swordsman body, ronin_copy as the Ronin source, inferred depth, wired into V3.
 - Then Hooded Blades + Sueko the same way (`hooded_blades.glb`, `Sueko.glb`). Hooded Blades' far-hand blade
   (wtip2): Daniel chose to add a left blade (`Weapon_L` / `WeaponTip_L` + `blade_L` mesh, only in its own .glb).
+- Then the rest: new_fighter, pewpew, puff, rapid, sniper, swordsman_rig, sync, thear, thear_copy, tough (each `characters/<name>/<name>.glb`). Not possible: `ronin`, `nobody` (no joint
+  anchors). Size note: each .glb carries its own copy of the mesh + kept body clips (~2.5 MB), so
+  `v3/data/body.gen.js` is now ~50 MB of base64; slimming (shared mesh, clips-only files) is a possible later step.
 - Not done yet: Puck's hair lines (xl1..4) and 2D stretch / smear (bone scale) have no 3D counterpart.
 
 ## Next steps (agreed direction, not started)
