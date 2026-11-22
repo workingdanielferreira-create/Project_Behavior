@@ -222,4 +222,33 @@ posed from `character.json`'s per-frame joint anchors with depth inferred from b
 `v3/README.md`, "Animations from the 2D moves"). Done for `puck` (13 clips, no weapon), `ronin_copy` (12 clips,
 katana), `hooded_blades` (14 clips, two blades: adds `Weapon_L` / `WeaponTip_L` + a `blade_L` mesh) and `Sueko`
 (10 clips, no weapon), then every other character with joint data: new_fighter, pewpew, puff, rapid, sniper, swordsman_rig, sync, thear, thear_copy, tough. `ronin` and `nobody` have no joint
-data and keep the shared body. Same skeleton, so Rig Forge 3D opens and edits them like any other body.
+data and keep the shared body. The files are clips-only (skeleton + clips + `pb_body` {body, weapons {R, L}}, no mesh,
+0.2-0.5 MB each); V3 and Rig Forge 3D put them on the shared body.
+
+## 10. Swapping the placeholder body for the final model
+
+`ual_swordsman.glb` is a placeholder. Every character's clips are bone-named and stored with the skeleton they were
+made on, and `v3/js/retarget.js` moves them onto whatever body is loaded, in V3 and in Rig Forge 3D. It carries each
+bone's world rotation change from rest, lines up the new rest pose first (T-pose or A-pose), and scales the hips' move
+by hip height. So a new body needs:
+
+1. **A humanoid skeleton with RIG_SPEC (Mixamo) bone names.** Accepted as they are: Mixamo auto-rig output (the
+   `mixamorig:` / `mixamorig` prefix is ignored), Quaternius / Mesh2Motion / Unreal-mannequin names (`pelvis`,
+   `spine_01`, `upperarm_l` ...). Other rigs (Blender Rigify, VRoid ...): rename the deform bones to section 2's names
+   in Blender before export. Fingers and toes are optional; missing bones are simply skipped.
+2. **Facing +Z with +Y up** (glTF default; Mixamo and Blender glTF exports already are). Any size (V3 scales it
+   to 1.8 m), any rest pose.
+3. **Weapon bones for blades:** `Weapon_R` / `WeaponTip_R` (+ `Weapon_L` / `WeaponTip_L`) with meshes named `blade` /
+   `blade_L` (section 3). Without them the clips still play, just with no blades. `ual_to_spec.py` shows how to add
+   them by script; `retarget2d.py` adds the left pair when `Weapon_R` exists.
+4. **Its own clips for what the 2D moves don't cover:** `hit_light`, `hit_heavy`, `ko`, `dodge`, air / jump ...
+   (section 4 names and fallbacks). Mixamo / Quaternius packs supply these.
+5. Save it as `characters/ual_swordsman/ual_swordsman.glb` (or point `BODY_GLB` in `v3/tools/build_kits.py` and
+   `BODY` in `v3/tools/retarget2d.py` at the new file) and run `run_v3.bat`.
+
+Optional, for the closest match on very different proportions: `python v3/tools/retarget2d.py --body new.glb`
+re-solves every character's 2D clips directly on the new body (this overwrites Rig Forge 3D edits in the character
+files).
+
+Checked 2026-11-22: Puck's and Hooded Blades' clips on the old script-built ronin body (other bone axes, other
+proportions) match the placeholder pose for pose.

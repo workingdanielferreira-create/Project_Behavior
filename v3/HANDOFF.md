@@ -83,7 +83,13 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   (wtip2): Daniel chose to add a left blade (`Weapon_L` / `WeaponTip_L` + `blade_L` mesh, only in its own .glb).
 - Then the rest: new_fighter, pewpew, puff, rapid, sniper, swordsman_rig, sync, thear, thear_copy, tough (each `characters/<name>/<name>.glb`). Not possible: `ronin`, `nobody` (no joint
   anchors). Size note: each .glb carries its own copy of the mesh + kept body clips (~2.5 MB), so
-  `v3/data/body.gen.js` is now ~50 MB of base64; slimming (shared mesh, clips-only files) is a possible later step.
+  `v3/data/body.gen.js` was ~50 MB of base64.
+- Slimmed (Daniel 2026-11-22: "share one mesh and slim the files"): character .glb files are clips-only (0.2-0.5 MB,
+  8 MB for all, was ~40 MB); body.gen.js ~10 MB. `v3/js/retarget.js` (V3 + Rig Forge 3D) retargets clips onto
+  whatever body is loaded. Daniel: the current model is a PLACEHOLDER, and swapping in a model from Mixamo /
+  Quaternius etc. must need very little adjustment -> RIG_SPEC section 10 (checklist), tested on a body with
+  other bone axes. Rig Forge 3D opens clips-only files on the shared body (Pick shared body…, remembered) and saves
+  clips-only.
 - Not done yet: Puck's hair lines (xl1..4) and 2D stretch / smear (bone scale) have no 3D counterpart.
 
 ## Next steps (agreed direction, not started)
