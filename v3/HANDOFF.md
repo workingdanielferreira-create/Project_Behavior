@@ -92,6 +92,19 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   clips-only.
 - Not done yet: Puck's hair lines (xl1..4) and 2D stretch / smear (bone scale) have no 3D counterpart.
 
+## Animation quality pass (2026-11-22, later)
+
+- Audit of Hooded Blades' 2D-guessed clips (`v3/tools/anim_audit.py`, against the body's motion capture): elbows /
+  knees bending backward in 74 % of frames, off their hinge 46 %, off balance 50 %, sliding feet 13 %, wrist past range
+  8 %. Cause: `retarget2d.py` guesses depth per frame with no pole vectors / joint limits / continuity.
+- Daniel's choices: author 3D key poses (2D only for timing / hit frames), write a project skill
+  (`.claude/skills/v3-animation`), start with the attack_normal chain. Feel = ZZZ snap + KH spins; body turns freely.
+- Confirmed by Daniel: Hooded Blades holds both blades in a FORWARD grip; blades swept back = winding up a horizontal
+  double slash; bent knees = ready to lunge / dash, not a crouch. Ask him whenever a move's intent is unclear.
+- Done: `v3/tools/anim3d.py` (solver + baker), `v3/tools/anim_audit.py`, `characters/hooded_blades/hooded_blades.anim3d.json`
+  with `attack_normal` (passes the audit). **Next:** attack_normal_2..5 after Daniel's feedback on hit 1, then the rest of
+  Hooded Blades, then the other fighters.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

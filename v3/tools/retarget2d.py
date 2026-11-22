@@ -604,6 +604,12 @@ def write(name, j, b, rig, src, clips, body=None):
     body_name = os.path.splitext(os.path.basename(body or BODY))[0]
     meta = {"pb_body": {"body": body_name, "weapons": {"R": bool(src.has_weapon), "L": bool(src.has_weapon2)},
                         "source": "v3/tools/retarget2d.py from characters/%s/character.json" % name}}
+    import anim3d                     # hand-authored key-pose clips (<name>.anim3d.json) win over the 2D-guessed ones
+    authored = anim3d.bake_file(name)
+    if authored:
+        clips = dict(clips)
+        clips.update(authored)
+        meta["pb_body"]["anim3d"] = sorted(authored)
     out, bin_ = pack(j, b, meshes=False, keep_anims=False, new_clips=clips, rig=rig, extras=meta)
     path = os.path.join(CHARS, name, name + ".glb")
     total = save_glb(path, out, bin_)

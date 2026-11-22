@@ -123,6 +123,28 @@ The character files are clips-only (skeleton + clips, no mesh); `--body new.glb`
 body (RIG_SPEC section 10). The first run also gives the shared body its left blade (`Weapon_L` / `WeaponTip_L` +
 `blade_L`, hidden unless a character holds a second blade).
 
+## Authored key-pose clips (anim3d) + animation audit
+
+The 2D-guessed clips break physics (Hooded Blades, 2026-11-22 audit: elbows / knees bending backward in 74 % of
+frames, 46 % bending off their hinge, the body off balance in 50 %; the body's own motion capture: about 0 %). So
+clips are now authored as key poses, one by one, and replace the 2D-guessed ones:
+
+- `characters/<name>/<name>.anim3d.json` (format `pb_anim3d`): per clip a `length` and `keys`, each key = controls
+  (hips pos / turn, spine + head turn, hand + elbow pole + blade direction per arm, ankle + knee pole + yaw / pitch
+  per foot) and how the move into it eases (`snap`, `out`, `in`, `inout`, `linear`, `hold`).
+- `python v3/tools/anim3d.py <name>` solves every 1/60 s on the rig: two-bone IK with poles where the elbow / knee can
+  only fold about its own hinge (measured from the body's mocap) and within its range, forearm twist + wrist limits for
+  the blade, an automatic elbow swivel that saves twist, clavicles that follow the arm, planted feet that never slide,
+  arms in chest space (they ride with the torso), smooth curves through the keys. Baked at 60 fps (a thrust can snap in
+  one frame) into `<name>.glb`; other clips in the file are kept. `--check` audits instead of writing.
+- `retarget2d.py` keeps authored clips when it rebuilds a character (`pb_body.anim3d` lists them).
+- `python v3/tools/anim_audit.py <name | file.glb>`: per clip, frames with knees / elbows backward or off their hinge,
+  limb / wrist past range, feet through the floor, legs crossing through, blades / hands through the body, centre of
+  mass outside the feet, sliding planted feet, flips (a limb spinning > 120 deg in 1/60 s while its hand / foot stays
+  put), plus "very fast" turns (info). Ranges come from the body's motion-capture clips. Exit 1 on a hard fault.
+- Done: Hooded Blades `attack_normal`. The project skill `.claude/skills/v3-animation` has the workflow and what
+  Daniel confirmed about each move.
+
 ## Rig Forge 3D
 
 **Character files are clips-only** (Daniel 2026-11-22). Opening one (no mesh inside) shows its clips on the shared
