@@ -84,8 +84,13 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   move arrows (**Move**, `T`). Each change sets a key on that frame (◆ on the timeline); frames in between
   blend, and **Blend out** sets how far a key fades before the first / after the last key (all the way
   right = the whole clip). **Local / World** (`L`) picks the ring axes.
+- **Pivots on the model.** Click a pivot dot for its rings. **Press and hold, or press and drag** a pivot to pull
+  the body toward the mouse (keys on that frame): hand / arm pivots bend forearm, upper arm and a little of the
+  collarbone; foot / leg pivots bend shin and thigh; neck / head pivots bend down the neck and spine; fingers
+  their finger; added bones their own chain; Hips moves the whole body.
 - **Skeleton tree.** Every bone in its hierarchy (Hips > Spine > …), with each bone's anchors (◆) and added
-  bones (✚) under it; hands start collapsed. Click a row (or a dot on the model) to select it; its card opens
+  bones (✚) under it. It starts collapsed and opens down to whatever you select. FX anchors are hidden on the
+  model unless their card's **Show this FX anchor on the model** is ticked (or **All FX anchors** in View). Click a row (or a dot on the model) to select it; its card opens
   under the tree.
 - **FX anchors** (card): **Sits on** any bone, **Along bone** 0–100 % (pivot to end), typed X / Y / Z offset
   on top, **Snap to** start / middle / end / ground. On the model: **click** an anchor for its move arrows
