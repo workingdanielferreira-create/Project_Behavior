@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Behavior V3</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<!-- The whole window is the game: WebGL canvas, HUD on top, menus on top of that. -->
+<div class="game" id="game" tabindex="0" aria-label="Project Behavior V3">
+  <canvas id="gl"></canvas>
+  <div class="hud" id="hud">
+    <div class="labels" id="labels"></div>
+    <div class="teams">
+      <div class="tm"><div class="nm"><span id="n0">—</span><small id="h0t"></small></div><div class="hpb"><i id="h0" style="background:#ff3b55"></i></div><div class="bench" id="b0"></div></div>
+      <div class="dir"><span class="ph" id="dph">CALM</span><div class="bar"><i id="dbar"></i><u id="dmark"></u></div></div>
+      <div class="tm r"><div class="nm"><small id="h1t"></small><span id="n1">—</span></div><div class="hpb"><i id="h1" style="background:#a98cff"></i></div><div class="bench" id="b1"></div></div>
+    </div>
+    <div class="callout" id="callout"><b></b><span></span></div>
+    <div class="cmdbar" id="cmdbar"></div>
+    <div class="feel" id="feel"></div>
+    <div class="vig" id="vig"></div>
+    <div class="flash" id="flash"></div>
+  </div>
+  <div class="menu" id="menu" hidden></div>
+</div>
+
+<!-- Load order matters: each file may use what the files above it declare. -->
+<script src="lib/three.min.js"></script>
+<script src="js/core.js"></script>       <!-- constants, maths helpers -->
+<script src="js/settings.js"></script>   <!-- saved settings -->
+<script src="js/kits.js"></script>       <!-- character kits (moves, timings, damage) -->
+<script src="js/renderer.js"></script>   <!-- WebGL renderer, scene, materials, 2D->3D mapping -->
+<script src="js/arena.js"></script>      <!-- arena / environment -->
+<script src="js/fx.js"></script>         <!-- FX design: primitives (slash, ring, sparks, dust ...) -->
+<script src="js/state.js"></script>      <!-- world state, timers -->
+<script src="js/models.js"></script>     <!-- fighter rigs and models -->
+<script src="js/movestyle.js"></script>  <!-- movement styles -->
+<script src="js/tempo.js"></script>      <!-- fight rhythm intents (port of laser/tempo.py) -->
+<script src="js/director.js"></script>   <!-- director: calm / build / burst -->
+<script src="js/motion.js"></script>     <!-- drift & snap motion -->
+<script src="js/combat.js"></script>     <!-- actions, hits, damage, reactions, tagging, shots -->
+<script src="js/fxlib.js"></script>      <!-- FX animation: every action effect -->
+<script src="js/fighter.js"></script>    <!-- per-fighter update, altitude -->
+<script src="js/input.js"></script>      <!-- keyboard commands -->
+<script src="js/camera.js"></script>     <!-- camera modes and cuts -->
+<script src="js/anim.js"></script>       <!-- animation: pose, swing, lean, flashes -->
+<script src="js/hud.js"></script>        <!-- HUD, callouts, damage numbers, feel panel -->
+<script src="js/menus.js"></script>      <!-- title, teams, settings, controls, pause, results -->
+<script src="js/main.js"></script>       <!-- game loop, flow, boot -->
+</body>
+</html>

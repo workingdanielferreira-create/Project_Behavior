@@ -25,3 +25,4 @@ gpu_test_result.txt
 
 # Live camera settings (laser/liveview.py, Ctrl+Alt+C) — each player's own.
 characters/live_view.json
+v3/.window-profile/
