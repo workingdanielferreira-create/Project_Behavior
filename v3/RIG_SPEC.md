@@ -253,6 +253,13 @@ files).
 Checked 2026-11-22: Puck's and Hooded Blades' clips on the old script-built ronin body (other bone axes, other
 proportions) match the placeholder pose for pose.
 
+## 12. Clips are stored as key poses
+
+Every clip (character files and the shared body) holds only its key poses plus scene extras `pb_keys` (the ease
+into each key, per clip or per track); V3 and Rig Forge 3D tween the frames in between (`v3/README.md`, "Clips are key
+poses + tweening"). A clip without `pb_keys` (e.g. a fresh Blender / Mixamo export) still plays as it is, frame by
+frame; `v3/tools/keyreduce.py` turns it into key poses.
+
 ## 11. Authored key-pose clips (anim3d)
 
 Clips can be authored as key poses in `characters/<name>/<name>.anim3d.json` and baked by `v3/tools/anim3d.py`

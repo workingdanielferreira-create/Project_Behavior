@@ -115,18 +115,22 @@ class Auditor:
                                                                  r.acc_array(j, b, s["output"]).astype(float))
         return out
 
-    def sample(self, tr, t):
+    def sample(self, tr, t, eases=None):
+        """Pose at time t, tweened like V3 (keyreduce: ease INTO each key, slerp / lerp)."""
+        import keyreduce
         local, hipsT = {}, self.rig.T[self.HI].copy()
         for (node, path), (ts, v) in tr.items():
             k = int(np.clip(np.searchsorted(ts, t, side="right") - 1, 0, len(ts) - 1))
             x = v[k]
             if k < len(ts) - 1 and ts[k + 1] > ts[k]:
                 a = min(max((t - ts[k]) / (ts[k + 1] - ts[k]), 0), 1)
+                el = keyreduce.track_eases(eases, self.names.get(node, ""), path, len(ts)) if isinstance(eases, dict) \
+                    else (eases if eases and len(eases) == len(ts) else None)
+                if el:
+                    a = keyreduce.ease(el[k + 1], a)
                 x1 = v[k + 1]
                 if path == "rotation":
-                    if np.dot(x, x1) < 0:
-                        x1 = -x1
-                    x = r.unit(x * (1 - a) + x1 * a)
+                    x = keyreduce.slerp(x, x1, a)
                 else:
                     x = x * (1 - a) + x1 * a
             if path == "rotation":
@@ -159,11 +163,13 @@ class Auditor:
     def _envelope(self):
         bones = set(HINGES) | set(TWISTERS) | set(WRISTS)
         env = {b: [] for b in bones}
+        pk_all = ((self.J.get("scenes") or [{}])[0].get("extras") or {}).get("pb_keys") or {}
         for an in self.J["animations"]:
             tr = self.tracks(self.J, self.B, an)
             end = max(ts[-1] for ts, _ in tr.values())
             for t in np.arange(0, end + 1e-6, 1 / 30):
-                local, _ = self.sample(tr, t)
+                self.names = {i: nd.get("name", "") for i, nd in enumerate(self.J["nodes"])}
+                local, _ = self.sample(tr, t, pk_all.get(an["name"]) or {})
                 for b in bones:
                     env[b].append(self.delta(local, b))
         self.hinge, self.flex = {}, {}
@@ -186,7 +192,7 @@ class Auditor:
             st = [swing_twist(D, self.axis[b]) for D in env[b]]
             self.lim[b] = (max(abs(x[0]) for x in st), max(x[1] for x in st))
 
-    def clip(self, tr):
+    def clip(self, tr, eases=None):
         rig, P_ = self.rig, (lambda P, n: P[self.rig.i(n)])
         end = max(ts[-1] for ts, _ in tr.values())
         times = list(np.arange(0, end + 1e-6, 1 / 60))
@@ -196,7 +202,7 @@ class Auditor:
                                "flip (>120 deg in 1/60 s)", "very fast (>60 deg in 1/60 s)")}
         prev = None
         for f, t in enumerate(times):
-            local, hT = self.sample(tr, t)
+            local, hT = self.sample(tr, t, eases)
             W, P = self.fk(local, hT)
             for b, lab in HINGES.items():
                 v = self.swing(self.delta(local, b), self.axis[b])     # forearm / shin twist about itself is allowed
@@ -269,7 +275,9 @@ class Auditor:
         for an in j["animations"]:
             if only and an["name"] not in only:
                 continue
-            out[an["name"]] = self.clip(self.tracks(j, b, an))
+            pk = (((j.get("scenes") or [{}])[0].get("extras") or {}).get("pb_keys") or {}).get(an["name"]) or {}
+            self.names = {i: nd.get("name", "") for i, nd in enumerate(j["nodes"])}
+            out[an["name"]] = self.clip(self.tracks(j, b, an), pk)
         return out
 
 

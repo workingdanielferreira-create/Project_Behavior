@@ -21,6 +21,13 @@ already settled are in the character's `<name>.anim3d.json` `notes`. Hooded Blad
 - Feel: a blend: ZZZ snap and weight on the hits, KH (Oathkeeper & Oblivion) spins and arcs between them.
 - The body turns freely in 3D (hips / chest open up on spins and spreads); strikes still land toward the target.
 
+## Clips are KEY POSES (Daniel 2026-11-22)
+
+Never ship a frame-by-frame clip: every clip is stored as key poses + `pb_keys` eases and tweened by V3 / Rig Forge 3D
+(`v3/tools/keyreduce.py`, `v3/js/keytween.js`, README "Clips are key poses + tweening"). Authored keys stay keys;
+reduce anything dense. Daniel edits in Rig Forge 3D's filmstrip (key-pose cards), so keep the key count low and put
+keys on real poses (anticipation, strike, recoil, follow-through), not on every frame.
+
 ## Files
 
 | File | What |
@@ -28,6 +35,8 @@ already settled are in the character's `<name>.anim3d.json` `notes`. Hooded Blad
 | `characters/<name>/<name>.anim3d.json` | the key poses (format `pb_anim3d`, see `v3/tools/anim3d.py` docstring) |
 | `v3/tools/anim3d.py` | solver + baker: `python v3/tools/anim3d.py <name>` writes the clips into `<name>.glb`; `--check` audits without writing |
 | `v3/tools/anim_audit.py` | `python v3/tools/anim_audit.py <name or .glb>`; exit 1 on a hard fault |
+| `v3/tools/keyreduce.py` | dense clip -> key poses + eases; `--body` for the shared body |
+| `v3/js/keytween.js` | V3: key poses -> tweened frames at load |
 | `v3/tools/retarget2d.py` | 2D-guessed clips for everything not authored yet; it keeps authored clips (calls `anim3d.bake_file`) |
 
 ## Controls (body space: +Z forward to the target, +Y up, -X = the fighter's right / near side, metres, deg)

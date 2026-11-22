@@ -14,7 +14,7 @@ const GLB_OWN={};           // folder -> {scene, clips, h, name, weapons}
 const GLB_DROP=/^(idle|run|walk|sprint|attack_normal(_\d+)?|attack_special(_\d+)?|ultimate(_\d+)?|transform|switch_in|switch_out|defend|parry)$/;
 function glbParse(b64,name,done){
   try{const bin=atob(b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-    new THREE.GLTFLoader().parse(u8.buffer,'',g=>{const clips={};g.animations.forEach(c=>{clips[c.name]=c;});
+    new THREE.GLTFLoader().parse(u8.buffer,'',g=>{ktExpandAll(g);const clips={};g.animations.forEach(c=>{clips[c.name]=c;});   // key poses -> tweened (keytween.js)
       let mesh=false;g.scene.traverse(o=>{if(o.isSkinnedMesh)mesh=true;});
       g.scene.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(g.scene);
       done({scene:g.scene,clips,list:g.animations,mesh,h:Math.max(.5,box.max.y-box.min.y),name,

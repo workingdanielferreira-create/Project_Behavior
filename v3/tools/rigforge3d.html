@@ -96,6 +96,24 @@ select { min-width: 0; }
 .check input { accent-color: var(--accent); }
 .note { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
 kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+/* key-pose filmstrip (the original Rig Forge's frame cards, Daniel 2026-11-22) */
+.film { display: flex; gap: 7px; overflow-x: auto; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; min-height: 92px; }
+.film .empty { color: var(--muted); font-size: 12px; align-self: center; }
+.frame { flex: 0 0 auto; width: 78px; padding: 0; position: relative; overflow: hidden; border-radius: 5px; background: var(--stage); }
+.frame canvas { display: block; width: 76px; height: 88px; }
+.frame .idx { position: absolute; left: 4px; top: 2px; font-family: var(--mono); font-size: 10px; color: var(--fg); }
+.frame .fr { position: absolute; left: 4px; bottom: 2px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+.frame .tw { position: absolute; right: 3px; bottom: 2px; font-family: var(--mono); font-size: 9px; color: var(--key); }
+.frame.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.strip { display: flex; gap: 3px; overflow-x: auto; padding: 2px 0 4px; }
+.strip button { flex: 0 0 auto; padding: 0; border-radius: 3px; background: var(--stage); opacity: .6; position: relative; }
+.strip button.key { opacity: 1; border-color: var(--key); }
+.strip button.here { opacity: 1; outline: 2px solid var(--accent); outline-offset: -1px; }
+.strip canvas { display: block; width: 44px; height: 52px; }
+.strip .lab { position: absolute; left: 2px; bottom: 0; font-family: var(--mono); font-size: 8.5px; color: var(--muted); }
+details.adv > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px 0; }
+details.adv[open] > summary { margin-bottom: 6px; }
+#scrub { accent-color: var(--accent); }
 /* skeleton tree */
 .tree { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
   font-family: var(--mono); font-size: 12px; }
@@ -142,11 +160,29 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <button id="nextF" title=". (full stop)">▶</button>
         <button id="nextKey" title="Next key of the selected pivot">▶◆</button>
         <output id="frameOut">f0 / 0</output>
-        <span class="grow"></span>
+        <input id="scrub" type="range" class="grow" min="0" max="0" step="1" value="0" aria-label="Frame">
         <button id="tlKey" disabled title="K: key the selected pivot here">◆ Key</button>
       </div>
+      <div class="film" id="film" aria-label="Key poses"><span class="empty">Open a character to see its key poses.</span></div>
+      <div class="tl-row" style="flex-wrap:wrap">
+        <button id="kpAdd" title="Shift+K: keep the pose shown on this frame as a key pose">+ Key pose</button>
+        <button id="kpDup" disabled title="Copy this key pose halfway to the next one">Duplicate</button>
+        <button id="kpLeft" disabled title="One frame earlier (Shift: 5 frames)">← Move</button>
+        <button id="kpRight" disabled title="One frame later (Shift: 5 frames)">Move →</button>
+        <button id="kpDel" class="danger" disabled title="Delete this key pose (every pivot's key on this frame)">Delete key pose</button>
+        <label for="kpEase" class="readout">Tween to next</label>
+        <select id="kpEase" disabled>
+          <option value="smooth">◆ Smooth</option><option value="linear">● Linear</option><option value="inout">◇ Strong in and out</option>
+          <option value="in">◀ Ease in</option><option value="out">▶ Ease out</option><option value="snap">▶▶ Snap</option>
+          <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option>
+        </select>
+      </div>
+      <div class="strip" id="strip" aria-label="Every frame: key poses and the in-betweens the tweening fills in"></div>
+      <p class="note">Key poses (cards) are the clip: click one, pose it with the rings, and every frame up to the neighbouring key poses follows. Posing between key poses adds a key there. The strip below shows every frame; gold = key pose. Tween to next = how the move eases from this key pose to the next.</p>
+      <details class="adv" id="dopeBox"><summary>Pivot keys (advanced: one row per pivot)</summary>
       <div class="dope" id="dopeWrap" role="slider" aria-label="Frame and keys" tabindex="0"><canvas id="dope"></canvas></div>
-      <p class="note">One row per pivot with keys (+ the selected one); <b>All pivots</b> = every key on that frame. Click a key to go to it, <b>drag</b> it to retime, <b>Alt + drag</b> copies it. Click or drag empty space to scrub. ◆ smooth · ● linear · ◀ ease in · ▶ ease out · ■ hold · ✦ overshoot. Dashes = hold, faint ends = blend out.</p>
+      <p class="note">One row per pivot with keys (+ the selected one); <b>All pivots</b> = every key on that frame. Click a key to go to it, <b>drag</b> it to retime, <b>Alt + drag</b> copies it. Click or drag empty space to scrub. ◆ smooth · ● linear · ◇ in-out · ◀ ease in · ▶ ease out · ➤ snap · ■ hold · ✦ overshoot. Dashes = hold, faint ends = blend out.</p>
+      </details>
     </div>
   </div>
 
@@ -198,8 +234,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       <div class="row"><label for="ease">Into next key</label><select id="ease" class="grow" disabled>
         <option value="smooth">◆ Smooth (eases in and out)</option>
         <option value="linear">● Linear (steady speed)</option>
+        <option value="inout">◇ Strong in and out</option>
         <option value="in">◀ Ease in (slow start, fast end)</option>
         <option value="out">▶ Ease out (fast start, slow end)</option>
+        <option value="snap">▶▶ Snap (almost all at once, then settles)</option>
         <option value="hold">■ Hold (snaps at the next key)</option>
         <option value="back">✦ Overshoot (passes it, settles back)</option>
       </select></div>
@@ -214,7 +252,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       </div>
       <div class="readout" id="boardOut">Clipboard empty.</div>
       <p class="note">Copy takes the pose as you see it on this frame; Paste keys it onto the current frame (any clip), Paste mirrored swaps left / right.</p>
-      <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="61" step="1" value="8"><output id="spreadOut">8 f</output></div>
+      <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="121" step="1" value="8"><output id="spreadOut">8 f</output></div>
       <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
     </section>
 
@@ -287,7 +325,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
               off the clip's own pose when a pull over-reaches.  Tool-only (never read by the game). */
 (function () {
   "use strict";
-  var FPS = 30, WHOLE = 61;
+  var FPS = 60, WHOLE = 121;            /* 60 fps: key poses sit on the 60 fps grid (v3/tools/keyreduce.py) */
   var $ = function (id) { return document.getElementById(id); };
   var css = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); };
@@ -400,7 +438,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       limits: JSON.parse(JSON.stringify(HINGE_DEF))};
   }
   var S = {
-    root: null, fileHandle: null, fileName: "", baseClips: {}, clips: {}, order: [], clip: null,
+    root: null, fileHandle: null, fileName: "", baseClips: {}, clips: {}, order: [], clip: null, keyMode: {},
     mixer: null, action: null, frame: 0, playing: false, speed: 1,
     bones: {}, pivots: [], skinned: [], outlines: [], toonMats: [], origMats: [], helper: null,
     home: {}, bindWorld: {}, collapsed: {},
@@ -423,10 +461,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   var I = new THREE.Quaternion();
   function smooth(u) { return u * u * (3 - 2 * u); }
   /* key easing: how a key's move leaves it toward the next key (u 0..1 -> blend; back overshoots past 1) */
-  var EASES = ["smooth", "linear", "in", "out", "hold", "back"];
-  function ease(e, u) {
+  var EASES = ["smooth", "linear", "inout", "in", "out", "snap", "hold", "back"];
+  function ease(e, u) {                    /* same curves as v3/js/keytween.js and v3/tools/keyreduce.py */
     switch (e) {
       case "linear": return u;
+      case "inout": return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      case "snap": var s5 = 1 - u; return 1 - s5 * s5 * s5 * s5 * s5;
       case "in": return u * u * u;
       case "out": var v = 1 - u; return 1 - v * v * v;
       case "hold": return u >= 1 ? 1 : 0;
@@ -502,6 +542,52 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       }
     });
     return clip;
+  }
+  /* file key clip -> still rest base (every frame) + this clip's keys in S.data.edits (leaving ease = the file's
+     ease INTO the next key) */
+  function keyClipIn(c, inf) {
+    var n = frameCount(c), times = [], i; for (i = 0; i <= n; i++) times.push(i / FPS);
+    var ed = S.data.edits[c.name] = {}, tracks = [];
+    c.tracks.forEach(function (tr) {
+      var dot = tr.name.lastIndexOf("."), bn = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1), b = S.bones[bn];
+      if (!b || (prop !== "quaternion" && prop !== "position")) { tracks.push(tr.clone()); return; }
+      var T = tr.times, V = tr.values, into = (inf.b && inf.b[tr.name]) || (inf.e && inf.e.length === T.length ? inf.e : null);
+      var list = [], at = {}, rq = b.userData.restQ, rp = b.userData.restP, r0 = rq.clone().invert();
+      for (var k = 0; k < T.length; k++) {
+        var key = {f: Math.max(0, Math.min(n, Math.round(T[k] * FPS)))};
+        if (prop === "quaternion") key.q = r0.clone().multiply(new THREE.Quaternion().fromArray(V, k * 4)).normalize().toArray();
+        else key.v = [V[k * 3] - rp.x, V[k * 3 + 1] - rp.y, V[k * 3 + 2] - rp.z];
+        var leave = into && k + 1 < T.length ? into[k + 1] : null;
+        if (leave && leave !== "smooth") key.e = leave;
+        if (at[key.f] != null) list[at[key.f]] = key; else { at[key.f] = list.length; list.push(key); }
+      }
+      var e = ed[bn] || (ed[bn] = {}); e[prop === "quaternion" ? "rot" : "pos"] = list;
+      tracks.push(prop === "quaternion" ? constTrack(THREE.QuaternionKeyframeTrack, tr.name, times, rq.toArray())
+                                        : constTrack(THREE.VectorKeyframeTrack, tr.name, times, rp.toArray()));
+    });
+    var out = new THREE.AnimationClip(c.name, n / FPS, tracks); return out;
+  }
+  /* this clip's keys -> a key-pose clip for the file: each bone's own key frames (+ the clip ends), values as
+     shown here, and the ease INTO each key for v3/js/keytween.js (info.b[track]) */
+  function keyClipOut(name) {
+    var base = S.baseClips[name], n = frameCount(base), ed = S.data.edits[name] || {}, info = {b: {}};
+    var sparse = base.clone();
+    sparse.tracks = base.tracks.map(function (tr) {
+      var dot = tr.name.lastIndexOf("."), bn = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1);
+      var kl = ed[bn] && ed[bn][prop === "quaternion" ? "rot" : "pos"];
+      var fs = {0: 1}; fs[n] = 1; (kl || []).forEach(function (k) { fs[k.f] = 1; });
+      var frames = Object.keys(fs).map(Number).sort(function (a, b) { return a - b; });
+      var sz = tr.values.length / tr.times.length, vals = new Float32Array(frames.length * sz);
+      for (var i = 0; i < frames.length; i++) for (var c = 0; c < sz; c++) vals[i * sz + c] = tr.values[c];
+      if (kl && kl.length) info.b[tr.name] = frames.map(function (f, i) {
+        if (!i) return "linear";
+        var k = null; kl.forEach(function (x) { if (x.f === frames[i - 1]) k = x; });
+        return k ? (k.e || "smooth") : "smooth";
+      });
+      return new tr.constructor(tr.name, frames.map(function (f) { return f / FPS; }), vals);
+    });
+    var out = applyEdits(sparse, name, 1); out.name = name;
+    return {clip: out, info: info};
   }
   function constTrack(Type, name, times, val) {
     var vals = new Float32Array(times.length * val.length);
@@ -697,7 +783,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         try { clips = rtClips(gltf.animations, gltf.scene, body.scene); }
         catch (err) { status("Could not put " + name + "'s clips on the body: " + err.message, true); return; }
         onLoaded({scene: body.scene, animations: Object.keys(clips).map(function (k) { return clips[k]; }),
-                  pbExt: ext, slim: {meta: meta, body: body.name}}, name, handle);
+                  pbExt: ext, pbKeys: (gltf.scene.userData && gltf.scene.userData.pb_keys) || {},
+                  slim: {meta: meta, body: body.name}}, name, handle);
       });
     }, function (err) { CH.loading = -1; status("Could not read " + name + ": " + (err && err.message || err), true); });
   }
@@ -832,7 +919,16 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     /* clips: what is in the file is BAKED (base + keys): un-bake the keys; added-bone tracks are rebuilt on bake */
     S.mixer = new THREE.AnimationMixer(root);
     var pref = ["idle", "run", "walk", "sprint", "attack_normal", "attack_special", "ultimate", "defend", "dodge", "hit_light", "ko"];
+    /* key-pose clips (pb_keys, v3/tools/keyreduce.py; Daniel 2026-11-22): the clip's key poses become this tool's
+       own keys on every bone, over a still rest pose, so editing a key pose IS editing the clip and the tweening
+       fills the frames in between. Saved back as key poses only. */
+    var PK = gltf.pbKeys !== undefined ? gltf.pbKeys : (gltf.scene.userData && gltf.scene.userData.pb_keys) || {};
+    S.keyMode = {};
     gltf.animations.forEach(function (c) {
+      if (PK[c.name] && !(ext && ext.edits && ext.edits[c.name])) {
+        var kb = keyClipIn(c, PK[c.name]); kb.tracks = kb.tracks.filter(function (t) { return !xnames[t.name.split(".")[0]]; });
+        S.keyMode[c.name] = true; S.baseClips[c.name] = kb; return;
+      }
       var base = S.data.edits[c.name] ? applyEdits(c, c.name, -1) : c.clone();
       base.tracks = base.tracks.filter(function (t) { return !xnames[t.name.split(".")[0]]; });
       base.name = c.name; S.baseClips[c.name] = base;
@@ -1717,6 +1813,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (!S.clip) return;
     var n = frameCount(S.clips[S.clip]);
     $("frameOut").textContent = "f" + S.frame + " / " + n;
+    var sc = $("scrub"); sc.max = n; sc.value = S.frame;
     var w = $("dopeWrap"); w.setAttribute("aria-valuenow", S.frame); w.setAttribute("aria-valuemax", n);
   }
 
@@ -1906,6 +2003,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     else if (e === "hold") c.rect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
     else if (e === "in") { c.moveTo(x - r, y); c.lineTo(x + r * 0.8, y - r); c.lineTo(x + r * 0.8, y + r); c.closePath(); }
     else if (e === "out") { c.moveTo(x + r, y); c.lineTo(x - r * 0.8, y - r); c.lineTo(x - r * 0.8, y + r); c.closePath(); }
+    else if (e === "snap") { c.moveTo(x + r * 1.1, y); c.lineTo(x - r, y - r * 1.1); c.lineTo(x - r * 0.3, y); c.lineTo(x - r, y + r * 1.1); c.closePath(); }
+    else if (e === "inout") { c.moveTo(x, y - r * 1.1); c.lineTo(x + r * 0.7, y); c.lineTo(x, y + r * 1.1); c.lineTo(x - r * 0.7, y); c.closePath(); }
     else if (e === "back") { for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4, rr = i % 2 ? r * 0.45 : r * 1.1; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); }
     else { c.moveTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x, y + r); c.lineTo(x - r, y); c.closePath(); }
     c.fill(); c.stroke();
@@ -2033,7 +2132,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   })();
 
   /* ---------------------------------------------------------------- save into the .glb */
-  function bakedClips() { return S.order.map(function (n) { var c = applyEdits(S.baseClips[n], n, 1); c.name = n; return c; }); }
+  function bakedClips() {
+    S.saveKeys = {};
+    return S.order.map(function (n) {
+      if (S.keyMode[n]) { var o = keyClipOut(n); S.saveKeys[n] = o.info; return o.clip; }
+      var c = applyEdits(S.baseClips[n], n, 1); c.name = n; return c;
+    });
+  }
   function exportGlb(done) {
     var root = S.root, clips = bakedClips();
     var wasPlaying = S.playing; setPlaying(false); tc.detach(); back.visible = false;
@@ -2043,7 +2148,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     S.mixer.stopAllAction();
     Object.keys(S.bones).forEach(function (n) { var b = S.bones[n]; b.quaternion.copy(b.userData.restQ); b.position.copy(b.userData.restP); });
     var ex = new THREE.Scene(); ex.name = "Scene";
-    ex.userData = {pb_rig3d: JSON.parse(snap())};
+    var rig3d = JSON.parse(snap());
+    Object.keys(S.keyMode).forEach(function (n) { delete rig3d.edits[n]; });   /* key clips: the keys ARE the clip */
+    ex.userData = {pb_rig3d: rig3d};
+    if (Object.keys(S.saveKeys || {}).length) ex.userData.pb_keys = S.saveKeys;
     /* clips-only character file: save the skeleton + clips, never the shared body's mesh */
     var cut = [];
     if (S.slim) {
@@ -2459,6 +2567,112 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     }).catch(function () {});
   }
 
+  /* ---------------------------------------------------------------- key poses: filmstrip + tools (Daniel 2026-11-22) */
+  var FILM = {sig: "", due: 0, frame: -1, r: null, cam: new THREE.PerspectiveCamera(30, 1, 0.05, 60)};
+  var EASE_TXT = {smooth: "◆ smooth", linear: "● linear", inout: "◇ in-out", "in": "◀ in", out: "▶ out", snap: "➤ snap",
+                  hold: "■ hold", back: "✦ over", mixed: "mixed"};
+  function mk(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function poseFrames() { return S.clip && S.clips[S.clip] ? rowFrames("*") : []; }
+  function filmRenderer() {
+    if (FILM.r === null) {
+      try { FILM.r = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true}); FILM.r.setPixelRatio(1); }
+      catch (e) { FILM.r = false; }
+    }
+    return FILM.r || null;
+  }
+  /* the pose of frame f, side view (same side as the 2D frames), drawn into a 2D canvas */
+  function filmShot(f, cv) {
+    var R = filmRenderer(); if (!R || !S.action) return;
+    var vis = scene.children.map(function (o) { var v = o.visible; o.visible = o === place || !!o.isLight; return v; });
+    var gv = GH.list.map(function (g) { var v = g.root.visible; g.root.visible = false; return v; });
+    S.action.time = f / FPS; S.action.paused = false; S.mixer.update(0); S.action.paused = true;
+    place.updateMatrixWorld(true);
+    FILM.cam.aspect = cv.width / cv.height; FILM.cam.updateProjectionMatrix();
+    FILM.cam.position.copy(place.localToWorld(new THREE.Vector3(-5.6, 1.0, 0.25)));
+    FILM.cam.lookAt(place.localToWorld(new THREE.Vector3(0, 0.86, 0.25)));
+    if (R.domElement.width !== cv.width || R.domElement.height !== cv.height) R.setSize(cv.width, cv.height, false);
+    R.setClearColor(new THREE.Color(css("--stage") || "#dfe3ec"), 1);
+    R.render(scene, FILM.cam);
+    cv.getContext("2d").drawImage(R.domElement, 0, 0, cv.width, cv.height);
+    scene.children.forEach(function (o, i) { o.visible = vis[i]; });
+    GH.list.forEach(function (g, i) { g.root.visible = gv[i]; });
+  }
+  function buildFilm() {
+    var F = $("film"), St = $("strip"); F.innerHTML = ""; St.innerHTML = "";
+    if (!S.clip || !S.clips[S.clip] || !S.action) { F.appendChild(mk("span", "empty", "Open a character to see its key poses.")); return; }
+    var keys = poseFrames(), n = frameCount(S.clips[S.clip]), isKey = {};
+    keys.forEach(function (f) { isKey[f] = 1; });
+    if (!keys.length) F.appendChild(mk("span", "empty", "No key poses in this clip yet: pose it and press + Key pose."));
+    keys.forEach(function (f, i) {
+      var b = mk("button", "frame"); b.type = "button"; b.dataset.f = f;
+      b.title = "Key pose " + (i + 1) + " on f" + f + " (" + (f / FPS).toFixed(3) + " s): click to go to it";
+      var cv = document.createElement("canvas"); cv.width = 152; cv.height = 176; b.appendChild(cv);
+      b.appendChild(mk("span", "idx", String(i + 1))); b.appendChild(mk("span", "fr", "f" + f));
+      if (i < keys.length - 1) b.appendChild(mk("span", "tw", EASE_TXT[easeOfAll(f)] || ""));
+      b.onclick = function () { setPlaying(false); setFrame(f); };
+      F.appendChild(b); filmShot(f, cv);
+    });
+    var step = Math.max(1, Math.ceil((n + 1) / 60));
+    for (var f = 0; f <= n; f += step) (function (f) {
+      var k = false; for (var j = f; j < f + step; j++) if (isKey[j]) k = j;
+      var fr = k !== false ? k : f;
+      var b = mk("button", k !== false ? "key" : ""); b.type = "button"; b.dataset.f = fr;
+      b.title = (k !== false ? "Key pose" : "In-between") + " · f" + fr;
+      var cv = document.createElement("canvas"); cv.width = 88; cv.height = 104; b.appendChild(cv);
+      b.appendChild(mk("span", "lab", String(fr)));
+      b.onclick = function () { setPlaying(false); setFrame(fr); };
+      St.appendChild(b); filmShot(fr, cv);
+    })(f);
+    S.action.time = S.frame / FPS; S.action.paused = false; S.mixer.update(0); S.action.paused = !S.playing;
+    FILM.frame = -1; markFilm();
+  }
+  function markFilm() {
+    var f = S.frame, keys = poseFrames(), on = keys.indexOf(f) >= 0;
+    Array.prototype.forEach.call($("film").children, function (b) { b.classList.toggle("sel", +b.dataset.f === f); });
+    var best = null, bd = 1e9;
+    Array.prototype.forEach.call($("strip").children, function (b) { var d = Math.abs(+b.dataset.f - f); if (d < bd) { bd = d; best = b; } b.classList.remove("here"); });
+    if (best) best.classList.add("here");
+    ["kpDup", "kpLeft", "kpRight", "kpDel", "kpEase"].forEach(function (id) { $(id).disabled = !on; });
+    $("kpAdd").disabled = !S.clip;
+    var e = on ? easeOfAll(f) : null; $("kpEase").value = e || "smooth";
+    var sel = Array.prototype.filter.call($("film").children, function (b) { return +b.dataset.f === f; })[0];
+    if (sel && sel.scrollIntoView && FILM.lastSel !== f) { FILM.lastSel = f; sel.scrollIntoView({block: "nearest", inline: "nearest"}); }
+  }
+  function filmTick() {
+    var sig = S.clip && S.clips[S.clip] ? [S.clip, JSON.stringify(S.data.edits[S.clip] || null), JSON.stringify(S.data.placement),
+      JSON.stringify(S.data.attach), S.data.xbones.length, S.root && S.root.uuid].join("|") : "";
+    if (sig !== FILM.sig) { FILM.sig = sig; FILM.due = performance.now() + 200; }
+    var busy = RING || S.playing || tc.dragging || tcRot.dragging;
+    if (FILM.due && !busy && performance.now() >= FILM.due) { FILM.due = 0; buildFilm(); }
+    if (S.frame !== FILM.frame) { FILM.frame = S.frame; markFilm(); }
+  }
+  function kpMove(d) {
+    var f = S.frame, keys = poseFrames(), i = keys.indexOf(f); if (i < 0) return;
+    var to = f + d, n = frameCount(S.clips[S.clip]), lo = i ? keys[i - 1] : -1, hi = i < keys.length - 1 ? keys[i + 1] : n + 1;
+    to = Math.max(lo + 1, Math.min(hi - 1, Math.max(0, Math.min(n, to))));
+    if (to === f) { status("This key pose can't move further that way (its neighbour or the clip end is there).", true); return; }
+    pushUndo(); moveKeys(framesOnFrame(f), f, to, false); afterKeys("Moved key pose f" + f + " → f" + to + "."); setFrame(to);
+  }
+  $("kpLeft").onclick = function (e) { kpMove(e.shiftKey ? -5 : -1); };
+  $("kpRight").onclick = function (e) { kpMove(e.shiftKey ? 5 : 1); };
+  $("kpAdd").onclick = function () { addPoseKey(); };
+  $("kpDel").onclick = function () {
+    if (poseFrames().length <= 2) { status("A clip keeps at least two key poses.", true); return; }
+    delKey(true);
+  };
+  $("kpDup").onclick = function () {
+    var f = S.frame, keys = poseFrames(), i = keys.indexOf(f), n = frameCount(S.clips[S.clip]); if (i < 0) return;
+    var to = i < keys.length - 1 ? Math.round((f + keys[i + 1]) / 2) : Math.min(n, f + 8);
+    if (to === f || keys.indexOf(to) >= 0) { status("No free frame after this key pose to copy it to.", true); return; }
+    pushUndo(); moveKeys(framesOnFrame(f), f, to, true); afterKeys("Copied key pose f" + f + " to f" + to + "."); setFrame(to);
+  };
+  $("kpEase").onchange = function () {
+    var f = S.frame, names = framesOnFrame(f); if (!names.length) return;
+    pushUndo(); setEase(names, f, this.value); afterKeys("Tween from f" + f + " to the next key pose: " + (EASE_TXT[this.value] || this.value) + ".");
+  };
+  $("scrub").oninput = function () { setPlaying(false); setFrame(+this.value); };
+  $("dopeBox").addEventListener("toggle", function () { DOPE.sig = ""; });
+
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
   function resize() {
@@ -2498,6 +2712,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     renderer.render(scene, camera);
     drawOverlay();
     var sg = dopeSig(); if (sg !== DOPE.sig) { DOPE.sig = sg; drawDope(); }
+    filmTick();
   })();
 
   /* embedded model (for the published preview page) */

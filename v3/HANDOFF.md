@@ -109,6 +109,16 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   controls, turn-then-lean, ground contact and stepping feet. **Next:** Daniel's verdict on the new hit 1 in game,
   then hits 2..5 the same way (stills first).
 
+## Key poses + tweening (2026-11-22, later)
+
+- Daniel: editing meant fixing every frame ("instead of baking every frame, work through key frames and let the
+  tweening fill in the in-betweens"); scope = every clip of every character, 2D-drawn clips reduced to key poses,
+  edited in Rig Forge 3D; and "collapse the animation panel that shows all anchors' changes, use the framing style of
+  the original Rig Forge" -> filmstrip of key-pose cards, per-pivot timeline folded under "Pivot keys (advanced)".
+- Done: `keyreduce.py`, `js/keytween.js`, pb_keys format, all characters + the body rebuilt, Rig Forge 3D key mode +
+  filmstrip, audit tweens the same way. Characters edited locally in Rig Forge 3D (not pushed) keep their old frame-by-
+  frame clips until re-saved / rebuilt (the updater never overwrites local character edits).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

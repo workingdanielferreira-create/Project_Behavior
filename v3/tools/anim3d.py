@@ -487,7 +487,7 @@ def interp(keys, t):
     return c
 
 
-def bake_clip(B, spec, notes=None):
+def bake_clip(B, spec, notes=None, dense=False):
     keys = full_keys(B, spec["keys"])
     for k in keys:
         k["arm_space"] = spec.get("arm_space", "body")
@@ -498,7 +498,12 @@ def bake_clip(B, spec, notes=None):
     poses = [sv.pose(interp(keys, t), t) for t in times]
     if notes is not None:
         notes.extend(sorted(set(sv.notes)))
-    return times, poses
+    if dense:
+        return times, poses
+    # stored as key poses: the authored keys always, plus whatever the tweening needs to stay on the solved motion
+    import keyreduce
+    must = keyreduce.snap_must(times, [k["t"] for k in keys])
+    return keyreduce.reduce(B.rig, times, poses, must=must)
 
 
 def spec_path(name):
@@ -553,6 +558,9 @@ def write_into(name, clips, B):
     out["buffers"] = [{"byteLength": len(w.bin)}]
     ex = out["scenes"][out.get("scene", 0)].setdefault("extras", {})
     ex.setdefault("pb_body", {})["anim3d"] = sorted(clips)
+    pk = {k: v for k, v in (ex.get("pb_keys") or {}).items() if k not in clips}
+    pk.update((tmp["scenes"][tmp.get("scene", 0)].get("extras") or {}).get("pb_keys") or {})
+    ex["pb_keys"] = pk
     total = r.save_glb(path, out, bytes(w.bin))
     return path, total
 

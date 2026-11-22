@@ -558,9 +558,13 @@ def pack(j, b, meshes=True, keep_anims=True, new_clips=None, rig=None, extras=No
                 sm["input"] = w.copy(j, b, sm["input"])
                 sm["output"] = w.copy(j, b, sm["output"])
             anims.append(a)
+    keyinfo = {}
     if new_clips:
         hi = rig.i("Hips")
-        for act, (times, poses) in new_clips.items():
+        for act, clip in new_clips.items():
+            times, poses = clip[0], clip[1]
+            if len(clip) > 2 and clip[2]:              # key poses + eases (keyreduce.py): V3 / Rig Forge 3D tween
+                keyinfo[act] = {"e": list(clip[2])}
             t_acc = w.floats(np.array(times).reshape(-1, 1), "SCALAR", minmax=True)
             samplers, channels = [], []
             for node in rig.joints:
@@ -584,6 +588,16 @@ def pack(j, b, meshes=True, keep_anims=True, new_clips=None, rig=None, extras=No
     out["buffers"] = [{"byteLength": len(w.bin)}]
     if extras:
         out["scenes"][out.get("scene", 0)].setdefault("extras", {}).update(extras)
+    ex = out["scenes"][out.get("scene", 0)].setdefault("extras", {})
+    pk = dict(ex.get("pb_keys") or {}) if keep_anims else {}
+    pk = {k: v for k, v in pk.items() if k in {a["name"] for a in anims}}
+    pk.update(keyinfo)
+    if pk:
+        ex["pb_keys"] = pk
+    else:
+        ex.pop("pb_keys", None)
+    if not ex:
+        out["scenes"][out.get("scene", 0)].pop("extras", None)
     return out, bytes(w.bin)
 
 
@@ -605,6 +619,13 @@ def write(name, j, b, rig, src, clips, body=None):
     body_name = os.path.splitext(os.path.basename(body or BODY))[0]
     meta = {"pb_body": {"body": body_name, "weapons": {"R": bool(src.has_weapon), "L": bool(src.has_weapon2)},
                         "source": "v3/tools/retarget2d.py from characters/%s/character.json" % name}}
+    import keyreduce                  # every clip is stored as key poses + eases (Daniel 2026-11-22)
+    reduced = {}
+    for act, clip in clips.items():
+        tt, pp = keyreduce.resample(rig, clip[0], clip[1])           # the 2D keys were linear
+        # 2D-guessed motion is noisy: keep only its main poses, about a third of the drawn frames (3..8)
+        reduced[act] = keyreduce.reduce(rig, tt, pp, max_keys=max(3, min(8, round(len(clip[0]) / 3))))
+    clips = reduced
     import anim3d                     # hand-authored key-pose clips (<name>.anim3d.json) win over the 2D-guessed ones
     authored = anim3d.bake_file(name)
     if authored:
@@ -614,7 +635,8 @@ def write(name, j, b, rig, src, clips, body=None):
     out, bin_ = pack(j, b, meshes=False, keep_anims=False, new_clips=clips, rig=rig, extras=meta)
     path = os.path.join(CHARS, name, name + ".glb")
     total = save_glb(path, out, bin_)
-    print("%s: %s (%d KB) - clips: %s; weapon: %s" % (name, os.path.relpath(path, ROOT), total // 1024, ", ".join(sorted(clips)),
+    print("%s: %s (%d KB) - key poses: %s; weapon: %s" % (name, os.path.relpath(path, ROOT), total // 1024,
+                                                         ", ".join("%s %d" % (c, len(clips[c][0])) for c in sorted(clips)),
                                                      ("two blades" if src.has_weapon2 else "yes") if src.has_weapon else "none"))
     return path
 

@@ -102,7 +102,7 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
 
 `python v3/tools/retarget2d.py [name ...]` (default: puck ronin_copy hooded_blades Sueko; pass any other folder) (numpy only, no Blender) turns a character's 2D animations into 3D
 clips on the ual_swordsman body and writes `characters/<name>/<name>.glb`: one clip per action in its
-`character.json` (same name, one key per 2D frame, frame_ms timing; loops for idle / run). It reads the per-frame
+`character.json` (same name, frame_ms timing, stored as 3-8 key poses: see "Clips are key poses + tweening"; loops for idle / run). It reads the per-frame
 joint anchors (hip, chest, neck, head, shoulders, elbows, hands, hips, knees, feet, weapon tip):
 
 - 2D x = forward, 2D up = up; the near (R) limbs are on the viewer's side.
@@ -122,6 +122,21 @@ Re-run it after changing a character's 2D animation; touch up the result in Rig 
 The character files are clips-only (skeleton + clips, no mesh); `--body new.glb` re-solves every clip exactly on another
 body (RIG_SPEC section 10). The first run also gives the shared body its left blade (`Weapon_L` / `WeaponTip_L` +
 `blade_L`, hidden unless a character holds a second blade).
+
+## Clips are key poses + tweening (Daniel 2026-11-22)
+
+Every clip of every character (and the shared body's own clips) is stored as KEY POSES only: the channels hold
+just the key times (60 fps grid) and scene extras `pb_keys` {clip: {e: [ease INTO each key]}} or, after a Rig Forge
+3D save, {clip: {b: {"Bone.quaternion": [eases]}}} (each bone its own keys). The frames in between are filled in by
+tweening, the same in all tools: u = ease(into-ease, position in the segment), rotations slerp, positions lerp; eases
+linear / smooth / inout / in / out / snap / hold / back.
+
+- `v3/js/keytween.js` (`ktExpandAll`): V3 fills in the frames when it loads a .glb (glbody.js, before retargeting).
+- `v3/tools/keyreduce.py`: `reduce()` = fewest key poses whose tweening stays within 3 cm (blade tips 7 cm) of a
+  dense clip, best ease per segment; `max_keys` caps it. `retarget2d.py` keeps 3..8 key poses per 2D-drawn clip (about
+  a third of the drawn frames), `anim3d.py` keeps every authored key, `python v3/tools/keyreduce.py --body` did the
+  body's mocap clips (within 3 cm).
+- Rig Forge 3D edits the key poses themselves (see below); `anim_audit.py` tweens the same way when it checks.
 
 ## Authored key-pose clips (anim3d) + animation audit
 
@@ -146,6 +161,16 @@ clips are now authored as key poses, one by one, and replace the 2D-guessed ones
   Daniel confirmed about each move.
 
 ## Rig Forge 3D
+
+**Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
+every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
+poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):
+a **filmstrip** of key-pose cards (side-view thumbnails, number, frame, tween to the next), **+ Key pose**,
+**Duplicate** (copy halfway to the next), **← Move / Move →** (Shift = 5 frames, never past a neighbour), **Delete key
+pose** (a clip keeps two), **Tween to next** (every pivot's ease on that frame); a strip of every frame (gold = key
+pose); a scrub bar. The per-pivot timeline is folded away under **Pivot keys (advanced)**. 60 fps. Save writes key
+poses only (each bone its own key times + `pb_keys.b` eases; no `pb_rig3d.edits` for these clips): checked
+2026-11-22, a saved Hooded Blades plays back identical (0.00 cm) and stays key poses.
 
 **Character files are clips-only** (Daniel 2026-11-22). Opening one (no mesh inside) shows its clips on the shared
 body: taken from the connected characters folder (below) when it holds it, else the first time **Pick shared body…** asks for `characters/ual_swordsman/ual_swordsman.glb` (or the final model);
