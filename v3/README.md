@@ -98,16 +98,34 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
 `characters/<name>/<name>.glb`, then:
 
 - **Pose per keyframe.** Click a pivot dot (or pick it in the Pivot list), go to a frame and turn the X / Y / Z
-  rings (red / green / blue; grey = free turn, yellow outer ring = turn about the view). Hips also have
-  move arrows (**Move**, `T`). Each change sets a key on that frame (◆ on the timeline); frames in between
-  blend, and **Blend out** sets how far a key fades before the first / after the last key (all the way
-  right = the whole clip). **Local / World** (`L`) picks the ring axes.
+  rings (red / green / blue; grey = free turn, yellow outer ring = turn about the view). The rings follow the
+  mouse round the ring (the pointer is put on the ring's plane; a ring seen edge-on turns by dragging along
+  it); **Shift** = 5° steps; the HUD shows the turn. A ring under the mouse wins over a nearby dot unless you
+  press right on another dot. Hips also have move arrows (**Move**, `T`). Each change sets a key on that frame;
+  frames in between blend, and **Blend out** sets how far a key fades before the first / after the last key
+  (all the way right = the whole clip). **Local / World** (`L`) picks the axes of the rings AND the arrows
+  (anchors too); the readout / HUD / status name the axes in use and say when a bone's own axes line up with
+  World (then the switch looks the same).
+- **Keys** (Daniel 2026-11-22). **◆ Key** (`K`) keys the selected pivot's pose as shown on this frame (also an
+  untouched pivot = hold it); **Key whole pose** (`Shift+K`) keys every pivot with keys in the clip. **Delete key**
+  (`Del`), **Delete all keys here** (`Shift+Del`), **Clear pivot in clip**. **Into next key** = how the move leaves
+  that key: smooth (default) / linear / ease in / ease out / hold (snaps at the next key) / overshoot (stored
+  as `e` on the key). **Copy pivot** / **Copy whole pose** (`Ctrl+C`: selected pivot, or the whole pose with
+  nothing selected) and **Paste** (`Ctrl+V`) / **Paste mirrored** (`Ctrl+Shift+V`, left / right swapped and
+  mirrored across the body's middle using the rest-pose frames) key the pose as it looked onto the current
+  frame of any clip. **Timeline = dope sheet**: an All pivots row + one row per keyed pivot (+ the selected
+  one), key shape = its ease, dashes = hold, faint ends = blend out. Click a key to jump to it (selects its
+  pivot), drag to retime, **Alt + drag** to copy (a key already there is replaced), click / drag empty space
+  to scrub. ◆◀ / ▶◆ jump between keys.
 - **Pivots on the model.** Click a pivot dot for its rings. **Press and hold, or press and drag** a pivot to pull
   the body toward the mouse (keys on that frame): hand and foot pivots bend their arm / leg with a two-bone
-  solver that keeps the elbow / knee bending the way it already does (the collarbone helps a little when a
-  hand is pulled past its reach); other pivots bend up their chain (neck / head down the spine). **Hips**
+  solver that keeps the elbow / knee bending the way it already does; other pivots bend up their chain (neck / head down the spine). **Hips**
   moves the body through the hierarchy while both hands and both feet stay planted (arms and legs re-bend, the
   weapon stays put), like the 2D Rig Forge's pelvis drag; **Shift + drag** the hips to move everything.
+  Every mouse move re-solves from the pose the drag started with, so turns never pile up. **Collarbone**
+  (Daniel 2026-11-22): a hand, elbow or shoulder pull past its reach swings it only by the missing bit, never
+  more than **Joint limits > Collarbone** (default 30°) off the clip's own pose on that frame (an old
+  over-swung collarbone is pulled back in on the next pull); its own rings are not limited.
 - **Skeleton tree.** Every bone in its hierarchy (Hips > Spine > …), with each bone's anchors (◆) and added
   bones (✚) under it. It starts collapsed and opens down to whatever you select. FX anchors are hidden on the
   model unless their card's **Show this FX anchor on the model** is ticked (or **All FX anchors** in View). Click a row (or a dot on the model) to select it; its card opens
@@ -128,8 +146,8 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   thigh. Elbow / knee bend range in degrees (default 0 = straight to 160); **Flip** per limb puts its limit
   on the other side. Applied while you pose (elbow / knee rings stop at the limit, hand / foot pulls and
   hip drags solve on the natural side, chain pulls such as a weapon pull clamp the elbow); keys already in
-  the file are left as they are until edited. The readout shows the selected elbow / knee's bend. Saved
-  in `pb_rig3d.limits` (tool only).
+  the file are left as they are until edited. The readout shows the selected elbow / knee's bend (and a
+  collarbone's swing). Saved in `pb_rig3d.limits` (+ `collar`, tool only).
 - **Save into .glb** (Ctrl+S) writes straight back into the file you opened (Edge; other browsers download a
   copy). The keys are baked into the clips, and the key list, anchors and placement are stored in the file's
   scene extras (`pb_rig3d`), so reopening the file lets you keep editing, delete keys or undo a pivot.
