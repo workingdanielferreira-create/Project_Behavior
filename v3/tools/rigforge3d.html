@@ -192,7 +192,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <label class="check"><input type="checkbox" id="vToon" checked> V3 toon + ink</label>
         <label class="check"><input type="checkbox" id="vPivots" checked> Pivots</label>
         <label class="check"><input type="checkbox" id="vFingers"> Finger pivots</label>
-        <label class="check"><input type="checkbox" id="vAnchors" checked> Anchors</label>
+        <label class="check"><input type="checkbox" id="vAnchors"> All FX anchors</label>
         <label class="check"><input type="checkbox" id="vNames"> Names</label>
         <label class="check"><input type="checkbox" id="vBones"> Skeleton</label>
       </div>
@@ -664,7 +664,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     syncStructure();
     S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
     $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
-    S.collapsed = {LeftHand: 1, RightHand: 1};
+    S.collapsed = {}; Object.keys(S.bones).forEach(function (n) { if (S.bones[n].children.some(function (c) { return S.bones[c.name] === c; })) S.collapsed[n] = 1; });   /* tree starts collapsed */
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
     $("drop").hidden = true; $("fileName").textContent = name + (S.fileHandle ? "" : " (no folder access: Save downloads a copy)");
@@ -708,6 +708,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   /* ---------------------------------------------------------------- selection + gizmo */
   function select(kind, id) {
     S.selKind = id ? kind : null; S.sel = id || null; S.grip = false;
+    if (id) expandTo(kind === "anchor" ? (S.data.anchors[id] || {}).bone : id);
     if (S.sel && S.selKind !== "anchor" && !movable(S.sel) && S.mode === "translate") setMode("rotate");
     if (S.playing) setPlaying(false);
     syncGizmo(); buildFrames(); updatePivotOut(); buildTree(); buildCard();
@@ -831,52 +832,105 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     return (e.rot || []).some(function (k) { return k.f === f; }) || (e.pos || []).some(function (k) { return k.f === f; });
   }
 
-  /* ---------------------------------------------------------------- anchors: click = wheels, hold / drag = reposition
-     Press on an anchor dot: a quick click selects it (move arrows + rings); holding HOLD_MS or moving the mouse
-     while pressed drags it freely in a camera-facing plane at its current depth.  Runs in the capture phase on
-     window, so the camera orbit and the gizmos never see that press. */
-  var HOLD_MS = 250, HOLD = {id: null, x: 0, y: 0, timer: 0, dragging: false, before: null, plane: new THREE.Plane()};
+  /* ---------------------------------------------------------------- click = wheels, hold / drag = pull
+     Press on a dot on the model.  A quick click selects it (pivot: rings; anchor: move arrows + rings).  Holding
+     HOLD_MS or moving the mouse while pressed drags it, in a camera-facing plane at its current depth:
+       anchor -> moves freely;
+       pivot  -> pulls the body (Daniel's chain picture: a joint carries everything below it down its chain):
+                 hand / arm pivots bend forearm, upper arm and (a little) the collarbone; foot / leg pivots bend
+                 shin and thigh; neck / head pivots bend down the neck and spine (not the pelvis); fingers their
+                 finger; added bones their own chain; Hips moves the whole body.  Keys go on the current frame.
+     Runs in the capture phase on window, so the camera orbit and the gizmos never see that press. */
+  var HOLD_MS = 250, HOLD = {kind: null, id: null, x: 0, y: 0, timer: 0, dragging: false, before: null, plane: new THREE.Plane(), grab: null};
   var ray = new THREE.Raycaster();
-  function nearAnchor(e) {
+  function nearPick(e) {
     var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 12;
-    PICKS.forEach(function (p) {
-      if (p.kind !== "anchor") return;
-      var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; }
-    });
+    PICKS.forEach(function (p) { var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; } });
+    if (best) best.d = bd;
     return best;
   }
+  /* bones a pulled pivot bends, child first, with how much each one turns */
+  function chainFor(n) {
+    var out = [], b = S.bones[n], par = b && b.parent, guard = 0;
+    function w(name) { return /Shoulder$/.test(name) ? 0.3 : (/^Spine/.test(name) || name === "Neck" ? 0.5 : 1); }
+    function stop(name) {
+      if (!S.bones[name] || name === "Hips") return true;
+      if (isX(n)) return !isX(name);                                   /* added bones: their own chain */
+      if (/Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n)) return !/Hand(Thumb|Index|Middle|Ring|Pinky)/.test(name);
+      return false;
+    }
+    while (par && !stop(par.name) && guard++ < 8) {
+      out.push([par.name, w(par.name)]);
+      if (/Shoulder$/.test(par.name) || /UpLeg$/.test(par.name)) break;  /* limb chains end at collarbone / thigh */
+      par = par.parent;
+    }
+    return out;
+  }
+  function screenRay(cx, cy) {
+    var r = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+    var hit = new THREE.Vector3(); return ray.ray.intersectPlane(HOLD.plane, hit) ? hit : null;
+  }
+  function pointOf(kind, id, out) { if (kind === "anchor") return anchorWorld(id, out); S.bones[id].getWorldPosition(out); return true; }
   function startHoldDrag() {
     if (HOLD.dragging || !HOLD.id) return;
-    var a = S.data.anchors[HOLD.id]; if (!a) return;
     HOLD.dragging = true; HOLD.before = snap();
     if (S.playing) setPlaying(false);
-    S.sel = HOLD.id; S.selKind = "anchor"; S.grip = false;
+    S.sel = HOLD.id; S.selKind = HOLD.kind; S.grip = false;
     tc.detach(); tcRot.detach(); back.visible = false;
-    var w = new THREE.Vector3(); anchorWorld(HOLD.id, w);
+    var w = new THREE.Vector3(); pointOf(HOLD.kind, HOLD.id, w);
     HOLD.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), w);
-    HOLD.grab = null; holdDragTo({clientX: HOLD.x, clientY: HOLD.y});   /* grab point = where you pressed */
+    var hit = screenRay(HOLD.x, HOLD.y); HOLD.grab = hit ? w.clone().sub(hit) : new THREE.Vector3();   /* grab point = where you pressed */
     canvas.style.cursor = "grabbing";
+    expandTo(HOLD.kind === "anchor" ? S.data.anchors[HOLD.id].bone : HOLD.id);
     buildTree(); buildCard(); updatePivotOut();
   }
+  var qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3(), vp = new THREE.Vector3();
+  function pullTo(name, target) {
+    var eff = S.bones[name];
+    if (name === "Hips") {                                     /* the whole body follows */
+      var cur = eff.getWorldPosition(new THREE.Vector3()), local = eff.parent.worldToLocal(target.clone()), now = eff.parent.worldToLocal(cur);
+      eff.position.add(local.sub(now)); eff.updateMatrixWorld(true);
+      var bp = basePos(S.clip, "Hips", S.frame, new THREE.Vector3());
+      setKey(keysOf(S.clip, "Hips", "pos", true), S.frame, {v: eff.position.clone().sub(bp).toArray()});
+      return;
+    }
+    var chain = chainFor(name); if (!chain.length) return;
+    for (var it = 0; it < 12; it++) {
+      chain.forEach(function (c) {
+        var b = S.bones[c[0]];
+        b.getWorldPosition(vp); eff.getWorldPosition(va); va.sub(vp); vb.copy(target).sub(vp);
+        if (va.lengthSq() < 1e-10 || vb.lengthSq() < 1e-10) return;
+        qa.setFromUnitVectors(va.normalize(), vb.normalize());
+        qa.slerp(I, 1 - c[1]);                                    /* lighter bones turn less */
+        b.getWorldQuaternion(qb); qb.premultiply(qa);
+        b.parent.getWorldQuaternion(qa); b.quaternion.copy(qa.invert().multiply(qb)).normalize();
+        b.updateMatrixWorld(true);
+      });
+    }
+    chain.forEach(function (c) {
+      var base = baseRot(S.clip, c[0], S.frame, new THREE.Quaternion());
+      setKey(keysOf(S.clip, c[0], "rot", true), S.frame, {q: base.invert().multiply(S.bones[c[0]].quaternion).normalize().toArray()});
+    });
+  }
   function holdDragTo(e) {
-    var r = canvas.getBoundingClientRect();
-    var ndc = new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    ray.setFromCamera(ndc, camera);
-    var hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(HOLD.plane, hit)) return;
-    if (!HOLD.grab) { var w = new THREE.Vector3(); anchorWorld(HOLD.id, w); HOLD.grab = w.sub(hit); }   /* keep the grab offset */
-    setAnchorWorld(HOLD.id, hit.add(HOLD.grab));
+    var hit = screenRay(e.clientX, e.clientY); if (!hit) return;
+    hit.add(HOLD.grab);
+    if (HOLD.kind === "anchor") setAnchorWorld(HOLD.id, hit);
+    else { pullTo(HOLD.id, hit); updatePivotOut(); }
   }
   window.addEventListener("pointerdown", function (e) {
-    if (e.target !== canvas || e.button !== 0 || !S.root || !$("vAnchors").checked) return;
-    if (tc.axis || tcRot.axis) return;                       /* a wheel / arrow under the cursor wins */
-    var hit = nearAnchor(e); if (!hit) return;
+    if (e.target !== canvas || e.button !== 0 || !S.root) return;
+    var hit = nearPick(e); if (!hit) return;
+    /* a wheel / arrow under the cursor wins, except right on a dot (the free-turn sphere covers the selected dot) */
+    if ((tc.axis || tcRot.axis) && !(hit.d < 7 && /^(XYZE|XYZ|E)$/.test(String(tc.axis || tcRot.axis)))) return;
     e.stopImmediatePropagation(); e.preventDefault();
-    HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false;
+    HOLD.kind = hit.kind; HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false;
     clearTimeout(HOLD.timer); HOLD.timer = setTimeout(startHoldDrag, HOLD_MS);
   }, true);
   window.addEventListener("pointermove", function (e) {
     if (!HOLD.id) {
-      if (e.target === canvas && !e.buttons) canvas.style.cursor = S.root && $("vAnchors").checked && !tc.axis && !tcRot.axis && nearAnchor(e) ? "grab" : "";
+      if (e.target === canvas && !e.buttons) canvas.style.cursor = S.root && !tc.axis && !tcRot.axis && nearPick(e) ? "grab" : "";
       return;
     }
     if (!HOLD.dragging && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 4) { clearTimeout(HOLD.timer); startHoldDrag(); }
@@ -885,12 +939,18 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   window.addEventListener("pointerup", function (e) {
     if (!HOLD.id) return;
     clearTimeout(HOLD.timer);
-    var id = HOLD.id, dragged = HOLD.dragging, before = HOLD.before;
-    HOLD.id = null; HOLD.dragging = false; HOLD.before = null; canvas.style.cursor = "";
+    var id = HOLD.id, kind = HOLD.kind, dragged = HOLD.dragging, before = HOLD.before;
+    HOLD.id = null; HOLD.kind = null; HOLD.dragging = false; HOLD.before = null; canvas.style.cursor = "";
     e.stopImmediatePropagation();
-    if (dragged) { S.sel = id; S.selKind = "anchor"; commitAnchorDrag(before); status("Moved anchor " + id + ". Click it for the arrows and rings."); }
-    else select("anchor", id);                               /* quick click: the wheels */
+    if (!dragged) { select(kind, id); return; }              /* quick click: the wheels */
+    S.sel = id; S.selKind = kind;
+    if (kind === "anchor") { commitAnchorDrag(before); status("Moved anchor " + id + ". Click it for the arrows and rings."); return; }
+    if (before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
+    rebake(S.clip, true); buildTree(); buildCard(); syncGizmo();
+    status("Pulled " + label(id) + " on f" + S.frame + ". Click it for its rings.");
   }, true);
+  /* open the tree down to a bone */
+  function expandTo(n) { var b = S.bones[n]; while (b) { if (S.collapsed[b.name]) S.collapsed[b.name] = 0; b = b.parent; } }
 
   /* ---------------------------------------------------------------- picking on the stage */
   var down = null;
@@ -938,7 +998,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       PICKS.push({kind: xb ? "x" : "bone", id: n, x: p.x, y: p.y});
       if (names || sel) tag(label(n), p.x + 8, p.y);
     });
-    if (showA) Object.keys(S.data.anchors).forEach(function (id) {
+    Object.keys(S.data.anchors).forEach(function (id) {
+      if (!(showA || S.data.anchors[id].show || (S.selKind === "anchor" && S.sel === id))) return;   /* FX anchors hidden unless shown */
       if (!anchorWorld(id, wp)) return; var p = project(wp, w, h); if (p.z > 1) return;
       var sel = S.selKind === "anchor" && id === S.sel, a = S.data.anchors[id], s = sel ? 6.5 : 4.5;
       octx.save(); octx.translate(p.x, p.y); octx.rotate(Math.PI / 4);
@@ -1077,7 +1138,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     h += '<div class="row"><label>Snap to</label><span class="seg"><button id="cS0"' + (hasTail ? "" : " disabled") + '>Start</button><button id="cS5"' + (hasTail ? "" : " disabled") +
       '>Middle</button><button id="cS1"' + (hasTail ? "" : " disabled") + '>End</button><button id="cSG" aria-pressed="' + !!a.ground + '">Ground</button></span></div>';
     h += '<p class="note">Along bone: 0 % = the bone\'s pivot, 100 % = its end. Offset is added on top, in the bone\'s own X / Y / Z. Ground drops the point straight down to the floor.</p>';
-    h += '<p class="note">On the model: <b>click</b> an anchor for its arrows (slide along an axis) and rings (swing it around its bone\'s pivot); <b>press and hold, or press and drag</b>, to move it freely with the mouse. (An anchor sitting exactly on its bone\'s pivot has nothing to swing: move it off first.)</p>';
+    h += '<p class="note">On the model: <b>click</b> an anchor for its arrows (slide along an axis) and rings (swing it around its bone\'s pivot); <b>press and hold, or press and drag</b>, to move it freely with the mouse. FX anchors only show on the model when ticked below (or <b>All FX anchors</b> in View). (An anchor sitting exactly on its bone\'s pivot has nothing to swing: move it off first.)</p>';
+    h += '<label class="check"><input type="checkbox" id="cShow"' + (a.show ? " checked" : "") + '> Show this FX anchor on the model</label>';
     h += '<div class="row"><button id="cAddX">+ Bone from this anchor</button>' +
       (a.custom ? '<button id="cDel" class="danger">Remove anchor</button>' : '<button id="cReset">Reset anchor</button>') + "</div>";
     C.innerHTML = h;
@@ -1096,6 +1158,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     $("cS0").onclick = function () { snapT(0); }; $("cS5").onclick = function () { snapT(0.5); }; $("cS1").onclick = function () { snapT(1); };
     $("cSG").onclick = function () { pushUndo(); a.ground = !a.ground || undefined; buildCard(); syncGizmo(); };
     $("cAddX").onclick = function () { addX("a:" + id); };
+    $("cShow").onchange = function () { pushUndo(); if (this.checked) a.show = true; else delete a.show; };
     if (a.custom) {
       var n = Object.keys(descendants("anchor", id).xs).length;
       armButton($("cDel"), n ? "Click again: also removes " + n + " added bone" + (n > 1 ? "s" : "") : "Click again to remove", function () { removeTree("anchor", id); });
