@@ -16,6 +16,8 @@ from . import speedband as _speedband
 from . import escort as _escort
 from . import guard as _guard
 from . import perf as _perf
+from . import parry as _parry
+from . import lift as _lift
 from .components import (Transform, MotionState, TrailComponent,
                          Renderable, Combatant, Personality)
 
@@ -32,7 +34,7 @@ class Figure:
                  "personality", "mode", "lut", "index",
                  "screen_w", "screen_h", "fx", "act", "aim", "retreat", "blink", "time", "ua", "dodge",
                  "bench_since", "bench_ticks", "tgt", "last_hit_by", "hit_squash",
-                 "tempo", "guard")
+                 "tempo", "guard", "parry", "lift")
 
     def __init__(self, mode, bundle, lut, index, screen_w, screen_h):
         spd = mode.speeds()
@@ -79,6 +81,10 @@ class Figure:
         # Ally support (laser/guard.py): its GuardState (guard bar, dash to
         # an ally), made on first use.
         self.guard = None
+        # Parry / deflect (laser/parry.py) and speed lift + gravity
+        # (laser/lift.py): their states, made on first use.
+        self.parry = None
+        self.lift = None
         # Strike hit weight (laser/hitfx.py): [ticks left, total, dx, dy,
         # amount, flash] while squashed by a punch / kick; None otherwise.
         self.hit_squash = None
@@ -115,6 +121,7 @@ class Figure:
         self.aim = None
         self.retreat = None
         self.dodge = None
+        self.parry = None
         self.blink = None
         self.motion.style = None    # movement style state belongs to the old character
         self.combat.reset()
@@ -306,6 +313,11 @@ class Figure:
         # slashes / sparks / impact FX below still render.
         if body and frame is not None and not c0.vc_hidden and not gone:
             pscale = fig_pscale
+            # Speed lift (laser/lift.py): the body flies z px up (visual
+            # only); a shadow stays on the ground.  Parry ring round it.
+            _zoff = _lift.z_of(self) * pscale
+            _lift.draw_shadow(p, self, frame, pscale)
+            _parry.draw(p, self, pscale)
             og = self.render.outline_glow
             if og is not None:
                 rgb, radius, opacity = og
@@ -321,7 +333,7 @@ class Figure:
                 # look. Frame sizes vary per pose, so it changed mid-animation.
                 sx, sy = -silh.width() // 2, -silh.height() // 2
                 p.save()
-                p.translate(self.transform.x, self.transform.y)
+                p.translate(self.transform.x, self.transform.y - _zoff)
                 self._squash(p)
                 if self.aim is not None:
                     p.rotate(self.aim)
@@ -339,7 +351,7 @@ class Figure:
                 p.setOpacity(1.0)
                 p.restore()
             p.save()
-            p.translate(self.transform.x, self.transform.y)
+            p.translate(self.transform.x, self.transform.y - _zoff)
             self._squash(p)
             if self.aim is not None:
                 p.rotate(self.aim)

@@ -86,7 +86,8 @@ RESERVED = {
     # Player control (laser/player.py).
     "F4": "player control", "Up": "player move", "Down": "player move",
     "Left": "player move", "Right": "player move", "Ctrl+Z": "player attack",
-    "Ctrl+X": "player special", "Ctrl+C": "player ultimate", "Ctrl+Space": "player HP to 25%",
+    "Ctrl+X": "player special", "Ctrl+C": "player ultimate", "Ctrl+Space": "player parry",
+    "Ctrl+Shift+Space": "player HP to 25%",
 }
 
 
