@@ -101,9 +101,13 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   (`.claude/skills/v3-animation`), start with the attack_normal chain. Feel = ZZZ snap + KH spins; body turns freely.
 - Confirmed by Daniel: Hooded Blades holds both blades in a FORWARD grip; blades swept back = winding up a horizontal
   double slash; bent knees = ready to lunge / dash, not a crouch. Ask him whenever a move's intent is unclear.
-- Done: `v3/tools/anim3d.py` (solver + baker), `v3/tools/anim_audit.py`, `characters/hooded_blades/hooded_blades.anim3d.json`
-  with `attack_normal` (passes the audit). **Next:** attack_normal_2..5 after Daniel's feedback on hit 1, then the rest of
-  Hooded Blades, then the other fighters.
+- Done: `v3/tools/anim3d.py` (solver + baker), `v3/tools/anim_audit.py`, `characters/hooded_blades/hooded_blades.anim3d.json`.
+- First hit 1 was REJECTED by Daniel (hands stuck at the face, arms never extend, blades unreadable, no weight shift).
+  Lesson: key poses as large stills beside the 2D frames first, shown to Daniel before animating (skill section
+  "Key poses as stills FIRST"). Hit 1 rebuilt from six poses matched to 2D frames 7, 10, 11, 14, 17, 18 and retimed
+  onto the 2D frame times; Daniel said "replace it with the latest version". Solver gained `reach` / `elbow` / `knee`
+  controls, turn-then-lean, ground contact and stepping feet. **Next:** Daniel's verdict on the new hit 1 in game,
+  then hits 2..5 the same way (stills first).
 
 ## Next steps (agreed direction, not started)
 

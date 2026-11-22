@@ -61,7 +61,7 @@ def rot_euler(yaw, pitch, roll):
     ry = r.rot_axis(np.array([0, 1.0, 0]), yaw * D2R)
     rx = r.rot_axis(np.array([1.0, 0, 0]), pitch * D2R)
     rz = r.rot_axis(np.array([0, 0, 1.0]), roll * D2R)
-    return ry @ rx @ rz
+    return rx @ ry @ rz          # turn first, then lean toward the TARGET (+Z) whatever way the body is turned
 
 
 def ease(kind, u):
@@ -196,17 +196,33 @@ class Solver:
         # legs before arms (arms don't change the legs)
         for side, S in (("fR", "Right"), ("fL", "Left")):
             f = c[side]
-            self.limb(S + "UpLeg", S + "Leg", S + "Foot", np.array(f["ankle"]), np.array(f["pole"]), "knee")
+            W, P = self.fk()
+            pole = np.array(f["pole"]) if f.get("knee") is None else P[rig.i(S + "UpLeg")] + r.unit(np.array(f["knee"], float))
+            self.limb(S + "UpLeg", S + "Leg", S + "Foot", np.array(f["ankle"]), pole, "knee")
             W, P = self.fk()
             i = rig.i(S + "Foot")
             yaw = r.rot_axis(np.array([0, 1.0, 0]), f["yaw"] * D2R)
             right = yaw @ np.array([1.0, 0, 0])
             pitch = r.rot_axis(right, f["pitch"] * D2R)      # + = toes down
             self.set_world(S + "Foot", pitch @ yaw @ rig.restW[i], W)
+            # ground contact: a heel / toe that ends up under the floor lifts the whole foot back onto it
+            W, P = self.fk()
+            low = min(P[rig.i(S + "ToeBase")][1], P[rig.i(S + "Toe_End")][1], P[i][1] - 0.09)
+            if low < rig.rest_low - 0.005:
+                ank = np.array(f["ankle"], float) + [0.0, rig.rest_low - low, 0.0]
+                self.limb(S + "UpLeg", S + "Leg", S + "Foot", ank, pole, "knee")
+                self.set_world(S + "Foot", pitch @ yaw @ rig.restW[i])
         to_body = self.chest_xform() if c.get("arm_space") == "chest" else (lambda p, d=False: np.array(p, float))
         for side, S in (("R", "Right"), ("L", "Left")):
             a = c[side]
             hand, pole = to_body(a["hand"]), to_body(a["pole"])
+            if a.get("reach") is not None or a.get("elbow") is not None:
+                W, P = self.fk()
+                sh = P[rig.i(S + "Arm")]
+                if a.get("reach") is not None:        # hand = shoulder + reach (arm length ~0.55 m = straight)
+                    hand = sh + to_body(a["reach"], True)
+                if a.get("elbow") is not None:        # the elbow points this way from the shoulder
+                    pole = sh + r.unit(to_body(a["elbow"], True))
             self.clavicle(S, hand)
             want = to_body(a["blade"], True) if a.get("blade") is not None else None
             self.limb(S + "Arm", S + "ForeArm", S + "Hand", hand, pole, "elbow", swivel=a.get("swivel", SWIVEL),
@@ -401,6 +417,18 @@ VEC_FIELDS = [("hips_pos",), ("hips_rot",), ("spine",), ("head",)] + \
     [(s, f) for s in ("R", "L") for f in ("hand", "pole")] + [(s, f) for s in ("fR", "fL") for f in ("ankle", "pole")]
 
 
+OPT_FIELDS = [(s, f) for s in ("R", "L") for f in ("reach", "elbow")] + [(s, "knee") for s in ("fR", "fL")]
+
+
+def _has(k, path):
+    v = k
+    for p in path:
+        if not isinstance(v, dict) or v.get(p) is None:
+            return False
+        v = v[p]
+    return True
+
+
 def get(k, path):
     v = k
     for p in path:
@@ -420,13 +448,20 @@ def interp(keys, t):
     k0 = keys[max(0, n - 2)]
     k3 = keys[min(len(keys) - 1, n + 1)]
     c = json.loads(json.dumps(k1))
-    for path in VEC_FIELDS:
-        p1, p2 = get(k1, path), get(k2, path)
+    for path in VEC_FIELDS + OPT_FIELDS:
+        if _has(k1, path) and _has(k2, path):
+            p1, p2 = get(k1, path), get(k2, path)
+        else:                                          # an optional control on one side only: take the new key's
+            tgt = c
+            for p in path[:-1]:
+                tgt = tgt[p]
+            tgt[path[-1]] = k2[path[0]].get(path[1])
+            continue
         # a held segment (same value) must stay exactly put: planted feet
         if np.allclose(p1, p2):
             v = p1
         else:
-            v = catmull(get(k0, path), p1, p2, get(k3, path), u)
+            v = catmull(get(k0, path) if _has(k0, path) else p1, p1, p2, get(k3, path) if _has(k3, path) else p2, u)
         tgt = c
         for p in path[:-1]:
             tgt = tgt[p]
@@ -444,6 +479,11 @@ def interp(keys, t):
     for s in ("fR", "fL"):
         for f in ("yaw", "pitch"):
             c[s][f] = k1[s][f] * (1 - u) + k2[s][f] * u
+        # a foot moving to a new spot steps: it lifts through an arc instead of sliding over the floor
+        a1, a2 = np.array(k1[s]["ankle"], float), np.array(k2[s]["ankle"], float)
+        d = math.hypot(a2[0] - a1[0], a2[2] - a1[2])
+        if d > 0.04:
+            c[s]["ankle"][1] += min(0.18, 0.35 * d) * math.sin(math.pi * u)
     return c
 
 

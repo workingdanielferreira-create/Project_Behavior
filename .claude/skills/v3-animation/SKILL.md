@@ -35,7 +35,12 @@ already settled are in the character's `<name>.anim3d.json` `notes`. Hooded Blad
 - `hips` `pos` (offset from rest hips; y < 0 = knees bend) and `rot` [yaw, pitch, roll] (yaw + = turn left,
   pitch + = lean forward, roll + = tip to the right).
 - `spine` [yaw, pitch, roll] spread 25 / 35 / 40 % over Spine / Spine1 / Spine2; `head` over Neck / Head.
-- `R` / `L` arm: `hand` target, `pole` (where the elbow points), `blade` direction, optional `roll`, `swivel`.
+- `R` / `L` arm: `reach` = hand offset from its shoulder (0.55 m = arm straight; preferred over `hand`, it rides the
+  torso), `elbow` = direction the elbow points from the shoulder (preferred over `pole`), `blade` direction, optional
+  `roll`, `swivel`. Legs: `knee` = direction the knee points from the hip (preferred over `pole`).
+- `hips.rot` / `spine` / `head`: the body TURNS first, then LEANS toward the target (+Z). Daniel's drawings lean
+  55-65 deg with the head carried forward on the same line; keep the head pitch small (-10..-25) or the figure
+  reads upright.
   Clip `"arm_space": "chest"` (use it): hand / pole / blade are given as if the chest were at rest, so the arms
   ride with the torso; body-space arms get left behind when the torso snaps.
 - `fR` / `fL`: `ankle` target, `pole` (knee), `yaw`, `pitch` (+ = toes down). Same ankle value on two keys =
@@ -45,6 +50,20 @@ already settled are in the character's `<name>.anim3d.json` `notes`. Hooded Blad
 
 Rest numbers (ual_swordsman, 1.83 m): hips 0.917, shoulders y 1.44 x +-0.19, arm 0.27 + 0.27, leg 0.40 + 0.43,
 ankle y 0.104 x +-0.09, blade ~1.0 m out of the thumb side of the fist (perpendicular to the forearm).
+
+## Key poses as stills FIRST (Daniel 2026-11-22, after a rejected clip)
+
+Never show or merge a clip whose key poses Daniel hasn't seen. For each 2D key frame: render the 3D pose LARGE
+from the side (same view as the 2D frame: camera on -X, fighter facing screen right) and a three-quarter view,
+placed beside the 2D frame, and correct it until the silhouette matches: torso angle, head line, hand height and
+distance from the face, blade lines, stance width, which leg is straight. Common misses: hands jammed against the
+face (reach too short / too high), torso upright (lean too small, head pitched back), blades through the head
+(angle them out over the shoulder), crouched / cowering when the drawing stands taller. Read the drawings, not
+`anchors`: some frames' joint data doesn't match the image. Then retime the keys onto the 2D frame times (frame
+index x frame_ms) and render the motion beside the 2D frames at the same times before shipping.
+
+The solver helps: feet never go under the floor (ground contact), a foot that moves between keys steps through an
+arc, planted feet stay put. An audit pass is necessary, never sufficient.
 
 ## How a move is built (the order matters)
 
