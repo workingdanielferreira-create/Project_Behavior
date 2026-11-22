@@ -162,6 +162,10 @@ clips are now authored as key poses, one by one, and replace the 2D-guessed ones
 
 ## Rig Forge 3D
 
+**Collapsible menu (Daniel 2026-11-22).** Every section of the menu on the right folds on its title (▾); Collapse all
+/ Expand all; **Hide menu** (top bar, or M) gives the 3D view the whole width. Folds and the hidden menu are remembered
+(localStorage); by default Library, Weapons, Reference images, Joint limits, Model placement and View start folded.
+
 **From the original Rig Forge (Daniel 2026-11-22), part 1.** **Actions** panel (replaces the Clip dropdown): every
 action with its length and key count; Name + Rename; **Length (ms) + Set length** = how long the move plays in the game:
 the clip and its key poses are retimed (`S.data.len`, undo-able) and on Save the FX file's `timing[action].frame_ms` =
