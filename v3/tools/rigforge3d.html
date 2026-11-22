@@ -3418,9 +3418,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
 
   /* ---------------------------------------------------------------- collapsible menu (Daniel 2026-11-22) */
   (function () {
-    var KEY = "pbRf3dFolded", DEF = {"h-lim": 1, "h-place": 1, "h-view": 1, "h-wpn": 1, "h-lib": 1, "h-ref": 1};
+    /* every section starts collapsed to its header (Daniel 2026-11-22); a click on a header opens / closes it */
+    var KEY = "pbRf3dFolded2";
     var st; try { st = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { st = null; }
-    st = st || DEF;
+    st = st || {};
     function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
     var secs = Array.prototype.slice.call(document.querySelectorAll(".side > section"));
     function set(sec, folded) {
@@ -3431,7 +3432,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var h = sec.querySelector("h2"); if (!h) return;
       h.classList.add("fold"); h.tabIndex = 0; h.setAttribute("role", "button");
       h.title = "Click to fold / unfold";
-      set(sec, !!st[h.id]);
+      set(sec, st[h.id] !== 0);                               /* unknown = collapsed */
       h.onclick = function () { set(sec, !sec.classList.contains("folded")); save(); };
       h.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); h.onclick(); } };
     });
