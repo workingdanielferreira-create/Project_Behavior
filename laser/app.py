@@ -24,6 +24,8 @@ from . import hitfx, strikefx
 from . import dmgnum
 from . import battlestats
 from . import guard
+from . import parry
+from . import lift
 from . import worldfx
 from . import terrain
 from . import speedband
@@ -1177,6 +1179,9 @@ class World:
                     # Ally support (laser/guard.py): a typed defend keeps
                     # only part of the knockback.
                     kb *= guard.kb_mult(ef, self)
+                    # Parry (laser/parry.py): a perfect parry takes all
+                    # the knockback, a normal one part of it.
+                    kb *= parry.kb_mult(ef, self)
                 if kb > 0 and not resisted:
                     # A new hit restarts the slide for its full distance.
                     spd = kb * (1.0 - config.BOUNCE_FRICTION)
@@ -1669,6 +1674,14 @@ class Overlay(QWidget):
         except Exception as e:
             action_log.crash("speedband", e)
         _perf.lap("speedband")
+        # Parry flash timers + speed lift / gravity (laser/parry.py,
+        # laser/lift.py): every fighter, after both sides moved.
+        try:
+            parry.step(w)
+            lift.step(w)
+        except Exception as e:
+            action_log.crash("parry/lift", e)
+        _perf.lap("parry/lift")
         # Destructible terrain (laser/terrain.py, Dust & Air "Rock pillars" /
         # "Rubble & boulders"): pillars block / repel fighters and stop
         # projectiles like the screen walls do; once per tick after BOTH
