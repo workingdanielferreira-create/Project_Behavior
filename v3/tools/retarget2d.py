@@ -102,10 +102,11 @@ class Writer:
         return len(self.views) - 1
 
     def copy(self, j, b, ai, target=None):
-        if ai in self.done:                 # an accessor shared by several samplers / primitives is copied once
-            return self.done[ai]
-        self.done[ai] = self._copy(j, b, ai, target)
-        return self.done[ai]
+        key = (id(j), ai)                   # per source file: two files' accessor numbers must never collide
+        if key in self.done:                # an accessor shared by several samplers / primitives is copied once
+            return self.done[key]
+        self.done[key] = self._copy(j, b, ai, target)
+        return self.done[key]
 
     def _copy(self, j, b, ai, target=None):
         a = dict(j["accessors"][ai])
