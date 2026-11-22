@@ -1,12 +1,15 @@
 """2D joint tracks -> 3D clips on the V3 test body (v3/RIG_SPEC.md rig), no Blender needed.
 
-    python v3/tools/retarget2d.py puck ronin_copy hooded_blades Sueko   (default: all four)
+    python v3/tools/retarget2d.py [names ...] [--body path/to/body.glb]   (default: every character in ALL)
 
 Reads characters/<name>/character.json: every action's frames, frame_ms and per-frame joint anchors
 (hip, chest, neck, head, shL/shR, elL/elR, haL/haR, hpL/hpR, knL/knR, ftL/ftR, wtip; image px, the
-figure faces right, R = near side, L = far side). Writes characters/<name>/<name>.glb = the shared body
-characters/ual_swordsman/ual_swordsman.glb with one clip per action (clip name = action name, 30 fps
-style linear keys, one key per 2D frame), so V3 plays the character's own moves on the 3D body.
+figure faces right, R = near side, L = far side). Writes characters/<name>/<name>.glb = the body's SKELETON
+(no mesh) + one clip per action (clip name = action name, one linear key per 2D frame), plus scene extras
+pb_body {body, weapons {R, L}}. V3 and Rig Forge 3D put those clips on the shared body (ual_swordsman.glb, a
+placeholder: the clips are bone-named and V3 retargets them onto whatever RIG_SPEC body is loaded; --body re-solves
+them exactly on a new body). The shared body gets Weapon_L / WeaponTip_L + a blade_L mesh once (hidden unless a
+character holds a second blade).
 
 How a 2D pose becomes 3D (Daniel 2026-11-22: "infer depth"):
 - 2D x = forward (+Z), 2D -y = up (+Y); the viewer's side is the near (right) side of the body (-X).
@@ -23,9 +26,9 @@ How a 2D pose becomes 3D (Daniel 2026-11-22: "infer depth"):
 - Hips height follows the 2D hip point above the ground line, scaled by leg length; forward, the hips keep
   their 2D spot over the feet (relative to idle), so clips stay in place (RIG_SPEC 4) and the sim does the travel.
 - Fingers: a closed grip (from the body's sword clip) on both hands.
-- Clips without a 2D source (hit reactions, K.O., dodges, air, jump ...) are kept from the body; the
-  body's other attack / special / ultimate / locomotion clips are dropped so the character's own clips
-  are used through the rig_spec fallbacks (e.g. attack_normal_3 -> attack_normal, sprint -> run).
+- Clips without a 2D source (hit reactions, K.O., dodges, air, jump ...) come from the body at run time; V3 ignores
+  the body's other attack / special / ultimate / locomotion clips for these characters so their own clips are used
+  through the rig_spec fallbacks (e.g. attack_normal_3 -> attack_normal, sprint -> run).
 """
 import json
 import math
@@ -86,6 +89,7 @@ class Writer:
     def __init__(self):
         self.bin = bytearray()
         self.views, self.accs = [], []
+        self.done = {}
 
     def _view(self, data, target=None):
         while len(self.bin) % 4:
@@ -98,6 +102,12 @@ class Writer:
         return len(self.views) - 1
 
     def copy(self, j, b, ai, target=None):
+        if ai in self.done:                 # an accessor shared by several samplers / primitives is copied once
+            return self.done[ai]
+        self.done[ai] = self._copy(j, b, ai, target)
+        return self.done[ai]
+
+    def _copy(self, j, b, ai, target=None):
         a = dict(j["accessors"][ai])
         a.pop("byteOffset", None)
         a["bufferView"] = self._view(acc_bytes(j, b, ai), target)
@@ -488,11 +498,11 @@ def add_left_blade(j, b):
     return j, b
 
 
-def build(name):
-    j, b = read_glb(BODY)
+def build(name, body=None):
+    j, b = read_glb(body or BODY)
+    if "Weapon_L" not in [n.get("name") for n in j["nodes"]]:
+        j, b = add_left_blade(j, b)          # same skeleton as the shared body (run --body once to add it there)
     src = Source(name)
-    if src.has_weapon2:
-        j, b = add_left_blade(j, b)
     rig = Rig(j, b)
     base_local = grip_pose(rig)
     acts = src.d["actions"]
@@ -512,89 +522,122 @@ def build(name):
     return j, b, rig, src, clips
 
 
-def write(name, j, b, rig, src, clips):
+def pack(j, b, meshes=True, keep_anims=True, new_clips=None, rig=None, extras=None):
+    """glTF json + bin from the body. meshes=False = skeleton only (no mesh / skin / materials);
+    keep_anims = keep the body's own clips; new_clips = {name: (times, poses)} solved on `rig`."""
     out = json.loads(json.dumps(j))
     w = Writer()
-    drop_blade = not src.has_weapon      # (blade_L only exists when the far hand holds one)
-    # meshes / skins kept (the blade mesh goes for characters without a weapon)
-    mesh_map, meshes = {}, []
-    for mi, m in enumerate(j["meshes"]):
-        if drop_blade and m.get("name") == "blade":
-            continue
-        mesh_map[mi] = len(meshes)
-        m = json.loads(json.dumps(m))
-        for p in m["primitives"]:
-            for k, ai in list(p["attributes"].items()):
-                p["attributes"][k] = w.copy(j, b, ai, 34962)
-            if "indices" in p:
-                p["indices"] = w.copy(j, b, p["indices"], 34963)
-            if "targets" in p:
-                p["targets"] = [{k: w.copy(j, b, ai, 34962) for k, ai in t.items()} for t in p["targets"]]
-        meshes.append(m)
-    for n in out["nodes"]:
-        if "mesh" in n:
-            if n["mesh"] in mesh_map:
-                n["mesh"] = mesh_map[n["mesh"]]
-            else:
-                del n["mesh"]
-                n.pop("skin", None)
-    out["meshes"] = meshes
-    for s in out["skins"]:
-        if "inverseBindMatrices" in s:
-            s["inverseBindMatrices"] = w.copy(j, b, s["inverseBindMatrices"])
-    # animations: the body's clips without a 2D source, then the character's own
+    if meshes:
+        out_meshes = []
+        for m in j["meshes"]:
+            m = json.loads(json.dumps(m))
+            for p in m["primitives"]:
+                for k, ai in list(p["attributes"].items()):
+                    p["attributes"][k] = w.copy(j, b, ai, 34962)
+                if "indices" in p:
+                    p["indices"] = w.copy(j, b, p["indices"], 34963)
+                if "targets" in p:
+                    p["targets"] = [{k: w.copy(j, b, ai, 34962) for k, ai in t.items()} for t in p["targets"]]
+            out_meshes.append(m)
+        out["meshes"] = out_meshes
+        for sk in out["skins"]:
+            if "inverseBindMatrices" in sk:
+                sk["inverseBindMatrices"] = w.copy(j, b, sk["inverseBindMatrices"])
+    else:
+        for k in ("meshes", "skins", "materials", "textures", "images", "samplers"):
+            out.pop(k, None)
+        for n in out["nodes"]:
+            n.pop("mesh", None)
+            n.pop("skin", None)
     anims = []
-    for a in j["animations"]:
-        if DROP.match(a["name"]) or a["name"] in clips:
-            continue
-        a = json.loads(json.dumps(a))
-        for s in a["samplers"]:
-            s["input"] = w.copy(j, b, s["input"])
-            s["output"] = w.copy(j, b, s["output"])
-        anims.append(a)
-    hi = rig.i("Hips")
-    for act, (times, poses) in clips.items():
-        t_acc = w.floats(np.array(times).reshape(-1, 1), "SCALAR", minmax=True)
-        samplers, channels = [], []
-        for node in rig.joints:
-            qs, prev = [], None
-            for local, _ in poses:
-                q = m2q(local.get(node, rig.R[node]))
-                if prev is not None and np.dot(q, prev) < 0:
-                    q = -q
-                qs.append(q)
-                prev = q
-            samplers.append({"input": t_acc, "output": w.floats(np.array(qs), "VEC4"), "interpolation": "LINEAR"})
-            channels.append({"sampler": len(samplers) - 1, "target": {"node": node, "path": "rotation"}})
-        samplers.append({"input": t_acc, "output": w.floats(np.array([p[1] for p in poses]), "VEC3"), "interpolation": "LINEAR"})
-        channels.append({"sampler": len(samplers) - 1, "target": {"node": hi, "path": "translation"}})
-        anims.append({"name": act, "samplers": samplers, "channels": channels})
+    if keep_anims:
+        for a in j["animations"]:
+            a = json.loads(json.dumps(a))
+            for sm in a["samplers"]:
+                sm["input"] = w.copy(j, b, sm["input"])
+                sm["output"] = w.copy(j, b, sm["output"])
+            anims.append(a)
+    if new_clips:
+        hi = rig.i("Hips")
+        for act, (times, poses) in new_clips.items():
+            t_acc = w.floats(np.array(times).reshape(-1, 1), "SCALAR", minmax=True)
+            samplers, channels = [], []
+            for node in rig.joints:
+                qs, prev = [], None
+                for local, _ in poses:
+                    q = m2q(local.get(node, rig.R[node]))
+                    if prev is not None and np.dot(q, prev) < 0:
+                        q = -q
+                    qs.append(q)
+                    prev = q
+                samplers.append({"input": t_acc, "output": w.floats(np.array(qs), "VEC4"), "interpolation": "LINEAR"})
+                channels.append({"sampler": len(samplers) - 1, "target": {"node": node, "path": "rotation"}})
+            samplers.append({"input": t_acc, "output": w.floats(np.array([p[1] for p in poses]), "VEC3"),
+                             "interpolation": "LINEAR"})
+            channels.append({"sampler": len(samplers) - 1, "target": {"node": hi, "path": "translation"}})
+            anims.append({"name": act, "samplers": samplers, "channels": channels})
     out["animations"] = anims
     out["accessors"], out["bufferViews"] = w.accs, w.views
     while len(w.bin) % 4:
         w.bin.append(0)
     out["buffers"] = [{"byteLength": len(w.bin)}]
-    out.setdefault("asset", {})["extras"] = {"pb_source": "v3/tools/retarget2d.py from characters/%s/character.json "
-                                             "on the ual_swordsman body (CC0, see characters/ual_swordsman/CREDITS.txt)" % name}
+    if extras:
+        out["scenes"][out.get("scene", 0)].setdefault("extras", {}).update(extras)
+    return out, bytes(w.bin)
+
+
+def save_glb(path, out, bin_):
     js = json.dumps(out, separators=(",", ":")).encode()
     js += b" " * ((4 - len(js) % 4) % 4)
-    total = 12 + 8 + len(js) + 8 + len(w.bin)
-    path = os.path.join(CHARS, name, name + ".glb")
+    total = 12 + 8 + len(js) + 8 + len(bin_)
     with open(path + ".tmp", "wb") as f:
         f.write(struct.pack("<III", 0x46546C67, 2, total))
         f.write(struct.pack("<II", len(js), 0x4E4F534A) + js)
-        f.write(struct.pack("<II", len(w.bin), 0x004E4942) + bytes(w.bin))
+        f.write(struct.pack("<II", len(bin_), 0x004E4942) + bin_)
     os.replace(path + ".tmp", path)
-    own = sorted(clips)
-    print("%s: %s (%d KB) - own clips: %s; weapon: %s" % (name, os.path.relpath(path, ROOT), total // 1024,
-                                                          ", ".join(own), ("two blades" if src.has_weapon2 else "yes") if src.has_weapon else "no (blade removed)"))
+    return total
+
+
+def write(name, j, b, rig, src, clips, body=None):
+    """characters/<name>/<name>.glb = skeleton + the character's own clips only (no mesh). V3 and Rig Forge 3D
+    put them on the shared body; extras pb_body says which body and which blades the character holds."""
+    body_name = os.path.splitext(os.path.basename(body or BODY))[0]
+    meta = {"pb_body": {"body": body_name, "weapons": {"R": bool(src.has_weapon), "L": bool(src.has_weapon2)},
+                        "source": "v3/tools/retarget2d.py from characters/%s/character.json" % name}}
+    out, bin_ = pack(j, b, meshes=False, keep_anims=False, new_clips=clips, rig=rig, extras=meta)
+    path = os.path.join(CHARS, name, name + ".glb")
+    total = save_glb(path, out, bin_)
+    print("%s: %s (%d KB) - clips: %s; weapon: %s" % (name, os.path.relpath(path, ROOT), total // 1024, ", ".join(sorted(clips)),
+                                                     ("two blades" if src.has_weapon2 else "yes") if src.has_weapon else "none"))
     return path
 
 
+def update_body(body=None):
+    """Give the shared body the left blade (Weapon_L / WeaponTip_L + blade_L, hidden unless a character holds one)."""
+    path = body or BODY
+    j, b = read_glb(path)
+    if "Weapon_L" in [n.get("name") for n in j["nodes"]]:
+        print("body: %s already has the left blade" % os.path.relpath(path, ROOT))
+        return
+    j, b = add_left_blade(j, b)
+    total = save_glb(path, *pack(j, b))
+    print("body: %s + left blade (%d KB)" % (os.path.relpath(path, ROOT), total // 1024))
+
+
+ALL = ["puck", "ronin_copy", "hooded_blades", "Sueko", "new_fighter", "pewpew", "puff", "rapid", "sniper",
+       "swordsman_rig", "sync", "thear", "thear_copy", "tough"]
+
+
 def main(argv):
-    names = argv or ["puck", "ronin_copy", "hooded_blades", "Sueko"]
+    body = None
+    if "--body" in argv:                      # --body PATH: solve on another body (the final model, same RIG_SPEC rig)
+        k = argv.index("--body")
+        body = os.path.abspath(argv[k + 1])
+        argv = argv[:k] + argv[k + 2:]
+    update_body(body)
+    names = argv or [n for n in ALL if os.path.exists(os.path.join(CHARS, n, "character.json"))]
     for n in names:
-        write(n, *build(n))
+        write(n, *build(n, body), body=body)
     return 0
 
 

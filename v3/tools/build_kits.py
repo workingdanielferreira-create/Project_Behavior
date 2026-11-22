@@ -14,9 +14,10 @@ Images are not packed.
 
 Bodies: the test body characters/ual_swordsman/ual_swordsman.glb (v3/RIG_SPEC.md
 section 8) is packed as base64 into v3/data/body.gen.js (window.PB3_BODY).
-Every kit wears it, except a kit whose folder holds its own <folder>.glb
-(kit "own_glb": true): that file is packed too (window.PB3_BODIES = {folder: glb})
-and the kit wears it (e.g. puck / ronin_copy, clips from v3/tools/retarget2d.py).
+Every kit wears it. A kit whose folder holds its own <folder>.glb (kit "own_glb":
+true; skeleton + that character's clips from v3/tools/retarget2d.py, no mesh) has
+that file packed too (window.PB3_BODIES = {folder: glb}); V3 retargets its clips
+onto the shared body (js/retarget.js).
 
 Usage:  python v3/tools/build_kits.py   (paths are found from this file)
 """
