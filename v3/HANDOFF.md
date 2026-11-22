@@ -119,6 +119,9 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
    [{id, name, at (pivot / "a:<anchor>" / added bone end), len, rest [deg]}] exported as plain nodes with a
    rotation track in every clip; `attach` {Weapon_R: {bone, pos, quat, home}} = weapon on another bone /
    custom grip, its tracks become that grip + keys.
+   Then (same day): Character dropdown above Clip, filled from a picked `characters` folder (recursive .glb
+   scan, folder handle remembered in IndexedDB, one-click Reconnect), and afterimages / onion skin (0-5 frames
+   before red / after green, step, wrap; per-ghost model clone + own mixer; stencil keeps the current pose clean).
    **Next:** V3 swaps its stand-in body for the .glb (sim actions / timing drive the clips, anchors +
    placement from `pb_rig3d`).
 4. Later: 3D FX styles in FX Studio.
