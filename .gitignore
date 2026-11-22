@@ -27,3 +27,4 @@ gpu_test_result.txt
 characters/live_view.json
 v3/.window-profile/
 v3/data/kits.gen.js
+v3/data/body.gen.js

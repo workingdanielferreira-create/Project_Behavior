@@ -1,6 +1,8 @@
 'use strict';
-/* Fighter rigs and models: buildBody makes each character's toon / ink body, accessories, weapon pivot, shadow, guard bubble and aura. */
-function buildBody(k,key){const root=new THREE.Group();const g=new THREE.Group();root.add(g);const mat=toon(k.col);
+/* Fighter rigs and models: buildBody makes each character's toon / ink body (the shared .glb body from glbody.js when loaded, else a stand-in), accessories, weapon pivot, shadow, guard bubble and aura. */
+function buildBody(k,key){const root=new THREE.Group();const g=new THREE.Group();root.add(g);
+  if(useGlb(k))return finishBody(k,root,g,glbBuild(k,g));
+  const mat=toon(k.col);
   const body=inked(new THREE.CylinderGeometry(.22,.3,.9,8),mat);body.position.y=.95;g.add(body);
   const head=inked(new THREE.SphereGeometry(.2,12,8),toon(0xf0d6c2));head.position.y=1.58;g.add(head);
   if(key==='blades'){const h=inked(new THREE.ConeGeometry(.27,.42,10),toon(k.acc));h.position.y=1.76;g.add(h);}
@@ -15,8 +17,11 @@ function buildBody(k,key){const root=new THREE.Group();const g=new THREE.Group()
   const wp=new THREE.Group();wp.position.set(.28,1.05,0);g.add(wp);
   const w=key==='sueko'?inked(new THREE.SphereGeometry(.13,8,6),toon(0xf0d6c2)):key==='gunner'?inked(new THREE.BoxGeometry(.1,.12,.5),toon(0x3a4466)):key==='tough'?inked(new THREE.SphereGeometry(.17,8,6),toon(k.acc)):new THREE.Mesh(new THREE.BoxGeometry(.04,.04,key==='ronin'?1.3:1.0),new THREE.MeshBasicMaterial({color:0xe8f4ff}));
   w.position.z=key==='gunner'?.25:(key==='tough'||key==='sueko')?.2:.5;wp.add(w);
+  return finishBody(k,root,g,null,{mat,body,legs,wp});}
+/* shadow, guard bubble, aura, altitude line: the same for stand-in and .glb bodies */
+function finishBody(k,root,g,glb,parts){if(glb)parts={mat:glb.mat,body:glb.model,legs:[new THREE.Object3D(),new THREE.Object3D()],wp:new THREE.Group()};
   const sh=new THREE.Mesh(new THREE.CircleGeometry(.45,18),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.42,depthWrite:false}));sh.rotation.x=-Math.PI/2;
   const guard=new THREE.Mesh(new THREE.SphereGeometry(.9,16,10),add(k.fx,.2));guard.position.y=1;guard.visible=false;g.add(guard);
   const aura=new THREE.Group();for(let i=0;i<7;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(.16,.9,6,1,true),add(0xffd24a,.4));const a=i/7*TAU;c.position.set(Math.cos(a)*.34,1.05,Math.sin(a)*.34);aura.add(c);}aura.visible=false;g.add(aura);
   const aline=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,1,6),new THREE.MeshBasicMaterial({color:k.fx,transparent:true,opacity:.35,depthWrite:false}));scene.add(aline);
-  scene.add(root);scene.add(sh);return {aline,g:root,pose:g,body,legs,wp,sh,mat,guard,aura};}
+  scene.add(root);scene.add(sh);return {aline,g:root,pose:g,body:parts.body,legs:parts.legs,wp:parts.wp,sh,mat:parts.mat,guard,aura,glb};}

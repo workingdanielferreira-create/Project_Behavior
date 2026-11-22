@@ -98,7 +98,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
   if(t.hp<=0)ko(t);return true;}
-function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.snap=null;if(f.act)endAct(f);}
+function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.stunId=(f.stunId||0)+1;f.snap=null;if(f.act)endAct(f);}
 function perfect(t,a){slowmo=ms2t(320);stats.perfect++;callout('PERFECT SNAP','Dodged on the frame · counter ready','#ffc857',.7);flash(.25);t.tp.mom=1;t.gapUntil=0;stun(a,300,'stag');a.lastWhiff=true;director.cnt++;}
 function ko(f){f.ko=true;camEvent('ko');if(f.act)endAct(f);director.ko++;const s=sides[f.side];stats.kos[f.side]++;
   callout('K.O.',f.k.name,'#ff3b55',.9);fx_dome(f.x,f.y,0xffffff,5);flash(.3);shake=1;slowmo=ms2t(400);

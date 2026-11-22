@@ -69,7 +69,7 @@ function setPace(pct){settings.pace=pct;pace=pct/100;saveSettings();}
 
 /* ================= boot ================= */
 level=settings.level;camMode=settings.cam;pace=settings.pace/100;applyQuality();
-newGame();Menu.show('title',true);requestAnimationFrame(frame);
+loadGlbBody(()=>{newGame();Menu.show('title',true);requestAnimationFrame(frame);});   // the .glb body parses async
 // Debug hook (console): __pt.s for a live snapshot.
 const ish={};setInterval(()=>{if(!running||paused||ended)return;const [a,b]=onField();[a,b].forEach(f=>{const k=f.k.short+':'+f.tp.intent;ish[k]=(ish[k]||0)+1;});},50);
 window.__pt={ish,cam:v=>setCam(v),get s(){const [a,b]=onField();return {tick,z:[Math.round(a.z),Math.round(b.z)],ended,hp:[a.hp,b.hp],on:[a.k.short,b.k.short],intent:[a.tp.intent,b.tp.intent],dir:director.phase,I:director.I.toFixed(2),stats,feel:$('feel').innerText};},level:v=>setLevel(v),pace:v=>{pace=v;}};
