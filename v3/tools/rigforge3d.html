@@ -839,7 +839,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
        pivot  -> pulls the body (Daniel's chain picture: a joint carries everything below it down its chain):
                  hand / arm pivots bend forearm, upper arm and (a little) the collarbone; foot / leg pivots bend
                  shin and thigh; neck / head pivots bend down the neck and spine (not the pelvis); fingers their
-                 finger; added bones their own chain; Hips moves the whole body.  Keys go on the current frame.
+                 finger; added bones their own chain.  Hips moves the body through the hierarchy while both hands and
+                 both feet stay planted (arms / legs re-bend with a two-bone solver, like the 2D Rig Forge);
+                 Shift + drag the hips moves everything, nothing planted.  Keys go on the current frame.
      Runs in the capture phase on window, so the camera orbit and the gizmos never see that press. */
   var HOLD_MS = 250, HOLD = {kind: null, id: null, x: 0, y: 0, timer: 0, dragging: false, before: null, plane: new THREE.Plane(), grab: null};
   var ray = new THREE.Raycaster();
@@ -881,37 +883,102 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var w = new THREE.Vector3(); pointOf(HOLD.kind, HOLD.id, w);
     HOLD.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), w);
     var hit = screenRay(HOLD.x, HOLD.y); HOLD.grab = hit ? w.clone().sub(hit) : new THREE.Vector3();   /* grab point = where you pressed */
+    HOLD.plant = null;
+    if (HOLD.kind !== "anchor" && HOLD.id === "Hips" && !HOLD.shift) {     /* pelvis drag: plant hands + feet (Shift = no plant) */
+      HOLD.plant = {};
+      Object.keys(LIMBS).forEach(function (n) {
+        if (!S.bones[n] || !LIMBS[n].every(function (k) { return S.bones[k]; })) return;
+        HOLD.plant[n] = {p: S.bones[n].getWorldPosition(new THREE.Vector3()), q: S.bones[n].getWorldQuaternion(new THREE.Quaternion())};
+      });
+    }
     canvas.style.cursor = "grabbing";
     expandTo(HOLD.kind === "anchor" ? S.data.anchors[HOLD.id].bone : HOLD.id);
     buildTree(); buildCard(); updatePivotOut();
   }
   var qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), va = new THREE.Vector3(), vb = new THREE.Vector3(), vp = new THREE.Vector3();
+  /* limbs for the two-bone solver (like the 2D Rig Forge's LIMB / solveIK): end pivot -> [upper, lower] */
+  var LIMBS = {LeftHand: ["LeftArm", "LeftForeArm"], RightHand: ["RightArm", "RightForeArm"],
+               LeftFoot: ["LeftUpLeg", "LeftLeg"], RightFoot: ["RightUpLeg", "RightLeg"]};
+  /* turn bone b (world) so its direction `from` points along `to` */
+  function turnWorld(b, from, to, weight) {
+    if (from.lengthSq() < 1e-12 || to.lengthSq() < 1e-12) return;
+    qa.setFromUnitVectors(from.clone().normalize(), to.clone().normalize());
+    if (weight != null && weight < 1) qa.slerp(I, 1 - weight);
+    b.getWorldQuaternion(qb); qb.premultiply(qa);
+    b.parent.getWorldQuaternion(qa); b.quaternion.copy(qa.invert().multiply(qb)).normalize();
+    b.updateMatrixWorld(true);
+  }
+  function setWorldQuat(b, q) { b.parent.getWorldQuaternion(qa); b.quaternion.copy(qa.invert().multiply(q)).normalize(); b.updateMatrixWorld(true); }
+  /* two-bone IK in 3D: put `endName`'s pivot on target, keeping the elbow / knee bending the way it already does */
+  function solveLimb(endName, target, keepQuat) {
+    var up = S.bones[LIMBS[endName][0]], lo = S.bones[LIMBS[endName][1]], end = S.bones[endName];
+    var A = up.getWorldPosition(new THREE.Vector3()), B = lo.getWorldPosition(new THREE.Vector3()), C = end.getWorldPosition(new THREE.Vector3());
+    var L1 = B.distanceTo(A), L2 = C.distanceTo(B), toT = target.clone().sub(A), d = toT.length();
+    if (L1 < 1e-6 || L2 < 1e-6 || d < 1e-6) return;
+    var dir = toT.clone().normalize();
+    var pole = B.clone().sub(A), ac = C.clone().sub(A).normalize();
+    pole.sub(ac.multiplyScalar(pole.dot(ac)));                  /* current bend direction */
+    pole.sub(dir.clone().multiplyScalar(pole.dot(dir)));
+    if (pole.lengthSq() < 1e-10) pole = dir.clone().cross(new THREE.Vector3(0, 1, 0)).cross(dir);
+    if (pole.lengthSq() < 1e-10) pole.set(1, 0, 0);
+    pole.normalize();
+    var dd = Math.min(Math.max(d, Math.abs(L1 - L2) + 1e-4), L1 + L2 - 1e-4);
+    var cosA = Math.min(1, Math.max(-1, (L1 * L1 + dd * dd - L2 * L2) / (2 * L1 * dd)));
+    var B2 = A.clone().add(dir.clone().multiplyScalar(L1 * cosA)).add(pole.clone().multiplyScalar(L1 * Math.sqrt(1 - cosA * cosA)));
+    var C2 = A.clone().add(dir.clone().multiplyScalar(dd));
+    turnWorld(up, B.clone().sub(A), B2.clone().sub(A));
+    B = lo.getWorldPosition(new THREE.Vector3()); C = end.getWorldPosition(new THREE.Vector3());
+    turnWorld(lo, C.clone().sub(B), C2.clone().sub(B));
+    if (keepQuat) setWorldQuat(end, keepQuat);
+  }
+  function keyRot(names) {
+    names.forEach(function (n) {
+      var base = baseRot(S.clip, n, S.frame, new THREE.Quaternion());
+      setKey(keysOf(S.clip, n, "rot", true), S.frame, {q: base.invert().multiply(S.bones[n].quaternion).normalize().toArray()});
+    });
+  }
   function pullTo(name, target) {
     var eff = S.bones[name];
-    if (name === "Hips") {                                     /* the whole body follows */
+    if (name === "Hips") {                                     /* the whole body follows through the hierarchy */
       var cur = eff.getWorldPosition(new THREE.Vector3()), local = eff.parent.worldToLocal(target.clone()), now = eff.parent.worldToLocal(cur);
       eff.position.add(local.sub(now)); eff.updateMatrixWorld(true);
       var bp = basePos(S.clip, "Hips", S.frame, new THREE.Vector3());
       setKey(keysOf(S.clip, "Hips", "pos", true), S.frame, {v: eff.position.clone().sub(bp).toArray()});
+      if (HOLD.plant) {                                        /* hands and feet stay where they were */
+        var keyed = [];
+        Object.keys(HOLD.plant).forEach(function (endName) {
+          var pl = HOLD.plant[endName];
+          solveLimb(endName, pl.p, pl.q);
+          keyed.push(LIMBS[endName][0], LIMBS[endName][1], endName);
+        });
+        keyRot(keyed);
+      }
+      return;
+    }
+    if (LIMBS[name]) {
+      var keyedL = [];
+      if (/Hand$/.test(name)) {                                /* over-reach: the collarbone helps a little */
+        var up = S.bones[LIMBS[name][0]], lo = S.bones[LIMBS[name][1]], sh = up.parent;
+        var A = up.getWorldPosition(new THREE.Vector3()), reach = lo.getWorldPosition(new THREE.Vector3()).distanceTo(A) +
+          eff.getWorldPosition(new THREE.Vector3()).distanceTo(lo.getWorldPosition(new THREE.Vector3()));
+        if (sh && /Shoulder$/.test(sh.name) && target.distanceTo(A) > reach * 0.98) {
+          var P = sh.getWorldPosition(new THREE.Vector3());
+          turnWorld(sh, A.clone().sub(P), target.clone().sub(P), 0.3); keyedL.push(sh.name);
+        }
+      }
+      solveLimb(name, target, null);
+      keyRot(keyedL.concat(LIMBS[name]));
       return;
     }
     var chain = chainFor(name); if (!chain.length) return;
     for (var it = 0; it < 12; it++) {
       chain.forEach(function (c) {
         var b = S.bones[c[0]];
-        b.getWorldPosition(vp); eff.getWorldPosition(va); va.sub(vp); vb.copy(target).sub(vp);
-        if (va.lengthSq() < 1e-10 || vb.lengthSq() < 1e-10) return;
-        qa.setFromUnitVectors(va.normalize(), vb.normalize());
-        qa.slerp(I, 1 - c[1]);                                    /* lighter bones turn less */
-        b.getWorldQuaternion(qb); qb.premultiply(qa);
-        b.parent.getWorldQuaternion(qa); b.quaternion.copy(qa.invert().multiply(qb)).normalize();
-        b.updateMatrixWorld(true);
+        b.getWorldPosition(vp); eff.getWorldPosition(va); vb.copy(target);
+        turnWorld(b, va.sub(vp), vb.sub(vp), c[1]);
       });
     }
-    chain.forEach(function (c) {
-      var base = baseRot(S.clip, c[0], S.frame, new THREE.Quaternion());
-      setKey(keysOf(S.clip, c[0], "rot", true), S.frame, {q: base.invert().multiply(S.bones[c[0]].quaternion).normalize().toArray()});
-    });
+    keyRot(chain.map(function (c) { return c[0]; }));
   }
   function holdDragTo(e) {
     var hit = screenRay(e.clientX, e.clientY); if (!hit) return;
@@ -925,7 +992,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     /* a wheel / arrow under the cursor wins, except right on a dot (the free-turn sphere covers the selected dot) */
     if ((tc.axis || tcRot.axis) && !(hit.d < 7 && /^(XYZE|XYZ|E)$/.test(String(tc.axis || tcRot.axis)))) return;
     e.stopImmediatePropagation(); e.preventDefault();
-    HOLD.kind = hit.kind; HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false;
+    HOLD.kind = hit.kind; HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false; HOLD.shift = e.shiftKey;
     clearTimeout(HOLD.timer); HOLD.timer = setTimeout(startHoldDrag, HOLD_MS);
   }, true);
   window.addEventListener("pointermove", function (e) {
@@ -940,6 +1007,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (!HOLD.id) return;
     clearTimeout(HOLD.timer);
     var id = HOLD.id, kind = HOLD.kind, dragged = HOLD.dragging, before = HOLD.before;
+    HOLD.lastShift = HOLD.shift; HOLD.plant = null;
     HOLD.id = null; HOLD.kind = null; HOLD.dragging = false; HOLD.before = null; canvas.style.cursor = "";
     e.stopImmediatePropagation();
     if (!dragged) { select(kind, id); return; }              /* quick click: the wheels */
@@ -947,7 +1015,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (kind === "anchor") { commitAnchorDrag(before); status("Moved anchor " + id + ". Click it for the arrows and rings."); return; }
     if (before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
     rebake(S.clip, true); buildTree(); buildCard(); syncGizmo();
-    status("Pulled " + label(id) + " on f" + S.frame + ". Click it for its rings.");
+    status((id === "Hips" ? (HOLD.lastShift ? "Moved the whole body" : "Moved the hips, hands and feet kept in place") : "Pulled " + label(id)) + " on f" + S.frame + ". Click it for its rings.");
   }, true);
   /* open the tree down to a bone */
   function expandTo(n) { var b = S.bones[n]; while (b) { if (S.collapsed[b.name]) S.collapsed[b.name] = 0; b = b.parent; } }
