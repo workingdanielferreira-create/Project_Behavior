@@ -247,6 +247,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     <section aria-labelledby="h-tw">
       <h2 id="h-tw">Tween</h2>
       <div class="readout" id="twOut">Go to a key pose (click a card in the filmstrip).</div>
+      <div class="row"><label class="readout"><input type="checkbox" id="twOn" checked> Tween to the next key pose</label></div>
       <div class="row"><label for="twSteps">In-betweens</label><input type="number" id="twSteps" min="0" max="60" step="1" value="0"><span class="readout">0 = smooth</span></div>
       <div class="row"><label for="twHold">Hold</label><input type="number" id="twHold" min="0" max="600" step="1" value="0"><span class="readout">frames still first</span></div>
       <div class="row"><label for="twEase">Easing</label><select id="twEase" class="grow">
@@ -254,6 +255,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <option value="in">◀ Ease in</option><option value="out">▶ Ease out</option><option value="snap">➤ Snap</option>
         <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option></select></div>
       <div class="row"><label>Apply to</label><span class="readout">key poses</span><input type="number" id="twFrom" min="1" step="1" value="1" aria-label="From key pose"><span class="readout">to</span><input type="number" id="twTo" min="1" step="1" value="1" aria-label="To key pose"><button id="twRange">Apply</button><button id="twAll">All</button></div>
+      <div class="row"><button id="twOffRange" class="danger" title="Remove the tween on key poses From-To (the numbers above)">Remove tween</button><button id="twOnRange" title="Put the tween back on key poses From-To">Restore</button><button id="twOffAll" class="danger">Remove all</button><button id="twOnAll">Restore all</button></div>
+      <p class="note"><b>Tween to the next key pose</b> off = no tween: the key pose stays still, then the pose cuts straight to the next key pose (the same as Easing ■ Hold, and the game plays it that way). <b>Remove tween</b> / <b>Restore</b> do that for key poses From-To, <b>Remove all</b> / <b>Restore all</b> for every key pose. Restore brings back each pivot's easing from before; in-betweens and hold stay as they were.</p>
       <p class="note">Settings of the tween from this key pose to the next. <b>In-betweens</b>: how many in-between poses it shows on the way (0 = every frame, smooth; 1-3 = choppy anime timing, the pose jumps). <b>Hold</b>: frames the key pose stays still before it moves. <b>Apply to</b> copies this key pose's tween to a range of key poses (numbers as on the cards).</p>
     </section>
 
@@ -1971,7 +1974,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function setEase(names, f, e) {
     names.forEach(function (n) {
       var ed = (S.data.edits[S.clip] || {})[n]; if (!ed) return;
-      ["rot", "pos"].forEach(function (k) { (ed[k] || []).forEach(function (x) { if (x.f === f) { if (e === "smooth") delete x.e; else x.e = e; } }); });
+      ["rot", "pos"].forEach(function (k) { (ed[k] || []).forEach(function (x) { if (x.f === f) { delete x.pe; if (e === "smooth") delete x.e; else x.e = e; } }); });
     });
   }
   /* key what is shown on this frame (the blended pose) for these pivots */
@@ -2704,7 +2707,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   /* ---------------------------------------------------------------- key poses: filmstrip + tools (Daniel 2026-11-22) */
   var FILM = {sig: "", due: 0, frame: -1, r: null, cam: new THREE.PerspectiveCamera(30, 1, 0.05, 60)};
   var EASE_TXT = {smooth: "◆ smooth", linear: "● linear", inout: "◇ in-out", "in": "◀ in", out: "▶ out", snap: "➤ snap",
-                  hold: "■ hold", back: "✦ over", mixed: "mixed"};
+                  hold: "■ no tween", back: "✦ over", mixed: "mixed"};
   function mk(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
   function poseFrames() { return S.clip && S.clips[S.clip] ? rowFrames("*") : []; }
   function filmRenderer() {
@@ -2999,15 +3002,62 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var ed = (S.data.edits[S.clip] || {})[n]; if (!ed) return;
       ["rot", "pos"].forEach(function (kind) { (ed[kind] || []).forEach(function (x) {
         if (x.f !== f) return;
-        if (tw.e != null) { if (tw.e === "smooth") delete x.e; else x.e = tw.e; }
+        if (tw.e != null) { delete x.pe; if (tw.e === "smooth") delete x.e; else x.e = tw.e; }
         if (tw.st != null) { if (tw.st) x.st = tw.st; else delete x.st; }
         if (tw.h != null) { if (tw.h) x.h = tw.h; else delete x.h; }
       }); });
     });
   }
+  /* remove tween (2D Rig Forge's "In-between from this keyframe" off): every pivot keyed on f gets ease "hold" = still,
+     then a cut to the next key pose (v3/js/keytween.js + keyreduce.py already play hold that way). The pivot's own
+     ease is kept on the key as pe, so turning the tween back on restores it; picking an ease drops pe. */
+  function keysOnFrame(f, fn) {
+    framesOnFrame(f).forEach(function (n) {
+      var ed = (S.data.edits[S.clip] || {})[n]; if (!ed) return;
+      ["rot", "pos"].forEach(function (kind) { (ed[kind] || []).forEach(function (x) { if (x.f === f) fn(x); }); });
+    });
+  }
+  function tweenState(f) {                                 /* "on" | "off" | "some" (pivots disagree) */
+    var on = 0, off = 0; keysOnFrame(f, function (x) { if (x.e === "hold") off++; else on++; });
+    return off && on ? "some" : (off ? "off" : "on");
+  }
+  function setTweenOn(f, on) {
+    keysOnFrame(f, function (x) {
+      if (!on) {
+        if (x.e === "hold") return;
+        if (x.e) x.pe = x.e; else delete x.pe;
+        x.e = "hold";
+      } else if (x.e === "hold") {
+        var p = x.pe; delete x.pe;
+        if (p && p !== "smooth" && p !== "hold") x.e = p; else delete x.e;
+      }
+    });
+  }
+  function twOnOff(on, from, to) {
+    var keys = poseFrames(); if (!keys.length) return;
+    from = Math.max(1, Math.min(keys.length, from)); to = Math.max(1, Math.min(keys.length, to));
+    if (from > to) { var t = from; from = to; to = t; }
+    pushUndo();
+    for (var i = from - 1; i <= to - 1; i++) setTweenOn(keys[i], on);
+    afterKeys((on ? "Tween restored on" : "Tween removed from") + " key poses " + from + "-" + to +
+      (on ? "." : ": each stays still, then cuts to the next key pose."));
+  }
+  $("twOn").onchange = function () {
+    var f = S.frame, keys = poseFrames(), i = keys.indexOf(f); if (i < 0) return;
+    pushUndo(); setTweenOn(f, this.checked);
+    afterKeys(this.checked ? "Tween from key pose " + (i + 1) + " restored." : "Tween from key pose " + (i + 1) + " removed: it stays still, then cuts to the next key pose.");
+  };
+  $("twOffRange").onclick = function () { twOnOff(false, +$("twFrom").value, +$("twTo").value); };
+  $("twOnRange").onclick = function () { twOnOff(true, +$("twFrom").value, +$("twTo").value); };
+  $("twOffAll").onclick = function () { twOnOff(false, 1, poseFrames().length); };
+  $("twOnAll").onclick = function () { twOnOff(true, 1, poseFrames().length); };
   function syncTween() {
     var f = S.frame, keys = poseFrames(), i = keys.indexOf(f), tw = i >= 0 ? tweenOf(f) : null;
     ["twSteps", "twHold", "twEase", "twFrom", "twTo", "twRange", "twAll"].forEach(function (id) { $(id).disabled = !tw; });
+    ["twOffRange", "twOnRange", "twOffAll", "twOnAll"].forEach(function (id) { $(id).disabled = !keys.length; });
+    var ts = tw ? tweenState(f) : "on";
+    $("twOn").disabled = !tw || i === keys.length - 1;
+    $("twOn").checked = ts !== "off"; $("twOn").indeterminate = ts === "some";
     $("twOut").textContent = tw ? "Key pose " + (i + 1) + " of " + keys.length + " (f" + f + ")" + (i < keys.length - 1 ? " → key pose " + (i + 2) + " (f" + keys[i + 1] + ", " + (keys[i + 1] - f) + " frames)" : " · the last key pose") :
       "Go to a key pose (click a card in the filmstrip).";
     if (!tw) return;
