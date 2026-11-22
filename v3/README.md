@@ -84,8 +84,17 @@ self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
   move arrows (**Move**, `T`). Each change sets a key on that frame (◆ on the timeline); frames in between
   blend, and **Blend out** sets how far a key fades before the first / after the last key (all the way
   right = the whole clip). **Local / World** (`L`) picks the ring axes.
-- **FX anchors.** Select an anchor (dot or list) and drag its arrows. **Add on pivot** adds your own anchor
-  on the selected pivot. Anchor spots are per character, not per frame.
+- **Skeleton tree.** Every bone in its hierarchy (Hips > Spine > …), with each bone's anchors (◆) and added
+  bones (✚) under it; hands start collapsed. Click a row (or a dot on the model) to select it; its card opens
+  under the tree.
+- **FX anchors** (card): **Sits on** any bone, **Along bone** 0–100 % (pivot to end), typed X / Y / Z offset
+  on top (or drag the arrows), **Snap to** start / middle / end / ground. **+ Anchor here** on any bone card adds
+  your own. Anchor spots are per character, not per frame.
+- **Added bones** (the 2D Rig Forge's added lines): **+ Bone** from a pivot, an anchor or another added bone's
+  end; name, **Starts at**, length, rest angle X / Y / Z; posed per keyframe with the rings. Removing one also
+  removes what hangs off it (click Remove twice).
+- **Weapon attach** (Weapon_R / Weapon_L card): **Attach to** any bone; the weapon keeps its spot at rest and
+  follows that bone. **Edit grip spot** makes the rings / arrows set where it sits on that bone in every clip.
 - **Model placement.** Size, height and facing of the whole model.
 - **Save into .glb** (Ctrl+S) writes straight back into the file you opened (Edge; other browsers download a
   copy). The keys are baked into the clips, and the key list, anchors and placement are stored in the file's

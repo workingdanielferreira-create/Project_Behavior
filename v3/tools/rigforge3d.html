@@ -11,7 +11,7 @@
 :root {
   --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
   --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c;
-  --key: #e0a21b;
+  --key: #e0a21b; --anchor: #0e8fae; --added: #c4621a;
   --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
@@ -20,15 +20,15 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
   --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --key: #ffc04a;
-  color-scheme: dark } }
+  --anchor: #3de0ff; --added: #ff9a55; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
   --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --key: #ffc04a;
-  color-scheme: dark }
+  --anchor: #3de0ff; --added: #ff9a55; color-scheme: dark }
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; }
-.app { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+.app { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 360px;
   grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding-block: 12px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 @media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); } }
@@ -67,19 +67,27 @@ body { background: var(--bg); color: var(--fg); font-family: var(--body); font-s
 section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex;
   flex-direction: column; gap: 9px; }
 h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
-button, select, input[type=text] { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line);
-  border-radius: 6px; padding: 5px 8px; }
+h3 { margin: 0; font-family: var(--display); font-size: 15px; overflow-wrap: anywhere; }
+h3 small { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+button, select, input[type=text], input[type=number] { font: inherit; color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+input[type=number] { width: 72px; font-family: var(--mono); font-size: 12px; padding: 4px 6px; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: .45; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button.danger { color: var(--warn); }
+button.danger.arm { background: var(--warn); border-color: var(--warn); color: var(--panel); }
 button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible, .tree [role=treeitem]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 select { min-width: 0; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.row > label { flex: 0 0 82px; color: var(--muted); font-size: 12px; }
+.row > label { flex: 0 0 86px; color: var(--muted); font-size: 12px; }
 .row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
 .row output { font-family: var(--mono); font-size: 12px; width: 58px; text-align: right; font-variant-numeric: tabular-nums; }
+.xyz { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.xyz input { flex: 1 1 0; width: 0; min-width: 0; }
+.xyz input:nth-child(1) { border-color: #d8343f88; } .xyz input:nth-child(2) { border-color: #2c9a3c88; } .xyz input:nth-child(3) { border-color: #2f5fe088; }
 .grow { flex: 1; min-width: 0; }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; margin-left: -1px; }
@@ -88,14 +96,24 @@ select { min-width: 0; }
 .readout { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .readout b { color: var(--fg); font-weight: 500; }
 .axx { color: #d8343f; } .axy { color: #2c9a3c; } .axz { color: #2f5fe0; }
-.list { display: flex; flex-direction: column; gap: 4px; max-height: 210px; overflow: auto; }
-.list button { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
-.list small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .check input { accent-color: var(--accent); }
 .note { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
 kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+/* skeleton tree */
+.tree { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 0;
+  font-family: var(--mono); font-size: 12px; }
+.tree [role=treeitem] { display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 0; cursor: pointer; white-space: nowrap; }
+.tree [role=treeitem]:hover { background: var(--accent-soft); }
+.tree [role=treeitem][aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.tree .tw { width: 14px; flex: 0 0 14px; text-align: center; color: var(--muted); }
+.tree .ico { width: 10px; flex: 0 0 10px; text-align: center; }
+.tree .k-bone .ico { color: var(--muted); } .tree .k-end { color: var(--muted); }
+.tree .k-anchor .ico, .tree .k-anchor { color: var(--anchor); }
+.tree .k-x .ico, .tree .k-x { color: var(--added); }
+.tree .tag { margin-left: auto; padding-left: 8px; font-size: 10px; color: var(--key); }
+.card { display: flex; flex-direction: column; gap: 9px; }
 </style>
 </head>
 <body>
@@ -139,31 +157,26 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
     </section>
 
-    <section aria-labelledby="h-pivot">
-      <h2 id="h-pivot">Pivot</h2>
-      <div class="row"><select id="pivot" class="grow" aria-label="Pivot"></select></div>
+    <section aria-labelledby="h-skel">
+      <h2 id="h-skel">Skeleton</h2>
+      <div class="tree" id="tree" role="tree" aria-label="Skeleton hierarchy"></div>
+      <p class="note">▪ bone · <span style="color:var(--anchor)">◆ anchor</span> · <span style="color:var(--added)">✚ added bone</span> · <span style="color:var(--key)">keys</span> = this clip has keys on it.</p>
+      <div class="card" id="card"><p class="note">Select a bone, anchor or added bone, in the tree or on the model.</p></div>
+    </section>
+
+    <section aria-labelledby="h-pose">
+      <h2 id="h-pose">Pose keys</h2>
       <div class="row">
         <span class="seg"><button id="mRot" aria-pressed="true" title="R">Rotate</button><button id="mMove" aria-pressed="false" title="T">Move</button></span>
         <span class="seg"><button id="sLocal" aria-pressed="true" title="L">Local</button><button id="sWorld" aria-pressed="false" title="L">World</button></span>
       </div>
-      <div class="readout" id="pivotOut">Click a pivot dot on the model.</div>
+      <div class="readout" id="pivotOut">Nothing selected.</div>
       <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="61" step="1" value="8"><output id="spreadOut">8 f</output></div>
       <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
       <div class="row">
         <button id="delKey" disabled>Delete key here</button>
         <button id="clearPivot" disabled>Clear pivot in clip</button>
       </div>
-    </section>
-
-    <section aria-labelledby="h-anch">
-      <h2 id="h-anch">FX anchors</h2>
-      <div class="list" id="anchorList"></div>
-      <div class="row">
-        <input type="text" id="newName" class="grow" placeholder="new anchor id, e.g. sheath" aria-label="New anchor id">
-        <button id="addAnchor">Add on pivot</button>
-      </div>
-      <div class="row"><button id="resetAnchor" disabled>Reset anchor</button><button id="delAnchor" disabled>Remove anchor</button></div>
-      <p class="note">Select an anchor, then drag its arrows. New anchors sit on the selected pivot. Anchor spots are the same in every clip and frame.</p>
     </section>
 
     <section aria-labelledby="h-place">
@@ -183,7 +196,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <label class="check"><input type="checkbox" id="vNames"> Names</label>
         <label class="check"><input type="checkbox" id="vBones"> Skeleton</label>
       </div>
-      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd></p>
+      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> save</p>
     </section>
   </div>
 </div>
@@ -194,26 +207,46 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 <script src="../lib/OrbitControls.js"></script>
 <script src="../lib/TransformControls.js"></script>
 <script>
-/* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig), lets you pose pivots per keyframe with
-   X/Y/Z rotation rings (hips also move), move / add FX anchors and set the model's placement, and saves it all
-   back INTO the .glb:
-     - pose keys are baked into the clips, and the key list is kept in the file's scene extras
-       (pb_rig3d.edits) so reopening the file un-bakes them and you can keep editing;
-     - anchors (bone + offset in that bone's space) and placement go in pb_rig3d.anchors / pb_rig3d.placement. */
+/* Rig Forge 3D (V3).  Opens a character .glb (v3/RIG_SPEC.md rig) and saves everything back INTO it, in the
+   scene extras pb_rig3d (version 2):
+     edits    {clip: {bone: {rot: [{f, q}], pos: [{f, v}]}}}  pose keys; q = local change after the base rotation.
+              Baked into the clips on save, un-baked on open.
+     fade     frames a key's change blends out before the first / after the last key (61 = whole clip).
+     anchors  {id: {bone, t, side: [x, y, z], ground?, custom?}}  t = 0..1 from the bone's pivot to its end,
+              side = offset on top, in that bone's space (m).  (v1 files stored off = [x, y, z].)
+     xbones   [{id, name, at, len, rest: [x, y, z] deg}]  added bones (2D "added lines").  at = a pivot (bone
+              name), "a:<anchor id>" or another added bone's id (= its end).  Rest 0 = straight on along the
+              bone it rides on.  Exported as plain nodes, with a rotation track in every clip.
+     attach   {Weapon_R: {bone, pos, quat, home: {bone, pos, quat}}}  weapon grip moved onto another bone (or a
+              custom grip spot); its clip tracks become that spot + its keys.
+     placement {scale, height, yaw}  whole-model placement in the game. */
 (function () {
   "use strict";
   var FPS = 30, WHOLE = 61;
   var $ = function (id) { return document.getElementById(id); };
   var css = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); };
 
-  /* built-in anchors (v3/rig_spec.json "anchors.map") */
-  var ANCHOR_SPEC = {root: ["Hips", "ground"], hip: ["Hips", "head"], chest: ["Spine2", "mid"], neck: ["Neck", "head"],
-    head: ["Head", "mid"], shL: ["LeftArm", "head"], shR: ["RightArm", "head"], shB: ["Spine2", "tail"],
-    elL: ["LeftForeArm", "head"], elR: ["RightForeArm", "head"], haL: ["LeftHand", "head"], haR: ["RightHand", "head"],
-    hpL: ["LeftUpLeg", "head"], hpR: ["RightUpLeg", "head"], knL: ["LeftLeg", "head"], knR: ["RightLeg", "head"],
-    ftL: ["LeftFoot", "head"], ftR: ["RightFoot", "head"], wtip: ["WeaponTip_R", "head"], wtip2: ["WeaponTip_L", "head"]};
-  var TAIL_CHILD = {Spine2: "Neck", Head: "HeadTop_End"};
-  var MOVABLE = {Hips: 1};                                   /* pivots that also get move arrows */
+  /* built-in anchors (v3/rig_spec.json "anchors.map"): [bone, t] (t: 0 = pivot, 0.5 = middle, 1 = end) */
+  var ANCHOR_SPEC = {root: ["Hips", 0, true], hip: ["Hips", 0], chest: ["Spine2", 0.5], neck: ["Neck", 0],
+    head: ["Head", 0.5], shL: ["LeftArm", 0], shR: ["RightArm", 0], shB: ["Spine2", 1],
+    elL: ["LeftForeArm", 0], elR: ["RightForeArm", 0], haL: ["LeftHand", 0], haR: ["RightHand", 0],
+    hpL: ["LeftUpLeg", 0], hpR: ["RightUpLeg", 0], knL: ["LeftLeg", 0], knR: ["RightLeg", 0],
+    ftL: ["LeftFoot", 0], ftR: ["RightFoot", 0], wtip: ["WeaponTip_R", 0], wtip2: ["WeaponTip_L", 0]};
+  /* which child marks a bone's end */
+  function tailChildName(n) {
+    var m = {Hips: "Spine", Spine: "Spine1", Spine1: "Spine2", Spine2: "Neck", Neck: "Head", Head: "HeadTop_End",
+      Weapon_R: "WeaponTip_R", Weapon_L: "WeaponTip_L"};
+    if (m[n]) return m[n];
+    var s = n.match(/^(Left|Right)(Shoulder|Arm|ForeArm|Hand|UpLeg|Leg|Foot|ToeBase)$/);
+    if (s) return s[1] + {Shoulder: "Arm", Arm: "ForeArm", ForeArm: "Hand", Hand: "HandMiddle1", UpLeg: "Leg", Leg: "Foot",
+      Foot: "ToeBase", ToeBase: "Toe_End"}[s[2]];
+    var f = n.match(/^(.*Hand(?:Thumb|Index|Middle|Ring|Pinky))([1-3])$/);
+    if (f) return f[1] + (+f[2] + 1);
+    return null;
+  }
+  var WEAPONS = ["Weapon_R", "Weapon_L"];
+  function movable(n) { return n === "Hips" || WEAPONS.indexOf(n) >= 0; }
 
   /* ---------------------------------------------------------------- three.js scene */
   var canvas = $("view"), over = $("over"), octx = over.getContext("2d");
@@ -239,13 +272,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   var grad = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 185, 185, 185, 255, 230, 230, 230, 255]), 3, 1, THREE.RGBAFormat);
   grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
 
-  /* gizmo: three's TransformControls (red / green / blue rings, grey free ring, outer view ring, yellow on hover)
-     plus the backdrop discs and the white axis line of the reference */
+  /* gizmo: three's TransformControls + the reference's backdrop discs and white axis line */
   var tc = new THREE.TransformControls(camera, canvas);
   tc.setSize(0.9); scene.add(tc);
   tc.traverse(function (o) {
     o.renderOrder = 1000;
-    if (o.name === "E" && o.material && o.material.isLineBasicMaterial) {     /* outer view ring: bright yellow, like the reference */
+    if (o.name === "E" && o.material && o.material.isLineBasicMaterial) {     /* outer view ring: bright yellow */
       o.material.color.set(0xffd84a); o.material.opacity = 1; o.material._opacity = 1; o.material._color = o.material.color.clone();
     }
   });
@@ -260,13 +292,17 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   var anchorProxy = new THREE.Object3D(); scene.add(anchorProxy);
 
   /* ---------------------------------------------------------------- state */
+  function freshData() {
+    return {version: 2, fade: 8, edits: {}, anchors: {}, xbones: [], attach: {}, placement: {scale: 1, height: 0, yaw: 0}};
+  }
   var S = {
     root: null, fileHandle: null, fileName: "", baseClips: {}, clips: {}, order: [], clip: null,
     mixer: null, action: null, frame: 0, playing: false, speed: 1,
     bones: {}, pivots: [], skinned: [], outlines: [], toonMats: [], origMats: [], helper: null,
-    sel: null, selAnchor: null, mode: "rotate", space: "local",
-    data: {version: 1, fade: 8, edits: {}, anchors: {}, placement: {scale: 1, height: 0, yaw: 0}},
-    undo: [], redo: [], dirty: false
+    home: {}, bindWorld: {}, collapsed: {},
+    sel: null, selKind: null,             /* selKind: "bone" | "anchor" | "x" */
+    mode: "rotate", space: "local", grip: false,
+    data: freshData(), undo: [], redo: [], dirty: false
   };
 
   function status(msg, warn) { var s = $("status"); s.textContent = msg; s.className = warn ? "warn" : ""; }
@@ -274,6 +310,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   function pushUndo() { S.undo.push(snap()); if (S.undo.length > 200) S.undo.shift(); S.redo = []; markDirty(); }
   function markDirty() { S.dirty = true; $("save").disabled = !S.root; uiUndo(); }
   function uiUndo() { $("undo").disabled = !S.undo.length; $("redo").disabled = !S.redo.length; }
+  function isX(n) { return S.data.xbones.some(function (x) { return x.id === n; }); }
+  function xDef(n) { var r = null; S.data.xbones.forEach(function (x) { if (x.id === n) r = x; }); return r; }
+  function label(n) { var x = xDef(n); return x ? (x.name || x.id) : n; }
 
   /* ---------------------------------------------------------------- maths: pose keys */
   var I = new THREE.Quaternion();
@@ -284,10 +323,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var b = c[bone] || (make ? (c[bone] = {}) : null); if (!b) return [];
     return b[kind] || (make ? (b[kind] = []) : []);
   }
-  /* weight curve between keys; fade = frames to blend out before the first / after the last key */
   function blendAt(keys, f, fade) {
     if (!keys.length) return null;
-    var i, a, b, u;
+    var i, a, b;
     if (f <= keys[0].f) {
       a = keys[0]; var w = fade >= WHOLE ? 1 : (fade <= 0 ? (f === a.f ? 1 : 0) : Math.max(0, 1 - (a.f - f) / fade));
       return {a: null, b: a, u: smooth(w)};
@@ -297,8 +335,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       return {a: null, b: a, u: smooth(w2)};
     }
     for (i = 0; i < keys.length - 1; i++) if (f >= keys[i].f && f <= keys[i + 1].f) { a = keys[i]; b = keys[i + 1]; break; }
-    u = (f - a.f) / Math.max(1, b.f - a.f);
-    return {a: a, b: b, u: smooth(u)};
+    return {a: a, b: b, u: smooth((f - a.f) / Math.max(1, b.f - a.f))};
   }
   function rotDelta(keys, f, out) {
     var r = blendAt(keys, f, S.data.fade); out.copy(I); if (!r) return out;
@@ -311,10 +348,30 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     return out.copy(va).lerp(vb, r.u);
   }
   function findTrack(clip, name) { for (var i = 0; i < clip.tracks.length; i++) if (clip.tracks[i].name === name) return clip.tracks[i]; return null; }
+  function clipTimes(clip) {
+    var t = findTrack(clip, "Hips.quaternion") || clip.tracks[0];
+    if (t) return Array.prototype.slice.call(t.times);
+    var n = frameCount(clip), out = []; for (var i = 0; i <= n; i++) out.push(i / FPS); return out;
+  }
 
-  /* base clip + edits -> baked clip (sign = +1 bake, -1 un-bake) */
+  /* base clip + structure + edits -> baked clip (sign = +1 bake, -1 un-bake: keys only) */
   function applyEdits(src, clipName, sign) {
     var clip = src.clone(), ed = S.data.edits[clipName] || {}, q = new THREE.Quaternion(), d = new THREE.Quaternion(), v = new THREE.Vector3();
+    if (sign > 0) {
+      var times = clipTimes(clip);
+      /* weapons on another bone / custom grip: their tracks become the grip spot */
+      Object.keys(S.data.attach).forEach(function (w) {
+        var at = S.data.attach[w];
+        clip.tracks = clip.tracks.filter(function (t) { return t.name !== w + ".quaternion" && t.name !== w + ".position"; });
+        clip.tracks.push(constTrack(THREE.QuaternionKeyframeTrack, w + ".quaternion", times, at.quat));
+        clip.tracks.push(constTrack(THREE.VectorKeyframeTrack, w + ".position", times, at.pos));
+      });
+      /* added bones: a rotation track at their rest in every clip */
+      S.data.xbones.forEach(function (x) {
+        clip.tracks = clip.tracks.filter(function (t) { return t.name !== x.id + ".quaternion"; });
+        clip.tracks.push(constTrack(THREE.QuaternionKeyframeTrack, x.id + ".quaternion", times, xRestQ(x).toArray()));
+      });
+    }
     Object.keys(ed).forEach(function (bone) {
       var rk = ed[bone].rot || [], pk = ed[bone].pos || [];
       var tq = findTrack(clip, bone + ".quaternion"), tp = findTrack(clip, bone + ".position");
@@ -329,15 +386,147 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     });
     return clip;
   }
+  function constTrack(Type, name, times, val) {
+    var vals = new Float32Array(times.length * val.length);
+    for (var i = 0; i < times.length; i++) for (var k = 0; k < val.length; k++) vals[i * val.length + k] = val[k];
+    return new Type(name, times.slice(), vals);
+  }
+  /* the value a bone has with no keys, on frame f of a clip */
   function baseRot(clipName, bone, f, out) {
+    var x = xDef(bone); if (x) return out.copy(xRestQ(x));
+    if (S.data.attach[bone]) return out.fromArray(S.data.attach[bone].quat);
     var t = findTrack(S.baseClips[clipName], bone + ".quaternion");
     if (!t) return out.copy(S.bones[bone].userData.restQ);
-    var r = t.createInterpolant().evaluate(f / FPS); return out.fromArray(r);
+    return out.fromArray(t.createInterpolant().evaluate(f / FPS));
   }
   function basePos(clipName, bone, f, out) {
+    if (S.data.attach[bone]) return out.fromArray(S.data.attach[bone].pos);
     var t = findTrack(S.baseClips[clipName], bone + ".position");
     if (!t) return out.copy(S.bones[bone].userData.restP);
-    var r = t.createInterpolant().evaluate(f / FPS); return out.fromArray(r);
+    return out.fromArray(t.createInterpolant().evaluate(f / FPS));
+  }
+
+  /* ---------------------------------------------------------------- structure: anchors, added bones, attach */
+  function tailLocal(n, out) {
+    out.set(0, 0, 0);
+    var x = xDef(n); if (x) return out.set(0, x.len, 0);
+    var b = S.bones[n]; if (!b) return out;
+    var cn = tailChildName(n), c = cn && S.bones[cn] && S.bones[cn].parent === b ? S.bones[cn] : null;
+    if (!c) c = b.children.filter(function (o) { return S.bones[o.name] && !isX(o.name) && WEAPONS.indexOf(o.name) < 0; })[0];
+    if (c) out.copy(c.userData.restP || c.position);
+    return out;
+  }
+  function anchorLocal(id, out) {
+    var a = S.data.anchors[id]; tailLocal(a.bone, out).multiplyScalar(a.t || 0);
+    return out.add(new THREE.Vector3().fromArray(a.side || [0, 0, 0]));
+  }
+  function anchorWorld(id, out) {
+    var a = S.data.anchors[id], b = a && S.bones[a.bone]; if (!b) return false;
+    anchorLocal(id, out); b.localToWorld(out);
+    if (a.ground) out.y = place.position.y;
+    return true;
+  }
+  function xRestQ(x) {
+    var D = Math.PI / 180, r = x.rest || [0, 0, 0];
+    return new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0] * D, r[1] * D, r[2] * D, "XYZ"));
+  }
+  /* where an added bone starts: [riding bone name, start point in that bone's space] */
+  function xStart(x) {
+    if (/^a:/.test(x.at)) {
+      var id = x.at.slice(2), a = S.data.anchors[id];
+      if (!a) return null;
+      return [a.bone, anchorLocal(id, new THREE.Vector3())];
+    }
+    var px = xDef(x.at); if (px) return [px.id, new THREE.Vector3(0, px.len, 0)];
+    if (S.bones[x.at]) return [x.at, new THREE.Vector3()];
+    return null;
+  }
+  /* everything that hangs off an added bone / anchor (itself included) */
+  function descendants(kind, id) {
+    var xs = {}, an = {};
+    if (kind === "x") xs[id] = 1; else an[id] = 1;
+    var grow = true;
+    while (grow) {
+      grow = false;
+      S.data.xbones.forEach(function (x) {
+        if (xs[x.id]) return;
+        var hit = xs[x.at] || (/^a:/.test(x.at) && an[x.at.slice(2)]);
+        if (hit) { xs[x.id] = 1; grow = true; }
+      });
+      Object.keys(S.data.anchors).forEach(function (k) { if (!an[k] && xs[S.data.anchors[k].bone]) { an[k] = 1; grow = true; } });
+    }
+    return {xs: xs, an: an};
+  }
+  /* rebuild added-bone nodes and weapon parents from S.data */
+  function syncStructure() {
+    if (!S.root) return;
+    var keepSel = S.sel;
+    tc.detach();
+    Object.keys(S.bones).forEach(function (n) {
+      var b = S.bones[n]; if (!b.userData.xbone) return;
+      if (b.parent) b.parent.remove(b); delete S.bones[n];
+    });
+    /* weapons: home / attach parent and grip */
+    WEAPONS.forEach(function (w) {
+      var b = S.bones[w]; if (!b) return;
+      var at = S.data.attach[w], home = (at && at.home) || S.home[w];
+      if (!home) return;
+      var want = at ? at.bone : home.bone, par = S.bones[want];
+      if (par && b.parent !== par) { b.parent.remove(b); par.add(b); }
+      var pos = at ? at.pos : home.pos, quat = at ? at.quat : home.quat;
+      b.userData.restP = new THREE.Vector3().fromArray(pos); b.userData.restQ = new THREE.Quaternion().fromArray(quat);
+      b.position.copy(b.userData.restP); b.quaternion.copy(b.userData.restQ);
+    });
+    /* added bones, parents first (reuse a node of that name from the file if there is one) */
+    var left = S.data.xbones.slice(), guard = 0;
+    while (left.length && guard++ < 999) {
+      var x = left.shift(), st = xStart(x);
+      if (!st) { if (S.bones[x.at] === undefined && !xDef(x.at) && !/^a:/.test(x.at)) continue; left.push(x); continue; }
+      if (!S.bones[st[0]]) { left.push(x); continue; }
+      var o = S.root.getObjectByName(x.id); if (o && (o.isBone || o.isMesh)) o = null;
+      if (!o) { o = new THREE.Object3D(); o.name = x.id; }
+      if (o.parent) o.parent.remove(o);
+      S.bones[st[0]].add(o);
+      o.userData.xbone = true; o.userData.restP = st[1].clone(); o.userData.restQ = xRestQ(x);
+      o.position.copy(st[1]); o.quaternion.copy(o.userData.restQ);
+      S.bones[x.id] = o;
+    }
+    S.pivots = Object.keys(S.bones).filter(function (n) {
+      return !/_End$/.test(n) && !/^WeaponTip_/.test(n) && !/Hand(Thumb|Index|Middle|Ring|Pinky)4$/.test(n);
+    });
+    if (keepSel && !S.bones[keepSel] && S.selKind !== "anchor") { S.sel = null; S.selKind = null; }
+    if (S.selKind === "anchor" && !S.data.anchors[S.sel]) { S.sel = null; S.selKind = null; }
+  }
+  /* keep added-bone start points on their anchors while things move (no rebuild) */
+  function layoutX() {
+    S.data.xbones.forEach(function (x) {
+      var o = S.bones[x.id], st = xStart(x); if (!o || !st) return;
+      o.userData.restP = st[1].clone(); o.position.copy(st[1]);
+    });
+  }
+  /* bind-pose world matrices (from the skin) for attaching a weapon so it keeps its spot at rest */
+  function bindWorldOf(name) {
+    if (S.bindWorld[name]) return S.bindWorld[name];
+    var r = null;
+    S.skinned.some(function (m) {
+      var i = m.skeleton.bones.indexOf(S.bones[name]); if (i < 0) return false;
+      r = m.skeleton.boneInverses[i].clone().invert(); return true;
+    });
+    if (r) S.bindWorld[name] = r;
+    return r;
+  }
+  function setAttach(w, boneName) {
+    var home = (S.data.attach[w] && S.data.attach[w].home) || S.home[w];
+    pushUndo();
+    if (boneName === home.bone) delete S.data.attach[w];
+    else {
+      var pw = bindWorldOf(boneName), ww = bindWorldOf(w);
+      var pos = new THREE.Vector3(), quat = new THREE.Quaternion(), sc = new THREE.Vector3();
+      if (pw && ww) pw.clone().invert().multiply(ww).decompose(pos, quat, sc);
+      S.data.attach[w] = {bone: boneName, pos: pos.toArray(), quat: quat.toArray(), home: home};
+    }
+    rebuildAll();
+    status(w + (boneName === home.bone ? " back on " + home.bone : " now rides on " + boneName));
   }
 
   /* ---------------------------------------------------------------- playback */
@@ -348,6 +537,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     S.clips[name] = clip;
     if (name === S.clip) setClip(name, keepFrame ? S.frame : 0);
   }
+  function rebuildAll() {
+    syncStructure();
+    S.order.forEach(function (n) { rebake(n, true); });
+    buildTree(); buildCard(); syncGizmo(); updatePivotOut();
+  }
   function setClip(name, frame) {
     if (!S.mixer) return;
     S.mixer.stopAllAction();
@@ -356,7 +550,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     a.setLoop(THREE.LoopRepeat); a.enabled = true; a.setEffectiveWeight(1); a.play();
     S.action = a;
     setFrame(frame || 0);
-    buildFrames();
+    buildFrames(); buildTree();
   }
   function setFrame(f) {
     if (!S.action) return;
@@ -384,7 +578,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     S.outlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
     if (S.helper) scene.remove(S.helper);
     S.skinned = []; S.outlines = []; S.toonMats = []; S.origMats = []; S.bones = {}; S.pivots = [];
-    S.baseClips = {}; S.clips = {}; S.order = []; S.sel = null; S.selAnchor = null; S.undo = []; S.redo = [];
+    S.baseClips = {}; S.clips = {}; S.order = []; S.sel = null; S.selKind = null; S.undo = []; S.redo = [];
+    S.home = {}; S.bindWorld = {};
   }
   function onLoaded(gltf, name, handle) {
     clearModel();
@@ -392,12 +587,18 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     place.add(root);
     var ext = (gltf.scene.userData && gltf.scene.userData.pb_rig3d) ||
               (gltf.parser && gltf.parser.json.scenes && gltf.parser.json.scenes[0] && (gltf.parser.json.scenes[0].extras || {}).pb_rig3d);
-    S.data = {version: 1, fade: 8, edits: {}, anchors: {}, placement: {scale: 1, height: 0, yaw: 0}};
+    S.data = freshData();
     if (ext) {
       S.data.fade = ext.fade != null ? ext.fade : 8;
       S.data.edits = ext.edits || {}; S.data.anchors = ext.anchors || {};
+      S.data.xbones = ext.xbones || []; S.data.attach = ext.attach || {};
       S.data.placement = Object.assign(S.data.placement, ext.placement || {});
+      /* v1 anchors stored off only */
+      Object.keys(S.data.anchors).forEach(function (k) {
+        var a = S.data.anchors[k]; if (a.t == null) { a.t = 0; a.side = a.off || [0, 0, 0]; delete a.off; }
+      });
     }
+    var xnames = {}; S.data.xbones.forEach(function (x) { xnames[x.id] = 1; });
     root.traverse(function (o) {
       if (o.isBone) {
         S.bones[o.name] = o;
@@ -425,48 +626,50 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         out.userData.isOutline = true; o.parent.add(out); S.outlines.push(out);
       }
     });
+    WEAPONS.forEach(function (w) {
+      var b = S.bones[w]; if (!b) return;
+      S.home[w] = (S.data.attach[w] && S.data.attach[w].home) ||
+        {bone: b.parent.name, pos: b.position.toArray(), quat: b.quaternion.toArray()};
+    });
     setToon($("vToon").checked);
     S.helper = new THREE.SkeletonHelper(root); S.helper.visible = $("vBones").checked; scene.add(S.helper);
-    /* pivots: every bone except end / tip bones */
-    S.pivots = Object.keys(S.bones).filter(function (n) {
-      return !/_End$/.test(n) && !/^WeaponTip_/.test(n) && !/Hand(Thumb|Index|Middle|Ring|Pinky)4$/.test(n);
-    });
-    /* clips: what is in the file is BAKED (base + edits): un-bake to get the base back */
+    /* clips: what is in the file is BAKED (base + keys): un-bake the keys; added-bone tracks are rebuilt on bake */
     S.mixer = new THREE.AnimationMixer(root);
     var pref = ["idle", "run", "walk", "sprint", "attack_normal", "attack_special", "ultimate", "defend", "dodge", "hit_light", "ko"];
     gltf.animations.forEach(function (c) {
-      S.baseClips[c.name] = S.data.edits[c.name] ? applyEdits(c, c.name, -1) : c.clone();
-      S.baseClips[c.name].name = c.name;
+      var base = S.data.edits[c.name] ? applyEdits(c, c.name, -1) : c.clone();
+      base.tracks = base.tracks.filter(function (t) { return !xnames[t.name.split(".")[0]]; });
+      base.name = c.name; S.baseClips[c.name] = base;
     });
     S.order = Object.keys(S.baseClips).sort(function (a, b) {
       var ia = pref.indexOf(a), ib = pref.indexOf(b); ia = ia < 0 ? 99 : ia; ib = ib < 0 ? 99 : ib; return ia - ib || (a < b ? -1 : 1);
     });
-    S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
-    /* anchors: file's, else the spec defaults */
     initAnchors();
-    $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + n + '">' + n + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
-    buildPivotSelect(); buildAnchorList(); placementToUi(); applyPlacement();
+    syncStructure();
+    S.order.forEach(function (n) { S.clips[n] = applyEdits(S.baseClips[n], n, 1); S.clips[n].name = n; });
+    $("clip").innerHTML = S.order.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + " · " + frameCount(S.baseClips[n]) + "f</option>"; }).join("");
+    S.collapsed = {LeftHand: 1, RightHand: 1};
+    placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
     $("drop").hidden = true; $("fileName").textContent = name + (S.fileHandle ? "" : " (no folder access: Save downloads a copy)");
     $("save").disabled = false; S.dirty = false; uiUndo();
     setPlaying(false);
     setClip(S.order.indexOf("idle") >= 0 ? "idle" : S.order[0], 0);
+    buildCard();
     status("Opened " + name + (ext ? " (with saved edits)" : ""));
   }
   function initAnchors() {
     var A = S.data.anchors;
     Object.keys(ANCHOR_SPEC).forEach(function (id) {
       if (A[id]) return;
-      var spec = ANCHOR_SPEC[id], bone = S.bones[spec[0]];
-      if (!bone) { if (id === "wtip" && S.bones.RightHandMiddle4) A[id] = {bone: "RightHandMiddle4", off: [0, 0, 0]};
-                   else if (id === "wtip2" && S.bones.LeftHandMiddle4) A[id] = {bone: "LeftHandMiddle4", off: [0, 0, 0]};
-                   return; }
-      var off = [0, 0, 0];
-      if (spec[1] === "mid" || spec[1] === "tail") {
-        var ch = S.bones[TAIL_CHILD[spec[0]]] || bone.children.filter(function (c) { return c.isBone; })[0];
-        if (ch) { var k = spec[1] === "mid" ? 0.5 : 1; off = [ch.position.x * k, ch.position.y * k, ch.position.z * k]; }
+      var spec = ANCHOR_SPEC[id];
+      if (!S.bones[spec[0]]) {
+        if (id === "wtip" && S.bones.RightHandMiddle4) A[id] = {bone: "RightHandMiddle4", t: 0, side: [0, 0, 0]};
+        else if (id === "wtip2" && S.bones.LeftHandMiddle4) A[id] = {bone: "LeftHandMiddle4", t: 0, side: [0, 0, 0]};
+        return;
       }
-      A[id] = {bone: spec[0], off: off, ground: spec[1] === "ground" || undefined};
+      A[id] = {bone: spec[0], t: spec[1], side: [0, 0, 0]};
+      if (spec[2]) A[id].ground = true;
     });
   }
 
@@ -487,21 +690,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
 
   /* ---------------------------------------------------------------- selection + gizmo */
-  function buildPivotSelect() {
-    $("pivot").innerHTML = '<option value="">— none —</option>' + S.pivots.map(function (n) { return '<option value="' + n + '">' + n + "</option>"; }).join("");
-  }
-  function selectPivot(name) {
-    S.selAnchor = null; S.sel = name || null; $("pivot").value = name || "";
-    if (S.sel && !MOVABLE[S.sel] && S.mode === "translate") setMode("rotate");
-    $("mMove").disabled = !!S.sel && !MOVABLE[S.sel];
+  function select(kind, id) {
+    S.selKind = id ? kind : null; S.sel = id || null; S.grip = false;
+    if (S.sel && S.selKind !== "anchor" && !movable(S.sel) && S.mode === "translate") setMode("rotate");
     if (S.playing) setPlaying(false);
-    syncGizmo(); buildFrames(); updatePivotOut(); buildAnchorList();
-  }
-  function selectAnchor(id) {
-    S.sel = null; S.selAnchor = id || null; $("pivot").value = "";
-    $("mMove").disabled = false;
-    if (S.playing) setPlaying(false);
-    syncGizmo(); buildFrames(); updatePivotOut(); buildAnchorList();
+    syncGizmo(); buildFrames(); updatePivotOut(); buildTree(); buildCard();
+    var row = $("tree").querySelector('[aria-selected="true"]'); if (row && row.scrollIntoView) row.scrollIntoView({block: "nearest"});
   }
   function setMode(m) {
     S.mode = m; $("mRot").setAttribute("aria-pressed", String(m === "rotate")); $("mMove").setAttribute("aria-pressed", String(m === "translate"));
@@ -511,23 +705,19 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     S.space = s; $("sLocal").setAttribute("aria-pressed", String(s === "local")); $("sWorld").setAttribute("aria-pressed", String(s === "world"));
     tc.setSpace(s);
   }
-  function anchorWorld(id, out) {
-    var a = S.data.anchors[id], b = a && S.bones[a.bone]; if (!b) return false;
-    out.fromArray(a.off); b.localToWorld(out);
-    if (a.ground) { out.y = place.position.y; }
-    return true;
-  }
+  function posable(n) { return S.pivots.indexOf(n) >= 0; }
   function syncGizmo() {
-    if (!S.root || S.playing) { tc.detach(); back.visible = false; return; }
-    if (S.selAnchor) {
-      var a = S.data.anchors[S.selAnchor];
+    $("mMove").disabled = !(S.selKind === "anchor" || (S.sel && movable(S.sel)));
+    if (!S.root || S.playing || !S.sel) { tc.detach(); back.visible = false; return; }
+    if (S.selKind === "anchor") {
+      var a = S.data.anchors[S.sel];
       if (!a || a.ground) { tc.detach(); back.visible = false; return; }
-      anchorWorld(S.selAnchor, anchorProxy.position); anchorProxy.quaternion.identity(); anchorProxy.updateMatrixWorld();
+      anchorWorld(S.sel, anchorProxy.position); anchorProxy.quaternion.identity(); anchorProxy.updateMatrixWorld();
       tc.setMode("translate"); tc.setSpace("world"); tc.attach(anchorProxy); back.visible = false;
       return;
     }
-    if (!S.sel) { tc.detach(); back.visible = false; return; }
-    var mode = MOVABLE[S.sel] ? S.mode : "rotate";
+    if (!posable(S.sel)) { tc.detach(); back.visible = false; return; }
+    var mode = movable(S.sel) ? S.mode : "rotate";
     tc.setMode(mode); tc.setSpace(S.space); tc.attach(S.bones[S.sel]);
     back.visible = mode === "rotate";
   }
@@ -540,29 +730,46 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       axisLine.visible = false;
       if (dragStart && dragStart !== snap()) { S.undo.push(dragStart); S.redo = []; markDirty(); }
       dragStart = null;
-      if (S.sel) { rebake(S.clip, true); }
-      buildAnchorList();
+      if (S.selKind === "anchor") { layoutX(); S.order.forEach(function (n) { rebake(n, true); }); }
+      else if (S.grip) S.order.forEach(function (n) { rebake(n, true); });
+      else if (S.sel) rebake(S.clip, true);
+      buildCard(); buildTree();
     }
   });
   tc.addEventListener("objectChange", function () {
-    if (S.selAnchor) {
-      var a = S.data.anchors[S.selAnchor], b = S.bones[a.bone];
-      var p = b.worldToLocal(anchorProxy.position.clone()); a.off = [p.x, p.y, p.z];
+    if (S.selKind === "anchor") {
+      var a = S.data.anchors[S.sel], b = S.bones[a.bone];
+      var p = b.worldToLocal(anchorProxy.position.clone()), tl = tailLocal(a.bone, new THREE.Vector3()).multiplyScalar(a.t || 0);
+      a.side = p.sub(tl).toArray(); layoutX(); fillAnchorInputs();
       return;
     }
     if (!S.sel) return;
     var bone = S.bones[S.sel], f = S.frame;
+    var dq = rotDelta(keysOf(S.clip, S.sel, "rot"), f, new THREE.Quaternion());
+    var dv = posDelta(keysOf(S.clip, S.sel, "pos"), f, new THREE.Vector3());
+    if (S.grip) {                                    /* weapon grip spot: every clip, not a key */
+      var at = ensureGrip(S.sel);
+      if (tc.getMode() === "rotate") at.quat = bone.quaternion.clone().multiply(dq.clone().invert()).normalize().toArray();
+      else at.pos = bone.position.clone().sub(dv).toArray();
+      return;
+    }
     if (tc.getMode() === "rotate") {
       var base = baseRot(S.clip, S.sel, f, new THREE.Quaternion());
       var d = base.clone().invert().multiply(bone.quaternion).normalize();
       setKey(keysOf(S.clip, S.sel, "rot", true), f, {q: d.toArray()});
     } else {
       var bp = basePos(S.clip, S.sel, f, new THREE.Vector3());
-      var dv = bone.position.clone().sub(bp);
-      setKey(keysOf(S.clip, S.sel, "pos", true), f, {v: dv.toArray()});
+      setKey(keysOf(S.clip, S.sel, "pos", true), f, {v: bone.position.clone().sub(bp).toArray()});
     }
     updatePivotOut();
   });
+  function ensureGrip(w) {
+    if (!S.data.attach[w]) {
+      var b = S.bones[w], home = S.home[w];
+      S.data.attach[w] = {bone: home.bone, pos: home.pos.slice(), quat: home.quat.slice(), home: home};
+    }
+    return S.data.attach[w];
+  }
   function setKey(keys, f, val) {
     for (var i = 0; i < keys.length; i++) if (keys[i].f === f) { Object.assign(keys[i], val); return; }
     keys.push(Object.assign({f: f}, val)); keys.sort(function (a, b) { return a.f - b.f; });
@@ -581,11 +788,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     down = null;
     var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 14;
     PICKS.forEach(function (p) { var d = Math.hypot(p.x - mx, p.y - my); if (d < bd) { bd = d; best = p; } });
-    if (!best) { if (!tc.axis) { selectPivot(null); } return; }
-    if (best.kind === "pivot") selectPivot(best.id); else selectAnchor(best.id);
+    if (!best) { if (!tc.axis) select(null, null); return; }
+    select(best.kind, best.id);
   });
 
-  /* ---------------------------------------------------------------- overlay (pivot dots, anchors, names) */
+  /* ---------------------------------------------------------------- overlay (pivot dots, added bones, anchors, names) */
   var PICKS = [], tmp = new THREE.Vector3();
   function project(v, w, h) { tmp.copy(v).project(camera); return {x: (tmp.x + 1) / 2 * w, y: (1 - tmp.y) / 2 * h, z: tmp.z}; }
   function drawOverlay() {
@@ -595,51 +802,245 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (!S.root) return;
     var showP = $("vPivots").checked, fingers = $("vFingers").checked, showA = $("vAnchors").checked, names = $("vNames").checked;
     octx.font = "11px 'IBM Plex Mono', Consolas, monospace"; octx.textBaseline = "middle";
-    var wp = new THREE.Vector3();
+    var wp = new THREE.Vector3(), wt = new THREE.Vector3();
+    /* added bones: a line from start to end */
+    S.data.xbones.forEach(function (x) {
+      var o = S.bones[x.id]; if (!o) return;
+      o.getWorldPosition(wp); wt.set(0, x.len, 0); o.localToWorld(wt);
+      var a = project(wp, w, h), b = project(wt, w, h); if (a.z > 1 || b.z > 1) return;
+      var sel = S.sel === x.id;
+      octx.lineCap = "round";
+      octx.strokeStyle = "rgba(10,14,26,0.85)"; octx.lineWidth = sel ? 7 : 5; octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
+      octx.strokeStyle = sel ? "#ffd23a" : "#ff9a55"; octx.lineWidth = sel ? 4 : 3; octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
+      octx.beginPath(); octx.arc(b.x, b.y, 3, 0, Math.PI * 2); octx.fillStyle = "#ff9a55"; octx.fill();
+    });
     if (showP) S.pivots.forEach(function (n) {
-      var finger = /Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n);
+      var finger = /Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n), xb = isX(n);
       if (finger && !fingers && n !== S.sel) return;
       S.bones[n].getWorldPosition(wp); var p = project(wp, w, h); if (p.z > 1) return;
       var sel = n === S.sel, keyed = S.data.edits[S.clip] && S.data.edits[S.clip][n];
       octx.beginPath(); octx.arc(p.x, p.y, sel ? 6 : (finger ? 3 : 4.5), 0, Math.PI * 2);
-      octx.fillStyle = sel ? "#ffd23a" : (keyed ? "#ffb02e" : "rgba(255,255,255,0.92)"); octx.fill();
+      octx.fillStyle = sel ? "#ffd23a" : (keyed ? "#ffb02e" : (xb ? "#ff9a55" : "rgba(255,255,255,0.92)")); octx.fill();
       octx.lineWidth = 1.5; octx.strokeStyle = "rgba(10,14,26,0.85)"; octx.stroke();
-      PICKS.push({kind: "pivot", id: n, x: p.x, y: p.y});
-      if (names || sel) label(n, p.x + 8, p.y);
+      PICKS.push({kind: xb ? "x" : "bone", id: n, x: p.x, y: p.y});
+      if (names || sel) tag(label(n), p.x + 8, p.y);
     });
     if (showA) Object.keys(S.data.anchors).forEach(function (id) {
       if (!anchorWorld(id, wp)) return; var p = project(wp, w, h); if (p.z > 1) return;
-      var sel = id === S.selAnchor, a = S.data.anchors[id], s = sel ? 6.5 : 4.5;
+      var sel = S.selKind === "anchor" && id === S.sel, a = S.data.anchors[id], s = sel ? 6.5 : 4.5;
       octx.save(); octx.translate(p.x, p.y); octx.rotate(Math.PI / 4);
       octx.fillStyle = sel ? "#ffd23a" : (a.custom ? "#ff8a3d" : "#3de0ff"); octx.fillRect(-s / 2, -s / 2, s, s);
       octx.lineWidth = 1.2; octx.strokeStyle = "rgba(10,14,26,0.85)"; octx.strokeRect(-s / 2, -s / 2, s, s); octx.restore();
       PICKS.push({kind: "anchor", id: id, x: p.x, y: p.y});
-      if (names || sel) label(id, p.x + 8, p.y);
+      if (names || sel) tag(id, p.x + 8, p.y);
     });
   }
-  function label(t, x, y) {
+  function tag(t, x, y) {
     var w = octx.measureText(t).width + 8;
     octx.fillStyle = "rgba(255,255,255,0.88)"; octx.fillRect(x, y - 8, w, 16);
     octx.fillStyle = "#141a2b"; octx.fillText(t, x + 4, y);
   }
 
-  /* ---------------------------------------------------------------- panels */
+  /* ---------------------------------------------------------------- skeleton tree */
+  function buildTree() {
+    var T = $("tree"); if (!S.root) { T.innerHTML = ""; return; }
+    var rows = [], ed = S.data.edits[S.clip] || {};
+    var anchorsOn = {};
+    Object.keys(S.data.anchors).forEach(function (id) { var b = S.data.anchors[id].bone; (anchorsOn[b] = anchorsOn[b] || []).push(id); });
+    function kids(o) { return o.children.filter(function (c) { return S.bones[c.name] === c; }); }
+    function walk(o, depth) {
+      var n = o.name, xb = isX(n), ch = kids(o), an = anchorsOn[n] || [], has = ch.length || an.length;
+      var end = !posable(n);
+      rows.push({kind: xb ? "x" : "bone", id: n, depth: depth, twisty: has ? (S.collapsed[n] ? "▸" : "▾") : "",
+        text: label(n) + (S.data.attach[n] && S.data.attach[n].bone !== S.home[n].bone ? "  (on " + S.data.attach[n].bone + ")" : ""),
+        cls: xb ? "k-x" : (end ? "k-bone k-end" : "k-bone"), ico: xb ? "✚" : "▪", keyed: !!ed[n]});
+      if (S.collapsed[n]) return;
+      an.forEach(function (id) { rows.push({kind: "anchor", id: id, depth: depth + 1, twisty: "", text: id + (S.data.anchors[id].custom ? "" : ""),
+        cls: "k-anchor", ico: "◆"}); });
+      ch.forEach(function (c) { walk(c, depth + 1); });
+    }
+    var hips = S.bones.Hips || Object.keys(S.bones).map(function (k) { return S.bones[k]; }).filter(function (b) { return !S.bones[b.parent && b.parent.name]; })[0];
+    if (hips) walk(hips, 0);
+    T.innerHTML = rows.map(function (r, i) {
+      var sel = S.sel === r.id && ((r.kind === "anchor") === (S.selKind === "anchor"));
+      return '<div role="treeitem" tabindex="' + (sel ? 0 : -1) + '" aria-selected="' + sel + '" class="' + r.cls + '" data-i="' + i + '" style="padding-left:' + (4 + r.depth * 12) + 'px">' +
+        '<span class="tw" data-tw="1">' + r.twisty + '</span><span class="ico">' + r.ico + "</span><span>" + esc(r.text) + "</span>" +
+        (r.keyed ? '<span class="tag">keys</span>' : "") + "</div>";
+    }).join("");
+    T._rows = rows;
+  }
+  $("tree").addEventListener("click", function (e) {
+    var el = e.target.closest("[role=treeitem]"); if (!el) return;
+    var r = this._rows[+el.dataset.i];
+    if (e.target.dataset.tw && r.twisty) { S.collapsed[r.id] = !S.collapsed[r.id]; buildTree(); return; }
+    select(r.kind, r.id);
+  });
+  $("tree").addEventListener("keydown", function (e) {
+    var rows = this._rows || [], cur = -1;
+    rows.forEach(function (r, i) { if (S.sel === r.id && ((r.kind === "anchor") === (S.selKind === "anchor"))) cur = i; });
+    if (e.key === "ArrowDown" && cur < rows.length - 1) { select(rows[cur + 1].kind, rows[cur + 1].id); e.preventDefault(); }
+    if (e.key === "ArrowUp" && cur > 0) { select(rows[cur - 1].kind, rows[cur - 1].id); e.preventDefault(); }
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && cur >= 0 && rows[cur].twisty) {
+      S.collapsed[rows[cur].id] = e.key === "ArrowLeft"; buildTree(); e.preventDefault();
+    }
+    var f = this.querySelector('[aria-selected="true"]'); if (f) f.focus();
+  });
+
+  /* ---------------------------------------------------------------- options card */
+  function boneOptions(exclude) {
+    var names = Object.keys(S.bones).filter(function (n) { return !exclude || !exclude[n]; });
+    return names.map(function (n) { return [n, label(n) + (isX(n) ? " (added)" : "")]; });
+  }
+  function opt(list, cur) {
+    return list.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === cur ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("");
+  }
+  function num(id, v, step) { return '<input type="number" id="' + id + '" step="' + (step || 0.005) + '" value="' + (+v).toFixed(step >= 1 ? 1 : 3) + '">'; }
+  function armButton(btn, label, fn) {       /* in-page two-click confirm */
+    btn.onclick = function () {
+      if (btn.classList.contains("arm")) { fn(); return; }
+      btn.classList.add("arm"); btn.textContent = label;
+      setTimeout(function () { btn.classList.remove("arm"); btn.textContent = btn.dataset.text; }, 2500);
+    };
+    btn.dataset.text = btn.textContent;
+  }
+  function buildCard() {
+    var C = $("card");
+    if (!S.root || !S.sel) { C.innerHTML = '<p class="note">Select a bone, anchor or added bone, in the tree or on the model.</p>'; return; }
+    if (S.selKind === "anchor") return anchorCard(C);
+    if (isX(S.sel)) return xCard(C);
+    return boneCard(C);
+  }
+  function addRow() {
+    return '<div class="row"><input type="text" id="cNew" class="grow" placeholder="new anchor id, e.g. sheath" aria-label="New anchor id">' +
+      '<button id="cAddA">+ Anchor here</button></div>';
+  }
+  function wireAdd(boneName, xAt) {
+    $("cAddA").onclick = function () {
+      var id = $("cNew").value.trim().replace(/[^A-Za-z0-9_]/g, "");
+      if (!id) { status("Type an anchor id (letters, digits, _).", true); return; }
+      if (S.data.anchors[id]) { status("There is already an anchor called " + id + ".", true); return; }
+      pushUndo(); S.data.anchors[id] = {bone: boneName, t: 0, side: [0, 0, 0], custom: true};
+      select("anchor", id); status("Added anchor " + id + " on " + label(boneName) + ".");
+    };
+    var bx = $("cAddX");
+    if (bx) bx.onclick = function () { addX(xAt); };
+  }
+  function addX(at) {
+    pushUndo();
+    var n = 1; while (xDef("x" + n) || S.bones["x" + n]) n++;
+    var id = "x" + n;
+    S.data.xbones.push({id: id, name: "bone " + n, at: at, len: 0.15, rest: [0, 0, 0]});
+    rebuildAll(); select("x", id); status("Added " + id + ". Set its length and rest angle, then pose it with the rings.");
+  }
+  function boneCard(C) {
+    var n = S.sel, isW = WEAPONS.indexOf(n) >= 0, h = "";
+    h += "<h3>" + esc(n) + "<small>" + (posable(n) ? "pivot" : "end bone (no rings)") + "</small></h3>";
+    if (isW && S.home[n]) {
+      var at = S.data.attach[n], home = S.home[n], cur = at ? at.bone : home.bone;
+      var ex = {}; ex[n] = 1; Object.keys(S.bones).forEach(function (k) { var b = S.bones[k]; if (b.userData.xbone || /^Weapon/.test(k)) ex[k] = 1; });
+      h += '<div class="row"><label for="cAttach">Attach to</label><select id="cAttach" class="grow">' + opt(boneOptions(ex), cur) + "</select></div>";
+      h += '<div class="row"><button id="cGrip" aria-pressed="' + S.grip + '">Edit grip spot</button><button id="cGripReset"' + (at ? "" : " disabled") + ">Reset grip</button></div>";
+      h += '<p class="note">The weapon keeps its spot at rest and then follows the bone it\'s attached to. With <b>Edit grip spot</b> on, the rings and arrows set where it sits on that bone in every clip (no keys).</p>';
+    }
+    h += addRow();
+    h += '<div class="row"><button id="cAddX">+ Bone from this pivot</button></div>';
+    C.innerHTML = h;
+    wireAdd(n, n);
+    if (isW && S.home[n]) {
+      $("cAttach").onchange = function () { setAttach(n, this.value); };
+      $("cGrip").onclick = function () { S.grip = !S.grip; if (S.grip) { setMode(S.mode); } buildCard(); syncGizmo(); updatePivotOut(); };
+      $("cGripReset").onclick = function () { pushUndo(); delete S.data.attach[n]; S.grip = false; rebuildAll(); };
+    }
+  }
+  function anchorCard(C) {
+    var id = S.sel, a = S.data.anchors[id], h = "";
+    var own = {}; /* not onto added bones that hang off this anchor */
+    var d = descendants("anchor", id); Object.keys(d.xs).forEach(function (k) { own[k] = 1; });
+    var tl = tailLocal(a.bone, new THREE.Vector3()), hasTail = tl.lengthSq() > 1e-10;
+    h += "<h3>" + esc(id) + "<small>" + (a.custom ? "added anchor" : "FX anchor") + "</small></h3>";
+    h += '<div class="row"><label for="cOn">Sits on</label><select id="cOn" class="grow">' + opt(boneOptions(own), a.bone) + "</select></div>";
+    h += '<div class="row"><label for="cT">Along bone</label><input type="range" id="cT" min="0" max="100" step="1" value="' + Math.round((a.t || 0) * 100) + '"' + (hasTail ? "" : " disabled") + '><output id="cTOut">' + Math.round((a.t || 0) * 100) + " %</output></div>";
+    h += '<div class="row"><label>Offset (m)</label><div class="xyz">' + num("cX", a.side[0]) + num("cY", a.side[1]) + num("cZ", a.side[2]) + "</div></div>";
+    h += '<div class="row"><label>Snap to</label><span class="seg"><button id="cS0"' + (hasTail ? "" : " disabled") + '>Start</button><button id="cS5"' + (hasTail ? "" : " disabled") +
+      '>Middle</button><button id="cS1"' + (hasTail ? "" : " disabled") + '>End</button><button id="cSG" aria-pressed="' + !!a.ground + '">Ground</button></span></div>';
+    h += '<p class="note">Along bone: 0 % = the bone\'s pivot, 100 % = its end. Offset is added on top, in the bone\'s own X / Y / Z. Ground drops the point straight down to the floor.</p>';
+    h += '<div class="row"><button id="cAddX">+ Bone from this anchor</button>' +
+      (a.custom ? '<button id="cDel" class="danger">Remove anchor</button>' : '<button id="cReset">Reset anchor</button>') + "</div>";
+    C.innerHTML = h;
+    var start = null;
+    function begin() { if (start === null) start = snap(); }
+    function commit() { if (start !== null && start !== snap()) { S.undo.push(start); S.redo = []; markDirty(); } start = null; layoutX(); S.order.forEach(function (n) { rebake(n, true); }); syncGizmo(); }
+    $("cOn").onchange = function () { pushUndo(); a.bone = this.value; a.side = [0, 0, 0]; if (!(tailLocal(a.bone, new THREE.Vector3()).lengthSq() > 1e-10)) a.t = 0; rebuildAll(); };
+    $("cT").addEventListener("pointerdown", begin);
+    $("cT").oninput = function () { begin(); a.t = +this.value / 100; $("cTOut").textContent = this.value + " %"; layoutX(); syncGizmo(); };
+    $("cT").onchange = commit;
+    ["cX", "cY", "cZ"].forEach(function (k, i) {
+      $(k).onfocus = begin;
+      $(k).onchange = function () { begin(); var v = parseFloat(this.value); if (isFinite(v)) a.side[i] = v; commit(); };
+    });
+    function snapT(t) { pushUndo(); a.t = t; a.side = [0, 0, 0]; layoutX(); S.order.forEach(function (n) { rebake(n, true); }); buildCard(); syncGizmo(); }
+    $("cS0").onclick = function () { snapT(0); }; $("cS5").onclick = function () { snapT(0.5); }; $("cS1").onclick = function () { snapT(1); };
+    $("cSG").onclick = function () { pushUndo(); a.ground = !a.ground || undefined; buildCard(); syncGizmo(); };
+    $("cAddX").onclick = function () { addX("a:" + id); };
+    if (a.custom) {
+      var n = Object.keys(descendants("anchor", id).xs).length;
+      armButton($("cDel"), n ? "Click again: also removes " + n + " added bone" + (n > 1 ? "s" : "") : "Click again to remove", function () { removeTree("anchor", id); });
+    } else $("cReset").onclick = function () { pushUndo(); delete S.data.anchors[id]; initAnchors(); rebuildAll(); };
+  }
+  function xCard(C) {
+    var x = xDef(S.sel), h = "";
+    var d = descendants("x", x.id), pts = [];
+    Object.keys(S.bones).forEach(function (n) { if (!d.xs[n] && !isX(n) && posable(n)) pts.push([n, "pivot · " + n]); });
+    S.data.xbones.forEach(function (o) { if (!d.xs[o.id]) pts.push([o.id, "end of · " + (o.name || o.id)]); });
+    Object.keys(S.data.anchors).forEach(function (k) { if (!d.an[k]) pts.push(["a:" + k, "anchor · " + k]); });
+    h += "<h3>" + esc(x.name || x.id) + "<small>added bone · " + esc(x.id) + "</small></h3>";
+    h += '<div class="row"><label for="cName">Name</label><input type="text" id="cName" class="grow" value="' + esc(x.name || "") + '"></div>';
+    h += '<div class="row"><label for="cAt">Starts at</label><select id="cAt" class="grow">' + opt(pts, x.at) + "</select></div>";
+    h += '<div class="row"><label for="cLen">Length (m)</label>' + num("cLen", x.len, 0.005) + "</div>";
+    h += '<div class="row"><label>Rest angle °</label><div class="xyz">' + num("cRX", x.rest[0], 1) + num("cRY", x.rest[1], 1) + num("cRZ", x.rest[2], 1) + "</div></div>";
+    h += '<p class="note">Rest 0 = straight on along the bone it starts on. Pose it per keyframe with the rings, like any pivot.</p>';
+    h += addRow();
+    h += '<div class="row"><button id="cAddX">+ Bone at its end</button><button id="cDel" class="danger">Remove bone</button></div>';
+    C.innerHTML = h;
+    wireAdd(x.id, x.id);
+    $("cName").onchange = function () { pushUndo(); x.name = this.value.trim() || x.id; buildTree(); buildCard(); };
+    $("cAt").onchange = function () { pushUndo(); x.at = this.value; rebuildAll(); };
+    $("cLen").onchange = function () { var v = parseFloat(this.value); if (!(v > 0)) return; pushUndo(); x.len = v; rebuildAll(); };
+    ["cRX", "cRY", "cRZ"].forEach(function (k, i) {
+      $(k).onchange = function () { var v = parseFloat(this.value); if (!isFinite(v)) return; pushUndo(); x.rest[i] = v; rebuildAll(); };
+    });
+    var hang = Object.keys(d.xs).length - 1 + Object.keys(d.an).length;
+    armButton($("cDel"), hang ? "Click again: also removes " + hang + " thing" + (hang > 1 ? "s" : "") + " on it" : "Click again to remove", function () { removeTree("x", x.id); });
+  }
+  function removeTree(kind, id) {
+    pushUndo();
+    var d = descendants(kind, id);
+    S.data.xbones = S.data.xbones.filter(function (x) { return !d.xs[x.id]; });
+    Object.keys(d.an).forEach(function (k) { delete S.data.anchors[k]; });
+    Object.keys(S.data.edits).forEach(function (c) { Object.keys(d.xs).forEach(function (b) { delete S.data.edits[c][b]; }); });
+    S.sel = null; S.selKind = null;
+    rebuildAll(); status("Removed " + id + (Object.keys(d.xs).length + Object.keys(d.an).length > 1 ? " and what hung off it" : ""));
+  }
+  function fillAnchorInputs() {
+    if (S.selKind !== "anchor") return; var a = S.data.anchors[S.sel];
+    ["cX", "cY", "cZ"].forEach(function (k, i) { var el = $(k); if (el && document.activeElement !== el) el.value = a.side[i].toFixed(3); });
+  }
+
+  /* ---------------------------------------------------------------- pose-key panel */
   function updatePivotOut() {
     var o = $("pivotOut");
-    $("delKey").disabled = !(S.sel && hasKey(S.clip, S.sel, S.frame));
-    $("clearPivot").disabled = !(S.sel && S.data.edits[S.clip] && S.data.edits[S.clip][S.sel]);
-    if (S.selAnchor) {
-      var a = S.data.anchors[S.selAnchor];
-      o.innerHTML = "<b>" + S.selAnchor + "</b> on " + a.bone + (a.ground ? " (on the ground, fixed)" : "") +
-        '<br>offset <span class="axx">x ' + a.off[0].toFixed(3) + '</span> <span class="axy">y ' + a.off[1].toFixed(3) + '</span> <span class="axz">z ' + a.off[2].toFixed(3) + "</span> m";
-      return;
-    }
-    if (!S.sel) { o.textContent = "Click a pivot dot on the model."; return; }
+    var keyable = S.sel && S.selKind !== "anchor" && posable(S.sel);
+    $("delKey").disabled = !(keyable && hasKey(S.clip, S.sel, S.frame));
+    $("clearPivot").disabled = !(keyable && S.data.edits[S.clip] && S.data.edits[S.clip][S.sel]);
+    if (!S.sel) { o.textContent = "Nothing selected."; return; }
+    if (S.selKind === "anchor") { o.textContent = "Anchors are the same in every frame: use their arrows or the card above."; return; }
+    if (!keyable) { o.textContent = S.sel + " is an end bone: no rings. Anchors can sit on it."; return; }
+    if (S.grip) { o.innerHTML = "<b>" + esc(S.sel) + "</b> · editing the grip spot (every clip, no keys)"; return; }
     var d = rotDelta(keysOf(S.clip, S.sel, "rot"), S.frame, new THREE.Quaternion());
     var e = new THREE.Euler().setFromQuaternion(d, "XYZ"), D = 180 / Math.PI;
-    var s = "<b>" + S.sel + "</b> · change on f" + S.frame + ': <span class="axx">X ' + (e.x * D).toFixed(1) + '°</span> <span class="axy">Y ' +
+    var s = "<b>" + esc(label(S.sel)) + "</b> · change on f" + S.frame + ': <span class="axx">X ' + (e.x * D).toFixed(1) + '°</span> <span class="axy">Y ' +
       (e.y * D).toFixed(1) + '°</span> <span class="axz">Z ' + (e.z * D).toFixed(1) + "°</span>";
-    if (MOVABLE[S.sel]) {
+    if (movable(S.sel)) {
       var v = posDelta(keysOf(S.clip, S.sel, "pos"), S.frame, new THREE.Vector3());
       s += '<br>moved <span class="axx">x ' + v.x.toFixed(3) + '</span> <span class="axy">y ' + v.y.toFixed(3) + '</span> <span class="axz">z ' + v.z.toFixed(3) + "</span> m";
     }
@@ -656,28 +1057,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var box = $("frames"); if (!S.clip) return;
     var n = frameCount(S.clips[S.clip]), ed = S.data.edits[S.clip] || {}, any = {}, mine = {};
     Object.keys(ed).forEach(function (b) {
-      ["rot", "pos"].forEach(function (k) { (ed[b][k] || []).forEach(function (x) { any[x.f] = 1; if (b === S.sel) mine[x.f] = 1; }); });
+      ["rot", "pos"].forEach(function (k) { (ed[b][k] || []).forEach(function (x) { any[x.f] = 1; if (b === S.sel && S.selKind !== "anchor") mine[x.f] = 1; }); });
     });
     var kids = box.children;
     for (var i = 0; i < kids.length; i++) kids[i].className = (i === S.frame ? "cur " : "") + (mine[i] ? "key" : (any[i] ? "any" : ""));
     $("frameOut").textContent = "f" + S.frame + " / " + n;
     box.setAttribute("aria-valuenow", S.frame); box.setAttribute("aria-valuemax", n);
-  }
-  function buildAnchorList() {
-    var L = $("anchorList"); if (!S.root) { L.innerHTML = ""; return; }
-    L.innerHTML = "";
-    Object.keys(S.data.anchors).forEach(function (id) {
-      var a = S.data.anchors[id], b = document.createElement("button"); b.type = "button";
-      b.setAttribute("aria-pressed", String(id === S.selAnchor));
-      b.innerHTML = "<span>" + id + "</span><small>" + a.bone + (a.custom ? " · added" : "") + "</small>";
-      b.onclick = function () { selectAnchor(id); };
-      L.appendChild(b);
-    });
-    var sa = S.selAnchor && S.data.anchors[S.selAnchor];
-    $("resetAnchor").disabled = !sa || !!sa.custom || !!sa.ground;
-    $("delAnchor").disabled = !sa || !sa.custom;
-    $("addAnchor").disabled = !S.sel;
-    updatePivotOut();
   }
 
   /* ---------------------------------------------------------------- save into the .glb */
@@ -689,7 +1074,6 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var outl = S.outlines.map(function (o) { var p = o.parent; p.remove(o); return [o, p]; });
     var infl = S.skinned.map(function (m) { var v = m.morphTargetInfluences ? m.morphTargetInfluences.slice() : null; if (v) m.morphTargetInfluences.fill(0); return v; });
     S.mixer.stopAllAction();
-    S.skinned.forEach(function (m) { m.skeleton.pose(); });
     Object.keys(S.bones).forEach(function (n) { var b = S.bones[n]; b.quaternion.copy(b.userData.restQ); b.position.copy(b.userData.restP); });
     var ex = new THREE.Scene(); ex.name = "Scene";
     ex.userData = {pb_rig3d: JSON.parse(snap())};
@@ -706,6 +1090,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         {binary: true, animations: clips, onlyVisible: false, truncateDrawRange: false});
     } catch (err) { restore(); status("Save failed: " + err.message, true); }
   }
+  function inFrame() { try { return window.self !== window.top; } catch (e) { return true; } }
   function save() {
     if (!S.root) return;
     status("Saving…");
@@ -727,7 +1112,6 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
 
   /* ---------------------------------------------------------------- open */
-  function inFrame() { try { return window.self !== window.top; } catch (e) { return true; } }
   $("open").onclick = function () {
     if (S.dirty && !window.confirm("Discard unsaved changes?")) return;
     if (window.showOpenFilePicker && !inFrame()) {
@@ -760,13 +1144,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   $("save").onclick = save;
 
   /* ---------------------------------------------------------------- controls */
-  $("clip").onchange = function () { setClip(this.value, 0); };   /* the selected pivot stays selected */
+  $("clip").onchange = function () { setClip(this.value, 0); };   /* the selection stays */
   $("play").onclick = function () { setPlaying(!S.playing); };
   $("speed").oninput = function () { S.speed = +this.value; $("speedOut").textContent = S.speed.toFixed(2) + "×"; };
   $("prevF").onclick = function () { setPlaying(false); setFrame(S.frame - 1); };
   $("nextF").onclick = function () { setPlaying(false); setFrame(S.frame + 1); };
   function keyFrames() {
-    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e) return [];
+    var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e || S.selKind === "anchor") return [];
     var s = {}; (e.rot || []).concat(e.pos || []).forEach(function (k) { s[k.f] = 1; });
     return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
   }
@@ -781,9 +1165,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (e.key === "ArrowLeft") { setPlaying(false); setFrame(S.frame - 1); e.preventDefault(); }
     if (e.key === "ArrowRight") { setPlaying(false); setFrame(S.frame + 1); e.preventDefault(); }
   });
-  $("pivot").onchange = function () { selectPivot(this.value); };
   $("mRot").onclick = function () { setMode("rotate"); };
-  $("mMove").onclick = function () { if (S.sel && MOVABLE[S.sel]) setMode("translate"); };
+  $("mMove").onclick = function () { if (S.selKind === "anchor" || (S.sel && movable(S.sel))) setMode("translate"); };
   $("sLocal").onclick = function () { setSpace("local"); };
   $("sWorld").onclick = function () { setSpace("world"); };
   var spreadStart = null;
@@ -800,27 +1183,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (!S.sel) return; pushUndo();
     var e = (S.data.edits[S.clip] || {})[S.sel]; if (!e) return;
     ["rot", "pos"].forEach(function (k) { if (e[k]) e[k] = e[k].filter(function (x) { return x.f !== S.frame; }); });
-    rebake(S.clip, true); updatePivotOut();
+    rebake(S.clip, true); updatePivotOut(); buildTree();
   };
   $("clearPivot").onclick = function () {
     if (!S.sel || !S.data.edits[S.clip]) return; pushUndo();
-    delete S.data.edits[S.clip][S.sel]; rebake(S.clip, true); updatePivotOut();
-  };
-  $("addAnchor").onclick = function () {
-    if (!S.sel) { status("Select a pivot to put the anchor on.", true); return; }
-    var id = $("newName").value.trim().replace(/[^A-Za-z0-9_]/g, "");
-    if (!id) { status("Type an anchor id (letters, digits, _).", true); return; }
-    if (S.data.anchors[id]) { status("There is already an anchor called " + id + ".", true); return; }
-    pushUndo(); S.data.anchors[id] = {bone: S.sel, off: [0, 0, 0], custom: true};
-    $("newName").value = ""; selectAnchor(id); status("Added anchor " + id + " on " + S.data.anchors[id].bone + ". Drag its arrows to place it.");
-  };
-  $("resetAnchor").onclick = function () {
-    var id = S.selAnchor; if (!id || !ANCHOR_SPEC[id]) return; pushUndo();
-    delete S.data.anchors[id]; initAnchors(); selectAnchor(id);
-  };
-  $("delAnchor").onclick = function () {
-    var id = S.selAnchor; if (!id || !S.data.anchors[id] || !S.data.anchors[id].custom) return; pushUndo();
-    delete S.data.anchors[id]; selectAnchor(null);
+    delete S.data.edits[S.clip][S.sel]; rebake(S.clip, true); updatePivotOut(); buildTree();
   };
   ["pScale", "pHeight", "pYaw"].forEach(function (id) {
     var el = $(id), start = null;
@@ -837,29 +1204,31 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   $("vBones").onchange = function () { if (S.helper) S.helper.visible = this.checked; };
   function restoreData(json) {
     S.data = JSON.parse(json);
-    S.order.forEach(function (n) { rebake(n, true); });
+    if (S.selKind === "anchor" && !S.data.anchors[S.sel]) { S.sel = null; S.selKind = null; }
+    if (S.selKind === "x" && !xDef(S.sel)) { S.sel = null; S.selKind = null; }
     placementToUi(); applyPlacement();
     $("spread").value = S.data.fade; $("spreadOut").textContent = S.data.fade >= WHOLE ? "whole" : S.data.fade + " f";
-    if (S.selAnchor && !S.data.anchors[S.selAnchor]) S.selAnchor = null;
-    buildAnchorList(); buildFrames(); syncGizmo(); updatePivotOut();
+    rebuildAll(); buildFrames();
   }
   function undo() { if (!S.undo.length) return; S.redo.push(snap()); restoreData(S.undo.pop()); markDirty(); }
   function redo() { if (!S.redo.length) return; S.undo.push(snap()); restoreData(S.redo.pop()); markDirty(); }
   $("undo").onclick = undo; $("redo").onclick = redo;
   window.addEventListener("keydown", function (e) {
-    if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== "range" && e.target.type !== "checkbox") return;
+    var t = e.target;
+    if (/INPUT|SELECT|TEXTAREA/.test(t.tagName) && t.type !== "range" && t.type !== "checkbox") return;
     var k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "s") { e.preventDefault(); save(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (t.closest && t.closest("#tree") && /^arrow/.test(k)) return;
     if (k === "r") setMode("rotate");
-    else if (k === "t") { if (S.selAnchor || (S.sel && MOVABLE[S.sel])) setMode("translate"); }
+    else if (k === "t") { if (S.selKind === "anchor" || (S.sel && movable(S.sel))) setMode("translate"); }
     else if (k === "l") setSpace(S.space === "local" ? "world" : "local");
     else if (k === " ") { e.preventDefault(); setPlaying(!S.playing); }
     else if (k === ",") { setPlaying(false); setFrame(S.frame - 1); }
     else if (k === ".") { setPlaying(false); setFrame(S.frame + 1); }
-    else if (k === "escape") selectPivot(null);
+    else if (k === "escape") select(null, null);
   });
   window.addEventListener("beforeunload", function (e) { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -894,9 +1263,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       axisLine.position.copy(wp2); axisLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
       axisLine.scale.setScalar(wp2.distanceTo(camera.position) * 0.6); axisLine.visible = true;
     } else axisLine.visible = false;
-    var w = canvas.clientWidth, h = canvas.clientHeight;
     var hud = $("hud");
-    if (S.root) hud.innerHTML = "<b>" + S.clip + "</b> · f" + S.frame + " · " + (S.sel ? "pivot <b>" + S.sel + "</b>" : (S.selAnchor ? "anchor <b>" + S.selAnchor + "</b>" : "nothing selected")) + (S.dirty ? " · unsaved" : "");
+    if (S.root) hud.innerHTML = "<b>" + esc(S.clip) + "</b> · f" + S.frame + " · " +
+      (S.sel ? (S.selKind === "anchor" ? "anchor" : (isX(S.sel) ? "added bone" : "pivot")) + " <b>" + esc(label(S.sel)) + "</b>" + (S.grip ? " · grip spot" : "") : "nothing selected") +
+      (S.dirty ? " · unsaved" : "");
     else hud.textContent = "";
     renderer.render(scene, camera);
     drawOverlay();
@@ -908,7 +1278,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
     loadArrayBuffer(buf.buffer, window.PB_EMBED_NAME || "character.glb", null);
   }
-  window.__rf3d = S; window.__rf3dView = {camera: camera, orbit: orbit};
+  window.__rf3d = S; window.__rf3dView = {camera: camera, orbit: orbit, tc: tc};
 })();
 </script>
 </body>

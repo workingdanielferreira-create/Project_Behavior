@@ -100,6 +100,11 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
    (`pb_rig3d` scene extras: `edits` {clip: {bone: {rot: [{f, q}], pos: [{f, v}]}}} with q = local delta
    after the base rotation, `fade`, `anchors` {id: {bone, off (bone space, m), ground?, custom?}},
    `placement` {scale, height, yaw}). Baked into the clips on save, un-baked on open.
+   Then (same day): skeleton tree panel + options cards. pb_rig3d version 2: anchors are
+   {bone, t (0..1 along the bone), side [x,y,z], ground?, custom?} (v1 `off` still loads); `xbones`
+   [{id, name, at (pivot / "a:<anchor>" / added bone end), len, rest [deg]}] exported as plain nodes with a
+   rotation track in every clip; `attach` {Weapon_R: {bone, pos, quat, home}} = weapon on another bone /
+   custom grip, its tracks become that grip + keys.
    **Next:** V3 swaps its stand-in body for the .glb (sim actions / timing drive the clips, anchors +
    placement from `pb_rig3d`).
 4. Later: 3D FX styles in FX Studio.
