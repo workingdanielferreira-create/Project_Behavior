@@ -93,8 +93,15 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
      found yet.
    - Mixamo route stays open: Daniel downloads FBX in his own browser and uploads them; the cloud session
      converts them to the spec. Never take his account details.
-3. Build the Rig Forge 3D importer. Swap V3's toon stand-in body for the .glb, driven by the sim's
-   action / timing.
+3. **Rig Forge 3D, tool part done (2026-11-22):** `v3/tools/rigforge3d.html` + `Rig Forge 3D.bat`.
+   Daniel's choices: edits = pose per keyframe + move anchors + add anchors + model placement; gizmo =
+   rotation rings on every pivot (TransformControls + the reference's dark / light-blue discs, bright yellow
+   view ring, white axis line while dragging) + move arrows on Hips; saved straight into the .glb
+   (`pb_rig3d` scene extras: `edits` {clip: {bone: {rot: [{f, q}], pos: [{f, v}]}}} with q = local delta
+   after the base rotation, `fade`, `anchors` {id: {bone, off (bone space, m), ground?, custom?}},
+   `placement` {scale, height, yaw}). Baked into the clips on save, un-baked on open.
+   **Next:** V3 swaps its stand-in body for the .glb (sim actions / timing drive the clips, anchors +
+   placement from `pb_rig3d`).
 4. Later: 3D FX styles in FX Studio.
 
 Follow `CLAUDE.md` session rules: ask before implementing (pop-up questions); push, open the PR and

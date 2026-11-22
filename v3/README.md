@@ -72,7 +72,28 @@ names, fingers, face set, weapon bones, FX anchor → bone map, clip list with f
 
 First 3D test fighter: `characters/ronin_copy/ronin_copy.glb`, built by `tools/blender/build_ronin3d.py`
 (runs on Blender's `bpy` Python package, no Blender UI). `tools/blender/make_viewer.py` makes a
-self-contained viewer page for any .glb. V3 doesn't load the .glb yet (next step: the Rig Forge 3D importer).
+self-contained viewer page for any .glb. V3 doesn't load the .glb yet.
+
+## Rig Forge 3D
+
+`Rig Forge 3D.bat` (repo root) opens `tools/rigforge3d.html` in Edge. **Open .glb…** a character's
+`characters/<name>/<name>.glb`, then:
+
+- **Pose per keyframe.** Click a pivot dot (or pick it in the Pivot list), go to a frame and turn the X / Y / Z
+  rings (red / green / blue; grey = free turn, yellow outer ring = turn about the view). Hips also have
+  move arrows (**Move**, `T`). Each change sets a key on that frame (◆ on the timeline); frames in between
+  blend, and **Blend out** sets how far a key fades before the first / after the last key (all the way
+  right = the whole clip). **Local / World** (`L`) picks the ring axes.
+- **FX anchors.** Select an anchor (dot or list) and drag its arrows. **Add on pivot** adds your own anchor
+  on the selected pivot. Anchor spots are per character, not per frame.
+- **Model placement.** Size, height and facing of the whole model.
+- **Save into .glb** (Ctrl+S) writes straight back into the file you opened (Edge; other browsers download a
+  copy). The keys are baked into the clips, and the key list, anchors and placement are stored in the file's
+  scene extras (`pb_rig3d`), so reopening the file lets you keep editing, delete keys or undo a pivot.
+- Undo / redo: Ctrl+Z / Ctrl+Y.
+
+Saving re-writes the file with three.js's exporter: the body comes back as one mesh per material and the file
+is bigger (about 1.5 MB for ronin_copy); Blender opens it the same (72 bones, 7 clips).
 
 ## Real characters
 
