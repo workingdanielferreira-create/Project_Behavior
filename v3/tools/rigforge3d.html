@@ -109,6 +109,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 .tree .k-x .ico, .tree .k-x { color: var(--added); }
 .tree .tag { margin-left: auto; padding-left: 8px; font-size: 10px; color: var(--key); }
 .card { display: flex; flex-direction: column; gap: 9px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 12px; }
 </style>
 </head>
 <body>
@@ -131,7 +132,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       <canvas id="view" aria-label="3D posing view"></canvas>
       <canvas id="over"></canvas>
       <div class="hud" id="hud"></div>
-      <div class="drop" id="drop">Open a character's .glb (for example <code>characters/ronin_copy/ronin_copy.glb</code>),<br>or drop it here.</div>
+      <div class="drop" id="drop">Pick the <code>characters</code> folder (Character panel) and choose a fighter,<br>or open a character's .glb (for example <code>characters/ronin_copy/ronin_copy.glb</code>), or drop it here.</div>
     </div>
     <div class="timeline">
       <div class="tl-row">
@@ -150,6 +151,21 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   </div>
 
   <div class="side">
+    <section aria-labelledby="h-char">
+      <h2 id="h-char">Character</h2>
+      <div class="row">
+        <select id="charSel" class="grow" aria-label="Character" disabled><option value="">Pick the characters folder first</option></select>
+        <button id="charRescan" title="Scan the folder again for .glb files" aria-label="Rescan folder" disabled>↻</button>
+      </div>
+      <div class="row">
+        <button id="charDir">Characters folder…</button>
+        <button id="charReconnect" hidden></button>
+      </div>
+      <div class="readout" id="charDirOut">No folder chosen.</div>
+      <input type="file" id="dirInput" webkitdirectory multiple hidden>
+      <p class="note">Pick the <code>characters</code> folder once: every .glb in it and its subfolders shows up here. Saves go straight back into the picked .glb. The folder is remembered; next time one click reconnects it.</p>
+    </section>
+
     <section aria-labelledby="h-clip">
       <h2 id="h-clip">Clip</h2>
       <div class="row"><select id="clip" class="grow" aria-label="Clip"></select></div>
@@ -234,6 +250,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         <label class="check"><input type="checkbox" id="vNames"> Names</label>
         <label class="check"><input type="checkbox" id="vBones"> Skeleton</label>
       </div>
+      <label class="check"><input type="checkbox" id="vGhost" checked> Afterimages (onion skin)</label>
+      <div class="row"><label for="gBefore">Before</label><input id="gBefore" type="range" min="0" max="5" step="1" value="2"><output id="gBeforeOut">2</output><span class="swatch" style="background:#ff5a3c" aria-hidden="true"></span></div>
+      <div class="row"><label for="gAfter">After</label><input id="gAfter" type="range" min="0" max="5" step="1" value="2"><output id="gAfterOut">2</output><span class="swatch" style="background:#22c97a" aria-hidden="true"></span></div>
+      <div class="row"><label for="gStep">Step</label><input id="gStep" type="range" min="1" max="10" step="1" value="1"><output id="gStepOut">every frame</output></div>
+      <label class="check"><input type="checkbox" id="gWrap"> Wrap round the clip ends</label>
+      <p class="note">See-through copies of the pose on the frames before (red) and after (green) the current one, fainter the further away. Step spreads them out (2 = every other frame). Shown while posing and while playing.</p>
       <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>K</kbd> key · <kbd>Shift+K</kbd> key pose · <kbd>Del</kbd> delete key · <kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> (<kbd>Ctrl+Shift+V</kbd> mirrored) · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> save · rings: <kbd>Shift</kbd> = 5° steps</p>
     </section>
   </div>
@@ -670,14 +692,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       /* clips-only character file (v3/tools/retarget2d.py): show its clips on the shared body, save back clips-only */
       var ext = (gltf.scene.userData && gltf.scene.userData.pb_rig3d) || null;
       var meta = (gltf.scene.userData && gltf.scene.userData.pb_body) || {};
-      withBody(function (body) {
+      withBody(meta.body, function (body) {
         var clips;
         try { clips = rtClips(gltf.animations, gltf.scene, body.scene); }
         catch (err) { status("Could not put " + name + "'s clips on the body: " + err.message, true); return; }
         onLoaded({scene: body.scene, animations: Object.keys(clips).map(function (k) { return clips[k]; }),
                   pbExt: ext, slim: {meta: meta, body: body.name}}, name, handle);
       });
-    }, function (err) { status("Could not read " + name + ": " + (err && err.message || err), true); });
+    }, function (err) { CH.loading = -1; status("Could not read " + name + ": " + (err && err.message || err), true); });
   }
   /* the shared body: picked once, its file handle remembered (IndexedDB) so later opens reuse it */
   var BODY = {buf: null, name: "", pending: null};
@@ -698,8 +720,16 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     BODY.pending = done; $("pickBody").hidden = false;
     status("This file holds only clips. Pick the shared body (characters/ual_swordsman/ual_swordsman.glb).", true);
   }
-  function withBody(done) {
+  function withBody(want, done) {
     if (BODY.buf) { bodyFromBuf(BODY.buf, BODY.name, done); return; }
+    /* a connected characters folder holds the body: take it from there, no question asked */
+    var hit = chFind(want || "ual_swordsman");
+    if (hit) {
+      (hit.handle ? hit.handle.getFile() : Promise.resolve(hit.file))
+        .then(function (f) { return f.arrayBuffer().then(function (b) { bodyFromBuf(b, f.name, done); }); })
+        .catch(function () { askBody(done); });
+      return;
+    }
     if (!window.showOpenFilePicker || inFrame()) { askBody(done); return; }
     idb(function (st) {
       if (!st) { askBody(done); return; }
@@ -734,6 +764,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   };
   function clearModel() {
     tc.detach(); back.visible = false;
+    clearGhosts();
     if (S.root) place.remove(S.root);
     S.outlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
     if (S.helper) scene.remove(S.helper);
@@ -775,8 +806,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       else toon = new THREE.MeshToonMaterial({color: col, gradientMap: grad, skinning: true,
         emissive: /blade/.test(m.name || "") ? new THREE.Color(0x223044) : new THREE.Color(0)});
       S.origMats.push([o, m]); S.toonMats.push([o, toon]);
+      stencilMark(m); stencilMark(toon);
       if (!hasMorph) {
         var ink = new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide, skinning: true});
+        stencilMark(ink);
         ink.onBeforeCompile = function (sh) {
           sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>",
             "transformed += normalize(objectNormal) * 0.0045;\n#include <project_vertex>");
@@ -820,6 +853,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     setPlaying(false);
     setClip(S.order.indexOf("idle") >= 0 ? "idle" : S.order[0], 0);
     buildCard();
+    charSelSync(handle, name);
     status("Opened " + name + (ext ? " (with saved edits)" : ""));
   }
   function initAnchors() {
@@ -2195,6 +2229,236 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   window.addEventListener("blur", function () { if (RING) endRing(); });
   window.addEventListener("beforeunload", function (e) { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
+  /* ---------------------------------------------------------------- afterimages (onion skin, Daniel 2026-11-22)
+     Each ghost = a clone of the model (own bones + skin, shared geometry) with its own mixer, posed on frame
+     S.frame -/+ k x step of the clip AS BAKED (keys included).  Previous frames red, next frames green, each fainter
+     the further away.  A colour-less depth pass per ghost first, so a ghost's own overlapping parts don't double up.
+     Ghosts sit in `place` beside the model (same placement), never in the exported scene, and are rebuilt when the
+     structure (added bones / weapon attach) changes.  View setting only: kept in this browser, not in the .glb. */
+  var GH = {list: [], sig: "", pose: "", cfg: {on: true, before: 2, after: 2, step: 1, wrap: false}};
+  var GH_PREV = 0xff5a3c, GH_NEXT = 0x22c97a, GH_NEAR = 0.42, GH_FALL = 0.62;
+  try { Object.assign(GH.cfg, JSON.parse(localStorage.getItem("pbRf3dGhost") || "{}")); } catch (e) {}
+  function ghostCfgSave() { try { localStorage.setItem("pbRf3dGhost", JSON.stringify(GH.cfg)); } catch (e) {} }
+  /* the model marks its pixels in the stencil buffer; ghosts never draw there, so the current pose stays clean */
+  function stencilMark(m) {
+    m.stencilWrite = true; m.stencilRef = 1; m.stencilFunc = THREE.AlwaysStencilFunc;
+    m.stencilZPass = THREE.ReplaceStencilOp; m.stencilFail = m.stencilZFail = THREE.KeepStencilOp;
+  }
+  function stencilSkip(m) {
+    m.stencilWrite = true; m.stencilRef = 1; m.stencilFunc = THREE.NotEqualStencilFunc; m.stencilWriteMask = 0;
+    m.stencilZPass = m.stencilFail = m.stencilZFail = THREE.KeepStencilOp;
+  }
+  function clearGhosts() {
+    GH.list.forEach(function (g) {
+      g.mixer.stopAllAction(); if (g.root.parent) g.root.parent.remove(g.root);
+      g.mats.forEach(function (m) { m.dispose(); });
+    });
+    GH.list = []; GH.sig = ""; GH.pose = "";
+  }
+  /* SkeletonUtils-style clone: Object3D.clone keeps the skinned meshes on the ORIGINAL bones; re-point them */
+  function cloneRig(src) {
+    var dst = src.clone(), map = new Map();
+    (function walk(a, b) { map.set(a, b); for (var i = 0; i < a.children.length; i++) walk(a.children[i], b.children[i]); })(src, dst);
+    map.forEach(function (b, a) {
+      if (!a.isSkinnedMesh) return;
+      var sk = new THREE.Skeleton(a.skeleton.bones.map(function (x) { return map.get(x) || x; }), a.skeleton.boneInverses);
+      b.bind(sk, a.bindMatrix);
+    });
+    return dst;
+  }
+  function ghostMake(i, color, opacity) {
+    var root = cloneRig(S.root), mats = [], meshes = [];
+    root.traverse(function (o) { if (o.isMesh) meshes.push(o); });
+    meshes.forEach(function (o) {
+      var morph = !!(o.morphTargetDictionary && Object.keys(o.morphTargetDictionary).length);
+      if (o.userData.isOutline || morph) { o.visible = false; return; }   /* ink shell + face decals: hidden (kept so the clips still bind) */
+      var sk = !!o.isSkinnedMesh, ro = 10 + i * 2;
+      var col = new THREE.MeshBasicMaterial({color: color, transparent: true, opacity: opacity, depthWrite: false,
+        depthFunc: THREE.LessEqualDepth, skinning: sk});
+      var msk = new THREE.MeshBasicMaterial({colorWrite: false, transparent: true, skinning: sk});
+      stencilSkip(col); stencilSkip(msk); mats.push(col, msk);
+      o.material = col; o.renderOrder = ro + 1; o.frustumCulled = false; o.castShadow = o.receiveShadow = false;
+      var m2 = sk ? new THREE.SkinnedMesh(o.geometry, msk) : new THREE.Mesh(o.geometry, msk);
+      if (sk) m2.bind(o.skeleton, o.bindMatrix);
+      m2.renderOrder = ro; m2.frustumCulled = false; m2.userData.ghostMask = true;
+      o.parent.add(m2);
+    });
+    root.position.copy(S.root.position); root.quaternion.copy(S.root.quaternion); root.scale.copy(S.root.scale);
+    place.add(root);
+    return {root: root, mixer: new THREE.AnimationMixer(root), mats: mats, clip: null, action: null};
+  }
+  function ghostFrames() {
+    var c = GH.cfg, n = frameCount(S.clips[S.clip]), out = [], k, f;
+    for (k = 1; k <= c.before; k++) { f = S.frame - k * c.step; if (c.wrap) f = ((f % (n + 1)) + n + 1) % (n + 1); out.push([f >= 0 && f <= n ? f : null, GH_PREV, k]); }
+    for (k = 1; k <= c.after; k++) { f = S.frame + k * c.step; if (c.wrap) f = f % (n + 1); out.push([f >= 0 && f <= n ? f : null, GH_NEXT, k]); }
+    return out;
+  }
+  function updateGhosts() {
+    var c = GH.cfg, want = S.root && S.clip && S.clips[S.clip] && c.on ? ghostFrames() : [];
+    var sig = want.length ? [S.root.uuid, JSON.stringify(S.data.xbones), JSON.stringify(S.data.attach), c.before, c.after].join("|") : "";
+    if (sig !== GH.sig) {
+      clearGhosts(); GH.sig = sig;
+      want.forEach(function (w, i) { GH.list.push(ghostMake(i, w[1], GH_NEAR * Math.pow(GH_FALL, w[2] - 1))); });
+    }
+    if (!want.length) return;
+    var clip = S.clips[S.clip], pose = [clip.uuid, S.frame, c.step, c.wrap].join("|");
+    if (pose === GH.pose) return;
+    GH.pose = pose;
+    want.forEach(function (w, i) {
+      var g = GH.list[i]; if (!g) return;
+      g.root.visible = w[0] !== null; if (w[0] === null) return;
+      if (g.clip !== clip) {
+        g.mixer.stopAllAction(); if (g.clip) { g.mixer.uncacheAction(g.clip); g.mixer.uncacheClip(g.clip); }
+        g.clip = clip; g.action = g.mixer.clipAction(clip); g.action.setLoop(THREE.LoopRepeat); g.action.play();
+      }
+      g.action.paused = false; g.action.time = w[0] / FPS; g.mixer.update(0); g.action.paused = true;
+    });
+  }
+  function ghostToUi() {
+    var c = GH.cfg;
+    $("vGhost").checked = c.on; $("gWrap").checked = c.wrap;
+    $("gBefore").value = c.before; $("gBeforeOut").textContent = c.before;
+    $("gAfter").value = c.after; $("gAfterOut").textContent = c.after;
+    $("gStep").value = c.step; $("gStepOut").textContent = c.step === 1 ? "every frame" : "every " + c.step + " f";
+    ["gBefore", "gAfter", "gStep", "gWrap"].forEach(function (id) { $(id).disabled = !c.on; });
+  }
+  $("vGhost").onchange = function () { GH.cfg.on = this.checked; ghostCfgSave(); ghostToUi(); };
+  $("gWrap").onchange = function () { GH.cfg.wrap = this.checked; ghostCfgSave(); };
+  [["gBefore", "before"], ["gAfter", "after"], ["gStep", "step"]].forEach(function (x) {
+    $(x[0]).oninput = function () { GH.cfg[x[1]] = Math.round(+this.value); ghostCfgSave(); ghostToUi(); };
+  });
+  ghostToUi();
+
+  /* ---------------------------------------------------------------- characters folder (Daniel 2026-11-22)
+     Pick the characters folder once: every .glb in it and its subfolders goes in the Character dropdown (above
+     Clip).  With the File System Access API the folder handle is kept in IndexedDB, and opened files keep a
+     writable handle, so Save writes straight back into the picked .glb.  The browser asks again for access on a
+     new visit: one click on Reconnect.  Without the API (preview page / other browsers) the folder is read through
+     a folder input instead: read-only, Save downloads a copy. */
+  var CH = {dir: null, list: [], loading: -1, busy: false};
+  var CH_SKIP = {node_modules: 1, ".git": 1, __pycache__: 1};
+  function chDb(mode, fn) {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open("pb_rigforge3d", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("kv"); };
+      r.onerror = function () { rej(r.error); };
+      r.onsuccess = function () {
+        var db = r.result, tx = db.transaction("kv", mode), q = fn(tx.objectStore("kv"));
+        tx.oncomplete = function () { db.close(); res(q && q.result); };
+        tx.onerror = function () { db.close(); rej(tx.error); };
+      };
+    });
+  }
+  function chLast(v) { try { if (v === undefined) return localStorage.getItem("pbRf3dChar") || ""; localStorage.setItem("pbRf3dChar", v); } catch (e) {} return ""; }
+  function chFind(base) {                                  /* the listed .glb called <base>.glb (prefers <base>/<base>.glb) */
+    var best = null, want = String(base).toLowerCase() + ".glb";
+    CH.list.forEach(function (c) {
+      var p = c.rel.toLowerCase().split("/"); if (p[p.length - 1] !== want) return;
+      if (!best || p.length === 2) best = c;
+    });
+    return best;
+  }
+  function chLabel(rel) {
+    var p = rel.replace(/\.glb$/i, "").split("/");
+    return p.length === 2 && p[0] === p[1] ? p[0] : p.join(" / ");      /* <name>/<name>.glb -> name */
+  }
+  async function chScanHandles(dir, path, out, depth) {
+    for await (var h of dir.values()) {
+      if (h.name.charAt(0) === "." || CH_SKIP[h.name]) continue;
+      if (h.kind === "directory") { if (depth < 8) await chScanHandles(h, path + h.name + "/", out, depth + 1); }
+      else if (/\.glb$/i.test(h.name)) out.push({rel: path + h.name, handle: h, file: null});
+    }
+    return out;
+  }
+  function chFill(list, folderName) {
+    list.sort(function (a, b) { var x = chLabel(a.rel).toLowerCase(), y = chLabel(b.rel).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
+    CH.list = list;
+    var sel = $("charSel");
+    sel.innerHTML = '<option value="">' + (list.length ? "— choose a character (" + list.length + ") —" : "No .glb files found") + "</option>" +
+      list.map(function (c, i) { return '<option value="' + i + '" title="' + esc(c.rel) + '">' + esc(chLabel(c.rel)) + "</option>"; }).join("");
+    sel.disabled = !list.length; $("charRescan").disabled = !CH.dir;
+    $("charDirOut").textContent = folderName + ": " + list.length + " character" + (list.length === 1 ? "" : "s") + (CH.dir ? "" : " (read-only: Save downloads a copy)");
+    if (S.root) charSelSync(S.fileHandle, S.fileName);
+  }
+  async function chScan(autoOpen) {
+    if (!CH.dir || CH.busy) return;
+    CH.busy = true; $("charDirOut").textContent = "Scanning " + CH.dir.name + "…";
+    try {
+      chFill(await chScanHandles(CH.dir, "", [], 0), CH.dir.name);
+      $("charReconnect").hidden = true;
+      if (autoOpen && !S.root) {
+        var last = chLast(), i = -1;
+        CH.list.forEach(function (c, j) { if (c.rel === last) i = j; });
+        if (i >= 0) chOpen(i);
+      }
+    } catch (e) { $("charDirOut").textContent = "Could not read " + CH.dir.name + ": " + e.message; }
+    CH.busy = false;
+  }
+  function chOpen(i) {
+    var c = CH.list[i]; if (!c) return;
+    CH.loading = i;
+    var got = c.handle ? c.handle.getFile() : Promise.resolve(c.file);
+    got.then(function (f) { return f.arrayBuffer().then(function (b) { loadArrayBuffer(b, f.name, c.handle || null); }); })
+      .catch(function (e) { CH.loading = -1; status("Could not open " + c.rel + ": " + e.message, true); charSelSync(S.fileHandle, S.fileName); });
+  }
+  /* the dropdown shows what is open: the entry just picked, else the entry that is the same file, else nothing */
+  function charSelSync(handle, name) {
+    var sel = $("charSel"); if (!CH.list.length) return;
+    if (CH.loading >= 0) { sel.value = String(CH.loading); chLast(CH.list[CH.loading].rel); CH.loading = -1; return; }
+    sel.value = "";
+    if (!handle || !handle.isSameEntry) return;
+    CH.list.forEach(function (c, i) {
+      if (c.handle && c.handle.name === name) c.handle.isSameEntry(handle).then(function (same) { if (same) { sel.value = String(i); chLast(c.rel); } }).catch(function () {});
+    });
+  }
+  function chUseDir(h) {
+    CH.dir = h;
+    chDb("readwrite", function (st) { return st.put(h, "charDir"); }).catch(function () {});
+    chScan(true);
+  }
+  $("charDir").onclick = function () {
+    if (window.showDirectoryPicker && !inFrame()) {
+      window.showDirectoryPicker({id: "pbchars", mode: "readwrite"}).then(chUseDir)
+        .catch(function (e) { if (e && e.name !== "AbortError") status("Could not open the folder: " + e.message, true); });
+    } else $("dirInput").click();
+  };
+  $("dirInput").onchange = function () {
+    var fs = Array.prototype.slice.call(this.files || []), list = [], top = "";
+    fs.forEach(function (f) {
+      var rel = f.webkitRelativePath || f.name, parts = rel.split("/");
+      if (!/\.glb$/i.test(f.name) || parts.some(function (p) { return p.charAt(0) === "." || CH_SKIP[p]; })) return;
+      top = parts.length > 1 ? parts[0] : top;
+      list.push({rel: parts.length > 1 ? parts.slice(1).join("/") : rel, handle: null, file: f});
+    });
+    CH.dir = null; chFill(list, top || "folder"); this.value = "";
+  };
+  $("charRescan").onclick = function () { chScan(false); };
+  $("charReconnect").onclick = function () {
+    if (!CH.dir) return;
+    CH.dir.requestPermission({mode: "readwrite"}).then(function (p) {
+      if (p === "granted") chScan(true); else $("charDirOut").textContent = "Access to " + CH.dir.name + " was not given.";
+    }).catch(function (e) { $("charDirOut").textContent = "Could not reconnect: " + e.message; });
+  };
+  $("charSel").onchange = function () {
+    var v = this.value; if (v === "") return;
+    if (S.dirty && !window.confirm("Discard unsaved changes?")) { charSelSync(S.fileHandle, S.fileName); return; }
+    chOpen(+v);
+  };
+  /* a remembered folder: straight back in if the browser still allows it, else a Reconnect button */
+  if (window.showDirectoryPicker && window.indexedDB && !inFrame()) {
+    chDb("readonly", function (st) { return st.get("charDir"); }).then(function (h) {
+      if (!h || !h.queryPermission) return;
+      CH.dir = h;
+      return h.queryPermission({mode: "readwrite"}).then(function (p) {
+        if (p === "granted") chScan(true);
+        else {
+          var b = $("charReconnect"); b.textContent = "Reconnect “" + h.name + "”"; b.hidden = false;
+          $("charDirOut").textContent = "Last folder: " + h.name + " (click Reconnect to list its characters).";
+        }
+      });
+    }).catch(function () {});
+  }
+
   /* ---------------------------------------------------------------- loop */
   var clock = new THREE.Clock(), wp2 = new THREE.Vector3();
   function resize() {
@@ -2213,6 +2477,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       if (f !== S.frame) { S.frame = f; updateFrames(); }
     }
     orbit.update();
+    updateGhosts();
     var ring = tcRot.object ? tcRot : tc, obj = ring.object;   /* the gizmo whose rings get the backdrop discs */
     if (obj && back.visible) {
       obj.getWorldPosition(wp2);

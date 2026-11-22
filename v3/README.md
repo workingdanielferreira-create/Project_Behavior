@@ -126,12 +126,20 @@ body (RIG_SPEC section 10). The first run also gives the shared body its left bl
 ## Rig Forge 3D
 
 **Character files are clips-only** (Daniel 2026-11-22). Opening one (no mesh inside) shows its clips on the shared
-body: the first time, **Pick shared body…** asks for `characters/ual_swordsman/ual_swordsman.glb` (or the final model);
+body: taken from the connected characters folder (below) when it holds it, else the first time **Pick shared body…** asks for `characters/ual_swordsman/ual_swordsman.glb` (or the final model);
 Edge remembers that file (IndexedDB) for later opens. Clips go through `js/retarget.js`, so another body works too.
 Saving writes back the skeleton + clips + `pb_rig3d` / `pb_body` extras only, never the body's mesh.
 
-`Rig Forge 3D.bat` (repo root) opens `tools/rigforge3d.html` in Edge. **Open .glb…** a character's
-`characters/<name>/<name>.glb`, then:
+`Rig Forge 3D.bat` (repo root) opens `tools/rigforge3d.html` in Edge. Pick a fighter from the **Character**
+dropdown (above Clip): **Characters folder…** once on the repo's `characters` folder lists every .glb in it and
+its subfolders (`<name>/<name>.glb` shows as `name`, others as their path; ↻ rescans). The folder is remembered
+(IndexedDB); on a new visit the browser wants one click on **Reconnect**, then the last character reopens.
+Saves still write straight into the picked .glb. **Open .glb…** / drag and drop still work. Then:
+
+- **Afterimages (onion skin)** (View panel, on by default): see-through copies of the clip's pose on the
+  frames before (red) and after (green) the current one, 0-5 each, fainter further away; **Step** spreads
+  them (2 = every other frame), **Wrap** carries them round the clip ends. Shown while posing and playing,
+  always behind the current pose (stencil), keys included. Settings live in the browser, not in the .glb.
 
 - **Pose per keyframe.** Click a pivot dot (or pick it in the Pivot list), go to a frame and turn the X / Y / Z
   rings (red / green / blue; grey = free turn, yellow outer ring = turn about the view). The rings follow the
