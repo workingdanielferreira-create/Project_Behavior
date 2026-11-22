@@ -41,12 +41,14 @@ const Menu=(function(){
       row('Camera',seg('cam',[['shoulder','Over the shoulder'],['dynamic','Dynamic'],['wide','Wide']]),'Dynamic cuts between angles and on launches and ultimates. (C in game)')+
       row('Show intents',tog('labels'),'Each fighter\'s rhythm intent above its head.')+
       row('Feel panel',tog('feel'),'Live numbers against the 2D duel ranges.')+
+      row('Speed gravity',tog('gravity'),'Faster = may fly higher; slow fighters fall back to the ground. Off = free flight.')+
+      row('AI parries',tog('aiParry'),'Computer fighters parry by chance (you always parry with Ctrl+Space).')+
       row('Quality',seg('quality',[['low','Low'],['medium','Medium'],['high','High']]),'Render resolution. Lower it if the game stutters.')+
       row('Fullscreen','<button type="button" class="tog" data-nav data-act="fullscreen" aria-pressed="'+!!document.fullscreenElement+'">'+(document.fullscreenElement?'On':'Off')+'</button>','Or press F11.')+
       '</div><nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 
   function controls(){
-    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R / F','Fly up / down (hold). With Space: snap straight up / down'],['C','Camera: over the shoulder / dynamic / wide'],['Tab','Control level'],['Esc / P','Pause']];
+    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['Ctrl+Space','Parry. Right on the hit = perfect: no damage, attacker staggered, counter window (your hits x1.5). A shot is sent back at the shooter, or away the way you hold WASD. A bit late = normal parry: less damage and knockback'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R / F','Fly up / down (hold), as high as your speed allows. With Space: snap straight up / down'],['C','Camera: over the shoulder / dynamic / wide'],['Tab','Control level'],['Esc / P','Pause']];
     return '<div class="scr wide"><h1>Controls</h1><dl class="keys">'+K.map(k=>'<dt>'+k[0]+'</dt><dd>'+esc(k[1])+'</dd>').join('')+'</dl>'+
       '<nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 

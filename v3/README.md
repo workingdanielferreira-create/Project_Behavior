@@ -46,7 +46,9 @@ Settings and teams are saved between sessions.
 | `tempo.js` | fight rhythm intents (port of `laser/tempo.py`) |
 | `director.js` | director heat: calm / build / burst |
 | `motion.js` | drift & snap motion |
+| `gravity.js` | speed gravity: speed sets how high a fighter may fly, gravity pulls it down above that |
 | `combat.js` | actions, triggers, hits, damage, stun, K.O., reactions, tagging, projectiles |
+| `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
 | `input.js` | keyboard commands |
@@ -61,5 +63,19 @@ game runs straight from disk (`file://`) without a local server. A file may
 use anything declared in the files loaded before it. Code that runs at load
 time has to respect that order; functions called later can reach anything.
 
-Gameplay is unchanged from Playtest 2. This step only moved it into the window
-and the module layout.
+Gameplay is Playtest 2's, plus:
+
+- **Parry / deflect (Ctrl+Space)**, for every fighter. You press it; the AI rolls a chance (Settings > AI parries).
+  - **Perfect** (first 130 ms of the window): no damage, no knockback. A melee attacker is staggered and a counter
+    window opens, in which the parrier's hits deal 150 %. A shot is sent back at its shooter, or away the way you
+    hold WASD.
+  - **Normal** (to 330 ms): damage −60 %, knockback 40 %.
+  - Then a 420 ms cooldown.
+  - A staggered fighter can parry the counter back.
+  - The perfect snap (Space) and Ronin / Tough's own parry / block stay as they were.
+- **Speed gravity** (Settings > Speed gravity). Speed sets a ceiling on how high a fighter may fly:
+  - up to 650 px/s it stays on the ground;
+  - the ceiling rises with speed, to the full 1,500 px of air at 3,000 px/s (snap speed);
+  - above its ceiling a fighter falls with accelerating gravity.
+  - AI heights and R / F still pick a height under the ceiling, a snap can climb as high as its own speed allows,
+    and launches / spikes still throw fighters up.

@@ -8,12 +8,12 @@ function stepNums(rdt){const r=host.getBoundingClientRect();for(let i=nums.lengt
   if(n.t>.8){n.el.remove();nums.splice(i,1);}}}
 function flash(a){const el=$('flash');el.style.transition='none';el.style.opacity=a;requestAnimationFrame(()=>{el.style.transition='opacity .22s';el.style.opacity=0;});}
 /* ================= HUD ================= */
-const CMDS=[['Space','Snap'],['KeyJ','Chain'],['KeyK','Special'],['KeyL','Special 2'],['KeyI','Ultimate'],['Digit1','1 Pressure'],['Digit2','2 Punish'],['Digit3','3 Reset'],['Digit4','4 Feint'],['KeyQ','Q Tag'],['KeyE','E Tag']];
-const KEYLBL={Space:'Space',KeyJ:'J',KeyK:'K',KeyL:'L',KeyI:'I'};
+const CMDS=[['Space','Snap'],['Parry','Parry'],['KeyJ','Chain'],['KeyK','Special'],['KeyL','Special 2'],['KeyI','Ultimate'],['Digit1','1 Pressure'],['Digit2','2 Punish'],['Digit3','3 Reset'],['Digit4','4 Feint'],['KeyQ','Q Tag'],['KeyE','E Tag']];
+const KEYLBL={Parry:'Ctrl+Space',Space:'Space',KeyJ:'J',KeyK:'K',KeyL:'L',KeyI:'I'};
 const cmdEls={};
 (function(){const bar=$('cmdbar');const r1=document.createElement('div');r1.className='crow';const r2=document.createElement('div');r2.className='crow';bar.appendChild(r1);bar.appendChild(r2);
   CMDS.forEach((c,i)=>{const el=document.createElement('div');el.className='ck';el.innerHTML=(KEYLBL[c[0]]?'<kbd>'+KEYLBL[c[0]]+'</kbd>':'')+'<span>'+c[1]+'</span><i class="cd"></i>';
-    el.addEventListener('mousedown',ev=>{ev.preventDefault();if(running&&!paused&&!ended)command(c[0]);host.focus();});(i<5?r1:r2).appendChild(el);cmdEls[c[0]]=el;});})();
+    el.addEventListener('mousedown',ev=>{ev.preventDefault();if(running&&!paused&&!ended)command(c[0]);host.focus();});(i<6?r1:r2).appendChild(el);cmdEls[c[0]]=el;});})();
 function deny(code){const el=cmdEls[code];if(!el)return;el.classList.remove('deny');void el.offsetWidth;el.classList.add('deny');}
 function flashKey(code){const el=cmdEls[code];if(!el)return;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),300);}
 const co=$('callout');let coT=0;
@@ -28,6 +28,7 @@ function hud(rdt){const [a,b]=onField();
   const setCk=(code,ready,hot,frac)=>{const el=cmdEls[code];el.classList.toggle('off',!ready);el.classList.toggle('hot',!!hot&&ready);el.querySelector('.cd').style.width=((frac||0)*100)+'%';};
   const cdf=(k,total)=>f.cds[k]>tick?(f.cds[k]-tick)/ms2t(total):0;
   setCk('Space',f.snapCd<=tick&&f.stun<=0,incoming(f,e)!=null);
+  {const st=f.pw;const c=parryCfg(f);const left=st&&tick<st.cd?(st.cd-tick)/ms2t(c.windowMs+c.cooldownMs):0;setCk('Parry',parryReady(f),incoming(f,e)!=null||incomingShot(f,c.reach*3)!=null,left);}
   setCk('KeyJ',!f.act||f.act.kind==='normal',f.tp.intent==='pressure'&&Math.hypot(e.x-f.x,e.y-f.y)<f.k.reach*1.6);
   setCk('KeyK',f.cds.special<=tick,false,cdf('special',f.k.special.cd));cmdEls.KeyK.querySelector('span').textContent=f.k.special.name;
   setCk('KeyL',f.cds.special2<=tick,false,cdf('special2',f.k.special2.cd));cmdEls.KeyL.querySelector('span').textContent=f.k.special2.name;
@@ -39,7 +40,7 @@ function hud(rdt){const [a,b]=onField();
   const L=$('labels');const show=settings.labels;
   [a,b].forEach((g,i)=>{let el=labels[i];if(!el){el=document.createElement('div');el.className='lab';L.appendChild(el);labels[i]=el;}
     if(!show||g.gone>0){el.style.display='none';return;}el.style.display='';const p=VA(g.x,g.y,g.z,2.3+(g.h||0)).project(cam);const r=host.getBoundingClientRect();
-    el.style.left=((p.x+1)/2*r.width)+'px';el.style.top=((1-p.y)/2*r.height)+'px';const it=g.act&&g.act.kind==='react'?g.act.name:g.stun>0?'stunned':(g.side===0&&level==='handson')?'—':g.k.rhythm===false?(g.formChannel>=0?'transform':'style: '+(g.hp/g.max<=.3?'keep away':Math.hypot(g.x-enemyOf(g).x,g.y-enemyOf(g).y)>=500?'orbit':'kite')):g.tp.intent;
+    el.style.left=((p.x+1)/2*r.width)+'px';el.style.top=((1-p.y)/2*r.height)+'px';const it=parryWindow(g)?'parry':g.act&&g.act.kind==='react'?g.act.name:g.stun>0?'stunned':(g.side===0&&level==='handson')?'—':g.k.rhythm===false?(g.formChannel>=0?'transform':'style: '+(g.hp/g.max<=.3?'keep away':Math.hypot(g.x-enemyOf(g).x,g.y-enemyOf(g).y)>=500?'orbit':'kite')):g.tp.intent;
     el.textContent=it+(g.z>60?'  ↑'+Math.round(g.z/BODY*1.8)+'m':'');el.style.color=it==='punish'?'#ffc857':it==='pressure'||it==='engage'?'#ff8a9a':it==='stunned'?'#9aa1bd':it==='parry'||it==='block'?'#ffffff':'#8fd3ff';});
   if(coT>0){coT-=rdt;if(coT<=0)co.classList.remove('on');}
   $('vig').classList.toggle('on',slowmo>0||burst());

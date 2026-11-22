@@ -164,7 +164,7 @@ def plan(world):
     """Once per tick, after refresh_battle: each figure's body / FX scale and
     steps from every running time effect.  None when no time effect runs
     (the pipeline then runs exactly as it always has)."""
-    from . import unique, parry
+    from . import unique
     casters = []
     for si, side in enumerate(world.sides):
         for f in side.figures:
@@ -190,8 +190,8 @@ def plan(world):
     for f in world.all_figures():
         b, bf = unique.speed_mult(f, world), unique.fx_speed_mult(f, world)
         mv = unique.move_mult(f, world)
-        if frz or f is pup or parry.stunned(f, world):
-            b = 0.0          # parry.py: staggered by a perfect parry
+        if frz or f is pup:
+            b = 0.0
         if mv != 1.0:
             moves[id(f)] = mv
         if b != 1.0 or bf != 1.0:

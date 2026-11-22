@@ -275,10 +275,7 @@ def spawn_afterimage(fig):
     # The character's on-screen size and tilt at this moment, so the ghost
     # matches it (Figure.draw draws the sprite the same way).
     ang = fig.aim if fig.aim is not None else (fig.transform.angle if fig.motion.rotate else 0.0)
-    _ps = fig._position_scale()
-    _lf = getattr(fig, "lift", None)
-    _z = _lf.z * _ps if _lf is not None else 0.0     # speed lift (laser/lift.py)
-    c.afterimages.append([fig.transform.x, fig.transform.y - _z, frame, 0, _ps, ang])
+    c.afterimages.append([fig.transform.x, fig.transform.y, frame, 0, fig._position_scale(), ang])
     if len(c.afterimages) > config.AFTERIMAGE_MAX:
         c.afterimages.pop(0)
 

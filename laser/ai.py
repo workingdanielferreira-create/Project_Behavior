@@ -16,7 +16,6 @@ from . import unique as _unique
 from . import movestyle as _movestyle
 from . import dmgnum as _dmgnum
 from . import battlestats as _bstats
-from . import parry as _parry
 from . import guard as _guard
 
 
@@ -255,12 +254,6 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     if damage_immune(fig, world):
         return False
     if not unblockable:
-        # Parry / deflect (laser/parry.py): a perfect parry takes the hit
-        # (stagger + counter for the parrier), a normal one cuts it.
-        amount = _parry.on_hit(fig, world, amount, kind)
-        if amount <= 0:
-            _bstats.on_negated(world, fig)
-            return False
         # Special-stance block (opt-in): a hit landing while braced in the
         # hold is blocked outright (no HP loss) and arms the counter;
         # otherwise it feeds the special meter.  No-ops for characters
@@ -291,11 +284,6 @@ def apply_hp_damage(fig, world, amount=1, unblockable=False, _ua_checked=False, 
     elif not _ua_checked and _unique.intercept(fig, world, amount, unblockable=True):
         _bstats.on_negated(world, fig)
         return False   # Phase Shift dodges unblockable hits too
-    # Parry counter (laser/parry.py): the parrier's hits on the fighter it
-    # staggered deal counter_dmg_pct % while its counter window is open.
-    _cm = _parry.counter_mult(fig, world) if world is not None else 1.0
-    if _cm != 1.0:
-        amount = amount * _cm
     # Domain Expansion "damage heals": inside its own domain a hit heals.
     if _unique.heals_instead(fig, amount):
         return False
@@ -437,13 +425,6 @@ def battle_hit(fig, proj_vx, proj_vy, world=None, amount=1, knockback_px=None,
     # Ally support (laser/guard.py): a typed defend keeps only part of the
     # knockback (the damage itself is cut in apply_hp_damage below).
     _kbm = _guard.kb_mult(fig, world) if world is not None else 1.0
-    # Parry (laser/parry.py): a parry window open now keeps only part of it
-    # (perfect: none).  May roll an AI parry for this hit first.
-    if world is not None:
-        _cfgp = _parry.config_for(fig)
-        if _cfgp is not None:
-            _parry._ai_roll_hit(fig, world, _cfgp, _parry.state(fig), _parry._now(world))
-            _kbm *= _parry.kb_mult(fig, world)
     if _kbm <= 0.0:
         no_knockback = True
 
