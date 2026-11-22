@@ -348,6 +348,24 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     var gz = tcRot.children.filter(function (c) { return c.picker; })[0];
     if (gz && gz.picker && gz.picker.rotate) gz.picker.rotate.children.slice().forEach(function (c) { if (c.name === "XYZE") gz.picker.rotate.remove(c); });
   })();
+  /* Full X / Y / Z wheels (Daniel 2026-11-22).  three draws each as a HALF circle that spins round its own axis to
+     face the camera, so the wheel seemed to change as you orbit.  A full circle looks the same from every side:
+     World = the scene's fixed X / Y / Z wherever the camera is, Local = the selected bone's own axes as posed.
+     The spinning end markers go too (they moved with the half circle). */
+  [tc, tcRot].forEach(function (g) {
+    var gz = g.children.filter(function (c) { return c.gizmo; })[0];
+    if (!gz || !gz.gizmo || !gz.gizmo.rotate) return;
+    gz.gizmo.rotate.children.forEach(function (h) {
+      if (!/^[XYZ]$/.test(h.name)) return;
+      if (h.isMesh) { h.geometry = new THREE.BufferGeometry(); return; }
+      if (!h.isLine) return;
+      var pos = h.geometry.getAttribute("position"); if (!pos || pos.count < 3) return;
+      var p0 = new THREE.Vector3().fromBufferAttribute(pos, 0), p1 = new THREE.Vector3().fromBufferAttribute(pos, Math.floor(pos.count / 2));
+      var nrm = p0.clone().cross(p1).normalize(), r = p0.length(), u = p0.clone().normalize(), v = nrm.clone().cross(u), pts = [];
+      for (var i = 0; i <= 96; i++) { var a = i / 96 * Math.PI * 2; pts.push(u.clone().multiplyScalar(Math.cos(a) * r).add(v.clone().multiplyScalar(Math.sin(a) * r))); }
+      h.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    });
+  });
   var rotProxy = new THREE.Object3D(); scene.add(rotProxy);
   var rotStart = null;   /* {q, w (anchor world), p (pivot world)} while the rings are dragged */
 
