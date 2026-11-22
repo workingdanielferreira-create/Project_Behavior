@@ -130,6 +130,15 @@ tween / Restore (From-To) and Remove all / Restore all, like the 2D "In-between 
 `hold` on every pivot keyed there (still, then a cut; the game already plays hold), the pivot's own ease kept on the key
 as `pe` and given back on Restore (picking an ease drops `pe`).
 
+Move library expansion (Daniel 2026-11-22: "combat animations for swords, dual swords, katana, ethereal swords,
+pistols, great swords"). Daniel picked: library pack only (no game clips replaced); katana + ethereal = look for
+references and author them; add a pistol shape. Done: `ual_moves.glb` (24 Mesh2Motion moves: Sword / Dual swords /
+Great sword / Pistol), Rig Forge 3D loads it, pistol shape. Waiting on Daniel: the 8 authored drafts (Katana: iai
+draw-cut, kirioroshi, chiburi + noto, battojutsu dash slash; Ethereal: summon, command point, sweep + volley, rain of
+blades) in `v3/tools/library/moves.anim3d.json`, references = iai nukitsuke / kirioroshi / chiburi / noto and anime
+battojutsu; ethereal hands are fists (anim3d has no finger controls yet). Mark a clip `"approved": true` and run
+`python v3/tools/move_library.py -` to add it.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

@@ -268,7 +268,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <label class="check"><input type="checkbox" id="libKeepLen" checked> A move keeps this action's length (off: the action takes the move's length)</label>
       <div class="row"><button id="libSavePose">+ Save pose</button><button id="libSaveMove">+ Save action as move</button><button id="libDel" class="danger" disabled>Delete</button></div>
       <div class="row"><button id="libExport">Export…</button><button id="libImport">Import…</button><input type="file" id="libFile" accept=".json,application/json" hidden></div>
-      <p class="note">◆ pose = the whole pose on one frame (applied as a key pose on the current frame). ▶ move = a whole action's key poses with their tweens (applied to the current action, replacing its key poses). <b>Body moves</b> = the shared body's own clips (hit reactions, dodges, sword attacks …). Saved on this computer for every character (bone names), Export / Import moves it between computers.</p>
+      <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb (read from the characters folder by itself once it is connected)">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
+      <p class="note">◆ pose = the whole pose on one frame (applied as a key pose on the current frame). ▶ move = a whole action's key poses with their tweens (applied to the current action, replacing its key poses). <b>Body moves</b> = the shared body's own clips (hit reactions, dodges, sword attacks …). The <b>move pack</b> (characters/ual_swordsman/ual_moves.glb, read from the characters folder by itself) adds weapon moves under Sword, Dual swords, Great sword, Pistol, Katana and Ethereal swords; hover a move for its source. Saved on this computer for every character (bone names), Export / Import moves it between computers.</p>
     </section>
 
     <section aria-labelledby="h-wpn">
@@ -276,7 +277,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><span class="seg"><button id="wpR" aria-pressed="true">Weapon 1 · right hand</button><button id="wpL" aria-pressed="false">Weapon 2 · left hand</button></span></div>
       <label class="check"><input type="checkbox" id="wpOn" checked> Holds a weapon in this hand</label>
       <label class="check"><input type="checkbox" id="wpCustom"> Build it here (off = the body's own plain blade)</label>
-      <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option></select></div>
+      <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option><option value="pistol">Pistol (len = barrel, width = slide height, handle = grip, curve = grip rake)</option></select></div>
       <div id="wpSliders"></div>
       <div class="row"><button id="wpCopy">Copy from the other hand</button><button id="wpReset">Reset to the shape</button></div>
       <p class="note">Saved into the character's .glb (pb_body.weapons) on Save; V3 builds the same weapon in the fighter's hand. Grip slides the weapon along the hand's weapon line, roll turns the edge. The grip spot itself (which bone, where in the palm) is the weapon pivot's grip in the skeleton card.</p>
@@ -2616,6 +2617,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
     return out;
   }
   function chFill(list, folderName) {
+    var packs = list.filter(function (c) { return /(^|\/)ual_moves\.glb$/i.test(c.rel); });
+    list = list.filter(function (c) { return packs.indexOf(c) < 0; });
+    if (packs.length) packFromEntry(packs[0]);
     list.sort(function (a, b) { var x = chLabel(a.rel).toLowerCase(), y = chLabel(b.rel).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
     CH.list = list;
     var sel = $("charSel");
@@ -3262,9 +3266,33 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function libSave() { var v = {items: LIB.items}; chDb("readwrite", function (st) { return st.put(v, "lib"); }).catch(function () {}); }
   function stockItems() {
-    var st = BODY.stock; if (!st) return [];
-    return st.anims.map(function (c) { return {kind: "move", name: c.name, cat: "Body moves", stock: true, ms: Math.round(c.duration * 1000)}; });
+    var st = BODY.stock, out = st ? st.anims.map(function (c) { return {kind: "move", name: c.name, cat: "Body moves", stock: true, ms: Math.round(c.duration * 1000)}; }) : [];
+    PACK.anims.forEach(function (c) {
+      var m = PACK.meta[c.name] || {};
+      out.push({kind: "move", name: m.name || c.name, cat: m.cat || "Move pack", stock: true, pack: true, clip: c.name, src: m.src || "",
+                ms: Math.max(500, Math.round(c.duration * 1000))});
+    });
+    return out;
   }
+  /* the move pack (characters/ual_swordsman/ual_moves.glb, v3/tools/move_library.py): weapon combat moves (Sword, Dual
+     swords, Katana, Ethereal swords, Pistol, Great sword) as stock library moves. Skeleton + key-pose clips, no mesh;
+     scene extras pb_moves {clip: {name, cat, src}}. Read from the connected characters folder, or picked once with
+     "Load move pack…" (kept in IndexedDB "movepack"). Never a character: hidden from the character dropdown. */
+  var PACK = {anims: [], pk: {}, meta: {}, name: ""};
+  function packFromBuf(buf, name, keep) {
+    new THREE.GLTFLoader().parse(buf.slice(0), "", function (g) {
+      var ud = g.scene.userData || {};
+      if (!ud.pb_moves) { status(name + " is not a move pack (no pb_moves).", true); return; }
+      PACK = {anims: g.animations, pk: ud.pb_keys || {}, meta: ud.pb_moves, name: name};
+      if (keep) chDb("readwrite", function (st) { return st.put({buf: buf, name: name}, "movepack"); }).catch(function () {});
+      libBuild(); $("libPackOut").textContent = "Move pack: " + name + " (" + g.animations.length + " moves)";
+    }, function (err) { status("Could not read the move pack " + name + ": " + (err && err.message || err), true); });
+  }
+  function packFromEntry(c) {
+    (c.handle ? c.handle.getFile() : Promise.resolve(c.file))
+      .then(function (f) { return f.arrayBuffer().then(function (b) { packFromBuf(b, f.name, true); }); }).catch(function () {});
+  }
+  chDb("readonly", function (st) { return st.get("movepack"); }).then(function (v) { if (v && v.buf && !PACK.anims.length) packFromBuf(v.buf, v.name, false); }).catch(function () {});
   function libAll() { return LIB.items.concat(stockItems()); }
   function libBuild() {
     var cats = {}; libAll().forEach(function (it) { cats[it.cat] = 1; });
@@ -3276,7 +3304,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     });
     $("libList").innerHTML = list.length ? list.map(function (it, i) {
       var id = libId(it);
-      return '<div role="option" tabindex="-1" data-id="' + esc(id) + '" aria-selected="' + (LIB.sel === id) + '"><span>' + (it.kind === "pose" ? "◆ " : "▶ ") + esc(it.name) +
+      return '<div role="option" tabindex="-1" data-id="' + esc(id) + '" aria-selected="' + (LIB.sel === id) + '"' + (it.src ? ' title="' + esc(it.src) + '"' : "") + '><span>' + (it.kind === "pose" ? "◆ " : "▶ ") + esc(it.name) +
         '</span><span class="ms">' + esc(it.cat) + (it.kind === "move" ? " · " + (it.ms / 1000).toFixed(2) + " s" : "") + "</span></div>";
     }).join("") : '<div class="note" style="padding:6px 8px">Nothing here yet: + Save pose / + Save action as move' + (BODY.stock ? "" : " (Body moves show once the shared body is loaded)") + ".</div>";
     Array.prototype.forEach.call($("libList").querySelectorAll("[role=option]"), function (r) {
@@ -3330,8 +3358,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var m = moveOf(S.clip); m.kind = "move"; m.name = nm.name; m.cat = nm.cat;
     libPut(m); status("Saved " + S.clip + " as the move “" + nm.name + "” (" + (m.ms / 1000).toFixed(2) + " s).");
   };
-  function stockMove(name) {
-    var st = BODY.stock, c = null; if (!st) return null;
+  function stockMove(it) {
+    var st = it.pack ? PACK : BODY.stock, name = it.clip || it.name, c = null; if (!st) return null;
     st.anims.forEach(function (a) { if (a.name === name) c = a; });
     if (!c) return null;
     if (!st.pk[name]) {                                         /* a frame-by-frame clip: every frame is a key */
@@ -3347,7 +3375,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       (ed[bn].pos || []).forEach(function (k) { (o.pos || (o.pos = [])).push({t: k.f / N, v: b.userData.restP.clone().add(new THREE.Vector3().fromArray(k.v)).toArray(), e: k.e, st: k.st, h: k.h}); });
       keys[bn] = o;
     });
-    return {ms: Math.round(c.duration * 1000), keys: keys};
+    return {ms: Math.max(it.pack ? 500 : 0, Math.round(c.duration * 1000)), keys: keys};
   }
   function libApply(mirror) {
     var it = libFind(LIB.sel); if (!it || !S.root || !S.clip) return;
@@ -3356,7 +3384,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var keep = S.board; S.board = {items: it.items, whole: true, what: "pose “" + it.name + "”", from: "library"};
       pastePose(!!mirror); S.board = keep; boardOut(); return;
     }
-    var mv = it.stock ? stockMove(it.name) : it; if (!mv) return;
+    var mv = it.stock ? stockMove(it) : it; if (!mv) return;
     pushUndo();
     var N = frameCount(S.clips[S.clip]);
     if (!$("libKeepLen").checked) { N = Math.max(2, Math.round(mv.ms / 1000 * FPS)); S.data.len[S.clip] = N; meta().timing[S.clip] = mv.ms; rebake(S.clip, false); }
@@ -3403,6 +3431,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var d = JSON.parse(t), n = 0; (d.items || []).forEach(function (it) { if (it && it.name && (it.kind === "pose" || it.kind === "move")) { it.cat = it.cat || "Imported"; delete it.stock; libPut(it); n++; } });
       status("Imported " + n + " library item" + (n === 1 ? "" : "s") + " (same kind + name + category replaced).");
     }).catch(function (e) { status("Could not import: " + e.message, true); });
+  };
+  $("libPack").onclick = function () { $("libPackFile").click(); };
+  $("libPackFile").onchange = function () {
+    var f = this.files[0]; this.value = ""; if (!f) return;
+    f.arrayBuffer().then(function (b) { packFromBuf(b, f.name, true); });
   };
   libLoad();
 

@@ -8,3 +8,4 @@ Body and clips from:
 
 CC0 needs no credit. This file is kept so the source of the assets is not lost.
 Built by v3/tools/blender/m2m_bake.py + ual_to_spec.py.
+ual_moves.glb (Rig Forge 3D move pack): Mesh2Motion clips via v3/tools/blender/m2m_moves.py + v3/tools/move_library.py.
