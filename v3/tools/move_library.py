@@ -16,6 +16,8 @@ into the pack only once Daniel approved its key-pose stills ("approved": true; v
 Build (cloud route, see RIG_SPEC section 8):
     python blender/m2m_moves.py <mesh2motion-assets>/rigs/human m2m_moves.glb      (bpy: bake onto the body, full glb)
     python move_library.py m2m_moves.glb                                           (key poses -> ual_moves.glb)
+    python blender/fbx_moves.py UAL1_Standard.fbx ual1_moves.glb                   (bpy: Quaternius UAL1 FBX clips)
+    python move_library.py ual1_moves.glb             (adds / replaces those moves; the pack's other moves are kept)
     python move_library.py -                       (authored moves changed: keep the pack's Mesh2Motion moves as they are)
     python move_library.py - out.glb --drafts      (a preview pack with the unapproved authored moves too)
     python move_library.py --check                 (anim_audit on the authored moves, drafts included)
@@ -57,6 +59,46 @@ MOVES = {
     "ps_walk": ("Pistol", "Walk aiming", "combat/ranged/animation-human-pistol-walk.blend"),
     "ps_prone": ("Pistol", "Prone aim", "combat/ranged/animation-human-pistol-prone.blend"),
 }
+# Quaternius Universal Animation Library 1 Standard (CC0), FBX via blender/fbx_moves.py (Daniel 2026-11-23: the
+# fight-useful clips only, grouped by type). clip name -> (category, library name, UAL1 clip)
+UAL1 = {
+    "u1_idle": ("Movement", "Idle (UAL1)", "Idle_Loop"),
+    "u1_walk": ("Movement", "Walk (UAL1)", "Walk_Loop"),
+    "u1_jog": ("Movement", "Jog (UAL1)", "Jog_Fwd_Loop"),
+    "u1_sprint": ("Movement", "Sprint (UAL1)", "Sprint_Loop"),
+    "u1_crouch_idle": ("Movement", "Crouch idle", "Crouch_Idle_Loop"),
+    "u1_crouch_walk": ("Movement", "Crouch walk", "Crouch_Fwd_Loop"),
+    "u1_jump_start": ("Movement", "Jump start", "Jump_Start"),
+    "u1_jump_air": ("Movement", "Jump air loop", "Jump_Loop"),
+    "u1_jump_land": ("Movement", "Jump land", "Jump_Land"),
+    "u1_roll": ("Movement", "Roll (UAL1)", "Roll"),
+    "u1_hit_chest": ("Reactions", "Hit chest", "Hit_Chest"),
+    "u1_hit_head": ("Reactions", "Hit head", "Hit_Head"),
+    "u1_death": ("Reactions", "Death", "Death01"),
+    "u1_punch_jab": ("Unarmed", "Punch jab", "Punch_Jab"),
+    "u1_punch_cross": ("Unarmed", "Punch cross", "Punch_Cross"),
+    "u1_spell_enter": ("Magic", "Spell raise", "Spell_Simple_Enter"),
+    "u1_spell_idle": ("Magic", "Spell hold", "Spell_Simple_Idle_Loop"),
+    "u1_spell_shoot": ("Magic", "Spell cast", "Spell_Simple_Shoot"),
+    "u1_spell_exit": ("Magic", "Spell lower", "Spell_Simple_Exit"),
+    "u1_ps_idle": ("Pistol", "Pistol idle (UAL1)", "Pistol_Idle_Loop"),
+    "u1_ps_aim_up": ("Pistol", "Aim up (UAL1)", "Pistol_Aim_Up"),
+    "u1_ps_aim": ("Pistol", "Aim level (UAL1)", "Pistol_Aim_Neutral"),
+    "u1_ps_aim_down": ("Pistol", "Aim down (UAL1)", "Pistol_Aim_Down"),
+    "u1_ps_shoot": ("Pistol", "Shoot (UAL1)", "Pistol_Shoot"),
+    "u1_ps_reload": ("Pistol", "Reload (UAL1)", "Pistol_Reload"),
+    "u1_sw_attack": ("Sword", "Sword attack (UAL1)", "Sword_Attack"),
+    "u1_sw_idle": ("Sword", "Sword idle (UAL1)", "Sword_Idle"),
+}
+STOCK = dict(MOVES, **UAL1)                            # every mocap move the pack can hold
+
+
+def src_label(k):
+    if k in UAL1:
+        return "Quaternius UAL1 Standard (CC0) " + UAL1[k][2]
+    return "Mesh2Motion (CC0) " + os.path.basename(MOVES[k][2])
+
+
 # baked too, only to check the bake against the body's own copy of the same Mesh2Motion clip (not written)
 CHECK = {"attack_normal_5": "combat/melee/animation-human-one-hand-slash-combo.blend"}
 
@@ -106,7 +148,7 @@ def build(src_glb, out=None, drafts=False):
     clips, check = {}, {}
     for an in j["animations"]:
         nm = an["name"]
-        if nm not in MOVES and nm not in CHECK:
+        if nm not in STOCK and nm not in CHECK:
             continue
         times, poses = kr.clip_from_glb(rig, jj, b, an)
         if nm in CHECK:
@@ -115,7 +157,7 @@ def build(src_glb, out=None, drafts=False):
         if len(times) == 1:                            # a single pose (aim up / level / down): hold it 0.5 s
             times, poses = [0.0, 0.5], [poses[0], poses[0]]
         clips[nm] = kr.reduce(rig, times, poses)
-        print("  %-18s %4d frames -> %3d keys  (%s)" % (nm, len(times), len(clips[nm][0]), MOVES[nm][1]))
+        print("  %-18s %4d frames -> %3d keys  (%s)" % (nm, len(times), len(clips[nm][0]), STOCK[nm][1]))
     # check: our bake of a clip vs the same clip already on the body (built by ual_to_spec.py)
     for nm, (times, poses) in check.items():
         an = next((a for a in bj["animations"] if a["name"] == nm), None)
@@ -129,23 +171,34 @@ def build(src_glb, out=None, drafts=False):
             p2 = kr._points(rig, bp[f])[0]
             worst = max(worst, float(np.max(np.linalg.norm(p1 - p2, axis=1))))
         print("check %s: worst joint gap vs the body's copy %.3f m over %d frames" % (nm, worst, n))
-    missing = [k for k in MOVES if k not in clips]
+    meta = {k: {"name": STOCK[k][1], "cat": STOCK[k][0], "src": src_label(k)} for k in clips}
+    # the pack's other stock moves (from another source file) stay as they are
+    if os.path.exists(OUT):
+        oc, om = stock_in_pack(rig)
+        for k in oc:
+            if k not in clips:
+                clips[k], meta[k] = oc[k], om[k]
+    missing = [k for k in STOCK if k not in clips]
     if missing:
-        print("MISSING", missing)
-    meta = {k: {"name": MOVES[k][1], "cat": MOVES[k][0], "src": "Mesh2Motion (CC0) " + os.path.basename(MOVES[k][2])}
-            for k in clips}
+        print("not in the pack:", missing)
     write(out, clips, meta, drafts, bj, bb, rig)
 
 
 def rebuild(out, drafts, bj, bb, rig):
-    """The pack's own Mesh2Motion moves (already key poses: read back exactly, not reduced again) + the authored ones."""
+    """The pack's own mocap moves (already key poses: read back exactly, not reduced again) + the authored ones."""
+    clips, meta = stock_in_pack(rig)
+    write(out, clips, meta, drafts, bj, bb, rig)
+
+
+def stock_in_pack(rig):
+    """{clip: (times, poses, eases)}, {clip: meta} of the mocap moves already in the pack."""
     import retarget2d as r
     j, b = r.read_glb(OUT)
     ex = (j["scenes"][j.get("scene", 0)].get("extras") or {})
     pk, old = ex.get("pb_keys") or {}, ex.get("pb_moves") or {}
     clips, meta = {}, {}
     for an in j["animations"]:
-        if an["name"] not in MOVES:
+        if an["name"] not in STOCK:
             continue
         tr = {}
         for ch in an["channels"]:
@@ -158,8 +211,8 @@ def rebuild(out, drafts, bj, bb, rig):
                   next(v[k] for (nd, path), (_, v) in tr.items() if path == "translation" and nd == hi))
                  for k in range(len(times))]
         clips[an["name"]] = (times, poses, (pk.get(an["name"]) or {}).get("e"))
-        meta[an["name"]] = old.get(an["name"]) or {"name": MOVES[an["name"]][1], "cat": MOVES[an["name"]][0]}
-    write(out, clips, meta, drafts, bj, bb, rig)
+        meta[an["name"]] = old.get(an["name"]) or {"name": STOCK[an["name"]][1], "cat": STOCK[an["name"]][0]}
+    return clips, meta
 
 
 def write(out, clips, meta, drafts, bj, bb, rig):
