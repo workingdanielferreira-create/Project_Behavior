@@ -139,6 +139,14 @@ blades) in `v3/tools/library/moves.anim3d.json`, references = iai nukitsuke / ki
 battojutsu; ethereal hands are fists (anim3d has no finger controls yet). Mark a clip `"approved": true` and run
 `python v3/tools/move_library.py -` to add it.
 Daniel 2026-11-23: approved all 4 katana moves, then all 4 ethereal moves -> in the pack (32 moves).
+Move classes (Daniel 2026-11-23): he likes the body's attack_normal / attack_normal_2 / attack_special / ultimate
+(Quaternius UAL2 mocap: urgency, decisiveness, fluidity) and wants many more at that level in classes Aggressive,
+Stylish, Defensive, Counter. Free capture is exhausted (UAL2 Standard's sword clips are all already used; UAL PRO is
+paid) -> he picked HAND-POSED new sword moves, ~5 per class, one class at a time. Aggressive first, focus = horizontal
+sweeps, backhand slashes, spinning follow-ups. Drafts (6, `ag_*`, approved false) from
+`v3/tools/library/gen_aggressive.py` (arms set by angle round the body, converted to chest space; spins carry the
+blade OVER the head, pivot foot turns with the hips). Preview pack with drafts: `characters/ual_swordsman/
+ual_moves_drafts.glb` (Rig Forge 3D: Load move pack…). Waiting for his verdict on the stills.
 
 ## Next steps (agreed direction, not started)
 
