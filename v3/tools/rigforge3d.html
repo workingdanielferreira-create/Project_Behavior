@@ -3405,6 +3405,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     afterKeys("Applied the move “" + it.name + "” to " + S.clip + ".");
     if (mirror) eachKeyPose(true, mirrorHere, "Applied “" + it.name + "” mirrored; mirrored");
     buildActs();
+    setPlaying(true);                                           /* a newly applied move plays (loops) until paused */
   }
   $("libApply").onclick = function () { libApply(false); };
   $("libApplyM").onclick = function () { libApply(true); };
