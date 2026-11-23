@@ -212,7 +212,7 @@ moves. Stored in IndexedDB ("lib"), shared by every character (bone names; finge
 library moves as key poses, scene extras `pb_moves` {clip: {name, cat, src}}. Rig Forge 3D lists them under their
 category (read-only, like Body moves; hover = source), read from the connected characters folder by itself (hidden from
 the character dropdown) or picked once with **Load move pack…** (kept in IndexedDB). `ual_moves_drafts.glb` (the same moves + the authored ones waiting for approval) is hidden too and loaded instead when present; Update V3 always overwrites both packs (generated, never kept as local edits). Not game clips: V3 never loads the
-file. Now: Sword 9, Dual swords 2, Great sword 2, Pistol 11 (Mesh2Motion CC0 mocap via `v3/tools/blender/m2m_moves.py`
+file. Now: Sword 9, Dual swords 2, Great sword 2, Pistol 11 (Mesh2Motion CC0 mocap via `v3/tools/blender/m2m_moves.py`; plus 27 Quaternius UAL1 Standard moves `u1_*` from Daniel's FBX upload 2026-11-23 via `v3/tools/blender/fbx_moves.py` (armature-space transfer, any bone axes): Movement 10, Reactions 3, Unarmed 2, Magic 4, Pistol 6, Sword 2 = 51 mocap moves; `move_library.py <src.glb>` now merges into the pack instead of replacing it
 + `v3/tools/move_library.py`; checked against the body's own copy of a Mesh2Motion clip: 2.5 cm). Katana and Ethereal
 swords have no free mocap: they are authored key poses (Katana 4 + Ethereal swords 4 + Aggressive 6, rebuilt as travelling moves 2026-11-23 by `library/gen_moves.py`, waiting for approval; `ual_moves_drafts.glb` has them) in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
 audit clean) and join the pack only once Daniel approved their stills (`"approved": true`, then

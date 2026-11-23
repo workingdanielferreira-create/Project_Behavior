@@ -139,6 +139,12 @@ blades) in `v3/tools/library/moves.anim3d.json`, references = iai nukitsuke / ki
 battojutsu; ethereal hands are fists (anim3d has no finger controls yet). Mark a clip `"approved": true` and run
 `python v3/tools/move_library.py -` to add it.
 Daniel 2026-11-23: approved all 4 katana moves, then all 4 ethereal moves -> in the pack (32 moves).
+UAL1 upload (Daniel 2026-11-23, FBX `UAL1_Standard.fbx`): picked fight-useful clips only, grouped by type. Done:
+`v3/tools/blender/fbx_moves.py` (FBX -> body, armature-space transfer; checked vs the body's own UAL1 copies of
+Death01 / Hit_Chest / Roll / Walk / Sprint: worst joint gap 1.6 - 2.8 cm) + `move_library.py` (`UAL1` table,
+`STOCK`, builds merge into the pack). Pack = 51 mocap moves (+27 `u1_*`: Movement, Reactions, Unarmed, Magic,
+Pistol, Sword); skipped: T-pose, sitting, swim, drive, dance, fixing, pick-up, push, interact, formal walk, talking /
+torch idles.
 Move classes (Daniel 2026-11-23): he likes the body's attack_normal / attack_normal_2 / attack_special / ultimate
 (Quaternius UAL2 mocap: urgency, decisiveness, fluidity) and wants many more at that level in classes Aggressive,
 Stylish, Defensive, Counter. Free capture is exhausted (UAL2 Standard's sword clips are all already used; UAL PRO is
