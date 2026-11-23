@@ -244,7 +244,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <h2 id="h-tw">Tween</h2>
       <div class="readout" id="twOut">Go to a key pose (click a card in the filmstrip).</div>
       <div class="row"><label class="readout"><input type="checkbox" id="twOn" checked> Tween to the next key pose</label></div>
-      <div class="row"><label for="twSteps">In-betweens</label><input type="number" id="twSteps" min="0" max="60" step="1" value="0"><span class="readout">0 = smooth</span></div>
+      <div class="row"><label for="twGap">In-betweens</label><input type="number" id="twGap" min="0" step="1" value="0"><span class="readout" id="twGapOut">frames to the next key pose</span></div>
+      <div class="row"><label for="twSteps">Choppy steps</label><input type="number" id="twSteps" min="0" max="60" step="1" value="0"><span class="readout">0 = smooth</span></div>
       <div class="row"><label for="twHold">Hold</label><input type="number" id="twHold" min="0" max="600" step="1" value="0"><span class="readout">frames still first</span></div>
       <div class="row"><label for="twEase">Easing</label><select id="twEase" class="grow">
         <option value="smooth">◆ Smooth</option><option value="linear">● Linear</option><option value="inout">◇ Strong in and out</option>
@@ -252,6 +253,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option></select></div>
       <div class="row"><label>Apply to</label><span class="readout">key poses</span><input type="number" id="twFrom" min="1" step="1" value="1" aria-label="From key pose"><span class="readout">to</span><input type="number" id="twTo" min="1" step="1" value="1" aria-label="To key pose"><button id="twRange">Apply</button><button id="twAll">All</button></div>
       <div class="row"><button id="twOffRange" class="danger" title="Remove the tween on key poses From-To (the numbers above)">Remove tween</button><button id="twOnRange" title="Put the tween back on key poses From-To">Restore</button><button id="twOffAll" class="danger">Remove all</button><button id="twOnAll">Restore all</button></div>
+      <div class="row"><button id="twFit" title="Stretch the key poses so the first sits on frame 0 and the last on the action's last frame (keeps their spacing in proportion)">Stretch keys to fill the length</button></div>
     </section>
 
     <section aria-labelledby="h-lib">
@@ -579,13 +581,17 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (a.st && s < 1) s = Math.floor(s * (a.st + 1)) / (a.st + 1);
     return ease(a.e, s);
   }
-  function rotDelta(keys, f, out) {
-    var r = blendAt(keys, f, S.data.fade); out.copy(I); if (!r) return out;
+  /* how far a key's pose spreads past the first / last key. A key-pose clip's base is the still rest (T-)pose, so
+     there the keys never fade out: before the first key it holds the first, after the last it holds the last
+     (Daniel 2026-11-23: no automatic T-pose). Frame-by-frame clips keep the Blend out setting. */
+  function fadeFor(cn) { return S.keyMode[cn || S.clip] ? WHOLE : S.data.fade; }
+  function rotDelta(keys, f, out, cn) {
+    var r = blendAt(keys, f, fadeFor(cn)); out.copy(I); if (!r) return out;
     var qa = r.a ? new THREE.Quaternion().fromArray(r.a.q) : I, qb = new THREE.Quaternion().fromArray(r.b.q);
     return out.copy(qa).slerp(qb, r.u);
   }
-  function posDelta(keys, f, out) {
-    var r = blendAt(keys, f, S.data.fade); out.set(0, 0, 0); if (!r) return out;
+  function posDelta(keys, f, out, cn) {
+    var r = blendAt(keys, f, fadeFor(cn)); out.set(0, 0, 0); if (!r) return out;
     var va = r.a ? new THREE.Vector3().fromArray(r.a.v) : new THREE.Vector3(), vb = new THREE.Vector3().fromArray(r.b.v);
     return out.copy(va).lerp(vb, r.u);
   }
@@ -618,11 +624,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var rk = ed[bone].rot || [], pk = ed[bone].pos || [];
       var tq = findTrack(clip, bone + ".quaternion"), tp = findTrack(clip, bone + ".position");
       if (tq && rk.length) for (var i = 0; i < tq.times.length; i++) {
-        rotDelta(rk, Math.round(tq.times[i] * FPS), d); if (sign < 0) d.invert();
+        rotDelta(rk, Math.round(tq.times[i] * FPS), d, clipName); if (sign < 0) d.invert();
         q.fromArray(tq.values, i * 4).multiply(d).normalize().toArray(tq.values, i * 4);
       }
       if (tp && pk.length) for (var j = 0; j < tp.times.length; j++) {
-        posDelta(pk, Math.round(tp.times[j] * FPS), v); if (sign < 0) v.negate();
+        posDelta(pk, Math.round(tp.times[j] * FPS), v, clipName); if (sign < 0) v.negate();
         tp.values[j * 3] += v.x; tp.values[j * 3 + 1] += v.y; tp.values[j * 3 + 2] += v.z;
       }
     });
@@ -2171,7 +2177,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var fs = rowFrames(r);
       if (fs.length) {
         /* blend-out ends */
-        var fade = S.data.fade, a0 = fade >= WHOLE ? 0 : Math.max(0, fs[0] - fade), a1 = fade >= WHOLE ? DOPE.n : Math.min(DOPE.n, fs[fs.length - 1] + fade);
+        var fade = fadeFor(S.clip), a0 = fade >= WHOLE ? 0 : Math.max(0, fs[0] - fade), a1 = fade >= WHOLE ? DOPE.n : Math.min(DOPE.n, fs[fs.length - 1] + fade);
         c.strokeStyle = col.muted; c.globalAlpha = 0.35; c.lineWidth = 2;
         c.beginPath(); c.moveTo(dopeX(a0), mid); c.lineTo(dopeX(fs[0]), mid); c.moveTo(dopeX(fs[fs.length - 1]), mid); c.lineTo(dopeX(a1), mid); c.stroke();
         c.globalAlpha = 1;
@@ -2905,24 +2911,82 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   /* scale every key of a clip to a new length in frames (key poses keep their spacing; two that land on one frame merge) */
   function scaleKeys(n, newN) {
-    var oldN = frameCount(S.clips[n] || lenBase(n)), k = newN / Math.max(1, oldN), ed = S.data.edits[n] || {};
+    var oldN = frameCount(S.clips[n] || lenBase(n)), k = newN / Math.max(1, oldN), m = {};
+    clipKeyFrames(n).forEach(function (f) { m[f] = Math.round(f * k); });
+    remapKeys(n, m, null, k);
+  }
+  /* ---- key-pose timing like the original Rig Forge (Daniel 2026-11-23): the key poses always fill the action's
+     length (first on frame 0, last on the last frame), and a key pose's "In-betweens" = the frames from it to the
+     next key pose; changing that re-spaces the other gaps so the action keeps its length. */
+  function clipKeyFrames(n) {                              /* every frame any pivot of clip n is keyed on */
+    var ed = S.data.edits[n] || {}, s2 = {};
+    Object.keys(ed).forEach(function (b) { (ed[b].rot || []).concat(ed[b].pos || []).forEach(function (k) { s2[k.f] = 1; }); });
+    return Object.keys(s2).map(Number).sort(function (a, c) { return a - c; });
+  }
+  /* move every key of clip n: m = {old frame: new frame}; a key's hold scales with its own gap (hk {old frame: x}, else k) */
+  function remapKeys(n, m, hk, k) {
+    var ed = S.data.edits[n] || {};
     Object.keys(ed).forEach(function (b) {
       ["rot", "pos"].forEach(function (kind) {
         var list = ed[b][kind]; if (!list) return;
-        var out = {}; list.forEach(function (x) { var y = JSON.parse(JSON.stringify(x)); y.f = Math.round(x.f * k); if (y.h) y.h = Math.round(y.h * k); out[y.f] = y; });
+        var out = {}; list.forEach(function (x) {
+          var y = JSON.parse(JSON.stringify(x)); y.f = m[x.f] != null ? m[x.f] : x.f;
+          var hs = hk && hk[x.f] != null ? hk[x.f] : (k || 1);
+          if (y.h) { y.h = Math.max(0, Math.round(y.h * hs)); if (!y.h) delete y.h; }
+          out[y.f] = y;
+        });
         ed[b][kind] = Object.keys(out).map(Number).sort(function (a, c) { return a - c; }).map(function (f) { return out[f]; });
       });
     });
   }
+  /* whole-frame gaps that add up to total: gaps in fix = {index: frames} are kept (scaled down only if they can't
+     fit), the others share what is left in proportion to their old size, each at least 1 frame */
+  function allocGaps(old, fix, total) {
+    var m = old.length, out = old.slice(), free = [], fixSum = 0, i;
+    for (i = 0; i < m; i++) if (fix[i] != null) { out[i] = Math.max(1, Math.round(fix[i])); fixSum += out[i]; } else free.push(i);
+    if (!free.length) { free = Object.keys(fix).map(Number); fixSum = 0; }   /* all fixed: v1 = they share the length in proportion */
+    else if (fixSum > total - free.length) {                                 /* too long: squeeze the fixed ones */
+      var room = Math.max(Object.keys(fix).length, total - free.length), k = room / fixSum; fixSum = 0;
+      Object.keys(fix).forEach(function (j) { out[j] = Math.max(1, Math.floor(out[j] * k)); fixSum += out[j]; });
+    }
+    var rest = total - fixSum, w = 0; free.forEach(function (j) { w += Math.max(1, out[j]); });
+    var parts = free.map(function (j) { var x = rest * Math.max(1, out[j]) / w; return {j: j, n: Math.max(1, Math.floor(x)), r: x - Math.floor(x)}; });
+    var sum = parts.reduce(function (t, q) { return t + q.n; }, 0);
+    parts.sort(function (a, c) { return c.r - a.r; });
+    for (i = 0; sum < rest && parts.length; i = (i + 1) % parts.length) { parts[i].n++; sum++; }
+    parts.sort(function (a, c) { return c.n - a.n; });
+    for (i = 0; sum > rest && parts.length && parts[0].n > 1; i = 0) { parts[0].n--; sum--; parts.sort(function (a, c) { return c.n - a.n; }); }
+    parts.forEach(function (q) { out[q.j] = q.n; });
+    return out;
+  }
+  /* re-space clip n's key poses: fix = {gap index: frames}; key-pose clips fill 0..N, frame-by-frame clips keep
+     their first and last key. Returns {old frame: new frame}. */
+  function respaceKeys(n, fix, N) {
+    var P = clipKeyFrames(n); if (P.length < 2) { if (P.length && S.keyMode[n] && P[0]) { var m1 = {}; m1[P[0]] = 0; remapKeys(n, m1); return m1; } return {}; }
+    N = N != null ? N : frameCount(S.clips[n] || lenBase(n));
+    var start = S.keyMode[n] ? 0 : P[0], total = S.keyMode[n] ? N : P[P.length - 1] - P[0], m = {}, hk = {}, i;
+    if (total < P.length - 1) {                                /* fewer frames than key poses: squeeze, some merge */
+      for (i = 0; i < P.length; i++) m[P[i]] = start + Math.round((P[i] - P[0]) / (P[P.length - 1] - P[0]) * total);
+      remapKeys(n, m, null, total / (P[P.length - 1] - P[0])); return m;
+    }
+    var old = []; for (i = 0; i < P.length - 1; i++) old.push(P[i + 1] - P[i]);
+    var g = allocGaps(old, fix || {}, total), at = start;
+    for (i = 0; i < P.length; i++) { m[P[i]] = at; if (i < g.length) { hk[P[i]] = g[i] / old[i]; at += g[i]; } }
+    remapKeys(n, m, hk); return m;
+  }
+  function fitKeys(n, N) { return respaceKeys(n, {}, N); }
   function setLength() {
     var n = S.clip, ms = +$("actLen").value; if (!n) return;
     if (!(ms >= 50)) { status("Length must be at least 50 ms.", true); return; }
     var newN = Math.max(2, Math.round(ms / 1000 * FPS));
     pushUndo();
-    if (newN !== frameCount(S.clips[n])) { scaleKeys(n, newN); S.data.len[n] = newN; }
+    /* key-pose clips: the key poses are stretched to fill the new length (v1: frames spread over the duration) */
+    if (S.keyMode[n]) fitKeys(n, newN);
+    else if (newN !== frameCount(S.clips[n])) scaleKeys(n, newN);
+    if (newN !== frameCount(S.clips[n])) S.data.len[n] = newN;
     meta().timing[n] = Math.round(ms);
     rebake(n, false); setFrame(Math.min(S.frame, newN)); buildActs();
-    status(n + " now plays for " + (ms / 1000).toFixed(3) + " s" + (CF.fx ? " (written into the character's files on Save)." : ". Connect the characters folder so the game uses it too."));
+    status(n + " now plays for " + (ms / 1000).toFixed(3) + " s" + (S.keyMode[n] ? ", key poses stretched to fill it" : "") + (CF.fx ? " (written into the character's files on Save)." : ". Connect the characters folder so the game uses it too."));
   }
   function validName(nm) { return /^[A-Za-z0-9_]+$/.test(nm) && S.order.indexOf(nm) < 0; }
   function forgetUndo(why) { S.undo = []; S.redo = []; uiUndo(); markDirty(); status(why + " (can't be undone; Save to keep it)."); }
@@ -3063,6 +3127,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var f = S.frame, keys = poseFrames(), i = keys.indexOf(f), tw = i >= 0 ? tweenOf(f) : null;
     ["twSteps", "twHold", "twEase", "twFrom", "twTo", "twRange", "twAll"].forEach(function (id) { $(id).disabled = !tw; });
     ["twOffRange", "twOnRange", "twOffAll", "twOnAll"].forEach(function (id) { $(id).disabled = !keys.length; });
+    $("twFit").disabled = keys.length < 2;
+    var P = clipKeyFrames(S.clip), pi = P.indexOf(f), hasNext = !!tw && pi >= 0 && pi < P.length - 1, nx = hasNext ? P[pi + 1] : f;
+    $("twGap").disabled = !hasNext;
+    if (document.activeElement !== $("twGap")) $("twGap").value = hasNext ? nx - f - 1 : 0;
+    $("twGapOut").textContent = hasNext ? "frames to the next key pose, f" + nx + " (" + ((nx - f) / FPS * 1000).toFixed(0) + " ms)" : (tw ? "the last key pose" : "frames to the next key pose");
     var ts = tw ? tweenState(f) : "on";
     $("twOn").disabled = !tw || i === keys.length - 1;
     $("twOn").checked = ts !== "off"; $("twOn").indeterminate = ts === "some";
@@ -3080,6 +3149,31 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var f = S.frame; if (poseFrames().indexOf(f) < 0) return;
     var o = {}; o[field] = val; pushUndo(); setTween(f, o); afterKeys("Tween from f" + f + ": " + (field === "st" ? val + " in-between" + (val === 1 ? "" : "s") : field === "h" ? "hold " + val + " frames" : (EASE_TXT[val] || val)) + ".");
   }
+  /* In-betweens (v1): this key pose's gap to the next becomes exactly that many frames between them; the other gaps
+     share the rest so the action keeps its length (Daniel 2026-11-23) */
+  function setGaps(fix, msg) {
+    var n = S.clip, keys = clipKeyFrames(n); if (keys.length < 2) return;
+    var here = keys.indexOf(S.frame);
+    pushUndo(); var m = respaceKeys(n, fix);
+    var now = clipKeyFrames(n);
+    if (here >= 0 && m[keys[here]] != null) S.frame = m[keys[here]];
+    afterKeys(msg(now)); syncTween();
+  }
+  $("twGap").onchange = function () {
+    var keys = clipKeyFrames(S.clip), i = keys.indexOf(S.frame); if (i < 0 || i >= keys.length - 1) return;
+    var want = Math.max(0, Math.round(+this.value || 0)), fix = {}; fix[i] = want + 1;
+    setGaps(fix, function (now) {
+      var got = now[i + 1] - now[i] - 1;
+      return "f" + now[i] + " → f" + now[i + 1] + ": " + got + " in-between" + (got === 1 ? "" : "s") +
+        (got === want ? ", the other key poses re-spaced to keep the length." : keys.length < 3 ?
+          " (with only 2 key poses that one gap always fills the whole action; add a key pose or change the Length in Actions)." :
+          " (that's all the length allows; set a longer Length in Actions).");
+    });
+  };
+  $("twFit").onclick = function () {
+    if (!clipKeyFrames(S.clip).length) return;
+    setGaps({}, function () { return "Key poses stretched to fill " + S.clip + " (frame 0 to " + frameCount(S.clips[S.clip]) + ")."; });
+  };
   $("twSteps").onchange = function () { twChange("st", Math.max(0, Math.min(60, Math.round(+this.value || 0)))); };
   $("twHold").onchange = function () { twChange("h", Math.max(0, Math.round(+this.value || 0))); };
   $("twEase").onchange = function () { twChange("e", this.value); };
@@ -3089,7 +3183,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (from > to) { var t = from; from = to; to = t; }
     pushUndo();
     for (var i = from - 1; i <= to - 1; i++) setTween(keys[i], {e: tw.e === "mixed" ? null : tw.e, st: tw.st, h: tw.h});
-    afterKeys("Tween copied to key poses " + from + "-" + to + ".");
+    var P = clipKeyFrames(S.clip), here = P.indexOf(S.frame), fix = {};
+    if (here >= 0 && here < P.length - 1) for (var j = from - 1; j <= to - 1; j++) { var pj = P.indexOf(keys[j]); if (pj >= 0 && pj < P.length - 1) fix[pj] = P[here + 1] - P[here]; }
+    if (Object.keys(fix).length) { var m = respaceKeys(S.clip, fix); if (m[S.frame] != null) S.frame = m[S.frame]; }
+    afterKeys("Tween (in-betweens, steps, hold, easing) copied to key poses " + from + "-" + to + ".");
   }
   $("twRange").onclick = function () { twApply(+$("twFrom").value, +$("twTo").value); };
   $("twAll").onclick = function () { twApply(1, poseFrames().length); };
@@ -3417,6 +3514,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       if (o.rot || o.pos) ed[bn] = o;
     });
     S.data.edits[S.clip] = ed;
+    if (S.keyMode[S.clip]) fitKeys(S.clip, N);                  /* the move's key poses fill the whole action */
     afterKeys("Applied the move “" + it.name + "” to " + S.clip + ".");
     if (mirror) eachKeyPose(true, mirrorHere, "Applied “" + it.name + "” mirrored; mirrored");
     buildActs();
