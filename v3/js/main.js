@@ -5,21 +5,23 @@ function simTick(){
   tick++;
   for(let i=lat.length-1;i>=0;i--){if(lat[i].t<=tick){const l=lat.splice(i,1)[0];l.fn();}}
   inputDir=readDir();
-  {const f=sides[0].team[sides[0].on];if(f&&level!=='watch'){if(keys.KeyR){f.manualZ=clamp(f.z+500,0,ZMAX);}else if(keys.KeyF){f.manualZ=clamp(f.z-500,0,ZMAX);}else if(f.manualZ!=null){f.manualZ=f.z;f.manualZT=(f.manualZT||0)+1;if(f.manualZT>ms2t(700)){f.manualZ=null;f.manualZT=0;}}if(keys.KeyR||keys.KeyF)f.manualZT=0;}}
+  {const f=sides[0].team[sides[0].on];if(f&&level!=='watch'&&canFly(f)){   // flyers: R / F climb / descend (ground fighters jump: input.js)
+  if(keys.KeyR){f.manualZ=clamp(f.z+500,0,ZMAX);}else if(keys.KeyF){f.manualZ=clamp(f.z-500,0,ZMAX);}else if(f.manualZ!=null){f.manualZ=f.z;f.manualZT=(f.manualZT||0)+1;if(f.manualZT>ms2t(700)){f.manualZ=null;f.manualZT=0;}}if(keys.KeyR||keys.KeyF)f.manualZT=0;}}
   const [a,b]=onField();
   // started counters for tempo
   [a,b].forEach(f=>{const n=stats.starts[f.side];f.startedNow=n-(f._ls||0);f._ls=n;});
-  updFighter(a);updFighter(b);
-  fx2dTick(a);fx2dTick(b);   // real kits' 2D FX (fx2d.js)
+  if(training)trainSimTick();   // training.js: you + every dummy
+  else{updFighter(a);updFighter(b);
+  fx2dTick(a);fx2dTick(b);}   // real kits' 2D FX (fx2d.js)
   if(a.bufChain&&!a.act){a.bufChain=false;tryAttack(a,b,true);}
   if(a.buf){if(tick>a.buf.until){const c=a.buf.code;a.buf=null;deny(c);}else if(!(a.act||a.stun>0||a.gone>0||a.snap)){const c=a.buf.code;a.buf.until=tick;command(c,true);a.buf=null;}}
   stepShots();
   for(let i=fieldBlades.length-1;i>=0;i--){const b=fieldBlades[i];if(tick>b.until){scene.remove(b.m);fieldBlades.splice(i,1);}}
   stepDirector();
   // enemy AI tagging
-  const s1=sides[1];if(s1.tagCd<=tick&&!b.ko&&b.hp/b.max<.35&&!b.act&&Math.random()<.01){const opts=[0,1,2].filter(i=>i!==s1.on&&!s1.team[i].ko&&s1.team[i].hp/s1.team[i].max>.5);if(opts.length)tagIn(1,opts[0],'tag');}
+  const s1=sides[1];if(!training&&s1.tagCd<=tick&&!b.ko&&b.hp/b.max<.35&&!b.act&&Math.random()<.01){const opts=[0,1,2].filter(i=>i!==s1.on&&!s1.team[i].ko&&s1.team[i].hp/s1.team[i].max>.5);if(opts.length)tagIn(1,opts[0],'tag');}
   // AI tagging for player side in watch mode
-  const s0=sides[0];if(level==='watch'&&s0.tagCd<=tick&&!a.ko&&a.hp/a.max<.35&&!a.act&&Math.random()<.01){const opts=[0,1,2].filter(i=>i!==s0.on&&!s0.team[i].ko&&s0.team[i].hp/s0.team[i].max>.5);if(opts.length)tagIn(0,opts[0],'tag');}
+  const s0=sides[0];if(!training&&level==='watch'&&s0.tagCd<=tick&&!a.ko&&a.hp/a.max<.35&&!a.act&&Math.random()<.01){const opts=[0,1,2].filter(i=>i!==s0.on&&!s0.team[i].ko&&s0.team[i].hp/s0.team[i].max>.5);if(opts.length)tagIn(0,opts[0],'tag');}
   // bench regen
   sides.forEach(s=>s.team.forEach((g,i)=>{if(i!==s.on&&!g.ko)g.hp=Math.min(g.max,g.hp+g.max*.01*DT);}));
   // metrics
@@ -43,7 +45,7 @@ function frame(now){requestAnimationFrame(frame);const rdt=Math.min(.05,(now-las
 // Game flow: new fight, end of fight, pause, back to the title. The screens
 // themselves live in menus.js; this file only says which one to open.
 function clearAll(){sides.forEach(s=>s.team.forEach(fx2dClear));sides.forEach(s=>s.team.forEach(f=>f.aline&&scene.remove(f.aline)));fieldBlades.forEach(b=>scene.remove(b.m));fieldBlades.length=0;sides.forEach(s=>s.team.forEach(f=>{scene.remove(f.g);scene.remove(f.sh);}));shots.forEach(s=>scene.remove(s.m));shots.length=0;fxs.forEach(f=>scene.remove(f.o));fxs.length=0;lat.length=0;labels.forEach(l=>l&&l.remove());labels.length=0;nums.forEach(n=>n.el.remove());nums.length=0;sides.forEach(s=>s.team.forEach(f=>{if(f.beam){scene.remove(f.beam.m);f.beam=null;}}));}
-function newGame(){clearAll();
+function newGame(){clearAll();training=false;document.body.classList.remove('training');
   const T0=validTeam(settings.teams[0],DEFAULT_SETTINGS.teams[0]),T1=validTeam(settings.teams[1],DEFAULT_SETTINGS.teams[1]);
   sides[0].team=T0.map(k=>mkFighter(k,0));sides[1].team=T1.map(k=>mkFighter(k,1));
   // A character on both teams: the enemy copy wears its alternate colours.
@@ -59,7 +61,7 @@ function validTeam(t,def){return [0,1,2].map(i=>(t&&KITS[t[i]])?t[i]:def[i]);}
 function endGame(win){if(ended)return;ended=true;const secs=(tick*DT).toFixed(0);
   const rows=[['Fight length',secs+' s'],['Your inputs',stats.inputs],['  Snaps · chains · skills',stats.pSnaps+' · '+stats.pChains+' · '+stats.pSkills],['  Intent calls · tags',stats.pIntents+' · '+stats.pTags],['Perfect snaps',stats.perfect],['Your parries · perfect',stats.pParries+' · '+stats.perfectParries],['Parries (you · enemy)',stats.parries[0]+' · '+stats.parries[1]],['Damage dealt (you · enemy)',Math.round(stats.dealt[0])+' · '+Math.round(stats.dealt[1])],['K.O.s (you · enemy)',stats.kos[1]+' · '+stats.kos[0]]];
   setTimeout(()=>Menu.results(win,rows),800);}
-function setPaused(v){if(!running||ended)return;paused=v;if(v)Menu.show('pause');else{Menu.close();host.focus();}}
+function setPaused(v){if(!running||ended)return;paused=v;if(v)Menu.show('pause',true);else{Menu.close();host.focus();}}
 function begin(){newGame();running=true;paused=false;Menu.close();host.focus();document.body.classList.add('playing');
   callout('FIGHT',level==='watch'?'Watching AI vs AI':'The AI fights; your inputs take over','#e8ecfb',1.6);}
 function toTitle(){running=false;paused=false;ended=false;document.body.classList.remove('playing');newGame();Menu.show('title',true);}
