@@ -65,6 +65,25 @@ keys on real poses (anticipation, strike, recoil, follow-through), not on every 
 Rest numbers (ual_swordsman, 1.83 m): hips 0.917, shoulders y 1.44 x +-0.19, arm 0.27 + 0.27, leg 0.40 + 0.43,
 ankle y 0.104 x +-0.09, blade ~1.0 m out of the thumb side of the fist (perpendicular to the forearm).
 
+## Attitude: spine, hips, shoulders, line of action (Daniel 2026-11-23, with reference sheets)
+
+Daniel: "they have backs and spines that bend ... hips and shoulders rotate: it creates emphasis and telegraphs
+actions". Upright, square, polite poses are rejected. Every key (`v3/tools/library/gen_moves.py` `key()` /
+`attitude()` does this by default for library moves):
+- **Line of action**: strikes and wind-ups are ONE C-curve: planted foot -> pelvis tilt -> spine side bend -> head
+  tilt all bend the same way. In-between / prowl keys use contrapposto (pelvis tilted against the shoulders).
+- **Hunch**: never stand straight; the chest carries forward and the head glares UP at the target from under the brow.
+  Hits crunch the chest into the strike side; wind-ups arch the chest open; air keys arch the back.
+- **Hip-shoulder separation**: wind-up = chest coiled further back than the hips; hit = hips lead, chest a beat
+  behind; follow-through = chest whips past the hips.
+- **Shoulder girdle** (`clav` [lift, forward]): wind-up pulls the sword shoulder back and shrugs it; the hit drives it
+  forward and down; the free shoulder counters.
+- **Stances** (his references): wide and deep, feet ~1.2-1.5 m apart, one leg locked straight, the front knee buried;
+  the hips drop until the legs reach. Hits put the weight on the front foot (long straight back leg), wind-ups sit
+  back on the loaded leg. Arms all the way out on hits, the free hand flared low and wide as a counterweight.
+- **Air**: never a pencil jump: body pitched forward, one knee tucked high, the other leg trailing straight back with
+  the toes pointed; spins tuck both knees.
+
 ## Key poses as stills FIRST (Daniel 2026-11-22, after a rejected clip)
 
 Never show or merge a clip whose key poses Daniel hasn't seen. For each 2D key frame: render the 3D pose LARGE

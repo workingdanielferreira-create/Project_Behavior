@@ -26,7 +26,8 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
          "hips": {"pos": [x, y, z], "rot": [yaw, pitch, roll]},      (pos = offset from rest hips, m; deg)
          "spine": [yaw, pitch, roll], "head": [yaw, pitch, roll],    (deg, relative to the parent)
          "R": {"hand": [x, y, z], "pole": [x, y, z], "blade": [x, y, z], "roll": deg,    (body space, m)
-               "grip": "fwd" | "rev", "twirl": deg},     (reverse grip / blade spun in the fingers; tweened between keys)
+               "grip": "fwd" | "rev", "twirl": deg,      (reverse grip / blade spun in the fingers; tweened between keys)
+               "clav": [lift, forward]},                  (shoulder girdle: shrug / drive forward / pull back, deg)
          "L": {...},
          "fR": {"ankle": [x, y, z], "pole": [x, y, z], "yaw": deg, "pitch": deg},
          "fL": {...}}, ...]}}}
@@ -224,7 +225,7 @@ class Solver:
                     hand = sh + to_body(a["reach"], True)
                 if a.get("elbow") is not None:        # the elbow points this way from the shoulder
                     pole = sh + r.unit(to_body(a["elbow"], True))
-            self.clavicle(S, hand)
+            self.clavicle(S, hand, a.get("clav"))
             want = to_body(a["blade"], True) if a.get("blade") is not None else None
             # grip (Daniel 2026-11-23): "rev" = reverse grip, the blade comes out of the pinky side; between a forward
             # and a reverse key the weapon turns 180 deg in the fingers (the flip). `twirl` = extra turns (deg).
@@ -257,8 +258,9 @@ class Solver:
         o0, o1 = rig.restP[i], P[i]
         return lambda p, d=False: M.T @ np.array(p, float) if d else o0 + M.T @ (np.array(p, float) - o1)
 
-    def clavicle(self, S, hand):
-        """Shoulder (clavicle) follows the arm a little: up to 20 deg up / 15 forward toward the hand."""
+    def clavicle(self, S, hand, clav=None):
+        """Shoulder (clavicle) follows the arm a little: up to 20 deg up / 15 forward toward the hand; `clav`
+        [lift, forward] (deg, per arm, keyed) adds a shrug / a shoulder driven forward or pulled back on top."""
         rig = self.rig
         W, P = self.fk()
         i = rig.i(S + "Shoulder")
@@ -266,6 +268,9 @@ class Solver:
         d = r.unit(hand - sh)
         lift = max(0.0, d[1]) * 20.0
         fwd = d[2] * 12.0
+        if clav:
+            lift = max(-15.0, min(40.0, lift + clav[0]))
+            fwd = max(-35.0, min(40.0, fwd + clav[1]))
         side = 1.0 if S == "Left" else -1.0
         R = r.rot_axis(np.array([0, 0, 1.0]), side * lift * D2R) @ r.rot_axis(np.array([0, 1.0, 0]), -side * fwd * D2R)
         self.set_world(S + "Shoulder", R @ W[i], W)
@@ -507,6 +512,8 @@ def interp(keys, t):
         else:
             c[s].pop("aim", None)
         c[s]["twirl"] = k1[s].get("twirl", 0) * (1 - u) + k2[s].get("twirl", 0) * u
+        ca, cb = k1[s].get("clav") or [0, 0], k2[s].get("clav") or [0, 0]
+        c[s]["clav"] = [ca[0] * (1 - u) + cb[0] * u, ca[1] * (1 - u) + cb[1] * u]
     for s in ("fR", "fL"):
         for f in ("yaw", "pitch"):
             c[s][f] = k1[s][f] * (1 - u) + k2[s][f] * u
