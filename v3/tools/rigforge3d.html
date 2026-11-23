@@ -204,10 +204,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
         </select>
       </div>
       <div class="strip" id="strip" aria-label="Every frame: key poses and the in-betweens the tweening fills in"></div>
-      <p class="note">Key poses (cards) are the clip: click one, pose it with the rings, and every frame up to the neighbouring key poses follows. Posing between key poses adds a key there. The strip below shows every frame; gold = key pose. Tween to next = how the move eases from this key pose to the next.</p>
       <details class="adv" id="dopeBox"><summary>Pivot keys (advanced: one row per pivot)</summary>
       <div class="dope" id="dopeWrap" role="slider" aria-label="Frame and keys" tabindex="0"><canvas id="dope"></canvas></div>
-      <p class="note">One row per pivot with keys (+ the selected one); <b>All pivots</b> = every key on that frame. Click a key to go to it, <b>drag</b> it to retime, <b>Alt + drag</b> copies it. Click or drag empty space to scrub. ◆ smooth · ● linear · ◇ in-out · ◀ ease in · ▶ ease out · ➤ snap · ■ hold · ✦ overshoot. Dashes = hold, faint ends = blend out.</p>
       </details>
     </div>
   </div>
@@ -226,7 +224,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
       </div>
       <div class="readout" id="charDirOut">No folder chosen.</div>
       <input type="file" id="dirInput" webkitdirectory multiple hidden>
-      <p class="note">Pick the <code>characters</code> folder once: every .glb in it and its subfolders shows up here. Saves go straight back into the picked .glb. The folder is remembered; next time one click reconnects it.</p>
     </section>
 
     <section aria-labelledby="h-clip">
@@ -241,7 +238,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><button id="actAdd">+ Action</button><button id="actDup">Duplicate</button><button id="actDel" class="danger">Remove</button></div>
       <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
       <div class="readout" id="charFilesOut">Character files: connect the characters folder to edit length / trigger / cooldown in the game.</div>
-      <p class="note">Length = how long the move plays in the game (V3 plays it for exactly this long). The key poses keep their spacing; its FX timing (FX frames) stretches with it. Trigger / cooldown / length are written into the character's files on Save (needs the characters folder). Add / rename / remove can't be undone.</p>
     </section>
 
     <section aria-labelledby="h-tw">
@@ -256,8 +252,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <option value="hold">■ Hold</option><option value="back">✦ Overshoot</option><option value="mixed" disabled hidden>mixed</option></select></div>
       <div class="row"><label>Apply to</label><span class="readout">key poses</span><input type="number" id="twFrom" min="1" step="1" value="1" aria-label="From key pose"><span class="readout">to</span><input type="number" id="twTo" min="1" step="1" value="1" aria-label="To key pose"><button id="twRange">Apply</button><button id="twAll">All</button></div>
       <div class="row"><button id="twOffRange" class="danger" title="Remove the tween on key poses From-To (the numbers above)">Remove tween</button><button id="twOnRange" title="Put the tween back on key poses From-To">Restore</button><button id="twOffAll" class="danger">Remove all</button><button id="twOnAll">Restore all</button></div>
-      <p class="note"><b>Tween to the next key pose</b> off = no tween: the key pose stays still, then the pose cuts straight to the next key pose (the same as Easing ■ Hold, and the game plays it that way). <b>Remove tween</b> / <b>Restore</b> do that for key poses From-To, <b>Remove all</b> / <b>Restore all</b> for every key pose. Restore brings back each pivot's easing from before; in-betweens and hold stay as they were.</p>
-      <p class="note">Settings of the tween from this key pose to the next. <b>In-betweens</b>: how many in-between poses it shows on the way (0 = every frame, smooth; 1-3 = choppy anime timing, the pose jumps). <b>Hold</b>: frames the key pose stays still before it moves. <b>Apply to</b> copies this key pose's tween to a range of key poses (numbers as on the cards).</p>
     </section>
 
     <section aria-labelledby="h-lib">
@@ -265,11 +259,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><select id="libCat" class="grow" aria-label="Category"></select><input type="text" id="libQ" class="grow" placeholder="search…" aria-label="Search the library"></div>
       <div class="acts" id="libList" role="listbox" aria-label="Library"></div>
       <div class="row"><button id="libApply" class="primary" disabled>Apply</button><button id="libApplyM" disabled>Apply mirrored</button></div>
-      <label class="check"><input type="checkbox" id="libKeepLen" checked> A move keeps this action's length (off: the action takes the move's length)</label>
+      <label class="check"><input type="checkbox" id="libKeepLen" checked> Keep this action's length</label>
       <div class="row"><button id="libSavePose">+ Save pose</button><button id="libSaveMove">+ Save action as move</button><button id="libDel" class="danger" disabled>Delete</button></div>
       <div class="row"><button id="libExport">Export…</button><button id="libImport">Import…</button><input type="file" id="libFile" accept=".json,application/json" hidden></div>
       <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb (read from the characters folder by itself once it is connected)">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
-      <p class="note">◆ pose = the whole pose on one frame (applied as a key pose on the current frame). ▶ move = a whole action's key poses with their tweens (applied to the current action, replacing its key poses). <b>Body moves</b> = the shared body's own clips (hit reactions, dodges, sword attacks …). The <b>move pack</b> (characters/ual_swordsman/ual_moves.glb, read from the characters folder by itself) adds weapon moves under Sword, Dual swords, Great sword, Pistol, Katana and Ethereal swords; hover a move for its source. Saved on this computer for every character (bone names), Export / Import moves it between computers.</p>
     </section>
 
     <section aria-labelledby="h-wpn">
@@ -280,7 +273,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option><option value="pistol">Pistol (len = barrel, width = slide height, handle = grip, curve = grip rake)</option></select></div>
       <div id="wpSliders"></div>
       <div class="row"><button id="wpCopy">Copy from the other hand</button><button id="wpReset">Reset to the shape</button></div>
-      <p class="note">Saved into the character's .glb (pb_body.weapons) on Save; V3 builds the same weapon in the fighter's hand. Grip slides the weapon along the hand's weapon line, roll turns the edge. The grip spot itself (which bone, where in the palm) is the weapon pivot's grip in the skeleton card.</p>
     </section>
 
     <section aria-labelledby="h-ref">
@@ -296,14 +288,12 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><label for="refX">Across</label><input id="refX" type="range" min="-60" max="60" step="0.5" value="0"><output id="refXOut">0%</output></div>
       <div class="row"><label for="refY">Up / down</label><input id="refY" type="range" min="-60" max="60" step="0.5" value="0"><output id="refYOut">0%</output></div>
       <input type="file" id="refFile" accept="image/*" hidden>
-      <p class="note">One image per key pose (shown until the next key pose with its own), or the character's own 2D drawings following the clip (the drawing at the same point of the move). Placement and opacity are per action. Kept on this computer (not in the .glb).</p>
     </section>
 
     <section aria-labelledby="h-skel">
       <h2 id="h-skel">Skeleton</h2>
       <div class="tree" id="tree" role="tree" aria-label="Skeleton hierarchy"></div>
-      <p class="note">▪ bone · <span style="color:var(--anchor)">◆ anchor</span> · <span style="color:var(--added)">✚ added bone</span> · <span style="color:var(--key)">keys</span> = this clip has keys on it.</p>
-      <div class="card" id="card"><p class="note">Select a bone, anchor or added bone, in the tree or on the model.</p></div>
+      <div class="card" id="card"></div>
     </section>
 
     <section aria-labelledby="h-pose">
@@ -332,7 +322,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <option value="hold">■ Hold (snaps at the next key)</option>
         <option value="back">✦ Overshoot (passes it, settles back)</option>
       </select></div>
-      <p class="note">◆ Key = keep the pose you see on this frame (also for a pivot you haven't touched). The ease is how the move LEAVES this key toward the next one; on the All pivots row it sets every key on the frame.</p>
       <div class="row">
         <button id="copyPivot" disabled title="Ctrl+C">Copy pivot</button>
         <button id="copyPose" disabled title="Ctrl+C with nothing selected">Copy whole pose</button>
@@ -342,9 +331,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <button id="pasteMirror" disabled title="Ctrl+Shift+V">Paste mirrored</button>
       </div>
       <div class="readout" id="boardOut">Clipboard empty.</div>
-      <p class="note">Copy takes the pose as you see it on this frame; Paste keys it onto the current frame (any clip), Paste mirrored swaps left / right.</p>
       <div class="row"><label for="spread">Blend out</label><input id="spread" type="range" min="0" max="121" step="1" value="8"><output id="spreadOut">8 f</output></div>
-      <p class="note">How far a key's change fades out before the first key and after the last one. All the way right = the whole clip.</p>
     </section>
 
     <section aria-labelledby="h-lim">
@@ -359,7 +346,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
         <label class="check"><input type="checkbox" id="limInvRightLeg"> Flip right knee</label>
       </div>
       <div class="row"><label for="limCollar">Collarbone</label><input id="limCollar" type="number" min="0" max="180" step="1" value="30" aria-label="Collarbone swing maximum"><span>° max swing</span></div>
-      <p class="note">0° = straight; + = folding the natural way (elbows toward the front, knees toward the back). Applies while you pose (rings, hand / foot pulls, hip drags); keys already in the file stay as they are until you edit them. Flip = that limb's limit is on the other side. Collarbone: pulling a hand, elbow or shoulder dot past its reach swings the collarbone only by the missing bit, never further than this from the clip's own pose (0 = it never helps). Its own rings are not limited.</p>
     </section>
 
     <section aria-labelledby="h-place">
@@ -384,8 +370,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><label for="gAfter">After</label><input id="gAfter" type="range" min="0" max="5" step="1" value="2"><output id="gAfterOut">2</output><span class="swatch" style="background:#22c97a" aria-hidden="true"></span></div>
       <div class="row"><label for="gStep">Step</label><input id="gStep" type="range" min="1" max="10" step="1" value="1"><output id="gStepOut">every frame</output></div>
       <label class="check"><input type="checkbox" id="gWrap"> Wrap round the clip ends</label>
-      <p class="note">See-through copies of the pose on the frames before (red) and after (green) the current one, fainter the further away. Step spreads them out (2 = every other frame). Shown while posing and while playing.</p>
-      <p class="note"><kbd>R</kbd> rotate · <kbd>T</kbd> move · <kbd>L</kbd> local / world · <kbd>K</kbd> key · <kbd>Shift+K</kbd> key pose · <kbd>Del</kbd> delete key · <kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> (<kbd>Ctrl+Shift+V</kbd> mirrored) · <kbd>Space</kbd> play · <kbd>,</kbd> <kbd>.</kbd> frame · <kbd>Esc</kbd> deselect · <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> save · rings: <kbd>Shift</kbd> = 5° steps</p>
     </section>
   </div>
 </div>
@@ -1122,7 +1106,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (S.sel && S.selKind !== "anchor" && !movable(S.sel) && S.mode === "translate") setMode("rotate");
     if (S.playing) setPlaying(false);
     syncGizmo(); buildFrames(); updatePivotOut(); buildTree(); buildCard();
-    var row = $("tree").querySelector('[aria-selected="true"]'); if (row && row.scrollIntoView) row.scrollIntoView({block: "nearest"});
+    scrollInBox($("tree"), $("tree").querySelector('[aria-selected="true"]'));
   }
   function setMode(m) {
     S.mode = m; $("mRot").setAttribute("aria-pressed", String(m === "rotate")); $("mMove").setAttribute("aria-pressed", String(m === "translate"));
@@ -1778,7 +1762,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function buildCard() {
     var C = $("card");
-    if (!S.root || !S.sel) { C.innerHTML = '<p class="note">Select a bone, anchor or added bone, in the tree or on the model.</p>'; return; }
+    if (!S.root || !S.sel) { C.innerHTML = ""; return; }
     if (S.selKind === "anchor") return anchorCard(C);
     if (isX(S.sel)) return xCard(C);
     return boneCard(C);
@@ -1813,7 +1797,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
       var ex = {}; ex[n] = 1; Object.keys(S.bones).forEach(function (k) { var b = S.bones[k]; if (b.userData.xbone || /^Weapon/.test(k)) ex[k] = 1; });
       h += '<div class="row"><label for="cAttach">Attach to</label><select id="cAttach" class="grow">' + opt(boneOptions(ex), cur) + "</select></div>";
       h += '<div class="row"><button id="cGrip" aria-pressed="' + S.grip + '">Edit grip spot</button><button id="cGripReset"' + (at ? "" : " disabled") + ">Reset grip</button></div>";
-      h += '<p class="note">The weapon keeps its spot at rest and then follows the bone it\'s attached to. With <b>Edit grip spot</b> on, the rings and arrows set where it sits on that bone in every clip (no keys).</p>';
     }
     h += addRow();
     h += '<div class="row"><button id="cAddX">+ Bone from this pivot</button></div>';
@@ -1836,8 +1819,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
     h += '<div class="row"><label>Offset (m)</label><div class="xyz">' + num("cX", a.side[0]) + num("cY", a.side[1]) + num("cZ", a.side[2]) + "</div></div>";
     h += '<div class="row"><label>Snap to</label><span class="seg"><button id="cS0"' + (hasTail ? "" : " disabled") + '>Start</button><button id="cS5"' + (hasTail ? "" : " disabled") +
       '>Middle</button><button id="cS1"' + (hasTail ? "" : " disabled") + '>End</button><button id="cSG" aria-pressed="' + !!a.ground + '">Ground</button></span></div>';
-    h += '<p class="note">Along bone: 0 % = the bone\'s pivot, 100 % = its end. Offset is added on top, in the bone\'s own X / Y / Z. Ground drops the point straight down to the floor.</p>';
-    h += '<p class="note">On the model: <b>click</b> an anchor for its arrows (slide along an axis) and rings (swing it around its bone\'s pivot); <b>press and hold, or press and drag</b>, to move it freely with the mouse. FX anchors only show on the model when ticked below (or <b>All FX anchors</b> in View). (An anchor sitting exactly on its bone\'s pivot has nothing to swing: move it off first.)</p>';
     h += '<label class="check"><input type="checkbox" id="cShow"' + (a.show ? " checked" : "") + '> Show this FX anchor on the model</label>';
     h += '<div class="row"><button id="cAddX">+ Bone from this anchor</button>' +
       (a.custom ? '<button id="cDel" class="danger">Remove anchor</button>' : '<button id="cReset">Reset anchor</button>') + "</div>";
@@ -1874,7 +1855,6 @@ details.adv[open] > summary { margin-bottom: 6px; }
     h += '<div class="row"><label for="cAt">Starts at</label><select id="cAt" class="grow">' + opt(pts, x.at) + "</select></div>";
     h += '<div class="row"><label for="cLen">Length (m)</label>' + num("cLen", x.len, 0.005) + "</div>";
     h += '<div class="row"><label>Rest angle °</label><div class="xyz">' + num("cRX", x.rest[0], 1) + num("cRY", x.rest[1], 1) + num("cRZ", x.rest[2], 1) + "</div></div>";
-    h += '<p class="note">Rest 0 = straight on along the bone it starts on. Pose it per keyframe with the rings, like any pivot.</p>';
     h += addRow();
     h += '<div class="row"><button id="cAddX">+ Bone at its end</button><button id="cDel" class="danger">Remove bone</button></div>';
     C.innerHTML = h;
@@ -2778,7 +2758,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
     $("kpAdd").disabled = !S.clip;
     var e = on ? easeOfAll(f) : null; $("kpEase").value = e || "smooth";
     var sel = Array.prototype.filter.call($("film").children, function (b) { return +b.dataset.f === f; })[0];
-    if (sel && sel.scrollIntoView && FILM.lastSel !== f) { FILM.lastSel = f; sel.scrollIntoView({block: "nearest", inline: "nearest"}); }
+    if (sel && FILM.lastSel !== f) {
+      FILM.lastSel = f; var fb = $("film"), fl = sel.getBoundingClientRect().left - fb.getBoundingClientRect().left + fb.scrollLeft;
+      if (fl < fb.scrollLeft) fb.scrollLeft = fl; else if (fl + sel.offsetWidth > fb.scrollLeft + fb.clientWidth) fb.scrollLeft = fl + sel.offsetWidth - fb.clientWidth;
+    }
   }
   function filmTick() {
     var sig = S.clip && S.clips[S.clip] ? [S.clip, JSON.stringify(S.data.edits[S.clip] || null), JSON.stringify(S.data.placement),
@@ -2833,6 +2816,12 @@ details.adv[open] > summary { margin-bottom: 6px; }
     Object.keys(ed).forEach(function (b) { (ed[b].rot || []).concat(ed[b].pos || []).forEach(function (k) { s2[k.f] = 1; }); });
     return Object.keys(s2).length;
   }
+  /* scroll a row into view inside its own scroll box only: never moves the menu or the page */
+  function scrollInBox(box, row) {
+    if (!box || !row) return;
+    var top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, bot = top + row.offsetHeight;
+    if (top < box.scrollTop) box.scrollTop = top; else if (bot > box.scrollTop + box.clientHeight) box.scrollTop = bot - box.clientHeight;
+  }
   function buildActs() {
     var box = $("acts"); if (!box) return;
     box.innerHTML = S.order.map(function (n) {
@@ -2841,7 +2830,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     }).join("");
     Array.prototype.forEach.call(box.children, function (r) {
       r.onclick = function () { setClip(r.dataset.n, 0); };
-      if (r.dataset.n === S.clip && r.scrollIntoView) r.scrollIntoView({block: "nearest"});
+      if (r.dataset.n === S.clip) scrollInBox(box, r);
     });
     syncActFields();
   }
@@ -3302,15 +3291,21 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var q = $("libQ").value.trim().toLowerCase(), list = libAll().filter(function (it) {
       return (!sel.value || it.cat === sel.value) && (!q || (it.name + " " + it.cat).toLowerCase().indexOf(q) >= 0);
     });
+    var lb = $("libList"), lsc = lb.scrollTop;
     $("libList").innerHTML = list.length ? list.map(function (it, i) {
       var id = libId(it);
       return '<div role="option" tabindex="-1" data-id="' + esc(id) + '" aria-selected="' + (LIB.sel === id) + '"' + (it.src ? ' title="' + esc(it.src) + '"' : "") + '><span>' + (it.kind === "pose" ? "◆ " : "▶ ") + esc(it.name) +
         '</span><span class="ms">' + esc(it.cat) + (it.kind === "move" ? " · " + (it.ms / 1000).toFixed(2) + " s" : "") + "</span></div>";
-    }).join("") : '<div class="note" style="padding:6px 8px">Nothing here yet: + Save pose / + Save action as move' + (BODY.stock ? "" : " (Body moves show once the shared body is loaded)") + ".</div>";
+    }).join("") : '<div class="note" style="padding:6px 8px">Nothing here yet.</div>';
     Array.prototype.forEach.call($("libList").querySelectorAll("[role=option]"), function (r) {
-      r.onclick = function () { LIB.sel = r.dataset.id; libBuild(); };
+      r.onclick = function () { LIB.sel = r.dataset.id; libMark(); };
       r.ondblclick = function () { LIB.sel = r.dataset.id; libApply(false); };
     });
+    lb.scrollTop = lsc;
+    libMark();
+  }
+  function libMark() {
+    Array.prototype.forEach.call($("libList").querySelectorAll("[role=option]"), function (r) { r.setAttribute("aria-selected", String(r.dataset.id === LIB.sel)); });
     var it = libFind(LIB.sel);
     $("libApply").disabled = $("libApplyM").disabled = !(it && S.root);
     $("libDel").disabled = !(it && !it.stock);
