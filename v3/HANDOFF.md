@@ -143,10 +143,18 @@ Move classes (Daniel 2026-11-23): he likes the body's attack_normal / attack_nor
 (Quaternius UAL2 mocap: urgency, decisiveness, fluidity) and wants many more at that level in classes Aggressive,
 Stylish, Defensive, Counter. Free capture is exhausted (UAL2 Standard's sword clips are all already used; UAL PRO is
 paid) -> he picked HAND-POSED new sword moves, ~5 per class, one class at a time. Aggressive first, focus = horizontal
-sweeps, backhand slashes, spinning follow-ups. Drafts (6, `ag_*`, approved false) from
-`v3/tools/library/gen_aggressive.py` (arms set by angle round the body, converted to chest space; spins carry the
-blade OVER the head, pivot foot turns with the hips). Preview pack with drafts: `characters/ual_swordsman/
-ual_moves_drafts.glb` (Rig Forge 3D: Load move pack…). Waiting for his verdict on the stills.
+sweeps, backhand slashes, spinning follow-ups.
+Mobile rebuild (Daniel 2026-11-23: "very mobile game; moves progress forward, never return to the start; kicks,
+forward <-> reverse grip mid-attack, blade spins; some cover a lot of ground; few keys, let the tween do the rest").
+His picks: rebuild the 14 hand-posed moves (mocap stays), add ROOT MOTION to V3, replace the approved ones now (they
+left the pack until he approves the new stills). Done: all 14 rewritten by `v3/tools/library/gen_moves.py` (replaces
+gen_aggressive.py): each travels 1.6 - 4.4 m, starts mid-stride and ends stepping on, 5-9 authored key poses
+(`key_tol` [0.08, 0.22] keeps the stored keys at 14-27 with spins / twirls); kicks (et_command back kick,
+ag_spin_backhand hook kick, ag_backhand_spin push kick), reverse grip + twirls (kt_iai, kt_chiburi_noto,
+kt_dash_slash, ag_sweep_return, ag_backhand_spin, ag_cyclone), air keys (kt_kirioroshi, et_rain, ag_low_high_spin).
+Audit: no hard fault. All 14 `approved: false`: `ual_moves.glb` = the 24 mocap moves only until he approves;
+`ual_moves_drafts.glb` has all 38. anim3d.py gained per-hand `grip` ("fwd" / "rev") + `twirl` (deg) and per-clip
+`key_tol`; V3 glbody.js gained root motion (README "Root motion").
 
 ## Training mode + jumps (2026-11-23)
 
