@@ -849,6 +849,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (name === S.clip) setClip(name, keepFrame ? S.frame : 0);
   }
   function rebuildAll() {
+    /* drop every mixer binding first: a stale binding restores its old value (e.g. the weapon's old grip spot) over the new rest */
+    if (S.mixer) { S.mixer.stopAllAction(); S.order.forEach(function (n) { if (S.clips[n]) S.mixer.uncacheClip(S.clips[n]); }); }
     syncStructure();
     S.order.forEach(function (n) { rebake(n, true); });
     buildTree(); buildCard(); syncGizmo(); updatePivotOut();
@@ -1349,7 +1351,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (HOLD.dragging || !HOLD.id) return;
     HOLD.dragging = true; HOLD.before = snap();
     if (S.playing) setPlaying(false);
-    S.sel = HOLD.id; S.selKind = HOLD.kind; S.grip = false;
+    S.sel = HOLD.id; S.selKind = HOLD.kind; S.grip = !!HOLD.ctrl;
     tc.detach(); tcRot.detach(); back.visible = false;
     var w = new THREE.Vector3(); pointOf(HOLD.kind, HOLD.id, w);
     HOLD.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), w);
@@ -1560,6 +1562,12 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var hit = screenRay(e.clientX, e.clientY); if (!hit) return;
     hit.add(HOLD.grab);
     if (HOLD.kind === "anchor") { setAnchorWorld(HOLD.id, hit); return; }
+    if (HOLD.ctrl) {                                           /* weapon grip spot: every clip, no keys; the arm stays put */
+      var wb = S.bones[HOLD.id], loc = wb.parent.worldToLocal(hit.clone());
+      var dv = posDelta(keysOf(S.clip, HOLD.id, "pos"), S.frame, new THREE.Vector3());
+      ensureGrip(HOLD.id).pos = loc.clone().sub(dv).toArray();
+      wb.position.copy(loc); wb.updateMatrixWorld(true); updatePivotOut(); return;
+    }
     Object.keys(HOLD.start).forEach(function (n) { var b = S.bones[n]; if (b) { b.quaternion.copy(HOLD.start[n][0]); b.position.copy(HOLD.start[n][1]); } });
     S.root.updateMatrixWorld(true);
     var ed = JSON.parse(HOLD.edits); if (ed) S.data.edits[S.clip] = ed; else delete S.data.edits[S.clip];
@@ -1606,6 +1614,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (axis && !onOther && !(hit.d < 7 && /^(XYZE|XYZ)$/.test(String(axis)))) return;
     e.stopImmediatePropagation(); e.preventDefault();
     HOLD.kind = hit.kind; HOLD.id = hit.id; HOLD.x = e.clientX; HOLD.y = e.clientY; HOLD.dragging = false; HOLD.shift = e.shiftKey;
+    HOLD.ctrl = (e.ctrlKey || e.metaKey) && hit.kind === "bone" && WEAPONS.indexOf(hit.id) >= 0;   /* Ctrl + hold on a weapon = its grip spot */
     clearTimeout(HOLD.timer); HOLD.timer = setTimeout(startHoldDrag, HOLD_MS);
   }, true);
   window.addEventListener("pointermove", function (e) {
@@ -1621,13 +1630,19 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (RING) { e.stopImmediatePropagation(); endRing(); return; }
     if (!HOLD.id) return;
     clearTimeout(HOLD.timer);
-    var id = HOLD.id, kind = HOLD.kind, dragged = HOLD.dragging, before = HOLD.before;
+    var id = HOLD.id, kind = HOLD.kind, dragged = HOLD.dragging, before = HOLD.before, gripDrag = HOLD.ctrl && dragged;
+    HOLD.ctrl = false;
     HOLD.lastShift = HOLD.shift; HOLD.plant = null;
     HOLD.id = null; HOLD.kind = null; HOLD.dragging = false; HOLD.before = null; canvas.style.cursor = "";
     e.stopImmediatePropagation();
     if (!dragged) { select(kind, id); return; }              /* quick click: the wheels */
     S.sel = id; S.selKind = kind;
     if (kind === "anchor") { commitAnchorDrag(before); status("Moved anchor " + id + ". Click it for the arrows and rings."); return; }
+    if (gripDrag) {
+      if (before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
+      S.order.forEach(function (n) { rebake(n, true); }); buildTree(); buildCard(); syncGizmo(); updatePivotOut();
+      status("Moved the grip spot of " + label(id) + " (every clip)."); return;
+    }
     if (before !== snap()) { S.undo.push(before); S.redo = []; markDirty(); }
     rebake(S.clip, true); buildTree(); buildCard(); syncGizmo();
     status((id === "Hips" ? (HOLD.lastShift ? "Moved the whole body" : "Moved the hips, hands and feet kept in place") : "Pulled " + label(id)) + " on f" + S.frame + ". Click it for its rings.");
