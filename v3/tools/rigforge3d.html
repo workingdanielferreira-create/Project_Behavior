@@ -3169,13 +3169,31 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   /* In-betweens (v1): this key pose's gap to the next becomes exactly that many frames between them; the other gaps
      share the rest so the action keeps its length (Daniel 2026-11-23) */
+  /* EXACT in-betweens (Daniel 2026-11-23, "flexibility"): gaps in fix = {gap index: frames} are set to exactly that,
+     every other gap keeps its own size, nothing else is squeezed; the action's length follows (last key pose = last
+     frame for a key-pose clip, a frame-by-frame clip keeps its tail after the last key). Length + game timing update. */
+  function exactGaps(n, fix) {
+    var P = clipKeyFrames(n); if (P.length < 2) return {};
+    var N = frameCount(S.clips[n] || lenBase(n)), m = {}, hk = {}, at = S.keyMode[n] ? 0 : P[0], i;
+    for (i = 0; i < P.length; i++) {
+      m[P[i]] = at;
+      if (i < P.length - 1) {
+        var old = P[i + 1] - P[i], g = fix[i] != null ? Math.max(1, Math.round(fix[i])) : old;
+        hk[P[i]] = g / old; at += g;
+      }
+    }
+    remapKeys(n, m, hk);
+    var newN = Math.max(2, S.keyMode[n] ? at : N + (at - P[P.length - 1]));
+    if (newN !== N) { S.data.len[n] = newN; meta().timing[n] = Math.round(newN / FPS * 1000); }
+    return m;
+  }
   function setGaps(fix, msg) {
     var n = S.clip, keys = clipKeyFrames(n); if (keys.length < 2) return;
     var here = keys.indexOf(S.frame);
-    pushUndo(); var m = respaceKeys(n, fix);
+    pushUndo(); var m = Object.keys(fix).length ? exactGaps(n, fix) : respaceKeys(n, fix);
     var now = clipKeyFrames(n);
     if (here >= 0 && m[keys[here]] != null) S.frame = m[keys[here]];
-    afterKeys(msg(now)); syncTween();
+    afterKeys(msg(now)); syncTween(); buildActs();
   }
   $("twGap").onchange = function () {
     var keys = clipKeyFrames(S.clip), i = keys.indexOf(S.frame); if (i < 0 || i >= keys.length - 1) return;
@@ -3183,9 +3201,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     setGaps(fix, function (now) {
       var got = now[i + 1] - now[i] - 1;
       return "f" + now[i] + " → f" + now[i + 1] + ": " + got + " in-between" + (got === 1 ? "" : "s") +
-        (got === want ? ", the other key poses re-spaced to keep the length." : keys.length < 3 ?
-          " (with only 2 key poses that one gap always fills the whole action; add a key pose or change the Length in Actions)." :
-          " (that's all the length allows; set a longer Length in Actions).");
+        ". Other gaps untouched; " + S.clip + " is now " + frameCount(S.clips[S.clip]) + " frames (" + gameMs(S.clip) + " ms).";
     });
   };
   $("twFit").onclick = function () {
@@ -3200,11 +3216,17 @@ details.adv[open] > summary { margin-bottom: 6px; }
     from = Math.max(1, Math.min(keys.length, from)); to = Math.max(1, Math.min(keys.length, to));
     if (from > to) { var t = from; from = to; to = t; }
     pushUndo();
-    for (var i = from - 1; i <= to - 1; i++) setTween(keys[i], {e: tw.e === "mixed" ? null : tw.e, st: tw.st, h: tw.h});
-    var P = clipKeyFrames(S.clip), here = P.indexOf(S.frame), fix = {};
-    if (here >= 0 && here < P.length - 1) for (var j = from - 1; j <= to - 1; j++) { var pj = P.indexOf(keys[j]); if (pj >= 0 && pj < P.length - 1) fix[pj] = P[here + 1] - P[here]; }
-    if (Object.keys(fix).length) { var m = respaceKeys(S.clip, fix); if (m[S.frame] != null) S.frame = m[S.frame]; }
-    afterKeys("Tween (in-betweens, steps, hold, easing) copied to key poses " + from + "-" + to + ".");
+    /* gaps first (every gap in the range = exactly this key pose's gap, the length follows), then the tween settings
+       on the moved key poses, so the copied hold isn't rescaled */
+    var P = clipKeyFrames(S.clip), here = P.indexOf(S.frame), fix = {}, gap = here >= 0 && here < P.length - 1 ? P[here + 1] - P[here] : 0, m = {};
+    if (gap) for (var j = from - 1; j <= to - 1; j++) { var pj = P.indexOf(keys[j]); if (pj >= 0 && pj < P.length - 1) fix[pj] = gap; }
+    if (Object.keys(fix).length) m = exactGaps(S.clip, fix);
+    if (m[S.frame] != null) S.frame = m[S.frame];
+    for (var i = from - 1; i <= to - 1; i++) setTween(m[keys[i]] != null ? m[keys[i]] : keys[i], {e: tw.e === "mixed" ? null : tw.e, st: tw.st, h: tw.h});
+    afterKeys();
+    status("Tween copied to key poses " + from + "-" + to + (gap ? ": each has exactly " + (gap - 1) + " in-betweens; " + S.clip + " is now " +
+      frameCount(S.clips[S.clip]) + " frames (" + gameMs(S.clip) + " ms)." : "."));
+    syncTween(); buildActs();
   }
   $("twRange").onclick = function () { twApply(+$("twFrom").value, +$("twTo").value); };
   $("twAll").onclick = function () { twApply(1, poseFrames().length); };
