@@ -2792,18 +2792,24 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (FILM.due && !busy && performance.now() >= FILM.due) { FILM.due = 0; buildFilm(); }
     if (S.frame !== FILM.frame) { FILM.frame = S.frame; markFilm(); refSync(); }
   }
+  /* move a key pose (Daniel 2026-11-23: no stopping at the neighbour): it hops over any key pose in the way; past
+     the clip's first / last frame with no free frame left there, every key pose is re-spaced to make room (length kept) */
   function kpMove(d) {
     var f = S.frame, keys = poseFrames(), i = keys.indexOf(f); if (i < 0) return;
-    var to = f + d, n = frameCount(S.clips[S.clip]), lo = i ? keys[i - 1] : -1, hi = i < keys.length - 1 ? keys[i + 1] : n + 1;
-    to = Math.max(lo + 1, Math.min(hi - 1, Math.max(0, Math.min(n, to))));
-    if (to === f) { status("This key pose can't move further that way (its neighbour or the clip end is there).", true); return; }
-    pushUndo(); moveKeys(framesOnFrame(f), f, to, false); afterKeys("Moved key pose f" + f + " → f" + to + "."); setFrame(to);
+    var n = frameCount(S.clips[S.clip]), step = d < 0 ? -1 : 1, to = Math.max(0, Math.min(n, f + d));
+    if (to === f) { status("Key pose f" + f + " is already on the clip's " + (step < 0 ? "first" : "last") + " frame."); return; }
+    while (to !== f && to >= 0 && to <= n && keys.indexOf(to) >= 0) to += step;
+    pushUndo();
+    if (to >= 0 && to <= n) { moveKeys(framesOnFrame(f), f, to, false); afterKeys("Moved key pose f" + f + " → f" + to + "."); setFrame(to); return; }
+    moveKeys(framesOnFrame(f), f, to, false);                 /* one frame past the end, then fit back in */
+    var m = fitKeys(S.clip, n), at = m[to] != null ? m[to] : Math.max(0, Math.min(n, to));
+    afterKeys("Moved key pose f" + f + " → f" + at + " (past its neighbours; key poses re-spaced to make room, length unchanged).");
+    setFrame(at);
   }
   $("kpLeft").onclick = function (e) { kpMove(e.shiftKey ? -5 : -1); };
   $("kpRight").onclick = function (e) { kpMove(e.shiftKey ? 5 : 1); };
   $("kpAdd").onclick = function () { addPoseKey(); };
   $("kpDel").onclick = function () {
-    if (poseFrames().length <= 2) { status("A clip keeps at least two key poses.", true); return; }
     delKey(true);
   };
   /* duplicate (v1: the copy goes in right after this key pose, always): a free frame between it and the next key
@@ -2976,7 +2982,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function respaceKeys(n, fix, N) {
     var P = clipKeyFrames(n); if (P.length < 2) { if (P.length && S.keyMode[n] && P[0]) { var m1 = {}; m1[P[0]] = 0; remapKeys(n, m1); return m1; } return {}; }
     N = N != null ? N : frameCount(S.clips[n] || lenBase(n));
-    var start = S.keyMode[n] ? 0 : Math.min(P[0], N), total = S.keyMode[n] ? N : Math.min(P[P.length - 1], N) - start, m = {}, hk = {}, i;
+    var start = S.keyMode[n] ? 0 : Math.max(0, Math.min(P[0], N)), total = S.keyMode[n] ? N : Math.min(P[P.length - 1], N) - start, m = {}, hk = {}, i;
     if (total < P.length - 1) {                                /* fewer frames than key poses: squeeze, some merge */
       for (i = 0; i < P.length; i++) m[P[i]] = start + Math.round((P[i] - P[0]) / (P[P.length - 1] - P[0]) * total);
       remapKeys(n, m, null, total / (P[P.length - 1] - P[0])); return m;
