@@ -16,7 +16,8 @@ into the pack only once Daniel approved its key-pose stills ("approved": true; v
 Build (cloud route, see RIG_SPEC section 8):
     python blender/m2m_moves.py <mesh2motion-assets>/rigs/human m2m_moves.glb      (bpy: bake onto the body, full glb)
     python move_library.py m2m_moves.glb                                           (key poses -> ual_moves.glb)
-    python blender/fbx_moves.py UAL1_Standard.fbx ual1_moves.glb                   (bpy: Quaternius UAL1 FBX clips)
+    python blender/fbx_moves.py UAL1_Standard.fbx ual1_moves.glb [UAL1]            (bpy: Quaternius UAL1 FBX clips)
+    python blender/fbx_moves.py UAL2_Standard.fbx ual2_moves.glb UAL2              (same for UAL2)
     python move_library.py ual1_moves.glb             (adds / replaces those moves; the pack's other moves are kept)
     python move_library.py -                       (authored moves changed: keep the pack's Mesh2Motion moves as they are)
     python move_library.py - out.glb --drafts      (a preview pack with the unapproved authored moves too)
@@ -90,12 +91,43 @@ UAL1 = {
     "u1_sw_attack": ("Sword", "Sword attack (UAL1)", "Sword_Attack"),
     "u1_sw_idle": ("Sword", "Sword idle (UAL1)", "Sword_Idle"),
 }
-STOCK = dict(MOVES, **UAL1)                            # every mocap move the pack can hold
+# Quaternius UAL2 Standard (CC0), same route (Daniel 2026-11-23, same picks: fight-useful, by type). Several are the
+# body's own game clips too (attack_normal ...): here they are plain library moves to apply anywhere.
+UAL2 = {
+    "u2_sw_a": ("Sword", "Regular A (UAL2)", "Sword_Regular_A"),
+    "u2_sw_a_rec": ("Sword", "Regular A + recovery (UAL2)", "Sword_Regular_A_Rec"),
+    "u2_sw_b": ("Sword", "Regular B (UAL2)", "Sword_Regular_B"),
+    "u2_sw_b_rec": ("Sword", "Regular B + recovery (UAL2)", "Sword_Regular_B_Rec"),
+    "u2_sw_c": ("Sword", "Regular C (UAL2)", "Sword_Regular_C"),
+    "u2_sw_combo": ("Sword", "Regular combo (UAL2)", "Sword_Regular_Combo"),
+    "u2_sw_dash": ("Sword", "Dash slash (UAL2)", "Sword_Dash"),
+    "u2_sw_heavy_combo": ("Sword", "Heavy combo (UAL2)", "Sword_Heavy_Combo"),
+    "u2_sw_block": ("Sword", "Sword block (UAL2)", "Sword_Block"),
+    "u2_sh_idle": ("Shield", "Shield idle", "Idle_Shield_Loop"),
+    "u2_sh_break": ("Shield", "Shield break", "Idle_Shield_Break"),
+    "u2_sh_dash": ("Shield", "Shield dash", "Shield_Dash"),
+    "u2_sh_bash": ("Shield", "Shield bash", "Shield_OneShot"),
+    "u2_hook": ("Unarmed", "Hook punch", "Melee_Hook"),
+    "u2_hook_rec": ("Unarmed", "Hook punch + recovery", "Melee_Hook_Rec"),
+    "u2_throw": ("Unarmed", "Overhand throw", "OverhandThrow"),
+    "u2_ninja_jump": ("Movement", "Ninja jump start", "NinjaJump_Start"),
+    "u2_ninja_air": ("Movement", "Ninja jump air loop", "NinjaJump_Idle_Loop"),
+    "u2_ninja_land": ("Movement", "Ninja jump land", "NinjaJump_Land"),
+    "u2_slide_start": ("Movement", "Slide start", "Slide_Start"),
+    "u2_slide": ("Movement", "Slide loop", "Slide_Loop"),
+    "u2_slide_exit": ("Movement", "Slide exit", "Slide_Exit"),
+    "u2_climb_up": ("Movement", "Climb up 1 m", "ClimbUp_1m"),
+    "u2_knockback": ("Reactions", "Hit knockback", "Hit_Knockback"),
+    "u2_get_up": ("Reactions", "Get up (lying)", "LayToIdle"),
+}
+STOCK = dict(MOVES, **UAL1, **UAL2)                    # every mocap move the pack can hold
 
 
 def src_label(k):
     if k in UAL1:
         return "Quaternius UAL1 Standard (CC0) " + UAL1[k][2]
+    if k in UAL2:
+        return "Quaternius UAL2 Standard (CC0) " + UAL2[k][2]
     return "Mesh2Motion (CC0) " + os.path.basename(MOVES[k][2])
 
 
