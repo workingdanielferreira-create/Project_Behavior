@@ -162,6 +162,15 @@ strikes / wind-ups, contrapposto between), hunch + glaring head, hip-shoulder se
 whips), shoulder girdle `clav` (new anim3d per-arm control), stances x2.6 wider with the hips auto-dropping so the
 legs reach, weight onto the front foot on hits, straight sword arm + flared free hand, air keys tucked / trailing.
 Rules written into the v3-animation skill ("Attitude"). Audit: no hard fault. Still waiting for his approval.
+Review + physics pass (same day; Daniel: "ask yourself: what's wrong with his wrist? why does he float? have I seen
+movement like that in any media?"). Measured: wrists bent 60-76 deg most of the time, feet stepping 1.5-3.4 m in
+0.03-0.13 s (skating), jumps rising 2-4x higher than gravity allows for their airtime. Fixed: natural wrist
+(`WRIST_OFF`), anim3d `physics` clips (body lunges instead of a one-frame snap, feet swing on their own timing with a
+real lift), `physical_timing()` (stride / lunge speed limits, gravity-timed jumps, flash steps flagged), lower jumps.
+Also from the review: class attitudes (`PROFILES`: Aggressive brawler / Katana low compact / Ethereal tall open),
+two-hand katana grip (anim3d `L.hilt`, kirioroshi), curved / sideways travel (`PATHS`: side, arc, hook), varied
+entries for the six Aggressive moves, the dash exit's fist no longer at the face. The three questions are in the
+v3-animation skill ("Review questions").
 
 ## Training mode + jumps (2026-11-23)
 

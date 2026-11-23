@@ -28,6 +28,7 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
          "R": {"hand": [x, y, z], "pole": [x, y, z], "blade": [x, y, z], "roll": deg,    (body space, m)
                "grip": "fwd" | "rev", "twirl": deg,      (reverse grip / blade spun in the fingers; tweened between keys)
                "clav": [lift, forward]},                  (shoulder girdle: shrug / drive forward / pull back, deg)
+         "L": {..., "hilt": true}                         (left hand on the right weapon's handle: two-hand grip)
          "L": {...},
          "fR": {"ankle": [x, y, z], "pole": [x, y, z], "yaw": deg, "pitch": deg},
          "fL": {...}}, ...]}}}
@@ -218,6 +219,18 @@ class Solver:
         for side, S in (("R", "Right"), ("L", "Left")):
             a = c[side]
             hand, pole = to_body(a["hand"]), to_body(a["pole"])
+            if side == "L" and a.get("hilt"):
+                # two-hand grip (Daniel 2026-11-23): the left fist closes on the handle just below the right one, its
+                # elbow down and in; the right blade decides everything
+                W, P = self.fk()
+                g, tp = P[rig.i("Weapon_R")], P[rig.i("WeaponTip_R")]
+                bd = r.unit(tp - g)
+                sh = P[rig.i("LeftArm")]
+                self.clavicle(S, g)
+                self.limb("LeftArm", "LeftForeArm", "LeftHand", g - bd * 0.13,
+                          sh + r.unit(np.array([0.3, -1.0, -0.2])), "elbow")
+                self.blade(S, bd, 0.0, t)
+                continue
             if a.get("reach") is not None or a.get("elbow") is not None:
                 W, P = self.fk()
                 sh = P[rig.i(S + "Arm")]
@@ -470,7 +483,14 @@ def interp(keys, t):
         return keys[-1]
     n = next(i for i in range(1, len(keys)) if keys[i]["t"] >= t)
     k1, k2 = keys[n - 1], keys[n]
-    u = ease(k2["ease"], (t - k1["t"]) / max(k2["t"] - k1["t"], 1e-6))
+    s_raw = (t - k1["t"]) / max(k2["t"] - k1["t"], 1e-6)
+    u = ease(k2["ease"], s_raw)
+    # "physics" clips (library moves, Daniel 2026-11-23 "why does he float / skate"): the body travels with a fast
+    # lunge ("out"), never a one-frame "snap" jump across the floor (rotations still snap), and a stepping foot has
+    # its own swing timing (smooth over the whole segment) and a real lift, so it strides instead of skating
+    phys = bool(k2.get("_phys"))
+    u_body = ease(k2.get("bease") or ("out" if k2["ease"] == "snap" else k2["ease"]), s_raw) if phys else u
+    u_foot = ease("smooth", s_raw) if phys else u
     k0 = keys[max(0, n - 2)]
     k3 = keys[min(len(keys) - 1, n + 1)]
     c = json.loads(json.dumps(k1))
@@ -484,10 +504,11 @@ def interp(keys, t):
             tgt[path[-1]] = k2[path[0]].get(path[1])
             continue
         # a held segment (same value) must stay exactly put: planted feet
+        uu = u_body if path == ("hips_pos",) else u_foot if path[-1] == "ankle" else u
         if np.allclose(p1, p2):
             v = p1
         else:
-            v = catmull(get(k0, path) if _has(k0, path) else p1, p1, p2, get(k3, path) if _has(k3, path) else p2, u)
+            v = catmull(get(k0, path) if _has(k0, path) else p1, p1, p2, get(k3, path) if _has(k3, path) else p2, uu)
         tgt = c
         for p in path[:-1]:
             tgt = tgt[p]
@@ -516,12 +537,14 @@ def interp(keys, t):
         c[s]["clav"] = [ca[0] * (1 - u) + cb[0] * u, ca[1] * (1 - u) + cb[1] * u]
     for s in ("fR", "fL"):
         for f in ("yaw", "pitch"):
-            c[s][f] = k1[s][f] * (1 - u) + k2[s][f] * u
+            c[s][f] = k1[s][f] * (1 - u_foot) + k2[s][f] * u_foot
         # a foot moving to a new spot steps: it lifts through an arc instead of sliding over the floor
         a1, a2 = np.array(k1[s]["ankle"], float), np.array(k2[s]["ankle"], float)
         d = math.hypot(a2[0] - a1[0], a2[2] - a1[2])
         if d > 0.04:
-            c[s]["ankle"][1] += min(0.18, 0.35 * d) * math.sin(math.pi * u)
+            lift = min(0.40, 0.28 * d) if phys else min(0.18, 0.35 * d)
+            arc = math.sin(math.pi * u_foot)
+            c[s]["ankle"][1] += lift * (arc ** 0.5 if phys else arc)      # physics: off the floor at once, no skid
     return c
 
 
@@ -529,6 +552,8 @@ def bake_clip(B, spec, notes=None, dense=False):
     keys = full_keys(B, spec["keys"])
     for k in keys:
         k["arm_space"] = spec.get("arm_space", "body")
+        if spec.get("physics"):
+            k["_phys"] = True
     length = float(spec.get("length") or keys[-1]["t"])
     n = max(2, int(round(length * FPS)) + 1)
     times = [min(length, f / FPS) for f in range(n)]
