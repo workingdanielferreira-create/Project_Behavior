@@ -19,6 +19,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 from anim3d import rot_euler
 
 ANKLE = 0.104
+WIDE = 2.6          # stance width (Daniel's references: wide, deep, one leg locked straight): every foot's distance from
+                    # the travel line x this, so planted feet stay planted; the hips drop to let the legs reach
+LEG = 0.80          # usable leg reach hip joint -> ankle (m)
 
 
 def r3(v): return [round(float(x), 3) for x in v]
@@ -54,39 +57,121 @@ def arm(M, hand_deg, blade_deg, h=0.0, elbow="fore", bslope=0.0, ext=0.5, grip=N
 def foot(p, y=0.0, yaw=0.0, pitch=0.0, knee=None):
     k = knee if knee is not None else yaw
     kv = np.array(k, float) / np.linalg.norm(k) if isinstance(k, (tuple, list)) else hdir(k, 0.15 if y > 0.25 else 0.0)
-    return {"ankle": r3([p[0], ANKLE + y, p[1]]), "knee": r3(kv), "yaw": round(yaw, 1),
+    return {"ankle": r3([p[0] * WIDE, ANKLE + y, p[1]]), "knee": r3(kv), "yaw": round(yaw, 1),
             "pitch": pitch}
 
 
-def key(t, ease, yaw, sy, lean, drop, fr, fl, S, F, head=None, over=None, roll=0.0, sroll=0.0, hx=0.0, hz=0.0):
+_KN = [0]
+_PREV = [0.0]
+CLAV = {"snap": ([-6, 26], [4, -18]), "in": ([14, -24], [0, 14]), "out": ([-2, 16], [0, -10]),
+        "inout": ([4, 4], [0, 0]), "linear": ([6, -6], [0, 6])}   # [lift, forward]: sword shoulder, free shoulder
+
+
+def attitude(ease, hrel, drop, over, arch, bend, tilt, proll):
+    """The back and spine doing the fighting (Daniel 2026-11-23: "they have backs and spines that bend"): a predator's
+    hunch everywhere, the chest crunching sideways INTO each hit, the shoulder dropping toward a loaded blade with the
+    chest arched open on the wind-up, a whipping side bend on the follow-through, the pelvis tipping against the chest
+    (contrapposto), an arched back in the air, and the head glaring up from under the brow with a cocky tilt.
+    Returns (extra spine pitch, spine side bend, pelvis roll, head pitch, head roll); any can be given per key."""
+    air = drop < 0
+    k, a = {"snap": (0.38, 20), "in": (0.26, -12), "out": (0.42, 12)}.get(ease, (0.16, 8))
+    if air:
+        a = 22 if ease == "snap" else -20
+    a += 0 if air else 14                                   # the hunch: never stands up straight
+    b = max(-38.0, min(38.0, -hrel * k))                    # hand to the right (negative) -> bend to the right (+roll)
+    if arch is not None:
+        a = arch
+    if bend is not None:
+        b = bend
+    # line of action (figure-drawing / animation posing): strikes and wind-ups are ONE C-curve from the planted foot
+    # through pelvis, spine and head (pelvis tilt and head tilt continue the spine's bend); in-between / prowling
+    # keys use contrapposto instead (pelvis tilted against the shoulders) with a cocky head tilt
+    _KN[0] += 1
+    cock = (9 if _KN[0] % 3 else -11) * (1 if _KN[0] % 2 else -1)
+    if ease in ("snap", "out", "in"):
+        pr, hr = 0.30 * b, 0.45 * b
+    else:
+        pr, hr = -0.35 * b, -0.30 * b + cock
+    pr += {"R": -7, "L": 7}.get(over, 0)                     # the pelvis drops toward a lifted leg
+    if proll is not None:
+        pr = proll
+    if tilt is not None:
+        hr = tilt
+    return a, b, pr, hr
+
+
+def key(t, ease, yaw, sy, lean, drop, fr, fl, S, F, head=None, over=None, roll=None, sroll=None, hx=0.0, hz=0.0,
+        arch=None, tilt=None):
     """yaw / sy = hips / spine yaw (deg, cumulative over spins); lean = deg toward the target; drop = hips down (m, < 0 =
     up off the ground); fr / fl = foot(...) dicts; S = right arm kwargs for arm(); F = left arm kwargs; over = foot the
-    hips sit over ("R" / "L", spins and kicks); hx / hz = extra hips shift."""
+    hips sit over ("R" / "L", spins and kicks); hx / hz = extra hips shift. Attitude (see attitude()): arch = extra
+    spine pitch (+ hunch / crunch, - arch back), sroll = spine side bend (+ = to the right), roll = pelvis roll,
+    tilt = head roll; left out = automatic from the key's ease and where the sword hand is."""
+    # hips and shoulders telegraph (Daniel 2026-11-23): the wind-up coils the chest further back than the hips, the
+    # hit is led by the hips (the chest arrives a beat behind), the follow-through whips the chest past them
+    tot0 = yaw + sy
+    if t == 0:
+        _PREV[0] = tot0
+    d = tot0 - _PREV[0]
+    sg = (d > 2) - (d < -2)
+    _PREV[0] = tot0
+    if ease == "in":
+        sy, yaw = sy + 14 * sg, yaw - 6 * sg          # coil: chest past the hips, hips held back
+    elif ease == "snap":
+        yaw, sy = yaw + 16 * sg, sy - 16 * sg         # hips lead the strike, the chest lags (same heading)
+    elif ease == "out":
+        sy = sy + 10 * sg                             # chest whips on past the hips
+    if ease in ("snap", "out") and drop >= 0:
+        lean += 10                                    # throw the chest out over the front knee on hits
     tot = yaw + sy
     w = ((tot + 180) % 360) - 180
     hy = max(-75, min(75, -w)) if head is None else head
     a, b = fr["ankle"], fl["ankle"]
     if over is None:
-        mx, mz = (a[0] + b[0]) / 2, (a[2] + b[2]) / 2
+        # weight: strikes drive onto the front foot (the back leg straightens = a long line of action), a wind-up
+        # sits back on the loaded back leg
+        fw = {"snap": 0.72, "out": 0.68, "in": 0.32}.get(ease, 0.5) if abs(a[2] - b[2]) > 0.25 else 0.5
+        f1, f2 = (a, b) if a[2] >= b[2] else (b, a)
+        mx, mz = f1[0] * fw + f2[0] * (1 - fw), f1[2] * fw + f2[2] * (1 - fw)
     else:
         o, q = (a, b) if over == "R" else (b, a)
         mx, mz = o[0] * 0.8 + q[0] * 0.2, o[2] * 0.8 + q[2] * 0.2
-    lk = max(0.35, math.cos(math.radians(min(abs(w), 90))) ** 0.5)
-    hr, sp = [yaw, lean * 0.55 * lk, roll], [sy, lean * 0.45 * lk, sroll]
-    M = chest_M(hr, sp)
+    if drop >= 0:                                            # grounded: sink the hips until both planted legs reach
+        for f_, sx in ((a, -1), (b, 1)):
+            if f_[1] > ANKLE + 0.2:
+                continue
+            dxz = math.hypot(f_[0] - (mx + hx + 0.09 * sx), f_[2] - (mz + hz))
+            if dxz < LEG:
+                need = 0.917 - 0.05 - (f_[1] + math.sqrt(LEG * LEG - dxz * dxz))
+                drop = max(drop, need)
     sk = dict(S)
+    if ease in ("snap", "out"):                              # hits: the sword arm goes all the way out
+        sk["ext"] = max(sk.get("ext", 0.5), 0.55)
     for kk in ("hand_deg", "blade_deg"):
         if callable(sk.get(kk)):
             sk[kk] = sk[kk](tot)
+    hrel = ((sk["hand_deg"] - tot + 180) % 360) - 180
+    ar, bend, pr, hroll = attitude(ease, hrel, drop, over, arch, sroll, tilt, roll)
+    lk = max(0.35, math.cos(math.radians(min(abs(w), 90))) ** 0.5)
+    sp_pitch = lean * 0.45 * lk + ar
+    hr, sp = [yaw, lean * 0.5 * lk, pr], [sy, sp_pitch, bend]
+    M = chest_M(hr, sp)
     fk = dict(F)
+    if ease in ("snap", "out", "in"):                        # the free hand flares out wide and low as a counterweight
+        fk["ext"] = max(fk.get("ext", 0.38), 0.50)
+        fk["h"] = min(fk.get("h", -0.12), -0.05)
     for kk in ("hand_deg", "blade_deg"):
         if callable(fk.get(kk)):
             fk[kk] = fk[kk](tot)
     fk.setdefault("side", -1)
+    hp = max(-55.0, -0.7 * sp_pitch - 10 - lean * 0.1)         # eyes stay on the target: the head glares up
+    cr, cl = CLAV.get(ease, ([0, 0], [0, 0]))
+    R, L = arm(M, **sk), arm(M, **fk)
+    R["clav"], L["clav"] = list(cr), list(cl)
     return {"t": round(t, 3), "ease": ease,
             "hips": {"pos": r3([mx + hx, -drop, mz + hz - 0.0]), "rot": r3(hr)}, "spine": r3(sp),
-            "head": r3([hy, -12 - lean * 0.15, 0]),
-            "R": arm(M, **sk), "L": arm(M, **fk), "fR": fr, "fL": fl}
+            "head": r3([hy, hp, hroll]),
+            "R": R, "L": L, "fR": fr, "fL": fl}
 
 
 def S(hand, blade, h=0.0, elbow="fore", **k):
@@ -129,8 +214,8 @@ CL["kt_kirioroshi"] = {"cat": "Katana", "name": "Leaping overhead cut (kiriorosh
         S(-10, 20, 0.0, "fore"), FREE(-5, -0.02, 0.42)),                                   # two-hand guard, running
     key(0.18, "in", 0, 0, 20, 0.30, foot((-0.14, 0.80), yaw=-5), foot((0.14, 0.40), yaw=15),    # gather: deep take-off crouch
         S(-15, 30, -0.10, "fore"), FREE(-10, -0.10, 0.40)),
-    key(0.36, "out", 5, 0, -8, -0.30, foot((-0.16, 1.60), y=0.35, yaw=0, pitch=30), foot((0.14, 1.10), y=0.55, yaw=10, knee=10),
-        S(-5, 175, 0.62, "up", bslope=0.25, ext=0.25), FREE(0, 0.55, 0.22, elbow="up")),  # AIR: katana high over the head, arched back
+    key(0.36, "out", 5, 0, 8, -0.30, foot((-0.16, 1.75), y=0.55, yaw=0, pitch=30, knee=(0, 0.6, 1)), foot((0.14, 0.75), y=0.75, yaw=10, pitch=70, knee=(0, -1, 0.2)),
+        S(-5, 175, 0.62, "up", bslope=0.25, ext=0.25), FREE(10, 0.50, 0.25, elbow="upb")),  # AIR: katana high over the head, arched back
     key(0.46, "snap", 0, 0, 55, 0.32, foot((-0.16, 2.30), yaw=-5), foot((0.16, 1.55), yaw=15),  # CUT down as the feet land
         S(-5, 10, -0.40, "fore", bslope=-0.55, ext=0.55), FREE(-2, -0.40, 0.50)),
     key(0.62, "out", 0, 0, 58, 0.36, foot((-0.16, 2.30), yaw=-5), foot((0.16, 1.55), yaw=15),
@@ -143,7 +228,7 @@ CL["kt_kirioroshi"] = {"cat": "Katana", "name": "Leaping overhead cut (kiriorosh
 # then slide it home along the hip while still walking.
 CL["kt_chiburi_noto"] = {"cat": "Katana", "name": "Walking twirl, chiburi flick, reverse-grip sheathe", "length": 1.25, "keys": [
     key(0.00, "inout", -20, -10, 24, 0.20, foot((-0.18, 0.25), yaw=-10), foot((0.16, -0.30), yaw=15),
-        S(-40, -30, -0.20, "fore", bslope=-0.3), FREE(25, -0.25, 0.30)),                     # just finished a cut, low blade
+        S(-70, -70, -0.10, "out", bslope=-0.3, ext=0.52), FREE(25, -0.25, 0.30)),                     # just finished a cut, low blade
     key(0.32, "inout", 0, 0, 14, 0.12, foot((-0.18, 0.25), yaw=-10), foot((0.14, 0.85), yaw=5),   # step: two twirls at the side
         S(-75, -60, 0.10, "out", bslope=0.2, ext=0.45, twirl=720), FREE(30, -0.25, 0.28)),
     key(0.46, "snap", -25, -15, 20, 0.18, foot((-0.18, 0.25), yaw=-10), foot((0.14, 0.85), yaw=5),  # CHIBURI: sharp flick out and down
@@ -172,7 +257,7 @@ CL["kt_dash_slash"] = {"cat": "Katana", "name": "Battojutsu flash step (4 m dash
     key(0.62, "out", -70, -40, 45, 0.32, foot((-0.24, 4.30), yaw=-20), foot((0.20, 3.50), yaw=-5),  # skid on past it
         S(-95, -140, 0.08, "out", ext=0.52), FREE(70, -0.15, 0.32), head=50),
     key(1.00, "inout", -25, -10, 28, 0.20, foot((-0.24, 4.30), yaw=-20), foot((0.18, 4.80), y=0.04, yaw=-5, pitch=15),
-        S(-80, -150, 0.15, "out", bslope=-0.3, ext=0.55, grip="rev", twirl=-360), FREE(25, -0.22, 0.32), over="R"),  # rises, reverse grip
+        S(-80, -150, 0.28, "out", bslope=-0.1, ext=0.55, grip="rev", twirl=-360), FREE(25, -0.22, 0.32), over="R"),  # rises, reverse grip
 ]}
 
 # ============================================================================== ETHEREAL SWORDS (blades are FX)
@@ -232,7 +317,7 @@ CL["et_rain"] = {"cat": "Ethereal swords", "name": "Leaping rain of blades (arms
         S(-25, -40, -0.25, "fore", ext=0.32), FREE(25, -0.25, 0.32)),
     key(0.18, "in", 0, 0, 34, 0.36, foot((-0.14, 0.85), yaw=-5), foot((0.14, 0.45), yaw=10),       # take-off crouch, arms swing back
         S(-20, -170, -0.30, "fore", bslope=-0.3, ext=0.45), FREE(20, -0.30, 0.45)),
-    key(0.45, "out", 0, 0, -12, -0.45, foot((-0.16, 1.70), y=0.45, yaw=0, pitch=35), foot((0.14, 1.40), y=0.65, yaw=10, knee=10),
+    key(0.45, "out", 0, 0, 12, -0.45, foot((-0.16, 1.90), y=0.60, yaw=0, pitch=35, knee=(0, 0.6, 1)), foot((0.14, 0.95), y=0.80, yaw=10, pitch=70, knee=(0, -1, 0.2)),
         S(-30, -20, 0.70, "up", bslope=1.5, ext=0.30), FREE(30, 0.70, 0.30, elbow="up")),       # AIR: arms high, body arched
     key(0.62, "snap", 0, 0, 58, 0.40, foot((-0.20, 2.40), yaw=-10), foot((0.20, 2.10), yaw=20),     # SLAM: lands, arms driven down
         S(-25, -10, -0.55, "fore", bslope=-1.2, ext=0.56), FREE(25, -0.55, 0.56)),
@@ -307,9 +392,9 @@ CL["ag_low_high_spin"] = {"cat": "Aggressive", "name": "Sliding low sweep, jumpi
         S(-10, 15, -0.45, ext=0.56), FREE(100, -0.40)),
     key(0.40, "in", 60, 30, 40, 0.42, foot((-0.30, 1.80), yaw=30, pitch=25), foot((0.25, 0.65), yaw=40, pitch=-20),
         S(70, 110, -0.40), FREE(140, -0.30), over="R"),
-    key(0.58, "linear", 200, 20, 0, -0.40, foot((-0.20, 2.40), y=0.45, yaw=180, pitch=30), foot((0.20, 2.10), y=0.60, yaw=190, knee=190),
+    key(0.58, "linear", 200, 20, 0, -0.40, foot((-0.20, 2.40), y=0.70, yaw=180, pitch=40, knee=(0, 0.6, 1)), foot((0.20, 2.10), y=0.70, yaw=190, pitch=40, knee=(0, 0.6, 1)),
         S(rel(15), rel(180), 0.50, "up", bslope=0.45, ext=0.45), FREE(rel(-60), 0.20, 0.40), head=60),   # AIR: spinning, blade over the head
-    key(0.72, "snap", 360, 5, 20, -0.30, foot((-0.20, 2.70), y=0.35, yaw=350, pitch=30), foot((0.20, 2.45), y=0.50, yaw=360),
+    key(0.72, "snap", 360, 5, 45, -0.30, foot((-0.20, 3.05), y=0.50, yaw=350, pitch=30, knee=(0, 0.6, 1)), foot((0.20, 2.05), y=0.80, yaw=360, pitch=70, knee=(0, -1, 0.2)),
         S(-10, 15, 0.35, ext=0.56), FREE(100, 0.0)),                                              # HIGH SWEEP in the air
     key(0.86, "out", 410, 30, 30, 0.30, foot((-0.20, 3.20), yaw=380), foot((0.20, 2.85), yaw=395),    # lands
         S(70, 110, 0.10), FREE(150, -0.10)),

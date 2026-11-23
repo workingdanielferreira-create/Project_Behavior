@@ -155,6 +155,13 @@ kt_dash_slash, ag_sweep_return, ag_backhand_spin, ag_cyclone), air keys (kt_kiri
 Audit: no hard fault. All 14 `approved: false`: `ual_moves.glb` = the 24 mocap moves only until he approves;
 `ual_moves_drafts.glb` has all 38. anim3d.py gained per-hand `grip` ("fwd" / "rev") + `twirl` (deg) and per-clip
 `key_tol`; V3 glbody.js gained root motion (README "Root motion").
+Attitude pass (same day, Daniel: "they look like good-two-shoes ... they have backs and spines that bend", "hips and
+shoulders rotate ... telegraphs actions", "research lines of motion", plus reference sheets of wide low stances, flying
+lunges, spread arms): gen_moves.py `attitude()` + `key()` now pose every key with a line of action (C-curve on
+strikes / wind-ups, contrapposto between), hunch + glaring head, hip-shoulder separation (coil / hips lead / chest
+whips), shoulder girdle `clav` (new anim3d per-arm control), stances x2.6 wider with the hips auto-dropping so the
+legs reach, weight onto the front foot on hits, straight sword arm + flared free hand, air keys tucked / trailing.
+Rules written into the v3-animation skill ("Attitude"). Audit: no hard fault. Still waiting for his approval.
 
 ## Training mode + jumps (2026-11-23)
 
