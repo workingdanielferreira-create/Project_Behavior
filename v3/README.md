@@ -190,7 +190,7 @@ to the rest / T-pose (before the first key it holds the first, after the last it
 on frame-by-frame clips). **Tween** panel per key pose: **In-betweens** = frames from this key pose to the next; a new
 value makes that gap exactly that long and re-spaces the other gaps (in proportion) so the action keeps its length
 (2 key poses: the one gap always fills it); **Stretch keys to fill the length** re-fits an older clip whose keys stop
-early. Filmstrip **Duplicate** always works (v1): the copy goes right after the key pose, and with no free frame there the key poses are re-spaced to make room (length kept). **Choppy steps** (0 = smooth; N = the pose jumps N+1 times on the way: anime timing), **Hold** (frames still first), Easing, **Apply to** key poses
+early. Filmstrip **Duplicate** always works (v1): the copy goes right after the key pose, and with no free frame there the key poses are re-spaced to make room (length kept). **◀ / ▶** hop a key pose over its neighbours (re-spaced to make room at the clip ends); **Delete key pose** works down to none (1 key pose = a still pose). **Choppy steps** (0 = smooth; N = the pose jumps N+1 times on the way: anime timing), **Hold** (frames still first), Easing, **Apply to** key poses
 a..b / All (copies the in-betweens too); stored per key (`st`, `h`) and in the file as `pb_keys` `s` / `h` per track (V3 keytween.js and
 keyreduce.seg_u play them the same). Filmstrip: **Mirror L/R**, **Turn around** (180 deg on the hips), **Centre** (hips
 over the feet spot); Shift = every key pose, one undo step.
