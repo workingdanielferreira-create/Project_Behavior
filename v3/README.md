@@ -229,7 +229,7 @@ Today only the body's `attack_normal_4` (0.3 m) qualifies among game clips; libr
 **Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
 and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
 key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always
-where the blade points. Per hand `clav` [lift, forward] (deg) = shoulder girdle shrug / drive forward / pull back on top of the automatic follow. Per clip `key_tol` [body m, tip m] = looser key reduction (fewer stored key poses).
+where the blade points. Per hand `clav` [lift, forward] (deg) = shoulder girdle shrug / drive forward / pull back on top of the automatic follow. Left hand `hilt: true` = two-hand grip (left fist on the right weapon's handle). Clip `physics: true` = the hips travel with a lunge (never a one-frame snap) and a stepping foot swings on its own timing with a real lift; key `bease` = the hips' own ease (gravity: out going up, in coming down). Per clip `key_tol` [body m, tip m] = looser key reduction (fewer stored key poses).
 
 **Part 4: weapon editor.** Panel "Weapons": Weapon 1 (right hand) / Weapon 2 (left hand): holds a weapon or not, and
 "Build it here": shape (sword, katana, dagger, greatsword, rapier, cleaver) + length, width, thickness, curve, point,

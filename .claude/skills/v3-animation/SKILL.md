@@ -84,6 +84,23 @@ actions". Upright, square, polite poses are rejected. Every key (`v3/tools/libra
 - **Air**: never a pencil jump: body pitched forward, one knee tucked high, the other leg trailing straight back with
   the toes pointed; spins tuck both knees.
 
+## Review questions (Daniel 2026-11-23): ask them of EVERY clip before showing it
+
+1. **"Why is he holding his weapon like that? What's wrong with his wrist?"** A held sword sits about square to the
+   forearm; the wrist only angles it (~20-30 deg). Measure the wrist bend per frame: more than a few frames past 60
+   deg = the blade directions fight the arm (gen_moves.py keeps blades within `WRIST_OFF` 25 deg of square to the
+   arm; anim3d "blade off by" notes = the solver could not get there).
+2. **"Why does he float around like that? What's wrong with his physics?"** Measure, don't eyeball:
+   - a stepping foot averages <= ~7.5 m/s (a sprint stride ~2 m in ~0.25 s); a planted foot never slides;
+   - the hips cross the ground <= ~6 m/s between keys (a lunge), except a deliberate flash step (`flash` keys);
+   - flight time matches height: apex = HANG (1.5) x g t^2 / 8, the rise eases out and the fall accelerates in;
+     push-off and landing absorb take ~0.1 s each. A jump that rises 0.45 m in 0.3 s is on wires.
+   `physical_timing()` in gen_moves.py retimes segments to these limits; anim3d's `physics` clips give the body a
+   lunge (never a one-frame snap across the floor) and the feet their own swing timing + lift.
+3. **"Have I ever seen movement like that in any media?"** Name the reference (ZZZ, Kingdom Hearts, DMC, Sekiro,
+   Bleach shunpo for flash steps...). Ground is covered by real strides or by an explicit flash step, never by
+   skating between two planted feet.
+
 ## Key poses as stills FIRST (Daniel 2026-11-22, after a rejected clip)
 
 Never show or merge a clip whose key poses Daniel hasn't seen. For each 2D key frame: render the 3D pose LARGE
