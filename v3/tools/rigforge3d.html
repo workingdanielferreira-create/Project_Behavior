@@ -264,7 +264,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <label class="check"><input type="checkbox" id="libKeepLen" checked> Keep this action's length</label>
       <div class="row"><button id="libSavePose">+ Save pose</button><button id="libSaveMove">+ Save action as move</button><button id="libDel" class="danger" disabled>Delete</button></div>
       <div class="row"><button id="libExport">Export…</button><button id="libImport">Import…</button><input type="file" id="libFile" accept=".json,application/json" hidden></div>
-      <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb (read from the characters folder by itself once it is connected)">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
+      <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb or ual_moves_drafts.glb (read from the characters folder by itself once it is connected; the drafts pack wins)">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
     </section>
 
     <section aria-labelledby="h-wpn">
@@ -2618,8 +2618,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
     return out;
   }
   function chFill(list, folderName) {
-    var packs = list.filter(function (c) { return /(^|\/)ual_moves\.glb$/i.test(c.rel); });
+    // move packs are never characters: ual_moves.glb and ual_moves_drafts.glb (the same moves + the authored moves
+    // still waiting for approval) are hidden from the dropdown; the drafts pack is loaded when present (it has both)
+    var packs = list.filter(function (c) { return /(^|\/)ual_moves(_drafts)?\.glb$/i.test(c.rel); });
     list = list.filter(function (c) { return packs.indexOf(c) < 0; });
+    packs.sort(function (a, b) { return /_drafts/i.test(b.rel) - /_drafts/i.test(a.rel); });
     if (packs.length) packFromEntry(packs[0]);
     list.sort(function (a, b) { var x = chLabel(a.rel).toLowerCase(), y = chLabel(b.rel).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
     CH.list = list;
@@ -3423,7 +3426,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function packFromBuf(buf, name, keep) {
     new THREE.GLTFLoader().parse(buf.slice(0), "", function (g) {
       var ud = g.scene.userData || {};
-      if (!ud.pb_moves) { status(name + " is not a move pack (no pb_moves).", true); return; }
+      if (!ud.pb_moves) { status(name + " is not a move pack (no pb_moves). If it is characters/ual_swordsman/" +
+        "ual_moves(_drafts).glb, this copy was saved over as a character: run Update V3 to get the pack back.", true); return; }
       PACK = {anims: g.animations, pk: ud.pb_keys || {}, meta: ud.pb_moves, name: name};
       if (keep) chDb("readwrite", function (st) { return st.put({buf: buf, name: name}, "movepack"); }).catch(function () {});
       libBuild(); $("libPackOut").textContent = "Move pack: " + name + " (" + g.animations.length + " moves)";

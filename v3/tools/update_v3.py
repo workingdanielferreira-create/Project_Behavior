@@ -26,6 +26,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -51,6 +52,7 @@ V3_PATHS = (
 )
 RIGFORGE3D = ("v3/tools/rigforge3d.html", "v3/lib/", "Rig Forge 3D.bat")
 # Never written: local-only files (also gitignored, listed here to be safe).
+GENERATED = re.compile(r"characters/ual_swordsman/ual_moves(_drafts)?\.glb$")
 SKIP = ("v3/.window-profile/", "v3/data/kits.gen.js", "characters/live_view.json",
         "characters/_baked/")
 
@@ -168,8 +170,9 @@ def apply_zip(z):
             if rel.startswith("characters/"):
                 state[rel] = sha
             continue
-        # A characters/ file changed on this PC since the last update: keep it.
-        if rel.startswith("characters/") and local is not None:
+        # A characters/ file changed on this PC since the last update: keep it. Generated move packs
+        # (ual_moves*.glb, built by move_library.py) are never edited by hand: always take the new one.
+        if rel.startswith("characters/") and local is not None and not GENERATED.search(rel):
             rec = state.get(rel)
             if rec is not None and rec != local:
                 kept.append(rel)
