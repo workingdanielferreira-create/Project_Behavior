@@ -52,6 +52,11 @@ keys on real poses (anticipation, strike, recoil, follow-through), not on every 
   reads upright.
   Clip `"arm_space": "chest"` (use it): hand / pole / blade are given as if the chest were at rest, so the arms
   ride with the torso; body-space arms get left behind when the torso snaps.
+- `R` / `L` `grip`: "fwd" (default) / "rev" (reverse grip); `twirl` deg = the weapon spun in the fingers. A key change
+  of grip = a flip in the fingers on the way. Keep the hand OUT from the body while it flips / twirls (the blade sweeps
+  the forearm's plane) or the audit flags a blade through the body.
+- Travel (2026-11-23): moves may travel (V3 root motion, README "Root motion"); library moves should start mid-stride
+  and end moving, not back in a guard (Daniel: "very mobile game").
 - `fR` / `fL`: `ankle` target, `pole` (knee), `yaw`, `pitch` (+ = toes down). Same ankle value on two keys =
   planted, no sliding. Lift a foot through an in-between key (ankle y up) when it steps.
 - Each key's `ease` is how the move INTO it eases: `snap` (strikes: most of the move at once, then settle),

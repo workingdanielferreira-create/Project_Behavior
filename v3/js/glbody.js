@@ -35,8 +35,34 @@ function loadGlbBody(done){
       const clips={};for(const n in GLB_BODY.clips)if(!GLB_DROP.test(n))clips[n]=GLB_BODY.clips[n];
       Object.assign(clips,mine);
       GLB_OWN[folder]={scene:GLB_BODY.scene,clips,h:GLB_BODY.h,name:folder,weapons:(o.meta&&o.meta.weapons)||null};}
+    if(GLB_BODY)glbPrepRM(GLB_BODY.clips,GLB_BODY.scene,GLB_BODY.h);
+    for(const folder in GLB_OWN)glbPrepRM(GLB_OWN[folder].clips,GLB_OWN[folder].scene,GLB_OWN[folder].h);
     done();};
   jobs.forEach(([b64,name,put])=>glbParse(b64,name,b=>{put(b);if(--left===0)finish();}));}
+/* Root motion (Daniel 2026-11-23: moves travel, the fighter ends where the move ends). A clip whose hips end
+   >= GLB_RM_MIN m (on the ground, body scale) away from where they started is a travelling clip: its hips' ground
+   path is taken OUT of the clip (the hips keep only their height, so cross-fades stay put) and kept as
+   clip.userData.rm {t, xz}; glbAnim moves the fighter's sim position along it while the clip plays (Solo +
+   Battle). In-place clips (sway only) and sim-driven clips (GLB_RM_SKIP) are untouched. */
+const GLB_RM_MIN=.25;
+// clips the sim moves itself (knockback, K.O., dodges, tag switch, jumps): never root motion
+const GLB_RM_SKIP=/^(idle|run|walk|sprint|ko|getup|knockdown|stagger|hit_|dodge|dash|switch_|jump|land|fall|air|parry|defend)/;
+function glbPrepRM(clips,scene,h){const hips=scene&&scene.getObjectByName('Hips');if(!hips||!hips.parent)return;
+  scene.updateMatrixWorld(true);const m4=new THREE.Matrix4().copy(scene.matrixWorld).invert().multiply(hips.parent.matrixWorld);
+  const M=new THREE.Matrix3().setFromMatrix4(m4),Mi=M.clone().invert(),v=new THREE.Vector3(),min=GLB_RM_MIN*(h||1.8)/1.8;
+  for(const n in clips){const c=clips[n];if(c.userData&&c.userData.rmDone)continue;c.userData=c.userData||{};c.userData.rmDone=1;
+    if(GLB_RM_SKIP.test(n))continue;
+    const tr=c.tracks.find(t=>t.name==='Hips.position');if(!tr||tr.values.length<6)continue;
+    const V=tr.values,N=V.length/3,x0=V[0],y0=V[1],z0=V[2],xz=new Float32Array(N*2);
+    v.set(V[N*3-3]-x0,V[N*3-2]-y0,V[N*3-1]-z0).applyMatrix3(M);if(Math.hypot(v.x,v.z)<min)continue;
+    const out=new Float32Array(V.length);
+    for(let i=0;i<N;i++){v.set(V[i*3]-x0,V[i*3+1]-y0,V[i*3+2]-z0).applyMatrix3(M);xz[i*2]=v.x;xz[i*2+1]=v.z;
+      v.set(0,v.y,0).applyMatrix3(Mi);out[i*3]=x0+v.x;out[i*3+1]=y0+v.y;out[i*3+2]=z0+v.z;}
+    tr.values=out;c.userData.rm={t:Float32Array.from(tr.times),xz};}}
+function glbRMAt(rm,t,o){const T=rm.t,n=T.length;if(t<=T[0]){o[0]=rm.xz[0];o[1]=rm.xz[1];return o;}
+  if(t>=T[n-1]){o[0]=rm.xz[n*2-2];o[1]=rm.xz[n*2-1];return o;}
+  let a=0,b=n-1;while(b-a>1){const m=(a+b)>>1;if(T[m]<=t)a=m;else b=m;}
+  const u=(t-T[a])/Math.max(1e-9,T[b]-T[a]);o[0]=rm.xz[a*2]+(rm.xz[b*2]-rm.xz[a*2])*u;o[1]=rm.xz[a*2+1]+(rm.xz[b*2+1]-rm.xz[a*2+1])*u;return o;}
 function glbBodyOf(k){const own=k.src&&k.src.own_glb&&GLB_OWN[k.src.folder];return own||GLB_BODY;}
 function useGlb(k){return !!glbBodyOf(k);}
 /* skinned deep copy (what three's SkeletonUtils.clone does): clone, then rebind each mesh to the copy's own bones */
@@ -98,5 +124,12 @@ function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=g
     const loop=!!GLB_LOOPS[name];act.reset();act.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);act.clampWhenFinished=!loop;
     act.timeScale=p[2]>0&&!loop?clip.duration/p[2]:1;
     const fade=name==='ko'||!G.act?0:p[2]>0?.06:.14;act.play();if(G.act&&G.act!==act)G.act.crossFadeTo(act,fade,false);else act.fadeIn(fade);
-    G.act=act;G.cur=name;G.curId=p[1];}
-  G.mixer.update(hitstopMs>0?0:rdt);}
+    G.act=act;G.cur=name;G.curId=p[1];
+    G.rm=!loop&&clip.userData&&clip.userData.rm||null;G.rmP=[0,0];if(G.rm)glbRMAt(G.rm,0,G.rmP);}
+  G.mixer.update(hitstopMs>0?0:rdt);
+  if(G.rm&&G.act){   // root motion: carry the fighter along the clip's ground path (body forward = +Z = facing)
+    const q=glbRMAt(G.rm,Math.min(G.act.time,G.rm.t[G.rm.t.length-1]),[0,0]),s=G.model.scale.x;
+    const lx=(q[0]-G.rmP[0])*s,lz=(q[1]-G.rmP[1])*s;G.rmP=q;
+    if(lx||lz){const r=f.g.rotation.y,wx=lx*Math.cos(r)+lz*Math.sin(r),wz=-lx*Math.sin(r)+lz*Math.cos(r);
+      const nx=clamp(f.x+wx/K,30,W-30),ny=clamp(f.y+wz/K,30,H-30);f.g.position.x+=(nx-f.x)*K;f.g.position.z+=(ny-f.y)*K;
+      f.x=nx;f.y=ny;f.lx=f.x;f.ly=f.y;}}}

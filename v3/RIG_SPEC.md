@@ -95,6 +95,8 @@ bone; the importer lets you point each one at any bone.
 - **30 fps.** One Blender Action per clip. The clip's name is the game action name below.
 - **In place.** The sim moves the fighter. The hips may bob up and down but stay over the origin
   (Mixamo: tick "In Place").
+  Exception (2026-11-23): an attack / action clip may travel; V3 turns hips ground travel of >= 0.25 m into root
+  motion (README "Root motion"). Locomotion, hit reactions, dodges and switches stay in place.
 - **Timing in the game** comes from the character's action length (frames × frame ms), as now.
   The importer stretches each clip to fit, and you set hit / release frames there, not in Blender.
 - A missing optional clip plays its **fallback** (which may fall back again).

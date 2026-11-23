@@ -25,7 +25,8 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
         {"t": 0.0, "ease": "inout",
          "hips": {"pos": [x, y, z], "rot": [yaw, pitch, roll]},      (pos = offset from rest hips, m; deg)
          "spine": [yaw, pitch, roll], "head": [yaw, pitch, roll],    (deg, relative to the parent)
-         "R": {"hand": [x, y, z], "pole": [x, y, z], "blade": [x, y, z], "roll": deg},   (body space, m)
+         "R": {"hand": [x, y, z], "pole": [x, y, z], "blade": [x, y, z], "roll": deg,    (body space, m)
+               "grip": "fwd" | "rev", "twirl": deg},     (reverse grip / blade spun in the fingers; tweened between keys)
          "L": {...},
          "fR": {"ankle": [x, y, z], "pole": [x, y, z], "yaw": deg, "pitch": deg},
          "fL": {...}}, ...]}}}
@@ -225,6 +226,12 @@ class Solver:
                     pole = sh + r.unit(to_body(a["elbow"], True))
             self.clavicle(S, hand)
             want = to_body(a["blade"], True) if a.get("blade") is not None else None
+            # grip (Daniel 2026-11-23): "rev" = reverse grip, the blade comes out of the pinky side; between a forward
+            # and a reverse key the weapon turns 180 deg in the fingers (the flip). `twirl` = extra turns (deg).
+            g = a["g"] if a.get("g") is not None else (1.0 if a.get("grip") == "rev" else 0.0)
+            self.weapon(S, a.get("twirl", 0.0) + 180.0 * g)
+            if want is not None:                         # the fist aims as for a forward grip: reverse = the other way
+                want = to_body(a["aim"], True) if a.get("aim") is not None else (-want if g > 0.5 else want)
             self.limb(S + "Arm", S + "ForeArm", S + "Hand", hand, pole, "elbow", swivel=a.get("swivel", SWIVEL),
                       want=want, roll=a.get("roll", 0.0), t=t)
             if want is not None:
@@ -335,6 +342,20 @@ class Solver:
         self.set_world(upper, Wu, W)
         W, P = self.fk()
         self.local[il] = rig.R[il] @ r.rot_axis(B.hinge[lower], ang)
+
+    def weapon(self, S, deg):
+        """Turn the weapon in the fingers by deg about the axis across the fist (blade x fingers): 180 = reverse grip
+        (blade out of the pinky side), 360 = a full twirl back to forward grip."""
+        rig = self.rig
+        side = "R" if S == "Right" else "L"
+        iw, it = rig.i("Weapon_" + side), rig.i("WeaponTip_" + side)
+        if abs(deg) < 1e-6:
+            self.local.pop(iw, None)
+            return
+        blade_h = rig.R[iw] @ r.unit(rig.T[it])
+        fing = r.unit(rig.T[rig.i(S + "HandMiddle1")])
+        ax = r.unit(np.cross(blade_h, fing))
+        self.local[iw] = r.rot_axis(ax, deg * D2R) @ rig.R[iw]
 
     def blade(self, S, want, roll, t, apply=True):
         """Point the blade: forearm twist (within PRONATE) brings the blade round the forearm, the wrist bends the rest
@@ -476,6 +497,16 @@ def interp(keys, t):
             v = r.rot_axis(ax, ang * u) @ a
         c[s]["blade"] = v.tolist()
         c[s]["roll"] = k1[s].get("roll", 0) * (1 - u) + k2[s].get("roll", 0) * u
+        g1, g2 = (1.0 if k1[s].get("grip") == "rev" else 0.0), (1.0 if k2[s].get("grip") == "rev" else 0.0)
+        c[s]["g"] = g1 * (1 - u) + g2 * u
+        if g1 != g2:                                   # the fist's aim turns from one grip's aim to the other's
+            a1, a2 = a * (1 - 2 * g1), b * (1 - 2 * g2)
+            ang = math.acos(max(-1, min(1, np.dot(a1, a2))))
+            ax = r.unit(np.cross(a1, a2)) if 1e-6 < ang < math.pi - 1e-3 else r.unit(np.cross(a1, [0, 1.0, 0]))
+            c[s]["aim"] = (r.rot_axis(ax, ang * u) @ a1).tolist()
+        else:
+            c[s].pop("aim", None)
+        c[s]["twirl"] = k1[s].get("twirl", 0) * (1 - u) + k2[s].get("twirl", 0) * u
     for s in ("fR", "fL"):
         for f in ("yaw", "pitch"):
             c[s][f] = k1[s][f] * (1 - u) + k2[s][f] * u
@@ -503,7 +534,8 @@ def bake_clip(B, spec, notes=None, dense=False):
     # stored as key poses: the authored keys always, plus whatever the tweening needs to stay on the solved motion
     import keyreduce
     must = keyreduce.snap_must(times, [k["t"] for k in keys])
-    return keyreduce.reduce(B.rig, times, poses, must=must)
+    tol = spec.get("key_tol") or (keyreduce.TOL_BODY, keyreduce.TOL_TIP)   # looser = fewer key poses (library moves)
+    return keyreduce.reduce(B.rig, times, poses, must=must, tol_body=tol[0], tol_tip=tol[1])
 
 
 def spec_path(name):

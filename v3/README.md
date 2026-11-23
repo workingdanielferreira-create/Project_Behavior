@@ -214,10 +214,22 @@ category (read-only, like Body moves; hover = source), read from the connected c
 the character dropdown) or picked once with **Load move pack…** (kept in IndexedDB). Not game clips: V3 never loads the
 file. Now: Sword 9, Dual swords 2, Great sword 2, Pistol 11 (Mesh2Motion CC0 mocap via `v3/tools/blender/m2m_moves.py`
 + `v3/tools/move_library.py`; checked against the body's own copy of a Mesh2Motion clip: 2.5 cm). Katana and Ethereal
-swords have no free mocap: they are authored key poses (Katana 4 + Ethereal swords 4 approved 2026-11-23, in the pack) in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
+swords have no free mocap: they are authored key poses (Katana 4 + Ethereal swords 4 + Aggressive 6, rebuilt as travelling moves 2026-11-23 by `library/gen_moves.py`, waiting for approval; `ual_moves_drafts.glb` has them) in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
 audit clean) and join the pack only once Daniel approved their stills (`"approved": true`, then
 `python v3/tools/move_library.py -`). Weapon editor shape **pistol** (weapons3d.js: len = barrel, w = slide height,
 handle = grip, guard = trigger guard, curve = grip rake; barrel along the edge side, roll turns it).
+
+**Root motion (2026-11-23).** V3 clips were all in place; travelling moves are now allowed. `glbody.js glbPrepRM`
+(at load): a clip whose hips end >= 0.25 m (ground plane) from where they started, and whose name is not a sim-driven
+clip (`GLB_RM_SKIP`: idle / run / ko / getup / hit_* / dodge / switch_* / jump / defend ...), has its hips' ground path
+taken out of the clip (hips keep their height, so cross-fades stay put) and kept in `clip.userData.rm`; `glbAnim`
+moves the fighter's sim position along it while it plays (facing = body +Z, clamped to the arena). Solo + Battle.
+Today only the body's `attack_normal_4` (0.3 m) qualifies among game clips; library moves applied to an action do.
+
+**Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
+and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
+key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always
+where the blade points. Per clip `key_tol` [body m, tip m] = looser key reduction (fewer stored key poses).
 
 **Part 4: weapon editor.** Panel "Weapons": Weapon 1 (right hand) / Weapon 2 (left hand): holds a weapon or not, and
 "Build it here": shape (sword, katana, dagger, greatsword, rapier, cleaver) + length, width, thickness, curve, point,
