@@ -172,9 +172,14 @@ the clip and its key poses are retimed (`S.data.len`, undo-able) and on Save the
 length / frames (frames kept, so its FX stay in step; `character.json` `frame_ms` / `duration_ms` follow); Trigger
 (`character.json`), Cooldown (FX `action_settings.cooldown_ms`); **+ Action** (0.5 s, the pose on screen as two key poses,
 FX timing added), **Duplicate**, **Remove** (clip + FX timing; its FX effects stay). Needs the characters folder for
-the file writes; add / rename / remove can't be undone. **Tween** panel per key pose: **In-betweens** (0 = smooth; N =
-the pose jumps N+1 times on the way: choppy anime timing), **Hold** (frames still first), Easing, **Apply to** key poses
-a..b / All; stored per key (`st`, `h`) and in the file as `pb_keys` `s` / `h` per track (V3 keytween.js and
+the file writes; add / rename / remove can't be undone. Key poses always fill the action like v1 (Daniel 2026-11-23):
+Set length stretches them so the first sits on frame 0 and the last on the last frame, and a key-pose clip never fades
+to the rest / T-pose (before the first key it holds the first, after the last it holds the last; Blend out only acts
+on frame-by-frame clips). **Tween** panel per key pose: **In-betweens** = frames from this key pose to the next; a new
+value makes that gap exactly that long and re-spaces the other gaps (in proportion) so the action keeps its length
+(2 key poses: the one gap always fills it); **Stretch keys to fill the length** re-fits an older clip whose keys stop
+early. **Choppy steps** (0 = smooth; N = the pose jumps N+1 times on the way: anime timing), **Hold** (frames still first), Easing, **Apply to** key poses
+a..b / All (copies the in-betweens too); stored per key (`st`, `h`) and in the file as `pb_keys` `s` / `h` per track (V3 keytween.js and
 keyreduce.seg_u play them the same). Filmstrip: **Mirror L/R**, **Turn around** (180 deg on the hips), **Centre** (hips
 over the feet spot); Shift = every key pose, one undo step.
 
@@ -241,7 +246,7 @@ Saves still write straight into the picked .glb. **Open .glb…** / drag and dro
   it); **Shift** = 5° steps; the HUD shows the turn. A ring under the mouse wins over a nearby dot unless you
   press right on another dot. Hips also have move arrows (**Move**, `T`). Each change sets a key on that frame;
   frames in between blend, and **Blend out** sets how far a key fades before the first / after the last key
-  (all the way right = the whole clip). **Local / World** (`L`) picks the axes of the rings AND the arrows
+  (all the way right = the whole clip; frame-by-frame clips only, key-pose clips hold their first / last key). **Local / World** (`L`) picks the axes of the rings AND the arrows
   (anchors too): **World** = the scene's fixed X / Y / Z wheels whichever way the camera faces, **Local** = the
   selected bone's own axes as posed. The wheels are full circles (three's half circles spun to face the camera).
   `v3/lib/TransformControls.js` had the gizmo's space test inverted (it always drew Local); fixed there; the readout / HUD / status name the axes in use and say when a bone's own axes line up with
