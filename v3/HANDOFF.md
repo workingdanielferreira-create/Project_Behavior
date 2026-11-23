@@ -145,6 +145,11 @@ Death01 / Hit_Chest / Roll / Walk / Sprint: worst joint gap 1.6 - 2.8 cm) + `mov
 `STOCK`, builds merge into the pack). Pack = 51 mocap moves (+27 `u1_*`: Movement, Reactions, Unarmed, Magic,
 Pistol, Sword); skipped: T-pose, sitting, swim, drive, dance, fixing, pick-up, push, interact, formal walk, talking /
 torch idles.
+UAL2 upload (same day, `UAL2_Standard.fbx`, same picks): +25 `u2_*` (Sword 9 incl. the body's own attack / dash /
+heavy combo / block as library copies, Shield 4, Unarmed 3 (hook, throw), Movement 7 (ninja jump, slide, climb),
+Reactions 2 (knockback, get up)); `fbx_moves.py <fbx> <out> UAL2`. Checked vs the body's UAL2 clips: 0.9 - 2.8 cm.
+Pack = 76 mocap moves. Skipped: T-pose, chest, consume, farm, fold-arms / lantern / rail / phone idles, yes / no,
+tree chopping, carry walk, zombie.
 Move classes (Daniel 2026-11-23): he likes the body's attack_normal / attack_normal_2 / attack_special / ultimate
 (Quaternius UAL2 mocap: urgency, decisiveness, fluidity) and wants many more at that level in classes Aggressive,
 Stylish, Defensive, Counter. Free capture is exhausted (UAL2 Standard's sword clips are all already used; UAL PRO is

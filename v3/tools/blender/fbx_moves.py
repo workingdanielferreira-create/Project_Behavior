@@ -1,12 +1,12 @@
 """Quaternius UAL1 Standard (CC0) FBX clips -> the shared body, for the Rig Forge 3D move library (move_library.py).
 
-    python fbx_moves.py UAL1_Standard.fbx out.glb
+    python fbx_moves.py UAL1_Standard.fbx out.glb [UAL1 | UAL2]   (the move_library table to bake; default UAL1)
 
 Same skeleton as the body (UE mannequin, renamed to Mixamo names like ual_to_spec.py), but the FBX importer gives
 other bone axes (and turns the armature object 180 deg in the scene), so the clips are moved over in ARMATURE space: each bone's
 pose = (source pose x source rest^-1) x body rest, then turned back into a local basis down the hierarchy. Works
 for any bone axes; positions are kept as is (same rest skeleton, checked on load). The body is exported with ONLY
-the clips in move_library.UAL1 (30 fps); move_library.py turns that into key poses.
+the clips in that move_library table (30 fps); move_library.py turns that into key poses.
 """
 import os
 import sys
@@ -20,6 +20,7 @@ import move_library as ml  # noqa: E402
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
 FBX, OUT = argv[:2]
+TABLE = getattr(ml, argv[2] if len(argv) > 2 else "UAL1")
 FPS = 30
 SIDE = {"l": "Left", "r": "Right"}
 FING = {"thumb": "Thumb", "index": "Index", "middle": "Middle", "ring": "Ring", "pinky": "Pinky"}
@@ -84,7 +85,7 @@ scn = bpy.context.scene
 tpb = tgt.pose.bones
 tgt.animation_data_create()
 done = []
-for clip, (_, _, name) in ml.UAL1.items():
+for clip, (_, _, name) in TABLE.items():
     a = acts.get(name)
     if a is None:
         print("MISSING", name)
