@@ -2,7 +2,7 @@
 /* Motion: drift & snap (fast dashes and blinks between planted stances). */
 /* ---- snaps (drift & snap motion) ---- */
 function snapTo(f,tx,ty,blink,quick,tz){if(f.snapCd>tick||f.stun>0)return false;tx=clamp(tx,30,W-30);ty=clamp(ty,30,H-30);tz=clamp(tz==null?(f.zWantRaw!=null?f.zWantRaw:f.zWant!=null?f.zWant:f.z):tz,0,ZMAX);
-  const sv=blink?0:rnd(2800,3900)*(f.spdMul||1);tz=gravitySnapZ(f,tz,blink?gcfg(f).topSpeed:sv);   // speed gravity: climb only as high as this snap's speed allows
+  const sv=blink?0:rnd(2800,3900)*(f.spdMul||1);tz=snapZ(f,tz);   // gravity.js: a snap never lifts a ground fighter
   const d=Math.hypot(tx-f.x,ty-f.y,tz-f.z);if(d<30)return false;
   f.snap={tx,ty,tz,v:sv,blink,sx:f.x,sy:f.y,sz:f.z};if(!blink&&!quick)f.antic=ms2t(45);f.snapCd=tick+ms2t(blink?220:160);stats.snaps[f.side]++;metr.snaps.push([tick,f.side]);
   if(blink){f.gone=ms2t(rnd(50,90));fx_ring(f.x,f.y,f.k.fx,2.4,.25,1);fx_sparks(f.x,f.y,f.k.fx,10,5);}

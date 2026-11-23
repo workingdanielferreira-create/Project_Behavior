@@ -16,7 +16,7 @@ const add=(c,o)=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o
 // FX are placed by ground (x, y) + a height in units; anything above knee height rides the altitude of the
 // fighter standing there (FXF = the fighter whose action is spawning FX wins a tie).
 let FXF=null;
-function altAt(x,y){let best=null,bd=1e9;for(const sd of (typeof sides!=='undefined'?sides:[])){const f=sd.team[sd.on];if(!f||!f.on)continue;const d=Math.hypot(f.x-x,f.y-y);if(d<80){if(f===FXF)return f.z;if(d<bd){bd=d;best=f;}}}return best?best.z:0;}
+function altAt(x,y){let best=null,bd=1e9;for(const sd of (typeof sides!=='undefined'?sides:[]))for(const f of sd.team){if(!f||!f.on)continue;const d=Math.hypot(f.x-x,f.y-y);if(d<80){if(f===FXF)return f.z;if(d<bd){bd=d;best=f;}}}return best?best.z:0;}
 const V=(x,y,h)=>new THREE.Vector3((x-W/2)*K,(h||0)+((h||0)>.3?altAt(x,y)*K:0),(y-H/2)*K);
 const VA=(x,y,z,h)=>new THREE.Vector3((x-W/2)*K,(h||0)+z*K,(y-H/2)*K);
 // Render resolution (Settings > Quality): high = up to 2x on high-DPI screens.

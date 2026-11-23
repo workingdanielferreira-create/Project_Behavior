@@ -148,6 +148,18 @@ sweeps, backhand slashes, spinning follow-ups. Drafts (6, `ag_*`, approved false
 blade OVER the head, pivot foot turns with the hips). Preview pack with drafts: `characters/ual_swordsman/
 ual_moves_drafts.glb` (Rig Forge 3D: Load move pack…). Waiting for his verdict on the stills.
 
+## Training mode + jumps (2026-11-23)
+
+- Daniel: "training mode: only 1 character on the field, no opponent; a training settings menu to place dummies
+  anywhere" and "change flight from speed = height to R / F incline / decline; only specific characters can stay in
+  flight (a future FX Studio 3D toggle); for now R = jump with a double jump, then gravity".
+- His picks: per-dummy behaviour Stand / Guard / Fight back, HP refills + combo readout; placement on a top-down map;
+  F = fast fall for ground fighters; the AI jumps too.
+- Done: `js/training.js` (+ Training screen in `menus.js`, title button, pause items), `js/gravity.js` rewritten (jump,
+  double jump, fast fall, AI jumps, flyers keep R / F flight with no speed ceiling), Settings "Speed gravity" removed,
+  kit flag `flight` (fxkit `flight.enabled`, packed by `build_kits.py`, none set yet). See README "Screens" / "Jumps".
+- Known limit: FX Studio FX hit only your target (the nearest dummy); shots and stand-in melee hit every dummy.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

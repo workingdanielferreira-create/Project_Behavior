@@ -28,7 +28,7 @@ function realKit(R){
     col:body,acc:acc,fx:vivid(fxCol),core:lighten(vivid(fxCol),.7),hp:+st.max_hp||2000,melee:melee,reach:reach,
     speed:clamp((+st.chase_speed||2.5)*95,160,560),blink:0,gate:false,
     t:{neutral:[350,1200],feint:20,string:[3,6],gap:[320,80],spacing:melee?40:200,reset:180},
-    normals:[],triggers:[],gravity:null};
+    normals:[],triggers:[],flight:!!(F.flight&&F.flight.enabled)};   // can fly (gravity.js); set by the future FX Studio 3D
   // normals: attack_normal, _2, _3 ... in chain order (those with their own conditions become triggers)
   const normals=acts.filter(a=>/^attack_normal(_\d+)?$/.test(a)).sort((a,b)=>(+(a.split('_')[2]||1))-(+(b.split('_')[2]||1)));
   for(const a of normals){const c=cfg(a);const lunge=melee?[[0,Math.min(260,(+c.attack_px||120))]]:null;

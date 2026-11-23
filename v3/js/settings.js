@@ -12,7 +12,6 @@ const DEFAULT_SETTINGS={
   feel:true,                  // live numbers vs the 2D duel
   quality:'high',             // low | medium | high (render resolution)
   aiParry:true,               // AI fighters parry by chance (parry.js)
-  gravity:true,               // speed sets how high fighters may fly (gravity.js)
   teams:[['blades','sueko','puck'],['ronin','tough','gunner']]
 };
 function loadSettings(){

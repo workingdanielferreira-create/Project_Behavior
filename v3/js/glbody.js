@@ -88,6 +88,8 @@ function glbPick(f,body){
   if(f.parry>0)return ['parry','parry',0];
   if(f.block>0)return ['defend','block',0];
   if(f.snap)return [Math.cos(Math.atan2(f.snap.ty-f.y,f.snap.tx-f.x)-f.face)<-.3?'dodge_back':'sprint','snap',0];
+  if(!canFly(f)&&f.z>8)return f.vz>120?['jump','jump'+(f.jumps||0),0]:['fall','fall',0];   // jumps (gravity.js)
+  if(f.landT>tick&&f.z<=0&&f.lean<=.15)return ['land','land',0];
   const air=f.z*K>1.2;
   if(f.lean>.15)return [air?'air_move':'run','move',0];
   return [air?'air':'idle','still',0];}

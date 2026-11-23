@@ -26,9 +26,20 @@ default browser.
 
 ## Screens
 
-Title → Fight / Teams / Settings / Controls / Fullscreen. In a fight: Esc or P
+Title → Fight / Training / Teams / Settings / Controls / Fullscreen. In a fight: Esc or P
 pauses (Resume, Restart, Settings, Controls, Quit to title). After a fight:
 Results (Rematch, Change teams, Title).
+
+**Training** (Daniel 2026-11-23): your one fighter alone on the field with practice dummies (no opponent team).
+The Training screen is a top-down map of the arena: click = drop a dummy (up to 8), drag = move it, right-click /
+Delete = remove it; the panel picks your fighter and, for the selected dummy, its behaviour (**Stand** = never moves
+or acts; **Guard** = blocks every hit, parries by chance; **Fight back** = its character's AI at half damage), its
+character and its height (an air dummy hangs there). Saved with the settings. In training nobody is K.O.'d (HP refills
+1.5 s after the last hit), a knocked-back stand / guard dummy drifts home, and the top readout shows the combo (hits
+no more than 1.1 s apart), its damage, the best combo, the last hit and damage per second. Your target is the nearest
+dummy: that's the one your FX hit (FX Studio's runtime has one hurt box); shots and the stand-in kits' melee reach
+every dummy. Pause → Training settings edits the dummies live (Back rebuilds them, your fighter keeps its state);
+Restart training starts over. With no dummies your fighter only acts on your inputs and faces the way you move.
 
 Menus work with the mouse or the keyboard:
 
@@ -57,17 +68,18 @@ Settings and teams are saved between sessions.
 | `tempo.js` | fight rhythm intents (port of `laser/tempo.py`) |
 | `director.js` | director heat: calm / build / burst |
 | `motion.js` | drift & snap motion |
-| `gravity.js` | speed gravity: speed sets how high a fighter may fly, gravity pulls it down above that |
+| `gravity.js` | jumps: R = jump / double jump, F = fast fall, gravity; flight (R / F climb / descend) only for kits that can fly |
 | `combat.js` | actions, triggers, hits, damage, stun, K.O., reactions, tagging, projectiles |
 | `fx2d.js` | real kits' 2D FX: FX Studio's Player per fighter, drawn on camera-facing cards in the 3D scene |
 | `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
+| `training.js` | training mode: dummies (stand / guard / fight back), target pick, HP refill, combo readout |
 | `input.js` | keyboard commands |
 | `camera.js` | camera modes (over the shoulder / dynamic / wide), cuts, shake, punch |
 | `anim.js` | **animations**: pose, swing, lean, legs, recoil, flashes, shadows |
 | `hud.js` | HUD, callouts, command bar, damage numbers, feel panel |
-| `menus.js` | title, teams, settings, controls, pause, results |
+| `menus.js` | title, training (dummy map), teams, settings, controls, pause, results |
 | `main.js` | game loop, fight flow, boot |
 
 The files are plain scripts sharing one scope rather than ES modules, so the
@@ -332,9 +344,13 @@ Gameplay rules are Playtest 2's, plus:
   - Then a 420 ms cooldown.
   - A staggered fighter can parry the counter back.
   - The perfect snap (Space) and Ronin / Tough's own parry / block stay as they were.
-- **Speed gravity** (Settings > Speed gravity). Speed sets a ceiling on how high a fighter may fly:
-  - up to 650 px/s it stays on the ground;
-  - the ceiling rises with speed, to the full 1,500 px of air at 3,000 px/s (snap speed);
-  - above its ceiling a fighter falls with accelerating gravity.
-  - AI heights and R / F still pick a height under the ceiling, a snap can climb as high as its own speed allows,
-    and launches / spikes still throw fighters up.
+- **Jumps** (Daniel 2026-11-23; replaces "speed gravity", where speed set how high a fighter could fly):
+  - R = jump (about 3.4 bodies), R again in the air = double jump (about 2.7 more); then gravity brings you down.
+  - F in the air = fast fall (stronger gravity, a dust ring on landing).
+  - The AI jumps too: to reach a target in the air (double jump near the top), now and then to hop over an attack,
+    and after a launch it chases the target up. Snaps never lift a ground fighter. Launches / spikes still throw
+    fighters up, and a thrown fighter still bounces / ground-splats.
+  - Only characters that can fly stay in the air: `flight: {enabled: true}` in their `*.fxkit.json` (packed by
+    `build_kits.py`; the toggle will live in the future FX Studio 3D). None has it yet. Flyers: hold R / F to climb /
+    descend, let go to stay at that height; the AI picks their heights freely; Space + R / F snaps straight up / down.
+  - Jump clips: rising = `jump`, falling = `fall`, touch-down = `land` (body clips, fallbacks in `rig_spec.json`).

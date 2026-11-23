@@ -1,12 +1,12 @@
 'use strict';
-/* Fighters: creation (mkFighter), per-tick update (updFighter), altitude (every fighter flies), wall / ground splats. */
+/* Fighters: creation (mkFighter), per-tick update (updFighter), altitude (jumps / flight, gravity.js), wall / ground splats. */
 function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
   return Object.assign(m,{key,k,side,x:0,y:0,vx:0,vy:0,face:0,face3:0,hp:k.hp,max:k.hp,ko:false,on:false,
     act:null,stun:0,stunKind:'',armor:0,gone:0,snap:null,snapCd:0,iframe:0,parry:0,block:0,reactCd:0,
     ni:0,lastNormal:-999,gapUntil:0,cds:{special:0,special2:0,ult:600},
     lastEnd:-999,lastWhiff:false,landedThisAct:false,lastLanded:-999,lastHurt:-999,hurts:[],
     tp:{intent:'neutral',since:0,until:0,n:0,done:0,mom:0,orbit:Math.random()<.5?1:-1,swayPh:rnd(0,TAU),swayMs:rnd(900,2200),feintKind:'dash_in',feintBit:false,openSeen:false,resetAng:0,punishReady:0,lastStart:0},
-    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null});}
+    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false});}
 function setOn(f,on){f.on=on;f.g.visible=on;f.sh.visible=on;f.aline.visible=false;}
 /* ================= per-fighter update ================= */
 function updFighter(f){
@@ -14,7 +14,7 @@ function updFighter(f){
   if(!f.on||f.ko)return;const e=enemyOf(f);
   if(f.gone>0)f.gone--;if(f.iframe>0)f.iframe--;if(f.parry>0)f.parry--;if(f.block>0)f.block--;
   const started=f.startedNow||0;f.startedNow=0;const ended=f.justEnded;f.justEnded=false;
-  const human=f.side===0&&level!=='watch';const handson=f.side===0&&level==='handson';
+  const human=f.side===0&&level!=='watch';const handson=(f.side===0&&level==='handson')||!!e.phantom;   // no dummies: only your inputs
   if(!handson&&f.k.rhythm!==false)think(f,e,started,ended);
   if(f.stun>0){f.stun--;}
   if(f.key==='puck'&&f.form<2&&f.hp/f.max<(f.form===0?.6:.3)){f.form++;f.dmgMul=f.form===1?1.12:1.25;f.spdMul=f.form===1?1.15:1.3;f.aura.visible=true;
@@ -37,7 +37,7 @@ function updFighter(f){
   if(f.act){const a=f.act;const tms=a.t*TICK;
     if(a.def.lunge)while(a.li<a.def.lunge.length&&a.def.lunge[a.li][0]<=tms){const L=a.def.lunge[a.li++];const d=Math.hypot(e.x-f.x,e.y-f.y);const want=Math.min(L[1],Math.max(0,d-f.k.reach*.55));if(want>15){const ang=Math.atan2(e.y-f.y,e.x-f.x);f.snapCd=0;snapTo(f,f.x+Math.cos(ang)*want,f.y+Math.sin(ang)*want,false,true,e.z);}}
     while(a.fi<a.def.fx.length&&a.def.fx[a.fi][0]<=tms){const F=a.def.fx[a.fi++];runFx(f,F[1],F[2]);if(!f.act)break;}
-    if(f.act===a&&a.def.hits)while(a.hi<a.def.hits.length&&a.def.hits[a.hi][0]<=tms){hitResolve(f,e,a.def.hits[a.hi++]);if(!f.act)break;}
+    if(f.act===a&&a.def.hits)while(a.hi<a.def.hits.length&&a.def.hits[a.hi][0]<=tms){const h=a.def.hits[a.hi++];if(training&&f.side===0&&h[3]>0)trainDummies().forEach(t=>hitResolve(f,t,h));else hitResolve(f,e,h);if(!f.act)break;}
     if(f.act===a){a.t++;if(a.t*TICK>=a.def.dur){endAct(f);}}}
   // movement: drift & snap, intent-driven
   const free=!f.act&&f.stun<=0&&!f.snap&&f.gone<=0&&f.leap<=0;
@@ -52,7 +52,8 @@ function updFighter(f){
   if(f.act&&f.act.kind!=='ult')drift*=.25;if(f.stun>0||f.gone>0)drift=0;
   // stutter-step footwork: a quick step, then a planted stance (no gliding)
   if(drift>0&&!f.snap){drift*=(f.spdMul||1);const cyc=.24,mv=.1;const prev=f.stepT;f.stepT=(f.stepT+DT)%cyc;const moving=f.stepT<mv;
-    if(moving){f.x+=mx*drift*(cyc/mv)*DT;f.y+=my*drift*(cyc/mv)*DT;}else if(prev<mv&&f.z<10&&Math.random()<.25)fx_dust(f.x,f.y,1);}
+    if(f.z>10){f.x+=mx*drift*DT;f.y+=my*drift*DT;}   // in the air: steady drift, no footwork
+    else if(moving){f.x+=mx*drift*(cyc/mv)*DT;f.y+=my*drift*(cyc/mv)*DT;}else if(prev<mv&&f.z<10&&Math.random()<.25)fx_dust(f.x,f.y,1);}
   stepSnap(f);
   updAltitude(f,e);
   // knockback slide (in the air it carries much further: fighters fly across the arena)
@@ -60,16 +61,19 @@ function updFighter(f){
   if(f.x<20||f.x>W-20){const sp=Math.abs(f.vx);f.x=clamp(f.x,20,W-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vx*=-.3;}
   if(f.y<20||f.y>H-20){const sp=Math.abs(f.vy);f.y=clamp(f.y,20,H-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vy*=-.3;}
   // facing
-  if(!f.snap||f.act){const want=Math.atan2(e.y-f.y,e.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.35;}
+  if(!f.snap||f.act){const want=e.phantom?(mx||my?Math.atan2(my,mx):f.face):Math.atan2(e.y-f.y,e.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.35;}
   // attacks
   if(!handson&&!(f.side===0&&f.manualNoAttack))tryAttack(f,e,false);
   autoReact(f,e);
   parryTick(f);}   // AI parry roll on incoming shots (parry.js)
 function groundSplat(f){f.stun=Math.max(f.stun,ms2t(800));f.hp=Math.max(0,f.hp-50);fx_crack(f.x,f.y,5);fx_dome(f.x,f.y,0xffc857,4);fx_dust(f.x,f.y,16);shake=Math.max(shake,1);hitstopMs=Math.max(hitstopMs,110);callout('GROUND SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
-// Altitude: every fighter flies. Attack intents close the height gap to the target; neutral / reset spread out
-// vertically; big height changes are 3D snaps; when stunned in the air a fighter falls (launch / spike / splat).
+// Altitude. Ground fighters (everyone for now): jumps, double jumps and gravity (gravity.js groundAltitude).
+// Flight fighters (kit.flight): attack intents close the height gap to the target; neutral / reset spread out
+// vertically; big height changes are 3D snaps; R / F (held) climb / descend and the height stays where you let go;
+// when stunned in the air a flyer falls (launch / spike / splat).
 function updAltitude(f,e){
-  const ceil=gravityStep(f);   // speed gravity (gravity.js): how high its speed lets it fly
+  if(!canFly(f)){groundAltitude(f,e);return;}
+  const ceil=ZMAX;
   if(tick>=f.zPrefT){f.zPrefT=tick+ms2t(rnd(1200,3500));const r=Math.random();f.zPref=r<.22?0:r<.55?rnd(150,500):rnd(500,ZMAX*(burst()?1:.8));}
   const it=f.tp.intent,d=Math.hypot(f.x-e.x,f.y-e.y);let want;
   if(f.side===0&&f.manualZ!=null)want=f.manualZ;
@@ -81,10 +85,9 @@ function updAltitude(f,e){
   if(!f.k.melee&&it!=='punish')want=Math.max(want,e.z+180);
   want=clamp(want,0,ZMAX);const rawWant=want;want=Math.min(want,ceil);f.zWant=want;f.zWantRaw=rawWant;
   if(f.snap||f.leap>0)return;
-  if(gravityFall(f))return;
   if(f.stun>0||f.vz>900||f.vz<-900){f.vz-=2600*DT;f.z+=f.vz*DT;if(f.z<=0){if(f.vz<-1500&&f.stun>0)groundSplat(f);f.z=0;f.vz=f.vz<-700?-f.vz*.22:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}return;}
   const dz=want-f.z;const manual=f.side===0&&f.manualZ!=null;
-  // big height change = a 3D snap (its own speed lets it climb past the walking ceiling; gravity brings it back)
+  // big height change = a 3D snap
   if(!manual&&Math.abs(rawWant-f.z)>280&&!f.act&&f.snapCd<=tick&&Math.random()<.25){snapTo(f,f.x+rnd(-80,80),f.y+rnd(-80,80),Math.random()<f.k.blink,false,rawWant);return;}
   const vmax=f.k.speed*(manual?2.2:1.7)*(f.spdMul||1);f.vz=clamp(dz*7,-vmax,vmax);f.z=clamp(f.z+f.vz*DT,0,Math.max(ceil,0));}
 function wallSplat(f){f.vx=f.vy=0;f.stun=Math.max(f.stun,ms2t(700));f.hp=Math.max(0,f.hp-40);fx_ring(f.x,f.y,0xffc857,3,.35,1);fx_sparks(f.x,f.y,0xffc857,26,8);fx_dust(f.x,f.y,8);shake=Math.max(shake,.7);hitstopMs=Math.max(hitstopMs,(90));callout('WALL SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}

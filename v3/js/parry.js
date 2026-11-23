@@ -31,7 +31,7 @@ function parryReady(f){return !f.pw||tick>=f.pw.cd;}
 function parryPress(f){if(!f||f.ko||f.gone>0)return false;if(!parryReady(f))return false;parryOpen(f,null,true);stats.pParries++;return true;}
 
 // AI roll for a hit about to land on t.
-function parryAiHit(t){if(!settings.aiParry||playerFig(t))return;const st=pstate(t);if(st.rolled===tick||tick<=st.until||!parryReady(t))return;st.rolled=tick;
+function parryAiHit(t){if(!settings.aiParry||playerFig(t)||t.dummy&&t.dummy.beh==='stand')return;const st=pstate(t);if(st.rolled===tick||tick<=st.until||!parryReady(t))return;st.rolled=tick;
   const c=parryCfg(t),r=Math.random()*100;
   if(t.stun>0){if(r<c.recoverPct)parryOpen(t,'perfect');return;}
   if(r<c.aiPerfectPct)parryOpen(t,'perfect');else if(r<c.aiPerfectPct+c.aiNormalPct)parryOpen(t,'normal');}
@@ -67,7 +67,7 @@ function parryShot(t,s,c){const sp=Math.max(900,Math.hypot(s.vx,s.vy))*1.15;let 
 function parryCounterMult(a,t){const st=a&&a.pw;if(!st||st.counterOn!==t||tick>st.counterUntil)return 1;return parryCfg(a).counterDmgPct/100;}
 
 // Per tick, every fielded fighter: the AI's shot roll.
-function parryTick(f){if(!settings.aiParry||playerFig(f)||f.ko||!f.on)return;const st=pstate(f);
+function parryTick(f){if(!settings.aiParry||playerFig(f)||f.ko||!f.on||f.dummy&&f.dummy.beh==='stand')return;const st=pstate(f);
   if(st.seen.size>64)st.seen.clear();
   if(tick<=st.until||!parryReady(f))return;const c=parryCfg(f);
   for(const s of shots){if(s.side===f.side||st.seen.has(s))continue;if(Math.abs((s.z||0)-f.z)>160)continue;
