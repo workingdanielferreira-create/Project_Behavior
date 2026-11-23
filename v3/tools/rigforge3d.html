@@ -2806,11 +2806,23 @@ details.adv[open] > summary { margin-bottom: 6px; }
     if (poseFrames().length <= 2) { status("A clip keeps at least two key poses.", true); return; }
     delKey(true);
   };
+  /* duplicate (v1: the copy goes in right after this key pose, always): a free frame between it and the next key
+     pose is used as is; with none, the later key poses shift one frame and every key pose is re-spaced so the
+     action keeps its length (Daniel 2026-11-23: no "no free frame" refusal) */
   $("kpDup").onclick = function () {
     var f = S.frame, keys = poseFrames(), i = keys.indexOf(f), n = frameCount(S.clips[S.clip]); if (i < 0) return;
     var to = i < keys.length - 1 ? Math.round((f + keys[i + 1]) / 2) : Math.min(n, f + 8);
-    if (to === f || keys.indexOf(to) >= 0) { status("No free frame after this key pose to copy it to.", true); return; }
-    pushUndo(); moveKeys(framesOnFrame(f), f, to, true); afterKeys("Copied key pose f" + f + " to f" + to + "."); setFrame(to);
+    pushUndo();
+    if (to !== f && keys.indexOf(to) < 0) {
+      moveKeys(framesOnFrame(f), f, to, true); afterKeys("Copied key pose f" + f + " to f" + to + "."); setFrame(to); return;
+    }
+    var all = clipKeyFrames(S.clip), sh = {};
+    all.forEach(function (x) { if (x > f) sh[x] = x + 1; });
+    remapKeys(S.clip, sh);                                     /* make the frame after f free (may run 1 past the end) */
+    moveKeys(framesOnFrame(f), f, f + 1, true);
+    var m = fitKeys(S.clip, n), at = m[f + 1] != null ? m[f + 1] : f + 1;
+    afterKeys("Copied key pose f" + f + " (now f" + (m[f] != null ? m[f] : f) + ") to f" + at + "; the key poses were re-spaced to make room, the length is unchanged.");
+    setFrame(at);
   };
   $("kpEase").onchange = function () {
     var f = S.frame, names = framesOnFrame(f); if (!names.length) return;
@@ -2964,7 +2976,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function respaceKeys(n, fix, N) {
     var P = clipKeyFrames(n); if (P.length < 2) { if (P.length && S.keyMode[n] && P[0]) { var m1 = {}; m1[P[0]] = 0; remapKeys(n, m1); return m1; } return {}; }
     N = N != null ? N : frameCount(S.clips[n] || lenBase(n));
-    var start = S.keyMode[n] ? 0 : P[0], total = S.keyMode[n] ? N : P[P.length - 1] - P[0], m = {}, hk = {}, i;
+    var start = S.keyMode[n] ? 0 : Math.min(P[0], N), total = S.keyMode[n] ? N : Math.min(P[P.length - 1], N) - start, m = {}, hk = {}, i;
     if (total < P.length - 1) {                                /* fewer frames than key poses: squeeze, some merge */
       for (i = 0; i < P.length; i++) m[P[i]] = start + Math.round((P[i] - P[0]) / (P[P.length - 1] - P[0]) * total);
       remapKeys(n, m, null, total / (P[P.length - 1] - P[0])); return m;
