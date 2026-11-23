@@ -197,7 +197,7 @@ category (read-only, like Body moves; hover = source), read from the connected c
 the character dropdown) or picked once with **Load move pack…** (kept in IndexedDB). Not game clips: V3 never loads the
 file. Now: Sword 9, Dual swords 2, Great sword 2, Pistol 11 (Mesh2Motion CC0 mocap via `v3/tools/blender/m2m_moves.py`
 + `v3/tools/move_library.py`; checked against the body's own copy of a Mesh2Motion clip: 2.5 cm). Katana and Ethereal
-swords have no free mocap: they are authored key poses (Katana 4 approved 2026-11-23 and in the pack; Ethereal still drafts) in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
+swords have no free mocap: they are authored key poses (Katana 4 + Ethereal swords 4 approved 2026-11-23, in the pack) in `v3/tools/library/moves.anim3d.json` (anim3d.py solver;
 audit clean) and join the pack only once Daniel approved their stills (`"approved": true`, then
 `python v3/tools/move_library.py -`). Weapon editor shape **pistol** (weapons3d.js: len = barrel, w = slide height,
 handle = grip, guard = trigger guard, curve = grip rake; barrel along the edge side, roll turns it).

@@ -133,12 +133,12 @@ as `pe` and given back on Restore (picking an ease drops `pe`).
 Move library expansion (Daniel 2026-11-22: "combat animations for swords, dual swords, katana, ethereal swords,
 pistols, great swords"). Daniel picked: library pack only (no game clips replaced); katana + ethereal = look for
 references and author them; add a pistol shape. Done: `ual_moves.glb` (24 Mesh2Motion moves: Sword / Dual swords /
-Great sword / Pistol), Rig Forge 3D loads it, pistol shape. Authored drafts (katana approved 2026-11-23, ethereal waiting) (Katana: iai
+Great sword / Pistol), Rig Forge 3D loads it, pistol shape. Authored moves (all approved 2026-11-23) (Katana: iai
 draw-cut, kirioroshi, chiburi + noto, battojutsu dash slash; Ethereal: summon, command point, sweep + volley, rain of
 blades) in `v3/tools/library/moves.anim3d.json`, references = iai nukitsuke / kirioroshi / chiburi / noto and anime
 battojutsu; ethereal hands are fists (anim3d has no finger controls yet). Mark a clip `"approved": true` and run
 `python v3/tools/move_library.py -` to add it.
-Daniel 2026-11-23: approved all 4 katana moves -> in the pack (28 moves). Ethereal drafts still waiting.
+Daniel 2026-11-23: approved all 4 katana moves, then all 4 ethereal moves -> in the pack (32 moves).
 
 ## Next steps (agreed direction, not started)
 
