@@ -1,7 +1,7 @@
 {
  "format": "pb_anim3d",
  "version": 1,
- "notes": "Rig Forge 3D move library: authored katana + ethereal-sword moves (v3/tools/move_library.py). References: iai nukitsuke / kirioroshi / chiburi / noto, anime battojutsu dash; ethereal = summon / command gestures (the blades are FX). A clip joins ual_moves.glb only once Daniel approved its key-pose stills (approved: true).",
+ "notes": "Rig Forge 3D move library: authored katana + ethereal-sword moves (v3/tools/move_library.py). References: iai nukitsuke / kirioroshi / chiburi / noto, anime battojutsu dash; ethereal = summon / command gestures (the blades are FX). A clip joins ual_moves.glb only once Daniel approved its key-pose stills (approved: true). Katana moves approved by Daniel 2026-11-23.",
  "clips": {
   "kt_iai": {
    "cat": "Katana",
@@ -450,7 +450,7 @@
     }
    ],
    "arm_space": "chest",
-   "approved": false
+   "approved": true
   },
   "kt_kirioroshi": {
    "cat": "Katana",
@@ -899,7 +899,7 @@
     }
    ],
    "arm_space": "chest",
-   "approved": false
+   "approved": true
   },
   "kt_chiburi_noto": {
    "cat": "Katana",
@@ -1436,7 +1436,7 @@
     }
    ],
    "arm_space": "chest",
-   "approved": false
+   "approved": true
   },
   "kt_dash_slash": {
    "cat": "Katana",
@@ -1973,7 +1973,7 @@
     }
    ],
    "arm_space": "chest",
-   "approved": false
+   "approved": true
   },
   "et_summon": {
    "cat": "Ethereal swords",
