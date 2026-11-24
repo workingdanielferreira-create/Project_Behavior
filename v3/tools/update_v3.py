@@ -7,8 +7,10 @@ Double-click v3\\update_v3.bat (or "Update V3.bat" in the game folder).  It:
      rate limit, pinned to the commit so no stale branch copy),
   3. writes only the V3 parts that differ from your copy, checking each file
      after writing:
-       - v3/                 the 3D game + Rig Forge 3D (v3/tools/rigforge3d.html)
+       - v3/                 the 3D game + Rig Forge 3D (v3/tools/rigforge3d.html) + FX Studio 3D
+                             (v3/tools/fxstudio3d.html)
        - Rig Forge 3D.bat    the Rig Forge 3D launcher
+       - FX Studio 3D.bat    the FX Studio 3D launcher
        - Update V3.bat       this updater's launcher in the game folder
        - tools/fx/studio/    FX Studio's runtime (V3 plays every FX with it)
        - characters/         the characters V3 packs into its kits
@@ -16,7 +18,7 @@ Double-click v3\\update_v3.bat (or "Update V3.bat" in the game folder).  It:
   4. keeps your own edits to characters/ files, e.g. a .glb you saved from
      Rig Forge 3D (same rule and the same .sync_state.json record as
      update_latest.py / update_game.py),
-  5. then asks what to open: 1 = V3 game, 2 = Rig Forge 3D, Enter = nothing.
+  5. then asks what to open: 1 = V3 game, 2 = Rig Forge 3D, 3 = FX Studio 3D, Enter = nothing.
 
 The commit it installed is saved in .last_update_v3.json in the game folder.
 No token needed (the repo is public); a GITHUB_TOKEN env var or .gh_token
@@ -46,11 +48,13 @@ UA = "Project_Behavior-update_v3"
 V3_PATHS = (
     "v3/",
     "Rig Forge 3D.bat",
+    "FX Studio 3D.bat",
     "Update V3.bat",
     "tools/fx/studio/",
     "characters/",
 )
 RIGFORGE3D = ("v3/tools/rigforge3d.html", "v3/lib/", "Rig Forge 3D.bat")
+FXSTUDIO3D = ("v3/tools/fxstudio3d.html", "v3/js/fx3d.js", "v3/lib/", "FX Studio 3D.bat")
 # Never written: local-only files (also gitignored, listed here to be safe).
 GENERATED = re.compile(r"characters/ual_swordsman/ual_moves(_drafts)?\.glb$")
 SKIP = ("v3/.window-profile/", "v3/data/kits.gen.js", "characters/live_view.json",
@@ -205,7 +209,7 @@ def _open_bat(name):
 
 
 def ask_launch():
-    print("\nOpen now?  1 = V3 game   2 = Rig Forge 3D   Enter = nothing")
+    print("\nOpen now?  1 = V3 game   2 = Rig Forge 3D   3 = FX Studio 3D   Enter = nothing")
     try:
         pick = input("> ").strip()
     except EOFError:
@@ -216,6 +220,9 @@ def ask_launch():
     elif pick == "2":
         _open_bat("Rig Forge 3D.bat")
         print("Rig Forge 3D opening.")
+    elif pick == "3":
+        _open_bat("FX Studio 3D.bat")
+        print("FX Studio 3D opening.")
 
 
 def main():
@@ -258,6 +265,8 @@ def main():
             print(f"  - {f}")
     if any(_matches(f, RIGFORGE3D) for f in changed):
         print("\nRig Forge 3D updated: if it is open, close it and open it again.")
+    if any(_matches(f, FXSTUDIO3D) for f in changed) or any(f.startswith("tools/fx/studio/") for f in changed):
+        print("FX Studio 3D updated: if it is open, press Ctrl+F5 in it.")
     if any(f.startswith("tools/fx/studio/") for f in changed):
         print("FX Studio files changed: if FX Studio is open, press Ctrl+F5 in it.")
     if any(f.startswith("v3/") for f in changed):

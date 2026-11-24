@@ -50,7 +50,7 @@ function buildDummies(pk){const list=trainDummyList();sides[1].team=list.map((d,
 // (a different fighter picked = a fresh start).
 function trainApply(){if(!training||!running)return;
   if(trainPlayer().key!==trainFighterKey()){newTraining();return;}
-  for(const d of sides[1].team){fx2dClear(d);if(d.aline)scene.remove(d.aline);if(d.beam){scene.remove(d.beam.m);d.beam=null;}scene.remove(d.g);scene.remove(d.sh);}
+  for(const d of sides[1].team){fxClear(d);if(d.aline)scene.remove(d.aline);if(d.beam){scene.remove(d.beam.m);d.beam=null;}scene.remove(d.g);scene.remove(d.sh);}
   for(let i=shots.length-1;i>=0;i--)if(shots[i].side===1){scene.remove(shots[i].m);shots.splice(i,1);}
   labels.forEach(l=>l&&l.remove());labels.length=0;
   buildDummies();trainPickTarget();sides[1].team.forEach(f=>sync(f,0));hudFor=-1;}
@@ -91,7 +91,7 @@ function trainNoteHit(a,t,dm){if(!training||a.side!==0||!t.dummy)return;const L=
 function trainSimTick(){trainPickTarget();const p=trainPlayer();
   updFighter(p);
   for(const d of sides[1].team){if(d.phantom||d.dummy.beh!=='fight')updDummy(d);else updFighter(d);}
-  fx2dTick(p);for(const d of sides[1].team)if(!d.phantom)fx2dTick(d);
+  fxTick(p);for(const d of sides[1].team)if(!d.phantom)fxTick(d);
   trainRefill();}
 function trainDummyName(f){return 'DUMMY '+f.dummy.n+' · '+(TRAIN_BEH.find(b=>b[0]===f.dummy.beh)||['',''])[1].toUpperCase()+' · '+f.k.name;}
 function trainHud(){const L=trainLog,el=$('trn');if(!el)return;

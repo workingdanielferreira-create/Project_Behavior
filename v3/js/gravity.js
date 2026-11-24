@@ -25,7 +25,7 @@ function jumpPress(f){if(canFly(f)||f.ko||f.stun>0||f.gone>0||f.snap||f.leap>0)r
   return true;}
 // Altitude of a ground fighter (fighter.js updAltitude calls this instead of the flight code).
 function groundAltitude(f,e){f.zWant=f.zWantRaw=f.z;
-  if(f.snap||f.leap>0)return;
+  if(f.snap||f.leap>0||f.mv3)return;
   const c=jcfg(f);
   if(f.z<=0&&f.vz<=0){f.z=0;f.vz=0;f.jumps=0;f.ffall=false;if(f.jumpAfterSnap){f.jumpAfterSnap=false;jumpPress(f);}else aiJump(f,e);return;}
   if(f.jumpAfterSnap){f.jumpAfterSnap=false;}

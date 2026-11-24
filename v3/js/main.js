@@ -12,7 +12,7 @@ function simTick(){
   [a,b].forEach(f=>{const n=stats.starts[f.side];f.startedNow=n-(f._ls||0);f._ls=n;});
   if(training)trainSimTick();   // training.js: you + every dummy
   else{updFighter(a);updFighter(b);
-  fx2dTick(a);fx2dTick(b);}   // real kits' 2D FX (fx2d.js)
+  fxTick(a);fxTick(b);}   // real kits' FX laid in 3D (fxlive.js / fx3d.js)
   if(a.bufChain&&!a.act){a.bufChain=false;tryAttack(a,b,true);}
   if(a.buf){if(tick>a.buf.until){const c=a.buf.code;a.buf=null;deny(c);}else if(!(a.act||a.stun>0||a.gone>0||a.snap)){const c=a.buf.code;a.buf.until=tick;command(c,true);a.buf=null;}}
   stepShots();
@@ -36,7 +36,7 @@ function frame(now){requestAnimationFrame(frame);const rdt=Math.min(.05,(now-las
     if(running&&!paused&&!ended){
       let sp=pace;if(slowmo>0){sp*=.35;}
       if(hitstopMs>0){hitstopMs-=rdt*1000;}else{acc2+=rdt*1000*sp;let n=0;while(acc2>=TICK&&n<4){acc2-=TICK;simTick();n++;if(slowmo>0)slowmo--;}if(n>=4)acc2=0;}
-      stepFx(rdt*Math.max(.4,sp));stepNums(rdt);sides.forEach(s=>s.team.forEach(f=>sync(f,rdt)));camStep(rdt);fx2dDraw();hud(rdt);
+      stepFx(rdt*Math.max(.4,sp));stepNums(rdt);sides.forEach(s=>s.team.forEach(f=>sync(f,rdt)));camStep(rdt);fxDraw();hud(rdt);
     }else if(!running){camStep(rdt,true);}
   }catch(err){console.error(err);}
   renderer.render(scene,cam);}
@@ -44,7 +44,7 @@ function frame(now){requestAnimationFrame(frame);const rdt=Math.min(.05,(now-las
 /* ================= flow ================= */
 // Game flow: new fight, end of fight, pause, back to the title. The screens
 // themselves live in menus.js; this file only says which one to open.
-function clearAll(){sides.forEach(s=>s.team.forEach(fx2dClear));sides.forEach(s=>s.team.forEach(f=>f.aline&&scene.remove(f.aline)));fieldBlades.forEach(b=>scene.remove(b.m));fieldBlades.length=0;sides.forEach(s=>s.team.forEach(f=>{scene.remove(f.g);scene.remove(f.sh);}));shots.forEach(s=>scene.remove(s.m));shots.length=0;fxs.forEach(f=>scene.remove(f.o));fxs.length=0;lat.length=0;labels.forEach(l=>l&&l.remove());labels.length=0;nums.forEach(n=>n.el.remove());nums.length=0;sides.forEach(s=>s.team.forEach(f=>{if(f.beam){scene.remove(f.beam.m);f.beam=null;}}));}
+function clearAll(){sides.forEach(s=>s.team.forEach(fxClear));sides.forEach(s=>s.team.forEach(f=>f.aline&&scene.remove(f.aline)));fieldBlades.forEach(b=>scene.remove(b.m));fieldBlades.length=0;sides.forEach(s=>s.team.forEach(f=>{scene.remove(f.g);scene.remove(f.sh);}));shots.forEach(s=>scene.remove(s.m));shots.length=0;fxs.forEach(f=>scene.remove(f.o));fxs.length=0;lat.length=0;labels.forEach(l=>l&&l.remove());labels.length=0;nums.forEach(n=>n.el.remove());nums.length=0;sides.forEach(s=>s.team.forEach(f=>{if(f.beam){scene.remove(f.beam.m);f.beam=null;}}));}
 function newGame(){clearAll();training=false;document.body.classList.remove('training');
   const T0=validTeam(settings.teams[0],DEFAULT_SETTINGS.teams[0]),T1=validTeam(settings.teams[1],DEFAULT_SETTINGS.teams[1]);
   sides[0].team=T0.map(k=>mkFighter(k,0));sides[1].team=T1.map(k=>mkFighter(k,1));

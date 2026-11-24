@@ -18,7 +18,7 @@ function glbParse(b64,name,done){
       let mesh=false;g.scene.traverse(o=>{if(o.isSkinnedMesh)mesh=true;});
       g.scene.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(g.scene);
       done({scene:g.scene,clips,list:g.animations,mesh,h:Math.max(.5,box.max.y-box.min.y),name,
-        meta:(g.scene.userData&&g.scene.userData.pb_body)||null});},
+        meta:(g.scene.userData&&g.scene.userData.pb_body)||null,rig:(g.scene.userData&&g.scene.userData.pb_rig3d)||null});},
       err=>{console.error('PB3: body .glb failed',name,err);done(null);});}
   catch(err){console.error('PB3: body .glb failed',name,err);done(null);}}
 function loadGlbBody(done){
@@ -28,13 +28,13 @@ function loadGlbBody(done){
   for(const folder in own)jobs.push([own[folder],folder,b=>{if(b)parsed[folder]=b;}]);
   let left=jobs.length;if(!left){done();return;}
   const finish=()=>{for(const folder in parsed){const o=parsed[folder];
-      if(o.mesh){GLB_OWN[folder]=o;continue;}                   // old full .glb: its own body
+      if(o.mesh){o.anchors3d=(o.rig&&o.rig.anchors)||null;GLB_OWN[folder]=o;continue;}                   // old full .glb: its own body
       if(!GLB_BODY)continue;
       let mine;try{mine=rtClips(o.list,o.scene,GLB_BODY.scene);}
       catch(err){console.error('PB3: retarget failed',folder,err);continue;}
       const clips={};for(const n in GLB_BODY.clips)if(!GLB_DROP.test(n))clips[n]=GLB_BODY.clips[n];
       Object.assign(clips,mine);
-      GLB_OWN[folder]={scene:GLB_BODY.scene,clips,h:GLB_BODY.h,name:folder,weapons:(o.meta&&o.meta.weapons)||null};}
+      GLB_OWN[folder]={scene:GLB_BODY.scene,clips,h:GLB_BODY.h,name:folder,weapons:(o.meta&&o.meta.weapons)||null,anchors3d:(o.rig&&o.rig.anchors)||null};}   // anchors3d: Rig Forge 3D FX anchors (fx3d.js)
     if(GLB_BODY)glbPrepRM(GLB_BODY.clips,GLB_BODY.scene,GLB_BODY.h);
     for(const folder in GLB_OWN)glbPrepRM(GLB_OWN[folder].clips,GLB_OWN[folder].scene,GLB_OWN[folder].h);
     done();};
@@ -127,7 +127,7 @@ function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=g
     G.act=act;G.cur=name;G.curId=p[1];
     G.rm=!loop&&clip.userData&&clip.userData.rm||null;G.rmP=[0,0];if(G.rm)glbRMAt(G.rm,0,G.rmP);}
   G.mixer.update(hitstopMs>0?0:rdt);
-  if(G.rm&&G.act){   // root motion: carry the fighter along the clip's ground path (body forward = +Z = facing)
+  if(G.rm&&G.act&&!f.mv3){   // root motion (not while FX Studio 3D movement drives the body): carry the fighter along the clip's ground path (body forward = +Z = facing)
     const q=glbRMAt(G.rm,Math.min(G.act.time,G.rm.t[G.rm.t.length-1]),[0,0]),s=G.model.scale.x;
     const lx=(q[0]-G.rmP[0])*s,lz=(q[1]-G.rmP[1])*s;G.rmP=q;
     if(lx||lz){const r=f.g.rotation.y,wx=lx*Math.cos(r)+lz*Math.sin(r),wz=-lx*Math.sin(r)+lz*Math.cos(r);

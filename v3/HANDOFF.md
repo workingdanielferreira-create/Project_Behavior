@@ -195,6 +195,21 @@ v3-animation skill ("Review questions").
   kit flag `flight` (fxkit `flight.enabled`, packed by `build_kits.py`, none set yet). See README "Screens" / "Jumps".
 - Known limit: FX Studio FX hit only your target (the nearest dummy); shots and stand-in melee hit every dummy.
 
+## FX Studio 3D (2026-11-24)
+
+- Daniel: "create the FX Studio 3D: the same function the initial FX Studio played for 2D: the movement of the actions,
+  the FX of the actions, the visuals, the start and spot locations".
+- His picks: a new page on the same `<name>.fxkit.json` (3D settings beside the 2D data); the FX **keep their 2D anime
+  feeling** ("2.5D with cell shading", no 3D FX), so FX Studio's drawings are laid on cards placed in 3D; "start and
+  spot locations" = both where each FX starts / lies AND where the body starts / ends the move; FX hit **every enemy
+  they touch**; first build = preview foundation + FX editor + action movement + damage + V3 playback.
+- Done: `v3/js/fx3d.js` (shared runtime: lanes per action, `fx3d` lay / tilt / anchor / offset / size / ink / depth,
+  3D anchors from bones, every-enemy hits through the newly exported `FXK.resolveHits`, `move3d` planner),
+  `v3/js/fxlive.js` (replaces `fx2d.js` in the game + training), `v3/tools/fxstudio3d.html` + `FX Studio 3D.bat`, the
+  updater lists it (3 = FX Studio 3D). README section "FX Studio 3D".
+- **Next:** Daniel's verdict in the studio and the game; then likely per-effect lay presets for the most-used styles,
+  keyframing the 3D placement, and the not-yet-ported parts (blinks, states, intercepts).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
@@ -233,7 +248,7 @@ v3-animation skill ("Review questions").
    before red / after green, step, wrap; per-ghost model clone + own mixer; stencil keeps the current pose clean).
    **Next:** V3 swaps its stand-in body for the .glb (sim actions / timing drive the clips, anchors +
    placement from `pb_rig3d`).
-4. Later: 3D FX styles in FX Studio.
+4. **Done (2026-11-24), the 2.5D route Daniel picked instead of 3D FX styles:** FX Studio 3D (see above).
 
 Follow `CLAUDE.md` session rules: ask before implementing (pop-up questions); push, open the PR and
 merge it.

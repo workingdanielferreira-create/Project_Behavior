@@ -1,6 +1,6 @@
 @echo off
-rem Project Behavior V3 updater: updates v3\ (game + Rig Forge 3D), FX Studio runtime and
-rem characters\ from GitHub, then asks: 1 = V3 game, 2 = Rig Forge 3D, Enter = nothing.
+rem Project Behavior V3 updater: updates v3\ (game + Rig Forge 3D + FX Studio 3D), FX Studio runtime and
+rem characters\ from GitHub, then asks: 1 = V3 game, 2 = Rig Forge 3D, 3 = FX Studio 3D, Enter = nothing.
 rem One block on purpose: the updater may rewrite this .bat while it runs.
 cd /d "%~dp0"
 (
