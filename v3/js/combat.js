@@ -88,7 +88,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   {const ddx=t.x-a.x,ddy=t.y-a.y,l=Math.hypot(ddx,ddy)||1;shakeDir=[ddx/l,ddy/l];}shake=Math.max(shake,.16*wv+.08);camPunch=Math.max(camPunch,.035*wv);
   dmgNum(t,Math.round(dm),a.k.fx,wv);a.vx+=Math.cos(a.face)*40;a.vy+=Math.sin(a.face)*40;
   // 2D-style trading: light hits never interrupt, medium only an idle target, heavy / blowback always (unless armoured)
-  const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;
+  const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;
   if(k===1&&wv>t.armor&&(wv>=3||(wv===2&&!t.act))){if(t.act)endAct(t);const kb=[0,160,420,800,1600][wv];t.vx+=dx/dd*kb;t.vy+=dy/dd*kb;
     stun(t,[0,150,260,600,850][wv],wv>=3?'down':'stag');if(wv>=3&&t.z<10)fx_dust(t.x,t.y,6);
     if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch');}
@@ -97,6 +97,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(!canFly(a))a.jumpAfterSnap=true;if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
+  camKnock(t,t.vx-kvx,t.vy-kvy);   // camera.js: knockback tracking shot (view only)
   planetHit(t,wv,dm);   // planet.js: the impact reaches scenery / pillars round the target
   if(t.hp<=0)ko(t);return true;}
 function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.stunId=(f.stunId||0)+1;f.snap=null;if(f.act)endAct(f);}

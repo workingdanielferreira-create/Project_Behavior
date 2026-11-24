@@ -33,12 +33,25 @@ const Menu=(function(){
 
   function seg(key,opts){return '<div class="seg" data-nav data-cyc="seg" data-key="'+key+'" tabindex="0">'+opts.map(o=>'<button type="button" tabindex="-1" data-v="'+o[0]+'" aria-pressed="'+(settings[key]===o[0])+'">'+o[1]+'</button>').join('')+'</div>';}
   function tog(key){return '<button type="button" class="tog" data-nav data-tog="'+key+'" aria-pressed="'+!!settings[key]+'">'+(settings[key]?'On':'Off')+'</button>';}
+  // a numeric setting: slider + value, Left / Right steps it (data-cyc="num")
+  function num(key,label,mn,mx,st,unit,help){const v=settings[key];return '<div class="srow"><div><b>'+label+'</b>'+(help?'<small>'+help+'</small>':'')+'</div><div class="rng" data-nav data-cyc="num" data-key="'+key+'" data-min="'+mn+'" data-max="'+mx+'" data-step="'+st+'" data-unit="'+unit+'" tabindex="0"><input type="range" min="'+mn+'" max="'+mx+'" step="'+st+'" value="'+v+'" tabindex="-1" aria-label="'+label+'"><output>'+String(+(+v).toFixed(2))+unit+'</output></div></div>';}
   function settingsScr(){
     const row=(l,ctl,help)=>'<div class="srow"><div><b>'+l+'</b>'+(help?'<small>'+help+'</small>':'')+'</div>'+ctl+'</div>';
     return '<div class="scr wide"><h1>Settings</h1><div class="sets">'+
       row('Control level',seg('level',[['watch','Watch'],['commander','Commander'],['handson','Hands-on']]),'Watch: AI vs AI. Commander: the AI fights, your inputs take over. Hands-on: your fighter only acts when you press. (Tab in game)')+
       row('Game speed','<div class="rng" data-nav data-cyc="pace" tabindex="0"><input type="range" min="25" max="100" step="5" value="'+settings.pace+'" tabindex="-1"><output>'+settings.pace+'%</output></div>')+
       row('Camera',seg('cam',[['shoulder','Over the shoulder'],['dynamic','Dynamic'],['wide','Wide']]),'Dynamic cuts between angles and on launches and ultimates. (C in game)')+
+      '<h3 class="sgroup">Knockback tracking shot</h3>'+
+      row('Tracking shot',tog('trackOn'),'Over the shoulder and Dynamic: when one hit throws a fighter far, the camera swoops in behind it in one move, rides along with it facing the way it flies, then glides back when it lands.')+
+      num('trackMinPx','Starts at knockback',200,3000,50,' px','A single hit must carry the fighter at least this far.')+
+      num('trackDist','Distance behind',1.5,14,.5,' m','')+
+      num('trackHeight','Height above',0,6,.25,' m','')+
+      num('trackZoom','Zoom in',0,60,5,'%','How much narrower the view gets while tracking.')+
+      num('trackInMs','Swoop-in time',100,1500,20,' ms','The single move from the normal shot to the fighter.')+
+      num('trackOutMs','Glide-back time',100,2000,20,' ms','')+
+      num('trackMaxS','Longest track',.5,6,.25,' s','Ends sooner when the fighter lands and stops.')+
+      num('trackCdS','Cooldown',0,30,.5,' s','Least time between two tracking shots.')+
+      '<h3 class="sgroup">Display</h3>'+
       row('Show intents',tog('labels'),'Each fighter\'s rhythm intent above its head.')+
       row('Feel panel',tog('feel'),'Live numbers against the 2D duel ranges.')+
       row('AI parries',tog('aiParry'),'Computer fighters parry by chance (you always parry with Ctrl+Space).')+
@@ -137,6 +150,7 @@ const Menu=(function(){
       settings.teams[si]=settings.teams[si].slice();settings.teams[si][i]=n;saveSettings();refreshTitleTeams();render(el);}
     else if(c==='seg'){const key=el.dataset.key;const vs=[...el.querySelectorAll('button')].map(b=>b.dataset.v);setSeg(key,vs[clamp(vs.indexOf(settings[key])+step,0,vs.length-1)]);render(el);}
     else if(c==='pace'){setPace(clamp(settings.pace+step*5,25,100));render(el);}
+    else if(c==='num'){const k=el.dataset.key,st=+el.dataset.step;settings[k]=clamp(Math.round((settings[k]+step*st)/st)*st,+el.dataset.min,+el.dataset.max);saveSettings();render(el);}
     else if(c==='trfighter'){const T=trainCfg();const k=trainFighterKey();T.fighter=KEYS[(KEYS.indexOf(k)+step+KEYS.length)%KEYS.length];saveSettings();render(el);}
     else if(c==='trkit'||c==='trbeh'||c==='trz'){const d=trainCfg().dummies[trSel];if(!d)return;
       if(c==='trkit'){const k=trainDummyKit(d);d.kit=KEYS[(KEYS.indexOf(k)+step+KEYS.length)%KEYS.length];trLast.kit=d.kit;}
@@ -159,6 +173,7 @@ const Menu=(function(){
     root.querySelectorAll('[data-cyc="trbeh"]').forEach(el=>el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const d=trainCfg().dummies[trSel];if(!d)return;d.beh=trLast.beh=b.dataset.v;saveSettings();render(el);})));
     root.querySelectorAll('[data-cyc="trz"] input').forEach(inp=>inp.addEventListener('input',()=>{const d=trainCfg().dummies[trSel];if(!d)return;d.z=+inp.value;inp.nextElementSibling.textContent=(d.z/BODY*1.8).toFixed(1)+' m';saveSettings();trDraw();}));
     if(cur==='training')trSetup();
+    root.querySelectorAll('[data-cyc="num"] input').forEach(inp=>inp.addEventListener('input',()=>{const el=inp.parentNode,st=+el.dataset.step;settings[el.dataset.key]=+inp.value;inp.nextElementSibling.textContent=String(+(+inp.value).toFixed(2))+el.dataset.unit;saveSettings();}));
     root.querySelectorAll('[data-cyc="pace"] input').forEach(inp=>inp.addEventListener('input',()=>{setPace(+inp.value);inp.nextElementSibling.textContent=inp.value+'%';}));
     const items=nav();let f=sel?items.find(e=>navKey(e)===sel):null;(f||items[0])&&(f||items[0]).focus({preventScroll:true});}
   function nav(){return [...root.querySelectorAll('[data-nav]')];}

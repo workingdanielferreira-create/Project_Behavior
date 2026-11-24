@@ -32,7 +32,7 @@ function mkPhantom(key){const f=mkFighter(key,1);f.phantom=true;f.dummy={beh:'st
 function trainDummies(){return sides[1].team.filter(d=>!d.phantom);}
 function trainPlayer(){return sides[0].team[0];}
 
-function newTraining(){clearAll();planetReset();training=true;
+function newTraining(){clearAll();planetReset();trackReset();training=true;
   const pk=trainFighterKey();sides[0].team=[mkFighter(pk,0)];
   buildDummies(pk);
   const p=trainPlayer();setOn(p,true);p.x=TRAIN_START[0];p.y=TRAIN_START[1];p.face=0;enter(p,'neutral');
