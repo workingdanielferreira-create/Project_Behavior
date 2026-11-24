@@ -56,7 +56,7 @@
    "frames": 3
   },
   "attack_special": {
-   "frame_ms": 41.176,
+   "frame_ms": 35.294,
    "frames": 17
   },
   "ultimate": {
@@ -66,6 +66,10 @@
   "attack_special_2": {
    "frame_ms": 45.455,
    "frames": 11
+  },
+  "base": {
+   "frame_ms": 300,
+   "frames": 1
   }
  },
  "palette_lut": {
@@ -22712,6 +22716,146 @@
      308.45
     ]
    ]
+  },
+  "base": {
+   "hip": [
+    [
+     239.21,
+     285.77
+    ]
+   ],
+   "chest": [
+    [
+     239.33,
+     264.17
+    ]
+   ],
+   "neck": [
+    [
+     239.73,
+     246.51
+    ]
+   ],
+   "head": [
+    [
+     238.74,
+     229.52
+    ]
+   ],
+   "shB": [
+    [
+     239.73,
+     249.41
+    ]
+   ],
+   "shL": [
+    [
+     223.88,
+     245.34
+    ]
+   ],
+   "shR": [
+    [
+     255.3,
+     243.45
+    ]
+   ],
+   "elL": [
+    [
+     204.4,
+     244.28
+    ]
+   ],
+   "elR": [
+    [
+     272.33,
+     240.7
+    ]
+   ],
+   "haL": [
+    [
+     187.1,
+     248.58
+    ]
+   ],
+   "haR": [
+    [
+     288.35,
+     241.65
+    ]
+   ],
+   "hpL": [
+    [
+     231.79,
+     287.23
+    ]
+   ],
+   "hpR": [
+    [
+     245.75,
+     286.06
+    ]
+   ],
+   "knL": [
+    [
+     230.85,
+     309.69
+    ]
+   ],
+   "knR": [
+    [
+     250.48,
+     308.85
+    ]
+   ],
+   "ftL": [
+    [
+     229.76,
+     335.85
+    ]
+   ],
+   "ftR": [
+    [
+     253.46,
+     334.86
+    ]
+   ],
+   "wtip": [
+    [
+     303.43,
+     197.58
+    ]
+   ],
+   "wtip2": [
+    [
+     202.68,
+     172.66
+    ]
+   ],
+   "root": [
+    [
+     238.74,
+     198.1
+    ]
+   ],
+   "coat_b": [
+    [
+     240.26,
+     310.54
+    ]
+   ],
+   "coat_f": [
+    [
+     218.28,
+     310.36
+    ]
+   ],
+   "xl1": [
+    [
+     262.83,
+     305.62
+    ]
+   ]
   }
  },
  "action_settings": {
@@ -22822,6 +22966,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "run": {
@@ -22931,6 +23102,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_normal": {
@@ -22960,8 +23158,8 @@
     "dist_px": 80,
     "side": "right",
     "hop_px": 10,
-    "arc_radius_px": 85,
-    "arc_curve_pct": 100,
+    "arc_radius_px": 110,
+    "arc_curve_pct": 50,
     "turn_frame": 11,
     "retreat_px": 150,
     "return_angle_deg": 120,
@@ -23040,6 +23238,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_normal_2": {
@@ -23149,6 +23374,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_normal_3": {
@@ -23158,16 +23410,16 @@
    "chain_next": "attack_normal_4",
    "chain_reset_ms": 0,
    "fx_continuous": false,
-   "movement": "arc",
+   "movement": "leap",
    "move_speed_pct": 100,
    "anim_loops": 1,
    "back_stop_pct": 80,
-   "attack_px": 400,
+   "attack_px": 200,
    "attack_gap_ms": 450,
    "leap": {
     "start_frame": 0,
     "land_frame": -1,
-    "height_px": 10,
+    "height_px": 300,
     "hit_px": null,
     "height_max_px": null,
     "dist_min_px": 300,
@@ -23175,7 +23427,7 @@
     "damage_mode": "fixed",
     "damage_min": 5,
     "damage_max": 20,
-    "dist_px": 65,
+    "dist_px": 200,
     "side": "left",
     "hop_px": 10,
     "arc_radius_px": 70,
@@ -23258,6 +23510,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_normal_4": {
@@ -23367,6 +23646,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_normal_5": {
@@ -23476,6 +23782,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "defend": {
@@ -23615,6 +23948,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "switch_in": {
@@ -23730,6 +24090,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "switch_out": {
@@ -23839,6 +24226,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_special": {
@@ -23961,6 +24375,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": "switch_out"
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "ultimate": {
@@ -24089,6 +24530,33 @@
     "gap_start_ms": 380,
     "gap_end_ms": 60,
     "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   },
   "attack_special_2": {
@@ -24211,6 +24679,169 @@
     "gap_start_ms": 480,
     "gap_end_ms": 40,
     "finisher": "switch_out"
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
+   }
+  },
+  "base": {
+   "logic": "any",
+   "cooldown_ms": 0,
+   "conditions": [],
+   "chain_next": "",
+   "chain_reset_ms": 1000,
+   "fx_continuous": false,
+   "movement": "stand",
+   "move_speed_pct": 100,
+   "anim_loops": 1,
+   "back_stop_pct": 80,
+   "attack_px": 0,
+   "attack_gap_ms": 350,
+   "leap": {
+    "start_frame": 0,
+    "land_frame": -1,
+    "height_px": 40,
+    "hit_px": null,
+    "height_max_px": null,
+    "dist_min_px": 300,
+    "dist_max_px": 900,
+    "damage_mode": "fixed",
+    "damage_min": 5,
+    "damage_max": 20,
+    "dist_px": 0,
+    "side": "left",
+    "hop_px": 0,
+    "arc_radius_px": 120,
+    "arc_curve_pct": 0,
+    "turn_frame": -1,
+    "retreat_px": 150,
+    "return_angle_deg": 0,
+    "flip": false,
+    "zig_count": 3,
+    "zig_angle_deg": 45,
+    "zig_len_px": 120,
+    "zig_turn": "sharp",
+    "zig_turn_pct": 50,
+    "fake_angle_deg": -20,
+    "fake_len_px": 120,
+    "flank_radius_px": 100,
+    "bf_points": [
+     {
+      "dist_px": 150,
+      "angle_deg": -60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     },
+     {
+      "dist_px": 150,
+      "angle_deg": 60,
+      "ms": 0,
+      "pause_ms": 0,
+      "act": "",
+      "dash_act": "",
+      "dash_fit": true
+     }
+    ],
+    "bf_order": "pingpong",
+    "bf_seq": "",
+    "bf_loops": 2,
+    "bf_fwd_ms": 250,
+    "bf_ret_ms": 250,
+    "bf_entry_ms": 200,
+    "bf_strike": true,
+    "bf_strike_ms": 200,
+    "bf_face": "target"
+   },
+   "blink": {
+    "blinks": [],
+    "enabled": false,
+    "cooldown_ms": 0
+   },
+   "time": {
+    "enabled": false,
+    "start_frame": 0,
+    "end_frame": -1,
+    "scope": "enemy_fighters",
+    "speed": 0,
+    "keys": [],
+    "logic": "any",
+    "conditions": []
+   },
+   "hop": {
+    "enabled": false,
+    "source": "mix",
+    "field_pick": "nearest",
+    "max_throws": 0,
+    "speed": 26,
+    "damage": 2,
+    "knockback": 4,
+    "spread_deg": 35,
+    "laser_trail": 14,
+    "after": "hang",
+    "past_px": 110,
+    "hold_ms": 1500,
+    "arrive": "catch",
+    "blink_on": "passes",
+    "delay_ms": 120,
+    "gone_ms": 40,
+    "land_pick": "newest",
+    "gap_start_ms": 380,
+    "gap_end_ms": 60,
+    "finisher": ""
+   },
+   "defend": {
+    "type": "",
+    "radius_px": 0,
+    "reduce_pct": 70,
+    "kb_keep_pct": 0,
+    "drain_pct": 100,
+    "hurts": true,
+    "counter_pct": 50,
+    "absorb_pct": 100,
+    "heal_pct": 50,
+    "share_pct": 0,
+    "cover_px": 46,
+    "follow": true,
+    "follow_speed_pct": 180,
+    "beam_turn": false
+   },
+   "ally": {
+    "travel": "blink",
+    "blink_ms": 80,
+    "speed_pct": 320,
+    "place": "between",
+    "stop_px": 46,
+    "max_ms": 900,
+    "hold_frame": 0,
+    "afterimages": true,
+    "push_px": 0
    }
   }
  },
@@ -24333,7 +24964,7 @@
  },
  "damaged": {
   "cooldown_ms": 0,
-  "anti_knockback": 0
+  "anti_knockback": 10
  },
  "retreat": {
   "enabled": false,
@@ -24351,8 +24982,8 @@
  },
  "dodge": {
   "enabled": true,
-  "style": "sidestep",
-  "action": "attack_normal",
+  "style": "parry",
+  "action": "",
   "react_to": "all",
   "trigger_px": 140,
   "incoming_only": false,
@@ -24367,7 +24998,7 @@
   "during_attacks": true,
   "invulnerable": false,
   "invuln_ms": 150,
-  "counter_action": "attack_normal_2",
+  "counter_action": "attack_special_2",
   "counter_delay_ms": 0,
   "counter_range_px": 0,
   "logic": "any",
@@ -24517,7 +25148,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw5sck7v14",
    "action": "attack_normal_6",
@@ -24701,7 +25341,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw6wtdqm39",
    "action": "attack_normal_5",
@@ -24885,7 +25534,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw78ww7f1",
    "action": "attack_normal_4",
@@ -25069,196 +25727,21 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw7rl6bh3",
    "action": "attack_normal",
    "enabled": true,
-   "start_frame": 3,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [],
-   "escort": {
-    "enabled": false,
-    "ms": 6000,
-    "solo_contact_pct": 50
-   }
-  },
-  {
-   "prim": "technique",
-   "name": "Oathkeeper & Oblivion: Starburst · Oathkeeper",
-   "tag": "slash",
-   "anchor": "figure",
-   "blend": "normal",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 40,
-    "pierce": true,
-    "rehit_ticks": 8,
-    "knockback": 9,
-    "blockable": true,
-    "deflectable": true,
-    "armed": 1
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": "",
-    "out_px": 260,
-    "return_style": "curve",
-    "catch_px": 28
-   },
-   "color": {
-    "mode": "gradient",
-    "c1": "#ffffff",
-    "c2": "#6fa8ff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "oath_oblivion",
-    "length": 40,
-    "thickness": 4,
-    "radius": 195,
-    "span": 0,
-    "swing_ticks": 3,
-    "hold_ticks": 0,
-    "density": 1,
-    "w_mode": "signature",
-    "w_blade": "both",
-    "rotation_deg": 0,
-    "lightning": false,
-    "lightning_rate": 1.5,
-    "small_ticks": 0,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": false,
-    "aura_part": "all",
-    "gap_px": 18,
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": -1,
-    "w_yaw": 57,
-    "w_pitch": 180,
-    "w_spin": -1,
-    "w_depth": 0,
-    "w_weight": 0,
-    "w_plane": 90,
-    "w_plane_roll": 0,
-    "w_side": "front",
-    "w_grip": 0,
-    "w_flip_at": "grip",
-    "w_move": 100,
-    "w_turn": 100,
-    "w_aim": "never",
-    "w_follow": "position_angle",
-    "w_hand1": "right",
-    "w_hand2": "left",
-    "w_b1_x": 0,
-    "w_b1_y": -3,
-    "w_b1_ang": 153,
-    "w_b2_x": 0,
-    "w_b2_y": 0,
-    "w_b2_ang": 0,
-    "ext_pivot": 0,
-    "ext_spin": 0,
-    "ext_sweep": 0,
-    "ext_spin_dir": "clockwise",
-    "ext_slide": 0,
-    "ext_slide_deg": 0,
-    "hitstop": false,
-    "hitstop_ticks": 4,
-    "kb_dir": "aim",
-    "kb_angle_deg": 0,
-    "impact_frame": "off",
-    "impact_frame_r": 90,
-    "fx_motion": "ink",
-    "motion_smear": true,
-    "motion_arcs": true,
-    "fx_impact": "ink",
-    "fx_env": "ink",
-    "shake": false,
-    "shake_px": 6,
-    "shake_ticks": 8,
-    "squash": false,
-    "squash_amt": 0.3,
-    "squash_ticks": 6,
-    "squash_flash": true,
-    "kick_sweep": "high_low",
-    "axe_dir": "screen_down",
-    "axe_crater": "contact",
-    "spin_mode": "centered",
-    "spin_turns": 2,
-    "spin_vertical": false,
-    "rise_dir": "screen_up",
-    "kick_angle_deg": 0,
-    "flip_h": false,
-    "flip_v": false,
-    "moons": 5,
-    "weaves": 2,
-    "split_pct": 45,
-    "ground_px": 30,
-    "spin_deg": 34,
-    "scatter_path": "fan",
-    "fall_angle_deg": 18,
-    "cut_deg": -30,
-    "curve_pct": 25,
-    "slash_from": "start"
-   },
-   "id": "Emw8b77gu1",
-   "action": "attack_normal_2",
-   "enabled": true,
-   "start_frame": 0,
+   "start_frame": 7,
    "end_frame": -1,
    "life_ticks": 0,
    "continuous": false,
@@ -25352,7 +25835,7 @@
     "style": "oath_oblivion",
     "length": 40,
     "thickness": 4,
-    "radius": 160,
+    "radius": 400,
     "span": 0,
     "swing_ticks": 4,
     "hold_ticks": 0,
@@ -25437,7 +25920,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw8bw6n25",
    "action": "attack_normal_3",
@@ -25621,7 +26113,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw8celzt8",
    "action": "switch_in",
@@ -25806,7 +26307,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw8celzt9",
    "action": "switch_in",
@@ -25856,210 +26366,6 @@
   },
   {
    "prim": "technique",
-   "name": "Oathkeeper & Oblivion: Starburst · Oathkeeper",
-   "tag": "slash",
-   "anchor": "figure",
-   "blend": "normal",
-   "flip": {
-    "enabled": true,
-    "facing": 1
-   },
-   "battle": {
-    "deals_damage": true,
-    "damage": 2,
-    "pierce": true,
-    "rehit_ticks": 1,
-    "knockback": 8,
-    "blockable": true,
-    "deflectable": true,
-    "armed": 1
-   },
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": "",
-    "out_px": 260,
-    "return_style": "curve",
-    "catch_px": 28
-   },
-   "color": {
-    "mode": "gradient",
-    "c1": "#ffffff",
-    "c2": "#6fa8ff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "style": "oath_oblivion",
-    "length": 40,
-    "thickness": 4,
-    "radius": 160,
-    "span": 0,
-    "swing_ticks": 5,
-    "hold_ticks": 52,
-    "density": 1,
-    "w_mode": "hold",
-    "w_blade": "first",
-    "rotation_deg": 0,
-    "lightning": false,
-    "lightning_rate": 1.5,
-    "small_ticks": 0,
-    "aura_burst": true,
-    "aura_debris": true,
-    "aura_surges": true,
-    "aura_cracks": false,
-    "aura_part": "all",
-    "gap_px": 18,
-    "w_scale": 1,
-    "w_flip_x": 1,
-    "w_flip_y": 1,
-    "w_yaw": 0,
-    "w_pitch": 0,
-    "w_spin": 0,
-    "w_depth": 0,
-    "w_weight": 0,
-    "w_plane": 90,
-    "w_plane_roll": 72,
-    "w_side": "front",
-    "w_grip": 0,
-    "w_flip_at": "grip",
-    "w_move": 100,
-    "w_turn": 100,
-    "w_aim": "never",
-    "w_follow": "position_angle",
-    "w_hand1": "right",
-    "w_hand2": "left",
-    "w_b1_x": 0,
-    "w_b1_y": 0,
-    "w_b1_ang": 0,
-    "w_b2_x": 0,
-    "w_b2_y": 0,
-    "w_b2_ang": 0,
-    "ext_pivot": 0,
-    "ext_spin": 0,
-    "ext_sweep": 0,
-    "ext_spin_dir": "clockwise",
-    "ext_slide": 0,
-    "ext_slide_deg": 0,
-    "hitstop": false,
-    "hitstop_ticks": 4,
-    "kb_dir": "aim",
-    "kb_angle_deg": 0,
-    "impact_frame": "off",
-    "impact_frame_r": 90,
-    "fx_motion": "ink",
-    "motion_smear": true,
-    "motion_arcs": true,
-    "fx_impact": "ink",
-    "fx_env": "ink",
-    "shake": false,
-    "shake_px": 6,
-    "shake_ticks": 8,
-    "squash": false,
-    "squash_amt": 0.3,
-    "squash_ticks": 6,
-    "squash_flash": true,
-    "kick_sweep": "high_low",
-    "axe_dir": "screen_down",
-    "axe_crater": "contact",
-    "spin_mode": "centered",
-    "spin_turns": 2,
-    "spin_vertical": false,
-    "rise_dir": "screen_up",
-    "kick_angle_deg": 0,
-    "flip_h": false,
-    "flip_v": false,
-    "moons": 5,
-    "weaves": 2,
-    "split_pct": 45,
-    "ground_px": 30,
-    "spin_deg": 34,
-    "scatter_path": "fan",
-    "fall_angle_deg": 18,
-    "cut_deg": -30,
-    "curve_pct": 25,
-    "slash_from": "start"
-   },
-   "id": "Emw8cvzsp13",
-   "action": "attack_special",
-   "enabled": true,
-   "start_frame": 0,
-   "end_frame": -1,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "offset": [
-    0,
-    0
-   ],
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": [
-    {
-     "frame": 0,
-     "ease": "inout",
-     "set": {}
-    },
-    {
-     "frame": 1,
-     "ease": "inout",
-     "set": {
-      "params.w_b1_ang": 80
-     }
-    },
-    {
-     "frame": 12,
-     "ease": "inout",
-     "set": {
-      "params.w_b1_ang": 2720
-     }
-    }
-   ],
-   "escort": {
-    "enabled": false,
-    "ms": 6000,
-    "solo_contact_pct": 50
-   }
-  },
-  {
-   "prim": "technique",
    "name": "Oathkeeper & Oblivion: Starburst · Oblivion",
    "tag": "slash",
    "anchor": "figure",
@@ -26070,7 +26376,7 @@
    },
    "battle": {
     "deals_damage": true,
-    "damage": 20,
+    "damage": 40,
     "pierce": true,
     "rehit_ticks": 8,
     "knockback": 8,
@@ -26116,7 +26422,7 @@
     "hold_ticks": 52,
     "density": 1,
     "w_mode": "hold",
-    "w_blade": "second",
+    "w_blade": "first",
     "rotation_deg": 0,
     "lightning": false,
     "lightning_rate": 1.5,
@@ -26144,7 +26450,7 @@
     "w_turn": 100,
     "w_aim": "never",
     "w_follow": "position_angle",
-    "w_hand1": "right",
+    "w_hand1": "left",
     "w_hand2": "left",
     "w_b1_x": 0,
     "w_b1_y": 0,
@@ -26195,7 +26501,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emw8cvzsq14",
    "action": "attack_special",
@@ -26958,119 +27273,6 @@
    "follow_each": false,
    "keys": [],
    "group": "Gmwbckv2s1"
-  },
-  {
-   "prim": "glow",
-   "name": "Graveyard ground",
-   "tag": "blade",
-   "anchor": "target",
-   "offset": [
-    0,
-    28
-   ],
-   "start_frame": 6,
-   "end_frame": 30,
-   "motion": {
-    "kind": "attached",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": "",
-    "out_px": 260,
-    "return_style": "curve",
-    "catch_px": 28
-   },
-   "layer": "behind",
-   "blend": "additive",
-   "color": {
-    "mode": "solid",
-    "c1": "#4f6dff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "c2": "#ff2200",
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 20,
-    "r_end": 30,
-    "a_center": 30,
-    "a_mid": 12,
-    "mid": 0.5,
-    "core_r": 0,
-    "fade": "none",
-    "pulse_hz": 1
-   },
-   "keys": [
-    {
-     "frame": 22,
-     "ease": "in",
-     "set": {
-      "params.r_start": 90,
-      "params.r_end": 120,
-      "params.a_center": 90
-     }
-    }
-   ],
-   "id": "Emwbfitg919",
-   "action": "ultimate",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "life_ticks": 0,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true,
-    "armed": 1
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "escort": {
-    "enabled": false,
-    "ms": 6000,
-    "solo_contact_pct": 50
-   },
-   "follow_dir": false,
-   "follow_each": false
   },
   {
    "prim": "sprite",
@@ -29137,115 +29339,6 @@
    "follow_each": false
   },
   {
-   "prim": "pulse",
-   "name": "Field flare",
-   "tag": "blade",
-   "anchor": "target",
-   "offset": [
-    0,
-    28
-   ],
-   "start_frame": 24,
-   "life_ticks": 30,
-   "motion": {
-    "kind": "static",
-    "aim": "target",
-    "angle_deg": 0,
-    "aim_offset_deg": 0,
-    "speed": 8,
-    "turn_deg": 6,
-    "amplitude": 55,
-    "freq": 0.18,
-    "orbit_rx": 46,
-    "orbit_ry": 46,
-    "orbit_deg": 1.12,
-    "orbit_dir": "clockwise",
-    "path": "",
-    "out_px": 260,
-    "return_style": "curve",
-    "catch_px": 28
-   },
-   "blend": "additive",
-   "color": {
-    "mode": "gradient",
-    "c1": "#ffffff",
-    "c2": "#6c8bff",
-    "lut_index": 128,
-    "lut_index2": 128,
-    "lut_offset": 0,
-    "flow_speed": 0.008,
-    "start_fraction": 0
-   },
-   "params": {
-    "r_start": 20,
-    "r_end": 200,
-    "width": 6,
-    "width_end": 1,
-    "expand_ms": 420,
-    "rings": 2,
-    "gap_ms": 100,
-    "ease": "out",
-    "fade": "out",
-    "glow": 8,
-    "stretch_x": 1,
-    "stretch_y": 0.3,
-    "fill_alpha": 0,
-    "tilt_deg": 0
-   },
-   "id": "Emwbfitga36",
-   "action": "ultimate",
-   "flip": {
-    "enabled": false,
-    "facing": 1
-   },
-   "enabled": true,
-   "end_frame": -1,
-   "continuous": false,
-   "always_on": false,
-   "char_every_ms": 0,
-   "layer": "front",
-   "emit": {
-    "every_ticks": 0,
-    "count": 1,
-    "fan_deg": 0
-   },
-   "cycles": {
-    "enabled": false,
-    "count": 0
-   },
-   "battle": {
-    "deals_damage": false,
-    "damage": 1,
-    "pierce": false,
-    "rehit_ticks": 0,
-    "knockback": 0,
-    "blockable": true,
-    "deflectable": true,
-    "armed": 1
-   },
-   "intercept": {
-    "enabled": false,
-    "radius": 90,
-    "turn_deg": 10,
-    "contact": 10,
-    "mode": "block",
-    "deflect_who": "enemy",
-    "hurts_owner": false,
-    "drag": false,
-    "drag_pct": 100,
-    "drag_deg": 90,
-    "drag_every": 10
-   },
-   "escort": {
-    "enabled": false,
-    "ms": 6000,
-    "solo_contact_pct": 50
-   },
-   "follow_dir": false,
-   "follow_each": false,
-   "keys": []
-  },
-  {
    "prim": "technique",
    "name": "Oathkeeper & Oblivion · Oblivion",
    "tag": "slash",
@@ -29303,7 +29396,7 @@
     "hold_ticks": 10,
     "density": 1,
     "w_mode": "signature",
-    "w_blade": "both",
+    "w_blade": "second",
     "rotation_deg": 0,
     "lightning": false,
     "lightning_rate": 1.5,
@@ -29326,11 +29419,11 @@
     "w_plane_roll": 0,
     "w_side": "front",
     "w_grip": 0,
-    "w_flip_at": "anchor",
+    "w_flip_at": "grip",
     "w_move": 100,
     "w_turn": 100,
     "w_aim": "auto",
-    "w_follow": "off",
+    "w_follow": "position_angle",
     "w_hand1": "right",
     "w_hand2": "left",
     "w_b1_x": 0,
@@ -29382,7 +29475,16 @@
     "fall_angle_deg": 18,
     "cut_deg": -30,
     "curve_pct": 25,
-    "slash_from": "start"
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
    },
    "id": "Emwbypcz84",
    "action": "attack_special_2",
@@ -29428,6 +29530,392 @@
    "follow_dir": false,
    "follow_each": false,
    "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Oathkeeper & Oblivion",
+   "tag": "slash",
+   "anchor": "figure",
+   "blend": "normal",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "battle": {
+    "deals_damage": true,
+    "damage": 40,
+    "pierce": true,
+    "rehit_ticks": 8,
+    "knockback": 8,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "gradient",
+    "c1": "#ffffff",
+    "c2": "#6fa8ff",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "oath_oblivion",
+    "length": 40,
+    "thickness": 4,
+    "radius": 160,
+    "span": 0,
+    "swing_ticks": 5,
+    "hold_ticks": 23,
+    "density": 1,
+    "w_mode": "hold",
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "small_ticks": 0,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "grip",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "position_angle",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": false,
+    "hitstop_ticks": 4,
+    "kb_dir": "aim",
+    "kb_angle_deg": 0,
+    "impact_frame": "off",
+    "impact_frame_r": 90,
+    "fx_motion": "ink",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "ink",
+    "fx_env": "ink",
+    "shake": false,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
+   },
+   "id": "Emwpjn4ka26",
+   "action": "attack_normal_2",
+   "enabled": true,
+   "start_frame": 7,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "follow_dir": false,
+   "follow_each": false,
+   "keys": []
+  },
+  {
+   "prim": "technique",
+   "name": "Thrust kick",
+   "tag": "energy",
+   "anchor": "figure",
+   "blend": "additive",
+   "battle": {
+    "deals_damage": true,
+    "damage": 3,
+    "pierce": true,
+    "rehit_ticks": 0,
+    "knockback": 18,
+    "blockable": true,
+    "deflectable": true,
+    "armed": 1
+   },
+   "motion": {
+    "kind": "attached",
+    "aim": "target",
+    "angle_deg": 0,
+    "aim_offset_deg": 0,
+    "speed": 8,
+    "turn_deg": 6,
+    "amplitude": 55,
+    "freq": 0.18,
+    "orbit_rx": 46,
+    "orbit_ry": 46,
+    "orbit_deg": 1.12,
+    "orbit_dir": "clockwise",
+    "path": "",
+    "out_px": 260,
+    "return_style": "curve",
+    "catch_px": 28
+   },
+   "color": {
+    "mode": "palette",
+    "lut_index": 128,
+    "lut_index2": 128,
+    "lut_offset": 0,
+    "flow_speed": 0.008,
+    "c1": "#ffffff",
+    "c2": "#ff2200",
+    "start_fraction": 0
+   },
+   "params": {
+    "style": "thrust_kick",
+    "radius": 12,
+    "thickness": 18,
+    "length": 80,
+    "swing_ticks": 5,
+    "hold_ticks": 4,
+    "density": 1,
+    "kb_dir": "aim",
+    "span": 160,
+    "rotation_deg": 0,
+    "lightning": false,
+    "lightning_rate": 1.5,
+    "small_ticks": 0,
+    "aura_burst": true,
+    "aura_debris": true,
+    "aura_surges": true,
+    "aura_cracks": false,
+    "aura_part": "all",
+    "gap_px": 18,
+    "w_mode": "signature",
+    "w_scale": 1,
+    "w_flip_x": 1,
+    "w_flip_y": 1,
+    "w_yaw": 0,
+    "w_pitch": 0,
+    "w_spin": 0,
+    "w_depth": 0,
+    "w_weight": 0,
+    "w_plane": 0,
+    "w_plane_roll": 0,
+    "w_side": "front",
+    "w_blade": "both",
+    "w_grip": 0,
+    "w_flip_at": "anchor",
+    "w_move": 100,
+    "w_turn": 100,
+    "w_aim": "auto",
+    "w_follow": "off",
+    "w_hand1": "right",
+    "w_hand2": "left",
+    "w_b1_x": 0,
+    "w_b1_y": 0,
+    "w_b1_ang": 0,
+    "w_b2_x": 0,
+    "w_b2_y": 0,
+    "w_b2_ang": 0,
+    "ext_pivot": 0,
+    "ext_spin": 0,
+    "ext_sweep": 0,
+    "ext_spin_dir": "clockwise",
+    "ext_slide": 0,
+    "ext_slide_deg": 0,
+    "hitstop": true,
+    "hitstop_ticks": 6,
+    "kb_angle_deg": 0,
+    "impact_frame": "full",
+    "impact_frame_r": 90,
+    "fx_motion": "off",
+    "motion_smear": true,
+    "motion_arcs": true,
+    "fx_impact": "off",
+    "fx_env": "off",
+    "shake": true,
+    "shake_px": 6,
+    "shake_ticks": 8,
+    "squash": false,
+    "squash_amt": 0.3,
+    "squash_ticks": 6,
+    "squash_flash": true,
+    "kick_sweep": "high_low",
+    "axe_dir": "screen_down",
+    "axe_crater": "contact",
+    "spin_mode": "centered",
+    "spin_turns": 2,
+    "spin_vertical": false,
+    "rise_dir": "screen_up",
+    "kick_angle_deg": 0,
+    "flip_h": false,
+    "flip_v": false,
+    "moons": 5,
+    "weaves": 2,
+    "split_pct": 45,
+    "ground_px": 30,
+    "spin_deg": 34,
+    "scatter_path": "fan",
+    "fall_angle_deg": 18,
+    "cut_deg": -30,
+    "curve_pct": 25,
+    "slash_from": "start",
+    "df_reduce_pct": 70,
+    "df_hp": 0,
+    "df_result": "destroy",
+    "df_hurts": true,
+    "df_area": true,
+    "df_enemies": true,
+    "df_pull": true,
+    "df_pick": "lowest_hp",
+    "df_heal": 30
+   },
+   "id": "Emwpjynz227",
+   "action": "switch_in",
+   "flip": {
+    "enabled": true,
+    "facing": 1
+   },
+   "enabled": true,
+   "start_frame": 3,
+   "end_frame": -1,
+   "life_ticks": 0,
+   "continuous": false,
+   "always_on": false,
+   "char_every_ms": 0,
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "front",
+   "emit": {
+    "every_ticks": 0,
+    "count": 1,
+    "fan_deg": 0
+   },
+   "cycles": {
+    "enabled": false,
+    "count": 0
+   },
+   "intercept": {
+    "enabled": false,
+    "radius": 90,
+    "turn_deg": 10,
+    "contact": 10,
+    "mode": "block",
+    "deflect_who": "enemy",
+    "hurts_owner": false,
+    "drag": false,
+    "drag_pct": 100,
+    "drag_deg": 90,
+    "drag_every": 10
+   },
+   "escort": {
+    "enabled": false,
+    "ms": 6000,
+    "solo_contact_pct": 50
+   },
+   "follow_dir": true,
+   "follow_each": false,
+   "keys": []
   }
  ],
  "groups": [
@@ -29453,6 +29941,20 @@
   }
  ],
  "spec": "tools/fx/FX_KIT_SPEC.md — runtime reference tools/fx/studio/fxkit.js",
+ "guard": {
+  "enabled": false,
+  "max": 100,
+  "regen_per_s": 22,
+  "regen_delay_ms": 1200,
+  "open_drain_pct": 0,
+  "lockout_ms": 2500,
+  "break_action": "defend_recovery",
+  "refill_on_break_pct": 30,
+  "show": "not_full",
+  "width_pct": 70,
+  "height_pct": 7,
+  "offset_pct": 3
+ },
  "targeting": {
   "enabled": false,
   "mode": "nearest",
@@ -29564,13 +30066,13 @@
   "berserker": {
    "start_lost_pct": 0,
    "max_lost_pct": 60,
-   "max_bonus_pct": 300,
+   "max_bonus_pct": 500,
    "curve": "exponential",
    "steps": 5,
    "damage_bonus_pct": 100,
    "damage_taken_pct": 0,
    "speed_fx": false,
-   "aura": true,
+   "aura": false,
    "aura_color": "#828282"
   },
   "phase_shift": {

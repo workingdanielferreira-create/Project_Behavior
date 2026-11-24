@@ -11766,3 +11766,22 @@
     paint:pillars          avg   0.033 ms  worst    0.08 ms  x52
     timefx/puppet          avg   0.006 ms  worst    0.02 ms  x90
     stats                  avg   0.005 ms  worst    0.02 ms  x90
+19:52:40  fps 0.0  ticks/s 0.0  catch-up calls 0/0  fx 0  [sniper:-, puff:-, rapid:-, pewpew:-, hooded_blades:-]  screen 1920x1200  ball on  planet on  wireframe off
+    PAINT                  avg 3234.252 ms  worst 3234.25 ms  x1
+    paint:hud              avg 3208.247 ms  worst 3208.25 ms  x1
+    paint:ground bent      avg  19.751 ms  worst   19.75 ms  x1
+    paint:objects          avg   1.863 ms  worst    1.86 ms  x1
+    paint:air bent         avg   1.863 ms  worst    1.86 ms  x1
+    paint:ground drawn     avg   1.175 ms  worst    1.18 ms  x1
+    paint:air drawn        avg   1.170 ms  worst    1.17 ms  x1
+    paint:sniper body      avg   0.279 ms  worst    0.66 ms  x3
+    paint:puff body        avg   0.125 ms  worst    0.29 ms  x3
+    paint:rapid body       avg   0.064 ms  worst    0.15 ms  x3
+    paint:hooded_blades body avg   0.056 ms  worst    0.14 ms  x3
+    paint:pewpew body      avg   0.044 ms  worst    0.10 ms  x3
+    paint:pillars          avg   0.038 ms  worst    0.07 ms  x2
+    paint:sniper fx        avg   0.006 ms  worst    0.01 ms  x2
+    paint:puff fx          avg   0.002 ms  worst    0.00 ms  x2
+    paint:rapid fx         avg   0.001 ms  worst    0.00 ms  x2
+    paint:pewpew fx        avg   0.001 ms  worst    0.00 ms  x2
+    paint:hooded_blades fx avg   0.001 ms  worst    0.00 ms  x2
