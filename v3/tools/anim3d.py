@@ -29,6 +29,9 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
                "grip": "fwd" | "rev", "twirl": deg,      (reverse grip / blade spun in the fingers; tweened between keys)
                "clav": [lift, forward]},                  (shoulder girdle: shrug / drive forward / pull back, deg)
          "L": {..., "hilt": true}                         (left hand on the right weapon's handle: two-hand grip)
+         "R": {..., "fist": true}                         (unarmed: wrist locked straight, `blade` = where the thumb
+                                                           side points, reached by forearm twist only; clip "fists": true
+                                                           = every key's hands)
          "L": {...},
          "fR": {"ankle": [x, y, z], "pole": [x, y, z], "yaw": deg, "pitch": deg},
          "fL": {...}}, ...]}}}
@@ -247,9 +250,9 @@ class Solver:
             if want is not None:                         # the fist aims as for a forward grip: reverse = the other way
                 want = to_body(a["aim"], True) if a.get("aim") is not None else (-want if g > 0.5 else want)
             self.limb(S + "Arm", S + "ForeArm", S + "Hand", hand, pole, "elbow", swivel=a.get("swivel", SWIVEL),
-                      want=want, roll=a.get("roll", 0.0), t=t)
+                      want=want, roll=a.get("roll", 0.0), t=t, fist=bool(a.get("fist")))
             if want is not None:
-                self.blade(S, want, a.get("roll", 0.0), t)
+                self.blade(S, want, a.get("roll", 0.0), t, fist=bool(a.get("fist")))
         return dict(self.local), self.hipsT.copy()
 
     def chest_xform(self):
@@ -288,7 +291,7 @@ class Solver:
         R = r.rot_axis(np.array([0, 0, 1.0]), side * lift * D2R) @ r.rot_axis(np.array([0, 1.0, 0]), -side * fwd * D2R)
         self.set_world(S + "Shoulder", R @ W[i], W)
 
-    def limb(self, upper, lower, end, target, pole, kind, swivel=0.0, want=None, roll=0.0, t=0.0):
+    def limb(self, upper, lower, end, target, pole, kind, swivel=0.0, want=None, roll=0.0, t=0.0, fist=False):
         """Two-bone IK with a pole; the bend happens about the lower joint's own hinge axis, within its range.
         With a blade to point (want) and swivel > 0, the elbow may swing up to `swivel` deg round the shoulder->hand
         line, picking the spot that needs the least forearm twist / wrist bend (and stays near last frame's)."""
@@ -304,7 +307,7 @@ class Solver:
         for a in np.arange(-swivel, swivel + 1e-6, 5.0):
             self.local, self.prev = dict(keep), dict(kprev)
             self._limb(upper, lower, end, target, base + r.rot_axis(dn, a * D2R) @ (pole - base), kind)
-            sc = self.blade(upper[:-3], want, roll, t, apply=False) + abs(a) * 0.03 + abs(a - last) * 0.1
+            sc = self.blade(upper[:-3], want, roll, t, apply=False, fist=fist) + abs(a) * 0.03 + abs(a - last) * 0.1
             if best is None or sc < best[0]:
                 best = (sc, a)
         self.local, self.prev = keep, kprev
@@ -375,9 +378,12 @@ class Solver:
         ax = r.unit(np.cross(blade_h, fing))
         self.local[iw] = r.rot_axis(ax, deg * D2R) @ rig.R[iw]
 
-    def blade(self, S, want, roll, t, apply=True):
+    def blade(self, S, want, roll, t, apply=True, fist=False):
         """Point the blade: forearm twist (within PRONATE) brings the blade round the forearm, the wrist bends the rest
-        (within WRIST). `roll` turns the blade about itself only through the forearm twist."""
+        (within WRIST). `roll` turns the blade about itself only through the forearm twist.
+        fist (unarmed fighters, Daniel 2026-11-24 "wrists placed with intention, not flopping"): the wrist stays LOCKED
+        straight, knuckles in line with the forearm; only the forearm twist turns the fist so the thumb side points
+        as close to `want` as it can."""
         rig = self.rig
         side = "R" if S == "Right" else "L"
         W, P = self.fk()
@@ -396,7 +402,10 @@ class Solver:
             cur = Wh @ blade_h
             err = math.degrees(math.acos(max(-1, min(1, np.dot(cur, want)))))
             # least wrist bend, a little less twist, and above all no jump from last frame's twist
-            score = max(0.0, err - WRIST) * 2 + err * 0.15 + abs(tw) * 0.02 + (0 if prev is None else abs(tw - prev) * 0.6)
+            if fist:
+                score = err + abs(tw) * 0.01 + (0 if prev is None else abs(tw - prev) * 0.2)
+            else:
+                score = max(0.0, err - WRIST) * 2 + err * 0.15 + abs(tw) * 0.02 + (0 if prev is None else abs(tw - prev) * 0.6)
             if best is None or score < best[0]:
                 best = (score, tw, err)
         if not apply:
@@ -405,6 +414,9 @@ class Solver:
         self.prev["tw" + side] = tw
         tw = min(max(tw + roll, -PRONATE), PRONATE)
         self.local[ifa] = base_fa @ r.rot_axis(axis_l, tw * D2R)
+        if fist:
+            self.local[ih] = rig.R[ih]              # straight wrist: the hand rides the forearm
+            return
         W, P = self.fk()
         Wh = W[ifa] @ rig.R[ih]
         cur = Wh @ blade_h
@@ -554,6 +566,9 @@ def bake_clip(B, spec, notes=None, dense=False):
         k["arm_space"] = spec.get("arm_space", "body")
         if spec.get("physics"):
             k["_phys"] = True
+        if spec.get("fists"):                          # unarmed clip: every hand a locked-wrist fist unless a key says not
+            for sd in ("R", "L"):
+                k[sd].setdefault("fist", True)
     length = float(spec.get("length") or keys[-1]["t"])
     n = max(2, int(round(length * FPS)) + 1)
     times = [min(length, f / FPS) for f in range(n)]
@@ -644,7 +659,8 @@ def main(argv):
         print("  note:", n)
     if "--check" in argv:
         out, bin_ = r.pack(B.j, B.b, meshes=False, keep_anims=False, new_clips=clips, rig=B.rig)
-        return anim_audit.report_from(out, bytes(bin_), B)
+        held = anim_audit.held_from(r.read_glb(os.path.join(r.CHARS, name, name + ".glb"))[0])   # unarmed hands: no blade check
+        return anim_audit.report_from(out, bytes(bin_), B, held=held)
     path, total = write_into(name, clips, B)
     print("%s: %s (%d KB) - authored clips: %s" % (name, os.path.relpath(path, r.ROOT), total // 1024, ", ".join(sorted(clips))))
     return 0

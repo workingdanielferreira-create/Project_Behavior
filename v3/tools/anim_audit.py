@@ -232,7 +232,7 @@ class Auditor:
             parts = {"torso": (P_(P, "Spine"), P_(P, "Neck"), .11), "head": (P_(P, "Head"), P_(P, "HeadTop_End"), .10),
                      "thigh R": (P_(P, "RightUpLeg"), P_(P, "RightLeg"), .08), "thigh L": (P_(P, "LeftUpLeg"), P_(P, "LeftLeg"), .08)}
             for wb, tp, lab in (("Weapon_R", "WeaponTip_R", "blade R"), ("Weapon_L", "WeaponTip_L", "blade L")):
-                if wb not in rig.idx:
+                if wb not in rig.idx or not self.held.get(wb[-1], True):     # an unarmed hand's hidden blade
                     continue
                 a, b_ = P_(P, wb), P_(P, tp)
                 a = a + (b_ - a) * 0.25
@@ -270,7 +270,9 @@ class Auditor:
             prev = (local, P)
         return len(times), res
 
-    def run(self, j, b, only=None):
+    def run(self, j, b, only=None, held=None):
+        """held = {"R": bool, "L": bool}: which hands hold a blade (pb_body.weapons; unarmed = not checked)."""
+        self.held = held if held is not None else held_from(j)
         out = {}
         for an in j["animations"]:
             if only and an["name"] not in only:
@@ -279,6 +281,12 @@ class Auditor:
             self.names = {i: nd.get("name", "") for i, nd in enumerate(j["nodes"])}
             out[an["name"]] = self.clip(self.tracks(j, b, an), pk)
         return out
+
+
+def held_from(j):
+    """Which hands hold a blade, from a character file's pb_body.weapons (missing = both checked)."""
+    w = ((((j.get("scenes") or [{}])[0].get("extras") or {}).get("pb_body") or {}).get("weapons")) or {}
+    return {s: bool(w.get(s, True)) for s in ("R", "L")}
 
 
 def print_report(rep):
@@ -300,8 +308,8 @@ def print_report(rep):
     return 1 if hard else 0
 
 
-def report_from(j, b, body=None, only=None):
-    return print_report(Auditor().run(j, b, only))
+def report_from(j, b, body=None, only=None, held=None):
+    return print_report(Auditor().run(j, b, only, held))
 
 
 def main(argv):
