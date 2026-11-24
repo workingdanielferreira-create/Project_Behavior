@@ -21,11 +21,16 @@ function planetReset(){if(!PLANET)return;if(world)world.dispose();
   scene.fog=new THREE.Fog(world.pal.fog,fr?fr[0]:1e5,fr?fr[1]:2e5);
   planetFog=[scene.fog.near,scene.fog.far];cam.far=Math.max(400,world.R*3.2+320);cam.updateProjectionMatrix();planetSolids=null;}
 let planetFog=null;
-// the fight centre the globe keeps on top
-function planetAnchor(){const [a,b]=onField();if(!a)return null;
-  if(!b||b.phantom||b.ko||!b.on||Math.hypot(a.x-b.x,a.y-b.y)>2600)return [a.x,a.y];return [(a.x+b.x)/2,(a.y+b.y)/2];}
+// the spot the globe keeps on top (Daniel 2026-11-24): the knockback tracking shot's fighter while the camera rides with
+// it (camera.js track), else the midpoint of the two on-field fighters measured the SHORT way round the planet.
+const planetCirc=()=>2*Math.PI*world.R/K;   // once round the planet, sim px
+function planetAnchor(){if(typeof track!=='undefined'&&track.f&&track.f.on&&(track.ph===1||track.ph===2))return [track.f.x,track.f.y,true];
+  const [a,b]=onField();if(!a)return null;
+  if(!b||b.phantom||b.ko||!b.on)return [a.x,a.y];
+  let dx=b.x-a.x,dy=b.y-a.y;const d=Math.hypot(dx,dy),C=planetCirc();if(d>C/2){dx-=dx/d*C;dy-=dy/d*C;}
+  return [a.x+dx/2,a.y+dy/2];}
 function planetFrame(rdt,idle){if(!PLANET||!world)return;
-  const c=planetAnchor();if(c&&!idle)world.setAnchor(pX(c[0]),pZ(c[1]),false,rdt);
+  const c=planetAnchor();if(c&&!idle)world.setAnchor(pX(c[0]),pZ(c[1]),false,rdt*(c[2]?3:1));   // tighter while tracking
   // seen from orbit (title) the haze would hide the planet: push it out there
   if(planetFog&&scene.fog){scene.fog.near=idle?Math.max(planetFog[0],world.R*3):planetFog[0];scene.fog.far=idle?Math.max(planetFog[1],world.R*6):planetFog[1];}
   world.update(rdt,cam.position,it=>!allFighters().some(f=>{const p=world.flatOf(it.u);return Math.hypot(pX(f.x)-p.x,pZ(f.y)-p.z)<it.cols.reduce((m,c)=>Math.max(m,c.r),1)+1.5;}));}
@@ -44,7 +49,19 @@ function nearSolids(){if(planetSolids&&planetSolids.t===tick)return planetSolids
     l.push({c,it,x:p.x/K+W/2,y:p.z/K+H/2,r:c.r/K,h:c.h/K});}
   planetSolids={t:tick,l};return l;}
 function cfgOf(it){return it.group==='pillars'?WORLD_CFG.pillars:it.group==='scenery'?WORLD_CFG.scenery:WORLD_CFG.landmarks;}
-function planetTick(){if(!PLANET||!world)return;const L=nearSolids();
+/* Keep flying round (Daniel 2026-11-24): the sim plane is flat, the world is a globe. A point more than half way round
+   from the anchor is the same globe spot as the point (once round) closer in from the other side, so it is moved there:
+   a fighter thrown past the far side keeps going the same way and comes back round from behind, and the AI / distances
+   use the short way. Before this the bend drew it past the far side and it looked like it reversed. */
+let planetWrapped=false;   // camera.js: an on-field fighter was moved round this tick (re-frame the normal shot at once)
+function planetWrap(){const C=planetCirc(),ax=world.A.x/K+W/2,ay=world.A.z/K+H/2;
+  const wrap=o=>{const dx=o.x-ax,dy=o.y-ay,d=Math.hypot(dx,dy);if(d<=C/2)return null;const sx=-dx/d*C,sy=-dy/d*C;o.x+=sx;o.y+=sy;return [sx,sy];};
+  const [a,b]=onField();
+  sides.forEach(s=>s.team.forEach(f=>{if(!f||!f.on||f.phantom||f.mv3||f.leap>0)return;const m=wrap(f);if(!m)return;
+    f.lx+=m[0];f.ly+=m[1];if(f.snap){f.snap.tx+=m[0];f.snap.ty+=m[1];f.snap.sx+=m[0];f.snap.sy+=m[1];}
+    if(f===a||f===b)planetWrapped=true;}));
+  shots.forEach(s=>wrap(s));}
+function planetTick(){if(!PLANET||!world)return;planetWrap();const L=nearSolids();
   for(const f of allFighters()){
     for(const s of L){if(f.z>s.h)continue;const dx=f.x-s.x,dy=f.y-s.y,d=Math.hypot(dx,dy)||.001,rr=s.r+BODY_R;if(d>=rr)continue;
       const nx=dx/d,ny=dy/d,sp=Math.hypot(f.vx,f.vy),into=-(f.vx*nx+f.vy*ny);const C=cfgOf(s.it);
