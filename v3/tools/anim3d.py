@@ -100,9 +100,32 @@ class Body:
             self.j, self.b = r.add_left_blade(self.j, self.b)
         rig = self.rig = r.Rig(self.j, self.b)
         self.grip = r.grip_pose(rig)
+        self.fist = self._fist()
         self.HI = rig.i("Hips")
         self.hp = rig.parent[self.HI]
         self.hinge = self._hinges()
+
+    # a tight punching fist (Daniel 2026-11-24: "never make a fighter hit with his fingers"): base knuckles folded past
+    # square so the first two knuckles are the front of the fist, fingers rolled into the palm, thumb locked across
+    FIST_DEG = {"1": 108.0, "2": 112.0, "3": 75.0}
+    THUMB_DEG = {"2": 40.0}          # the grip's tucked thumb, folded a little tighter
+
+    def _fist(self):
+        """{side: {bone index: local rotation}}: the grip pose's own curl axes, driven to FIST_DEG / THUMB_DEG."""
+        rig = self.rig
+        out = {"Right": {}, "Left": {}}
+        for i, m in self.grip.items():
+            n = rig.names[i]
+            side = "Right" if n.startswith("Right") else "Left"
+            aa = axis_angle(rig.R[i].T @ m)
+            ang = np.linalg.norm(aa)
+            if ang < 1e-6:
+                continue
+            want = (self.THUMB_DEG if "Thumb" in n else self.FIST_DEG).get(n[-1])
+            if want is None:
+                continue
+            out[side][i] = rig.R[i] @ r.rot_axis(aa / ang, want * D2R)
+        return out
 
     def P(self, name):
         return self.rig.restP[self.rig.i(name)]
@@ -221,6 +244,8 @@ class Solver:
         to_body = self.chest_xform() if c.get("arm_space") == "chest" else (lambda p, d=False: np.array(p, float))
         for side, S in (("R", "Right"), ("L", "Left")):
             a = c[side]
+            if a.get("fist"):
+                self.local.update(B.fist[S])
             hand, pole = to_body(a["hand"]), to_body(a["pole"])
             if side == "L" and a.get("hilt"):
                 # two-hand grip (Daniel 2026-11-23): the left fist closes on the handle just below the right one, its

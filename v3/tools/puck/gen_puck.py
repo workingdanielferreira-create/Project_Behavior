@@ -35,6 +35,13 @@ def arm(M, reach, elbow, thumb, clav=None):
     return out
 
 
+def line(chest, ext=0.66, dx=0.0, dy=0.0):
+    """A reach along the line of action: the chest's own spine direction (hips -> neck) carried on out through the
+    arm, nudged by dx / dy (m, body space), ext m long (0.66 = straight once the shoulder girdle drives forward)."""
+    v = rot_euler(*chest) @ np.array([0, 1.0, 0]) + np.array([dx, dy, 0])
+    return r3(U(v) * ext)
+
+
 def foot(x, z, y=0.0, yaw=0.0, pitch=0.0, knee=(0, 0.1, 1)):
     return {"ankle": r3([x, ANKLE + y, z]), "knee": r3(U(knee)), "yaw": yaw, "pitch": pitch}
 
@@ -86,21 +93,21 @@ def attack_normal():
     K = []
     # 0.00 (2D f1-f2) mid-dash: pitched hard forward, right foot planted, left foot swinging through, right fist
     # forward at chest height, left arm back as a counterweight
-    K.append(key(0.0, "inout", [0, -0.14, -0.20], [-8, 40, 0], [-14, 55, 4], [0, 20, 0],
-                 ([0.02, -0.12, 0.40], [-0.5, -1, 0.2], [0.3, 0.6, 0.6]),
-                 ([0.10, -0.36, -0.22], [0.4, -0.6, -1], [0.2, 0.2, -1]),
+    K.append(key(0.0, "inout", [0, -0.16, -0.20], [-8, 52, 0], [-14, 70, 4], [-4, 46, 0],
+                 (line([-14, 70, 4], ext=0.72, dx=0.06), [-1, -0.3, 0], [0.7, 0.6, 0], [0, 24]),
+                 ([0.12, -0.30, -0.42], [0.4, -0.6, -1], [0.2, 0.2, -1]),
                  foot(-0.13, -0.05, pitch=10, yaw=-8), foot(0.12, -0.62, y=0.12, pitch=45, knee=(0.1, -0.4, 1)),
                  label="mid-dash"))
     # 0.09 (f3) load: left foot reaching to land, hips coil right, chest wrung back further and arched a little; the
     # right fist cocked HIGH behind the ear, elbow up and out; left hand forward as a guard / range finder
-    K.append(key(0.09, "in", [0, -0.08, 0.08], [-30, 22, 6], [-46, 48, 8], [8, 20, 4],
-                 ([-0.18, 0.08, -0.18], [-1, 0.35, -0.5], [0.2, 0.3, 1], [14, -24]),
+    K.append(key(0.09, "in", [0, -0.10, 0.08], [-30, 40, 6], [-46, 54, 8], [6, 32, 4],
+                 ([-0.16, 0.0, -0.24], [-1, 0.2, -0.6], [0.2, 0.3, 1], [8, -24]),
                  ([0.10, -0.20, 0.30], [0.6, -1, 0], [0.2, 0.2, -1]),
                  foot(-0.13, -0.05, pitch=30, yaw=-15), foot(0.13, 0.62, y=0.05, yaw=10, knee=(0.2, 0, 1)),
                  label="load: fist cocked high"))
     # 0.13 breakdown: the fist comes over the top - high and wide above the shoulder, elbow leading, as the hips
     # start to whip left
-    K.append(key(0.13, "in", [0, -0.10, 0.24], [-2, 28, 0], [-12, 46, 6], [4, 18, 0],
+    K.append(key(0.13, "in", [0, -0.12, 0.24], [-2, 44, 0], [-12, 60, 6], [4, 38, 0],
                  ([-0.32, 0.22, 0.28], [-1, 0.6, 0.1], [0.3, 0.3, 1], [18, 10]),
                  ([0.02, -0.06, 0.24], [0.5, -1, -0.3], [0.2, 0.2, -1], [0, -10]),
                  foot(-0.13, -0.05, pitch=35, yaw=-20, knee=(-0.2, -0.2, 1)), foot(0.13, 0.66, yaw=10, knee=(0.2, 0, 1)),
@@ -108,40 +115,40 @@ def attack_normal():
     # 0.165 (f4-f5) OVERHAND lands: the arm drives DOWN onto the target at full stretch, the right shoulder rolled
     # over it; hips lead, back folded forward and side-bent into the punch (left shoulder dropped), back leg long;
     # fist turned over (thumb down / in), left fist snapped back to the jaw
-    K.append(key(0.165, "snap", [0, -0.13, 0.40], [24, 30, -6], [36, 80, -8], [8, 34, -6],
-                 ([0.12, -0.02, 0.65], [-1, 0.5, 0.1], [0.6, -0.6, 0.1], [8, 36]),
+    K.append(key(0.165, "snap", [0, -0.14, 0.40], [24, 44, -6], [36, 66, -8], [8, 44, -6],
+                 (line([36, 66, -8], dx=0.18, dy=-0.42), [-1, 0.5, 0.1], [0.6, -0.6, 0.1], [8, 36]),
                  ([-0.02, -0.06, 0.18], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -22]),
                  foot(-0.13, -0.05, pitch=40, yaw=-25, knee=(-0.3, -0.2, 1)), foot(0.13, 0.66, yaw=10, knee=(0.2, 0, 1)),
                  label="OVERHAND lands (down onto the target)"))
     # 0.21 (f6-f7) follow-through: the fist keeps going down and across, past where it hit; the back folds over
     # further, chest whips past the hips
-    K.append(key(0.21, "out", [0, -0.17, 0.50], [32, 36, -8], [50, 90, -10], [14, 40, -8],
-                 ([0.40, -0.26, 0.46], [-1, 0.4, 0.5], [0.6, -0.5, 0.3], [-2, 40]),
+    K.append(key(0.21, "out", [0, -0.18, 0.50], [32, 54, -8], [50, 82, -10], [14, 58, -8],
+                 (line([50, 82, -10], dx=0.45, dy=-0.25), [-1, 0.4, 0.5], [0.6, -0.5, 0.3], [-2, 40]),
                  ([-0.04, -0.08, 0.14], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -24]),
                  foot(-0.13, -0.05, pitch=45, yaw=-25, knee=(-0.3, -0.2, 1)), foot(0.13, 0.66, yaw=10, knee=(0.2, 0, 1)),
                  label="follow-through: down and across"))
     # 0.26 (f8) step through + re-cock: the back foot drives through, the body rises and turns back right, the right
     # fist pulled back up beside the head, elbow forward (2D f8-f10)
-    K.append(key(0.26, "inout", [0, -0.14, 0.66], [-16, 26, 6], [-34, 46, 8], [8, 20, 4],
-                 ([-0.10, 0.14, 0.0], [-0.5, 0.3, 1], [0.2, 0.3, 1], [16, -10]),
+    K.append(key(0.26, "inout", [0, -0.14, 0.66], [-16, 38, 6], [-34, 50, 8], [8, 30, 4],
+                 ([-0.12, 0.0, -0.10], [-1, 0.1, -0.2], [0.2, 0.3, 1], [8, -10]),
                  ([0.06, 0.0, 0.32], [0.6, -1, 0], [0.2, 0.2, -1]),
                  foot(-0.12, 0.40, y=0.18, pitch=20, yaw=-10, knee=(-0.1, 0.3, 1)), foot(0.13, 0.66, pitch=15, yaw=10, knee=(0.2, 0, 1)),
                  label="step through + re-cock high"))
     # 0.31 (f10) coiled hold (moving): right foot lands in front, fist drifts higher and further back, chest wrung
-    K.append(key(0.31, "out", [0, -0.12, 0.80], [-22, 22, 8], [-44, 46, 8], [10, 20, 4],
-                 ([-0.18, 0.14, -0.14], [-0.8, 0.4, 0.2], [0.2, 0.3, 1], [18, -18]),
+    K.append(key(0.31, "out", [0, -0.12, 0.80], [-22, 36, 8], [-44, 50, 8], [10, 28, 4],
+                 ([-0.16, 0.02, -0.22], [-1, 0.2, -0.5], [0.2, 0.3, 1], [8, -20]),
                  ([0.10, -0.18, 0.30], [0.6, -1, 0], [0.2, 0.2, -1]),
                  foot(-0.12, 0.92, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, pitch=25, yaw=15, knee=(0.2, -0.1, 1)),
                  label="coiled (hold)"))
     # 0.36 (f11) FOLLOW-UP OVERHAND lands: over the top and down again, the whole back folded over it
-    K.append(key(0.36, "snap", [0, -0.12, 0.98], [26, 32, -8], [36, 80, -8], [8, 34, -6],
-                 ([0.10, -0.02, 0.65], [-1, 0.5, 0.1], [0.6, -0.6, 0.1], [8, 36]),
+    K.append(key(0.36, "snap", [0, -0.13, 0.98], [26, 44, -8], [36, 66, -8], [8, 44, -6],
+                 (line([36, 66, -8], dx=0.16, dy=-0.42), [-1, 0.5, 0.1], [0.6, -0.6, 0.1], [8, 36]),
                  ([-0.02, -0.06, 0.18], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -22]),
                  foot(-0.12, 0.92, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, pitch=40, yaw=20, knee=(0.3, -0.2, 1)),
                  label="FOLLOW-UP OVERHAND lands"))
     # 0.40 (f12) follow-through and on: fist down and across past the target, back foot peeling off to keep moving
-    K.append(key(0.40, "out", [0, -0.15, 1.08], [32, 38, -10], [50, 90, -10], [14, 40, -8],
-                 ([0.38, -0.26, 0.46], [-1, 0.4, 0.5], [0.6, -0.5, 0.3], [-2, 40]),
+    K.append(key(0.40, "out", [0, -0.17, 1.08], [32, 54, -10], [50, 82, -10], [14, 58, -8],
+                 (line([50, 82, -10], dx=0.45, dy=-0.25), [-1, 0.4, 0.5], [0.6, -0.5, 0.3], [-2, 40]),
                  ([-0.04, -0.08, 0.14], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -24]),
                  foot(-0.12, 0.92, pitch=15, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, y=0.08, pitch=55, yaw=20, knee=(0.2, -0.4, 1)),
                  label="follow-through, moving on"))
