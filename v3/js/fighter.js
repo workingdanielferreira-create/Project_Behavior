@@ -6,7 +6,7 @@ function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
     ni:0,lastNormal:-999,gapUntil:0,cds:{special:0,special2:0,ult:600},
     lastEnd:-999,lastWhiff:false,landedThisAct:false,lastLanded:-999,lastHurt:-999,hurts:[],
     tp:{intent:'neutral',since:0,until:0,n:0,done:0,mom:0,orbit:Math.random()<.5?1:-1,swayPh:rnd(0,TAU),swayMs:rnd(900,2200),feintKind:'dash_in',feintBit:false,openSeen:false,resetAng:0,punishReady:0,lastStart:0},
-    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false});}
+    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false,mvx:0,mvy:0,spdLv:1});}
 function setOn(f,on){f.on=on;f.g.visible=on;f.sh.visible=on;f.aline.visible=false;}
 /* ================= per-fighter update ================= */
 function updFighter(f){
@@ -42,19 +42,17 @@ function updFighter(f){
     if(f.act===a){a.t++;if(a.t*TICK>=a.def.dur){endAct(f);}}}
   // movement: drift & snap, intent-driven
   const free=!f.act&&f.stun<=0&&!f.snap&&f.gone<=0&&f.leap<=0;
-  let mx=0,my=0,drift=0;
-  if(f.side===0&&human&&inputDir){mx=inputDir[0];my=inputDir[1];drift=f.k.speed*1.25;f.manualUntil=tick+ms2t(600);}
+  let mx=0,my=0,drift=0,lv=1;
+  if(f.side===0&&human&&inputDir&&playerDriven(f)){lv=playerLv(f);mx=inputDir[0];my=inputDir[1];drift=f.k.speed*1.25*lvMul(f,lv);f.manualUntil=tick+ms2t(600);}
   else if(!handson&&!(f.side===0&&tick<f.manualUntil)){const sty=styleTarget(f,e);const tgt=sty||moveTarget(f,e);if(tgt){const dx=tgt[0]-f.x,dy=tgt[1]-f.y,d=Math.hypot(dx,dy);
       const it=sty?'style':f.tp.intent;
       if(free&&(d>170||(f.k.blink>.5&&d>f.k.reach*1.3))&&['engage','punish','reset','feint','pressure'].includes(it)&&f.snapCd<=tick&&Math.random()<.35){const over=Math.min(d,rnd(260,520));snapTo(f,f.x+dx/d*over,f.y+dy/d*over,Math.random()<f.k.blink,false,['engage','punish','pressure'].includes(it)?e.z:f.zWant);}
-      else if(d>4){mx=dx/d;my=dy/d;drift=f.k.speed*(sty?sty[2]:(SPEEDMUL[it]||1))*(burst()?1.15:1)*Math.min(1,d/(['engage','pressure','punish'].includes(it)?30:90));}}
+      else if(d>4){lv=aiLv(f,it,d);mx=dx/d;my=dy/d;drift=f.k.speed*(sty?sty[2]:(SPEEDMUL[it]||1))*(burst()?1.15:1)*lvMul(f,lv)*Math.min(1,d/(['engage','pressure','punish'].includes(it)?30:90));}}
     // ranged kiting: too close -> snap away
     if(!f.k.melee&&free&&Math.hypot(e.x-f.x,e.y-f.y)<130&&f.snapCd<=tick&&Math.random()<.2){const a=Math.atan2(f.y-e.y,f.x-e.x)+rnd(-.7,.7);snapTo(f,f.x+Math.cos(a)*360,f.y+Math.sin(a)*360,Math.random()<f.k.blink);}}
-  if(f.act&&f.act.kind!=='ult')drift*=.25;if(f.stun>0||f.gone>0||f.mv3)drift=0;
-  // stutter-step footwork: a quick step, then a planted stance (no gliding)
-  if(drift>0&&!f.snap){drift*=(f.spdMul||1);const cyc=.24,mv=.1;const prev=f.stepT;f.stepT=(f.stepT+DT)%cyc;const moving=f.stepT<mv;
-    if(f.z>10){f.x+=mx*drift*DT;f.y+=my*drift*DT;}   // in the air: steady drift, no footwork
-    else if(moving){f.x+=mx*drift*(cyc/mv)*DT;f.y+=my*drift*(cyc/mv)*DT;}else if(prev<mv&&f.z<10&&Math.random()<.25)fx_dust(f.x,f.y,1);}
+  if(f.act&&f.act.kind!=='ult'){drift*=.25;lv=1;}if(f.stun>0||f.gone>0||f.mv3)drift=0;
+  // continuous movement at three speed levels (sprint.js; Daniel 2026-11-24: no more step-and-plant stop-start)
+  moveStep(f,drift>0?mx:0,drift>0?my:0,drift>0?drift*(f.spdMul||1):0,lv);
   stepSnap(f);
   updAltitude(f,e);
   // knockback slide (in the air it carries much further: fighters fly across the arena)

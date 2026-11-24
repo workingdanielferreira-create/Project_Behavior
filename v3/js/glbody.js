@@ -117,7 +117,7 @@ function glbPick(f,body){
   if(!canFly(f)&&f.z>8)return f.vz>120?['jump','jump'+(f.jumps||0),0]:['fall','fall',0];   // jumps (gravity.js)
   if(f.landT>tick&&f.z<=0&&f.lean<=.15)return ['land','land',0];
   const air=f.z*K>1.2;
-  if(f.lean>.15)return [air?'air_move':'run','move',0];
+  if(f.lean>.15)return [air?'air_move':(f.spdLv||1)>=2?'sprint':'run','move'+(air?'':(f.spdLv||1)>=2?'S':''),0];   // sprint.js: Lv2 / Lv3 = the sprint clip
   return [air?'air':'idle','still',0];}
 function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=glbClip(B,p[0]);
   if(name!==G.cur||p[1]!==G.curId){const clip=B.clips[name];const act=G.mixer.clipAction(clip);

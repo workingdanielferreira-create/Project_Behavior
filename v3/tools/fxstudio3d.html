@@ -152,6 +152,9 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   <aside class="side" id="side">
     <section id="secChar"><h2>Character <small id="charOut"></small></h2>
       <div class="row"><label for="flight">Can fly</label><div class="pair"><input id="flight" type="checkbox"><span class="note">stays in the air (R / F climb / descend); off = jumps + gravity</span></div></div>
+      <div class="row"><label for="spLv2" title="Lv2 = sprint (hold Shift in V3), % of the base speed">Sprint Lv2 (%)</label><input id="spLv2" type="number" min="100" step="5"></div>
+      <div class="row"><label for="spLv3">Lv3 speed</label><div class="pair"><input id="spLv3" type="checkbox"><span class="note">heightened speed beyond sprint (double-tap + hold Shift; the AI uses it to close / punish)</span></div></div>
+      <div class="row"><label for="spLv3Pct" title="% of the base speed">Lv3 speed (%)</label><input id="spLv3Pct" type="number" min="100" step="5"></div>
       <p class="note" id="bodyOut"></p>
     </section>
 
@@ -187,6 +190,11 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <p class="note">The effect keeps its 2D anime drawing; this lays it in the 3D world. <b>Side</b> = the upright plane through the aim line, <b>Flat</b> = level at its height, <b>Ground</b> = on the floor, <b>Billboard</b> = faces the camera.</p>
       <div id="placeForm"></div>
       <div class="btns"><button id="place0" type="button">Reset 3D placement</button></div>
+    </section>
+
+    <section id="secToon"><h2>3D shape &amp; cel look <small id="toonOut"></small></h2>
+      <p class="note">Laser trails, beams, orbs / bolts, particles, glows and impacts are real 3D shapes with flat cel bands, a white-hot core and an ink outline (they hit with their 3D shape). <b>Card</b> = the 2D drawing as before.</p>
+      <div id="toonForm"></div>
     </section>
 
     <section id="secLook"><h2>Look &amp; timing</h2><div id="lookForm"></div></section>
@@ -392,7 +400,7 @@ async function openChar(i) {
       onHit: (ref, dmg, kb, inst) => onHit(dmg, kb, inst), onHitstop: () => {}, onShake: () => {}});
     try { localStorage.setItem('pbFx3dChar', c.name); } catch (e) {}
     $('drop').hidden = true; $('save').disabled = false;
-    $('charOut').textContent = c.name; $('flight').checked = !!(F.flight && F.flight.enabled);
+    $('charOut').textContent = c.name; $('flight').checked = !!(F.flight && F.flight.enabled); syncSprint();
     $('bodyOut').textContent = 'Body: ' + BODY_NAME + (own ? (skinned(own) ? ' → its own ' + c.glb : ' + its clips from ' + c.glb) : ' (no ' + c.name + '.glb: the body\'s stock clips play)') +
       ' · ' + (melee ? 'melee' : 'ranged') + (S.anchors3d ? ' · ' + Object.keys(S.anchors3d).length + ' Rig Forge 3D anchors' : '');
     const acts = actions(); selAction(acts.indexOf('attack_normal') >= 0 ? 'attack_normal' : acts[0] || 'idle');
@@ -413,7 +421,7 @@ function changed(structural) {
   S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null;
   if (structural) { buildActs(); buildFxList(); buildForms(); } else { buildBars(); syncJson(); updateCounts(); }
 }
-function restore(js) { const cur = curFx(), id = cur && cur.id; S.F = JSON.parse(js);
+function restore(js) { const cur = curFx(), id = cur && cur.id; S.F = JSON.parse(js); syncSprint(); $('flight').checked = !!(S.F.flight && S.F.flight.enabled);
   S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
 $('undo').onclick = () => { if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); };
 $('redo').onclick = () => { if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); };
@@ -429,6 +437,14 @@ async function save() {
 }
 $('save').onclick = save;
 $('flight').onchange = function () { pushUndo(); S.F.flight = Object.assign({}, S.F.flight || {}, {enabled: this.checked}); changed(false); };
+/* sprint levels (V3 sprint.js): fxkit sprint {lv2_pct, lv3, lv3_pct}; defaults = V3's SPRINT (185 % / 300 %) */
+const SPRINT_DEF = {lv2_pct: 185, lv3: false, lv3_pct: 300};
+function syncSprint() { const sp = Object.assign({}, SPRINT_DEF, (S.F && S.F.sprint) || {});
+  $('spLv2').value = sp.lv2_pct; $('spLv3').checked = !!sp.lv3; $('spLv3Pct').value = sp.lv3_pct; $('spLv3Pct').disabled = !sp.lv3; }
+function putSprint(k, v) { if (!S.F) return; pushUndo(); S.F.sprint = Object.assign({}, SPRINT_DEF, S.F.sprint || {}, {[k]: v}); syncSprint(); changed(false); }
+$('spLv2').onchange = function () { putSprint('lv2_pct', Math.max(100, +this.value || SPRINT_DEF.lv2_pct)); };
+$('spLv3').onchange = function () { putSprint('lv3', this.checked); };
+$('spLv3Pct').onchange = function () { putSprint('lv3_pct', Math.max(100, +this.value || SPRINT_DEF.lv3_pct)); };
 
 /* ---------------------------------------------------------------- actions */
 function actions() { const T = (S.F && S.F.timing) || {}; return Object.keys(T); }
@@ -556,7 +572,38 @@ const PLACE = [
   {l: 'Turn about', p: 'fx3d.pivot', t: 'sel', o: [['spawn', 'its start point'], ['figure', 'the body centre']]},
   {l: 'Offset (m)', p: 'fx3d.offset', t: 'xyz', h: 'fwd = toward the target, up, side (m). Or Drag: FX start spot on the stage'},
   {l: 'Size (%)', p: 'fx3d.size_pct', t: 'rng', min: 10, max: 400},
-  {l: 'Ink edge (px)', p: 'fx3d.ink_px', t: 'rng', min: 0, max: 6, step: 0.5, h: 'A dark cel outline round the drawing (0 = none)'},
+  {l: 'Ink edge (px)', p: 'fx3d.ink_px', t: 'rng', min: 0, max: 6, step: 0.5, show: v => !is3dV(v), h: 'A dark cel outline round the drawing (0 = none)'},
+];
+const is3dV = v => FX3D.is3d(v, v.fx3d);
+const TOON = [
+  {l: 'Render', p: 'fx3d.render', t: 'sel', s: true, o: [['auto', 'auto (3D shape for the basic kinds, card for the rest)'], ['3d', '3D cel-shaded shape'], ['card', '2D card (the drawing)']]},
+  {l: 'Cel look', t: 'h', show: is3dV},
+  {l: 'Bands', p: 'fx3d.toon_bands', t: 'rng', min: 1, max: 6, show: is3dV, h: 'Flat colour bands from the edge (shade) to the middle (full colour)'},
+  {l: 'Hot core (%)', p: 'fx3d.toon_core_pct', t: 'rng', min: 0, max: 90, show: is3dV, h: 'How much of the facing middle is the white-hot core (0 = none)'},
+  {l: 'Core colour', p: 'fx3d.toon_core', t: 'col', show: is3dV},
+  {l: 'Edge shade (%)', p: 'fx3d.toon_shade_pct', t: 'rng', min: 0, max: 100, show: is3dV, h: 'Brightness of the outer band (100 = no darkening)'},
+  {l: 'Ink outline (m)', p: 'fx3d.toon_ink_m', t: 'rng', min: 0, max: 0.15, step: 0.005, show: is3dV, h: 'Dark outline thickness (0 = none)'},
+  {l: 'Opacity (%)', p: 'fx3d.toon_alpha_pct', t: 'rng', min: 5, max: 100, show: is3dV},
+  {l: 'Sides', p: 'fx3d.toon_sides', t: 'rng', min: 3, max: 32, show: is3dV, h: 'Facets round tubes / spheres (low = chunky, faceted)'},
+  {l: 'Laser', t: 'h', show: v => is3dV(v) && (v.prim === 'sprite' || v.prim === 'ribbon')},
+  {l: 'Streak length', p: 'fx3d.laser_streak', t: 'rng', min: 0, max: 20, step: 0.5, show: v => is3dV(v) && v.prim === 'sprite', h: 'The light streak behind it = this many ticks of its travel (faster = longer; 0 = none)'},
+  {l: 'Streak max (m)', p: 'fx3d.laser_max_m', t: 'rng', min: 0, max: 20, step: 0.5, show: v => is3dV(v) && v.prim === 'sprite'},
+  {l: 'Width (%)', p: 'fx3d.laser_width_pct', t: 'rng', min: 10, max: 300, show: v => is3dV(v) && (v.prim === 'sprite' || v.prim === 'ribbon')},
+  {l: 'Beam tube', t: 'h', show: v => is3dV(v) && v.prim === 'beam'},
+  {l: 'Width (%)', p: 'fx3d.beam_width_pct', t: 'rng', min: 10, max: 400, show: v => is3dV(v) && v.prim === 'beam'},
+  {l: 'Head bulb (%)', p: 'fx3d.beam_bulb_pct', t: 'rng', min: 0, max: 400, show: v => is3dV(v) && v.prim === 'beam', h: 'Sphere at the head, % of the head width (0 = none)'},
+  {l: 'Base flare (%)', p: 'fx3d.beam_flare_pct', t: 'rng', min: 0, max: 400, show: v => is3dV(v) && v.prim === 'beam', h: 'Sphere at the base (the hand), % of the base width (0 = none)'},
+  {l: 'Wobble (%)', p: 'fx3d.beam_wobble_pct', t: 'rng', min: 0, max: 60, show: v => is3dV(v) && v.prim === 'beam', h: 'The tube throbs this much'},
+  {l: 'Impact', t: 'h', show: v => is3dV(v) && v.prim === 'pulse'},
+  {l: 'Shell', p: 'fx3d.impact_shell', t: 'chk', show: v => is3dV(v) && v.prim === 'pulse', h: 'An expanding see-through sphere'},
+  {l: 'Shell opacity (%)', p: 'fx3d.impact_shell_pct', t: 'rng', min: 0, max: 100, show: v => is3dV(v) && v.prim === 'pulse' && v.fx3d.impact_shell},
+  {l: 'Shock ring', p: 'fx3d.impact_ring', t: 'chk', show: v => is3dV(v) && v.prim === 'pulse', h: 'A flat ring spreading level'},
+  {l: 'Spikes', p: 'fx3d.impact_spikes', t: 'rng', min: 0, max: 32, show: v => is3dV(v) && v.prim === 'pulse', h: 'Radial spikes bursting out (0 = none)'},
+  {l: 'Spike length (%)', p: 'fx3d.impact_spike_pct', t: 'rng', min: 10, max: 300, show: v => is3dV(v) && v.prim === 'pulse' && v.fx3d.impact_spikes > 0},
+  {l: 'Chunks', t: 'h', show: v => is3dV(v) && v.prim === 'particles'},
+  {l: 'Shape', p: 'fx3d.chunk_shape', t: 'sel', o: () => FX3D.CHUNKS, show: v => is3dV(v) && v.prim === 'particles'},
+  {l: 'Size (%)', p: 'fx3d.chunk_size_pct', t: 'rng', min: 10, max: 400, show: v => is3dV(v) && v.prim === 'particles'},
+  {l: 'Spread out (%)', p: 'fx3d.chunk_spread_pct', t: 'rng', min: 0, max: 200, show: v => is3dV(v) && v.prim === 'particles', h: 'How far chunks fly out of the effect\'s plane (0 = flat burst)'},
 ];
 const LOOK = [
   {l: 'Name', p: 'name', t: 'txt'},
@@ -607,7 +654,7 @@ const HIT = [
   {l: 'Re-hit (ticks)', p: 'battle.rehit_ticks', t: 'num', step: 1, show: v => v.battle.deals_damage, h: '0 = hits each enemy once'},
   {l: 'Blockable', p: 'battle.blockable', t: 'chk', show: v => v.battle.deals_damage},
   {l: 'Deflectable', p: 'battle.deflectable', t: 'chk', show: v => v.battle.deals_damage},
-  {l: 'Hit depth (m)', p: 'fx3d.depth_m', t: 'rng', min: 0.1, max: 6, step: 0.1, show: v => v.battle.deals_damage, h: 'How far from its plane an enemy can stand and still be hit (3D)'},
+  {l: 'Hit depth (m)', p: 'fx3d.depth_m', t: 'rng', min: 0.1, max: 6, step: 0.1, show: v => v.battle.deals_damage, h: 'Card effects: how far from its plane an enemy can stand and still be hit. 3D shapes hit with their own 3D shape'},
 ];
 const MOVE = [
   {l: 'Moves the body', p: 'enabled', t: 'chk', s: true},
@@ -632,14 +679,15 @@ const MOVE = [
 ];
 function buildForms() {
   const e = curFx(), has = !!e;
-  ['secPlace', 'secLook', 'secMotion', 'secHit', 'secAll', 'secJson'].forEach(id => { $(id).style.opacity = has ? '' : '.5'; });
+  ['secPlace', 'secToon', 'secLook', 'secMotion', 'secHit', 'secAll', 'secJson'].forEach(id => { $(id).style.opacity = has ? '' : '.5'; });
   if (S.F) {
     const mv = FX3D.moveCfg(aset(S.act) && aset(S.act).move3d);
     form($('moveForm'), MOVE, mv, (p, v) => { const as = aset(S.act, true); as.move3d = Object.assign(FX3D.moveCfg(as.move3d), as.move3d || {}); as.move3d[p] = v; }, r => { if (r.s) { buildForms(); buildActs(); } });
   } else $('moveForm').innerHTML = '';
-  if (!has) { ['placeForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
+  if (!has) { ['placeForm', 'toonForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
   const v = fxView(e);
   form($('placeForm'), PLACE, v, writeFx, () => syncGizmo());
+  form($('toonForm'), TOON, v, writeFx, null); $('toonOut').textContent = is3dV(v) ? '3D shape' : 'card';
   form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } }, keyedFx);
   form($('motionForm'), MOTION, v, writeFx, null, keyedFx);
   form($('hitForm'), HIT, v, writeFx, null, keyedFx);

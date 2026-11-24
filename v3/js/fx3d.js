@@ -14,6 +14,18 @@
        own hit rules (FXK.resolveHits), one hit count per enemy (Daniel: "every enemy it touches").
    Per-action body movement in 3D (`action_settings[a].move3d`): start spot (stay / blink / dash to a spot round the
    target), then a path (line / leap / arc / zigzag / flank / hit & retreat) to an end spot round the target.
+   3D cel-shaded FX (Daniel 2026-11-24, "3D in shape, 2D in cell shading"): the foundational kinds are real 3D meshes
+   instead of a drawing on a card, per effect `fx3d.render` (auto / 3d = 3D toon, card = the 2D drawing as before;
+   auto = 3D for the kinds below, a card for the rest):
+     - ribbon (laser trail): a tube along its trail, tapering to its tail; sprite orb / bolt: a sphere / capsule head
+       with a laser streak, a tapered tube stretched away opposite the way it flies (longer the faster it goes)
+     - beam: a tube (base -> head widths, wobble, side count) with a bulb at the head and a flare at the base
+     - particles: 3D chunks (shards / balls) that spin and also spread out of the plane
+     - glow (orb): a sphere; pulse (impact): an expanding shell + a flat shock ring + radial spikes
+   Look = flat colour bands by how much the surface faces the camera (no gradients), a white-hot flat core where it faces
+   the camera, a dark ink outline (inverted hull); every part tunable (fx3d toon_* / laser_* / beam_* / impact_* /
+   chunk_*). Hits of a 3D effect use its 3D shape: an enemy's distance off the effect's plane is folded into the 2D
+   hit test, so a sphere / tube hits whatever it touches in 3D (FX Studio's damage / re-hit / pierce rules kept).
    Units here: metres, y up. */
 (function (G) {
 const THREE = G.THREE, FXK = G.FXK;
@@ -29,7 +41,16 @@ const ANCHORS = {root: ['Hips', 'ground'], hip: ['Hips', 'head'], chest: ['Spine
   wtip: ['WeaponTip_R', 'head', 'RightHandMiddle4'], wtip2: ['WeaponTip_L', 'head', 'LeftHandMiddle4']};
 const LAYS = ['auto', 'side', 'flat', 'ground', 'billboard'];
 const PIVOTS = ['spawn', 'figure'];
-const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn', anchor: '', offset: [0, 0, 0], size_pct: 100, ink_px: 0, depth_m: 0.8};
+const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn', anchor: '', offset: [0, 0, 0], size_pct: 100, ink_px: 0, depth_m: 0.8,
+  render: 'auto', toon_bands: 3, toon_core_pct: 30, toon_shade_pct: 55, toon_core: '#ffffff', toon_ink_m: 0.02, toon_alpha_pct: 100, toon_sides: 12,
+  laser_streak: 5, laser_max_m: 6, laser_width_pct: 85, beam_bulb_pct: 130, beam_flare_pct: 150, beam_wobble_pct: 8, beam_width_pct: 100,
+  impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120};
+const RENDERS = ['auto', '3d', 'card'];
+const CHUNKS = ['shard', 'ball', 'cube'];
+const TOON_PRIMS = ['ribbon', 'beam', 'particles', 'glow', 'pulse'];
+const TOON_NUMS = ['toon_bands', 'toon_core_pct', 'toon_shade_pct', 'toon_ink_m', 'toon_alpha_pct', 'toon_sides', 'laser_streak', 'laser_max_m',
+  'laser_width_pct', 'beam_bulb_pct', 'beam_flare_pct', 'beam_wobble_pct', 'beam_width_pct', 'impact_shell_pct', 'impact_spikes', 'impact_spike_pct',
+  'chunk_spread_pct', 'chunk_size_pct'];
 const MOVE_PATHS = ['none', 'line', 'leap', 'arc', 'zigzag', 'flank', 'hit_retreat'];
 const START_MODES = ['stay', 'blink', 'dash'];
 const MOVE_EASES = ['inout', 'linear', 'in', 'out'];
@@ -48,11 +69,24 @@ function cfg3d(fx) {
   ['tilt_deg', 'yaw_deg', 'pitch_deg', 'ink_px', 'depth_m'].forEach(k => { c[k] = num(c[k], DEF3D[k]); });
   c.size_pct = Math.max(1, num(c.size_pct, 100));
   c.anchor = typeof c.anchor === 'string' ? c.anchor : '';
+  if (RENDERS.indexOf(c.render) < 0) c.render = 'auto';
+  if (CHUNKS.indexOf(c.chunk_shape) < 0) c.chunk_shape = 'shard';
+  TOON_NUMS.forEach(k => { c[k] = num(c[k], DEF3D[k]); });
+  c.toon_bands = Math.max(1, Math.min(6, Math.round(c.toon_bands))); c.toon_sides = Math.max(3, Math.min(48, Math.round(c.toon_sides)));
+  c.impact_spikes = Math.max(0, Math.min(48, Math.round(c.impact_spikes)));
+  c.impact_shell = c.impact_shell !== false; c.impact_ring = c.impact_ring !== false;
+  if (typeof c.toon_core !== 'string' || !/^#[0-9a-f]{6}$/i.test(c.toon_core)) c.toon_core = DEF3D.toon_core;
   return c;
+}
+// Does this effect draw as a 3D cel-shaded shape? (render 3d / auto for the foundational kinds; blades stay cards)
+function is3d(fx, c) {
+  c = c || cfg3d(fx); if (!fx || c.render === 'card') return false;
+  if (fx.prim === 'sprite') return !(fx.params && fx.params.shape === 'blade');
+  return TOON_PRIMS.indexOf(fx.prim) >= 0;
 }
 // auto: soft / round FX (glows, particles, rings, afterimages) face the camera, everything else lies in the aim plane
 function autoLay(fx) { return ['glow', 'particles', 'pulse', 'ghost'].indexOf(fx.prim) >= 0 ? 'billboard' : 'side'; }
-function layOf(fx, c) { c = c || cfg3d(fx); return c.lay === 'auto' ? autoLay(fx) : c.lay; }
+function layOf(fx, c) { c = c || cfg3d(fx); const l = c.lay === 'auto' ? autoLay(fx) : c.lay; return l === 'billboard' && is3d(fx, c) ? 'side' : l; }
 function moveCfg(m) { const c = {}; m = m || {}; for (const k in MOVE_DEFAULTS) c[k] = m[k] === undefined ? MOVE_DEFAULTS[k] : m[k]; return c; }
 // effects of a fxkit file, per action, normalised (runtime copies; the 3D anchor rides as "3d:<id>")
 function byAction(F) {
@@ -97,6 +131,76 @@ function sizeCard(c, w, h) {
   }
 }
 
+/* ---------------------------------------------------------------- 3D cel-shaded shapes */
+// Bands by how much the surface faces the camera; the facing middle = the white-hot core; uInk = the hull pass (ink).
+// Tubes are a unit cylinder (y -0.5 tail .. 0.5 head) tapered in the shader (uR0 tail, uR1 head radius, metres).
+const TOON_VS = [
+  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate;',
+  'varying vec3 vN; varying vec3 vV;',
+  'void main() {',
+  '  vec3 p = position;',
+  '  if ( uTaper > 0.5 ) p.xz *= mix( uR0, uR1, clamp( p.y + 0.5, 0.0, 1.0 ) );',
+  '  vec4 mv = modelViewMatrix * vec4( p, 1.0 );',
+  '  vec3 n = normalize( normalMatrix * normal );',
+  '  mv.xyz += n * uInflate;',
+  '  vN = n; vV = normalize( -mv.xyz );',
+  '  gl_Position = projectionMatrix * mv;',
+  '}'].join('\n');
+const TOON_FS = [
+  'uniform vec3 uCol; uniform vec3 uShade; uniform vec3 uCore; uniform float uBands; uniform float uCoreT; uniform float uAlpha; uniform float uInk;',
+  'varying vec3 vN; varying vec3 vV;',
+  'void main() {',
+  '  if ( uInk > 0.5 ) { gl_FragColor = vec4( 0.02, 0.027, 0.05, uAlpha ); return; }',
+  '  float f = abs( dot( normalize( vN ), normalize( vV ) ) );',
+  '  vec3 c;',
+  '  if ( uCoreT > 0.0 && f >= 1.0 - uCoreT ) c = uCore;',
+  '  else { float k = f / max( 0.001, 1.0 - uCoreT ); float i = min( uBands - 1.0, floor( k * uBands ) );',
+  '    c = mix( uShade, uCol, uBands > 1.0 ? i / ( uBands - 1.0 ) : 1.0 ); }',
+  '  gl_FragColor = vec4( c, uAlpha );',
+  '}'].join('\n');
+const GEO = {};
+function toonGeo(kind, sides) {
+  const k = kind + sides; if (GEO[k]) return GEO[k];
+  let g;
+  if (kind === 'tube') g = new THREE.CylinderGeometry(1, 1, 1, sides, 1, false);
+  else if (kind === 'sph') g = new THREE.SphereGeometry(1, sides, Math.max(4, Math.round(sides * 0.7)));
+  else if (kind === 'ring') g = new THREE.TorusGeometry(1, 0.045, 5, Math.max(12, sides * 3));
+  else if (kind === 'shard') g = new THREE.OctahedronGeometry(1, 0);
+  else if (kind === 'cube') g = new THREE.BoxGeometry(1.3, 1.3, 1.3);
+  else g = new THREE.IcosahedronGeometry(1, 0);   // ball
+  return (GEO[k] = g);
+}
+function toonUniforms(ink) {
+  return {uCol: {value: new THREE.Color()}, uShade: {value: new THREE.Color()}, uCore: {value: new THREE.Color()}, uBands: {value: 3}, uCoreT: {value: 0.3},
+    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}};
+}
+function makeToon(scene, kind, sides) {
+  const geo = toonGeo(kind, sides);
+  const mk = ink => new THREE.ShaderMaterial({uniforms: toonUniforms(ink), vertexShader: TOON_VS, fragmentShader: TOON_FS,
+    transparent: true, depthWrite: true, side: ink ? THREE.BackSide : THREE.FrontSide});
+  const m = new THREE.Mesh(geo, mk(false)), h = new THREE.Mesh(geo, mk(true));
+  m.renderOrder = 4; h.renderOrder = 5; m.frustumCulled = h.frustumCulled = false; scene.add(m); scene.add(h);
+  return {key: kind + sides, m, h, used: false};
+}
+const _col = new THREE.Color(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), _bx = new THREE.Matrix4();
+function rgb01(c, out) { return out.setRGB(Math.max(0, Math.min(255, c[0])) / 255, Math.max(0, Math.min(255, c[1])) / 255, Math.max(0, Math.min(255, c[2])) / 255); }
+// nearest point to (x, y) on the polyline pts [[x, y] ...]
+function nearOnLine(pts, x, y) {
+  let best = null, bd = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+    const t = L > 1e-9 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L)) : 0, px = a[0] + dx * t, py = a[1] + dy * t;
+    const d = (px - x) * (px - x) + (py - y) * (py - y); if (d < bd) { bd = d; best = [px, py]; }
+  }
+  return best;
+}
+// a sprite's motion this tick (px / tick): its velocity, else its last trail step
+function spriteVel(inst) {
+  let vx = +inst.vx || 0, vy = +inst.vy || 0;
+  if (vx * vx + vy * vy < 1e-4 && inst.trail && inst.trail.length > 1) { const t = inst.trail, n = t.length; vx = t[n - 1][0] - t[n - 2][0]; vy = t[n - 1][1] - t[n - 2][1]; }
+  return [vx, vy];
+}
+
 /* ---------------------------------------------------------------- runner: one per fighter */
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _m = new THREE.Matrix4();
 const _cr = new THREE.Vector3(), _cu = new THREE.Vector3(), _cf = new THREE.Vector3();
@@ -104,7 +208,7 @@ const UPV = new THREE.Vector3(0, 1, 0);
 /* o = {fx: fxkit json, palette {body, accent}, anchors3d: pb_rig3d anchors or null, scene,
         onHit(enemyRef, damage, knockback, inst), onHitstop(ticks), onShake(px)} */
 function Runner(o) {
-  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.ctx = null; this.cur = null;
+  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.ctx = null; this.cur = null;
   this.hurtNow = null; this.curEnemy = null; this.laneId = 0;
   const F = o.fx || {}, pal = o.palette || {}, rgb = h => FXK.hexRgb(h || '#ffffff', [255, 255, 255]), sp = F.space || {};
   this.lut = FXK.buildLut([rgb(pal.body), rgb(pal.accent)]);
@@ -124,9 +228,10 @@ function Runner(o) {
     onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (e && o.onHit) o.onHit(e.ref, dmg, kb, inst); }};
 }
 Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx); };
-Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); };
+Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); };
 Runner.prototype.clear = function () {
   this.lanes = [];
+  this.toons.forEach(t => { [t.m, t.h].forEach(x => { if (x.parent) x.parent.remove(x); x.material.dispose(); }); }); this.toons = [];
   this.cards.forEach(c => { if (c.mesh.parent) c.mesh.parent.remove(c.mesh); c.tex.dispose(); c.mat.dispose(); c.mesh.geometry.dispose(); });
   this.cards = [];
 };
@@ -221,7 +326,7 @@ Runner.prototype.tick = function (ctx) {
 };
 Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
-  const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._lay = layOf(inst.fx, inst._c);
+  const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._r3 = is3d(inst.fx, inst._c); inst._lay = layOf(inst.fx, inst._c);
   inst._pv = inst._c.pivot === 'figure' ? l.fig.slice() : [inst.x, inst.y];
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const W = an && an !== 'figure' && an !== 'target' && this.ctx ? this.anchorWorld(an, new THREE.Vector3()) : null;
@@ -253,6 +358,7 @@ Runner.prototype.hits = function (l, ctx) {
   for (const inst of l.player.insts.slice()) {
     const b = inst.fx.battle; if (!b || !b.deals_damage || inst.dead) continue;
     this.initInst(l, inst);
+    if (inst._r3) { this.hits3d(l, inst, en, xf); continue; }
     const hb = inst._hb || (inst._hb = new Map());
     for (const e of en) {
       const h = this.hurtFor(l, inst, e, xf); if (!h) continue;
@@ -268,17 +374,180 @@ Runner.prototype.hits = function (l, ctx) {
   }
   this.hurtNow = null; this.curEnemy = null;
 };
+// The plane axes of an instance (after xform): along (2D x), up (2D -y), out of the plane.
+Runner.prototype.axes = function (l, xf) {
+  xf.ax = (xf.ax || new THREE.Vector3()).copy(l.X).applyQuaternion(xf.q); xf.ay = (xf.ay || new THREE.Vector3()).copy(l.Y).applyQuaternion(xf.q);
+  xf.az = (xf.az || new THREE.Vector3()).copy(l.L).applyQuaternion(xf.q); return xf;
+};
+// 2D frame point (+ px out of the plane) -> world
+Runner.prototype.w3 = function (inst, xf, x, y, z, out) {
+  return out.copy(xf.P).addScaledVector(xf.ax, (x - inst._pv[0]) * xf.Us).addScaledVector(xf.ay, -(y - inst._pv[1]) * xf.Us).addScaledVector(xf.az, (z || 0) * xf.Us);
+};
+// The 2D point of the shape an enemy at (ex, ey) is measured from (null = nothing to hit now).
+Runner.prototype.shapePoint = function (inst, ex, ey) {
+  const p = inst.fx.prim;
+  if (p === 'beam') { const b = FXK.beamSegs(inst, this.host, 1); if (!b) return null; return nearOnLine(b.segs.length > 1 && !(inst.fx.params.jitter > 0) ? [[b.tx, b.ty], [b.hx, b.hy]] : b.segs.reduce((a, q) => a.concat([[q[0], q[1]], [q[2], q[3]]]), []), ex, ey); }
+  if (p === 'ribbon') { const h = inst.hist || []; return h.length ? nearOnLine(h, ex, ey) : null; }
+  return [inst.x, inst.y];
+};
+// 3D hits: the enemy's distance off the plane (n) is folded into its 2D offset from the nearest point of the shape, so
+// FX Studio's own 2D test measures the true 3D distance (exact for spheres round a point and tubes round a line).
+Runner.prototype.hits3d = function (l, inst, en, xf) {
+  this.xform(l, inst, xf); this.axes(l, xf);
+  const hb = inst._hb || (inst._hb = new Map()), r = HURT * U / xf.Us;
+  const fold = (S, ex, ey, nn) => { let dx = ex - S[0], dy = ey - S[1], d = Math.hypot(dx, dy); if (d < 1e-6) { dx = 0; dy = -1; d = 1; }
+    const D3 = Math.hypot(d, nn); return {x: S[0] + dx / d * D3, y: S[1] + dy / d * D3, r}; };
+  for (const e of en) {
+    const dv = _d.copy(e.centre).sub(xf.P), ex = inst._pv[0] + dv.dot(xf.ax) / xf.Us, ey = inst._pv[1] - dv.dot(xf.ay) / xf.Us, nn = dv.dot(xf.az) / xf.Us;
+    this.curEnemy = e;
+    if (inst.fx.prim === 'particles') {   // each chunk is out of the plane by its own spread
+      const keep = [], all = inst.parts || [];
+      for (const q of all) {
+        inst.parts = [q]; this.hurtNow = fold([q.x, q.y], ex, ey, nn - (q._lv || 0) * (q.age || 0));
+        try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
+        if (inst.parts.length) keep.push(q);
+      }
+      inst.parts = keep; continue;
+    }
+    if (Math.abs(nn) > 4000) continue;
+    const S = this.shapePoint(inst, ex, ey); if (!S) continue;
+    let st = hb.get(e.ref); if (!st) { st = {hits: 0, lastHit: -1e9, ringHits: {}}; hb.set(e.ref, st); }
+    const sv = [inst.hits, inst.lastHit, inst.ringHits];
+    inst.hits = st.hits; inst.lastHit = st.lastHit; inst.ringHits = st.ringHits;
+    this.hurtNow = fold(S, ex, ey, nn);
+    try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
+    st.hits = inst.hits; st.lastHit = inst.lastHit; st.ringHits = inst.ringHits;
+    inst.hits = sv[0]; inst.lastHit = sv[1]; inst.ringHits = sv[2];
+    if (inst.dead) break;
+  }
+  this.hurtNow = null; this.curEnemy = null;
+};
+/* ---- drawing the 3D shapes ---- */
+Runner.prototype.toon = function (kind, sides) {
+  const key = kind + sides; let t = this.toons.find(x => !x.used && x.key === key);
+  if (!t) { t = makeToon(this.o.scene, kind, sides); this.toons.push(t); }
+  t.used = true; t.m.visible = t.h.visible = true; return t;
+};
+// colour / look onto a shape; rgb = [r, g, b] 0..255, alpha 0..1, ink = metres (0 = none)
+Runner.prototype.paint = function (t, c, rgb, alpha, ink) {
+  const a = Math.max(0, Math.min(1, alpha * c.toon_alpha_pct / 100));
+  [t.m, t.h].forEach(x => { const u = x.material.uniforms;
+    rgb01(rgb, u.uCol.value); u.uShade.value.copy(u.uCol.value).multiplyScalar(Math.max(0, c.toon_shade_pct) / 100);
+    u.uCore.value.set(c.toon_core); u.uBands.value = c.toon_bands; u.uCoreT.value = Math.max(0, Math.min(0.95, c.toon_core_pct / 100)); u.uAlpha.value = a;
+  });
+  const ik = ink == null ? c.toon_ink_m : ink;
+  // the colour pass draws first and keeps its depth when there is an ink outline, so the ink shell (drawn after) only
+  // shows round the silhouette; a see-through shape with no ink (impact shell) never hides what is behind it
+  t.m.material.depthWrite = a > 0.97 || ik > 0;
+  t.h.material.uniforms.uInflate.value = Math.max(0, ik); t.h.visible = ik > 0 && a > 0.02; t.m.visible = a > 0.005;
+  return t;
+};
+Runner.prototype.sphere = function (c, P, r, rgb, alpha, ink, scl) {
+  const t = this.paint(this.toon('sph', c.toon_sides), c, rgb, alpha, ink);
+  [t.m, t.h].forEach(x => { x.position.copy(P); x.quaternion.identity(); x.scale.set(r, r, r); x.material.uniforms.uTaper.value = 0; });
+  if (scl) [t.m, t.h].forEach(x => { x.quaternion.copy(scl.q); x.scale.set(r * scl.x, r * scl.y, r * scl.z); });
+  return t;
+};
+// tapered tube from A (radius r0) to B (radius r1)
+Runner.prototype.tube = function (c, A, B, r0, r1, rgb, alpha, ink) {
+  const L = _b.copy(B).sub(A).length(); if (L < 1e-4) return null;
+  const t = this.paint(this.toon('tube', c.toon_sides), c, rgb, alpha, ink);
+  _a.copy(_b).divideScalar(L); _q.setFromUnitVectors(UPV, _a);
+  [t.m, t.h].forEach(x => { x.position.copy(A).addScaledVector(_a, L / 2); x.quaternion.copy(_q); x.scale.set(1, L, 1);
+    const u = x.material.uniforms; u.uTaper.value = 1; u.uR0.value = Math.max(0, r0); u.uR1.value = Math.max(0, r1); });
+  return t;
+};
+Runner.prototype.draw3d = function (l, inst, xf) {
+  const fx = inst.fx, P = fx.params || {}, c = inst._c, Us = xf.Us, lut = this.lut;
+  const col = FXK.colorPair(fx, lut)[0], ink = c.toon_ink_m, W = (x, y, z, o) => this.w3(inst, xf, x, y, z, o || new THREE.Vector3());
+  const prim = fx.prim;
+  if (prim === 'beam') {
+    const b = FXK.beamSegs(inst, this.host, 1); if (!b) return;
+    const wk = c.beam_width_pct / 100, wob = 1 + c.beam_wobble_pct / 100 * Math.sin(inst.age * 0.9 + (inst.seed || 0)), a = b.am;
+    const segs = b.segs.length > 1 && !(P.jitter > 0) ? [[b.tx, b.ty, b.hx, b.hy, b.wT, b.wH]] : b.segs.map(q => [q[2], q[3], q[0], q[1], q[4], q[4]]);
+    segs.forEach(q => this.tube(c, W(q[0], q[1]), W(q[2], q[3]), q[4] / 2 * Us * wk * wob, q[5] / 2 * Us * wk * wob, col, a, ink));
+    if (c.beam_bulb_pct > 0) this.sphere(c, W(b.hx, b.hy), b.wH / 2 * Us * wk * wob * c.beam_bulb_pct / 100, col, a, ink);
+    if (c.beam_flare_pct > 0) this.sphere(c, W(b.tx, b.ty), b.wT / 2 * Us * wk * wob * c.beam_flare_pct / 100, col, a, ink);
+    return;
+  }
+  if (prim === 'ribbon') {   // laser trail: a tube along it, thick at the head, thinning to the tail
+    const h = inst.hist || [], n = h.length; if (n < 2) return;
+    const wk = c.laser_width_pct / 100, wAt = t => (P.taper ? P.w_tail + (P.w_head - P.w_tail) * t : P.w_head) / 2 * Us * wk, al = Math.max(0, Math.min(1, (+P.alpha || 255) / 255));
+    let prev = W(h[0][0], h[0][1]);
+    for (let i = 1; i < n; i++) { const cur = W(h[i][0], h[i][1]); this.tube(c, prev, cur, wAt((i - 1) / n), wAt(i / n), col, al, ink); prev = cur; }
+    this.sphere(c, prev, wAt(1) * 1.15, col, al, ink);
+    return;
+  }
+  if (prim === 'sprite') {   // orb / bolt: a head + a laser streak stretched opposite its motion
+    if (inst.age >= inst.life) return;
+    const fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1, r = Math.max(0.5, +P.radius || 3) * Us * 1.25, H = W(inst.x, inst.y);
+    const v = spriteVel(inst), sp = Math.hypot(v[0], v[1]);
+    if (P.shape === 'bolt' && sp > 0.01 && (+P.stretch || 1) > 1.001) {
+      _bx.makeBasis(xf.ax, xf.ay, xf.az); const q = new THREE.Quaternion().setFromRotationMatrix(_bx).multiply(_qa.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.atan2(v[1], v[0])));
+      this.sphere(c, H, r, col, fade, ink, {q, x: +P.stretch, y: 1, z: 1});
+    } else this.sphere(c, H, r, col, fade, ink);
+    const L = Math.min(c.laser_max_m, sp * c.laser_streak * Us);
+    if (L > r * 0.8) { const T = W(inst.x - v[0] / sp * L / Us, inst.y - v[1] / sp * L / Us); this.tube(c, T, H, 0, r * c.laser_width_pct / 100, col, fade, ink); }
+    return;
+  }
+  if (prim === 'glow') {   // orb
+    if (inst.age >= inst.life) return;
+    const t = FXK.lifeT(inst);
+    let k = P.fade === 'out' ? 1 - t : P.fade === 'in' ? t : P.fade === 'inout' ? Math.sin(t * Math.PI) : 1;
+    if (inst.cont) k = P.fade === 'in' ? t : 1;
+    const pk = P.pulse_hz > 0 ? 0.85 + 0.15 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * FXK.TICK_MS / 1000)) : 1;
+    const gr = Math.max(+P.core_r || 0, (P.r_start + (P.r_end - P.r_start) * t) * 0.6) * Us * pk;
+    if (gr > 0 && k > 0) this.sphere(c, W(inst.x, inst.y), gr, col, k, ink);
+    return;
+  }
+  if (prim === 'particles') {   // 3D chunks
+    const parts = inst.parts || [], kind = c.chunk_shape;
+    parts.forEach((q, i) => {
+      if (q._lv == null) { const v = Math.hypot(q.vx || 0, q.vy || 0) || 1; q._lv = (Math.random() * 2 - 1) * v * c.chunk_spread_pct / 100; q._sp = [Math.random() * 6, Math.random() * 6, 0.08 + Math.random() * 0.25]; }
+      const tt = Math.min(1, q.age / q.life); let size = q.s0;
+      if (P.size_over_life === 'shrink') size = q.s1 + (q.s0 - q.s1) * (1 - tt); else if (P.size_over_life === 'grow') size = q.s0 + (q.s1 - q.s0) * tt;
+      else if (P.size_over_life === 'pulse') size = q.s0 + (q.s1 - q.s0) * Math.sin(Math.min(1, tt) * Math.PI);
+      const rr = Math.max(0.5, size) / 2 * Us * c.chunk_size_pct / 100;
+      const rgb = [q.rgb1[0] + (q.rgb2[0] - q.rgb1[0]) * tt, q.rgb1[1] + (q.rgb2[1] - q.rgb1[1]) * tt, q.rgb1[2] + (q.rgb2[2] - q.rgb1[2]) * tt];
+      const tn = this.paint(this.toon(kind, 0), c, rgb, Math.max(0, 1 - tt), ink * 0.6), a = q.age * q._sp[2];
+      [tn.m, tn.h].forEach(x => { this.w3(inst, xf, q.x, q.y, q._lv * q.age, x.position); x.rotation.set(q._sp[0] + a, q._sp[1] + a * 0.7, a * 0.4); x.scale.setScalar(rr);
+        x.material.uniforms.uTaper.value = 0; });
+    });
+    return;
+  }
+  if (prim === 'pulse') {   // impact: shell + shock ring + spikes
+    const rings = FXK.pulseRings(inst, 1), sh = FXK.pulseShape(inst, this.host), C = W(inst.x, inst.y);
+    _bx.makeBasis(xf.ax, xf.ay, xf.az); const qb = new THREE.Quaternion().setFromRotationMatrix(_bx).multiply(_qa.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sh.tilt * D));
+    const c2 = FXK.colorPair(fx, lut)[1];
+    rings.forEach((q, j) => {
+      if (q.a <= 0.004 || q.r <= 0) return;
+      const R = q.r * Us;
+      if (c.impact_shell) { const s0 = Object.assign({}, c, {toon_core_pct: 0}); this.sphere(s0, C, R, c2, q.a * c.impact_shell_pct / 100, 0, {q: qb, x: sh.sx, y: sh.sy, z: Math.max(sh.sx, sh.sy)}); }
+      if (c.impact_ring) { const t = this.paint(this.toon('ring', c.toon_sides), c, col, q.a, ink * 0.5);
+        [t.m, t.h].forEach(x => { x.position.copy(C); x.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2); x.scale.set(R * sh.sx, R * sh.sy, R * (1 + q.w * Us * 2)); x.material.uniforms.uTaper.value = 0; }); }
+      if (j === 0 && c.impact_spikes > 0) {
+        const rnd = FXK.rng((inst.seed || 1) + 7), L = R * c.impact_spike_pct / 100, base = Math.max(0.02, (q.w || 2) * Us * 0.8);
+        for (let k = 0; k < c.impact_spikes; k++) {
+          const th = rnd() * Math.PI * 2, ph = Math.acos(rnd() * 2 - 1), dir = _d.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+          const len = L * (0.55 + 0.45 * rnd()), A = C.clone().addScaledVector(dir, R * 0.35), B = C.clone().addScaledVector(dir, R * 0.35 + len);
+          this.tube(c, A, B, base, 0, col, q.a, ink * 0.5);
+        }
+      }
+    });
+  }
+};
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
-  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; });
-  if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); return; }
+  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; });
+  if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); return; }
   const hidden = !!(opts && opts.hidden), tanH = Math.tan(cam.fov * Math.PI / 360);
   _cr.set(1, 0, 0).applyQuaternion(cam.quaternion); _cu.set(0, 1, 0).applyQuaternion(cam.quaternion); _cf.set(0, 0, 1).applyQuaternion(cam.quaternion);
-  const groups = new Map();
+  const groups = new Map(), solid = [];
   for (const l of this.lanes) for (const inst of l.player.insts) {
     if (hidden && FXK.bodyBound(inst)) continue;
     this.initInst(l, inst);
+    if (inst._r3) { solid.push([l, inst]); continue; }   // 3D cel-shaded shape, no card
     const src = inst.src || inst.fx, k = l.id + '|' + (src.id || src.name) + (inst._c.pivot === 'spawn' ? '|' + inst.seed + '|' + (inst.ep == null ? '' : inst.ep) : '');
     let g = groups.get(k); if (!g) { g = {l, insts: []}; groups.set(k, g); } g.insts.push(inst);
   }
@@ -320,8 +589,12 @@ Runner.prototype.draw = function (cam, H, opts) {
       m.scale.set(bw * Us * sx, bh * Us, 1);
     });
   }
+  const xs = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
+  for (const [l, inst] of solid) { this.cur = l; this.xform(l, inst, xs); this.axes(l, xs);
+    try { this.draw3d(l, inst, xs); } catch (err) { console.error('fx3d draw3d', err); } }
   this.cur = null;
   this.cards.forEach(c => { if (!c.used) c.mesh.visible = false; });
+  this.toons.forEach(t => { if (!t.used) t.m.visible = t.h.visible = false; });
 };
 /* Debug outline of where each live effect lies (FX Studio 3D): [{P (pivot), ax, ay, w, h, lay}] */
 Runner.prototype.planes = function () {
@@ -378,6 +651,6 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
   return {at, total, face: c.face, P0, E: endP, S, T, startEnd, t0, t1, samples, cfg: c, blink: c.start_mode === 'blink'};
 }
 
-G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES,
-  cfg3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
+G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS,
+  cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);

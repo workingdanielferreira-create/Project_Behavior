@@ -245,6 +245,23 @@ v3-animation skill ("Review questions").
   fighter, anchor = short-way midpoint; dummies stay where they land; camera at a 3/4 angle; ease out just before the
   knockback ends.
 
+## Parry stagger, sprint, 3D cel-shaded FX (2026-11-24)
+
+- Daniel: perfect parry staggers the attacker 0.5 s; a sprint with continuous movement (no stop-start) at 3 speed levels
+  (Lv1 base, Lv2 sprint, Lv3 per character toggled in FX Studio 3D); and "recreate the FX to be 3D in shape and 2D in cell
+  shading, starting with laser, beam, particles, sprites, orbs, impacts".
+- His picks: stagger = melee only (520 -> 500 ms); Shift hold = Lv2, double-tap + hold = Lv3; continuous at every level;
+  the AI sprints when closing / chasing. FX: per-effect Render switch, 3D by default; flat bands + ink + white-hot core,
+  all tunable; laser = a tapered tube stretched away opposite its motion (fast light); beams = tunable tubes; particles =
+  3D chunks; impacts = 3D bursts; **hits use the 3D shape**.
+- Done: `js/sprint.js` (+ fighter.js movement, input.js Shift, glbody.js sprint clip, realkits / build_kits `sprint`,
+  FX Studio 3D Character rows); fx3d.js 3D shapes + 3D hits (+ `FXK.beamSegs / pulseRings / pulseShape / lifeT`
+  exported from fxkit.js, no behaviour change); FX Studio 3D section "3D shape & cel look". README "3D cel-shaded FX"
+  and "Movement: continuous + sprint".
+- Not yet: blades, techniques (slashes, crescents), guns, kicks, defender styles as 3D shapes (still cards); the shapes
+  are not lit by the scene (flat energy bands by view angle).
+- **Next:** Daniel's verdict in game + studio; then the next batch of kinds as 3D shapes.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
