@@ -46,6 +46,7 @@ const Menu=(function(){
       num('trackMinPx','Starts at knockback',200,3000,50,' px','A single hit must carry the fighter at least this far.')+
       num('trackDist','Distance behind',1.5,14,.5,' m','')+
       num('trackHeight','Height above',0,6,.25,' m','')+
+      row('Golden-ratio framing',tog('trackGolden'),'Puts the flying fighter on the top-right golden-ratio crossing of the frame (off = centred).')+
       row('Side',seg('trackSide',[['right','Right'],['left','Left']]),'Which quarter the camera swings to.')+
       num('trackAngle','Angle',0,90,5,'°','3/4 view: how far the camera swings off straight behind the flight. 0 = straight behind (full face of a fighter thrown backwards).')+
       num('trackZoom','Zoom in',0,60,5,'%','How much narrower the view gets while tracking.')+

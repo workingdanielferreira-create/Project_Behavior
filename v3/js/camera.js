@@ -38,8 +38,17 @@ function trackPose(rdt){const f=track.f;const fp=VA(f.x,f.y,f.z,1);const h=Math.
   const th=settings.trackAngle*Math.PI/180*(track.side||1),bx=-track.dir.x,bz=-track.dir.z,c=Math.cos(th),sn=Math.sin(th);
   const ox=bx*c-bz*sn,oz=bx*sn+bz*c;   // the back direction turned round the fighter
   track.p.set(fp.x+ox*settings.trackDist,fp.y+settings.trackHeight,fp.z+oz*settings.trackDist);if(track.p.y<.4)track.p.y=.4;
-  track.l.copy(fp).addScaledVector(track.dir,1.6);track.l.y=fp.y+.15;
-  track.fov=BASE_FOV*(1-settings.trackZoom/100);}
+  track.fov=BASE_FOV*(1-settings.trackZoom/100);
+  if(settings.trackGolden){if(PLANET){goldenLook(bendP(track.p),bendP(fp),track.fov,track.l);track.l.copy(unbendP(track.l));}   // frame in drawn (curved) space
+    else goldenLook(track.p,fp,track.fov,track.l);}
+  else{track.l.copy(fp).addScaledVector(track.dir,1.6);track.l.y=fp.y+.15;}}
+/* Golden-ratio framing (Daniel 2026-11-24): aim from p so the point fp lands on the top-right crossing of the phi grid
+   (x = 61.8 % across, y = 38.2 % down = NDC (0.236, 0.236)) with view fov / the camera's aspect. Writes the look point. */
+const _gc=new THREE.PerspectiveCamera(),_gf=new THREE.Vector3(),PHI_NDC=2/1.6180339887-1;
+function goldenLook(p,fp,fov,out){_gc.position.copy(p);_gc.up.set(0,1,0);_gc.lookAt(fp);
+  const tv=Math.tan(fov*Math.PI/360),th=tv*cam.aspect;
+  _gc.rotateY(Math.atan(PHI_NDC*th));_gc.rotateX(-Math.atan(PHI_NDC*tv));   // turn left / tilt down: the fighter moves right / up in frame
+  _gf.set(0,0,-1).applyQuaternion(_gc.quaternion);out.copy(p).addScaledVector(_gf,Math.max(1,p.distanceTo(fp)));}
 // seconds until the knockback is over: fall to the ground (stunned gravity), then the ground slide down to 220 px/s
 function trackLeft(f){const g=JUMP.gravity;let t=0,s=Math.hypot(f.vx,f.vy);
   if(f.z>1){const tl=(f.vz+Math.sqrt(Math.max(0,f.vz*f.vz+2*g*f.z)))/g;t+=tl;s*=Math.exp(-GRAV.airFric*tl);}

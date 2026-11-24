@@ -489,3 +489,8 @@ round (same globe spot, other side), so a far throw keeps flying the same way ro
 the far side; the anchor is the two fighters' midpoint measured the short way round. Training dummies now stay where a
 knockback leaves them (they only float back to their placed height); Restart training puts them back.
 
+Golden-ratio framing (Daniel 2026-11-24, setting **Golden-ratio framing**, on by default): while the shot rides, the camera
+aims so the flying fighter sits on the top-right crossing of the golden-ratio grid (61.8 % across, 38.2 % down;
+`goldenLook`, worked out in drawn space on the planet via `planet.js unbendP`). Off = centred as before. The swoop in /
+glide back blend into and out of it.
+

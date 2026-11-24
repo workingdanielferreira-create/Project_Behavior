@@ -15,6 +15,10 @@ if(PLANET)arenaG.visible=false;
 const BODY_R=16;   // fighter body radius on the ground (px)
 const pX=x=>(x-W/2)*K, pZ=y=>(y-H/2)*K;          // sim px -> scene units
 const bendP=v=>PLANET?World3D.bendV(v):v;          // a flat scene point -> where it is drawn
+// the inverse: a drawn (bent) point -> the flat scene point that bends onto it (camera framing in drawn space)
+function unbendP(q){const B=World3D.BEND;if(!PLANET||!(B.w>0))return q.clone();const R=B.w,cx=q.x-B.x,cy=q.y+R,cz=q.z-B.z,r=Math.hypot(cx,cy,cz)||1e-6;
+  const th=Math.acos(Math.max(-1,Math.min(1,cy/r))),h=Math.hypot(cx,cz);
+  return h<1e-6?new THREE.Vector3(B.x,r-R,B.z):new THREE.Vector3(B.x+cx/h*th*R,r-R,B.z+cz/h*th*R);}
 function planetReset(){if(!PLANET)return;if(world)world.dispose();
   world=new World3D.World(scene,WORLD_CFG,{});world.setAnchor(0,0,true);
   scene.background=new THREE.Color(world.pal.sky[1]);const fr=world.fogRange();
