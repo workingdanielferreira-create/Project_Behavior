@@ -29,9 +29,9 @@ function camKnock(f,dvx,dvy){if(!settings.trackOn||!running||ended||(camMode!=='
   if(track.ph||now<track.next)return;
   track.f=f;track.ph=1;track.t=0;track.p0.copy(camPos);track.l0.copy(camLook);track.f0=cam.fov;
   track.dir.set(f.vx,0,f.vy);if(track.dir.lengthSq()<1e-6)track.dir.set(dvx,0,dvy);track.dir.normalize();
-  // 3/4 side = the side of the flight line the camera is on now (shortest swing)
-  const fp=VA(f.x,f.y,f.z,1);track.side=((camPos.x-fp.x)*-track.dir.z+(camPos.z-fp.z)*track.dir.x)>=0?1:-1;}
-// the chase pose: behind the fighter along its travel, swung trackAngle deg to one side (3/4 view, Daniel 2026-11-24:
+  // 3/4 side (Daniel 2026-11-24: "the right quarter"): settings.trackSide, right of the flight line by default
+  track.side=settings.trackSide==='left'?1:-1;}
+// the chase pose: behind the fighter along its travel, swung trackAngle deg to its right (side -1) or left (+1) (3/4 view, Daniel 2026-11-24:
 // a thrown fighter flies backwards, so straight behind its travel = full face), looking the way it moves
 function trackPose(rdt){const f=track.f;const fp=VA(f.x,f.y,f.z,1);const h=Math.hypot(f.vx,f.vy);
   if(h>60){const d=new THREE.Vector3(f.vx,0,f.vy).normalize();track.dir.lerp(d,1-Math.exp(-6*rdt)).normalize();}
