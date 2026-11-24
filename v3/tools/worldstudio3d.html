@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>World Studio 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* World Studio 3D (V3, Daniel 2026-11-24): the little planet V3 fights on. Preview left (the game's own world runtime,
+   v3/js/world3d.js), settings right. Save writes characters/world3d.json; run_v3.bat packs it for the game. */
+:root {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --on: #5fd39a;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c; --on: #1f7a4d; color-scheme: light;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c; --on: #1f7a4d; color-scheme: light } }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; }
+.app { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 960px) { .app { grid-template-columns: minmax(0, 1fr); } }
+.bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar h1 { font-family: var(--display); font-size: 20px; margin: 0 8px 0 0; letter-spacing: -.01em; }
+#status { font-family: var(--mono); font-size: 12px; color: var(--ok); margin-left: auto; min-width: 0; overflow-wrap: anywhere; }
+#status.warn { color: var(--warn); }
+button, select { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 11px; cursor: pointer; min-height: 32px; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #0b1020; border-color: var(--accent); font-weight: 600; }
+:root[data-theme="light"] button.primary { color: #fff; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) button.primary { color: #fff; } }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  height: calc(100vh - 90px); min-height: 380px; }
+@media (max-width: 960px) { .stage { height: 60vh; } }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.hud { position: absolute; left: 12px; top: 10px; font-family: var(--mono); font-size: 12px; color: #c4cbe0; line-height: 1.55;
+  pointer-events: none; text-shadow: 0 1px 2px #000; max-width: calc(100% - 24px); }
+.hud b { color: #fff; font-weight: 500; }
+.vbar { position: absolute; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 70%; }
+.tip { position: absolute; left: 12px; bottom: 10px; font-family: var(--mono); font-size: 11px; color: #a9b3cc; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.side { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: calc(100vh - 90px); min-width: 0; }
+@media (max-width: 960px) { .side { max-height: none; } }
+details { border-bottom: 1px solid var(--line); }
+summary { list-style: none; cursor: pointer; padding: 11px 14px; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+summary::-webkit-details-marker { display: none; }
+summary .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
+summary .dot.on { background: var(--on); }
+summary .chev { margin-left: auto; color: var(--muted); transition: transform .15s; }
+details[open] summary .chev { transform: rotate(90deg); }
+.sec { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.sec > .help { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 0; }
+.f { display: flex; flex-direction: column; gap: 4px; }
+.f .row { display: flex; align-items: center; gap: 8px; }
+.f label { flex: 1; min-width: 0; }
+.f .help { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.f input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.f input[type=number] { width: 84px; font: inherit; font-family: var(--mono); font-size: 12.5px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
+.f input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { min-height: 28px; padding: 3px 10px; font-size: 12.5px; }
+.f .reset { min-height: 24px; padding: 0 7px; font-size: 11px; color: var(--muted); }
+.off .f:not(.master) { opacity: .45; }
+.foot { padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <h1>World Studio 3D</h1>
+    <button id="dirBtn" type="button">Characters folder…</button>
+    <button id="reconnect" type="button" hidden>Reconnect</button>
+    <button id="saveBtn" type="button" class="primary">Save</button>
+    <button id="openBtn" type="button">Open file…</button>
+    <input id="fileIn" type="file" accept=".json,application/json" hidden>
+    <span id="status">Settings for the planet V3 fights on.</span>
+  </div>
+  <div class="stage">
+    <canvas id="view" aria-label="Planet preview"></canvas>
+    <div class="hud" id="hud"></div>
+    <div class="vbar">
+      <button type="button" id="vOrbit" aria-pressed="true">Orbit view</button>
+      <button type="button" id="vGround" aria-pressed="false">Ground view</button>
+      <button type="button" id="vSpin" aria-pressed="true">Spin</button>
+      <button type="button" id="reroll">New random world</button>
+    </div>
+    <div class="tip">Drag = turn · wheel = zoom · click the planet = test blast (breaks pillars / scenery, leaves a crater)</div>
+  </div>
+  <div class="side" id="side"></div>
+</div>
+<script src="../lib/three.min.js"></script>
+<script src="../lib/OrbitControls.js"></script>
+<script src="../js/world3d.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const S = {cfg: World3D.defaults(), seed: (Math.random() * 1e9) | 0, dir: null, dirty: false, view: 'orbit', spin: true};
+function status(t, warn) { const s = $('status'); s.textContent = t; s.className = warn ? 'warn' : ''; }
+try { const d = JSON.parse(localStorage.getItem('pbWorld3dDraft') || 'null'); if (d) S.cfg = World3D.merge(d); } catch (e) {}
+
+/* ---------------------------------------------------------------- 3D preview */
+const cvs = $('view'), renderer = new THREE.WebGLRenderer({canvas: cvs, antialias: true});
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xb0c0ff, 0x201018, .8)); const sun = new THREE.DirectionalLight(0xffffff, .8); sun.position.set(-10, 20, 10); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(50, 1, .1, 4000);
+const ctl = new THREE.OrbitControls(cam, cvs); ctl.enableDamping = true;
+function resize() { const r = cvs.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(cvs); resize();
+let world = null, figs = null;
+// two 1.8 m stand-ins at the start spot: one runs round, one shows the jump (Gravity section)
+function standIns() {
+  const g = new THREE.Group(); const mk = c => { const f = new THREE.Group(); const m = new THREE.MeshToonMaterial({color: c});
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(.22, .28, 1.25, 10), m); b.position.y = .63; f.add(b);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(.2, 12, 8), m); h.position.y = 1.5; f.add(h);
+    const sh = new THREE.Mesh(new THREE.CircleGeometry(.4, 16), new THREE.MeshBasicMaterial({color: 0, transparent: true, opacity: .3, depthWrite: false})); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; f.add(sh); f.userData.sh = sh;
+    g.add(f); return f; };
+  return {g, a: mk(0x6a8cff), b: mk(0xff5f7a)};
+}
+function rebuild(keepCam) {
+  if (world) world.dispose(); if (figs) scene.remove(figs.g);
+  world = new World3D.World(scene, S.cfg, {seed: S.cfg.planet.seed || S.seed, studio: true});
+  world.setAnchor(0, 0, true);
+  scene.background = new THREE.Color(world.pal.sky[1]); const fr = world.fogRange();
+  scene.fog = new THREE.Fog(world.pal.fog, fr ? fr[0] : 1e5, fr ? fr[1] : 2e5); S.fog = fr;
+  figs = standIns(); scene.add(figs.g);
+  if (!keepCam) setView(S.view);
+  drawHud();
+}
+function setView(v) { S.view = v; $('vOrbit').setAttribute('aria-pressed', v === 'orbit'); $('vGround').setAttribute('aria-pressed', v === 'ground');
+  const R = world ? world.R : 55;
+  if (v === 'orbit') { ctl.target.set(0, -R, 0); cam.position.set(R * 1.6, R * .7, R * 1.9); ctl.minDistance = R * 1.05; ctl.maxDistance = R * 8; }
+  else { ctl.target.set(0, 1, 0); cam.position.set(0, 4.5, 11); ctl.minDistance = 2; ctl.maxDistance = R * 3; }
+  ctl.update(); }
+$('vOrbit').onclick = () => setView('orbit'); $('vGround').onclick = () => setView('ground');
+$('vSpin').onclick = () => { S.spin = !S.spin; $('vSpin').setAttribute('aria-pressed', S.spin); };
+$('reroll').onclick = () => { S.seed = (Math.random() * 1e9) | 0; if (S.cfg.planet.seed) status('World seed is fixed (' + S.cfg.planet.seed + '): set it to 0 for random worlds.', true); rebuild(true); };
+
+// jump demo numbers from the Gravity section (same maths as v3/js/gravity.js)
+function jumpInfo() { const G = World3D.gravityOf(S.cfg); const h1 = 300 * G.jump, h2 = 240 * G.jump, g = G.gravity;
+  const v1 = Math.sqrt(2 * g * h1), v2 = Math.sqrt(2 * g * h2); const t1 = 2 * v1 / g;
+  return {h1, h2, g, v1, v2, t1, top: h1 + (G.maxJumps > 1 ? h2 * (G.maxJumps - 1) : 0), G}; }
+function drawHud() { if (!world) return; const J = jumpInfo(), C = S.cfg, P = C.planet;
+  const circ = 2 * Math.PI * world.R, live = world.items.filter(i => !i.dead);
+  const n = k => live.filter(i => i.group === k).length;
+  $('hud').innerHTML = '<b>' + esc(world.lookName) + '</b> · seed ' + (P.seed || S.seed) + (P.seed ? ' (fixed)' : ' (random each fight)') + '<br>' +
+    'radius ' + world.R.toFixed(0) + ' m · once round ' + circ.toFixed(0) + ' m (' + (circ / 1.8).toFixed(0) + ' bodies)' + (P.enabled ? '' : ' · <b>planet OFF: the game uses the flat arena</b>') + '<br>' +
+    'pillars ' + n('pillars') + ' · scenery ' + n('scenery') + ' · landmarks ' + n('landmarks') + ' · marks ' + world.marks.length + '<br>' +
+    'jump ' + (J.h1 / 88).toFixed(1) + ' bodies · air time ' + J.t1.toFixed(2) + ' s · ' + J.G.maxJumps + ' jumps reach ' + (J.top / 88).toFixed(1) + ' bodies';
+}
+
+// click the planet = a test blast (game: hits, throws, K.O.s and splats do this)
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); let downAt = null;
+cvs.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+cvs.addEventListener('pointerup', e => { if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5 || !world) return; downAt = null;
+  const r = cvs.getBoundingClientRect(); mouse.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(mouse, cam);
+  const hit = ray.intersectObject(world.ground, false)[0]; if (!hit) return;
+  const u = world.root.worldToLocal(hit.point.clone()).normalize();
+  const broke = world.blastU(u, 6, 80); world.crater(u, 2.4); world.scorch(u, 3.2);
+  status('Test blast: ' + broke + ' broken (radius 6 m, damage 80).'); drawHud(); });
+
+let last = performance.now(), t0 = last;
+function frame(now) { requestAnimationFrame(frame); const dt = Math.min(.05, (now - last) / 1000); last = now; if (!world) return;
+  if (S.spin && S.view === 'orbit') world.root.rotateY(dt * .06);
+  const t = (now - t0) / 1000, R = world.R;
+  // stand-in a runs a little circle on top; b jumps with this world's gravity
+  if (figs) { const a = t * .6; figs.a.position.set(Math.cos(a) * 4, 0, Math.sin(a) * 4); figs.a.rotation.y = -a;
+    const J = jumpInfo(), K = 1.8 / 88; const cyc = J.t1 + 2 * J.v2 / J.g + .6; let tt = t % cyc, z = 0;
+    if (tt < J.t1 * .5) z = J.v1 * tt - J.g * tt * tt / 2;   // up to the top of jump 1, then double jump
+    else { const z1 = J.h1, t2 = tt - J.t1 * .5; z = Math.max(0, z1 + J.v2 * t2 - J.g * t2 * t2 / 2); }
+    figs.b.position.set(2, z * K, 0); figs.b.userData.sh.position.y = -z * K + .02; }
+  if (S.fog && scene.fog) { const far = S.view === 'orbit'; scene.fog.near = far ? Math.max(S.fog[0], R * 3) : S.fog[0]; scene.fog.far = far ? Math.max(S.fog[1], R * 6) : S.fog[1]; }
+  world.update(dt, cam.position); ctl.update(); renderer.render(scene, cam); }
+
+/* ---------------------------------------------------------------- settings panel (built from World3D.SECTIONS) */
+const DEF = World3D.defaults();
+const LABEL = {meadow: 'Meadow', dusk: 'Dusk (V3 night)', moon: 'Rocky moon', crystal: 'Crystal', lava: 'Lava', ice: 'Ice', desert: 'Desert',
+  arch: 'Arch', ruin_wall: 'Ruined wall', giant_crystal: 'Giant crystal', monolith: 'Monolith', rock_spire: 'Rock spire', pine: 'Pine', round: 'Round', dead: 'Dead'};
+function buildPanel() {
+  const open = new Set(Array.from(document.querySelectorAll('#side details[open]')).map(d => d.dataset.id)); if (!document.querySelector('#side details')) open.add('planet');
+  let h = '';
+  for (const s of World3D.SECTIONS) { const v = S.cfg[s.id]; const hasMaster = s.fields[0][0] === 'enabled'; const on = !hasMaster || v.enabled;
+    h += '<details data-id="' + s.id + '"' + (open.has(s.id) ? ' open' : '') + ' class="' + (on ? '' : 'off') + '"><summary><span class="dot' + (on ? ' on' : '') + '" aria-hidden="true"></span>' + esc(s.title) + '<span class="chev" aria-hidden="true">›</span></summary><div class="sec"><p class="help">' + esc(s.help) + '</p>';
+    for (const f of s.fields) { const [k, label, type, def, mn, mx, st, help] = f; const id = s.id + '__' + k; const val = v[k]; const isDef = JSON.stringify(val) === JSON.stringify(DEF[s.id][k]);
+      h += '<div class="f' + (k === 'enabled' ? ' master' : '') + '">';
+      if (type === 'bool') h += '<div class="row"><input type="checkbox" id="' + id + '" data-s="' + s.id + '" data-k="' + k + '"' + (val ? ' checked' : '') + '><label for="' + id + '">' + esc(label) + '</label></div>';
+      else if (type === 'num') h += '<div class="row"><label for="' + id + '">' + esc(label) + '</label>' + (isDef ? '' : '<button type="button" class="reset" data-reset="' + s.id + '.' + k + '" title="Back to ' + def + '">reset</button>') + '</div><div class="row"><input type="range" aria-label="' + esc(label) + '" data-s="' + s.id + '" data-k="' + k + '" min="' + mn + '" max="' + mx + '" step="' + st + '" value="' + val + '"><input type="number" id="' + id + '" data-s="' + s.id + '" data-k="' + k + '" step="' + st + '" value="' + val + '"></div>';
+      else h += '<div class="row"><span>' + esc(label) + '</span></div><div class="chips" role="group" aria-label="' + esc(label) + '">' + mn.map(o => '<button type="button" data-s="' + s.id + '" data-k="' + k + '" data-o="' + o + '" aria-pressed="' + val.includes(o) + '">' + esc(LABEL[o] || o) + '</button>').join('') + '</div>';
+      if (help) h += '<div class="help">' + esc(help) + '</div>';
+      h += '</div>'; }
+    h += '</div></details>'; }
+  h += '<div class="foot"><button type="button" id="resetAll">All back to defaults</button></div>';
+  $('side').innerHTML = h;
+  $('resetAll').onclick = () => { if (!confirm('Put every setting back to its default?')) return; S.cfg = World3D.defaults(); changed(true); };
+}
+let rbT = 0;
+function changed(panel) { S.dirty = true; try { localStorage.setItem('pbWorld3dDraft', JSON.stringify(S.cfg)); } catch (e) {}
+  if (panel) buildPanel(); clearTimeout(rbT); rbT = setTimeout(() => rebuild(true), 220); status('Unsaved changes.'); }
+$('side').addEventListener('input', e => { const t = e.target, s = t.dataset.s, k = t.dataset.k; if (!s || !k) return;
+  if (t.type === 'checkbox') { S.cfg[s][k] = t.checked; changed(true); return; }
+  const n = parseFloat(t.value); if (!isFinite(n)) return; S.cfg[s][k] = n;
+  t.closest('.f').querySelectorAll('input').forEach(i => { if (i !== t) i.value = n; }); changed(false); });
+$('side').addEventListener('change', e => { if (e.target.type === 'range' || e.target.type === 'number') buildPanel(); });
+$('side').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.reset) { const [s, k] = b.dataset.reset.split('.'); S.cfg[s][k] = JSON.parse(JSON.stringify(DEF[s][k])); changed(true); return; }
+  if (b.dataset.o) { const L = S.cfg[b.dataset.s][b.dataset.k]; const i = L.indexOf(b.dataset.o);
+    if (i >= 0) { if (L.length === 1) { status('Keep at least one ticked (switch the section off instead).', true); return; } L.splice(i, 1); } else L.push(b.dataset.o); changed(true); } });
+
+/* ---------------------------------------------------------------- characters folder: load / save characters/world3d.json */
+function db(mode, fn) { return new Promise((res, rej) => { const r = indexedDB.open('pb_worldstudio3d', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onerror = () => rej(r.error);
+  r.onsuccess = () => { const d = r.result, tx = d.transaction('kv', mode), q = fn(tx.objectStore('kv')); tx.oncomplete = () => { d.close(); res(q && q.result); }; tx.onerror = () => { d.close(); rej(tx.error); }; }; }); }
+const inFrame = () => { try { return window.self !== window.top; } catch (e) { return true; } };
+async function loadFromDir() { if (!S.dir) return;
+  try { const f = await (await S.dir.getFileHandle('world3d.json')).getFile(); const j = JSON.parse(await f.text());
+    if (S.dirty && !confirm('Load world3d.json from “' + S.dir.name + '”? Your unsaved changes here are replaced.')) { status('Folder: ' + S.dir.name + ' (kept your unsaved changes).'); return; }
+    S.cfg = World3D.merge(j); S.dirty = false; buildPanel(); rebuild(true); status('Loaded ' + S.dir.name + '/world3d.json.'); }
+  catch (e) { status('Folder: ' + S.dir.name + ' — no world3d.json yet (Save creates it).'); } }
+$('dirBtn').onclick = () => {
+  if (window.showDirectoryPicker && !inFrame()) window.showDirectoryPicker({id: 'pbchars', mode: 'readwrite'}).then(h => { S.dir = h; db('readwrite', st => st.put(h, 'dir')).catch(() => {}); $('reconnect').hidden = true; loadFromDir(); })
+    .catch(e => { if (e && e.name !== 'AbortError') status('Could not open the folder: ' + e.message, true); });
+  else status('This browser cannot save into a folder: Save downloads world3d.json (put it in the characters folder).', true); };
+$('reconnect').onclick = () => { if (!S.dir) return; S.dir.requestPermission({mode: 'readwrite'}).then(p => { if (p === 'granted') { $('reconnect').hidden = true; loadFromDir(); } }); };
+if (window.showDirectoryPicker && window.indexedDB && !inFrame()) db('readonly', st => st.get('dir')).then(h => {
+  if (!h || !h.queryPermission) return; S.dir = h;
+  return h.queryPermission({mode: 'readwrite'}).then(p => { if (p === 'granted') loadFromDir(); else { const b = $('reconnect'); b.textContent = 'Reconnect “' + h.name + '”'; b.hidden = false; status('Last folder: ' + h.name + ' — click Reconnect.'); } });
+}).catch(() => {});
+$('saveBtn').onclick = async () => { const out = World3D.merge(S.cfg); const txt = JSON.stringify(out, null, 2) + '\n';
+  try {
+    if (S.dir) { const h = await S.dir.getFileHandle('world3d.json', {create: true}); const w = await h.createWritable(); await w.write(txt); await w.close();
+      S.dirty = false; status('Saved ' + S.dir.name + '/world3d.json. Start the game with run_v3.bat to fight on it.'); }
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'application/json'})); a.download = 'world3d.json'; a.click();
+      S.dirty = false; status('Downloaded world3d.json: put it in the characters folder, then run run_v3.bat.'); }
+  } catch (e) { status('Could not save: ' + e.message, true); } };
+$('openBtn').onclick = () => $('fileIn').click();
+$('fileIn').onchange = async function () { const f = this.files && this.files[0]; if (!f) return;
+  try { S.cfg = World3D.merge(JSON.parse(await f.text())); S.dirty = true; buildPanel(); rebuild(true); status('Opened ' + f.name + ' (not saved to the folder yet).'); }
+  catch (e) { status('Not a world file: ' + e.message, true); } this.value = ''; };
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+buildPanel(); rebuild(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

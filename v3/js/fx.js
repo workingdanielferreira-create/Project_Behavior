@@ -28,7 +28,7 @@ function fx_star(t,a,wv){const g=new THREE.Group();const n=6+wv*2;const mat=add(
 function fx_crack(x,y,wv){const g=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color:0x05060c,transparent:true,opacity:.85,depthWrite:false});
   for(let i=0;i<5+wv;i++){const a=rnd(0,TAU),len=rnd(.6,1.4)*wv*.5;const m=new THREE.Mesh(new THREE.PlaneGeometry(.07,len),mat);m.rotation.x=-Math.PI/2;m.rotation.z=a;m.position.set(Math.sin(a)*len*.5*-1,0,Math.cos(a)*len*.5*-1);g.add(m);}
   const ring=new THREE.Mesh(new THREE.RingGeometry(.3*wv,.36*wv,20),mat);ring.rotation.x=-Math.PI/2;g.add(ring);
-  g.position.copy(V(x,y,.03));temp(g,2.2,u=>{mat.opacity=.85*(u<.7?1:(1-u)/.3);});}
+  g.position.copy(V(x,y,.03));temp(g,2.2,u=>{mat.opacity=.85*(u<.7?1:(1-u)/.3);});if(wv>=3)planetCrater(x,y,wv*.35);}
 function fx_moons(f,n,r,out){const g=new THREE.Group();g.position.copy(V(f.x,f.y,1.1));for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.RingGeometry(.28,.4,16,1,0,Math.PI*.9),add(i%2?0x6a3fd0:0xf4f8ff,.95));m.rotation.x=-Math.PI/2;const a=i/n*TAU;m.userData.a=a;g.add(m);}
   temp(g,out?.4:.3,u=>{g.children.forEach(m=>{const a=m.userData.a+u*(out?1:3.5);const rr=out?r*u:r*(.6+.4*u);m.position.set(Math.cos(a)*rr,0,Math.sin(a)*rr);m.rotation.z=a+u*8;m.material.opacity=.95*(1-u);});});}
 function portalBlade(f,x,y,life,last){const e=enemyOf(f);const top=V(x,y,5.5),bot=V(x,y,.45);const ring=new THREE.Mesh(new THREE.RingGeometry(.5,.62,24),add(0x9a7aff,.9));ring.position.copy(top);ring.rotation.x=-Math.PI/2;temp(ring,.45,u=>{ring.material.opacity=.9*(1-u);ring.scale.setScalar(1+u);});

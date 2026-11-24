@@ -9,7 +9,8 @@
    Flight fighters (kit.flight, from the character's fxkit `flight: {enabled: true}`; the toggle will live in the
    future FX Studio 3D): R / F climb / descend while held, let go = stay at that height. The AI picks heights
    freely (no speed ceiling any more). Per-kit override of the numbers below: kit.jump = {any key}. */
-const JUMP={h1:300,h2:240,gravity:2600,maxJumps:2,fastFall:3.2,fastVz:900,landDustVz:1100,aiCdMs:450};
+// GRAV = World Studio 3D's Gravity section (planet.js; 100 % = h1 300, h2 240, gravity 2600, 2 jumps, fast fall 3.2).
+const JUMP={h1:300*GRAV.jump,h2:240*GRAV.jump,gravity:GRAV.gravity,maxJumps:GRAV.maxJumps,fastFall:GRAV.fastFall,fastVz:900,landDustVz:1100,aiCdMs:450};
 function jcfg(f){return f.k.jump?Object.assign({},JUMP,f.k.jump):JUMP;}
 function canFly(f){return !!f.k.flight;}
 // The fighter the keyboard drives (your on-field fighter, unless watching).
@@ -35,10 +36,10 @@ function groundAltitude(f,e){f.zWant=f.zWantRaw=f.z;
   f.vz-=c.gravity*(ff?c.fastFall:1)*DT;f.z+=f.vz*DT;
   if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}
   if(f.z<=0){const vz=f.vz;f.z=0;
-    if(vz<-1500&&f.stun>0)groundSplat(f);
-    if(f.stun>0&&vz<-700){f.vz=-vz*.22;return;}   // a thrown fighter bounces once
+    if(vz<-GRAV.splat&&f.stun>0)groundSplat(f);
+    if(f.stun>0&&vz<-700){f.vz=-vz*GRAV.bounce;return;}   // a thrown fighter bounces once
     f.vz=0;f.jumps=0;f.ffall=false;f.landT=tick+ms2t(160);
-    if(vz<-c.landDustVz){fx_dust(f.x,f.y,6);fx_ring(f.x,f.y,0x7a80a8,1.6,.25,.05);}else fx_dust(f.x,f.y,2);}}
+    if(vz<-c.landDustVz){fx_dust(f.x,f.y,6);fx_ring(f.x,f.y,0x7a80a8,1.6,.25,.05);planetCrater(f.x,f.y,.8);}else fx_dust(f.x,f.y,2);}}
 // AI jumps (not while you drive your fighter, not for dummies that only stand / guard, not with no target).
 function aiJump(f,e){
   if(playerDriven(f)&&(level==='handson'||tick<f.manualUntil))return;   // you jump yourself (Commander: the AI may, while you leave it be)

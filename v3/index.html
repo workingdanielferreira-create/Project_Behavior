@@ -29,6 +29,8 @@
 
 <!-- Load order matters: each file may use what the files above it declare. -->
 <script src="lib/three.min.js"></script>
+<script src="data/world.gen.js"></script> <!-- world settings (characters/world3d.json, World Studio 3D), packed by tools/build_kits.py -->
+<script src="js/world3d.js"></script>    <!-- the little planet: settings, globe bend, environment, destructibles (shared with World Studio 3D) -->
 <script src="js/core.js"></script>       <!-- constants, maths helpers -->
 <script src="js/settings.js"></script>   <!-- saved settings -->
 <script src="js/kits.js"></script>       <!-- stand-in kits (used only if data/kits.gen.js is missing) -->
@@ -50,6 +52,7 @@
 <script src="js/realkits.js"></script>   <!-- real kits -> V3 kits (actions, triggers, dodge, movement) -->
 <script src="js/renderer.js"></script>   <!-- WebGL renderer, scene, materials, 2D->3D mapping -->
 <script src="js/arena.js"></script>      <!-- arena / environment -->
+<script src="js/planet.js"></script>     <!-- planet in the fight: globe roll, destructibles, gravity numbers -->
 <script src="js/fx.js"></script>         <!-- FX design: primitives (slash, ring, sparks, dust ...) -->
 <script src="js/state.js"></script>      <!-- world state, timers -->
 <script src="js/keytween.js"></script>   <!-- key poses + eases -> the in-between frames (tweening) -->

@@ -10,11 +10,11 @@
    dummy. No dummies = an invisible stand-in target (phantom): your fighter only acts on your inputs then. */
 const TRAIN={maxDummies:8,refillMs:1500,refillPerS:1.2,homeMs:1000,comboGapMs:1100,fightDmg:.5};
 const TRAIN_BEH=[['stand','Stand'],['guard','Guard'],['fight','Fight back']];
-const TRAIN_START=[W*.46,H*.5];
+const TRAIN_START=[MX0+MAPW*.46,MY0+MAPH*.5];   // sim px (dummy entries are saved in map px: 0..MAPW x 0..MAPH)
 let training=false;
 const trainLog={combo:0,comboDmg:0,last:-1e9,lastDmg:0,best:0,bestDmg:0,recent:[]};
 
-function trainDefaults(){return {fighter:'',dummies:[{x:W*.58,y:H*.5,z:0,beh:'stand',kit:''}]};}
+function trainDefaults(){return {fighter:'',dummies:[{x:MAPW*.58,y:MAPH*.5,z:0,beh:'stand',kit:''}]};}
 function trainCfg(){let T=settings.training;if(!T||typeof T!=='object'||!Array.isArray(T.dummies)){T=settings.training=trainDefaults();}
   return T;}
 function trainFighterKey(){const T=trainCfg();return KITS[T.fighter]?T.fighter:validTeam(settings.teams[0],DEFAULT_SETTINGS.teams[0])[0];}
@@ -23,7 +23,7 @@ function trainDummyList(){return trainCfg().dummies.filter(d=>d&&isFinite(d.x)&&
 
 // A dummy fighter from its saved entry (index n = its number on the map / HUD).
 function mkDummy(d,n){const f=mkFighter(trainDummyKit(d),1);const beh=TRAIN_BEH.some(b=>b[0]===d.beh)?d.beh:'stand';
-  f.dummy={beh,n,home:[clamp(d.x,60,W-60),clamp(d.y,60,H-60),clamp(+d.z||0,0,ZMAX)]};
+  f.dummy={beh,n,home:[MX0+clamp(d.x,60,MAPW-60),MY0+clamp(d.y,60,MAPH-60),clamp(+d.z||0,0,ZMAX)]};
   f.x=f.dummy.home[0];f.y=f.dummy.home[1];f.z=f.dummy.home[2];
   // stand / guard dummies wear a greyed version of their colour, so they read as dummies
   if(beh!=='fight'&&f.mat){const c=f.k.col,g=0x8a90a6,mix=(s)=>Math.round((((c>>s)&255)*.35+((g>>s)&255)*.65))<<s;f.mat.color.setHex(mix(16)|mix(8)|mix(0));}
@@ -32,7 +32,7 @@ function mkPhantom(key){const f=mkFighter(key,1);f.phantom=true;f.dummy={beh:'st
 function trainDummies(){return sides[1].team.filter(d=>!d.phantom);}
 function trainPlayer(){return sides[0].team[0];}
 
-function newTraining(){clearAll();training=true;
+function newTraining(){clearAll();planetReset();training=true;
   const pk=trainFighterKey();sides[0].team=[mkFighter(pk,0)];
   buildDummies(pk);
   const p=trainPlayer();setOn(p,true);p.x=TRAIN_START[0];p.y=TRAIN_START[1];p.face=0;enter(p,'neutral');
@@ -68,11 +68,11 @@ function updDummy(f){const D=f.dummy,p=trainPlayer();
   if(f.stun>0)f.stun--;
   f.act=null;f.snap=null;
   // knockback slide (as updFighter), walls
-  f.x+=f.vx*DT;f.y+=f.vy*DT;const fr=Math.exp(-(f.z>25&&f.stun>0?1.1:7)*DT);f.vx*=fr;f.vy*=fr;
+  f.x+=f.vx*DT;f.y+=f.vy*DT;const fr=Math.exp(-(f.z>25&&f.stun>0?GRAV.airFric:GRAV.groundFric)*DT);f.vx*=fr;f.vy*=fr;
   if(f.x<20||f.x>W-20){const sp=Math.abs(f.vx);f.x=clamp(f.x,20,W-20);if(sp>700&&f.stun>0)wallSplat(f);f.vx*=-.3;}
   if(f.y<20||f.y>H-20){const sp=Math.abs(f.vy);f.y=clamp(f.y,20,H-20);if(sp>700&&f.stun>0)wallSplat(f);f.vy*=-.3;}
   // height: thrown / stunned = gravity; otherwise it hangs where it is, then floats home
-  if(f.stun>0||f.vz>1){f.vz-=2600*DT;f.z+=f.vz*DT;if(f.z<=0){const vz=f.vz;f.z=0;if(vz<-1500&&f.stun>0)groundSplat(f);f.vz=f.stun>0&&vz<-700?-vz*.22:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}}
+  if(f.stun>0||f.vz>1){f.vz-=JUMP.gravity*DT;f.z+=f.vz*DT;if(f.z<=0){const vz=f.vz;f.z=0;if(vz<-GRAV.splat&&f.stun>0)groundSplat(f);f.vz=f.stun>0&&vz<-700?-vz*GRAV.bounce:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}}
   else{f.vz=0;if(tick-f.lastHurt>ms2t(TRAIN.homeMs)){const u=1-Math.exp(-3*DT);f.x+=(D.home[0]-f.x)*u;f.y+=(D.home[1]-f.y)*u;f.z+=(D.home[2]-f.z)*u;}}
   // guard: blocks every hit while it stands (AI parry rolls on top, parry.js)
   f.block=D.beh==='guard'&&f.stun<=0?ms2t(120):0;

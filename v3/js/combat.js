@@ -92,17 +92,18 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   if(k===1&&wv>t.armor&&(wv>=3||(wv===2&&!t.act))){if(t.act)endAct(t);const kb=[0,160,420,800,1600][wv];t.vx+=dx/dd*kb;t.vy+=dy/dd*kb;
     stun(t,[0,150,260,600,850][wv],wv>=3?'down':'stag');if(wv>=3&&t.z<10)fx_dust(t.x,t.y,6);
     if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch');}
-    else if(wv===4){t.vz=(t.z-a.z)*1.4+rnd(350,800);t.stunKind='air';}
-    else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch');
+    else if(wv===4){t.vz=(t.z-a.z)*1.4+rnd(350,800);t.stunKind='air';t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;}
+    else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch');
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(!canFly(a))a.jumpAfterSnap=true;if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
+  planetHit(t,wv,dm);   // planet.js: the impact reaches scenery / pillars round the target
   if(t.hp<=0)ko(t);return true;}
 function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.stunId=(f.stunId||0)+1;f.snap=null;if(f.act)endAct(f);}
 function perfect(t,a){slowmo=ms2t(320);stats.perfect++;callout('PERFECT SNAP','Dodged on the frame · counter ready','#ffc857',.7);flash(.25);t.tp.mom=1;t.gapUntil=0;stun(a,300,'stag');a.lastWhiff=true;director.cnt++;}
 function ko(f){if(training){f.hp=0;return;}   // training.js: nobody is K.O.'d, HP refills
   f.ko=true;camEvent('ko');if(f.act)endAct(f);director.ko++;const s=sides[f.side];stats.kos[f.side]++;
-  callout('K.O.',f.k.name,'#ff3b55',.9);fx_dome(f.x,f.y,0xffffff,5);flash(.3);shake=1;slowmo=ms2t(400);
+  callout('K.O.',f.k.name,'#ff3b55',.9);fx_dome(f.x,f.y,0xffffff,5);planetCrater(f.x,f.y,2.6);planetBlast(f.x,f.y,f.z,220,80);flash(.3);shake=1;slowmo=ms2t(400);
   later(450,()=>{const alive=s.team.map((g,i)=>i).filter(i=>!s.team[i].ko);if(!alive.length){endGame(f.side===1);return;}tagIn(f.side,alive[0],'rescue');});}
 
 function distSeg(px,py,ax,ay,bx,by){const abx=bx-ax,aby=by-ay,L=abx*abx+aby*aby;const t=L?clamp(((px-ax)*abx+(py-ay)*aby)/L,0,1):0;return Math.hypot(px-ax-abx*t,py-ay-aby*t);}
@@ -111,6 +112,7 @@ function shoot(f,vx,vy,dmg,r){const m=new THREE.Mesh(new THREE.SphereGeometry(r,
   m.position.copy(VA(x,y,f.z,1.1));scene.add(m);shots.push({m,x,y,z:f.z,vx,vy,vz,dmg,side:f.side,life:ms2t(1400),owner:f});}
 function stepShots(){for(let i=shots.length-1;i>=0;i--){const s=shots[i];const px=s.x,py=s.y;s.x+=s.vx*DT;s.y+=s.vy*DT;s.z=clamp((s.z||0)+(s.vz||0)*DT,0,ZMAX+200);s.life--;s.m.position.copy(VA(s.x,s.y,s.z,1.1));
   let dead=s.life<=0||s.x<0||s.x>W||s.y<0||s.y>H;
+  if(!dead&&planetShot(s))dead=true;   // planet.js: pillars / landmarks block shots
   if(!dead)for(const t of foesOf(s.side)){   // training: every dummy
     if(t&&!t.ko&&t.on&&!t.phantom&&distSeg(t.x,t.y,px,py,s.x,s.y)<42&&Math.abs((s.z||0)-t.z)<90){const owner=s.owner;if(t.parry>0){damage(owner,t,s.dmg,'L',true,s);}else{damage(owner,t,s.dmg,s.dmg>50?'M':'L',true,s);if(s.redirected)s.redirected=false;else dead=true;}break;}}
   if(dead){scene.remove(s.m);shots.splice(i,1);}}}
