@@ -91,13 +91,14 @@ def key(t, ease, hips, hrot, chest, head, R, L, fR, fL, bease=None, label=None):
 # follows through past where it hit.
 def attack_normal():
     K = []
-    # 0.00 (2D f1-f2) mid-dash: pitched hard forward, right foot planted, left foot swinging through, right fist
-    # forward at chest height, left arm back as a counterweight
-    K.append(key(0.0, "inout", [0, -0.16, -0.20], [-8, 52, 0], [-14, 70, 4], [-4, 46, 0],
-                 (line([-14, 70, 4], ext=0.72, dx=0.06), [-1, -0.3, 0], [0.7, 0.6, 0], [0, 24]),
-                 ([0.12, -0.30, -0.42], [0.4, -0.6, -1], [0.2, 0.2, -1]),
-                 foot(-0.13, -0.05, pitch=10, yaw=-8), foot(0.12, -0.62, y=0.12, pitch=45, knee=(0.1, -0.4, 1)),
-                 label="mid-dash"))
+    # 0.00 (2D f1-f2) wind-up on the move (Daniel: "its a windup"): the right fist drawn back behind the shoulder,
+    # elbow back; the far (left) arm reaching forward as the lead / aim; body coiled toward the back hand on one
+    # C-curve from the planted foot up the back; left foot swinging through
+    K.append(key(0.0, "inout", [0, -0.16, -0.20], [-16, 40, 2], [-36, 50, 8], [10, 32, 2],
+                 ([-0.10, 0.02, -0.40], [-0.6, 0.1, -1], [0.1, 1, 0.2], [6, -26]),
+                 ([0.06, 0.0, 0.64], [0.5, -1, 0], [-0.5, 0.8, 0], [0, 22]),
+                 foot(-0.13, -0.05, pitch=10, yaw=-12), foot(0.12, -0.62, y=0.12, pitch=45, knee=(0.1, -0.4, 1)),
+                 label="wind-up: right fist back, left arm leads"))
     # 0.09 (f3) load: left foot reaching to land, hips coil right, chest wrung back further and arched a little; the
     # right fist cocked HIGH behind the ear, elbow up and out; left hand forward as a guard / range finder
     K.append(key(0.09, "in", [0, -0.10, 0.08], [-30, 40, 6], [-46, 54, 8], [6, 32, 4],
