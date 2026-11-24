@@ -479,8 +479,8 @@ the sim never reads it. Hit again while tracked = keeps riding. Settings screen 
 on / off, starts at knockback (px), distance behind, height above, zoom in (% narrower fov), swoop-in time,
 glide-back time, longest track, **cooldown** between two shots.
 
-Update (Daniel 2026-11-24): the camera sits **Angle** (45 deg) off straight behind the flight line, on the side it was
-already on (3/4 view; straight behind = the full face of a fighter thrown backwards). It starts the glide back **Ease out
+Update (Daniel 2026-11-24): the camera sits **Angle** (45 deg) off straight behind the flight line, on the **Side**
+setting's quarter (default Right of the flight line; Left available) (3/4 view; straight behind = the full face of a fighter thrown backwards). It starts the glide back **Ease out
 early** (250 ms) before the knockback is predicted to end (`trackLeft`: fall time under stunned gravity + ground slide
 down to 220 px/s), leaving from the live chase pose. While it rides, the globe keeps the tracked fighter on top.
 
