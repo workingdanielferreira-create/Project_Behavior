@@ -91,11 +91,11 @@ def key(t, ease, hips, hrot, chest, head, R, L, fR, fL, bease=None, label=None):
 # follows through past where it hit.
 def attack_normal():
     K = []
-    # 0.00 (2D f1-f2) wind-up on the move (Daniel: "its a windup"): the right fist drawn back behind the shoulder,
-    # elbow back; the far (left) arm reaching forward as the lead / aim; body coiled toward the back hand on one
+    # 0.00 (2D f1-f2) wind-up on the move (Daniel: "its a windup"): the right arm FOLDED, elbow driven back, fist
+    # tucked close behind the shoulder, the shoulder pulled back and DOWN (never shrugged into the neck); the far (left) arm reaching forward as the lead / aim; body coiled toward the back hand on one
     # C-curve from the planted foot up the back; left foot swinging through
     K.append(key(0.0, "inout", [0, -0.16, -0.20], [-16, 40, 2], [-36, 50, 8], [10, 32, 2],
-                 ([-0.10, 0.02, -0.40], [-0.6, 0.1, -1], [0.1, 1, 0.2], [6, -26]),
+                 ([-0.08, -0.06, -0.24], [-0.35, -0.15, -1], [0.1, 1, 0.2], [-12, -34]),
                  ([0.06, 0.0, 0.64], [0.5, -1, 0], [-0.5, 0.8, 0], [0, 22]),
                  foot(-0.13, -0.05, pitch=10, yaw=-12), foot(0.12, -0.62, y=0.12, pitch=45, knee=(0.1, -0.4, 1)),
                  label="wind-up: right fist back, left arm leads"))
