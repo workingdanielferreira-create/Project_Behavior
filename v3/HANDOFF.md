@@ -207,6 +207,10 @@ v3-animation skill ("Review questions").
   3D anchors from bones, every-enemy hits through the newly exported `FXK.resolveHits`, `move3d` planner),
   `v3/js/fxlive.js` (replaces `fx2d.js` in the game + training), `v3/tools/fxstudio3d.html` + `FX Studio 3D.bat`, the
   updater lists it (3 = FX Studio 3D). README section "FX Studio 3D".
+- Fix (Daniel 2026-11-24, "snaps to this stupid pose ... for the remainder of the timeline"): the preview timeline was
+  the action + a fixed 700 ms tail with the body switched to `idle`. Now the timeline = the action's own length + only
+  as long as its FX are still alive (`measureTail`, capped at 700 ms), and past the action's end the body HOLDS the
+  clip's last pose (never idle).
 - **Next:** Daniel's verdict in the studio and the game; then likely per-effect lay presets for the most-used styles,
   keyframing the 3D placement, and the not-yet-ported parts (blinks, states, intercepts).
 

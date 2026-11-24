@@ -408,11 +408,11 @@ function pushUndo() { if (!S.F) return; S.undo.push(snapshot()); if (S.undo.leng
 function beginEdit() { if (!S.editing) { pushUndo(); S.editing = true; } clearTimeout(beginEdit.t); beginEdit.t = setTimeout(() => { S.editing = false; }, 700); }
 function syncUndo() { $('undo').disabled = !S.undo.length; $('redo').disabled = !S.redo.length; $('save').textContent = S.dirty ? 'Save •' : 'Save'; }
 function changed(structural) {
-  S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null;
+  S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null;
   if (structural) { buildActs(); buildFxList(); buildForms(); } else { buildBars(); syncJson(); updateCounts(); }
 }
 function restore(js) { const cur = curFx(), id = cur && cur.id; S.F = JSON.parse(js);
-  S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
+  S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
 $('undo').onclick = () => { if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); };
 $('redo').onclick = () => { if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); };
 async function save() {
@@ -444,7 +444,7 @@ function buildActs() {
   const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
   const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
 }
-function selAction(a) { S.act = a; const list = fxOf(a); S.sel = list.length ? list[0][1] : -1; S.k = 0; S.simK = -1; S.plan = null; S.acc = 0;
+function selAction(a) { S.act = a; const list = fxOf(a); S.sel = list.length ? list[0][1] : -1; S.k = 0; S.simK = -1; S.plan = null; S.tailMs = null; S.acc = 0;
   buildActs(); buildFxList(); buildForms(); }
 $('aFrames').onchange = function () { const v = Math.max(1, Math.round(+this.value || 1)); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frames = v; changed(true); };
 $('aFms').onchange = function () { const v = Math.max(1, +this.value || TICK); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frame_ms = v; changed(true); };
@@ -640,7 +640,18 @@ $('place0').onclick = () => { const e = curFx(); if (!e) return; pushUndo(); del
 document.querySelectorAll('section > h2').forEach(h => { h.tabIndex = 0; h.onclick = () => h.parentElement.classList.toggle('folded'); h.onkeydown = e => { if (e.key === 'Enter') h.onclick(); }; });
 
 /* ---------------------------------------------------------------- timeline bars */
-function totalMs() { return actDur(S.act) + TAIL_MS; }
+/* timeline = the action's own length (the body's clip fills it), plus only as long as FX it spawned are still alive
+   (Daniel 2026-11-24: no fixed 700 ms tail with the body snapped to idle; the body holds its last pose there) */
+function totalMs() { if (S.tailMs == null) measureTail(); return actDur(S.act) + (S.tailMs || 0); }
+function measureTail() {
+  if (!S.runner || !S.fighter) return;
+  const dur = actDur(S.act), cap = Math.ceil((dur + TAIL_MS) / TICK), k0 = S.k; let last = -1;
+  S.measuring = true; S.simK = -1;
+  try { for (let k = 0; k <= cap; k++) { simTo(k); if (k * TICK >= dur && S.runner.liveCount() > 0) last = k; } }
+  finally { S.measuring = false; }
+  S.tailMs = last < 0 ? 0 : (last + 1) * TICK - dur; S.simK = -1; S.k = k0; S.hits = []; S.dmg = 0; S.flash = 0;
+  buildBars();   // the scrub bar / FX bars follow the measured length
+}
 function buildBars() {
   const box = $('bars'); box.innerHTML = ''; if (!S.F) return;
   const t = timing(S.act), tot = totalMs(), list = fxOf(S.act), pct = ms => (ms / tot * 100).toFixed(2) + '%';
@@ -664,7 +675,7 @@ try { Object.assign(DUM, JSON.parse(localStorage.getItem('pbFx3dDummy') || '{}')
 function dummyFeet() { return new THREE.Vector3(Math.cos(DUM.ang * Math.PI / 180) * DUM.dist, DUM.h, -Math.sin(DUM.ang * Math.PI / 180) * DUM.dist); }
 function syncDummyUi() { [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { $(id).value = DUM[k]; $(id + 'N').value = (+DUM[k]).toFixed(id === 'dAng' ? 0 : 1); });
   try { localStorage.setItem('pbFx3dDummy', JSON.stringify(DUM)); } catch (e) {} }
-[['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { const f = v => { DUM[k] = +v || 0; syncDummyUi(); S.simK = -1; S.plan = null; };
+[['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { const f = v => { DUM[k] = +v || 0; syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; };
   $(id).oninput = function () { f(this.value); }; $(id + 'N').onchange = function () { f(this.value); }; });
 syncDummyUi();
 function plan() {
@@ -683,7 +694,7 @@ function stepSim(k, fast) {   // tick k of the action (0 = its first)
   else { const dx = T.x - feet.x, dz = T.z - feet.z; face = Math.hypot(dx, dz) > 1e-3 ? Math.atan2(dx, dz) : lastFace; }
   lastFace = face;
   B.root.position.copy(feet); B.root.rotation.y = face;
-  pose(B, ms < dur ? S.act : 'idle', ms < dur ? ms : ms - dur, ms < dur ? dur : 0);
+  pose(B, S.act, Math.min(ms, dur), dur);   // past the action's end: hold its last pose (never idle)
   Dm.root.position.copy(T); Dm.root.rotation.y = Math.atan2(feet.x - T.x, feet.z - T.z); pose(Dm, 'idle', ms, 0);
   if (!fast || k === S.k) { /* keep */ }
   const t = timing(S.act);
@@ -703,7 +714,7 @@ function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(to
 function onHit(dmg, kb, inst) {
   S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
   S.flash = 0.18;
-  if (!S.fast) { const n = document.createElement('div'); n.className = 'num'; n.textContent = Math.round(dmg * 10) / 10; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
+  if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = Math.round(dmg * 10) / 10; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
 }
 
 /* ---------------------------------------------------------------- playback controls */
@@ -754,7 +765,7 @@ function syncGizmo() {
 }
 tc.addEventListener('objectChange', () => {
   const g = $('gizmo').value;
-  if (g === 'dummy') { const p = gizmoObj.position; DUM.dist = Math.max(0.3, Math.hypot(p.x, p.z)); DUM.ang = Math.round(Math.atan2(-p.z, p.x) * 180 / Math.PI); DUM.h = Math.max(0, p.y); syncDummyUi(); S.simK = -1; S.plan = null; return; }
+  if (g === 'dummy') { const p = gizmoObj.position; DUM.dist = Math.max(0.3, Math.hypot(p.x, p.z)); DUM.ang = Math.round(Math.atan2(-p.z, p.x) * 180 / Math.PI); DUM.h = Math.max(0, p.y); syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; return; }
   const e = curFx(); if (!e) return; const b = fxBase(e); if (!b) return; const A = laneAxes(), d = gizmoObj.position.clone().sub(b);
   const off = [d.dot(A.X), d.dot(A.Y), d.dot(A.L)].map(v => Math.round(v * 1000) / 1000);
   e.fx3d = Object.assign({}, e.fx3d || {}, {offset: off}); S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1;
