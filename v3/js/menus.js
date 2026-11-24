@@ -42,13 +42,15 @@ const Menu=(function(){
       row('Game speed','<div class="rng" data-nav data-cyc="pace" tabindex="0"><input type="range" min="25" max="100" step="5" value="'+settings.pace+'" tabindex="-1"><output>'+settings.pace+'%</output></div>')+
       row('Camera',seg('cam',[['shoulder','Over the shoulder'],['dynamic','Dynamic'],['wide','Wide']]),'Dynamic cuts between angles and on launches and ultimates. (C in game)')+
       '<h3 class="sgroup">Knockback tracking shot</h3>'+
-      row('Tracking shot',tog('trackOn'),'Over the shoulder and Dynamic: when one hit throws a fighter far, the camera swoops in behind it in one move, rides along with it facing the way it flies, then glides back when it lands.')+
+      row('Tracking shot',tog('trackOn'),'Over the shoulder and Dynamic: when one hit throws a fighter far, the camera swoops in behind it in one move, rides along with it facing the way it flies, then glides back just before the knockback ends.')+
       num('trackMinPx','Starts at knockback',200,3000,50,' px','A single hit must carry the fighter at least this far.')+
       num('trackDist','Distance behind',1.5,14,.5,' m','')+
       num('trackHeight','Height above',0,6,.25,' m','')+
+      num('trackAngle','Angle',0,90,5,'°','3/4 view: how far the camera swings off straight behind the flight. 0 = straight behind (full face of a fighter thrown backwards).')+
       num('trackZoom','Zoom in',0,60,5,'%','How much narrower the view gets while tracking.')+
       num('trackInMs','Swoop-in time',100,1500,20,' ms','The single move from the normal shot to the fighter.')+
       num('trackOutMs','Glide-back time',100,2000,20,' ms','')+
+      num('trackLeadMs','Ease out early',0,1000,25,' ms','Start the glide back this long before the knockback ends.')+
       num('trackMaxS','Longest track',.5,6,.25,' s','Ends sooner when the fighter lands and stops.')+
       num('trackCdS','Cooldown',0,30,.5,' s','Least time between two tracking shots.')+
       '<h3 class="sgroup">Display</h3>'+

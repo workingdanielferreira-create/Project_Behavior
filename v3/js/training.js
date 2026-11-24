@@ -71,9 +71,10 @@ function updDummy(f){const D=f.dummy,p=trainPlayer();
   f.x+=f.vx*DT;f.y+=f.vy*DT;const fr=Math.exp(-(f.z>25&&f.stun>0?GRAV.airFric:GRAV.groundFric)*DT);f.vx*=fr;f.vy*=fr;
   if(f.x<20||f.x>W-20){const sp=Math.abs(f.vx);f.x=clamp(f.x,20,W-20);if(sp>700&&f.stun>0)wallSplat(f);f.vx*=-.3;}
   if(f.y<20||f.y>H-20){const sp=Math.abs(f.vy);f.y=clamp(f.y,20,H-20);if(sp>700&&f.stun>0)wallSplat(f);f.vy*=-.3;}
-  // height: thrown / stunned = gravity; otherwise it hangs where it is, then floats home
+  // height: thrown / stunned = gravity; otherwise it hangs where it is, then floats back to its placed HEIGHT only:
+  // it stays where a knockback left it on the ground (Daniel 2026-11-24; Restart training puts it back on its map spot)
   if(f.stun>0||f.vz>1){f.vz-=JUMP.gravity*DT;f.z+=f.vz*DT;if(f.z<=0){const vz=f.vz;f.z=0;if(vz<-GRAV.splat&&f.stun>0)groundSplat(f);f.vz=f.stun>0&&vz<-700?-vz*GRAV.bounce:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}}
-  else{f.vz=0;if(tick-f.lastHurt>ms2t(TRAIN.homeMs)){const u=1-Math.exp(-3*DT);f.x+=(D.home[0]-f.x)*u;f.y+=(D.home[1]-f.y)*u;f.z+=(D.home[2]-f.z)*u;}}
+  else{f.vz=0;if(tick-f.lastHurt>ms2t(TRAIN.homeMs)){const u=1-Math.exp(-3*DT);f.z+=(D.home[2]-f.z)*u;}}
   // guard: blocks every hit while it stands (AI parry rolls on top, parry.js)
   f.block=D.beh==='guard'&&f.stun<=0?ms2t(120):0;
   const want=Math.atan2(p.y-f.y,p.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.2;

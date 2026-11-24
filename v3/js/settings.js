@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS={
   trackMinPx:500,             // a single hit must carry the fighter at least this far (px)
   trackDist:4.5,              // metres behind the flying fighter
   trackHeight:1.4,            // metres above it
+  trackAngle:45,              // 3/4 view: degrees off straight behind the flight line (0 = behind = full face of a fighter flying backwards)
+  trackLeadMs:250,            // start the glide back this long before the knockback is predicted to end
   trackZoom:25,               // % narrower view while tracking (zoom in)
   trackInMs:380,              // the one-move swoop in
   trackOutMs:520,             // the glide back

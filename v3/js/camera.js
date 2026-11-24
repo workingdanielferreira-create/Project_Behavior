@@ -18,46 +18,56 @@ function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa)
    where it is to just behind the flying fighter, facing the way it travels, and zooms in (fov); then it rides rigidly
    with it (same speed, the fighter stays in frame) until it lands and stops sliding (or trackMaxS), then glides back
    to the normal shot. View only: never touches the sim. Cooldown trackCdS between two shots. */
-const track={f:null,ph:0,t:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,dir:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56,next:0};
+const track={f:null,ph:0,side:1,frozen:false,t:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,dir:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56,next:0};
 const BASE_FOV=56;
 // combat.js damage(): the knockback this hit added (px/s). Predicts the carry (speed / slide friction) and starts the shot.
 function camKnock(f,dvx,dvy){if(!settings.trackOn||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'))return;
   const [a,b]=onField();if((f!==a&&f!==b)||f.phantom||!f.on)return;
   const s=Math.hypot(dvx,dvy),air=f.vz>0||f.z>25,carry=s/(air?GRAV.airFric:GRAV.groundFric);if(carry<settings.trackMinPx)return;
   const now=performance.now()/1000;
-  if(track.f===f&&track.ph&&track.ph<3){track.t=Math.min(track.t,track.ph===2?0:track.t);if(track.ph===2)track.hold=0;return;}   // hit again while tracked: keep riding
+  if(track.f===f&&(track.ph===1||track.ph===2)){if(track.ph===2)track.t=0;return;}   // hit again while tracked: keep riding
   if(track.ph||now<track.next)return;
-  track.f=f;track.ph=1;track.t=0;track.hold=0;track.p0.copy(camPos);track.l0.copy(camLook);track.f0=cam.fov;
-  track.dir.set(f.vx,0,f.vy);if(track.dir.lengthSq()<1e-6)track.dir.set(dvx,0,dvy);track.dir.normalize();}
-// the chase pose: behind the fighter along its travel, looking the way it moves
+  track.f=f;track.ph=1;track.t=0;track.p0.copy(camPos);track.l0.copy(camLook);track.f0=cam.fov;
+  track.dir.set(f.vx,0,f.vy);if(track.dir.lengthSq()<1e-6)track.dir.set(dvx,0,dvy);track.dir.normalize();
+  // 3/4 side = the side of the flight line the camera is on now (shortest swing)
+  const fp=VA(f.x,f.y,f.z,1);track.side=((camPos.x-fp.x)*-track.dir.z+(camPos.z-fp.z)*track.dir.x)>=0?1:-1;}
+// the chase pose: behind the fighter along its travel, swung trackAngle deg to one side (3/4 view, Daniel 2026-11-24:
+// a thrown fighter flies backwards, so straight behind its travel = full face), looking the way it moves
 function trackPose(rdt){const f=track.f;const fp=VA(f.x,f.y,f.z,1);const h=Math.hypot(f.vx,f.vy);
   if(h>60){const d=new THREE.Vector3(f.vx,0,f.vy).normalize();track.dir.lerp(d,1-Math.exp(-6*rdt)).normalize();}
-  track.p.copy(fp).addScaledVector(track.dir,-settings.trackDist);track.p.y=fp.y+settings.trackHeight;if(track.p.y<.4)track.p.y=.4;
-  track.l.copy(fp).addScaledVector(track.dir,2.2);track.l.y=fp.y+.15;
+  const th=settings.trackAngle*Math.PI/180*(track.side||1),bx=-track.dir.x,bz=-track.dir.z,c=Math.cos(th),sn=Math.sin(th);
+  const ox=bx*c-bz*sn,oz=bx*sn+bz*c;   // the back direction turned round the fighter
+  track.p.set(fp.x+ox*settings.trackDist,fp.y+settings.trackHeight,fp.z+oz*settings.trackDist);if(track.p.y<.4)track.p.y=.4;
+  track.l.copy(fp).addScaledVector(track.dir,1.6);track.l.y=fp.y+.15;
   track.fov=BASE_FOV*(1-settings.trackZoom/100);}
+// seconds until the knockback is over: fall to the ground (stunned gravity), then the ground slide down to 220 px/s
+function trackLeft(f){const g=JUMP.gravity;let t=0,s=Math.hypot(f.vx,f.vy);
+  if(f.z>1){const tl=(f.vz+Math.sqrt(Math.max(0,f.vz*f.vz+2*g*f.z)))/g;t+=tl;s*=Math.exp(-GRAV.airFric*tl);}
+  if(s>220)t+=Math.log(s/220)/GRAV.groundFric;return t;}
 const ease=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
 // returns true while the shot owns the camera (camStep then skips its own placement)
 function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1000;
   const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic')||!settings.trackOn;
-  if(gone&&track.ph<3){track.ph=3;track.t=0;track.p0.copy(cam.position);track.l0.copy(track.l);track.f0=cam.fov;}
-  if(track.ph===1||track.ph===2)trackPose(rdt);
+  if(gone&&track.ph<3){track.ph=3;track.t=0;track.frozen=true;track.f0=cam.fov;}
+  if(!track.frozen&&f&&f.on)trackPose(rdt);   // live chase pose in every phase (the glide back leaves from it, no freeze)
   if(track.ph===1){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackInMs)));
     cam.position.lerpVectors(track.p0,track.p,u);camLookT.lerpVectors(track.l0,track.l,u);cam.fov=track.f0+(track.fov-track.f0)*u;
     if(u>=1){track.ph=2;track.t=0;}}
   else if(track.ph===2){cam.position.copy(track.p);camLookT.copy(track.l);cam.fov=track.fov;
-    const landed=f.z<=1&&Math.hypot(f.vx,f.vy)<220;track.hold=landed?(track.hold||0)+rdt:0;
-    if(track.hold>.12||track.t>settings.trackMaxS*1000){track.ph=3;track.t=0;track.p0.copy(track.p);track.l0.copy(track.l);track.f0=cam.fov;}}
+    // ease out JUST BEFORE the knockback ends (trackLeadMs ahead of the predicted stop), or at the longest track
+    if(trackLeft(f)*1000<=settings.trackLeadMs||track.t>settings.trackMaxS*1000){track.ph=3;track.t=0;track.f0=cam.fov;}}
   if(track.ph===3){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackOutMs)));
-    cam.position.lerpVectors(track.p0,camPos,u);camLookT.lerpVectors(track.l0,camLook,u);cam.fov=track.f0+(BASE_FOV-track.f0)*u;
-    if(u>=1){track.ph=0;track.f=null;cam.fov=BASE_FOV;track.next=performance.now()/1000+settings.trackCdS;}}
+    cam.position.lerpVectors(track.p,camPos,u);camLookT.lerpVectors(track.l,camLook,u);cam.fov=track.f0+(BASE_FOV-track.f0)*u;
+    if(u>=1){track.ph=0;track.f=null;track.frozen=false;cam.fov=BASE_FOV;track.next=performance.now()/1000+settings.trackCdS;}}
   cam.updateProjectionMatrix();return true;}
 const camLookT=new THREE.Vector3();
-function trackReset(){track.ph=0;track.f=null;track.next=0;cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
+function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
 function camStep(rdt,idle){if(idle){if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
   let mode=camMode;const now=performance.now()/1000;
   if(camMode==='dynamic'){if(now>cut.t){const r=Math.random();cut.kind=sep>28?(r<.6?'side':'wide'):(r<.45?'shoulder':r<.7?'side':r<.85?'reverse':'low');cut.t=now+rnd(2.4,4.8);cut.snap=true;}mode=cut.kind;}
   const [tgt,look]=camShot(mode,pa,pb,sep);if(tgt.y<.4)tgt.y=.4;
+  if(PLANET&&planetWrapped){planetWrapped=false;camPos.copy(tgt);camLook.copy(look);}   // a fighter came round the globe: re-frame at once
   if(cut.snap&&!track.ph){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
   else{camPos.lerp(tgt,1-Math.exp(-(mode==='wide'?3:5.5)*rdt));camLook.lerp(look,1-Math.exp(-9*rdt));}
   // the knockback tracking shot owns the camera while it runs (the normal shot keeps updating underneath, for the glide back)

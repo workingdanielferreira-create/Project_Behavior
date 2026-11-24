@@ -240,6 +240,10 @@ v3-animation skill ("Review questions").
 - His picks: trigger = a single hit carrying a fighter > 500 px; camera faces the way the fighter moves and never
   affects movement; ends on landing with a glide back; settings (+ a cooldown); also in Dynamic; also when YOUR fighter
   is knocked. README "Knockback tracking shot". **Next:** his verdict in game.
+- Fix round (same day): Daniel saw thrown fighters "fly about halfway round the planet, then reverse" during the shot
+  (the bend wrapped them past the far side). His picks: keep flying round (globe wrap), the globe follows the tracked
+  fighter, anchor = short-way midpoint; dummies stay where they land; camera at a 3/4 angle; ease out just before the
+  knockback ends.
 
 ## Next steps (agreed direction, not started)
 
